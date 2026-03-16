@@ -1,0 +1,49 @@
+#!/bin/bash
+# md-pages domain hook
+# Installs md-processor.pl and starter files when ssi-md template is applied
+# https://github.com/OpenDigitalCC/md-pages
+
+user="$1"
+domain="$2"
+ip="$3"
+home_dir="$4"
+docroot="$5"
+
+TEMPLATE_DIR="$(dirname "$0")/files"
+CGIBIN="$home_dir/$user/web/$domain/cgi-bin"
+TEMPLATES_DIR="$docroot/templates"
+
+# Install processor
+install -m 755 -o "$user" -g "$user" \
+    "$TEMPLATE_DIR/md-processor.pl" \
+    "$CGIBIN/md-processor.pl"
+
+# Create templates directory
+mkdir -p "$TEMPLATES_DIR"
+chown "$user":"$user" "$TEMPLATES_DIR"
+
+# Install layout.tt only if not already present
+if [ ! -f "$TEMPLATES_DIR/layout.tt" ]; then
+    install -m 644 -o "$user" -g "$user" \
+        "$TEMPLATE_DIR/layout.tt" \
+        "$TEMPLATES_DIR/layout.tt"
+fi
+
+# Install starter 404.md only if not already present
+if [ ! -f "$docroot/404.md" ]; then
+    install -m 644 -o "$user" -g "$user" \
+        "$TEMPLATE_DIR/404.md" \
+        "$docroot/404.md"
+fi
+
+# Install starter index.md only if not already present
+if [ ! -f "$docroot/index.md" ]; then
+    install -m 644 -o "$user" -g "$user" \
+        "$TEMPLATE_DIR/index.md" \
+        "$docroot/index.md"
+fi
+
+# Ensure www-data can write generated .html files to docroot
+chmod g+w "$docroot"
+
+exit 0
