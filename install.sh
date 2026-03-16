@@ -23,8 +23,8 @@ fi
 echo "Checking dependencies..."
 
 MISSING=""
-perl -e "use Text::Markdown" 2>/dev/null || MISSING="$MISSING libtext-markdown-perl"
-perl -e "use Template" 2>/dev/null       || MISSING="$MISSING libtemplate-perl"
+perl -e "use Text::MultiMarkdown" 2>/dev/null || MISSING="$MISSING libtext-multimarkdown-perl"
+perl -e "use Template" 2>/dev/null            || MISSING="$MISSING libtemplate-perl"
 
 if [ -n "$MISSING" ]; then
     echo "Installing missing Perl modules:$MISSING"

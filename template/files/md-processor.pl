@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Text::Markdown qw(markdown);
+use Text::MultiMarkdown qw(markdown);
 use Template;
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
