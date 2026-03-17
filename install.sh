@@ -48,6 +48,10 @@ install -m 644 "$TEMPLATE_SRC/files/layout.vars"      "$TEMPLATE_DEST/files/layo
 install -m 644 "$TEMPLATE_SRC/files/404.md"           "$TEMPLATE_DEST/files/404.md"
 install -m 644 "$TEMPLATE_SRC/files/index.md"         "$TEMPLATE_DEST/files/index.md"
 
+mkdir -p "$TEMPLATE_DEST/files/registries"
+install -m 644 "$TEMPLATE_SRC/files/registries/llms.txt.tt"    "$TEMPLATE_DEST/files/registries/llms.txt.tt"
+install -m 644 "$TEMPLATE_SRC/files/registries/sitemap.xml.tt" "$TEMPLATE_DEST/files/registries/sitemap.xml.tt"
+
 echo ""
 echo "md-pages installed successfully."
 echo ""

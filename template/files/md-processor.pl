@@ -12,9 +12,11 @@ use LWP::UserAgent;
 my $DOCROOT     = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 
-my $LAYOUT      = "$DOCROOT/templates/layout.tt";
-my $LAYOUT_VARS = "$DOCROOT/templates/layout.vars";
-my $REMOTE_TTL  = 3600;  # seconds before remote content is refetched (default 1 hour)
+my $LAYOUT        = "$DOCROOT/templates/layout.tt";
+my $LAYOUT_VARS   = "$DOCROOT/templates/layout.vars";
+my $REGISTRY_DIR  = "$DOCROOT/templates/registries";
+my $REMOTE_TTL    = 3600;  # seconds before remote content is refetched (default 1 hour)
+my $REGISTRY_TTL  = 14400; # seconds before registries are regenerated (default 4 hours)
 
 # --- Main ---
 
@@ -105,6 +107,8 @@ sub process_md {
     my $page            = render_template( $meta, $html_body );
 
     write_html( $html_path, $page );
+    eval { update_registries() };
+    log_warn("Registry update failed: $@") if $@;
 
     return $page;
 }
@@ -143,6 +147,8 @@ sub process_url {
     my $page       = render_template( $meta, $html_body );
 
     write_html( $html_path, $page );
+    eval { update_registries() };
+    log_warn("Registry update failed: $@") if $@;
 
     return $page;
 }
@@ -184,6 +190,16 @@ sub parse_yaml_front_matter {
     if ( $text =~ s/\A---\s*\n(.*?)\n---\s*\n//s ) {
         my $yaml = $1;
 
+        # Parse register list (- item lines)
+        if ( $yaml =~ /^register\s*:\s*\n((?:[ \t]*-[^\n]*\n)*)/m ) {
+            my $block = $1;
+            my @registries;
+            while ( $block =~ /^[ \t]*-[ \t]*(\S+)/mg ) {
+                push @registries, $1;
+            }
+            $meta{register} = \@registries;
+        }
+
         # Parse tt_page_var block (indented key: value pairs)
         if ( $yaml =~ /^tt_page_var\s*:\s*\n((?:[ \t]+\S[^\n]*\n)*)/m ) {
             my $block = $1;
@@ -194,9 +210,10 @@ sub parse_yaml_front_matter {
             $meta{tt_page_var} = \%tt_vars;
         }
 
-        # Parse scalar key: value pairs (skip tt_page_var block)
+        # Parse scalar key: value pairs (skip tt_page_var and register blocks)
         while ( $yaml =~ /^(\w+)\s*:\s*([^\n]+)$/mg ) {
             next if $1 eq 'tt_page_var';
+            next if $1 eq 'register';
             $meta{$1} = $2;
         }
     }
@@ -244,6 +261,12 @@ sub convert_md {
     return $md->markdown($body);
 }
 
+sub interpolate_env {
+    my ($val) = @_;
+    $val =~ s/\$\{(\w+)\}/$ENV{$1} \/\/ ''/ge;
+    return $val;
+}
+
 sub resolve_tt_vars {
     my ($defs) = @_;
     my %vars;
@@ -252,6 +275,7 @@ sub resolve_tt_vars {
         my $val = $defs->{$key};
 
         if ( $val =~ s/^url:// ) {
+            $val = interpolate_env($val);
             $val =~ s/^\s+|\s+$//g;
             my $fetched = fetch_url($val);
             if ( defined $fetched ) {
@@ -264,6 +288,7 @@ sub resolve_tt_vars {
             }
         }
         else {
+            $val = interpolate_env($val);
             $val =~ s/^\s+|\s+$//g;
             $vars{$key} = $val;
         }
@@ -283,6 +308,121 @@ sub resolve_site_vars {
     }
 
     return resolve_tt_vars(\%defs);
+}
+
+sub update_registries {
+    return unless -d $REGISTRY_DIR;
+
+    opendir( my $dh, $REGISTRY_DIR ) or return;
+    my @templates = grep { /\.tt$/ } readdir($dh);
+    closedir($dh);
+
+    return unless @templates;
+
+    # Check if any registry needs updating
+    my $needs_update = 0;
+    for my $tmpl (@templates) {
+        ( my $output_name = $tmpl ) =~ s/\.tt$//;
+        my $output_path = "$DOCROOT/$output_name";
+        if ( !-f $output_path
+            || ( time() - ( stat($output_path) )[9] ) >= $REGISTRY_TTL )
+        {
+            $needs_update = 1;
+            last;
+        }
+    }
+    return unless $needs_update;
+
+    # Scan all source pages
+    my @pages = scan_pages();
+    my %site_vars = resolve_site_vars();
+
+    my $tt = Template->new(
+        ABSOLUTE => 1,
+        ENCODING => 'utf8',
+    ) or return;
+
+    for my $tmpl (@templates) {
+        ( my $output_name = $tmpl ) =~ s/\.tt$//;
+        my $output_path  = "$DOCROOT/$output_name";
+        my $tmpl_path    = "$REGISTRY_DIR/$tmpl";
+
+        # Check this specific registry needs updating
+        next if -f $output_path
+            && ( time() - ( stat($output_path) )[9] ) < $REGISTRY_TTL;
+
+        # Filter pages registered for this registry
+        my $registry_name = $output_name;
+        my @registered = grep {
+            my $page = $_;
+            grep { $_ eq $registry_name } @{ $page->{register} || [] }
+        } @pages;
+
+        my $vars = {
+            %site_vars,
+            pages => \@registered,
+        };
+
+        my $output = '';
+        $tt->process( $tmpl_path, $vars, \$output ) or do {
+            log_warn("Registry template error for $tmpl: " . $tt->error());
+            next;
+        };
+
+        open( my $fh, '>:utf8', $output_path ) or do {
+            log_warn("Cannot write registry $output_path: $!");
+            next;
+        };
+        print $fh $output;
+        close $fh;
+    }
+}
+
+sub scan_pages {
+    my @pages;
+
+    # Find all .md and .url files recursively under docroot
+    my @queue = ($DOCROOT);
+    while ( my $dir = shift @queue ) {
+        opendir( my $dh, $dir ) or next;
+        for my $entry ( sort readdir($dh) ) {
+            next if $entry =~ /^\./;
+            my $path = "$dir/$entry";
+            if ( -d $path ) {
+                push @queue, $path;
+            }
+            elsif ( $entry =~ /\.(md|url)$/ ) {
+                my $raw;
+                if ( $entry =~ /\.md$/ ) {
+                    $raw = read_file($path);
+                }
+                else {
+                    # For .url files read the cached .html front matter isn't
+                    # available - read from remote is too expensive, skip register
+                    # unless a local .md sidecar exists
+                    next;
+                }
+
+                my ( $meta, undef ) = parse_yaml_front_matter($raw);
+                next unless $meta->{register};
+
+                # Derive URL from path
+                ( my $url = $path ) =~ s{^\Q$DOCROOT\E}{};
+                $url =~ s/\.md$//;
+                $url =~ s{/index$}{/};
+
+                push @pages, {
+                    url      => $url,
+                    title    => $meta->{title}    || '',
+                    subtitle => $meta->{subtitle} || '',
+                    register => $meta->{register} || [],
+                };
+            }
+        }
+        closedir($dh);
+    }
+
+    return @pages;
 }
 
 sub render_template {

@@ -36,6 +36,17 @@ if [ ! -f "$TEMPLATES_DIR/layout.vars" ]; then
         "$TEMPLATES_DIR/layout.vars"
 fi
 
+# Install registries directory and starter templates if not already present
+mkdir -p "$TEMPLATES_DIR/registries"
+chown "$user":"$user" "$TEMPLATES_DIR/registries"
+for tmpl in "$TEMPLATE_DIR/registries/"*.tt; do
+    [ -f "$tmpl" ] || continue
+    dest="$TEMPLATES_DIR/registries/$(basename "$tmpl")"
+    if [ ! -f "$dest" ]; then
+        install -m 644 -o "$user" -g "$user" "$tmpl" "$dest"
+    fi
+done
+
 # Install starter 404.md only if not already present
 if [ ! -f "$docroot/404.md" ]; then
     install -m 644 -o "$user" -g "$user" \

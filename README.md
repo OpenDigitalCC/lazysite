@@ -58,8 +58,8 @@ Resilient
   continue to be served unaffected.
 
 Easy to audit
-: The entire processor is around 150 lines of readable Perl with no
-  framework dependencies beyond two standard Debian packages.
+: The processor is a single readable Perl script with no framework
+  dependencies beyond three standard Debian packages.
 
 Works alongside static files
 : Mix hand-crafted `.html` files and `.md` files in the same docroot
@@ -124,7 +124,11 @@ Pages are available immediately at their extensionless URL:
 ```
 public_html/about.md            -> https://example.com/about
 public_html/services/hosting.md -> https://example.com/services/hosting
+public_html/services/index.md   -> https://example.com/services/
 ```
+
+Directory index pages are served when a trailing slash URL is requested.
+Create `dirname/index.md` for any directory that needs an index page.
 
 ## Page format
 
@@ -155,29 +159,45 @@ content:
 - `[% page_subtitle %]` - from front matter `subtitle`
 - `[% content %]` - the converted page body
 
-### Site-wide variables (`tt_site_var`)
+Variables are processed in two passes - first in the page body, then in
+`layout.tt`. This means `[% version %]` works both in `.md` content and
+in the layout template.
+
+### Site-wide variables
 
 Variables available on every page are defined in `templates/layout.vars`:
 
 ```yaml
-site_name: My Site
+site_name: ctrl-exec
+site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
 version: url:https://raw.githubusercontent.com/example/repo/main/VERSION
 support_email: hello@example.com
 ```
 
-Values prefixed with `url:` are fetched from the remote URL and trimmed.
-Values without a prefix are used as literal strings.
+Three value types are supported:
 
-Use anywhere in `layout.tt` or page content:
+Literal string
+: `key: value` - used as-is
 
-```
-[% site_name %]
-[% version %]
-```
+Environment variable
+: `key: ${ENV_VAR}` - interpolated from the Apache CGI environment.
+  Multiple vars and mixed text are supported: `${REQUEST_SCHEME}://${SERVER_NAME}`
 
-### Page-scoped variables (`tt_page_var`)
+Remote URL
+: `key: url:https://...` - fetched, trimmed, and cached with the page TTL.
+  Env var interpolation works inside `url:` values too.
 
-Variables available only on a specific page are defined in its front matter:
+Useful Apache CGI environment variables:
+
+- `${SERVER_NAME}` - domain name e.g. `example.com`
+- `${REQUEST_SCHEME}` - `http` or `https`
+- `${SERVER_PORT}` - port number
+- `${HTTPS}` - `on` if SSL
+
+### Page-scoped variables
+
+Variables available only on a specific page are defined in its front matter
+under `tt_page_var`:
 
 ```yaml
 ---
@@ -193,6 +213,85 @@ Page variables override site variables of the same name.
 ### Variable precedence
 
 Site vars → page vars → `page_title`, `page_subtitle`, `content`
+
+## Registries
+
+Registries are generated files derived from page front matter - `llms.txt`,
+`sitemap.xml`, or any other format. A page declares which registries it
+belongs to via the `register` front matter key:
+
+```yaml
+---
+title: Installation Guide
+subtitle: How to install and configure
+register:
+  - llms.txt
+  - sitemap.xml
+---
+```
+
+Each registry name maps to a Template Toolkit template in
+`templates/registries/`. The template filename without `.tt` is the output
+filename written to the docroot root:
+
+```
+templates/registries/llms.txt.tt    -> public_html/llms.txt
+templates/registries/sitemap.xml.tt -> public_html/sitemap.xml
+```
+
+Registries are regenerated on the next page render after the registry TTL
+expires (default 4 hours - `$REGISTRY_TTL` in `md-processor.pl`). To force
+immediate regeneration delete the output file:
+
+```bash
+rm public_html/llms.txt
+```
+
+### Registry templates
+
+Registry templates receive these variables:
+
+- `pages` - array of registered page objects
+- All site-wide variables from `layout.vars`
+
+Each page object contains:
+
+- `[% page.url %]` - canonical URL path e.g. `/install`
+- `[% page.title %]` - from front matter
+- `[% page.subtitle %]` - from front matter
+
+Example `llms.txt.tt`:
+
+```
+# [% site_name %]
+
+> [% site_name %] documentation and pages.
+
+## Pages
+
+[% FOREACH page IN pages %]
+- [[% page.title %]]([% site_url %][% page.url %].md)[% IF page.subtitle %]: [% page.subtitle %][% END %]
+[% END %]
+```
+
+Example `sitemap.xml.tt`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+[% FOREACH page IN pages %]
+  <url>
+    <loc>[% site_url %][% page.url %]</loc>
+  </url>
+[% END %]
+</urlset>
+```
+
+### Adding a new registry
+
+Drop a `.tt` file in `templates/registries/` - no code changes needed. The
+processor picks it up automatically on the next page render after the TTL
+expires.
 
 ## Remote sources
 
@@ -355,7 +454,74 @@ cp /usr/local/hestia/data/templates/web/apache2/php-fpm/files/layout.tt \
    /home/username/web/example.com/public_html/templates/layout.tt
 ```
 
-## Uninstall
+### Subdirectory permissions
+
+When pages are in subdirectories (`docs/`, `services/` etc.), the processor
+creates those directories automatically. However the group ownership must
+match the docroot for `www-data` to write into them.
+
+If pages in subdirectories render but don't cache, fix the directory:
+
+```bash
+chown $(stat -c '%U' public_html):$(stat -c '%G' public_html) public_html/docs
+chmod g+w public_html/docs
+```
+
+The error log will contain the fix command if this is the cause:
+
+```
+md-pages: Cannot write cache file .../docs/install.html: Permission denied
+- page will render uncached. Fix with: chown ...
+```
+
+### Pages appear as 404 in the access log
+
+This is normal behaviour. Apache logs the original 404 status for all
+requests handled by the `ErrorDocument` handler, even when the processor
+renders the page successfully. The page renders correctly in the browser.
+
+To confirm a page is rendering and caching correctly, check whether the
+`.html` file exists after the first request:
+
+```bash
+ls public_html/about.html
+```
+
+If the file exists, the page is working. The 404 log entry is cosmetic.
+
+Note: if the browser serves a cached version, Apache is never contacted and
+the processor never runs. Use `curl` to bypass browser cache when testing:
+
+```bash
+curl -s https://example.com/about > /dev/null
+ls public_html/about.html
+```
+
+### Registries not generating
+
+Registries are only generated when a page is rendered - they are not
+generated on cached page serves. If registries are missing:
+
+1. Delete the registry file to clear any stale TTL state:
+   ```bash
+   rm public_html/llms.txt
+   ```
+2. Force a page render by deleting a cached page:
+   ```bash
+   rm public_html/index.html
+   ```
+3. Request the page via curl (bypasses browser cache):
+   ```bash
+   curl -s https://example.com/ > /dev/null
+   ```
+
+Check the error log for any registry errors:
+
+```bash
+grep "Registry\|registry" logs/example.com.error.log
+```
+
+
 
 ```bash
 sudo bash uninstall.sh
@@ -379,6 +545,9 @@ md-pages/
       layout.vars       <- starter site-wide TT variables
       404.md            <- starter 404 page
       index.md          <- starter index page
+      registries/
+        llms.txt.tt     <- starter llms.txt registry template
+        sitemap.xml.tt  <- starter sitemap registry template
   docs/
     authoring.md        <- authoring and template integration guide
 ```
