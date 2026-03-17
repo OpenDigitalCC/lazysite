@@ -44,6 +44,7 @@ install -m 755 "$TEMPLATE_SRC/ssi-md.sh"   "$TEMPLATE_DEST/ssi-md.sh"
 mkdir -p "$TEMPLATE_DEST/files"
 install -m 644 "$TEMPLATE_SRC/files/md-processor.pl" "$TEMPLATE_DEST/files/md-processor.pl"
 install -m 644 "$TEMPLATE_SRC/files/layout.tt"        "$TEMPLATE_DEST/files/layout.tt"
+install -m 644 "$TEMPLATE_SRC/files/layout.vars"      "$TEMPLATE_DEST/files/layout.vars"
 install -m 644 "$TEMPLATE_SRC/files/404.md"           "$TEMPLATE_DEST/files/404.md"
 install -m 644 "$TEMPLATE_SRC/files/index.md"         "$TEMPLATE_DEST/files/index.md"
 
@@ -56,4 +57,3 @@ echo "  2. Rebuild the domain - the processor and starter files will be installe
 echo "  3. Edit public_html/templates/layout.tt to apply your site design"
 echo "  4. Replace public_html/index.md with your content"
 echo ""
-

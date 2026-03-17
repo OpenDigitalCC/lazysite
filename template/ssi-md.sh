@@ -29,6 +29,13 @@ if [ ! -f "$TEMPLATES_DIR/layout.tt" ]; then
         "$TEMPLATES_DIR/layout.tt"
 fi
 
+# Install layout.vars only if not already present
+if [ ! -f "$TEMPLATES_DIR/layout.vars" ]; then
+    install -m 644 -o "$user" -g "$user" \
+        "$TEMPLATE_DIR/layout.vars" \
+        "$TEMPLATES_DIR/layout.vars"
+fi
+
 # Install starter 404.md only if not already present
 if [ ! -f "$docroot/404.md" ]; then
     install -m 644 -o "$user" -g "$user" \

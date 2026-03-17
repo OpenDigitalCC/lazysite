@@ -13,6 +13,7 @@ my $DOCROOT     = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 
 my $LAYOUT      = "$DOCROOT/templates/layout.tt";
+my $LAYOUT_VARS = "$DOCROOT/templates/layout.vars";
 my $REMOTE_TTL  = 3600;  # seconds before remote content is refetched (default 1 hour)
 
 # --- Main ---
@@ -65,9 +66,17 @@ sub main {
 sub sanitise_uri {
     my ($uri) = @_;
 
-    # Strip leading slash and extension
+    # Strip leading slash
     $uri =~ s{^/}{};
-    $uri =~ s/\.(html|md|url)$//;
+
+    # Trailing slash means directory index
+    if ( $uri =~ s{/$}{} ) {
+        $uri .= '/index';
+    }
+    else {
+        # Strip file extension
+        $uri =~ s/\.(html|md|url)$//;
+    }
 
     # Reject null bytes
     return undef if $uri =~ /\0/;
@@ -174,7 +183,20 @@ sub parse_yaml_front_matter {
 
     if ( $text =~ s/\A---\s*\n(.*?)\n---\s*\n//s ) {
         my $yaml = $1;
-        while ( $yaml =~ /^(\w+)\s*:\s*(.+)$/mg ) {
+
+        # Parse tt_page_var block (indented key: value pairs)
+        if ( $yaml =~ /^tt_page_var\s*:\s*\n((?:[ \t]+\S[^\n]*\n)*)/m ) {
+            my $block = $1;
+            my %tt_vars;
+            while ( $block =~ /^[ \t]+(\w+)\s*:\s*(.+)$/mg ) {
+                $tt_vars{$1} = $2;
+            }
+            $meta{tt_page_var} = \%tt_vars;
+        }
+
+        # Parse scalar key: value pairs (skip tt_page_var block)
+        while ( $yaml =~ /^(\w+)\s*:\s*([^\n]+)$/mg ) {
+            next if $1 eq 'tt_page_var';
             $meta{$1} = $2;
         }
     }
@@ -222,6 +244,47 @@ sub convert_md {
     return $md->markdown($body);
 }
 
+sub resolve_tt_vars {
+    my ($defs) = @_;
+    my %vars;
+
+    for my $key ( keys %$defs ) {
+        my $val = $defs->{$key};
+
+        if ( $val =~ s/^url:// ) {
+            $val =~ s/^\s+|\s+$//g;
+            my $fetched = fetch_url($val);
+            if ( defined $fetched ) {
+                $fetched =~ s/^\s+|\s+$//g;
+                $vars{$key} = $fetched;
+            }
+            else {
+                log_warn("tt var fetch failed for $key: $val");
+                $vars{$key} = '';
+            }
+        }
+        else {
+            $val =~ s/^\s+|\s+$//g;
+            $vars{$key} = $val;
+        }
+    }
+
+    return %vars;
+}
+
+sub resolve_site_vars {
+    return () unless -f $LAYOUT_VARS;
+
+    my $text = read_file($LAYOUT_VARS);
+    my %defs;
+
+    while ( $text =~ /^(\w+)\s*:\s*(.+)$/mg ) {
+        $defs{$1} = $2;
+    }
+
+    return resolve_tt_vars(\%defs);
+}
+
 sub render_template {
     my ( $meta, $html_body ) = @_;
 
@@ -230,7 +293,13 @@ sub render_template {
         ENCODING => 'utf8',
     ) or die "Template error: " . Template->error() . "\n";
 
+    # Site vars are base - page vars override
+    my %site_vars = resolve_site_vars();
+    my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
+
     my $vars = {
+        %site_vars,
+        %page_vars,
         page_title    => $meta->{title}    || '',
         page_subtitle => $meta->{subtitle} || '',
         content       => $html_body,

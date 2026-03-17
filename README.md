@@ -146,6 +146,54 @@ Styled div - class maps to your CSS.
 See [docs/authoring.md](docs/authoring.md) for the full authoring and
 template integration guide.
 
+## Template Toolkit variables
+
+All pages have access to these standard variables in `layout.tt` and page
+content:
+
+- `[% page_title %]` - from front matter `title`
+- `[% page_subtitle %]` - from front matter `subtitle`
+- `[% content %]` - the converted page body
+
+### Site-wide variables (`tt_site_var`)
+
+Variables available on every page are defined in `templates/layout.vars`:
+
+```yaml
+site_name: My Site
+version: url:https://raw.githubusercontent.com/example/repo/main/VERSION
+support_email: hello@example.com
+```
+
+Values prefixed with `url:` are fetched from the remote URL and trimmed.
+Values without a prefix are used as literal strings.
+
+Use anywhere in `layout.tt` or page content:
+
+```
+[% site_name %]
+[% version %]
+```
+
+### Page-scoped variables (`tt_page_var`)
+
+Variables available only on a specific page are defined in its front matter:
+
+```yaml
+---
+title: Downloads
+tt_page_var:
+  release_notes: url:https://raw.githubusercontent.com/example/repo/main/CHANGES
+  beta: true
+---
+```
+
+Page variables override site variables of the same name.
+
+### Variable precedence
+
+Site vars → page vars → `page_title`, `page_subtitle`, `content`
+
 ## Remote sources
 
 Pages can be sourced from remote Markdown files by creating a `.url` file
@@ -328,6 +376,7 @@ md-pages/
     files/
       md-processor.pl   <- CGI processor
       layout.tt         <- starter site template
+      layout.vars       <- starter site-wide TT variables
       404.md            <- starter 404 page
       index.md          <- starter index page
   docs/
