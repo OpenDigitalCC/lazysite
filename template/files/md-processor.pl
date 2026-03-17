@@ -247,12 +247,19 @@ sub write_html {
     my ( $html_path, $page ) = @_;
 
     my $dir = dirname($html_path);
-    make_path($dir) unless -d $dir;
+    unless ( -d $dir ) {
+        make_path($dir);
+        # Set group to match docroot so www-data can write
+        my $gid = ( stat($DOCROOT) )[5];
+        chown -1, $gid, $dir;
+        chmod 0775, $dir;
+    }
 
     open( my $fh, '>:utf8', $html_path ) or do {
         log_warn("Cannot write cache file $html_path: $! "
             . "- page will render uncached. "
-            . "Fix with: chmod g+w $dir");
+            . "Fix with: chown \$(stat -c '%U' $DOCROOT):\$(stat -c '%G' $DOCROOT) $dir "
+            . "&& chmod g+w $dir");
         return;
     };
     print $fh $page;
@@ -263,7 +270,8 @@ sub write_html {
 
 sub output_page {
     my ($content) = @_;
-    print "Content-type: text/html\n\n";
+    binmode( STDOUT, ':utf8' );
+    print "Content-type: text/html; charset=utf-8\n\n";
     print $content;
 }
 
@@ -273,17 +281,19 @@ sub not_found {
     my $md_path   = "$DOCROOT/404.md";
     my $html_path = "$DOCROOT/404.html";
 
+    binmode( STDOUT, ':utf8' );
+
     if ( -f $md_path ) {
         my $page = is_fresh( $html_path, $md_path )
             ? read_file($html_path)
             : process_md( $md_path, $html_path );
-        print "Content-type: text/html\n\n";
+        print "Content-type: text/html; charset=utf-8\n\n";
         print $page;
         return;
     }
 
     # Bare fallback if no 404.md exists yet
-    print "Content-type: text/html\n\n";
+    print "Content-type: text/html; charset=utf-8\n\n";
     print "<p>Page not found: <code>$uri</code></p>\n";
 }
 
