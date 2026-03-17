@@ -302,9 +302,18 @@ sub render_template {
         %page_vars,
         page_title    => $meta->{title}    || '',
         page_subtitle => $meta->{subtitle} || '',
-        content       => $html_body,
     };
 
+    # First pass: process TT tags in the content body
+    my $processed_body = '';
+    $tt->process( \$html_body, $vars, \$processed_body )
+        or do {
+            log_warn("TT content processing error: " . $tt->error() . " - using raw content");
+            $processed_body = $html_body;
+        };
+
+    # Second pass: render full layout with processed content
+    $vars->{content} = $processed_body;
     my $output = '';
     $tt->process( $LAYOUT, $vars, \$output )
         or die "Template process error: " . $tt->error() . "\n";
