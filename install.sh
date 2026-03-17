@@ -25,6 +25,7 @@ echo "Checking dependencies..."
 MISSING=""
 perl -e "use Text::MultiMarkdown" 2>/dev/null || MISSING="$MISSING libtext-multimarkdown-perl"
 perl -e "use Template" 2>/dev/null            || MISSING="$MISSING libtemplate-perl"
+perl -e "use LWP::UserAgent" 2>/dev/null      || MISSING="$MISSING libwww-perl"
 
 if [ -n "$MISSING" ]; then
     echo "Installing missing Perl modules:$MISSING"
@@ -55,3 +56,4 @@ echo "  2. Rebuild the domain - the processor and starter files will be installe
 echo "  3. Edit public_html/templates/layout.tt to apply your site design"
 echo "  4. Replace public_html/index.md with your content"
 echo ""
+

@@ -1,17 +1,19 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Text::MultiMarkdown qw(markdown);
+use Text::MultiMarkdown;
 use Template;
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
+use LWP::UserAgent;
 
 # --- Configuration ---
 
-my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
+my $DOCROOT     = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 
-my $LAYOUT = "$DOCROOT/templates/layout.tt";
+my $LAYOUT      = "$DOCROOT/templates/layout.tt";
+my $REMOTE_TTL  = 3600;  # seconds before remote content is refetched (default 1 hour)
 
 # --- Main ---
 
@@ -31,10 +33,11 @@ sub main {
     }
 
     my $md_path   = "$DOCROOT/$base.md";
+    my $url_path  = "$DOCROOT/$base.url";
     my $html_path = "$DOCROOT/$base.html";
 
-    # Serve from cache if fresh
-    if ( is_fresh( $html_path, $md_path ) ) {
+    # Serve from cache if fresh (local .md only - remote uses TTL)
+    if ( -f $md_path && is_fresh( $html_path, $md_path ) ) {
         output_page( read_file($html_path) );
         return;
     }
@@ -42,6 +45,13 @@ sub main {
     # Found .md - process it
     if ( -f $md_path ) {
         my $page = process_md( $md_path, $html_path );
+        output_page($page);
+        return;
+    }
+
+    # Found .url - fetch remote content
+    if ( -f $url_path ) {
+        my $page = process_url( $url_path, $html_path );
         output_page($page);
         return;
     }
@@ -57,7 +67,7 @@ sub sanitise_uri {
 
     # Strip leading slash and extension
     $uri =~ s{^/}{};
-    $uri =~ s/\.(html|md)$//;
+    $uri =~ s/\.(html|md|url)$//;
 
     # Reject null bytes
     return undef if $uri =~ /\0/;
@@ -81,12 +91,74 @@ sub process_md {
     my $raw             = read_file($md_path);
     my ( $meta, $body ) = parse_yaml_front_matter($raw);
     my $converted       = convert_fenced_divs($body);
-    my $html_body       = convert_md($converted);
+    my $converted2      = convert_fenced_code($converted);
+    my $html_body       = convert_md($converted2);
     my $page            = render_template( $meta, $html_body );
 
     write_html( $html_path, $page );
 
     return $page;
+}
+
+sub process_url {
+    my ( $url_path, $html_path ) = @_;
+
+    # Read URL from file
+    my $url = read_file($url_path);
+    $url =~ s/^\s+|\s+$//g;  # trim whitespace
+
+    # Serve stale cache if still within TTL
+    if ( is_fresh_ttl($html_path) ) {
+        return read_file($html_path);
+    }
+
+    # Fetch remote content
+    my $raw = fetch_url($url);
+
+    unless ( defined $raw ) {
+        # Fetch failed - serve stale cache if available
+        if ( -f $html_path ) {
+            return read_file($html_path);
+        }
+        # No cache - render error block
+        return render_template(
+            { title => 'Content Unavailable' },
+            qq(<div class="errorbox">\n<p>Could not fetch remote content from <code>$url</code>.</p>\n</div>\n)
+        );
+    }
+
+    my ( $meta, $body ) = parse_yaml_front_matter($raw);
+    my $converted  = convert_fenced_divs($body);
+    my $converted2 = convert_fenced_code($converted);
+    my $html_body  = convert_md($converted2);
+    my $page       = render_template( $meta, $html_body );
+
+    write_html( $html_path, $page );
+
+    return $page;
+}
+
+sub fetch_url {
+    my ($url) = @_;
+
+    # Only allow http/https
+    return undef unless $url =~ m{\Ahttps?://};
+
+    my $ua = LWP::UserAgent->new(
+        timeout    => 10,
+        agent      => 'md-pages/1.0',
+    );
+
+    my $response = $ua->get($url);
+
+    return undef unless $response->is_success;
+    return $response->decoded_content;
+}
+
+sub is_fresh_ttl {
+    my ($html_path) = @_;
+    return 0 unless -f $html_path;
+    return ( time() - ( stat($html_path) )[9] ) < $REMOTE_TTL;
 }
 
 sub is_fresh {
@@ -122,9 +194,32 @@ sub convert_fenced_divs {
     return $text;
 }
 
+sub convert_fenced_code {
+    my ($text) = @_;
+
+    $text =~ s{
+        ^```[ \t]*(\S*)[ \t]*\n  # opening ``` with optional language
+        (.*?)                     # content
+        ^```[ \t]*\n              # closing ```
+    }{
+        my $lang = $1;
+        my $code = $2;
+        $code =~ s/&/&amp;/g;
+        $code =~ s/</&lt;/g;
+        $code =~ s/>/&gt;/g;
+        my $class = $lang ? qq( class="language-$lang") : '';
+        "<pre><code$class>$code</code></pre>\n"
+    }gsmxe;
+
+    return $text;
+}
+
 sub convert_md {
     my ($body) = @_;
-    return markdown($body);
+    my $md = Text::MultiMarkdown->new(
+        use_fenced_code_blocks => 1,
+    );
+    return $md->markdown($body);
 }
 
 sub render_template {
@@ -154,7 +249,12 @@ sub write_html {
     my $dir = dirname($html_path);
     make_path($dir) unless -d $dir;
 
-    open( my $fh, '>:utf8', $html_path ) or die "Cannot write $html_path: $!\n";
+    open( my $fh, '>:utf8', $html_path ) or do {
+        log_warn("Cannot write cache file $html_path: $! "
+            . "- page will render uncached. "
+            . "Fix with: chmod g+w $dir");
+        return;
+    };
     print $fh $page;
     close $fh;
 }
@@ -196,4 +296,9 @@ sub read_file {
     my $content = <$fh>;
     close $fh;
     return $content;
+}
+
+sub log_warn {
+    my ($msg) = @_;
+    print STDERR "md-pages: $msg\n";
 }
