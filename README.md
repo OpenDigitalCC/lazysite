@@ -521,7 +521,40 @@ Check the error log for any registry errors:
 grep "Registry\|registry" logs/example.com.error.log
 ```
 
+## Link audit
 
+`md-pages-audit.pl` scans your docroot and reports orphaned pages and broken
+links.
+
+Orphaned pages
+: `.md` or `.url` files that exist but are not linked from any scanned file.
+  These may be redundant or simply missing from navigation.
+
+Broken links
+: Links in `.md` or template files pointing to pages that do not exist.
+
+```bash
+perl md-pages-audit.pl /home/username/web/example.com/public_html
+```
+
+The audit scans `.md` files, `.tt` templates (including `layout.tt` and
+registry templates), and cached `.html` files for `.url` pages. External
+links, assets, and image files are ignored.
+
+`index` and `404` are always excluded from the orphan report. Additional
+exclusions can be passed on the command line:
+
+```bash
+perl md-pages-audit.pl --exclude changelog,contributing /path/to/docroot
+```
+
+Or via a file with one path per line:
+
+```bash
+perl md-pages-audit.pl --exclude-file exclusions.txt /path/to/docroot
+```
+
+## Uninstall
 
 ```bash
 sudo bash uninstall.sh
@@ -535,6 +568,7 @@ Removes Hestia template files only. Deployed domain files are not touched.
 md-pages/
   install.sh
   uninstall.sh
+  md-pages-audit.pl   <- link audit utility
   template/
     ssi-md.tpl          <- Apache vhost template (HTTP)
     ssi-md.stpl         <- Apache vhost template (HTTPS)
