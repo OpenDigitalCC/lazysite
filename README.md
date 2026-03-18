@@ -359,6 +359,18 @@ public_html/services/index.md   -> https://example.com/services/
 Directory index pages are served when a trailing slash URL is requested.
 Create `dirname/index.md` for any directory that needs an index page.
 
+### Using an AI assistant
+
+`docs/ai-briefing.md` is a concise reference document covering the full
+system - layout variables, front matter, Markdown elements, URL structure,
+and file locations. Feed it to an AI assistant (Claude, ChatGPT, etc.) at
+the start of a session to enable it to help with layout design, page
+authoring, and `layout.vars` configuration without needing to explain the
+system each time.
+
+In Claude Projects, save it as a project document. For other AI tools,
+paste it as context at the start of the conversation.
+
 ## Designing the layout template
 
 `templates/layout.tt` is the single file that controls the appearance of
@@ -1131,8 +1143,16 @@ md-pages/
         sitemap.xml.tt  <- starter sitemap registry template
   docs/
     authoring.md        <- authoring and template integration guide
+    ai-briefing.md      <- AI assistant briefing for site creation
 ```
 
 ## Licence
 
 MIT
+
+## AI assistance
+
+md-pages was developed interactively with Claude (Anthropic). Architecture,
+design decisions, security review, and deployment were directed by the author.
+Claude assisted with code generation, documentation, and iterative refinement
+throughout development.
