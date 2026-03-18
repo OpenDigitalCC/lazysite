@@ -1,13 +1,13 @@
-# lazysite AI Briefing
+# lazydev AI Briefing
 
-This document describes the lazysite system for an AI assistant helping to
+This document describes the lazydev system for an AI assistant helping to
 create or maintain a site. Read it before generating any content or templates.
 
 ---
 
 ## System overview
 
-lazysite is a Markdown-driven static site system running on Apache. Pages
+lazydev is a Markdown-driven static site system running on Apache. Pages
 are written as `.md` files with YAML front matter. A CGI processor converts
 them to HTML on first request and caches the result. Subsequent requests
 serve the cached file directly.
@@ -92,11 +92,31 @@ Plus all site-wide variables defined in `templates/layout.vars`.
 
 One variable per line. Three value types:
 
+### Standard variables
+
+These two variables are used on almost every site and should always be
+defined in `layout.vars`:
+
+```yaml
+site_name: My Site
+site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
+```
+
+`site_url` is built from Apache CGI environment variables that are set
+automatically on every request. It produces the correct scheme and hostname
+for the live server. For static builds, `build-static.sh` sets these from
+the URL argument passed to it.
+
+Do not hardcode the domain in `site_url` - use the environment variable
+form so the same `layout.vars` works on staging and production.
+
+### All value types
+
 ```yaml
 # Literal string
 site_name: My Site
 
-# Environment variable (Apache CGI only - allowlisted vars)
+# Environment variable (Apache CGI - allowlisted vars only)
 site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
 
 # Remote URL fetch (trimmed, cached with page TTL)
@@ -390,11 +410,18 @@ extensionless internal links.
 
 ### Creating layout.vars
 
-Ask the user:
-- Site name
-- Site URL (use `${REQUEST_SCHEME}://${SERVER_NAME}` for live Apache)
+Always include `site_name` and `site_url` as the first two entries.
+`site_url` must always use the environment variable form - never hardcode
+the domain:
+
+```yaml
+site_name: My Site
+site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
+```
+
+Then ask the user:
 - Any remote values needed (version numbers, API data)
-- Any static values needed site-wide
+- Any static values needed site-wide (support email, GitHub URL, etc.)
 
 Produce a `layout.vars` file. One variable per line. Add comments for
 clarity.
