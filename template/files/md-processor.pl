@@ -39,8 +39,25 @@ sub main {
     my $url_path  = "$DOCROOT/$base.url";
     my $html_path = "$DOCROOT/$base.html";
 
-    # Serve from cache if fresh (local .md only - remote uses TTL)
-    if ( -f $md_path && is_fresh( $html_path, $md_path ) ) {
+    # Check for page-level TTL override in .md front matter
+    if ( -f $md_path && -f $html_path ) {
+        my $ttl = peek_ttl($md_path);
+        if ( defined $ttl ) {
+            # TTL-based cache check
+            if ( is_fresh_ttl_val( $html_path, $ttl ) ) {
+                output_page( read_file($html_path) );
+                return;
+            }
+        }
+        else {
+            # Default mtime comparison
+            if ( is_fresh( $html_path, $md_path ) ) {
+                output_page( read_file($html_path) );
+                return;
+            }
+        }
+    }
+    elsif ( -f $md_path && is_fresh( $html_path, $md_path ) ) {
         output_page( read_file($html_path) );
         return;
     }
@@ -59,7 +76,7 @@ sub main {
         return;
     }
 
-    # No .md found - serve 404 page
+    # No source found - serve 404 page
     not_found($uri);
 }
 
@@ -103,7 +120,8 @@ sub process_md {
     my ( $meta, $body ) = parse_yaml_front_matter($raw);
     my $converted       = convert_fenced_divs($body);
     my $converted2      = convert_fenced_code($converted);
-    my $html_body       = convert_md($converted2);
+    my $converted3      = convert_oembed($converted2);
+    my $html_body       = convert_md($converted3);
     my $page            = render_template( $meta, $html_body );
 
     write_html( $html_path, $page );
@@ -143,7 +161,8 @@ sub process_url {
     my ( $meta, $body ) = parse_yaml_front_matter($raw);
     my $converted  = convert_fenced_divs($body);
     my $converted2 = convert_fenced_code($converted);
-    my $html_body  = convert_md($converted2);
+    my $converted3 = convert_oembed($converted2);
+    my $html_body  = convert_md($converted3);
     my $page       = render_template( $meta, $html_body );
 
     write_html( $html_path, $page );
@@ -168,6 +187,27 @@ sub fetch_url {
 
     return undef unless $response->is_success;
     return $response->decoded_content;
+}
+
+sub peek_ttl {
+    my ($md_path) = @_;
+    open( my $fh, '<:utf8', $md_path ) or return undef;
+    my $ttl;
+    while ( <$fh> ) {
+        last if $. > 1 && /^---/;  # end of front matter
+        if ( /^ttl\s*:\s*(\d+)/ ) {
+            $ttl = $1;
+            last;
+        }
+    }
+    close $fh;
+    return $ttl;
+}
+
+sub is_fresh_ttl_val {
+    my ( $html_path, $ttl ) = @_;
+    return 0 unless -f $html_path;
+    return ( time() - ( stat($html_path) )[9] ) < $ttl;
 }
 
 sub is_fresh_ttl {
@@ -254,6 +294,100 @@ sub convert_fenced_code {
 }
 
 sub convert_md {
+
+# --- oEmbed ---
+
+# Known provider endpoints - matched by URL pattern
+# Falls back to autodiscovery for unlisted providers
+my %OEMBED_PROVIDERS = (
+    qr{youtube\.com/watch|youtu\.be/}          => 'https://www.youtube.com/oembed',
+    qr{vimeo\.com/}                            => 'https://vimeo.com/api/oembed.json',
+    qr{/videos/watch/|/videos/embed/}          => undef,  # PeerTube - autodiscover
+    qr{twitter\.com/|x\.com/}                  => 'https://publish.twitter.com/oembed',
+    qr{soundcloud\.com/}                       => 'https://soundcloud.com/oembed',
+);
+
+sub convert_oembed {
+    my ($text) = @_;
+
+    $text =~ s{
+        ^:::[ \t]+oembed[ \t]*\n  # opening ::: oembed
+        [ \t]*(https?://[^\n]+?)[ \t]*\n  # URL
+        ^:::[ \t]*\n              # closing :::
+    }{
+        my $url = $1;
+        my $html = fetch_oembed($url);
+        $html
+            ? qq(<div class="oembed">\n$html\n</div>\n)
+            : qq(<div class="oembed oembed--failed">\n)
+              . qq(<p><a href="$url">$url</a></p>\n)
+              . qq(</div>\n);
+    }gsmxe;
+
+    return $text;
+}
+
+sub fetch_oembed {
+    my ($url) = @_;
+
+    my $endpoint = find_oembed_endpoint($url);
+    unless ($endpoint) {
+        log_warn("oEmbed: no endpoint found for $url");
+        return undef;
+    }
+
+    my $oembed_url = $endpoint . '?url=' . uri_encode($url) . '&format=json';
+    my $raw = fetch_url($oembed_url);
+    unless ($raw) {
+        log_warn("oEmbed: fetch failed for $oembed_url");
+        return undef;
+    }
+
+    # Extract html field from JSON without a full JSON parser
+    if ( $raw =~ /"html"\s*:\s*"((?:[^"\\]|\\.)*)"/ ) {
+        my $html = $1;
+        $html =~ s/\\"/"/g;
+        $html =~ s/\\n/\n/g;
+        $html =~ s/\\\\/\\/g;
+        return $html;
+    }
+
+    log_warn("oEmbed: no html field in response for $url");
+    return undef;
+}
+
+sub find_oembed_endpoint {
+    my ($url) = @_;
+
+    # Check known providers first
+    for my $pattern ( keys %OEMBED_PROVIDERS ) {
+        if ( $url =~ $pattern ) {
+            my $endpoint = $OEMBED_PROVIDERS{$pattern};
+            return $endpoint if $endpoint;
+            last;  # Pattern matched but no endpoint - fall through to autodiscovery
+        }
+    }
+
+    # Autodiscovery - fetch the page and look for oEmbed link tag
+    my $page = fetch_url($url);
+    return undef unless $page;
+
+    if ( $page =~ m{<link[^>]+type=["']application/json\+oembed["'][^>]+href=["']([^"']+)["']}i
+      || $page =~ m{<link[^>]+href=["']([^"']+)["'][^>]+type=["']application/json\+oembed["']}i )
+    {
+        return $1;
+    }
+
+    return undef;
+}
+
+sub uri_encode {
+    my ($str) = @_;
+    $str =~ s/([^A-Za-z0-9\-_.~])/sprintf('%%%02X', ord($1))/ge;
+    return $str;
+}
+
+
     my ($body) = @_;
     my $md = Text::MultiMarkdown->new(
         use_fenced_code_blocks => 1,
@@ -489,6 +623,7 @@ sub write_html {
 sub output_page {
     my ($content) = @_;
     binmode( STDOUT, ':utf8' );
+    print "Status: 200 OK\n";
     print "Content-type: text/html; charset=utf-8\n\n";
     print $content;
 }
@@ -505,12 +640,14 @@ sub not_found {
         my $page = is_fresh( $html_path, $md_path )
             ? read_file($html_path)
             : process_md( $md_path, $html_path );
+        print "Status: 404 Not Found\n";
         print "Content-type: text/html; charset=utf-8\n\n";
         print $page;
         return;
     }
 
     # Bare fallback if no 404.md exists yet
+    print "Status: 404 Not Found\n";
     print "Content-type: text/html; charset=utf-8\n\n";
     print "<p>Page not found: <code>$uri</code></p>\n";
 }
