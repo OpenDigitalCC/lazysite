@@ -21,9 +21,11 @@ my $REMOTE_TTL    = 3600;  # seconds before remote content is refetched (default
 my $REGISTRY_TTL  = 14400; # seconds before registries are regenerated (default 4 hours)
 
 # Allowlist of CGI environment variables that may be interpolated in layout.vars
+# Note: HTTP_HOST is intentionally excluded - it is request-supplied and untrusted.
+# Use SERVER_NAME for host-based URL construction.
 my %ENV_ALLOWLIST = map { $_ => 1 } qw(
     SERVER_NAME SERVER_PORT REQUEST_SCHEME HTTPS
-    HTTP_HOST DOCUMENT_ROOT SERVER_ADMIN
+    DOCUMENT_ROOT SERVER_ADMIN
 );
 
 # --- Main ---
@@ -272,6 +274,7 @@ sub parse_yaml_front_matter {
         while ( $yaml =~ /^(\w+)\s*:\s*([^\n]+)$/mg ) {
             next if $1 eq 'tt_page_var';
             next if $1 eq 'register';
+            # Strip TT directives from all scalar values including title and subtitle
             $meta{$1} = strip_tt_directives($2);
         }
     }
@@ -289,10 +292,15 @@ sub convert_fenced_divs {
     }{
         my $class = $1;
         my $body  = $2;
-        # Restrict class name to safe characters only (item 4)
-        $class =~ s/[^\w-]//g;
-        $class ? qq(<div class="$class">\n${body}</div>\n)
-               : $body
+        # Reject class names containing unsafe characters (S4)
+        # Valid: word chars and hyphens only, must start with a word char
+        if ( $class =~ /\A[\w][\w-]*\z/ ) {
+            qq(<div class="$class">\n${body}</div>\n);
+        }
+        else {
+            log_warn("Fenced div: rejected unsafe class name '$class'");
+            $body;
+        }
     }gsmxe;
 
     return $text;
@@ -374,7 +382,11 @@ sub fetch_oembed {
         return undef;
     }
 
-    # Parse JSON safely using JSON::PP (item 3)
+    # Parse JSON safely using JSON::PP (S3)
+    # Note: JSON::PP gives correct string values but the html field content
+    # itself is still trusted as-is. A compromised or malicious provider
+    # could return arbitrary HTML. Restrict OEMBED_PROVIDERS to trusted
+    # hosts if this is a concern in your deployment.
     my $data = eval { decode_json($raw) };
     if ( $@ || !defined $data || !defined $data->{html} ) {
         log_warn("oEmbed: JSON parse failed for $oembed_url: $@");
@@ -626,6 +638,15 @@ sub render_template {
 
 sub write_html {
     my ( $html_path, $page ) = @_;
+
+    # Verify html_path resolves within docroot - guard against symlink attacks (S1)
+    # Use the parent directory for the check since the file may not exist yet
+    my $check_path = -e $html_path ? $html_path : dirname($html_path);
+    my $real = realpath($check_path);
+    if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
+        log_warn("write_html: path $html_path resolves outside docroot - write refused");
+        return;
+    }
 
     my $dir = dirname($html_path);
     unless ( -d $dir ) {
