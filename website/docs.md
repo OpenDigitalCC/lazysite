@@ -39,6 +39,12 @@ Front matter fields:
 `tt_page_var`
 : Page-scoped Template Toolkit variables, available in the page body and layout for this page only. Supports `url:` and `${ENV}` prefixes same as `layout.vars`.
 
+`raw`
+: Set `raw: true` to output the converted content body without the layout wrapper. TT variables still resolve. Useful for content fragments, AJAX partials, or API-style endpoints.
+
+`content_type`
+: Used with `raw: true` to set the HTTP `Content-type` header. Defaults to `text/html; charset=utf-8`. Example: `content_type: application/json; charset=utf-8`
+
 ## URL structure
 
 Page URLs derive from file paths, always without extension:
@@ -161,9 +167,45 @@ site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
 version: url:https://raw.githubusercontent.com/example/repo/main/VERSION
 ```
 
-Three value types: literal strings, Apache environment variables (`${VAR}`), and remote URL fetches (`url:https://...`).
+Three value types: literal strings, CGI environment variables (`${VAR}`), and remote URL fetches (`url:https://...`).
 
-Allowlisted environment variables: `SERVER_NAME`, `REQUEST_SCHEME`, `SERVER_PORT`, `HTTPS`, `DOCUMENT_ROOT`, `SERVER_ADMIN`.
+Allowlisted environment variables: `SERVER_NAME`, `REQUEST_SCHEME`, `SERVER_PORT`, `HTTPS`, `DOCUMENT_ROOT`, `SERVER_ADMIN`, `REDIRECT_URL`.
+
+`${REDIRECT_URL}` contains the requested page path (e.g. `/about`) and is useful for highlighting the active navigation item in `layout.tt`.
+
+## Advanced Template Toolkit
+
+TT is processed in two passes — first in the page body, then in `layout.tt`. Simple variable substitution and conditionals work in both. A `url:` variable that returns JSON can be decoded and looped over, with the result baked into the cached page at render time:
+
+```
+[% USE JSON( pretty => 0 ) %]
+[% releases = JSON.deserialize(releases_json) %]
+[% FOREACH item IN releases %]
+<a href="[% item.url %]">[% item.name %]</a>
+[% END %]
+```
+
+TT variables in Markdown link URLs do not resolve reliably — the Markdown parser processes the URL before TT runs. Use HTML `<a>` tags when the href contains a TT variable:
+
+```html
+<a href="[% download_base %]/release-[% version %].tar.gz">Download</a>
+```
+
+Inline code and fenced code blocks are protected from TT processing — `[% tags %]` inside code appear literally, which is correct for documentation pages.
+
+## Migrating from other tools
+
+Pico CMS
+: Content migrates directly. Copy your Pico `content/` files to the docroot and rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter. Replace Pico theme templates with a `layout.tt` file. A one-liner to convert front matter keys across all files: `find public_html -name "*.md" | xargs sed -i 's/^Title:/title:/;s/^Description:/subtitle:/'`
+
+Hugo
+: Content files require no changes — Hugo and lazysite use the same front matter format. What needs replacing is the template system: `layout.tt` replaces your Hugo `baseof.html` or equivalent base template.
+
+## Live demo
+
+The [feature test page](/demo) exercises every processor capability — site variables, page variables, TT conditionals, fenced divs, code block protection, oEmbed, and more. Each section shows what to expect. A passing test shows the resolved value; a failing test shows a literal `[% tag %]`.
+
+The demo page is itself served via a `.url` file from the lazysite repository, so it also demonstrates that mechanism in production.
 
 ## Installation
 
