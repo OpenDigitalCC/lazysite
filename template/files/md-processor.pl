@@ -49,41 +49,33 @@ sub main {
     my $url_path  = "$DOCROOT/$base.url";
     my $html_path = "$DOCROOT/$base.html";
 
-    # Verify resolved paths stay within docroot (item 1 - symlink traversal)
-    for my $path ( $md_path, $url_path ) {
-        next unless -e $path;
-        my $real = realpath($path);
-        if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
-            not_found($uri);
+    # Stat both source and cache files once - pass results to avoid redundant syscalls
+    my @html_stat = stat($html_path);
+    my @md_stat   = stat($md_path);
+
+    # Fast path: .md exists and cache is fresh by mtime
+    if ( @md_stat && @html_stat ) {
+        if ( $html_stat[9] >= $md_stat[9] ) {
+            # mtime fresh - serve cache immediately, no peek_ttl needed
+            output_page( read_file($html_path) );
+            return;
+        }
+        # mtime stale - check for page-level TTL override before regenerating
+        my $ttl = peek_ttl($md_path);
+        if ( defined $ttl && is_fresh_ttl_val_stat( \@html_stat, $ttl ) ) {
+            output_page( read_file($html_path) );
             return;
         }
     }
 
-    # Check for page-level TTL override in .md front matter
-    if ( -f $md_path && -f $html_path ) {
-        my $ttl = peek_ttl($md_path);
-        if ( defined $ttl ) {
-            # TTL-based cache check
-            if ( is_fresh_ttl_val( $html_path, $ttl ) ) {
-                output_page( read_file($html_path) );
-                return;
-            }
+    # .md exists but no cache yet - process it
+    # realpath check runs here on the write path only, not on cache hits
+    if ( @md_stat ) {
+        my $real = realpath($md_path);
+        if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
+            not_found($uri);
+            return;
         }
-        else {
-            # Default mtime comparison
-            if ( is_fresh( $html_path, $md_path ) ) {
-                output_page( read_file($html_path) );
-                return;
-            }
-        }
-    }
-    elsif ( -f $md_path && is_fresh( $html_path, $md_path ) ) {
-        output_page( read_file($html_path) );
-        return;
-    }
-
-    # Found .md - process it
-    if ( -f $md_path ) {
         my $page = process_md( $md_path, $html_path );
         output_page($page);
         return;
@@ -91,6 +83,11 @@ sub main {
 
     # Found .url - fetch remote content
     if ( -f $url_path ) {
+        my $real = realpath($url_path);
+        if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
+            not_found($uri);
+            return;
+        }
         my $page = process_url( $url_path, $html_path );
         output_page($page);
         return;
@@ -222,6 +219,12 @@ sub peek_ttl {
     }
     close $fh;
     return $ttl;
+}
+
+sub is_fresh_ttl_val_stat {
+    my ( $html_stat, $ttl ) = @_;
+    return 0 unless @$html_stat;
+    return ( time() - $html_stat->[9] ) < $ttl;
 }
 
 sub is_fresh_ttl_val {
@@ -439,10 +442,10 @@ sub strip_tt_directives {
 
 sub interpolate_env {
     my ($val) = @_;
-    # Only interpolate allowlisted environment variables (item 5)
-    $val =~ s/\$\{(\w+)\}/
-        $ENV_ALLOWLIST{$1} ? ( $ENV{$1} // '' ) : "\${$1}"
-    /ge;
+    # Only interpolate allowlisted environment variables (S5)
+    $val =~ s{\$\{(\w+)\}}{
+        $ENV_ALLOWLIST{$1} ? ( defined $ENV{$1} ? $ENV{$1} : '' ) : "\${$1}"
+    }ge;
     return $val;
 }
 
