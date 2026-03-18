@@ -140,6 +140,7 @@ sub process_md {
     my $converted3      = convert_oembed($converted2);
     my $html_body       = convert_md($converted3);
     my $page            = render_template( $meta, $html_body );
+    $page               = convert_dt_links($page);
 
     write_html( $html_path, $page );
     eval { update_registries() };
@@ -181,6 +182,7 @@ sub process_url {
     my $converted3 = convert_oembed($converted2);
     my $html_body  = convert_md($converted3);
     my $page       = render_template( $meta, $html_body );
+    $page          = convert_dt_links($page);
 
     write_html( $html_path, $page );
     eval { update_registries() };
@@ -335,6 +337,15 @@ sub convert_md {
         use_fenced_code_blocks => 1,
     );
     return $md->markdown($body);
+}
+
+sub convert_dt_links {
+    my ($html) = @_;
+    # Convert unprocessed Markdown links inside <dt> tags.
+    # These are left unconverted when <dt> content is authored as Markdown
+    # inside an HTML <dl> block, which the Markdown parser does not process.
+    $html =~ s{<dt>\[([^\]]+)\]\(([^)]+)\)</dt>}{<dt><a href="$2">$1</a></dt>}g;
+    return $html;
 }
 
 # --- oEmbed ---
