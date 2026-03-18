@@ -6,6 +6,8 @@ use Template;
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
 use LWP::UserAgent;
+use Cwd qw(realpath);
+use JSON::PP qw(decode_json);
 
 # --- Configuration ---
 
@@ -17,6 +19,12 @@ my $LAYOUT_VARS   = "$DOCROOT/templates/layout.vars";
 my $REGISTRY_DIR  = "$DOCROOT/templates/registries";
 my $REMOTE_TTL    = 3600;  # seconds before remote content is refetched (default 1 hour)
 my $REGISTRY_TTL  = 14400; # seconds before registries are regenerated (default 4 hours)
+
+# Allowlist of CGI environment variables that may be interpolated in layout.vars
+my %ENV_ALLOWLIST = map { $_ => 1 } qw(
+    SERVER_NAME SERVER_PORT REQUEST_SCHEME HTTPS
+    HTTP_HOST DOCUMENT_ROOT SERVER_ADMIN
+);
 
 # --- Main ---
 
@@ -38,6 +46,16 @@ sub main {
     my $md_path   = "$DOCROOT/$base.md";
     my $url_path  = "$DOCROOT/$base.url";
     my $html_path = "$DOCROOT/$base.html";
+
+    # Verify resolved paths stay within docroot (item 1 - symlink traversal)
+    for my $path ( $md_path, $url_path ) {
+        next unless -e $path;
+        my $real = realpath($path);
+        if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
+            not_found($uri);
+            return;
+        }
+    }
 
     # Check for page-level TTL override in .md front matter
     if ( -f $md_path && -f $html_path ) {
@@ -254,7 +272,7 @@ sub parse_yaml_front_matter {
         while ( $yaml =~ /^(\w+)\s*:\s*([^\n]+)$/mg ) {
             next if $1 eq 'tt_page_var';
             next if $1 eq 'register';
-            $meta{$1} = $2;
+            $meta{$1} = strip_tt_directives($2);
         }
     }
 
@@ -268,7 +286,14 @@ sub convert_fenced_divs {
         ^:::[ \t]+(\S+)[ \t]*\n  # opening ::: classname
         (.*?)                     # content
         ^:::[ \t]*\n              # closing :::
-    }{<div class="$1">\n$2</div>\n}gsmx;
+    }{
+        my $class = $1;
+        my $body  = $2;
+        # Restrict class name to safe characters only (item 4)
+        $class =~ s/[^\w-]//g;
+        $class ? qq(<div class="$class">\n${body}</div>\n)
+               : $body
+    }gsmxe;
 
     return $text;
 }
@@ -294,28 +319,34 @@ sub convert_fenced_code {
 }
 
 sub convert_md {
+    my ($body) = @_;
+    my $md = Text::MultiMarkdown->new(
+        use_fenced_code_blocks => 1,
+    );
+    return $md->markdown($body);
+}
 
 # --- oEmbed ---
 
 # Known provider endpoints - matched by URL pattern
 # Falls back to autodiscovery for unlisted providers
 my %OEMBED_PROVIDERS = (
-    qr{youtube\.com/watch|youtu\.be/}          => 'https://www.youtube.com/oembed',
-    qr{vimeo\.com/}                            => 'https://vimeo.com/api/oembed.json',
-    qr{/videos/watch/|/videos/embed/}          => undef,  # PeerTube - autodiscover
-    qr{twitter\.com/|x\.com/}                  => 'https://publish.twitter.com/oembed',
-    qr{soundcloud\.com/}                       => 'https://soundcloud.com/oembed',
+    qr{youtube\.com/watch|youtu\.be/}   => 'https://www.youtube.com/oembed',
+    qr{vimeo\.com/}                     => 'https://vimeo.com/api/oembed.json',
+    qr{/videos/watch/|/videos/embed/}   => undef,  # PeerTube - autodiscover
+    qr{twitter\.com/|x\.com/}           => 'https://publish.twitter.com/oembed',
+    qr{soundcloud\.com/}                => 'https://soundcloud.com/oembed',
 );
 
 sub convert_oembed {
     my ($text) = @_;
 
     $text =~ s{
-        ^:::[ \t]+oembed[ \t]*\n  # opening ::: oembed
+        ^:::[ \t]+oembed[ \t]*\n          # opening ::: oembed
         [ \t]*(https?://[^\n]+?)[ \t]*\n  # URL
-        ^:::[ \t]*\n              # closing :::
+        ^:::[ \t]*\n                      # closing :::
     }{
-        my $url = $1;
+        my $url  = $1;
         my $html = fetch_oembed($url);
         $html
             ? qq(<div class="oembed">\n$html\n</div>\n)
@@ -343,17 +374,14 @@ sub fetch_oembed {
         return undef;
     }
 
-    # Extract html field from JSON without a full JSON parser
-    if ( $raw =~ /"html"\s*:\s*"((?:[^"\\]|\\.)*)"/ ) {
-        my $html = $1;
-        $html =~ s/\\"/"/g;
-        $html =~ s/\\n/\n/g;
-        $html =~ s/\\\\/\\/g;
-        return $html;
+    # Parse JSON safely using JSON::PP (item 3)
+    my $data = eval { decode_json($raw) };
+    if ( $@ || !defined $data || !defined $data->{html} ) {
+        log_warn("oEmbed: JSON parse failed for $oembed_url: $@");
+        return undef;
     }
 
-    log_warn("oEmbed: no html field in response for $url");
-    return undef;
+    return $data->{html};
 }
 
 sub find_oembed_endpoint {
@@ -362,8 +390,8 @@ sub find_oembed_endpoint {
     # Check known providers first
     for my $pattern ( keys %OEMBED_PROVIDERS ) {
         if ( $url =~ $pattern ) {
-            my $endpoint = $OEMBED_PROVIDERS{$pattern};
-            return $endpoint if $endpoint;
+            my $ep = $OEMBED_PROVIDERS{$pattern};
+            return $ep if $ep;
             last;  # Pattern matched but no endpoint - fall through to autodiscovery
         }
     }
@@ -387,17 +415,18 @@ sub uri_encode {
     return $str;
 }
 
-
-    my ($body) = @_;
-    my $md = Text::MultiMarkdown->new(
-        use_fenced_code_blocks => 1,
-    );
-    return $md->markdown($body);
+sub strip_tt_directives {
+    my ($val) = @_;
+    $val =~ s/\[%.*?%\]//g;
+    return $val;
 }
 
 sub interpolate_env {
     my ($val) = @_;
-    $val =~ s/\$\{(\w+)\}/$ENV{$1} \/\/ ''/ge;
+    # Only interpolate allowlisted environment variables (item 5)
+    $val =~ s/\$\{(\w+)\}/
+        $ENV_ALLOWLIST{$1} ? ( $ENV{$1} // '' ) : "\${$1}"
+    /ge;
     return $val;
 }
 
@@ -406,7 +435,7 @@ sub resolve_tt_vars {
     my %vars;
 
     for my $key ( keys %$defs ) {
-        my $val = $defs->{$key};
+        my $val = strip_tt_directives( $defs->{$key} );
 
         if ( $val =~ s/^url:// ) {
             $val = interpolate_env($val);
