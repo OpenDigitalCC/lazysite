@@ -1,6 +1,6 @@
 ---
 title: Welcome
-subtitle: A new md-pages site
+subtitle: A new lazysite site
 ---
 
 ## Getting started

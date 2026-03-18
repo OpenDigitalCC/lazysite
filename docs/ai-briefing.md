@@ -1,13 +1,13 @@
-# md-pages AI Briefing
+# lazysite AI Briefing
 
-This document describes the md-pages system for an AI assistant helping to
+This document describes the lazysite system for an AI assistant helping to
 create or maintain a site. Read it before generating any content or templates.
 
 ---
 
 ## System overview
 
-md-pages is a Markdown-driven static site system running on Apache. Pages
+lazysite is a Markdown-driven static site system running on Apache. Pages
 are written as `.md` files with YAML front matter. A CGI processor converts
 them to HTML on first request and caches the result. Subsequent requests
 serve the cached file directly.

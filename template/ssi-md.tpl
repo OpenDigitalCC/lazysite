@@ -1,7 +1,7 @@
 #=========================================================================#
-# md-pages Web Domain Template                                            #
+# lazysite Web Domain Template                                            #
 # Markdown-driven pages with Template Toolkit rendering                   #
-# https://github.com/OpenDigitalCC/md-pages                              #
+# https://github.com/OpenDigitalCC/lazysite                              #
 # DO NOT MODIFY THIS FILE! CHANGES WILL BE LOST WHEN REBUILDING DOMAINS  #
 #=========================================================================#
 <VirtualHost %ip%:%web_port%>

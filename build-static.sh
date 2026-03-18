@@ -12,7 +12,7 @@ set -e
 
 usage() {
     cat << 'EOF'
-build-static.sh - generate a complete static site from md-pages sources
+build-static.sh - generate a complete static site from lazysite sources
 
 Usage:
   build-static.sh <scheme://hostname> [output-dir]

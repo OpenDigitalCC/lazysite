@@ -1,6 +1,6 @@
 #!/bin/bash
-# md-pages uninstaller
-# https://github.com/OpenDigitalCC/md-pages
+# lazysite uninstaller
+# https://github.com/OpenDigitalCC/lazysite
 #
 # Removes Hestia template files only.
 # Does not touch any deployed domain files.
@@ -14,7 +14,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-echo "Removing md-pages Hestia templates..."
+echo "Removing lazysite Hestia templates..."
 
 rm -f "$TEMPLATE_DEST/ssi-md.tpl"
 rm -f "$TEMPLATE_DEST/ssi-md.stpl"

@@ -1,8 +1,8 @@
 #!/usr/bin/perl
-# md-pages-audit - link audit for md-pages docroots
+# lazysite-audit - link audit for lazysite docroots
 # Reports orphaned pages (exist but not linked) and broken links
 #
-# Usage: perl md-pages-audit.pl [options] [docroot]
+# Usage: perl lazysite-audit.pl [options] [docroot]
 #
 # Options:
 #   --exclude path,path,...   comma-separated canonical paths to exclude
@@ -152,7 +152,7 @@ for my $source ( sort keys %outbound ) {
 
 # --- Report ---
 
-print "md-pages link audit: $DOCROOT\n";
+print "lazysite link audit: $DOCROOT\n";
 print "=" x 60 . "\n\n";
 
 print "ORPHANED PAGES (" . scalar(@orphans) . ")\n";

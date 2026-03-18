@@ -197,7 +197,7 @@ sub fetch_url {
 
     my $ua = LWP::UserAgent->new(
         timeout    => 10,
-        agent      => 'md-pages/1.0',
+        agent      => 'lazysite/1.0',
     );
 
     my $response = $ua->get($url);
@@ -725,5 +725,5 @@ sub read_file {
 
 sub log_warn {
     my ($msg) = @_;
-    print STDERR "md-pages: $msg\n";
+    print STDERR "lazysite: $msg\n";
 }

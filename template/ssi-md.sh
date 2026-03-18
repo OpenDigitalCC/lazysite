@@ -1,7 +1,7 @@
 #!/bin/bash
-# md-pages domain hook
+# lazysite domain hook
 # Installs md-processor.pl and starter files when ssi-md template is applied
-# https://github.com/OpenDigitalCC/md-pages
+# https://github.com/OpenDigitalCC/lazysite
 
 user="$1"
 domain="$2"

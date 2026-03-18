@@ -1,6 +1,6 @@
 #!/bin/bash
-# md-pages installer
-# https://github.com/OpenDigitalCC/md-pages
+# lazysite installer
+# https://github.com/OpenDigitalCC/lazysite
 
 set -e
 
@@ -53,7 +53,7 @@ install -m 644 "$TEMPLATE_SRC/files/registries/llms.txt.tt"    "$TEMPLATE_DEST/f
 install -m 644 "$TEMPLATE_SRC/files/registries/sitemap.xml.tt" "$TEMPLATE_DEST/files/registries/sitemap.xml.tt"
 
 echo ""
-echo "md-pages installed successfully."
+echo "lazysite installed successfully."
 echo ""
 echo "Next steps:"
 echo "  1. In HestiaCP, edit your domain and set the web template to: ssi-md"
