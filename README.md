@@ -1037,7 +1037,72 @@ into the page. Provider responses are trusted as-is - restrict `%OEMBED_PROVIDER
 in `md-processor.pl` to known hosts if untrusted providers are a concern in
 your deployment.
 
-## Docker
+## Static site generation
+
+md-pages can generate a complete static site - all pages pre-rendered to
+HTML - for deployment to static hosting such as GitHub Pages, Netlify,
+Cloudflare Pages, or any plain web server without CGI support.
+
+`build-static.sh` processes all `.md` and `.url` files in the docroot,
+simulating the Apache CGI environment so that `layout.vars` variables like
+`${SERVER_NAME}` resolve correctly.
+
+```bash
+# Build in-place
+bash build-static.sh https://example.com
+
+# Build to a separate output directory
+bash build-static.sh https://example.com ./dist
+```
+
+The base URL argument sets `REQUEST_SCHEME` and `SERVER_NAME` for the build,
+ensuring `site_url` and any other environment-derived variables in
+`layout.vars` resolve to the correct values for the target deployment.
+
+With a separate output directory, source `.md` and `.url` files are excluded
+from the output - only the generated `.html` files, assets, and templates
+are included.
+
+Run without arguments for full usage instructions:
+
+```bash
+bash build-static.sh
+```
+
+### Deploying the static output
+
+```bash
+rsync -av --delete ./dist/ user@host:/var/www/html/
+```
+
+### Static hosting services
+
+The output directory is a standard static site. Deploy to:
+
+- GitHub Pages - push the output directory to a `gh-pages` branch or `docs/`
+- Netlify / Cloudflare Pages - point to the output directory
+- Amazon S3 - sync with `aws s3 sync`
+- Any web server - rsync or copy the output directory
+
+### Staging workflow
+
+The static build also provides a simple staging approach. Build locally
+or in a container against the production URL, verify the output, then
+rsync only the source files to the live server:
+
+```bash
+# Verify locally against production URL
+bash build-static.sh https://example.com ./dist
+
+# Deploy source files only - live server generates its own cache
+rsync -av --exclude="*.html" ./public_html/ user@host:/path/to/public_html/
+```
+
+The live server regenerates `.html` cache files from the deployed `.md`
+sources on first request. No build artefacts are transferred - the deploy
+is purely source files.
+
+
 
 A Docker Compose setup provides a self-contained md-pages environment
 without requiring Apache or HestiaCP on the host. This is useful for local
@@ -1127,6 +1192,7 @@ Removes Hestia template files only. Deployed domain files are not touched.
 md-pages/
   install.sh
   uninstall.sh
+  build-static.sh     <- static site generator
   md-pages-audit.pl   <- link audit utility
   template/
     ssi-md.tpl          <- Apache vhost template (HTTP)
