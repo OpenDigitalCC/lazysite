@@ -25,6 +25,7 @@ my $REGISTRY_TTL  = 14400; # seconds before registries are regenerated (default 
 # Use SERVER_NAME for host-based URL construction.
 my %ENV_ALLOWLIST = map { $_ => 1 } qw(
     SERVER_NAME SERVER_PORT REQUEST_SCHEME HTTPS
+    REQUEST_URI REDIRECT_URL
     DOCUMENT_ROOT SERVER_ADMIN
 );
 
@@ -54,17 +55,20 @@ sub main {
     my @md_stat   = stat($md_path);
 
     # Fast path: .md exists and cache is fresh by mtime
-    if ( @md_stat && @html_stat ) {
-        if ( $html_stat[9] >= $md_stat[9] ) {
-            # mtime fresh - serve cache immediately, no peek_ttl needed
-            output_page( read_file($html_path) );
-            return;
-        }
-        # mtime stale - check for page-level TTL override before regenerating
-        my $ttl = peek_ttl($md_path);
-        if ( defined $ttl && is_fresh_ttl_val_stat( \@html_stat, $ttl ) ) {
-            output_page( read_file($html_path) );
-            return;
+    # Skip cache if LAZYSITE_NOCACHE is set (useful for testing)
+    unless ( $ENV{LAZYSITE_NOCACHE} ) {
+        if ( @md_stat && @html_stat ) {
+            if ( $html_stat[9] >= $md_stat[9] ) {
+                # mtime fresh - serve cache immediately, no peek_ttl needed
+                output_page( read_file($html_path) );
+                return;
+            }
+            # mtime stale - check for page-level TTL override before regenerating
+            my $ttl = peek_ttl($md_path);
+            if ( defined $ttl && is_fresh_ttl_val_stat( \@html_stat, $ttl ) ) {
+                output_page( read_file($html_path) );
+                return;
+            }
         }
     }
 
@@ -77,7 +81,8 @@ sub main {
             return;
         }
         my $page = process_md( $md_path, $html_path );
-        output_page($page);
+        my $ct   = peek_content_type($md_path);
+        output_page( $page, $ct );
         return;
     }
 
@@ -89,7 +94,8 @@ sub main {
             return;
         }
         my $page = process_url( $url_path, $html_path );
-        output_page($page);
+        my $ct   = peek_content_type($url_path);
+        output_page( $page, $ct );
         return;
     }
 
@@ -133,14 +139,24 @@ sub sanitise_uri {
 sub process_md {
     my ( $md_path, $html_path ) = @_;
 
-    my $raw             = read_file($md_path);
-    my ( $meta, $body ) = parse_yaml_front_matter($raw);
+    my $raw_text        = read_file($md_path);
+    my ( $meta, $body ) = parse_yaml_front_matter($raw_text);
     my $converted       = convert_fenced_divs($body);
     my $converted2      = convert_fenced_code($converted);
     my $converted3      = convert_oembed($converted2);
     my $html_body       = convert_md($converted3);
-    my $page            = render_template( $meta, $html_body );
-    $page               = convert_dt_links($page);
+
+    # raw: true - skip layout template, output content fragment only
+    my $page;
+    if ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
+        my ( $processed_body ) = render_content( $meta, $html_body );
+        $page = $processed_body;
+    }
+    else {
+        $page = render_template( $meta, $html_body );
+        $page = convert_dt_links($page);
+        $page = convert_p_links($page);
+    }
 
     write_html( $html_path, $page );
     eval { update_registries() };
@@ -181,8 +197,17 @@ sub process_url {
     my $converted2 = convert_fenced_code($converted);
     my $converted3 = convert_oembed($converted2);
     my $html_body  = convert_md($converted3);
-    my $page       = render_template( $meta, $html_body );
-    $page          = convert_dt_links($page);
+
+    my $page;
+    if ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
+        my ( $processed_body ) = render_content( $meta, $html_body );
+        $page = $processed_body;
+    }
+    else {
+        $page = render_template( $meta, $html_body );
+        $page = convert_dt_links($page);
+        $page = convert_p_links($page);
+    }
 
     write_html( $html_path, $page );
     eval { update_registries() };
@@ -223,6 +248,20 @@ sub peek_ttl {
     return $ttl;
 }
 
+sub peek_content_type {
+    my ($path) = @_;
+    open( my $fh, '<:utf8', $path ) or return undef;
+    my ( $raw, $content_type );
+    while ( <$fh> ) {
+        last if $. > 1 && /^---/;
+        $raw          = 1    if /^raw\s*:\s*true/i;
+        $content_type = $1   if /^content_type\s*:\s*(.+)/;
+    }
+    close $fh;
+    return undef unless $raw;
+    return $content_type ? $content_type : 'text/html; charset=utf-8';
+}
+
 sub is_fresh_ttl_val_stat {
     my ( $html_stat, $ttl ) = @_;
     return 0 unless @$html_stat;
@@ -256,7 +295,7 @@ sub parse_yaml_front_matter {
         my $yaml = $1;
 
         # Parse register list (- item lines)
-        if ( $yaml =~ /^register\s*:\s*\n((?:[ \t]*-[^\n]*\n)*)/m ) {
+        if ( $yaml =~ /^register\s*:\s*\n((?:[ \t]*-[^\n]*(?:\n|$))*)/m ) {
             my $block = $1;
             my @registries;
             while ( $block =~ /^[ \t]*-[ \t]*(\S+)/mg ) {
@@ -266,7 +305,9 @@ sub parse_yaml_front_matter {
         }
 
         # Parse tt_page_var block (indented key: value pairs)
-        if ( $yaml =~ /^tt_page_var\s*:\s*\n((?:[ \t]+\S[^\n]*\n)*)/m ) {
+        # The alternation (?:\n|$) handles the last line which may have no
+        # trailing newline if it is the final line of the front matter block
+        if ( $yaml =~ /^tt_page_var\s*:\s*\n((?:[ \t]+\S[^\n]*(?:\n|$))*)/m ) {
             my $block = $1;
             my %tt_vars;
             while ( $block =~ /^[ \t]+(\w+)\s*:\s*(.+)$/mg ) {
@@ -345,6 +386,17 @@ sub convert_dt_links {
     # These are left unconverted when <dt> content is authored as Markdown
     # inside an HTML <dl> block, which the Markdown parser does not process.
     $html =~ s{<dt>\[([^\]]+)\]\(([^)]+)\)</dt>}{<dt><a href="$2">$1</a></dt>}g;
+    return $html;
+}
+
+sub convert_p_links {
+    my ($html) = @_;
+    # Convert unprocessed Markdown links inside <p> tags after TT rendering.
+    # Markdown links containing TT variables in the URL are parsed by
+    # MultiMarkdown before TT runs, which strips the TT content from the URL.
+    # After TT has resolved all variables, this pass converts any remaining
+    # Markdown link syntax in paragraph content to HTML anchor tags.
+    $html =~ s{\[([^\]]+)\]\(([^)]+)\)}{<a href="$2">$1</a>}g;
     return $html;
 }
 
@@ -618,15 +670,17 @@ sub scan_pages {
     return @pages;
 }
 
-sub render_template {
+sub render_content {
     my ( $meta, $html_body ) = @_;
 
+    # Content pass uses ABSOLUTE => 0 - the content body is a string reference
+    # and should never need file access. ABSOLUTE => 1 would allow TT to follow
+    # absolute paths found in the content, which causes parse errors on CSS etc.
     my $tt = Template->new(
-        ABSOLUTE => 1,
+        ABSOLUTE => 0,
         ENCODING => 'utf8',
     ) or die "Template error: " . Template->error() . "\n";
 
-    # Site vars are base - page vars override
     my %site_vars = resolve_site_vars();
     my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
 
@@ -637,19 +691,50 @@ sub render_template {
         page_subtitle => $meta->{subtitle} || '',
     };
 
-    # First pass: process TT tags in the content body
+    # Protect <pre><code> blocks and inline <code> elements from TT processing
+    my $protected_body = $html_body;
+    my @code_blocks;
+    $protected_body =~ s{(<pre><code[^>]*>)(.*?)(</code></pre>)}{
+        my $placeholder = "CODEBLOCK_" . scalar(@code_blocks) . "_END";
+        push @code_blocks, "$1$2$3";
+        $placeholder
+    }gse;
+    $protected_body =~ s{(<code>)(.*?)(</code>)}{
+        my $placeholder = "CODEBLOCK_" . scalar(@code_blocks) . "_END";
+        push @code_blocks, "$1$2$3";
+        $placeholder
+    }gse;
+
     my $processed_body = '';
-    $tt->process( \$html_body, $vars, \$processed_body )
+    $tt->process( \$protected_body, $vars, \$processed_body )
         or do {
             log_warn("TT content processing error: " . $tt->error() . " - using raw content");
-            $processed_body = $html_body;
+            $processed_body = $protected_body;
         };
 
-    # Second pass: render full layout with processed content
+    # Restore protected code blocks
+    for my $i ( 0 .. $#code_blocks ) {
+        $processed_body =~ s/CODEBLOCK_${i}_END/$code_blocks[$i]/;
+    }
+
+    return ( $processed_body, $vars );
+}
+
+sub render_template {
+    my ( $meta, $html_body ) = @_;
+
+    my ( $processed_body, $vars ) = render_content( $meta, $html_body );
+
+    # Second pass: render full layout - needs ABSOLUTE => 1 to read layout.tt
+    my $tt_layout = Template->new(
+        ABSOLUTE => 1,
+        ENCODING => 'utf8',
+    ) or die "Template error: " . Template->error() . "\n";
+
     $vars->{content} = $processed_body;
     my $output = '';
-    $tt->process( $LAYOUT, $vars, \$output )
-        or die "Template process error: " . $tt->error() . "\n";
+    $tt_layout->process( $LAYOUT, $vars, \$output )
+        or die "Template process error: " . $tt_layout->error() . "\n";
 
     return $output;
 }
@@ -693,10 +778,11 @@ sub write_html {
 # --- Output ---
 
 sub output_page {
-    my ($content) = @_;
+    my ( $content, $content_type ) = @_;
+    $content_type //= 'text/html; charset=utf-8';
     binmode( STDOUT, ':utf8' );
     print "Status: 200 OK\n";
-    print "Content-type: text/html; charset=utf-8\n\n";
+    print "Content-type: $content_type\n\n";
     print $content;
 }
 
