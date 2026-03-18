@@ -255,7 +255,7 @@ sub parse_yaml_front_matter {
             my $block = $1;
             my @registries;
             while ( $block =~ /^[ \t]*-[ \t]*(\S+)/mg ) {
-                push @registries, $1;
+                push @registries, strip_tt_directives($1);
             }
             $meta{register} = \@registries;
         }
@@ -429,7 +429,11 @@ sub uri_encode {
 
 sub strip_tt_directives {
     my ($val) = @_;
-    $val =~ s/\[%.*?%\]//g;
+    # Strip [% and %] as separate sequences rather than matched pairs.
+    # This handles nested attempts like [% [% ... %] %] more robustly
+    # than a non-recursive paired match.
+    $val =~ s/\[%//g;
+    $val =~ s/%\]//g;
     return $val;
 }
 
@@ -640,7 +644,10 @@ sub write_html {
     my ( $html_path, $page ) = @_;
 
     # Verify html_path resolves within docroot - guard against symlink attacks (S1)
-    # Use the parent directory for the check since the file may not exist yet
+    # Use the parent directory for the check since the file may not exist yet.
+    # Note: narrow TOCTOU gap exists between this check and the subsequent open() -
+    # a symlink created after the check would not be caught. O_NOFOLLOW via sysopen
+    # would close this gap but adds complexity not warranted in this deployment context.
     my $check_path = -e $html_path ? $html_path : dirname($html_path);
     my $real = realpath($check_path);
     if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
