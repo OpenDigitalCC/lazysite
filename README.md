@@ -75,7 +75,182 @@ web servers.
 - Nginx - use `error_page 403 404` to point to the CGI script
 - Any web server with CGI support and configurable error handlers should work
 
-## How it works
+## Motivations
+
+md-pages grew out of a specific frustration with the available options for
+managing a small set of sites on a personal hosting infrastructure.
+
+### Starting point: SSI
+
+The starting point was Apache Server Side Includes. SSI is elegant for what
+it does - a standard mechanism built into Apache for composing pages from
+fragments, with no runtime dependency beyond the web server itself. Header,
+footer, navigation as separate files, included at serve time. Fast, simple,
+no moving parts.
+
+The problem is content management. SSI handles page composition well but
+has nothing to say about how you author or manage the content that goes into
+those pages. You end up writing HTML directly, which is fine for templates
+but poor for page content. Any non-trivial site accumulates HTML files that
+are tedious to write and update.
+
+### What was needed
+
+The requirements that shaped md-pages:
+
+Speed
+: Pages should be fast. Not "fast enough" - actually fast. A CGI process on
+  every request is not fast. Static file serving is fast. The caching model
+  means the CGI fires once per page, then Apache serves static HTML. The
+  common case is a file read, not a process fork.
+
+Simplicity
+: No database. No admin interface. No framework to learn. No build pipeline
+  to maintain. Drop a file, get a page. The entire system is one Perl script
+  that can be read and understood in an afternoon.
+
+Markdown
+: Content should be written in Markdown. Not because Markdown is perfect,
+  but because it is the established lingua franca for structured plain text.
+  It works in any editor, versions cleanly in git, and is readable without
+  rendering. Pandoc-style fenced divs for the cases where you need a
+  styled wrapper without writing HTML.
+
+Control where you want it
+: The layout template is a file you own and edit directly. The CSS is your
+  CSS. The HTML structure is yours. md-pages renders Markdown into a slot in
+  your template - it does not impose a theme, a component model, or a
+  styling convention. If you know HTML and CSS you are not constrained.
+
+Sensible defaults
+: The parts you do not want to think about should work without configuration.
+  Caching. Cache invalidation on file edit. Subdirectory creation with correct
+  permissions. A starter 404 page. A starter layout. These should all just
+  work on first install.
+
+Same method everywhere
+: A page authored for one site should work on any other site running md-pages.
+  The front matter format, the fenced div syntax, the URL structure - all
+  consistent. Moving content between sites is a file copy.
+
+Version control as the content store
+: The entire site - content, templates, variables, processor - lives in a git
+  repository. Every change has history. Deploying is a file copy. Rolling
+  back is a file copy. No database export/import, no CMS backup, no
+  proprietary format.
+
+### Integration with HestiaCP
+
+HestiaCP is the control panel in use on the hosting infrastructure. It has
+a web template system that generates Apache vhost configs. md-pages plugs
+into this as a named template - apply it to a domain, rebuild, and the
+processor and starter files are installed automatically. The same installer
+also produces clean configurations for standalone Apache outside HestiaCP.
+
+The HestiaCP integration is additive. md-pages works without it.
+
+### What emerged during development
+
+Several things were not in the original plan but followed naturally:
+
+Remote sources via `.url` files - pulling documentation directly from a
+GitHub repository rather than duplicating it. The documentation lives with
+the code, the site always shows the current version.
+
+Template Toolkit variables fetched from remote URLs - a version number from
+a `VERSION` file, release metadata from a GitHub API endpoint, baked into
+the cached page at render time rather than fetched client-side.
+
+The registry system - `llms.txt` and `sitemap.xml` generated from page front
+matter, updated automatically when pages are rendered. Adding a new registry
+format requires only a template file.
+
+oEmbed - embedding PeerTube and other video providers with a one-line syntax,
+the iframe baked into the cache.
+
+The link audit tool - a maintenance utility that emerged from the need to
+identify orphaned pages and broken links as the site grew.
+
+The Docker staging workflow - a natural consequence of the file-based
+architecture. Stage in a container, rsync the source files to production,
+let the cache warm on first visit.
+
+Each of these followed from the same principle: the mechanism should be
+simple, the output should be static where possible, and the operator should
+retain control.
+
+
+
+md-pages suits a specific use case. These alternatives may be a better fit
+depending on your requirements.
+
+Hugo
+: A static site generator. Build step produces a complete static site from
+  Markdown sources. Fast, mature, large ecosystem. Better choice if you want
+  a full build pipeline, complex themes, multi-language support, or are
+  comfortable with a Go toolchain. No server-side processing after build.
+
+Pico CMS
+: A flat-file PHP CMS. Drop Markdown files in a directory and pages appear -
+  similar philosophy to md-pages but PHP-based with a plugin ecosystem and
+  admin themes. Better choice if you want a richer authoring experience or
+  plugins for things like search, without a database. Requires PHP on every
+  request.
+
+Jekyll
+: Ruby-based static site generator, well-established in the GitHub Pages
+  ecosystem. Good choice if your content lives on GitHub and you want free
+  hosting with automatic builds on push. Build step required.
+
+WordPress
+: Full CMS with database, admin UI, and vast plugin ecosystem. Better choice
+  for non-technical authors, multi-user publishing workflows, e-commerce, or
+  any site needing dynamic content beyond what static caching provides.
+
+Publii
+: Desktop app that generates a static site. Good choice if authors prefer a
+  GUI and the site is maintained by one person. No server-side processing.
+
+md-pages is most appropriate when content is managed via VCS, authors are
+comfortable with Markdown and a text editor, and the simplicity of no
+database and no build step is valued over a richer feature set.
+
+### Migrating from Pico CMS
+
+Pico content migrates directly to md-pages with minimal changes. Pico uses
+the same Markdown files with YAML front matter:
+
+```yaml
+---
+Title: My Page
+Description: A short description
+---
+Content here.
+```
+
+To migrate:
+
+- Copy your Pico `content/` files to the md-pages docroot
+- Rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter
+  (md-pages uses lowercase keys)
+- Remove any Pico-specific front matter keys that have no equivalent
+- Replace Pico theme templates with a `layout.tt` template
+
+A one-liner to lowercase the common front matter keys across all files:
+
+```bash
+find public_html -name "*.md" | \
+  xargs sed -i 's/^Title:/title:/;s/^Description:/subtitle:/'
+```
+
+### Migrating from Hugo
+
+Hugo Markdown content uses the same front matter format. The content files
+themselves require no changes. What does need replacing is the Hugo template
+system - Hugo uses Go templates, md-pages uses Template Toolkit. The
+`layout.tt` file replaces your Hugo `baseof.html` or equivalent base template.
+
+
 
 - Requests for pages with no matching file trigger Apache's 404/403 handler
 - The handler runs `md-processor.pl` which looks for a `.md` or `.url` source file
@@ -86,16 +261,23 @@ web servers.
 
 ## Requirements
 
-- HestiaCP with Apache + PHP-FPM
-- Debian / Ubuntu
+- Apache 2.4 with CGI support and `ErrorDocument` configuration
+- Debian / Ubuntu (or any Linux with the Perl modules below)
 - `libtext-multimarkdown-perl`
 - `libtemplate-perl`
 - `libwww-perl` (for remote `.url` sources and oEmbed)
 - `JSON::PP` (Perl core - no separate install needed)
 
-The installer will install missing Perl modules automatically.
+HestiaCP is supported with a dedicated installer. For other environments
+see the manual installation section below.
 
 ## Installation
+
+### HestiaCP
+
+The installer registers md-pages as a HestiaCP web template. Once installed,
+apply it to any domain from the control panel and the processor and starter
+files are deployed automatically on rebuild.
 
 ```bash
 git clone https://github.com/OpenDigitalCC/md-pages.git
@@ -109,8 +291,54 @@ Then in HestiaCP:
 2. Set the web template to `ssi-md`
 3. Save and rebuild
 
-The processor, starter layout, and starter content are installed
-automatically on rebuild.
+### Manual Apache installation
+
+For Apache without HestiaCP, install the Perl dependencies and configure
+the vhost manually:
+
+```bash
+apt install libtext-multimarkdown-perl libtemplate-perl libwww-perl
+```
+
+Copy `md-processor.pl` to your `cgi-bin/` directory and make it executable:
+
+```bash
+cp template/files/md-processor.pl /var/www/example.com/cgi-bin/
+chmod 755 /var/www/example.com/cgi-bin/md-processor.pl
+```
+
+Copy the starter templates to your docroot:
+
+```bash
+mkdir -p /var/www/example.com/public_html/templates/registries
+cp template/files/layout.tt       /var/www/example.com/public_html/templates/
+cp template/files/layout.vars     /var/www/example.com/public_html/templates/
+cp template/files/registries/*.tt /var/www/example.com/public_html/templates/registries/
+cp template/files/404.md          /var/www/example.com/public_html/
+cp template/files/index.md        /var/www/example.com/public_html/
+```
+
+Add to your Apache vhost configuration:
+
+```apache
+DirectoryIndex index.html index.htm
+AddOutputFilter INCLUDES .shtml
+ErrorDocument 403 /cgi-bin/md-processor.pl
+ErrorDocument 404 /cgi-bin/md-processor.pl
+
+<Directory /var/www/example.com/public_html>
+    Options +Includes -Indexes +ExecCGI
+    AllowOverride All
+</Directory>
+```
+
+Ensure the web server user can write to the docroot:
+
+```bash
+chown -R www-data:www-data /var/www/example.com/public_html
+chmod g+w /var/www/example.com/public_html
+```
+
 
 ## Getting started
 
@@ -131,7 +359,79 @@ public_html/services/index.md   -> https://example.com/services/
 Directory index pages are served when a trailing slash URL is requested.
 Create `dirname/index.md` for any directory that needs an index page.
 
-## Page format
+## Designing the layout template
+
+`templates/layout.tt` is the single file that controls the appearance of
+every page. It is the integration point for web designers. A minimal working
+example is provided in `template/files/layout.tt` in this repository - it
+produces a bare but functional HTML page and is intended as a starting point,
+not a finished design.
+
+### What the template receives
+
+Every page render passes these variables to the template:
+
+`[% page_title %]`
+: The page title from front matter.
+
+`[% page_subtitle %]`
+: The page subtitle from front matter. May be empty - test with `[% IF page_subtitle %]`.
+
+`[% content %]`
+: The converted page body as HTML. Output with `[% content %]` - TT does not
+  escape this value, which is correct since it is already HTML.
+
+Plus any site-wide variables defined in `layout.vars`.
+
+### Minimal template structure
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>[% page_title %] — [% site_name %]</title>
+    <link rel="stylesheet" href="/assets/css/main.css">
+</head>
+<body>
+
+<header>
+    <a href="/">[% site_name %]</a>
+    <nav>
+        <a href="/about">About</a>
+        <a href="/docs/">Docs</a>
+    </nav>
+</header>
+
+<main>
+    <h1>[% page_title %]</h1>
+    [% IF page_subtitle %]
+    <p class="subtitle">[% page_subtitle %]</p>
+    [% END %]
+    [% content %]
+</main>
+
+<footer>
+    <p>&copy; 2026 [% site_name %]</p>
+</footer>
+
+</body>
+</html>
+```
+
+### After changing the template
+
+Delete all cached `.html` files to force regeneration:
+
+```bash
+find public_html -name "*.html" -delete
+```
+
+Pages regenerate on next request. On a live site with many pages, stagger
+this or use curl to pre-warm the cache after deploying a new template.
+
+
 
 ```markdown
 ---
@@ -215,7 +515,97 @@ Page variables override site variables of the same name.
 
 Site vars → page vars → `page_title`, `page_subtitle`, `content`
 
-## Registries
+### Advanced Template Toolkit usage
+
+TT variables are not limited to simple strings. A `url:` value that returns
+JSON can be decoded and used as a data structure in templates, enabling loops,
+conditionals, and dynamic list rendering - all baked into the cached page at
+render time.
+
+#### Fetching and looping over JSON data
+
+Fetch a JSON feed via `tt_page_var` and decode it in the template:
+
+```yaml
+---
+title: News
+tt_page_var:
+  news_json: url:https://example.com/api/news.json
+---
+```
+
+In the page body, decode and loop:
+
+```
+[% USE JSON( pretty => 0 ) %]
+[% news = JSON.deserialize(news_json) %]
+[% FOREACH item IN news.items %]
+<article>
+  <h2><a href="[% item.url %]">[% item.title %]</a></h2>
+  <p>[% item.summary %]</p>
+  <time>[% item.date %]</time>
+</article>
+[% END %]
+```
+
+The same approach works in `layout.tt` using a site-wide variable from
+`layout.vars`:
+
+```yaml
+version_json: url:https://api.github.com/repos/example/repo/releases/latest
+```
+
+Then in `layout.tt`:
+
+```
+[% USE JSON( pretty => 0 ) %]
+[% release = JSON.deserialize(version_json) %]
+<span class="version">[% release.tag_name %]</span>
+```
+
+#### Conditionals
+
+```
+[% IF beta %]
+<div class="notice">This page documents a beta feature.</div>
+[% END %]
+```
+
+#### Building navigation from a list
+
+Define a nav structure in `layout.vars`:
+
+```yaml
+nav_json: url:https://example.com/nav.json
+```
+
+Or as a literal in `layout.tt` directly:
+
+```
+[% nav = [
+    { label => 'Home',    url => '/' },
+    { label => 'Docs',    url => '/docs/' },
+    { label => 'Install', url => '/install' },
+] %]
+<nav>
+[% FOREACH item IN nav %]
+  <a href="[% item.url %]">[% item.label %]</a>
+[% END %]
+</nav>
+```
+
+#### Notes on TT in page content
+
+TT is processed in two passes - first in the page body, then in `layout.tt`.
+The `USE JSON` directive and variable assignments made in the body are local
+to that pass and not available in the layout. For data needed in both the
+page body and the layout, set it as a site-wide variable in `layout.vars`.
+
+Full Template Toolkit documentation is at [https://template-toolkit.org/docs/][tt2docs].
+
+[tt2docs]: https://template-toolkit.org/docs/
+
+
 
 Registries are generated files derived from page front matter - `llms.txt`,
 `sitemap.xml`, or any other format. A page declares which registries it
@@ -634,6 +1024,82 @@ than regex extraction. The `html` field from the parsed response is injected
 into the page. Provider responses are trusted as-is - restrict `%OEMBED_PROVIDERS`
 in `md-processor.pl` to known hosts if untrusted providers are a concern in
 your deployment.
+
+## Docker
+
+A Docker Compose setup provides a self-contained md-pages environment
+without requiring Apache or HestiaCP on the host. This is useful for local
+development, testing, or as a simple standalone deployment.
+
+It also provides a practical staging workflow: develop and preview content
+in the container, then deploy to production with a simple file copy.
+
+### docker-compose.yml
+
+```yaml
+services:
+  web:
+    image: debian:bookworm-slim
+    ports:
+      - "8080:80"
+    volumes:
+      - ./site:/var/www/html
+      - ./cgi-bin:/usr/lib/cgi-bin
+    command: >
+      bash -c "
+        apt-get update -qq &&
+        apt-get install -y -qq apache2 libtext-multimarkdown-perl
+          libtemplate-perl libwww-perl &&
+        a2enmod cgi includes &&
+        cp /usr/lib/cgi-bin/md-processor.pl /usr/lib/cgi-bin/ &&
+        cat > /etc/apache2/sites-available/000-default.conf << 'EOF'
+        <VirtualHost *:80>
+          DocumentRoot /var/www/html
+          ScriptAlias /cgi-bin/ /usr/lib/cgi-bin/
+          DirectoryIndex index.html index.htm
+          ErrorDocument 403 /cgi-bin/md-processor.pl
+          ErrorDocument 404 /cgi-bin/md-processor.pl
+          <Directory /var/www/html>
+            Options +Includes -Indexes +ExecCGI
+            AllowOverride All
+          </Directory>
+        </VirtualHost>
+EOF
+        chown -R www-data:www-data /var/www/html &&
+        chmod g+w /var/www/html &&
+        apache2ctl -D FOREGROUND
+      "
+```
+
+Mount your content directory as `/var/www/html` and the processor as
+`/usr/lib/cgi-bin/md-processor.pl`.
+
+### Staging to production workflow
+
+The Docker volume is your working site. When ready to deploy, copy the
+source files (not the cached `.html` files) to production:
+
+```bash
+rsync -av --exclude="*.html" \
+  ./site/ \
+  user@production:/home/user/web/example.com/public_html/
+```
+
+The `--exclude="*.html"` ensures cached pages are not copied - they
+regenerate automatically on first request on the production server. This
+keeps the deploy clean and avoids serving stale cached content.
+
+To also exclude the Archive directory if present:
+
+```bash
+rsync -av --exclude="*.html" --exclude="Archive/" \
+  ./site/ \
+  user@production:/home/user/web/example.com/public_html/
+```
+
+The production server generates fresh `.html` cache files from the
+deployed `.md` sources on first visit. The deploy is effectively a file
+copy - no build step, no restart, no database migration.
 
 ## Uninstall
 
