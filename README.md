@@ -90,7 +90,8 @@ web servers.
 - Debian / Ubuntu
 - `libtext-multimarkdown-perl`
 - `libtemplate-perl`
-- `libwww-perl` (for remote `.url` sources)
+- `libwww-perl` (for remote `.url` sources and oEmbed)
+- `JSON::PP` (Perl core - no separate install needed)
 
 The installer will install missing Perl modules automatically.
 
@@ -293,7 +294,37 @@ Drop a `.tt` file in `templates/registries/` - no code changes needed. The
 processor picks it up automatically on the next page render after the TTL
 expires.
 
-## Remote sources
+## Embedded media
+
+Pages can embed videos and other media using oEmbed. Any oEmbed-compatible
+provider is supported - YouTube, Vimeo, SoundCloud, and self-hosted PeerTube
+instances among others.
+
+```markdown
+::: oembed
+https://peertube.example.com/videos/watch/abc123
+:::
+
+::: oembed
+https://www.youtube.com/watch?v=abc123
+:::
+```
+
+The processor fetches the oEmbed endpoint, extracts the provider's iframe
+HTML, and bakes it into the cached page. No client-side API calls are made -
+the embed is static HTML after the first render.
+
+Known providers (YouTube, Vimeo, SoundCloud, Twitter/X) are looked up
+directly. Unknown providers use oEmbed autodiscovery - the video page is
+fetched and the `<link rel="alternate" type="application/json+oembed">` tag
+is followed to find the endpoint.
+
+If the fetch fails the block renders as a plain link fallback with class
+`oembed--failed` for CSS targeting.
+
+Additional providers can be added to `%OEMBED_PROVIDERS` in `md-processor.pl`.
+
+
 
 Pages can be sourced from remote Markdown files by creating a `.url` file
 containing a URL instead of a `.md` file containing content.
@@ -333,9 +364,26 @@ Local `.md` pages
   to trigger regeneration - no manual step needed.
 
 Remote `.url` pages
-: The cache is invalidated by TTL (default 1 hour). The stale cache is
-  always served immediately - the refetch happens on the first request
-  after TTL expiry, transparent to the user.
+: The cache is invalidated by TTL (default 1 hour - `$REMOTE_TTL` in
+  `md-processor.pl`). The stale cache is always served immediately - the
+  refetch happens on the first request after TTL expiry, transparent to
+  the user.
+
+Page-level TTL override
+: Any page can set its own TTL via the `ttl` front matter key. When set,
+  the page uses TTL-based cache invalidation instead of mtime comparison.
+  Useful for pages that pull remote data via `tt_page_var` and need
+  frequent refresh.
+
+```yaml
+---
+title: Downloads
+ttl: 300
+---
+```
+
+This page regenerates every 5 minutes regardless of whether the `.md`
+file has changed.
 
 To force regeneration of any page regardless of cache state:
 
@@ -474,28 +522,19 @@ md-pages: Cannot write cache file .../docs/install.html: Permission denied
 - page will render uncached. Fix with: chown ...
 ```
 
-### Pages appear as 404 in the access log
+### Access log status codes
 
-This is normal behaviour. Apache logs the original 404 status for all
-requests handled by the `ErrorDocument` handler, even when the processor
-renders the page successfully. The page renders correctly in the browser.
+The processor emits a `Status: 200 OK` CGI header for successfully rendered
+pages and `Status: 404 Not Found` for genuine missing pages. Apache respects
+these headers and logs the correct status.
 
-To confirm a page is rendering and caching correctly, check whether the
-`.html` file exists after the first request:
+A 404 in the access log is always a real missing page - no `.md` or `.url`
+source file exists for that path. Pages rendered by the processor appear as
+200.
 
-```bash
-ls public_html/about.html
-```
-
-If the file exists, the page is working. The 404 log entry is cosmetic.
-
-Note: if the browser serves a cached version, Apache is never contacted and
-the processor never runs. Use `curl` to bypass browser cache when testing:
-
-```bash
-curl -s https://example.com/about > /dev/null
-ls public_html/about.html
-```
+Note: cached `.html` files served directly by Apache (on subsequent requests)
+have always logged 200 correctly. The status header fix applies only to the
+first render of each page.
 
 ### Registries not generating
 
@@ -553,6 +592,48 @@ Or via a file with one path per line:
 ```bash
 perl md-pages-audit.pl --exclude-file exclusions.txt /path/to/docroot
 ```
+
+## Security
+
+### Path traversal
+
+`sanitise_uri` rejects null bytes, `..` path segments, and suspicious
+characters before constructing filesystem paths. After construction, each
+path is verified with `realpath` to confirm it resolves within `$DOCROOT`.
+Symlinks pointing outside the docroot are rejected.
+
+The same check is applied inside `write_html` before any file is written,
+guarding against symlink-based overwrite attacks on the cache output path.
+
+### Template Toolkit injection
+
+All values extracted from YAML front matter - including `title`, `subtitle`,
+and `tt_page_var` entries - have TT directive markers (`[%` and `%]`) stripped
+before entering the template context. `register` list items are stripped at
+parse time. This prevents authored content from injecting TT directives into
+the rendering pipeline.
+
+### Environment variable interpolation
+
+The `${VAR}` interpolation in `layout.vars` is restricted to an explicit
+allowlist: `SERVER_NAME`, `REQUEST_SCHEME`, `SERVER_PORT`, `HTTPS`,
+`DOCUMENT_ROOT`, `SERVER_ADMIN`. Request-supplied headers (`HTTP_*` variables)
+are not interpolated regardless of what appears in `layout.vars`.
+
+### Fenced div class names
+
+The class name following `:::` is validated against `/\A[\w][\w-]*\z/` before
+use. Blocks with class names containing characters outside word characters and
+hyphens are rejected - the content renders without a wrapper div and a warning
+is written to the error log.
+
+### oEmbed JSON parsing
+
+oEmbed provider responses are parsed with `JSON::PP` (Perl core module) rather
+than regex extraction. The `html` field from the parsed response is injected
+into the page. Provider responses are trusted as-is - restrict `%OEMBED_PROVIDERS`
+in `md-processor.pl` to known hosts if untrusted providers are a concern in
+your deployment.
 
 ## Uninstall
 
