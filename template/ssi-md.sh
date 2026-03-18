@@ -1,7 +1,7 @@
 #!/bin/bash
-# lazysite domain hook
+# md-pages domain hook
 # Installs md-processor.pl and starter files when ssi-md template is applied
-# https://github.com/OpenDigitalCC/lazysite
+# https://github.com/OpenDigitalCC/md-pages
 
 user="$1"
 domain="$2"
@@ -62,6 +62,13 @@ if [ ! -f "$docroot/index.md" ]; then
 fi
 
 # Ensure www-data can write generated .html files to docroot
-chmod g+w "$docroot"
+# setgid bit ensures new subdirectories inherit the group automatically
+chown "$user":www-data "$docroot"
+chmod g+ws "$docroot"
+
+# Fix any existing subdirectories
+find "$docroot" -type d \
+    -exec chown "$user":www-data {} \; \
+    -exec chmod g+ws {} \;
 
 exit 0

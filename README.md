@@ -1,16 +1,16 @@
-# lazysite
+# md-pages
 
-Lazy by design. Fast by default.
+Pure Markdown content management for Apache and HestiaCP.
 
 Drop `.md` files in your docroot and they are served as fully rendered HTML
 pages - no build step, no CMS, no database. Pages are generated on first
 request and cached as static HTML.
 
-## Why lazysite
+## Why md-pages
 
 Most content management approaches force a choice between a dynamic CMS
 (database, runtime, security surface) and a static site generator (build
-pipeline, toolchain, deploy step). lazysite sits between the two.
+pipeline, toolchain, deploy step). md-pages sits between the two.
 
 Content management
 : Write pages in Markdown. Drop files in the docroot. Pages are live
@@ -46,7 +46,7 @@ Content is portable
 
 Works with any deployment workflow
 : rsync, git pull, sftp, FTP, scp - however files reach the server,
-  lazysite picks them up. It integrates easily into CI/CD pipelines
+  md-pages picks them up. It integrates easily into CI/CD pipelines
   or manual workflows equally well.
 
 Cache is transparent
@@ -63,11 +63,11 @@ Easy to audit
 
 Works alongside static files
 : Mix hand-crafted `.html` files and `.md` files in the same docroot
-  freely. lazysite only activates when no matching file exists.
+  freely. md-pages only activates when no matching file exists.
 
 ## Web server support
 
-lazysite uses standard CGI and error handler mechanisms available in most
+md-pages uses standard CGI and error handler mechanisms available in most
 web servers.
 
 - Apache 2.4 - supported, HestiaCP installer provided
@@ -77,7 +77,7 @@ web servers.
 
 ## Motivations
 
-lazysite grew out of a specific frustration with the available options for
+md-pages grew out of a specific frustration with the available options for
 managing a small set of sites on a personal hosting infrastructure.
 
 ### Starting point: SSI
@@ -96,7 +96,7 @@ are tedious to write and update.
 
 ### What was needed
 
-The requirements that shaped lazysite:
+The requirements that shaped md-pages:
 
 Speed
 : Pages should be fast. Not "fast enough" - actually fast. A CGI process on
@@ -118,7 +118,7 @@ Markdown
 
 Control where you want it
 : The layout template is a file you own and edit directly. The CSS is your
-  CSS. The HTML structure is yours. lazysite renders Markdown into a slot in
+  CSS. The HTML structure is yours. md-pages renders Markdown into a slot in
   your template - it does not impose a theme, a component model, or a
   styling convention. If you know HTML and CSS you are not constrained.
 
@@ -129,7 +129,7 @@ Sensible defaults
   work on first install.
 
 Same method everywhere
-: A page authored for one site should work on any other site running lazysite.
+: A page authored for one site should work on any other site running md-pages.
   The front matter format, the fenced div syntax, the URL structure - all
   consistent. Moving content between sites is a file copy.
 
@@ -142,12 +142,12 @@ Version control as the content store
 ### Integration with HestiaCP
 
 HestiaCP is the control panel in use on the hosting infrastructure. It has
-a web template system that generates Apache vhost configs. lazysite plugs
+a web template system that generates Apache vhost configs. md-pages plugs
 into this as a named template - apply it to a domain, rebuild, and the
 processor and starter files are installed automatically. The same installer
 also produces clean configurations for standalone Apache outside HestiaCP.
 
-The HestiaCP integration is additive. lazysite works without it.
+The HestiaCP integration is additive. md-pages works without it.
 
 ### What emerged during development
 
@@ -181,7 +181,7 @@ retain control.
 
 
 
-lazysite suits a specific use case. These alternatives may be a better fit
+md-pages suits a specific use case. These alternatives may be a better fit
 depending on your requirements.
 
 Hugo
@@ -192,7 +192,7 @@ Hugo
 
 Pico CMS
 : A flat-file PHP CMS. Drop Markdown files in a directory and pages appear -
-  similar philosophy to lazysite but PHP-based with a plugin ecosystem and
+  similar philosophy to md-pages but PHP-based with a plugin ecosystem and
   admin themes. Better choice if you want a richer authoring experience or
   plugins for things like search, without a database. Requires PHP on every
   request.
@@ -211,13 +211,13 @@ Publii
 : Desktop app that generates a static site. Good choice if authors prefer a
   GUI and the site is maintained by one person. No server-side processing.
 
-lazysite is most appropriate when content is managed via VCS, authors are
+md-pages is most appropriate when content is managed via VCS, authors are
 comfortable with Markdown and a text editor, and the simplicity of no
 database and no build step is valued over a richer feature set.
 
 ### Migrating from Pico CMS
 
-Pico content migrates directly to lazysite with minimal changes. Pico uses
+Pico content migrates directly to md-pages with minimal changes. Pico uses
 the same Markdown files with YAML front matter:
 
 ```yaml
@@ -230,9 +230,9 @@ Content here.
 
 To migrate:
 
-- Copy your Pico `content/` files to the lazysite docroot
+- Copy your Pico `content/` files to the md-pages docroot
 - Rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter
-  (lazysite uses lowercase keys)
+  (md-pages uses lowercase keys)
 - Remove any Pico-specific front matter keys that have no equivalent
 - Replace Pico theme templates with a `layout.tt` template
 
@@ -247,7 +247,7 @@ find public_html -name "*.md" | \
 
 Hugo Markdown content uses the same front matter format. The content files
 themselves require no changes. What does need replacing is the Hugo template
-system - Hugo uses Go templates, lazysite uses Template Toolkit. The
+system - Hugo uses Go templates, md-pages uses Template Toolkit. The
 `layout.tt` file replaces your Hugo `baseof.html` or equivalent base template.
 
 
@@ -275,13 +275,13 @@ see the manual installation section below.
 
 ### HestiaCP
 
-The installer registers lazysite as a HestiaCP web template. Once installed,
+The installer registers md-pages as a HestiaCP web template. Once installed,
 apply it to any domain from the control panel and the processor and starter
 files are deployed automatically on rebuild.
 
 ```bash
-git clone https://github.com/OpenDigitalCC/lazysite.git
-cd lazysite
+git clone https://github.com/OpenDigitalCC/md-pages.git
+cd md-pages
 sudo bash install.sh
 ```
 
@@ -335,9 +335,12 @@ ErrorDocument 404 /cgi-bin/md-processor.pl
 Ensure the web server user can write to the docroot:
 
 ```bash
-chown -R www-data:www-data /var/www/example.com/public_html
-chmod g+w /var/www/example.com/public_html
+chown ispadmin:www-data /var/www/example.com/public_html
+chmod g+ws /var/www/example.com/public_html
 ```
+
+The setgid bit (`s`) ensures new subdirectories created by the processor
+inherit the `www-data` group automatically.
 
 
 ## Getting started
@@ -853,7 +856,7 @@ Key messages to look for:
 : Same as above - the 403 error handler should fire and generate
   `index.html` from `index.md` on first request.
 
-`lazysite: Cannot write cache file ... Fix with: chmod g+w`
+`lazysite: Cannot write cache file ... Fix with: chmod g+ws`
 : The web server cannot write the generated `.html` file to the docroot.
   The page will still render correctly but will not be cached - every
   request will regenerate it until permissions are fixed.
@@ -868,20 +871,28 @@ error log will contain:
 
 ```
 lazysite: Cannot write cache file /path/to/page.html: Permission denied
-- page will render uncached. Fix with: chmod g+w /path/to/
+- page will render uncached. Fix with: chown ...&& chmod g+ws /path/to/
 ```
 
 Fix with:
 
 ```bash
-chmod g+w /home/username/web/example.com/public_html
+chown ispadmin:www-data /home/username/web/example.com/public_html
+chmod g+ws /home/username/web/example.com/public_html
 ```
+
+The setgid bit (`s`) ensures new subdirectories inherit the `www-data`
+group automatically, so pages in subdirectories cache correctly without
+further intervention.
 
 This is reset on every HestiaCP domain rebuild. To reapply across all
 domains after a rebuild:
 
 ```bash
-chmod g+w /home/username/web/*/public_html
+for d in /home/username/web/*/public_html; do
+    chown $(stat -c '%U' "$d"):www-data "$d"
+    chmod g+ws "$d"
+done
 ```
 
 Note: the `ssi-md.sh` hook sets this automatically when the template is
@@ -907,14 +918,15 @@ cp /usr/local/hestia/data/templates/web/apache2/php-fpm/files/layout.tt \
 ### Subdirectory permissions
 
 When pages are in subdirectories (`docs/`, `services/` etc.), the processor
-creates those directories automatically. However the group ownership must
-match the docroot for `www-data` to write into them.
+creates those directories automatically with the setgid bit set, so they
+inherit the `www-data` group from the docroot. If the docroot itself has the
+setgid bit set correctly this should be transparent.
 
 If pages in subdirectories render but don't cache, fix the directory:
 
 ```bash
-chown $(stat -c '%U' public_html):$(stat -c '%G' public_html) public_html/docs
-chmod g+w public_html/docs
+chown $(stat -c '%U' public_html):www-data public_html/docs
+chmod g+ws public_html/docs
 ```
 
 The error log will contain the fix command if this is the cause:
@@ -964,7 +976,7 @@ grep "Registry\|registry" logs/example.com.error.log
 
 ## Link audit
 
-`lazysite-audit.pl` scans your docroot and reports orphaned pages and broken
+`md-pages-audit.pl` scans your docroot and reports orphaned pages and broken
 links.
 
 Orphaned pages
@@ -975,7 +987,7 @@ Broken links
 : Links in `.md` or template files pointing to pages that do not exist.
 
 ```bash
-perl lazysite-audit.pl /home/username/web/example.com/public_html
+perl md-pages-audit.pl /home/username/web/example.com/public_html
 ```
 
 The audit scans `.md` files, `.tt` templates (including `layout.tt` and
@@ -986,13 +998,13 @@ links, assets, and image files are ignored.
 exclusions can be passed on the command line:
 
 ```bash
-perl lazysite-audit.pl --exclude changelog,contributing /path/to/docroot
+perl md-pages-audit.pl --exclude changelog,contributing /path/to/docroot
 ```
 
 Or via a file with one path per line:
 
 ```bash
-perl lazysite-audit.pl --exclude-file exclusions.txt /path/to/docroot
+perl md-pages-audit.pl --exclude-file exclusions.txt /path/to/docroot
 ```
 
 ## Security
@@ -1039,7 +1051,7 @@ your deployment.
 
 ## Static site generation
 
-lazysite can generate a complete static site - all pages pre-rendered to
+md-pages can generate a complete static site - all pages pre-rendered to
 HTML - for deployment to static hosting such as GitHub Pages, Netlify,
 Cloudflare Pages, or any plain web server without CGI support.
 
@@ -1104,7 +1116,7 @@ is purely source files.
 
 
 
-A Docker Compose setup provides a self-contained lazysite environment
+A Docker Compose setup provides a self-contained md-pages environment
 without requiring Apache or HestiaCP on the host. This is useful for local
 development, testing, or as a simple standalone deployment.
 
@@ -1143,7 +1155,7 @@ services:
         </VirtualHost>
 EOF
         chown -R www-data:www-data /var/www/html &&
-        chmod g+w /var/www/html &&
+        chmod g+ws /var/www/html &&
         apache2ctl -D FOREGROUND
       "
 ```
@@ -1189,11 +1201,11 @@ Removes Hestia template files only. Deployed domain files are not touched.
 ## Repository structure
 
 ```
-lazysite/
+md-pages/
   install.sh
   uninstall.sh
   build-static.sh     <- static site generator
-  lazysite-audit.pl   <- link audit utility
+  md-pages-audit.pl   <- link audit utility
   template/
     ssi-md.tpl          <- Apache vhost template (HTTP)
     ssi-md.stpl         <- Apache vhost template (HTTPS)
@@ -1218,7 +1230,7 @@ MIT
 
 ## AI assistance
 
-lazysite was developed interactively with Claude (Anthropic). Architecture,
+md-pages was developed interactively with Claude (Anthropic). Architecture,
 design decisions, security review, and deployment were directed by the author.
 Claude assisted with code generation, documentation, and iterative refinement
 throughout development.

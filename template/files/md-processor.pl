@@ -197,7 +197,7 @@ sub fetch_url {
 
     my $ua = LWP::UserAgent->new(
         timeout    => 10,
-        agent      => 'lazysite/1.0',
+        agent      => 'md-pages/1.0',
     );
 
     my $response = $ua->get($url);
@@ -661,10 +661,11 @@ sub write_html {
     my $dir = dirname($html_path);
     unless ( -d $dir ) {
         make_path($dir);
-        # Set group to match docroot so www-data can write
+        # Set group to match docroot and apply setgid bit so new files
+        # and subdirectories inherit the group automatically
         my $gid = ( stat($DOCROOT) )[5];
         chown -1, $gid, $dir;
-        chmod 0775, $dir;
+        chmod 0775 | 02000, $dir;  # 02000 = setgid bit
     }
 
     open( my $fh, '>:utf8', $html_path ) or do {
@@ -725,5 +726,5 @@ sub read_file {
 
 sub log_warn {
     my ($msg) = @_;
-    print STDERR "lazysite: $msg\n";
+    print STDERR "md-pages: $msg\n";
 }
