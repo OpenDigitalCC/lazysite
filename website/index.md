@@ -13,18 +13,16 @@ Drop a `.md` file in your docroot and it is served as a fully rendered HTML page
 Write content in Markdown. Design the site in a Template Toolkit layout file. The two never touch each other.
 
 ::: widebox
-This site is its own demonstration. The three pages are `.md` files stored in the [lazysite GitHub repository][github] and served here via `.url` files — lazysite fetches and renders them on first request.
+This site is its own demonstration. The pages are `.url` files — lazysite fetches the Markdown from the [GitHub repository][github] and renders it on first request.
 :::
 
-## Install
+## Where to go
 
-```bash
-sudo bash install.sh
-```
+[Readme](/README)
+: Installation, requirements, configuration, troubleshooting, and technical internals. Start here if you are setting up lazysite on a server.
 
-The installer registers a HestiaCP web template. Apply it to a domain in HestiaCP, rebuild vhosts, and the processor and starter files are in place. A standalone Apache configuration is also produced for use without HestiaCP.
-
-Full installation instructions are in the [docs](/authoring).
+[Authoring](/authoring)
+: Writing pages — front matter, Markdown, Template Toolkit variables, fenced divs, remote sources, and cache management. Start here if you are building or maintaining a site.
 
 ## Key features
 
@@ -48,14 +46,6 @@ Remote sources
 
 Content is portable
 : Plain `.md` files work with any Markdown processor. Switching tools does not mean rewriting content.
-
-## Requirements
-
-- Any web server with CGI support and configurable error handlers
-- Apache 2.4 with HestiaCP — installer provided; applies as a domain template
-- Apache 2.4 standalone — configure `ErrorDocument 403/404` manually
-- Nginx — use `error_page 403 404` to point to the CGI script
-- Three Debian packages: `libtext-multimarkdown-perl`, `libtemplate-perl`, `libwww-perl`
 
 ## Licence
 
