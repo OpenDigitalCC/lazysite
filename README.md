@@ -1,3 +1,8 @@
+---
+title: README
+subtitle: Repo documentation
+---
+
 # lazysite
 
 Pure Markdown content management for Apache and HestiaCP.
