@@ -1,3 +1,4 @@
 test-site/public_html/
 test-site/cgi-bin/
 starter/lazysite/
+starter/**/*.html
