@@ -77,6 +77,18 @@ for file in index.md lazysite-demo.md 404.md; do
     fi
 done
 
+# Install docs if not already present
+if [ -d "$SCRIPT_DIR/starter/docs" ]; then
+    mkdir -p "$DOCROOT/docs"
+    for doc in "$SCRIPT_DIR/starter/docs/"*.md; do
+        [ -f "$doc" ] || continue
+        dest="$DOCROOT/docs/$(basename "$doc")"
+        if [ ! -f "$dest" ]; then
+            install -m 644 "$doc" "$dest"
+        fi
+    done
+fi
+
 # Install registry templates
 for tmpl in "$SCRIPT_DIR/starter/registries/"*.tt; do
     [ -f "$tmpl" ] || continue
