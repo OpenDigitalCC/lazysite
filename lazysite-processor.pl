@@ -24,6 +24,40 @@ my $THEMES_DIR    = "$LAZYSITE_DIR/themes";
 my $REMOTE_TTL    = 3600;  # seconds before remote content is refetched (default 1 hour)
 my $REGISTRY_TTL  = 14400; # seconds before registries are regenerated (default 4 hours)
 
+# Built-in fallback template - used when no layout.tt is found
+my $FALLBACK_LAYOUT = <<'END_FALLBACK';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>[% page_title %][% IF site_name %] — [% site_name %][% END %]</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 800px;
+               margin: 2rem auto; padding: 0 1rem; color: #333; }
+        h1 { border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+        pre { background: #f5f5f5; padding: 1rem; overflow-x: auto; }
+        code { background: #f5f5f5; padding: 0.2em 0.4em; }
+        footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #eee;
+                 font-size: 0.85rem; color: #888; }
+        a { color: #0066cc; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>[% page_title %]</h1>
+    [% IF page_subtitle %]<p>[% page_subtitle %]</p>[% END %]
+    [% content %]
+</main>
+<footer>
+    <p>Rendered by <a href="https://lazysite.io">lazysite</a>
+    [% IF site_name %]— [% site_name %][% END %]
+    — no layout.tt found, using built-in fallback</p>
+</footer>
+</body>
+</html>
+END_FALLBACK
+
 # Extension to language identifier map for include code block wrapping
 my %LANG_MAP = (
     md   => 'markdown',
@@ -1046,16 +1080,27 @@ sub render_template {
 
     $vars->{content} = $processed_body;
     my $output = '';
+
+    # Try specified layout
     $tt_layout->process( $layout, $vars, \$output )
         or do {
-            log_warn("Layout processing error: " . $tt_layout->error()
-                . " - serving content without layout");
-            # Fallback: serve processed body wrapped in minimal HTML
-            $output = "<!DOCTYPE html><html><head><title>"
-                . ( $vars->{page_title} || 'Error' )
-                . "</title></head><body>"
-                . $processed_body
-                . "</body></html>";
+            log_warn("Layout error ($layout): " . $tt_layout->error()
+                . " - using built-in fallback");
+            $output = '';
+
+            # Try built-in fallback layout
+            my $tt_fallback = Template->new( ENCODING => 'utf8' )
+                or do {
+                    log_warn("Cannot create fallback TT instance - serving bare content");
+                    return $processed_body;
+                };
+
+            $tt_fallback->process( \$FALLBACK_LAYOUT, $vars, \$output )
+                or do {
+                    log_warn("Fallback layout error: " . $tt_fallback->error()
+                        . " - serving bare content");
+                    return $processed_body;
+                };
         };
 
     return $output;
