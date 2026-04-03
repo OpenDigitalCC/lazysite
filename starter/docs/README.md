@@ -420,7 +420,7 @@ Plus any site-wide variables defined in `lazysite.conf`.
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>[% page_title %] — [% site_name %]</title>
+    <title>[% page_title %]  -  [% site_name %]</title>
     <link rel="stylesheet" href="/assets/css/main.css">
 </head>
 <body>
