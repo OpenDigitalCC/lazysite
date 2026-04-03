@@ -33,6 +33,8 @@ Content
 [% page_title %]       Title from page front matter
 [% page_subtitle %]    Subtitle from page front matter (may be empty)
 [% content %]          Converted page body HTML - output unescaped
+[% page_modified %]    Human-readable file mtime: "3 April 2026"
+[% page_modified_iso %] ISO 8601 file mtime: "2026-04-03"
 ```
 
 Plus all site-wide variables defined in `lazysite/lazysite.conf`.
@@ -56,7 +58,7 @@ Plus all site-wide variables defined in `lazysite/lazysite.conf`.
 ### Include
 
 ```
-[% INCLUDE templates/partials/nav.tt %]
+[% INCLUDE lazysite/templates/partials/nav.tt %]
 ```
 
 ### Minimal working template
@@ -124,7 +126,7 @@ version: url:https://raw.githubusercontent.com/example/repo/main/VERSION
 ```
 
 Allowlisted environment variables: `SERVER_NAME`, `REQUEST_SCHEME`,
-`SERVER_PORT`, `HTTPS`, `DOCUMENT_ROOT`, `SERVER_ADMIN`.
+`SERVER_PORT`, `HTTPS`, `REDIRECT_URL`, `DOCUMENT_ROOT`, `SERVER_ADMIN`.
 
 Lines beginning with `#` are comments.
 
@@ -178,6 +180,23 @@ tt_page_var:
   release_url: url:https://api.github.com/repos/example/repo/releases/latest
   beta: true
 ```
+
+`date`
+: Publication date in `YYYY-MM-DD` format. Used in RSS/Atom feeds.
+  Falls back to file mtime if not set. Example: `date: 2026-03-20`
+
+`layout`
+: Named layout template for this page. Resolved from
+  `lazysite/themes/NAME/layout.tt` then `lazysite/templates/NAME.tt`,
+  falls back to default `layout.tt`. Example: `layout: minimal`
+
+`raw`
+: Set to `true` to output converted content without the layout wrapper.
+  TT variables still resolve. Example: `raw: true`
+
+`content_type`
+: HTTP Content-Type header. Used with `raw: true`.
+  Example: `content_type: application/json; charset=utf-8`
 
 ---
 
@@ -291,6 +310,34 @@ https://www.youtube.com/watch?v=abc123
 Works with YouTube, Vimeo, SoundCloud, PeerTube, and any oEmbed provider.
 The embed is baked into the cached page - no client-side API call.
 
+### Content includes
+
+Inline remote or local content into the page:
+
+```
+::: include
+path/to/local.md
+:::
+
+::: include
+https://raw.githubusercontent.com/owner/repo/main/file.md
+:::
+```
+
+Path resolution:
+- Starts with `/` → absolute from docroot
+- Starts with `https?://` → remote URL fetch
+- Otherwise → relative to the current `.md` file
+
+Content handling by type:
+- `.md` → front matter stripped, body rendered as Markdown inline
+- Code files (`.sh`, `.pl`, `.yml` etc.) → wrapped in fenced code block
+- `.html` → inserted bare
+- Unknown → wrapped in `<pre>`
+
+Failed includes render as a silent `<span class="include-error">` tag.
+No recursive includes - `:::include` inside an included file is ignored.
+
 ### Template Toolkit in page content
 
 TT variables are expanded in page content before Markdown conversion:
@@ -348,6 +395,8 @@ public_html/
       registries/
         llms.txt.tt     <- llms.txt template
         sitemap.xml.tt  <- sitemap template
+        feed.rss.tt
+        feed.atom.tt
     themes/             <- theme assets
   assets/
     css/                <- stylesheets
@@ -379,6 +428,14 @@ find public_html -name "*.html" -delete
 
 Pages with `ttl:` front matter regenerate automatically after the TTL
 expires without manual cache deletion.
+
+Index pages (`index.md`) are served directly by Apache via
+`DirectoryIndex` and bypass the processor when cached. After editing
+`index.md`, delete the cache manually:
+
+```bash
+rm public_html/index.html
+```
 
 ---
 
@@ -427,3 +484,15 @@ Then ask the user:
 
 Produce a `lazysite.conf` file. One variable per line. Add comments for
 clarity.
+
+### Switching themes
+
+To switch the site theme, set `theme:` in `lazysite/lazysite.conf`:
+
+```yaml
+theme: dark
+```
+
+This resolves to `lazysite/themes/dark/layout.tt`. Install themes by
+placing them in `lazysite/themes/`. Per-page layout override via
+front matter `layout:` key.

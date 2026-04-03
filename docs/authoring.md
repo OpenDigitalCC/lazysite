@@ -45,6 +45,12 @@ Front matter fields:
 `content_type`
 : Used with `raw: true` to set the HTTP `Content-type` header. Defaults to `text/html; charset=utf-8`. Example: `content_type: application/json; charset=utf-8`
 
+`date`
+: Publication date in `YYYY-MM-DD` format. Used in RSS/Atom feed entries. Falls back to file mtime if not set. Example: `date: 2026-03-20`
+
+`layout`
+: Named layout template for this page. The processor checks `lazysite/themes/NAME/layout.tt` first, then `lazysite/templates/NAME.tt`, and falls back to the default `layout.tt` if neither exists. Example: `layout: minimal`
+
 ## URL structure
 
 Page URLs derive from file paths, always without extension:
@@ -117,6 +123,21 @@ This feature is in beta.
 
 Variable precedence: site vars → page vars → `page_title`, `page_subtitle`, `content`.
 
+### Automatic page variables
+
+These variables are set automatically by the processor and available in every page render:
+
+- `[% page_title %]` — from front matter `title`
+- `[% page_subtitle %]` — from front matter `subtitle`
+- `[% page_modified %]` — human-readable file modification date, e.g. "3 April 2026"
+- `[% page_modified_iso %]` — ISO 8601 file modification date, e.g. "2026-04-03"
+
+`page_modified_iso` is useful for `<time>` elements:
+
+```html
+<time datetime="[% page_modified_iso %]">[% page_modified %]</time>
+```
+
 Variables are defined in `lazysite.conf` (site-wide) or `tt_page_var` front matter (page-scoped).
 
 ## Site-wide variables
@@ -187,6 +208,60 @@ https://www.youtube.com/watch?v=abc123
 
 Works with YouTube, Vimeo, SoundCloud, PeerTube, and any oEmbed provider. The embed is baked into the cached page — no client-side API calls. If the fetch fails, the block renders as a plain link fallback with class `oembed--failed` for CSS targeting.
 
+## Content includes
+
+Include local or remote content inline in a page using `:::include`:
+
+```
+::: include
+partials/note.md
+:::
+```
+
+```
+::: include
+https://raw.githubusercontent.com/owner/repo/main/CHANGELOG.md
+:::
+```
+
+```
+::: include
+partials/example.sh
+:::
+```
+
+### Path resolution
+
+- Starts with `/` — absolute from the docroot
+- Starts with `http://` or `https://` — remote URL, fetched via HTTP
+- Otherwise — relative to the directory containing the current `.md` file
+
+### Content handling by type
+
+`.md` files
+: YAML front matter is stripped. The body is rendered through the full Markdown pipeline (fenced divs, code blocks, oEmbed) and inserted as HTML inline. The included file's `title` and `layout` are ignored — only the body is used.
+
+Code files (`.sh`, `.pl`, `.py`, `.yml`, `.js`, `.json`, `.css`, `.xml`, `.toml`, `.conf`, `.cfg`, `.txt`)
+: Wrapped in a fenced code block with the appropriate language identifier. For example, a `.sh` file produces `<pre><code class="language-bash">`.
+
+`.html` / `.htm` files
+: Inserted bare — assumed to be a valid HTML fragment.
+
+Unknown extensions or no extension
+: Wrapped in `<pre>` with HTML entities escaped.
+
+### Error handling
+
+If a local file is missing or a remote fetch fails, the block renders as an invisible `<span class="include-error" data-src="..."></span>` tag and a warning is written to the error log. Expose errors during development with CSS:
+
+```css
+.include-error::before { content: "include failed: " attr(data-src); color: red; }
+```
+
+### No recursive includes
+
+`:::include` inside an included `.md` file is not processed. Includes are single-pass only — this prevents infinite loops and keeps behaviour predictable.
+
 ## Registries
 
 Pages declare which registry files they appear in via the `register` front matter key. Supported registries out of the box are `llms.txt` and `sitemap.xml`. Each name maps to a Template Toolkit template in `lazysite/templates/registries/`:
@@ -203,6 +278,29 @@ rm public_html/llms.txt
 ```
 
 Adding a new registry format requires only dropping a `.tt` file in `lazysite/templates/registries/` — no code changes needed.
+
+### RSS and Atom feeds
+
+Pages can register with `feed.rss` and `feed.atom` to appear in syndication feeds:
+
+```yaml
+---
+title: New Feature Announcement
+date: 2026-03-20
+register:
+  - feed.rss
+  - feed.atom
+  - sitemap.xml
+---
+```
+
+The `date` front matter key is used as the publication date in feed entries. If `date` is not set, the file mtime is used as a fallback.
+
+Feed registry templates are provided in `starter/registries/`:
+- `feed.rss.tt` — RSS 2.0 feed at `/feed.rss`
+- `feed.atom.tt` — Atom feed at `/feed.atom`
+
+Copy them to `lazysite/templates/registries/` to enable feeds on your site.
 
 ## The 404 page
 

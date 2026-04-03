@@ -76,7 +76,7 @@ lazysite uses standard CGI and error handler mechanisms available in most
 web servers.
 
 - Apache 2.4 - supported, HestiaCP installer provided
-- Apache without HestiaCP - configure `ErrorDocument 403/404` manually
+- Apache without HestiaCP - configure `FallbackResource` manually
 - Nginx - use `error_page 403 404` to point to the CGI script
 - Any web server with CGI support and configurable error handlers should work
 
@@ -403,6 +403,13 @@ Every page render passes these variables to the template:
 : The converted page body as HTML. Output with `[% content %]` - TT does not
   escape this value, which is correct since it is already HTML.
 
+`[% page_modified %]`
+: Human-readable file modification date, e.g. "3 April 2026".
+
+`[% page_modified_iso %]`
+: ISO 8601 file modification date, e.g. "2026-04-03". Useful for
+  `<time datetime="...">` elements.
+
 Plus any site-wide variables defined in `lazysite.conf`.
 
 ### Minimal template structure
@@ -724,6 +731,7 @@ Each page object contains:
 - `[% page.url %]` - canonical URL path e.g. `/install`
 - `[% page.title %]` - from front matter
 - `[% page.subtitle %]` - from front matter
+- `[% page.date %]` - publication date (from front matter or file mtime)
 
 Example `llms.txt.tt`:
 
@@ -758,6 +766,18 @@ Drop a `.tt` file in `lazysite/templates/registries/` - no code changes needed. 
 processor picks it up automatically on the next page render after the TTL
 expires.
 
+### RSS and Atom feeds
+
+Starter templates for RSS and Atom feeds are included in `starter/registries/`. Copy them to your site's `lazysite/templates/registries/` directory to enable feeds. Pages opt in via the `register` front matter key:
+
+```yaml
+register:
+  - feed.rss
+  - feed.atom
+```
+
+The `date` front matter key (`YYYY-MM-DD` format) is used as the publication date in feed entries. If not set, the file modification time is used as a fallback.
+
 ## Embedded media
 
 Pages can embed videos and other media using oEmbed. Any oEmbed-compatible
@@ -787,6 +807,33 @@ If the fetch fails the block renders as a plain link fallback with class
 `oembed--failed` for CSS targeting.
 
 Additional providers can be added to `%OEMBED_PROVIDERS` in `lazysite-processor.pl`.
+
+## Content includes
+
+Pages can include local or remote content inline using `:::include`:
+
+```markdown
+::: include
+partials/nav-links.md
+:::
+
+::: include
+https://raw.githubusercontent.com/owner/repo/main/CHANGELOG.md
+:::
+```
+
+Local paths are resolved relative to the including `.md` file, or absolute
+from the docroot if prefixed with `/`. Remote URLs are fetched via HTTP.
+
+Content handling depends on file extension:
+- `.md` files have front matter stripped and are rendered as Markdown inline
+- Code files (`.sh`, `.pl`, `.yml` etc.) are wrapped in a fenced code block
+- `.html` files are inserted bare
+- Unknown extensions are wrapped in `<pre>`
+
+Failed includes render as a silent `<span class="include-error">` tag and
+log a warning. Includes are single-pass only - `:::include` inside an
+included file is not processed recursively.
 
 
 
@@ -939,6 +986,22 @@ Key messages to look for:
   The page will still render correctly but will not be cached - every
   request will regenerate it until permissions are fixed.
 
+### Index page serves blank or stale content after editing
+
+Apache serves `index.html` directly via `DirectoryIndex`, bypassing
+the processor. After editing `index.md`, delete the cache file:
+
+```bash
+rm public_html/index.html
+```
+
+### A page caches as an empty file
+
+Usually caused by a layout template error. The processor now falls
+back to minimal HTML rather than dying, but check the Apache error
+log for layout warnings. Delete the empty `.html` file to force
+regeneration after fixing the template.
+
 ### Cache write permission error
 
 The most common setup issue. The web server user (`www-data`) needs write
@@ -1052,6 +1115,39 @@ Check the error log for any registry errors:
 grep "Registry\|registry" logs/example.com.error.log
 ```
 
+## Development
+
+### Dev server
+
+`tools/lazysite-server.pl` is a minimal HTTP development server for local
+use. It invokes the processor for each request and serves static assets
+directly - no Apache required.
+
+```bash
+# Browse the starter site immediately after cloning
+perl tools/lazysite-server.pl
+
+# Serve your own site
+perl tools/lazysite-server.pl --docroot /path/to/your/public_html
+```
+
+The dev server sets `LAZYSITE_NOCACHE=1` by default so pages always
+regenerate. Pass `--cache` to use the normal cache logic.
+
+### LAZYSITE_NOCACHE
+
+Set `LAZYSITE_NOCACHE=1` when running the processor manually to skip
+the cache read path and always regenerate:
+
+```bash
+LAZYSITE_NOCACHE=1 REDIRECT_URL=/page \
+DOCUMENT_ROOT=/path/to/public_html \
+  perl cgi-bin/lazysite-processor.pl
+```
+
+This bypasses the mtime and TTL cache checks so the page is always
+rebuilt from source. It does not suppress cache file writes.
+
 ## Link audit
 
 `lazysite-audit.pl` scans your docroot and reports orphaned pages and broken
@@ -1109,7 +1205,7 @@ the rendering pipeline.
 
 The `${VAR}` interpolation in `lazysite.conf` is restricted to an explicit
 allowlist: `SERVER_NAME`, `REQUEST_SCHEME`, `SERVER_PORT`, `HTTPS`,
-`DOCUMENT_ROOT`, `SERVER_ADMIN`. Request-supplied headers (`HTTP_*` variables)
+`REDIRECT_URL`, `DOCUMENT_ROOT`, `SERVER_ADMIN`. Request-supplied headers (`HTTP_*` variables)
 are not interpolated regardless of what appears in `lazysite.conf`.
 
 ### Fenced div class names
@@ -1298,9 +1394,12 @@ lazysite/
     registries/
       llms.txt.tt                  <- starter llms.txt registry template
       sitemap.xml.tt               <- starter sitemap registry template
+      feed.rss.tt                  <- starter RSS feed template
+      feed.atom.tt                 <- starter Atom feed template
   tools/
     build-static.sh                <- static site generator
     lazysite-audit.pl              <- link audit utility
+    lazysite-server.pl             <- development server
   docs/
     README.md                      <- this file
     authoring.md                   <- authoring and template integration guide
