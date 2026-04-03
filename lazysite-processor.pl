@@ -57,8 +57,27 @@ main();
 sub main {
     my $uri = $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '';
 
-    # Strip query string
-    $uri =~ s/\?.*$//;
+    # Capture query string before stripping
+    my %query_params;
+    if ( $uri =~ s/\?(.*)$// ) {
+        my $qs = $1;
+        for my $pair ( split /&/, $qs ) {
+            my ( $key, $val ) = split /=/, $pair, 2;
+            next unless defined $key && length $key;
+            # URL-decode key and value
+            $key =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
+            $val = '' unless defined $val;
+            $val =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
+            $val =~ s/\+/ /g;
+            # HTML-escape value before storing
+            $val =~ s/&/&amp;/g;
+            $val =~ s/</&lt;/g;
+            $val =~ s/>/&gt;/g;
+            $val =~ s/"/&quot;/g;
+            $val =~ s/'/&#39;/g;
+            $query_params{$key} = $val;
+        }
+    }
 
     # Block access to lazysite system directory
     if ( index( $uri, $LAZYSITE_URI ) == 0 ) {
@@ -81,9 +100,26 @@ sub main {
     my @html_stat = stat($html_path);
     my @md_stat   = stat($md_path);
 
+    # Check if this page declares query_params and request has matching ones
+    my $has_query_request = 0;
+    my $declared_params   = undef;
+
+    if ( %query_params && @md_stat ) {
+        $declared_params = peek_query_params($md_path);
+        if ( $declared_params ) {
+            # Check if any declared param appears in the request
+            for my $p ( @$declared_params ) {
+                if ( exists $query_params{$p} ) {
+                    $has_query_request = 1;
+                    last;
+                }
+            }
+        }
+    }
+
     # Fast path: .md exists and cache is fresh by mtime
-    # Skip cache if LAZYSITE_NOCACHE is set (useful for testing)
-    unless ( $ENV{LAZYSITE_NOCACHE} ) {
+    # Skip cache if LAZYSITE_NOCACHE is set or query request is active
+    unless ( $ENV{LAZYSITE_NOCACHE} || $has_query_request ) {
         if ( @md_stat && @html_stat ) {
             if ( $html_stat[9] >= $md_stat[9] ) {
                 # mtime fresh - serve cache immediately, no peek_ttl needed
@@ -107,7 +143,17 @@ sub main {
             not_found($uri);
             return;
         }
-        my $page = process_md( $md_path, $html_path, $md_stat[9] );
+
+        # Filter query params to declared allowlist only
+        my %filtered_query;
+        if ( $declared_params && $has_query_request ) {
+            for my $p ( @$declared_params ) {
+                $filtered_query{$p} = $query_params{$p}
+                    if exists $query_params{$p};
+            }
+        }
+
+        my $page = process_md( $md_path, $html_path, $md_stat[9], \%filtered_query );
         my $ct   = peek_content_type($md_path);
         output_page( $page, $ct );
         return;
@@ -164,7 +210,8 @@ sub sanitise_uri {
 }
 
 sub process_md {
-    my ( $md_path, $html_path, $md_mtime ) = @_;
+    my ( $md_path, $html_path, $md_mtime, $query ) = @_;
+    $query //= {};
 
     my $raw_text        = read_file($md_path);
     my ( $meta, $body ) = parse_yaml_front_matter($raw_text);
@@ -188,18 +235,21 @@ sub process_md {
     # raw: true - skip layout template, output content fragment only
     my $page;
     if ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
-        my ( $processed_body ) = render_content( $meta, $html_body );
+        my ( $processed_body ) = render_content( $meta, $html_body, $query );
         $page = $processed_body;
     }
     else {
-        $page = render_template( $meta, $html_body );
+        $page = render_template( $meta, $html_body, $query );
         $page = convert_dt_links($page);
         $page = convert_p_links($page);
     }
 
-    write_html( $html_path, $page );
-    eval { update_registries() };
-    log_warn("Registry update failed: $@") if $@;
+    # Only cache if no query params - query responses are dynamic
+    if ( !%$query ) {
+        write_html( $html_path, $page );
+        eval { update_registries() };
+        log_warn("Registry update failed: $@") if $@;
+    }
 
     return $page;
 }
@@ -314,6 +364,31 @@ sub peek_content_type {
     return $content_type ? $content_type : 'text/html; charset=utf-8';
 }
 
+sub peek_query_params {
+    my ($md_path) = @_;
+    return undef unless -f $md_path;
+
+    open( my $fh, '<:utf8', $md_path ) or return undef;
+    my ( @params, $in_block );
+    while ( <$fh> ) {
+        last if $. > 1 && /^---/;  # end of front matter
+        if ( /^query_params\s*:\s*$/ ) {
+            $in_block = 1;
+            next;
+        }
+        if ( $in_block ) {
+            if ( /^[ \t]+-[ \t]*(\S+)/ ) {
+                push @params, $1;
+            }
+            else {
+                last;  # end of block
+            }
+        }
+    }
+    close $fh;
+    return @params ? \@params : undef;
+}
+
 sub is_fresh_ttl_val_stat {
     my ( $html_stat, $ttl ) = @_;
     return 0 unless @$html_stat;
@@ -368,10 +443,21 @@ sub parse_yaml_front_matter {
             $meta{tt_page_var} = \%tt_vars;
         }
 
-        # Parse scalar key: value pairs (skip tt_page_var and register blocks)
+        # Parse query_params list (- item lines)
+        if ( $yaml =~ /^query_params\s*:\s*\n((?:[ \t]*-[^\n]*(?:\n|$))*)/m ) {
+            my $block = $1;
+            my @params;
+            while ( $block =~ /^[ \t]*-[ \t]*(\S+)/mg ) {
+                push @params, $1;
+            }
+            $meta{query_params} = \@params;
+        }
+
+        # Parse scalar key: value pairs (skip tt_page_var, register, query_params blocks)
         while ( $yaml =~ /^(\w+)\s*:\s*([^\n]+)$/mg ) {
             next if $1 eq 'tt_page_var';
             next if $1 eq 'register';
+            next if $1 eq 'query_params';
             # Strip TT directives from all scalar values including title and subtitle
             $meta{$1} = strip_tt_directives($2);
         }
@@ -843,7 +929,8 @@ sub scan_pages {
 }
 
 sub render_content {
-    my ( $meta, $html_body ) = @_;
+    my ( $meta, $html_body, $query ) = @_;
+    $query //= {};
 
     # Content pass uses ABSOLUTE => 0 - the content body is a string reference
     # and should never need file access. ABSOLUTE => 1 would allow TT to follow
@@ -863,6 +950,7 @@ sub render_content {
         page_subtitle     => $meta->{subtitle}         || '',
         page_modified     => $meta->{page_modified}    || '',
         page_modified_iso => $meta->{page_modified_iso} || '',
+        query             => $query,
     };
 
     # Protect <pre><code> blocks and inline <code> elements from TT processing
@@ -921,9 +1009,10 @@ sub get_layout_path {
 }
 
 sub render_template {
-    my ( $meta, $html_body ) = @_;
+    my ( $meta, $html_body, $query ) = @_;
+    $query //= {};
 
-    my ( $processed_body, $vars ) = render_content( $meta, $html_body );
+    my ( $processed_body, $vars ) = render_content( $meta, $html_body, $query );
 
     my $layout = get_layout_path( $meta, $vars );
 
