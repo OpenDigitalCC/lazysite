@@ -51,6 +51,12 @@ Front matter fields:
 `layout`
 : Named layout template for this page. The processor checks `lazysite/themes/NAME/view.tt` first, then `lazysite/templates/NAME.tt`, and falls back to the default `view.tt` if neither exists. Example: `layout: minimal`
 
+`query_params`
+: List of URL query string parameter names this page accepts. Declared
+  parameters are available as `[% query.param_name %]` in TT. Requests
+  with matching parameters bypass the cache. Undeclared parameters are
+  ignored. See [API and raw mode](/docs/api) for full details.
+
 ## URL structure
 
 Page URLs derive from file paths, always without extension:

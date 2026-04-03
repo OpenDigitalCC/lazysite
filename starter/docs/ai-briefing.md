@@ -35,6 +35,9 @@ Content
 [% content %]          Converted page body HTML - output unescaped
 [% page_modified %]    Human-readable file mtime: "3 April 2026"
 [% page_modified_iso %] ISO 8601 file mtime: "2026-04-03"
+[% nav %]              Navigation array from nav.conf
+[% request_uri %]      Current page path e.g. /about
+[% query.param %]      URL query string value (declared params only)
 ```
 
 Plus all site-wide variables defined in `lazysite/lazysite.conf`.
@@ -197,6 +200,14 @@ tt_page_var:
 `content_type`
 : HTTP Content-Type header. Used with `raw: true`.
   Example: `content_type: application/json; charset=utf-8`
+
+`query_params`
+: List of URL query parameter names this page accepts. Available as
+  `[% query.param_name %]` in TT. Values are HTML-escaped. Requests
+  with matching params bypass cache. Example:
+  query_params:
+    - q
+    - page
 
 ---
 
@@ -496,3 +507,16 @@ theme: dark
 This resolves to `lazysite/themes/dark/view.tt`. Install themes by
 placing them in `lazysite/themes/`. Per-page layout override via
 front matter `layout:` key.
+
+### Creating nav.conf
+
+Ask the user for their site pages and structure. Produce a `nav.conf`
+file using the format:
+
+    Label | /url
+    Parent label
+      Child label | /child-url
+
+Top-level items use `Label | /url`. Non-clickable group headings use
+`Label` with no pipe. Children are indented with any whitespace.
+One level of nesting only.

@@ -11,6 +11,7 @@ This site is built with [lazysite](https://lazysite.io).
 
 - [Feature demonstrator](/lazysite-demo) - see all features working locally
 - [Authoring guide](/docs/authoring) - writing pages, front matter, Markdown
-- [README](/docs/README) - installation, configuration, reference
+- [Configuration](/docs/configuration) - views, navigation, lazysite.conf
+- [README](/docs/README) - installation and reference
 - [lazysite.io](https://lazysite.io) - project website
 - [GitHub](https://github.com/OpenDigitalCC/lazysite) - source
