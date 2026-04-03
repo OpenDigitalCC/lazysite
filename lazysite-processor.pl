@@ -115,7 +115,7 @@ sub main {
     }
 
     # Block access to lazysite system directory
-    if ( index( $uri, $LAZYSITE_URI ) == 0 ) {
+    if ( $uri eq $LAZYSITE_URI || index( $uri, $LAZYSITE_URI . '/' ) == 0 ) {
         forbidden();
         return;
     }
