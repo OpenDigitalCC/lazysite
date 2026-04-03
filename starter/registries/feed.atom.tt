@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>[% site_name %]</title>
+  <link href="[% site_url %]"/>
+  <link href="[% site_url %]/feed.atom" rel="self"/>
+  <id>[% site_url %]/</id>
+[% FOREACH page IN pages %]
+  <entry>
+    <title>[% page.title %]</title>
+    <link href="[% site_url %][% page.url %]"/>
+    <id>[% site_url %][% page.url %]</id>
+[% IF page.subtitle %]
+    <summary>[% page.subtitle %]</summary>
+[% END %]
+    <updated>[% page.date %]</updated>
+  </entry>
+[% END %]
+</feed>

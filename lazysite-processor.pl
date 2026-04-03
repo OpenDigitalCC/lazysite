@@ -90,7 +90,7 @@ sub main {
             not_found($uri);
             return;
         }
-        my $page = process_md( $md_path, $html_path );
+        my $page = process_md( $md_path, $html_path, $md_stat[9] );
         my $ct   = peek_content_type($md_path);
         output_page( $page, $ct );
         return;
@@ -103,7 +103,7 @@ sub main {
             not_found($uri);
             return;
         }
-        my $page = process_url( $url_path, $html_path );
+        my $page = process_url( $url_path, $html_path, (stat($url_path))[9] );
         my $ct   = peek_content_type($url_path);
         output_page( $page, $ct );
         return;
@@ -147,10 +147,21 @@ sub sanitise_uri {
 }
 
 sub process_md {
-    my ( $md_path, $html_path ) = @_;
+    my ( $md_path, $html_path, $md_mtime ) = @_;
 
     my $raw_text        = read_file($md_path);
     my ( $meta, $body ) = parse_yaml_front_matter($raw_text);
+
+    # Format mtime for TT variables
+    if ( defined $md_mtime ) {
+        my @t = localtime($md_mtime);
+        my @months = qw(January February March April May June
+                        July August September October November December);
+        $meta->{page_modified} = sprintf("%d %s %d",
+            $t[3], $months[$t[4]], $t[5] + 1900);
+        $meta->{page_modified_iso} = sprintf("%04d-%02d-%02d",
+            $t[5] + 1900, $t[4] + 1, $t[3]);
+    }
     my $converted       = convert_fenced_divs($body);
     my $converted2      = convert_fenced_code($converted);
     my $converted3      = convert_oembed($converted2);
@@ -176,7 +187,7 @@ sub process_md {
 }
 
 sub process_url {
-    my ( $url_path, $html_path ) = @_;
+    my ( $url_path, $html_path, $url_mtime ) = @_;
 
     # Read URL from file
     my $url = read_file($url_path);
@@ -203,6 +214,18 @@ sub process_url {
     }
 
     my ( $meta, $body ) = parse_yaml_front_matter($raw);
+
+    # Format mtime for TT variables
+    if ( defined $url_mtime ) {
+        my @t = localtime($url_mtime);
+        my @months = qw(January February March April May June
+                        July August September October November December);
+        $meta->{page_modified} = sprintf("%d %s %d",
+            $t[3], $months[$t[4]], $t[5] + 1900);
+        $meta->{page_modified_iso} = sprintf("%04d-%02d-%02d",
+            $t[5] + 1900, $t[4] + 1, $t[3]);
+    }
+
     my $converted  = convert_fenced_divs($body);
     my $converted2 = convert_fenced_code($converted);
     my $converted3 = convert_oembed($converted2);
@@ -661,6 +684,17 @@ sub scan_pages {
                 my ( $meta, undef ) = parse_yaml_front_matter($raw);
                 next unless $meta->{register};
 
+                # Get date from front matter or file mtime
+                my $date = $meta->{date} || '';
+                unless ( $date ) {
+                    my @st = stat($path);
+                    if ( @st ) {
+                        my @t = localtime( $st[9] );
+                        $date = sprintf("%04d-%02d-%02d",
+                            $t[5] + 1900, $t[4] + 1, $t[3]);
+                    }
+                }
+
                 # Derive URL from path
                 ( my $url = $path ) =~ s{^\Q$DOCROOT\E}{};
                 $url =~ s/\.md$//;
@@ -670,6 +704,7 @@ sub scan_pages {
                     url      => $url,
                     title    => $meta->{title}    || '',
                     subtitle => $meta->{subtitle} || '',
+                    date     => $date,
                     register => $meta->{register} || [],
                 };
             }
@@ -697,8 +732,10 @@ sub render_content {
     my $vars = {
         %site_vars,
         %page_vars,
-        page_title    => $meta->{title}    || '',
-        page_subtitle => $meta->{subtitle} || '',
+        page_title        => $meta->{title}            || '',
+        page_subtitle     => $meta->{subtitle}         || '',
+        page_modified     => $meta->{page_modified}    || '',
+        page_modified_iso => $meta->{page_modified_iso} || '',
     };
 
     # Protect <pre><code> blocks and inline <code> elements from TT processing
@@ -730,10 +767,38 @@ sub render_content {
     return ( $processed_body, $vars );
 }
 
+sub get_layout_path {
+    my ( $meta, $vars ) = @_;
+
+    my $name = $meta->{layout} || $vars->{theme} || '';
+
+    if ( $name ) {
+        # Sanitise - allow only alphanumeric, hyphen, underscore
+        $name =~ s/[^a-zA-Z0-9_-]//g;
+        $name ||= '';  # if sanitise stripped everything, fall back
+
+        if ( $name ) {
+            # Check themes directory first, then templates directory
+            my $theme_path = "$THEMES_DIR/$name/layout.tt";
+            my $tmpl_path  = "$LAYOUT_DIR/$name.tt";
+
+            return $theme_path if -f $theme_path;
+            return $tmpl_path  if -f $tmpl_path;
+
+            log_warn("get_layout_path: layout '$name' not found,"
+                . " falling back to default");
+        }
+    }
+
+    return $LAYOUT;
+}
+
 sub render_template {
     my ( $meta, $html_body ) = @_;
 
     my ( $processed_body, $vars ) = render_content( $meta, $html_body );
+
+    my $layout = get_layout_path( $meta, $vars );
 
     # Second pass: render full layout - needs ABSOLUTE => 1 to read layout.tt
     my $tt_layout = Template->new(
@@ -743,14 +808,30 @@ sub render_template {
 
     $vars->{content} = $processed_body;
     my $output = '';
-    $tt_layout->process( $LAYOUT, $vars, \$output )
-        or die "Template process error: " . $tt_layout->error() . "\n";
+    $tt_layout->process( $layout, $vars, \$output )
+        or do {
+            log_warn("Layout processing error: " . $tt_layout->error()
+                . " - serving content without layout");
+            # Fallback: serve processed body wrapped in minimal HTML
+            $output = "<!DOCTYPE html><html><head><title>"
+                . ( $vars->{page_title} || 'Error' )
+                . "</title></head><body>"
+                . $processed_body
+                . "</body></html>";
+        };
 
     return $output;
 }
 
 sub write_html {
     my ( $html_path, $page ) = @_;
+
+    # Refuse to write zero-byte content - protects against empty cache
+    # files that would permanently block regeneration via DirectoryIndex
+    unless ( length($page) ) {
+        log_warn("write_html: refusing to write zero-byte content to $html_path");
+        return;
+    }
 
     # Verify html_path resolves within docroot - guard against symlink attacks (S1)
     # Use the parent directory for the check since the file may not exist yet.
