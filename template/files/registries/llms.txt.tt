@@ -1,9 +1,0 @@
-# [% site_name %]
-
-> [% site_name %] documentation and site pages.
-
-## Pages
-
-[% FOREACH page IN pages %]
-- [[% page.title %]]([% site_url %][% page.url %].md)[% IF page.subtitle %]: [% page.subtitle %][% END %]
-[% END %]
