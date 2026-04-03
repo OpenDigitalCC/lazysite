@@ -49,7 +49,7 @@ Front matter fields:
 : Publication date in `YYYY-MM-DD` format. Used in RSS/Atom feed entries. Falls back to file mtime if not set. Example: `date: 2026-03-20`
 
 `layout`
-: Named layout template for this page. The processor checks `lazysite/themes/NAME/layout.tt` first, then `lazysite/templates/NAME.tt`, and falls back to the default `layout.tt` if neither exists. Example: `layout: minimal`
+: Named layout template for this page. The processor checks `lazysite/themes/NAME/view.tt` first, then `lazysite/templates/NAME.tt`, and falls back to the default `view.tt` if neither exists. Example: `layout: minimal`
 
 ## URL structure
 
@@ -109,7 +109,7 @@ This is how the pages on this site are served — the content lives in the [lazy
 
 ## Template Toolkit in pages
 
-TT variables are expanded in page content before Markdown conversion. Variables are processed in two passes — first in the page body, then in `layout.tt`:
+TT variables are expanded in page content before Markdown conversion. Variables are processed in two passes — first in the page body, then in `view.tt`:
 
 ```markdown
 Current version: [% version %]
@@ -163,7 +163,7 @@ Remote URL
 
 Useful CGI environment variables: `${SERVER_NAME}`, `${REQUEST_SCHEME}`, `${SERVER_PORT}`, `${HTTPS}`, `${REDIRECT_URL}`.
 
-`${REDIRECT_URL}` contains the requested page path (e.g. `/about`) and is useful for highlighting the active navigation item in `layout.tt`.
+`${REDIRECT_URL}` contains the requested page path (e.g. `/about`) and is useful for highlighting the active navigation item in `view.tt`.
 
 ## Advanced Template Toolkit
 
@@ -177,7 +177,7 @@ A `url:` variable that returns JSON can be decoded and looped over, with the res
 [% END %]
 ```
 
-The `USE JSON` directive and variable assignments made in the page body are local to that pass and not available in `layout.tt`. For data needed in both, set it as a site-wide variable in `lazysite.conf`.
+The `USE JSON` directive and variable assignments made in the page body are local to that pass and not available in `view.tt`. For data needed in both, set it as a site-wide variable in `lazysite.conf`.
 
 TT variables in Markdown link URLs do not resolve reliably — the Markdown parser processes the URL before TT runs. Use HTML `<a>` tags when the href contains a TT variable:
 
@@ -373,10 +373,10 @@ perl lazysite-audit.pl --exclude changelog,contributing /path/to/docroot
 ## Migrating from other tools
 
 Pico CMS
-: Content migrates directly. Copy your Pico `content/` files to the docroot and rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter. Replace Pico theme templates with a `lazysite/templates/layout.tt` file. One-liner to convert front matter keys across all files: `find public_html -name "*.md" | xargs sed -i 's/^Title:/title:/;s/^Description:/subtitle:/'`
+: Content migrates directly. Copy your Pico `content/` files to the docroot and rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter. Replace Pico theme templates with a `lazysite/templates/view.tt` file. One-liner to convert front matter keys across all files: `find public_html -name "*.md" | xargs sed -i 's/^Title:/title:/;s/^Description:/subtitle:/'`
 
 Hugo
-: Content files require no changes — Hugo and lazysite use the same front matter format. What needs replacing is the template system: `layout.tt` replaces your Hugo `baseof.html` or equivalent base template.
+: Content files require no changes — Hugo and lazysite use the same front matter format. What needs replacing is the template system: `view.tt` replaces your Hugo `baseof.html` or equivalent base template.
 
 ## Troubleshooting
 
@@ -446,7 +446,7 @@ public_html/
   lazysite/
     lazysite.conf       <- site configuration
     templates/
-      layout.tt         <- site template (edit this)
+      view.tt         <- site template (edit this)
       registries/
         llms.txt.tt     <- llms.txt registry template
         sitemap.xml.tt  <- sitemap registry template

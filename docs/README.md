@@ -23,7 +23,7 @@ Content management
 
 Design and content are separated
 : The Template Toolkit layout owns the site design. Content authors work
-  only in `.md` files. Designers work only in `layout.tt`. Neither needs
+  only in `.md` files. Designers work only in `view.tt`. Neither needs
   to touch the other's files.
 
 Version control ready
@@ -239,7 +239,7 @@ To migrate:
 - Rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter
   (lazysite uses lowercase keys)
 - Remove any Pico-specific front matter keys that have no equivalent
-- Replace Pico theme templates with a `layout.tt` template
+- Replace Pico theme templates with a `view.tt` template
 
 A one-liner to lowercase the common front matter keys across all files:
 
@@ -253,7 +253,7 @@ find public_html -name "*.md" | \
 Hugo Markdown content uses the same front matter format. The content files
 themselves require no changes. What does need replacing is the Hugo template
 system - Hugo uses Go templates, lazysite uses Template Toolkit. The
-`layout.tt` file replaces your Hugo `baseof.html` or equivalent base template.
+`view.tt` file replaces your Hugo `baseof.html` or equivalent base template.
 
 
 
@@ -354,7 +354,7 @@ inherit the `www-data` group automatically.
 
 After applying the template to a domain:
 
-1. Edit `public_html/lazysite/templates/layout.tt` to apply your site design
+1. Edit `public_html/lazysite/templates/view.tt` to apply your site design
 2. Edit `public_html/index.md` for your home page content
 3. Add pages by dropping `.md` files anywhere in the docroot
 
@@ -383,7 +383,7 @@ paste it as context at the start of the conversation.
 
 ## Designing the layout template
 
-`lazysite/templates/layout.tt` is the single file that controls the appearance of
+`lazysite/templates/view.tt` is the single file that controls the appearance of
 every page. It is the integration point for web designers. A minimal working
 example is provided in the starter files in this repository - it
 produces a bare but functional HTML page and is intended as a starting point,
@@ -510,7 +510,7 @@ template integration guide.
 
 ## Template Toolkit variables
 
-All pages have access to these standard variables in `layout.tt` and page
+All pages have access to these standard variables in `view.tt` and page
 content:
 
 - `[% page_title %]` - from front matter `title`
@@ -518,7 +518,7 @@ content:
 - `[% content %]` - the converted page body
 
 Variables are processed in two passes - first in the page body, then in
-`layout.tt`. This means `[% version %]` works both in `.md` content and
+`view.tt`. This means `[% version %]` works both in `.md` content and
 in the layout template.
 
 ### Site-wide variables
@@ -606,14 +606,14 @@ In the page body, decode and loop:
 [% END %]
 ```
 
-The same approach works in `layout.tt` using a site-wide variable from
+The same approach works in `view.tt` using a site-wide variable from
 `lazysite.conf`:
 
 ```yaml
 version_json: url:https://api.github.com/repos/example/repo/releases/latest
 ```
 
-Then in `layout.tt`:
+Then in `view.tt`:
 
 ```
 [% USE JSON( pretty => 0 ) %]
@@ -637,7 +637,7 @@ Define a nav structure in `lazysite.conf`:
 nav_json: url:https://example.com/nav.json
 ```
 
-Or as a literal in `layout.tt` directly:
+Or as a literal in `view.tt` directly:
 
 ```
 [% nav = [
@@ -654,7 +654,7 @@ Or as a literal in `layout.tt` directly:
 
 #### Notes on TT in page content
 
-TT is processed in two passes - first in the page body, then in `layout.tt`.
+TT is processed in two passes - first in the page body, then in `view.tt`.
 The `USE JSON` directive and variable assignments made in the body are local
 to that pass and not available in the layout. For data needed in both the
 page body and the layout, set it as a site-wide variable in `lazysite.conf`.
@@ -1045,15 +1045,15 @@ rebuilds.
 If the processor crashes with a Template error, check the layout file exists:
 
 ```bash
-ls /home/username/web/example.com/public_html/lazysite/templates/layout.tt
+ls /home/username/web/example.com/public_html/lazysite/templates/view.tt
 ```
 
 If missing, the `install-hestia.sh` hook did not run or the file was deleted.
 Reinstall it from the package:
 
 ```bash
-cp /usr/local/hestia/data/templates/web/apache2/php-fpm/files/layout.tt \
-   /home/username/web/example.com/public_html/lazysite/templates/layout.tt
+cp /usr/local/hestia/data/templates/web/apache2/php-fpm/files/view.tt \
+   /home/username/web/example.com/public_html/lazysite/templates/view.tt
 ```
 
 ### Subdirectory permissions
@@ -1164,7 +1164,7 @@ Broken links
 perl lazysite-audit.pl /home/username/web/example.com/public_html
 ```
 
-The audit scans `.md` files, `.tt` templates (including `layout.tt` and
+The audit scans `.md` files, `.tt` templates (including `view.tt` and
 registry templates), and cached `.html` files for `.url` pages. External
 links, assets, and image files are ignored.
 

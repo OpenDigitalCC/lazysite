@@ -23,11 +23,11 @@ mkdir -p "$LAZYSITE_DIR/templates/registries"
 mkdir -p "$LAZYSITE_DIR/themes"
 chown -R "$user":"$user" "$LAZYSITE_DIR"
 
-# Install layout.tt only if not already present
-if [ ! -f "$LAZYSITE_DIR/templates/layout.tt" ]; then
+# Install view.tt only if not already present
+if [ ! -f "$LAZYSITE_DIR/templates/view.tt" ]; then
     install -m 644 -o "$user" -g "$user" \
-        "$TEMPLATE_DIR/layout.tt" \
-        "$LAZYSITE_DIR/templates/layout.tt"
+        "$TEMPLATE_DIR/view.tt" \
+        "$LAZYSITE_DIR/templates/view.tt"
 fi
 
 # Install lazysite.conf only if not already present

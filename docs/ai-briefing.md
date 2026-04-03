@@ -15,7 +15,7 @@ serve the cached file directly.
 The site has two layers:
 
 Layout
-: `lazysite/templates/layout.tt` - a Template Toolkit file that wraps every page.
+: `lazysite/templates/view.tt` - a Template Toolkit file that wraps every page.
   Contains the full HTML structure: `<head>`, navigation, header, footer.
   Written once by a designer. Receives variables from the processor.
 
@@ -25,7 +25,7 @@ Content
 
 ---
 
-## Layout template (`lazysite/templates/layout.tt`)
+## Layout template (`lazysite/templates/view.tt`)
 
 ### Variables available in every page render
 
@@ -130,7 +130,7 @@ Allowlisted environment variables: `SERVER_NAME`, `REQUEST_SCHEME`,
 
 Lines beginning with `#` are comments.
 
-Variables are available in `layout.tt` and in page body content via
+Variables are available in `view.tt` and in page body content via
 `[% variable_name %]`.
 
 ---
@@ -187,8 +187,8 @@ tt_page_var:
 
 `layout`
 : Named layout template for this page. Resolved from
-  `lazysite/themes/NAME/layout.tt` then `lazysite/templates/NAME.tt`,
-  falls back to default `layout.tt`. Example: `layout: minimal`
+  `lazysite/themes/NAME/view.tt` then `lazysite/templates/NAME.tt`,
+  falls back to default `view.tt`. Example: `layout: minimal`
 
 `raw`
 : Set to `true` to output converted content without the layout wrapper.
@@ -391,7 +391,7 @@ public_html/
   lazysite/
     lazysite.conf       <- site configuration (operator edits this)
     templates/
-      layout.tt         <- site template (designer edits this)
+      view.tt         <- site template (designer edits this)
       registries/
         llms.txt.tt     <- llms.txt template
         sitemap.xml.tt  <- sitemap template
@@ -450,7 +450,7 @@ Ask the user:
 - Header and footer content
 - Any special page sections (hero, sidebar, etc.)
 
-Produce a complete `layout.tt` file. Reference `[% page_title %]`,
+Produce a complete `view.tt` file. Reference `[% page_title %]`,
 `[% page_subtitle %]`, `[% content %]`, and any site-wide variables
 defined in `lazysite.conf`. Use `[% IF x %]...[% END %]` for optional elements.
 
@@ -493,6 +493,6 @@ To switch the site theme, set `theme:` in `lazysite/lazysite.conf`:
 theme: dark
 ```
 
-This resolves to `lazysite/themes/dark/layout.tt`. Install themes by
+This resolves to `lazysite/themes/dark/view.tt`. Install themes by
 placing them in `lazysite/themes/`. Per-page layout override via
 front matter `layout:` key.

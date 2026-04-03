@@ -88,22 +88,22 @@ done
 
 # --- Fetch default template ---
 
-TEMPLATE_URL="${THEME:-https://raw.githubusercontent.com/OpenDigitalCC/lazysite-templates/main/default/layout.tt}"
+TEMPLATE_URL="${THEME:-https://raw.githubusercontent.com/OpenDigitalCC/lazysite-templates/main/default/view.tt}"
 
 echo "Fetching template..."
 if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$TEMPLATE_URL" -o "$DOCROOT/lazysite/templates/layout.tt" 2>/dev/null || {
+    curl -fsSL "$TEMPLATE_URL" -o "$DOCROOT/lazysite/templates/view.tt" 2>/dev/null || {
         echo "Warning: could not fetch template from $TEMPLATE_URL"
-        echo "You will need to create $DOCROOT/lazysite/templates/layout.tt manually"
+        echo "You will need to create $DOCROOT/lazysite/templates/view.tt manually"
     }
 elif command -v wget >/dev/null 2>&1; then
-    wget -q "$TEMPLATE_URL" -O "$DOCROOT/lazysite/templates/layout.tt" 2>/dev/null || {
+    wget -q "$TEMPLATE_URL" -O "$DOCROOT/lazysite/templates/view.tt" 2>/dev/null || {
         echo "Warning: could not fetch template from $TEMPLATE_URL"
-        echo "You will need to create $DOCROOT/lazysite/templates/layout.tt manually"
+        echo "You will need to create $DOCROOT/lazysite/templates/view.tt manually"
     }
 else
     echo "Warning: neither curl nor wget found - cannot fetch template"
-    echo "You will need to create $DOCROOT/lazysite/templates/layout.tt manually"
+    echo "You will need to create $DOCROOT/lazysite/templates/view.tt manually"
 fi
 
 # --- Write lazysite.conf ---
@@ -134,7 +134,7 @@ echo ""
 echo "lazysite installed successfully."
 echo ""
 echo "Next steps:"
-echo "  1. Edit $DOCROOT/lazysite/templates/layout.tt to apply your site design"
+echo "  1. Edit $DOCROOT/lazysite/templates/view.tt to apply your site design"
 echo "  2. Edit $DOCROOT/lazysite/lazysite.conf to configure your site"
 echo "  3. Replace $DOCROOT/index.md with your content"
 echo ""

@@ -78,7 +78,7 @@ fi
 # Locate docroot - assume script is run from the site root or repo root
 if [ -d "./public_html" ]; then
     DOCROOT="$(pwd)/public_html"
-elif [ -f "./lazysite/templates/layout.tt" ]; then
+elif [ -f "./lazysite/templates/view.tt" ]; then
     DOCROOT="$(pwd)"
 else
     echo "Error: cannot locate docroot." >&2

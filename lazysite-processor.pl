@@ -18,13 +18,14 @@ my $LAZYSITE_DIR  = "$DOCROOT/lazysite";
 my $LAZYSITE_URI  = "/lazysite";
 my $CONF_FILE     = "$LAZYSITE_DIR/lazysite.conf";
 my $LAYOUT_DIR    = "$LAZYSITE_DIR/templates";
-my $LAYOUT        = "$LAZYSITE_DIR/templates/layout.tt";
+my $LAYOUT        = "$LAZYSITE_DIR/templates/view.tt";
 my $REGISTRY_DIR  = "$LAZYSITE_DIR/templates/registries";
 my $THEMES_DIR    = "$LAZYSITE_DIR/themes";
-my $REMOTE_TTL    = 3600;  # seconds before remote content is refetched (default 1 hour)
-my $REGISTRY_TTL  = 14400; # seconds before registries are regenerated (default 4 hours)
+my $REMOTE_TTL       = 3600;  # seconds before remote content is refetched (default 1 hour)
+my $REGISTRY_TTL     = 14400; # seconds before registries are regenerated (default 4 hours)
+my $LAYOUT_CACHE_DIR = "$LAZYSITE_DIR/cache/layouts";
 
-# Built-in fallback template - used when no layout.tt is found
+# Built-in fallback template - used when no view.tt is found
 my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 <!DOCTYPE html>
 <html lang="en">
@@ -52,7 +53,7 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 <footer>
     <p>Rendered by <a href="https://lazysite.io">lazysite</a>
     [% IF site_name %]— [% site_name %][% END %]
-    — no layout.tt found, using built-in fallback</p>
+    — no view.tt found, using built-in fallback</p>
 </footer>
 </body>
 </html>
@@ -854,7 +855,63 @@ sub resolve_site_vars {
         $defs{$1} = $2;
     }
 
-    return resolve_tt_vars(\%defs);
+    my %vars = resolve_tt_vars(\%defs);
+
+    # Load navigation
+    my $nav_file = $vars{nav_file}
+        ? "$DOCROOT/" . $vars{nav_file}
+        : "$LAZYSITE_DIR/nav.conf";
+
+    $vars{nav} = parse_nav($nav_file);
+
+    return %vars;
+}
+
+sub parse_nav {
+    my ($nav_path) = @_;
+    return [] unless -f $nav_path;
+
+    open( my $fh, '<:utf8', $nav_path ) or return [];
+
+    my @nav;
+    my $current_parent = undef;
+
+    while ( my $line = <$fh> ) {
+        chomp $line;
+        next if $line =~ /^\s*#/;   # comment
+        next if $line =~ /^\s*$/;   # blank line
+
+        my $is_child = $line =~ /^\s+/;
+        $line =~ s/^\s+|\s+$//g;    # trim
+
+        my ( $label, $url ) = split /\s*\|\s*/, $line, 2;
+        $label = defined $label ? $label : '';
+        $label =~ s/^\s+|\s+$//g;
+        $url   = defined $url   ? $url   : '';
+        $url   =~ s/^\s+|\s+$//g;
+
+        next unless length $label;
+
+        if ( $is_child ) {
+            # Add to current parent's children
+            if ( defined $current_parent ) {
+                push @{ $nav[$current_parent]{children} },
+                    { label => $label, url => $url };
+            }
+            # Orphan child (no parent yet) - treat as top-level
+            else {
+                push @nav, { label => $label, url => $url, children => [] };
+            }
+        }
+        else {
+            # Top-level item
+            push @nav, { label => $label, url => $url, children => [] };
+            $current_parent = $#nav;
+        }
+    }
+
+    close $fh;
+    return \@nav;
 }
 
 sub update_registries {
@@ -1044,13 +1101,21 @@ sub get_layout_path {
     my $name = $meta->{layout} || $vars->{theme} || '';
 
     if ( $name ) {
-        # Sanitise - allow only alphanumeric, hyphen, underscore
+        # Check if theme is a remote URL
+        if ( $name =~ m{^https?://} ) {
+            my $cached = fetch_remote_layout($name);
+            return $cached if $cached;
+            log_warn("Remote layout fetch failed for $name - using fallback");
+            return undef;  # signals render_template to use fallback
+        }
+
+        # Local theme/layout name - sanitise
         $name =~ s/[^a-zA-Z0-9_-]//g;
         $name ||= '';  # if sanitise stripped everything, fall back
 
         if ( $name ) {
             # Check themes directory first, then templates directory
-            my $theme_path = "$THEMES_DIR/$name/layout.tt";
+            my $theme_path = "$THEMES_DIR/$name/view.tt";
             my $tmpl_path  = "$LAYOUT_DIR/$name.tt";
 
             return $theme_path if -f $theme_path;
@@ -1061,7 +1126,45 @@ sub get_layout_path {
         }
     }
 
-    return $LAYOUT;
+    return -f $LAYOUT ? $LAYOUT : undef;
+}
+
+sub fetch_remote_layout {
+    my ($url) = @_;
+
+    # Derive a safe cache filename from the URL
+    my $cache_key = $url;
+    $cache_key =~ s{https?://}{};
+    $cache_key =~ s{[^a-zA-Z0-9_-]}{_}g;
+    $cache_key = substr($cache_key, 0, 200);  # limit length
+
+    my $cache_path = "$LAYOUT_CACHE_DIR/$cache_key.tt";
+
+    # Serve from cache if fresh (use $REMOTE_TTL - same as remote pages)
+    if ( -f $cache_path ) {
+        my @st = stat($cache_path);
+        if ( @st && (time() - $st[9]) < $REMOTE_TTL ) {
+            return $cache_path;
+        }
+    }
+
+    # Fetch remote layout
+    my $content = fetch_url($url);
+    unless ( defined $content && length $content ) {
+        # Return stale cache if available
+        return -f $cache_path ? $cache_path : undef;
+    }
+
+    # Write to cache
+    make_path($LAYOUT_CACHE_DIR) unless -d $LAYOUT_CACHE_DIR;
+    open( my $fh, '>:utf8', $cache_path ) or do {
+        log_warn("Cannot write layout cache $cache_path: $!");
+        return undef;
+    };
+    print $fh $content;
+    close $fh;
+
+    return $cache_path;
 }
 
 sub render_template {
@@ -1072,14 +1175,47 @@ sub render_template {
 
     my $layout = get_layout_path( $meta, $vars );
 
-    # Second pass: render full layout - needs ABSOLUTE => 1 to read layout.tt
-    my $tt_layout = Template->new(
-        ABSOLUTE => 1,
-        ENCODING => 'utf8',
-    ) or die "Template error: " . Template->error() . "\n";
-
     $vars->{content} = $processed_body;
     my $output = '';
+
+    if ( !defined $layout ) {
+        # No layout found - use built-in fallback directly
+        log_warn("No view.tt found - using built-in fallback");
+        my $tt_fallback = Template->new( ENCODING => 'utf8' )
+            or do {
+                log_warn("Cannot create fallback TT instance - serving bare content");
+                return $processed_body;
+            };
+
+        $tt_fallback->process( \$FALLBACK_LAYOUT, $vars, \$output )
+            or do {
+                log_warn("Fallback layout error: " . $tt_fallback->error()
+                    . " - serving bare content");
+                return $processed_body;
+            };
+
+        return $output;
+    }
+
+    # Determine if layout is remote (from cache dir) - sandbox it
+    my $is_remote = index($layout, $LAYOUT_CACHE_DIR) == 0;
+
+    my $tt_layout = $is_remote
+        ? Template->new(
+            ABSOLUTE  => 1,      # needed to read cache path
+            RELATIVE  => 0,
+            EVAL_PERL => 0,      # no embedded Perl
+            ENCODING  => 'utf8',
+        )
+        : Template->new(
+            ABSOLUTE => 1,
+            ENCODING => 'utf8',
+        );
+
+    unless ( $tt_layout ) {
+        log_warn("Cannot create TT instance - serving bare content");
+        return $processed_body;
+    }
 
     # Try specified layout
     $tt_layout->process( $layout, $vars, \$output )
