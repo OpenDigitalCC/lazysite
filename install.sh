@@ -4,60 +4,137 @@
 
 set -e
 
-TEMPLATE_SRC="$(dirname "$0")/template"
-TEMPLATE_DEST="/usr/local/hestia/data/templates/web/apache2/php-fpm"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# --- Checks ---
+usage() {
+    cat <<EOF
+Usage: install.sh --docroot PATH --cgibin PATH [options]
 
-if [ "$(id -u)" -ne 0 ]; then
-    echo "Error: install.sh must be run as root" >&2
+Required:
+  --docroot PATH    Path to web document root
+  --cgibin  PATH    Path to cgi-bin directory
+
+Optional:
+  --theme   URL     Template URL (default: OpenDigital default)
+  --domain  NAME    Domain name for lazysite.conf site_url
+  --help            Show this help
+
+Example:
+  install.sh --docroot /var/www/html --cgibin /usr/lib/cgi-bin --domain example.com
+EOF
+}
+
+# No args - show help
+[ $# -eq 0 ] && usage && exit 0
+
+# --- Parse arguments ---
+
+DOCROOT=""
+CGIBIN=""
+THEME=""
+DOMAIN=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --docroot) DOCROOT="$2"; shift 2 ;;
+        --cgibin)  CGIBIN="$2";  shift 2 ;;
+        --theme)   THEME="$2";   shift 2 ;;
+        --domain)  DOMAIN="$2";  shift 2 ;;
+        --help)    usage; exit 0 ;;
+        *)         echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    esac
+done
+
+if [ -z "$DOCROOT" ]; then
+    echo "Error: --docroot is required" >&2
     exit 1
 fi
 
-if [ ! -d "$TEMPLATE_DEST" ]; then
-    echo "Error: Hestia Apache php-fpm template directory not found at $TEMPLATE_DEST" >&2
-    echo "Is HestiaCP installed with Apache + PHP-FPM?" >&2
+if [ -z "$CGIBIN" ]; then
+    echo "Error: --cgibin is required" >&2
     exit 1
 fi
 
-echo "Checking dependencies..."
+# --- Install processor ---
 
-MISSING=""
-perl -e "use Text::MultiMarkdown" 2>/dev/null || MISSING="$MISSING libtext-multimarkdown-perl"
-perl -e "use Template" 2>/dev/null            || MISSING="$MISSING libtemplate-perl"
-perl -e "use LWP::UserAgent" 2>/dev/null      || MISSING="$MISSING libwww-perl"
+echo "Installing lazysite processor..."
+install -m 755 "$SCRIPT_DIR/lazysite-processor.pl" "$CGIBIN/lazysite-processor.pl"
 
-if [ -n "$MISSING" ]; then
-    echo "Installing missing Perl modules:$MISSING"
-    apt-get install -y $MISSING
+# --- Create lazysite directory structure ---
+
+echo "Creating lazysite directory structure..."
+mkdir -p "$DOCROOT/lazysite/templates/registries"
+mkdir -p "$DOCROOT/lazysite/themes"
+
+# --- Copy starter files ---
+
+echo "Installing starter files..."
+
+# Install starter content only if not already present
+for file in index.md lazysite-demo.md 404.md; do
+    if [ ! -f "$DOCROOT/$file" ]; then
+        install -m 644 "$SCRIPT_DIR/starter/$file" "$DOCROOT/$file"
+    fi
+done
+
+# Install registry templates
+for tmpl in "$SCRIPT_DIR/starter/registries/"*.tt; do
+    [ -f "$tmpl" ] || continue
+    dest="$DOCROOT/lazysite/templates/registries/$(basename "$tmpl")"
+    if [ ! -f "$dest" ]; then
+        install -m 644 "$tmpl" "$dest"
+    fi
+done
+
+# --- Fetch default template ---
+
+TEMPLATE_URL="${THEME:-https://raw.githubusercontent.com/OpenDigitalCC/lazysite-templates/main/default/layout.tt}"
+
+echo "Fetching template..."
+if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$TEMPLATE_URL" -o "$DOCROOT/lazysite/templates/layout.tt" 2>/dev/null || {
+        echo "Warning: could not fetch template from $TEMPLATE_URL"
+        echo "You will need to create $DOCROOT/lazysite/templates/layout.tt manually"
+    }
+elif command -v wget >/dev/null 2>&1; then
+    wget -q "$TEMPLATE_URL" -O "$DOCROOT/lazysite/templates/layout.tt" 2>/dev/null || {
+        echo "Warning: could not fetch template from $TEMPLATE_URL"
+        echo "You will need to create $DOCROOT/lazysite/templates/layout.tt manually"
+    }
+else
+    echo "Warning: neither curl nor wget found - cannot fetch template"
+    echo "You will need to create $DOCROOT/lazysite/templates/layout.tt manually"
 fi
 
-# --- Install templates ---
+# --- Write lazysite.conf ---
 
-echo "Installing Hestia web templates..."
+CONF_FILE="$DOCROOT/lazysite/lazysite.conf"
+if [ ! -f "$CONF_FILE" ]; then
+    echo "Writing lazysite.conf..."
+    if [ -n "$DOMAIN" ]; then
+        cat > "$CONF_FILE" <<CONF
+# lazysite.conf - site configuration
+# See https://lazysite.io/docs for reference
 
-install -m 644 "$TEMPLATE_SRC/ssi-md.tpl"  "$TEMPLATE_DEST/ssi-md.tpl"
-install -m 644 "$TEMPLATE_SRC/ssi-md.stpl" "$TEMPLATE_DEST/ssi-md.stpl"
-install -m 755 "$TEMPLATE_SRC/ssi-md.sh"   "$TEMPLATE_DEST/ssi-md.sh"
+site_name: $DOMAIN
+site_url: \${REQUEST_SCHEME}://$DOMAIN
+CONF
+    else
+        install -m 644 "$SCRIPT_DIR/starter/lazysite.conf" "$CONF_FILE"
+    fi
+fi
 
-# Copy domain files alongside the .sh script
-mkdir -p "$TEMPLATE_DEST/files"
-install -m 644 "$TEMPLATE_SRC/files/md-processor.pl" "$TEMPLATE_DEST/files/md-processor.pl"
-install -m 644 "$TEMPLATE_SRC/files/layout.tt"        "$TEMPLATE_DEST/files/layout.tt"
-install -m 644 "$TEMPLATE_SRC/files/layout.vars"      "$TEMPLATE_DEST/files/layout.vars"
-install -m 644 "$TEMPLATE_SRC/files/404.md"           "$TEMPLATE_DEST/files/404.md"
-install -m 644 "$TEMPLATE_SRC/files/index.md"         "$TEMPLATE_DEST/files/index.md"
+# --- Set permissions ---
 
-mkdir -p "$TEMPLATE_DEST/files/registries"
-install -m 644 "$TEMPLATE_SRC/files/registries/llms.txt.tt"    "$TEMPLATE_DEST/files/registries/llms.txt.tt"
-install -m 644 "$TEMPLATE_SRC/files/registries/sitemap.xml.tt" "$TEMPLATE_DEST/files/registries/sitemap.xml.tt"
+echo "Setting permissions..."
+chmod +x "$CGIBIN/lazysite-processor.pl"
+chmod g+ws "$DOCROOT"
 
 echo ""
 echo "lazysite installed successfully."
 echo ""
 echo "Next steps:"
-echo "  1. In HestiaCP, edit your domain and set the web template to: ssi-md"
-echo "  2. Rebuild the domain - the processor and starter files will be installed automatically"
-echo "  3. Edit public_html/templates/layout.tt to apply your site design"
-echo "  4. Replace public_html/index.md with your content"
+echo "  1. Edit $DOCROOT/lazysite/templates/layout.tt to apply your site design"
+echo "  2. Edit $DOCROOT/lazysite/lazysite.conf to configure your site"
+echo "  3. Replace $DOCROOT/index.md with your content"
 echo ""

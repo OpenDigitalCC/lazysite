@@ -15,7 +15,7 @@ serve the cached file directly.
 The site has two layers:
 
 Layout
-: `templates/layout.tt` - a Template Toolkit file that wraps every page.
+: `lazysite/templates/layout.tt` - a Template Toolkit file that wraps every page.
   Contains the full HTML structure: `<head>`, navigation, header, footer.
   Written once by a designer. Receives variables from the processor.
 
@@ -25,7 +25,7 @@ Content
 
 ---
 
-## Layout template (`templates/layout.tt`)
+## Layout template (`lazysite/templates/layout.tt`)
 
 ### Variables available in every page render
 
@@ -35,7 +35,7 @@ Content
 [% content %]          Converted page body HTML - output unescaped
 ```
 
-Plus all site-wide variables defined in `templates/layout.vars`.
+Plus all site-wide variables defined in `lazysite/lazysite.conf`.
 
 ### Conditional
 
@@ -88,14 +88,14 @@ Plus all site-wide variables defined in `templates/layout.vars`.
 
 ---
 
-## Site-wide variables (`templates/layout.vars`)
+## Site-wide variables (`lazysite/lazysite.conf`)
 
 One variable per line. Three value types:
 
 ### Standard variables
 
 These two variables are used on almost every site and should always be
-defined in `layout.vars`:
+defined in `lazysite.conf`:
 
 ```yaml
 site_name: My Site
@@ -108,7 +108,7 @@ for the live server. For static builds, `build-static.sh` sets these from
 the URL argument passed to it.
 
 Do not hardcode the domain in `site_url` - use the environment variable
-form so the same `layout.vars` works on staging and production.
+form so the same `lazysite.conf` works on staging and production.
 
 ### All value types
 
@@ -166,12 +166,12 @@ Page content in Markdown.
 
 `register`
 : List of registry files this page should appear in. Values must match
-  template filenames in `templates/registries/` without `.tt` extension.
+  template filenames in `lazysite/templates/registries/` without `.tt` extension.
 
 `tt_page_var`
 : Page-scoped Template Toolkit variables. Available in page body and layout
   for this page only. Supports `url:` and `${ENV}` prefixes same as
-  `layout.vars`.
+  `lazysite.conf`.
 
 ```yaml
 tt_page_var:
@@ -341,18 +341,20 @@ one hour by default. Delete the `.html` cache file to force immediate refresh.
 
 ```
 public_html/
-  templates/
-    layout.tt           <- site template (designer edits this)
-    layout.vars         <- site-wide variables (operator edits this)
-    registries/
-      llms.txt.tt       <- llms.txt template
-      sitemap.xml.tt    <- sitemap template
+  lazysite/
+    lazysite.conf       <- site configuration (operator edits this)
+    templates/
+      layout.tt         <- site template (designer edits this)
+      registries/
+        llms.txt.tt     <- llms.txt template
+        sitemap.xml.tt  <- sitemap template
+    themes/             <- theme assets
   assets/
     css/                <- stylesheets
     img/                <- images
     js/                 <- scripts
   cgi-bin/
-    md-processor.pl     <- processor (do not edit)
+    lazysite-processor.pl <- processor (do not edit)
   404.md                <- not-found page
   index.md              <- home page
   about.md              <- content pages
@@ -393,7 +395,7 @@ Ask the user:
 
 Produce a complete `layout.tt` file. Reference `[% page_title %]`,
 `[% page_subtitle %]`, `[% content %]`, and any site-wide variables
-defined in `layout.vars`. Use `[% IF x %]...[% END %]` for optional elements.
+defined in `lazysite.conf`. Use `[% IF x %]...[% END %]` for optional elements.
 
 ### Creating a page
 
@@ -408,7 +410,7 @@ Produce a `.md` file with correct YAML front matter and Markdown content.
 Start headings at `##`. Use fenced divs for styled callouts. Use
 extensionless internal links.
 
-### Creating layout.vars
+### Creating lazysite.conf
 
 Always include `site_name` and `site_url` as the first two entries.
 `site_url` must always use the environment variable form - never hardcode
@@ -423,5 +425,5 @@ Then ask the user:
 - Any remote values needed (version numbers, API data)
 - Any static values needed site-wide (support email, GitHub URL, etc.)
 
-Produce a `layout.vars` file. One variable per line. Add comments for
+Produce a `lazysite.conf` file. One variable per line. Add comments for
 clarity.

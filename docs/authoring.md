@@ -34,10 +34,10 @@ Front matter fields:
 : Cache TTL in seconds. The page regenerates after this interval rather than on `.md` file edit. Useful for pages that pull remote data. Example: `ttl: 300`
 
 `register`
-: List of registry files this page should appear in. Values match template filenames in `templates/registries/` without the `.tt` extension.
+: List of registry files this page should appear in. Values match template filenames in `lazysite/templates/registries/` without the `.tt` extension.
 
 `tt_page_var`
-: Page-scoped Template Toolkit variables, available in the page body and layout for this page only. Supports `url:` and `${ENV}` prefixes same as `layout.vars`. Page variables override site variables of the same name.
+: Page-scoped Template Toolkit variables, available in the page body and layout for this page only. Supports `url:` and `${ENV}` prefixes same as `lazysite.conf`. Page variables override site variables of the same name.
 
 `raw`
 : Set `raw: true` to output the converted content body without the layout wrapper. TT variables still resolve. Useful for content fragments, AJAX partials, or API-style endpoints.
@@ -97,7 +97,7 @@ A `.url` file contains a single URL. The processor fetches the Markdown from tha
 https://raw.githubusercontent.com/example/repo/main/docs/INSTALL.md
 ```
 
-The remote file should include YAML front matter. Cache TTL defaults to one hour (`$REMOTE_TTL` in `md-processor.pl`). If a remote fetch fails, the stale cache is served if available. Delete the `.html` cache file to force immediate refresh.
+The remote file should include YAML front matter. Cache TTL defaults to one hour (`$REMOTE_TTL` in `lazysite-processor.pl`). If a remote fetch fails, the stale cache is served if available. Delete the `.html` cache file to force immediate refresh.
 
 This is how the pages on this site are served — the content lives in the [lazysite GitHub repository][github] and the site holds only `.url` files pointing to the raw Markdown.
 
@@ -117,11 +117,11 @@ This feature is in beta.
 
 Variable precedence: site vars → page vars → `page_title`, `page_subtitle`, `content`.
 
-Variables are defined in `layout.vars` (site-wide) or `tt_page_var` front matter (page-scoped).
+Variables are defined in `lazysite.conf` (site-wide) or `tt_page_var` front matter (page-scoped).
 
 ## Site-wide variables
 
-`layout.vars` defines variables available in the layout template and all page bodies:
+`lazysite.conf` defines variables available in the layout template and all page bodies:
 
 ```yaml
 site_name: My Site
@@ -156,7 +156,7 @@ A `url:` variable that returns JSON can be decoded and looped over, with the res
 [% END %]
 ```
 
-The `USE JSON` directive and variable assignments made in the page body are local to that pass and not available in `layout.tt`. For data needed in both, set it as a site-wide variable in `layout.vars`.
+The `USE JSON` directive and variable assignments made in the page body are local to that pass and not available in `layout.tt`. For data needed in both, set it as a site-wide variable in `lazysite.conf`.
 
 TT variables in Markdown link URLs do not resolve reliably — the Markdown parser processes the URL before TT runs. Use HTML `<a>` tags when the href contains a TT variable:
 
@@ -189,11 +189,11 @@ Works with YouTube, Vimeo, SoundCloud, PeerTube, and any oEmbed provider. The em
 
 ## Registries
 
-Pages declare which registry files they appear in via the `register` front matter key. Supported registries out of the box are `llms.txt` and `sitemap.xml`. Each name maps to a Template Toolkit template in `templates/registries/`:
+Pages declare which registry files they appear in via the `register` front matter key. Supported registries out of the box are `llms.txt` and `sitemap.xml`. Each name maps to a Template Toolkit template in `lazysite/templates/registries/`:
 
 ```
-templates/registries/llms.txt.tt    -> public_html/llms.txt
-templates/registries/sitemap.xml.tt -> public_html/sitemap.xml
+lazysite/templates/registries/llms.txt.tt    -> public_html/llms.txt
+lazysite/templates/registries/sitemap.xml.tt -> public_html/sitemap.xml
 ```
 
 Registries regenerate after the registry TTL expires (default 4 hours). To force immediate regeneration, delete the output file:
@@ -202,7 +202,7 @@ Registries regenerate after the registry TTL expires (default 4 hours). To force
 rm public_html/llms.txt
 ```
 
-Adding a new registry format requires only dropping a `.tt` file in `templates/registries/` — no code changes needed.
+Adding a new registry format requires only dropping a `.tt` file in `lazysite/templates/registries/` — no code changes needed.
 
 ## The 404 page
 
@@ -275,7 +275,7 @@ perl lazysite-audit.pl --exclude changelog,contributing /path/to/docroot
 ## Migrating from other tools
 
 Pico CMS
-: Content migrates directly. Copy your Pico `content/` files to the docroot and rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter. Replace Pico theme templates with a `layout.tt` file. One-liner to convert front matter keys across all files: `find public_html -name "*.md" | xargs sed -i 's/^Title:/title:/;s/^Description:/subtitle:/'`
+: Content migrates directly. Copy your Pico `content/` files to the docroot and rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter. Replace Pico theme templates with a `lazysite/templates/layout.tt` file. One-liner to convert front matter keys across all files: `find public_html -name "*.md" | xargs sed -i 's/^Title:/title:/;s/^Description:/subtitle:/'`
 
 Hugo
 : Content files require no changes — Hugo and lazysite use the same front matter format. What needs replacing is the template system: `layout.tt` replaces your Hugo `baseof.html` or equivalent base template.
@@ -289,7 +289,7 @@ The most direct way to diagnose a page error:
 ```bash
 REDIRECT_URL=/about \
 DOCUMENT_ROOT=/home/username/web/example.com/public_html \
-  perl /home/username/web/example.com/cgi-bin/md-processor.pl
+  perl /home/username/web/example.com/cgi-bin/lazysite-processor.pl
 ```
 
 Prints full HTML output or Perl errors to the terminal. Adjust `REDIRECT_URL` to the failing page path.
@@ -345,18 +345,20 @@ Removes Hestia template files only. Deployed domain files are not touched.
 
 ```
 public_html/
-  templates/
-    layout.tt           <- site template (edit this)
-    layout.vars         <- site-wide variables
-    registries/
-      llms.txt.tt       <- llms.txt registry template
-      sitemap.xml.tt    <- sitemap registry template
+  lazysite/
+    lazysite.conf       <- site configuration
+    templates/
+      layout.tt         <- site template (edit this)
+      registries/
+        llms.txt.tt     <- llms.txt registry template
+        sitemap.xml.tt  <- sitemap registry template
+    themes/             <- theme assets
   assets/
     css/                <- stylesheets
     img/                <- images
     js/                 <- scripts
   cgi-bin/
-    md-processor.pl     <- processor (do not edit)
+    lazysite-processor.pl <- processor (do not edit)
   404.md                <- not-found page
   index.md              <- home page
 ```
