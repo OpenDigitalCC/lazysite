@@ -52,8 +52,8 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 </main>
 <footer>
     <p>Rendered by <a href="https://lazysite.io">lazysite</a>
-    [% IF site_name %]— [% site_name %][% END %]
-    — no view.tt found, using built-in fallback</p>
+    [% IF site_name %]- [% site_name %][% END %]
+    - no view.tt found, using built-in fallback</p>
 </footer>
 </body>
 </html>
