@@ -1,140 +1,35 @@
-# lazysite AI Briefing
+# lazysite Content Authoring Briefing
 
-This document describes the lazysite system for an AI assistant helping to
-create or maintain a site. Read it before generating any content or templates.
+This document covers how to create and format content for a lazysite site.
+It is written for content authors and for AI assistants helping with content
+work.
+
+For site configuration, views, and navigation, see
+[configuration.md](/docs/configuration).
+For developer and operator topics, see [development.md](/docs/development).
+For raw mode, API mode, and query strings, see [api.md](/docs/api).
 
 ---
 
-## System overview
+## How lazysite works
 
 lazysite is a Markdown-driven static site system running on Apache. Pages
 are written as `.md` files with YAML front matter. A CGI processor converts
 them to HTML on first request and caches the result. Subsequent requests
 serve the cached file directly.
 
-The site has two layers:
+Two layers:
 
-Layout
-: `lazysite/templates/view.tt` - a Template Toolkit file that wraps every page.
-  Contains the full HTML structure: `<head>`, navigation, header, footer.
-  Written once by a designer. Receives variables from the processor.
+View template
+: `lazysite/templates/view.tt` - controls the site design and wraps every
+  page. Written by a designer. Receives content from the processor.
 
 Content
 : `.md` files in the docroot. Written by authors. Converted to HTML and
-  inserted into the layout at `[% content %]`.
+  inserted into the view template at `[% content %]`.
 
----
-
-## Layout template (`lazysite/templates/view.tt`)
-
-### Variables available in every page render
-
-```
-[% page_title %]       Title from page front matter
-[% page_subtitle %]    Subtitle from page front matter (may be empty)
-[% content %]          Converted page body HTML - output unescaped
-[% page_modified %]    Human-readable file mtime: "3 April 2026"
-[% page_modified_iso %] ISO 8601 file mtime: "2026-04-03"
-[% nav %]              Navigation array from nav.conf
-[% request_uri %]      Current page path e.g. /about
-[% query.param %]      URL query string value (declared params only)
-```
-
-Plus all site-wide variables defined in `lazysite/lazysite.conf`.
-
-### Conditional
-
-```
-[% IF page_subtitle %]
-<p class="subtitle">[% page_subtitle %]</p>
-[% END %]
-```
-
-### Loop
-
-```
-[% FOREACH item IN items %]
-<li><a href="[% item.url %]">[% item.label %]</a></li>
-[% END %]
-```
-
-### Include
-
-```
-[% INCLUDE lazysite/templates/partials/nav.tt %]
-```
-
-### Minimal working template
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>[% page_title %][% IF site_name %]  -  [% site_name %][% END %]</title>
-    <link rel="stylesheet" href="/assets/css/main.css">
-</head>
-<body>
-<header>
-    <a href="/">[% site_name %]</a>
-</header>
-<main>
-    <h1>[% page_title %]</h1>
-    [% IF page_subtitle %]<p class="subtitle">[% page_subtitle %]</p>[% END %]
-    [% content %]
-</main>
-<footer>
-    <p>&copy; [% year %] [% site_name %]</p>
-</footer>
-</body>
-</html>
-```
-
----
-
-## Site-wide variables (`lazysite/lazysite.conf`)
-
-One variable per line. Three value types:
-
-### Standard variables
-
-These two variables are used on almost every site and should always be
-defined in `lazysite.conf`:
-
-```yaml
-site_name: My Site
-site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
-```
-
-`site_url` is built from Apache CGI environment variables that are set
-automatically on every request. It produces the correct scheme and hostname
-for the live server. For static builds, `build-static.sh` sets these from
-the URL argument passed to it.
-
-Do not hardcode the domain in `site_url` - use the environment variable
-form so the same `lazysite.conf` works on staging and production.
-
-### All value types
-
-```yaml
-# Literal string
-site_name: My Site
-
-# Environment variable (Apache CGI - allowlisted vars only)
-site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
-
-# Remote URL fetch (trimmed, cached with page TTL)
-version: url:https://raw.githubusercontent.com/example/repo/main/VERSION
-```
-
-Allowlisted environment variables: `SERVER_NAME`, `REQUEST_SCHEME`,
-`SERVER_PORT`, `HTTPS`, `REDIRECT_URL`, `DOCUMENT_ROOT`, `SERVER_ADMIN`.
-
-Lines beginning with `#` are comments.
-
-Variables are available in `view.tt` and in page body content via
-`[% variable_name %]`.
+Authors only need to work with `.md` files. The view template is a separate
+concern.
 
 ---
 
@@ -154,60 +49,77 @@ register:
 Page content in Markdown.
 ```
 
-### Required front matter keys
+### Front matter reference
 
 `title`
-: Page title. Used in `<title>` tag and page header. Required.
-
-### Optional front matter keys
+: Page title. Used in the `<title>` tag and page `<h1>`. Required.
 
 `subtitle`
-: Short description shown below the title.
+: Short description shown below the title. Optional.
 
 `ttl`
-: Cache TTL in seconds. When set, the page regenerates after this many
-  seconds rather than on `.md` file edit. Useful for pages with remote data.
+: Cache TTL in seconds. The page regenerates after this interval rather
+  than on `.md` file edit. Useful for pages pulling remote data.
   Example: `ttl: 300`
 
 `register`
-: List of registry files this page should appear in. Values must match
-  template filenames in `lazysite/templates/registries/` without `.tt` extension.
-
-`tt_page_var`
-: Page-scoped Template Toolkit variables. Available in page body and layout
-  for this page only. Supports `url:` and `${ENV}` prefixes same as
-  `lazysite.conf`.
-
-```yaml
-tt_page_var:
-  release_url: url:https://api.github.com/repos/example/repo/releases/latest
-  beta: true
-```
+: List of registry files this page appears in. Values match template
+  filenames in `lazysite/templates/registries/` without `.tt` extension.
+  Common values: `llms.txt`, `sitemap.xml`, `feed.rss`, `feed.atom`.
 
 `date`
 : Publication date in `YYYY-MM-DD` format. Used in RSS/Atom feeds.
   Falls back to file mtime if not set. Example: `date: 2026-03-20`
 
+`tt_page_var`
+: Page-scoped Template Toolkit variables. Available in this page's body
+  and in the view template for this page only. Supports `url:` and
+  `${ENV}` prefixes same as `lazysite.conf`.
+
+  ```yaml
+  tt_page_var:
+    download_base: https://github.com/example/repo/releases
+    beta: true
+  ```
+
 `layout`
-: Named layout template for this page. Resolved from
-  `lazysite/themes/NAME/view.tt` then `lazysite/templates/NAME.tt`,
-  falls back to default `view.tt`. Example: `layout: minimal`
-
-`raw`
-: Set to `true` to output converted content without the layout wrapper.
-  TT variables still resolve. Example: `raw: true`
-
-`content_type`
-: HTTP Content-Type header. Used with `raw: true`.
-  Example: `content_type: application/json; charset=utf-8`
+: Named view template for this page. Overrides the site-wide view.
+  Example: `layout: minimal`
 
 `query_params`
-: List of URL query parameter names this page accepts. Available as
-  `[% query.param_name %]` in TT. Values are HTML-escaped. Requests
-  with matching params bypass cache. Example:
+: URL query parameters this page accepts. Declared parameters are
+  available as `[% query.param %]` in TT. Requests with matching params
+  bypass the cache. Undeclared params are ignored.
+
+  ```yaml
   query_params:
     - q
     - page
+  ```
+
+`raw`
+: Set `raw: true` to output content without the view template wrapper.
+  See [api.md](/docs/api).
+
+`content_type`
+: HTTP Content-Type header. Used with `raw: true` or `api: true`.
+  See [api.md](/docs/api).
+
+---
+
+## URL structure
+
+Page URLs derive from file paths, always without extension:
+
+```
+public_html/index.md          ->  /
+public_html/about.md          ->  /about
+public_html/docs/install.md   ->  /docs/install
+public_html/docs/index.md     ->  /docs/
+```
+
+Always use extensionless URLs for internal links: `/about` not
+`/about.html`. Directory index pages use `index.md` inside the directory.
 
 ---
 
@@ -221,7 +133,7 @@ tt_page_var:
 #### Sub-subsection
 ```
 
-`# H1` is reserved - the page title is rendered by the layout template.
+`# H1` is reserved - the page title is rendered by the view template.
 Start content headings at `##`.
 
 ### Text
@@ -243,15 +155,19 @@ Normal paragraph text.
 [External link](https://example.com)
 ```
 
-Always use extensionless URLs for internal links: `/about` not `/about.html`.
+Always use extensionless URLs for internal links. TT variables in Markdown
+link URLs do not resolve reliably - the Markdown parser processes URLs
+before TT runs. Use an HTML `<a>` tag when the href contains a TT variable:
+
+```html
+<a href="[% download_base %]/release-[% version %].tar.gz">Download</a>
+```
 
 ### Images
 
 ```markdown
 ![Alt text](/assets/img/image.png)
 ```
-
-Images should be placed in `/assets/img/`.
 
 ### Lists
 
@@ -262,6 +178,16 @@ Images should be placed in `/assets/img/`.
 
 1. Numbered item
 2. Second item
+```
+
+### Definition lists
+
+```markdown
+Term
+: Definition text here.
+
+Another term
+: Another definition.
 ```
 
 ### Tables
@@ -285,11 +211,17 @@ def example():
 ```
 ````
 
-Language identifier is used for syntax highlighting class. Common values:
+Language identifier sets the syntax highlighting class. Common values:
 `bash`, `python`, `perl`, `javascript`, `yaml`, `json`, `html`, `css`,
 `markdown`, `text`.
 
-### Fenced divs
+Inline code and fenced code blocks are protected from Template Toolkit
+processing - `[% tags %]` inside code appear literally. This is correct
+behaviour for documentation pages showing code examples.
+
+---
+
+## Fenced divs
 
 Wrap content in a named CSS class:
 
@@ -299,59 +231,31 @@ Content here. Standard Markdown works inside.
 :::
 ```
 
-Produces `<div class="classname">...</div>`. Class name must contain only
+Produces `<div class="classname">...</div>`. Class names must contain only
 word characters and hyphens. The CSS for these classes is in the site
 stylesheet.
 
-Common classes used on this site (confirm with site designer):
+Common classes (confirm availability with your site designer):
 
-- `widebox` - full-width coloured band
-- `textbox` - 60% width highlighted box
-- `marginbox` - margin pull quote
-- `examplebox` - evidence or example highlight
+`widebox`
+: Full-width coloured band. Use for important statements or highlights.
 
-### Embedded media (oEmbed)
+`textbox`
+: 60% width highlighted box. Use for brief key points alongside prose.
 
-```
-::: oembed
-https://www.youtube.com/watch?v=abc123
-:::
-```
+`marginbox`
+: Pull quote in the margin. Use for short quotes or asides.
 
-Works with YouTube, Vimeo, SoundCloud, PeerTube, and any oEmbed provider.
-The embed is baked into the cached page - no client-side API call.
+`examplebox`
+: Evidence or example highlight. Use for concrete cases or evidence.
 
-### Content includes
+---
 
-Inline remote or local content into the page:
+## Template Toolkit in pages
 
-```
-::: include
-path/to/local.md
-:::
-
-::: include
-https://raw.githubusercontent.com/owner/repo/main/file.md
-:::
-```
-
-Path resolution:
-- Starts with `/` → absolute from docroot
-- Starts with `https?://` → remote URL fetch
-- Otherwise → relative to the current `.md` file
-
-Content handling by type:
-- `.md` → front matter stripped, body rendered as Markdown inline
-- Code files (`.sh`, `.pl`, `.yml` etc.) → wrapped in fenced code block
-- `.html` → inserted bare
-- Unknown → wrapped in `<pre>`
-
-Failed includes render as a silent `<span class="include-error">` tag.
-No recursive includes - `:::include` inside an included file is ignored.
-
-### Template Toolkit in page content
-
-TT variables are expanded in page content before Markdown conversion:
+TT variables expand in page content before Markdown conversion. All site
+variables from `lazysite.conf` and page variables from `tt_page_var` are
+available.
 
 ```markdown
 Current version: [% version %]
@@ -363,116 +267,215 @@ This feature is in beta.
 [% END %]
 ```
 
----
+### Available TT variables
 
-## URL structure
+Automatic variables (always set):
 
-Page URLs are derived from file paths, always without extension:
+- `[% page_title %]` - from front matter `title`
+- `[% page_subtitle %]` - from front matter `subtitle`
+- `[% page_modified %]` - human-readable file mtime, e.g. "3 April 2026"
+- `[% page_modified_iso %]` - ISO 8601 mtime, e.g. "2026-04-03"
+- `[% query.param %]` - URL query string value (declared params only)
+
+Plus all variables from `lazysite.conf` (site-wide) and `tt_page_var`
+(page-scoped).
+
+### TT string concatenation
+
+Build strings from variables using the `_` operator:
 
 ```
-public_html/index.md              -> /
-public_html/about.md              -> /about
-public_html/docs/install.md       -> /docs/install
-public_html/docs/index.md         -> /docs/
+[% filename = "release-" _ version _ ".tar.gz" %]
+[% full_url = download_base _ "/" _ filename %]
+
+<a href="[% full_url %]">[% filename %]</a>
 ```
 
-Directory index pages use `index.md` inside the directory folder.
+Assign variables on their own line - they produce no output.
+
+### TT conditionals
+
+```
+[% IF version %]
+Version [% version %] is available.
+[% ELSE %]
+No version information.
+[% END %]
+```
+
+### Notes on TT in pages
+
+- TT processes the content body first, then the view template. Variables
+  set in the page body (like `[% SET x = 1 %]`) are not available in
+  the view template.
+- TT variables in Markdown link URLs do not resolve - use HTML `<a>` tags.
+- For `<dt>` elements in definition lists, Markdown link syntax with TT
+  variables is supported after TT resolution.
 
 ---
 
-## Remote pages (`.url` files)
+## Remote pages
 
-A `.url` file contains a single URL. The processor fetches the Markdown from
-that URL, processes it through the full pipeline, and caches the result.
+A `.url` file contains a single URL. The processor fetches the Markdown,
+processes it through the full pipeline, and caches the result:
 
 ```
 # File: docs/install.url
 https://raw.githubusercontent.com/example/repo/main/docs/INSTALL.md
 ```
 
-The remote Markdown file should include YAML front matter. Cache TTL is
-one hour by default. Delete the `.html` cache file to force immediate refresh.
+The remote file should include YAML front matter. Cache TTL defaults to
+one hour. Delete the `.html` cache file to force immediate refresh.
+
+This allows documentation to live with the code while appearing on the
+site - always showing the current version.
 
 ---
 
-## File locations
+## Content includes
+
+Inline local or remote content directly into a page:
 
 ```
-public_html/
-  lazysite/
-    lazysite.conf       <- site configuration (operator edits this)
-    templates/
-      view.tt         <- site template (designer edits this)
-      registries/
-        llms.txt.tt     <- llms.txt template
-        sitemap.xml.tt  <- sitemap template
-        feed.rss.tt
-        feed.atom.tt
-    themes/             <- theme assets
-  assets/
-    css/                <- stylesheets
-    img/                <- images
-    js/                 <- scripts
-  cgi-bin/
-    lazysite-processor.pl <- processor (do not edit)
-  404.md                <- not-found page
-  index.md              <- home page
-  about.md              <- content pages
-  docs/
-    index.md            <- docs index
-    install.md          <- docs pages
+::: include
+partials/shared-note.md
+:::
+
+::: include
+https://raw.githubusercontent.com/owner/repo/main/CHANGELOG.md
+:::
+
+::: include
+partials/example-config.yml
+:::
 ```
+
+### Path resolution
+
+- Starts with `/` - absolute from docroot
+- Starts with `http://` or `https://` - remote URL fetch
+- Otherwise - relative to the current `.md` file's directory
+
+### Content handling by type
+
+`.md` files
+: Front matter stripped, body rendered as Markdown inline. The included
+  file's `title` and `layout` are ignored - only the body is used.
+
+Code files (`.sh`, `.pl`, `.py`, `.yml`, `.json` etc.)
+: Wrapped in a fenced code block with the appropriate language identifier.
+
+`.html` files
+: Inserted bare - assumed to be a valid HTML fragment.
+
+Unknown extensions
+: Wrapped in `<pre>` with HTML entities escaped.
+
+### Error handling
+
+Failed includes render as a silent `<span class="include-error">` tag.
+A warning is written to the error log. Includes are single-pass only -
+`:::include` inside an included `.md` file is not processed.
+
+---
+
+## oEmbed
+
+Embed video and audio with a single line:
+
+```
+::: oembed
+https://www.youtube.com/watch?v=abc123
+:::
+
+::: oembed
+https://peertube.example.com/videos/watch/abc123
+:::
+```
+
+Works with YouTube, Vimeo, SoundCloud, PeerTube, and any oEmbed provider.
+The embed is baked into the cached page - no client-side API calls. If the
+fetch fails, the block renders as a plain link with class `oembed--failed`.
+
+---
+
+## Registries
+
+Pages declare which registry files they appear in via `register:` front
+matter. Registries are generated files derived from page metadata.
+
+```yaml
+register:
+  - sitemap.xml
+  - llms.txt
+  - feed.rss
+  - feed.atom
+```
+
+For RSS and Atom feeds, include a `date:` front matter key:
+
+```yaml
+date: 2026-03-20
+register:
+  - feed.rss
+  - feed.atom
+```
+
+Registries regenerate after their TTL expires (default 4 hours). To force
+immediate regeneration, delete the output file:
+
+```bash
+rm public_html/llms.txt
+```
+
+---
+
+## The 404 page
+
+`public_html/404.md` is the not-found page. Write it like any other page:
+
+```markdown
+---
+title: Page Not Found
+subtitle: The page you requested could not be found
+---
+
+The page you were looking for does not exist.
+Return to the [home page](/).
+```
+
+Delete `404.html` to regenerate it after edits.
 
 ---
 
 ## Cache management
 
-Edit `.md` file → delete `.html` cache → page regenerates on next request.
+Local `.md` pages regenerate automatically when the `.md` file is newer
+than the cached `.html`. Editing and saving is sufficient.
 
-```bash
-# Regenerate one page
-rm public_html/about.html
-
-# Regenerate all pages (e.g. after template change)
-find public_html -name "*.html" -delete
-```
-
-Pages with `ttl:` front matter regenerate automatically after the TTL
-expires without manual cache deletion.
-
-Index pages (`index.md`) are served directly by Apache via
-`DirectoryIndex` and bypass the processor when cached. After editing
-`index.md`, delete the cache manually:
+Index pages (`index.md`) are served directly by the web server and bypass
+the processor when cached. After editing `index.md`, delete the cache:
 
 ```bash
 rm public_html/index.html
 ```
 
+For all other pages, deleting the cache is only needed when the view
+template changes. After editing a `.md` file, the page regenerates on the
+next request automatically.
+
 ---
 
-## Tasks for the AI assistant
-
-### Creating a layout template
-
-Ask the user:
-- Site name and tagline
-- Navigation links (label and URL pairs)
-- Colour scheme or CSS framework preference
-- Header and footer content
-- Any special page sections (hero, sidebar, etc.)
-
-Produce a complete `view.tt` file. Reference `[% page_title %]`,
-`[% page_subtitle %]`, `[% content %]`, and any site-wide variables
-defined in `lazysite.conf`. Use `[% IF x %]...[% END %]` for optional elements.
+## Tasks for AI assistants
 
 ### Creating a page
 
-Ask the user:
+Ask:
 - Page title and subtitle
-- URL (determines filename and location)
-- Page content - section headings, body text, lists, code blocks
-- Whether the page should appear in llms.txt and sitemap.xml
-- Any page-specific variables needed
+- URL path (determines filename and location)
+- Page content - sections, body text, lists, code blocks
+- Whether the page should appear in llms.txt, sitemap.xml, or feeds
+- Any page-specific TT variables needed
 
 Produce a `.md` file with correct YAML front matter and Markdown content.
 Start headings at `##`. Use fenced divs for styled callouts. Use
@@ -481,42 +484,37 @@ extensionless internal links.
 ### Creating lazysite.conf
 
 Always include `site_name` and `site_url` as the first two entries.
-`site_url` must always use the environment variable form - never hardcode
-the domain:
+`site_url` must always use the environment variable form:
 
 ```yaml
 site_name: My Site
 site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
 ```
 
-Then ask the user:
+Ask:
 - Any remote values needed (version numbers, API data)
-- Any static values needed site-wide (support email, GitHub URL, etc.)
+- Any static values needed site-wide (support email, GitHub URL)
 
-Produce a `lazysite.conf` file. One variable per line. Add comments for
-clarity.
-
-### Switching themes
-
-To switch the site theme, set `theme:` in `lazysite/lazysite.conf`:
-
-```yaml
-theme: dark
-```
-
-This resolves to `lazysite/themes/dark/view.tt`. Install themes by
-placing them in `lazysite/themes/`. Per-page layout override via
-front matter `layout:` key.
+Produce a `lazysite.conf` file with one variable per line and comments
+for clarity.
 
 ### Creating nav.conf
 
-Ask the user for their site pages and structure. Produce a `nav.conf`
-file using the format:
+Ask for the site pages and their structure. Produce a `nav.conf` using
+the format:
 
-    Label | /url
-    Parent label
-      Child label | /child-url
+```
+Label | /url
+Parent label
+  Child label | /child-url
+```
 
 Top-level items use `Label | /url`. Non-clickable group headings use
 `Label` with no pipe. Children are indented with any whitespace.
-One level of nesting only.
+One level of nesting only. Lines starting with `#` are comments.
+
+For configuration, view creation, and operator tasks, refer to
+[configuration.md](/docs/configuration) and the
+[lazysite-views creating-views.md][views-doc].
+
+[views-doc]: https://github.com/OpenDigitalCC/lazysite-views/blob/main/docs/creating-views.md
