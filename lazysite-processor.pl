@@ -226,22 +226,34 @@ sub process_md {
         $meta->{page_modified_iso} = sprintf("%04d-%02d-%02d",
             $t[5] + 1900, $t[4] + 1, $t[3]);
     }
-    my $converted       = convert_fenced_divs($body);
-    my $converted_inc   = convert_fenced_include($converted, $md_path);
-    my $converted2      = convert_fenced_code($converted_inc);
-    my $converted3      = convert_oembed($converted2);
-    my $html_body       = convert_md($converted3);
-
-    # raw: true - skip layout template, output content fragment only
     my $page;
-    if ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
+
+    # api: true - body is pure TT, no Markdown pipeline, no layout
+    if ( $meta->{api} && $meta->{api} =~ /^true$/i ) {
+        my ( $processed_body ) = render_content( $meta, $body, $query );
+        $processed_body =~ s/^\s+|\s+$//g;  # trim for clean JSON
+        $page = $processed_body;
+    }
+    # raw: true - Markdown pipeline runs, no layout
+    elsif ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
+        my $converted       = convert_fenced_divs($body);
+        my $converted_inc   = convert_fenced_include($converted, $md_path);
+        my $converted2      = convert_fenced_code($converted_inc);
+        my $converted3      = convert_oembed($converted2);
+        my $html_body       = convert_md($converted3);
         my ( $processed_body ) = render_content( $meta, $html_body, $query );
         $page = $processed_body;
     }
+    # Normal mode - full pipeline with layout
     else {
-        $page = render_template( $meta, $html_body, $query );
-        $page = convert_dt_links($page);
-        $page = convert_p_links($page);
+        my $converted       = convert_fenced_divs($body);
+        my $converted_inc   = convert_fenced_include($converted, $md_path);
+        my $converted2      = convert_fenced_code($converted_inc);
+        my $converted3      = convert_oembed($converted2);
+        my $html_body       = convert_md($converted3);
+        $page               = render_template( $meta, $html_body, $query );
+        $page               = convert_dt_links($page);
+        $page               = convert_p_links($page);
     }
 
     # Only cache if no query params - query responses are dynamic
@@ -353,15 +365,25 @@ sub peek_ttl {
 sub peek_content_type {
     my ($path) = @_;
     open( my $fh, '<:utf8', $path ) or return undef;
-    my ( $raw, $content_type );
+    my ( $raw, $api, $content_type );
     while ( <$fh> ) {
         last if $. > 1 && /^---/;
-        $raw          = 1    if /^raw\s*:\s*true/i;
-        $content_type = $1   if /^content_type\s*:\s*(.+)/;
+        $raw          = 1  if /^raw\s*:\s*true/i;
+        $api          = 1  if /^api\s*:\s*true/i;
+        $content_type = $1 if /^content_type\s*:\s*(.+)/;
     }
     close $fh;
-    return undef unless $raw;
-    return $content_type ? $content_type : 'text/html; charset=utf-8';
+
+    return undef unless $raw || $api;
+
+    if ( $content_type ) {
+        $content_type =~ s/^\s+|\s+$//g;
+        return $content_type;
+    }
+
+    return 'application/json; charset=utf-8' if $api;
+    return 'text/plain; charset=utf-8'       if $raw;
+    return 'text/html; charset=utf-8';
 }
 
 sub peek_query_params {
