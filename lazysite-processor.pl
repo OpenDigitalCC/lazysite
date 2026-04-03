@@ -24,6 +24,23 @@ my $THEMES_DIR    = "$LAZYSITE_DIR/themes";
 my $REMOTE_TTL    = 3600;  # seconds before remote content is refetched (default 1 hour)
 my $REGISTRY_TTL  = 14400; # seconds before registries are regenerated (default 4 hours)
 
+# Extension to language identifier map for include code block wrapping
+my %LANG_MAP = (
+    md   => 'markdown',
+    yml  => 'yaml',   yaml => 'yaml',
+    sh   => 'bash',   bash => 'bash',
+    pl   => 'perl',
+    py   => 'python',
+    js   => 'javascript',
+    json => 'json',
+    html => 'html',   htm  => 'html',
+    css  => 'css',
+    conf => 'text',   cfg  => 'text',
+    txt  => 'text',
+    toml => 'toml',
+    xml  => 'xml',
+);
+
 # Allowlist of CGI environment variables that may be interpolated in lazysite.conf
 # Note: HTTP_HOST is intentionally excluded - it is request-supplied and untrusted.
 # Use SERVER_NAME for host-based URL construction.
@@ -163,7 +180,8 @@ sub process_md {
             $t[5] + 1900, $t[4] + 1, $t[3]);
     }
     my $converted       = convert_fenced_divs($body);
-    my $converted2      = convert_fenced_code($converted);
+    my $converted_inc   = convert_fenced_include($converted, $md_path);
+    my $converted2      = convert_fenced_code($converted_inc);
     my $converted3      = convert_oembed($converted2);
     my $html_body       = convert_md($converted3);
 
@@ -227,7 +245,8 @@ sub process_url {
     }
 
     my $converted  = convert_fenced_divs($body);
-    my $converted2 = convert_fenced_code($converted);
+    my $converted_inc = convert_fenced_include($converted, $url_path);
+    my $converted2 = convert_fenced_code($converted_inc);
     my $converted3 = convert_oembed($converted2);
     my $html_body  = convert_md($converted3);
 
@@ -365,15 +384,20 @@ sub convert_fenced_divs {
     my ($text) = @_;
 
     $text =~ s{
-        ^:::[ \t]+(\S+)[ \t]*\n  # opening ::: classname
-        (.*?)                     # content
-        ^:::[ \t]*\n              # closing :::
+        ^(:::[ \t]+(\S+)[^\n]*)\n  # opening ::: classname [rest of line]
+        (.*?)                       # content
+        ^:::[ \t]*\n                # closing :::
     }{
-        my $class = $1;
-        my $body  = $2;
+        my $opening = $1;
+        my $class   = $2;
+        my $body    = $3;
+        # Skip 'include' and 'oembed' - handled by dedicated converters
+        if ( $class eq 'include' || $class eq 'oembed' ) {
+            "$opening\n${body}:::\n";
+        }
         # Reject class names containing unsafe characters (S4)
         # Valid: word chars and hyphens only, must start with a word char
-        if ( $class =~ /\A[\w][\w-]*\z/ ) {
+        elsif ( $class =~ /\A[\w][\w-]*\z/ ) {
             qq(<div class="$class">\n${body}</div>\n);
         }
         else {
@@ -383,6 +407,109 @@ sub convert_fenced_divs {
     }gsmxe;
 
     return $text;
+}
+
+# --- Include ---
+
+sub convert_fenced_include {
+    my ( $text, $md_path ) = @_;
+
+    $text =~ s{
+        ^:::[ \t]+include(?:[ \t]+([^\n]*?))?\n  # opening ::: include [modifiers]
+        [ \t]*([^\n]+?)[ \t]*\n                   # source URL or path (trimmed)
+        ^:::[ \t]*\n                              # closing :::
+    }{
+        my $modifiers = $1 || '';
+        my $source    = $2;
+        _resolve_include( $source, $md_path, $modifiers );
+    }gesmx;
+
+    return $text;
+}
+
+sub _resolve_include {
+    my ( $source, $md_path, $modifiers ) = @_;
+
+    # HTML-escape source for error spans
+    ( my $source_escaped = $source ) =~ s/&/&amp;/g;
+    $source_escaped =~ s/</&lt;/g;
+    $source_escaped =~ s/>/&gt;/g;
+    $source_escaped =~ s/"/&quot;/g;
+
+    my $content;
+    my $is_remote = $source =~ m{\Ahttps?://};
+
+    if ( $is_remote ) {
+        # Remote URL
+        $content = fetch_url($source);
+        unless ( defined $content ) {
+            log_warn("include failed: $source - fetch failed");
+            return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
+        }
+    }
+    else {
+        # Local file
+        my $resolved;
+        if ( $source =~ m{\A/} ) {
+            # Absolute from docroot
+            $resolved = $DOCROOT . $source;
+        }
+        else {
+            # Relative to parent .md file
+            $resolved = dirname($md_path) . '/' . $source;
+        }
+
+        # Realpath check - reject if outside $DOCROOT
+        my $real = realpath($resolved);
+        if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
+            log_warn("include failed: $source - path outside docroot or not found");
+            return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
+        }
+
+        if ( ! -f $real ) {
+            log_warn("include failed: $source - file not found");
+            return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
+        }
+
+        $content = eval { read_file($real) };
+        if ( $@ || !defined $content ) {
+            log_warn("include failed: $source - $@");
+            return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
+        }
+    }
+
+    # Determine extension from source
+    my $ext = '';
+    if ( $source =~ /\.(\w+)(?:\?.*)?$/ ) {
+        $ext = lc($1);
+    }
+
+    my $lang = $LANG_MAP{$ext} || '';
+
+    if ( $lang eq 'markdown' ) {
+        # Strip YAML front matter, run sub-pipeline (no recursion)
+        my ( undef, $body ) = parse_yaml_front_matter($content);
+        my $sub = convert_fenced_divs($body);
+        $sub    = convert_fenced_code($sub);
+        $sub    = convert_oembed($sub);
+        $sub    = convert_md($sub);
+        return $sub;
+    }
+    elsif ( $ext eq 'html' || $ext eq 'htm' ) {
+        # Insert bare HTML
+        return $content;
+    }
+    elsif ( $lang ) {
+        # Code file - wrap in fenced code block for convert_fenced_code
+        return "```$lang\n$content```\n";
+    }
+    else {
+        # Unknown extension - wrap in <pre>
+        $content =~ s/&/&amp;/g;
+        $content =~ s/</&lt;/g;
+        $content =~ s/>/&gt;/g;
+        return "<pre>$content</pre>\n";
+    }
 }
 
 sub convert_fenced_code {
