@@ -98,24 +98,35 @@ for tmpl in "$SCRIPT_DIR/starter/registries/"*.tt; do
     fi
 done
 
-# --- Fetch default template ---
+# --- Fetch default view from lazysite-views ---
 
-TEMPLATE_URL="${THEME:-https://raw.githubusercontent.com/OpenDigitalCC/lazysite-templates/main/default/view.tt}"
-
-echo "Fetching template..."
-if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$TEMPLATE_URL" -o "$DOCROOT/lazysite/templates/view.tt" 2>/dev/null || {
-        echo "Warning: could not fetch template from $TEMPLATE_URL"
-        echo "You will need to create $DOCROOT/lazysite/templates/view.tt manually"
-    }
-elif command -v wget >/dev/null 2>&1; then
-    wget -q "$TEMPLATE_URL" -O "$DOCROOT/lazysite/templates/view.tt" 2>/dev/null || {
-        echo "Warning: could not fetch template from $TEMPLATE_URL"
-        echo "You will need to create $DOCROOT/lazysite/templates/view.tt manually"
-    }
+echo "Fetching default view from lazysite-views..."
+if command -v git &>/dev/null; then
+    VIEWS_TMP=$(mktemp -d)
+    git clone --depth 1 \
+        https://github.com/OpenDigitalCC/lazysite-views.git \
+        "$VIEWS_TMP" 2>/dev/null
+    if [ -f "$VIEWS_TMP/default/view.tt" ]; then
+        mkdir -p "$DOCROOT/lazysite/templates"
+        cp "$VIEWS_TMP/default/view.tt" \
+            "$DOCROOT/lazysite/templates/view.tt"
+        echo "  view.tt installed from lazysite-views/default"
+    fi
+    if [ -f "$VIEWS_TMP/default/nav.conf" ]; then
+        cp "$VIEWS_TMP/default/nav.conf" \
+            "$DOCROOT/lazysite/nav.conf"
+        echo "  nav.conf installed from lazysite-views/default"
+    fi
+    if [ -d "$VIEWS_TMP/default/assets" ]; then
+        mkdir -p "$DOCROOT/lazysite-assets/default"
+        cp -r "$VIEWS_TMP/default/assets/"* \
+            "$DOCROOT/lazysite-assets/default/" 2>/dev/null
+        echo "  assets installed to lazysite-assets/default/"
+    fi
+    rm -rf "$VIEWS_TMP"
 else
-    echo "Warning: neither curl nor wget found - cannot fetch template"
-    echo "You will need to create $DOCROOT/lazysite/templates/view.tt manually"
+    echo "  git not found - skipping view install"
+    echo "  Install manually: https://github.com/OpenDigitalCC/lazysite-views"
 fi
 
 # --- Write lazysite.conf ---

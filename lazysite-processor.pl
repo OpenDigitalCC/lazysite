@@ -16,7 +16,21 @@ my $DOCROOT     = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
 
 my $LAZYSITE_DIR  = "$DOCROOT/lazysite";
 my $LAZYSITE_URI  = "/lazysite";
-my $CONF_FILE     = "$LAZYSITE_DIR/lazysite.conf";
+
+# F0003: lazysite.conf path override
+# Priority: --conf arg > LAZYSITE_CONF env var > default
+my $CONF_OVERRIDE;
+for my $i ( 0 .. $#ARGV ) {
+    if ( $ARGV[$i] eq '--conf' && defined $ARGV[$i+1] ) {
+        $CONF_OVERRIDE = $ARGV[$i+1];
+        last;
+    }
+}
+$CONF_OVERRIDE //= $ENV{LAZYSITE_CONF};
+
+my $CONF_FILE = $CONF_OVERRIDE
+    ? $CONF_OVERRIDE
+    : "$LAZYSITE_DIR/lazysite.conf";
 my $LAYOUT_DIR    = "$LAZYSITE_DIR/templates";
 my $LAYOUT        = "$LAZYSITE_DIR/templates/view.tt";
 my $REGISTRY_DIR  = "$LAZYSITE_DIR/templates/registries";
@@ -277,7 +291,7 @@ sub process_md {
     # raw: true - Markdown pipeline runs, no layout
     elsif ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
         my $converted       = convert_fenced_divs($body);
-        my $converted_inc   = convert_fenced_include($converted, $md_path);
+        my $converted_inc   = convert_fenced_include($converted, $md_path, $meta);
         my $converted2      = convert_fenced_code($converted_inc);
         my $converted3      = convert_oembed($converted2);
         my $html_body       = convert_md($converted3);
@@ -287,7 +301,7 @@ sub process_md {
     # Normal mode - full pipeline with layout
     else {
         my $converted       = convert_fenced_divs($body);
-        my $converted_inc   = convert_fenced_include($converted, $md_path);
+        my $converted_inc   = convert_fenced_include($converted, $md_path, $meta);
         my $converted2      = convert_fenced_code($converted_inc);
         my $converted3      = convert_oembed($converted2);
         my $html_body       = convert_md($converted3);
@@ -347,7 +361,7 @@ sub process_url {
     }
 
     my $converted  = convert_fenced_divs($body);
-    my $converted_inc = convert_fenced_include($converted, $url_path);
+    my $converted_inc = convert_fenced_include($converted, $url_path, $meta);
     my $converted2 = convert_fenced_code($converted_inc);
     my $converted3 = convert_oembed($converted2);
     my $html_body  = convert_md($converted3);
@@ -560,15 +574,25 @@ sub convert_fenced_divs {
 # --- Include ---
 
 sub convert_fenced_include {
-    my ( $text, $md_path ) = @_;
+    my ( $text, $md_path, $meta ) = @_;
+    $meta //= {};
 
     $text =~ s{
         ^:::[ \t]+include(?:[ \t]+([^\n]*?))?\n  # opening ::: include [modifiers]
         [ \t]*([^\n]+?)[ \t]*\n                   # source URL or path (trimmed)
         ^:::[ \t]*\n                              # closing :::
     }{
-        my $modifiers = $1 || '';
+        my $modifiers = $1 // '';
         my $source    = $2;
+
+        # Parse ttl modifier
+        if ( $modifiers =~ /\bttl=(\d+)\b/ ) {
+            my $ttl = $1;
+            unless ( defined $meta->{ttl} ) {
+                $meta->{ttl} = $ttl;
+            }
+        }
+
         _resolve_include( $source, $md_path, $modifiers );
     }gesmx;
 
@@ -926,6 +950,16 @@ sub parse_nav {
 sub resolve_scan {
     my ($pattern) = @_;
 
+    # Parse sort modifier: "sort=FIELD DIRECTION"
+    my $sort_field = 'filename';
+    my $sort_dir   = 'asc';
+    if ( $pattern =~ s/\s+sort=(\w+)(?:\s+(asc|desc))?//i ) {
+        $sort_field = lc($1);
+        $sort_dir   = lc($2) if defined $2;
+        $sort_field = 'filename'
+            unless $sort_field =~ /^(date|title|filename)$/;
+    }
+
     # Pattern must be docroot-relative starting with /
     return [] unless $pattern =~ m{^/};
 
@@ -976,7 +1010,18 @@ sub resolve_scan {
         };
     }
 
-    return \@pages;
+    # Sort pages
+    my @sorted = sort {
+        my $va = $sort_field eq 'date'     ? $a->{date}
+               : $sort_field eq 'title'    ? lc($a->{title})
+               :                             $a->{path};
+        my $vb = $sort_field eq 'date'     ? $b->{date}
+               : $sort_field eq 'title'    ? lc($b->{title})
+               :                             $b->{path};
+        $sort_dir eq 'desc' ? $vb cmp $va : $va cmp $vb;
+    } @pages;
+
+    return \@sorted;
 }
 
 sub update_registries {
@@ -1168,10 +1213,10 @@ sub get_layout_path {
     if ( $name ) {
         # Check if theme is a remote URL
         if ( $name =~ m{^https?://} ) {
-            my $cached = fetch_remote_layout($name);
-            return $cached if $cached;
+            my ( $cached, $theme_key ) = fetch_remote_layout($name);
+            return ( $cached, $theme_key ) if $cached;
             log_warn("Remote layout fetch failed for $name - using fallback");
-            return undef;  # signals render_template to use fallback
+            return ( undef, undef );  # signals render_template to use fallback
         }
 
         # Local theme/layout name - sanitise
@@ -1183,15 +1228,15 @@ sub get_layout_path {
             my $theme_path = "$THEMES_DIR/$name/view.tt";
             my $tmpl_path  = "$LAYOUT_DIR/$name.tt";
 
-            return $theme_path if -f $theme_path;
-            return $tmpl_path  if -f $tmpl_path;
+            return ( $theme_path, undef ) if -f $theme_path;
+            return ( $tmpl_path, undef )  if -f $tmpl_path;
 
             log_warn("get_layout_path: layout '$name' not found,"
                 . " falling back to default");
         }
     }
 
-    return -f $LAYOUT ? $LAYOUT : undef;
+    return ( ( -f $LAYOUT ? $LAYOUT : undef ), undef );
 }
 
 sub fetch_remote_layout {
@@ -1209,7 +1254,7 @@ sub fetch_remote_layout {
     if ( -f $cache_path ) {
         my @st = stat($cache_path);
         if ( @st && (time() - $st[9]) < $REMOTE_TTL ) {
-            return $cache_path;
+            return ( $cache_path, $cache_key );
         }
     }
 
@@ -1217,19 +1262,50 @@ sub fetch_remote_layout {
     my $content = fetch_url($url);
     unless ( defined $content && length $content ) {
         # Return stale cache if available
-        return -f $cache_path ? $cache_path : undef;
+        return -f $cache_path ? ( $cache_path, $cache_key ) : ( undef, undef );
     }
 
     # Write to cache
     make_path($LAYOUT_CACHE_DIR) unless -d $LAYOUT_CACHE_DIR;
     open( my $fh, '>:utf8', $cache_path ) or do {
         log_warn("Cannot write layout cache $cache_path: $!");
-        return undef;
+        return ( undef, undef );
     };
     print $fh $content;
     close $fh;
 
-    return $cache_path;
+    # Attempt to fetch theme.json manifest from same directory
+    my $base_url = $url;
+    $base_url =~ s{/[^/]+$}{};  # strip filename to get directory URL
+    my $manifest_url = "$base_url/theme.json";
+    my $manifest_raw = fetch_url($manifest_url);
+
+    if ( defined $manifest_raw ) {
+        my $manifest = eval { decode_json($manifest_raw) };
+        if ( $manifest && ref $manifest->{files} eq 'ARRAY' ) {
+            my $asset_dir = "$DOCROOT/lazysite-assets/$cache_key";
+            make_path($asset_dir) unless -d $asset_dir;
+
+            for my $file ( @{ $manifest->{files} } ) {
+                next if $file eq 'view.tt';  # already fetched
+                next if $file =~ /\.\./;     # no traversal
+
+                my $file_url     = "$base_url/$file";
+                my $file_content = fetch_url($file_url);
+                next unless defined $file_content;
+
+                my $file_path = "$asset_dir/$file";
+                my $file_dir  = dirname($file_path);
+                make_path($file_dir) unless -d $file_dir;
+
+                open( my $afh, '>:raw', $file_path ) or next;
+                print $afh $file_content;
+                close $afh;
+            }
+        }
+    }
+
+    return ( $cache_path, $cache_key );
 }
 
 sub render_template {
@@ -1238,7 +1314,12 @@ sub render_template {
 
     my ( $processed_body, $vars ) = render_content( $meta, $html_body, $query );
 
-    my $layout = get_layout_path( $meta, $vars );
+    my ( $layout, $theme_key ) = get_layout_path( $meta, $vars );
+
+    # Set theme_assets path for remote themes
+    if ( defined $theme_key ) {
+        $vars->{theme_assets} = "/lazysite-assets/$theme_key";
+    }
 
     $vars->{content} = $processed_body;
     my $output = '';
@@ -1318,8 +1399,13 @@ sub ct_cache_path {
 
 sub write_ct {
     my ( $base, $content_type ) = @_;
-    return unless defined $content_type;
-    return if $content_type eq 'text/html; charset=utf-8';
+
+    # Default or undef content type - clean stale .ct if present
+    if ( !defined $content_type || $content_type eq 'text/html; charset=utf-8' ) {
+        my $ct_path = ct_cache_path($base);
+        unlink $ct_path if -f $ct_path;
+        return;
+    }
 
     make_path($CT_CACHE_DIR) unless -d $CT_CACHE_DIR;
 
@@ -1341,6 +1427,14 @@ sub read_ct {
     close $fh;
     $ct =~ s/^\s+|\s+$//g if defined $ct;
     return $ct || undef;
+}
+
+sub html_to_base {
+    my ($html_path) = @_;
+    my $base = $html_path;
+    $base =~ s{^\Q$DOCROOT\E/}{};
+    $base =~ s/\.html$//;
+    return $base;
 }
 
 sub write_html {

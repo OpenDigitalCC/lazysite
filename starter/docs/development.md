@@ -96,6 +96,19 @@ After editing `index.md`, delete the cached file manually:
 
     rm public_html/index.html
 
+### Cache housekeeping
+
+Content type sidecar files (`.ct`) in `lazysite/cache/ct/` are
+managed automatically - created when a page is cached, deleted when
+the corresponding `.html` is deleted.
+
+To clear all cached state manually:
+
+    find public_html/lazysite/cache -delete
+    mkdir -p public_html/lazysite/cache
+
+This removes both the layout cache and content type cache.
+
 ## Troubleshooting
 
 ### Check the error log

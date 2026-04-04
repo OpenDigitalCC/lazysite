@@ -206,6 +206,61 @@ Override the default nav file path in `lazysite.conf`:
 
 The path is relative to the docroot.
 
+## Page scan
+
+The `scan:` prefix in `lazysite.conf` or `tt_page_var` scans a
+directory and returns an array of page metadata as a TT variable.
+
+    blog_pages: scan:/blog/*.md
+
+In a page body:
+
+    [% FOREACH post IN blog_pages %]
+    ## [% post.title %]
+    [% post.subtitle %] - [% post.date %]
+    [% END %]
+
+### Pattern rules
+
+- Pattern must start with `/` (docroot-relative path)
+- Only `*.md` files are matched
+- One level of directory only - no recursive scanning
+- Maximum 200 files per scan
+- Each result is realpath-checked - rejected if outside docroot
+
+### Page object fields
+
+Each item in the returned array has:
+
+- `url` - extensionless URI, e.g. `/blog/first-post`
+- `title` - from front matter `title:`
+- `subtitle` - from front matter `subtitle:` (may be empty)
+- `date` - from front matter `date:`, falls back to file mtime
+- `path` - absolute filesystem path (useful for debugging)
+
+### Sort order
+
+Default sort is by filename. Use the `sort=` modifier to sort by field:
+
+    blog_pages: scan:/blog/*.md sort=date desc
+    news_pages: scan:/news/*.md sort=title asc
+
+Sort fields: `date`, `title`, `filename`. Direction: `asc` or `desc`.
+Default direction is `asc`.
+
+For reverse-chronological blog posts, use `sort=date desc`. Date-prefix
+filenames (`2026-03-20-post-title.md`) also sort chronologically by
+filename without needing the sort modifier.
+
+### Per-page scan
+
+Scan variables work in `tt_page_var` for page-scoped results:
+
+```yaml
+tt_page_var:
+  section_pages: scan:/services/*.md sort=title asc
+```
+
 ## lazysite.conf
 
 `lazysite/lazysite.conf` defines site-wide variables available in

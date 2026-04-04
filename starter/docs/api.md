@@ -112,3 +112,25 @@ Query requests to API pages are not cached.
 | raw: true | Declared params present | No |
 | api: true | None | Yes |
 | api: true | Declared params present | No |
+
+### Content type caching
+
+For `raw:` and `api:` pages with non-default content types, the
+content type is cached alongside the `.html` file in
+`lazysite/cache/ct/`. This ensures the correct content type is served
+even when the page is served from cache.
+
+The cache uses a flat file structure with `:` as a path delimiter:
+
+    lazysite/cache/ct/api:status.ct     <- for /api/status
+    lazysite/cache/ct/docs:api.ct       <- for /docs/api
+
+Normal HTML pages do not write a `.ct` file. The cache directory is
+protected from web access by the `/lazysite/` URI block.
+
+To clear content type cache entries:
+
+    find public_html/lazysite/cache/ct -name "*.ct" -delete
+
+When a `.html` cache file is deleted, the corresponding `.ct` file
+is also deleted automatically by the processor.
