@@ -6,6 +6,29 @@ register:
   - llms.txt
 ---
 
+
+## Why is it lazy?
+
+Is it hard to install?
+: No need to even install it. just download or clone the repo, install a handful of modules available on common Linux distributions, and fire up the server - it just works from it's local lightweight service and will serve the sample content or yours.
+
+Really, how to install?
+: If you want a more permenant installation, run the install script. This sets Lazysite up with Apache or your webserver of choice - it's just a CGI script.
+
+What about content?
+: It comes with some basic content that you can just edit. It's markdown, so simple text. Add your own.
+
+And themes?
+: The lazysite-views repo has some basic themes - you can clone these and install. The quickest way to test a theme is to run the local server, and just copy the theme in to the starter site.
+
+Can I build a static site and run elsewhere?
+: Yes, it runs in generation mode. In fsact, lazysite is a dynamic and static system - create your content and it creates the pages on the fly. 
+
+Most static builders do just that - what about more advanced sites?
+: There is a powerful templating system built in, allowing pages to have dynamic content (even remote content), export news feeds, sitemaps, read in remote dynamic data and json files, loop through content, conditionally display.
+
+So - no-commitment whilst you become familair, simple minimal infrastructure to test themes, just text - what could be easier?
+
 ## What it is
 
 Drop a `.md` file in your docroot and it is served as a fully rendered HTML page. The first request generates the HTML and caches it alongside the source file. Every subsequent request is a plain static file - no process, no overhead.
