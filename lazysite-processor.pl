@@ -1245,6 +1245,9 @@ sub render_template {
 sub write_html {
     my ( $html_path, $page ) = @_;
 
+    # Skip cache write if LAZYSITE_NOCACHE is set
+    return if $ENV{LAZYSITE_NOCACHE};
+
     # Refuse to write zero-byte content - protects against empty cache
     # files that would permanently block regeneration via DirectoryIndex
     unless ( length($page) ) {

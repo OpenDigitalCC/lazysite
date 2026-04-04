@@ -42,8 +42,7 @@ Defined in this page's front matter.
 
 ## 3. TT concatenation
 
-[% filename = "release-" _ version _ ".tar.gz" %]
-[% full_url = page_base_url _ "/" _ filename %]
+<div>[% filename = "release-" _ version _ ".tar.gz" %][% full_url = page_base_url _ "/" _ filename %]</div>
 
 - filename: [% filename %]
 - full_url: [% full_url %]
@@ -54,11 +53,7 @@ Defined in this page's front matter.
 
 ## 4. TT conditional
 
-[% IF version %]
-Version is set: [% version %]
-[% ELSE %]
-Version is not set.
-[% END %]
+<div>[% IF version %]Version is set: [% version %][% ELSE %]Version is not set.[% END %]</div>
 
 **Expected:** "Version is set:" followed by the version number.
 
