@@ -24,6 +24,7 @@ my $THEMES_DIR    = "$LAZYSITE_DIR/themes";
 my $REMOTE_TTL       = 3600;  # seconds before remote content is refetched (default 1 hour)
 my $REGISTRY_TTL     = 14400; # seconds before registries are regenerated (default 4 hours)
 my $LAYOUT_CACHE_DIR = "$LAZYSITE_DIR/cache/layouts";
+my $CT_CACHE_DIR     = "$LAZYSITE_DIR/cache/ct";
 
 # Built-in fallback template - used when no view.tt is found
 my $FALLBACK_LAYOUT = <<'END_FALLBACK';
@@ -158,13 +159,15 @@ sub main {
         if ( @md_stat && @html_stat ) {
             if ( $html_stat[9] >= $md_stat[9] ) {
                 # mtime fresh - serve cache immediately, no peek_ttl needed
-                output_page( read_file($html_path) );
+                my $ct = read_ct($base);
+                output_page( read_file($html_path), $ct );
                 return;
             }
             # mtime stale - check for page-level TTL override before regenerating
             my $ttl = peek_ttl($md_path);
             if ( defined $ttl && is_fresh_ttl_val_stat( \@html_stat, $ttl ) ) {
-                output_page( read_file($html_path) );
+                my $ct = read_ct($base);
+                output_page( read_file($html_path), $ct );
                 return;
             }
         }
@@ -190,6 +193,7 @@ sub main {
 
         my $page = process_md( $md_path, $html_path, $md_stat[9], \%filtered_query );
         my $ct   = peek_content_type($md_path);
+        write_ct( $base, $ct );
         output_page( $page, $ct );
         return;
     }
@@ -203,6 +207,7 @@ sub main {
         }
         my $page = process_url( $url_path, $html_path, (stat($url_path))[9] );
         my $ct   = peek_content_type($url_path);
+        write_ct( $base, $ct );
         output_page( $page, $ct );
         return;
     }
@@ -822,7 +827,11 @@ sub resolve_tt_vars {
     for my $key ( keys %$defs ) {
         my $val = strip_tt_directives( $defs->{$key} );
 
-        if ( $val =~ s/^url:// ) {
+        if ( $val =~ s/^scan:// ) {
+            $val =~ s/^\s+|\s+$//g;
+            $vars{$key} = resolve_scan($val);
+        }
+        elsif ( $val =~ s/^url:// ) {
             $val = interpolate_env($val);
             $val =~ s/^\s+|\s+$//g;
             my $fetched = fetch_url($val);
@@ -912,6 +921,62 @@ sub parse_nav {
 
     close $fh;
     return \@nav;
+}
+
+sub resolve_scan {
+    my ($pattern) = @_;
+
+    # Pattern must be docroot-relative starting with /
+    return [] unless $pattern =~ m{^/};
+
+    # Build filesystem glob pattern
+    my $fs_pattern = $DOCROOT . $pattern;
+
+    # Limit to .md files only
+    return [] unless $fs_pattern =~ /\.md$/;
+
+    my @files = glob($fs_pattern);
+
+    # Limit to 200 files
+    @files = @files[0..199] if @files > 200;
+
+    my @pages;
+    for my $path ( sort @files ) {
+        # Realpath check
+        my $real = realpath($path);
+        next unless defined $real && index($real, $DOCROOT) == 0;
+        next unless -f $real;
+
+        # Read front matter
+        my $raw = read_file($path);
+        my ( $meta, undef ) = parse_yaml_front_matter($raw);
+
+        # Derive URL
+        ( my $url = $path ) =~ s{^\Q$DOCROOT\E}{};
+        $url =~ s/\.md$//;
+        $url =~ s{/index$}{/};
+
+        # Date from front matter or mtime
+        my $date = $meta->{date} || '';
+        unless ( $date ) {
+            my @st = stat($path);
+            if ( @st ) {
+                my @t = localtime( $st[9] );
+                $date = sprintf("%04d-%02d-%02d",
+                    $t[5] + 1900, $t[4] + 1, $t[3]);
+            }
+        }
+
+        push @pages, {
+            url      => $url,
+            title    => $meta->{title}    || '',
+            subtitle => $meta->{subtitle} || '',
+            date     => $date,
+            path     => $path,
+        };
+    }
+
+    return \@pages;
 }
 
 sub update_registries {
@@ -1240,6 +1305,42 @@ sub render_template {
         };
 
     return $output;
+}
+
+# --- Content type cache ---
+
+sub ct_cache_path {
+    my ($base) = @_;
+    my $key = $base;
+    $key =~ s{/}{:}g;
+    return "$CT_CACHE_DIR/$key.ct";
+}
+
+sub write_ct {
+    my ( $base, $content_type ) = @_;
+    return unless defined $content_type;
+    return if $content_type eq 'text/html; charset=utf-8';
+
+    make_path($CT_CACHE_DIR) unless -d $CT_CACHE_DIR;
+
+    my $ct_path = ct_cache_path($base);
+    open( my $fh, '>:utf8', $ct_path ) or do {
+        log_warn("Cannot write content type cache $ct_path: $!");
+        return;
+    };
+    print $fh $content_type;
+    close $fh;
+}
+
+sub read_ct {
+    my ($base) = @_;
+    my $ct_path = ct_cache_path($base);
+    return undef unless -f $ct_path;
+    open( my $fh, '<:utf8', $ct_path ) or return undef;
+    my $ct = <$fh>;
+    close $fh;
+    $ct =~ s/^\s+|\s+$//g if defined $ct;
+    return $ct || undef;
 }
 
 sub write_html {
