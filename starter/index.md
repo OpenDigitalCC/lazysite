@@ -7,14 +7,30 @@ register:
 
 This site is built with [lazysite](https://lazysite.io).
 
-## Get started
+## Try it
 
 - [Feature demonstrator](/lazysite-demo) - see all features working locally
+
+## Discover
+
 - [Authoring guide](/docs/authoring) - writing pages, front matter, Markdown
-- [Configuration](/docs/configuration) - views, navigation, lazysite.conf
 - [All features](/docs/features) - complete feature reference
-- [Development](/docs/development) - dev server, troubleshooting, build tools
 - [API and raw mode](/docs/api) - JSON endpoints, query strings, content types
-- [README](/docs/README) - installation and reference
+
+## Configure
+
+- [Configuration](/docs/configuration) - views, navigation, lazysite.conf
+- [Reference](/docs/reference) - front matter keys, variables, file locations
+
+## Install
+
+- [Installation](/docs/install) - requirements, server setup, getting started
+
+## Develop
+
+- [Development](/docs/development) - dev server, troubleshooting, build tools
+
+## Project
+
 - [lazysite.io](https://lazysite.io) - project website
 - [GitHub](https://github.com/OpenDigitalCC/lazysite) - source
