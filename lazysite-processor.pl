@@ -1240,10 +1240,37 @@ sub render_content {
     return ( $processed_body, $vars );
 }
 
+sub read_theme_cookie {
+    my $cookie_str = $ENV{HTTP_COOKIE} // '';
+    return '' unless $cookie_str;
+
+    for my $pair ( split /;\s*/, $cookie_str ) {
+        my ( $name, $val ) = split /=/, $pair, 2;
+        $name =~ s/^\s+|\s+$//g;
+        if ( $name eq 'lazysite_theme' ) {
+            $val //= '';
+            $val =~ s/^\s+|\s+$//g;
+            # Sanitise - same as theme name from conf
+            $val =~ s/[^a-zA-Z0-9_-]//g;
+            return $val;
+        }
+    }
+    return '';
+}
+
 sub get_layout_path {
     my ( $meta, $vars ) = @_;
 
-    my $name = $meta->{layout} || $vars->{theme} || '';
+    my $name = $meta->{layout} || '';
+
+    unless ( $name ) {
+        my $cookie_theme = read_theme_cookie();
+        $name = $cookie_theme if $cookie_theme;
+    }
+
+    unless ( $name ) {
+        $name = $vars->{theme} || '';
+    }
 
     if ( $name ) {
         # Check if theme is a remote URL
