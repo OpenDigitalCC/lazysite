@@ -218,23 +218,21 @@ Works with YouTube, Vimeo, SoundCloud, PeerTube, and any oEmbed provider. The em
 
 Include local or remote content inline in a page using `:::include`:
 
-```
-::: include
-partials/note.md
-:::
-```
+    ::: include
+    partials/note.md
+    :::
 
-```
-::: include
-https://raw.githubusercontent.com/owner/repo/main/CHANGELOG.md
-:::
-```
+Remote content with an HTTP URL:
 
-```
-::: include
-partials/example.sh
-:::
-```
+    ::: include
+    https://raw.githubusercontent.com/owner/repo/main/CHANGELOG.md
+    :::
+
+Code files are wrapped in a syntax-highlighted code block:
+
+    ::: include
+    partials/example.sh
+    :::
 
 ### Path resolution
 

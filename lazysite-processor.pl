@@ -613,7 +613,7 @@ sub convert_fenced_include {
 
         _resolve_include( $source, $md_path, $modifiers );
         }
-    }gesmx;
+    }gemx;
 
     return $text;
 }
