@@ -74,13 +74,11 @@ If a local file is missing or a remote fetch fails, the block renders
 as a silent `<span class="include-error" data-src="..."></span>` tag.
 A warning is written to the error log. Expose errors during development:
 
-```css
-.include-error::before {
-  content: "include failed: " attr(data-src);
-  color: red;
-  display: block;
-}
-```
+    .include-error::before {
+      content: "include failed: " attr(data-src);
+      color: red;
+      display: block;
+    }
 
 ### Notes
 
