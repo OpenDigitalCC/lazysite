@@ -45,6 +45,9 @@ my $PORT       = 8080;
 my $DOCROOT    = abs_path("$SCRIPT_DIR/../starter");
 my $PROCESSOR  = abs_path("$SCRIPT_DIR/../lazysite-processor.pl");
 my $nocache    = 1;
+my $ERR_FILE   = "/tmp/lazysite-server-$$.err";
+
+END { unlink $ERR_FILE if -f $ERR_FILE }
 
 # --- Parse arguments ---
 
@@ -191,11 +194,11 @@ sub handle_request {
     );
 
     my $env_prefix = join ' ', map { "$_=\Q$env{$_}\E" } sort keys %env;
-    my $output = qx($env_prefix perl \Q$PROCESSOR\E 2>/tmp/lazysite-server.err);
+    my $output = qx($env_prefix perl \Q$PROCESSOR\E 2>$ERR_FILE);
 
     # Print any stderr to terminal
-    if ( -s '/tmp/lazysite-server.err' ) {
-        open my $err, '<', '/tmp/lazysite-server.err';
+    if ( -s $ERR_FILE ) {
+        open my $err, '<', $ERR_FILE;
         print while <$err>;
         close $err;
     }
