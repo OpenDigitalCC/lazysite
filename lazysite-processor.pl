@@ -305,6 +305,7 @@ sub process_md {
         my $converted2      = convert_fenced_code($converted_inc);
         my $converted3      = convert_oembed($converted2);
         my $html_body       = convert_md($converted3);
+        $meta->{_md_path}   = $md_path;
         $page               = render_template( $meta, $html_body, $query );
         $page               = convert_dt_links($page);
         $page               = convert_p_links($page);
@@ -596,6 +597,12 @@ sub convert_fenced_include {
         my $modifiers = $1 // '';
         my $source    = $2;
 
+        # Skip if source contains unresolved TT variables - leave for second pass
+        if ( $source =~ /\[%.*%\]/ ) {
+            "::: include" . ( length $modifiers ? " $modifiers" : '' ) . "\n$source\n:::\n";
+        }
+        else {
+
         # Parse ttl modifier
         if ( $modifiers =~ /\bttl=(\d+)\b/ ) {
             my $ttl = $1;
@@ -605,6 +612,7 @@ sub convert_fenced_include {
         }
 
         _resolve_include( $source, $md_path, $modifiers );
+        }
     }gesmx;
 
     return $text;
@@ -633,7 +641,11 @@ sub _resolve_include {
     else {
         # Local file
         my $resolved;
-        if ( $source =~ m{\A/} ) {
+        if ( index( $source, $DOCROOT ) == 0 ) {
+            # Already a full filesystem path (e.g. from scan results)
+            $resolved = $source;
+        }
+        elsif ( $source =~ m{\A/} ) {
             # Absolute from docroot
             $resolved = $DOCROOT . $source;
         }
@@ -1335,6 +1347,11 @@ sub render_template {
     $query //= {};
 
     my ( $processed_body, $vars ) = render_content( $meta, $html_body, $query );
+
+    # Second include pass - resolves :::include blocks with TT-variable paths
+    if ( $meta->{_md_path} ) {
+        $processed_body = convert_fenced_include( $processed_body, $meta->{_md_path}, $meta );
+    }
 
     my ( $layout, $theme_key ) = get_layout_path( $meta, $vars );
 

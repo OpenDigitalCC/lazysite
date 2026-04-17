@@ -10,33 +10,31 @@ tt_page_var:
   dev_features: scan:/docs/features/development/*.md sort=title asc
 ---
 
+[% IF authoring_features.size %]
 ## Authoring
 
 [% FOREACH feature IN authoring_features %]
-### [% feature.title %]
-
-[% feature.subtitle %]
-
-[Read more](#[% feature.title | lower | replace(' ', '-') %])
+<div class="feature-entry">
 
 ::: include
 [% feature.path %]
 :::
 
+</div>
+[% END %]
 [% END %]
 
 [% IF config_features.size %]
 ## Configuration
 
 [% FOREACH feature IN config_features %]
-### [% feature.title %]
-
-[% feature.subtitle %]
+<div class="feature-entry">
 
 ::: include
 [% feature.path %]
 :::
 
+</div>
 [% END %]
 [% END %]
 
@@ -44,13 +42,12 @@ tt_page_var:
 ## Development
 
 [% FOREACH feature IN dev_features %]
-### [% feature.title %]
-
-[% feature.subtitle %]
+<div class="feature-entry">
 
 ::: include
 [% feature.path %]
 :::
 
+</div>
 [% END %]
 [% END %]
