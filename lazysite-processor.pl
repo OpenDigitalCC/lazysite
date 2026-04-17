@@ -971,8 +971,27 @@ sub parse_nav {
     return \@nav;
 }
 
+sub peek_search_default {
+    return 1 unless -f $CONF_FILE;
+    open( my $fh, '<:utf8', $CONF_FILE ) or return 1;
+    while ( <$fh> ) {
+        if ( /^search_default\s*:\s*(\S+)/ ) {
+            close $fh;
+            return $1 =~ /^false$/i ? 0 : 1;
+        }
+    }
+    close $fh;
+    return 1;
+}
+
 sub resolve_scan {
     my ($pattern) = @_;
+
+    # Parse filter modifiers: "filter=FIELD:VALUE" (may repeat)
+    my @filters;
+    while ( $pattern =~ s/\s+filter=(\w+):([^\s]+)// ) {
+        push @filters, { field => $1, value => $2 };
+    }
 
     # Parse sort modifier: "sort=FIELD DIRECTION"
     my $sort_field = 'filename';
@@ -997,6 +1016,9 @@ sub resolve_scan {
 
     # Limit to 200 files
     @files = @files[0..199] if @files > 200;
+
+    # Read site search default once if any filter references searchable
+    my $search_default;
 
     my @pages;
     for my $path ( sort @files ) {
@@ -1035,14 +1057,77 @@ sub resolve_scan {
             @tags = map { s/^\s+|\s+$//gr } split /,/, $tags_raw;
         }
 
+        # Extract raw body for search excerpt
+        my $excerpt = '';
+        if ( $raw =~ /^---\n.*?\n---\n(.+)/s ) {
+            $excerpt = $1;
+            $excerpt =~ s/^\s+|\s+$//g;
+            $excerpt = substr($excerpt, 0, 500) if length($excerpt) > 500;
+        }
+
+        # Determine searchable status
+        my $search_val = $meta->{search} // '';
+        my $searchable;
+        if ( $search_val =~ /^true$/i ) {
+            $searchable = 1;
+        }
+        elsif ( $search_val =~ /^false$/i ) {
+            $searchable = 0;
+        }
+        else {
+            $search_default //= peek_search_default();
+            $searchable = $search_default;
+        }
+
         push @pages, {
-            url      => $url,
-            title    => $meta->{title}    || '',
-            subtitle => $meta->{subtitle} || '',
-            date     => $date,
-            tags     => \@tags,
-            path     => $path,
+            url        => $url,
+            title      => $meta->{title}    || '',
+            subtitle   => $meta->{subtitle} || '',
+            date       => $date,
+            tags       => \@tags,
+            excerpt    => $excerpt,
+            searchable => $searchable,
+            path       => $path,
         };
+    }
+
+    # Apply filters
+    for my $filter ( @filters ) {
+        my $field = $filter->{field};
+        my $val   = $filter->{value};
+
+        @pages = grep {
+            my $page = $_;
+            my $pval = $page->{$field};
+
+            if ( !defined $pval ) {
+                0;  # field not present - exclude
+            }
+            elsif ( $val =~ /^>(.+)$/ ) {
+                # Greater than
+                ( $pval cmp $1 ) > 0;
+            }
+            elsif ( $val =~ /^<(.+)$/ ) {
+                # Less than
+                ( $pval cmp $1 ) < 0;
+            }
+            elsif ( ref $pval eq 'ARRAY' ) {
+                # Array contains (for tags)
+                grep { lc($_) eq lc($val) } @$pval;
+            }
+            elsif ( $val =~ /^(true|1)$/i ) {
+                # Boolean true
+                $pval ? 1 : 0;
+            }
+            elsif ( $val =~ /^(false|0)$/i ) {
+                # Boolean false
+                $pval ? 0 : 1;
+            }
+            else {
+                # Exact match (case-insensitive)
+                lc($pval) eq lc($val);
+            }
+        } @pages;
     }
 
     # Sort pages
