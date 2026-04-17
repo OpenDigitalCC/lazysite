@@ -61,6 +61,7 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 </head>
 <body>
 <main>
+    <p><a href="/">Home</a></p>
     <h1>[% page_title %]</h1>
     [% IF page_subtitle %]<p>[% page_subtitle %]</p>[% END %]
     [% content %]

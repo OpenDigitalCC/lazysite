@@ -1,6 +1,6 @@
 ---
 title: lazysite Feature Test
-subtitle: Validates all processor features and serves as a live demonstrator
+subtitle: Validates processor features and serves as a live demonstrator
 ttl: 60
 register:
   - llms.txt

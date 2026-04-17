@@ -9,7 +9,7 @@ This site is built with [lazysite](https://lazysite.io).
 
 ## Try it
 
-- [Feature demonstrator](/lazysite-demo) - see all features working locally
+- [Feature demonstrator](/lazysite-demo) - see features working locally
 
 ## Discover
 
