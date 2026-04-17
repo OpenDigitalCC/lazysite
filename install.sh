@@ -71,7 +71,7 @@ mkdir -p "$DOCROOT/lazysite/themes"
 echo "Installing starter files..."
 
 # Install starter content only if not already present
-for file in index.md lazysite-demo.md 404.md; do
+for file in index.md lazysite-demo.md 404.md search-results.md search-index.md; do
     if [ ! -f "$DOCROOT/$file" ]; then
         install -m 644 "$SCRIPT_DIR/starter/$file" "$DOCROOT/$file"
     fi
@@ -153,8 +153,22 @@ echo "Setting permissions..."
 chmod +x "$CGIBIN/lazysite-processor.pl"
 chmod g+ws "$DOCROOT"
 
+# --- Check optional dependencies ---
+
+OPT_MISSING=""
+if ! perl -e 'require Template::Plugin::JSON::Escape' 2>/dev/null; then
+    OPT_MISSING="libtemplate-plugin-json-escape-perl"
+fi
+
 echo ""
 echo "lazysite installed successfully."
+
+if [ -n "$OPT_MISSING" ]; then
+    echo ""
+    echo "Optional dependencies (required for search):"
+    echo "  sudo apt-get install $OPT_MISSING"
+fi
+
 echo ""
 echo "Next steps:"
 echo "  1. Edit $DOCROOT/lazysite/templates/view.tt to apply your site design"

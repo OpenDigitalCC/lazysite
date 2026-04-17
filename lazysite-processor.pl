@@ -51,6 +51,15 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
     <style>
         body { font-family: system-ui, sans-serif; max-width: 800px;
                margin: 2rem auto; padding: 0 1rem; color: #333; }
+        .site-bar { display: flex; align-items: center; gap: 1rem;
+                    padding: 0.5rem 0; font-size: 0.85rem; }
+        .site-bar a { color: #0066cc; text-decoration: none; font-weight: 600; }
+        .site-bar a:hover { text-decoration: underline; }
+        .site-bar form { margin-left: auto; display: flex; gap: 0.3rem; }
+        .site-bar input[type="search"] { padding: 0.2rem 0.4rem; font-size: 0.8rem;
+               border: 1px solid #ccc; border-radius: 3px; width: 140px; }
+        .site-bar button { padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: pointer; }
+        hr.site-rule { border: none; border-top: 1px solid #eee; margin: 0 0 1.5rem; }
         h1 { border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
         pre { background: #f5f5f5; padding: 1rem; overflow-x: auto; }
         code { background: #f5f5f5; padding: 0.2em 0.4em; }
@@ -60,8 +69,15 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
     </style>
 </head>
 <body>
+<div class="site-bar">
+    <a href="/">[% IF site_name %][% site_name %][% ELSE %]Home[% END %]</a>
+    <form action="/search-results" method="get">
+        <input type="search" name="q" placeholder="Search..." aria-label="Search">
+        <button type="submit">Go</button>
+    </form>
+</div>
+<hr class="site-rule">
 <main>
-    <p><a href="/">Home</a></p>
     <h1>[% page_title %]</h1>
     [% IF page_subtitle %]<p>[% page_subtitle %]</p>[% END %]
     [% content %]
@@ -110,8 +126,15 @@ sub main {
 
     # Capture query string before stripping
     my %query_params;
+    my $qs_source = '';
     if ( $uri =~ s/\?(.*)$// ) {
-        my $qs = $1;
+        $qs_source = $1;
+    }
+    elsif ( defined $ENV{QUERY_STRING} && length $ENV{QUERY_STRING} ) {
+        $qs_source = $ENV{QUERY_STRING};
+    }
+    if ( length $qs_source ) {
+        my $qs = $qs_source;
         for my $pair ( split /&/, $qs ) {
             my ( $key, $val ) = split /=/, $pair, 2;
             next unless defined $key && length $key;
@@ -173,16 +196,17 @@ sub main {
     unless ( $ENV{LAZYSITE_NOCACHE} || $has_query_request ) {
         if ( @md_stat && @html_stat ) {
             if ( $html_stat[9] >= $md_stat[9] ) {
-                # mtime fresh - serve cache immediately, no peek_ttl needed
-                my $ct = read_ct($base);
-                output_page( read_file($html_path), $ct );
+                # mtime fresh - serve cache immediately
+                my $ct  = read_ct($base);
+                my $ttl = peek_ttl($md_path);
+                output_page( read_file($html_path), $ct, $ttl );
                 return;
             }
             # mtime stale - check for page-level TTL override before regenerating
             my $ttl = peek_ttl($md_path);
             if ( defined $ttl && is_fresh_ttl_val_stat( \@html_stat, $ttl ) ) {
                 my $ct = read_ct($base);
-                output_page( read_file($html_path), $ct );
+                output_page( read_file($html_path), $ct, $ttl );
                 return;
             }
         }
@@ -208,8 +232,9 @@ sub main {
 
         my $page = process_md( $md_path, $html_path, $md_stat[9], \%filtered_query );
         my $ct   = peek_content_type($md_path);
+        my $ttl  = peek_ttl($md_path);
         write_ct( $base, $ct );
-        output_page( $page, $ct );
+        output_page( $page, $ct, $ttl );
         return;
     }
 
@@ -730,10 +755,26 @@ sub convert_fenced_code {
 
 sub convert_md {
     my ($body) = @_;
+
+    # Protect <script> blocks from Markdown processing
+    my @scripts;
+    $body =~ s{(<script[^>]*>)(.*?)(</script>)}{
+        my $placeholder = "SCRIPTBLOCK_" . scalar(@scripts) . "_END";
+        push @scripts, "$1$2$3";
+        $placeholder
+    }gse;
+
     my $md = Text::MultiMarkdown->new(
         use_fenced_code_blocks => 1,
     );
-    return $md->markdown($body);
+    my $html = $md->markdown($body);
+
+    # Restore <script> blocks
+    for my $i ( 0 .. $#scripts ) {
+        $html =~ s/(?:<p>)?SCRIPTBLOCK_${i}_END(?:<\/p>)?/$scripts[$i]/;
+    }
+
+    return $html;
 }
 
 sub convert_dt_links {
@@ -1012,7 +1053,36 @@ sub resolve_scan {
     # Limit to .md files only
     return [] unless $fs_pattern =~ /\.md$/;
 
-    my @files = glob($fs_pattern);
+    my @files;
+    if ( $fs_pattern =~ m{\*\*} ) {
+        # Recursive glob: expand ** by walking directories
+        # Split pattern into base dir and file glob parts
+        my ( $base, $rest ) = $fs_pattern =~ m{^(.*?)/\*\*/(.*)$};
+        if ( defined $base && defined $rest && -d $base ) {
+            my $file_re = $rest;
+            $file_re =~ s/\./\\./g;
+            $file_re =~ s/\*/.*/g;
+            $file_re = qr/\A${file_re}\z/;
+            my @queue = ($base);
+            while ( my $dir = shift @queue ) {
+                opendir( my $dh, $dir ) or next;
+                for my $entry ( readdir($dh) ) {
+                    next if $entry =~ /^\./;
+                    my $path = "$dir/$entry";
+                    if ( -d $path ) {
+                        push @queue, $path;
+                    }
+                    elsif ( $entry =~ $file_re ) {
+                        push @files, $path;
+                    }
+                }
+                closedir($dh);
+            }
+        }
+    }
+    else {
+        @files = glob($fs_pattern);
+    }
 
     # Limit to 200 files
     @files = @files[0..199] if @files > 200;
@@ -1638,11 +1708,15 @@ sub write_html {
 # --- Output ---
 
 sub output_page {
-    my ( $content, $content_type ) = @_;
+    my ( $content, $content_type, $ttl ) = @_;
     $content_type //= 'text/html; charset=utf-8';
     binmode( STDOUT, ':utf8' );
     print "Status: 200 OK\n";
-    print "Content-type: $content_type\n\n";
+    print "Content-type: $content_type\n";
+    if ( defined $ttl && $ttl > 0 ) {
+        print "Cache-Control: public, max-age=$ttl\n";
+    }
+    print "\n";
     print $content;
 }
 

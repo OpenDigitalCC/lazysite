@@ -1,21 +1,24 @@
 ---
-title: Search
-subtitle: Search this site.
+title: Search Results
+search: false
 query_params:
   - q
 ---
 
 <div id="search-container">
-  <form id="search-form" onsubmit="return false">
-    <input type="search"
-           id="search-input"
-           placeholder="Search..."
-           autocomplete="off"
-           value="[% query.q | html %]"
-           aria-label="Search query">
-    <button type="submit" onclick="runSearch()">Search</button>
-  </form>
-
+<style>
+.search-result { border-bottom: 1px solid #eee; padding: 1rem 0; margin-bottom: 0.5rem; }
+.search-result h2 { font-size: 1.1rem; margin: 0 0 0.3rem; }
+.search-result h2 a { text-decoration: none; }
+.search-result h2 a:hover { text-decoration: underline; }
+.search-subtitle { color: #666; margin: 0.2rem 0; font-size: 0.95rem; }
+.search-excerpt { margin: 0.4rem 0; font-size: 0.9rem; line-height: 1.5; }
+.search-tags { margin: 0.3rem 0; }
+.search-tag { display: inline-block; background: #f0f0f0; border-radius: 3px; padding: 0.1rem 0.4rem; font-size: 0.8rem; margin-right: 0.3rem; }
+.search-date { color: #888; font-size: 0.8rem; }
+mark { background: #fff3cd; padding: 0.1em 0; }
+#search-status { color: #666; margin: 0.5rem 0; font-size: 0.9rem; }
+</style>
   <div id="search-status"></div>
   <div id="search-results"></div>
 </div>
@@ -139,8 +142,7 @@ query_params:
 
   // --- Main search ---
   function runSearch() {
-    var input = document.getElementById('search-input');
-    var query = (input ? input.value : '').trim();
+    var query = searchQuery;
     var status = document.getElementById('search-status');
 
     if (!query) {
@@ -181,57 +183,17 @@ query_params:
       });
   }
 
-  // Run search on page load if query param present
-  document.addEventListener('DOMContentLoaded', function() {
-    var q = '[% query.q | html %]';
-    if (q) {
-      var input = document.getElementById('search-input');
-      if (input) input.value = q;
-      runSearch();
-    }
+  // Search query from URL parameter
+  var searchQuery = '[% query.q | html %]'.trim();
 
-    var form = document.getElementById('search-form');
-    if (form) {
-      form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        runSearch();
-      });
+  // Run search on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    if (searchQuery) {
+      runSearch();
+    } else {
+      document.getElementById('search-status').textContent = 'No search term provided.';
     }
   });
-
-  window.runSearch = runSearch;
 })();
 </script>
 
-<style>
-.search-result {
-    border-bottom: 1px solid #eee;
-    padding: 1rem 0;
-    margin-bottom: 0.5rem;
-}
-.search-result h2 { font-size: 1.1rem; margin: 0 0 0.3rem; }
-.search-result h2 a { text-decoration: none; }
-.search-result h2 a:hover { text-decoration: underline; }
-.search-subtitle { color: #666; margin: 0.2rem 0; font-size: 0.95rem; }
-.search-excerpt { margin: 0.4rem 0; font-size: 0.9rem; line-height: 1.5; }
-.search-tags { margin: 0.3rem 0; }
-.search-tag {
-    display: inline-block;
-    background: #f0f0f0;
-    border-radius: 3px;
-    padding: 0.1rem 0.4rem;
-    font-size: 0.8rem;
-    margin-right: 0.3rem;
-}
-.search-date { color: #888; font-size: 0.8rem; }
-mark { background: #fff3cd; padding: 0.1em 0; }
-#search-status { color: #666; margin: 0.5rem 0; font-size: 0.9rem; }
-#search-form { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-#search-input {
-    flex: 1;
-    padding: 0.5rem;
-    font-size: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 3px;
-}
-</style>

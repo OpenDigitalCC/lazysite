@@ -34,7 +34,26 @@ if ( @missing ) {
     exit 1;
 }
 
-# --- Optional high-res timing ---
+# --- Optional modules ---
+
+my @optional = (
+    [ 'Template::Plugin::JSON::Escape', 'libtemplate-plugin-json-escape-perl',
+      'Required for search index (search-index.md)' ],
+);
+
+my @opt_missing;
+for my $pair ( @optional ) {
+    my ( $mod, $pkg, $note ) = @$pair;
+    eval "require $mod";
+    push @opt_missing, [ $mod, $pkg, $note ] if $@;
+}
+
+if ( @opt_missing ) {
+    print "lazysite-server: optional modules not installed:\n\n";
+    printf "  %-40s %s\n", $_->[0], $_->[2] for @opt_missing;
+    print "\n  sudo apt-get install "
+        . join( " ", map { $_->[1] } @opt_missing ) . "\n\n";
+}
 
 my $has_hires = eval { require Time::HiRes; 1 };
 
@@ -170,14 +189,17 @@ sub handle_request {
     my ( $method, $raw_uri ) = $request_line =~ m{^(\S+)\s+(\S+)};
     return unless defined $method && defined $raw_uri;
 
-    # Strip query string for file lookup
-    ( my $uri = $raw_uri ) =~ s/\?.*$//;
+    # Strip query string for file lookup, capture for CGI env
+    my $query_string = '';
+    ( my $uri = $raw_uri ) =~ s/\?(.*)$// && ( $query_string = $1 );
 
     # Normalise: / -> /index for processor, but check static first
     my $file_path = $DOCROOT . $uri;
 
     # Static file serving
-    if ( -f $file_path && $file_path !~ /\.(md|url|tt|conf)$/ ) {
+    # Skip .html files that have a .md or .url source - let the processor handle them
+    if ( -f $file_path && $file_path !~ /\.(md|url|tt|conf)$/
+         && !( $file_path =~ /\.html$/ && ( -f ($file_path =~ s/\.html$/.md/r) || -f ($file_path =~ s/\.html$/.url/r) ) ) ) {
         serve_static( $client, $file_path, $method, $uri, $t0 );
         return;
     }
@@ -187,6 +209,7 @@ sub handle_request {
         DOCUMENT_ROOT    => $DOCROOT,
         REDIRECT_URL     => $uri,
         REQUEST_URI      => $raw_uri,
+        QUERY_STRING     => $query_string,
         REQUEST_SCHEME   => 'http',
         SERVER_NAME      => 'localhost',
         SERVER_PORT      => $PORT,
@@ -203,19 +226,25 @@ sub handle_request {
         close $err;
     }
 
-    # Parse CGI response
-    my $status = '200 OK';
-    if ( $output =~ s/^Status:\s*(\d+[^\r\n]*)\r?\n//im ) {
-        $status = $1;
-    }
-
+    # Parse CGI response - split headers from body at blank line
+    my $status       = '200 OK';
     my $content_type = 'text/html; charset=utf-8';
-    if ( $output =~ s/^Content-type:\s*([^\r\n]+)\r?\n//im ) {
-        $content_type = $1;
-    }
+    my %extra_headers;
 
-    # Strip blank line separator
-    $output =~ s/^\r?\n//;
+    if ( $output =~ s/\A(.*?)\r?\n\r?\n//s ) {
+        my $header_block = $1;
+        for my $line ( split /\r?\n/, $header_block ) {
+            if ( $line =~ /^Status:\s*(.+)/i ) {
+                $status = $1;
+            }
+            elsif ( $line =~ /^Content-type:\s*(.+)/i ) {
+                $content_type = $1;
+            }
+            elsif ( $line =~ /^([^:]+):\s*(.+)/ ) {
+                $extra_headers{$1} = $2;
+            }
+        }
+    }
 
     # Send HTTP response
     my $body   = Encode::encode_utf8($output);
@@ -223,6 +252,9 @@ sub handle_request {
 
     print $client "HTTP/1.0 $status\r\n";
     print $client "Content-Type: $content_type\r\n";
+    for my $h ( sort keys %extra_headers ) {
+        print $client "$h: $extra_headers{$h}\r\n";
+    }
     print $client "Content-Length: $length\r\n";
     print $client "Connection: close\r\n";
     print $client "\r\n";
