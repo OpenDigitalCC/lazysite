@@ -39,31 +39,45 @@ When not set, defaults to `true` (pages are searchable).
 
 ### Search index page
 
-Create `public_html/search-index.md`:
+Create `public_html/search-index.md`. The `/**/*.md` pattern
+recursively scans all subdirectories:
 
     ---
     title: Search Index
     api: true
     content_type: application/json; charset=utf-8
+    search: false
     ttl: 3600
     tt_page_var:
-      pages: scan:/*.md filter=searchable:true sort=date desc
+      all_pages: scan:/**/*.md filter=searchable:true sort=date desc
     ---
-    [% USE JSON(pretty=>0) %]
-    [% JSON.serialize(pages) %]
+    [% USE JSON.Escape %]
+    [% all_pages.json %]
 
-### Search UI page
+Requires `libtemplate-plugin-json-escape-perl` (Debian/Ubuntu).
 
-Create `public_html/search.md` with `query_params: [q]`. The starter
-site includes a complete reference implementation with weighted scoring,
-term highlighting, and tag filtering. Copy and customise as needed.
+### Search results page
+
+Create `public_html/search-results.md` with `query_params: [q]`.
+The starter site includes a complete reference implementation with
+weighted scoring, term highlighting, and tag filtering. The search
+box in the site bar or view template submits to
+`/search-results?q=term`.
+
+### Browser caching
+
+The `ttl: 3600` on the search index controls both server-side cache
+lifetime and the browser `Cache-Control: public, max-age=3600`
+header. The browser caches the JSON for up to one hour.
 
 ### Notes
 
-- The index TTL (`ttl: 3600`) controls how often it regenerates
 - Each page's first 500 characters of raw body are stored as `excerpt`
-  for client-side snippet extraction and Markdown stripping
-- The search JS strips Markdown client-side before matching
-- Title matches score highest, body matches lowest
+  for client-side snippet extraction
+- The search JS strips Markdown syntax client-side before matching
+- Title matches score highest (10), subtitle (5), tags (4), headings
+  (3), body (1)
+- The search index and search results pages should set `search: false`
+  to exclude themselves from the index
 - See [Filtered scan](/docs/features/authoring/filtered-scan) for
-  advanced index building
+  advanced index filtering

@@ -23,7 +23,9 @@ and navigation from page metadata.
 
 - Must start with `/` (docroot-relative)
 - Must end with `.md`
-- Uses Perl's `glob()` - standard shell glob patterns work
+- Standard shell glob patterns work (`*.md`, `post-*.md`)
+- Use `**` for recursive scanning across all subdirectories:
+  `scan:/**/*.md` scans the entire docroot
 - Maximum 200 files returned per scan
 - Files outside the docroot are excluded (realpath check)
 
@@ -37,6 +39,10 @@ Each scanned page returns these fields:
 - `date` - from front matter `date:` or file mtime (YYYY-MM-DD format)
 - `tags` - array of tags from front matter (YAML list, comma-separated,
   or single value)
+- `excerpt` - first 500 characters of the raw page body (after front
+  matter), used for search snippets
+- `searchable` - 1 or 0, from front matter `search:` or the site-wide
+  `search_default` setting
 - `path` - full filesystem path to the `.md` file
 
 ### Sort modifier
@@ -72,5 +78,9 @@ Direction is optional and defaults to `asc`.
   single values into an array: `[% page.tags.join(', ') %]`
 - The scan is performed at render time - results reflect the current
   state of the filesystem
+- [Filtered scan](/docs/features/authoring/filtered-scan) - filter
+  results by field value
+- [Search](/docs/features/authoring/search) - build a search index
+  from scan results
 - [TT variables](/docs/features/authoring/tt-variables) - all variable
   sources and types

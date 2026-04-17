@@ -45,13 +45,18 @@ Serve on a different port with caching enabled:
   invoking the processor
 - Files with `.md`, `.url`, `.tt`, and `.conf` extensions are never
   served as static files
+- Cached `.html` files are skipped when a matching `.md` or `.url`
+  source exists - the processor always handles these
+- URL query strings are passed to the processor via `QUERY_STRING`
+- All CGI response headers from the processor are forwarded to the
+  browser (Status, Content-type, Cache-Control, etc.)
 - Request timing is shown in the terminal when `Time::HiRes` is
   available
 
 ### Notes
 
-- The server checks for required Perl modules on startup and prints
-  install instructions if any are missing
+- The server checks for required Perl modules on startup and warns
+  about missing optional modules (e.g. JSON.Escape for search)
 - Stderr from the processor is printed to the terminal for debugging
 - The server listens on `0.0.0.0` (all interfaces)
 - [LAZYSITE_NOCACHE](/docs/features/development/nocache) - cache bypass

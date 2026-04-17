@@ -34,6 +34,10 @@ web servers.
 - `libwww-perl` (for remote `.url` sources and oEmbed)
 - `JSON::PP` (Perl core - no separate install needed)
 
+Optional:
+
+- `libtemplate-plugin-json-escape-perl` (required for the search index)
+
 HestiaCP is supported with a dedicated installer. For other environments
 see the manual installation section below.
 

@@ -69,6 +69,12 @@ Recent posts in a specific category:
     - [[% page.title %]]([% page.url %]) - [% page.subtitle %]
     [% END %]
 
+### Recursive scanning
+
+Use `**` to scan all subdirectories:
+
+    all_docs: scan:/**/*.md filter=searchable:true sort=date desc
+
 ### Notes
 
 - Filters apply after scanning but before sorting - sort order is

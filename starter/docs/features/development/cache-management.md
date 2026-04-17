@@ -59,6 +59,19 @@ Set `ttl:` in front matter to keep serving the cache even when the
 The TTL is in seconds. This is useful for pages with `url:` or `scan:`
 variables that should not regenerate on every source file touch.
 
+### Browser caching
+
+When a page has `ttl:` set, the processor sends a
+`Cache-Control: public, max-age=TTL` HTTP header. This tells the
+browser to cache the response for that duration without revalidating.
+
+Pages without `ttl:` do not send a `Cache-Control` header - browser
+behaviour depends on its defaults.
+
+When `LAZYSITE_NOCACHE` is set, the `Cache-Control` header is still
+sent if the page has `ttl:` - NOCACHE only affects the server-side
+`.html` cache, not browser cache headers.
+
 ### Notes
 
 - The `.html` file must have the same name as the `.md` file (e.g.,

@@ -57,6 +57,11 @@ Front matter fields:
   with matching parameters bypass the cache. Undeclared parameters are
   ignored. See [API and raw mode](/docs/api) for full details.
 
+`search`
+: Set `search: true` or `search: false` to control whether the page
+  appears in the search index. Defaults to `true` (or the `search_default`
+  value in `lazysite.conf`).
+
 ## URL structure
 
 Page URLs derive from file paths, always without extension:

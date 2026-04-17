@@ -58,6 +58,11 @@ All keys are optional unless noted.
 `tags`
 : Tags for page scan results. YAML list, comma-separated, or single value.
 
+`search`
+: Set `search: true` or `search: false` to control whether the page
+  appears in the search index. Defaults to the site-wide `search_default`
+  setting.
+
 See [Authoring](/docs/authoring) for full usage details and examples.
 
 ## lazysite.conf keys
@@ -87,6 +92,11 @@ Directory scan
 
 `nav_file`
 : Navigation file path, docroot-relative. Default: `lazysite/nav.conf`.
+
+`search_default`
+: Site-wide default for the `search:` front matter key. Set to `true`
+  (default) or `false`. Pages without an explicit `search:` key inherit
+  this value.
 
 All other keys are available as TT variables in page content and the
 view template.

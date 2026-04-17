@@ -50,6 +50,8 @@ it with `content_type:`:
 - Output is trimmed (`s/^\s+|\s+$//g`) for clean structured output
 - TT variables from `lazysite.conf` and `tt_page_var` are available
 - The content type is cached in `lazysite/cache/ct/`
+- Set `ttl:` to control both server-side cache lifetime and the browser
+  `Cache-Control: public, max-age=TTL` header
 - Pages with query parameters are not cached - query responses are
   rendered dynamically each request
 - [Raw mode](/docs/features/authoring/raw-mode) - for Markdown-converted
