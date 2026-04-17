@@ -519,6 +519,16 @@ sub parse_yaml_front_matter {
             $meta{tt_page_var} = \%tt_vars;
         }
 
+        # Parse tags list (- item lines)
+        if ( $yaml =~ /^tags\s*:\s*\n((?:[ \t]*-[^\n]*(?:\n|$))*)/m ) {
+            my $block = $1;
+            my @tags;
+            while ( $block =~ /^[ \t]*-[ \t]*(.+?)[ \t]*$/mg ) {
+                push @tags, strip_tt_directives($1);
+            }
+            $meta{tags} = \@tags;
+        }
+
         # Parse query_params list (- item lines)
         if ( $yaml =~ /^query_params\s*:\s*\n((?:[ \t]*-[^\n]*(?:\n|$))*)/m ) {
             my $block = $1;
@@ -534,6 +544,7 @@ sub parse_yaml_front_matter {
             next if $1 eq 'tt_page_var';
             next if $1 eq 'register';
             next if $1 eq 'query_params';
+            next if $1 eq 'tags' && ref $meta{tags} eq 'ARRAY';
             # Strip TT directives from all scalar values including title and subtitle
             $meta{$1} = strip_tt_directives($2);
         }
@@ -1001,11 +1012,22 @@ sub resolve_scan {
             }
         }
 
+        # Parse tags from front matter (YAML list, comma-separated, or single value)
+        my $tags_raw = $meta->{tags} // '';
+        my @tags;
+        if ( ref $tags_raw eq 'ARRAY' ) {
+            @tags = @$tags_raw;
+        }
+        elsif ( $tags_raw ) {
+            @tags = map { s/^\s+|\s+$//gr } split /,/, $tags_raw;
+        }
+
         push @pages, {
             url      => $url,
             title    => $meta->{title}    || '',
             subtitle => $meta->{subtitle} || '',
             date     => $date,
+            tags     => \@tags,
             path     => $path,
         };
     }
