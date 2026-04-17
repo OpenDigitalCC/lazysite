@@ -198,8 +198,6 @@ version numbers.
 
 ## 16. Image
 
-![lazysite logo](/assets/img/logo.png)
-
 **Expected:** an `<img>` tag. The image may not exist - a broken image
 icon is acceptable here.
 
