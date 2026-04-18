@@ -4,5 +4,7 @@ starter/lazysite/*
 !starter/lazysite/auth/
 starter/lazysite/auth/*
 !starter/lazysite/auth/.gitkeep
+!starter/lazysite/auth/users.example
+!starter/lazysite/auth/groups.example
 !starter/lazysite/forms/
 starter/**/*.html

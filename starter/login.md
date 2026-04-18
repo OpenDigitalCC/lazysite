@@ -29,3 +29,7 @@ query_params:
     <button type="submit">Sign in</button>
   </div>
 </form>
+
+Demo credentials: `demo` / `demo`
+
+Try the [members area](/members) to see auth in action.

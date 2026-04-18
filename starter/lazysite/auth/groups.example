@@ -1,0 +1,3 @@
+# lazysite demo groups - copy to 'groups' to enable group-based access
+# Format: groupname: user1, user2
+members: demo

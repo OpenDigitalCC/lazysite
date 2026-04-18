@@ -142,6 +142,21 @@ my %MIME = (
     pdf   => 'application/pdf',
 );
 
+# --- Seed auth files from examples if needed ---
+
+my $auth_dir = "$DOCROOT/lazysite/auth";
+if ( -d $auth_dir ) {
+    for my $base (qw(users groups)) {
+        my $example = "$auth_dir/$base.example";
+        my $target  = "$auth_dir/$base";
+        if ( -f $example && ! -f $target ) {
+            require File::Copy;
+            File::Copy::copy( $example, $target );
+            print "  seeded $base from $base.example\n";
+        }
+    }
+}
+
 # --- Start server ---
 
 my $cache_label = $nocache ? 'disabled (pass --cache to enable)' : 'enabled';
