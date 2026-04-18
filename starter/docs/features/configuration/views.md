@@ -63,5 +63,7 @@ All variables from `lazysite.conf`, plus:
   `PROCESS`, conditionals, and loops
 - The built-in fallback displays a footer noting that no view.tt was
   found
-- [Themes](/docs/features/configuration/themes) - named themes in the
-  themes directory
+- Download ready-to-use themes from
+  [lazysite-views](https://github.com/OpenDigitalCC/lazysite-views)
+- [Views and Themes guide](/docs/views) - full documentation
+- [Themes](/docs/features/configuration/themes) - theme resolution
