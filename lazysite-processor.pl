@@ -40,6 +40,7 @@ my $REMOTE_TTL       = 3600;  # seconds before remote content is refetched (defa
 my $REGISTRY_TTL     = 14400; # seconds before registries are regenerated (default 4 hours)
 my $LAYOUT_CACHE_DIR = "$LAZYSITE_DIR/cache/layouts";
 my $CT_CACHE_DIR     = "$LAZYSITE_DIR/cache/ct";
+my %AUTH_CONTEXT;    # populated by main() auth check, read by render_content()
 
 # Built-in fallback template - used when no view.tt is found
 my $FALLBACK_LAYOUT = <<'END_FALLBACK';
@@ -118,6 +119,126 @@ my %ENV_ALLOWLIST = map { $_ => 1 } qw(
     DOCUMENT_ROOT SERVER_ADMIN
 );
 
+# --- Auth ---
+
+sub peek_auth {
+    my ($path) = @_;
+    open( my $fh, '<:utf8', $path ) or return {};
+    my ( $auth, @groups, $in_groups );
+    while ( <$fh> ) {
+        last if $. > 1 && /^---/;
+        $auth = $1 if /^auth\s*:\s*(\w+)/i;
+        if ( /^auth_groups\s*:\s*$/ ) { $in_groups = 1; next }
+        if ( $in_groups && /^\s+-\s+(.+)$/ ) {
+            my $g = $1;
+            $g =~ s/^\s+|\s+$//g;
+            push @groups, $g;
+        }
+        elsif ( $in_groups && !/^\s/ ) { $in_groups = 0 }
+    }
+    close $fh;
+    return { auth => $auth, groups => \@groups };
+}
+
+sub check_auth {
+    my ( $uri, $auth_meta, $site_vars ) = @_;
+
+    my $auth_level = $auth_meta->{auth}
+        || $site_vars->{auth_default}
+        || 'none';
+
+    # Login page always public
+    my $redirect_path = $site_vars->{auth_redirect} || '/login';
+    return { ok => 1 } if index( $uri, $redirect_path ) == 0;
+
+    # Convert header names to env var format (X-Remote-User -> HTTP_X_REMOTE_USER)
+    my $make_env = sub {
+        my $h = shift;
+        $h = 'HTTP_' . uc($h);
+        $h =~ s/-/_/g;
+        return $h;
+    };
+
+    my $auth_user   = $ENV{ $make_env->( $site_vars->{auth_header_user}   || 'X-Remote-User' ) }   // '';
+    my $auth_name   = $ENV{ $make_env->( $site_vars->{auth_header_name}   || 'X-Remote-Name' ) }   // '';
+    my $auth_email  = $ENV{ $make_env->( $site_vars->{auth_header_email}  || 'X-Remote-Email' ) }  // '';
+    my $auth_groups = $ENV{ $make_env->( $site_vars->{auth_header_groups} || 'X-Remote-Groups' ) } // '';
+
+    my $authenticated = $auth_user ne '' ? 1 : 0;
+
+    # For 'none' pages, return auth context without enforcement
+    if ( $auth_level eq 'none' ) {
+        return {
+            ok            => 1,
+            auth_user     => $auth_user,
+            auth_name     => $auth_name,
+            auth_email    => $auth_email,
+            auth_groups   => [ split /\s*,\s*/, $auth_groups ],
+            authenticated => $authenticated,
+        };
+    }
+
+    if ( !$authenticated && $auth_level eq 'required' ) {
+        my $next = uri_encode($uri);
+        return { redirect => "$redirect_path?next=$next" };
+    }
+
+    # Group check
+    my @required = @{ $auth_meta->{groups} // [] };
+    if ( $authenticated && @required ) {
+        my %user_groups = map { lc($_) => 1 } split /\s*,\s*/, $auth_groups;
+        my $in_group = grep { $user_groups{ lc($_) } } @required;
+        unless ($in_group) {
+            return {
+                forbidden            => 1,
+                auth_user            => $auth_user,
+                auth_name            => $auth_name,
+                auth_denied_reason   => 'insufficient_groups',
+                auth_required_groups => \@required,
+            };
+        }
+    }
+
+    return {
+        ok            => 1,
+        auth_user     => $auth_user,
+        auth_name     => $auth_name,
+        auth_email    => $auth_email,
+        auth_groups   => [ split /\s*,\s*/, $auth_groups ],
+        authenticated => $authenticated,
+    };
+}
+
+sub serve_403 {
+    my ($auth_result) = @_;
+    my $md_path   = "$DOCROOT/403.md";
+
+    binmode( STDOUT, ':utf8' );
+
+    if ( -f $md_path ) {
+        my $html_path = "$DOCROOT/403.html";
+        my $page = process_md( $md_path, $html_path, (stat($md_path))[9], {} );
+        print "Status: 403 Forbidden\r\n";
+        print "Content-type: text/html; charset=utf-8\r\n";
+        print "Cache-Control: no-store, private\r\n\r\n";
+        print $page;
+    }
+    else {
+        print "Status: 403 Forbidden\r\n";
+        print "Content-type: text/html; charset=utf-8\r\n";
+        print "Cache-Control: no-store, private\r\n\r\n";
+        print "<!DOCTYPE html><html><head><title>403 Forbidden</title></head><body>";
+        print "<h1>Access Denied</h1>";
+        if ( ( $auth_result->{auth_denied_reason} // '' ) eq 'insufficient_groups' ) {
+            print "<p>You do not have permission to view this page.</p>";
+        }
+        else {
+            print "<p>Authentication required.</p>";
+        }
+        print "</body></html>";
+    }
+}
+
 # --- Main ---
 
 main();
@@ -175,6 +296,50 @@ sub main {
     my @html_stat = stat($html_path);
     my @md_stat   = stat($md_path);
 
+    # Auth check - before cache reads to prevent serving protected cached pages
+    my $auth_protected = 0;
+    my $auth_result    = { ok => 1 };
+    if ( @md_stat ) {
+        my $auth_peek       = peek_auth($md_path);
+        my %site_vars_peek  = resolve_site_vars();
+        $auth_result        = check_auth( $uri, $auth_peek, \%site_vars_peek );
+
+        if ( $auth_result->{redirect} ) {
+            binmode( STDOUT, ':utf8' );
+            print "Status: 302 Found\r\n";
+            print "Location: " . $auth_result->{redirect} . "\r\n\r\n";
+            return;
+        }
+        if ( $auth_result->{forbidden} ) {
+            %AUTH_CONTEXT = (
+                authenticated        => 1,
+                auth_user            => $auth_result->{auth_user}            // '',
+                auth_name            => $auth_result->{auth_name}            // '',
+                auth_denied_reason   => $auth_result->{auth_denied_reason}   // '',
+                auth_required_groups => $auth_result->{auth_required_groups} // [],
+            );
+            serve_403($auth_result);
+            return;
+        }
+
+        # Set auth context for TT rendering
+        %AUTH_CONTEXT = (
+            authenticated => $auth_result->{authenticated} // 0,
+            auth_user     => $auth_result->{auth_user}     // '',
+            auth_name     => $auth_result->{auth_name}     // '',
+            auth_email    => $auth_result->{auth_email}    // '',
+            auth_groups   => $auth_result->{auth_groups}   // [],
+        );
+
+        # Mark as protected if auth required or group-restricted
+        my $auth_level = $auth_peek->{auth}
+            || $site_vars_peek{auth_default}
+            || 'none';
+        $auth_protected = 1
+            if $auth_level eq 'required'
+            || ( $auth_peek->{groups} && @{ $auth_peek->{groups} } );
+    }
+
     # Check if this page declares query_params and request has matching ones
     my $has_query_request = 0;
     my $declared_params   = undef;
@@ -193,8 +358,8 @@ sub main {
     }
 
     # Fast path: .md exists and cache is fresh by mtime
-    # Skip cache if LAZYSITE_NOCACHE is set or query request is active
-    unless ( $ENV{LAZYSITE_NOCACHE} || $has_query_request ) {
+    # Skip cache if LAZYSITE_NOCACHE is set, query request active, or auth protected
+    unless ( $ENV{LAZYSITE_NOCACHE} || $has_query_request || $auth_protected ) {
         if ( @md_stat && @html_stat ) {
             if ( $html_stat[9] >= $md_stat[9] ) {
                 # mtime fresh - serve cache immediately
@@ -231,11 +396,17 @@ sub main {
             }
         }
 
+        # Inject auth context into filtered_query to prevent caching
+        # and make auth vars available to TT
+        if ( $auth_protected ) {
+            $filtered_query{_auth_protected} = 1;
+        }
+
         my $page = process_md( $md_path, $html_path, $md_stat[9], \%filtered_query );
         my $ct   = peek_content_type($md_path);
-        my $ttl  = peek_ttl($md_path);
-        write_ct( $base, $ct );
-        output_page( $page, $ct, $ttl );
+        my $ttl  = $auth_protected ? undef : peek_ttl($md_path);
+        write_ct( $base, $ct ) unless $auth_protected;
+        output_page( $page, $ct, $ttl, $auth_protected );
         return;
     }
 
@@ -559,6 +730,16 @@ sub parse_yaml_front_matter {
             $meta{tags} = \@tags;
         }
 
+        # Parse auth_groups list (- item lines)
+        if ( $yaml =~ /^auth_groups\s*:\s*\n((?:[ \t]*-[^\n]*(?:\n|$))*)/m ) {
+            my $block = $1;
+            my @groups;
+            while ( $block =~ /^[ \t]*-[ \t]*(\S+)/mg ) {
+                push @groups, $1;
+            }
+            $meta{auth_groups} = \@groups;
+        }
+
         # Parse query_params list (- item lines)
         if ( $yaml =~ /^query_params\s*:\s*\n((?:[ \t]*-[^\n]*(?:\n|$))*)/m ) {
             my $block = $1;
@@ -575,8 +756,16 @@ sub parse_yaml_front_matter {
             next if $1 eq 'register';
             next if $1 eq 'query_params';
             next if $1 eq 'tags' && ref $meta{tags} eq 'ARRAY';
+            next if $1 eq 'auth_groups' && ref $meta{auth_groups} eq 'ARRAY';
             # Strip TT directives from all scalar values including title and subtitle
             $meta{$1} = strip_tt_directives($2);
+        }
+
+        # Sanitise auth value
+        if ( defined $meta{auth} ) {
+            $meta{auth} = lc($meta{auth});
+            $meta{auth} = 'none'
+                unless $meta{auth} =~ /^(required|optional|none)$/;
         }
 
         # Sanitise form name
@@ -1548,6 +1737,7 @@ sub render_content {
     my $vars = {
         %site_vars,
         %page_vars,
+        %AUTH_CONTEXT,
         page_title        => $meta->{title}            || '',
         page_subtitle     => $meta->{subtitle}         || '',
         page_modified     => $meta->{page_modified}    || '',
@@ -1897,12 +2087,15 @@ sub write_html {
 # --- Output ---
 
 sub output_page {
-    my ( $content, $content_type, $ttl ) = @_;
+    my ( $content, $content_type, $ttl, $auth_protected ) = @_;
     $content_type //= 'text/html; charset=utf-8';
     binmode( STDOUT, ':utf8' );
     print "Status: 200 OK\n";
     print "Content-type: $content_type\n";
-    if ( defined $ttl && $ttl > 0 ) {
+    if ( $auth_protected ) {
+        print "Cache-Control: no-store, private\n";
+    }
+    elsif ( defined $ttl && $ttl > 0 ) {
         print "Cache-Control: public, max-age=$ttl\n";
     }
     print "\n";

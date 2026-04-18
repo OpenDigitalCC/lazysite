@@ -1,4 +1,8 @@
 test-site/public_html/
 test-site/cgi-bin/
-starter/lazysite/
+starter/lazysite/*
+!starter/lazysite/auth/
+starter/lazysite/auth/*
+!starter/lazysite/auth/.gitkeep
+!starter/lazysite/forms/
 starter/**/*.html
