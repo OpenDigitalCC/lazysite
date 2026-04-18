@@ -57,6 +57,10 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
                     padding: 0.5rem 0; font-size: 0.85rem; }
         .site-bar a { color: #0066cc; text-decoration: none; font-weight: 600; }
         .site-bar a:hover { text-decoration: underline; }
+        .site-bar .edit-btn { font-size: 0.8rem; padding: 0.15rem 0.5rem;
+               border: 1px solid #ccc; border-radius: 3px; background: #f9f9f9;
+               color: #555; text-decoration: none; cursor: pointer; }
+        .site-bar .edit-btn:hover { background: #eee; color: #333; }
         .site-bar form { margin-left: auto; display: flex; gap: 0.3rem; }
         .site-bar input[type="search"] { padding: 0.2rem 0.4rem; font-size: 0.8rem;
                border: 1px solid #ccc; border-radius: 3px; width: 140px; }
@@ -71,14 +75,16 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
     </style>
 </head>
 <body>
-<div class="site-bar">
+<div class="site-bar" id="site-bar">
     <a href="/">[% IF site_name %][% site_name %][% ELSE %]Home[% END %]</a>
+    [% IF editor == 'enabled' && page_source %]<a href="/editor/edit?path=[% page_source %]" class="edit-btn" title="Edit this page">Edit</a>[% END %]
     <form action="/search-results" method="get">
         <input type="search" name="q" placeholder="Search..." aria-label="Search">
         <button type="submit">Go</button>
     </form>
 </div>
-<hr class="site-rule">
+<hr class="site-rule" id="site-rule">
+<script>if(window!==window.top){var b=document.getElementById('site-bar');var r=document.getElementById('site-rule');if(b)b.style.display='none';if(r)r.style.display='none';}</script>
 <main>
     <h1>[% page_title %]</h1>
     [% IF page_subtitle %]<p>[% page_subtitle %]</p>[% END %]
@@ -1947,6 +1953,12 @@ sub render_content {
         page_subtitle     => $meta->{subtitle}         || '',
         page_modified     => $meta->{page_modified}    || '',
         page_modified_iso => $meta->{page_modified_iso} || '',
+        request_uri       => $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '',
+        page_source       => do {
+            my $src = $meta->{_md_path} // '';
+            $src =~ s{^\Q$DOCROOT\E}{};
+            $src || '';
+        },
         query             => $query,
     };
 

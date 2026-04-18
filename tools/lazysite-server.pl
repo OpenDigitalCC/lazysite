@@ -157,6 +157,18 @@ if ( -d $auth_dir ) {
     }
 }
 
+# --- Seed lazysite.conf if missing ---
+
+my $conf_target = "$DOCROOT/lazysite/lazysite.conf";
+my $conf_source = "$DOCROOT/lazysite.conf";
+if ( ! -f $conf_target && -f $conf_source ) {
+    require File::Copy;
+    require File::Path;
+    File::Path::make_path( "$DOCROOT/lazysite" );
+    File::Copy::copy( $conf_source, $conf_target );
+    print "  seeded lazysite.conf\n";
+}
+
 # --- Start server ---
 
 my $cache_label = $nocache ? 'disabled (pass --cache to enable)' : 'enabled';
@@ -280,31 +292,20 @@ sub handle_request {
         $env{HTTP_COOKIE} = $req_headers{'cookie'};
     }
 
-    # Set env vars for child process
     local @ENV{ keys %env } = values %env;
 
-    my $output = '';
-    my $pid = open( my $child_out, '-|' );
-    if ( !defined $pid ) {
-        print "$method $uri -> 500 (fork failed)\n";
-        return;
+    my $output;
+    if ( length $post_body ) {
+        my $post_file = "/tmp/lazysite-post-$$.dat";
+        open( my $pf, '>:raw', $post_file );
+        print $pf $post_body;
+        close $pf;
+        $output = qx(cat \Q$post_file\E | perl \Q$script\E 2>$ERR_FILE);
+        unlink $post_file;
     }
-    if ( $pid == 0 ) {
-        # Child: set up stdin from post_body, redirect stderr, exec script
-        open( STDERR, '>', $ERR_FILE );
-        if ( length $post_body ) {
-            open( my $tmp, '<', \$post_body );
-            open( STDIN, '<&', $tmp );
-        }
-        exec $^X, $script;
-        die "exec failed: $!\n";
+    else {
+        $output = qx(perl \Q$script\E 2>$ERR_FILE);
     }
-    # Parent: read output
-    {
-        local $/;
-        $output = <$child_out>;
-    }
-    close $child_out;
 
     # Print any stderr to terminal
     if ( -s $ERR_FILE ) {

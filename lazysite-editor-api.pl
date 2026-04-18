@@ -23,11 +23,22 @@ my @BLOCKED_PATHS = (
 
 # --- Auth check ---
 
+# Read editor_groups from lazysite.conf to determine if auth is required
+my $editor_groups_conf = '';
+if ( open my $cfh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
+    while (<$cfh>) {
+        $editor_groups_conf = $1 if /^editor_groups\s*:\s*(.+)/;
+    }
+    close $cfh;
+}
+$editor_groups_conf =~ s/^\s+|\s+$//g;
+
 my $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
-unless ( $auth_user ) {
+if ( $editor_groups_conf && !$auth_user ) {
     respond({ ok => 0, error => "Authentication required" });
     exit 0;
 }
+$auth_user ||= 'local';
 
 # --- Parse request ---
 

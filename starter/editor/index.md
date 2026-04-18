@@ -72,8 +72,8 @@ function loadDir(dir) {
   fetch(API + '?action=list&path=' + encodeURIComponent(currentDir))
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
-      renderFiles(data.files || []);
+      if (!data.ok) { showStatus(data.error, true); return; }
+      renderFiles(data.entries || []);
     })
     .catch(function(e) { showStatus('Failed to load directory: ' + e.message, true); });
 }
@@ -138,14 +138,14 @@ function newFile() {
   var name = prompt('File name (e.g. page.md):');
   if (!name) return;
   var path = currentDir + name;
-  fetch(API + '?action=save', {
+  fetch(API + '?action=save&path=' + encodeURIComponent(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: path, content: '---\ntitle: New Page\n---\n\nNew page content.\n', create: true })
+    body: JSON.stringify({ content: '---\ntitle: New Page\n---\n\nNew page content.\n', mtime: null })
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('File created.');
       loadDir(currentDir);
     })
@@ -155,15 +155,15 @@ function newFile() {
 function newFolder() {
   var name = prompt('Folder name:');
   if (!name) return;
-  var path = currentDir + name;
-  fetch(API + '?action=mkdir', {
+  var path = currentDir + name + '/.gitkeep';
+  fetch(API + '?action=save&path=' + encodeURIComponent(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: path })
+    body: JSON.stringify({ content: '', mtime: null })
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('Folder created.');
       loadDir(currentDir);
     })
@@ -173,14 +173,12 @@ function newFolder() {
 function deleteItem(path, type) {
   var label = type === 'dir' ? 'folder' : 'file';
   if (!confirm('Delete ' + label + ' "' + path + '"?')) return;
-  fetch(API + '?action=delete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: path })
+  fetch(API + '?action=delete&path=' + encodeURIComponent(path), {
+    method: 'POST'
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       showStatus(label.charAt(0).toUpperCase() + label.slice(1) + ' deleted.');
       loadDir(currentDir);
     })

@@ -54,9 +54,10 @@ query_params:
 <summary>Front Matter</summary>
 <div class="fm-row"><label>title</label><input type="text" id="fm-title" oninput="markDirty()"></div>
 <div class="fm-row"><label>subtitle</label><input type="text" id="fm-subtitle" oninput="markDirty()"></div>
-<div class="fm-row"><label>auth</label><input type="text" id="fm-auth" placeholder="none, login, editor, admin" oninput="markDirty()"></div>
+<div class="fm-row"><label>auth</label><select id="fm-auth" onchange="markDirty()"><option value="">none</option><option value="required">required</option><option value="optional">optional</option></select></div>
+<div class="fm-row"><label>auth_groups</label><span id="fm-auth-groups" style="display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;">Loading...</span></div>
 <div class="fm-row"><label>search</label><select id="fm-search" onchange="markDirty()"><option value="">default</option><option value="true">true</option><option value="false">false</option></select></div>
-<div class="fm-row"><label>view</label><input type="text" id="fm-view" oninput="markDirty()"></div>
+<div class="fm-row"><label>layout</label><select id="fm-layout" onchange="markDirty()"><option value="">default</option></select></div>
 <div class="fm-row"><label>extra YAML</label><textarea id="fm-extra" rows="3" style="flex:1; font-family:monospace; font-size:12px; resize:vertical;" oninput="markDirty()"></textarea></div>
 </details>
 
@@ -83,7 +84,7 @@ var lockTimer = null;
 var dirty = false;
 var previewTimer = null;
 
-var knownFmKeys = ['title', 'subtitle', 'auth', 'search', 'view'];
+var knownFmKeys = ['title', 'subtitle', 'auth', 'auth_groups', 'search', 'layout'];
 
 function showStatus(msg, cls) {
   var el = document.getElementById('status');
@@ -108,44 +109,33 @@ window.addEventListener('beforeunload', function(e) {
 
 // --- Lock management ---
 function acquireLock() {
-  fetch(API + '?action=lock', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: filePath })
-  })
+  fetch(API + '?action=lock&path=' + encodeURIComponent(filePath))
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) {
-        document.getElementById('lock-info').textContent = 'Lock: ' + data.error;
+      if (data.locked) {
+        document.getElementById('lock-info').textContent = 'Locked by ' + data.locked_by;
         return;
       }
-      lockId = data.lock_id;
-      document.getElementById('lock-info').textContent = 'Lock acquired';
-      lockTimer = setInterval(renewLock, 60000);
+      if (data.ok) {
+        document.getElementById('lock-info').textContent = 'Editing';
+        lockTimer = setInterval(renewLock, 60000);
+      }
     })
     .catch(function() {});
 }
 
 function renewLock() {
-  if (!lockId) return;
-  fetch(API + '?action=lock_renew', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: filePath, lock_id: lockId })
-  }).catch(function() {});
+  fetch(API + '?action=renew-lock&path=' + encodeURIComponent(filePath))
+    .catch(function() {});
 }
 
 function releaseLock() {
-  if (!lockId) return;
-  var data = JSON.stringify({ path: filePath, lock_id: lockId });
   if (navigator.sendBeacon) {
-    var blob = new Blob([data], { type: 'application/json' });
-    navigator.sendBeacon(API + '?action=lock_release', blob);
+    navigator.sendBeacon(API + '?action=unlock&path=' + encodeURIComponent(filePath));
   } else {
     var xhr = new XMLHttpRequest();
-    xhr.open('POST', API + '?action=lock_release', false);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.send(data);
+    xhr.open('GET', API + '?action=unlock&path=' + encodeURIComponent(filePath), false);
+    xhr.send();
   }
 }
 
@@ -163,14 +153,37 @@ function parseFrontMatter(text) {
   var extraLines = [];
 
   var lines = yamlText.split('\n');
+  var currentListKey = null;
+  var listValues = [];
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
+    // Check for list item under a known key
+    var listItem = line.match(/^\s+-\s+(.+)$/);
+    if (listItem && currentListKey) {
+      listValues.push(listItem[1].trim());
+      continue;
+    }
+    // Flush previous list
+    if (currentListKey) {
+      yaml[currentListKey] = listValues.join(', ');
+      currentListKey = null;
+      listValues = [];
+    }
     var kv = line.match(/^(\w[\w_-]*)\s*:\s*(.*)$/);
     if (kv && knownFmKeys.indexOf(kv[1]) !== -1) {
-      yaml[kv[1]] = kv[2].trim();
+      if (kv[2].trim() === '') {
+        // Could be start of a list block
+        currentListKey = kv[1];
+        listValues = [];
+      } else {
+        yaml[kv[1]] = kv[2].trim();
+      }
     } else {
       extraLines.push(line);
     }
+  }
+  if (currentListKey) {
+    yaml[currentListKey] = listValues.join(', ');
   }
   return { yaml: yaml, extra: extraLines.join('\n').trim(), content: content };
 }
@@ -180,15 +193,21 @@ function buildFrontMatter() {
   var title = document.getElementById('fm-title').value;
   var subtitle = document.getElementById('fm-subtitle').value;
   var auth = document.getElementById('fm-auth').value;
+  var authGroupChecks = document.querySelectorAll('#fm-auth-groups input[type=checkbox]:checked');
+  var authGroups = Array.from(authGroupChecks).map(function(cb) { return cb.value; });
   var search = document.getElementById('fm-search').value;
-  var view = document.getElementById('fm-view').value;
+  var layout = document.getElementById('fm-layout').value;
   var extra = document.getElementById('fm-extra').value.trim();
 
   if (title) lines.push('title: ' + title);
   if (subtitle) lines.push('subtitle: ' + subtitle);
   if (auth) lines.push('auth: ' + auth);
+  if (authGroups.length) {
+    lines.push('auth_groups:');
+    authGroups.forEach(function(g) { lines.push('  - ' + g); });
+  }
   if (search) lines.push('search: ' + search);
-  if (view) lines.push('view: ' + view);
+  if (layout) lines.push('layout: ' + layout);
   if (extra) lines.push(extra);
 
   return '---\n' + lines.join('\n') + '\n---\n';
@@ -213,13 +232,20 @@ function loadFile() {
   fetch(API + '?action=read&path=' + encodeURIComponent(filePath))
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, 'error'); return; }
+      if (!data.ok) { showStatus(data.error || 'Failed to load file', 'error'); return; }
       serverMtime = data.mtime;
       var parsed = parseFrontMatter(data.content || '');
       document.getElementById('fm-title').value = parsed.yaml.title || '';
       document.getElementById('fm-subtitle').value = parsed.yaml.subtitle || '';
       document.getElementById('fm-auth').value = parsed.yaml.auth || '';
-      document.getElementById('fm-view').value = parsed.yaml.view || '';
+      document.getElementById('fm-layout').value = parsed.yaml.layout || '';
+      // Check auth_groups checkboxes if present in YAML
+      if (parsed.yaml.auth_groups) {
+        var groups = parsed.yaml.auth_groups.split(/\s*,\s*/).filter(Boolean);
+        document.querySelectorAll('#fm-auth-groups input[type=checkbox]').forEach(function(cb) {
+          cb.checked = groups.indexOf(cb.value) >= 0;
+        });
+      }
       var searchVal = parsed.yaml.search || '';
       document.getElementById('fm-search').value = searchVal;
       document.getElementById('fm-extra').value = parsed.extra;
@@ -235,30 +261,29 @@ function loadFile() {
 function save() {
   var fullContent = buildFullContent();
   var payload = {
-    path: filePath,
-    content: fullContent
+    content: fullContent,
+    mtime: serverMtime || null
   };
-  if (serverMtime) payload.expected_mtime = serverMtime;
-  if (lockId) payload.lock_id = lockId;
 
-  fetch(API + '?action=save', {
+  fetch(API + '?action=save&path=' + encodeURIComponent(filePath), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) {
+      if (!data.ok) {
         if (data.conflict) {
-          showStatus('Save conflict: file was modified by another user. Reload to see their changes, or save again to overwrite.', 'error');
+          showStatus('Save conflict: file was modified by another user.', 'error');
         } else {
-          showStatus(data.error, 'error');
+          showStatus(data.error || 'Save failed', 'error');
         }
         return;
       }
       serverMtime = data.mtime;
       clearDirty();
       showStatus('Saved.');
+      updatePreview();
     })
     .catch(function(e) { showStatus('Save failed: ' + e.message, 'error'); });
 }
@@ -269,19 +294,18 @@ function schedulePreview() {
   previewTimer = setTimeout(updatePreview, 800);
 }
 
+var previewLoaded = false;
+var isMdFile = filePath && /\.md$/i.test(filePath);
+
 function updatePreview() {
-  var fullContent = buildFullContent();
-  fetch(API + '?action=preview', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: filePath, content: fullContent })
-  })
-    .then(function(r) { return r.text(); })
-    .then(function(html) {
-      var frame = document.getElementById('preview-frame');
-      frame.srcdoc = html;
-    })
-    .catch(function() {});
+  if (!filePath || !isMdFile) return;
+  previewLoaded = true;
+  var pageUrl = filePath.replace(/\.md$/, '').replace(/\/index$/, '/');
+  if (pageUrl.charAt(0) !== '/') pageUrl = '/' + pageUrl;
+  pageUrl += (pageUrl.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now();
+  var frame = document.getElementById('preview-frame');
+  frame.removeAttribute('srcdoc');
+  frame.src = pageUrl;
 }
 
 // --- Keyboard shortcut ---
@@ -292,8 +316,73 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+// Populate layout dropdown from installed themes
+fetch(API + '?action=theme-list')
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data.ok) return;
+    var sel = document.getElementById('fm-layout');
+    (data.themes || []).forEach(function(t) {
+      if (t.valid) {
+        var opt = document.createElement('option');
+        opt.value = t.name;
+        opt.textContent = t.name;
+        sel.appendChild(opt);
+      }
+    });
+    if (sel.options.length <= 1) {
+      var opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No views installed';
+      opt.disabled = true;
+      sel.appendChild(opt);
+    }
+  }).catch(function() {});
+
+// Populate auth_groups dropdown from known groups
+fetch(API + '?action=users', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ action: 'groups' })
+})
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var container = document.getElementById('fm-auth-groups');
+    container.innerHTML = '';
+    if (!data.ok || !data.groups || Object.keys(data.groups).length === 0) {
+      container.textContent = 'No groups defined';
+      return;
+    }
+    Object.keys(data.groups).sort().forEach(function(g) {
+      var lbl = document.createElement('label');
+      lbl.style.cssText = 'display:flex;align-items:center;gap:3px;cursor:pointer;';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = g;
+      cb.onchange = markDirty;
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(g));
+      container.appendChild(lbl);
+    });
+  }).catch(function() {
+    document.getElementById('fm-auth-groups').textContent = 'Groups unavailable';
+  });
+
+// Hide preview and front matter for non-.md files
+if (!isMdFile) {
+  document.querySelector('.edit-right').style.display = 'none';
+  document.querySelector('.edit-left').style.flex = '1 1 100%';
+  document.querySelector('.fm-section').style.display = 'none';
+  document.getElementById('preview-frame').srcdoc = '<p style="color:#888;font-family:system-ui;padding:20px;">Preview not available for this file type.</p>';
+}
+
 if (filePath) {
   loadFile();
+  if (isMdFile) {
+    setTimeout(function() {
+      if (!previewLoaded) updatePreview();
+    }, 2000);
+  }
 } else {
   showStatus('No file path specified.', 'error');
 }

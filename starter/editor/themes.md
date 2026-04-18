@@ -65,10 +65,10 @@ function showStatus(msg, isError) {
 }
 
 function loadThemes() {
-  fetch(API + '?action=themes')
+  fetch(API + '?action=theme-list')
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       renderThemes(data.themes || [], data.active || '');
     })
     .catch(function(e) { showStatus('Failed to load themes: ' + e.message, true); });
@@ -106,14 +106,11 @@ function escHtml(s) {
 }
 
 function activateTheme(name) {
-  fetch(API + '?action=themes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ theme_action: 'activate', name: name })
-  })
+  if (!confirm('Activate "' + name + '"? All cached pages will be cleared.')) return;
+  fetch(API + '?action=theme-activate&path=' + encodeURIComponent(name), { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('Theme "' + name + '" activated.');
       loadThemes();
     })
@@ -122,14 +119,10 @@ function activateTheme(name) {
 
 function deleteTheme(name) {
   if (!confirm('Delete theme "' + name + '"? This cannot be undone.')) return;
-  fetch(API + '?action=themes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ theme_action: 'delete', name: name })
-  })
+  fetch(API + '?action=theme-delete&path=' + encodeURIComponent(name), { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('Theme deleted.');
       loadThemes();
     })
@@ -139,14 +132,14 @@ function deleteTheme(name) {
 function renameTheme(name) {
   var newName = prompt('New name for theme "' + name + '":', name);
   if (!newName || newName === name) return;
-  fetch(API + '?action=themes', {
+  fetch(API + '?action=theme-rename&path=' + encodeURIComponent(name), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ theme_action: 'rename', name: name, new_name: newName })
+    body: JSON.stringify({ new_name: newName })
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('Theme renamed.');
       loadThemes();
     })
@@ -169,14 +162,13 @@ function uploadTheme() {
     }
     var base64 = btoa(binary);
 
-    fetch(API + '?action=themes', {
+    fetch(API + '?action=theme-upload&filename=' + encodeURIComponent(file.name), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme_action: 'upload', filename: file.name, data: base64 })
+      body: arrayBuffer
     })
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        if (data.error) { showStatus(data.error, true); return; }
+        if (!data.ok) { showStatus(data.error, true); return; }
         showStatus('Theme uploaded: ' + (data.name || file.name));
         fileInput.value = '';
         loadThemes();

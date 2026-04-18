@@ -95,14 +95,17 @@ function apiCall(body) {
 }
 
 function loadUsers() {
-  fetch(API + '?action=users')
-    .then(function(r) { return r.json(); })
+  apiCall({ action: 'list' })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       renderUsers(data.users || []);
-      renderGroups(data.groups || []);
     })
     .catch(function(e) { showStatus('Failed to load users: ' + e.message, true); });
+  apiCall({ action: 'groups' })
+    .then(function(data) {
+      if (!data.ok) return;
+      renderGroups(data.groups || {});
+    });
 }
 
 function renderUsers(users) {
@@ -114,13 +117,10 @@ function renderUsers(users) {
   var html = '';
   for (var i = 0; i < users.length; i++) {
     var u = users[i];
-    var groupStr = (u.groups || []).join(', ');
     html += '<div class="user-item">';
-    html += '<span class="username">' + escHtml(u.username) + '</span>';
-    html += '<span class="groups">' + escHtml(groupStr || 'no groups') + '</span>';
-    html += '<button onclick="changePassword(\'' + escHtml(u.username) + '\')">Password</button>';
-    html += '<button onclick="manageGroups(\'' + escHtml(u.username) + '\')">Groups</button>';
-    html += '<button onclick="removeUser(\'' + escHtml(u.username) + '\')">Remove</button>';
+    html += '<span class="username">' + escHtml(u) + '</span>';
+    html += '<button onclick="changePassword(\'' + escHtml(u) + '\')">Password</button>';
+    html += '<button onclick="removeUser(\'' + escHtml(u) + '\')">Remove</button>';
     html += '</div>';
   }
   list.innerHTML = html;
@@ -128,11 +128,17 @@ function renderUsers(users) {
 
 function renderGroups(groups) {
   var el = document.getElementById('groups-info');
-  if (groups.length === 0) {
+  var keys = Object.keys(groups);
+  if (keys.length === 0) {
     el.textContent = 'No groups defined.';
     return;
   }
-  el.textContent = 'Available groups: ' + groups.join(', ');
+  var html = '';
+  keys.sort().forEach(function(g) {
+    var members = Array.isArray(groups[g]) ? groups[g] : [];
+    html += '<strong>' + escHtml(g) + ':</strong> ' + members.map(escHtml).join(', ') + '<br>';
+  });
+  el.innerHTML = html;
 }
 
 function addUser() {
@@ -143,9 +149,9 @@ function addUser() {
 
   var groupList = groups ? groups.split(/\s*,\s*/).filter(Boolean) : [];
 
-  apiCall({ user_action: 'add', username: username, password: password, groups: groupList })
+  apiCall({ action: 'add', username: username, password: password })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('User "' + username + '" added.');
       document.getElementById('new-username').value = '';
       document.getElementById('new-password').value = '';
@@ -158,9 +164,9 @@ function addUser() {
 function changePassword(username) {
   var pw = prompt('New password for "' + username + '":');
   if (!pw) return;
-  apiCall({ user_action: 'set_password', username: username, password: pw })
+  apiCall({ action: 'passwd', username: username, password: pw })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('Password updated for "' + username + '".');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
@@ -170,9 +176,9 @@ function manageGroups(username) {
   var groups = prompt('Set groups for "' + username + '" (comma-separated):');
   if (groups === null) return;
   var groupList = groups.split(/\s*,\s*/).filter(Boolean);
-  apiCall({ user_action: 'set_groups', username: username, groups: groupList })
+  apiCall({ action: 'group-add', username: username, group: groupList[0] })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('Groups updated for "' + username + '".');
       loadUsers();
     })
@@ -181,9 +187,9 @@ function manageGroups(username) {
 
 function removeUser(username) {
   if (!confirm('Remove user "' + username + '"? This cannot be undone.')) return;
-  apiCall({ user_action: 'remove', username: username })
+  apiCall({ action: 'remove', username: username })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('User "' + username + '" removed.');
       loadUsers();
     })

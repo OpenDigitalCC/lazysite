@@ -75,11 +75,11 @@ function formatAge(seconds) {
 }
 
 function loadCache() {
-  fetch(API + '?action=cache')
+  fetch(API + '?action=cache-list')
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
-      renderCache(data.files || []);
+      if (!data.ok) { showStatus(data.error, true); return; }
+      renderCache(data.cached || []);
       renderStats(data);
     })
     .catch(function(e) { showStatus('Failed to load cache: ' + e.message, true); });
@@ -87,15 +87,8 @@ function loadCache() {
 
 function renderStats(data) {
   var el = document.getElementById('cache-stats');
-  var files = data.files || [];
-  var totalSize = 0;
-  for (var i = 0; i < files.length; i++) {
-    totalSize += files[i].size || 0;
-  }
-  var sizeStr = totalSize < 1024 ? totalSize + ' B' :
-                totalSize < 1048576 ? (totalSize / 1024).toFixed(1) + ' KB' :
-                (totalSize / 1048576).toFixed(1) + ' MB';
-  el.textContent = files.length + ' cached files, ' + sizeStr + ' total';
+  var files = data.cached || [];
+  el.textContent = files.length + ' cached files';
 }
 
 function renderCache(files) {
@@ -106,16 +99,18 @@ function renderCache(files) {
   }
 
   files.sort(function(a, b) { return a.path.localeCompare(b.path); });
+  var now = Math.floor(Date.now() / 1000);
 
   var html = '';
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
-    var statusClass = f.source_status || 'current';
-    var statusLabel = statusClass.charAt(0).toUpperCase() + statusClass.slice(1);
+    var age = now - (f.mtime || 0);
+    var statusClass = f.has_source ? 'current' : 'orphan';
+    var statusLabel = f.has_source ? 'Has source' : 'Orphan';
     html += '<div class="cache-item">';
     html += '<span class="path">' + escHtml(f.path) + '</span>';
     html += '<span class="source-status ' + statusClass + '">' + statusLabel + '</span>';
-    html += '<span class="age">' + formatAge(f.age || 0) + ' ago</span>';
+    html += '<span class="age">' + formatAge(age) + ' ago</span>';
     html += '<button onclick="invalidate(\'' + escHtml(f.path) + '\')">Invalidate</button>';
     html += '</div>';
   }
@@ -123,14 +118,10 @@ function renderCache(files) {
 }
 
 function invalidate(path) {
-  fetch(API + '?action=cache', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cache_action: 'invalidate', path: path })
-  })
+  fetch(API + '?action=cache-invalidate&path=' + encodeURIComponent(path), { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
+      if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('Cache invalidated: ' + path);
       loadCache();
     })
@@ -139,15 +130,11 @@ function invalidate(path) {
 
 function clearAll() {
   if (!confirm('Clear all cached files? Pages will be re-rendered on next request.')) return;
-  fetch(API + '?action=cache', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cache_action: 'clear_all' })
-  })
+  fetch(API + '?action=cache-invalidate&path=*', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data.error) { showStatus(data.error, true); return; }
-      showStatus('All cache cleared.');
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus('Cleared ' + (data.count || 0) + ' cached files.');
       loadCache();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
