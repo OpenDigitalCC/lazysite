@@ -9,8 +9,15 @@ tags:
 ## Config path override
 
 Override the default `lazysite.conf` location using a command-line
-argument or environment variable. Useful for testing, multi-site
-setups, or non-standard directory layouts.
+argument or environment variable. Useful for staging environments,
+testing alternate configs, or deployments where the conf lives
+outside the docroot.
+
+Most sites do not need this. Each Apache vhost has its own
+`DOCUMENT_ROOT`, so each site automatically gets its own
+`lazysite.conf` at `DOCROOT/lazysite/lazysite.conf`. Multiple
+sites on one server each have their own docroot and their own
+config - no override is needed.
 
 ### Priority order
 

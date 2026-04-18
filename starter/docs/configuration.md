@@ -307,5 +307,14 @@ active navigation highlighting:
     theme: dark               <- named theme or remote URL
     nav_file: lazysite/alt-nav.conf  <- alternate navigation file
 
+### Config path override
+
+The default `lazysite.conf` path can be overridden via a command-line
+argument or environment variable. This is rarely needed - each site on
+a server has its own docroot and therefore its own `lazysite.conf`
+automatically. See
+[Config path override](/docs/features/configuration/conf-path-override)
+for details.
+
 [views]: https://github.com/OpenDigitalCC/lazysite-views
 [github]: https://github.com/OpenDigitalCC/lazysite

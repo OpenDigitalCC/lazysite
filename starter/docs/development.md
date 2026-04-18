@@ -52,6 +52,17 @@ The most direct way to diagnose a page error:
 Prints full HTML output or Perl errors to the terminal. Adjust
 `REDIRECT_URL` to the failing page path.
 
+Override the default `lazysite.conf` path for testing:
+
+    LAZYSITE_CONF=/path/to/alt.conf \
+    REDIRECT_URL=/page \
+    DOCUMENT_ROOT=/path/to/public_html \
+      perl cgi-bin/lazysite-processor.pl
+
+Or via command-line argument:
+
+    perl cgi-bin/lazysite-processor.pl --conf /path/to/alt.conf
+
 ## Static site generation
 
 Pre-render all pages for static hosting:
