@@ -169,6 +169,14 @@ if ( ! -f $conf_target && -f $conf_source ) {
     print "  seeded lazysite.conf\n";
 }
 
+my $nav_target = "$DOCROOT/lazysite/nav.conf";
+my $nav_source = "$DOCROOT/nav.conf.example";
+if ( ! -f $nav_target && -f $nav_source ) {
+    require File::Copy;
+    File::Copy::copy( $nav_source, $nav_target );
+    print "  seeded nav.conf\n";
+}
+
 # --- Start server ---
 
 my $cache_label = $nocache ? 'disabled (pass --cache to enable)' : 'enabled';

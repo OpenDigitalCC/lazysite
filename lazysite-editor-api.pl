@@ -100,6 +100,11 @@ elsif ( $action eq 'plugin-action' )    {
     my $req = eval { decode_json($body) } // {};
     $result = action_plugin_action( $params{plugin}, $req->{script}, $req->{action_id} );
 }
+elsif ( $action eq 'nav-read' )         { $result = action_nav_read() }
+elsif ( $action eq 'nav-save' )         {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_nav_save( $req->{items} // [] );
+}
 else  { $result = { ok => 0, error => "Unknown action: $action" } }
 
 respond($result);
@@ -440,7 +445,11 @@ sub action_theme_activate {
     my $conf = do { local $/; <$fh> };
     close $fh;
 
-    if ( $conf =~ /^theme\s*:/m ) {
+    if ( $theme_name eq '' ) {
+        # Deactivate - remove theme line
+        $conf =~ s/^theme\s*:.*\n?//m;
+    }
+    elsif ( $conf =~ /^theme\s*:/m ) {
         $conf =~ s/^theme\s*:.*$/theme: $theme_name/m;
     }
     else {
@@ -626,6 +635,101 @@ sub resolve_plugin_script {
     $full = "$DOCROOT/../$base";
     return $full if -f $full;
     return undef;
+}
+
+# --- Nav actions ---
+
+sub _nav_conf_path {
+    # Read nav_file from lazysite.conf, default to lazysite/nav.conf
+    my $nav_file = 'lazysite/nav.conf';
+    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    if ( -f $conf ) {
+        open my $fh, '<:utf8', $conf;
+        while (<$fh>) {
+            if ( /^nav_file\s*:\s*(.+)/ ) {
+                $nav_file = $1;
+                $nav_file =~ s/^\s+|\s+$//g;
+                last;
+            }
+        }
+        close $fh;
+    }
+    return "$DOCROOT/$nav_file";
+}
+
+sub action_nav_read {
+    my $path = _nav_conf_path();
+    my @items;
+
+    if ( -f $path ) {
+        open my $fh, '<:utf8', $path or return { ok => 0, error => "Cannot read nav" };
+        my $current_parent = -1;
+        while (<$fh>) {
+            chomp;
+            next if /^\s*#/ || /^\s*$/;
+
+            my $is_child = /^\s+/;
+            s/^\s+|\s+$//g;
+
+            my ( $label, $url ) = split /\s*\|\s*/, $_, 2;
+            $label //= '';
+            $url   //= '';
+            $label =~ s/^\s+|\s+$//g;
+            $url   =~ s/^\s+|\s+$//g;
+            next unless length $label;
+
+            if ($is_child && $current_parent >= 0) {
+                push @{ $items[$current_parent]{children} },
+                    { label => $label, url => $url };
+            } else {
+                push @items, { label => $label, url => $url, children => [] };
+                $current_parent = $#items;
+            }
+        }
+        close $fh;
+    }
+
+    return { ok => 1, items => \@items, path => $path };
+}
+
+sub action_nav_save {
+    my ($items) = @_;
+    my $path = _nav_conf_path();
+
+    my $content = "# lazysite navigation\n";
+    $content .= "# Format: Label | /url\n";
+    $content .= "# Indent child items with any whitespace\n\n";
+
+    for my $item ( @$items ) {
+        my $label = $item->{label} // '';
+        my $url   = $item->{url}   // '';
+        $label =~ s/^\s+|\s+$//g;
+        $url   =~ s/^\s+|\s+$//g;
+        next unless length $label;
+
+        if ( length $url ) {
+            $content .= "$label | $url\n";
+        } else {
+            $content .= "$label\n";
+        }
+
+        for my $child ( @{ $item->{children} // [] } ) {
+            my $cl = $child->{label} // '';
+            my $cu = $child->{url}   // '';
+            $cl =~ s/^\s+|\s+$//g;
+            $cu =~ s/^\s+|\s+$//g;
+            next unless length $cl;
+            $content .= "  $cl | $cu\n";
+        }
+    }
+
+    my $dir = dirname($path);
+    make_path($dir) unless -d $dir;
+    open my $fh, '>:utf8', $path or return { ok => 0, error => "Cannot write nav: $!" };
+    print $fh $content;
+    close $fh;
+
+    return { ok => 1 };
 }
 
 sub action_plugin_list {

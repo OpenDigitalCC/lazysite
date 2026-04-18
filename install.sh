@@ -150,6 +150,13 @@ else
     echo "  Install manually: https://github.com/OpenDigitalCC/lazysite-views"
 fi
 
+# --- Seed nav.conf if not installed by views ---
+
+if [ ! -f "$DOCROOT/lazysite/nav.conf" ] && [ -f "$SCRIPT_DIR/starter/nav.conf.example" ]; then
+    cp "$SCRIPT_DIR/starter/nav.conf.example" "$DOCROOT/lazysite/nav.conf"
+    echo "  nav.conf seeded from example"
+fi
+
 # --- Write lazysite.conf ---
 
 CONF_FILE="$DOCROOT/lazysite/lazysite.conf"

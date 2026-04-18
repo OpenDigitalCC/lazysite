@@ -31,6 +31,7 @@ search: false
 
 <nav class="editor-nav">
 <a href="/editor/">Files</a>
+<a href="/editor/nav">Nav</a>
 <a href="/editor/plugins" class="active">Plugins</a>
 <a href="/editor/themes">Themes</a>
 <a href="/editor/users">Users</a>
@@ -164,8 +165,12 @@ function saveConfig(e, pluginId, script) {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    status.textContent = data.ok ? 'Saved.' : ('Error: ' + data.error);
-    setTimeout(function() { status.textContent = ''; }, 3000);
+    if (data.ok) {
+      status.textContent = 'Saved. Reloading...';
+      setTimeout(function() { location.reload(); }, 1000);
+    } else {
+      status.textContent = 'Error: ' + data.error;
+    }
   });
 }
 

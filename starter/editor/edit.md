@@ -55,7 +55,7 @@ body > main { display:block !important; margin:0 !important; padding:0 !importan
 
 <div id="ed-toolbar">
 <div id="ed-toolbar-left">
-<a href="/editor/" id="ed-back">Files</a>
+<a href="/editor/" id="ed-back">Manage</a>
 <span id="ed-filepath">[% query.path | html %]</span>
 <span id="ed-lock-dot" title=""></span>
 <span id="ed-lock-label"></span>

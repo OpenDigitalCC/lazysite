@@ -115,7 +115,6 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 <body>
 <div class="site-bar" id="site-bar">
     <a href="/">[% IF site_name %][% site_name %][% ELSE %]Home[% END %]</a>
-    [% IF editor == 'enabled' && page_source %]<a href="/editor/edit?path=[% page_source %]" class="edit-btn" title="Edit this page">Edit</a>[% END %]
     [% IF authenticated %]
     <span style="font-size:0.8rem;color:#888;margin-left:auto;">[% auth_name || auth_user %]</span>
     <a href="/logout" style="font-size:0.8rem;color:#888;font-weight:400;">Sign out</a>
@@ -218,10 +217,11 @@ sub check_auth {
     my $redirect_path = $site_vars->{auth_redirect} || '/login';
     return { ok => 1 } if index( $uri, $redirect_path ) == 0;
 
-    # Editor pages have their own access control - skip auth_default
+    # Editor pages have their own access control - skip auth_default enforcement
+    # but still read auth headers so TT vars are populated
     my $editor_path = $site_vars->{editor_path} || '/editor';
     if ( index( $uri, "$editor_path/" ) == 0 || $uri eq $editor_path ) {
-        return { ok => 1 };
+        $auth_level = 'none';
     }
 
     # Convert header names to env var format (X-Remote-User -> HTTP_X_REMOTE_USER)
@@ -2083,7 +2083,11 @@ sub get_layout_path {
 
     unless ( $name ) {
         my $cookie_theme = read_theme_cookie();
-        $name = $cookie_theme if $cookie_theme;
+        if ( $cookie_theme ) {
+            # Only use cookie theme if it actually exists
+            my $cookie_path = "$THEMES_DIR/$cookie_theme/view.tt";
+            $name = $cookie_theme if -f $cookie_path;
+        }
     }
 
     unless ( $name ) {
@@ -2225,7 +2229,7 @@ sub render_template {
                 return $processed_body;
             };
 
-        return $output;
+        return _inject_admin_bar( $output, $vars );
     }
 
     # Determine if layout is remote (from cache dir) - sandbox it
@@ -2270,7 +2274,82 @@ sub render_template {
                 };
         };
 
+    # Inject admin bar after <body> - outside the theme
+    $output = _inject_admin_bar( $output, $vars );
+
     return $output;
+}
+
+sub _inject_admin_bar {
+    my ( $html, $vars ) = @_;
+
+    my $editor = $vars->{editor} // '';
+    return $html unless $editor eq 'enabled';
+
+    my $page_source = $vars->{page_source} // '';
+    my $request_uri = $vars->{request_uri} // '';
+
+    # Don't inject on editor pages - they have their own chrome
+    my $editor_path = $vars->{editor_path} || '/editor';
+    return $html if $request_uri eq $editor_path
+                  || index( $request_uri, "$editor_path/" ) == 0;
+
+    my $bar = '<div id="ls-admin-bar" style="'
+        . 'position:fixed;top:0;left:0;right:0;z-index:99999;'
+        . 'background:#1a1a1a;color:#aaa;font:12px system-ui,sans-serif;'
+        . 'padding:2px 12px;display:flex;align-items:center;gap:10px;'
+        . '">';
+    $bar .= '<a href="/editor/" style="color:#6db3f2;text-decoration:none;">Manage</a>';
+
+    if ( $page_source ) {
+        $bar .= '<a href="/editor/edit?path=' . $page_source
+             . '" style="color:#6db3f2;text-decoration:none;">Edit</a>';
+    }
+
+    # Theme selector - scan installed themes
+    my $themes_dir = "$LAZYSITE_DIR/themes";
+    my @installed_themes;
+    if ( -d $themes_dir ) {
+        opendir( my $dh, $themes_dir );
+        for my $t ( sort readdir $dh ) {
+            next if $t =~ /^\./;
+            next unless -d "$themes_dir/$t" && -f "$themes_dir/$t/view.tt";
+            push @installed_themes, $t;
+        }
+        closedir $dh;
+    }
+
+    if ( @installed_themes > 1 ) {
+        my $current_cookie = read_theme_cookie() || $vars->{theme} || '';
+        $bar .= '<select id="ls-theme-sel" style="'
+              . 'font-size:11px;background:#333;color:#ccc;border:1px solid #555;'
+              . 'border-radius:3px;padding:1px 4px;cursor:pointer;" '
+              . 'onchange="document.cookie=\'lazysite_theme=\'+this.value+'
+              . '\';path=/;max-age=31536000;SameSite=Lax\';location.reload()">';
+        for my $t ( @installed_themes ) {
+            my $sel = $t eq $current_cookie ? ' selected' : '';
+            $bar .= "<option value=\"$t\"$sel>$t</option>";
+        }
+        $bar .= '</select>';
+    }
+
+    my $user = $vars->{auth_name} || $vars->{auth_user} || '';
+    if ( $user ) {
+        $bar .= '<span style="margin-left:auto;">' . $user . '</span>';
+        $bar .= '<a href="/logout" style="color:#888;text-decoration:none;">Sign out</a>';
+    }
+
+    $bar .= '</div>';
+    $bar .= '<div id="ls-admin-spacer" style="height:22px;"></div>';
+
+    # Hide in iframes
+    $bar .= '<script>if(window!==window.top){var ab=document.getElementById("ls-admin-bar");'
+          . 'var sp=document.getElementById("ls-admin-spacer");'
+          . 'if(ab)ab.style.display="none";if(sp)sp.style.display="none";}</script>';
+
+    $html =~ s/(<body[^>]*>)/$1$bar/i;
+
+    return $html;
 }
 
 # --- Content type cache ---

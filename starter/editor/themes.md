@@ -33,6 +33,7 @@ query_params:
 
 <nav class="editor-nav">
 <a href="/editor/">Files</a>
+<a href="/editor/nav">Nav</a>
 <a href="/editor/plugins">Plugins</a>
 <a href="/editor/themes" class="active">Themes</a>
 <a href="/editor/users">Users</a>
@@ -90,8 +91,8 @@ function renderThemes(themes, active) {
     html += '<span class="name">' + escHtml(t.name) + '</span>';
     if (isActive) {
       html += '<span class="active-badge">active</span>';
-    }
-    if (!isActive) {
+      html += '<button onclick="deactivateTheme()">Deactivate</button>';
+    } else {
       html += '<button onclick="activateTheme(\'' + escHtml(t.name) + '\')">Activate</button>';
     }
     html += '<button onclick="renameTheme(\'' + escHtml(t.name) + '\')">Rename</button>';
@@ -114,6 +115,18 @@ function activateTheme(name) {
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('Theme "' + name + '" activated.');
+      loadThemes();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+function deactivateTheme() {
+  if (!confirm('Deactivate theme and use the built-in fallback?')) return;
+  fetch(API + '?action=theme-activate&path=', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus('Theme deactivated. Using built-in fallback.');
       loadThemes();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
