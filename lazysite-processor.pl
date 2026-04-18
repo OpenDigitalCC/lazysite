@@ -8,6 +8,7 @@ use File::Path qw(make_path);
 use LWP::UserAgent;
 use Cwd qw(realpath);
 use JSON::PP qw(decode_json);
+use Digest::SHA qw(hmac_sha256_hex);
 
 # --- Configuration ---
 
@@ -316,7 +317,8 @@ sub process_md {
     }
     # raw: true - Markdown pipeline runs, no layout
     elsif ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
-        my $converted       = convert_fenced_divs($body);
+        my $converted_form  = convert_fenced_form($body, $meta);
+        my $converted       = convert_fenced_divs($converted_form);
         my $converted_inc   = convert_fenced_include($converted, $md_path, $meta);
         my $converted2      = convert_fenced_code($converted_inc);
         my $converted3      = convert_oembed($converted2);
@@ -326,7 +328,8 @@ sub process_md {
     }
     # Normal mode - full pipeline with layout
     else {
-        my $converted       = convert_fenced_divs($body);
+        my $converted_form  = convert_fenced_form($body, $meta);
+        my $converted       = convert_fenced_divs($converted_form);
         my $converted_inc   = convert_fenced_include($converted, $md_path, $meta);
         my $converted2      = convert_fenced_code($converted_inc);
         my $converted3      = convert_oembed($converted2);
@@ -575,9 +578,195 @@ sub parse_yaml_front_matter {
             # Strip TT directives from all scalar values including title and subtitle
             $meta{$1} = strip_tt_directives($2);
         }
+
+        # Sanitise form name
+        if ( defined $meta{form} ) {
+            $meta{form} =~ s/[^a-zA-Z0-9_-]//g;
+            delete $meta{form} unless length $meta{form};
+        }
     }
 
     return ( \%meta, $text );
+}
+
+# --- Forms ---
+
+sub load_form_secret {
+    my $secret_path = "$LAZYSITE_DIR/forms/.secret";
+    my $forms_dir   = "$LAZYSITE_DIR/forms";
+    make_path($forms_dir) unless -d $forms_dir;
+
+    if ( -f $secret_path ) {
+        open( my $fh, '<', $secret_path ) or do {
+            log_warn("Cannot read form secret: $!");
+            return '';
+        };
+        chomp( my $s = <$fh> );
+        close($fh);
+        return $s if $s;
+    }
+
+    my $s;
+    if ( open( my $rand, '<', '/dev/urandom' ) ) {
+        read( $rand, my $bytes, 32 );
+        close($rand);
+        $s = unpack( 'H*', $bytes );
+    }
+    else {
+        $s = hmac_sha256_hex( time() . $$ . rand(), 'lazysite-form' );
+    }
+
+    open( my $fh, '>', $secret_path ) or do {
+        log_warn("Cannot write form secret: $!");
+        return $s;
+    };
+    chmod 0600, $secret_path;
+    print $fh "$s\n";
+    close($fh);
+    return $s;
+}
+
+sub convert_fenced_form {
+    my ( $text, $meta ) = @_;
+    $meta //= {};
+
+    $text =~ s{
+        ^:::[ \t]+form[ \t]*\n    # opening ::: form
+        (.*?)                      # field definitions
+        ^:::[ \t]*\n               # closing :::
+    }{
+        _render_form( $1, $meta );
+    }gesmx;
+
+    return $text;
+}
+
+sub _render_form {
+    my ( $body, $meta ) = @_;
+
+    my $form_name = $meta->{form} // '';
+    unless ( $form_name ) {
+        log_warn(":::form block found but no form: key in front matter");
+        return "<!-- lazysite: form: key required in front matter -->\n";
+    }
+
+    my $ts     = time();
+    my $secret = load_form_secret();
+    my $tk     = hmac_sha256_hex( $ts, $secret );
+
+    my @fields;
+    for my $line ( split /\n/, $body ) {
+        $line =~ s/^\s+|\s+$//g;
+        next unless length $line;
+
+        my ( $name, $label, $rules_str ) = split /\s*\|\s*/, $line, 3;
+        $name  //= '';
+        $label //= '';
+        $rules_str //= '';
+        $name  =~ s/^\s+|\s+$//g;
+        $label =~ s/^\s+|\s+$//g;
+
+        next unless length $name;
+
+        if ( $name eq 'submit' ) {
+            push @fields, qq(  <div class="form-field form-submit">\n)
+                        . qq(    <button type="submit">$label</button>\n)
+                        . qq(  </div>\n);
+            next;
+        }
+
+        # Parse rules
+        my %rules;
+        for my $r ( split /\s+/, $rules_str ) {
+            if ( $r eq 'required' )      { $rules{required} = 1; }
+            elsif ( $r eq 'optional' )   { $rules{optional} = 1; }
+            elsif ( $r eq 'email' )      { $rules{type} = 'email'; }
+            elsif ( $r eq 'textarea' )   { $rules{textarea} = 1; }
+            elsif ( $r =~ /^select:(.+)/ ) { $rules{select} = [ split /,/, $1 ]; }
+            elsif ( $r =~ /^max:(\d+)/ ) { $rules{max} = $1; }
+        }
+
+        my $req_attr = $rules{required} ? ' required' : '';
+        my $max      = $rules{max} || 1000;
+        my $req_mark = $rules{required}
+            ? ' <span class="required">*</span>' : '';
+
+        my $field_html;
+        if ( $rules{textarea} ) {
+            $field_html = qq(    <textarea name="$name" id="$name")
+                        . qq( maxlength="$max"$req_attr></textarea>\n);
+        }
+        elsif ( $rules{select} ) {
+            $field_html = qq(    <select name="$name" id="$name"$req_attr>\n);
+            $field_html .= qq(      <option value="">-- Select --</option>\n);
+            for my $opt ( @{ $rules{select} } ) {
+                $opt =~ s/^\s+|\s+$//g;
+                $field_html .= qq(      <option value="$opt">$opt</option>\n);
+            }
+            $field_html .= qq(    </select>\n);
+        }
+        else {
+            my $type = $rules{type} || 'text';
+            $field_html = qq(    <input type="$type" name="$name" id="$name")
+                        . qq( maxlength="$max"$req_attr>\n);
+        }
+
+        push @fields, qq(  <div class="form-field">\n)
+                     . qq(    <label for="$name">$label$req_mark</label>\n)
+                     . $field_html
+                     . qq(  </div>\n);
+    }
+
+    my $fields_html = join( '', @fields );
+
+    return <<"END_FORM";
+<form method="POST"
+      action="/cgi-bin/lazysite-form-handler.pl"
+      class="lazysite-form"
+      data-form="$form_name">
+  <input type="hidden" name="_form" value="$form_name">
+  <input type="hidden" name="_ts" value="$ts">
+  <input type="hidden" name="_tk" value="$tk">
+  <div style="position:absolute;left:-9999px;top:-9999px;"
+       aria-hidden="true">
+    <label for="_hp">Leave this empty</label>
+    <input type="text" name="_hp" id="_hp" value=""
+           tabindex="-1" autocomplete="off">
+  </div>
+$fields_html  <div class="form-status" aria-live="polite"></div>
+</form>
+<script>
+(function() {
+  var form = document.querySelector('.lazysite-form[data-form="$form_name"]');
+  if (!form) return;
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var btn    = form.querySelector('button[type=submit]');
+    var status = form.querySelector('.form-status');
+    btn.disabled = true;
+    status.textContent = 'Sending...';
+    fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        form.innerHTML = '<p class="form-success">' +
+          (data.message || 'Thank you - message sent.') + '</p>';
+      } else {
+        status.textContent = data.error || 'An error occurred.';
+        btn.disabled = false;
+      }
+    })
+    .catch(function() {
+      status.textContent = 'Could not send - please try again.';
+      btn.disabled = false;
+    });
+  });
+})();
+</script>
+END_FORM
 }
 
 sub convert_fenced_divs {
