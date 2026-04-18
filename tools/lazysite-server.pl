@@ -234,24 +234,23 @@ sub handle_request {
     }
 
     # Determine which script to run
-    # When auth is enabled (users file exists), all requests go through
-    # the auth wrapper which decodes cookies, sets X-Remote-* headers,
-    # then execs the processor
     my $script = $PROCESSOR;
     my $auth_script = abs_path("$SCRIPT_DIR/../lazysite-auth.pl");
-    my $auth_users  = "$DOCROOT/lazysite/auth/users";
-    my $use_auth    = -f $auth_users && -f $auth_script;
 
-    if ( $use_auth ) {
-        $script = $auth_script;
-    }
-    elsif ( $uri =~ m{^/cgi-bin/lazysite-auth\.pl} ) {
-        print $client "HTTP/1.0 404 Not Found\r\n";
-        print $client "Content-Type: text/plain\r\n";
-        print $client "Connection: close\r\n\r\n";
-        print $client "Auth not configured (no lazysite/auth/users file)\n";
-        print "$method $uri -> 404 Not Found (auth not configured)\n";
-        return;
+    # Route /cgi-bin/ requests to the appropriate script
+    if ( $uri =~ m{^/cgi-bin/lazysite-auth\.pl} ) {
+        if ( -f $auth_script ) {
+            $script = $auth_script;
+        }
+        else {
+            # Auth script not found
+            print $client "HTTP/1.0 404 Not Found\r\n";
+            print $client "Content-Type: text/plain\r\n";
+            print $client "Connection: close\r\n\r\n";
+            print $client "lazysite-auth.pl not found\n";
+            print "$method $uri -> 404 Not Found (auth script missing)\n";
+            return;
+        }
     }
 
     # Build CGI environment
@@ -275,24 +274,31 @@ sub handle_request {
         $env{HTTP_COOKIE} = $req_headers{'cookie'};
     }
 
-    my $env_prefix = join ' ', map { "$_=\Q$env{$_}\E" } sort keys %env;
+    # Set env vars for child process
+    local @ENV{ keys %env } = values %env;
 
-    my $output;
-    if ( length $post_body ) {
-        # Write POST body to temp file and pipe to script
-        my $post_file = "/tmp/lazysite-post-$$.dat";
-        open( my $pf, '>', $post_file ) or do {
-            print "$method $uri -> 500 (cannot write post data)\n";
-            return;
-        };
-        print $pf $post_body;
-        close $pf;
-        $output = qx(cat \Q$post_file\E | $env_prefix perl \Q$script\E 2>$ERR_FILE);
-        unlink $post_file;
+    my $output = '';
+    my $pid = open( my $child_out, '-|' );
+    if ( !defined $pid ) {
+        print "$method $uri -> 500 (fork failed)\n";
+        return;
     }
-    else {
-        $output = qx($env_prefix perl \Q$script\E 2>$ERR_FILE);
+    if ( $pid == 0 ) {
+        # Child: set up stdin from post_body, redirect stderr, exec script
+        open( STDERR, '>', $ERR_FILE );
+        if ( length $post_body ) {
+            open( my $tmp, '<', \$post_body );
+            open( STDIN, '<&', $tmp );
+        }
+        exec $^X, $script;
+        die "exec failed: $!\n";
     }
+    # Parent: read output
+    {
+        local $/;
+        $output = <$child_out>;
+    }
+    close $child_out;
 
     # Print any stderr to terminal
     if ( -s $ERR_FILE ) {

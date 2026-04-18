@@ -7,7 +7,7 @@ use File::Basename qw(dirname);
 use File::Path qw(make_path);
 use LWP::UserAgent;
 use Cwd qw(realpath);
-use JSON::PP qw(decode_json);
+use JSON::PP qw(decode_json encode_json);
 use Digest::SHA qw(hmac_sha256_hex);
 
 # --- Configuration ---
@@ -239,6 +239,133 @@ sub serve_403 {
     }
 }
 
+# --- Payment ---
+
+my %PAYMENT_CONTEXT;  # populated by main(), read by render_content()
+
+sub peek_payment {
+    my ($path) = @_;
+    open( my $fh, '<:utf8', $path ) or return {};
+    my %meta;
+    my %want = map { $_ => 1 } qw(payment payment_amount payment_currency
+        payment_network payment_address payment_asset payment_description);
+    while ( <$fh> ) {
+        last if $. > 1 && /^---/;
+        if ( /^([\w]+)\s*:\s*(.+)$/ && $want{$1} ) {
+            $meta{$1} = $2;
+            $meta{$1} =~ s/\s+$//;
+        }
+    }
+    close $fh;
+    return \%meta;
+}
+
+sub check_payment {
+    my ( $uri, $payment_meta, $auth_result, $site_vars ) = @_;
+
+    return { ok => 1 } unless
+        ( $payment_meta->{payment} // '' ) eq 'required';
+
+    # Check group bypass - auth_groups in payment_meta
+    my @bypass_groups = @{ $payment_meta->{auth_groups} // [] };
+    if ( @bypass_groups && $auth_result->{authenticated} ) {
+        my %user_groups = map { lc($_) => 1 }
+            @{ $auth_result->{auth_groups} // [] };
+        my $bypassed = grep { $user_groups{ lc($_) } } @bypass_groups;
+        return { ok => 1, bypassed => 1 } if $bypassed;
+    }
+
+    # Check payment proof header
+    my $verified_header = $site_vars->{payment_header_verified}
+        || 'X-Payment-Verified';
+    my $verified_env = 'HTTP_' . uc($verified_header);
+    $verified_env =~ s/-/_/g;
+
+    my $verified = $ENV{$verified_env} // '';
+    if ( $verified eq '1' ) {
+        my $payer_header = $site_vars->{payment_header_payer}
+            || 'X-Payment-Payer';
+        my $payer_env = 'HTTP_' . uc($payer_header);
+        $payer_env =~ s/-/_/g;
+        return {
+            ok    => 1,
+            paid  => 1,
+            payer => $ENV{$payer_env} // '',
+        };
+    }
+
+    return {
+        payment_required => 1,
+        amount           => $payment_meta->{payment_amount}       // '0',
+        currency         => $payment_meta->{payment_currency}     // 'USD',
+        network          => $payment_meta->{payment_network}      // 'base',
+        address          => $payment_meta->{payment_address}      // '',
+        asset            => $payment_meta->{payment_asset}        // '',
+        description      => $payment_meta->{payment_description}  // '',
+    };
+}
+
+sub serve_402 {
+    my ($payment_result) = @_;
+
+    # Build x402 payment response header
+    # Assumption: amount is in human-readable decimal (e.g. 0.01 USD)
+    # Convert to smallest unit assuming USDC (6 decimals)
+    my $amount_raw = int( ( $payment_result->{amount} // 0 ) * 1_000_000 );
+    my $network    = $payment_result->{network}  || 'base';
+    my $address    = $payment_result->{address}  || '';
+    my $asset      = $payment_result->{asset}    || '';
+
+    my $x_payment = encode_json({
+        version => '1.0',
+        accepts => [{
+            scheme            => 'exact',
+            network           => $network,
+            maxAmountRequired => "$amount_raw",
+            to                => $address,
+            asset             => $asset,
+            extra             => {
+                name    => $payment_result->{currency} || 'USDC',
+                version => '1',
+            },
+        }],
+    });
+
+    binmode( STDOUT, ':utf8' );
+
+    my $md_path = "$DOCROOT/402.md";
+    if ( -f $md_path ) {
+        # Set payment context for TT rendering
+        %PAYMENT_CONTEXT = (
+            payment_required    => 1,
+            payment_amount      => $payment_result->{amount}      // '',
+            payment_currency    => $payment_result->{currency}    // '',
+            payment_network     => $payment_result->{network}     // '',
+            payment_address     => $payment_result->{address}     // '',
+            payment_description => $payment_result->{description} // '',
+        );
+        my $page = process_md( $md_path, "$DOCROOT/402.html",
+                               (stat($md_path))[9], {} );
+        print "Status: 402 Payment Required\r\n";
+        print "Content-type: text/html; charset=utf-8\r\n";
+        print "X-Payment-Response: $x_payment\r\n";
+        print "Cache-Control: no-store, private\r\n\r\n";
+        print $page;
+    }
+    else {
+        print "Status: 402 Payment Required\r\n";
+        print "Content-type: text/html; charset=utf-8\r\n";
+        print "X-Payment-Response: $x_payment\r\n";
+        print "Cache-Control: no-store, private\r\n\r\n";
+        print "<!DOCTYPE html><html><head><title>Payment Required</title></head><body>";
+        print "<h1>Payment Required</h1>";
+        print "<p>This content requires payment of ";
+        print( ( $payment_result->{amount} // '0' ) . " "
+             . ( $payment_result->{currency} // 'USD' ) );
+        print ".</p></body></html>";
+    }
+}
+
 # --- Main ---
 
 main();
@@ -299,9 +426,11 @@ sub main {
     # Auth check - before cache reads to prevent serving protected cached pages
     my $auth_protected = 0;
     my $auth_result    = { ok => 1 };
+    my $auth_peek      = {};
+    my %site_vars_peek;
     if ( @md_stat ) {
-        my $auth_peek       = peek_auth($md_path);
-        my %site_vars_peek  = resolve_site_vars();
+        $auth_peek         = peek_auth($md_path);
+        %site_vars_peek    = resolve_site_vars();
         $auth_result        = check_auth( $uri, $auth_peek, \%site_vars_peek );
 
         if ( $auth_result->{redirect} ) {
@@ -340,6 +469,42 @@ sub main {
             || ( $auth_peek->{groups} && @{ $auth_peek->{groups} } );
     }
 
+    # Payment check (after auth - auth group bypass may apply)
+    my $payment_protected = 0;
+    if ( @md_stat ) {
+        my $payment_peek = peek_payment($md_path);
+
+        # Merge auth_groups from auth peek for bypass check
+        if ( exists $auth_peek->{groups} && @{ $auth_peek->{groups} } ) {
+            $payment_peek->{auth_groups} = $auth_peek->{groups};
+        }
+
+        my $payment_result = check_payment(
+            $uri, $payment_peek, $auth_result, \%site_vars_peek );
+
+        if ( $payment_result->{payment_required} ) {
+            serve_402($payment_result);
+            return;
+        }
+
+        if ( ( $payment_peek->{payment} // '' ) eq 'required' ) {
+            $payment_protected = 1;
+
+            %PAYMENT_CONTEXT = (
+                payment_required => 0,
+                payment_amount   => $payment_peek->{payment_amount}   // '',
+                payment_currency => $payment_peek->{payment_currency} // '',
+                payment_address  => $payment_peek->{payment_address}  // '',
+                payment_paid     => $payment_result->{paid}           // 0,
+                payment_payer    => $payment_result->{payer}          // '',
+                payment_bypassed => $payment_result->{bypassed}       // 0,
+            );
+        }
+    }
+
+    # Combined protection flag
+    my $protected = $auth_protected || $payment_protected;
+
     # Check if this page declares query_params and request has matching ones
     my $has_query_request = 0;
     my $declared_params   = undef;
@@ -358,8 +523,8 @@ sub main {
     }
 
     # Fast path: .md exists and cache is fresh by mtime
-    # Skip cache if LAZYSITE_NOCACHE is set, query request active, or auth protected
-    unless ( $ENV{LAZYSITE_NOCACHE} || $has_query_request || $auth_protected ) {
+    # Skip cache if LAZYSITE_NOCACHE is set, query request active, or protected
+    unless ( $ENV{LAZYSITE_NOCACHE} || $has_query_request || $protected ) {
         if ( @md_stat && @html_stat ) {
             if ( $html_stat[9] >= $md_stat[9] ) {
                 # mtime fresh - serve cache immediately
@@ -396,17 +561,16 @@ sub main {
             }
         }
 
-        # Inject auth context into filtered_query to prevent caching
-        # and make auth vars available to TT
-        if ( $auth_protected ) {
-            $filtered_query{_auth_protected} = 1;
+        # Inject protection flag into filtered_query to prevent caching
+        if ( $protected ) {
+            $filtered_query{_protected} = 1;
         }
 
         my $page = process_md( $md_path, $html_path, $md_stat[9], \%filtered_query );
         my $ct   = peek_content_type($md_path);
-        my $ttl  = $auth_protected ? undef : peek_ttl($md_path);
-        write_ct( $base, $ct ) unless $auth_protected;
-        output_page( $page, $ct, $ttl, $auth_protected );
+        my $ttl  = $protected ? undef : peek_ttl($md_path);
+        write_ct( $base, $ct ) unless $protected;
+        output_page( $page, $ct, $ttl, $protected );
         return;
     }
 
@@ -1738,6 +1902,7 @@ sub render_content {
         %site_vars,
         %page_vars,
         %AUTH_CONTEXT,
+        %PAYMENT_CONTEXT,
         page_title        => $meta->{title}            || '',
         page_subtitle     => $meta->{subtitle}         || '',
         page_modified     => $meta->{page_modified}    || '',

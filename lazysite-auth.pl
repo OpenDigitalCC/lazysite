@@ -46,10 +46,9 @@ sub handle_login {
     my $next     = sanitise_next( $form{next} // '/' );
 
     my $auth_redirect = read_conf_key('auth_redirect') || '/login';
-    my $next_param    = $next eq '/' ? '' : '&next=' . uri_encode_simple($next);
 
     unless ( length $username && length $password ) {
-        redirect("$auth_redirect?error=1$next_param");
+        redirect("$auth_redirect?error=1");
         return;
     }
 
@@ -57,7 +56,7 @@ sub handle_login {
     my $users = load_users();
     my $expected = $users->{$username};
     unless ( defined $expected && $expected eq sha256_hex($password) ) {
-        redirect("$auth_redirect?error=1$next_param");
+        redirect("$auth_redirect?error=1");
         return;
     }
 
