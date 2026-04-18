@@ -195,9 +195,23 @@ sub handle_request {
     return unless defined $request_line;
     $request_line =~ s/\r?\n$//;
 
-    # Drain headers
+    # Read headers
+    my %req_headers;
+    my $content_length = 0;
+    my $content_type_req = '';
     while ( my $header = <$client> ) {
         last if $header =~ /^\r?\n$/;
+        if ( $header =~ /^([^:]+):\s*(.+?)\r?\n?$/ ) {
+            $req_headers{ lc($1) } = $2;
+        }
+    }
+    $content_length  = $req_headers{'content-length'} || 0;
+    $content_type_req = $req_headers{'content-type'}   || '';
+
+    # Read POST body
+    my $post_body = '';
+    if ( $content_length > 0 ) {
+        read( $client, $post_body, $content_length );
     }
 
     # Parse method and URI
@@ -213,26 +227,78 @@ sub handle_request {
 
     # Static file serving
     # Skip .html files that have a .md or .url source - let the processor handle them
-    if ( -f $file_path && $file_path !~ /\.(md|url|tt|conf)$/
+    if ( $method eq 'GET' && -f $file_path && $file_path !~ /\.(md|url|tt|conf)$/
          && !( $file_path =~ /\.html$/ && ( -f ($file_path =~ s/\.html$/.md/r) || -f ($file_path =~ s/\.html$/.url/r) ) ) ) {
         serve_static( $client, $file_path, $method, $uri, $t0 );
         return;
     }
 
-    # Invoke processor
+    # Determine which script to run
+    my $script = $PROCESSOR;
+    my $auth_script = abs_path("$SCRIPT_DIR/../lazysite-auth.pl");
+
+    # Route /cgi-bin/ requests to the appropriate script
+    if ( $uri =~ m{^/cgi-bin/lazysite-auth\.pl} ) {
+        if ( -f $auth_script ) {
+            $script = $auth_script;
+        }
+        else {
+            # Auth script not found
+            print $client "HTTP/1.0 404 Not Found\r\n";
+            print $client "Content-Type: text/plain\r\n";
+            print $client "Connection: close\r\n\r\n";
+            print $client "lazysite-auth.pl not found\n";
+            print "$method $uri -> 404 Not Found (auth script missing)\n";
+            return;
+        }
+    }
+
+    # Build CGI environment
     my %env = (
         DOCUMENT_ROOT    => $DOCROOT,
         REDIRECT_URL     => $uri,
         REQUEST_URI      => $raw_uri,
+        REQUEST_METHOD   => $method,
         QUERY_STRING     => $query_string,
+        CONTENT_LENGTH   => $content_length,
+        CONTENT_TYPE     => $content_type_req,
         REQUEST_SCHEME   => 'http',
         SERVER_NAME      => 'localhost',
         SERVER_PORT      => $PORT,
         LAZYSITE_NOCACHE => $nocache,
+        LAZYSITE_PROCESSOR => $PROCESSOR,
     );
 
-    my $env_prefix = join ' ', map { "$_=\Q$env{$_}\E" } sort keys %env;
-    my $output = qx($env_prefix perl \Q$PROCESSOR\E 2>$ERR_FILE);
+    # Pass cookie header
+    if ( $req_headers{'cookie'} ) {
+        $env{HTTP_COOKIE} = $req_headers{'cookie'};
+    }
+
+    # Set env vars for child process
+    local @ENV{ keys %env } = values %env;
+
+    my $output = '';
+    my $pid = open( my $child_out, '-|' );
+    if ( !defined $pid ) {
+        print "$method $uri -> 500 (fork failed)\n";
+        return;
+    }
+    if ( $pid == 0 ) {
+        # Child: set up stdin from post_body, redirect stderr, exec script
+        open( STDERR, '>', $ERR_FILE );
+        if ( length $post_body ) {
+            open( my $tmp, '<', \$post_body );
+            open( STDIN, '<&', $tmp );
+        }
+        exec $^X, $script;
+        die "exec failed: $!\n";
+    }
+    # Parent: read output
+    {
+        local $/;
+        $output = <$child_out>;
+    }
+    close $child_out;
 
     # Print any stderr to terminal
     if ( -s $ERR_FILE ) {
