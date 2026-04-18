@@ -33,6 +33,7 @@ query_params:
 
 <nav class="editor-nav">
 <a href="/editor/">Files</a>
+<a href="/editor/plugins">Plugins</a>
 <a href="/editor/themes" class="active">Themes</a>
 <a href="/editor/users">Users</a>
 <a href="/editor/cache">Cache</a>

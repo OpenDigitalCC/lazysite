@@ -37,6 +37,22 @@ Add to `lazysite/lazysite.conf`:
 - User management: add/remove users, manage groups
 - Cache manager: view and invalidate cached pages
 
+### Plugin system
+
+Components such as the form SMTP handler and link audit tool
+integrate with the editor via a self-describing plugin interface.
+Each script supports a `--describe` flag that returns its
+configuration schema as JSON. The editor renders a generic config
+form from this schema.
+
+Enable plugins in `lazysite/lazysite.conf`:
+
+    plugins:
+      - tools/lazysite-audit.pl
+      - cgi-bin/lazysite-form-smtp.pl
+
+Then access via Editor > Plugins.
+
 ### Notes
 
 - Editor is disabled by default - must be explicitly enabled

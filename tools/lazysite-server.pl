@@ -160,7 +160,7 @@ if ( -d $auth_dir ) {
 # --- Seed lazysite.conf if missing ---
 
 my $conf_target = "$DOCROOT/lazysite/lazysite.conf";
-my $conf_source = "$DOCROOT/lazysite.conf";
+my $conf_source = "$DOCROOT/lazysite.conf.example";
 if ( ! -f $conf_target && -f $conf_source ) {
     require File::Copy;
     require File::Path;

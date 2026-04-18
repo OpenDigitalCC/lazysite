@@ -36,6 +36,7 @@ search: false
 
 <nav class="editor-nav">
 <a href="/editor/" class="active">Files</a>
+<a href="/editor/plugins">Plugins</a>
 <a href="/editor/themes">Themes</a>
 <a href="/editor/users">Users</a>
 <a href="/editor/cache">Cache</a>

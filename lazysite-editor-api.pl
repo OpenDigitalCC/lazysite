@@ -5,7 +5,7 @@ use warnings;
 use JSON::PP qw(encode_json decode_json);
 use File::Find;
 use File::Path qw(make_path);
-use File::Basename qw(dirname);
+use File::Basename qw(dirname basename);
 use Cwd qw(realpath);
 use IPC::Open2;
 
@@ -87,6 +87,19 @@ elsif ( $action eq 'theme-rename' )     {
 }
 elsif ( $action eq 'theme-upload' )     { $result = action_theme_upload( $body, $params{filename} ) }
 elsif ( $action eq 'users' )            { $result = action_users($body) }
+elsif ( $action eq 'plugin-list' )      { $result = action_plugin_list() }
+elsif ( $action eq 'plugin-read' )      {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_plugin_read( $params{plugin}, $req->{script} );
+}
+elsif ( $action eq 'plugin-save' )      {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_plugin_save( $params{plugin}, $req->{script}, $req->{values} // {} );
+}
+elsif ( $action eq 'plugin-action' )    {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_plugin_action( $params{plugin}, $req->{script}, $req->{action_id} );
+}
 else  { $result = { ok => 0, error => "Unknown action: $action" } }
 
 respond($result);
@@ -289,7 +302,8 @@ sub action_save {
     # Release lock
     unlink $lock_file if -f $lock_file;
 
-    return { ok => 1, path => $rel_path, mtime => ( stat $full )[9] };
+    my @st = stat($full);
+    return { ok => 1, path => $rel_path, mtime => $st[9] // 0 };
 }
 
 sub action_delete {
@@ -592,6 +606,209 @@ sub action_users {
     waitpid $pid, 0;
 
     return eval { decode_json( $output // '{}' ) } // { ok => 0, error => "Invalid response" };
+}
+
+# --- Helpers ---
+
+# --- Plugin actions ---
+
+sub resolve_plugin_script {
+    my ($script) = @_;
+    return undef unless $script;
+    # Check relative to docroot parent (installed layout)
+    my $full = "$DOCROOT/../$script";
+    return $full if -f $full;
+    # Check relative to docroot
+    $full = "$DOCROOT/$script";
+    return $full if -f $full;
+    # Check basename at docroot parent (dev mode - scripts at repo root)
+    my $base = basename($script);
+    $full = "$DOCROOT/../$base";
+    return $full if -f $full;
+    return undef;
+}
+
+sub action_plugin_list {
+    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my @plugin_scripts;
+
+    if ( open my $fh, '<:utf8', $conf_path ) {
+        my $in_plugins = 0;
+        while (<$fh>) {
+            chomp;
+            if ( /^plugins\s*:\s*$/ ) { $in_plugins = 1; next }
+            if ( $in_plugins && /^\s+-\s+(.+)$/ ) {
+                my $s = $1;
+                $s =~ s/^\s+|\s+$//g;
+                push @plugin_scripts, $s;
+            }
+            elsif ( $in_plugins && !/^\s/ ) { $in_plugins = 0 }
+        }
+        close $fh;
+    }
+
+    my @plugins;
+    for my $script (@plugin_scripts) {
+        my $full = resolve_plugin_script($script);
+        next unless $full;
+
+        my $json = qx($^X \Q$full\E --describe 2>/dev/null);
+        next unless $json;
+
+        my $desc = eval { decode_json($json) };
+        next unless $desc && ref $desc eq 'HASH';
+
+        $desc->{_script} = $script;
+        push @plugins, $desc;
+    }
+
+    return { ok => 1, plugins => \@plugins };
+}
+
+sub action_plugin_read {
+    my ( $plugin_id, $script ) = @_;
+
+    my $full_script = resolve_plugin_script($script);
+    return { ok => 0, error => 'Plugin not found' } unless $full_script;
+
+    my $json = qx($^X \Q$full_script\E --describe 2>/dev/null);
+    my $desc = eval { decode_json($json) }
+        or return { ok => 0, error => 'Cannot describe plugin' };
+
+    my $config_file = $desc->{config_file} // '';
+    my %values;
+
+    if ($config_file) {
+        my $conf_path = "$DOCROOT/$config_file";
+        if ( -f $conf_path ) {
+            open my $fh, '<:utf8', $conf_path;
+            while (<$fh>) {
+                chomp;
+                s/^\s+|\s+$//g;
+                next if /^#/ || !length;
+                my ( $k, $v ) = split /\s*:\s*/, $_, 2;
+                $values{$k} = $v if defined $k && defined $v;
+            }
+            close $fh;
+        }
+    }
+    elsif ( $desc->{config_keys} ) {
+        my %want = map { $_ => 1 } @{ $desc->{config_keys} };
+        my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+        if ( -f $conf_path ) {
+            open my $fh, '<:utf8', $conf_path;
+            while (<$fh>) {
+                chomp;
+                s/^\s+|\s+$//g;
+                next if /^#/ || !length;
+                my ( $k, $v ) = split /\s*:\s*/, $_, 2;
+                $values{$k} = $v if $want{$k};
+            }
+            close $fh;
+        }
+    }
+
+    # Never return password fields
+    for my $field ( @{ $desc->{config_schema} // [] } ) {
+        delete $values{ $field->{key} } if ( $field->{type} // '' ) eq 'password';
+    }
+
+    return { ok => 1, values => \%values };
+}
+
+sub action_plugin_save {
+    my ( $plugin_id, $script, $values ) = @_;
+
+    my $full_script = resolve_plugin_script($script);
+    return { ok => 0, error => 'Plugin not found' } unless $full_script;
+
+    my $json = qx($^X \Q$full_script\E --describe 2>/dev/null);
+    my $desc = eval { decode_json($json) }
+        or return { ok => 0, error => 'Cannot describe plugin' };
+
+    my %allowed = map { $_->{key} => 1 } @{ $desc->{config_schema} // [] };
+    my %safe;
+    for my $k ( keys %$values ) {
+        $safe{$k} = $values->{$k} if $allowed{$k};
+    }
+
+    my $config_file = $desc->{config_file} // '';
+
+    if ($config_file) {
+        my $conf_path = "$DOCROOT/$config_file";
+        my $content   = '';
+        if ( -f $conf_path ) {
+            open my $fh, '<:utf8', $conf_path;
+            $content = do { local $/; <$fh> };
+            close $fh;
+        }
+
+        for my $k ( keys %safe ) {
+            if ( $content =~ /^$k\s*:/m ) {
+                $content =~ s/^$k\s*:.*$/$k: $safe{$k}/m;
+            }
+            else {
+                $content .= "$k: $safe{$k}\n";
+            }
+        }
+
+        my $dir = dirname($conf_path);
+        make_path($dir) unless -d $dir;
+        open my $fh, '>:utf8', $conf_path
+            or return { ok => 0, error => "Cannot write config: $!" };
+        print $fh $content;
+        close $fh;
+    }
+    elsif ( $desc->{config_keys} ) {
+        my %want = map { $_ => 1 } @{ $desc->{config_keys} };
+        my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+        my $content   = '';
+        if ( -f $conf_path ) {
+            open my $fh, '<:utf8', $conf_path;
+            $content = do { local $/; <$fh> };
+            close $fh;
+        }
+
+        for my $k ( grep { $want{$_} } keys %safe ) {
+            if ( $content =~ /^$k\s*:/m ) {
+                $content =~ s/^$k\s*:.*$/$k: $safe{$k}/m;
+            }
+            else {
+                $content .= "$k: $safe{$k}\n";
+            }
+        }
+
+        open my $fh, '>:utf8', $conf_path
+            or return { ok => 0, error => "Cannot write lazysite.conf: $!" };
+        print $fh $content;
+        close $fh;
+    }
+
+    return { ok => 1 };
+}
+
+sub action_plugin_action {
+    my ( $plugin_id, $script, $action_id ) = @_;
+
+    my $full_script = resolve_plugin_script($script);
+    return { ok => 0, error => 'Plugin not found' } unless $full_script;
+
+    my $json = qx($^X \Q$full_script\E --describe 2>/dev/null);
+    my $desc = eval { decode_json($json) }
+        or return { ok => 0, error => 'Cannot describe plugin' };
+
+    my ($action) = grep { $_->{id} eq $action_id } @{ $desc->{actions} // [] };
+    return { ok => 0, error => 'Action not found' } unless $action;
+
+    if ( $action->{link} ) {
+        return { ok => 1, link => $action->{link} };
+    }
+
+    my $output = qx($^X \Q$full_script\E --scan --docroot \Q$DOCROOT\E 2>/dev/null);
+    my $result = eval { decode_json($output) }
+        // { ok => 0, error => 'Action produced no output' };
+
+    return $result;
 }
 
 # --- Helpers ---

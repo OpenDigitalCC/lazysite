@@ -8,6 +8,32 @@ use File::Path qw(make_path);
 use File::Basename qw(dirname);
 use POSIX qw(strftime);
 
+if ( grep { $_ eq '--describe' } @ARGV ) {
+    require JSON::PP;
+    print JSON::PP::encode_json({
+        id          => 'auth',
+        name        => 'Built-in Auth',
+        description => 'Cookie-based authentication with user and group management',
+        version     => '1.0',
+        config_file => '',
+        config_keys => [qw(auth_default auth_redirect auth_header_user
+                           auth_header_name auth_header_email auth_header_groups)],
+        config_schema => [
+            { key => 'auth_default', label => 'Default auth requirement', type => 'select',
+              options => ['none','optional','required'], default => 'none' },
+            { key => 'auth_redirect', label => 'Login page path', type => 'text', default => '/login' },
+            { key => 'auth_header_user', label => 'User header name', type => 'text', default => 'X-Remote-User' },
+            { key => 'auth_header_name', label => 'Display name header', type => 'text', default => 'X-Remote-Name' },
+            { key => 'auth_header_email', label => 'Email header name', type => 'text', default => 'X-Remote-Email' },
+            { key => 'auth_header_groups', label => 'Groups header name', type => 'text', default => 'X-Remote-Groups' },
+        ],
+        actions => [
+            { id => 'manage-users', label => 'Manage users', link => '/editor/users' },
+        ],
+    });
+    exit 0;
+}
+
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";

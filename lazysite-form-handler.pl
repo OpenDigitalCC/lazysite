@@ -11,6 +11,29 @@ use File::Basename qw(dirname);
 use JSON::PP qw(encode_json decode_json);
 use LWP::UserAgent;
 
+if ( grep { $_ eq '--describe' } @ARGV ) {
+    require JSON::PP;
+    print JSON::PP::encode_json({
+        id          => 'form-handler',
+        name        => 'Form Handler',
+        description => 'Receives and dispatches contact form submissions',
+        version     => '1.0',
+        config_file => '',
+        config_schema => [],
+        child_configs => {
+            pattern    => 'lazysite/forms/*.conf',
+            exclude    => ['smtp.conf'],
+            label_from => 'filename',
+            schema     => [
+                { key => 'targets', label => 'Dispatch targets', type => 'textarea',
+                  help => 'YAML list of targets. See forms documentation.' },
+            ],
+        },
+        actions => [],
+    });
+    exit 0;
+}
+
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";

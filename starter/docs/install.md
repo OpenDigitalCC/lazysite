@@ -82,7 +82,7 @@ Copy the starter files to your docroot:
 ```bash
 mkdir -p /var/www/example.com/public_html/lazysite/templates/registries
 mkdir -p /var/www/example.com/public_html/lazysite/themes
-cp starter/lazysite.conf           /var/www/example.com/public_html/lazysite/
+cp starter/lazysite.conf.example   /var/www/example.com/public_html/lazysite/lazysite.conf
 cp starter/registries/*.tt         /var/www/example.com/public_html/lazysite/templates/registries/
 cp starter/404.md                  /var/www/example.com/public_html/
 cp starter/index.md                /var/www/example.com/public_html/

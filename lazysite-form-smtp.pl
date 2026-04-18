@@ -7,6 +7,41 @@ use POSIX qw(strftime);
 use JSON::PP qw(encode_json decode_json);
 use File::Basename qw(dirname);
 
+if ( grep { $_ eq '--describe' } @ARGV ) {
+    require JSON::PP;
+    print JSON::PP::encode_json({
+        id          => 'form-smtp',
+        name        => 'Form SMTP',
+        description => 'Email delivery for contact form submissions',
+        version     => '1.0',
+        config_file => 'lazysite/forms/smtp.conf',
+        config_schema => [
+            { key => 'method', label => 'Send method', type => 'select',
+              options => ['sendmail','localhost','remote'], default => 'sendmail', required => JSON::PP::true() },
+            { key => 'sendmail_path', label => 'Sendmail path', type => 'text',
+              default => '/usr/sbin/sendmail', show_when => { key => 'method', value => ['sendmail'] } },
+            { key => 'host', label => 'SMTP host', type => 'text',
+              show_when => { key => 'method', value => ['localhost','remote'] } },
+            { key => 'port', label => 'SMTP port', type => 'number', default => '587',
+              show_when => { key => 'method', value => ['localhost','remote'] } },
+            { key => 'tls', label => 'TLS', type => 'select',
+              options => ['false','starttls','true'], default => 'starttls',
+              show_when => { key => 'method', value => ['remote'] } },
+            { key => 'auth', label => 'SMTP authentication', type => 'boolean', default => 'false',
+              show_when => { key => 'method', value => ['remote'] } },
+            { key => 'username', label => 'SMTP username', type => 'text',
+              show_when => { key => 'auth', value => ['true','1'] } },
+            { key => 'password_file', label => 'Password file path', type => 'path',
+              show_when => { key => 'auth', value => ['true','1'] } },
+            { key => 'from', label => 'From address', type => 'email', required => JSON::PP::true() },
+            { key => 'to', label => 'Recipient address', type => 'email', required => JSON::PP::true() },
+            { key => 'subject_prefix', label => 'Subject prefix', type => 'text', default => '[Contact] ' },
+        ],
+        actions => [],
+    });
+    exit 0;
+}
+
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";

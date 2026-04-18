@@ -164,7 +164,7 @@ site_name: $DOMAIN
 site_url: \${REQUEST_SCHEME}://$DOMAIN
 CONF
     else
-        install -m 644 "$SCRIPT_DIR/starter/lazysite.conf" "$CONF_FILE"
+        install -m 644 "$SCRIPT_DIR/starter/lazysite.conf.example" "$CONF_FILE"
     fi
 fi
 

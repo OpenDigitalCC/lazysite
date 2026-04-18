@@ -10,6 +10,43 @@ use Cwd qw(realpath);
 use JSON::PP qw(decode_json encode_json);
 use Digest::SHA qw(hmac_sha256_hex);
 
+# --- Plugin descriptor ---
+
+if ( grep { $_ eq '--describe' } @ARGV ) {
+    require JSON::PP;
+    print JSON::PP::encode_json({
+        id          => 'lazysite',
+        name        => 'Site Configuration',
+        description => 'Core lazysite.conf settings: site identity, theme, search, and editor',
+        version     => '1.0',
+        config_file => '',
+        config_keys => [qw(site_name site_url theme nav_file
+                           search_default editor editor_path editor_groups)],
+        config_schema => [
+            { key => 'site_name', label => 'Site name', type => 'text',
+              default => 'My Site', required => JSON::PP::true() },
+            { key => 'site_url', label => 'Site URL', type => 'text',
+              default => '${REQUEST_SCHEME}://${SERVER_NAME}' },
+            { key => 'theme', label => 'Active theme', type => 'text',
+              default => '' },
+            { key => 'nav_file', label => 'Navigation file', type => 'text',
+              default => 'lazysite/nav.conf' },
+            { key => 'search_default', label => 'Pages searchable by default', type => 'select',
+              options => ['true', 'false'], default => 'true' },
+            { key => 'editor', label => 'Editor', type => 'select',
+              options => ['disabled', 'enabled'], default => 'disabled' },
+            { key => 'editor_path', label => 'Editor URL path', type => 'text',
+              default => '/editor',
+              show_when => { key => 'editor', value => ['enabled'] } },
+            { key => 'editor_groups', label => 'Editor access groups', type => 'text',
+              default => '',
+              show_when => { key => 'editor', value => ['enabled'] } },
+        ],
+        actions => [],
+    });
+    exit 0;
+}
+
 # --- Configuration ---
 
 my $DOCROOT     = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
@@ -180,6 +217,12 @@ sub check_auth {
     # Login page always public
     my $redirect_path = $site_vars->{auth_redirect} || '/login';
     return { ok => 1 } if index( $uri, $redirect_path ) == 0;
+
+    # Editor pages have their own access control - skip auth_default
+    my $editor_path = $site_vars->{editor_path} || '/editor';
+    if ( index( $uri, "$editor_path/" ) == 0 || $uri eq $editor_path ) {
+        return { ok => 1 };
+    }
 
     # Convert header names to env var format (X-Remote-User -> HTTP_X_REMOTE_USER)
     my $make_env = sub {
