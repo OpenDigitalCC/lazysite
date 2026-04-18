@@ -408,6 +408,46 @@ sub main {
         return;
     }
 
+    # Editor path enforcement
+    {
+        my %sv = resolve_site_vars();
+        my $editor_enabled = lc( $sv{editor} // 'disabled' );
+        my $editor_path    = $sv{editor_path}   || '/editor';
+        my $editor_groups  = $sv{editor_groups}  || '';
+
+        if ( $uri eq $editor_path || index( $uri, "$editor_path/" ) == 0 ) {
+            if ( $editor_enabled ne 'enabled' ) {
+                forbidden();
+                return;
+            }
+
+            if ( $editor_groups ) {
+                my @required = map { s/^\s+|\s+$//gr }
+                               split /\s*,\s*/, $editor_groups;
+                my $auth_groups_str = $ENV{HTTP_X_REMOTE_GROUPS} // '';
+                my %user_groups = map { lc($_) => 1 }
+                                  split /\s*,\s*/, $auth_groups_str;
+                my $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
+
+                unless ( $auth_user && grep { $user_groups{ lc($_) } } @required ) {
+                    my $redirect = $sv{auth_redirect} || '/login';
+                    binmode( STDOUT, ':utf8' );
+                    print "Status: 302 Found\r\n";
+                    print "Location: $redirect?next=" . uri_encode($uri) . "\r\n\r\n";
+                    return;
+                }
+            }
+
+            # Redirect /editor to /editor/ for directory index
+            if ( $uri eq $editor_path ) {
+                binmode( STDOUT, ':utf8' );
+                print "Status: 302 Found\r\n";
+                print "Location: $editor_path/\r\n\r\n";
+                return;
+            }
+        }
+    }
+
     # Sanitise URI against path traversal
     my $base = sanitise_uri($uri);
     unless ( defined $base ) {

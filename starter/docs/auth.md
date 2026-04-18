@@ -87,14 +87,14 @@ FallbackResource /cgi-bin/lazysite-auth.pl
 ### Create users
 
 ```bash
-perl tools/lazysite-users-lite.pl --docroot /path/to/public_html \
+perl tools/lazysite-users.pl --docroot /path/to/public_html \
   add alice secretpassword
 ```
 
 ### Manage groups
 
 ```bash
-perl tools/lazysite-users-lite.pl --docroot /path/to/public_html \
+perl tools/lazysite-users.pl --docroot /path/to/public_html \
   group-add alice admins
 ```
 

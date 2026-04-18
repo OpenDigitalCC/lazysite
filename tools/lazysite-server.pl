@@ -161,11 +161,18 @@ if ( -d $auth_dir ) {
 
 my $cache_label = $nocache ? 'disabled (pass --cache to enable)' : 'enabled';
 
+my $editor_enabled = 0;
+if ( open my $cfh, '<', "$DOCROOT/lazysite/lazysite.conf" ) {
+    while (<$cfh>) { $editor_enabled = 1 if /^editor\s*:\s*enabled/i }
+    close $cfh;
+}
+
 print "lazysite dev server\n";
 print "  processor: $PROCESSOR\n";
 print "  docroot:   $DOCROOT\n";
 print "  url:       http://localhost:$PORT/\n";
 print "  cache:     $cache_label\n";
+print "  editor:    " . ($editor_enabled ? "enabled" : "disabled") . "\n";
 print "\nPress Ctrl+C to stop.\n\n";
 
 my $server = IO::Socket::INET->new(
@@ -235,22 +242,21 @@ sub handle_request {
 
     # Determine which script to run
     my $script = $PROCESSOR;
-    my $auth_script = abs_path("$SCRIPT_DIR/../lazysite-auth.pl");
+    my $auth_script  = abs_path("$SCRIPT_DIR/../lazysite-auth.pl");
+    my $editor_api   = abs_path("$SCRIPT_DIR/../lazysite-editor-api.pl");
+    my $auth_users   = "$DOCROOT/lazysite/auth/users";
+    my $use_auth     = -f $auth_users && -f $auth_script;
 
-    # Route /cgi-bin/ requests to the appropriate script
-    if ( $uri =~ m{^/cgi-bin/lazysite-auth\.pl} ) {
-        if ( -f $auth_script ) {
-            $script = $auth_script;
-        }
-        else {
-            # Auth script not found
-            print $client "HTTP/1.0 404 Not Found\r\n";
-            print $client "Content-Type: text/plain\r\n";
-            print $client "Connection: close\r\n\r\n";
-            print $client "lazysite-auth.pl not found\n";
-            print "$method $uri -> 404 Not Found (auth script missing)\n";
-            return;
-        }
+    # Route /cgi-bin/ requests to appropriate scripts
+    if ( $uri =~ m{^/cgi-bin/lazysite-editor-api\.pl} ) {
+        $script = $editor_api if -f $editor_api;
+    }
+    elsif ( $uri =~ m{^/cgi-bin/lazysite-auth\.pl} ) {
+        $script = $auth_script if -f $auth_script;
+    }
+    elsif ( $use_auth ) {
+        # Route all page requests through auth wrapper
+        $script = $auth_script;
     }
 
     # Build CGI environment

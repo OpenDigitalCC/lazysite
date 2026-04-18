@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# lazysite-users-lite.pl - user management for lazysite built-in auth
+# lazysite-users.pl - user management for lazysite built-in auth
 use strict;
 use warnings;
 use Digest::SHA qw(sha256_hex);
@@ -7,21 +7,15 @@ use Fcntl qw(:flock);
 use File::Path qw(make_path);
 
 my $DOCROOT;
+my $API_MODE = 0;
 my @args;
 
-# Parse --docroot
 while (@ARGV) {
     my $arg = shift @ARGV;
-    if ( $arg eq '--docroot' ) {
-        $DOCROOT = shift @ARGV;
-    }
-    elsif ( $arg eq '--help' ) {
-        usage();
-        exit 0;
-    }
-    else {
-        push @args, $arg;
-    }
+    if    ( $arg eq '--docroot' ) { $DOCROOT = shift @ARGV }
+    elsif ( $arg eq '--api' )     { $API_MODE = 1 }
+    elsif ( $arg eq '--help' )    { usage(); exit 0 }
+    else                          { push @args, $arg }
 }
 
 unless ($DOCROOT) {
@@ -36,6 +30,66 @@ chmod 0750, $AUTH_DIR;
 
 my $USERS_FILE  = "$AUTH_DIR/users";
 my $GROUPS_FILE = "$AUTH_DIR/groups";
+
+# --- API mode ---
+
+if ( $API_MODE ) {
+    require JSON::PP;
+    JSON::PP->import(qw(encode_json decode_json));
+
+    my $input = do { local $/; <STDIN> };
+    my $req   = eval { decode_json($input // '{}') } or do {
+        print encode_json({ ok => 0, error => "Invalid JSON input" });
+        exit 0;
+    };
+
+    my $action = $req->{action} // '';
+    my $result;
+
+    eval {
+        if    ( $action eq 'add' ) {
+            cmd_add( $req->{username}, $req->{password} );
+            $result = { ok => 1, message => "User added" };
+        }
+        elsif ( $action eq 'passwd' ) {
+            cmd_passwd( $req->{username}, $req->{password} );
+            $result = { ok => 1, message => "Password updated" };
+        }
+        elsif ( $action eq 'remove' ) {
+            cmd_remove( $req->{username} );
+            $result = { ok => 1, message => "User removed" };
+        }
+        elsif ( $action eq 'list' ) {
+            my %users = read_users();
+            $result = { ok => 1, users => [ sort keys %users ] };
+        }
+        elsif ( $action eq 'group-add' ) {
+            cmd_group_add( $req->{username}, $req->{group} );
+            $result = { ok => 1, message => "User added to group" };
+        }
+        elsif ( $action eq 'group-remove' ) {
+            cmd_group_remove( $req->{username}, $req->{group} );
+            $result = { ok => 1, message => "User removed from group" };
+        }
+        elsif ( $action eq 'groups' ) {
+            my %groups = read_groups();
+            $result = { ok => 1, groups => \%groups };
+        }
+        else {
+            $result = { ok => 0, error => "Unknown action: $action" };
+        }
+    };
+    if ($@) {
+        my $err = $@;
+        $err =~ s/\s+$//;
+        $result = { ok => 0, error => $err };
+    }
+
+    print encode_json($result);
+    exit 0;
+}
+
+# --- CLI mode ---
 
 my $cmd = shift @args // '';
 
@@ -56,7 +110,7 @@ else {
 
 sub cmd_add {
     my ( $user, $pass ) = @_;
-    die "Usage: add USERNAME PASSWORD\n" unless $user && $pass;
+    die "Username and password required\n" unless $user && $pass;
     $user =~ s/[^a-zA-Z0-9_.-]//g;
 
     my %users = read_users();
@@ -64,31 +118,30 @@ sub cmd_add {
 
     $users{$user} = sha256_hex($pass);
     write_users(%users);
-    print "User '$user' added.\n";
+    print "User '$user' added.\n" unless $API_MODE;
 }
 
 sub cmd_passwd {
     my ( $user, $pass ) = @_;
-    die "Usage: passwd USERNAME NEWPASSWORD\n" unless $user && $pass;
+    die "Username and password required\n" unless $user && $pass;
 
     my %users = read_users();
     die "User '$user' not found\n" unless $users{$user};
 
     $users{$user} = sha256_hex($pass);
     write_users(%users);
-    print "Password updated for '$user'.\n";
+    print "Password updated for '$user'.\n" unless $API_MODE;
 }
 
 sub cmd_remove {
     my ($user) = @_;
-    die "Usage: remove USERNAME\n" unless $user;
+    die "Username required\n" unless $user;
 
     my %users = read_users();
     die "User '$user' not found\n" unless delete $users{$user};
 
     write_users(%users);
 
-    # Also remove from all groups
     if ( -f $GROUPS_FILE ) {
         my %groups = read_groups();
         for my $g ( keys %groups ) {
@@ -96,8 +149,7 @@ sub cmd_remove {
         }
         write_groups(%groups);
     }
-
-    print "User '$user' removed.\n";
+    print "User '$user' removed.\n" unless $API_MODE;
 }
 
 sub cmd_list {
@@ -112,7 +164,7 @@ sub cmd_list {
 
 sub cmd_group_add {
     my ( $user, $group ) = @_;
-    die "Usage: group-add USERNAME GROUPNAME\n" unless $user && $group;
+    die "Username and group required\n" unless $user && $group;
 
     my %users = read_users();
     die "User '$user' not found\n" unless $users{$user};
@@ -123,19 +175,19 @@ sub cmd_group_add {
         push @{ $groups{$group} }, $user;
     }
     write_groups(%groups);
-    print "User '$user' added to group '$group'.\n";
+    print "User '$user' added to group '$group'.\n" unless $API_MODE;
 }
 
 sub cmd_group_remove {
     my ( $user, $group ) = @_;
-    die "Usage: group-remove USERNAME GROUPNAME\n" unless $user && $group;
+    die "Username and group required\n" unless $user && $group;
 
     my %groups = read_groups();
     die "Group '$group' not found\n" unless $groups{$group};
 
     $groups{$group} = [ grep { $_ ne $user } @{ $groups{$group} } ];
     write_groups(%groups);
-    print "User '$user' removed from group '$group'.\n";
+    print "User '$user' removed from group '$group'.\n" unless $API_MODE;
 }
 
 sub cmd_groups {
@@ -210,9 +262,10 @@ sub write_groups {
 
 sub usage {
     print <<'USAGE';
-lazysite-users-lite.pl - user management for lazysite built-in auth
+lazysite-users.pl - user management for lazysite built-in auth
 
-Usage: perl tools/lazysite-users-lite.pl --docroot PATH COMMAND [ARGS]
+Usage: perl tools/lazysite-users.pl --docroot PATH COMMAND [ARGS]
+       perl tools/lazysite-users.pl --api --docroot PATH < request.json
 
 Commands:
   add USERNAME PASSWORD       Add a new user
@@ -225,6 +278,7 @@ Commands:
 
 Options:
   --docroot PATH              Path to web document root (required)
+  --api                       JSON API mode (read from stdin, write to stdout)
   --help                      Show this help
 USAGE
 }

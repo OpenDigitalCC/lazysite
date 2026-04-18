@@ -57,8 +57,13 @@ fi
 
 # --- Install processor ---
 
-echo "Installing lazysite processor..."
+echo "Installing lazysite scripts..."
 install -m 755 "$SCRIPT_DIR/lazysite-processor.pl" "$CGIBIN/lazysite-processor.pl"
+for script in lazysite-form-handler.pl lazysite-form-smtp.pl lazysite-auth.pl lazysite-editor-api.pl; do
+    if [ -f "$SCRIPT_DIR/$script" ]; then
+        install -m 755 "$SCRIPT_DIR/$script" "$CGIBIN/$script"
+    fi
+done
 
 # --- Create lazysite directory structure ---
 
@@ -150,7 +155,7 @@ fi
 # --- Set permissions ---
 
 echo "Setting permissions..."
-chmod +x "$CGIBIN/lazysite-processor.pl"
+chmod +x "$CGIBIN/"lazysite-*.pl
 chmod g+ws "$DOCROOT"
 
 # --- Check optional dependencies ---

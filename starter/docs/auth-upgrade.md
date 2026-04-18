@@ -54,6 +54,6 @@ After upgrading, these all work identically:
 
 - Login is handled by the external proxy, not `login.md`
 - `lazysite-auth.pl` is no longer in the request path
-- User management moves from `lazysite-users-lite.pl` to the proxy's
+- User management moves from `lazysite-users.pl` to the proxy's
   admin interface
 - Cookie-based sessions are replaced by the proxy's session mechanism
