@@ -49,19 +49,20 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    [% IF page_subtitle %]<meta name="description" content="[% page_subtitle | html %]">[% END %]
     <title>[% page_title %][% IF site_name %]  -  [% site_name %][% END %]</title>
     <style>
         body { font-family: system-ui, sans-serif; max-width: 800px;
                margin: 2rem auto; padding: 0 1rem; color: #333; }
-        .site-bar { display: flex; align-items: center; gap: 1rem;
-                    padding: 0.5rem 0; font-size: 0.85rem; }
+        .site-bar { display: flex; align-items: center; gap: 0.75rem;
+                    padding: 0.5rem 0; font-size: 0.85rem; flex-wrap: wrap; }
         .site-bar a { color: #0066cc; text-decoration: none; font-weight: 600; }
         .site-bar a:hover { text-decoration: underline; }
         .site-bar .edit-btn { font-size: 0.8rem; padding: 0.15rem 0.5rem;
                border: 1px solid #ccc; border-radius: 3px; background: #f9f9f9;
-               color: #555; text-decoration: none; cursor: pointer; }
+               color: #555; text-decoration: none; cursor: pointer; font-weight: 400; }
         .site-bar .edit-btn:hover { background: #eee; color: #333; }
-        .site-bar form { margin-left: auto; display: flex; gap: 0.3rem; }
+        .site-bar form { display: flex; gap: 0.3rem; }
         .site-bar input[type="search"] { padding: 0.2rem 0.4rem; font-size: 0.8rem;
                border: 1px solid #ccc; border-radius: 3px; width: 140px; }
         .site-bar button { padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: pointer; }
@@ -78,6 +79,12 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 <div class="site-bar" id="site-bar">
     <a href="/">[% IF site_name %][% site_name %][% ELSE %]Home[% END %]</a>
     [% IF editor == 'enabled' && page_source %]<a href="/editor/edit?path=[% page_source %]" class="edit-btn" title="Edit this page">Edit</a>[% END %]
+    [% IF authenticated %]
+    <span style="font-size:0.8rem;color:#888;margin-left:auto;">[% auth_name || auth_user %]</span>
+    <a href="/logout" style="font-size:0.8rem;color:#888;font-weight:400;">Sign out</a>
+    [% ELSE %]
+    <a href="/login" style="font-size:0.8rem;margin-left:auto;font-weight:400;">Sign in</a>
+    [% END %]
     <form action="/search-results" method="get">
         <input type="search" name="q" placeholder="Search..." aria-label="Search">
         <button type="submit">Go</button>
@@ -85,12 +92,29 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 </div>
 <hr class="site-rule" id="site-rule">
 <script>if(window!==window.top){var b=document.getElementById('site-bar');var r=document.getElementById('site-rule');if(b)b.style.display='none';if(r)r.style.display='none';}</script>
+[% IF nav.size %]
+<nav style="margin-bottom:1.5rem;padding-bottom:0.75rem;border-bottom:1px solid #eee;font-size:0.9rem;">
+  [% FOREACH item IN nav %]
+    [% IF item.url %]
+    <a href="[% item.url %]" style="margin-right:1rem;color:#0066cc;text-decoration:none;"[% IF request_uri == item.url %] aria-current="page" style="margin-right:1rem;color:#0066cc;text-decoration:none;font-weight:600;"[% END %]>[% item.label %]</a>
+    [% ELSE %]
+    <span style="margin-right:0.5rem;color:#888;font-size:0.85rem;">[% item.label %]</span>
+    [% END %]
+    [% FOREACH child IN item.children %]
+    <a href="[% child.url %]" style="margin-right:0.75rem;color:#0066cc;text-decoration:none;font-size:0.85rem;"[% IF request_uri == child.url %] aria-current="page"[% END %]>[% child.label %]</a>
+    [% END %]
+  [% END %]
+</nav>
+[% END %]
 <main>
     <h1>[% page_title %]</h1>
     [% IF page_subtitle %]<p>[% page_subtitle %]</p>[% END %]
     [% content %]
 </main>
 <footer>
+    [% IF page_modified %]
+    <p style="font-size:0.8rem;color:#aaa;">Last updated: <time datetime="[% page_modified_iso %]">[% page_modified %]</time></p>
+    [% END %]
     <p>Rendered by <a href="https://lazysite.io">lazysite</a>
     [% IF site_name %]- [% site_name %][% END %]
     - no view.tt found, using built-in fallback</p>
