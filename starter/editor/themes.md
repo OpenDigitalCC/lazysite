@@ -13,6 +13,7 @@ query_params:
 .editor-nav { margin-bottom: 16px; }
 .editor-nav a { margin-right: 16px; color: #07c; text-decoration: none; font-size: 14px; }
 .editor-nav a:hover { text-decoration: underline; }
+.editor-nav a.active { font-weight: 600; color: #333; border-bottom: 2px solid #07c; }
 .theme-list { border: 1px solid #ccc; border-radius: 4px; margin-bottom: 16px; }
 .theme-item { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid #eee; gap: 8px; }
 .theme-item:last-child { border-bottom: none; }
@@ -30,9 +31,9 @@ query_params:
 
 <div class="themes-wrap" id="app">
 
-<div class="editor-nav">
+<nav class="editor-nav">
 <a href="/editor/">Files</a>
-<a href="/editor/themes">Themes</a>
+<a href="/editor/themes" class="active">Themes</a>
 <a href="/editor/users">Users</a>
 <a href="/editor/cache">Cache</a>
 </div>

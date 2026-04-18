@@ -25,6 +25,7 @@ search: false
 .editor-nav { margin-bottom: 16px; }
 .editor-nav a { margin-right: 16px; color: #07c; text-decoration: none; font-size: 14px; }
 .editor-nav a:hover { text-decoration: underline; }
+.editor-nav a.active { font-weight: 600; color: #333; border-bottom: 2px solid #07c; }
 .status-msg { padding: 8px; margin-bottom: 8px; border-radius: 4px; font-size: 14px; }
 .status-msg.error { background: #fee; color: #c00; }
 .status-msg.ok { background: #efe; color: #060; }
@@ -33,18 +34,19 @@ search: false
 
 <div class="editor-wrap" id="app">
 
-<div class="editor-nav">
-<a href="/editor/">Files</a>
+<nav class="editor-nav">
+<a href="/editor/" class="active">Files</a>
 <a href="/editor/themes">Themes</a>
 <a href="/editor/users">Users</a>
 <a href="/editor/cache">Cache</a>
-</div>
+</nav>
 
 <div id="status"></div>
 
 <div class="breadcrumb" id="breadcrumb"></div>
 
 <div class="editor-toolbar">
+<input type="search" id="file-filter" placeholder="Filter files..." oninput="filterFiles(this.value)" style="flex:1;padding:4px 8px;border:1px solid #ccc;border-radius:3px;font-size:13px;">
 <button onclick="newFile()">New File</button>
 <button onclick="newFolder()">New Folder</button>
 </div>
@@ -105,7 +107,7 @@ function renderFiles(files) {
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
     var icon = f.type === 'dir' ? '&#128193;' : '&#128196;';
-    html += '<div class="file-item">';
+    html += '<div class="file-item" data-name="' + escHtml(f.name) + '">';
     html += '<span class="icon">' + icon + '</span>';
     if (f.type === 'dir') {
       html += '<span class="name"><a href="#" onclick="loadDir(\'' + escHtml(f.path) + '/\'); return false;">' + escHtml(f.name) + '/</a></span>';
@@ -116,7 +118,7 @@ function renderFiles(files) {
       html += '<span class="meta">' + formatSize(f.size) + '</span>';
     }
     if (f.mtime) {
-      html += '<span class="meta">' + f.mtime + '</span>';
+      html += '<span class="meta">' + relativeTime(f.mtime) + '</span>';
     }
     html += '<span class="actions"><button onclick="deleteItem(\'' + escHtml(f.path) + '\', \'' + f.type + '\')">Delete</button></span>';
     html += '</div>';
@@ -126,6 +128,23 @@ function renderFiles(files) {
 
 function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function relativeTime(mtime) {
+  var diff = Math.floor(Date.now() / 1000) - mtime;
+  if (diff < 60)    return 'just now';
+  if (diff < 3600)  return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+function filterFiles(query) {
+  var items = document.querySelectorAll('.file-item');
+  query = query.toLowerCase();
+  for (var i = 0; i < items.length; i++) {
+    var name = items[i].getAttribute('data-name') || '';
+    items[i].style.display = name.toLowerCase().indexOf(query) >= 0 ? '' : 'none';
+  }
 }
 
 function formatSize(bytes) {

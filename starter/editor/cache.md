@@ -10,6 +10,7 @@ search: false
 .editor-nav { margin-bottom: 16px; }
 .editor-nav a { margin-right: 16px; color: #07c; text-decoration: none; font-size: 14px; }
 .editor-nav a:hover { text-decoration: underline; }
+.editor-nav a.active { font-weight: 600; color: #333; border-bottom: 2px solid #07c; }
 .cache-toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
 .cache-toolbar button { padding: 4px 14px; cursor: pointer; }
 .cache-stats { font-size: 13px; color: #666; margin-bottom: 12px; }
@@ -31,11 +32,11 @@ search: false
 
 <div class="cache-wrap" id="app">
 
-<div class="editor-nav">
+<nav class="editor-nav">
 <a href="/editor/">Files</a>
 <a href="/editor/themes">Themes</a>
 <a href="/editor/users">Users</a>
-<a href="/editor/cache">Cache</a>
+<a href="/editor/cache" class="active">Cache</a>
 </div>
 
 <div id="status"></div>

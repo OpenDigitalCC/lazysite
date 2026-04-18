@@ -10,6 +10,7 @@ search: false
 .editor-nav { margin-bottom: 16px; }
 .editor-nav a { margin-right: 16px; color: #07c; text-decoration: none; font-size: 14px; }
 .editor-nav a:hover { text-decoration: underline; }
+.editor-nav a.active { font-weight: 600; color: #333; border-bottom: 2px solid #07c; }
 .section { border: 1px solid #ccc; border-radius: 4px; padding: 12px; margin-bottom: 16px; background: #f8f8f8; }
 .section h3 { margin: 0 0 10px 0; font-size: 15px; }
 .form-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
@@ -30,10 +31,10 @@ search: false
 
 <div class="users-wrap" id="app">
 
-<div class="editor-nav">
+<nav class="editor-nav">
 <a href="/editor/">Files</a>
 <a href="/editor/themes">Themes</a>
-<a href="/editor/users">Users</a>
+<a href="/editor/users" class="active">Users</a>
 <a href="/editor/cache">Cache</a>
 </div>
 

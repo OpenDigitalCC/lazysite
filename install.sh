@@ -94,6 +94,22 @@ if [ -d "$SCRIPT_DIR/starter/docs" ]; then
     done
 fi
 
+# Install editor pages and assets
+if [ -d "$SCRIPT_DIR/starter/editor" ]; then
+    mkdir -p "$DOCROOT/editor/assets/cm"
+    for page in "$SCRIPT_DIR/starter/editor/"*.md; do
+        [ -f "$page" ] || continue
+        dest="$DOCROOT/editor/$(basename "$page")"
+        if [ ! -f "$dest" ]; then
+            install -m 644 "$page" "$dest"
+        fi
+    done
+    if [ -d "$SCRIPT_DIR/starter/editor/assets/cm" ]; then
+        cp -r "$SCRIPT_DIR/starter/editor/assets/cm/"* \
+            "$DOCROOT/editor/assets/cm/" 2>/dev/null
+    fi
+fi
+
 # Install registry templates
 for tmpl in "$SCRIPT_DIR/starter/registries/"*.tt; do
     [ -f "$tmpl" ] || continue
