@@ -44,6 +44,11 @@ search: false
 <span class="mg-card-title">Groups</span>
 </div>
 <div class="mg-card-body" id="groups-info">Loading...</div>
+<div class="mg-card-body mg-new-group-row">
+<label for="new-group-name">New group name:</label>
+<input type="text" id="new-group-name" placeholder="group name">
+<button class="mg-btn mg-btn-outline" onclick="createGroup()">Create</button>
+</div>
 </div>
 
 <script>
@@ -109,13 +114,111 @@ function renderGroups(groups) {
     el.innerHTML = '<span class="mg-empty">No groups defined.</span>';
     return;
   }
-  var html = '<table class="mg-table"><thead><tr><th>Group</th><th>Members</th></tr></thead><tbody>';
+  var html = '<table class="mg-table"><thead><tr><th>Group</th><th>Members</th><th>Actions</th></tr></thead><tbody>';
   keys.sort().forEach(function(g) {
     var members = Array.isArray(groups[g]) ? groups[g] : [];
-    html += '<tr><td><strong>' + escHtml(g) + '</strong></td><td>' + members.map(escHtml).join(', ') + '</td></tr>';
+    var memberHtml = members.map(function(m) {
+      return '<span class="mg-group-member">' + escHtml(m) +
+        ' <button class="mg-chip-remove" title="Remove ' + escHtml(m) + ' from ' + escHtml(g) + '" ' +
+        'onclick="removeGroupMember(\'' + escHtml(m) + '\',\'' + escHtml(g) + '\')">&times;</button></span>';
+    }).join(' ');
+    html += '<tr data-group="' + escHtml(g) + '">';
+    html += '<td><strong>' + escHtml(g) + '</strong></td>';
+    html += '<td>' + (memberHtml || '<span class="mg-empty">&mdash;</span>') + '</td>';
+    html += '<td class="mg-group-actions">';
+    html += '<button class="mg-btn mg-btn-sm" onclick="showAddMember(\'' + escHtml(g) + '\')">Add user</button> ';
+    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteGroup(\'' + escHtml(g) + '\')">Delete</button>';
+    html += '</td>';
+    html += '</tr>';
+    html += '<tr class="mg-add-member-row" data-add-for="' + escHtml(g) + '" style="display:none">';
+    html += '<td colspan="3">';
+    html += '<input type="text" class="mg-add-member-input" placeholder="username" ' +
+      'onkeydown="if(event.key===\'Enter\')confirmAddMember(\'' + escHtml(g) + '\')"> ';
+    html += '<button class="mg-btn mg-btn-sm mg-btn-outline" onclick="confirmAddMember(\'' + escHtml(g) + '\')">Confirm</button> ';
+    html += '<button class="mg-btn mg-btn-sm" onclick="hideAddMember(\'' + escHtml(g) + '\')">Cancel</button>';
+    html += '</td></tr>';
   });
   html += '</tbody></table>';
   el.innerHTML = html;
+}
+
+function showAddMember(group) {
+  var row = document.querySelector('tr.mg-add-member-row[data-add-for="' + group + '"]');
+  if (!row) return;
+  row.style.display = '';
+  var input = row.querySelector('input');
+  if (input) { input.value = ''; input.focus(); }
+}
+
+function hideAddMember(group) {
+  var row = document.querySelector('tr.mg-add-member-row[data-add-for="' + group + '"]');
+  if (row) row.style.display = 'none';
+}
+
+function confirmAddMember(group) {
+  var row = document.querySelector('tr.mg-add-member-row[data-add-for="' + group + '"]');
+  if (!row) return;
+  var input = row.querySelector('input');
+  var username = (input.value || '').trim();
+  if (!username) { showStatus('Username required.', true); return; }
+  apiCall({ action: 'group-add', username: username, group: group })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus('Added "' + username + '" to "' + group + '".');
+      loadUsers();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+function removeGroupMember(username, group) {
+  if (!confirm('Remove "' + username + '" from group "' + group + '"?')) return;
+  apiCall({ action: 'group-remove', username: username, group: group })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus('Removed "' + username + '" from "' + group + '".');
+      loadUsers();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+function deleteGroup(group) {
+  apiCall({ action: 'groups' }).then(function(data) {
+    if (!data.ok) { showStatus(data.error, true); return; }
+    var members = (data.groups && Array.isArray(data.groups[group])) ? data.groups[group] : [];
+    var prompt = members.length
+      ? 'Delete group "' + group + '"? This will remove ' + members.length + ' member' +
+        (members.length === 1 ? '' : 's') + ' from it.'
+      : 'Delete group "' + group + '"?';
+    if (!confirm(prompt)) return;
+    if (!members.length) { showStatus('Group "' + group + '" already empty.', false); loadUsers(); return; }
+    var calls = members.map(function(u) {
+      return apiCall({ action: 'group-remove', username: u, group: group });
+    });
+    Promise.all(calls).then(function(results) {
+      var failed = results.filter(function(r) { return !r.ok; });
+      if (failed.length) { showStatus('Some removals failed: ' + failed[0].error, true); }
+      else { showStatus('Group "' + group + '" deleted.'); }
+      loadUsers();
+    }).catch(function(e) { showStatus('Error: ' + e.message, true); loadUsers(); });
+  });
+}
+
+function createGroup() {
+  var input = document.getElementById('new-group-name');
+  var group = (input.value || '').trim();
+  if (!group) { showStatus('Group name required.', true); return; }
+  var username = prompt('First member username for group "' + group + '":');
+  if (!username) return;
+  username = username.trim();
+  if (!username) return;
+  apiCall({ action: 'group-add', username: username, group: group })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus('Group "' + group + '" created with member "' + username + '".');
+      input.value = '';
+      loadUsers();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function addUser() {
@@ -160,3 +263,32 @@ function removeUser(username) {
 
 loadUsers();
 </script>
+
+<style>
+.mg-group-member {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  margin: 0.125rem 0.25rem 0.125rem 0;
+  background: var(--mg-bg-muted, #f0f0f0);
+  border-radius: 3px;
+  font-size: 0.875rem;
+}
+.mg-chip-remove {
+  border: none;
+  background: transparent;
+  color: var(--mg-text-muted, #888);
+  cursor: pointer;
+  padding: 0 0.125rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+.mg-chip-remove:hover { color: var(--mg-danger, #c00); }
+.mg-group-actions { white-space: nowrap; }
+.mg-add-member-row td { background: var(--mg-bg-muted, #fafafa); }
+.mg-new-group-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-top: 1px solid var(--mg-border, #e5e5e5);
+}
+</style>

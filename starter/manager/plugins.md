@@ -19,57 +19,80 @@ function val(id) { var el = document.getElementById(id); return el ? el.value : 
 
 function shouldRenderPlugin(plugin, allPlugins) {
   if (plugin.id === 'form-smtp') {
-    return !allPlugins.some(function(p) { return p.id === 'form-handler'; });
+    return !allPlugins.some(function(p) { return p.id === 'form-handler' && p._enabled; });
   }
   return true;
 }
 
 function loadPlugins() {
-  document.getElementById('plugin-list').textContent = 'Loading...';
+  document.getElementById('plugin-list').textContent = 'Scanning...';
   fetch(API + '?action=plugin-list')
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      var childPlugins = [];
-      window._plugins = data.plugins || [];
-      if (!data.ok || !data.plugins || !data.plugins.length) {
-        document.getElementById('plugin-list').innerHTML =
-          '<p>No plugins configured. Add scripts to <code>plugins:</code> in lazysite.conf.</p>';
+      if (!data.ok) {
+        document.getElementById('plugin-list').textContent = data.error || 'Failed to load plugins';
         return;
       }
-
-      smtpPlugin = data.plugins.find(function(p) { return p.id === 'form-smtp'; });
-
-      var html = '';
-      data.plugins.forEach(function(p) {
-        if (!shouldRenderPlugin(p, data.plugins)) return;
-        html += '<div class="mg-plugin-card" id="plugin-' + p.id + '">';
-        html += '<div class="mg-plugin-title">' + esc(p.name) + '</div>';
-        html += '<div class="mg-plugin-desc">' + esc(p.description) + '</div>';
-        if (p.actions && p.actions.length) {
-          html += '<div class="mg-wizard-actions">';
-          p.actions.forEach(function(a, ai) {
-            if (a.link) {
-              html += '<a href="' + a.link + '">' + esc(a.label) + '</a>';
-            } else {
-              html += '<button onclick="(function(){var p=window._plugins.find(function(x){return x.id===\'' + p.id + '\'});runAction(p,p.actions[' + ai + '])})()">' + esc(a.label) + '</button>';
-            }
-          });
-          html += '</div>';
-        }
-        if (p.config_schema && p.config_schema.length) {
-          html += '<button class="mg-btn" onclick="loadConfig(window._plugins.find(function(x){return x.id===\'' + p.id + '\'}))">Configure</button>';
-          html += '<div class="mg-card-body" id="config-' + p.id + '" style="display:none"></div>';
-        }
-        if (p.child_configs) {
-          html += '<div class="mg-card-body" id="children-' + p.id + '">Loading...</div>';
-          childPlugins.push(p);
-        }
-        html += '<div class="mg-status" id="status-' + p.id + '"></div>';
-        html += '</div>';
-      });
-      document.getElementById('plugin-list').innerHTML = html;
-      childPlugins.forEach(function(p) { loadChildConfigs(p); });
+      window._plugins = data.plugins || [];
+      renderPlugins(data.plugins || []);
     });
+}
+
+function renderPlugins(plugins) {
+  var enabled = (plugins || []).filter(function(p) { return p._enabled; });
+
+  if (!enabled.length) {
+    document.getElementById('plugin-list').innerHTML =
+      '<p class="mg-empty">No plugins enabled. Visit <a href="/manager/config">Configuration</a> to enable plugins.</p>';
+    return;
+  }
+
+  var html = '';
+  var childPlugins = [];
+
+  enabled.forEach(function(p) {
+    if (!shouldRenderPlugin(p, plugins)) return;
+    html += renderPluginCard(p);
+    if (p.child_configs) childPlugins.push(p);
+  });
+
+  document.getElementById('plugin-list').innerHTML = html;
+  childPlugins.forEach(function(p) { loadChildConfigs(p); });
+
+  // Initialise handler section if form-handler is enabled
+  var fhPlugin = plugins.find(function(p) { return p.id === 'form-handler' && p._enabled; });
+  if (fhPlugin) {
+    handlerTypes = fhPlugin.handler_types || [];
+    smtpPlugin = plugins.find(function(p) { return p.id === 'form-smtp' && p._enabled; });
+    loadHandlers();
+  }
+}
+
+function renderPluginCard(plugin) {
+  var html = '<div class="mg-plugin-card" id="plugin-' + esc(plugin.id) + '">';
+  html += '<div class="mg-plugin-title">' + esc(plugin.name) + '</div>';
+  html += '<div class="mg-plugin-desc">' + esc(plugin.description) + '</div>';
+  if (plugin.actions && plugin.actions.length) {
+    html += '<div class="mg-wizard-actions">';
+    plugin.actions.forEach(function(a, ai) {
+      if (a.link) {
+        html += '<a href="' + a.link + '">' + esc(a.label) + '</a>';
+      } else {
+        html += '<button onclick="(function(){var p=window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'});runAction(p,p.actions[' + ai + '])})()">' + esc(a.label) + '</button>';
+      }
+    });
+    html += '</div>';
+  }
+  if (plugin.config_schema && plugin.config_schema.length) {
+    html += '<button class="mg-btn" onclick="loadConfig(window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'}))">Configure</button>';
+    html += '<div class="mg-card-body" id="config-' + plugin.id + '" style="display:none"></div>';
+  }
+  if (plugin.child_configs) {
+    html += '<div class="mg-card-body" id="children-' + plugin.id + '">Loading...</div>';
+  }
+  html += '<div class="mg-status" id="status-' + esc(plugin.id) + '"></div>';
+  html += '</div>';
+  return html;
 }
 
 // --- Generic plugin config ---

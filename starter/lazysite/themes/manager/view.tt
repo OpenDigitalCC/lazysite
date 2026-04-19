@@ -13,7 +13,11 @@
     <a href="/" class="mg-brand">[% site_name || 'Site' %]</a>
     <nav class="mg-nav" aria-label="Manager navigation">
       <a href="/manager"
-         [% IF request_uri == '/manager' || request_uri == '/manager/' %]
+         [% IF request_uri == '/manager' || request_uri == '/manager/' || request_uri.match('^/manager/config') %]
+         class="active" aria-current="page"
+         [% END %]>Config</a>
+      <a href="/manager/files"
+         [% IF request_uri.match('^/manager/files') %]
          class="active" aria-current="page"
          [% END %]>Files</a>
       <a href="/manager/nav"

@@ -789,6 +789,11 @@
     margin-bottom: 0.6rem;
 }
 
+.mg-plugin-disabled {
+    opacity: 0.75;
+    border-style: dashed;
+}
+
 .mg-handler-group {
     border: 1px solid var(--mg-border);
     border-radius: var(--mg-radius-lg);

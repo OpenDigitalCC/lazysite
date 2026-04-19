@@ -30,7 +30,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             { key => 'auth_header_groups', label => 'Groups header name', type => 'text', default => 'X-Remote-Groups' },
         ],
         actions => [
-            { id => 'manage-users', label => 'Manage users', link => '/editor/users' },
+            { id => 'manage-users', label => 'Manage users', link => '/manager/users' },
         ],
     });
     exit 0;

@@ -90,6 +90,14 @@ elsif ( $action eq 'theme-rename' )     {
 elsif ( $action eq 'theme-upload' )     { $result = action_theme_upload( $body, $params{filename} ) }
 elsif ( $action eq 'users' )            { $result = action_users($body) }
 elsif ( $action eq 'plugin-list' )      { $result = action_plugin_list() }
+elsif ( $action eq 'plugin-enable' )    {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_plugin_enable($req->{script});
+}
+elsif ( $action eq 'plugin-disable' )   {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_plugin_disable($req->{script});
+}
 elsif ( $action eq 'plugin-read' )      {
     my $req = eval { decode_json($body) } // {};
     $result = action_plugin_read( $params{plugin}, $req->{script} );
@@ -767,40 +775,156 @@ sub action_nav_save {
 }
 
 sub action_plugin_list {
-    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
-    my @plugin_scripts;
+    my $cache_file = "$DOCROOT/lazysite/cache/plugin-list.cache";
+    if ( -f $cache_file && (time() - (stat($cache_file))[9]) < 60 ) {
+        open my $fh, '<', $cache_file or return { ok=>0, error=>"cache read failed" };
+        my $data = do { local $/; <$fh> }; close $fh;
+        my $parsed = eval { decode_json($data) };
+        return $parsed if $parsed && $parsed->{ok};
+    }
 
+    my %enabled;
+    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
     if ( open my $fh, '<:utf8', $conf_path ) {
         my $in_plugins = 0;
         while (<$fh>) {
             chomp;
-            if ( /^plugins\s*:\s*$/ ) { $in_plugins = 1; next }
-            if ( $in_plugins && /^\s+-\s+(.+)$/ ) {
-                my $s = $1;
-                $s =~ s/^\s+|\s+$//g;
-                push @plugin_scripts, $s;
+            if (/^plugins\s*:\s*$/) { $in_plugins = 1; next }
+            if ($in_plugins && /^\s+-\s+(.+)$/) {
+                my $entry = $1;
+                $entry =~ s/\s+$//;
+                $enabled{$entry} = 1;
             }
-            elsif ( $in_plugins && !/^\s/ ) { $in_plugins = 0 }
+            elsif ($in_plugins && !/^\s/) { $in_plugins = 0 }
         }
         close $fh;
     }
 
-    my @plugins;
-    for my $script (@plugin_scripts) {
-        my $full = resolve_plugin_script($script);
-        next unless $full;
+    my @CANDIDATES = (
+        'lazysite-auth.pl',
+        'lazysite-form-handler.pl',
+        'lazysite-form-smtp.pl',
+        'lazysite-payment-demo.pl',
+        'lazysite-log.pl',
+        'tools/lazysite-audit.pl',
+    );
 
-        my $json = qx($^X \Q$full\E --describe 2>/dev/null);
-        next unless $json;
+    my $base = Cwd::realpath("$DOCROOT/..");
+    my @plugins;
+
+    for my $rel ( @CANDIDATES ) {
+        my $full = "$base/$rel";
+        next unless -f $full && -r $full;
+
+        local $SIG{ALRM} = sub { die "timeout\n" };
+        alarm(2);
+        my $json = eval { qx($^X \Q$full\E --describe 2>/dev/null) };
+        alarm(0);
+        next if $@ || !$json;
 
         my $desc = eval { decode_json($json) };
-        next unless $desc && ref $desc eq 'HASH';
+        next unless $desc && ref $desc eq 'HASH' && $desc->{id};
 
-        $desc->{_script} = $script;
+        $desc->{_script}  = $rel;
+        $desc->{_enabled} = $enabled{$rel} ? JSON::PP::true : JSON::PP::false;
+
         push @plugins, $desc;
     }
 
+    @plugins = sort {
+        ($b->{_enabled} ? 1 : 0) <=> ($a->{_enabled} ? 1 : 0)
+            || ($a->{name} // '') cmp ($b->{name} // '')
+    } @plugins;
+
+    my $cache_dir = dirname($cache_file);
+    make_path($cache_dir) unless -d $cache_dir;
+    if ( open my $fh, '>', $cache_file ) {
+        print $fh encode_json({ ok => 1, plugins => \@plugins });
+        close $fh;
+    }
+
     return { ok => 1, plugins => \@plugins };
+}
+
+sub action_plugin_enable {
+    my ($script) = @_;
+    $script =~ s/[^a-zA-Z0-9_.\/\-]//g;
+    return { ok => 0, error => 'No script' } unless $script;
+    return _update_plugins_conf($script, 'add');
+}
+
+sub action_plugin_disable {
+    my ($script) = @_;
+    $script =~ s/[^a-zA-Z0-9_.\/\-]//g;
+    return { ok => 0, error => 'No script' } unless $script;
+    return _update_plugins_conf($script, 'remove');
+}
+
+sub _update_plugins_conf {
+    my ($script, $op) = @_;
+
+    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    open my $fh, '<:utf8', $conf_path
+        or return { ok => 0, error => "Cannot read lazysite.conf" };
+    my $conf = do { local $/; <$fh> };
+    close $fh;
+
+    my @lines   = split /\n/, $conf;
+    my @plugins;
+    my $in_plugins = 0;
+    my $found_block = 0;
+    my @before;
+    my @after;
+    my $phase = 'before';
+
+    for my $line (@lines) {
+        if ( $line =~ /^plugins\s*:\s*$/ ) {
+            $in_plugins = 1;
+            $found_block = 1;
+            $phase = 'plugins';
+            next;
+        }
+        if ( $in_plugins ) {
+            if ( $line =~ /^\s+-\s+(.+)$/ ) {
+                my $entry = $1;
+                $entry =~ s/\s+$//;
+                push @plugins, $entry;
+                next;
+            }
+            elsif ( $line !~ /^\s/ ) {
+                $in_plugins = 0;
+                $phase = 'after';
+            }
+            else { next }
+        }
+        if    ( $phase eq 'before' ) { push @before, $line }
+        elsif ( $phase eq 'after' )  { push @after, $line }
+    }
+
+    if ( $op eq 'add' ) {
+        push @plugins, $script unless grep { $_ eq $script } @plugins;
+    }
+    elsif ( $op eq 'remove' ) {
+        @plugins = grep { $_ ne $script } @plugins;
+    }
+
+    my $new_conf = join("\n", @before);
+    if ( @plugins ) {
+        $new_conf .= "\nplugins:\n";
+        $new_conf .= "  - $_\n" for @plugins;
+    }
+    $new_conf .= join("\n", @after) if @after;
+    $new_conf =~ s/\n{3,}/\n\n/g;
+    $new_conf .= "\n" unless $new_conf =~ /\n$/;
+
+    open my $out, '>:utf8', $conf_path
+        or return { ok => 0, error => "Cannot write lazysite.conf" };
+    print $out $new_conf;
+    close $out;
+
+    unlink "$DOCROOT/lazysite/cache/plugin-list.cache";
+
+    return { ok => 1, action => $op, script => $script };
 }
 
 sub action_plugin_read {

@@ -7,11 +7,10 @@ site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
 manager: enabled
 manager_path: /manager
 
-# Plugins - scripts that integrate with the manager plugin system
-plugins:
-  - cgi-bin/lazysite-processor.pl
-  - tools/lazysite-audit.pl
-  - cgi-bin/lazysite-form-smtp.pl
-  - cgi-bin/lazysite-form-handler.pl
-  - cgi-bin/lazysite-auth.pl
-  - lazysite-log.pl
+# Plugins are auto-discovered from cgi-bin/ and tools/.
+# Scripts with --describe support appear in the manager.
+# Use the manager Plugins page to enable or disable them.
+# To pre-enable plugins without using the manager:
+# plugins:
+#   - cgi-bin/lazysite-form-smtp.pl
+#   - tools/lazysite-audit.pl
