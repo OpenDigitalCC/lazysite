@@ -60,22 +60,34 @@ function renderNav() {
   }
   var html = '';
   navItems.forEach(function(item, idx) {
+    html += '<div class="nav-drop-zone" data-before="' + idx + '"'
+      + ' ondragover="onDropZoneOver(event,' + idx + ')"'
+      + ' ondragleave="onDropZoneLeave(event)"'
+      + ' ondrop="onDropZoneDrop(event,' + idx + ')"></div>';
+
     var isChild = item.indent > 0;
     html += '<div class="mg-nav-item' + (isChild ? ' child' : '') + '"'
       + ' draggable="true"'
       + ' data-idx="' + idx + '"'
       + ' ondragstart="onDragStart(event,' + idx + ')"'
-      + ' ondragover="onDragOver(event)"'
-      + ' ondrop="onDrop(event,' + idx + ')"'
-      + ' ondragend="onDragEnd(event)"'
-      + ' ondragleave="onDragLeave(event)">';
+      + ' ondragend="onDragEnd(event)">';
     html += '<span class="mg-nav-handle" title="Drag to reorder">&#9776;</span>';
+    var canOutdent = item.indent > 0;
+    var canIndent  = idx > 0 && item.indent < 1 && navItems[idx - 1].indent === 0;
+    html += '<button onclick="outdentItem(' + idx + ')" class="mg-btn mg-btn-sm" title="Outdent"'
+      + (canOutdent ? '' : ' disabled') + '>&#8592;</button>';
+    html += '<button onclick="indentItem(' + idx + ')" class="mg-btn mg-btn-sm" title="Indent"'
+      + (canIndent ? '' : ' disabled') + '>&#8594;</button>';
     html += '<span class="mg-nav-label">' + esc(item.label) + '</span>';
     html += '<span class="mg-nav-url">' + (item.url ? esc(item.url) : '<em>group</em>') + '</span>';
     html += '<button onclick="editItem(' + idx + ')" class="mg-btn mg-btn-sm" title="Edit">&#9998;</button>';
     html += '<button onclick="removeItem(' + idx + ')" class="mg-btn mg-btn-sm mg-btn-danger" title="Remove">&times;</button>';
     html += '</div>';
   });
+  html += '<div class="nav-drop-zone" data-before="' + navItems.length + '"'
+    + ' ondragover="onDropZoneOver(event,' + navItems.length + ')"'
+    + ' ondragleave="onDropZoneLeave(event)"'
+    + ' ondrop="onDropZoneDrop(event,' + navItems.length + ')"></div>';
   list.innerHTML = html;
 }
 
@@ -86,30 +98,31 @@ function onDragStart(e, idx) {
   e.currentTarget.classList.add('dragging');
 }
 
-function onDragOver(e) {
+function onDropZoneOver(e, idx) {
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
-  e.currentTarget.classList.add('drag-over');
+  e.currentTarget.classList.add('drop-active');
 }
 
-function onDragLeave(e) {
-  e.currentTarget.classList.remove('drag-over');
+function onDropZoneLeave(e) {
+  e.currentTarget.classList.remove('drop-active');
 }
 
-function onDrop(e, toIdx) {
+function onDropZoneDrop(e, beforeIdx) {
   e.preventDefault();
-  e.currentTarget.classList.remove('drag-over');
-  if (dragSrcIdx === null || dragSrcIdx === toIdx) return;
+  e.currentTarget.classList.remove('drop-active');
+  if (dragSrcIdx === null) return;
   var moved = navItems.splice(dragSrcIdx, 1)[0];
-  navItems.splice(toIdx, 0, moved);
+  var insertAt = beforeIdx > dragSrcIdx ? beforeIdx - 1 : beforeIdx;
+  navItems.splice(insertAt, 0, moved);
   dragSrcIdx = null;
   renderNav();
 }
 
 function onDragEnd(e) {
   e.currentTarget.classList.remove('dragging');
-  document.querySelectorAll('.mg-nav-item').forEach(function(el) {
-    el.classList.remove('drag-over');
+  document.querySelectorAll('.nav-drop-zone').forEach(function(el) {
+    el.classList.remove('drop-active');
   });
   dragSrcIdx = null;
 }
@@ -158,6 +171,22 @@ function editItem(idx) {
   item.label = newLabel;
   item.url = newUrl;
   renderNav();
+}
+
+function indentItem(idx) {
+  if (idx === 0) return;
+  if (navItems[idx].indent >= 1) return;
+  if (navItems[idx - 1].indent > 0) return;
+  navItems[idx].indent = 1;
+  renderNav();
+  updateParentSelect();
+}
+
+function outdentItem(idx) {
+  if (navItems[idx].indent <= 0) return;
+  navItems[idx].indent = 0;
+  renderNav();
+  updateParentSelect();
 }
 
 function removeItem(idx) {
