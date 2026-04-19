@@ -2045,6 +2045,10 @@ sub render_content {
     my %site_vars = resolve_site_vars();
     my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
 
+    my $groups_ref  = $AUTH_CONTEXT{auth_groups};
+    my $groups_str  = ref $groups_ref eq 'ARRAY' ? join( ',', @$groups_ref ) : ( $groups_ref // '' );
+    my $editor_flag = _is_manager( \%site_vars, $AUTH_CONTEXT{auth_user} // '', $groups_str ) ? 1 : 0;
+
     my $vars = {
         %site_vars,
         %page_vars,
@@ -2061,6 +2065,10 @@ sub render_content {
             $src || '';
         },
         query             => $query,
+        params            => $query,
+        editor            => $editor_flag,
+        year              => sprintf( '%04d', (localtime)[5] + 1900 ),
+        search_enabled    => ( -f "$DOCROOT/search-results.md" || -f "$DOCROOT/search-results.url" ) ? 1 : 0,
     };
 
     # Protect <pre><code> blocks and inline <code> elements from TT processing
