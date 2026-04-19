@@ -93,6 +93,8 @@ else {
 sub collect_audit_results {
     my %pages;
     my %sources;
+    my %inbound;
+    my %outbound;
 
     find( sub {
         return unless -f;
@@ -104,10 +106,9 @@ sub collect_audit_results {
         my $canon = canonical($rel);
         $pages{$canon}   = 1;
         $sources{$canon} = $rel;
+        # .url files are themselves reachable entry points
+        push @{ $inbound{$canon} }, 'url-entrypoint' if /\.url$/;
     }, $DOCROOT );
-
-    my %inbound;
-    my %outbound;
 
     find( sub {
         return unless -f && /\.md$/;
@@ -116,6 +117,7 @@ sub collect_audit_results {
         return if $rel =~ m{^lazysite/};
         return if $rel =~ m{(^|/)\.};
         extract_links( $File::Find::name, $rel, \%inbound, \%outbound );
+        extract_scan_refs( $File::Find::name, $rel, \%inbound );
     }, $DOCROOT );
 
     find( sub {
@@ -354,6 +356,74 @@ sub extract_links {
 
         push @{ $inbound->{$link} },  $label;
         push @{ $outbound->{$label} }, $link;
+    }
+}
+
+# Parse tt_page_var frontmatter block for scan:/path patterns and mark
+# every matching .md file as reachable in %inbound. Mirrors resolve_scan
+# in lazysite-processor.pl so pages included via scan aren't orphaned.
+sub extract_scan_refs {
+    my ( $path, $label, $inbound ) = @_;
+
+    open( my $fh, '<:utf8', $path ) or return;
+    my @lines = <$fh>;
+    close $fh;
+
+    return unless @lines && $lines[0] =~ /^---\s*$/;
+
+    my $in_tt_vars = 0;
+    for my $i ( 1 .. $#lines ) {
+        last if $lines[$i] =~ /^---\s*$/;
+
+        if ( $lines[$i] =~ /^tt_page_var\s*:\s*$/ ) {
+            $in_tt_vars = 1;
+            next;
+        }
+        next unless $in_tt_vars;
+        # Leaving the tt_page_var block when an unindented key appears
+        if ( $lines[$i] =~ /^\S/ ) { $in_tt_vars = 0; next }
+
+        if ( $lines[$i] =~ /^\s+\w[\w-]*\s*:\s*scan:(\S+)/ ) {
+            resolve_scan_for_audit( $1, $label, $inbound );
+        }
+    }
+}
+
+sub resolve_scan_for_audit {
+    my ( $pattern, $label, $inbound ) = @_;
+    return unless $pattern =~ m{^/};
+    my $fs_pattern = $DOCROOT . $pattern;
+    return unless $fs_pattern =~ /\.md$/;
+
+    my @files;
+    if ( $fs_pattern =~ m{\*\*} ) {
+        my ( $base, $rest ) = $fs_pattern =~ m{^(.*?)/\*\*/(.*)$};
+        if ( defined $base && defined $rest && -d $base ) {
+            my $file_re = $rest;
+            $file_re =~ s/\./\\./g;
+            $file_re =~ s/\*/.*/g;
+            $file_re = qr/\A${file_re}\z/;
+            my @queue = ($base);
+            while ( my $dir = shift @queue ) {
+                opendir( my $dh, $dir ) or next;
+                for my $entry ( readdir($dh) ) {
+                    next if $entry =~ /^\./;
+                    my $p = "$dir/$entry";
+                    if ( -d $p )                    { push @queue, $p }
+                    elsif ( $entry =~ $file_re )    { push @files, $p }
+                }
+                closedir($dh);
+            }
+        }
+    }
+    else {
+        @files = glob($fs_pattern);
+    }
+
+    for my $f (@files) {
+        ( my $rel = $f ) =~ s{^\Q$DOCROOT\E/}{};
+        my $canon = canonical($rel);
+        push @{ $inbound->{$canon} }, "scan:$label";
     }
 }
 
