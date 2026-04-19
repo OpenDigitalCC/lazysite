@@ -15,6 +15,14 @@ query_params:
 #ed-save-btn.dirty { background:var(--mg-accent); color:var(--mg-accent-text); border-color:var(--mg-accent); font-weight:600; }
 #ed-filepath a { color:var(--mg-accent); text-decoration:none; }
 #ed-filepath a:hover { text-decoration:underline; }
+.mg-cache-notice {
+  background: var(--mg-warning-bg);
+  color: var(--mg-text);
+  border-bottom: 1px solid var(--mg-warning);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+}
+.mg-cache-notice a { color: var(--mg-accent); text-decoration: underline; }
 </style>
 
 <div class="mg-editor-toolbar">
@@ -27,6 +35,8 @@ query_params:
 <button class="mg-btn" onclick="refreshPreview()">Preview</button>
 <a id="ed-view-link" href="#" target="_blank" class="mg-btn">View page</a>
 </div>
+
+<div id="ed-cache-notice" class="mg-cache-notice" style="display:none;"></div>
 
 <div id="ed-main" class="mg-editor-main">
 <div id="ed-editor-pane" class="mg-editor-pane">
@@ -76,6 +86,8 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 var filePath = '[% query.path | html %]';
 var isNew = '[% query.new | html %]' === '1';
 var isMdFile = filePath && /\.md$/i.test(filePath);
+var isHtmlFile = filePath && /\.html$/i.test(filePath);
+var readOnly = false;
 var fileMtime = null;
 var isDirty = false;
 var lockRenewTimer = null;
@@ -288,8 +300,45 @@ function loadFile() {
     return;
   }
 
-  acquireLock();
+  if (isHtmlFile) {
+    checkHtmlCacheThenLoad();
+    return;
+  }
 
+  acquireLock();
+  loadContent();
+}
+
+function checkHtmlCacheThenLoad() {
+  var mdPath = filePath.replace(/\.html$/i, '.md');
+  fetch(API + '?action=read&path=' + encodeURIComponent(mdPath))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        readOnly = true;
+        showCacheNotice(mdPath);
+        loadContent();
+      } else {
+        acquireLock();
+        loadContent();
+      }
+    })
+    .catch(function() {
+      acquireLock();
+      loadContent();
+    });
+}
+
+function showCacheNotice(mdPath) {
+  var el = document.getElementById('ed-cache-notice');
+  var escPath = mdPath.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  el.innerHTML = 'This is a cached page. Editing is disabled. ' +
+    '<a href="/manager/edit?path=' + encodeURIComponent(mdPath) + '">Edit source: ' + escPath + '</a>';
+  el.style.display = '';
+  document.getElementById('ed-save-btn').style.display = 'none';
+}
+
+function loadContent() {
   fetch(API + '?action=read&path=' + encodeURIComponent(filePath))
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -304,6 +353,9 @@ function loadFile() {
         contentCm.setValue(parts.body);
       } else {
         contentCm.setValue(data.content);
+      }
+      if (readOnly && contentCm.setOption) {
+        contentCm.setOption('readOnly', true);
       }
       isDirty = false;
       updateStatus();
