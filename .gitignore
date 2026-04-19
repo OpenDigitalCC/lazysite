@@ -2,6 +2,8 @@
 test-site/
 
 # Runtime files in starter - not tracked, differ per installation
+starter/lazysite/lazysite.conf
+starter/lazysite/nav.conf
 starter/lazysite/auth/users
 starter/lazysite/auth/groups
 starter/lazysite/auth/.secret
@@ -12,7 +14,7 @@ starter/lazysite/forms/contact.conf
 starter/lazysite/forms/handlers.conf
 starter/lazysite/forms/smtp.conf
 starter/lazysite/logs/
-starter/lazysite/editor/locks/
+starter/lazysite/manager/locks/
 starter/lazysite/cache/
 
 # Manager CSS served copy (source is starter/lazysite/themes/manager/assets/)

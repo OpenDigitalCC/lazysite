@@ -18,10 +18,61 @@ install -m 755 -o "$user" -g "$user" \
     "$TEMPLATE_DIR/lazysite-processor.pl" \
     "$CGIBIN/lazysite-processor.pl"
 
+# Install additional scripts
+for script in lazysite-form-handler.pl lazysite-form-smtp.pl \
+              lazysite-auth.pl lazysite-manager-api.pl \
+              lazysite-payment-demo.pl; do
+    if [ -f "$TEMPLATE_DIR/$script" ]; then
+        install -m 755 -o "$user" -g "$user" \
+            "$TEMPLATE_DIR/$script" "$CGIBIN/$script"
+    fi
+done
+
+# Install logging plugin at docroot parent (matches manager-api @CANDIDATES)
+if [ -f "$TEMPLATE_DIR/lazysite-log.pl" ]; then
+    install -m 755 -o "$user" -g "$user" \
+        "$TEMPLATE_DIR/lazysite-log.pl" \
+        "$docroot/../lazysite-log.pl"
+fi
+
+# Install tools used by manager-api and audit plugin
+mkdir -p "$docroot/../tools"
+chown "$user":"$user" "$docroot/../tools"
+for tool in lazysite-users.pl lazysite-audit.pl; do
+    if [ -f "$TEMPLATE_DIR/tools/$tool" ]; then
+        install -m 755 -o "$user" -g "$user" \
+            "$TEMPLATE_DIR/tools/$tool" \
+            "$docroot/../tools/$tool"
+    fi
+done
+
 # Create lazysite directory structure
 mkdir -p "$LAZYSITE_DIR/templates/registries"
-mkdir -p "$LAZYSITE_DIR/themes"
+mkdir -p "$LAZYSITE_DIR/themes/manager/assets"
+mkdir -p "$LAZYSITE_DIR/forms"
+mkdir -p "$LAZYSITE_DIR/logs"
+mkdir -p "$LAZYSITE_DIR/cache"
+mkdir -p "$LAZYSITE_DIR/manager/locks"
+mkdir -p "$LAZYSITE_DIR/auth"
+chmod 750 "$LAZYSITE_DIR/auth"
 chown -R "$user":"$user" "$LAZYSITE_DIR"
+
+# Install manager view and CSS
+if [ -f "$TEMPLATE_DIR/starter/lazysite/themes/manager/view.tt" ]; then
+    install -m 644 -o "$user" -g "$user" \
+        "$TEMPLATE_DIR/starter/lazysite/themes/manager/view.tt" \
+        "$LAZYSITE_DIR/themes/manager/view.tt"
+fi
+if [ -f "$TEMPLATE_DIR/starter/lazysite/themes/manager/assets/manager.css" ]; then
+    install -m 644 -o "$user" -g "$user" \
+        "$TEMPLATE_DIR/starter/lazysite/themes/manager/assets/manager.css" \
+        "$LAZYSITE_DIR/themes/manager/assets/manager.css"
+    mkdir -p "$docroot/manager/assets"
+    chown "$user":"$user" "$docroot/manager" "$docroot/manager/assets"
+    install -m 644 -o "$user" -g "$user" \
+        "$TEMPLATE_DIR/starter/lazysite/themes/manager/assets/manager.css" \
+        "$docroot/manager/assets/manager.css"
+fi
 
 # Install view.tt only if not already present
 if [ ! -f "$LAZYSITE_DIR/templates/view.tt" ]; then

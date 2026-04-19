@@ -13,7 +13,7 @@ my $LOG_COMPONENT = 'manager-api';
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
-my $LOCK_DIR     = "$LAZYSITE_DIR/editor/locks";
+my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
 
 my @BLOCKED_PATHS = (

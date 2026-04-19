@@ -67,6 +67,25 @@ for script in lazysite-form-handler.pl lazysite-form-smtp.pl \
     fi
 done
 
+# Install logging plugin at docroot parent (matches manager-api @CANDIDATES)
+if [ -f "$SCRIPT_DIR/lazysite-log.pl" ]; then
+    install -m 755 "$SCRIPT_DIR/lazysite-log.pl" "$DOCROOT/../lazysite-log.pl"
+    echo "  Installed: lazysite-log.pl"
+fi
+
+# Install tools used by manager-api and audit plugin
+mkdir -p "$DOCROOT/../tools"
+if [ -f "$SCRIPT_DIR/tools/lazysite-users.pl" ]; then
+    install -m 755 "$SCRIPT_DIR/tools/lazysite-users.pl" \
+        "$DOCROOT/../tools/lazysite-users.pl"
+    echo "  Installed: tools/lazysite-users.pl"
+fi
+if [ -f "$SCRIPT_DIR/tools/lazysite-audit.pl" ]; then
+    install -m 755 "$SCRIPT_DIR/tools/lazysite-audit.pl" \
+        "$DOCROOT/../tools/lazysite-audit.pl"
+    echo "  Installed: tools/lazysite-audit.pl"
+fi
+
 # --- Create lazysite directory structure ---
 
 echo "Creating lazysite directory structure..."
@@ -86,6 +105,7 @@ if [ -d "$SCRIPT_DIR/starter/lazysite/themes/manager" ]; then
 fi
 mkdir -p "$DOCROOT/lazysite/forms"
 mkdir -p "$DOCROOT/lazysite/logs"
+mkdir -p "$DOCROOT/lazysite/cache"
 mkdir -p "$DOCROOT/lazysite/manager/locks"
 mkdir -p "$DOCROOT/lazysite/auth"
 chmod 750 "$DOCROOT/lazysite/auth"
@@ -105,8 +125,11 @@ done
 echo "Installing starter files..."
 
 # Install starter content only if not already present
-for file in index.md lazysite-demo.md 404.md search-results.md search-index.md; do
-    if [ ! -f "$DOCROOT/$file" ]; then
+for file in index.md lazysite-demo.md 402.md 403.md 404.md \
+            login.md logout.md members.md \
+            payment-demo.md payment-members-demo.md \
+            search-results.md search-index.md; do
+    if [ -f "$SCRIPT_DIR/starter/$file" ] && [ ! -f "$DOCROOT/$file" ]; then
         install -m 644 "$SCRIPT_DIR/starter/$file" "$DOCROOT/$file"
     fi
 done

@@ -190,31 +190,19 @@ if ( ! -f $conf_target && -f $conf_source ) {
     }
 }
 
-# Seed default form config if missing
+# Seed form config from .example files if missing
 {
     my $forms_dir = "$DOCROOT/lazysite/forms";
     require File::Path;
     File::Path::make_path($forms_dir) unless -d $forms_dir;
-    my $contact_conf = "$forms_dir/contact.conf";
-    unless ( -f $contact_conf ) {
-        open my $fh, '>', $contact_conf;
-        print $fh "targets:\n  - handler: local-storage\n";
-        close $fh;
-        print "  seeded: lazysite/forms/contact.conf\n";
-    }
-    my $handlers_conf = "$forms_dir/handlers.conf";
-    unless ( -f $handlers_conf ) {
-        open my $fh, '>', $handlers_conf;
-        print $fh "# Form dispatch handlers\n\nhandlers:\n  - id: local-storage\n    type: file\n    name: Local file storage\n    enabled: true\n    path: lazysite/forms/submissions\n";
-        close $fh;
-        print "  seeded: lazysite/forms/handlers.conf\n";
-    }
-    my $smtp_conf        = "$forms_dir/smtp.conf";
-    my $smtp_conf_source = "$forms_dir/smtp.conf.example";
-    if ( ! -f $smtp_conf && -f $smtp_conf_source ) {
-        require File::Copy;
-        File::Copy::copy( $smtp_conf_source, $smtp_conf );
-        print "  seeded: lazysite/forms/smtp.conf\n";
+    require File::Copy;
+    for my $base (qw(contact handlers smtp)) {
+        my $target  = "$forms_dir/$base.conf";
+        my $example = "$forms_dir/$base.conf.example";
+        if ( ! -f $target && -f $example ) {
+            File::Copy::copy( $example, $target );
+            print "  seeded: lazysite/forms/$base.conf\n";
+        }
     }
 }
 
