@@ -1,83 +1,10 @@
 ---
 title: Plugins
+auth: manager
 search: false
 ---
 
-<div>
-<style>
-.plugins-wrap { font-family: system-ui, sans-serif; max-width: 700px; margin: 0 auto; }
-.editor-nav { margin-bottom: 16px; }
-.editor-nav a { margin-right: 16px; color: #07c; text-decoration: none; font-size: 14px; }
-.editor-nav a:hover { text-decoration: underline; }
-.editor-nav a.active { font-weight: 600; color: #333; border-bottom: 2px solid #07c; }
-.plugin-card { background: #fff; border: 1px solid #dee2e6; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
-.plugin-title { font-weight: 600; font-size: 1rem; margin-bottom: 0.2rem; }
-.plugin-desc { font-size: 0.875rem; color: #6c757d; margin-bottom: 0.75rem; }
-.plugin-actions { margin-bottom: 0.75rem; display: flex; gap: 0.5rem; }
-.plugin-actions button, .plugin-actions a { padding: 0.3rem 0.75rem; font-size: 0.875rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; cursor: pointer; text-decoration: none; color: #495057; }
-.plugin-actions button:hover, .plugin-actions a:hover { background: #f8f9fa; }
-.config-toggle { font-size: 0.875rem; padding: 0.25rem 0.6rem; }
-.config-form { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #dee2e6; }
-.fm-row { display: flex; gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-start; }
-.fm-row label { width: 120px; flex-shrink: 0; font-size: 0.8rem; color: #6c757d; padding-top: 0.3rem; text-align: right; }
-.fm-row input, .fm-row select, .fm-row textarea { flex: 1; padding: 0.25rem 0.5rem; border: 1px solid #dee2e6; border-radius: 3px; font-size: 0.875rem; }
-.fm-row input[type="checkbox"] { flex: none; width: auto; margin-top: 0.35rem; margin-left: 0; }
-.readonly-val { font-family: ui-monospace, monospace; font-size: 0.875rem; color: #6c757d; padding-top: 0.3rem; }
-.plugin-status { font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem; min-height: 1.2em; }
-.config-field[data-show-key] { display: none; }
-.child-configs { margin-top: 0.75rem; }
-.handler-group { margin-bottom: 1.25rem; border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; }
-.handler-group-header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; background: #f8f9fa; border-bottom: 1px solid #dee2e6; }
-.handler-group-label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #6c757d; }
-.handler-add-btn { font-size: 0.8rem; padding: 0.2rem 0.5rem; border: 1px solid #dee2e6; border-radius: 3px; background: #fff; cursor: pointer; color: #0d6efd; }
-.handler-add-btn:hover { background: #e7f1ff; }
-.handler-item { padding: 0.6rem 0.75rem; border-bottom: 1px solid #f0f0f0; }
-.handler-item:last-of-type { border-bottom: none; }
-.handler-item-header { display: flex; align-items: center; gap: 0.5rem; }
-.handler-name { font-weight: 500; font-size: 0.9rem; flex: 1; }
-.handler-status { font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
-.handler-status.enabled { background: #d1e7dd; color: #0a3622; }
-.handler-status.disabled { background: #e9ecef; color: #6c757d; }
-.handler-item-actions { display: flex; gap: 0.35rem; }
-.handler-item-actions button { font-size: 0.8rem; padding: 0.15rem 0.45rem; }
-.handler-edit-form { margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #f0f0f0; }
-.handler-empty { padding: 0.5rem 0.75rem; font-size: 0.875rem; color: #adb5bd; margin: 0; }
-.btn-danger { color: #dc3545 !important; }
-.btn-danger:hover { background: #fff5f5 !important; }
-.form-entry { padding: 0.6rem 0; border-bottom: 1px solid #f0f0f0; }
-.form-entry:last-child { border-bottom: none; }
-.form-entry-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; }
-.form-name { font-weight: 600; font-size: 0.9rem; }
-.handler-section-label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #6c757d; margin: 1rem 0 0.5rem; }
-.wizard-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 1rem; margin-top: 0.75rem; }
-.wizard-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.75rem; color: #212529; }
-.wizard-section-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #6c757d; margin: 0.75rem 0 0.4rem; padding-top: 0.5rem; border-top: 1px solid #dee2e6; }
-.wizard-section-label:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
-.wizard-actions { margin-top: 0.75rem; display: flex; gap: 0.5rem; }
-.type-options { display: flex; flex-direction: column; gap: 0.4rem; flex: 1; }
-.type-option { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.4rem 0.6rem; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; background: #fff; }
-.type-option:hover { background: #f8f9fa; border-color: #adb5bd; }
-.type-option input[type="radio"] { margin-top: 0.15rem; flex-shrink: 0; }
-.type-option-label { font-weight: 500; font-size: 0.875rem; display: block; }
-.type-option-desc { font-size: 0.78rem; color: #6c757d; display: block; }
-#wizard-status { font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem; }
-</style>
-</div>
-
-<div class="plugins-wrap" id="app">
-
-<nav class="editor-nav">
-<a href="/editor/">Files</a>
-<a href="/editor/nav">Nav</a>
-<a href="/editor/plugins" class="active">Plugins</a>
-<a href="/editor/themes">Themes</a>
-<a href="/editor/users">Users</a>
-<a href="/editor/cache">Cache</a>
-</nav>
-
 <div id="plugin-list">Loading...</div>
-
-</div>
 
 <script>
 var API = '/cgi-bin/lazysite-editor-api.pl';
@@ -115,11 +42,11 @@ function loadPlugins() {
       var html = '';
       data.plugins.forEach(function(p) {
         if (!shouldRenderPlugin(p, data.plugins)) return;
-        html += '<div class="plugin-card" id="plugin-' + p.id + '">';
-        html += '<div class="plugin-title">' + esc(p.name) + '</div>';
-        html += '<div class="plugin-desc">' + esc(p.description) + '</div>';
+        html += '<div class="mg-plugin-card" id="plugin-' + p.id + '">';
+        html += '<div class="mg-plugin-title">' + esc(p.name) + '</div>';
+        html += '<div class="mg-plugin-desc">' + esc(p.description) + '</div>';
         if (p.actions && p.actions.length) {
-          html += '<div class="plugin-actions">';
+          html += '<div class="mg-wizard-actions">';
           p.actions.forEach(function(a, ai) {
             if (a.link) {
               html += '<a href="' + a.link + '">' + esc(a.label) + '</a>';
@@ -130,14 +57,14 @@ function loadPlugins() {
           html += '</div>';
         }
         if (p.config_schema && p.config_schema.length) {
-          html += '<button class="config-toggle" onclick="loadConfig(window._plugins.find(function(x){return x.id===\'' + p.id + '\'}))">Configure</button>';
-          html += '<div class="config-form" id="config-' + p.id + '" style="display:none"></div>';
+          html += '<button class="mg-btn" onclick="loadConfig(window._plugins.find(function(x){return x.id===\'' + p.id + '\'}))">Configure</button>';
+          html += '<div class="mg-card-body" id="config-' + p.id + '" style="display:none"></div>';
         }
         if (p.child_configs) {
-          html += '<div class="child-configs" id="children-' + p.id + '">Loading...</div>';
+          html += '<div class="mg-card-body" id="children-' + p.id + '">Loading...</div>';
           childPlugins.push(p);
         }
-        html += '<div class="plugin-status" id="status-' + p.id + '"></div>';
+        html += '<div class="mg-status" id="status-' + p.id + '"></div>';
         html += '</div>';
       });
       document.getElementById('plugin-list').innerHTML = html;
@@ -170,7 +97,7 @@ function renderForm(plugin, values) {
     var v = values[f.key] !== undefined ? values[f.key] : (f.default || '');
     var sw = f.show_when;
     var da = sw ? ' data-show-key="'+sw.key+'" data-show-val="'+sw.value.join(',')+'"' : '';
-    html += '<div class="fm-row config-field"'+da+'>';
+    html += '<div class="mg-form-row mg-config-field"'+da+'>';
     html += '<label>' + esc(f.label) + '</label>';
     if (f.type === 'select') {
       html += '<select name="'+f.key+'" onchange="applyShowWhen(this.form)">';
@@ -183,14 +110,14 @@ function renderForm(plugin, values) {
     } else if (f.type === 'password') {
       html += '<input type="password" name="'+f.key+'" placeholder="leave blank to keep">';
     } else if (f.type === 'readonly') {
-      html += '<span class="readonly-val">'+esc(v)+'</span>';
+      html += '<span class="mg-readonly">'+esc(v)+'</span>';
     } else {
       var t = f.type==='email'?'email':f.type==='number'?'number':'text';
       html += '<input type="'+t+'" name="'+f.key+'" value="'+esc(v)+'"'+(f.required?' required':'')+'>';
     }
     html += '</div>';
   });
-  html += '<div class="fm-row"><label></label><button type="submit">Save</button></div></form>';
+  html += '<div class="mg-form-row"><label></label><button type="submit">Save</button></div></form>';
   return html;
 }
 
@@ -206,7 +133,7 @@ function applyShowWhen(container) {
     if (!ctrl) { f.style.display = 'none'; continue; }
     var cur = ctrl.type === 'checkbox' ? (ctrl.checked ? 'true' : 'false') : ctrl.value;
     var show = vals.indexOf(cur) !== -1;
-    f.style.display = show ? (f.classList.contains('fm-row') ? 'flex' : 'block') : 'none';
+    f.style.display = show ? (f.classList.contains('mg-form-row') ? 'flex' : 'block') : 'none';
   }
 }
 
@@ -305,17 +232,17 @@ function loadChildConfigs(plugin) {
     var existing = document.getElementById('form-connections-card');
     if (existing) existing.remove();
 
-    var cardHtml = '<div class="plugin-card" id="form-connections-card">';
-    cardHtml += '<div class="plugin-title">Form Connections</div>';
-    cardHtml += '<div class="plugin-desc">Connect each form to its dispatch handlers.</div>';
+    var cardHtml = '<div class="mg-plugin-card" id="form-connections-card">';
+    cardHtml += '<div class="mg-plugin-title">Form Connections</div>';
+    cardHtml += '<div class="mg-plugin-desc">Connect each form to its dispatch handlers.</div>';
     if (files.length) {
       files.forEach(function(f) {
         var formName = f.name.replace(/\.conf$/, '');
-        cardHtml += '<div class="form-entry">';
-        cardHtml += '<div class="form-entry-header">';
-        cardHtml += '<span class="form-name">' + esc(formName) + '</span>';
+        cardHtml += '<div class="mg-form-entry">';
+        cardHtml += '<div class="mg-form-entry-header">';
+        cardHtml += '<span class="mg-form-name">' + esc(formName) + '</span>';
         cardHtml += '<button onclick="toggleFormTargets(\'' + esc(formName) + '\')" style="font-size:11px;padding:1px 8px;border:1px solid #dee2e6;border-radius:3px;background:#fff;cursor:pointer;">Edit targets</button>';
-        cardHtml += '<a href="/editor/edit?path=/' + encodeURIComponent(dir + '/' + f.name) + '" style="font-size:11px;color:#07c;">Edit raw</a>';
+        cardHtml += '<a href="/manager/edit?path=/' + encodeURIComponent(dir + '/' + f.name) + '" style="font-size:11px;color:#07c;">Edit raw</a>';
         cardHtml += '</div>';
         cardHtml += '<div id="form-targets-' + formName + '" style="display:none"></div>';
         cardHtml += '</div>';
@@ -323,7 +250,7 @@ function loadChildConfigs(plugin) {
     } else {
       cardHtml += '<p style="font-size:13px;color:#888;">No form configs found.</p>';
     }
-    cardHtml += '<div class="plugin-status" id="status-form-connections"></div>';
+    cardHtml += '<div class="mg-status" id="status-form-connections"></div>';
     cardHtml += '</div>';
 
     var pluginCard = document.getElementById('plugin-' + plugin.id);
@@ -343,28 +270,28 @@ function renderHandlerList() {
   typeOrder.forEach(function(type) {
     var ofType = allHandlers.filter(function(h) { return h.type === type; });
 
-    html += '<div class="handler-group" id="handler-group-' + type + '">';
-    html += '<div class="handler-group-header">';
-    html += '<span class="handler-group-label">' + typeLabels[type] + '</span>';
-    html += '<button class="handler-add-btn" onclick="showAddHandlerForm(\'' + type + '\')">' + typeAddLabel[type] + '</button>';
+    html += '<div class="mg-handler-group" id="mg-handler-group-' + type + '">';
+    html += '<div class="mg-handler-group-header">';
+    html += '<span class="mg-handler-group-label">' + typeLabels[type] + '</span>';
+    html += '<button class="mg-btn mg-btn-sm" onclick="showAddHandlerForm(\'' + type + '\')">' + typeAddLabel[type] + '</button>';
     html += '</div>';
 
     ofType.forEach(function(h) {
       var enabled = h.enabled !== 'false';
-      html += '<div class="handler-item" id="handler-' + h.id + '">';
-      html += '<div class="handler-item-header">';
-      html += '<span class="handler-name">' + esc(h.name || h.id) + '</span>';
-      html += '<span class="handler-status ' + (enabled ? 'enabled' : 'disabled') + '">' + (enabled ? 'enabled' : 'disabled') + '</span>';
-      html += '<div class="handler-item-actions">';
+      html += '<div class="mg-handler-item" id="handler-' + h.id + '">';
+      html += '<div class="mg-handler-item-header">';
+      html += '<span class="mg-handler-name">' + esc(h.name || h.id) + '</span>';
+      html += '<span class="mg-badge ' + (enabled ? 'enabled' : 'disabled') + '">' + (enabled ? 'enabled' : 'disabled') + '</span>';
+      html += '<div class="mg-handler-item-actions">';
       html += '<button onclick=\'editHandler(' + JSON.stringify(h).replace(/'/g, "&#39;") + ')\'>Edit</button>';
-      html += '<button class="btn-danger" onclick="deleteHandler(\'' + esc(h.id) + '\')">Delete</button>';
+      html += '<button class="mg-btn-danger" onclick="deleteHandler(\'' + esc(h.id) + '\')">Delete</button>';
       html += '</div></div>';
-      html += '<div class="handler-edit-form" id="handler-edit-' + h.id + '" style="display:none"></div>';
+      html += '<div class="mg-handler-edit-form" id="handler-edit-' + h.id + '" style="display:none"></div>';
       html += '</div>';
     });
 
     if (ofType.length === 0) {
-      html += '<p class="handler-empty">No ' + typeLabels[type].toLowerCase() + ' handlers configured.</p>';
+      html += '<p class="mg-empty">No ' + typeLabels[type].toLowerCase() + ' handlers configured.</p>';
     }
 
     html += '</div>';
@@ -384,13 +311,13 @@ function showAddHandlerForm(type) {
   if (!wizard) return;
 
   // Move wizard inside the relevant group
-  var group = document.getElementById('handler-group-' + type);
+  var group = document.getElementById('mg-handler-group-' + type);
   if (group) group.appendChild(wizard);
 
   // Skip step 1 - go directly to step 2 for the given type
   var name = nameForType(type);
-  var html = '<div class="wizard-card">';
-  html += '<div class="wizard-title">Add handler</div>';
+  var html = '<div class="mg-wizard">';
+  html += '<div class="mg-wizard-title">Add handler</div>';
   html += renderStep2Form(type, name, null, false);
   html += '<div id="wizard-status"></div>';
   html += '</div>';
@@ -420,22 +347,22 @@ function renderStep2Form(type, name, existingData, isEdit) {
   var html = '';
 
   if (isEdit) {
-    html += '<div class="fm-row">';
+    html += '<div class="mg-form-row">';
     html += '<label>ID</label>';
-    html += '<span class="readonly-val">' + esc(d.id || '') + '</span>';
+    html += '<span class="mg-readonly">' + esc(d.id || '') + '</span>';
     html += '</div>';
-    html += '<div class="fm-row">';
+    html += '<div class="mg-form-row">';
     html += '<label>Type</label>';
-    html += '<span class="readonly-val">' + esc(typeLabelFor(type)) + '</span>';
+    html += '<span class="mg-readonly">' + esc(typeLabelFor(type)) + '</span>';
     html += '</div>';
   }
 
-  html += '<div class="wizard-section-label">Handler settings</div>';
-  html += '<div class="fm-row">';
+  html += '<div class="mg-wizard-section-label">Handler settings</div>';
+  html += '<div class="mg-form-row">';
   html += '<label>Name</label>';
   html += '<input type="text" id="wiz-name" value="' + esc(d.name || name) + '" required>';
   html += '</div>';
-  html += '<div class="fm-row">';
+  html += '<div class="mg-form-row">';
   html += '<label>Enabled</label>';
   html += '<input type="checkbox" id="wiz-enabled"' + (d.enabled !== 'false' ? ' checked' : '') + '>';
   html += '</div>';
@@ -444,7 +371,7 @@ function renderStep2Form(type, name, existingData, isEdit) {
   else if (type === 'file') html += renderFileFields(d);
   else if (type === 'webhook') html += renderWebhookFields(d);
 
-  html += '<div class="wizard-actions">';
+  html += '<div class="mg-wizard-actions">';
   if (isEdit) {
     html += '<button type="button" onclick="saveHandlerFromWizard(\'' + esc(d.id) + '\',\'' + type + '\',true)">Update</button>';
     html += '<button type="button" onclick="cancelHandlerEdit(\'' + esc(d.id) + '\')">Cancel</button>';
@@ -461,45 +388,45 @@ function renderSmtpFields(d) {
   var sv = smtpConnectionValues || {};
   var html = '';
 
-  html += '<div class="wizard-section-label">Email settings</div>';
-  html += '<div class="fm-row"><label>From address</label>';
+  html += '<div class="mg-wizard-section-label">Email settings</div>';
+  html += '<div class="mg-form-row"><label>From address</label>';
   html += '<input type="email" id="wiz-from" value="' + esc(d.from || 'webforms@example.com') + '" required>';
   html += '</div>';
-  html += '<div class="fm-row"><label>To address</label>';
+  html += '<div class="mg-form-row"><label>To address</label>';
   html += '<input type="email" id="wiz-to" value="' + esc(d.to || 'admin@example.com') + '" required>';
   html += '</div>';
-  html += '<div class="fm-row"><label>Subject prefix</label>';
+  html += '<div class="mg-form-row"><label>Subject prefix</label>';
   html += '<input type="text" id="wiz-subject_prefix" value="' + esc(d.subject_prefix !== undefined ? d.subject_prefix : '[Contact] ') + '">';
   html += '</div>';
 
   if (!smtpPlugin) return html;
 
-  html += '<div class="wizard-section-label">SMTP connection</div>';
+  html += '<div class="mg-wizard-section-label">SMTP connection</div>';
 
   var method = sv.method || 'sendmail';
-  html += '<div class="fm-row"><label>Send method</label>';
-  html += '<select id="wiz-method" onchange="applyShowWhen(this.closest(\'.wizard-card\')||this.closest(\'.handler-edit-form\'))">';
+  html += '<div class="mg-form-row"><label>Send method</label>';
+  html += '<select id="wiz-method" onchange="applyShowWhen(this.closest(\'.mg-wizard\')||this.closest(\'.mg-handler-edit-form\'))">';
   ['sendmail', 'smtp'].forEach(function(o) {
     html += '<option' + (method === o ? ' selected' : '') + '>' + o + '</option>';
   });
   html += '</select></div>';
 
-  html += '<div class="fm-row config-field" data-show-key="wiz-method" data-show-val="sendmail">';
+  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-method" data-show-val="sendmail">';
   html += '<label>Sendmail path</label>';
   html += '<input type="text" id="wiz-sendmail_path" value="' + esc(sv.sendmail_path || '/usr/sbin/sendmail') + '">';
   html += '</div>';
 
-  html += '<div class="fm-row config-field" data-show-key="wiz-method" data-show-val="smtp">';
+  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
   html += '<label>Host</label>';
   html += '<input type="text" id="wiz-host" value="' + esc(sv.host || 'localhost') + '">';
   html += '</div>';
 
-  html += '<div class="fm-row config-field" data-show-key="wiz-method" data-show-val="smtp">';
+  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
   html += '<label>Port</label>';
   html += '<input type="number" id="wiz-port" value="' + esc(sv.port || '587') + '" min="1" max="65535">';
   html += '</div>';
 
-  html += '<div class="fm-row config-field" data-show-key="wiz-method" data-show-val="smtp">';
+  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
   html += '<label>TLS</label>';
   html += '<select id="wiz-tls">';
   var tlsVal = sv.tls || 'false';
@@ -509,18 +436,18 @@ function renderSmtpFields(d) {
   html += '</select></div>';
 
   var authVal = sv.auth === 'true' || sv.auth === '1';
-  html += '<div class="fm-row config-field" data-show-key="wiz-method" data-show-val="smtp">';
+  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
   html += '<label>Authentication</label>';
-  html += '<input type="checkbox" id="wiz-auth"' + (authVal ? ' checked' : '') + ' onchange="applyShowWhen(this.closest(\'.wizard-card\')||this.closest(\'.handler-edit-form\'))">';
+  html += '<input type="checkbox" id="wiz-auth"' + (authVal ? ' checked' : '') + ' onchange="applyShowWhen(this.closest(\'.mg-wizard\')||this.closest(\'.mg-handler-edit-form\'))">';
   html += '</div>';
 
   // Auth fields: nested inside a smtp-only wrapper so they hide when method != smtp
-  html += '<div class="config-field" data-show-key="wiz-method" data-show-val="smtp">';
-  html += '<div class="fm-row config-field" data-show-key="wiz-auth" data-show-val="true,1">';
+  html += '<div class="mg-config-field" data-show-key="wiz-method" data-show-val="smtp">';
+  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
   html += '<label>Username</label>';
   html += '<input type="text" id="wiz-username" value="' + esc(sv.username || '') + '">';
   html += '</div>';
-  html += '<div class="fm-row config-field" data-show-key="wiz-auth" data-show-val="true,1">';
+  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
   html += '<label>Password file</label>';
   html += '<input type="text" id="wiz-password_file" value="' + esc(sv.password_file || 'lazysite/forms/.smtp-password') + '">';
   html += '</div>';
@@ -530,19 +457,19 @@ function renderSmtpFields(d) {
 }
 
 function renderFileFields(d) {
-  var html = '<div class="wizard-section-label">File settings</div>';
-  html += '<div class="fm-row"><label>Directory</label>';
+  var html = '<div class="mg-wizard-section-label">File settings</div>';
+  html += '<div class="mg-form-row"><label>Directory</label>';
   html += '<input type="text" id="wiz-path" value="' + esc(d.path || 'lazysite/forms/submissions') + '" required>';
   html += '</div>';
   return html;
 }
 
 function renderWebhookFields(d) {
-  var html = '<div class="wizard-section-label">Webhook settings</div>';
-  html += '<div class="fm-row"><label>URL</label>';
+  var html = '<div class="mg-wizard-section-label">Webhook settings</div>';
+  html += '<div class="mg-form-row"><label>URL</label>';
   html += '<input type="url" id="wiz-url" value="' + esc(d.url || '') + '" required placeholder="https://">';
   html += '</div>';
-  html += '<div class="fm-row"><label>Format</label>';
+  html += '<div class="mg-form-row"><label>Format</label>';
   html += '<select id="wiz-format">';
   var fmt = d.format || 'json';
   ['json', 'slack'].forEach(function(o) {
@@ -748,7 +675,7 @@ function renderFormTargets(formName, currentTargets) {
       if (i !== idx && id) usedByOthers.push(id);
     });
 
-    html += '<div class="fm-row" style="margin-bottom:0.25rem">';
+    html += '<div class="mg-form-row" style="margin-bottom:0.25rem">';
     html += '<label>Target ' + (idx + 1) + '</label>';
     html += '<select data-form="' + esc(formName) + '" data-idx="' + idx + '" onchange="updateFormTarget(this)">';
     html += '<option value="">-- select handler --</option>';
@@ -764,7 +691,7 @@ function renderFormTargets(formName, currentTargets) {
   });
 
   html += '</div>';
-  html += '<div class="plugin-actions">';
+  html += '<div class="mg-wizard-actions">';
   html += '<button onclick="addTarget(\'' + esc(formName) + '\')">+ Add target</button>';
   html += '<button onclick="saveFormTargets(\'' + esc(formName) + '\')">Save</button>';
   html += '</div>';

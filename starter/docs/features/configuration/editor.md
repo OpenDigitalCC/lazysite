@@ -1,30 +1,30 @@
 ---
-title: Editor
-subtitle: Web-based content editor with file browser, live preview, and theme manager.
+title: Manager
+subtitle: Web-based content manager with file browser, live preview, and theme manager.
 tags:
   - configuration
   - development
 ---
 
-## Editor
+## Manager
 
-The lazysite editor is a built-in web-based content management
+The lazysite manager is a built-in web-based content management
 interface. It provides a file browser, page editor with live preview,
 theme manager, user management, and cache manager.
 
-### Enabling the editor
+### Enabling the manager
 
 Add to `lazysite/lazysite.conf`:
 
-    editor: enabled
-    editor_path: /editor
-    editor_groups: lazysite-admins
+    manager: enabled
+    manager_path: /manager
+    manager_groups: lazysite-admins
 
 ### Configuration keys
 
-- `editor: enabled` - enable the editor (default: disabled)
-- `editor_path` - URL prefix for editor pages (default: `/editor`)
-- `editor_groups` - comma-separated groups that can access the editor
+- `manager: enabled` - enable the manager (default: disabled)
+- `manager_path` - URL prefix for manager pages (default: `/manager`)
+- `manager_groups` - comma-separated groups that can access the manager
 
 ### Features
 
@@ -40,9 +40,9 @@ Add to `lazysite/lazysite.conf`:
 ### Plugin system
 
 Components such as the form SMTP handler and link audit tool
-integrate with the editor via a self-describing plugin interface.
+integrate with the manager via a self-describing plugin interface.
 Each script supports a `--describe` flag that returns its
-configuration schema as JSON. The editor renders a generic config
+configuration schema as JSON. The manager renders a generic config
 form from this schema.
 
 Enable plugins in `lazysite/lazysite.conf`:
@@ -51,13 +51,13 @@ Enable plugins in `lazysite/lazysite.conf`:
       - tools/lazysite-audit.pl
       - cgi-bin/lazysite-form-smtp.pl
 
-Then access via Editor > Plugins.
+Then access via Manager > Plugins.
 
 ### Notes
 
-- Editor is disabled by default - must be explicitly enabled
+- Manager is disabled by default - must be explicitly enabled
 - Access requires authentication and group membership
 - Blocked paths prevent editing of auth secrets and scripts
 - All file operations validated with realpath within docroot
-- Editor pages are regular lazysite `.md` pages
-- [Editor guide](/docs/editor) - full setup and usage
+- Manager pages are regular lazysite `.md` pages
+- [Manager guide](/docs/editor) - full setup and usage

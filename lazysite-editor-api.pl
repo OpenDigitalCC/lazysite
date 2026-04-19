@@ -23,18 +23,18 @@ my @BLOCKED_PATHS = (
 
 # --- Auth check ---
 
-# Read editor_groups from lazysite.conf to determine if auth is required
-my $editor_groups_conf = '';
+# Read manager_groups from lazysite.conf to determine if auth is required
+my $manager_groups_conf = '';
 if ( open my $cfh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
     while (<$cfh>) {
-        $editor_groups_conf = $1 if /^editor_groups\s*:\s*(.+)/;
+        $manager_groups_conf = $1 if /^manager_groups\s*:\s*(.+)/;
     }
     close $cfh;
 }
-$editor_groups_conf =~ s/^\s+|\s+$//g;
+$manager_groups_conf =~ s/^\s+|\s+$//g;
 
 my $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
-if ( $editor_groups_conf && !$auth_user ) {
+if ( $manager_groups_conf && !$auth_user ) {
     respond({ ok => 0, error => "Authentication required" });
     exit 0;
 }
@@ -439,6 +439,7 @@ sub action_theme_list {
         opendir( my $dh, $themes_dir );
         for my $name ( sort readdir $dh ) {
             next if $name =~ /^\./;
+            next if $name eq 'manager';
             next unless -d "$themes_dir/$name";
             push @themes, {
                 name   => $name,

@@ -1,59 +1,23 @@
 ---
 title: Lazysite Manager
-auth: editor
+auth: manager
 search: false
 ---
 
-<div>
-<style>
-.editor-wrap { font-family: system-ui, sans-serif; max-width: 900px; margin: 0 auto; }
-.editor-toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
-.editor-toolbar button { padding: 4px 12px; cursor: pointer; }
-.breadcrumb { font-size: 14px; color: #555; margin-bottom: 8px; }
-.breadcrumb a { color: #07c; text-decoration: none; }
-.breadcrumb a:hover { text-decoration: underline; }
-.file-list { border: 1px solid #ccc; border-radius: 4px; }
-.file-item { display: flex; align-items: center; padding: 6px 12px; border-bottom: 1px solid #eee; }
-.file-item:last-child { border-bottom: none; }
-.file-item .name { flex: 1; }
-.file-item .name a { text-decoration: none; color: #07c; }
-.file-item .name a:hover { text-decoration: underline; }
-.file-item .icon { margin-right: 8px; font-size: 16px; }
-.file-item .meta { color: #888; font-size: 13px; margin-right: 12px; }
-.file-item .actions button { padding: 2px 8px; font-size: 12px; cursor: pointer; }
-.editor-nav { margin-bottom: 16px; }
-.editor-nav a { margin-right: 16px; color: #07c; text-decoration: none; font-size: 14px; }
-.editor-nav a:hover { text-decoration: underline; }
-.editor-nav a.active { font-weight: 600; color: #333; border-bottom: 2px solid #07c; }
-.status-msg { padding: 8px; margin-bottom: 8px; border-radius: 4px; font-size: 14px; }
-.status-msg.error { background: #fee; color: #c00; }
-.status-msg.ok { background: #efe; color: #060; }
-</style>
-</div>
-
-<div class="editor-wrap" id="app">
-
-<nav class="editor-nav">
-<a href="/editor/" class="active">Files</a>
-<a href="/editor/nav">Nav</a>
-<a href="/editor/plugins">Plugins</a>
-<a href="/editor/themes">Themes</a>
-<a href="/editor/users">Users</a>
-<a href="/editor/cache">Cache</a>
-</nav>
+<div id="app">
 
 <div id="status"></div>
 
-<div class="breadcrumb" id="breadcrumb"></div>
+<div class="mg-breadcrumb" id="breadcrumb"></div>
 
-<div class="editor-toolbar">
-<input type="search" id="file-filter" placeholder="Filter files..." oninput="filterFiles(this.value)" style="flex:1;padding:4px 8px;border:1px solid #ccc;border-radius:3px;font-size:13px;">
-<button onclick="newFile()">New File</button>
-<button onclick="newFolder()">New Folder</button>
+<div class="mg-file-toolbar">
+<input type="search" id="file-filter" class="mg-file-filter" placeholder="Filter files..." oninput="filterFiles(this.value)">
+<button class="mg-btn" onclick="newFile()">New File</button>
+<button class="mg-btn" onclick="newFolder()">New Folder</button>
 </div>
 
-<div class="file-list" id="file-list">
-<div class="file-item"><span class="name">Loading...</span></div>
+<div class="mg-file-list" id="file-list">
+<div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>
 </div>
 
 </div>
@@ -64,7 +28,7 @@ var currentDir = '/';
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
-  el.className = 'status-msg ' + (isError ? 'error' : 'ok');
+  el.className = 'mg-status ' + (isError ? 'mg-status-error' : 'mg-status-success');
   el.textContent = msg;
   if (!isError) setTimeout(function() { el.textContent = ''; el.className = ''; }, 3000);
 }
@@ -81,21 +45,28 @@ function loadDir(dir) {
     .catch(function(e) { showStatus('Failed to load directory: ' + e.message, true); });
 }
 
-function updateBreadcrumb() {
-  var parts = currentDir.split('/').filter(Boolean);
-  var html = '<a href="#" onclick="loadDir(\'/\'); return false;">root</a>';
-  var path = '';
+function buildBreadcrumb(dirPath, linkFn) {
+  var parts = dirPath.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+  var items = [linkFn('/', '/')];
+  var accumulated = '';
   for (var i = 0; i < parts.length; i++) {
-    path += '/' + parts[i];
-    html += ' / <a href="#" onclick="loadDir(\'' + path + '/\'); return false;">' + parts[i] + '</a>';
+    accumulated += '/' + parts[i];
+    items.push(linkFn(accumulated + '/', parts[i]));
   }
+  return items.join(' &rsaquo; ');
+}
+
+function updateBreadcrumb() {
+  var html = buildBreadcrumb(currentDir, function(path, label) {
+    return '<a href="#" onclick="loadDir(\'' + path + '\'); return false;">' + label + '</a>';
+  });
   document.getElementById('breadcrumb').innerHTML = html;
 }
 
 function renderFiles(files) {
   var list = document.getElementById('file-list');
   if (files.length === 0) {
-    list.innerHTML = '<div class="file-item"><span class="name" style="color:#888;">Empty directory</span></div>';
+    list.innerHTML = '<div class="mg-file-item"><span class="mg-file-name" style="color:#888;">Empty directory</span></div>';
     return;
   }
   var html = '';
@@ -108,20 +79,20 @@ function renderFiles(files) {
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
     var icon = f.type === 'dir' ? '&#128193;' : '&#128196;';
-    html += '<div class="file-item" data-name="' + escHtml(f.name) + '">';
-    html += '<span class="icon">' + icon + '</span>';
+    html += '<div class="mg-file-item" data-name="' + escHtml(f.name) + '">';
+    html += '<span class="mg-file-icon">' + icon + '</span>';
     if (f.type === 'dir') {
-      html += '<span class="name"><a href="#" onclick="loadDir(\'' + escHtml(f.path) + '/\'); return false;">' + escHtml(f.name) + '/</a></span>';
+      html += '<span class="mg-file-name"><a href="#" onclick="loadDir(\'' + escHtml(f.path) + '/\'); return false;">' + escHtml(f.name) + '/</a></span>';
     } else {
-      html += '<span class="name"><a href="/editor/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a></span>';
+      html += '<span class="mg-file-name"><a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a></span>';
     }
     if (f.size !== undefined) {
-      html += '<span class="meta">' + formatSize(f.size) + '</span>';
+      html += '<span class="mg-file-meta">' + formatSize(f.size) + '</span>';
     }
     if (f.mtime) {
-      html += '<span class="meta">' + relativeTime(f.mtime) + '</span>';
+      html += '<span class="mg-file-meta">' + relativeTime(f.mtime) + '</span>';
     }
-    html += '<span class="actions"><button onclick="deleteItem(\'' + escHtml(f.path) + '\', \'' + f.type + '\')">Delete</button></span>';
+    html += '<span class="mg-file-actions"><button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteItem(\'' + escHtml(f.path) + '\', \'' + f.type + '\')">Delete</button></span>';
     html += '</div>';
   }
   list.innerHTML = html;
@@ -140,7 +111,7 @@ function relativeTime(mtime) {
 }
 
 function filterFiles(query) {
-  var items = document.querySelectorAll('.file-item');
+  var items = document.querySelectorAll('.mg-file-item');
   query = query.toLowerCase();
   for (var i = 0; i < items.length; i++) {
     var name = items[i].getAttribute('data-name') || '';
@@ -205,5 +176,6 @@ function deleteItem(path, type) {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-loadDir('/');
+var initDir = decodeURIComponent(location.hash.replace(/^#/, '')) || '/';
+loadDir(initDir);
 </script>

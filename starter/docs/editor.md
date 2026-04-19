@@ -1,6 +1,6 @@
 ---
-title: Editor
-subtitle: Web-based content editor for lazysite.
+title: Manager
+subtitle: Web-based content manager for lazysite.
 register:
   - sitemap.xml
   - llms.txt
@@ -8,34 +8,34 @@ register:
 
 ## Overview
 
-The lazysite editor is a web-based content management interface built
+The lazysite manager is a web-based content management interface built
 into lazysite itself. It provides a file browser, page editor with
 live preview, theme manager, user management, and cache manager. All
-editor pages are regular lazysite `.md` pages served through the normal
+manager pages are regular lazysite `.md` pages served through the normal
 pipeline.
 
-## Enabling the editor
+## Enabling the manager
 
 Add to `lazysite/lazysite.conf`:
 
 ```yaml
-editor: enabled
-editor_path: /editor
-editor_groups: lazysite-admins
+manager: enabled
+manager_path: /manager
+manager_groups: lazysite-admins
 ```
 
-The editor is disabled by default. `editor_groups` restricts access
+The manager is disabled by default. `manager_groups` restricts access
 to members of the specified group(s). Multiple groups can be
 comma-separated.
 
-## Accessing the editor
+## Accessing the manager
 
-Navigate to `/editor` (or the configured `editor_path`). You must be
-authenticated and in the `editor_groups` group.
+Navigate to `/manager` (or the configured `manager_path`). You must be
+authenticated and in the `manager_groups` group.
 
 ## File browser
 
-The main editor page at `/editor` shows a file browser. You can:
+The main manager page at `/manager` shows a file browser. You can:
 
 - Navigate directories by clicking folder names
 - Open files for editing by clicking file names
@@ -44,7 +44,7 @@ The main editor page at `/editor` shows a file browser. You can:
 
 ## Page editor
 
-The editor at `/editor/edit?path=filename.md` provides:
+The editor at `/manager/edit?path=filename.md` provides:
 
 ### Front matter
 
@@ -77,7 +77,7 @@ the editor is open. Locks are released when you navigate away.
 
 ## Theme manager
 
-At `/editor/themes`:
+At `/manager/themes`:
 
 - View all installed themes with active status
 - Activate a theme (clears all cached pages)
@@ -88,7 +88,7 @@ At `/editor/themes`:
 
 ## User management
 
-At `/editor/users`:
+At `/manager/users`:
 
 - Add new users with username and password
 - Change user passwords
@@ -102,7 +102,7 @@ through this interface.
 
 ## Cache manager
 
-At `/editor/cache`:
+At `/manager/cache`:
 
 - View all cached `.html` files with age and source status
 - Invalidate individual cached pages
@@ -110,15 +110,15 @@ At `/editor/cache`:
 
 ## Security
 
-### Editor group enforcement
+### Manager group enforcement
 
-Access to `/editor` and all sub-pages is restricted to authenticated
-users in the configured `editor_groups`. Unauthenticated users are
+Access to `/manager` and all sub-pages is restricted to authenticated
+users in the configured `manager_groups`. Unauthenticated users are
 redirected to the login page.
 
 ### Blocked paths
 
-The editor API blocks read and write access to sensitive files:
+The manager API blocks read and write access to sensitive files:
 
 - `lazysite/auth/.secret`
 - `lazysite/forms/.secret`
@@ -138,13 +138,13 @@ rejected.
 ## Installation
 
 The installer copies `lazysite-editor-api.pl` to `cgi-bin/`
-alongside `lazysite-processor.pl`. The editor pages in
-`starter/editor/` are served as regular lazysite pages.
+alongside `lazysite-processor.pl`. The manager pages in
+`starter/manager/` are served as regular lazysite pages.
 
 For manual installation:
 
 ```bash
 cp lazysite-editor-api.pl /path/to/cgi-bin/
 chmod 755 /path/to/cgi-bin/lazysite-editor-api.pl
-cp -r starter/editor /path/to/public_html/editor
+cp -r starter/manager /path/to/public_html/manager
 ```

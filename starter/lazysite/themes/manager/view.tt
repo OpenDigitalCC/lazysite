@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>[% page_title %][% IF site_name %] - [% site_name %][% END %]</title>
+  <link rel="stylesheet" href="/manager/assets/manager.css">
+</head>
+<body class="mg-body">
+
+<header class="mg-header">
+  <div class="mg-header-inner">
+    <a href="/" class="mg-brand">[% site_name || 'Site' %]</a>
+    <nav class="mg-nav" aria-label="Manager navigation">
+      <a href="/manager"
+         [% IF request_uri == '/manager' || request_uri == '/manager/' %]
+         class="active" aria-current="page"
+         [% END %]>Files</a>
+      <a href="/manager/nav"
+         [% IF request_uri.match('^/manager/nav') %]
+         class="active" aria-current="page"
+         [% END %]>Nav</a>
+      <a href="/manager/plugins"
+         [% IF request_uri.match('^/manager/plugins') %]
+         class="active" aria-current="page"
+         [% END %]>Plugins</a>
+      <a href="/manager/themes"
+         [% IF request_uri.match('^/manager/themes') %]
+         class="active" aria-current="page"
+         [% END %]>Themes</a>
+      <a href="/manager/users"
+         [% IF request_uri.match('^/manager/users') %]
+         class="active" aria-current="page"
+         [% END %]>Users</a>
+      <a href="/manager/cache"
+         [% IF request_uri.match('^/manager/cache') %]
+         class="active" aria-current="page"
+         [% END %]>Cache</a>
+    </nav>
+    <div class="mg-header-tools">
+      [% IF authenticated %]
+      <span class="mg-user">[% auth_name || auth_user %]</span>
+      <a href="/logout" class="mg-signout">Sign out</a>
+      [% END %]
+      <a href="/manager" class="mg-brand">Lazysite Manager</a>
+    </div>
+  </div>
+</header>
+
+<main class="mg-main">
+  [% content %]
+</main>
+
+</body>
+</html>

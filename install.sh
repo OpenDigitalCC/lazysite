@@ -72,9 +72,21 @@ done
 echo "Creating lazysite directory structure..."
 mkdir -p "$DOCROOT/lazysite/templates/registries"
 mkdir -p "$DOCROOT/lazysite/themes"
+
+# Install manager view (ships with repo)
+if [ -d "$SCRIPT_DIR/starter/lazysite/themes/manager" ]; then
+    mkdir -p "$DOCROOT/lazysite/themes/manager/assets"
+    cp "$SCRIPT_DIR/starter/lazysite/themes/manager/view.tt" \
+        "$DOCROOT/lazysite/themes/manager/"
+    if [ -f "$SCRIPT_DIR/starter/lazysite/themes/manager/assets/manager.css" ]; then
+        cp "$SCRIPT_DIR/starter/lazysite/themes/manager/assets/manager.css" \
+            "$DOCROOT/lazysite/themes/manager/assets/"
+    fi
+    echo "  Installed: manager view"
+fi
 mkdir -p "$DOCROOT/lazysite/forms"
 mkdir -p "$DOCROOT/lazysite/logs"
-mkdir -p "$DOCROOT/lazysite/editor/locks"
+mkdir -p "$DOCROOT/lazysite/manager/locks"
 mkdir -p "$DOCROOT/lazysite/auth"
 chmod 750 "$DOCROOT/lazysite/auth"
 
@@ -111,19 +123,24 @@ if [ -d "$SCRIPT_DIR/starter/docs" ]; then
     done
 fi
 
-# Install editor pages and assets
-if [ -d "$SCRIPT_DIR/starter/editor" ]; then
-    mkdir -p "$DOCROOT/editor/assets/cm"
-    for page in "$SCRIPT_DIR/starter/editor/"*.md; do
+# Install manager pages and assets
+if [ -d "$SCRIPT_DIR/starter/manager" ]; then
+    mkdir -p "$DOCROOT/manager/assets/cm"
+    for page in "$SCRIPT_DIR/starter/manager/"*.md; do
         [ -f "$page" ] || continue
-        dest="$DOCROOT/editor/$(basename "$page")"
+        dest="$DOCROOT/manager/$(basename "$page")"
         if [ ! -f "$dest" ]; then
             install -m 644 "$page" "$dest"
         fi
     done
-    if [ -d "$SCRIPT_DIR/starter/editor/assets/cm" ]; then
-        cp -r "$SCRIPT_DIR/starter/editor/assets/cm/"* \
-            "$DOCROOT/editor/assets/cm/" 2>/dev/null
+    if [ -d "$SCRIPT_DIR/starter/manager/assets/cm" ]; then
+        cp -r "$SCRIPT_DIR/starter/manager/assets/cm/"* \
+            "$DOCROOT/manager/assets/cm/" 2>/dev/null
+    fi
+    # Copy manager CSS from theme source to web-accessible path
+    if [ -f "$DOCROOT/lazysite/themes/manager/assets/manager.css" ]; then
+        cp "$DOCROOT/lazysite/themes/manager/assets/manager.css" \
+            "$DOCROOT/manager/assets/manager.css"
     fi
 fi
 
@@ -160,6 +177,18 @@ if command -v git &>/dev/null; then
         cp -r "$VIEWS_TMP/default/assets/"* \
             "$DOCROOT/lazysite-assets/default/" 2>/dev/null
         echo "  assets installed to lazysite-assets/default/"
+    fi
+    # Install manager view
+    if [ -f "$VIEWS_TMP/manager/view.tt" ]; then
+        mkdir -p "$DOCROOT/lazysite/themes/manager"
+        cp "$VIEWS_TMP/manager/view.tt" \
+            "$DOCROOT/lazysite/themes/manager/"
+        mkdir -p "$DOCROOT/manager/assets"
+        if [ -f "$VIEWS_TMP/manager/assets/manager.css" ]; then
+            cp "$VIEWS_TMP/manager/assets/manager.css" \
+                "$DOCROOT/manager/assets/"
+        fi
+        echo "  Installed: manager view and CSS"
     fi
     rm -rf "$VIEWS_TMP"
 else

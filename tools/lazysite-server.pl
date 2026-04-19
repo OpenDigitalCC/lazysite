@@ -169,6 +169,18 @@ if ( ! -f $conf_target && -f $conf_source ) {
     print "  seeded lazysite.conf\n";
 }
 
+# Copy manager CSS to web-accessible path
+{
+    my $src = "$DOCROOT/lazysite/themes/manager/assets/manager.css";
+    my $dst = "$DOCROOT/manager/assets/manager.css";
+    if ( -f $src ) {
+        require File::Path;
+        require File::Copy;
+        File::Path::make_path("$DOCROOT/manager/assets") unless -d "$DOCROOT/manager/assets";
+        File::Copy::copy( $src, $dst );
+    }
+}
+
 # Seed default form config if missing
 {
     my $forms_dir = "$DOCROOT/lazysite/forms";
@@ -202,9 +214,9 @@ if ( ! -f $nav_target && -f $nav_source ) {
 
 my $cache_label = $nocache ? 'disabled (pass --cache to enable)' : 'enabled';
 
-my $editor_enabled = 0;
+my $manager_enabled = 0;
 if ( open my $cfh, '<', "$DOCROOT/lazysite/lazysite.conf" ) {
-    while (<$cfh>) { $editor_enabled = 1 if /^editor\s*:\s*enabled/i }
+    while (<$cfh>) { $manager_enabled = 1 if /^(?:manager|editor)\s*:\s*enabled/i }
     close $cfh;
 }
 
@@ -213,7 +225,7 @@ print "  processor: $PROCESSOR\n";
 print "  docroot:   $DOCROOT\n";
 print "  url:       http://localhost:$PORT/\n";
 print "  cache:     $cache_label\n";
-print "  editor:    " . ($editor_enabled ? "enabled" : "disabled") . "\n";
+print "  manager:   " . ($manager_enabled ? "enabled" : "disabled") . "\n";
 print "\nPress Ctrl+C to stop.\n\n";
 
 my $server = IO::Socket::INET->new(
@@ -284,7 +296,7 @@ sub handle_request {
     # Determine which script to run
     my $script = $PROCESSOR;
     my $auth_script  = abs_path("$SCRIPT_DIR/../lazysite-auth.pl");
-    my $editor_api   = abs_path("$SCRIPT_DIR/../lazysite-editor-api.pl");
+    my $manager_api  = abs_path("$SCRIPT_DIR/../lazysite-editor-api.pl");
     my $auth_users   = "$DOCROOT/lazysite/auth/users";
     my $use_auth     = -f $auth_users && -f $auth_script;
 

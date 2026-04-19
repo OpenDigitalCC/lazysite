@@ -17,11 +17,11 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
     print JSON::PP::encode_json({
         id          => 'lazysite',
         name        => 'Site Configuration',
-        description => 'Core lazysite.conf settings: site identity, theme, search, and editor',
+        description => 'Core lazysite.conf settings: site identity, theme, search, and manager',
         version     => '1.0',
         config_file => '',
         config_keys => [qw(site_name site_url theme nav_file
-                           search_default editor editor_path editor_groups)],
+                           search_default manager manager_path manager_groups)],
         config_schema => [
             { key => 'site_name', label => 'Site name', type => 'text',
               default => 'My Site', required => JSON::PP::true() },
@@ -33,14 +33,14 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
               default => 'lazysite/nav.conf' },
             { key => 'search_default', label => 'Pages searchable by default', type => 'select',
               options => ['true', 'false'], default => 'true' },
-            { key => 'editor', label => 'Editor', type => 'select',
+            { key => 'manager', label => 'Manager', type => 'select',
               options => ['disabled', 'enabled'], default => 'disabled' },
-            { key => 'editor_path', label => 'Editor URL path', type => 'text',
-              default => '/editor',
-              show_when => { key => 'editor', value => ['enabled'] } },
-            { key => 'editor_groups', label => 'Editor access groups', type => 'text',
+            { key => 'manager_path', label => 'Manager URL path', type => 'text',
+              default => '/manager',
+              show_when => { key => 'manager', value => ['enabled'] } },
+            { key => 'manager_groups', label => 'Manager access groups', type => 'text',
               default => '',
-              show_when => { key => 'editor', value => ['enabled'] } },
+              show_when => { key => 'manager', value => ['enabled'] } },
         ],
         actions => [],
     });
@@ -217,10 +217,10 @@ sub check_auth {
     my $redirect_path = $site_vars->{auth_redirect} || '/login';
     return { ok => 1 } if index( $uri, $redirect_path ) == 0;
 
-    # Editor pages have their own access control - skip auth_default enforcement
+    # Manager pages have their own access control - skip auth_default enforcement
     # but still read auth headers so TT vars are populated
-    my $editor_path = $site_vars->{editor_path} || '/editor';
-    if ( index( $uri, "$editor_path/" ) == 0 || $uri eq $editor_path ) {
+    my $manager_path = $site_vars->{manager_path} || '/manager';
+    if ( index( $uri, "$manager_path/" ) == 0 || $uri eq $manager_path ) {
         $auth_level = 'none';
     }
 
@@ -481,22 +481,22 @@ sub main {
         return;
     }
 
-    # Editor path enforcement
+    # Manager path enforcement
     {
         my %sv = resolve_site_vars();
-        my $editor_enabled = lc( $sv{editor} // 'disabled' );
-        my $editor_path    = $sv{editor_path}   || '/editor';
-        my $editor_groups  = $sv{editor_groups}  || '';
+        my $manager_enabled = lc( $sv{manager} // 'disabled' );
+        my $manager_path    = $sv{manager_path}  || '/manager';
+        my $manager_groups  = $sv{manager_groups} || '';
 
-        if ( $uri eq $editor_path || index( $uri, "$editor_path/" ) == 0 ) {
-            if ( $editor_enabled ne 'enabled' ) {
+        if ( $uri eq $manager_path || index( $uri, "$manager_path/" ) == 0 ) {
+            if ( $manager_enabled ne 'enabled' ) {
                 forbidden();
                 return;
             }
 
-            if ( $editor_groups ) {
+            if ( $manager_groups ) {
                 my @required = map { s/^\s+|\s+$//gr }
-                               split /\s*,\s*/, $editor_groups;
+                               split /\s*,\s*/, $manager_groups;
                 my $auth_groups_str = $ENV{HTTP_X_REMOTE_GROUPS} // '';
                 my %user_groups = map { lc($_) => 1 }
                                   split /\s*,\s*/, $auth_groups_str;
@@ -511,11 +511,11 @@ sub main {
                 }
             }
 
-            # Redirect /editor to /editor/ for directory index
-            if ( $uri eq $editor_path ) {
+            # Redirect /manager to /manager/ for directory index
+            if ( $uri eq $manager_path ) {
                 binmode( STDOUT, ':utf8' );
                 print "Status: 302 Found\r\n";
-                print "Location: $editor_path/\r\n\r\n";
+                print "Location: $manager_path/\r\n\r\n";
                 return;
             }
         }
@@ -2082,6 +2082,15 @@ sub read_theme_cookie {
 sub get_layout_path {
     my ( $meta, $vars ) = @_;
 
+    # Manager path gets dedicated view
+    my $manager_path = $vars->{manager_path} || '/manager';
+    my $uri = $ENV{REDIRECT_URL} // '';
+    if ( index( $uri, $manager_path ) == 0 ) {
+        my $manager_view = "$THEMES_DIR/manager/view.tt";
+        return ( $manager_view, undef ) if -f $manager_view;
+        return ( undef, undef );
+    }
+
     my $name = $meta->{layout} || '';
 
     unless ( $name ) {
@@ -2286,26 +2295,26 @@ sub render_template {
 sub _inject_admin_bar {
     my ( $html, $vars ) = @_;
 
-    my $editor = $vars->{editor} // '';
-    return $html unless $editor eq 'enabled';
+    my $manager = $vars->{manager} // '';
+    return $html unless $manager eq 'enabled';
 
     my $page_source = $vars->{page_source} // '';
     my $request_uri = $vars->{request_uri} // '';
 
-    # Don't inject on editor pages - they have their own chrome
-    my $editor_path = $vars->{editor_path} || '/editor';
-    return $html if $request_uri eq $editor_path
-                  || index( $request_uri, "$editor_path/" ) == 0;
+    # Don't inject on manager pages - they have their own chrome
+    my $manager_path = $vars->{manager_path} || '/manager';
+    return $html if $request_uri eq $manager_path
+                  || index( $request_uri, "$manager_path/" ) == 0;
 
     my $bar = '<div id="ls-admin-bar" style="'
         . 'position:fixed;top:0;left:0;right:0;z-index:99999;'
         . 'background:#1a1a1a;color:#aaa;font:12px system-ui,sans-serif;'
         . 'padding:2px 12px;display:flex;align-items:center;gap:10px;'
         . '">';
-    $bar .= '<a href="/editor/" style="color:#6db3f2;text-decoration:none;">Manage</a>';
+    $bar .= '<a href="/manager/" style="color:#6db3f2;text-decoration:none;">Manage</a>';
 
     if ( $page_source ) {
-        $bar .= '<a href="/editor/edit?path=' . $page_source
+        $bar .= '<a href="/manager/edit?path=' . $page_source
              . '" style="color:#6db3f2;text-decoration:none;">Edit</a>';
     }
 

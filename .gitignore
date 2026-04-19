@@ -15,6 +15,9 @@ starter/lazysite/logs/
 starter/lazysite/editor/locks/
 starter/lazysite/cache/
 
+# Manager CSS served copy (source is starter/lazysite/themes/manager/assets/)
+starter/manager/assets/manager.css
+
 # Compiled HTML cache files
 starter/**/*.html
 

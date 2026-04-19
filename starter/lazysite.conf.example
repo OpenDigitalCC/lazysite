@@ -4,10 +4,10 @@
 site_name: My Site
 site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
 
-editor: enabled
-editor_path: /editor
+manager: enabled
+manager_path: /manager
 
-# Plugins - scripts that integrate with the editor plugin system
+# Plugins - scripts that integrate with the manager plugin system
 plugins:
   - cgi-bin/lazysite-processor.pl
   - tools/lazysite-audit.pl

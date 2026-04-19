@@ -1,0 +1,892 @@
+/* ============================================================
+   lazysite Manager CSS
+   All manager presentation defined here.
+   Use --mg-* custom properties in page inline styles.
+   ============================================================ */
+
+:root {
+    /* Palette */
+    --mg-bg:          #f4f5f7;
+    --mg-surface:     #ffffff;
+    --mg-surface-alt: #f8f9fa;
+    --mg-border:      #dee2e6;
+    --mg-border-light:#e9ecef;
+
+    /* Text */
+    --mg-text:        #212529;
+    --mg-text-muted:  #6c757d;
+    --mg-text-light:  #adb5bd;
+
+    /* Accent */
+    --mg-accent:      #0d6efd;
+    --mg-accent-bg:   #e7f1ff;
+    --mg-accent-text: #ffffff;
+
+    /* State */
+    --mg-danger:      #dc3545;
+    --mg-danger-bg:   #fff5f5;
+    --mg-success:     #198754;
+    --mg-success-bg:  #d1e7dd;
+    --mg-warning:     #ffc107;
+    --mg-warning-bg:  #fff3cd;
+
+    /* Layout */
+    --mg-radius:      4px;
+    --mg-radius-lg:   6px;
+    --mg-gap:         1rem;
+    --mg-gap-sm:      0.5rem;
+    --mg-gap-xs:      0.25rem;
+
+    /* Typography */
+    --mg-font:        system-ui, -apple-system, BlinkMacSystemFont,
+                      'Segoe UI', sans-serif;
+    --mg-mono:        ui-monospace, 'Cascadia Code', 'Fira Code',
+                      'Consolas', monospace;
+    --mg-font-size:   14px;
+    --mg-line-height: 1.5;
+
+    /* Header */
+    --mg-header-h:    48px;
+    --mg-header-bg:   #1a1d23;
+    --mg-header-text: #e9ecef;
+    --mg-header-muted:#6c757d;
+    --mg-nav-active:  #ffffff;
+    --mg-nav-hover:   rgba(255,255,255,0.12);
+}
+
+/* ============================================================
+   Reset and base
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+.mg-body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--mg-font);
+    font-size: var(--mg-font-size);
+    line-height: var(--mg-line-height);
+    color: var(--mg-text);
+    background: var(--mg-bg);
+    min-height: 100vh;
+}
+
+/* ============================================================
+   Header
+   ============================================================ */
+
+.mg-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    height: var(--mg-header-h);
+    background: var(--mg-header-bg);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.mg-header-inner {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0 1.25rem;
+    gap: 1.5rem;
+}
+
+.mg-brand {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    text-decoration: none;
+    color: var(--mg-nav-active);
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.mg-brand-tag {
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--mg-header-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ============================================================
+   Nav
+   ============================================================ */
+
+.mg-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    flex: 1;
+}
+
+.mg-nav a {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 0.75rem;
+    border-radius: var(--mg-radius);
+    font-size: 0.85rem;
+    color: var(--mg-header-muted);
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.mg-nav a:hover {
+    background: var(--mg-nav-hover);
+    color: var(--mg-nav-active);
+}
+
+.mg-nav a.active {
+    background: rgba(255,255,255,0.1);
+    color: var(--mg-nav-active);
+    font-weight: 500;
+}
+
+/* ============================================================
+   Header tools (right side)
+   ============================================================ */
+
+.mg-header-tools {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.mg-user {
+    font-size: 0.8rem;
+    color: var(--mg-header-muted);
+}
+
+.mg-signout {
+    font-size: 0.8rem;
+    color: var(--mg-header-muted);
+    text-decoration: none;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--mg-radius);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.mg-signout:hover {
+    color: var(--mg-nav-active);
+    border-color: rgba(255,255,255,0.25);
+}
+
+/* ============================================================
+   Main content area
+   ============================================================ */
+
+.mg-main {
+    padding: 1.5rem;
+    max-width: 960px;
+}
+
+/* ============================================================
+   Page title
+   ============================================================ */
+
+.mg-main h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 1.25rem;
+    color: var(--mg-text);
+}
+
+/* ============================================================
+   Cards
+   ============================================================ */
+
+.mg-card {
+    background: var(--mg-surface);
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-radius-lg);
+    margin-bottom: 1rem;
+    overflow: hidden;
+}
+
+.mg-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.875rem;
+    background: var(--mg-surface-alt);
+    border-bottom: 1px solid var(--mg-border);
+    gap: 0.75rem;
+}
+
+.mg-card-title {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--mg-text);
+}
+
+.mg-card-subtitle {
+    font-size: 0.8rem;
+    color: var(--mg-text-muted);
+}
+
+.mg-card-body {
+    padding: 0.875rem;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+
+.mg-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.65rem;
+    font-size: 0.8rem;
+    font-family: var(--mg-font);
+    font-weight: 500;
+    border: 1px solid transparent;
+    border-radius: var(--mg-radius);
+    background: transparent;
+    color: var(--mg-text-muted);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.1s, color 0.1s;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+
+.mg-btn:hover {
+    background: var(--mg-border-light);
+    color: var(--mg-text);
+}
+
+.mg-btn-primary {
+    background: var(--mg-accent);
+    border-color: var(--mg-accent);
+    color: var(--mg-accent-text);
+}
+
+.mg-btn-primary:hover {
+    background: #0b5ed7;
+    color: var(--mg-accent-text);
+}
+
+.mg-btn-danger {
+    color: var(--mg-danger);
+}
+
+.mg-btn-danger:hover {
+    background: var(--mg-danger-bg);
+    color: var(--mg-danger);
+}
+
+.mg-btn-outline {
+    border-color: var(--mg-border);
+    color: var(--mg-text);
+}
+
+.mg-btn-outline:hover {
+    background: var(--mg-surface-alt);
+    border-color: #adb5bd;
+}
+
+.mg-btn-sm {
+    padding: 0.15rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.mg-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   Form rows
+   ============================================================ */
+
+.mg-form-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.6rem;
+}
+
+.mg-form-row label {
+    width: 120px;
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    color: var(--mg-text-muted);
+    padding-top: 0.3rem;
+    text-align: right;
+}
+
+.mg-form-row input[type="text"],
+.mg-form-row input[type="email"],
+.mg-form-row input[type="password"],
+.mg-form-row input[type="number"],
+.mg-form-row input[type="url"],
+.mg-form-row input[type="search"],
+.mg-form-row select,
+.mg-form-row textarea {
+    flex: 1;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.875rem;
+    font-family: var(--mg-font);
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-radius);
+    background: var(--mg-surface);
+    color: var(--mg-text);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.mg-form-row input:focus,
+.mg-form-row select:focus,
+.mg-form-row textarea:focus {
+    outline: none;
+    border-color: var(--mg-accent);
+    box-shadow: 0 0 0 2px rgba(13,110,253,0.15);
+}
+
+.mg-form-row input[type="checkbox"] {
+    flex: none;
+    width: auto;
+    margin-top: 0.35rem;
+    margin-left: 0;
+    accent-color: var(--mg-accent);
+}
+
+.mg-config-field[data-show-key] { display: none; }
+
+.mg-readonly {
+    font-family: var(--mg-mono);
+    font-size: 0.8rem;
+    color: var(--mg-text-muted);
+    padding-top: 0.3rem;
+}
+
+/* ============================================================
+   File browser
+   ============================================================ */
+
+.mg-file-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--mg-gap-sm);
+    margin-bottom: 0.75rem;
+}
+
+.mg-file-filter {
+    flex: 1;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.875rem;
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-radius);
+    background: var(--mg-surface);
+    color: var(--mg-text);
+}
+
+.mg-file-filter:focus {
+    outline: none;
+    border-color: var(--mg-accent);
+}
+
+.mg-breadcrumb {
+    font-family: var(--mg-mono);
+    font-size: 0.8rem;
+    color: var(--mg-text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.mg-breadcrumb a {
+    color: var(--mg-accent);
+    text-decoration: none;
+}
+
+.mg-file-list {
+    background: var(--mg-surface);
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-radius-lg);
+    overflow: hidden;
+}
+
+.mg-file-item {
+    display: flex;
+    align-items: center;
+    padding: 0.45rem 0.75rem;
+    border-bottom: 1px solid var(--mg-border-light);
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.mg-file-item:last-child { border-bottom: none; }
+
+.mg-file-item:hover { background: var(--mg-surface-alt); }
+
+.mg-file-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+    width: 1.25rem;
+    text-align: center;
+}
+
+.mg-file-name {
+    flex: 1;
+    color: var(--mg-text);
+    text-decoration: none;
+}
+
+.mg-file-name:hover { color: var(--mg-accent); }
+
+.mg-file-dir { cursor: pointer; color: var(--mg-accent); }
+
+.mg-file-meta {
+    font-size: 0.75rem;
+    color: var(--mg-text-light);
+    white-space: nowrap;
+}
+
+.mg-file-actions { display: flex; gap: 0.35rem; }
+
+/* ============================================================
+   Status badges
+   ============================================================ */
+
+.mg-badge {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+.mg-badge-success {
+    background: var(--mg-success-bg);
+    color: #0a3622;
+}
+
+.mg-badge-muted {
+    background: var(--mg-surface-alt);
+    color: var(--mg-text-muted);
+    border: 1px solid var(--mg-border);
+}
+
+.mg-badge-type {
+    background: var(--mg-surface-alt);
+    color: var(--mg-text-muted);
+    border: 1px solid var(--mg-border);
+    font-family: var(--mg-mono);
+}
+
+/* ============================================================
+   Tables
+   ============================================================ */
+
+.mg-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.mg-table th {
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mg-text-muted);
+    border-bottom: 1px solid var(--mg-border);
+    background: var(--mg-surface-alt);
+}
+
+.mg-table td {
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--mg-border-light);
+    vertical-align: middle;
+}
+
+.mg-table tr:last-child td { border-bottom: none; }
+
+.mg-table tr:hover td { background: var(--mg-surface-alt); }
+
+/* ============================================================
+   Status messages
+   ============================================================ */
+
+.mg-status {
+    font-size: 0.8rem;
+    color: var(--mg-text-muted);
+    min-height: 1.2em;
+    padding: 0.2rem 0;
+}
+
+.mg-status-success { color: var(--mg-success); }
+.mg-status-error   { color: var(--mg-danger); }
+.mg-status-warn    { color: var(--mg-warning); }
+
+/* ============================================================
+   Section labels
+   ============================================================ */
+
+.mg-section-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--mg-text-muted);
+    margin: 1rem 0 0.5rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--mg-border-light);
+}
+
+.mg-section-label:first-child { margin-top: 0; }
+
+/* ============================================================
+   Empty states
+   ============================================================ */
+
+.mg-empty {
+    padding: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--mg-text-light);
+    font-style: italic;
+}
+
+/* ============================================================
+   Nav editor (drag and drop)
+   ============================================================ */
+
+.mg-nav-item {
+    display: flex;
+    align-items: center;
+    padding: 0.4rem 0.6rem;
+    background: var(--mg-surface);
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-radius);
+    margin-bottom: 0.3rem;
+    gap: 0.5rem;
+    cursor: default;
+}
+
+.mg-nav-item.child {
+    margin-left: 1.5rem;
+    background: var(--mg-surface-alt);
+}
+
+.mg-nav-item.dragging {
+    opacity: 0.4;
+    border-style: dashed;
+}
+
+.mg-nav-item.drag-over {
+    border-color: var(--mg-accent);
+    background: var(--mg-accent-bg);
+}
+
+.mg-nav-handle {
+    cursor: grab;
+    color: var(--mg-text-light);
+    font-size: 0.9rem;
+    padding: 0 0.2rem;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.mg-nav-handle:active { cursor: grabbing; }
+
+.mg-nav-label { flex: 1; font-size: 0.875rem; }
+
+.mg-nav-url {
+    font-family: var(--mg-mono);
+    font-size: 0.75rem;
+    color: var(--mg-text-muted);
+}
+
+.mg-nav-type {
+    font-size: 0.72rem;
+    color: var(--mg-text-light);
+    font-style: italic;
+}
+
+/* ============================================================
+   Editor pane (edit.md)
+   ============================================================ */
+
+.mg-editor-root {
+    position: fixed;
+    inset: var(--mg-header-h) 0 0 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--mg-bg);
+}
+
+.mg-editor-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0 1rem;
+    height: 40px;
+    background: var(--mg-surface);
+    border-bottom: 1px solid var(--mg-border);
+    flex-shrink: 0;
+}
+
+.mg-editor-path {
+    font-family: var(--mg-mono);
+    font-size: 0.8rem;
+    color: var(--mg-text-muted);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mg-editor-main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.mg-editor-pane {
+    width: 50%;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    background: var(--mg-surface);
+    border-right: 1px solid var(--mg-border);
+}
+
+.mg-editor-divider {
+    width: 4px;
+    background: var(--mg-border);
+    cursor: col-resize;
+    flex-shrink: 0;
+}
+
+.mg-editor-divider:hover { background: #adb5bd; }
+
+.mg-preview-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.mg-preview-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.75rem;
+    background: var(--mg-surface-alt);
+    border-bottom: 1px solid var(--mg-border);
+    font-size: 0.8rem;
+    color: var(--mg-text-muted);
+    flex-shrink: 0;
+}
+
+.mg-preview-toolbar span:first-child { flex: 1; }
+
+.mg-preview-frame {
+    flex: 1;
+    border: none;
+    width: 100%;
+}
+
+.mg-editor-statusbar {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.2rem 1rem;
+    background: var(--mg-header-bg);
+    color: var(--mg-header-muted);
+    font-size: 0.72rem;
+    font-family: var(--mg-mono);
+    flex-shrink: 0;
+}
+
+.mg-editor-dirty { color: var(--mg-warning); margin-left: auto; }
+.mg-editor-saved { color: #4caf82; }
+
+.mg-lock-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.mg-lock-dot.editing { background: var(--mg-success); }
+.mg-lock-dot.locked  { background: var(--mg-warning); }
+
+/* Front matter panel */
+.mg-fm-section summary {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mg-text-muted);
+    cursor: pointer;
+    background: var(--mg-surface-alt);
+    border-bottom: 1px solid var(--mg-border);
+    user-select: none;
+}
+
+.mg-fm-section summary:hover { background: #e9ecef; }
+.mg-fm-fields { padding: 0.6rem 0.75rem; }
+
+/* CodeMirror integration */
+.mg-cm-yaml .CodeMirror {
+    font-size: 0.8rem;
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-radius);
+    height: auto;
+    min-height: 60px;
+    font-family: var(--mg-mono);
+}
+
+.mg-cm-content .CodeMirror {
+    height: 100%;
+    min-height: 400px;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    font-family: var(--mg-mono);
+    border-top: 1px solid var(--mg-border);
+}
+
+.cm-tt-variable {
+    color: #c0392b;
+    background: rgba(192,57,43,0.07);
+    border-radius: 2px;
+}
+
+/* ============================================================
+   Plugin cards
+   ============================================================ */
+
+.mg-plugin-card {
+    background: var(--mg-surface);
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-radius-lg);
+    padding: 0.875rem;
+    margin-bottom: 0.875rem;
+}
+
+.mg-plugin-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 0.15rem;
+}
+
+.mg-plugin-desc {
+    font-size: 0.8rem;
+    color: var(--mg-text-muted);
+    margin-bottom: 0.6rem;
+}
+
+.mg-handler-group {
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-radius-lg);
+    overflow: hidden;
+    margin-bottom: 0.875rem;
+}
+
+.mg-handler-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.4rem 0.75rem;
+    background: var(--mg-surface-alt);
+    border-bottom: 1px solid var(--mg-border);
+}
+
+.mg-handler-group-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mg-text-muted);
+}
+
+.mg-handler-item {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--mg-border-light);
+}
+
+.mg-handler-item:last-child { border-bottom: none; }
+
+.mg-handler-item-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.mg-handler-item-actions {
+    display: flex;
+    gap: 0.35rem;
+}
+
+.mg-handler-name {
+    font-weight: 500;
+    font-size: 0.9rem;
+    flex: 1;
+}
+
+/* ============================================================
+   Wizard
+   ============================================================ */
+
+.mg-wizard {
+    background: var(--mg-surface-alt);
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-radius-lg);
+    padding: 1rem;
+    margin-top: 0.75rem;
+}
+
+.mg-wizard-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+    color: var(--mg-text);
+}
+
+.mg-wizard-section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mg-text-muted);
+    margin: 0.75rem 0 0.4rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--mg-border);
+}
+
+.mg-wizard-section-label:first-of-type {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+}
+
+.mg-wizard-actions {
+    margin-top: 0.75rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 700px) {
+    .mg-header-inner { padding: 0 0.75rem; gap: 0.75rem; }
+    .mg-nav a { padding: 0 0.5rem; font-size: 0.8rem; }
+    .mg-brand-tag { display: none; }
+    .mg-main { padding: 1rem 0.75rem; }
+    .mg-user { display: none; }
+}

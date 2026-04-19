@@ -164,11 +164,11 @@ sub collect_audit_results {
 sub run_scan {
     my ($results) = @_;
 
-    my $report_dir = "$DOCROOT/editor";
+    my $report_dir = "$DOCROOT/manager";
     make_path($report_dir) unless -d $report_dir;
 
     my $report_path = "$report_dir/audit-report.md";
-    my $report_url  = '/editor/audit-report';
+    my $report_url  = '/manager/audit-report';
 
     write_audit_report( $report_path, $results );
 
@@ -216,7 +216,7 @@ sub write_audit_report {
             my $page_md = $item->{source};
             $page_md =~ s{^/}{};
             $page_md .= '.md' unless $page_md =~ /\.\w+$/;
-            my $edit_url = "/editor/edit?path=" . uri_encode("/$page_md");
+            my $edit_url = "/manager/edit?path=" . uri_encode("/$page_md");
             $md .= "| $item->{source} | /$item->{target} | [Edit]($edit_url) |\n";
         }
     }
@@ -227,7 +227,7 @@ sub write_audit_report {
         for my $page ( @$orphaned ) {
             my $page_md = $page;
             $page_md .= '.md' unless $page_md =~ /\.\w+$/;
-            my $edit_url = "/editor/edit?path=" . uri_encode("/$page_md");
+            my $edit_url = "/manager/edit?path=" . uri_encode("/$page_md");
             $md .= "- /$page - [Edit]($edit_url)\n";
         }
     }

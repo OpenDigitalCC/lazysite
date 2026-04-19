@@ -1,115 +1,75 @@
 ---
 title: Edit
+auth: manager
 search: false
 query_params:
   - path
   - new
 ---
 
-<div id="editor-root">
-<link rel="stylesheet" href="/editor/assets/cm/codemirror.min.css">
+<div id="editor-root" class="mg-editor-root">
+<link rel="stylesheet" href="/manager/assets/cm/codemirror.min.css">
 <style>
-#editor-root { position:fixed; inset:0; display:flex; flex-direction:column; font-family:system-ui,sans-serif; font-size:14px; background:#f8f9fa; color:#212529; z-index:9999; }
-#ed-toolbar { display:flex; align-items:center; justify-content:space-between; padding:0 1rem; height:44px; background:#fff; border-bottom:1px solid #dee2e6; flex-shrink:0; gap:1rem; }
-#ed-toolbar-left, #ed-toolbar-right { display:flex; align-items:center; gap:0.75rem; }
-#ed-back { color:#0d6efd; text-decoration:none; font-size:0.875rem; }
-#ed-filepath { font-family:ui-monospace,monospace; font-size:0.8rem; color:#6c757d; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.lock-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
-.lock-dot.editing { background:#198754; }
-.lock-dot.locked { background:#ffc107; }
-#ed-lock-label { font-size:0.8rem; color:#6c757d; }
-#ed-shortcut-hint { font-size:0.75rem; color:#adb5bd; }
-#ed-toolbar button, #ed-toolbar a { padding:0.3rem 0.75rem; border:1px solid #dee2e6; border-radius:4px; background:#fff; cursor:pointer; font-size:0.875rem; color:#495057; text-decoration:none; }
-#ed-toolbar button:hover, #ed-toolbar a:hover { background:#f8f9fa; }
-#ed-save-btn.dirty { background:#0d6efd; color:#fff; border-color:#0d6efd; font-weight:600; }
-#ed-main { display:flex; flex:1; min-height:0; overflow:hidden; }
-#ed-editor-pane { width:50%; display:flex; flex-direction:column; overflow-y:auto; background:#fff; border-right:1px solid #dee2e6; }
-#ed-fm-section { border-bottom:1px solid #dee2e6; flex-shrink:0; }
-#ed-fm-section summary { padding:0.5rem 1rem; font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#6c757d; cursor:pointer; background:#f8f9fa; user-select:none; }
-#ed-fm-fields { padding:0.75rem 1rem; }
-.fm-row { display:flex; align-items:flex-start; gap:0.75rem; margin-bottom:0.5rem; }
-.fm-row label { width:60px; flex-shrink:0; font-size:0.8rem; color:#6c757d; padding-top:0.3rem; text-align:right; font-family:ui-monospace,monospace; }
-.fm-row input, .fm-row select { flex:1; padding:0.25rem 0.5rem; border:1px solid #dee2e6; border-radius:3px; font-size:0.875rem; }
-.fm-row input:focus, .fm-row select:focus { outline:none; border-color:#86b7fe; box-shadow:0 0 0 2px rgba(13,110,253,0.15); }
-.fm-row-extra { align-items:flex-start; }
-#ed-yaml-cm { flex:1; }
-#ed-yaml-cm .CodeMirror { font-size:0.8rem; border:1px solid #dee2e6; border-radius:3px; height:auto; min-height:60px; }
-#ed-content-section { flex:1; display:flex; flex-direction:column; }
-#ed-content-cm { flex:1; }
-#ed-content-cm .CodeMirror { height:100%; min-height:400px; font-size:0.875rem; line-height:1.6; font-family:ui-monospace,'Cascadia Code','Fira Code',monospace; border-top:1px solid #dee2e6; }
-.cm-tt-variable { color:#c0392b; background:rgba(192,57,43,0.07); border-radius:2px; }
-#ed-divider { width:5px; background:#dee2e6; cursor:col-resize; flex-shrink:0; position:relative; }
-#ed-divider:hover { background:#adb5bd; }
-#ed-preview-pane { flex:1; display:flex; flex-direction:column; background:#fff; min-width:0; }
-#ed-preview-toolbar { display:flex; align-items:center; gap:0.5rem; padding:0.3rem 0.75rem; background:#f8f9fa; border-bottom:1px solid #dee2e6; font-size:0.8rem; color:#6c757d; flex-shrink:0; }
-#ed-preview-toolbar span { flex:1; }
-#ed-preview-status { font-style:italic; }
-#ed-preview-frame { flex:1; border:none; width:100%; }
-#ed-statusbar { display:flex; align-items:center; gap:1.5rem; padding:0.2rem 1rem; background:#212529; color:#adb5bd; font-size:0.75rem; flex-shrink:0; font-family:ui-monospace,monospace; }
-#ed-dirty { color:#ffc107; margin-left:auto; }
-#ed-saved { color:#198754; }
-body { margin:0 !important; padding:0 !important; max-width:none !important; }
-body > .site-bar, body > .site-rule, body > main > h1, body > footer { display:none !important; }
-body > main { display:block !important; margin:0 !important; padding:0 !important; }
+.mg-main { padding:0; max-width:none; }
+.mg-main h1 { display:none; }
+#ed-save-btn.dirty { background:var(--mg-accent); color:var(--mg-accent-text); border-color:var(--mg-accent); font-weight:600; }
+#ed-filepath a { color:var(--mg-accent); text-decoration:none; }
+#ed-filepath a:hover { text-decoration:underline; }
 </style>
 
-<div id="ed-toolbar">
-<div id="ed-toolbar-left">
-<a href="/editor/" id="ed-back">Manage</a>
-<span id="ed-filepath">[% query.path | html %]</span>
-<span id="ed-lock-dot" title=""></span>
-<span id="ed-lock-label"></span>
-</div>
-<div id="ed-toolbar-right">
-<span id="ed-shortcut-hint">Ctrl+S</span>
-<button id="ed-save-btn" onclick="savePage()" disabled>Save</button>
-<button onclick="refreshPreview()">Preview</button>
-<a id="ed-view-link" href="#" target="_blank">View page</a>
-</div>
+<div class="mg-editor-toolbar">
+<span id="ed-filepath" class="mg-editor-path">[% query.path | html %]</span>
+<span id="ed-lock-dot" class="mg-lock-dot" title=""></span>
+<span id="ed-lock-label" style="font-size:0.8rem;color:var(--mg-text-muted);"></span>
+<span style="flex:1;"></span>
+<span style="font-size:0.75rem;color:var(--mg-text-light);">Ctrl+S</span>
+<button id="ed-save-btn" class="mg-btn" onclick="savePage()" disabled>Save</button>
+<button class="mg-btn" onclick="refreshPreview()">Preview</button>
+<a id="ed-view-link" href="#" target="_blank" class="mg-btn">View page</a>
 </div>
 
-<div id="ed-main">
-<div id="ed-editor-pane">
-<details id="ed-fm-section" open>
+<div id="ed-main" class="mg-editor-main">
+<div id="ed-editor-pane" class="mg-editor-pane">
+<details id="ed-fm-section" class="mg-fm-section" open>
 <summary>Front Matter</summary>
-<div id="ed-fm-fields">
-<div class="fm-row"><label>title</label><input type="text" id="fm-title" oninput="syncFmField('title',this.value)"></div>
-<div class="fm-row"><label>subtitle</label><input type="text" id="fm-subtitle" oninput="syncFmField('subtitle',this.value)"></div>
-<div class="fm-row"><label>auth</label><select id="fm-auth" onchange="syncFmField('auth',this.value)"><option value="">--</option><option value="none">none</option><option value="optional">optional</option><option value="required">required</option></select></div>
-<div class="fm-row"><label>search</label><select id="fm-search" onchange="syncFmField('search',this.value)"><option value="">default</option><option value="true">true</option><option value="false">false</option></select></div>
-<div class="fm-row fm-row-extra"><label>extra</label><div id="ed-yaml-cm"></div></div>
+<div class="mg-fm-fields">
+<div class="mg-form-row"><label style="width:60px;">title</label><input type="text" id="fm-title" oninput="syncFmField('title',this.value)"></div>
+<div class="mg-form-row"><label style="width:60px;">subtitle</label><input type="text" id="fm-subtitle" oninput="syncFmField('subtitle',this.value)"></div>
+<div class="mg-form-row"><label style="width:60px;">auth</label><select id="fm-auth" onchange="syncFmField('auth',this.value)"><option value="">--</option><option value="none">none</option><option value="optional">optional</option><option value="required">required</option></select></div>
+<div class="mg-form-row"><label style="width:60px;">search</label><select id="fm-search" onchange="syncFmField('search',this.value)"><option value="">default</option><option value="true">true</option><option value="false">false</option></select></div>
+<div class="mg-form-row" style="align-items:flex-start;"><label style="width:60px;">extra</label><div id="ed-yaml-cm" class="mg-cm-yaml"></div></div>
 </div>
 </details>
-<div id="ed-content-section"><div id="ed-content-cm"></div></div>
+<div id="ed-content-section" style="flex:1;display:flex;flex-direction:column;"><div id="ed-content-cm" class="mg-cm-content"></div></div>
 </div>
-<div id="ed-divider" title="Drag to resize"></div>
-<div id="ed-preview-pane">
-<div id="ed-preview-toolbar"><span>Preview</span><span id="ed-preview-status">Save to preview</span><button onclick="refreshPreview()">Refresh</button></div>
-<iframe id="ed-preview-frame" src="about:blank"></iframe>
+<div id="ed-divider" class="mg-editor-divider" title="Drag to resize"></div>
+<div id="ed-preview-pane" class="mg-preview-pane">
+<div class="mg-preview-toolbar"><span>Preview</span><span id="ed-preview-status" style="font-style:italic;">Save to preview</span><button class="mg-btn mg-btn-sm" onclick="refreshPreview()">Refresh</button></div>
+<iframe id="ed-preview-frame" class="mg-preview-frame" src="about:blank"></iframe>
 </div>
 </div>
 
-<div id="ed-statusbar">
+<div class="mg-editor-statusbar">
 <span id="ed-pos">Ln 1, Col 1</span>
 <span id="ed-words">0 words</span>
-<span id="ed-dirty"></span>
-<span id="ed-saved"></span>
+<span id="ed-dirty" class="mg-editor-dirty"></span>
+<span id="ed-saved" class="mg-editor-saved"></span>
 </div>
 
 </div>
 
-<script src="/editor/assets/cm/codemirror.min.js"></script>
-<script src="/editor/assets/cm/overlay.min.js"></script>
-<script src="/editor/assets/cm/xml.min.js"></script>
-<script src="/editor/assets/cm/markdown.min.js"></script>
-<script src="/editor/assets/cm/yaml.min.js"></script>
-<script src="/editor/assets/cm/htmlmixed.min.js"></script>
-<script src="/editor/assets/cm/css.min.js"></script>
-<script src="/editor/assets/cm/javascript.min.js"></script>
-<script src="/editor/assets/cm/perl.min.js"></script>
-<script src="/editor/assets/cm/shell.min.js"></script>
-<script src="/editor/assets/cm/matchbrackets.min.js"></script>
-<script src="/editor/assets/cm/closebrackets.min.js"></script>
+<script src="/manager/assets/cm/codemirror.min.js"></script>
+<script src="/manager/assets/cm/overlay.min.js"></script>
+<script src="/manager/assets/cm/xml.min.js"></script>
+<script src="/manager/assets/cm/markdown.min.js"></script>
+<script src="/manager/assets/cm/yaml.min.js"></script>
+<script src="/manager/assets/cm/htmlmixed.min.js"></script>
+<script src="/manager/assets/cm/css.min.js"></script>
+<script src="/manager/assets/cm/javascript.min.js"></script>
+<script src="/manager/assets/cm/perl.min.js"></script>
+<script src="/manager/assets/cm/shell.min.js"></script>
+<script src="/manager/assets/cm/matchbrackets.min.js"></script>
+<script src="/manager/assets/cm/closebrackets.min.js"></script>
 
 <script>
 var API = '/cgi-bin/lazysite-editor-api.pl';
@@ -295,7 +255,18 @@ function acquireLock() {
 // --- Load ---
 function loadFile() {
   if (!filePath) return;
-  document.getElementById('ed-filepath').textContent = filePath;
+  var dirPart = filePath.replace(/\/[^/]*$/, '') || '/';
+  var fileName = filePath.replace(/^.*\//, '');
+  var parts = dirPart.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+  var accumulated = '';
+  var items = ['<a href="/manager/#/">/</a>'];
+  for (var bi = 0; bi < parts.length; bi++) {
+    accumulated += '/' + parts[bi];
+    items.push('<a href="/manager/#' + accumulated + '/">' + parts[bi] + '</a>');
+  }
+  items.push('<span>' + fileName + '</span>');
+  var bcHtml = items.join(' &rsaquo; ');
+  document.getElementById('ed-filepath').innerHTML = bcHtml;
   var viewPath = filePath.replace(/\.md$/, '').replace(/\/index$/, '/');
   if (viewPath.charAt(0) !== '/') viewPath = '/' + viewPath;
   document.getElementById('ed-view-link').href = viewPath;
