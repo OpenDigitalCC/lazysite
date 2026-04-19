@@ -472,7 +472,10 @@ window.addEventListener('beforeunload', function(e) {
 
 // --- Keyboard shortcut (global) ---
 document.addEventListener('keydown', function(e) {
-  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); savePage(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    if (!readOnly) savePage();
+  }
 });
 
 // --- Boot ---
