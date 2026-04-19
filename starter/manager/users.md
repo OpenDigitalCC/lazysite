@@ -191,16 +191,30 @@ function deleteGroup(group) {
       : 'Delete group "' + group + '"?';
     if (!confirm(prompt)) return;
     if (!members.length) { showStatus('Group "' + group + '" already empty.', false); loadUsers(); return; }
-    var calls = members.map(function(u) {
-      return apiCall({ action: 'group-remove', username: u, group: group });
-    });
-    Promise.all(calls).then(function(results) {
-      var failed = results.filter(function(r) { return !r.ok; });
-      if (failed.length) { showStatus('Some removals failed: ' + failed[0].error, true); }
-      else { showStatus('Group "' + group + '" deleted.'); }
-      loadUsers();
-    }).catch(function(e) { showStatus('Error: ' + e.message, true); loadUsers(); });
+    removeGroupMembersSequential(members, group, 0);
   });
+}
+
+function removeGroupMembersSequential(members, group, i) {
+  if (i >= members.length) {
+    showStatus('Group "' + group + '" deleted.');
+    loadUsers();
+    return;
+  }
+  var username = members[i];
+  apiCall({ action: 'group-remove', username: username, group: group })
+    .then(function(r) {
+      if (!r.ok) {
+        showStatus('Failed removing ' + username + ' from "' + group + '": ' + r.error, true);
+        loadUsers();
+        return;
+      }
+      removeGroupMembersSequential(members, group, i + 1);
+    })
+    .catch(function(e) {
+      showStatus('Error removing ' + username + ' from "' + group + '": ' + e.message, true);
+      loadUsers();
+    });
 }
 
 function createGroup() {
