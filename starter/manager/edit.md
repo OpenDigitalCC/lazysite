@@ -152,6 +152,11 @@ function initEditors() {
       getValue: function() { return document.getElementById('content-fallback').value; },
       setValue: function(v) { document.getElementById('content-fallback').value = v; },
       getCursor: function() { return { line: 0, ch: 0 }; },
+      setOption: function(opt, val) {
+        if (opt === 'readOnly') {
+          document.getElementById('content-fallback').disabled = val ? true : false;
+        }
+      },
       on: function(ev, fn) { document.getElementById('content-fallback').addEventListener('input', fn); }
     };
     return;
@@ -354,7 +359,7 @@ function loadContent() {
       } else {
         contentCm.setValue(data.content);
       }
-      if (readOnly && contentCm.setOption) {
+      if (readOnly) {
         contentCm.setOption('readOnly', true);
       }
       isDirty = false;
