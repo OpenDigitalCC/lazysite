@@ -14,3 +14,4 @@ plugins:
   - cgi-bin/lazysite-form-smtp.pl
   - cgi-bin/lazysite-form-handler.pl
   - cgi-bin/lazysite-auth.pl
+  - lazysite-log.pl

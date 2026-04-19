@@ -9,6 +9,8 @@ use File::Basename qw(dirname basename);
 use Cwd qw(realpath);
 use IPC::Open2;
 
+my $LOG_COMPONENT = 'manager-api';
+
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $LOCK_DIR     = "$LAZYSITE_DIR/editor/locks";
@@ -156,9 +158,15 @@ sub validate_path {
 sub is_blocked_path {
     my ($rel_path) = @_;
     for my $blocked (@BLOCKED_PATHS) {
-        return 1 if $rel_path eq $blocked;
+        if ( $rel_path eq $blocked ) {
+            log_event('WARN', $action, 'blocked path access', path => $rel_path, user => $auth_user);
+            return 1;
+        }
     }
-    return 1 if $rel_path =~ /\.pl$/;
+    if ( $rel_path =~ /\.pl$/ ) {
+        log_event('WARN', $action, 'blocked path access', path => $rel_path, user => $auth_user);
+        return 1;
+    }
     return 0;
 }
 
@@ -325,6 +333,8 @@ sub action_save {
     # Release lock
     unlink $lock_file if -f $lock_file;
 
+    log_event('INFO', $action, 'file saved', path => $rel_path, user => $auth_user);
+
     my @st = stat($full);
     return { ok => 1, path => $rel_path, mtime => $st[9] // 0 };
 }
@@ -346,6 +356,8 @@ sub action_delete {
 
     ( my $cache = $full ) =~ s/\.md$/.html/;
     unlink $cache if -f $cache;
+
+    log_event('INFO', $action, 'file deleted', path => $rel_path, user => $auth_user);
 
     return { ok => 1, path => $rel_path };
 }
@@ -420,6 +432,7 @@ sub action_cache_invalidate {
         unless $real && index( $real, $DOCROOT ) == 0;
 
     unlink $real if -f $real;
+    log_event('INFO', $action, 'cache invalidated', path => $rel_path, user => $auth_user);
     return { ok => 1, path => $rel_path };
 }
 
@@ -598,6 +611,8 @@ sub action_theme_upload {
     }
 
     _cleanup_tmp($tmp_dir);
+
+    log_event('INFO', $action, 'theme installed', name => $install_name, user => $auth_user);
 
     return { ok => 1, name => $install_name, installed_as => $install_name };
 }
@@ -1124,4 +1139,47 @@ sub _get_lock_info {
     my ( $by, $at ) = split /\s+/, $lc, 2;
     my $age = time() - ( $at // 0 );
     return { locked_by => $by, locked_at => $at, active => $age < $LOCK_TIMEOUT ? 1 : 0 };
+}
+
+# --- Logging ---
+
+sub log_event {
+    my ($level, $context, $message, %extra) = @_;
+    my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
+    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
+    use POSIX qw(strftime);
+    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
+    if ( $format eq 'json' ) {
+        my $pairs = join ',',
+            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            keys %extra;
+        my $json = '{"ts":"' . $ts . '"'
+            . ',"level":"'     . _json_str($level)          . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
+            . ',"context":"'   . _json_str($context)        . '"'
+            . ',"message":"'   . _json_str($message)        . '"'
+            . ( $pairs ? ",$pairs" : '' )
+            . '}';
+        print STDERR "$json\n";
+    }
+    else {
+        my $extras = join ' ',
+            map { "$_=" . $extra{$_} } keys %extra;
+        my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
+        $line   .= " $extras" if $extras;
+        print STDERR "$line\n";
+    }
+}
+
+sub _json_str {
+    my ($s) = @_;
+    $s //= '';
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    return $s;
 }

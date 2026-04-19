@@ -9,6 +9,9 @@ use LWP::UserAgent;
 use Cwd qw(realpath);
 use JSON::PP qw(decode_json encode_json);
 use Digest::SHA qw(hmac_sha256_hex);
+use POSIX qw(strftime);
+
+my $LOG_COMPONENT = 'processor';
 
 # --- Plugin descriptor ---
 
@@ -481,6 +484,15 @@ sub main {
         return;
     }
 
+    # Set log level from conf (env var takes priority)
+    {
+        my %sv = resolve_site_vars();
+        $ENV{LAZYSITE_LOG_LEVEL}  = $sv{log_level}
+            if $sv{log_level} && !$ENV{LAZYSITE_LOG_LEVEL};
+        $ENV{LAZYSITE_LOG_FORMAT} = $sv{log_format}
+            if $sv{log_format} && !$ENV{LAZYSITE_LOG_FORMAT};
+    }
+
     # Manager path enforcement
     {
         my %sv = resolve_site_vars();
@@ -641,6 +653,7 @@ sub main {
         if ( @md_stat && @html_stat ) {
             if ( $html_stat[9] >= $md_stat[9] ) {
                 # mtime fresh - serve cache immediately
+                log_event('DEBUG', $uri, 'cache hit');
                 my $ct  = read_ct($base);
                 my $ttl = peek_ttl($md_path);
                 output_page( read_file($html_path), $ct, $ttl );
@@ -683,6 +696,7 @@ sub main {
         my $ct   = peek_content_type($md_path);
         my $ttl  = $protected ? undef : peek_ttl($md_path);
         write_ct( $base, $ct ) unless $protected;
+        log_event('INFO', $uri, 'page rendered');
         output_page( $page, $ct, $ttl, $protected );
         return;
     }
@@ -792,7 +806,7 @@ sub process_md {
     if ( !%$query ) {
         write_html( $html_path, $page );
         eval { update_registries() };
-        log_warn("Registry update failed: $@") if $@;
+        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'registry update failed', error => $@) if $@;
     }
 
     return $page;
@@ -857,7 +871,7 @@ sub process_url {
 
     write_html( $html_path, $page );
     eval { update_registries() };
-    log_warn("Registry update failed: $@") if $@;
+    log_event('WARN', $ENV{REDIRECT_URL} // '-', 'registry update failed', error => $@) if $@;
 
     return $page;
 }
@@ -1064,7 +1078,7 @@ sub load_form_secret {
 
     if ( -f $secret_path ) {
         open( my $fh, '<', $secret_path ) or do {
-            log_warn("Cannot read form secret: $!");
+            log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot read form secret', error => $!);
             return '';
         };
         chomp( my $s = <$fh> );
@@ -1083,7 +1097,7 @@ sub load_form_secret {
     }
 
     open( my $fh, '>', $secret_path ) or do {
-        log_warn("Cannot write form secret: $!");
+        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot write form secret', error => $!);
         return $s;
     };
     chmod 0600, $secret_path;
@@ -1112,7 +1126,7 @@ sub _render_form {
 
     my $form_name = $meta->{form} // '';
     unless ( $form_name ) {
-        log_warn(":::form block found but no form: key in front matter");
+        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'form block found but no form key in front matter');
         return "<!-- lazysite: form: key required in front matter -->\n";
     }
 
@@ -1259,7 +1273,7 @@ sub convert_fenced_divs {
             qq(<div class="$class">\n${body}</div>\n);
         }
         else {
-            log_warn("Fenced div: rejected unsafe class name '$class'");
+            log_event('WARN', $ENV{REDIRECT_URL} // '-', 'fenced div rejected unsafe class', class => $class);
             $body;
         }
     }gsmxe;
@@ -1318,7 +1332,7 @@ sub _resolve_include {
         # Remote URL
         $content = fetch_url($source);
         unless ( defined $content ) {
-            log_warn("include failed: $source - fetch failed");
+            log_event("WARN", $ENV{REDIRECT_URL} // "-", "include fetch failed", source => $source);
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
         }
     }
@@ -1341,18 +1355,18 @@ sub _resolve_include {
         # Realpath check - reject if outside $DOCROOT
         my $real = realpath($resolved);
         if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
-            log_warn("include failed: $source - path outside docroot or not found");
+            log_event("WARN", $ENV{REDIRECT_URL} // "-", "include path invalid", source => $source);
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
         }
 
         if ( ! -f $real ) {
-            log_warn("include failed: $source - file not found");
+            log_event("WARN", $ENV{REDIRECT_URL} // "-", "include file not found", source => $source);
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
         }
 
         $content = eval { read_file($real) };
         if ( $@ || !defined $content ) {
-            log_warn("include failed: $source - $@");
+            log_event("WARN", $ENV{REDIRECT_URL} // "-", "include failed", source => $source, error => $@);
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
         }
     }
@@ -1492,14 +1506,14 @@ sub fetch_oembed {
 
     my $endpoint = find_oembed_endpoint($url);
     unless ($endpoint) {
-        log_warn("oEmbed: no endpoint found for $url");
+        log_event("WARN", $ENV{REDIRECT_URL} // "-", "oembed no endpoint", url => $url);
         return undef;
     }
 
     my $oembed_url = $endpoint . '?url=' . uri_encode($url) . '&format=json';
     my $raw = fetch_url($oembed_url);
     unless ($raw) {
-        log_warn("oEmbed: fetch failed for $oembed_url");
+        log_event("WARN", $ENV{REDIRECT_URL} // "-", "oembed fetch failed", url => $oembed_url);
         return undef;
     }
 
@@ -1510,7 +1524,7 @@ sub fetch_oembed {
     # hosts if this is a concern in your deployment.
     my $data = eval { decode_json($raw) };
     if ( $@ || !defined $data || !defined $data->{html} ) {
-        log_warn("oEmbed: JSON parse failed for $oembed_url: $@");
+        log_event("WARN", $ENV{REDIRECT_URL} // "-", "oembed parse failed", url => $oembed_url, error => $@);
         return undef;
     }
 
@@ -1587,7 +1601,7 @@ sub resolve_tt_vars {
                 $vars{$key} = $fetched;
             }
             else {
-                log_warn("tt var fetch failed for $key: $val");
+                log_event("WARN", $ENV{REDIRECT_URL} // "-", "tt var fetch failed", key => $key, val => $val);
                 $vars{$key} = '';
             }
         }
@@ -1927,12 +1941,12 @@ sub update_registries {
 
         my $output = '';
         $tt->process( $tmpl_path, $vars, \$output ) or do {
-            log_warn("Registry template error for $tmpl: " . $tt->error());
+            log_event("ERROR", "-", "registry template error", tmpl => $tmpl, error => $tt->error());
             next;
         };
 
         open( my $fh, '>:utf8', $output_path ) or do {
-            log_warn("Cannot write registry $output_path: $!");
+            log_event("WARN", "-", "cannot write registry", path => $output_path, error => $!);
             next;
         };
         print $fh $output;
@@ -2049,7 +2063,7 @@ sub render_content {
     my $processed_body = '';
     $tt->process( \$protected_body, $vars, \$processed_body )
         or do {
-            log_warn("TT content processing error: " . $tt->error() . " - using raw content");
+            log_event("ERROR", $ENV{REDIRECT_URL} // "-", "template error, using raw content", error => $tt->error());
             $processed_body = $protected_body;
         };
 
@@ -2111,7 +2125,7 @@ sub get_layout_path {
         if ( $name =~ m{^https?://} ) {
             my ( $cached, $theme_key ) = fetch_remote_layout($name);
             return ( $cached, $theme_key ) if $cached;
-            log_warn("Remote layout fetch failed for $name - using fallback");
+            log_event("WARN", $ENV{REDIRECT_URL} // "-", "remote layout fetch failed", name => $name);
             return ( undef, undef );  # signals render_template to use fallback
         }
 
@@ -2127,8 +2141,7 @@ sub get_layout_path {
             return ( $theme_path, undef ) if -f $theme_path;
             return ( $tmpl_path, undef )  if -f $tmpl_path;
 
-            log_warn("get_layout_path: layout '$name' not found,"
-                . " falling back to default");
+            log_event('WARN', $ENV{REDIRECT_URL} // '-', 'layout not found, using default', layout => $name);
         }
     }
 
@@ -2164,7 +2177,7 @@ sub fetch_remote_layout {
     # Write to cache
     make_path($LAYOUT_CACHE_DIR) unless -d $LAYOUT_CACHE_DIR;
     open( my $fh, '>:utf8', $cache_path ) or do {
-        log_warn("Cannot write layout cache $cache_path: $!");
+        log_event("WARN", $ENV{REDIRECT_URL} // "-", "cannot write layout cache", path => $cache_path, error => $!);
         return ( undef, undef );
     };
     print $fh $content;
@@ -2227,17 +2240,16 @@ sub render_template {
 
     if ( !defined $layout ) {
         # No layout found - use built-in fallback directly
-        log_warn("No view.tt found - using built-in fallback");
+        log_event("WARN", $ENV{REDIRECT_URL} // "-", "view not found, using fallback");
         my $tt_fallback = Template->new( ENCODING => 'utf8' )
             or do {
-                log_warn("Cannot create fallback TT instance - serving bare content");
+                log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance');
                 return $processed_body;
             };
 
         $tt_fallback->process( \$FALLBACK_LAYOUT, $vars, \$output )
             or do {
-                log_warn("Fallback layout error: " . $tt_fallback->error()
-                    . " - serving bare content");
+                log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'fallback layout error', error => $tt_fallback->error());
                 return $processed_body;
             };
 
@@ -2260,28 +2272,26 @@ sub render_template {
         );
 
     unless ( $tt_layout ) {
-        log_warn("Cannot create TT instance - serving bare content");
+        log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create TT instance');
         return $processed_body;
     }
 
     # Try specified layout
     $tt_layout->process( $layout, $vars, \$output )
         or do {
-            log_warn("Layout error ($layout): " . $tt_layout->error()
-                . " - using built-in fallback");
+            log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'layout error, using fallback', layout => $layout, error => $tt_layout->error());
             $output = '';
 
             # Try built-in fallback layout
             my $tt_fallback = Template->new( ENCODING => 'utf8' )
                 or do {
-                    log_warn("Cannot create fallback TT instance - serving bare content");
+                    log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance');
                     return $processed_body;
                 };
 
             $tt_fallback->process( \$FALLBACK_LAYOUT, $vars, \$output )
                 or do {
-                    log_warn("Fallback layout error: " . $tt_fallback->error()
-                        . " - serving bare content");
+                    log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'fallback layout error', error => $tt_fallback->error());
                     return $processed_body;
                 };
         };
@@ -2387,7 +2397,7 @@ sub write_ct {
 
     my $ct_path = ct_cache_path($base);
     open( my $fh, '>:utf8', $ct_path ) or do {
-        log_warn("Cannot write content type cache $ct_path: $!");
+        log_event("WARN", $ENV{REDIRECT_URL} // "-", "cannot write content type cache", path => $ct_path, error => $!);
         return;
     };
     print $fh $content_type;
@@ -2422,7 +2432,7 @@ sub write_html {
     # Refuse to write zero-byte content - protects against empty cache
     # files that would permanently block regeneration via DirectoryIndex
     unless ( length($page) ) {
-        log_warn("write_html: refusing to write zero-byte content to $html_path");
+        log_event("WARN", $ENV{REDIRECT_URL} // "-", "refusing zero-byte cache write", path => $html_path);
         return;
     }
 
@@ -2434,7 +2444,7 @@ sub write_html {
     my $check_path = -e $html_path ? $html_path : dirname($html_path);
     my $real = realpath($check_path);
     if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
-        log_warn("write_html: path $html_path resolves outside docroot - write refused");
+        log_event("WARN", $ENV{REDIRECT_URL} // "-", "cache path outside docroot", path => $html_path);
         return;
     }
 
@@ -2449,10 +2459,7 @@ sub write_html {
     }
 
     open( my $fh, '>:utf8', $html_path ) or do {
-        log_warn("Cannot write cache file $html_path: $! "
-            . "- page will render uncached. "
-            . "Fix with: chown \$(stat -c '%U' $DOCROOT):\$(stat -c '%G' $DOCROOT) $dir "
-            . "&& chmod g+w $dir");
+        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot write cache file', path => $html_path, error => $!);
         return;
     };
     print $fh $page;
@@ -2519,28 +2526,42 @@ sub read_file {
     return $content;
 }
 
-sub log_warn {
-    my ($msg) = @_;
-    print STDERR "lazysite: $msg\n";
-    _log_to_file( 'WARN', $msg );
+sub log_event {
+    my ($level, $context, $message, %extra) = @_;
+    my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
+    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
+    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
+    if ( $format eq 'json' ) {
+        my $pairs = join ',',
+            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            keys %extra;
+        my $json = '{"ts":"' . $ts . '"'
+            . ',"level":"'     . _json_str($level)          . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
+            . ',"context":"'   . _json_str($context)        . '"'
+            . ',"message":"'   . _json_str($message)        . '"'
+            . ( $pairs ? ",$pairs" : '' )
+            . '}';
+        print STDERR "$json\n";
+    }
+    else {
+        my $extras = join ' ',
+            map { "$_=" . $extra{$_} } keys %extra;
+        my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
+        $line   .= " $extras" if $extras;
+        print STDERR "$line\n";
+    }
 }
 
-sub _log_to_file {
-    my ( $level, $msg ) = @_;
-    my $log_dir  = "$LAZYSITE_DIR/logs";
-    my $log_path = "$log_dir/lazysite.log";
-
-    eval {
-        make_path($log_dir) unless -d $log_dir;
-        open( my $fh, '>>:utf8', $log_path ) or return;
-        flock( $fh, 2 );  # LOCK_EX
-        my @t = localtime;
-        my $ts = sprintf( '%04d-%02d-%02d %02d:%02d:%02d',
-            $t[5]+1900, $t[4]+1, $t[3], $t[2], $t[1], $t[0] );
-        my $ip  = $ENV{REMOTE_ADDR} // '';
-        my $uri = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '';
-        print $fh "[$ts] $level $uri ip=$ip $msg\n";
-        flock( $fh, 8 );  # LOCK_UN
-        close $fh;
-    };
+sub _json_str {
+    my ($s) = @_;
+    $s //= '';
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    return $s;
 }

@@ -8,6 +8,8 @@ use warnings;
 use Digest::SHA qw(hmac_sha256_hex);
 use File::Path qw(make_path);
 
+my $LOG_COMPONENT = 'payment-demo';
+
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
@@ -57,6 +59,8 @@ sub handle_pay {
 
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
 
+    log_event('INFO', $page, 'demo payment created', ip => $ENV{REMOTE_ADDR} // '');
+
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
     print "Set-Cookie: $COOKIE_NAME=$cookie; HttpOnly; SameSite=Lax; Path=/; Max-Age=$COOKIE_MAX$secure\r\n";
@@ -91,6 +95,7 @@ sub handle_request {
                 if ( $uri eq $page ) {
                     $ENV{HTTP_X_PAYMENT_VERIFIED} = '1';
                     $ENV{HTTP_X_PAYMENT_PAYER}    = 'demo-wallet';
+                    log_event('INFO', $page, 'payment verified', ip => $ENV{REMOTE_ADDR} // '');
                 }
             }
         }
@@ -101,6 +106,7 @@ sub handle_request {
         // "$DOCROOT/../cgi-bin/lazysite-processor.pl";
 
     exec $^X, $processor;
+    log_event('ERROR', $uri, 'exec failed', error => $!);
     die "exec failed: $!\n";
 }
 
@@ -155,4 +161,47 @@ sub uri_decode {
     my ($str) = @_;
     $str =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
     return $str;
+}
+
+# --- Logging ---
+
+sub log_event {
+    my ($level, $context, $message, %extra) = @_;
+    my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
+    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
+    use POSIX qw(strftime);
+    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
+    if ( $format eq 'json' ) {
+        my $pairs = join ',',
+            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            keys %extra;
+        my $json = '{"ts":"' . $ts . '"'
+            . ',"level":"'     . _json_str($level)          . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
+            . ',"context":"'   . _json_str($context)        . '"'
+            . ',"message":"'   . _json_str($message)        . '"'
+            . ( $pairs ? ",$pairs" : '' )
+            . '}';
+        print STDERR "$json\n";
+    }
+    else {
+        my $extras = join ' ',
+            map { "$_=" . $extra{$_} } keys %extra;
+        my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
+        $line   .= " $extras" if $extras;
+        print STDERR "$line\n";
+    }
+}
+
+sub _json_str {
+    my ($s) = @_;
+    $s //= '';
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    return $s;
 }

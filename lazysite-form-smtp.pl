@@ -7,6 +7,8 @@ use POSIX qw(strftime);
 use JSON::PP qw(encode_json decode_json);
 use File::Basename qw(dirname);
 
+my $LOG_COMPONENT = 'form-smtp';
+
 if ( grep { $_ eq '--describe' } @ARGV ) {
     require JSON::PP;
     print JSON::PP::encode_json({
@@ -68,11 +70,13 @@ if ( grep { $_ eq '--pipe' } @ARGV ) {
         $config->{subject_prefix} //= '[Contact] ';
 
         send_email( $config, $form );
+        log_event('INFO', $config->{to} // '-', 'email sent', method => $config->{method} // 'sendmail', from => $config->{from} // '-');
         print encode_json( { ok => 1 } );
     };
     if ($@) {
         my $err = $@;
         $err =~ s/\s+$//;
+        log_event('ERROR', '-', 'smtp failed', error => $err);
         print encode_json( { ok => 0, error => $err } );
     }
     exit 0;
@@ -92,6 +96,7 @@ eval {
     my $form = decode_json($json);
     my $conf = load_smtp_conf();
     send_email( $conf, $form );
+    log_event('INFO', $conf->{to} // '-', 'email sent', method => $conf->{method} // 'sendmail', from => $conf->{from} // '-');
 
     binmode( STDOUT, ':utf8' );
     print "Status: 200 OK\r\n";
@@ -101,6 +106,7 @@ eval {
 if ($@) {
     my $err = $@;
     $err =~ s/\s+$//;
+    log_event('ERROR', '-', 'smtp failed', error => $err);
     warn "lazysite-form-smtp: $err\n";
     binmode( STDOUT, ':utf8' );
     print "Status: 500 Internal Server Error\r\n";
@@ -281,4 +287,47 @@ sub sanitise_email {
     my ($val) = @_;
     $val =~ s/[\r\n<>]//g;
     return $val;
+}
+
+# --- Logging ---
+
+sub log_event {
+    my ($level, $context, $message, %extra) = @_;
+    my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
+    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
+    use POSIX qw(strftime);
+    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
+    if ( $format eq 'json' ) {
+        my $pairs = join ',',
+            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            keys %extra;
+        my $json = '{"ts":"' . $ts . '"'
+            . ',"level":"'     . _json_str($level)          . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
+            . ',"context":"'   . _json_str($context)        . '"'
+            . ',"message":"'   . _json_str($message)        . '"'
+            . ( $pairs ? ",$pairs" : '' )
+            . '}';
+        print STDERR "$json\n";
+    }
+    else {
+        my $extras = join ' ',
+            map { "$_=" . $extra{$_} } keys %extra;
+        my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
+        $line   .= " $extras" if $extras;
+        print STDERR "$line\n";
+    }
+}
+
+sub _json_str {
+    my ($s) = @_;
+    $s //= '';
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    return $s;
 }

@@ -6,6 +6,8 @@ use Digest::SHA qw(sha256_hex);
 use Fcntl qw(:flock);
 use File::Path qw(make_path);
 
+my $LOG_COMPONENT = 'users';
+
 my $DOCROOT;
 my $API_MODE = 0;
 my @args;
@@ -118,6 +120,7 @@ sub cmd_add {
 
     $users{$user} = sha256_hex($pass);
     write_users(%users);
+    log_event('INFO', $user, 'user added');
     print "User '$user' added.\n" unless $API_MODE;
 }
 
@@ -130,6 +133,7 @@ sub cmd_passwd {
 
     $users{$user} = sha256_hex($pass);
     write_users(%users);
+    log_event('INFO', $user, 'password changed');
     print "Password updated for '$user'.\n" unless $API_MODE;
 }
 
@@ -141,6 +145,7 @@ sub cmd_remove {
     die "User '$user' not found\n" unless delete $users{$user};
 
     write_users(%users);
+    log_event('INFO', $user, 'user removed');
 
     if ( -f $GROUPS_FILE ) {
         my %groups = read_groups();
@@ -258,6 +263,49 @@ sub write_groups {
     flock( $fh, LOCK_UN );
     close $fh;
     chmod 0644, $GROUPS_FILE;
+}
+
+# --- Logging ---
+
+sub log_event {
+    my ($level, $context, $message, %extra) = @_;
+    my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
+    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
+    use POSIX qw(strftime);
+    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
+    if ( $format eq 'json' ) {
+        my $pairs = join ',',
+            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            keys %extra;
+        my $json = '{"ts":"' . $ts . '"'
+            . ',"level":"'     . _json_str($level)          . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
+            . ',"context":"'   . _json_str($context)        . '"'
+            . ',"message":"'   . _json_str($message)        . '"'
+            . ( $pairs ? ",$pairs" : '' )
+            . '}';
+        print STDERR "$json\n";
+    }
+    else {
+        my $extras = join ' ',
+            map { "$_=" . $extra{$_} } keys %extra;
+        my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
+        $line   .= " $extras" if $extras;
+        print STDERR "$line\n";
+    }
+}
+
+sub _json_str {
+    my ($s) = @_;
+    $s //= '';
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    return $s;
 }
 
 sub usage {

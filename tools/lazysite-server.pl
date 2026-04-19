@@ -57,6 +57,8 @@ if ( @opt_missing ) {
 
 my $has_hires = eval { require Time::HiRes; 1 };
 
+my $LOG_COMPONENT = 'dev-server';
+
 # --- Defaults ---
 
 my $SCRIPT_DIR = dirname( abs_path($0) );
@@ -65,6 +67,7 @@ my $DOCROOT    = abs_path("$SCRIPT_DIR/../starter");
 my $PROCESSOR  = abs_path("$SCRIPT_DIR/../lazysite-processor.pl");
 my $nocache    = 1;
 my $ERR_FILE   = "/tmp/lazysite-server-$$.err";
+my $LOG_FILE   = '';
 
 END { unlink $ERR_FILE if -f $ERR_FILE }
 
@@ -78,6 +81,8 @@ while ( @ARGV ) {
     elsif ( $arg eq '--docroot' )   { $DOCROOT   = abs_path( shift @ARGV ); }
     elsif ( $arg eq '--processor' ) { $PROCESSOR = abs_path( shift @ARGV ); }
     elsif ( $arg eq '--cache' )     { $nocache   = 0; }
+    elsif ( $arg eq '--debug' )     { $ENV{LAZYSITE_LOG_LEVEL} = 'DEBUG'; }
+    elsif ( $arg eq '--log' )       { $LOG_FILE  = shift @ARGV; }
     elsif ( $arg eq '--help' )      { $show_help = 1; }
     else {
         print STDERR "lazysite-server: unknown option: $arg\n";
@@ -96,6 +101,8 @@ Options:
   --docroot   PATH    Document root (default: ../starter)
   --processor PATH    Processor path (default: ../lazysite-processor.pl)
   --cache             Respect cache files (default: always regenerate)
+  --debug             Enable DEBUG level logging
+  --log       FILE    Write log lines to file in addition to terminal
   --help              Show this help
 
 No arguments needed to browse the starter site:
@@ -226,6 +233,8 @@ print "  docroot:   $DOCROOT\n";
 print "  url:       http://localhost:$PORT/\n";
 print "  cache:     $cache_label\n";
 print "  manager:   " . ($manager_enabled ? "enabled" : "disabled") . "\n";
+print "  log level: " . ($ENV{LAZYSITE_LOG_LEVEL} // 'INFO') . "\n";
+print "  log file:  " . ($LOG_FILE || 'terminal only') . "\n" if $LOG_FILE;
 print "\nPress Ctrl+C to stop.\n\n";
 
 my $server = IO::Socket::INET->new(
@@ -323,8 +332,10 @@ sub handle_request {
         SERVER_NAME      => 'localhost',
         SERVER_PORT      => $PORT,
         REMOTE_ADDR      => $client->peerhost || '127.0.0.1',
-        LAZYSITE_NOCACHE => $nocache,
-        LAZYSITE_PROCESSOR => $PROCESSOR,
+        LAZYSITE_NOCACHE    => $nocache,
+        LAZYSITE_PROCESSOR  => $PROCESSOR,
+        ( $ENV{LAZYSITE_LOG_LEVEL}  ? ( LAZYSITE_LOG_LEVEL  => $ENV{LAZYSITE_LOG_LEVEL}  ) : () ),
+        ( $ENV{LAZYSITE_LOG_FORMAT} ? ( LAZYSITE_LOG_FORMAT => $ENV{LAZYSITE_LOG_FORMAT} ) : () ),
     );
 
     # Pass cookie header
@@ -347,10 +358,17 @@ sub handle_request {
         $output = qx(perl \Q$script\E 2>$ERR_FILE);
     }
 
-    # Print any stderr to terminal
+    # Display stderr log lines with colour
     if ( -s $ERR_FILE ) {
         open my $err, '<', $ERR_FILE;
-        print while <$err>;
+        while ( my $line = <$err> ) {
+            chomp $line;
+            display_log_line($line);
+            if ( $LOG_FILE && open my $lf, '>>', $LOG_FILE ) {
+                print $lf "$line\n";
+                close $lf;
+            }
+        }
         close $err;
     }
 
@@ -429,4 +447,70 @@ sub serve_static {
     print $client $body;
 
     print "$method $uri -> 200 OK (static)\n";
+}
+
+# --- Logging ---
+
+my %LEVEL_COLOUR = (
+    DEBUG => "\033[0;37m",
+    INFO  => "\033[0;32m",
+    WARN  => "\033[0;33m",
+    ERROR => "\033[0;31m",
+);
+my $RESET = "\033[0m";
+
+sub display_log_line {
+    my ($line) = @_;
+    return unless length $line;
+    my $colour = '';
+    if    ( $line =~ /\[DEBUG\]/ ) { $colour = $LEVEL_COLOUR{DEBUG} }
+    elsif ( $line =~ /\[INFO\]/  ) { $colour = $LEVEL_COLOUR{INFO}  }
+    elsif ( $line =~ /\[WARN\]/  ) { $colour = $LEVEL_COLOUR{WARN}  }
+    elsif ( $line =~ /\[ERROR\]/ ) { $colour = $LEVEL_COLOUR{ERROR} }
+    if ( -t STDOUT && $colour ) {
+        print "$colour$line$RESET\n";
+    } else {
+        print "$line\n";
+    }
+}
+
+sub log_event {
+    my ($level, $context, $message, %extra) = @_;
+    my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
+    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
+    use POSIX qw(strftime);
+    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
+    if ( $format eq 'json' ) {
+        my $pairs = join ',',
+            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            keys %extra;
+        my $json = '{"ts":"' . $ts . '"'
+            . ',"level":"'     . _json_str($level)          . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
+            . ',"context":"'   . _json_str($context)        . '"'
+            . ',"message":"'   . _json_str($message)        . '"'
+            . ( $pairs ? ",$pairs" : '' )
+            . '}';
+        print STDERR "$json\n";
+    }
+    else {
+        my $extras = join ' ',
+            map { "$_=" . $extra{$_} } keys %extra;
+        my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
+        $line   .= " $extras" if $extras;
+        print STDERR "$line\n";
+    }
+}
+
+sub _json_str {
+    my ($s) = @_;
+    $s //= '';
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    return $s;
 }

@@ -10,6 +10,8 @@ use File::Path qw(make_path);
 use File::Basename qw(dirname);
 use JSON::PP qw(encode_json decode_json);
 
+my $LOG_COMPONENT = 'form-handler';
+
 if ( grep { $_ eq '--describe' } @ARGV ) {
     print encode_json({
         id          => 'form-handler',
@@ -88,13 +90,14 @@ eval {
         dispatch( $target, \%form, \%handlers );
     }
 
-    log_event( 'OK', "form=$name", $ENV{REMOTE_ADDR} // 'unknown' );
+    log_event( 'INFO', $name, 'form received', ip => $ENV{REMOTE_ADDR} // 'unknown' );
     respond_ok('Thank you - your message has been sent.');
 };
 if ($@) {
     my $err = $@;
     $err =~ s/\s+$//;
-    log_event( 'ERROR', $err, $ENV{REMOTE_ADDR} // 'unknown' );
+    my $fname = '';
+    log_event( 'ERROR', $fname, 'processing failed', error => $err, ip => $ENV{REMOTE_ADDR} // 'unknown' );
     respond_error('An error occurred - please try again.');
 }
 
@@ -164,7 +167,7 @@ sub dispatch {
     if ( $target->{handler} ) {
         my $id = $target->{handler};
         unless ( $handlers_ref->{$id} ) {
-            log_event( 'WARN', "Unknown handler: $id", $ENV{REMOTE_ADDR} // '' );
+            log_event( 'WARN', $form->{_form} // '-', 'unknown handler', handler => $id );
             return;
         }
         %h_config = %{ $handlers_ref->{$id} };
@@ -183,7 +186,7 @@ sub dispatch {
     elsif ( $type eq 'smtp' )    { dispatch_smtp( \%h_config, $form ) }
     elsif ( $type eq 'webhook' || $type eq 'api' ) { dispatch_webhook( \%h_config, $form ) }
     else {
-        log_event( 'WARN', "Unknown handler type: $type", $ENV{REMOTE_ADDR} // '' );
+        log_event( 'WARN', $form->{_form} // '-', 'unknown handler type', type => $type );
     }
 }
 
@@ -208,7 +211,7 @@ sub dispatch_file {
 
     my $log_path = "$dir/$form_name.jsonl";
     open( my $fh, '>>:utf8', $log_path ) or do {
-        log_event( 'ERROR', "Cannot write to $log_path: $!", $ENV{REMOTE_ADDR} // '' );
+        log_event( 'ERROR', $form->{_form} // '-', 'file write failed', path => $log_path, error => $! );
         return;
     };
     flock( $fh, LOCK_EX );
@@ -222,7 +225,7 @@ sub dispatch_smtp {
 
     my $script = find_script('lazysite-form-smtp.pl');
     unless ($script) {
-        log_event( 'WARN', 'lazysite-form-smtp.pl not found', $ENV{REMOTE_ADDR} // '' );
+        log_event( 'WARN', $form->{_form} // '-', 'smtp script not found' );
         return;
     }
 
@@ -246,8 +249,8 @@ sub dispatch_smtp {
 
     my $r = eval { decode_json( $result // '' ) } // {};
     unless ( $r->{ok} ) {
-        log_event( 'WARN', "SMTP dispatch failed: " . ( $r->{error} // 'no output' ),
-            $ENV{REMOTE_ADDR} // '' );
+        log_event( 'WARN', $form->{_form} // '-', 'smtp dispatch failed',
+            error => ( $r->{error} // 'no output' ) );
     }
 }
 
@@ -277,8 +280,8 @@ sub dispatch_webhook {
         Content        => $body );
 
     unless ( $res->is_success ) {
-        log_event( 'WARN', "Webhook to $url: " . $res->status_line,
-            $ENV{REMOTE_ADDR} // '' );
+        log_event( 'WARN', $form->{_form} // '-', 'webhook failed',
+            url => $url, status => $res->status_line );
     }
 }
 
@@ -416,17 +419,41 @@ sub _ensure_dir_for {
 }
 
 sub log_event {
-    my ( $level, $msg, $ip ) = @_;
-    $ip //= '';
+    my ($level, $context, $message, %extra) = @_;
+    my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
+    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
     my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
-    my $log_dir  = "$LAZYSITE_DIR/logs";
-    my $log_path = "$log_dir/lazysite.log";
-    make_path($log_dir) unless -d $log_dir;
-    if ( open( my $fh, '>>', $log_path ) ) {
-        flock( $fh, LOCK_EX );
-        print $fh "[$ts] $level form-handler ip=$ip $msg\n";
-        flock( $fh, LOCK_UN );
-        close($fh);
+    my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
+    if ( $format eq 'json' ) {
+        my $pairs = join ',',
+            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            keys %extra;
+        my $json = '{"ts":"' . $ts . '"'
+            . ',"level":"'     . _json_str($level)          . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
+            . ',"context":"'   . _json_str($context)        . '"'
+            . ',"message":"'   . _json_str($message)        . '"'
+            . ( $pairs ? ",$pairs" : '' )
+            . '}';
+        print STDERR "$json\n";
     }
-    warn "lazysite-form-handler: [$ts] $level ip=$ip $msg\n";
+    else {
+        my $extras = join ' ',
+            map { "$_=" . $extra{$_} } keys %extra;
+        my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
+        $line   .= " $extras" if $extras;
+        print STDERR "$line\n";
+    }
+}
+
+sub _json_str {
+    my ($s) = @_;
+    $s //= '';
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    return $s;
 }

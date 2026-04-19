@@ -18,6 +18,8 @@ use File::Basename qw(dirname basename);
 use File::Path qw(make_path);
 use Cwd qw(abs_path);
 
+my $LOG_COMPONENT = 'audit';
+
 # --- Image and asset extensions to ignore as link targets ---
 
 my %IGNORE_EXT = map { $_ => 1 } qw(
@@ -73,7 +75,11 @@ $exclude{''}    = 1;
 
 # --- Main ---
 
+log_event('INFO', $DOCROOT, 'audit started');
+
 my $results = collect_audit_results();
+
+log_event('INFO', $DOCROOT, 'audit complete', pages => scalar keys %{ $results->{pages} });
 
 if ( $SCAN_MODE ) {
     run_scan($results);
@@ -171,6 +177,7 @@ sub run_scan {
     my $report_url  = '/manager/audit-report';
 
     write_audit_report( $report_path, $results );
+    log_event('INFO', $DOCROOT, 'report written', path => $report_path);
 
     my $cache = "$report_dir/audit-report.html";
     unlink $cache if -f $cache;
@@ -352,4 +359,47 @@ sub uri_encode {
     my ($str) = @_;
     $str =~ s/([^a-zA-Z0-9_.~-])/sprintf('%%%02X', ord($1))/ge;
     return $str;
+}
+
+# --- Logging ---
+
+sub log_event {
+    my ($level, $context, $message, %extra) = @_;
+    my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
+    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
+    use POSIX qw(strftime);
+    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
+    if ( $format eq 'json' ) {
+        my $pairs = join ',',
+            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            keys %extra;
+        my $json = '{"ts":"' . $ts . '"'
+            . ',"level":"'     . _json_str($level)          . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
+            . ',"context":"'   . _json_str($context)        . '"'
+            . ',"message":"'   . _json_str($message)        . '"'
+            . ( $pairs ? ",$pairs" : '' )
+            . '}';
+        print STDERR "$json\n";
+    }
+    else {
+        my $extras = join ' ',
+            map { "$_=" . $extra{$_} } keys %extra;
+        my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
+        $line   .= " $extras" if $extras;
+        print STDERR "$line\n";
+    }
+}
+
+sub _json_str {
+    my ($s) = @_;
+    $s //= '';
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    return $s;
 }
