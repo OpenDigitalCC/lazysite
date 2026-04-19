@@ -169,6 +169,27 @@ if ( ! -f $conf_target && -f $conf_source ) {
     print "  seeded lazysite.conf\n";
 }
 
+# Seed default form config if missing
+{
+    my $forms_dir = "$DOCROOT/lazysite/forms";
+    require File::Path;
+    File::Path::make_path($forms_dir) unless -d $forms_dir;
+    my $contact_conf = "$forms_dir/contact.conf";
+    unless ( -f $contact_conf ) {
+        open my $fh, '>', $contact_conf;
+        print $fh "targets:\n  - handler: local-storage\n";
+        close $fh;
+        print "  seeded contact.conf\n";
+    }
+    my $handlers_conf = "$forms_dir/handlers.conf";
+    unless ( -f $handlers_conf ) {
+        open my $fh, '>', $handlers_conf;
+        print $fh "# Form dispatch handlers\n\nhandlers:\n  - id: local-storage\n    type: file\n    name: Local file storage\n    enabled: true\n    path: lazysite/forms/submissions\n";
+        close $fh;
+        print "  seeded handlers.conf\n";
+    }
+}
+
 my $nav_target = "$DOCROOT/lazysite/nav.conf";
 my $nav_source = "$DOCROOT/nav.conf.example";
 if ( ! -f $nav_target && -f $nav_source ) {
@@ -267,12 +288,10 @@ sub handle_request {
     my $auth_users   = "$DOCROOT/lazysite/auth/users";
     my $use_auth     = -f $auth_users && -f $auth_script;
 
-    # Route /cgi-bin/ requests to appropriate scripts
-    if ( $uri =~ m{^/cgi-bin/lazysite-editor-api\.pl} ) {
-        $script = $editor_api if -f $editor_api;
-    }
-    elsif ( $uri =~ m{^/cgi-bin/lazysite-auth\.pl} ) {
-        $script = $auth_script if -f $auth_script;
+    # Route /cgi-bin/*.pl requests to scripts at repo root
+    if ( $uri =~ m{^/cgi-bin/(lazysite-[\w-]+\.pl)} ) {
+        my $cgi_script = abs_path("$SCRIPT_DIR/../$1");
+        $script = $cgi_script if $cgi_script && -f $cgi_script;
     }
     elsif ( $use_auth ) {
         # Route all page requests through auth wrapper
@@ -291,6 +310,7 @@ sub handle_request {
         REQUEST_SCHEME   => 'http',
         SERVER_NAME      => 'localhost',
         SERVER_PORT      => $PORT,
+        REMOTE_ADDR      => $client->peerhost || '127.0.0.1',
         LAZYSITE_NOCACHE => $nocache,
         LAZYSITE_PROCESSOR => $PROCESSOR,
     );

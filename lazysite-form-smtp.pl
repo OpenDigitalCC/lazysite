@@ -12,42 +12,78 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
     print JSON::PP::encode_json({
         id          => 'form-smtp',
         name        => 'Form SMTP',
-        description => 'Email delivery for contact form submissions',
-        version     => '1.0',
+        description => 'SMTP connection settings for form email delivery',
+        version     => '1.1',
         config_file => 'lazysite/forms/smtp.conf',
         config_schema => [
             { key => 'method', label => 'Send method', type => 'select',
-              options => ['sendmail','localhost','remote'], default => 'sendmail', required => JSON::PP::true() },
+              options => ['sendmail','smtp'], default => 'sendmail', required => JSON::PP::true() },
             { key => 'sendmail_path', label => 'Sendmail path', type => 'text',
               default => '/usr/sbin/sendmail', show_when => { key => 'method', value => ['sendmail'] } },
-            { key => 'host', label => 'SMTP host', type => 'text',
-              show_when => { key => 'method', value => ['localhost','remote'] } },
+            { key => 'host', label => 'SMTP host', type => 'text', default => 'localhost',
+              show_when => { key => 'method', value => ['smtp'] } },
             { key => 'port', label => 'SMTP port', type => 'number', default => '587',
-              show_when => { key => 'method', value => ['localhost','remote'] } },
+              show_when => { key => 'method', value => ['smtp'] } },
             { key => 'tls', label => 'TLS', type => 'select',
-              options => ['false','starttls','true'], default => 'starttls',
-              show_when => { key => 'method', value => ['remote'] } },
+              options => ['false','starttls','true'], default => 'false',
+              show_when => { key => 'method', value => ['smtp'] } },
             { key => 'auth', label => 'SMTP authentication', type => 'boolean', default => 'false',
-              show_when => { key => 'method', value => ['remote'] } },
+              show_when => { key => 'method', value => ['smtp'] } },
             { key => 'username', label => 'SMTP username', type => 'text',
               show_when => { key => 'auth', value => ['true','1'] } },
             { key => 'password_file', label => 'Password file path', type => 'path',
               show_when => { key => 'auth', value => ['true','1'] } },
-            { key => 'from', label => 'From address', type => 'email', required => JSON::PP::true() },
-            { key => 'to', label => 'Recipient address', type => 'email', required => JSON::PP::true() },
-            { key => 'subject_prefix', label => 'Subject prefix', type => 'text', default => '[Contact] ' },
         ],
         actions => [],
     });
     exit 0;
 }
 
+# --- Pipe mode: called by form-handler via IPC ---
+
+if ( grep { $_ eq '--pipe' } @ARGV ) {
+    eval {
+        my $json = do { local $/; <STDIN> };
+        die "No input\n" unless defined $json && length $json;
+
+        my $data = decode_json($json);
+        my $config = $data->{config} or die "Missing config\n";
+        my $form   = $data->{form}   or die "Missing form\n";
+
+        # Merge SMTP connection settings from smtp.conf if available
+        my $docroot = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '';
+        if ($docroot) {
+            my $smtp_conf = load_smtp_conf_from("$docroot/lazysite/forms/smtp.conf");
+            # smtp.conf provides connection settings; handler config provides from/to/subject
+            for my $k (qw(method sendmail_path host port tls auth username password_file)) {
+                $config->{$k} //= $smtp_conf->{$k} if defined $smtp_conf->{$k};
+            }
+        }
+
+        # Apply defaults
+        $config->{method}         //= 'sendmail';
+        $config->{sendmail_path}  //= '/usr/sbin/sendmail';
+        $config->{from}           //= 'webforms@localhost';
+        $config->{to}             //= 'root@localhost';
+        $config->{subject_prefix} //= '[Contact] ';
+
+        send_email( $config, $form );
+        print encode_json( { ok => 1 } );
+    };
+    if ($@) {
+        my $err = $@;
+        $err =~ s/\s+$//;
+        print encode_json( { ok => 0, error => $err } );
+    }
+    exit 0;
+}
+
+# --- CGI mode (legacy) ---
+
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $FORMS_DIR    = "$LAZYSITE_DIR/forms";
-
-# --- Main ---
 
 eval {
     my $json = do { local $/; <STDIN> };
@@ -73,6 +109,25 @@ if ($@) {
 }
 
 # --- Config ---
+
+sub load_smtp_conf_from {
+    my ($path) = @_;
+    return {} unless -f $path;
+
+    open( my $fh, '<:utf8', $path ) or return {};
+    local $/;
+    my $text = <$fh>;
+    close($fh);
+
+    my %conf;
+    while ( $text =~ /^([a-z_]+)\s*:\s*(.+)$/mg ) {
+        my ( $k, $v ) = ( $1, $2 );
+        $v =~ s/^\s+|\s+$//g;
+        next if $v =~ /^#/;
+        $conf{$k} = $v;
+    }
+    return \%conf;
+}
 
 sub load_smtp_conf {
     my $path = "$FORMS_DIR/smtp.conf";
@@ -140,10 +195,7 @@ sub send_email {
     if ( $method eq 'sendmail' ) {
         send_via_sendmail( $conf->{sendmail_path}, $from, $to, $subject, $body );
     }
-    elsif ( $method eq 'localhost' ) {
-        send_via_smtp( $conf, $from, $to, $subject, $body );
-    }
-    elsif ( $method eq 'remote' ) {
+    elsif ( $method eq 'smtp' ) {
         send_via_smtp( $conf, $from, $to, $subject, $body );
     }
     else {
@@ -199,7 +251,9 @@ sub send_via_smtp {
         my $user = $conf->{username} // '';
         my $pass = '';
         if ( $conf->{password_file} ) {
-            my $pf = "$DOCROOT/" . $conf->{password_file};
+            my $docroot = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '';
+            my $pf = $conf->{password_file};
+            $pf = "$docroot/$pf" if $docroot && $pf !~ m{^/};
             if ( -f $pf ) {
                 open( my $pfh, '<', $pf ) or die "Cannot read password file: $!\n";
                 chomp( $pass = <$pfh> );

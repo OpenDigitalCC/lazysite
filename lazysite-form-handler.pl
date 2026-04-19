@@ -9,25 +9,52 @@ use DB_File;
 use File::Path qw(make_path);
 use File::Basename qw(dirname);
 use JSON::PP qw(encode_json decode_json);
-use LWP::UserAgent;
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
-    require JSON::PP;
-    print JSON::PP::encode_json({
+    print encode_json({
         id          => 'form-handler',
         name        => 'Form Handler',
         description => 'Receives and dispatches contact form submissions',
-        version     => '1.0',
+        version     => '1.1',
         config_file => '',
         config_schema => [],
+        handler_types => [
+            {
+                type   => 'smtp',
+                label  => 'Send email (SMTP)',
+                schema => [
+                    { key => 'name',           label => 'Name',           type => 'text',    required => JSON::PP::true, default => 'Email delivery' },
+                    { key => 'enabled',        label => 'Enabled',        type => 'boolean', default => 'true' },
+                    { key => 'from',           label => 'From address',   type => 'email',   required => JSON::PP::true, default => 'webforms@example.com' },
+                    { key => 'to',             label => 'To address',     type => 'email',   required => JSON::PP::true, default => 'admin@example.com' },
+                    { key => 'subject_prefix', label => 'Subject prefix', type => 'text',    default => '[Contact] ' },
+                ],
+                note => 'SMTP connection settings (host, port, TLS) are configured under the Email (SMTP) group header.',
+            },
+            {
+                type   => 'file',
+                label  => 'Save to file',
+                schema => [
+                    { key => 'name',    label => 'Name',              type => 'text',    required => JSON::PP::true },
+                    { key => 'enabled', label => 'Enabled',           type => 'boolean', default => 'true' },
+                    { key => 'path',    label => 'Storage directory',  type => 'text',    default => 'lazysite/forms/submissions' },
+                ],
+            },
+            {
+                type   => 'webhook',
+                label  => 'Webhook',
+                schema => [
+                    { key => 'name',    label => 'Name',        type => 'text',   required => JSON::PP::true },
+                    { key => 'enabled', label => 'Enabled',     type => 'boolean', default => 'true' },
+                    { key => 'url',     label => 'Webhook URL',  type => 'text',   required => JSON::PP::true },
+                    { key => 'format',  label => 'Format',       type => 'select', options => ['json', 'slack'], default => 'json' },
+                ],
+            },
+        ],
         child_configs => {
             pattern    => 'lazysite/forms/*.conf',
-            exclude    => ['smtp.conf'],
+            exclude    => ['smtp.conf', 'handlers.conf'],
             label_from => 'filename',
-            schema     => [
-                { key => 'targets', label => 'Dispatch targets', type => 'textarea',
-                  help => 'YAML list of targets. See forms documentation.' },
-            ],
         },
         actions => [],
     });
@@ -51,13 +78,14 @@ eval {
     reject('Missing form name') unless $name;
 
     my $conf = load_form_conf($name);
+    my %handlers = load_handlers();
 
     check_honeypot( $form{_hp} // '' );
     check_timestamp( $form{_ts} // '', $form{_tk} // '', load_form_secret() );
     check_rate_limit( $ENV{REMOTE_ADDR} // '0.0.0.0' );
 
     for my $target ( @{ $conf->{targets} } ) {
-        dispatch( $target, \%form );
+        dispatch( $target, \%form, \%handlers );
     }
 
     log_event( 'OK', "form=$name", $ENV{REMOTE_ADDR} // 'unknown' );
@@ -70,6 +98,202 @@ if ($@) {
     respond_error('An error occurred - please try again.');
 }
 
+# --- Config ---
+
+sub load_handlers {
+    my $path = "$FORMS_DIR/handlers.conf";
+    return () unless -f $path;
+
+    open my $fh, '<:utf8', $path or return ();
+    my $text = do { local $/; <$fh> };
+    close $fh;
+
+    my %handlers;
+    while ( $text =~ /^\s{2}-\s+id:\s*(\S+)(.*?)(?=^\s{2}-\s+id:|\z)/gmsx ) {
+        my ( $id, $block ) = ( $1, $2 );
+        my %h = ( id => $id );
+        while ( $block =~ /^\s{4}(\w+)\s*:\s*(.+)$/mg ) {
+            $h{$1} = $2;
+            $h{$1} =~ s/\s+$//;
+        }
+        $handlers{$id} = \%h;
+    }
+
+    return %handlers;
+}
+
+sub load_form_conf {
+    my ($name) = @_;
+    my $path = "$FORMS_DIR/$name.conf";
+    reject("Form '$name' not configured") unless -f $path;
+
+    open( my $fh, '<:utf8', $path ) or reject("Cannot read form config");
+    my $text = do { local $/; <$fh> };
+    close $fh;
+
+    my @targets;
+
+    # New format: handler references
+    while ( $text =~ /^\s*-\s+handler:\s*(\S+)/mg ) {
+        push @targets, { handler => $1 };
+    }
+
+    # Legacy format: inline type config
+    if ( !@targets ) {
+        while ( $text =~ /^\s*-\s+type:\s*(\w+)\s*$(.*?)(?=^\s*-\s+type:|\z)/gms ) {
+            my ( $type, $block ) = ( $1, $2 );
+            my %t = ( type => $type );
+            $t{url}    = $1 if $block =~ /^\s*url:\s*(.+)$/m;
+            $t{format} = $1 if $block =~ /^\s*format:\s*(.+)$/m;
+            $t{path}   = $1 if $block =~ /^\s*path:\s*(.+)$/m;
+            $t{$_} =~ s/^\s+|\s+$//g for grep { defined $t{$_} } keys %t;
+            push @targets, \%t;
+        }
+    }
+
+    reject("No targets configured for form '$name'") unless @targets;
+    return { targets => \@targets };
+}
+
+# --- Dispatch ---
+
+sub dispatch {
+    my ( $target, $form, $handlers_ref ) = @_;
+
+    my %h_config;
+    if ( $target->{handler} ) {
+        my $id = $target->{handler};
+        unless ( $handlers_ref->{$id} ) {
+            log_event( 'WARN', "Unknown handler: $id", $ENV{REMOTE_ADDR} // '' );
+            return;
+        }
+        %h_config = %{ $handlers_ref->{$id} };
+
+        if ( lc( $h_config{enabled} // 'true' ) eq 'false' ) {
+            return;
+        }
+    }
+    else {
+        %h_config = %$target;
+    }
+
+    my $type = $h_config{type} // '';
+
+    if    ( $type eq 'file' )    { dispatch_file( \%h_config, $form ) }
+    elsif ( $type eq 'smtp' )    { dispatch_smtp( \%h_config, $form ) }
+    elsif ( $type eq 'webhook' || $type eq 'api' ) { dispatch_webhook( \%h_config, $form ) }
+    else {
+        log_event( 'WARN', "Unknown handler type: $type", $ENV{REMOTE_ADDR} // '' );
+    }
+}
+
+sub dispatch_file {
+    my ( $config, $form ) = @_;
+
+    my $dir = $config->{path} || 'lazysite/forms/submissions';
+    $dir = "$DOCROOT/$dir" unless $dir =~ m{^/};
+    make_path($dir) unless -d $dir;
+
+    my $form_name = $form->{_form} // 'unknown';
+    $form_name =~ s/[^a-zA-Z0-9_-]//g;
+
+    my %record;
+    for my $k ( sort keys %$form ) {
+        next if $k =~ /^_/;
+        $record{$k} = $form->{$k};
+    }
+    $record{_submitted} = strftime( '%Y-%m-%dT%H:%M:%S', localtime );
+    $record{_ip}        = $ENV{REMOTE_ADDR} // 'unknown';
+    $record{_form}      = $form_name;
+
+    my $log_path = "$dir/$form_name.jsonl";
+    open( my $fh, '>>:utf8', $log_path ) or do {
+        log_event( 'ERROR', "Cannot write to $log_path: $!", $ENV{REMOTE_ADDR} // '' );
+        return;
+    };
+    flock( $fh, LOCK_EX );
+    print $fh encode_json( \%record ) . "\n";
+    flock( $fh, LOCK_UN );
+    close $fh;
+}
+
+sub dispatch_smtp {
+    my ( $config, $form ) = @_;
+
+    my $script = find_script('lazysite-form-smtp.pl');
+    unless ($script) {
+        log_event( 'WARN', 'lazysite-form-smtp.pl not found', $ENV{REMOTE_ADDR} // '' );
+        return;
+    }
+
+    my %fields;
+    for my $k ( sort keys %$form ) {
+        next if $k =~ /^_/;
+        $fields{$k} = $form->{$k};
+    }
+
+    my %payload = ( config => $config, form => \%fields );
+    my $json = encode_json( \%payload );
+
+    require IPC::Open2;
+    my ( $child_out, $child_in );
+    my $pid = IPC::Open2::open2( $child_out, $child_in, $^X, $script, '--pipe' );
+    print $child_in $json;
+    close $child_in;
+    my $result = do { local $/; <$child_out> };
+    close $child_out;
+    waitpid $pid, 0;
+
+    my $r = eval { decode_json( $result // '' ) } // {};
+    unless ( $r->{ok} ) {
+        log_event( 'WARN', "SMTP dispatch failed: " . ( $r->{error} // 'no output' ),
+            $ENV{REMOTE_ADDR} // '' );
+    }
+}
+
+sub dispatch_webhook {
+    my ( $config, $form ) = @_;
+    my $url = $config->{url} or return;
+
+    my %fields;
+    for my $k ( sort keys %$form ) {
+        next if $k =~ /^_/;
+        $fields{$k} = $form->{$k};
+    }
+
+    my $body;
+    if ( ( $config->{format} // 'json' ) eq 'slack' ) {
+        my $text = join "\n", map { "*$_*: $fields{$_}" } sort keys %fields;
+        $body = encode_json( { text => $text } );
+    }
+    else {
+        $body = encode_json( \%fields );
+    }
+
+    require LWP::UserAgent;
+    my $ua  = LWP::UserAgent->new( timeout => 10 );
+    my $res = $ua->post( $url,
+        'Content-Type' => 'application/json',
+        Content        => $body );
+
+    unless ( $res->is_success ) {
+        log_event( 'WARN', "Webhook to $url: " . $res->status_line,
+            $ENV{REMOTE_ADDR} // '' );
+    }
+}
+
+sub find_script {
+    my ($name) = @_;
+    for my $path (
+        "$DOCROOT/../cgi-bin/$name",
+        "$DOCROOT/../$name",
+        "/usr/local/lib/lazysite/$name",
+    ) {
+        return $path if -f $path;
+    }
+    return undef;
+}
+
 # --- POST parsing ---
 
 sub parse_post {
@@ -77,16 +301,10 @@ sub parse_post {
     my $type = $ENV{CONTENT_TYPE}   || '';
     my $data = '';
 
-    if ( $len > 0 ) {
-        read( STDIN, $data, $len );
-    }
-    else {
-        local $/;
-        $data = <STDIN> // '';
-    }
+    if ( $len > 0 ) { read( STDIN, $data, $len ); }
+    else            { local $/; $data = <STDIN> // ''; }
 
     my %form;
-
     if ( $type =~ m{multipart/form-data.*boundary=(.+)}i ) {
         my $boundary = $1;
         $boundary =~ s/^\s+|\s+$//g;
@@ -110,7 +328,6 @@ sub parse_post {
             $form{$k} = sanitise_header( $v, 10000 );
         }
     }
-
     return %form;
 }
 
@@ -125,162 +342,41 @@ sub check_timestamp {
     my ( $ts, $tk, $secret ) = @_;
     reject('Invalid submission') unless $ts && $tk;
     reject('Invalid submission') unless $ts =~ /^\d+$/;
-
     my $expected = hmac_sha256_hex( $ts, $secret );
     reject('Invalid submission') unless $tk eq $expected;
-
     my $age = time() - $ts;
-    reject('Submission too fast')   if $age < 3;
-    reject('Submission expired')    if $age > 7200;
+    reject('Submission too fast')  if $age < 3;
+    reject('Submission expired')   if $age > 7200;
 }
 
 sub check_rate_limit {
     my ($ip) = @_;
     return unless $ip;
-
     _ensure_dir_for("$FORMS_DIR/.rate-limit.db");
-
     my %db;
     tie( %db, 'DB_File', "$FORMS_DIR/.rate-limit.db",
-        O_RDWR | O_CREAT, 0600, $DB_HASH )
-        or return;    # fail open if DB unavailable
-
-    my $now  = time();
-    my $hour = int( $now / 3600 );
+        O_RDWR | O_CREAT, 0600, $DB_HASH ) or return;
+    my $hour = int( time() / 3600 );
     my $key  = "$ip:$hour";
-
     my $count = $db{$key} || 0;
-    if ( $count >= 5 ) {
-        untie %db;
-        reject('Rate limit exceeded - please try again later');
-    }
-
+    if ( $count >= 5 ) { untie %db; reject('Rate limit exceeded'); }
     $db{$key} = $count + 1;
-
-    # Clean old entries (older than 2 hours)
     for my $k ( keys %db ) {
-        if ( $k =~ /:(\d+)$/ ) {
-            delete $db{$k} if $1 < $hour - 1;
-        }
+        delete $db{$k} if $k =~ /:(\d+)$/ && $1 < $hour - 1;
     }
-
     untie %db;
 }
 
 sub load_form_secret {
     my $secret_path = "$FORMS_DIR/.secret";
     _ensure_dir_for($secret_path);
-
     if ( -f $secret_path ) {
         open( my $fh, '<', $secret_path ) or die "Cannot read form secret\n";
         chomp( my $s = <$fh> );
         close($fh);
         return $s if $s;
     }
-
     die "Form secret not found - render a form page first to generate it\n";
-}
-
-# --- Config ---
-
-sub load_form_conf {
-    my ($name) = @_;
-    my $path = "$FORMS_DIR/$name.conf";
-    reject("Form '$name' not configured") unless -f $path;
-
-    open( my $fh, '<:utf8', $path ) or reject("Cannot read form config");
-    local $/;
-    my $text = <$fh>;
-    close($fh);
-
-    my @targets;
-    while ( $text =~ /^\s*-\s+type:\s*(\w+)\s*$(.*?)(?=^\s*-\s+type:|\z)/gms ) {
-        my ( $type, $block ) = ( $1, $2 );
-        my %t = ( type => $type );
-        $t{url}    = $1 if $block =~ /^\s*url:\s*(.+)$/m;
-        $t{format} = $1 if $block =~ /^\s*format:\s*(.+)$/m;
-        $t{$_} =~ s/^\s+|\s+$//g for grep { defined $t{$_} } keys %t;
-        push @targets, \%t;
-    }
-
-    reject("No targets configured for form '$name'") unless @targets;
-    return { targets => \@targets };
-}
-
-# --- Dispatch ---
-
-sub dispatch {
-    my ( $target, $form ) = @_;
-    my $type = $target->{type} || '';
-
-    if ( $type eq 'smtp' ) {
-        dispatch_smtp( $target, $form );
-    }
-    elsif ( $type eq 'api' ) {
-        dispatch_api( $target, $form );
-    }
-    else {
-        log_event( 'WARN', "Unknown target type: $type",
-            $ENV{REMOTE_ADDR} // '' );
-    }
-}
-
-sub dispatch_smtp {
-    my ( $target, $form ) = @_;
-    my $url = $target->{url} or return;
-
-    # Collect non-internal fields
-    my %fields;
-    for my $k ( sort keys %$form ) {
-        next if $k =~ /^_/;
-        $fields{$k} = $form->{$k};
-    }
-
-    my $ua = LWP::UserAgent->new( timeout => 15 );
-    my $resp = $ua->post(
-        $url,
-        Content_Type => 'application/json',
-        Content      => encode_json( \%fields ),
-    );
-
-    unless ( $resp->is_success ) {
-        log_event( 'ERROR', "SMTP dispatch failed: " . $resp->status_line,
-            $ENV{REMOTE_ADDR} // '' );
-    }
-}
-
-sub dispatch_api {
-    my ( $target, $form ) = @_;
-    my $url    = $target->{url}    or return;
-    my $format = $target->{format} || 'json';
-
-    my %fields;
-    for my $k ( sort keys %$form ) {
-        next if $k =~ /^_/;
-        $fields{$k} = $form->{$k};
-    }
-
-    my $ua = LWP::UserAgent->new( timeout => 15 );
-    my $payload;
-
-    if ( $format eq 'slack' ) {
-        my $text = join "\n", map { "$_: $fields{$_}" } sort keys %fields;
-        $payload = encode_json( { text => $text } );
-    }
-    else {
-        $payload = encode_json( \%fields );
-    }
-
-    my $resp = $ua->post(
-        $url,
-        Content_Type => 'application/json',
-        Content      => $payload,
-    );
-
-    unless ( $resp->is_success ) {
-        log_event( 'WARN', "API dispatch to $url: " . $resp->status_line,
-            $ENV{REMOTE_ADDR} // '' );
-    }
 }
 
 # --- Response ---
@@ -301,10 +397,7 @@ sub respond_error {
     print encode_json( { ok => 0, error => $msg } );
 }
 
-sub reject {
-    my ($msg) = @_;
-    die "$msg\n";
-}
+sub reject { die "$_[0]\n"; }
 
 # --- Utilities ---
 
@@ -313,12 +406,6 @@ sub sanitise_header {
     $max //= 1000;
     $val =~ s/[\r\n]/ /g;
     $val = substr( $val, 0, $max ) if length($val) > $max;
-    return $val;
-}
-
-sub sanitise_email {
-    my ($val) = @_;
-    $val =~ s/[\r\n<>]//g;
     return $val;
 }
 
@@ -332,15 +419,14 @@ sub log_event {
     my ( $level, $msg, $ip ) = @_;
     $ip //= '';
     my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
-
-    my $log_path = "$FORMS_DIR/handler.log";
+    my $log_dir  = "$LAZYSITE_DIR/logs";
+    my $log_path = "$log_dir/lazysite.log";
+    make_path($log_dir) unless -d $log_dir;
     if ( open( my $fh, '>>', $log_path ) ) {
         flock( $fh, LOCK_EX );
-        print $fh "[$ts] $level ip=$ip $msg\n";
+        print $fh "[$ts] $level form-handler ip=$ip $msg\n";
         flock( $fh, LOCK_UN );
         close($fh);
     }
-    else {
-        warn "lazysite-form-handler: [$ts] $level ip=$ip $msg\n";
-    }
+    warn "lazysite-form-handler: [$ts] $level ip=$ip $msg\n";
 }

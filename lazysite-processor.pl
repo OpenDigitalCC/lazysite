@@ -1215,7 +1215,10 @@ $fields_html  <div class="form-status" aria-live="polite"></div>
       method: 'POST',
       body: new FormData(form)
     })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+      if (!r.ok) throw new Error('Server returned ' + r.status);
+      return r.json();
+    })
     .then(function(data) {
       if (data.ok) {
         form.innerHTML = '<p class="form-success">' +
@@ -1225,8 +1228,8 @@ $fields_html  <div class="form-status" aria-live="polite"></div>
         btn.disabled = false;
       }
     })
-    .catch(function() {
-      status.textContent = 'Could not send - please try again.';
+    .catch(function(e) {
+      status.textContent = 'Could not send: ' + e.message;
       btn.disabled = false;
     });
   });
@@ -2510,4 +2513,25 @@ sub read_file {
 sub log_warn {
     my ($msg) = @_;
     print STDERR "lazysite: $msg\n";
+    _log_to_file( 'WARN', $msg );
+}
+
+sub _log_to_file {
+    my ( $level, $msg ) = @_;
+    my $log_dir  = "$LAZYSITE_DIR/logs";
+    my $log_path = "$log_dir/lazysite.log";
+
+    eval {
+        make_path($log_dir) unless -d $log_dir;
+        open( my $fh, '>>:utf8', $log_path ) or return;
+        flock( $fh, 2 );  # LOCK_EX
+        my @t = localtime;
+        my $ts = sprintf( '%04d-%02d-%02d %02d:%02d:%02d',
+            $t[5]+1900, $t[4]+1, $t[3], $t[2], $t[1], $t[0] );
+        my $ip  = $ENV{REMOTE_ADDR} // '';
+        my $uri = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '';
+        print $fh "[$ts] $level $uri ip=$ip $msg\n";
+        flock( $fh, 8 );  # LOCK_UN
+        close $fh;
+    };
 }

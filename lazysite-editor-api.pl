@@ -105,6 +105,22 @@ elsif ( $action eq 'nav-save' )         {
     my $req = eval { decode_json($body) } // {};
     $result = action_nav_save( $req->{items} // [] );
 }
+elsif ( $action eq 'handler-list' )     { $result = action_handler_list() }
+elsif ( $action eq 'handler-save' )     {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_handler_save($req);
+}
+elsif ( $action eq 'handler-delete' )   {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_handler_delete( $req->{id} );
+}
+elsif ( $action eq 'form-targets-read' ) {
+    $result = action_form_targets_read( $params{form} );
+}
+elsif ( $action eq 'form-targets-save' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_form_targets_save( $params{form}, $req->{targets} // [] );
+}
 else  { $result = { ok => 0, error => "Unknown action: $action" } }
 
 respond($result);
@@ -300,9 +316,11 @@ sub action_save {
     print $fh $content;
     close $fh;
 
-    # Invalidate cache
-    ( my $cache = $full ) =~ s/\.md$/.html/;
-    unlink $cache if -f $cache;
+    # Invalidate cache (only for .md files that have .html cache)
+    if ( $full =~ /\.md$/ ) {
+        ( my $cache = $full ) =~ s/\.md$/.html/;
+        unlink $cache if -f $cache;
+    }
 
     # Release lock
     unlink $lock_file if -f $lock_file;
@@ -913,6 +931,181 @@ sub action_plugin_action {
         // { ok => 0, error => 'Action produced no output' };
 
     return $result;
+}
+
+# --- Handler actions ---
+
+sub _handlers_conf_path {
+    return "$DOCROOT/lazysite/forms/handlers.conf";
+}
+
+sub _parse_handlers_conf {
+    my $path = _handlers_conf_path();
+    return [] unless -f $path;
+
+    open my $fh, '<:utf8', $path or return [];
+    my $text = do { local $/; <$fh> };
+    close $fh;
+
+    my @handlers;
+    while ( $text =~ /^\s{2}-\s+id:\s*(\S+)(.*?)(?=^\s{2}-\s+id:|\z)/gmsx ) {
+        my ( $id, $block ) = ( $1, $2 );
+        my %h = ( id => $id );
+        while ( $block =~ /^\s{4}(\w+)\s*:\s*(.+)$/mg ) {
+            my ( $k, $v ) = ( $1, $2 );
+            $v =~ s/\s+$//;
+            $h{$k} = $v;
+        }
+        push @handlers, \%h;
+    }
+    return \@handlers;
+}
+
+sub _write_handlers_conf {
+    my ($handlers) = @_;
+    my $path = _handlers_conf_path();
+
+    my $dir = dirname($path);
+    make_path($dir) unless -d $dir;
+
+    my $content = "# Form dispatch handlers\n";
+    $content .= "# Add handlers here and reference them from form .conf files\n\n";
+    $content .= "handlers:\n";
+
+    for my $h (@$handlers) {
+        $content .= "  - id: $h->{id}\n";
+        for my $k ( sort keys %$h ) {
+            next if $k eq 'id';
+            $content .= "    $k: $h->{$k}\n";
+        }
+    }
+
+    open my $fh, '>:utf8', $path or return 0;
+    print $fh $content;
+    close $fh;
+    return 1;
+}
+
+sub action_handler_list {
+    my $handlers = _parse_handlers_conf();
+    return { ok => 1, handlers => $handlers };
+}
+
+sub action_handler_save {
+    my ($data) = @_;
+    my $id = $data->{id} // '';
+    $id =~ s/[^a-zA-Z0-9_-]//g;
+    return { ok => 0, error => "Invalid handler ID" } unless $id;
+
+    my $handlers = _parse_handlers_conf();
+
+    # Build handler record from input
+    my %new = ( id => $id );
+    for my $k (qw(type name enabled from to subject_prefix path url format
+                   method sendmail_path host port tls auth username password_file)) {
+        $new{$k} = $data->{$k} if defined $data->{$k} && length $data->{$k};
+    }
+    $new{type} //= 'file';
+
+    # Replace existing or append
+    my $found = 0;
+    for my $h (@$handlers) {
+        if ( $h->{id} eq $id ) {
+            %$h = %new;
+            $found = 1;
+            last;
+        }
+    }
+    push @$handlers, \%new unless $found;
+
+    _write_handlers_conf($handlers)
+        or return { ok => 0, error => "Cannot write handlers.conf" };
+
+    return { ok => 1, id => $id };
+}
+
+sub action_handler_delete {
+    my ($id) = @_;
+    return { ok => 0, error => "No handler ID" } unless $id;
+
+    my $handlers = _parse_handlers_conf();
+    my @filtered = grep { $_->{id} ne $id } @$handlers;
+
+    if ( scalar @filtered == scalar @$handlers ) {
+        return { ok => 0, error => "Handler not found: $id" };
+    }
+
+    _write_handlers_conf(\@filtered)
+        or return { ok => 0, error => "Cannot write handlers.conf" };
+
+    return { ok => 1, deleted => $id };
+}
+
+sub action_form_targets_read {
+    my ($form_name) = @_;
+    $form_name //= '';
+    $form_name =~ s/[^a-zA-Z0-9_-]//g;
+    return { ok => 0, error => "Invalid form name" } unless $form_name;
+
+    my $path = "$DOCROOT/lazysite/forms/$form_name.conf";
+    return { ok => 1, targets => [] } unless -f $path;
+
+    open my $fh, '<:utf8', $path or return { ok => 0, error => "Cannot read form config" };
+    my $text = do { local $/; <$fh> };
+    close $fh;
+
+    my @targets;
+
+    # New format: handler references
+    while ( $text =~ /^\s*-\s+handler:\s*(\S+)/mg ) {
+        push @targets, { handler => $1 };
+    }
+
+    # Legacy format: inline type config
+    if ( !@targets ) {
+        while ( $text =~ /^\s*-\s+type:\s*(\w+)\s*$(.*?)(?=^\s*-\s+type:|\z)/gms ) {
+            my ( $type, $block ) = ( $1, $2 );
+            my %t = ( type => $type );
+            $t{url}    = $1 if $block =~ /^\s*url:\s*(.+)$/m;
+            $t{format} = $1 if $block =~ /^\s*format:\s*(.+)$/m;
+            $t{path}   = $1 if $block =~ /^\s*path:\s*(.+)$/m;
+            $t{$_} =~ s/^\s+|\s+$//g for grep { defined $t{$_} } keys %t;
+            push @targets, \%t;
+        }
+    }
+
+    return { ok => 1, form => $form_name, targets => \@targets };
+}
+
+sub action_form_targets_save {
+    my ( $form_name, $targets ) = @_;
+    $form_name //= '';
+    $form_name =~ s/[^a-zA-Z0-9_-]//g;
+    return { ok => 0, error => "Invalid form name" } unless $form_name;
+
+    my $path = "$DOCROOT/lazysite/forms/$form_name.conf";
+    my $dir  = dirname($path);
+    make_path($dir) unless -d $dir;
+
+    my $content = "targets:\n";
+    for my $t (@$targets) {
+        if ( $t->{handler} ) {
+            $content .= "  - handler: $t->{handler}\n";
+        }
+        else {
+            my $type = $t->{type} // 'file';
+            $content .= "  - type: $type\n";
+            for my $k (qw(url format path)) {
+                $content .= "    $k: $t->{$k}\n" if defined $t->{$k} && length $t->{$k};
+            }
+        }
+    }
+
+    open my $fh, '>:utf8', $path or return { ok => 0, error => "Cannot write form config: $!" };
+    print $fh $content;
+    close $fh;
+
+    return { ok => 1, form => $form_name };
 }
 
 # --- Helpers ---
