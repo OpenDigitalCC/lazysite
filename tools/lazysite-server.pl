@@ -226,6 +226,23 @@ if ( ! -f $nav_target && -f $nav_source ) {
     print "  seeded: lazysite/nav.conf\n";
 }
 
+# --- Seed log config from lazysite.conf (env var takes priority) ---
+
+{
+    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    if ( -f $conf_path && open my $fh, '<', $conf_path ) {
+        while (<$fh>) {
+            if ( /^\s*log_level\s*:\s*(\S+)/ && !$ENV{LAZYSITE_LOG_LEVEL} ) {
+                $ENV{LAZYSITE_LOG_LEVEL} = $1;
+            }
+            if ( /^\s*log_format\s*:\s*(\S+)/ && !$ENV{LAZYSITE_LOG_FORMAT} ) {
+                $ENV{LAZYSITE_LOG_FORMAT} = $1;
+            }
+        }
+        close $fh;
+    }
+}
+
 # --- Start server ---
 
 my $cache_label = $nocache ? 'disabled (pass --cache to enable)' : 'enabled';
@@ -243,6 +260,7 @@ print "  url:       http://localhost:$PORT/\n";
 print "  cache:     $cache_label\n";
 print "  manager:   " . ($manager_enabled ? "enabled" : "disabled") . "\n";
 print "  log level: " . ($ENV{LAZYSITE_LOG_LEVEL} // 'INFO') . "\n";
+print "  log format: " . ($ENV{LAZYSITE_LOG_FORMAT} // 'text') . "\n";
 print "  log file:  " . ($LOG_FILE || 'terminal only') . "\n" if $LOG_FILE;
 print "\nPress Ctrl+C to stop.\n\n";
 
