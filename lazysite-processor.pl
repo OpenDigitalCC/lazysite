@@ -2523,6 +2523,10 @@ sub output_page {
     elsif ( defined $ttl && $ttl > 0 ) {
         print "Cache-Control: public, max-age=$ttl\n";
     }
+    else {
+        print "Cache-Control: no-cache, must-revalidate\n";
+    }
+    print "Vary: Cookie\n";
     print "\n";
     print $content;
 }

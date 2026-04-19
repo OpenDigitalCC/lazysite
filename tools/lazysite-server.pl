@@ -448,6 +448,10 @@ sub serve_static {
 
     print $client "HTTP/1.0 200 OK\r\n";
     print $client "Content-Type: $content_type\r\n";
+    if ( $ext eq 'html' || $ext eq 'htm' ) {
+        print $client "Cache-Control: no-cache, must-revalidate\r\n";
+        print $client "Vary: Cookie\r\n";
+    }
     print $client "Content-Length: $length\r\n";
     print $client "Connection: close\r\n";
     print $client "\r\n";
