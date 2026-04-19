@@ -100,7 +100,7 @@ function renderUsers(users) {
     html += '<span class="mg-file-name">' + escHtml(u) + '</span>';
     html += '<div class="mg-file-actions">';
     html += '<button class="mg-btn mg-btn-sm" onclick="changePassword(\'' + escHtml(u) + '\')">Password</button>';
-    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeUser(\'' + escHtml(u) + '\')">Remove</button>';
+    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeUser(\'' + escHtml(u) + '\')">Delete</button>';
     html += '</div>';
     html += '</div>';
   }
@@ -265,7 +265,7 @@ function changePassword(username) {
 }
 
 function removeUser(username) {
-  if (!confirm('Remove user "' + username + '"? This cannot be undone.')) return;
+  if (!confirm('Delete user "' + username + '"? This cannot be undone.')) return;
   apiCall({ action: 'remove', username: username })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }

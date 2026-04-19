@@ -79,6 +79,10 @@ eval {
     $name =~ s/[^a-zA-Z0-9_-]//g;
     reject('Missing form name') unless $name;
 
+    # Tag submission with the authenticated user if present
+    my $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
+    $form{_auth_user} = $auth_user if length $auth_user;
+
     my $conf = load_form_conf($name);
     my %handlers = load_handlers();
 

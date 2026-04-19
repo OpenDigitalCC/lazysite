@@ -1,6 +1,6 @@
 ---
-title: Features
-subtitle: All lazysite features by category.
+title: All features
+subtitle: Complete lazysite feature reference by category.
 register:
   - sitemap.xml
   - llms.txt
@@ -38,6 +38,8 @@ tt_page_var:
 [% END %]
 </nav>
 <div class="features-content">
+
+Every lazysite feature, grouped by topic. Use the sidebar to jump to a specific feature, or scroll through to see the full set. Each entry links to its detailed page.
 
 [% IF authoring_features.size %]
 ## Authoring
