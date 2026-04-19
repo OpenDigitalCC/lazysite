@@ -575,6 +575,7 @@ sub main {
                 auth_name            => $auth_result->{auth_name}            // '',
                 auth_denied_reason   => $auth_result->{auth_denied_reason}   // '',
                 auth_required_groups => $auth_result->{auth_required_groups} // [],
+                no_password          => $ENV{LAZYSITE_AUTH_NO_PASSWORD} ? 1 : 0,
             );
             serve_403($auth_result);
             return;
@@ -587,6 +588,7 @@ sub main {
             auth_name     => $auth_result->{auth_name}     // '',
             auth_email    => $auth_result->{auth_email}    // '',
             auth_groups   => $auth_result->{auth_groups}   // [],
+            no_password   => $ENV{LAZYSITE_AUTH_NO_PASSWORD} ? 1 : 0,
         );
 
         # Mark as protected if auth required or group-restricted

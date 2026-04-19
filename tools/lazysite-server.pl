@@ -175,7 +175,7 @@ if ( ! -f $conf_target && -f $conf_source ) {
     require File::Path;
     File::Path::make_path( "$DOCROOT/lazysite" );
     File::Copy::copy( $conf_source, $conf_target );
-    print "  seeded lazysite.conf\n";
+    print "  seeded: lazysite/lazysite.conf\n";
 }
 
 # Copy manager CSS to web-accessible path
@@ -200,14 +200,21 @@ if ( ! -f $conf_target && -f $conf_source ) {
         open my $fh, '>', $contact_conf;
         print $fh "targets:\n  - handler: local-storage\n";
         close $fh;
-        print "  seeded contact.conf\n";
+        print "  seeded: lazysite/forms/contact.conf\n";
     }
     my $handlers_conf = "$forms_dir/handlers.conf";
     unless ( -f $handlers_conf ) {
         open my $fh, '>', $handlers_conf;
         print $fh "# Form dispatch handlers\n\nhandlers:\n  - id: local-storage\n    type: file\n    name: Local file storage\n    enabled: true\n    path: lazysite/forms/submissions\n";
         close $fh;
-        print "  seeded handlers.conf\n";
+        print "  seeded: lazysite/forms/handlers.conf\n";
+    }
+    my $smtp_conf        = "$forms_dir/smtp.conf";
+    my $smtp_conf_source = "$forms_dir/smtp.conf.example";
+    if ( ! -f $smtp_conf && -f $smtp_conf_source ) {
+        require File::Copy;
+        File::Copy::copy( $smtp_conf_source, $smtp_conf );
+        print "  seeded: lazysite/forms/smtp.conf\n";
     }
 }
 
@@ -216,7 +223,7 @@ my $nav_source = "$DOCROOT/nav.conf.example";
 if ( ! -f $nav_target && -f $nav_source ) {
     require File::Copy;
     File::Copy::copy( $nav_source, $nav_target );
-    print "  seeded nav.conf\n";
+    print "  seeded: lazysite/nav.conf\n";
 }
 
 # --- Start server ---

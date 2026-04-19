@@ -44,6 +44,12 @@
     <div class="mg-header-tools">
       [% IF authenticated %]
       <span class="mg-user">[% auth_name || auth_user %]</span>
+      [% IF no_password %]
+      <span class="mg-no-password-warn">
+        &#9888; No password set.
+        <a href="/manager/users">Set one</a>
+      </span>
+      [% END %]
       <a href="/logout" class="mg-signout">Sign out</a>
       [% END %]
       <a href="/manager" class="mg-brand">Lazysite Manager</a>

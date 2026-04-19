@@ -903,3 +903,15 @@
     .mg-main { padding: 1rem 0.75rem; }
     .mg-user { display: none; }
 }
+
+.mg-no-password-warn {
+    font-size: 0.78rem;
+    color: var(--mg-warning);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+.mg-no-password-warn a {
+    color: var(--mg-warning);
+    text-decoration: underline;
+}
