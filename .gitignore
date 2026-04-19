@@ -1,10 +1,22 @@
-test-site/public_html/
-test-site/cgi-bin/
-starter/lazysite/*
-!starter/lazysite/auth/
-starter/lazysite/auth/*
-!starter/lazysite/auth/.gitkeep
-!starter/lazysite/auth/users.example
-!starter/lazysite/auth/groups.example
-!starter/lazysite/forms/
+# Test site
+test-site/
+
+# Runtime files in starter - not tracked, differ per installation
+starter/lazysite/auth/users
+starter/lazysite/auth/groups
+starter/lazysite/auth/.secret
+starter/lazysite/forms/.secret
+starter/lazysite/forms/.rate-limit.db
+starter/lazysite/forms/.smtp-password
+starter/lazysite/forms/contact.conf
+starter/lazysite/forms/handlers.conf
+starter/lazysite/forms/smtp.conf
+starter/lazysite/logs/
+starter/lazysite/editor/locks/
+starter/lazysite/cache/
+
+# Compiled HTML cache files
 starter/**/*.html
+
+# OS files
+.DS_Store

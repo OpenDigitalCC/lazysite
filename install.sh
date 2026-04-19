@@ -59,7 +59,9 @@ fi
 
 echo "Installing lazysite scripts..."
 install -m 755 "$SCRIPT_DIR/lazysite-processor.pl" "$CGIBIN/lazysite-processor.pl"
-for script in lazysite-form-handler.pl lazysite-form-smtp.pl lazysite-auth.pl lazysite-editor-api.pl; do
+for script in lazysite-form-handler.pl lazysite-form-smtp.pl \
+              lazysite-auth.pl lazysite-editor-api.pl \
+              lazysite-payment-demo.pl; do
     if [ -f "$SCRIPT_DIR/$script" ]; then
         install -m 755 "$SCRIPT_DIR/$script" "$CGIBIN/$script"
     fi
@@ -70,6 +72,21 @@ done
 echo "Creating lazysite directory structure..."
 mkdir -p "$DOCROOT/lazysite/templates/registries"
 mkdir -p "$DOCROOT/lazysite/themes"
+mkdir -p "$DOCROOT/lazysite/forms"
+mkdir -p "$DOCROOT/lazysite/logs"
+mkdir -p "$DOCROOT/lazysite/editor/locks"
+mkdir -p "$DOCROOT/lazysite/auth"
+chmod 750 "$DOCROOT/lazysite/auth"
+
+# Seed forms config from examples
+for conf in contact handlers smtp; do
+    src="$SCRIPT_DIR/starter/lazysite/forms/$conf.conf.example"
+    dst="$DOCROOT/lazysite/forms/$conf.conf"
+    if [ -f "$src" ] && [ ! -f "$dst" ]; then
+        cp "$src" "$dst"
+        echo "  Created: lazysite/forms/$conf.conf"
+    fi
+done
 
 # --- Copy starter files ---
 

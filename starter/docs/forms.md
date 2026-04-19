@@ -18,7 +18,7 @@ to configurable targets (email, API webhooks, Slack).
 1. Add `form: formname` to front matter
 2. Add a `:::form` block with field definitions
 3. Create `lazysite/forms/formname.conf` with dispatch targets
-4. Configure SMTP in `lazysite/forms/smtp.conf` (for email targets)
+4. Configure SMTP in `lazysite/forms/smtp.conf` (for email targets; an example file is provided as `smtp.conf.example`)
 
 ## Front matter
 

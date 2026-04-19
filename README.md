@@ -13,14 +13,14 @@ Full documentation is in `starter/docs/` and is browseable locally:
 
     perl tools/lazysite-server.pl
 
-Then open http://localhost:8080/ — the starter site includes:
+Then open http://localhost:8080/ - the starter site includes:
 
-- `/docs/README` — installation, configuration, and reference
-- `/docs/authoring` — writing pages, Markdown, Template Toolkit variables
-- `/docs/configuration` — views, nav.conf, lazysite.conf, themes
-- `/docs/development` — dev server, troubleshooting, build tools
-- `/docs/api` — raw mode, API mode, query strings
-- `/lazysite-demo` — live feature demonstrator
+- `/docs/README` - installation, configuration, and reference
+- `/docs/authoring` - writing pages, Markdown, Template Toolkit variables
+- `/docs/configuration` - views, nav.conf, lazysite.conf, themes
+- `/docs/development` - dev server, troubleshooting, build tools
+- `/docs/api` - raw mode, API mode, query strings
+- `/lazysite-demo` - live feature demonstrator
 
 Or read the docs directly in `starter/docs/`.
 

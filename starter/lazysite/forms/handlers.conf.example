@@ -1,8 +1,9 @@
 # Form dispatch handlers
+# Add handlers here and reference them from form .conf files
 
 handlers:
   - id: local-storage
-    type: file
-    name: Local file storage
     enabled: true
+    name: Local file storage
     path: lazysite/forms/submissions
+    type: file

@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>[% page_title %][% IF site_name %] — [% site_name %][% END %]</title>
+    <title>[% page_title %][% IF site_name %] - [% site_name %][% END %]</title>
     <meta name="description" content="[% IF page_subtitle %][% page_subtitle %][% ELSE %][% site_tagline %][% END %]">
     <style>
-        /* ── Tokens — edit here to retheme ── */
+        /* ── Tokens - edit here to retheme ── */
         :root {
             --bg:          #ffffff;
             --bg-subtle:   #f6f8fa;
@@ -349,7 +349,7 @@
 
 <footer>
     <div class="footer-inner">
-        <span>[% site_name %] — MIT licence</span>
+        <span>[% site_name %] - MIT licence</span>
         <span>
             <a href="[% github_url %]">source on github</a>
             &nbsp;·&nbsp;

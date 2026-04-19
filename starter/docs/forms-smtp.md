@@ -14,7 +14,7 @@ delivery methods.
 
 ## Configuration
 
-Edit `lazysite/forms/smtp.conf`:
+Edit `lazysite/forms/smtp.conf` (the installer creates this from `smtp.conf.example`):
 
 ```yaml
 method: sendmail
