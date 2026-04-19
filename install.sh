@@ -60,7 +60,7 @@ fi
 echo "Installing lazysite scripts..."
 install -m 755 "$SCRIPT_DIR/lazysite-processor.pl" "$CGIBIN/lazysite-processor.pl"
 for script in lazysite-form-handler.pl lazysite-form-smtp.pl \
-              lazysite-auth.pl lazysite-editor-api.pl \
+              lazysite-auth.pl lazysite-manager-api.pl \
               lazysite-payment-demo.pl; do
     if [ -f "$SCRIPT_DIR/$script" ]; then
         install -m 755 "$SCRIPT_DIR/$script" "$CGIBIN/$script"

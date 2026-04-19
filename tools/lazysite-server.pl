@@ -296,7 +296,7 @@ sub handle_request {
     # Determine which script to run
     my $script = $PROCESSOR;
     my $auth_script  = abs_path("$SCRIPT_DIR/../lazysite-auth.pl");
-    my $manager_api  = abs_path("$SCRIPT_DIR/../lazysite-editor-api.pl");
+    my $manager_api  = abs_path("$SCRIPT_DIR/../lazysite-manager-api.pl");
     my $auth_users   = "$DOCROOT/lazysite/auth/users";
     my $use_auth     = -f $auth_users && -f $auth_script;
 

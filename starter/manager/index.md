@@ -23,7 +23,7 @@ search: false
 </div>
 
 <script>
-var API = '/cgi-bin/lazysite-editor-api.pl';
+var API = '/cgi-bin/lazysite-manager-api.pl';
 var currentDir = '/';
 
 function showStatus(msg, isError) {

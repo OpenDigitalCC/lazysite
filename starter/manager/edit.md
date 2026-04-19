@@ -72,7 +72,7 @@ query_params:
 <script src="/manager/assets/cm/closebrackets.min.js"></script>
 
 <script>
-var API = '/cgi-bin/lazysite-editor-api.pl';
+var API = '/cgi-bin/lazysite-manager-api.pl';
 var filePath = '[% query.path | html %]';
 var isNew = '[% query.new | html %]' === '1';
 var isMdFile = filePath && /\.md$/i.test(filePath);

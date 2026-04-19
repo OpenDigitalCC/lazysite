@@ -32,7 +32,7 @@ query_params:
 </div>
 
 <script>
-var API = '/cgi-bin/lazysite-editor-api.pl';
+var API = '/cgi-bin/lazysite-manager-api.pl';
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');

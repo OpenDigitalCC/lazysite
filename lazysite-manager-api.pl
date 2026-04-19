@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# lazysite-editor-api.pl - file operations CGI for lazysite editor
+# lazysite-manager-api.pl - file operations CGI for lazysite manager
 use strict;
 use warnings;
 use JSON::PP qw(encode_json decode_json);

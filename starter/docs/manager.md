@@ -137,14 +137,14 @@ rejected.
 
 ## Installation
 
-The installer copies `lazysite-editor-api.pl` to `cgi-bin/`
+The installer copies `lazysite-manager-api.pl` to `cgi-bin/`
 alongside `lazysite-processor.pl`. The manager pages in
 `starter/manager/` are served as regular lazysite pages.
 
 For manual installation:
 
 ```bash
-cp lazysite-editor-api.pl /path/to/cgi-bin/
-chmod 755 /path/to/cgi-bin/lazysite-editor-api.pl
+cp lazysite-manager-api.pl /path/to/cgi-bin/
+chmod 755 /path/to/cgi-bin/lazysite-manager-api.pl
 cp -r starter/manager /path/to/public_html/manager
 ```

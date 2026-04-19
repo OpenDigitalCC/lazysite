@@ -21,7 +21,7 @@ search: false
 <div id="nav-list">Loading...</div>
 
 <script>
-var API = '/cgi-bin/lazysite-editor-api.pl';
+var API = '/cgi-bin/lazysite-manager-api.pl';
 var navItems = [];
 var dragSrcIdx = null;
 
