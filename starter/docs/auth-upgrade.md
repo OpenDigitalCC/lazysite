@@ -57,3 +57,5 @@ After upgrading, these all work identically:
 - User management moves from `lazysite-users.pl` to the proxy's
   admin interface
 - Cookie-based sessions are replaced by the proxy's session mechanism
+- Manager access (`manager_groups` in `lazysite.conf`) must match the
+  group names your proxy forwards in `X-Remote-Groups`

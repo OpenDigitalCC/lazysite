@@ -145,13 +145,17 @@ Create `dirname/index.md` for any directory that needs an index page.
 
 ### Using an AI assistant
 
-`starter/docs/ai-briefing.md` (available at `/docs/ai-briefing` on a
-running site) covers the full system. Feed it to an AI assistant at the
-start of a session to enable help with view design, page authoring, and
-configuration without needing to explain the system each time.
+Four audience-specific briefings live under `starter/docs/`:
 
-In Claude Projects, save it as a project document. For other AI tools,
-paste it as context at the start of the conversation.
+- `ai-briefing-authoring.md` - writing content
+- `ai-briefing-views.md` - designing themes
+- `ai-briefing-configuration.md` - configuring a site
+- `ai-briefing-development.md` - working on the codebase
+
+Feed the relevant briefing to an AI assistant at the start of a
+session to enable help without needing to explain the system each
+time. In Claude Projects, save it as a project document. For other
+AI tools, paste it as context at the start of the conversation.
 
 ## Uninstall
 
@@ -164,21 +168,34 @@ Removes Hestia template files only. Deployed domain files are not touched.
     public_html/
       lazysite/
         lazysite.conf         <- site configuration
-        nav.conf              <- navigation (Label | /url format)
+        nav.conf              <- navigation (YAML)
+        themes/
+          THEME/
+            view.tt           <- theme template
+            assets/           <- theme assets
+          manager/            <- manager chrome (system theme)
         templates/
-          view.tt             <- view template
           registries/
             llms.txt.tt
             sitemap.xml.tt
             feed.rss.tt
             feed.atom.tt
-        themes/               <- additional themes
+        auth/
+          users               <- built-in auth users
+          groups              <- built-in auth groups
+        forms/
+          handlers.conf       <- named dispatch handlers
+          smtp.conf           <- SMTP connection settings
       assets/
         css/
         img/
         js/
       cgi-bin/
         lazysite-processor.pl
+        lazysite-auth.pl
+        lazysite-form-handler.pl
+        lazysite-form-smtp.pl
+        lazysite-manager-api.pl
       404.md
       index.md
 

@@ -25,7 +25,7 @@ The docroot defaults to the current directory.
 
 ### What it scans
 
-- All `.md` files for Markdown links `[text](url)` and HTML
+- All `.md` files for Markdown link syntax and HTML
   `href`/`src` attributes
 - Cached `.html` files for `.url` pages (since remote content is
   not re-fetched)

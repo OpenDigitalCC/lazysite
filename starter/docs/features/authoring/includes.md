@@ -71,8 +71,9 @@ Include a code file (renders as a syntax-highlighted code block):
 ### Error handling
 
 If a local file is missing or a remote fetch fails, the block renders
-as a silent `<span class="include-error" data-src="..."></span>` tag.
-A warning is written to the error log. Expose errors during development:
+as a silent span with class `include-error` and a `data-src` attribute
+recording the failed source path. A warning is written to the error log.
+Expose errors during development:
 
     .include-error::before {
       content: "include failed: " attr(data-src);

@@ -1,28 +1,52 @@
 # lazysite
 
-Markdown-driven static pages for any CGI-capable web server. No build step,
-no database, no CMS.
+Markdown-driven pages for any CGI-capable web server. No build step, no
+database, no CMS. Drop a `.md` file in your docroot and it is served as
+a fully rendered HTML page. The first request generates the HTML and
+caches it; every subsequent request is a plain static file.
 
-Drop a `.md` file in your docroot and it is served as a fully rendered HTML
-page. The first request generates the HTML and caches it. Every subsequent
-request is a plain static file.
+## Features
 
-## Documentation
+Content
+- Markdown pages with YAML front matter
+- Template Toolkit variables in pages and views
+- Fenced divs, oEmbed, content includes
+- Remote pages (`.url` files that fetch Markdown from a URL)
+- Page scan for blog/news index pages
+- Registry files: sitemap.xml, llms.txt, RSS, Atom
+- TTL-based cache and API/raw output modes
 
-Full documentation is in `starter/docs/` and is browseable locally:
+Views and themes
+- Template Toolkit view templates (`view.tt`)
+- Themes live under `lazysite/themes/THEME/` with their own assets
+- Built-in fallback view so sites work with zero configuration
 
-    perl tools/lazysite-server.pl
+Manager
+- Browser-based admin at `/manager`
+- Config, Files, Nav, Plugins, Themes, Users, and Cache pages
+- Admin bar on site pages for manager users
 
-Then open http://localhost:8080/ - the starter site includes:
+Authentication
+- Built-in cookie auth (`lazysite-auth.pl`) with users and groups
+- Drop-in replacement by any proxy that sets `X-Remote-*` headers
+- Per-page `auth:` and `auth_groups:` front matter
 
-- `/docs/README` - installation, configuration, and reference
-- `/docs/authoring` - writing pages, Markdown, Template Toolkit variables
-- `/docs/configuration` - views, nav.conf, lazysite.conf, themes
-- `/docs/development` - dev server, troubleshooting, build tools
-- `/docs/api` - raw mode, API mode, query strings
-- `/lazysite-demo` - live feature demonstrator
+Forms
+- Inline `:::form` blocks with field validation
+- Named dispatch handlers (SMTP, file storage, webhooks)
+- Honeypot, HMAC timestamp token, and rate limiting built in
 
-Or read the docs directly in `starter/docs/`.
+Payment
+- x402 payment flow support via `payment:` front matter
+
+Plugins
+- Auto-discovery of CGI scripts and tools via `--describe` JSON
+- Enable, disable, and configure from the manager
+
+Operations
+- Structured logging (text or JSON, env or config)
+- Link audit (orphaned pages, broken internal links)
+- Static site generation for GitHub Pages, Netlify, etc.
 
 ## Quick start
 
@@ -30,38 +54,53 @@ Or read the docs directly in `starter/docs/`.
     cd lazysite
     perl tools/lazysite-server.pl
 
-Open http://localhost:8080/ to browse the starter site with the built-in
-fallback view. Install a view from [lazysite-views][views] for a styled result.
+Open http://localhost:8080/ to browse the starter site.
 
-## Installing on a server
+## Installation
 
     sudo bash install.sh --docroot /path/to/public_html \
                          --cgibin /path/to/cgi-bin \
                          --domain example.com
 
-HestiaCP users: see `installers/hestia/`.
+HestiaCP users: see `installers/hestia/`. Docker: see `installers/docker/`.
 
-## Views
+Full installation details in
+[starter/docs/install.md](starter/docs/install.md).
 
-lazysite includes a built-in fallback view so it works without any
-configuration files. For a styled site, install a view from
-[lazysite-views][views]:
+## Documentation
 
-    curl -o public_html/lazysite/templates/view.tt \
-      https://raw.githubusercontent.com/OpenDigitalCC/lazysite-views/main/default/view.tt
+Browse locally via the dev server, or read the Markdown directly:
 
-## Repository structure
+- `starter/docs/install.md` - installation
+- `starter/docs/authoring.md` - writing content
+- `starter/docs/configuration.md` - lazysite.conf, nav, plugins
+- `starter/docs/views.md` - views and themes
+- `starter/docs/manager.md` - the manager UI
+- `starter/docs/auth.md` - authentication
+- `starter/docs/forms.md` - contact forms
+- `starter/docs/payment.md` - x402 payment
+- `starter/docs/development.md` - dev server, rsync, troubleshooting
+- `starter/docs/reference.md` - keys, variables, file locations
 
-    lazysite-processor.pl   <- the processor (single Perl script)
-    install.sh              <- generic installer
-    installers/hestia/      <- HestiaCP template and installer
-    starter/                <- deployable starter site
-      docs/                 <- documentation (browseable via dev server)
-    tools/
-      lazysite-server.pl    <- local development server
-      build-static.sh       <- static site generator
-      lazysite-audit.pl     <- link audit utility
-    website/                <- lazysite.io site (.url files)
+AI-assistant briefings:
+
+- `starter/docs/ai-briefing-authoring.md`
+- `starter/docs/ai-briefing-views.md`
+- `starter/docs/ai-briefing-configuration.md`
+- `starter/docs/ai-briefing-development.md`
+
+## Views and themes
+
+Ready-to-use themes live in the companion repo
+[lazysite-views][views]. Install a theme zip via the manager Themes
+page, or unpack manually under `lazysite/themes/`.
+
+## Requirements
+
+- Perl 5.10 or later
+- Apache or nginx with CGI support
+- Template Toolkit (`libtemplate-perl` on Debian)
+- Optional: `IO::Socket::SSL` for HTTPS SMTP delivery
 
 ## Licence
 

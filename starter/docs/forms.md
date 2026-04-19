@@ -11,20 +11,37 @@ register:
 lazysite forms are defined inline in page content using `:::form` blocks.
 The processor generates an HTML form with built-in anti-spam protection.
 Submissions are handled by a CGI script that validates and dispatches
-to configurable targets (email, API webhooks, Slack).
+to named handlers defined in `lazysite/forms/handlers.conf`.
+
+## Architecture
+
+Three config files work together:
+
+`lazysite/forms/FORMNAME.conf`
+: Per-form config. Lists the handler IDs that receive submissions.
+
+`lazysite/forms/handlers.conf`
+: Named dispatch handlers (email, file storage, webhooks). Each handler
+  has an `id`, `type`, and type-specific settings.
+
+`lazysite/forms/smtp.conf`
+: SMTP connection settings shared by all SMTP-type handlers.
+
+A form targets one or more handlers by ID. Multiple forms can share the
+same handler, and a form can dispatch to multiple handlers at once.
 
 ## Quick start
 
-1. Add `form: formname` to front matter
+1. Add `form: formname` to the page's front matter
 2. Add a `:::form` block with field definitions
-3. Create `lazysite/forms/formname.conf` with dispatch targets
-4. Configure SMTP in `lazysite/forms/smtp.conf` (for email targets; an example file is provided as `smtp.conf.example`)
+3. Create `lazysite/forms/formname.conf` pointing at a handler ID
+4. Define the handler in `lazysite/forms/handlers.conf`
+5. For SMTP handlers, configure `lazysite/forms/smtp.conf`
 
 ## Front matter
 
-The `form:` key in front matter enables form processing for the page
-and names the form. The name must be alphanumeric with hyphens and
-underscores only:
+The `form:` key enables form processing for the page and names the form.
+The name must be alphanumeric with hyphens and underscores only:
 
 ```yaml
 ---
@@ -97,38 +114,65 @@ submit  | Send message
 
 ## Handler configuration
 
-Each form needs a config file at `lazysite/forms/FORMNAME.conf`:
+### Per-form config
+
+`lazysite/forms/FORMNAME.conf` lists the handlers that receive
+submissions:
 
 ```yaml
 targets:
-  - type: smtp
-    url: http://localhost/cgi-bin/lazysite-form-smtp.pl
+  - handler: email-delivery
+  - handler: local-storage
 ```
 
-### Target types
+Each entry references a handler by `id`. All listed handlers are
+dispatched on each submission. If one handler fails, the others still
+run.
 
-`smtp`
-: POST form fields as JSON to the SMTP helper URL. See
-  [SMTP configuration](/docs/forms-smtp).
+### Named handlers
 
-`api` with `format: json`
-: POST all non-internal fields as JSON to the URL. Works with any
-  webhook that accepts JSON POST.
-
-`api` with `format: slack`
-: POST as Slack-compatible `{"text": "field: value\n..."}` format.
-
-Multiple targets can be configured - all are dispatched on each
-submission:
+`lazysite/forms/handlers.conf` defines the handlers:
 
 ```yaml
-targets:
-  - type: smtp
-    url: http://localhost/cgi-bin/lazysite-form-smtp.pl
-  - type: api
-    url: https://hooks.slack.com/services/xxx
+handlers:
+  - id: email-delivery
+    type: smtp
+    name: Email delivery
+    enabled: true
+    from: webforms@example.com
+    to: admin@example.com
+    subject_prefix: "[Contact] "
+
+  - id: local-storage
+    type: file
+    name: Local file storage
+    enabled: true
+    path: lazysite/forms/submissions
+
+  - id: slack-notify
+    type: webhook
+    name: Slack notification
+    enabled: false
+    url: https://hooks.slack.com/services/XXX
     format: slack
 ```
+
+Handlers with `enabled: false` are skipped.
+
+### Handler types
+
+`smtp`
+: Sends form data as a formatted email. Requires `from`, `to`, and
+  `subject_prefix`. Connection settings come from
+  `lazysite/forms/smtp.conf`. See [Forms SMTP](/docs/forms-smtp).
+
+`file`
+: Writes each submission to a file under `path`. Useful for logging,
+  offline processing, or testing without email infrastructure.
+
+`webhook`
+: POSTs form data to an HTTP URL. Set `format: json` for a plain JSON
+  body, or `format: slack` for Slack-compatible `{"text": "..."}`.
 
 ## Client-side behaviour
 

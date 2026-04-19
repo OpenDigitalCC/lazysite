@@ -1,6 +1,6 @@
 ---
 title: Manager
-subtitle: Web-based content manager for lazysite.
+subtitle: Web-based admin and content manager for lazysite.
 register:
   - sitemap.xml
   - llms.txt
@@ -8,11 +8,12 @@ register:
 
 ## Overview
 
-The lazysite manager is a web-based content management interface built
-into lazysite itself. It provides a file browser, page editor with
-live preview, theme manager, user management, and cache manager. All
-manager pages are regular lazysite `.md` pages served through the normal
-pipeline.
+The lazysite manager is a web-based admin UI built into lazysite itself.
+It lets you configure the site, manage users, install themes, enable
+plugins, edit pages, and clear the cache - all from the browser.
+
+Manager pages are ordinary lazysite `.md` pages served through the
+normal pipeline, using a dedicated manager theme for consistent chrome.
 
 ## Enabling the manager
 
@@ -25,88 +26,139 @@ manager_groups: lazysite-admins
 ```
 
 The manager is disabled by default. `manager_groups` restricts access
-to members of the specified group(s). Multiple groups can be
+to members of the listed group(s). Multiple groups can be
 comma-separated.
+
+At least one user must be in `manager_groups`. Create one with:
+
+```bash
+perl tools/lazysite-users.pl --docroot /path/to/public_html \
+  group-add alice lazysite-admins
+```
 
 ## Accessing the manager
 
 Navigate to `/manager` (or the configured `manager_path`). You must be
-authenticated and in the `manager_groups` group.
+authenticated and in a configured `manager_groups` group. Unauthenticated
+visitors are redirected to `/login`.
 
-## File browser
+## Pages
 
-The main manager page at `/manager` shows a file browser. You can:
+### Config
 
-- Navigate directories by clicking folder names
-- Open files for editing by clicking file names
-- Create new files with the "New file" button
-- Delete files with the per-file delete button
+`/manager/` (or `/manager/config`). Edit site settings and review the
+plugin registry.
 
-## Page editor
+- **Site settings** - `site_name`, `site_url`, default theme,
+  navigation file path, `search_default`, manager state, manager path,
+  and manager groups. Saves to `lazysite/lazysite.conf`.
+- **Plugins** - lists all discovered CGI scripts and tools that support
+  `--describe`. Tick to enable, untick to disable. Per-plugin
+  configuration lives on the Plugins page.
 
-The editor at `/manager/edit?path=filename.md` provides:
+### Files
 
-### Front matter
+`/manager/files`. File browser for the docroot. You can:
 
-Common front matter fields (title, subtitle, date) are shown as form
-inputs. The raw YAML is also editable in a collapsible section. Changes
-to the form inputs sync to the raw YAML.
+- Navigate directories
+- Open a page for editing (`/manager/edit?path=...`)
+- Create new `.md`, `.url`, and directory entries
+- Delete files (with confirmation)
 
-### Content editor
+The editor at `/manager/edit` shows:
 
-A monospace textarea for the page body (Markdown content after the
-front matter).
+- Front matter form (title, subtitle, date) plus raw YAML toggle
+- Monospace editor for the page body
+- Live preview pane
+- Save button (writes file and invalidates cache)
+- Collaborative edit lock - only one user can edit a file at a time
 
-### Live preview
+Locks expire after 5 minutes and are renewed automatically while the
+editor is open.
 
-The right pane shows a live preview of the rendered page. Click
-"Preview" or save to refresh it.
+### Nav
 
-### Save
+`/manager/nav`. Visual editor for `lazysite/nav.conf`:
 
-The save button writes the file and invalidates the cached `.html`.
-If the file was modified by another user since you opened it (mtime
-conflict), the save is rejected with an error.
+- Drag and drop to reorder items
+- Indent and outdent to change nesting
+- Edit labels and URLs inline
+- Toggle between link items and group headings
 
-### Collaborative locking
+Saves back to `lazysite/nav.conf` as YAML.
 
-When you open a file for editing, a lock is acquired. Other users
-see a "Locked by username" indicator and cannot save. Locks expire
-after 5 minutes and are renewed automatically every 60 seconds while
-the editor is open. Locks are released when you navigate away.
+### Plugins
 
-## Theme manager
+`/manager/plugins`. Per-plugin configuration UI.
 
-At `/manager/themes`:
+Each enabled plugin appears with a form generated from its
+`config_schema`. Save writes the plugin's config file (e.g.
+`lazysite/forms/smtp.conf` for the SMTP plugin).
+
+Plugins that declare `actions` (e.g. Run audit) show action buttons
+that invoke the plugin and display the result.
+
+### Themes
+
+`/manager/themes`. Install, activate, rename, and delete themes.
 
 - View all installed themes with active status
-- Activate a theme (clears all cached pages)
-- Delete inactive themes
-- Rename themes
-- Upload new themes as zip files (must contain `view.tt` and
-  `theme.json`)
+- Upload a theme zip (must contain `view.tt` and `theme.json`)
+- Activate a theme (writes `theme:` to `lazysite.conf`, clears the
+  HTML cache)
+- Rename or delete inactive themes
 
-## User management
+Uploading a theme that would overwrite an existing directory prefixes
+the install path with today's date (e.g. `20260419-mytheme`).
 
-At `/manager/users`:
+### Users
 
-- Add new users with username and password
-- Change user passwords
-- Remove users (also removes from all groups)
-- View groups and their members
-- Add users to groups
+`/manager/users`. User and group management using the same data files
+as `tools/lazysite-users.pl`:
 
-This uses `lazysite-users.pl` in API mode. The users and groups files
-at `lazysite/auth/users` and `lazysite/auth/groups` are managed
-through this interface.
+- Add, remove, and rename users
+- Set or clear passwords
+- Add users to groups and remove them
+- View all groups and members
 
-## Cache manager
+### Cache
 
-At `/manager/cache`:
+`/manager/cache`. Cache inspection and invalidation:
 
-- View all cached `.html` files with age and source status
-- Invalidate individual cached pages
-- Clear all cache at once
+- Lists all cached `.html` files with age and source status
+- Invalidate a single cached page
+- Clear all cache at once (useful after theme changes)
+
+## Admin bar on site pages
+
+When the manager is enabled, the processor injects an admin bar on
+site pages (non-manager pages) for authenticated users in
+`manager_groups`. The bar shows:
+
+- Manage - link to `/manager/`
+- Edit - link to the editor for the current page
+- Theme switcher - dropdown if more than one theme is installed
+- Sign out
+- Warning when the user has no password set
+
+The admin bar is a compact fixed-position bar at the top of the page.
+Unauthenticated visitors and non-manager users do not see it.
+
+## Installation
+
+The installer copies `lazysite-manager-api.pl` to `cgi-bin/` alongside
+`lazysite-processor.pl`. The manager pages in `starter/manager/` are
+served as regular lazysite pages, and the manager theme in
+`starter/lazysite/themes/manager/` supplies their chrome.
+
+For manual installation:
+
+```bash
+cp lazysite-manager-api.pl /path/to/cgi-bin/
+chmod 755 /path/to/cgi-bin/lazysite-manager-api.pl
+cp -r starter/manager /path/to/public_html/manager
+cp -r starter/lazysite/themes/manager /path/to/public_html/lazysite/themes/
+```
 
 ## Security
 
@@ -114,7 +166,7 @@ At `/manager/cache`:
 
 Access to `/manager` and all sub-pages is restricted to authenticated
 users in the configured `manager_groups`. Unauthenticated users are
-redirected to the login page.
+redirected to `/login`.
 
 ### Blocked paths
 
@@ -126,25 +178,11 @@ The manager API blocks read and write access to sensitive files:
 - `lazysite/auth/groups`
 - All `.pl` files
 
-User and group management is handled through the dedicated user
-management interface, not through direct file editing.
+User and group management is handled through the dedicated Users page,
+not through direct file editing.
 
 ### Path validation
 
 All file operations validate paths with `realpath()` to ensure they
 resolve within the document root. Path traversal attempts are
 rejected.
-
-## Installation
-
-The installer copies `lazysite-manager-api.pl` to `cgi-bin/`
-alongside `lazysite-processor.pl`. The manager pages in
-`starter/manager/` are served as regular lazysite pages.
-
-For manual installation:
-
-```bash
-cp lazysite-manager-api.pl /path/to/cgi-bin/
-chmod 755 /path/to/cgi-bin/lazysite-manager-api.pl
-cp -r starter/manager /path/to/public_html/manager
-```

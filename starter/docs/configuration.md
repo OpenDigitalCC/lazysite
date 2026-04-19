@@ -1,210 +1,248 @@
 ---
 title: Configuration
-subtitle: Views, navigation, site variables, and themes.
+subtitle: Views, navigation, site variables, forms, auth, and plugins.
 register:
   - sitemap.xml
   - llms.txt
 ---
 
-## Views
+## lazysite.conf
 
-`lazysite/templates/view.tt` controls the visual presentation of every page.
-lazysite includes a built-in fallback view so it works with no configuration
-files. For a styled site, install a view from [lazysite-views][views].
+`lazysite/lazysite.conf` defines site-wide variables available in
+`view.tt` and all page bodies. It is a plain text file with one
+key-value pair per line.
 
-### Installing a view
+### Minimal example
 
-    curl -o public_html/lazysite/templates/view.tt \
-      https://raw.githubusercontent.com/OpenDigitalCC/lazysite-views/main/default/view.tt
+    site_name: My Site
+    site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
 
-Or clone the views repository and copy the directory you want:
+`site_url` uses Apache CGI environment variables set automatically on
+every request. Do not hardcode the domain - the same `lazysite.conf`
+works on staging and production.
 
-    git clone https://github.com/OpenDigitalCC/lazysite-views.git
-    cp lazysite-views/default/view.tt public_html/lazysite/templates/
+### Value types
 
-### What the view template receives
+    # Literal string
+    site_name: My Site
 
-Every page render passes these variables to view.tt:
+    # Environment variable (CGI - allowlisted vars only)
+    site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
 
-`[% page_title %]`
-: The page title from front matter.
+    # Remote URL fetch (trimmed, cached with page TTL)
+    version: url:https://raw.githubusercontent.com/example/repo/main/VERSION
 
-`[% page_subtitle %]`
-: The page subtitle from front matter. May be empty - test with
-  `[% IF page_subtitle %]`.
+    # Directory scan (array of page metadata)
+    blog_pages: scan:/blog/*.md sort=date desc
 
-`[% content %]`
-: The converted page body as HTML. Output with `[% content %]` - TT does
-  not escape this value.
+### Recognised keys
 
-`[% page_modified %]`
-: Human-readable file modification date, e.g. "3 April 2026".
+`site_name`
+: Display name of the site.
 
-`[% page_modified_iso %]`
-: ISO 8601 file modification date, e.g. "2026-04-03". Useful for
-  `<time datetime="...">` elements.
+`site_url`
+: Full URL of the site. Typically
+  `${REQUEST_SCHEME}://${SERVER_NAME}`.
 
-`[% nav %]`
-: Navigation array loaded from `nav.conf`. See navigation section below.
+`theme`
+: Active theme. The processor loads
+  `lazysite/themes/THEME/view.tt`. May also be a full remote URL.
 
-`[% request_uri %]`
-: The current page path, e.g. `/about`. Set from the `${REDIRECT_URL}`
-  environment variable. Useful for highlighting the active navigation item.
+`nav_file`
+: Navigation file path, docroot-relative. Default:
+  `lazysite/nav.conf`.
 
-Plus all site-wide variables defined in `lazysite.conf`.
+`search_default`
+: Site-wide default for the `search:` front matter key. `true` (default)
+  or `false`.
 
-### Minimal view template
+`manager`
+: `enabled` or `disabled`. Controls the built-in manager at `/manager`.
 
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>[% page_title %][% IF site_name %] - [% site_name %][% END %]</title>
-</head>
-<body>
-<header>
-    <a href="/">[% site_name %]</a>
-    <nav>
-    [% FOREACH item IN nav %]
-      [% IF item.url %]
-      <a href="[% item.url %]"
-        [% IF request_uri == item.url %]aria-current="page"[% END %]>
-        [% item.label %]</a>
-      [% ELSE %]
-      <span>[% item.label %]</span>
-      [% END %]
-      [% FOREACH child IN item.children %]
-        <a href="[% child.url %]">[% child.label %]</a>
-      [% END %]
-    [% END %]
-    </nav>
-</header>
-<main>
-    <h1>[% page_title %]</h1>
-    [% IF page_subtitle %]<p>[% page_subtitle %]</p>[% END %]
-    [% content %]
-</main>
-<footer>
-    <p>Built with <a href="https://lazysite.io">lazysite</a></p>
-</footer>
-</body>
-</html>
+`manager_path`
+: URL path for the manager. Default: `/manager`.
+
+`manager_groups`
+: Comma-separated groups. Only users in these groups can access the
+  manager.
+
+`log_level`
+: `ERROR`, `WARN`, `INFO` (default), or `DEBUG`.
+
+`log_format`
+: `text` (default) or `json`.
+
+`plugins`
+: List of plugin script paths to pre-enable without using the manager
+  UI.
+
+`auth_default`
+: Site-wide default for the `auth:` front matter key. `required`,
+  `optional`, or `none` (default).
+
+`auth_header_user`, `auth_header_name`, `auth_header_email`, `auth_header_groups`
+: Override HTTP header names when using an external auth proxy.
+  Defaults: `X-Remote-User`, `X-Remote-Name`, `X-Remote-Email`,
+  `X-Remote-Groups`.
+
+All other keys become TT variables available in page content and the
+view template.
+
+### Example
+
+```yaml
+site_name: My Site
+site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
+theme: default
+nav_file: lazysite/nav.conf
+search_default: true
+log_level: INFO
+log_format: text
+manager: enabled
+manager_path: /manager
+manager_groups: lazysite-admins
+plugins:
+  - cgi-bin/lazysite-auth.pl
+  - cgi-bin/lazysite-form-handler.pl
 ```
 
-### After changing the view template
+### Allowlisted environment variables
 
-Delete all cached `.html` files to force regeneration:
+Only these CGI variables may be used with `${VAR}` syntax:
+`SERVER_NAME`, `REQUEST_SCHEME`, `SERVER_PORT`, `HTTPS`, `REDIRECT_URL`,
+`DOCUMENT_ROOT`, `SERVER_ADMIN`.
 
-    find public_html -name "*.html" -delete
+`HTTP_HOST` is intentionally excluded - it is request-supplied and
+therefore untrusted. Use `SERVER_NAME` for host-based URL construction.
 
-### Theme metadata
+## Navigation (nav.conf)
 
-Include a TT comment block at the top of `view.tt` to document the theme:
-
-```
-[%#
-  name: My Theme
-  version: 1.0.0
-  author: Your Name
-  requires: 0.9.0
-  description: Brief description of the theme.
-%]
-```
-
-### Themes directory
-
-Multiple views can be installed in `lazysite/themes/`:
-
-    public_html/lazysite/themes/dark/view.tt
-    public_html/lazysite/themes/minimal/view.tt
-
-Switch site-wide in `lazysite.conf`:
-
-    theme: dark
-
-Override per-page in front matter:
-
-    layout: minimal
-
-The processor checks `lazysite/themes/NAME/view.tt` first, then
-`lazysite/templates/NAME.tt`, and falls back to the default `view.tt`.
-
-### Remote views
-
-A view can be loaded from a URL by setting `theme:` to a full URL in
-`lazysite.conf`:
-
-    theme: https://raw.githubusercontent.com/OpenDigitalCC/lazysite-views/main/default/view.tt
-
-The remote view is fetched and cached locally. It is refreshed after the
-remote TTL expires (default 1 hour). Remote views run in a restricted
-Template Toolkit instance - embedded Perl and relative includes are
-disabled.
-
-## Navigation
-
-`lazysite/nav.conf` defines the site navigation as a plain text file.
-The processor reads it into a `nav` TT variable available in every page.
+`lazysite/nav.conf` defines the site navigation. The processor reads
+it into a `nav` TT variable available in every page.
 
 ### Format
 
-    # Comments start with #
-    # Blank lines are ignored
+Navigation is YAML. Items may be links, group headings, or groups with
+nested children:
+
+```yaml
+- label: Home
+  url: /
+- label: About
+  url: /about
+- label: Docs
+  children:
+    - label: Install
+      url: /docs/install
+    - label: Authoring
+      url: /docs/authoring
+- label: Resources
+  children:
+    - label: GitHub
+      url: https://github.com/example
+```
+
+Rules:
+
+- Items with a `url` render as links
+- Items without `url` render as non-clickable headings
+- `children` provides one level of nesting
+- One level of nesting is supported (parent with children)
+
+### Legacy pipe format
+
+An older pipe-separated format is also accepted:
 
     Home | /
     About | /about
     Docs | /docs/
       Installation | /docs/install
-      Authoring | /docs/authoring
-    Resources
-      GitHub | https://github.com/example
-
-Rules:
-
-- `Label | /url` - clickable item
-- `Label` with no pipe - non-clickable group heading
-- Leading whitespace (any amount) - child of the preceding item
-- One level of nesting supported (parent + children)
-- Lines starting with `#` - comments
 
 ### nav TT variable structure
 
 `nav` is an array of hashrefs. Each item has `label`, `url`, and
-`children` keys:
-
-```
-[% FOREACH item IN nav %]
-  [% IF item.url %]
-  <a href="[% item.url %]"
-    [% IF request_uri == item.url %]aria-current="page"[% END %]>
-    [% item.label %]</a>
-  [% ELSE %]
-  <span class="nav-group">[% item.label %]</span>
-  [% END %]
-  [% IF item.children.size %]
-  <ul>
-    [% FOREACH child IN item.children %]
-    <li><a href="[% child.url %]"
-      [% IF request_uri == child.url %]aria-current="page"[% END %]>
-      [% child.label %]</a></li>
-    [% END %]
-  </ul>
-  [% END %]
-[% END %]
-```
+`children` keys. See [Views](/docs/views) for looping examples.
 
 If `nav.conf` is missing, `nav` is an empty array and the template
 renders without navigation.
 
 ### Alternate nav file
 
-Override the default nav file path in `lazysite.conf`:
+Override the default path in `lazysite.conf`:
 
     nav_file: lazysite/docs-nav.conf
 
 The path is relative to the docroot.
+
+## Authentication
+
+Authentication is configured through three mechanisms:
+
+- User credentials in `lazysite/auth/users`
+- Group memberships in `lazysite/auth/groups`
+- Per-page `auth:` and `auth_groups:` front matter keys
+- Site-wide `auth_default:` and `manager_groups:` in `lazysite.conf`
+
+See [Authentication](/docs/auth) for full details.
+
+## Forms
+
+Forms are configured in three files under `lazysite/forms/`:
+
+`FORMNAME.conf`
+: Per-form configuration. Lists dispatch targets by handler ID.
+
+`handlers.conf`
+: Named dispatch handlers. Each handler has an `id`, `type`, `name`,
+  and type-specific settings (e.g. `path` for file storage, `to`/`from`
+  for SMTP).
+
+`smtp.conf`
+: SMTP connection settings shared by all SMTP-type handlers.
+
+See [Forms](/docs/forms) and [Forms SMTP](/docs/forms-smtp) for full
+details.
+
+## Plugins
+
+Plugins are CGI scripts and tools that register themselves with the
+manager through a `--describe` JSON protocol. Enabled plugins appear in
+the manager Plugins page.
+
+Auto-discovery scans `cgi-bin/` and `tools/` for scripts supporting
+`--describe`. Enable or disable from the manager Plugins page.
+
+To pre-enable without the manager, list scripts in `lazysite.conf`:
+
+    plugins:
+      - cgi-bin/lazysite-auth.pl
+      - cgi-bin/lazysite-form-handler.pl
+      - tools/lazysite-audit.pl
+
+## Logging
+
+Log level and format are set in `lazysite.conf`:
+
+    log_level: INFO    # ERROR, WARN, INFO, DEBUG
+    log_format: text   # text or json
+
+Both can be overridden at startup with environment variables:
+
+    LAZYSITE_LOG_LEVEL=DEBUG perl tools/lazysite-server.pl ...
+    LAZYSITE_LOG_FORMAT=json perl tools/lazysite-server.pl ...
+
+## Themes
+
+Activate a theme by name in `lazysite.conf`:
+
+    theme: default
+
+The processor loads `lazysite/themes/default/view.tt`. Assets in the
+theme's `assets/` directory are served from the docroot's
+`lazysite-assets/THEMENAME/` path when the theme declares a
+`theme.json` manifest.
+
+See [Views and themes](/docs/views) for theme installation and authoring.
 
 ## Page scan
 
@@ -261,53 +299,7 @@ tt_page_var:
   section_pages: scan:/services/*.md sort=title asc
 ```
 
-## lazysite.conf
-
-`lazysite/lazysite.conf` defines site-wide variables available in
-`view.tt` and all page bodies.
-
-### Format
-
-One variable per line. Three value types:
-
-    # Literal string
-    site_name: My Site
-
-    # Environment variable (CGI - allowlisted vars only)
-    site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
-
-    # Remote URL fetch (trimmed, cached with page TTL)
-    version: url:https://raw.githubusercontent.com/example/repo/main/VERSION
-
-### Standard variables
-
-Always define these two:
-
-    site_name: My Site
-    site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
-
-`site_url` uses Apache CGI environment variables set automatically on every
-request. Do not hardcode the domain - the same `lazysite.conf` works on
-staging and production.
-
-### Allowlisted environment variables
-
-Only these CGI environment variables may be used with `${VAR}` syntax:
-`SERVER_NAME`, `REQUEST_SCHEME`, `SERVER_PORT`, `HTTPS`, `REDIRECT_URL`,
-`DOCUMENT_ROOT`, `SERVER_ADMIN`.
-
-`${REDIRECT_URL}` contains the requested page path (e.g. `/about`). Set it
-as `request_uri` in `lazysite.conf` to make it available in `view.tt` for
-active navigation highlighting:
-
-    request_uri: ${REDIRECT_URL}
-
-### Optional settings
-
-    theme: dark               <- named theme or remote URL
-    nav_file: lazysite/alt-nav.conf  <- alternate navigation file
-
-### Config path override
+## Config path override
 
 The default `lazysite.conf` path can be overridden via a command-line
 argument or environment variable. This is rarely needed - each site on

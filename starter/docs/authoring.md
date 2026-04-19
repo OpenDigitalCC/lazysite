@@ -49,7 +49,7 @@ Front matter fields:
 : Publication date in `YYYY-MM-DD` format. Used in RSS/Atom feed entries. Falls back to file mtime if not set. Example: `date: 2026-03-20`
 
 `layout`
-: Named layout template for this page. The processor checks `lazysite/themes/NAME/view.tt` first, then `lazysite/templates/NAME.tt`, and falls back to the default `view.tt` if neither exists. Example: `layout: minimal`
+: Named view template for this page. The processor checks `lazysite/themes/NAME/view.tt`, then `lazysite/templates/NAME.tt`, and falls back to the default theme if neither exists. Example: `layout: minimal`
 
 `query_params`
 : List of URL query string parameter names this page accepts. Declared
@@ -261,7 +261,7 @@ Unknown extensions or no extension
 
 ### Error handling
 
-If a local file is missing or a remote fetch fails, the block renders as an invisible `<span class="include-error" data-src="..."></span>` tag and a warning is written to the error log. Expose errors during development with CSS:
+If a local file is missing or a remote fetch fails, the block renders as an invisible span with class `include-error` and a `data-src` attribute recording the failed source path. A warning is written to the error log. Expose errors during development with CSS:
 
 ```css
 .include-error::before { content: "include failed: " attr(data-src); color: red; }
@@ -305,11 +305,11 @@ register:
 
 The `date` front matter key is used as the publication date in feed entries. If `date` is not set, the file mtime is used as a fallback.
 
-Feed registry templates are provided in `starter/registries/`:
+Feed registry templates are provided in the repo under `starter/registries/`:
 - `feed.rss.tt`  -  RSS 2.0 feed at `/feed.rss`
 - `feed.atom.tt`  -  Atom feed at `/feed.atom`
 
-Copy them to `lazysite/templates/registries/` to enable feeds on your site.
+Copy them to `lazysite/templates/registries/` in your docroot to enable feeds on your site.
 
 ## The 404 page
 
@@ -382,7 +382,7 @@ perl lazysite-audit.pl --exclude changelog,contributing /path/to/docroot
 ## Migrating from other tools
 
 Pico CMS
-: Content migrates directly. Copy your Pico `content/` files to the docroot and rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter. Replace Pico theme templates with a `lazysite/templates/view.tt` file. One-liner to convert front matter keys across all files: `find public_html -name "*.md" | xargs sed -i 's/^Title:/title:/;s/^Description:/subtitle:/'`
+: Content migrates directly. Copy your Pico `content/` files to the docroot and rename `Title:` to `title:` and `Description:` to `subtitle:` in front matter. Replace Pico theme templates with a `lazysite/themes/default/view.tt` file. One-liner to convert front matter keys across all files: `find public_html -name "*.md" | xargs sed -i 's/^Title:/title:/;s/^Description:/subtitle:/'`
 
 Hugo
 : Content files require no changes  -  Hugo and lazysite use the same front matter format. What needs replacing is the template system: `view.tt` replaces your Hugo `baseof.html` or equivalent base template.
@@ -454,12 +454,15 @@ Removes Hestia template files only. Deployed domain files are not touched.
 public_html/
   lazysite/
     lazysite.conf       <- site configuration
+    nav.conf            <- navigation
+    themes/
+      THEME/
+        view.tt         <- theme template (edit this)
+        assets/         <- theme assets
     templates/
-      view.tt         <- site template (edit this)
       registries/
         llms.txt.tt     <- llms.txt registry template
         sitemap.xml.tt  <- sitemap registry template
-    themes/             <- theme assets
   assets/
     css/                <- stylesheets
     img/                <- images

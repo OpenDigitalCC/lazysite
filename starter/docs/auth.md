@@ -8,15 +8,140 @@ register:
 
 ## Overview
 
-lazysite supports two authentication models:
+lazysite ships with built-in cookie-based authentication as the default
+path. The same mechanism supports drop-in replacement by any external
+auth proxy that sets `X-Remote-*` headers (Authentik, Authelia, etc.).
 
-1. **Built-in lightweight auth** - `lazysite-auth.pl` with flat-file
-   users and groups. Suitable for small sites and internal tools.
-2. **External auth proxy** - Authentik, Authelia, or any proxy that
-   sets `X-Remote-*` headers. Suitable for production and SSO.
+The processor reads the same auth headers regardless of which model is
+in use. Protected pages, group checks, and TT variables behave identically.
 
-The processor reads the same headers regardless of which model is
-used. Switching from built-in to external requires no page changes.
+## Built-in auth
+
+### How it works
+
+`lazysite-auth.pl` authenticates users against a flat-file user
+database, sets a signed HMAC cookie on success, and translates that
+cookie into `X-Remote-User`/`X-Remote-Groups` headers for the
+processor on subsequent requests.
+
+On localhost, a user entry with no password hash allows password-less
+sign-in. This is a development convenience; in production, every
+account must have a password.
+
+### Apache setup
+
+Configure Apache to route requests through the auth wrapper before the
+processor:
+
+```apache
+FallbackResource /cgi-bin/lazysite-auth.pl
+```
+
+The auth wrapper reads the cookie, populates auth headers, and hands
+off to `lazysite-processor.pl` if the request is authenticated (or
+public).
+
+### User management
+
+Use the manager Users page, or the `lazysite-users.pl` CLI:
+
+```bash
+perl tools/lazysite-users.pl --docroot /path/to/public_html \
+  add alice secretpassword
+```
+
+```bash
+perl tools/lazysite-users.pl --docroot /path/to/public_html \
+  group-add alice admins
+```
+
+### User management commands
+
+```
+add USERNAME PASSWORD       Add a new user
+passwd USERNAME NEWPASSWORD Change password
+remove USERNAME             Remove user and group memberships
+list                        List all users
+group-add USERNAME GROUP    Add user to group
+group-remove USERNAME GROUP Remove user from group
+groups                      List all groups and members
+```
+
+### File formats
+
+Users (`lazysite/auth/users`):
+
+```
+alice:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+bob:5994471abb01112afcc18159f6cc74b4f511b99806da59b3caf5a9c173cacfc5
+```
+
+Each line is `username:sha256hex`. Lines starting with `#` are comments.
+A user line with no hash (just `username:`) allows passwordless sign-in
+on localhost only.
+
+Groups (`lazysite/auth/groups`):
+
+```
+admins: alice
+lazysite-admins: alice
+editors: alice, bob
+members: alice, bob, carol
+```
+
+Each line is `groupname: user1, user2, ...`.
+
+### Managing users without the script
+
+The users file is plain text with SHA256 hex hashes. Generate a password
+hash:
+
+```bash
+echo -n 'mypassword' | sha256sum | cut -d' ' -f1
+```
+
+Add a user by appending to the file:
+
+```bash
+echo "alice:$(echo -n 'mypassword' | sha256sum | cut -d' ' -f1)" \
+  >> lazysite/auth/users
+```
+
+Or with Perl (if `sha256sum` is not available):
+
+```bash
+perl -MDigest::SHA=sha256_hex -e 'print sha256_hex("mypassword")'
+```
+
+Groups are plain text too - edit `lazysite/auth/groups` in any text
+editor. Set permissions after editing:
+
+```bash
+chmod 640 lazysite/auth/users
+chmod 644 lazysite/auth/groups
+```
+
+### Login and logout
+
+The starter includes `login.md` and `logout.md`. The login form POSTs
+to `/login` and logout is at `/logout`. On successful login a signed
+cookie is set and the user is redirected to the original page (via the
+`next` parameter).
+
+### Cookie security
+
+- HttpOnly (not accessible via JavaScript)
+- SameSite=Lax
+- Secure flag when HTTPS is active
+- HMAC-SHA256 signed with an auto-generated secret
+- 24-hour expiry
+
+The HMAC secret lives at `lazysite/auth/.secret` (chmod 0600).
+
+### Dev server
+
+The dev server auto-detects built-in auth when `lazysite/auth/users`
+exists and uses the auth wrapper automatically.
 
 ## Protecting pages
 
@@ -32,6 +157,7 @@ auth: required
 ```
 
 Values:
+
 - `required` - user must be authenticated. Unauthenticated requests
   redirect to the login page.
 - `optional` - auth headers are read if present but access is not
@@ -66,136 +192,25 @@ Pages without `auth:` in front matter inherit this value. Default
 is `none` when not set. The login page is always accessible
 regardless of the site-wide default.
 
-## Built-in auth
+### Manager access
 
-### Install
+The manager at `/manager` uses the same auth mechanism. The
+`manager_groups` setting in `lazysite.conf` lists the groups allowed
+into the manager:
 
-Copy `lazysite-auth.pl` to `cgi-bin/`:
-
-```bash
-cp lazysite-auth.pl /path/to/cgi-bin/
-chmod 755 /path/to/cgi-bin/lazysite-auth.pl
+```yaml
+manager: enabled
+manager_path: /manager
+manager_groups: lazysite-admins
 ```
-
-Configure Apache to use the auth wrapper instead of the processor
-directly:
-
-```apache
-FallbackResource /cgi-bin/lazysite-auth.pl
-```
-
-### Create users
-
-```bash
-perl tools/lazysite-users.pl --docroot /path/to/public_html \
-  add alice secretpassword
-```
-
-### Manage groups
-
-```bash
-perl tools/lazysite-users.pl --docroot /path/to/public_html \
-  group-add alice admins
-```
-
-### User management commands
-
-```
-add USERNAME PASSWORD       Add a new user
-passwd USERNAME NEWPASSWORD Change password
-remove USERNAME             Remove user and group memberships
-list                        List all users
-group-add USERNAME GROUP    Add user to group
-group-remove USERNAME GROUP Remove user from group
-groups                      List all groups and members
-```
-
-### File formats
-
-Users (`lazysite/auth/users`):
-
-```
-alice:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
-bob:5994471abb01112afcc18159f6cc74b4f511b99806da59b3caf5a9c173cacfc5
-```
-
-Each line is `username:sha256hex`. Lines starting with `#` are comments.
-
-Groups (`lazysite/auth/groups`):
-
-```
-admins: alice
-editors: alice, bob
-members: alice, bob, carol
-```
-
-Each line is `groupname: user1, user2, ...`.
-
-### Managing users without the script
-
-The users file is plain text with SHA256 hex hashes. You can manage
-it with standard commands:
-
-Generate a password hash:
-
-```bash
-echo -n 'mypassword' | sha256sum | cut -d' ' -f1
-```
-
-Add a user by appending to the file:
-
-```bash
-echo "alice:$(echo -n 'mypassword' | sha256sum | cut -d' ' -f1)" \
-  >> lazysite/auth/users
-```
-
-Or with Perl (if sha256sum is not available):
-
-```bash
-perl -MDigest::SHA=sha256_hex -e 'print sha256_hex("mypassword")'
-```
-
-Change a password by editing the file directly - replace the hash
-after the colon. Remove a user by deleting their line.
-
-Groups are even simpler - edit `lazysite/auth/groups` in any text
-editor. Add or remove usernames from the comma-separated lists.
-
-Set permissions after editing:
-
-```bash
-chmod 640 lazysite/auth/users
-chmod 644 lazysite/auth/groups
-```
-
-### Login and logout pages
-
-The starter includes `login.md` and `logout.md`. The login form
-POSTs to `/cgi-bin/lazysite-auth.pl?action=login`. On success,
-a signed cookie is set and the user is redirected to the original
-page (via the `next` parameter).
-
-### Cookie security
-
-- HttpOnly (not accessible via JavaScript)
-- SameSite=Lax
-- Secure flag when HTTPS is active
-- HMAC-SHA256 signed with auto-generated secret
-- 24-hour expiry
-
-### Dev server
-
-The dev server auto-detects built-in auth when
-`lazysite/auth/users` exists and uses the auth wrapper automatically.
 
 ## TT variables
 
-These variables are available in page content and the view template
-when auth is active:
+These variables are available in page content and the view template:
 
-- `[% authenticated %]` - 1 if user is logged in, 0 otherwise
+- `[% authenticated %]` - `1` if user is logged in, `0` otherwise
 - `[% auth_user %]` - username
-- `[% auth_name %]` - display name (from proxy header)
+- `[% auth_name %]` - display name (from users file or proxy header)
 - `[% auth_email %]` - email (from proxy header)
 - `[% auth_groups %]` - array of group names
 
@@ -204,7 +219,7 @@ Example in a view template:
 ```
 [% IF authenticated %]
   <span>Signed in as [% auth_user %]</span>
-  <a href="/cgi-bin/lazysite-auth.pl?action=logout">Sign out</a>
+  <a href="/logout">Sign out</a>
 [% ELSE %]
   <a href="/login">Sign in</a>
 [% END %]
@@ -214,8 +229,7 @@ Example in a view template:
 
 Create `403.md` in the docroot. These context variables are available:
 
-- `[% auth_denied_reason %]` - `insufficient_groups` when group check
-  fails
+- `[% auth_denied_reason %]` - `insufficient_groups` when group check fails
 - `[% auth_required_groups %]` - array of required group names
 - `[% auth_user %]` - the authenticated username
 - `[% auth_name %]` - display name

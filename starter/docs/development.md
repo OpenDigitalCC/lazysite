@@ -163,3 +163,53 @@ If missing, delete the registry file and force a page render:
 ### Syntax check the processor
 
     perl -c cgi-bin/lazysite-processor.pl
+
+## Logging
+
+Log level and format are set in `lazysite.conf`:
+
+    log_level: INFO    # ERROR, WARN, INFO, DEBUG
+    log_format: text   # text or json
+
+Override at startup with environment variables:
+
+    LAZYSITE_LOG_LEVEL=DEBUG perl tools/lazysite-server.pl ...
+    LAZYSITE_LOG_FORMAT=json perl tools/lazysite-server.pl ...
+
+Each script declares a `$LOG_COMPONENT` identifier and calls
+`log_event($level, $context, $message, %extra)`. Logs go to
+`lazysite/logs/COMPONENT.log` when that directory is writable,
+otherwise stderr.
+
+## Rsync deployment
+
+Standard command for syncing local development to a deployed site
+while preserving runtime state:
+
+```bash
+rsync -av --delete \
+    --exclude='.git' \
+    --exclude='test-site' \
+    --exclude='starter/lazysite/auth/' \
+    --exclude='starter/lazysite/forms/contact.conf' \
+    --exclude='starter/lazysite/forms/handlers.conf' \
+    --exclude='starter/lazysite/forms/smtp.conf' \
+    --exclude='starter/lazysite/lazysite.conf' \
+    --exclude='starter/lazysite/nav.conf' \
+    --exclude='starter/lazysite/cache/' \
+    --exclude='starter/lazysite/logs/' \
+    /home/user/lazysite/ /srv/projects/lazysite/
+```
+
+Runtime state files (user credentials, form config, site config, nav,
+cache, logs) are excluded so local site data survives the sync.
+
+## TTL and browser caching
+
+Pages with `ttl:` set in front matter use
+`Cache-Control: public, max-age=N`. When combined with `Vary: Cookie`
+(sent on all responses), proxy caches will create separate entries per
+cookie value. For public pages with `ttl:`, this is generally fine
+since anonymous visitors share the same cache entry. For pages visible
+to both authenticated and anonymous users, consider whether TTL caching
+is appropriate.

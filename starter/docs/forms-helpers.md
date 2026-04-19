@@ -8,10 +8,12 @@ register:
 
 ## Overview
 
-Form helpers are CGI scripts that receive form data as JSON POST from
-the form handler and perform an action (send email, write to database,
-call an API). The form handler dispatches to helpers configured in the
-form's `.conf` file.
+The built-in handler types (`smtp`, `file`, `webhook`) cover most
+needs. For anything more custom, use the `webhook` handler type to
+POST form data to a URL you control - a small CGI script that receives
+JSON and performs your action.
+
+This page documents the JSON contract so you can write those scripts.
 
 ## Helper contract
 
@@ -79,21 +81,29 @@ if ($@) {
 }
 ```
 
-## Registering as a target
+## Registering as a handler
 
-Add the helper to the form's `.conf` file:
+Add a webhook handler entry in `lazysite/forms/handlers.conf`:
 
 ```yaml
-targets:
-  - type: smtp
-    url: http://localhost/cgi-bin/lazysite-form-smtp.pl
-  - type: api
+handlers:
+  - id: my-helper
+    type: webhook
+    name: My custom helper
+    enabled: true
     url: http://localhost/cgi-bin/my-helper.pl
     format: json
 ```
 
-Use `type: api` with `format: json` for custom helpers. The handler
-POSTs the JSON to the URL.
+Reference it from the form's `.conf` file:
+
+```yaml
+targets:
+  - handler: my-helper
+```
+
+Use `format: json` for the contract documented on this page. Use
+`format: slack` for a Slack-compatible `{"text": "..."}` body.
 
 ## Testing with curl
 

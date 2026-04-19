@@ -45,13 +45,12 @@ The processor checks these locations in order:
 1. `layout:` in the page's front matter - overrides for a single page
 2. `lazysite_theme` cookie - set by the theme switcher
 3. `theme:` in `lazysite.conf` - applies site-wide
-4. `lazysite/templates/view.tt` - default location
-5. Built-in fallback
+4. Built-in fallback view
 
 For each named theme, the processor checks:
 
 - `lazysite/themes/THEMENAME/view.tt` (theme directory)
-- `lazysite/templates/THEMENAME.tt` (named template)
+- `lazysite/templates/THEMENAME.tt` (legacy named template)
 
 Example `lazysite.conf`:
 
@@ -93,12 +92,12 @@ Then set in `lazysite/lazysite.conf`:
 
     theme: default
 
-### Via the editor
+### Via the manager
 
-If the lazysite editor is enabled, upload a theme zip via
-Editor > Themes > Upload theme. The editor validates the zip contents,
-extracts to `lazysite/themes/`, copies assets to `lazysite-assets/`,
-and allows activation without editing config files.
+If the lazysite manager is enabled, upload a theme zip via
+Manager > Themes > Upload theme. The manager validates the zip
+contents, extracts to `lazysite/themes/`, copies assets to
+`lazysite-assets/`, and allows activation without editing config files.
 
 See [manager documentation](/docs/manager) for details.
 
@@ -124,9 +123,9 @@ The `theme.json` file identifies the theme:
       "files": ["view.tt", "assets/main.css"]
     }
 
-If a theme with the same name already exists, the editor prefixes
+If a theme with the same name already exists, the manager prefixes
 the install directory with today's date (e.g. `20260418-mytheme`).
-Rename via Editor > Themes.
+Rename via Manager > Themes.
 
 ## Switching themes
 
@@ -138,7 +137,7 @@ Then clear the page cache so all pages regenerate with the new theme:
 
     find public_html -name "*.html" -delete
 
-Or use Editor > Cache > Clear all if the editor is enabled.
+Or use Manager > Cache > Clear all if the manager is enabled.
 
 ## The theme switcher
 
@@ -179,7 +178,7 @@ The minimum working view:
 Navigation uses the `[% nav %]` array populated from `nav.conf`. See
 [nav.conf](/docs/features/configuration/nav-conf) for the file format.
 
-Package your theme for distribution or editor upload:
+Package your theme for distribution or manager upload:
 
     cd lazysite-views/
     bash tools/package-themes.sh
