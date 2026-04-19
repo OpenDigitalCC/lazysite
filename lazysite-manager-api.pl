@@ -399,9 +399,9 @@ sub action_cache_list {
     find(
         sub {
             return unless /\.html$/;
-            return if $File::Find::dir =~ /lazysite/;
             my $rel = $File::Find::name;
-            $rel =~ s{^\Q$DOCROOT\E}{};
+            $rel =~ s{^\Q$DOCROOT\E/?}{/};
+            return if $rel =~ m{^/lazysite/};
             ( my $src = $File::Find::name ) =~ s/\.html$/.md/;
             push @cached, {
                 path       => $rel,
@@ -422,7 +422,9 @@ sub action_cache_invalidate {
         find(
             sub {
                 return unless /\.html$/;
-                return if $File::Find::dir =~ /lazysite/;
+                my $rel = $File::Find::name;
+                $rel =~ s{^\Q$DOCROOT\E/?}{/};
+                return if $rel =~ m{^/lazysite/};
                 unlink $_;
                 $count++;
             },
@@ -501,7 +503,16 @@ sub action_theme_activate {
     close $out;
 
     # Invalidate all cached pages
-    find( sub { unlink $_ if /\.html$/ && $File::Find::dir !~ /lazysite/ }, $DOCROOT );
+    find(
+        sub {
+            return unless /\.html$/;
+            my $rel = $File::Find::name;
+            $rel =~ s{^\Q$DOCROOT\E/?}{/};
+            return if $rel =~ m{^/lazysite/};
+            unlink $_;
+        },
+        $DOCROOT
+    );
 
     return { ok => 1, theme => $theme_name };
 }
