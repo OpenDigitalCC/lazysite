@@ -137,7 +137,7 @@ sub handle_logout {
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
     print "Set-Cookie: $COOKIE_NAME=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
-    print "Location: /\r\n\r\n";
+    print "Location: /logout\r\n\r\n";
 }
 
 sub handle_request {

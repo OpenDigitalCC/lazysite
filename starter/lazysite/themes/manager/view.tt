@@ -50,7 +50,7 @@
         <a href="/manager/users">Set one</a>
       </span>
       [% END %]
-      <a href="/logout" class="mg-signout">Sign out</a>
+      <a href="/cgi-bin/lazysite-auth.pl?action=logout" class="mg-signout">Sign out</a>
       [% END %]
       <a href="/manager" class="mg-brand">Lazysite Manager</a>
     </div>

@@ -120,7 +120,7 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
     <a href="/">[% IF site_name %][% site_name %][% ELSE %]Home[% END %]</a>
     [% IF authenticated %]
     <span style="font-size:0.8rem;color:#888;margin-left:auto;">[% auth_name || auth_user %]</span>
-    <a href="/logout" style="font-size:0.8rem;color:#888;font-weight:400;">Sign out</a>
+    <a href="/cgi-bin/lazysite-auth.pl?action=logout" style="font-size:0.8rem;color:#888;font-weight:400;">Sign out</a>
     [% ELSE %]
     <a href="/login" style="font-size:0.8rem;margin-left:auto;font-weight:400;">Sign in</a>
     [% END %]
@@ -534,6 +534,17 @@ sub main {
                 print "Location: $manager_path/\r\n\r\n";
                 return;
             }
+        }
+    }
+
+    # Bypass cache for authenticated managers so the injected admin
+    # bar doesn't get baked into HTML served to anonymous visitors.
+    {
+        my %sv = resolve_site_vars();
+        my $auth_user   = $ENV{HTTP_X_REMOTE_USER}   // '';
+        my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
+        if ( _is_manager( \%sv, $auth_user, $auth_groups ) ) {
+            $ENV{LAZYSITE_NOCACHE} = '1';
         }
     }
 
@@ -2358,7 +2369,7 @@ sub _inject_admin_bar {
         my $user = $vars->{auth_name} || $vars->{auth_user} || '';
         if ( $user ) {
             $manager_tools .= '<span style="margin-left:auto;">' . $user . '</span>';
-            $manager_tools .= '<a href="/logout" style="color:#888;text-decoration:none;">Sign out</a>';
+            $manager_tools .= '<a href="/cgi-bin/lazysite-auth.pl?action=logout" style="color:#888;text-decoration:none;">Sign out</a>';
         }
     }
 
