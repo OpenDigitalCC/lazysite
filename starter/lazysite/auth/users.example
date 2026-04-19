@@ -1,4 +1,7 @@
 # lazysite demo users - copy to 'users' to enable auth
 # Format: username:sha256hex(password)
 # Generate a hash: echo -n 'password' | sha256sum | cut -d' ' -f1
-demo:2a97516c354b68848cdbd8f54a226a0a55b21ed138e207ad6c5cbb9c00aa5aea
+# An empty password field means the account has no password set.
+# Such accounts can only sign in from localhost (127.0.0.1, ::1)
+# and will see a warning prompting them to set one.
+manager:
