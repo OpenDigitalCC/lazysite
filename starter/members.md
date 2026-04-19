@@ -15,7 +15,7 @@ a valid login, you are redirected to the sign-in page.
 
 ### Demo credentials
 
-Username: `demo`
-Password: `demo`
+Username: `manager`
+Password: (none required on localhost)
 
 [Sign out](/cgi-bin/lazysite-auth.pl?action=logout)

@@ -78,7 +78,7 @@ function renderPluginCard(plugin) {
       if (a.link) {
         html += '<a href="' + a.link + '">' + esc(a.label) + '</a>';
       } else {
-        html += '<button onclick="(function(){var p=window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'});runAction(p,p.actions[' + ai + '])})()">' + esc(a.label) + '</button>';
+        html += '<button class="mg-btn mg-btn-sm" onclick="(function(){var p=window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'});runAction(p,p.actions[' + ai + '])})()">' + esc(a.label) + '</button>';
       }
     });
     html += '</div>';
@@ -140,7 +140,7 @@ function renderForm(plugin, values) {
     }
     html += '</div>';
   });
-  html += '<div class="mg-form-row"><label></label><button type="submit">Save</button></div></form>';
+  html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-outline">Save</button></div></form>';
   return html;
 }
 
@@ -264,7 +264,7 @@ function loadChildConfigs(plugin) {
         cardHtml += '<div class="mg-form-entry">';
         cardHtml += '<div class="mg-form-entry-header">';
         cardHtml += '<span class="mg-form-name">' + esc(formName) + '</span>';
-        cardHtml += '<button onclick="toggleFormTargets(\'' + esc(formName) + '\')" style="font-size:11px;padding:1px 8px;border:1px solid #dee2e6;border-radius:3px;background:#fff;cursor:pointer;">Edit targets</button>';
+        cardHtml += '<button class="mg-btn mg-btn-sm" onclick="toggleFormTargets(\'' + esc(formName) + '\')">Edit targets</button>';
         cardHtml += '<a href="/manager/edit?path=/' + encodeURIComponent(dir + '/' + f.name) + '" style="font-size:11px;color:#07c;">Edit raw</a>';
         cardHtml += '</div>';
         cardHtml += '<div id="form-targets-' + formName + '" style="display:none"></div>';
@@ -306,8 +306,8 @@ function renderHandlerList() {
       html += '<span class="mg-handler-name">' + esc(h.name || h.id) + '</span>';
       html += '<span class="mg-badge ' + (enabled ? 'enabled' : 'disabled') + '">' + (enabled ? 'enabled' : 'disabled') + '</span>';
       html += '<div class="mg-handler-item-actions">';
-      html += '<button onclick=\'editHandler(' + JSON.stringify(h).replace(/'/g, "&#39;") + ')\'>Edit</button>';
-      html += '<button class="mg-btn-danger" onclick="deleteHandler(\'' + esc(h.id) + '\')">Delete</button>';
+      html += '<button class="mg-btn mg-btn-sm" onclick=\'editHandler(' + JSON.stringify(h).replace(/'/g, "&#39;") + ')\'>Edit</button>';
+      html += '<button class="mg-btn mg-btn-danger" onclick="deleteHandler(\'' + esc(h.id) + '\')">Delete</button>';
       html += '</div></div>';
       html += '<div class="mg-handler-edit-form" id="handler-edit-' + h.id + '" style="display:none"></div>';
       html += '</div>';
@@ -396,11 +396,11 @@ function renderStep2Form(type, name, existingData, isEdit) {
 
   html += '<div class="mg-wizard-actions">';
   if (isEdit) {
-    html += '<button type="button" onclick="saveHandlerFromWizard(\'' + esc(d.id) + '\',\'' + type + '\',true)">Update</button>';
-    html += '<button type="button" onclick="cancelHandlerEdit(\'' + esc(d.id) + '\')">Cancel</button>';
+    html += '<button type="button" class="mg-btn mg-btn-outline" onclick="saveHandlerFromWizard(\'' + esc(d.id) + '\',\'' + type + '\',true)">Update</button>';
+    html += '<button type="button" class="mg-btn" onclick="cancelHandlerEdit(\'' + esc(d.id) + '\')">Cancel</button>';
   } else {
-    html += '<button type="button" onclick="saveHandlerFromWizard(null,\'' + type + '\',false)">Add handler</button>';
-    html += '<button type="button" onclick="hideAddWizard()">Cancel</button>';
+    html += '<button type="button" class="mg-btn mg-btn-outline" onclick="saveHandlerFromWizard(null,\'' + type + '\',false)">Add handler</button>';
+    html += '<button type="button" class="mg-btn" onclick="hideAddWizard()">Cancel</button>';
   }
   html += '</div>';
 
@@ -709,14 +709,14 @@ function renderFormTargets(formName, currentTargets) {
       html += '<option value="' + esc(h.id) + '"' + (h.id === hid ? ' selected' : '') + '>' + esc(label) + '</option>';
     });
     html += '</select>';
-    html += '<button onclick="removeTarget(\'' + esc(formName) + '\',' + idx + ')" style="flex-shrink:0;border:1px solid #dee2e6;border-radius:3px;background:#fff;cursor:pointer;color:#c00;padding:0.15rem 0.4rem;">&times;</button>';
+    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeTarget(\'' + esc(formName) + '\',' + idx + ')">&times;</button>';
     html += '</div>';
   });
 
   html += '</div>';
   html += '<div class="mg-wizard-actions">';
-  html += '<button onclick="addTarget(\'' + esc(formName) + '\')">+ Add target</button>';
-  html += '<button onclick="saveFormTargets(\'' + esc(formName) + '\')">Save</button>';
+  html += '<button class="mg-btn mg-btn-sm mg-btn-outline" onclick="addTarget(\'' + esc(formName) + '\')">+ Add target</button>';
+  html += '<button class="mg-btn mg-btn-sm mg-btn-outline" onclick="saveFormTargets(\'' + esc(formName) + '\')">Save</button>';
   html += '</div>';
 
   div.innerHTML = html;

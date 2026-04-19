@@ -2348,6 +2348,11 @@ sub _inject_admin_bar {
             $manager_tools .= '</select>';
         }
 
+        if ( $ENV{LAZYSITE_AUTH_NO_PASSWORD} ) {
+            $manager_tools .= '<span style="color:#f5a623;">&#9888; No password set for your account.</span>';
+            $manager_tools .= '<a href="/manager/users" style="color:#f5a623;text-decoration:underline;">Set one</a>';
+        }
+
         my $user = $vars->{auth_name} || $vars->{auth_user} || '';
         if ( $user ) {
             $manager_tools .= '<span style="margin-left:auto;">' . $user . '</span>';

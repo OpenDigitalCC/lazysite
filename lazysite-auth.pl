@@ -75,19 +75,37 @@ sub handle_login {
 
     my $auth_redirect = read_conf_key('auth_redirect') || '/login';
 
-    unless ( length $username && length $password ) {
+    unless ( length $username ) {
         log_event('WARN', $username, 'login failed', ip => $ENV{REMOTE_ADDR} // '');
         redirect("$auth_redirect?error=1");
         return;
     }
 
-    # Verify credentials
     my $users = load_users();
     my $expected = $users->{$username};
-    unless ( defined $expected && $expected eq sha256_hex($password) ) {
+
+    unless ( defined $expected ) {
         log_event('WARN', $username, 'login failed', ip => $ENV{REMOTE_ADDR} // '');
         redirect("$auth_redirect?error=1");
         return;
+    }
+
+    if ( !length $expected ) {
+        # No-password account: only allowed from localhost
+        my $addr = $ENV{REMOTE_ADDR} // '';
+        unless ( $addr eq '127.0.0.1' || $addr eq '::1' ) {
+            log_event('WARN', $username, 'no-password login refused (not localhost)', ip => $addr);
+            reject_no_password();
+            return;
+        }
+        log_event('INFO', $username, 'no-password login (localhost)', ip => $addr);
+    }
+    else {
+        unless ( length $password && $expected eq sha256_hex($password) ) {
+            log_event('WARN', $username, 'login failed', ip => $ENV{REMOTE_ADDR} // '');
+            redirect("$auth_redirect?error=1");
+            return;
+        }
     }
 
     # Load groups for user
@@ -151,6 +169,13 @@ sub handle_request {
                 else {
                     $ENV{HTTP_X_REMOTE_USER}   = $user;
                     $ENV{HTTP_X_REMOTE_GROUPS} = $groups;
+
+                    # Flag passwordless accounts so the admin bar can warn.
+                    # Checked per-request so setting a password clears it immediately.
+                    my $users = load_users();
+                    $ENV{LAZYSITE_AUTH_NO_PASSWORD} = '1'
+                        if exists $users->{$user} && !length $users->{$user};
+
                     log_event('INFO', $uri, 'auth: cookie valid', user => $user, groups => $groups);
                 }
             }
@@ -300,6 +325,20 @@ sub redirect {
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
     print "Location: $url\r\n\r\n";
+}
+
+sub reject_no_password {
+    binmode( STDOUT, ':utf8' );
+    print "Status: 403 Forbidden\r\n";
+    print "Content-Type: text/html; charset=utf-8\r\n\r\n";
+    print <<'HTML';
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Sign in</title></head>
+<body style="font-family:system-ui,sans-serif;max-width:480px;margin:3em auto;padding:0 1em;">
+<h1 style="font-size:1.3rem;">Sign in unavailable</h1>
+<p>Password not configured - contact your administrator.</p>
+</body></html>
+HTML
 }
 
 sub uri_encode_simple {

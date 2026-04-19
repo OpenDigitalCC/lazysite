@@ -11,7 +11,7 @@ This site is built with [lazysite](https://lazysite.io).
 
 [Open the lazysite Manager](/manager) to manage content, themes, plugins, and users via the web interface.
 
-Demo credentials: username `demo`, password `demo`.
+Sign in as `manager` — no password required when accessing from localhost.
 
 ## Try it
 

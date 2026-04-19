@@ -23,7 +23,7 @@ query_params:
 <span id="ed-lock-label" style="font-size:0.8rem;color:var(--mg-text-muted);"></span>
 <span style="flex:1;"></span>
 <span style="font-size:0.75rem;color:var(--mg-text-light);">Ctrl+S</span>
-<button id="ed-save-btn" class="mg-btn" onclick="savePage()" disabled>Save</button>
+<button id="ed-save-btn" class="mg-btn mg-btn-primary" onclick="savePage()" disabled>Save</button>
 <button class="mg-btn" onclick="refreshPreview()">Preview</button>
 <a id="ed-view-link" href="#" target="_blank" class="mg-btn">View page</a>
 </div>
