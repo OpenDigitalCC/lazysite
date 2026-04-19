@@ -13,6 +13,7 @@ query_params:
 <div class="mg-card-header">
 <span class="mg-card-title">Installed Themes</span>
 </div>
+<p class="mg-card-subtitle" style="margin:0 8px 8px;">Activating a theme sets it as the site default for all visitors and clears the page cache.</p>
 <div id="theme-list">
 <div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>
 </div>

@@ -26,7 +26,7 @@ var SITE_SCHEMA = [
     default: 'My Site' },
   { key: 'site_url',       label: 'Site URL',              type: 'text',
     default: '${REQUEST_SCHEME}://${SERVER_NAME}' },
-  { key: 'theme',          label: 'Active theme',          type: 'text',   default: '' },
+  { key: 'theme',          label: 'Default theme',         type: 'text',   default: '' },
   { key: 'nav_file',       label: 'Navigation file',       type: 'text',
     default: 'lazysite/nav.conf' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'select',

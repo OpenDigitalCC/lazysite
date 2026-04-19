@@ -152,14 +152,16 @@ my %MIME = (
 # --- Seed auth files from examples if needed ---
 
 my $auth_dir = "$DOCROOT/lazysite/auth";
-if ( -d $auth_dir ) {
+{
+    require File::Path;
+    File::Path::make_path($auth_dir) unless -d $auth_dir;
     for my $base (qw(users groups)) {
         my $example = "$auth_dir/$base.example";
         my $target  = "$auth_dir/$base";
         if ( -f $example && ! -f $target ) {
             require File::Copy;
             File::Copy::copy( $example, $target );
-            print "  seeded $base from $base.example\n";
+            print "  seeded: lazysite/auth/$base\n";
         }
     }
 }
@@ -407,9 +409,8 @@ sub handle_request {
     print $client $body;
 
     # Log
-    my $ms     = $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0;
-    my $timing = $has_hires ? " (${ms}ms)" : '';
-    print "$method $uri -> $status$timing\n";
+    my $ms = $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0;
+    log_event('INFO', $uri, 'request', method => $method, status => $status, ms => $ms);
 }
 
 sub serve_static {
@@ -428,9 +429,8 @@ sub serve_static {
         print $client "\r\n";
         print $client "Cannot read file\n";
 
-        my $ms     = $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0;
-        my $timing = $has_hires ? " (${ms}ms)" : '';
-        print "$method $uri -> 500 Internal Server Error$timing\n";
+        my $ms = $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0;
+        log_event('ERROR', $uri, 'request', method => $method, status => '500 Internal Server Error', ms => $ms, error => $!);
         return;
     };
     local $/;
@@ -446,7 +446,8 @@ sub serve_static {
     print $client "\r\n";
     print $client $body;
 
-    print "$method $uri -> 200 OK (static)\n";
+    my $ms = $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0;
+    log_event('INFO', $uri, 'request', method => $method, status => '200 OK', ms => $ms, static => 1);
 }
 
 # --- Logging ---

@@ -1,0 +1,10 @@
+{
+  "name": "dark",
+  "version": "1.0.0",
+  "author": "OpenDigital CC",
+  "description": "Dark theme. No external dependencies.",
+  "files": [
+    "view.tt",
+    "assets/main.css"
+  ]
+}

@@ -7,6 +7,12 @@ register:
 
 This site is built with [lazysite](https://lazysite.io).
 
+## Manager
+
+[Open the lazysite Manager](/manager) to manage content, themes, plugins, and users via the web interface.
+
+Demo credentials: username `demo`, password `demo`.
+
 ## Try it
 
 - [Feature demonstrator](/lazysite-demo) - see features working locally

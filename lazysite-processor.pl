@@ -285,6 +285,16 @@ sub check_auth {
     };
 }
 
+sub _is_manager {
+    my ($site_vars, $auth_user, $auth_groups) = @_;
+    return 0 unless $auth_user;
+    my $manager_groups = $site_vars->{manager_groups} // '';
+    $manager_groups =~ s/^\s+|\s+$//g;
+    return 1 unless length $manager_groups;
+    my %user_groups = map { lc($_) => 1 } split /\s*,\s*/, ( $auth_groups // '' );
+    return scalar grep { $user_groups{ lc($_) } } split /\s*,\s*/, $manager_groups;
+}
+
 sub serve_403 {
     my ($auth_result) = @_;
     my $md_path   = "$DOCROOT/403.md";
@@ -506,21 +516,15 @@ sub main {
                 return;
             }
 
-            if ( $manager_groups ) {
-                my @required = map { s/^\s+|\s+$//gr }
-                               split /\s*,\s*/, $manager_groups;
-                my $auth_groups_str = $ENV{HTTP_X_REMOTE_GROUPS} // '';
-                my %user_groups = map { lc($_) => 1 }
-                                  split /\s*,\s*/, $auth_groups_str;
-                my $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
+            my $auth_user   = $ENV{HTTP_X_REMOTE_USER}   // '';
+            my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
 
-                unless ( $auth_user && grep { $user_groups{ lc($_) } } @required ) {
-                    my $redirect = $sv{auth_redirect} || '/login';
-                    binmode( STDOUT, ':utf8' );
-                    print "Status: 302 Found\r\n";
-                    print "Location: $redirect?next=" . uri_encode($uri) . "\r\n\r\n";
-                    return;
-                }
+            unless ( _is_manager( \%sv, $auth_user, $auth_groups ) ) {
+                my $redirect = $sv{auth_redirect} || '/login';
+                binmode( STDOUT, ':utf8' );
+                print "Status: 302 Found\r\n";
+                print "Location: $redirect?next=" . uri_encode($uri) . "\r\n\r\n";
+                return;
             }
 
             # Redirect /manager to /manager/ for directory index
@@ -1621,7 +1625,7 @@ sub resolve_site_vars {
     my $text = read_file($CONF_FILE);
     my %defs;
 
-    while ( $text =~ /^(\w+)\s*:\s*(.+)$/mg ) {
+    while ( $text =~ /^(\w+)\h*:\h*(.+)$/mg ) {
         $defs{$1} = $2;
     }
 
@@ -2105,20 +2109,7 @@ sub get_layout_path {
         return ( undef, undef );
     }
 
-    my $name = $meta->{layout} || '';
-
-    unless ( $name ) {
-        my $cookie_theme = read_theme_cookie();
-        if ( $cookie_theme ) {
-            # Only use cookie theme if it actually exists
-            my $cookie_path = "$THEMES_DIR/$cookie_theme/view.tt";
-            $name = $cookie_theme if -f $cookie_path;
-        }
-    }
-
-    unless ( $name ) {
-        $name = $vars->{theme} || '';
-    }
+    my $name = $meta->{layout} || $vars->{theme} || '';
 
     if ( $name ) {
         # Check if theme is a remote URL
@@ -2316,53 +2307,87 @@ sub _inject_admin_bar {
     return $html if $request_uri eq $manager_path
                   || index( $request_uri, "$manager_path/" ) == 0;
 
+    # Who is viewing? Use the same rule as the /manager route protection.
+    my $auth_user   = $ENV{HTTP_X_REMOTE_USER}   // '';
+    my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
+    my $is_manager  = _is_manager( $vars, $auth_user, $auth_groups );
+
+    # Manager tools: Manage / Edit / core theme switcher / sign-out
+    my $manager_tools = '';
+    if ( $is_manager ) {
+        $manager_tools .= '<a href="/manager/" style="color:#6db3f2;text-decoration:none;">Manage</a>';
+
+        if ( $page_source ) {
+            $manager_tools .= '<a href="/manager/edit?path=' . $page_source
+                           .  '" style="color:#6db3f2;text-decoration:none;">Edit</a>';
+        }
+
+        # Core theme switcher - changes site default (writes lazysite.conf, clears cache)
+        my $themes_dir = "$LAZYSITE_DIR/themes";
+        my @installed_themes;
+        if ( -d $themes_dir ) {
+            opendir( my $dh, $themes_dir );
+            for my $t ( sort readdir $dh ) {
+                next if $t =~ /^\./;
+                next if $t eq 'manager';
+                next unless -d "$themes_dir/$t" && -f "$themes_dir/$t/view.tt";
+                push @installed_themes, $t;
+            }
+            closedir $dh;
+        }
+
+        if ( @installed_themes > 1 ) {
+            my $current = $vars->{theme} || '';
+            $manager_tools .= '<select id="ls-theme-sel" data-current="' . $current . '" style="'
+                           .  'font-size:11px;background:#333;color:#ccc;border:1px solid #555;'
+                           .  'border-radius:3px;padding:1px 4px;cursor:pointer;">';
+            for my $t (@installed_themes) {
+                my $sel = $t eq $current ? ' selected' : '';
+                $manager_tools .= "<option value=\"$t\"$sel>$t</option>";
+            }
+            $manager_tools .= '</select>';
+        }
+
+        my $user = $vars->{auth_name} || $vars->{auth_user} || '';
+        if ( $user ) {
+            $manager_tools .= '<span style="margin-left:auto;">' . $user . '</span>';
+            $manager_tools .= '<a href="/logout" style="color:#888;text-decoration:none;">Sign out</a>';
+        }
+    }
+
+    # TODO (D013): theme variant switcher - cookie-based, theme-defined,
+    # rendered outside the $is_manager gate so all visitors can use it.
+    my $variant_switcher = '';
+
+    # Nothing to show? Skip the bar entirely.
+    return $html unless length $manager_tools || length $variant_switcher;
+
     my $bar = '<div id="ls-admin-bar" style="'
         . 'position:fixed;top:0;left:0;right:0;z-index:99999;'
         . 'background:#1a1a1a;color:#aaa;font:12px system-ui,sans-serif;'
         . 'padding:2px 12px;display:flex;align-items:center;gap:10px;'
         . '">';
-    $bar .= '<a href="/manager/" style="color:#6db3f2;text-decoration:none;">Manage</a>';
-
-    if ( $page_source ) {
-        $bar .= '<a href="/manager/edit?path=' . $page_source
-             . '" style="color:#6db3f2;text-decoration:none;">Edit</a>';
-    }
-
-    # Theme selector - scan installed themes
-    my $themes_dir = "$LAZYSITE_DIR/themes";
-    my @installed_themes;
-    if ( -d $themes_dir ) {
-        opendir( my $dh, $themes_dir );
-        for my $t ( sort readdir $dh ) {
-            next if $t =~ /^\./;
-            next unless -d "$themes_dir/$t" && -f "$themes_dir/$t/view.tt";
-            push @installed_themes, $t;
-        }
-        closedir $dh;
-    }
-
-    if ( @installed_themes > 1 ) {
-        my $current_cookie = read_theme_cookie() || $vars->{theme} || '';
-        $bar .= '<select id="ls-theme-sel" style="'
-              . 'font-size:11px;background:#333;color:#ccc;border:1px solid #555;'
-              . 'border-radius:3px;padding:1px 4px;cursor:pointer;" '
-              . 'onchange="document.cookie=\'lazysite_theme=\'+this.value+'
-              . '\';path=/;max-age=31536000;SameSite=Lax\';location.reload()">';
-        for my $t ( @installed_themes ) {
-            my $sel = $t eq $current_cookie ? ' selected' : '';
-            $bar .= "<option value=\"$t\"$sel>$t</option>";
-        }
-        $bar .= '</select>';
-    }
-
-    my $user = $vars->{auth_name} || $vars->{auth_user} || '';
-    if ( $user ) {
-        $bar .= '<span style="margin-left:auto;">' . $user . '</span>';
-        $bar .= '<a href="/logout" style="color:#888;text-decoration:none;">Sign out</a>';
-    }
-
+    $bar .= $manager_tools;
+    $bar .= $variant_switcher;
     $bar .= '</div>';
     $bar .= '<div id="ls-admin-spacer" style="height:22px;"></div>';
+
+    # Theme switcher: activate site-wide via manager API, with confirm + reload
+    if ( $is_manager ) {
+        $bar .= '<script>(function(){'
+              . 'var sel=document.getElementById("ls-theme-sel");'
+              . 'if(!sel)return;'
+              . 'sel.addEventListener("change",function(){'
+              . 'var t=sel.value,cur=sel.dataset.current;'
+              . 'if(t===cur)return;'
+              . 'if(!confirm("Switch site theme to "+t+"? This affects all visitors.")){sel.value=cur;return;}'
+              . 'fetch("/cgi-bin/lazysite-manager-api.pl?action=theme-activate&path="+encodeURIComponent(t),{method:"POST"})'
+              . '.then(function(r){return r.json();})'
+              . '.then(function(d){if(d.ok){location.reload();}'
+              . 'else{alert("Failed: "+(d.error||"unknown"));sel.value=cur;}})'
+              . '.catch(function(e){alert("Error: "+e.message);sel.value=cur;});'
+              . '});})();</script>';
+    }
 
     # Hide in iframes
     $bar .= '<script>if(window!==window.top){var ab=document.getElementById("ls-admin-bar");'

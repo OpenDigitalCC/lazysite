@@ -125,21 +125,33 @@ sub handle_logout {
 sub handle_request {
     my $cookie = read_cookie($COOKIE_NAME);
 
-    if ( $cookie ) {
+    if ( !$cookie ) {
+        log_event('INFO', $uri, 'auth: no cookie');
+    }
+    else {
         my ( $payload, $sig ) = $cookie =~ /^(.+):([a-f0-9]{64})$/;
-        if ( $payload && $sig ) {
+        if ( !( $payload && $sig ) ) {
+            log_event('WARN', $uri, 'auth: cookie malformed');
+        }
+        else {
             $payload = uri_decode_simple($payload);
             my $secret = load_auth_secret();
             my $expected = hmac_sha256_hex( $payload, $secret );
 
-            if ( $sig eq $expected ) {
+            if ( $sig ne $expected ) {
+                log_event('WARN', $uri, 'auth: signature mismatch');
+            }
+            else {
                 my ( $user, $ts, $groups ) = split /:/, $payload, 3;
                 $groups //= '';
 
-                # Check timestamp
-                if ( defined $ts && $ts =~ /^\d+$/ && ( time() - $ts ) < $COOKIE_MAX ) {
+                if ( !defined $ts || $ts !~ /^\d+$/ || ( time() - $ts ) >= $COOKIE_MAX ) {
+                    log_event('WARN', $uri, 'auth: cookie expired or malformed ts', ts => $ts // 'undef');
+                }
+                else {
                     $ENV{HTTP_X_REMOTE_USER}   = $user;
                     $ENV{HTTP_X_REMOTE_GROUPS} = $groups;
+                    log_event('INFO', $uri, 'auth: cookie valid', user => $user, groups => $groups);
                 }
             }
         }
