@@ -42,7 +42,9 @@ tt_page_var:
 Every lazysite feature, grouped by topic. Use the sidebar to jump to a specific feature, or scroll through to see the full set. Each entry links to its detailed page.
 
 [% IF authoring_features.size %]
-## Authoring
+::: features-section-heading
+Authoring
+:::
 
 [% FOREACH feature IN authoring_features %]
 <div class="feature-entry" id="[% feature.url | replace('/', '-') | replace('^-', '') %]">
@@ -56,7 +58,9 @@ Every lazysite feature, grouped by topic. Use the sidebar to jump to a specific 
 [% END %]
 
 [% IF config_features.size %]
-## Configuration
+::: features-section-heading
+Configuration
+:::
 
 [% FOREACH feature IN config_features %]
 <div class="feature-entry" id="[% feature.url | replace('/', '-') | replace('^-', '') %]">
@@ -70,7 +74,9 @@ Every lazysite feature, grouped by topic. Use the sidebar to jump to a specific 
 [% END %]
 
 [% IF dev_features.size %]
-## Development
+::: features-section-heading
+Development
+:::
 
 [% FOREACH feature IN dev_features %]
 <div class="feature-entry" id="[% feature.url | replace('/', '-') | replace('^-', '') %]">
@@ -106,6 +112,16 @@ Every lazysite feature, grouped by topic. Use the sidebar to jump to a specific 
 .features-toc a:hover { text-decoration: underline; }
 .features-toc small { color: #888; font-size: 0.7rem; }
 .features-content { flex: 1; min-width: 0; }
+.features-section-heading {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin: 2rem 0 0.5rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid #eee;
+}
 .feature-entry { border-bottom: 1px solid #eee; padding-bottom: 1.5rem; margin-bottom: 1.5rem; }
 @media (max-width: 700px) {
     .features-layout { flex-direction: column; }
