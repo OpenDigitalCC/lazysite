@@ -231,11 +231,13 @@ sub write_audit_report {
     if ( $o_count > 0 ) {
         $md .= "\n## Orphaned pages\n\n";
         $md .= "Pages that exist but are not linked from any other page.\n\n";
+        $md .= "| Page | Edit |\n";
+        $md .= "| ---- | ---- |\n";
         for my $page ( @$orphaned ) {
             my $page_md = $page;
             $page_md .= '.md' unless $page_md =~ /\.\w+$/;
             my $edit_url = "/manager/edit?path=" . uri_encode("/$page_md");
-            $md .= "- /$page - [Edit]($edit_url)\n";
+            $md .= "| /$page | [Edit]($edit_url) |\n";
         }
     }
 
