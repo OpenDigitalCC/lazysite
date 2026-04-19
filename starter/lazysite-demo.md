@@ -182,7 +182,7 @@ version numbers.
 
 [Back to home](/)
 
-[Docs section](/docs/)
+[Docs section](/docs/features)
 
 **Expected:** clean links without extensions.
 

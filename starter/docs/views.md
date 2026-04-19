@@ -100,7 +100,7 @@ Editor > Themes > Upload theme. The editor validates the zip contents,
 extracts to `lazysite/themes/`, copies assets to `lazysite-assets/`,
 and allows activation without editing config files.
 
-See [editor documentation](/docs/editor) for details.
+See [manager documentation](/docs/manager) for details.
 
 ### Theme zip format
 

@@ -339,6 +339,7 @@ sub extract_links {
         next if $link =~ m{^mailto:};
         next if $link =~ m{^#};
         next if $link =~ m{^data:};
+        next if $link eq 'about:blank';
 
         $link =~ s/[?#].*$//;
         next unless length $link;

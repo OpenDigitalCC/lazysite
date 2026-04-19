@@ -60,4 +60,4 @@ Then access via Manager > Plugins.
 - Blocked paths prevent editing of auth secrets and scripts
 - All file operations validated with realpath within docroot
 - Manager pages are regular lazysite `.md` pages
-- [Manager guide](/docs/editor) - full setup and usage
+- [Manager guide](/docs/manager) - full setup and usage
