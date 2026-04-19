@@ -9,7 +9,7 @@ query_params:
 
 <style>
   .login-form {
-    max-width: 420px;
+    max-width: min(480px, 100%);
     margin: 1rem 0;
     display: grid;
     grid-template-columns: 7rem 1fr;
@@ -20,11 +20,22 @@ query_params:
   .login-form input[type="text"],
   .login-form input[type="password"] {
     width: 100%;
+    max-width: 100%;
     box-sizing: border-box;
     padding: 0.4rem 0.55rem;
     border: 1px solid #ccc;
     border-radius: 3px;
     font: inherit;
+  }
+  .login-context {
+    background: #f0f4ff;
+    border-left: 3px solid #0066cc;
+    padding: 0.5rem 0.75rem;
+    border-radius: 3px;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    max-width: min(480px, 100%);
+    box-sizing: border-box;
   }
   .login-form input:focus { outline: 2px solid #0056b3; outline-offset: 0; }
   .login-form .login-submit { grid-column: 2; }
@@ -58,6 +69,12 @@ query_params:
 
 [% IF query.error %]
 <p class="auth-error">Invalid username or password.</p>
+[% END %]
+
+[% IF query.next %]
+<p class="login-context">
+  <code>[% query.next | html %]</code> requires you to sign in.
+</p>
 [% END %]
 
 <form method="POST" action="/cgi-bin/lazysite-auth.pl?action=login"
