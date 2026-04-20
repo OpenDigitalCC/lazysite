@@ -10,6 +10,7 @@ use File::Path qw(make_path);
 # traffic, so deferring the ~20ms of LWP module load keeps the hot path
 # fast.
 use Cwd qw(realpath);
+use Encode qw(decode);
 use Socket qw(inet_aton inet_ntoa);
 use URI;
 use JSON::PP qw(encode_json decode_json);
@@ -571,8 +572,19 @@ sub serve_402 {
 main();
 
 # Parse the request's query string into a hash of name => value.
-# Values are URL-decoded and HTML-escaped to be safe for interpolation
-# in rendered pages. Returns a hashref.
+# Values are URL-decoded, UTF-8 decoded, and HTML-escaped so they
+# are safe for interpolation in rendered pages. Returns a hashref.
+#
+# UTF-8 handling: after percent-decoding to raw bytes, we decode
+# the byte string as UTF-8 so the resulting Perl string holds
+# proper code points (e.g. %E2%9C%93 -> U+2713). Without this
+# step TT's :utf8 output layer would treat each raw byte as a
+# Latin-1 character and re-encode it individually, producing
+# mojibake (C3 A2 C2 9C C2 93 instead of E2 9C 93 for U+2713).
+#
+# Malformed UTF-8 in the query string falls back to the raw
+# byte-decoded string (rather than crashing the request) - the
+# strict Encode::decode throws on invalid sequences and we catch.
 sub parse_query_string {
     my ($qs_source) = @_;
     my %query_params;
@@ -580,11 +592,20 @@ sub parse_query_string {
     for my $pair ( split /&/, $qs_source ) {
         my ( $key, $val ) = split /=/, $pair, 2;
         next unless defined $key && length $key;
+        $key =~ s/\+/ /g;
         $key =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
         $val = '' unless defined $val;
-        $val =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
         $val =~ s/\+/ /g;
-        # HTML-escape value before storing so TT renders it safely
+        $val =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
+
+        # Decode as UTF-8. eval + strict-mode guard falls back to
+        # the raw byte string on malformed input.
+        $key = eval { decode( 'UTF-8', $key, 1 ) } // $key;
+        $val = eval { decode( 'UTF-8', $val, 1 ) } // $val;
+
+        # HTML-escape value before storing so TT renders it safely.
+        # Applied after UTF-8 decode so we're escaping Unicode
+        # characters, not individual UTF-8 bytes.
         $val =~ s/&/&amp;/g;
         $val =~ s/</&lt;/g;
         $val =~ s/>/&gt;/g;

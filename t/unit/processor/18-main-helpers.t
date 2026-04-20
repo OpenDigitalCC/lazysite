@@ -29,8 +29,16 @@ load_processor($docroot);
     is( $h->{name}, 'Hello World', '+ decodes to space' );
 
     $h = main::parse_query_string('x=%E2%9C%93');
-    # URL-decoded to raw bytes; HTML-escape doesn't apply to these
-    is( $h->{x}, "\xE2\x9C\x93", 'percent-encoded bytes decoded verbatim' );
+    # %E2%9C%93 is U+2713 encoded as UTF-8. After percent-decode
+    # we re-decode as UTF-8 so the stored value is the Unicode
+    # code point, not three Latin-1 bytes.
+    is( $h->{x}, "\x{2713}",
+        'percent-encoded UTF-8 decoded to Unicode code point' );
+
+    # Malformed UTF-8 must not crash - falls back to raw bytes.
+    $h = main::parse_query_string('x=%FF%FE');
+    is( $h->{x}, "\xFF\xFE",
+        'invalid UTF-8 sequence falls back to raw bytes' );
 
     $h = main::parse_query_string('x=<script>');
     is( $h->{x}, '&lt;script&gt;', 'value HTML-escaped' );

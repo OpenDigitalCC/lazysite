@@ -37,17 +37,12 @@ setup_test_site($docroot);
 }
 
 # --- URL with encoded characters in query string ---
-# FINDING (encoding bug, to fix separately): the processor
-# URL-decodes the query value to raw bytes, then passes those bytes
-# to Template Toolkit configured with ENCODING => 'utf8'. Each byte
-# is treated as a Latin-1 character and re-encoded as UTF-8 on
-# output, producing mojibake. For %E2%9C%93 (U+2713 check mark) the
-# output is C3 A2 C2 9C C2 93 instead of the expected E2 9C 93.
-# The plain-ASCII portion round-trips correctly; the bug only
-# surfaces for non-ASCII query values.
-#
-# Asserting what the code does today, as a TODO, so the fix can
-# invert this check when it lands.
+# parse_query_string() decodes percent-encoded bytes as UTF-8
+# (with graceful fallback on malformed input), so non-ASCII
+# query values round-trip through TT's :utf8 output layer as
+# the intended character rather than as Latin-1-interpreted
+# bytes. U+2713 (CHECK MARK) encodes to the three UTF-8 bytes
+# E2 9C 93; that's what we expect to see on the wire.
 {
     open my $fh, '>', "$docroot/q.md" or die $!;
     print $fh "---\ntitle: Q\nquery_params:\n  - q\n---\n"
@@ -59,11 +54,8 @@ setup_test_site($docroot);
     );
     like( $out, qr/Status: 200 OK/, 'encoded query → 200' );
     like( $out, qr/hello world/,     'ASCII portion of query decoded' );
-    TODO: {
-        local $TODO = 'query-string UTF-8 decoding (Latin-1 round-trip bug)';
-        like( $out, qr/hello world \xE2\x9C\x93/,
-              'percent-encoded UTF-8 in query emerges as UTF-8 on page' );
-    }
+    like( $out, qr/hello world \xE2\x9C\x93/,
+          'percent-encoded UTF-8 in query emerges as UTF-8 on page' );
 }
 
 # --- Path traversal via request URI → 404, not file read ---
