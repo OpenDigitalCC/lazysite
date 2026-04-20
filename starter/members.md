@@ -2,7 +2,6 @@
 title: Members Area
 subtitle: This page requires authentication.
 auth: required
-search: false
 ---
 
 ## Welcome, [% auth_user %]

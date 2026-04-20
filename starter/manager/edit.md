@@ -466,7 +466,11 @@ window.addEventListener('beforeunload', function(e) {
   if (isDirty) { e.preventDefault(); e.returnValue = ''; }
   if (lockRenewTimer) clearInterval(lockRenewTimer);
   if (filePath && !isNew) {
-    navigator.sendBeacon(API + '?action=unlock&path=' + encodeURIComponent(filePath));
+    // sendBeacon bypasses the window.fetch CSRF wrapper, so include the
+    // token in the URL. window.LAZYSITE_CSRF is populated by view.tt.
+    var url = API + '?action=unlock&path=' + encodeURIComponent(filePath);
+    if (window.LAZYSITE_CSRF) url += '&csrf_token=' + encodeURIComponent(window.LAZYSITE_CSRF);
+    navigator.sendBeacon(url);
   }
 });
 

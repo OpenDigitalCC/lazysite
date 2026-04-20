@@ -62,10 +62,10 @@
 </main>
 
 <script>
-// M-1: manager CSRF token. Fetched once per page load and auto-injected
-// into the JSON body of any POST sent via fetch() against the manager
-// API. Existing per-page fetch() calls pick it up transparently via the
-// window.fetch wrapper below.
+// M-1: manager CSRF token. Fetched once per page load and attached via
+// X-CSRF-Token header to every POST sent to the manager API — type-
+// agnostic, so it works for JSON, FormData, and raw ArrayBuffer
+// (theme-upload) bodies alike.
 (function(){
   var MGR_API = '/cgi-bin/lazysite-manager-api.pl';
   var tokenPromise = fetch(MGR_API + '?action=csrf-token', { credentials: 'same-origin' })
@@ -79,28 +79,18 @@
     init = init || {};
     var method = (init.method || 'GET').toUpperCase();
     var url    = typeof resource === 'string' ? resource : (resource && resource.url) || '';
-    // Only augment POSTs to the manager API
-    if ( method === 'POST' && url.indexOf(MGR_API) === 0 ) {
-      var addToken = function(){
-        if ( !window.LAZYSITE_CSRF ) return init;
-        var body = init.body;
-        if ( typeof body === 'string' ) {
-          try {
-            var parsed = JSON.parse(body);
-            if ( parsed && typeof parsed === 'object' && !parsed.csrf_token ) {
-              parsed.csrf_token = window.LAZYSITE_CSRF;
-              init.body = JSON.stringify(parsed);
-            }
-          } catch(e) { /* non-JSON body (e.g. theme upload) — append as query param */
-            var sep = url.indexOf('?') >= 0 ? '&' : '?';
-            resource = url + sep + 'csrf_token=' + encodeURIComponent(window.LAZYSITE_CSRF);
-          }
-        }
-        return init;
-      };
-      return tokenPromise.then(function(){ return origFetch(resource, addToken()); });
+    // Only augment same-origin POSTs to the manager API
+    if ( method !== 'POST' || url.indexOf(MGR_API) !== 0 ) {
+      return origFetch(resource, init);
     }
-    return origFetch(resource, init);
+    return tokenPromise.then(function(){
+      if ( !window.LAZYSITE_CSRF ) return origFetch(resource, init);
+      // Clone headers so we don't mutate caller-supplied objects.
+      var h = new Headers(init.headers || {});
+      if ( !h.has('X-CSRF-Token') ) h.set('X-CSRF-Token', window.LAZYSITE_CSRF);
+      init.headers = h;
+      return origFetch(resource, init);
+    });
   };
 })();
 </script>

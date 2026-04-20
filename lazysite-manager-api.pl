@@ -80,10 +80,18 @@ my %READ_ONLY = map { $_ => 1 } qw(
 );
 
 unless ( $READ_ONLY{$action} ) {
-    my $parsed = $body ? ( eval { decode_json($body) } // {} ) : {};
-    my $token = '';
-    if ( ref $parsed eq 'HASH' ) {
-        $token = $parsed->{csrf_token} // '';
+    # Token can arrive via (in order of preference):
+    #   - X-CSRF-Token header (HTTP_X_CSRF_TOKEN env var) — works for any
+    #     body type including raw binary uploads (theme-upload).
+    #   - csrf_token field in a JSON body — convenient for existing
+    #     apiCall() patterns that send JSON.
+    #   - csrf_token query-string parameter — last-resort fallback.
+    my $token = $ENV{HTTP_X_CSRF_TOKEN} // '';
+    if ( !$token && $body ) {
+        my $parsed = eval { decode_json($body) };
+        if ( ref $parsed eq 'HASH' ) {
+            $token = $parsed->{csrf_token} // '';
+        }
     }
     $token ||= $params{csrf_token} // '';
     unless ( verify_csrf_token( $token, $auth_user ) ) {
