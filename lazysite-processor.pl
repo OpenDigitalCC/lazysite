@@ -291,30 +291,25 @@ sub check_auth {
     };
 }
 
-{
-    # L-3: warn once per process when manager_groups is empty — any
-    # authenticated user becomes a manager, which is usually not what
-    # the operator wants. Closure-scoped (processor's `use strict` does
-    # not enable the `state` feature).
-    my $_empty_mgroups_warned = 0;
-
-    sub _is_manager {
-        my ( $site_vars, $auth_user, $auth_groups ) = @_;
-        return 0 unless $auth_user;
-        my $manager_groups = $site_vars->{manager_groups} // '';
-        $manager_groups =~ s/^\s+|\s+$//g;
-        if ( !length $manager_groups ) {
-            unless ( $_empty_mgroups_warned++ ) {
-                log_event('WARN', '-',
-                    'manager_groups not set - any authenticated user has manager access',
-                    suggestion => 'set manager_groups in lazysite.conf');
-            }
-            return 1;
-        }
-        my %user_groups = map { lc($_) => 1 } split /\s*,\s*/, ( $auth_groups // '' );
-        return scalar grep { $user_groups{ lc($_) } }
-            split /\s*,\s*/, $manager_groups;
+sub _is_manager {
+    my ( $site_vars, $auth_user, $auth_groups ) = @_;
+    return 0 unless $auth_user;
+    my $manager_groups = $site_vars->{manager_groups} // '';
+    $manager_groups =~ s/^\s+|\s+$//g;
+    if ( !length $manager_groups ) {
+        # L-3: config advisory, not an operational warning. Under CGI
+        # every request is a new process, so the "once per process"
+        # closure-state trick from the earlier revision just produced
+        # one WARN per hit. Log at DEBUG so noisy production logs don't
+        # carry it; the dev server surfaces it once at startup.
+        log_event('DEBUG', '-',
+            'manager_groups not set - any authenticated user has manager access',
+            suggestion => 'set manager_groups in lazysite.conf');
+        return 1;
     }
+    my %user_groups = map { lc($_) => 1 } split /\s*,\s*/, ( $auth_groups // '' );
+    return scalar grep { $user_groups{ lc($_) } }
+        split /\s*,\s*/, $manager_groups;
 }
 
 sub serve_403 {
