@@ -207,6 +207,19 @@ sub write_audit_report {
 
     my $md = "---\ntitle: Link Audit Report\nsubtitle: $now\ndate: $now_iso\n";
     $md .= "auth: required\nauth_groups:\n  - lazysite-admins\nsearch: false\n---\n\n";
+
+    # Wrap the whole report in an mg-card so the standalone
+    # /manager/audit-report page matches the visual weight of other
+    # manager sections. markdown="1" on the outer and body divs tells
+    # Text::MultiMarkdown to keep parsing headings, lists and tables
+    # inside as Markdown (block-HTML content is otherwise left raw).
+    $md .= qq(<div class="mg-card" markdown="1">\n);
+    $md .= qq(<div class="mg-card-header">\n);
+    $md .= qq(<span class="mg-card-title">Link Audit Report</span>\n);
+    $md .= qq(<span class="mg-card-subtitle">$now</span>\n);
+    $md .= qq(</div>\n);
+    $md .= qq(<div class="mg-card-body" markdown="1">\n\n);
+
     $md .= "## Summary\n\nAudit completed: $now\n\n";
 
     if ( $b_count == 0 && $o_count == 0 ) {
@@ -254,6 +267,9 @@ sub write_audit_report {
             $md .= "| [/$page](/$page) | [Edit]($edit_url) |\n";
         }
     }
+
+    # Close mg-card-body and mg-card
+    $md .= qq(\n</div>\n</div>\n);
 
     open my $fh, '>:utf8', $path or die "Cannot write report: $!\n";
     print $fh $md;
