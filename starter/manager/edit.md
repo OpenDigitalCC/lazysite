@@ -382,16 +382,23 @@ function savePage() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.ok) {
+      if (typeof mgClearWarning === 'function') mgClearWarning();
       fileMtime = data.mtime;
       clearDirty();
       if (isMdFile) refreshPreview();
     } else if (data.conflict) {
+      if (typeof mgShowWarning === 'function') mgShowWarning('Conflict: modified externally', true);
       document.getElementById('ed-dirty').textContent = 'Conflict: modified externally';
       document.getElementById('ed-save-btn').disabled = false;
     } else {
+      if (typeof mgShowWarning === 'function') mgShowWarning(data.error || 'Save failed', true);
       document.getElementById('ed-dirty').textContent = data.error || 'Save failed';
       document.getElementById('ed-save-btn').disabled = false;
     }
+  })
+  .catch(function(e) {
+    if (typeof mgShowWarning === 'function') mgShowWarning('Save failed: ' + e.message, true);
+    document.getElementById('ed-save-btn').disabled = false;
   });
 }
 

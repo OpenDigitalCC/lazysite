@@ -12,8 +12,8 @@ search: false
 
 <div class="mg-file-toolbar">
 <input type="search" id="file-filter" class="mg-file-filter" placeholder="Filter files..." oninput="filterFiles(this.value)">
-<button class="mg-btn" onclick="newFile()">New File</button>
-<button class="mg-btn" onclick="newFolder()">New Folder</button>
+<button class="mg-btn" onclick="newFile()">Add File</button>
+<button class="mg-btn" onclick="newFolder()">Add Folder</button>
 </div>
 
 <div class="mg-file-list" id="file-list">
@@ -28,15 +28,17 @@ var currentDir = '/';
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
-  if (!el) return;
-  if (!msg) {
-    el.textContent = '';
-    el.className = '';
+  if (isError) {
+    if (typeof mgShowWarning === 'function') mgShowWarning(msg, true);
+    if (el) { el.textContent = ''; el.className = ''; }
     return;
   }
-  el.className = 'mg-status ' + (isError ? 'mg-status-error' : 'mg-status-success');
+  if (typeof mgClearWarning === 'function') mgClearWarning();
+  if (!el) return;
+  if (!msg) { el.textContent = ''; el.className = ''; return; }
+  el.className = 'mg-status mg-status-success';
   el.textContent = msg;
-  if (!isError) setTimeout(function() { showStatus(''); }, 3000);
+  setTimeout(function() { showStatus(''); }, 3000);
 }
 
 function loadDir(dir) {

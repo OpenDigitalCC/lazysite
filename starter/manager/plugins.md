@@ -209,7 +209,12 @@ function runAction(plugin, action) {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (!data.ok) { status.textContent = 'Error: ' + (data.error||'unknown'); return; }
+    if (!data.ok) {
+      mgShowWarning(data.error || 'Action failed', true);
+      status.textContent = '';
+      return;
+    }
+    mgClearWarning();
     status.textContent = 'Done.';
 
     // Link Audit: render the report inline in the audit-report card
@@ -222,6 +227,10 @@ function runAction(plugin, action) {
       window.open(data[action.result_key], '_blank');
     }
     setTimeout(function() { status.textContent = ''; }, 5000);
+  })
+  .catch(function(e) {
+    mgShowWarning('Error: ' + e.message, true);
+    status.textContent = '';
   });
 }
 
@@ -840,7 +849,7 @@ function renderFormTargets(formName, currentTargets) {
       html += '<option value="' + esc(h.id) + '"' + (h.id === hid ? ' selected' : '') + '>' + esc(label) + '</option>';
     });
     html += '</select>';
-    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeTarget(\'' + esc(formName) + '\',' + idx + ')">&times;</button>';
+    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteTarget(\'' + esc(formName) + '\',' + idx + ')">&times;</button>';
     html += '</div>';
   });
 
@@ -883,7 +892,7 @@ function addTarget(formName) {
   renderFormTargets(formName, div._targets);
 }
 
-function removeTarget(formName, idx) {
+function deleteTarget(formName, idx) {
   var div = document.getElementById('form-targets-' + formName);
   if (!div || !div._targets) return;
   div._targets.splice(idx, 1);

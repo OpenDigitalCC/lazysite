@@ -37,15 +37,17 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
-  if (!el) return;
-  if (!msg) {
-    el.textContent = '';
-    el.className = 'mg-status';
+  if (isError) {
+    if (typeof mgShowWarning === 'function') mgShowWarning(msg, true);
+    if (el) { el.textContent = ''; el.className = 'mg-status'; }
     return;
   }
-  el.className = 'mg-status' + (isError ? ' mg-status-error' : ' mg-status-success');
+  if (typeof mgClearWarning === 'function') mgClearWarning();
+  if (!el) return;
+  if (!msg) { el.textContent = ''; el.className = 'mg-status'; return; }
+  el.className = 'mg-status mg-status-success';
   el.textContent = msg;
-  if (!isError) setTimeout(function() { showStatus(''); }, 3000);
+  setTimeout(function() { showStatus(''); }, 3000);
 }
 
 function loadThemes() {

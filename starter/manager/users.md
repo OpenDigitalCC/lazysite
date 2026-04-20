@@ -47,7 +47,7 @@ search: false
 <div class="mg-card-body mg-new-group-row">
 <label for="new-group-name">New group name:</label>
 <input type="text" id="new-group-name" placeholder="group name">
-<button class="mg-btn mg-btn-outline" onclick="createGroup()">Create</button>
+<button class="mg-btn mg-btn-outline" onclick="createGroup()">Add</button>
 </div>
 </div>
 
@@ -56,9 +56,17 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
-  el.className = 'mg-status' + (isError ? ' mg-status-error' : ' mg-status-success');
+  if (isError) {
+    if (typeof mgShowWarning === 'function') mgShowWarning(msg, true);
+    if (el) { el.textContent = ''; el.className = 'mg-status'; }
+    return;
+  }
+  if (typeof mgClearWarning === 'function') mgClearWarning();
+  if (!el) return;
+  if (!msg) { el.textContent = ''; el.className = 'mg-status'; return; }
+  el.className = 'mg-status mg-status-success';
   el.textContent = msg;
-  if (!isError) setTimeout(function() { el.textContent = ''; el.className = 'mg-status'; }, 3000);
+  setTimeout(function() { showStatus(''); }, 3000);
 }
 
 function escHtml(s) {
@@ -120,7 +128,7 @@ function renderGroups(groups) {
     var memberHtml = members.map(function(m) {
       return '<span class="mg-group-member">' + escHtml(m) +
         ' <button class="mg-chip-remove" title="Remove ' + escHtml(m) + ' from ' + escHtml(g) + '" ' +
-        'onclick="removeGroupMember(\'' + escHtml(m) + '\',\'' + escHtml(g) + '\')">&times;</button></span>';
+        'onclick="deleteGroupMember(\'' + escHtml(m) + '\',\'' + escHtml(g) + '\')">&times;</button></span>';
     }).join(' ');
     html += '<tr data-group="' + escHtml(g) + '">';
     html += '<td><strong>' + escHtml(g) + '</strong></td>';
@@ -170,7 +178,7 @@ function confirmAddMember(group) {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-function removeGroupMember(username, group) {
+function deleteGroupMember(username, group) {
   if (!confirm('Remove "' + username + '" from group "' + group + '"?')) return;
   apiCall({ action: 'group-remove', username: username, group: group })
     .then(function(data) {
@@ -191,11 +199,11 @@ function deleteGroup(group) {
       : 'Delete group "' + group + '"?';
     if (!confirm(prompt)) return;
     if (!members.length) { showStatus('Group "' + group + '" already empty.', false); loadUsers(); return; }
-    removeGroupMembersSequential(members, group, 0);
+    deleteGroupMembersSequential(members, group, 0);
   });
 }
 
-function removeGroupMembersSequential(members, group, i) {
+function deleteGroupMembersSequential(members, group, i) {
   if (i >= members.length) {
     showStatus('Group "' + group + '" deleted.');
     loadUsers();
@@ -209,7 +217,7 @@ function removeGroupMembersSequential(members, group, i) {
         loadUsers();
         return;
       }
-      removeGroupMembersSequential(members, group, i + 1);
+      deleteGroupMembersSequential(members, group, i + 1);
     })
     .catch(function(e) {
       showStatus('Error removing ' + username + ' from "' + group + '": ' + e.message, true);

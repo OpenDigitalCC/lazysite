@@ -53,12 +53,18 @@ function loadSiteSettings() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     var container = document.getElementById('site-settings');
-    if (!data.ok) { container.textContent = data.error || 'Failed to load site settings'; return; }
+    if (!data.ok) {
+      mgShowWarning(data.error || 'Failed to load site settings', true);
+      container.textContent = '';
+      return;
+    }
+    mgClearWarning();
     container.innerHTML = renderSiteForm(data.values || {});
     applyShowWhen(container);
   })
   .catch(function(e) {
-    document.getElementById('site-settings').textContent = 'Error: ' + e.message;
+    mgShowWarning('Error: ' + e.message, true);
+    document.getElementById('site-settings').textContent = '';
   });
 }
 
@@ -109,6 +115,7 @@ function saveSiteSettings(e) {
     if (!el.name) continue;
     values[el.name] = el.value;
   }
+  status.className = 'mg-status';
   status.textContent = 'Saving...';
   fetch(API + '?action=plugin-save&plugin=' + encodeURIComponent(SITE_PLUGIN_ID), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -117,17 +124,20 @@ function saveSiteSettings(e) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.ok) {
+      mgClearWarning();
       status.className = 'mg-status mg-status-success';
       status.textContent = 'Saved.';
       setTimeout(function() { status.textContent = ''; status.className = 'mg-status'; }, 3000);
     } else {
-      status.className = 'mg-status mg-status-error';
-      status.textContent = 'Error: ' + (data.error || 'unknown');
+      mgShowWarning('Error: ' + (data.error || 'unknown'), true);
+      status.textContent = '';
+      status.className = 'mg-status';
     }
   })
   .catch(function(e) {
-    status.className = 'mg-status mg-status-error';
-    status.textContent = 'Error: ' + e.message;
+    mgShowWarning('Error: ' + e.message, true);
+    status.textContent = '';
+    status.className = 'mg-status';
   });
 }
 
@@ -138,11 +148,17 @@ function loadPluginRegistry() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var container = document.getElementById('plugin-registry');
-      if (!data.ok) { container.textContent = data.error || 'Failed to load plugins'; return; }
+      if (!data.ok) {
+        mgShowWarning(data.error || 'Failed to load plugins', true);
+        container.textContent = '';
+        return;
+      }
+      mgClearWarning();
       renderPluginRegistry(data.plugins || []);
     })
     .catch(function(e) {
-      document.getElementById('plugin-registry').textContent = 'Error: ' + e.message;
+      mgShowWarning('Error: ' + e.message, true);
+      document.getElementById('plugin-registry').textContent = '';
     });
 }
 

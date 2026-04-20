@@ -920,3 +920,34 @@
     color: var(--mg-warning);
     text-decoration: underline;
 }
+
+/* Global warning bar - appears below the manager nav, above page
+   content. Used by mgShowWarning() in view.tt to surface API errors
+   (CSRF rejections, {ok:0} responses, network failures) consistently
+   across every manager page. */
+.mg-warning-bar {
+    background: var(--mg-warning-bg, #fff3cd);
+    border-bottom: 1px solid var(--mg-warning-border, #ffc107);
+    color: var(--mg-warning-text, #856404);
+    padding: 0.6rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.mg-warning-bar.mg-warning-error {
+    background: var(--mg-error-bg, #f8d7da);
+    border-color: var(--mg-error-border, #f5c6cb);
+    color: var(--mg-error-text, #721c24);
+}
+.mg-warning-bar-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: inherit;
+    padding: 0 0.25rem;
+}

@@ -22,17 +22,21 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
-  if (!el) return;
-  // Empty msg clears the bar. Callers pass '' at the start of a new
-  // operation so a stale error from a previous request doesn't linger.
-  if (!msg) {
-    el.textContent = '';
-    el.className = 'mg-status';
+  // Errors go to the global mg-warning-bar so they are prominent and
+  // consistent across every manager page. Successes stay inline and
+  // auto-dismiss after 3s; they also clear any lingering warning from
+  // a previous failed request.
+  if (isError) {
+    if (typeof mgShowWarning === 'function') mgShowWarning(msg, true);
+    if (el) { el.textContent = ''; el.className = 'mg-status'; }
     return;
   }
-  el.className = 'mg-status' + (isError ? ' mg-status-error' : ' mg-status-success');
+  if (typeof mgClearWarning === 'function') mgClearWarning();
+  if (!el) return;
+  if (!msg) { el.textContent = ''; el.className = 'mg-status'; return; }
+  el.className = 'mg-status mg-status-success';
   el.textContent = msg;
-  if (!isError) setTimeout(function() { showStatus(''); }, 3000);
+  setTimeout(function() { showStatus(''); }, 3000);
 }
 
 function escHtml(s) {

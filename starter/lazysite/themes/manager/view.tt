@@ -18,6 +18,21 @@
   // attaches the resolved token as X-CSRF-Token on every POST to the
   // manager API. Page scripts do not need to await anything; each POST
   // waits for lazysiteCsrfReady() internally.
+  // Global warning bar helpers. Pages call mgShowWarning(msg, isError)
+  // on any {ok:0} or network failure, and mgClearWarning() on success.
+  window.mgShowWarning = function(msg, isError) {
+    var bar = document.getElementById('mg-warning-bar');
+    var txt = document.getElementById('mg-warning-bar-msg');
+    if (!bar || !txt) return;
+    txt.textContent = msg || '';
+    bar.className = 'mg-warning-bar' + (isError ? ' mg-warning-error' : '');
+    bar.style.display = 'flex';
+  };
+  window.mgClearWarning = function() {
+    var bar = document.getElementById('mg-warning-bar');
+    if (bar) bar.style.display = 'none';
+  };
+
   (function(){
     var MGR_API = '/cgi-bin/lazysite-manager-api.pl';
     var tokenPromise = fetch(MGR_API + '?action=csrf-token', { credentials: 'same-origin' })
@@ -96,6 +111,11 @@
     </div>
   </div>
 </header>
+
+<div id="mg-warning-bar" class="mg-warning-bar" style="display:none">
+  <span id="mg-warning-bar-msg"></span>
+  <button onclick="mgClearWarning()" class="mg-warning-bar-close" aria-label="Dismiss">x</button>
+</div>
 
 <main class="mg-main">
   [% content %]

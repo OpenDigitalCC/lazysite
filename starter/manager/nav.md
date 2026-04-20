@@ -27,9 +27,17 @@ var dragSrcIdx = null;
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
-  el.className = 'mg-status' + (isError ? ' mg-status-error' : ' mg-status-success');
+  if (isError) {
+    if (typeof mgShowWarning === 'function') mgShowWarning(msg, true);
+    if (el) { el.textContent = ''; el.className = 'mg-status'; }
+    return;
+  }
+  if (typeof mgClearWarning === 'function') mgClearWarning();
+  if (!el) return;
+  if (!msg) { el.textContent = ''; el.className = 'mg-status'; return; }
+  el.className = 'mg-status mg-status-success';
   el.textContent = msg;
-  if (!isError) setTimeout(function() { el.textContent = ''; el.className = 'mg-status'; }, 3000);
+  setTimeout(function() { showStatus(''); }, 3000);
 }
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -81,7 +89,7 @@ function renderNav() {
     html += '<span class="mg-nav-label">' + esc(item.label) + '</span>';
     html += '<span class="mg-nav-url">' + (item.url ? esc(item.url) : '<em>group</em>') + '</span>';
     html += '<button onclick="editItem(' + idx + ')" class="mg-btn mg-btn-sm" title="Edit">&#9998;</button>';
-    html += '<button onclick="removeItem(' + idx + ')" class="mg-btn mg-btn-sm mg-btn-danger" title="Remove">&times;</button>';
+    html += '<button onclick="deleteItem(' + idx + ')" class="mg-btn mg-btn-sm mg-btn-danger" title="Delete">&times;</button>';
     html += '</div>';
   });
   html += '<div class="nav-drop-zone" data-before="' + navItems.length + '"'
@@ -189,7 +197,7 @@ function outdentItem(idx) {
   updateParentSelect();
 }
 
-function removeItem(idx) {
+function deleteItem(idx) {
   var item = navItems[idx];
   if (!confirm('Remove "' + item.label + '"?')) return;
   // If it's a parent, also remove its children
