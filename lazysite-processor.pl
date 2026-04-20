@@ -113,6 +113,20 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
                border: 1px solid #ccc; border-radius: 3px; width: 140px; }
         .site-bar button { padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: pointer; }
         hr.site-rule { border: none; border-top: 1px solid #eee; margin: 0 0 1.5rem; }
+        .nav-link { margin-right: 1rem; color: #0066cc; text-decoration: none; }
+        .nav-link:hover { text-decoration: underline; }
+        .nav-child { margin-right: 0.75rem; font-size: 0.85rem; }
+        .nav-link[aria-current="page"] { font-weight: 600; }
+        .nav-group {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #888;
+            padding: 0.5rem 0 0.2rem;
+            margin-right: 0.75rem;
+            display: inline-block;
+        }
         h1 { border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
         pre { background: #f5f5f5; padding: 1rem; overflow-x: auto; }
         code { background: #f5f5f5; padding: 0.2em 0.4em; }
@@ -140,13 +154,19 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 [% IF nav.size %]
 <nav style="margin-bottom:1.5rem;padding-bottom:0.75rem;border-bottom:1px solid #eee;font-size:0.9rem;">
   [% FOREACH item IN nav %]
+    [%# Three cases, distinguished by whether item.url is set and
+        whether children exist:
+          - url present                : leaf link or clickable parent
+          - url empty/absent           : group heading (not a link) %]
     [% IF item.url %]
-    <a href="[% item.url %]" style="margin-right:1rem;color:#0066cc;text-decoration:none;"[% IF request_uri == item.url %] aria-current="page" style="margin-right:1rem;color:#0066cc;text-decoration:none;font-weight:600;"[% END %]>[% item.label %]</a>
+    <a href="[% item.url %]" class="nav-link"[% IF request_uri == item.url %] aria-current="page"[% END %]>[% item.label %]</a>
     [% ELSE %]
-    <span style="margin-right:0.5rem;color:#888;font-size:0.85rem;">[% item.label %]</span>
+    <span class="nav-group">[% item.label %]</span>
     [% END %]
-    [% FOREACH child IN item.children %]
-    <a href="[% child.url %]" style="margin-right:0.75rem;color:#0066cc;text-decoration:none;font-size:0.85rem;"[% IF request_uri == child.url %] aria-current="page"[% END %]>[% child.label %]</a>
+    [% IF item.children %]
+      [% FOREACH child IN item.children %]
+      <a href="[% child.url %]" class="nav-link nav-child"[% IF request_uri == child.url %] aria-current="page"[% END %]>[% child.label %]</a>
+      [% END %]
     [% END %]
   [% END %]
 </nav>
