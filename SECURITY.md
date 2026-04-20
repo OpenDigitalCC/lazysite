@@ -63,10 +63,12 @@ The full security model is documented at
   cookie is still `HttpOnly; SameSite=Lax`, but the `Secure`
   attribute and the trusted `Strict-Transport-Security` header
   require a TLS-terminated deployment.
-- **Rotate the installation HMAC secret** (`lazysite/auth/.secret`)
-  to invalidate every outstanding session. This is the server-side
-  lever for mass logout; see `docs/architecture/security.md` under
-  "Session revocation".
+- **Rotate the installation HMAC secret** to invalidate every
+  outstanding session. Use the "Log out all users" button on the
+  manager Users page, or rewrite `lazysite/auth/.secret` with fresh
+  random bytes by hand. This is the server-side lever for mass
+  logout; see `docs/architecture/security.md` under "Session
+  revocation".
 
 For questions about the security model that are not vulnerability
 reports, please open a regular GitHub issue or start a discussion.

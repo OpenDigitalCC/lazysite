@@ -51,6 +51,20 @@ search: false
 </div>
 </div>
 
+<div class="mg-card">
+<div class="mg-card-header">
+<span class="mg-card-title">Sessions</span>
+</div>
+<div class="mg-card-body">
+<p class="mg-card-subtitle" style="margin:0 0 0.5rem">
+Rotate the session-signing secret. Invalidates every signed cookie
+currently in circulation, including your own. Everyone (including you)
+will need to sign in again.
+</p>
+<button class="mg-btn mg-btn-danger" onclick="rotateAuthSecret()">Log out all users</button>
+</div>
+</div>
+
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 
@@ -279,6 +293,30 @@ function deleteUser(username) {
       if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('User "' + username + '" removed.');
       loadUsers();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// Rotate the server-side HMAC secret. Every outstanding signed
+// cookie (including ours) becomes invalid on the next request, so
+// we redirect straight to /login after success rather than leaving
+// the user on a page that now has no valid session.
+function rotateAuthSecret() {
+  if (!confirm(
+    'This will sign every user (including you) out immediately. ' +
+    'Every cookie currently in circulation will stop working. ' +
+    'Proceed?'
+  )) return;
+
+  fetch(API + '?action=rotate-auth-secret', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error || 'Rotation failed', true); return; }
+      // Our own session is dead now; send us to /login. The next
+      // request would be rejected with 401 anyway; going to /login
+      // directly is the cleanest UX.
+      mgShowWarning(data.message || 'All sessions invalidated.', false);
+      setTimeout(function() { location.href = '/login'; }, 1200);
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }

@@ -317,14 +317,23 @@ authenticated operators are expected to be trusted.
 
 ## Known constraints
 
-**Session revocation.** No server-side session store. Logout
-invalidates the cookie on the client only; the HMAC remains
-cryptographically valid until its `Max-Age` passes. A cookie
-stolen via XSS, browser exfiltration, or a compromised device
-remains valid for up to 24 hours. Mitigations in place: short
-session lifetime, `HttpOnly` cookie attribute, installation-
-specific HMAC secret (rotating the secret on disk invalidates all
-sessions).
+**Session revocation.** No server-side session store. Individual
+logout invalidates the cookie on the client only; the HMAC
+remains cryptographically valid until its `Max-Age` passes. A
+cookie stolen via XSS, browser exfiltration, or a compromised
+device would otherwise remain valid for up to 24 hours.
+
+Mitigations:
+- Short session lifetime (24 hours).
+- `HttpOnly` cookie attribute.
+- Installation-specific HMAC secret in `lazysite/auth/.secret`.
+- **"Log out all users"** action on the manager Users page
+  (`action=rotate-auth-secret`). Generates a fresh secret from
+  `/dev/urandom`, writes it atomically, and invalidates every
+  outstanding cookie in one step (the operator's own included).
+  The manager UI redirects the caller to `/login` on success. Use
+  this on suspected secret compromise, before decommissioning an
+  installation, or routinely at operator's discretion.
 
 **Password algorithm.** Salted iterated SHA-256 rather than
 bcrypt or argon2. Chosen because only `Digest::SHA` is core; no

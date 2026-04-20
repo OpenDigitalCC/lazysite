@@ -145,6 +145,7 @@ elsif ( $action eq 'theme-rename' )     {
 }
 elsif ( $action eq 'theme-upload' )     { $result = action_theme_upload( $body, $params{filename} ) }
 elsif ( $action eq 'users' )            { $result = action_users( $body, \%params ) }
+elsif ( $action eq 'rotate-auth-secret' ) { $result = action_rotate_auth_secret( $auth_user ) }
 elsif ( $action eq 'plugin-list' )      { $result = action_plugin_list() }
 elsif ( $action eq 'plugin-enable' )    {
     my $req = eval { decode_json($body) } // {};
@@ -858,6 +859,62 @@ sub action_users {
     waitpid $pid, 0;
 
     return eval { decode_json( $output // '{}' ) } // { ok => 0, error => "Invalid response" };
+}
+
+# Rotate the per-installation HMAC secret in lazysite/auth/.secret.
+# Every existing auth cookie is signed with the previous secret, so
+# rewriting this file invalidates every outstanding session (the
+# operator's own session included). This is the "log everyone out"
+# lever - the server-side mitigation for the known "no session
+# revocation" constraint.
+sub action_rotate_auth_secret {
+    my ($auth_user) = @_;
+    my $path = "$LAZYSITE_DIR/auth/.secret";
+
+    # Fail closed if CSPRNG unavailable (M-6 convention)
+    open my $rand, '<:raw', '/dev/urandom'
+        or return { ok => 0, error => "Cannot open /dev/urandom: $!" };
+    my $raw = '';
+    my $got = read( $rand, $raw, 32 );
+    close $rand;
+    return { ok => 0, error => "Short read from /dev/urandom ($got of 32)" }
+        unless defined $got && $got == 32;
+    my $new = unpack( 'H*', $raw );
+
+    make_path( dirname($path) ) unless -d dirname($path);
+
+    # Atomic write: tempfile + rename. If anything in the chain fails,
+    # the original .secret keeps working - we never leave the file
+    # empty or partial, which would lock everyone out without giving
+    # them a way back in.
+    my $tmp = "$path.tmp.$$";
+    open my $wfh, '>', $tmp
+        or return { ok => 0, error => "Cannot write $tmp: $!" };
+    chmod 0o600, $tmp;
+    print $wfh "$new\n";
+    close $wfh;
+    unless ( rename $tmp, $path ) {
+        my $err = $!;
+        unlink $tmp;
+        return { ok => 0, error => "Cannot replace $path: $err" };
+    }
+    chmod 0o600, $path;
+
+    # Also clear the CSRF secret cache file (if dedicated one exists).
+    # The CSRF helper falls back to .secret, so the new .secret
+    # becomes the new CSRF secret too - but the operator's next POST
+    # will race with their about-to-expire session cookie, so bail
+    # out cleanly by cycling them through /login.
+    my $csrf_secret = "$LAZYSITE_DIR/manager/.csrf-secret";
+    unlink $csrf_secret if -f $csrf_secret;
+
+    log_event( 'WARN', $auth_user,
+        'auth secret rotated - all sessions invalidated' );
+
+    return {
+        ok      => 1,
+        message => 'All sessions invalidated. You will need to sign in again.',
+    };
 }
 
 # --- Helpers ---
