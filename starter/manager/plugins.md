@@ -368,6 +368,16 @@ function renderHandlerList() {
       html += '<div class="mg-handler-item-header">';
       html += '<span class="mg-handler-name">' + esc(h.name || h.id) + '</span>';
       html += '<span class="mg-badge ' + (enabled ? 'enabled' : 'disabled') + '">' + (enabled ? 'enabled' : 'disabled') + '</span>';
+      // File-storage handlers: inline "View submissions" slot. Populated
+      // asynchronously once we know whether the configured directory
+      // exists on disk. data-submissions-for="<id>" lets one fetch
+      // update both the inline slot and the equivalent row in the
+      // expanded edit form in a single callback.
+      if (h.type === 'file') {
+        html += '<span data-submissions-for="' + esc(h.id) + '" class="mg-handler-submissions" style="margin-left:0.5rem">';
+        html += '<span style="font-size:0.8rem;color:var(--mg-text-light)">Checking...</span>';
+        html += '</span>';
+      }
       html += '<div class="mg-handler-item-actions">';
       html += '<button class="mg-btn mg-btn-sm" onclick=\'editHandler(' + JSON.stringify(h).replace(/'/g, "&#39;") + ')\'>Edit</button>';
       html += '<button class="mg-btn mg-btn-danger" onclick="deleteHandler(\'' + esc(h.id) + '\')">Delete</button>';
@@ -386,6 +396,51 @@ function renderHandlerList() {
   html += '<div id="add-handler-wizard" style="display:none"></div>';
 
   document.getElementById('handler-list').innerHTML = html;
+
+  // Kick off the "View submissions" probe for each file handler.
+  allHandlers.forEach(function(h) {
+    if (h.type === 'file') checkSubmissionsDir(h);
+  });
+}
+
+// Normalise a handler.path (e.g. "lazysite/forms/submissions" or
+// "/lazysite/forms/submissions") to the shape the manager-api's `list`
+// action and the file browser's hash navigation both expect: leading /
+// and trailing /.
+function submissionsPath(raw) {
+  if (!raw) return '/';
+  var p = String(raw);
+  if (p.charAt(0) !== '/') p = '/' + p;
+  if (p.charAt(p.length - 1) !== '/') p = p + '/';
+  return p;
+}
+
+function checkSubmissionsDir(handler) {
+  var slots = document.querySelectorAll(
+    '[data-submissions-for="' + handler.id + '"]');
+  if (!slots.length) return;
+
+  var path = submissionsPath(handler.path);
+  fetch(API + '?action=list&path=' + encodeURIComponent(path))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var html;
+      if (data.ok) {
+        // Directory exists: link into the file browser. The files page
+        // reads its current directory from location.hash, so use # (not
+        // a query param) for the path.
+        html = '<a href="/manager/files#' + encodeURIComponent(path)
+             + '" class="mg-btn mg-btn-sm">View submissions</a>';
+      } else {
+        html = '<span style="font-size:0.8rem;color:var(--mg-text-light)">No submissions yet</span>';
+      }
+      slots.forEach(function(el) { el.innerHTML = html; });
+    })
+    .catch(function() {
+      slots.forEach(function(el) {
+        el.innerHTML = '<span style="font-size:0.8rem;color:var(--mg-text-light)">No submissions yet</span>';
+      });
+    });
 }
 
 // --- Wizard: add handler ---
@@ -547,6 +602,15 @@ function renderFileFields(d) {
   html += '<div class="mg-form-row"><label>Directory</label>';
   html += '<input type="text" id="wiz-path" value="' + esc(d.path || 'lazysite/forms/submissions') + '" required>';
   html += '</div>';
+  // Only show the "View submissions" row on edit (not add): the handler
+  // needs an id before we can probe. d.id is present on edit, absent on
+  // the add wizard. checkSubmissionsDir() will populate the slot.
+  if (d.id) {
+    html += '<div class="mg-form-row"><label>Submissions</label>';
+    html += '<div data-submissions-for="' + esc(d.id) + '">';
+    html += '<span style="font-size:0.8rem;color:var(--mg-text-light)">Checking...</span>';
+    html += '</div></div>';
+  }
   return html;
 }
 
@@ -686,6 +750,10 @@ function editHandler(handler) {
       + '<div id="handler-edit-status-' + handler.id + '"></div>';
     div.style.display = 'block';
     applyShowWhen(div);
+    // Re-probe so the new edit-form slot gets populated; the collapsed
+    // slot updates at the same time because both carry the same
+    // data-submissions-for attribute.
+    if (handler.type === 'file') checkSubmissionsDir(handler);
   }
 }
 
