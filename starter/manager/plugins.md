@@ -191,11 +191,17 @@ function saveConfig(e, pluginId, script) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.ok) {
+      mgClearWarning();
       if (status) status.textContent = 'Saved. Reloading...';
       setTimeout(function() { location.reload(); }, 1000);
     } else {
-      if (status) status.textContent = 'Error: ' + data.error;
+      mgShowWarning(data.error || 'Save failed', true);
+      if (status) status.textContent = '';
     }
+  })
+  .catch(function(e) {
+    mgShowWarning('Error: ' + e.message, true);
+    if (status) status.textContent = '';
   });
 }
 
@@ -647,7 +653,7 @@ function saveHandlerFromWizard(existingId, type, isEdit) {
     enabled: (document.getElementById('wiz-enabled') || {}).checked ? 'true' : 'false'
   };
 
-  if (!handlerData.name) { alert('Name is required'); return; }
+  if (!handlerData.name) { mgShowWarning('Name is required', true); return; }
 
   handlerData.id = existingId || slugify(handlerData.name);
   if (!existingId && allHandlers.some(function(h) { return h.id === handlerData.id; })) {
@@ -661,7 +667,7 @@ function saveHandlerFromWizard(existingId, type, isEdit) {
     handlerData.to = val('wiz-to');
     handlerData.subject_prefix = val('wiz-subject_prefix');
     if (!handlerData.from || !handlerData.to) {
-      alert('From and To addresses are required');
+      mgShowWarning('From and To addresses are required', true);
       return;
     }
     if (smtpPlugin) {
@@ -678,11 +684,11 @@ function saveHandlerFromWizard(existingId, type, isEdit) {
     }
   } else if (type === 'file') {
     handlerData.path = val('wiz-path');
-    if (!handlerData.path) { alert('Directory path is required'); return; }
+    if (!handlerData.path) { mgShowWarning('Directory path is required', true); return; }
   } else if (type === 'webhook') {
     handlerData.url = val('wiz-url');
     handlerData.format = val('wiz-format');
-    if (!handlerData.url) { alert('URL is required'); return; }
+    if (!handlerData.url) { mgShowWarning('URL is required', true); return; }
   }
 
   var statusId = isEdit ? 'handler-edit-status-' + existingId : 'wizard-status';
@@ -714,8 +720,8 @@ function saveHandlerFromWizard(existingId, type, isEdit) {
     loadHandlers();
   })
   .catch(function(err) {
-    if (statusEl) statusEl.textContent = 'Error: ' + err.message;
-    else alert('Error: ' + err.message);
+    mgShowWarning('Error: ' + err.message, true);
+    if (statusEl) statusEl.textContent = '';
   });
 }
 
@@ -782,8 +788,8 @@ function deleteHandler(handlerId) {
   })
   .then(function(r) { return r.json(); })
   .then(function(res) {
-    if (res.ok) { loadHandlers(); }
-    else { alert('Error: ' + (res.error || 'delete failed')); }
+    if (res.ok) { mgClearWarning(); loadHandlers(); }
+    else { mgShowWarning(res.error || 'Delete failed', true); }
   });
 }
 
@@ -912,10 +918,15 @@ function saveFormTargets(formName) {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.ok) {
+      mgClearWarning();
       if (status) { status.textContent = 'Targets saved.'; setTimeout(function() { status.textContent = ''; }, 3000); }
     } else {
-      if (status) status.textContent = 'Error: ' + (data.error || 'save failed');
+      mgShowWarning(data.error || 'Save failed', true);
+      if (status) status.textContent = '';
     }
+  })
+  .catch(function(e) {
+    mgShowWarning('Error: ' + e.message, true);
   });
 }
 

@@ -194,13 +194,18 @@ function togglePlugin(input, script, name) {
     input.disabled = false;
     if (!data.ok) {
       input.checked = !input.checked;
-      alert('Failed to ' + (input.checked ? 'enable' : 'disable') + ' ' + name + ': ' + (data.error || 'unknown'));
+      mgShowWarning(
+        'Failed to ' + (input.checked ? 'enable' : 'disable') + ' ' + name
+          + ': ' + (data.error || 'unknown'),
+        true);
+    } else {
+      mgClearWarning();
     }
   })
   .catch(function(e) {
     input.disabled = false;
     input.checked = !input.checked;
-    alert('Error: ' + e.message);
+    mgShowWarning('Error: ' + e.message, true);
   });
 }
 

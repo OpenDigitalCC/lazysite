@@ -323,20 +323,33 @@ sub handle_request {
     }
 
     # Determine which script to run
-    my $script = $PROCESSOR;
     my $auth_script  = abs_path("$SCRIPT_DIR/../lazysite-auth.pl");
     my $manager_api  = abs_path("$SCRIPT_DIR/../lazysite-manager-api.pl");
     my $auth_users   = "$DOCROOT/lazysite/auth/users";
     my $use_auth     = -f $auth_users && -f $auth_script;
 
-    # Route /cgi-bin/*.pl requests to scripts at repo root
+    # Pick the ultimate target CGI. Default is the processor; /cgi-bin/*.pl
+    # overrides with the explicit script.
+    my $target = $PROCESSOR;
+    my $target_rel;
     if ( $uri =~ m{^/cgi-bin/(lazysite-[\w-]+\.pl)} ) {
-        my $cgi_script = abs_path("$SCRIPT_DIR/../$1");
-        $script = $cgi_script if $cgi_script && -f $cgi_script;
+        $target_rel = $1;
+        my $cgi_script = abs_path("$SCRIPT_DIR/../$target_rel");
+        $target = $cgi_script if $cgi_script && -f $cgi_script;
     }
-    elsif ( $use_auth ) {
-        # Route all page requests through auth wrapper
-        $script = $auth_script;
+
+    # Under `use_auth` mode, always run lazysite-auth.pl first so that
+    # HTTP_X_REMOTE_USER / _GROUPS are set from the signed cookie before
+    # the target CGI (processor OR manager-api OR any other cgi-bin
+    # script) runs. The auth wrapper exec()s whatever LAZYSITE_PROCESSOR
+    # points at, so we thread the real target through that env var.
+    #
+    # Exception: requests *to* lazysite-auth.pl itself (login/logout
+    # endpoints) must go direct, or we'd exec ourselves recursively.
+    my $script = $target;
+    if ( $use_auth ) {
+        my $target_is_auth = defined $target_rel && $target_rel eq 'lazysite-auth.pl';
+        $script = $auth_script unless $target_is_auth;
     }
 
     # Build CGI environment
@@ -353,7 +366,7 @@ sub handle_request {
         SERVER_PORT      => $PORT,
         REMOTE_ADDR      => $client->peerhost || '127.0.0.1',
         LAZYSITE_NOCACHE    => $nocache,
-        LAZYSITE_PROCESSOR  => $PROCESSOR,
+        LAZYSITE_PROCESSOR  => $target,  # real CGI target (auth wrapper execs this)
         ( $ENV{LAZYSITE_LOG_LEVEL}  ? ( LAZYSITE_LOG_LEVEL  => $ENV{LAZYSITE_LOG_LEVEL}  ) : () ),
         ( $ENV{LAZYSITE_LOG_FORMAT} ? ( LAZYSITE_LOG_FORMAT => $ENV{LAZYSITE_LOG_FORMAT} ) : () ),
     );
