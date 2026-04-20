@@ -4,6 +4,7 @@
 use strict;
 use warnings;
 use Digest::SHA qw(sha256_hex hmac_sha256_hex);
+use Fcntl qw(:flock O_RDWR O_CREAT);
 use File::Path qw(make_path);
 use File::Basename qw(dirname);
 use POSIX qw(strftime);
@@ -43,6 +44,12 @@ my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
 my $COOKIE_NAME  = 'lazysite_auth';
 my $COOKIE_MAX   = 86400;    # 24 hours
 
+# H-3: login rate limiting (per-IP, sliding window)
+my $LOGIN_RATE_DB  = "$AUTH_DIR/.login-rate.db";
+my $LOGIN_MAX      = 5;      # attempts per window
+my $LOGIN_WINDOW   = 300;    # seconds (5 minutes)
+my $LOGIN_DELAY    = 2;      # seconds sleep on failure
+
 # --- Main ---
 
 my $method  = $ENV{REQUEST_METHOD} // 'GET';
@@ -74,9 +81,19 @@ sub handle_login {
     my $next     = sanitise_next( $form{next} // '/' );
 
     my $auth_redirect = read_conf_key('auth_redirect') || '/login';
+    my $ip = $ENV{REMOTE_ADDR} // '';
+
+    # H-3: per-IP rate limit before checking credentials (fail-closed on ok).
+    unless ( check_login_rate($ip) ) {
+        log_event('WARN', $username, 'login rate limit exceeded', ip => $ip);
+        sleep $LOGIN_DELAY;
+        redirect("$auth_redirect?error=rate");
+        return;
+    }
 
     unless ( length $username ) {
-        log_event('WARN', $username, 'login failed', ip => $ENV{REMOTE_ADDR} // '');
+        log_event('WARN', $username, 'login failed', ip => $ip);
+        sleep $LOGIN_DELAY;
         redirect("$auth_redirect?error=1");
         return;
     }
@@ -85,7 +102,8 @@ sub handle_login {
     my $expected = $users->{$username};
 
     unless ( defined $expected ) {
-        log_event('WARN', $username, 'login failed', ip => $ENV{REMOTE_ADDR} // '');
+        log_event('WARN', $username, 'login failed', ip => $ip);
+        sleep $LOGIN_DELAY;
         redirect("$auth_redirect?error=1");
         return;
     }
@@ -101,10 +119,20 @@ sub handle_login {
         log_event('INFO', $username, 'no-password login (localhost)', ip => $addr);
     }
     else {
-        unless ( length $password && $expected eq sha256_hex($password) ) {
-            log_event('WARN', $username, 'login failed', ip => $ENV{REMOTE_ADDR} // '');
+        # H-2: verify_password handles both legacy (unsalted) and new
+        # (sha256iter) formats. Legacy hashes are auto-rehashed on
+        # successful login.
+        unless ( length $password && verify_password($password, $expected) ) {
+            log_event('WARN', $username, 'login failed', ip => $ip);
+            sleep $LOGIN_DELAY;
             redirect("$auth_redirect?error=1");
             return;
+        }
+        if ( $expected =~ /\A[0-9a-f]{64}\z/ ) {
+            my $new_hash = hash_password($password);
+            if ( update_user_hash($username, $new_hash) ) {
+                log_event('INFO', $username, 'password rehashed to salted format');
+            }
         }
     }
 
@@ -126,6 +154,7 @@ sub handle_login {
     print "Status: 302 Found\r\n";
     print "Set-Cookie: $COOKIE_NAME=$cookie; HttpOnly; SameSite=Lax; Path=/; Max-Age=$COOKIE_MAX$secure\r\n";
     print "Location: $next\r\n\r\n";
+    return;
 }
 
 sub handle_logout {
@@ -156,7 +185,8 @@ sub handle_request {
             my $secret = load_auth_secret();
             my $expected = hmac_sha256_hex( $payload, $secret );
 
-            if ( $sig ne $expected ) {
+            # M-5: constant-time signature comparison
+            unless ( const_eq($sig, $expected) ) {
                 log_event('WARN', $uri, 'auth: signature mismatch');
             }
             else {
@@ -167,8 +197,12 @@ sub handle_request {
                     log_event('WARN', $uri, 'auth: cookie expired or malformed ts', ts => $ts // 'undef');
                 }
                 else {
-                    $ENV{HTTP_X_REMOTE_USER}   = $user;
-                    $ENV{HTTP_X_REMOTE_GROUPS} = $groups;
+                    # C-1: these headers come from our HMAC-verified cookie,
+                    # not from the client. Set LAZYSITE_AUTH_TRUSTED=1 so
+                    # the processor accepts them.
+                    $ENV{HTTP_X_REMOTE_USER}    = $user;
+                    $ENV{HTTP_X_REMOTE_GROUPS}  = $groups;
+                    $ENV{LAZYSITE_AUTH_TRUSTED} = '1';
 
                     # Flag passwordless accounts so the admin bar can warn.
                     # Checked per-request so setting a password clears it immediately.
@@ -240,21 +274,123 @@ sub load_auth_secret {
         return $s if $s;
     }
 
-    my $s;
-    if ( open( my $rand, '<', '/dev/urandom' ) ) {
-        read( $rand, my $bytes, 32 );
-        close $rand;
-        $s = unpack( 'H*', $bytes );
-    }
-    else {
-        $s = hmac_sha256_hex( time() . $$ . rand(), 'lazysite-auth' );
-    }
+    # M-6: fail closed if CSPRNG unavailable rather than falling back to rand()
+    my $s = generate_random_hex(32);
 
     open( my $fh, '>', $path ) or die "Cannot write auth secret\n";
-    chmod 0600, $path;
+    chmod 0o600, $path;
     print $fh "$s\n";
     close $fh;
     return $s;
+}
+
+# M-6: CSPRNG helper — fail closed, never fall back to rand().
+sub generate_random_hex {
+    my ($bytes) = @_;
+    open my $fh, '<:raw', '/dev/urandom'
+        or die "Cannot open /dev/urandom - no CSPRNG available: $!\n";
+    my $raw = '';
+    my $got = read( $fh, $raw, $bytes );
+    close $fh;
+    die "Short read from /dev/urandom ($got of $bytes bytes)\n"
+        unless defined $got && $got == $bytes;
+    return unpack( 'H*', $raw );
+}
+
+# M-5: constant-time byte comparison (length-preserving).
+sub const_eq {
+    my ( $a, $b ) = @_;
+    return 0 unless defined $a && defined $b;
+    return 0 if length($a) != length($b);
+    my $r = 0;
+    $r |= ord( substr( $a, $_, 1 ) ) ^ ord( substr( $b, $_, 1 ) )
+        for 0 .. length($a) - 1;
+    return $r == 0;
+}
+
+# H-2: salted iterated SHA-256 password hashing. Format:
+#   sha256iter:SALT(32 hex):ITERATIONS:HASH(64 hex)
+# Legacy format (64-hex-char unsalted SHA-256) still accepted; login
+# handler rehashes legacy hashes on success.
+sub hash_password {
+    my ($password) = @_;
+    my $salt  = generate_random_hex(16);   # 32 hex chars = 16 bytes
+    my $iters = 100_000;
+    my $hash  = $password;
+    $hash = sha256_hex( $salt . $hash ) for 1 .. $iters;
+    return "sha256iter:$salt:$iters:$hash";
+}
+
+sub verify_password {
+    my ( $password, $stored ) = @_;
+    return 0 unless defined $password && defined $stored && length $stored;
+    if ( $stored =~ /\Asha256iter:([0-9a-f]{32}):(\d+):([0-9a-f]{64})\z/ ) {
+        my ( $salt, $iters, $expected ) = ( $1, $2, $3 );
+        return 0 if $iters < 1 || $iters > 1_000_000;  # sanity cap
+        my $hash = $password;
+        $hash = sha256_hex( $salt . $hash ) for 1 .. $iters;
+        return const_eq( $hash, $expected );
+    }
+    elsif ( $stored =~ /\A[0-9a-f]{64}\z/ ) {
+        # Legacy unsalted SHA-256 — accept, caller rehashes on success.
+        return const_eq( sha256_hex($password), $stored );
+    }
+    return 0;
+}
+
+# Rewrite one user's hash in the users file, preserving other lines.
+sub update_user_hash {
+    my ( $user, $new_hash ) = @_;
+    my $path = "$AUTH_DIR/users";
+    return 0 unless -f $path;
+    open my $fh, '<:utf8', $path or return 0;
+    flock( $fh, LOCK_EX );
+    my @lines = <$fh>;
+    for my $line (@lines) {
+        next unless $line =~ /^\Q$user\E:/;
+        $line = "$user:$new_hash\n";
+    }
+    seek $fh, 0, 0;
+    # Reopen for write: the read-lock pattern here is a read handle; use a
+    # separate write to avoid races with readers using the same handle.
+    flock( $fh, LOCK_UN );
+    close $fh;
+
+    open my $wfh, '>:utf8', $path or return 0;
+    flock( $wfh, LOCK_EX );
+    print $wfh @lines;
+    flock( $wfh, LOCK_UN );
+    close $wfh;
+    chmod 0o640, $path;
+    return 1;
+}
+
+# H-3: per-IP login rate limit. Fails open if DB_File tie fails so a
+# broken rate-limit store cannot lock out all logins.
+sub check_login_rate {
+    my ($ip) = @_;
+    return 1 unless $ip;
+    make_path($AUTH_DIR) unless -d $AUTH_DIR;
+
+    my %db;
+    my $tied = eval {
+        require DB_File;
+        tie %db, 'DB_File', $LOGIN_RATE_DB, O_CREAT | O_RDWR, 0o600;
+    };
+    return 1 if $@ || !$tied;    # fail open
+
+    my $window = int( time() / $LOGIN_WINDOW );
+    my $key    = "$ip:$window";
+    my $count  = ( $db{$key} // 0 ) + 1;
+    $db{$key} = $count;
+
+    # Opportunistic cleanup of stale windows
+    for my $k ( keys %db ) {
+        delete $db{$k} if $k =~ /:(\d+)\z/ && $1 < $window - 1;
+    }
+    untie %db;
+
+    return $count <= $LOGIN_MAX;
 }
 
 sub read_conf_key {
@@ -315,7 +451,11 @@ sub read_cookie {
 
 sub sanitise_next {
     my ($next) = @_;
-    $next //= '/';
+    return '/' unless defined $next && length $next;
+    # H-1: reject protocol-relative URLs (//host) and backslash forms
+    # before the permissive character-class check below — otherwise
+    # //evil.com matches \A/[\w/.-]*\z.
+    return '/' if $next =~ m{\A(?://|\\)};
     return '/' unless $next =~ m{\A/[\w/.-]*\z};
     return $next;
 }

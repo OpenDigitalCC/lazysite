@@ -11,9 +11,10 @@ This site is built with [lazysite](https://lazysite.io).
 
 [Open the lazysite Manager](/manager) to manage content, themes, plugins, and users via the web interface.
 
-Sign in as `manager` — no password required when accessing from localhost.
+Sign in as `manager` Ã¢ÂÂ no password required when accessing from localhost.
 
-## Try it
+
+##  it
 
 - [Feature demonstrator](/lazysite-demo) - see features working locally
 

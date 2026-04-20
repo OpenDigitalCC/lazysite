@@ -123,18 +123,18 @@ sub load_secret {
         return $s if $s;
     }
 
-    my $s;
-    if ( open( my $rand, '<', '/dev/urandom' ) ) {
-        read( $rand, my $bytes, 32 );
-        close $rand;
-        $s = unpack( 'H*', $bytes );
-    }
-    else {
-        $s = hmac_sha256_hex( time() . $$ . rand(), 'lazysite-payment-demo' );
-    }
+    # M-6: fail closed if CSPRNG unavailable rather than falling back to rand().
+    open( my $rand, '<:raw', '/dev/urandom' )
+        or die "Cannot open /dev/urandom - no CSPRNG available: $!\n";
+    my $raw = '';
+    my $got = read( $rand, $raw, 32 );
+    close $rand;
+    die "Short read from /dev/urandom ($got of 32 bytes)\n"
+        unless defined $got && $got == 32;
+    my $s = unpack( 'H*', $raw );
 
     open( my $fh, '>', $path ) or return $s;
-    chmod 0600, $path;
+    chmod 0o600, $path;
     print $fh "$s\n";
     close $fh;
     return $s;

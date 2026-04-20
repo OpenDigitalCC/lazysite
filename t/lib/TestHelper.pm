@@ -165,7 +165,10 @@ sub setup_auth_site {
     close $lf;
 
     open my $cf, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
-    print $cf "auth_redirect: /login\n";
+    # C-1 / D017: tests simulate an upstream auth proxy that sets
+    # HTTP_X_REMOTE_* env vars. With auth_proxy_trusted: true the
+    # processor trusts those without the LAZYSITE_AUTH_TRUSTED sentinel.
+    print $cf "auth_redirect: /login\nauth_proxy_trusted: true\n";
     close $cf;
 }
 

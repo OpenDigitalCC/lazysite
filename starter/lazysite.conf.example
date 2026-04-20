@@ -7,6 +7,15 @@ site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
 manager: enabled
 manager_path: /manager
 
+# External authentication proxy trust (default: false)
+# Set to true only when using an upstream proxy that validates
+# credentials and sets X-Remote-User after authentication
+# (e.g. mod_auth_mellon, Authelia, oauth2-proxy, nginx auth_request).
+# When false (default), X-Remote-User from clients is ignored.
+# lazysite-auth.pl sets LAZYSITE_AUTH_TRUSTED=1 internally after
+# cookie validation, so it does not need this flag.
+# auth_proxy_trusted: false
+
 # Plugins are auto-discovered from cgi-bin/ and tools/.
 # Scripts with --describe support appear in the manager.
 # Use the manager Plugins page to enable or disable them.

@@ -250,20 +250,24 @@ echo "Setting permissions..."
 chmod +x "$CGIBIN/"lazysite-*.pl
 chmod g+ws "$DOCROOT"
 
-# --- Check optional dependencies ---
+# --- Check optional / feature-required dependencies ---
 
-OPT_MISSING=""
-if ! perl -e 'require Template::Plugin::JSON::Escape' 2>/dev/null; then
-    OPT_MISSING="libtemplate-plugin-json-escape-perl"
-fi
+MISSING=""
+perl -MArchive::Zip -e 1 2>/dev/null || MISSING="$MISSING Archive::Zip(libarchive-zip-perl)"
+perl -e 'require Template::Plugin::JSON::Escape' 2>/dev/null \
+    || MISSING="$MISSING Template::Plugin::JSON::Escape(libtemplate-plugin-json-escape-perl)"
 
 echo ""
 echo "lazysite installed successfully."
 
-if [ -n "$OPT_MISSING" ]; then
+if [ -n "$MISSING" ]; then
     echo ""
-    echo "Optional dependencies (required for search):"
-    echo "  sudo apt-get install $OPT_MISSING"
+    echo "Missing Perl modules (install these to enable the corresponding features):"
+    echo "  Archive::Zip              — theme upload (manager UI)"
+    echo "  Template::Plugin::JSON::Escape — search index (search-index.md)"
+    echo ""
+    echo "On Debian/Ubuntu:"
+    echo "  sudo apt-get install libarchive-zip-perl libtemplate-plugin-json-escape-perl"
 fi
 
 echo ""

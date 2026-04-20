@@ -6,6 +6,28 @@ use Digest::SHA qw(sha256_hex);
 use Fcntl qw(:flock);
 use File::Path qw(make_path);
 
+# H-2 / M-6: salted iterated SHA-256 hashing, CSPRNG fail-closed.
+sub generate_random_hex {
+    my ($bytes) = @_;
+    open my $fh, '<:raw', '/dev/urandom'
+        or die "Cannot open /dev/urandom - no CSPRNG available: $!\n";
+    my $raw = '';
+    my $got = read( $fh, $raw, $bytes );
+    close $fh;
+    die "Short read from /dev/urandom ($got of $bytes bytes)\n"
+        unless defined $got && $got == $bytes;
+    return unpack( 'H*', $raw );
+}
+
+sub hash_password {
+    my ($password) = @_;
+    my $salt  = generate_random_hex(16);   # 32 hex chars = 16 bytes
+    my $iters = 100_000;
+    my $hash  = $password;
+    $hash = sha256_hex( $salt . $hash ) for 1 .. $iters;
+    return "sha256iter:$salt:$iters:$hash";
+}
+
 my $LOG_COMPONENT = 'users';
 
 my $DOCROOT;
@@ -118,7 +140,7 @@ sub cmd_add {
     my %users = read_users();
     die "User '$user' already exists\n" if $users{$user};
 
-    $users{$user} = sha256_hex($pass);
+    $users{$user} = hash_password($pass);
     write_users(%users);
     log_event('INFO', $user, 'user added');
     print "User '$user' added.\n" unless $API_MODE;
@@ -131,7 +153,7 @@ sub cmd_passwd {
     my %users = read_users();
     die "User '$user' not found\n" unless $users{$user};
 
-    $users{$user} = sha256_hex($pass);
+    $users{$user} = hash_password($pass);
     write_users(%users);
     log_event('INFO', $user, 'password changed');
     print "Password updated for '$user'.\n" unless $API_MODE;

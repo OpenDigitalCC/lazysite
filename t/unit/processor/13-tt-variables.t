@@ -68,6 +68,9 @@ is( $v{blog_pages}[0]{title}, 'Post', 'scan: page title populated' );
     open my $fh, '>', "$docroot/lazysite/lazysite.conf" or die $!;
     print $fh "site_name: Test Site\nsite_url: \${REQUEST_SCHEME}://\${SERVER_NAME}\n";
     close $fh;
+    # P-2: resolve_site_vars() memoizes for the request; this test
+    # changed the conf file after the first call, so reset the cache.
+    main::reset_request_state();
     local $ENV{REQUEST_SCHEME} = 'https';
     local $ENV{SERVER_NAME}    = 'example.com';
     my %v2 = main::resolve_site_vars();

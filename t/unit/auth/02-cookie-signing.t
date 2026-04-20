@@ -10,11 +10,15 @@ use TestHelper qw(repo_root);
 
 # We can't `do` lazysite-auth.pl in-process — it calls handle_request at
 # load time and exec()s the processor. Test sanitise_next by copying its
-# definition (it's a small pure function) to pin the contract.
+# definition (it's a small pure function) to pin the contract. This copy
+# MUST mirror the real sanitise_next exactly.
 
 *sanitise_next = sub {
     my ($next) = @_;
-    $next //= '/';
+    return '/' unless defined $next && length $next;
+    # H-1: reject protocol-relative and backslash forms before the main
+    # character-class check. Otherwise //evil.com matches \A/[\w/.-]*\z.
+    return '/' if $next =~ m{\A(?://|\\)};
     return '/' unless $next =~ m{\A/[\w/.-]*\z};
     return $next;
 };
@@ -27,16 +31,9 @@ is( sanitise_next('/a-b_c.d'),       '/a-b_c.d',       'safe chars allowed' );
 # --- rejected patterns → / ---
 is( sanitise_next('https://evil.com'), '/', 'absolute URL rejected' );
 
-TODO: {
-    # FINDING (open redirect risk): sanitise_next's regex
-    #   \A/[\w/.-]*\z
-    # accepts '//evil.com' because the extra '/' and the letters of
-    # 'evil.com' all fit [\w/.-]. A browser redirected to '//evil.com'
-    # interprets it as a protocol-relative URL to the attacker's host.
-    # Flagged for D009 — do not fix in this session.
-    local $TODO = 'BUG: sanitise_next accepts protocol-relative //host';
-    is( sanitise_next('//evil.com'), '/', 'protocol-relative rejected' );
-}
+is( sanitise_next('//evil.com'),   '/', 'protocol-relative //host rejected' );
+is( sanitise_next('///evil.com'),  '/', 'triple-slash rejected' );
+is( sanitise_next('\\evil.com'),   '/', 'backslash rejected' );
 
 is( sanitise_next('../../../etc'),     '/', 'path traversal rejected' );
 is( sanitise_next(''),                 '/', 'empty string → /' );

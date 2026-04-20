@@ -28,9 +28,9 @@ sub run_cli {
 
     open my $fh, '<', "$docroot/lazysite/auth/users" or die $!;
     my $content = do { local $/; <$fh> }; close $fh;
-    my $expected = sha256_hex('password123');
-    like( $content, qr/^alice:\Q$expected\E/m,
-          'users file has correct hash for alice' );
+    # H-2: new format is sha256iter:SALT:ITERATIONS:HASH
+    like( $content, qr{^alice:sha256iter:[0-9a-f]{32}:100000:[0-9a-f]{64}\s*$}m,
+          'users file has a salted iterated hash for alice' );
 }
 
 # --- list users ---
@@ -45,8 +45,16 @@ sub run_cli {
     like( $out, qr/updated/i, 'passwd confirms' );
     open my $fh, '<', "$docroot/lazysite/auth/users" or die $!;
     my $content = do { local $/; <$fh> }; close $fh;
-    my $expected = sha256_hex('newpass');
-    like( $content, qr/\Q$expected\E/, 'new hash written' );
+    # Capture the stored hash for alice and compare to a fresh sha256iter
+    # derivation with the same salt — this proves the new password took
+    # effect (salts differ per invocation so we cannot compare hashes
+    # directly without reading the stored salt).
+    my ($salt, $iters, $hash) =
+        ( $content =~ m{^alice:sha256iter:([0-9a-f]{32}):(\d+):([0-9a-f]{64})}m );
+    ok( $salt && $iters && $hash, 'new hash has sha256iter format' );
+    my $derived = 'newpass';
+    $derived = sha256_hex($salt . $derived) for 1 .. $iters;
+    is( $hash, $derived, 'stored hash matches sha256iter(newpass) with stored salt' );
 }
 
 # --- group-add ---

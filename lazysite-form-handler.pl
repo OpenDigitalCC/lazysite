@@ -298,7 +298,7 @@ sub find_script {
     ) {
         return $path if -f $path;
     }
-    return undef;
+    return;
 }
 
 # --- POST parsing ---
@@ -362,7 +362,7 @@ sub check_rate_limit {
     _ensure_dir_for("$FORMS_DIR/.rate-limit.db");
     my %db;
     tie( %db, 'DB_File', "$FORMS_DIR/.rate-limit.db",
-        O_RDWR | O_CREAT, 0600, $DB_HASH ) or return;
+        O_RDWR | O_CREAT, 0o600, $DB_HASH ) or return;
     my $hour = int( time() / 3600 );
     my $key  = "$ip:$hour";
     my $count = $db{$key} || 0;
@@ -427,6 +427,7 @@ sub log_event {
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
     my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
     return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
+    use POSIX qw(strftime);
     my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
     if ( $format eq 'json' ) {

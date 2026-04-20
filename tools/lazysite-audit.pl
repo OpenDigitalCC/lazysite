@@ -53,7 +53,7 @@ while ( @ARGV ) {
     }
     elsif ( $arg eq '--exclude-file' ) {
         my $file = shift @ARGV or die "Missing value for --exclude-file\n";
-        open( my $fh, '<', $file ) or die "Cannot read $file: $!\n";
+        open( my $fh, '<:utf8', $file ) or die "Cannot read $file: $!\n";  # L-6
         while (<$fh>) {
             chomp;
             s/^\s+|\s+$//g;

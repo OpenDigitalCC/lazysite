@@ -20,9 +20,14 @@ my @required = (
 my @missing;
 for my $pair ( @required ) {
     my ( $mod, $pkg ) = @$pair;
-    eval "require $mod";
+    # L-11: block-form eval with explicit path munging (no stringy eval)
+    eval {
+        ( my $file = $mod ) =~ s{::}{/}g;
+        require "$file.pm";  ## no critic (Modules::RequireBarewordIncludes)
+    };
     push @missing, [ $mod, $pkg ] if $@;
 }
+
 
 if ( @missing ) {
     print "lazysite-server: missing required Perl modules:\n\n";
@@ -363,7 +368,18 @@ sub handle_request {
     my $output;
     if ( length $post_body ) {
         my $post_file = "/tmp/lazysite-post-$$.dat";
-        open( my $pf, '>:raw', $post_file );
+        # L-7: previously this open() was unchecked — silent data loss if
+        # /tmp was full. Now 500s back to the client on failure.
+        my $pf;
+        unless ( open( $pf, '>:raw', $post_file ) ) {
+            my $err = $!;
+            log_event('ERROR', $uri, 'cannot write POST tempfile',
+                path => $post_file, error => $err);
+            print $client "HTTP/1.0 500 Internal Server Error\r\n";
+            print $client "Content-Type: text/plain\r\n\r\n";
+            print $client "500 Internal Server Error\n";
+            return;
+        }
         print $pf $post_body;
         close $pf;
         $output = qx(cat \Q$post_file\E | perl \Q$script\E 2>$ERR_FILE);

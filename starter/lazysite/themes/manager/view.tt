@@ -61,5 +61,48 @@
   [% content %]
 </main>
 
+<script>
+// M-1: manager CSRF token. Fetched once per page load and auto-injected
+// into the JSON body of any POST sent via fetch() against the manager
+// API. Existing per-page fetch() calls pick it up transparently via the
+// window.fetch wrapper below.
+(function(){
+  var MGR_API = '/cgi-bin/lazysite-manager-api.pl';
+  var tokenPromise = fetch(MGR_API + '?action=csrf-token', { credentials: 'same-origin' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ window.LAZYSITE_CSRF = (d && d.token) || ''; return window.LAZYSITE_CSRF; })
+    .catch(function(){ window.LAZYSITE_CSRF = ''; return ''; });
+  window.lazysiteCsrfReady = function(){ return tokenPromise; };
+
+  var origFetch = window.fetch.bind(window);
+  window.fetch = function(resource, init){
+    init = init || {};
+    var method = (init.method || 'GET').toUpperCase();
+    var url    = typeof resource === 'string' ? resource : (resource && resource.url) || '';
+    // Only augment POSTs to the manager API
+    if ( method === 'POST' && url.indexOf(MGR_API) === 0 ) {
+      var addToken = function(){
+        if ( !window.LAZYSITE_CSRF ) return init;
+        var body = init.body;
+        if ( typeof body === 'string' ) {
+          try {
+            var parsed = JSON.parse(body);
+            if ( parsed && typeof parsed === 'object' && !parsed.csrf_token ) {
+              parsed.csrf_token = window.LAZYSITE_CSRF;
+              init.body = JSON.stringify(parsed);
+            }
+          } catch(e) { /* non-JSON body (e.g. theme upload) — append as query param */
+            var sep = url.indexOf('?') >= 0 ? '&' : '?';
+            resource = url + sep + 'csrf_token=' + encodeURIComponent(window.LAZYSITE_CSRF);
+          }
+        }
+        return init;
+      };
+      return tokenPromise.then(function(){ return origFetch(resource, addToken()); });
+    }
+    return origFetch(resource, init);
+  };
+})();
+</script>
 </body>
 </html>

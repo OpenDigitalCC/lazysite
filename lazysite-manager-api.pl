@@ -2,6 +2,7 @@
 # lazysite-manager-api.pl - file operations CGI for lazysite manager
 use strict;
 use warnings;
+use Digest::SHA qw(hmac_sha256_hex);
 use JSON::PP qw(encode_json decode_json);
 use File::Find;
 use File::Path qw(make_path);
@@ -62,6 +63,39 @@ my $body = '';
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my $len = $ENV{CONTENT_LENGTH} // 0;
     read( STDIN, $body, $len ) if $len > 0;
+}
+
+# --- M-1: CSRF gate on write actions --------------------------------
+# Reads are allowlisted (no token required). Writes must carry a valid
+# csrf_token either in the decoded JSON body or the query string.
+my %READ_ONLY = map { $_ => 1 } qw(
+    csrf-token
+    list read preview
+    cache-list
+    theme-list
+    plugin-list plugin-read
+    nav-read
+    handler-list
+    form-targets-read
+);
+
+unless ( $READ_ONLY{$action} ) {
+    my $parsed = $body ? ( eval { decode_json($body) } // {} ) : {};
+    my $token = '';
+    if ( ref $parsed eq 'HASH' ) {
+        $token = $parsed->{csrf_token} // '';
+    }
+    $token ||= $params{csrf_token} // '';
+    unless ( verify_csrf_token( $token, $auth_user ) ) {
+        respond({ ok => 0, error => 'Invalid or missing CSRF token' });
+        exit 0;
+    }
+}
+
+# Per-action csrf-token read
+if ( $action eq 'csrf-token' ) {
+    respond({ ok => 1, token => generate_csrf_token($auth_user) });
+    exit 0;
 }
 
 # --- Dispatch ---
@@ -134,6 +168,68 @@ elsif ( $action eq 'form-targets-save' ) {
 else  { $result = { ok => 0, error => "Unknown action: $action" } }
 
 respond($result);
+
+# --- M-1: CSRF helpers ---
+
+# Shared secret for CSRF token HMAC. Reuses the auth secret if present,
+# otherwise creates a dedicated manager secret under lazysite/auth/.
+sub _csrf_secret {
+    my $path = "$LAZYSITE_DIR/auth/.secret";
+    if ( -f $path && open my $fh, '<', $path ) {
+        chomp( my $s = <$fh> );
+        close $fh;
+        return $s if length $s;
+    }
+    # Dedicated manager secret (only used if auth secret missing)
+    my $mpath = "$LAZYSITE_DIR/manager/.csrf-secret";
+    if ( -f $mpath && open my $mfh, '<', $mpath ) {
+        chomp( my $s = <$mfh> );
+        close $mfh;
+        return $s if length $s;
+    }
+    # Mint one — fail closed if CSPRNG unavailable (M-6).
+    make_path( dirname($mpath) ) unless -d dirname($mpath);
+    open my $rand, '<:raw', '/dev/urandom'
+        or die "Cannot open /dev/urandom - no CSPRNG available: $!\n";
+    my $raw = '';
+    my $got = read( $rand, $raw, 32 );
+    close $rand;
+    die "Short read from /dev/urandom\n" unless $got == 32;
+    my $s = unpack( 'H*', $raw );
+    open my $wfh, '>', $mpath or die "Cannot write $mpath: $!\n";
+    chmod 0o600, $mpath;
+    print $wfh "$s\n";
+    close $wfh;
+    return $s;
+}
+
+sub generate_csrf_token {
+    my ($user) = @_;
+    my $ts = int( time() / 3600 );    # rotates hourly
+    return hmac_sha256_hex( "csrf:$user:$ts", _csrf_secret() );
+}
+
+sub verify_csrf_token {
+    my ( $token, $user ) = @_;
+    return 0 unless defined $token && length $token;
+    return 0 unless defined $user  && length $user;
+    my $secret = _csrf_secret();
+    for my $ts ( int( time() / 3600 ), int( time() / 3600 ) - 1 ) {
+        my $expected = hmac_sha256_hex( "csrf:$user:$ts", $secret );
+        return 1 if _const_eq( $token, $expected );
+    }
+    return 0;
+}
+
+sub _const_eq {
+    my ( $a, $b ) = @_;
+    return 0 unless defined $a && defined $b;
+    return 0 if length($a) != length($b);
+    my $r = 0;
+    $r |= ord( substr( $a, $_, 1 ) ) ^ ord( substr( $b, $_, 1 ) )
+        for 0 .. length($a) - 1;
+    return $r == 0;
+}
 
 # --- Response ---
 
@@ -536,9 +632,21 @@ sub action_theme_delete {
     return { ok => 0, error => "Invalid theme path" }
         unless $real && index( $real, "$DOCROOT/lazysite/themes" ) == 0;
 
-    system( "rm", "-rf", $theme_dir );
+    # M-3: inspect rm return code so partial failures surface to the caller.
+    my $rc = system( "rm", "-rf", $theme_dir );
+    if ( $rc != 0 ) {
+        log_event('ERROR', 'theme-delete', 'rm failed',
+            path => $theme_dir, rc => ( $rc >> 8 ));
+        return { ok => 0, error => "Delete failed" };
+    }
     my $assets_dir = "$DOCROOT/lazysite-assets/$theme_name";
-    system( "rm", "-rf", $assets_dir ) if -d $assets_dir;
+    if ( -d $assets_dir ) {
+        $rc = system( "rm", "-rf", $assets_dir );
+        if ( $rc != 0 ) {
+            log_event('WARN', 'theme-delete', 'rm assets failed',
+                path => $assets_dir, rc => ( $rc >> 8 ));
+        }
+    }
 
     return { ok => 1, deleted => $theme_name };
 }
@@ -567,17 +675,59 @@ sub action_theme_rename {
 sub action_theme_upload {
     my ( $zip_data, $filename ) = @_;
 
+    # M-4: use Archive::Zip for safe extraction with per-entry path
+    # validation, replacing system("unzip") which had to be trusted not
+    # to zip-slip. Archive::Zip is an optional dep — install.sh warns if
+    # missing, and this action returns a clear error instead of crashing.
+    my $have_azip = eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)); 1 };
+    unless ($have_azip) {
+        return { ok => 0,
+            error => "Archive::Zip not installed (apt-get install libarchive-zip-perl)" };
+    }
+
     my $tmp_dir = "/tmp/lazysite-theme-$$";
     make_path($tmp_dir);
 
     my $zip_path = "$tmp_dir/upload.zip";
-    open my $fh, '>:raw', $zip_path or return { ok => 0, error => "Cannot write upload" };
+    open my $fh, '>:raw', $zip_path
+        or do { _cleanup_tmp($tmp_dir); return { ok => 0, error => "Cannot write upload" } };
     print $fh $zip_data;
     close $fh;
 
     my $extract_dir = "$tmp_dir/extracted";
     make_path($extract_dir);
-    system( "unzip", "-q", "-o", $zip_path, "-d", $extract_dir );
+
+    my $extract_real = realpath($extract_dir);
+    unless ( defined $extract_real ) {
+        _cleanup_tmp($tmp_dir);
+        return { ok => 0, error => "Cannot resolve extract dir" };
+    }
+
+    my $zip = Archive::Zip->new();
+    unless ( $zip->read($zip_path) == Archive::Zip::AZ_OK() ) {
+        _cleanup_tmp($tmp_dir);
+        return { ok => 0, error => "Cannot read uploaded zip" };
+    }
+
+    # Validate every entry before extracting any.
+    for my $member ( $zip->members ) {
+        my $name = $member->fileName;
+        if ( $name =~ m{\A/} ) {
+            _cleanup_tmp($tmp_dir);
+            return { ok => 0, error => "Zip entry has absolute path: $name" };
+        }
+        if ( $name =~ m{(?:^|/)\.\.(?:/|$)} ) {
+            _cleanup_tmp($tmp_dir);
+            return { ok => 0, error => "Zip slip detected in: $name" };
+        }
+    }
+
+    # Extract with tree layout under $extract_dir. extractTree returns
+    # AZ_OK on full success.
+    unless ( $zip->extractTree( '', "$extract_dir/" ) == Archive::Zip::AZ_OK() ) {
+        _cleanup_tmp($tmp_dir);
+        return { ok => 0, error => "Extraction failed" };
+    }
 
     unless ( -f "$extract_dir/view.tt" ) {
         _cleanup_tmp($tmp_dir);
@@ -604,13 +754,6 @@ sub action_theme_upload {
         return { ok => 0, error => "Invalid theme name in theme.json" };
     }
 
-    # Path traversal check
-    my $entries = `unzip -l \Q$zip_path\E 2>/dev/null`;
-    if ( $entries =~ m{\.\./} ) {
-        _cleanup_tmp($tmp_dir);
-        return { ok => 0, error => "Invalid zip - path traversal detected" };
-    }
-
     my $install_name = $theme_name;
     my $themes_dir   = "$DOCROOT/lazysite/themes";
     if ( -d "$themes_dir/$theme_name" ) {
@@ -621,12 +764,22 @@ sub action_theme_upload {
 
     my $dest = "$themes_dir/$install_name";
     make_path($dest);
-    system( "cp", "-r", "$extract_dir/.", $dest );
+    my $rc = system( "cp", "-r", "$extract_dir/.", $dest );
+    if ( $rc != 0 ) {
+        log_event('ERROR', 'theme-upload', 'cp failed',
+            path => $dest, rc => ( $rc >> 8 ));
+        _cleanup_tmp($tmp_dir);
+        return { ok => 0, error => "Install failed (cp theme files)" };
+    }
 
     if ( -d "$extract_dir/assets" ) {
         my $assets_dest = "$DOCROOT/lazysite-assets/$install_name";
         make_path($assets_dest);
-        system( "cp", "-r", "$extract_dir/assets/.", $assets_dest );
+        $rc = system( "cp", "-r", "$extract_dir/assets/.", $assets_dest );
+        if ( $rc != 0 ) {
+            log_event('WARN', 'theme-upload', 'cp assets failed',
+                path => $assets_dest, rc => ( $rc >> 8 ));
+        }
     }
 
     _cleanup_tmp($tmp_dir);
@@ -676,7 +829,7 @@ sub action_users {
 
 sub resolve_plugin_script {
     my ($script) = @_;
-    return undef unless $script;
+    return unless $script;
     # Check relative to docroot parent (installed layout)
     my $full = "$DOCROOT/../$script";
     return $full if -f $full;
@@ -687,7 +840,7 @@ sub resolve_plugin_script {
     my $base = basename($script);
     $full = "$DOCROOT/../$base";
     return $full if -f $full;
-    return undef;
+    return;
 }
 
 # --- Nav actions ---

@@ -5,8 +5,13 @@ use Text::MultiMarkdown;
 use Template;
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
-use LWP::UserAgent;
+# P-1: LWP::UserAgent is require()d lazily inside fetch_url / fetch_oembed
+# / fetch_remote_layout. These paths are rare relative to cache-hit
+# traffic, so deferring the ~20ms of LWP module load keeps the hot path
+# fast.
 use Cwd qw(realpath);
+use Socket qw(inet_aton inet_ntoa);
+use URI;
 use JSON::PP qw(decode_json encode_json);
 use Digest::SHA qw(hmac_sha256_hex);
 use POSIX qw(strftime);
@@ -80,6 +85,7 @@ my $REMOTE_TTL       = 3600;  # seconds before remote content is refetched (defa
 my $REGISTRY_TTL     = 14400; # seconds before registries are regenerated (default 4 hours)
 my $LAYOUT_CACHE_DIR = "$LAZYSITE_DIR/cache/layouts";
 my $CT_CACHE_DIR     = "$LAZYSITE_DIR/cache/ct";
+my $TT_COMPILE_DIR   = "$LAZYSITE_DIR/cache/tt";   # P-4 TT on-disk compile cache
 my %AUTH_CONTEXT;    # populated by main() auth check, read by render_content()
 
 # Built-in fallback template - used when no view.tt is found
@@ -285,14 +291,30 @@ sub check_auth {
     };
 }
 
-sub _is_manager {
-    my ($site_vars, $auth_user, $auth_groups) = @_;
-    return 0 unless $auth_user;
-    my $manager_groups = $site_vars->{manager_groups} // '';
-    $manager_groups =~ s/^\s+|\s+$//g;
-    return 1 unless length $manager_groups;
-    my %user_groups = map { lc($_) => 1 } split /\s*,\s*/, ( $auth_groups // '' );
-    return scalar grep { $user_groups{ lc($_) } } split /\s*,\s*/, $manager_groups;
+{
+    # L-3: warn once per process when manager_groups is empty — any
+    # authenticated user becomes a manager, which is usually not what
+    # the operator wants. Closure-scoped (processor's `use strict` does
+    # not enable the `state` feature).
+    my $_empty_mgroups_warned = 0;
+
+    sub _is_manager {
+        my ( $site_vars, $auth_user, $auth_groups ) = @_;
+        return 0 unless $auth_user;
+        my $manager_groups = $site_vars->{manager_groups} // '';
+        $manager_groups =~ s/^\s+|\s+$//g;
+        if ( !length $manager_groups ) {
+            unless ( $_empty_mgroups_warned++ ) {
+                log_event('WARN', '-',
+                    'manager_groups not set - any authenticated user has manager access',
+                    suggestion => 'set manager_groups in lazysite.conf');
+            }
+            return 1;
+        }
+        my %user_groups = map { lc($_) => 1 } split /\s*,\s*/, ( $auth_groups // '' );
+        return scalar grep { $user_groups{ lc($_) } }
+            split /\s*,\s*/, $manager_groups;
+    }
 }
 
 sub serve_403 {
@@ -457,6 +479,10 @@ sub serve_402 {
 main();
 
 sub main {
+    # M-2 / PC-2: localise %ENV for the request so $ENV writes below (log
+    # level, NOCACHE, etc.) cannot leak across requests under FastCGI / D016.
+    local %ENV = %ENV;
+
     my $uri = $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '';
 
     # Capture query string before stripping
@@ -494,13 +520,51 @@ sub main {
         return;
     }
 
-    # Set log level from conf (env var takes priority)
+    # Set log level from conf (env var takes priority). No local needed
+    # here — %ENV is already localised at the top of main().
     {
         my %sv = resolve_site_vars();
         $ENV{LAZYSITE_LOG_LEVEL}  = $sv{log_level}
             if $sv{log_level} && !$ENV{LAZYSITE_LOG_LEVEL};
         $ENV{LAZYSITE_LOG_FORMAT} = $sv{log_format}
             if $sv{log_format} && !$ENV{LAZYSITE_LOG_FORMAT};
+    }
+
+    # Trust gate for auth and payment proxy headers (C-1).
+    # HTTP_X_REMOTE_* and HTTP_X_PAYMENT_* are only trusted when one of:
+    #   - LAZYSITE_AUTH_TRUSTED=1 is set (by lazysite-auth.pl after cookie
+    #     validation; internal sentinel — clients cannot forge it because
+    #     CGI strips LAZYSITE_* client headers)
+    #   - auth_proxy_trusted: true is set in lazysite.conf (operator opt-in
+    #     for upstream auth proxies like Authelia, oauth2-proxy, nginx
+    #     auth_request, mod_auth_mellon).
+    # Otherwise, strip the headers so the rest of the pipeline sees no auth.
+    {
+        my %sv = resolve_site_vars();
+        my $proxy_trusted = lc( $sv{auth_proxy_trusted} // 'false' );
+        my $auth_trusted  = $ENV{LAZYSITE_AUTH_TRUSTED}  // '';
+        my $trusted = ( $auth_trusted eq '1' ) || ( $proxy_trusted eq 'true' );
+
+        unless ( $trusted ) {
+            if ( $ENV{HTTP_X_REMOTE_USER} ) {
+                log_event('WARN', $uri,
+                    'untrusted auth header ignored - set auth_proxy_trusted: true to enable proxy auth',
+                    header => 'X-Remote-User',
+                    value  => substr( $ENV{HTTP_X_REMOTE_USER}, 0, 32 ));
+            }
+            if ( $ENV{HTTP_X_PAYMENT_VERIFIED} ) {
+                log_event('WARN', $uri,
+                    'untrusted payment header ignored',
+                    header => 'X-Payment-Verified');
+            }
+            for my $hdr (qw(
+                HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS
+                HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL
+                HTTP_X_PAYMENT_VERIFIED HTTP_X_PAYMENT_PAYER
+            )) {
+                delete $ENV{$hdr};
+            }
+        }
     }
 
     # Manager path enforcement
@@ -544,6 +608,7 @@ sub main {
         my $auth_user   = $ENV{HTTP_X_REMOTE_USER}   // '';
         my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
         if ( _is_manager( \%sv, $auth_user, $auth_groups ) ) {
+            # %ENV is localised at main() entry — writes are per-request.
             $ENV{LAZYSITE_NOCACHE} = '1';
         }
     }
@@ -754,14 +819,14 @@ sub sanitise_uri {
     }
 
     # Reject null bytes
-    return undef if $uri =~ /\0/;
+    return if $uri =~ /\0/;
 
     # Reject path traversal sequences
-    return undef if $uri =~ m{(?:^|/)\.\.(?:/|$)};
+    return if $uri =~ m{(?:^|/)\.\.(?:/|$)};
 
     # Reject absolute paths or suspicious characters
-    return undef if $uri =~ m{^/};
-    return undef if $uri =~ m{[<>"'\\]};
+    return if $uri =~ m{^/};
+    return if $uri =~ m{[<>"'\\]};
 
     # Empty uri means docroot index
     $uri = 'index' unless length $uri;
@@ -897,22 +962,64 @@ sub fetch_url {
     my ($url) = @_;
 
     # Only allow http/https
-    return undef unless $url =~ m{\Ahttps?://};
+    return unless $url =~ m{\Ahttps?://};
 
+    # H-4: SSRF guard — reject private / loopback / link-local / multicast
+    # IP ranges before touching the wire.
+    unless ( is_safe_url($url) ) {
+        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'SSRF blocked',
+            url => substr( $url, 0, 100 ));
+        return;
+    }
+
+    # P-1: load LWP::UserAgent only on first use.
+    require LWP::UserAgent;
     my $ua = LWP::UserAgent->new(
-        timeout    => 10,
-        agent      => 'lazysite/1.0',
+        timeout => 10,
+        agent   => 'lazysite/1.0',
     );
 
     my $response = $ua->get($url);
 
-    return undef unless $response->is_success;
+    return unless $response->is_success;
     return $response->decoded_content;
+}
+
+# H-4: reject URLs that resolve to RFC1918 / loopback / link-local /
+# multicast / CGNAT / IPv6-loopback / IPv6-link-local addresses. IPv4-only
+# resolution via inet_aton is a deliberate choice — IPv6 private-range
+# detection is more involved and we'd rather fail closed than parse
+# partial v6 addresses incorrectly.
+sub is_safe_url {
+    my ($url) = @_;
+    my $uri  = URI->new($url);
+    my $host = $uri->host // '';
+    return 0 unless length $host;
+
+    # Syntactic IPv6 rejection for literals (e.g. http://[::1]/)
+    return 0 if $host =~ /\A\[?::1\]?\z/;
+    return 0 if $host =~ /\A\[?fe[89ab][0-9a-f]/i;   # link-local v6
+    return 0 if $host =~ /\A\[?f[cd][0-9a-f]{2}:/i;  # unique-local v6
+
+    my $packed = inet_aton($host);
+    return 0 unless $packed;
+    my $ip = inet_ntoa($packed);
+
+    return 0 if $ip eq '0.0.0.0';
+    return 0 if $ip =~ /\A127\./;                       # loopback
+    return 0 if $ip =~ /\A10\./;                        # RFC1918
+    return 0 if $ip =~ /\A172\.(?:1[6-9]|2\d|3[01])\./; # RFC1918
+    return 0 if $ip =~ /\A192\.168\./;                  # RFC1918
+    return 0 if $ip =~ /\A169\.254\./;                  # link-local / metadata
+    return 0 if $ip =~ /\A(?:22[4-9]|23\d)\./;          # multicast
+    return 0 if $ip =~ /\A100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./; # CGNAT
+
+    return 1;
 }
 
 sub peek_ttl {
     my ($md_path) = @_;
-    open( my $fh, '<:utf8', $md_path ) or return undef;
+    open( my $fh, '<:utf8', $md_path ) or return;
     my $ttl;
     while ( <$fh> ) {
         last if $. > 1 && /^---/;  # end of front matter
@@ -927,7 +1034,7 @@ sub peek_ttl {
 
 sub peek_content_type {
     my ($path) = @_;
-    open( my $fh, '<:utf8', $path ) or return undef;
+    open( my $fh, '<:utf8', $path ) or return;
     my ( $raw, $api, $content_type );
     while ( <$fh> ) {
         last if $. > 1 && /^---/;
@@ -937,7 +1044,7 @@ sub peek_content_type {
     }
     close $fh;
 
-    return undef unless $raw || $api;
+    return unless $raw || $api;
 
     if ( $content_type ) {
         $content_type =~ s/^\s+|\s+$//g;
@@ -951,9 +1058,9 @@ sub peek_content_type {
 
 sub peek_query_params {
     my ($md_path) = @_;
-    return undef unless -f $md_path;
+    return unless -f $md_path;
 
-    open( my $fh, '<:utf8', $md_path ) or return undef;
+    open( my $fh, '<:utf8', $md_path ) or return;
     my ( @params, $in_block );
     while ( <$fh> ) {
         last if $. > 1 && /^---/;  # end of front matter
@@ -978,12 +1085,6 @@ sub is_fresh_ttl_val_stat {
     my ( $html_stat, $ttl ) = @_;
     return 0 unless @$html_stat;
     return ( time() - $html_stat->[9] ) < $ttl;
-}
-
-sub is_fresh_ttl_val {
-    my ( $html_path, $ttl ) = @_;
-    return 0 unless -f $html_path;
-    return ( time() - ( stat($html_path) )[9] ) < $ttl;
 }
 
 sub is_fresh_ttl {
@@ -1103,21 +1204,21 @@ sub load_form_secret {
         return $s if $s;
     }
 
-    my $s;
-    if ( open( my $rand, '<', '/dev/urandom' ) ) {
-        read( $rand, my $bytes, 32 );
-        close($rand);
-        $s = unpack( 'H*', $bytes );
-    }
-    else {
-        $s = hmac_sha256_hex( time() . $$ . rand(), 'lazysite-form' );
-    }
+    # M-6: fail closed if CSPRNG unavailable.
+    open( my $rand, '<:raw', '/dev/urandom' )
+        or die "Cannot open /dev/urandom - no CSPRNG available: $!\n";
+    my $raw = '';
+    my $got = read( $rand, $raw, 32 );
+    close($rand);
+    die "Short read from /dev/urandom ($got of 32 bytes)\n"
+        unless defined $got && $got == 32;
+    my $s = unpack( 'H*', $raw );
 
     open( my $fh, '>', $secret_path ) or do {
         log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot write form secret', error => $!);
         return $s;
     };
-    chmod 0600, $secret_path;
+    chmod 0o600, $secret_path;
     print $fh "$s\n";
     close($fh);
     return $s;
@@ -1524,14 +1625,14 @@ sub fetch_oembed {
     my $endpoint = find_oembed_endpoint($url);
     unless ($endpoint) {
         log_event("WARN", $ENV{REDIRECT_URL} // "-", "oembed no endpoint", url => $url);
-        return undef;
+        return;
     }
 
     my $oembed_url = $endpoint . '?url=' . uri_encode($url) . '&format=json';
     my $raw = fetch_url($oembed_url);
     unless ($raw) {
         log_event("WARN", $ENV{REDIRECT_URL} // "-", "oembed fetch failed", url => $oembed_url);
-        return undef;
+        return;
     }
 
     # Parse JSON safely using JSON::PP (S3)
@@ -1542,7 +1643,7 @@ sub fetch_oembed {
     my $data = eval { decode_json($raw) };
     if ( $@ || !defined $data || !defined $data->{html} ) {
         log_event("WARN", $ENV{REDIRECT_URL} // "-", "oembed parse failed", url => $oembed_url, error => $@);
-        return undef;
+        return;
     }
 
     return $data->{html};
@@ -1562,7 +1663,7 @@ sub find_oembed_endpoint {
 
     # Autodiscovery - fetch the page and look for oEmbed link tag
     my $page = fetch_url($url);
-    return undef unless $page;
+    return unless $page;
 
     if ( $page =~ m{<link[^>]+type=["']application/json\+oembed["'][^>]+href=["']([^"']+)["']}i
       || $page =~ m{<link[^>]+href=["']([^"']+)["'][^>]+type=["']application/json\+oembed["']}i )
@@ -1570,7 +1671,7 @@ sub find_oembed_endpoint {
         return $1;
     }
 
-    return undef;
+    return;
 }
 
 sub uri_encode {
@@ -1632,26 +1733,47 @@ sub resolve_tt_vars {
     return %vars;
 }
 
-sub resolve_site_vars {
-    return () unless -f $CONF_FILE;
+{
+    # P-2: per-process memoization of resolve_site_vars(). This function is
+    # called up to 6 times per request (main(), render_content,
+    # update_registries, etc). Under CGI, one process = one request, so
+    # the cache is request-scoped automatically.
+    #
+    # *** FastCGI / D016 note ***
+    # Under a persistent-process model the cache MUST be reset at the
+    # start of every request iteration. The FastCGI wrapper should call
+    # reset_request_state() (below) before dispatching.
+    my %_site_vars_cache;
+    my $_site_vars_loaded = 0;
 
-    my $text = read_file($CONF_FILE);
-    my %defs;
+    sub resolve_site_vars {
+        return %_site_vars_cache if $_site_vars_loaded;
+        return ()                 unless -f $CONF_FILE;
 
-    while ( $text =~ /^(\w+)\h*:\h*(.+)$/mg ) {
-        $defs{$1} = $2;
+        my $text = read_file($CONF_FILE);
+        my %defs;
+        while ( $text =~ /^(\w+)\h*:\h*(.+)$/mg ) {
+            $defs{$1} = $2;
+        }
+
+        my %vars = resolve_tt_vars( \%defs );
+
+        my $nav_file = $vars{nav_file}
+            ? "$DOCROOT/" . $vars{nav_file}
+            : "$LAZYSITE_DIR/nav.conf";
+        $vars{nav} = parse_nav($nav_file);
+
+        %_site_vars_cache  = %vars;
+        $_site_vars_loaded = 1;
+        return %_site_vars_cache;
     }
 
-    my %vars = resolve_tt_vars(\%defs);
-
-    # Load navigation
-    my $nav_file = $vars{nav_file}
-        ? "$DOCROOT/" . $vars{nav_file}
-        : "$LAZYSITE_DIR/nav.conf";
-
-    $vars{nav} = parse_nav($nav_file);
-
-    return %vars;
+    # Reset all per-request caches. Call at the top of each request loop
+    # iteration under FastCGI (D016). Harmless under CGI.
+    sub reset_request_state {
+        %_site_vars_cache  = ();
+        $_site_vars_loaded = 0;
+    }
 }
 
 sub parse_nav {
@@ -1903,14 +2025,31 @@ sub resolve_scan {
     return \@sorted;
 }
 
-sub update_registries {
-    return unless -d $REGISTRY_DIR;
+{
+    # P-3: cache "do we have any registry templates?" at process level.
+    # Most sites don't use registries; this avoids an opendir on every
+    # cache-miss render.
+    my $_has_registries;    # undef = not yet probed
 
-    opendir( my $dh, $REGISTRY_DIR ) or return;
-    my @templates = grep { /\.tt$/ } readdir($dh);
-    closedir($dh);
+    sub update_registries {
+        if ( !defined $_has_registries ) {
+            if ( -d $REGISTRY_DIR ) {
+                opendir( my $dh, $REGISTRY_DIR );
+                my @t = $dh ? grep { /\.tt$/ } readdir($dh) : ();
+                closedir($dh) if $dh;
+                $_has_registries = @t ? 1 : 0;
+            }
+            else {
+                $_has_registries = 0;
+            }
+        }
+        return unless $_has_registries;
 
-    return unless @templates;
+        opendir( my $dh, $REGISTRY_DIR ) or return;
+        my @templates = grep { /\.tt$/ } readdir($dh);
+        closedir($dh);
+
+        return unless @templates;
 
     # Check if any registry needs updating
     my $needs_update = 0;
@@ -1930,9 +2069,13 @@ sub update_registries {
     my @pages = scan_pages();
     my %site_vars = resolve_site_vars();
 
+    make_path($TT_COMPILE_DIR) unless -d $TT_COMPILE_DIR;
     my $tt = Template->new(
-        ABSOLUTE => 1,
-        ENCODING => 'utf8',
+        ABSOLUTE    => 1,
+        ENCODING    => 'utf8',
+        EVAL_PERL   => 0,               # L-2
+        COMPILE_DIR => $TT_COMPILE_DIR, # P-4
+        COMPILE_EXT => '.ttc',          # P-4
     ) or return;
 
     for my $tmpl (@templates) {
@@ -1970,6 +2113,7 @@ sub update_registries {
         close $fh;
     }
 }
+}   # close P-3 _has_registries memo block
 
 sub scan_pages {
     my @pages;
@@ -2037,9 +2181,13 @@ sub render_content {
     # Content pass uses ABSOLUTE => 0 - the content body is a string reference
     # and should never need file access. ABSOLUTE => 1 would allow TT to follow
     # absolute paths found in the content, which causes parse errors on CSS etc.
+    make_path($TT_COMPILE_DIR) unless -d $TT_COMPILE_DIR;
     my $tt = Template->new(
-        ABSOLUTE => 0,
-        ENCODING => 'utf8',
+        ABSOLUTE    => 0,
+        ENCODING    => 'utf8',
+        EVAL_PERL   => 0,               # L-2
+        COMPILE_DIR => $TT_COMPILE_DIR, # P-4
+        COMPILE_EXT => '.ttc',          # P-4
     ) or die "Template error: " . Template->error() . "\n";
 
     my %site_vars = resolve_site_vars();
@@ -2098,24 +2246,6 @@ sub render_content {
     }
 
     return ( $processed_body, $vars );
-}
-
-sub read_theme_cookie {
-    my $cookie_str = $ENV{HTTP_COOKIE} // '';
-    return '' unless $cookie_str;
-
-    for my $pair ( split /;\s*/, $cookie_str ) {
-        my ( $name, $val ) = split /=/, $pair, 2;
-        $name =~ s/^\s+|\s+$//g;
-        if ( $name eq 'lazysite_theme' ) {
-            $val //= '';
-            $val =~ s/^\s+|\s+$//g;
-            # Sanitise - same as theme name from conf
-            $val =~ s/[^a-zA-Z0-9_-]//g;
-            return $val;
-        }
-    }
-    return '';
 }
 
 sub get_layout_path {
@@ -2253,7 +2383,7 @@ sub render_template {
     if ( !defined $layout ) {
         # No layout found - use built-in fallback directly
         log_event("WARN", $ENV{REDIRECT_URL} // "-", "view not found, using fallback");
-        my $tt_fallback = Template->new( ENCODING => 'utf8' )
+        my $tt_fallback = Template->new( ENCODING => 'utf8', EVAL_PERL => 0 )
             or do {
                 log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance');
                 return $processed_body;
@@ -2273,14 +2403,19 @@ sub render_template {
 
     my $tt_layout = $is_remote
         ? Template->new(
-            ABSOLUTE  => 1,      # needed to read cache path
-            RELATIVE  => 0,
-            EVAL_PERL => 0,      # no embedded Perl
-            ENCODING  => 'utf8',
+            ABSOLUTE    => 1,                # needed to read cache path
+            RELATIVE    => 0,
+            EVAL_PERL   => 0,                # no embedded Perl
+            ENCODING    => 'utf8',
+            COMPILE_DIR => $TT_COMPILE_DIR,  # P-4
+            COMPILE_EXT => '.ttc',           # P-4
         )
         : Template->new(
-            ABSOLUTE => 1,
-            ENCODING => 'utf8',
+            ABSOLUTE    => 1,
+            ENCODING    => 'utf8',
+            EVAL_PERL   => 0,                # L-2
+            COMPILE_DIR => $TT_COMPILE_DIR,  # P-4
+            COMPILE_EXT => '.ttc',           # P-4
         );
 
     unless ( $tt_layout ) {
@@ -2295,7 +2430,7 @@ sub render_template {
             $output = '';
 
             # Try built-in fallback layout
-            my $tt_fallback = Template->new( ENCODING => 'utf8' )
+            my $tt_fallback = Template->new( ENCODING => 'utf8', EVAL_PERL => 0 )
                 or do {
                     log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance');
                     return $processed_body;
@@ -2458,20 +2593,12 @@ sub write_ct {
 sub read_ct {
     my ($base) = @_;
     my $ct_path = ct_cache_path($base);
-    return undef unless -f $ct_path;
-    open( my $fh, '<:utf8', $ct_path ) or return undef;
+    return unless -f $ct_path;
+    open( my $fh, '<:utf8', $ct_path ) or return;
     my $ct = <$fh>;
     close $fh;
     $ct =~ s/^\s+|\s+$//g if defined $ct;
     return $ct || undef;
-}
-
-sub html_to_base {
-    my ($html_path) = @_;
-    my $base = $html_path;
-    $base =~ s{^\Q$DOCROOT\E/}{};
-    $base =~ s/\.html$//;
-    return $base;
 }
 
 sub write_html {
@@ -2503,18 +2630,28 @@ sub write_html {
     unless ( -d $dir ) {
         make_path($dir);
         # Set group to match docroot and apply setgid bit so new files
-        # and subdirectories inherit the group automatically
+        # and subdirectories inherit the group automatically.
         my $gid = ( stat($DOCROOT) )[5];
         chown -1, $gid, $dir;
-        chmod 0775 | 02000, $dir;  # 02000 = setgid bit
+        chmod 0o775 | 0o2000, $dir;  # L-8: explicit octal; 0o2000 = setgid
     }
 
-    open( my $fh, '>:utf8', $html_path ) or do {
-        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot write cache file', path => $html_path, error => $!);
+    # P-5: atomic write via tempfile + rename so readers never see a torn
+    # file. $html_path.tmp.$$ is pid-scoped to avoid concurrent writers
+    # collapsing on the same temp name.
+    my $tmp = "$html_path.tmp.$$";
+    open( my $fh, '>:utf8', $tmp ) or do {
+        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot write cache tempfile', path => $tmp, error => $!);
         return;
     };
     print $fh $page;
     close $fh;
+    unless ( rename $tmp, $html_path ) {
+        my $err = $!;
+        unlink $tmp;
+        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot rename cache tempfile', path => $html_path, error => $err);
+        return;
+    }
 }
 
 # --- Output ---
@@ -2525,6 +2662,13 @@ sub output_page {
     binmode( STDOUT, ':utf8' );
     print "Status: 200 OK\n";
     print "Content-type: $content_type\n";
+    # L-1: baseline security headers. CSP and HSTS are deliberately NOT
+    # emitted here — CSP is site-specific (depends on what external
+    # resources pages load) and HSTS depends on whether TLS is in use;
+    # both belong in the Apache vhost config.
+    print "X-Content-Type-Options: nosniff\n";
+    print "X-Frame-Options: SAMEORIGIN\n";
+    print "Referrer-Policy: strict-origin-when-cross-origin\n";
     if ( $auth_protected ) {
         print "Cache-Control: no-store, private\n";
     }
@@ -2586,6 +2730,7 @@ sub log_event {
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
     my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
     return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
+    use POSIX qw(strftime);
     my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
     if ( $format eq 'json' ) {
