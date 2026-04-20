@@ -226,7 +226,17 @@ sub write_audit_report {
             $page_md =~ s{^/}{};
             $page_md .= '.md' unless $page_md =~ /\.\w+$/;
             my $edit_url = "/manager/edit?path=" . uri_encode("/$page_md");
-            $md .= "| $item->{source} | /$item->{target} | [Edit]($edit_url) |\n";
+
+            # Display text keeps the file path (with .md) so the table
+            # reads like what the author sees in the editor; the link
+            # target is the live URL (no .md, /index → /).
+            my $page_url = $item->{source};
+            $page_url = "/$page_url" unless $page_url =~ m{^/};
+            $page_url =~ s/\.md$//;
+            $page_url =~ s{/index$}{/};
+            $page_url = '/' if $page_url eq '';
+
+            $md .= "| [$page_md]($page_url) | /$item->{target} | [Edit]($edit_url) |\n";
         }
     }
 
@@ -239,7 +249,9 @@ sub write_audit_report {
             my $page_md = $page;
             $page_md .= '.md' unless $page_md =~ /\.\w+$/;
             my $edit_url = "/manager/edit?path=" . uri_encode("/$page_md");
-            $md .= "| /$page | [Edit]($edit_url) |\n";
+            # Orphaned $page is already the URL form (canonical); link it
+            # to itself so the reader can jump to the page directly.
+            $md .= "| [/$page](/$page) | [Edit]($edit_url) |\n";
         }
     }
 

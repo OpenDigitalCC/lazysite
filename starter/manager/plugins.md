@@ -6,6 +6,16 @@ search: false
 
 <div id="plugin-list">Loading...</div>
 
+<div class="mg-card" id="audit-report-card" style="display:none">
+  <div class="mg-card-header">
+    <span class="mg-card-title">Audit Report</span>
+    <span class="mg-card-subtitle" id="audit-timestamp"></span>
+  </div>
+  <div class="mg-card-body" id="audit-report">
+    <!-- report renders here -->
+  </div>
+</div>
+
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var smtpPlugin = null;
@@ -201,11 +211,64 @@ function runAction(plugin, action) {
   .then(function(data) {
     if (!data.ok) { status.textContent = 'Error: ' + (data.error||'unknown'); return; }
     status.textContent = 'Done.';
-    if (action.on_complete === 'open_url' && data[action.result_key]) {
+
+    // Link Audit: render the report inline in the audit-report card
+    // rather than opening it in a new tab. Other plugins keep the
+    // existing open_url behaviour unchanged.
+    if (plugin.id === 'audit' && action.id === 'run' && data.report_url) {
+      renderAuditReport(data.report_url);
+    }
+    else if (action.on_complete === 'open_url' && data[action.result_key]) {
       window.open(data[action.result_key], '_blank');
     }
     setTimeout(function() { status.textContent = ''; }, 5000);
   });
+}
+
+function renderAuditReport(url) {
+  var card = document.getElementById('audit-report-card');
+  var body = document.getElementById('audit-report');
+  var ts   = document.getElementById('audit-timestamp');
+  if (!card || !body) return;
+
+  body.textContent = 'Loading report...';
+  card.style.display = '';
+
+  fetch(url, { credentials: 'same-origin' })
+    .then(function(r) { return r.text(); })
+    .then(function(html) {
+      // The report is a full HTML page rendered by the processor.
+      // Extract just the <main> content so the surrounding chrome
+      // (nav, footer) from the report's own view.tt doesn't duplicate
+      // the manager layout.
+      var parser = new DOMParser();
+      var doc    = parser.parseFromString(html, 'text/html');
+      var main   = doc.querySelector('main') || doc.body;
+      body.innerHTML = '';
+      if (main) {
+        // Copy children rather than re-assigning innerHTML so scripts
+        // inside the report don't execute.
+        Array.prototype.forEach.call(main.childNodes, function(n) {
+          body.appendChild(document.importNode(n, true));
+        });
+      }
+
+      // Prefer the <time datetime> emitted in the starter theme footer,
+      // otherwise fall back to the page's <h1>/subtitle, otherwise now.
+      var stamp = '';
+      var t = body.querySelector('time[datetime]');
+      if (t) stamp = t.getAttribute('datetime') || t.textContent || '';
+      if (!stamp) {
+        var sub = doc.querySelector('main > p');
+        if (sub) stamp = sub.textContent || '';
+      }
+      if (!stamp) stamp = new Date().toISOString().replace('T',' ').replace(/\..*$/,'');
+      if (ts) ts.textContent = stamp;
+    })
+    .catch(function(e) {
+      body.textContent = 'Failed to load report: ' + e.message;
+      if (ts) ts.textContent = '';
+    });
 }
 
 // --- Form handler: child configs ---
