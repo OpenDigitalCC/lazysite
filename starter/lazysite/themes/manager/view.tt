@@ -5,6 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>[% page_title %][% IF site_name %] - [% site_name %][% END %]</title>
   <link rel="stylesheet" href="/manager/assets/manager.css">
+  <script>
+  // M-1: manager CSRF wrapper. Must run BEFORE any script inside <main>
+  // that calls fetch(), otherwise page-onload calls (loadUsers,
+  // loadSiteSettings, loadCache, etc.) will capture the original
+  // window.fetch reference at call time and bypass the wrapper - so
+  // their POSTs go out without X-CSRF-Token and the server rejects
+  // them. Placing this in <head> means window.fetch is replaced before
+  // the HTML parser has even reached <body>.
+  //
+  // The wrapper itself kicks off an asynchronous csrf-token fetch and
+  // attaches the resolved token as X-CSRF-Token on every POST to the
+  // manager API. Page scripts do not need to await anything; each POST
+  // waits for lazysiteCsrfReady() internally.
+  (function(){
+    var MGR_API = '/cgi-bin/lazysite-manager-api.pl';
+    var tokenPromise = fetch(MGR_API + '?action=csrf-token', { credentials: 'same-origin' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ window.LAZYSITE_CSRF = (d && d.token) || ''; return window.LAZYSITE_CSRF; })
+      .catch(function(){ window.LAZYSITE_CSRF = ''; return ''; });
+    window.lazysiteCsrfReady = function(){ return tokenPromise; };
+
+    var origFetch = window.fetch.bind(window);
+    window.fetch = function(resource, init){
+      init = init || {};
+      var method = (init.method || 'GET').toUpperCase();
+      var url    = typeof resource === 'string' ? resource : (resource && resource.url) || '';
+      if ( method !== 'POST' || url.indexOf(MGR_API) !== 0 ) {
+        return origFetch(resource, init);
+      }
+      var h = new Headers(init.headers || {});
+      var init2 = {};
+      for ( var k in init ) { if ( init.hasOwnProperty(k) ) init2[k] = init[k]; }
+      init2.headers = h;
+      return window.lazysiteCsrfReady().then(function(token){
+        if ( token && !h.has('X-CSRF-Token') ) h.set('X-CSRF-Token', token);
+        return origFetch(resource, init2);
+      });
+    };
+  })();
+  </script>
 </head>
 <body class="mg-body">
 
@@ -61,41 +101,5 @@
   [% content %]
 </main>
 
-<script>
-// M-1: manager CSRF token. Fetched once per page load and attached via
-// X-CSRF-Token header to every POST sent to the manager API - type-
-// agnostic, so it works for JSON, FormData, and raw ArrayBuffer
-// (theme-upload) bodies alike. Every POST waits for lazysiteCsrfReady()
-// to resolve, so a page-onload fetch that fires before the token
-// request returns does not get sent without the header.
-(function(){
-  var MGR_API = '/cgi-bin/lazysite-manager-api.pl';
-  var tokenPromise = fetch(MGR_API + '?action=csrf-token', { credentials: 'same-origin' })
-    .then(function(r){ return r.json(); })
-    .then(function(d){ window.LAZYSITE_CSRF = (d && d.token) || ''; return window.LAZYSITE_CSRF; })
-    .catch(function(){ window.LAZYSITE_CSRF = ''; return ''; });
-  window.lazysiteCsrfReady = function(){ return tokenPromise; };
-
-  var origFetch = window.fetch.bind(window);
-  window.fetch = function(resource, init){
-    init = init || {};
-    var method = (init.method || 'GET').toUpperCase();
-    var url    = typeof resource === 'string' ? resource : (resource && resource.url) || '';
-    // Only augment same-origin POSTs to the manager API
-    if ( method !== 'POST' || url.indexOf(MGR_API) !== 0 ) {
-      return origFetch(resource, init);
-    }
-    // Clone headers up front so we do not mutate the caller's object.
-    var h = new Headers(init.headers || {});
-    var init2 = {};
-    for ( var k in init ) { if ( init.hasOwnProperty(k) ) init2[k] = init[k]; }
-    init2.headers = h;
-    return window.lazysiteCsrfReady().then(function(token){
-      if ( token && !h.has('X-CSRF-Token') ) h.set('X-CSRF-Token', token);
-      return origFetch(resource, init2);
-    });
-  };
-})();
-</script>
 </body>
 </html>

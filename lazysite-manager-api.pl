@@ -82,14 +82,33 @@ if ( $method eq 'POST' ) {
     #   - csrf_token query-string parameter - last-resort fallback for
     #     sendBeacon() calls that cannot set headers.
     my $token = $ENV{HTTP_X_CSRF_TOKEN} // '';
+    my $source = $token ? 'header' : '';
     if ( !$token && $body ) {
         my $parsed = eval { decode_json($body) };
         if ( ref $parsed eq 'HASH' ) {
             $token = $parsed->{csrf_token} // '';
+            $source = 'body' if $token;
         }
     }
-    $token ||= $params{csrf_token} // '';
-    unless ( verify_csrf_token( $token, $auth_user ) ) {
+    if ( !$token ) {
+        $token  = $params{csrf_token} // '';
+        $source = 'query' if $token;
+    }
+
+    log_event('DEBUG', $action, 'CSRF check',
+        method    => $method,
+        user      => $auth_user,
+        token_len => length($token),
+        source    => $source || 'none',
+        result    => $token ? 'has-token' : 'no-token');
+
+    my $valid = verify_csrf_token( $token, $auth_user );
+
+    log_event('DEBUG', $action, 'CSRF verify',
+        user   => $auth_user,
+        result => $valid ? 'ok' : 'fail');
+
+    unless ( $valid ) {
         respond({ ok => 0, error => 'Invalid or missing CSRF token' });
         exit 0;
     }
@@ -125,7 +144,7 @@ elsif ( $action eq 'theme-rename' )     {
     $result = action_theme_rename( $path, $req->{new_name} );
 }
 elsif ( $action eq 'theme-upload' )     { $result = action_theme_upload( $body, $params{filename} ) }
-elsif ( $action eq 'users' )            { $result = action_users($body) }
+elsif ( $action eq 'users' )            { $result = action_users( $body, \%params ) }
 elsif ( $action eq 'plugin-list' )      { $result = action_plugin_list() }
 elsif ( $action eq 'plugin-enable' )    {
     my $req = eval { decode_json($body) } // {};
@@ -800,7 +819,7 @@ sub _cleanup_tmp {
 # --- User management proxy ---
 
 sub action_users {
-    my ($request_body) = @_;
+    my ( $request_body, $params_ref ) = @_;
 
     my $users_script = dirname($0) . "/../tools/lazysite-users.pl";
     unless ( -f $users_script ) {
@@ -808,6 +827,21 @@ sub action_users {
     }
     return { ok => 0, error => "User management not available" }
         unless -f $users_script;
+
+    # The child (tools/lazysite-users.pl --api) always expects a single
+    # JSON object on stdin. If we're hit with a plain GET (empty body),
+    # pipe through a read-only request derived from the query string
+    # rather than feeding the child an empty buffer and surfacing its
+    # "Invalid JSON input" reply. Allowed GET sub-actions are list and
+    # groups; writes (add / passwd / remove / group-add / group-remove)
+    # must go via POST so they pass through the CSRF gate upstream.
+    my $method = $ENV{REQUEST_METHOD} // 'GET';
+    if ( $method ne 'POST' || !length $request_body ) {
+        my $sub = ( $params_ref && $params_ref->{sub} ) || 'list';
+        return { ok => 0, error => "Read-only sub-action on GET; allowed: list, groups" }
+            unless $sub eq 'list' || $sub eq 'groups';
+        $request_body = encode_json({ action => $sub });
+    }
 
     my ( $child_out, $child_in );
     my $pid = eval {
