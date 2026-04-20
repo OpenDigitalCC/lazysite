@@ -12,7 +12,7 @@ use File::Path qw(make_path);
 use Cwd qw(realpath);
 use Socket qw(inet_aton inet_ntoa);
 use URI;
-use JSON::PP qw(decode_json encode_json);
+use JSON::PP qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
 use POSIX qw(strftime);
 
@@ -216,21 +216,97 @@ my %ENV_ALLOWLIST = map { $_ => 1 } qw(
 
 # --- Auth ---
 
+{
+    # F7 (D007): single-pass front-matter peek, memoised per
+    # request. Callers in main() previously opened the .md file up
+    # to five times (peek_auth, peek_payment, peek_query_params,
+    # peek_ttl, peek_content_type); now the first peek reads the
+    # file, the rest hit this cache. Cache key is (path, mtime) so
+    # an mtime change between peeks (shouldn't happen within one
+    # request, but be safe) invalidates.
+    my %_peek_cache;
+
+    sub _reset_peek_cache { %_peek_cache = () }
+
+    sub _peek_md {
+        my ($path) = @_;
+        return {} unless $path;
+        my @st = stat($path);
+        return {} unless @st;
+        my $key = "$path:$st[9]";
+        return $_peek_cache{$key} if exists $_peek_cache{$key};
+
+        my %m;
+        my @groups;
+        my @qp;
+        my ( $in_groups, $in_qp );
+
+        open my $fh, '<:utf8', $path or do {
+            $_peek_cache{$key} = \%m;
+            return \%m;
+        };
+        while ( my $line = <$fh> ) {
+            last if $. > 1 && $line =~ /^---/;
+
+            # scalar keys
+            if    ( $line =~ /^auth\s*:\s*(\w+)/i )          { $m{auth} = lc $1 }
+            elsif ( $line =~ /^ttl\s*:\s*(\d+)/ )            { $m{ttl} = $1 }
+            elsif ( $line =~ /^api\s*:\s*true/i )            { $m{api} = 1 }
+            elsif ( $line =~ /^raw\s*:\s*true/i )            { $m{raw} = 1 }
+            elsif ( $line =~ /^content_type\s*:\s*(.+)/ )    {
+                ( my $v = $1 ) =~ s/^\s+|\s+$//g;
+                $m{content_type} = $v;
+            }
+
+            # payment.* scalar keys
+            for my $pk (qw(payment payment_amount payment_currency
+                           payment_network payment_address
+                           payment_asset payment_description)) {
+                if ( $line =~ /^\Q$pk\E\s*:\s*(.+)$/ ) {
+                    ( my $v = $1 ) =~ s/\s+$//;
+                    $m{$pk} = $v;
+                }
+            }
+
+            # auth_groups: block
+            if ( $line =~ /^auth_groups\s*:\s*$/ ) {
+                $in_groups = 1; $in_qp = 0; next;
+            }
+            if ( $in_groups ) {
+                if ( $line =~ /^\s+-\s+(.+)$/ ) {
+                    ( my $g = $1 ) =~ s/^\s+|\s+$//g;
+                    push @groups, $g;
+                    next;
+                }
+                $in_groups = 0 if $line !~ /^\s/;
+            }
+
+            # query_params: block
+            if ( $line =~ /^query_params\s*:\s*$/ ) {
+                $in_qp = 1; $in_groups = 0; next;
+            }
+            if ( $in_qp ) {
+                if ( $line =~ /^[ \t]+-[ \t]*(\S+)/ ) {
+                    push @qp, $1;
+                    next;
+                }
+                $in_qp = 0 if $line !~ /^\s/;
+            }
+        }
+        close $fh;
+
+        $m{groups}       = \@groups if @groups;
+        $m{query_params} = \@qp     if @qp;
+
+        $_peek_cache{$key} = \%m;
+        return \%m;
+    }
+}
+
 sub peek_auth {
     my ($path) = @_;
-    open( my $fh, '<:utf8', $path ) or return {};
-    my ( $auth, @groups, $in_groups );
-    while ( <$fh> ) {
-        last if $. > 1 && /^---/;
-        $auth = $1 if /^auth\s*:\s*(\w+)/i;
-        if ( /^auth_groups\s*:\s*$/ ) { $in_groups = 1; next }
-        if ( $in_groups && /^\s+-\s+(.+)$/ ) {
-            my $g = $1;
-            $g =~ s/^\s+|\s+$//g;
-            push @groups, $g;
-        }
-        elsif ( $in_groups && !/^\s/ ) { $in_groups = 0 }
-    }
+    my $m = _peek_md($path);
+    my @groups = $m->{groups} ? @{ $m->{groups} } : ();
     close $fh;
     return { auth => $auth, groups => \@groups };
 }

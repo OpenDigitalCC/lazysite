@@ -7,7 +7,7 @@
 | Location | `t/` |
 | Runner | `prove -r t/` |
 | Framework | `Test::More` (core Perl, no extra dependencies) |
-| Total | 393 tests across 26 files |
+| Total | 482 tests across 33 files |
 
 The suite is pure core-Perl. If `perl` and `prove` are installed,
 the suite runs.
@@ -18,19 +18,16 @@ the suite runs.
 t/
   unit/                 Function-level tests
     processor/          Core processor functions
-    auth/               Password hashing, cookie signing
+    auth/               Password hashing, cookie signing, login rate limit
     forms/              Form field parsing
     users/              CLI and API mode of tools/lazysite-users.pl
   integration/          End-to-end pipeline tests
   smoke/                All starter pages render HTTP 200
+  journey/              Multi-step scenario tests
   lib/
     TestHelper.pm       Shared fixture builders and subprocess runner
   run-all.t             Aggregate runner (skipped under prove -r)
 ```
-
-A `t/journey/` tier for scenario-based user journey tests is
-envisaged but not yet present. New journey tests should land there
-rather than under `t/integration/`.
 
 ## Unit tests - what is covered
 
@@ -99,6 +96,58 @@ rather than under `t/integration/`.
   pages with `register: search-index` and `search: true`; pages with
   `search: false` are excluded.
 
+## Journey tests
+
+Multi-step scenarios that cross subsystem boundaries:
+
+- **`01-new-site-setup.t`:** fresh docroot renders, index is served,
+  cache is written, cached reads work, `/lazysite/*` stays forbidden.
+- **`02-auth-flow.t`:** user creation via `tools/lazysite-users.pl`,
+  POST /login via the auth wrapper to get a cookie, use the cookie
+  to serve a protected page, access without the cookie is
+  redirected, rotating the secret via `action=rotate-auth-secret`
+  invalidates the cookie.
+- **`03-form-delivery.t`:** render a contact form to harvest
+  `_ts`/`_tk`, POST to the form handler with honeypot empty, the
+  submission lands as JSONL in the configured file-storage handler
+  path. Replay of a valid token is currently accepted (pinned as
+  current behaviour). Honeypot-filled submissions are rejected.
+- **`04-edge-cases.t`:** UTF-8 content round-trips, empty front
+  matter, path traversal and null byte in URI, three sequential
+  renders do not collide on the atomic cache write, `ttl:` sets
+  `Cache-Control: public, max-age=N`. One TODO flags a query-
+  string UTF-8 mojibake bug pending a separate fix.
+
+## Remote URL fetching
+
+`t/unit/processor/16-remote-url-mock.t` spins up a loopback HTTP
+server on a random free port, monkey-patches `is_safe_url` (which
+normally rejects loopback) to permit the mock, and exercises
+`fetch_url()` and `:::include` end-to-end. Covers: plain text
+response, HTML response, 5xx handling, `file://` rejection,
+`:::include http://...html` inlining. Runs in a single process
+with a short-lived child forked for the server. No live network.
+
+## Theme upload
+
+`t/unit/processor/17-theme-upload.t` builds zip fixtures in-process
+with `Archive::Zip`, feeds them to `action=theme-upload` via
+`lazysite-manager-api.pl` as a subprocess, and checks the
+filesystem result. Covers the happy path (view.tt + theme.json
+extract cleanly), zip-slip rejection (entries with `../` never
+reach disk), absolute-path entry rejection, missing-view.tt
+rejection, missing-theme.json rejection. Skipped with a clear
+message if `Archive::Zip` is not installed.
+
+## Login rate limiting
+
+`t/unit/auth/03-login-rate-limit.t` pins the exact saturation
+boundary. The `DB_File` state is seeded directly so the test
+doesn't have to iterate through real failed attempts (each of
+which would sleep 2s). Covers: count=MAX-1 allows one more
+credential check, count=MAX blocks with `error=rate`, a
+different IP is not affected by the first IP's counter.
+
 ## Smoke tests
 
 Every `.md` under `starter/` (excluding `/lazysite/`, `/manager/`,
@@ -109,19 +158,12 @@ the test. The `402` allowance covers the intentional
 
 ## What is not covered
 
-- **Remote URL fetching.** `:::include https://...`, `url:` TT vars,
-  and `fetch_remote_layout` rely on live HTTP. Tested manually and
-  via the SSRF-guard unit test; not exercised end-to-end.
-- **oEmbed processing.** Same reason: requires live endpoints.
-- **Theme upload and extraction.** Requires `Archive::Zip` and a
-  real zip fixture; only the path-validation code path is exercised.
+- **oEmbed processing.** Requires live oEmbed endpoints.
 - **Manager API end-to-end via browser.** The CSRF wrapper,
   warning-bar, and per-page fetch flows are tested manually. The
   server-side endpoints are covered individually.
 - **Payment flow end-to-end.** Requires x402 infrastructure to
   exercise the full loop; `check_payment` logic is unit-tested.
-- **Rate limiting under load.** The `check_rate_limit` function is
-  exercised once; saturation behaviour is not tested.
 - **Browser rendering.** No Selenium / Playwright layer.
 
 These are the known gaps. Tests that surface bugs should be kept
@@ -135,6 +177,7 @@ prove -r t/                     # full suite
 make test-unit                  # unit tests only
 make test-integration           # integration tier
 make test-smoke                 # all starter pages
+make test-journey               # multi-step scenarios
 make test-safety                # process-spawn / cache-write safety
 prove -rv t/                    # verbose
 perl t/run-all.t                # aggregate runner (standalone; skipped under prove -r)
@@ -186,11 +229,12 @@ types, and anything that depends on `main()` running end-to-end.
 - `setup_search_site($docroot)` - adds a registry template and
   searchable/hidden pages
 
-**Journey tests.** The `t/journey/` directory does not exist yet.
-When the first journey test is written, create the directory, add it
-to the Makefile (`test-journey` target), and prefer it over
-`t/integration/` for anything that exercises multiple manager actions
-or a multi-step user flow.
+**Journey tests.** For flows that span multiple subsystems or
+multiple requests, add a file under `t/journey/` rather than
+`t/integration/`. Journey tests may legitimately do things that
+integration tests should not: spawn multiple subprocesses,
+manipulate cookies, sleep for timestamp-age checks, seed `DB_File`
+state directly to avoid real-time iteration.
 
 **Conventions:**
 
