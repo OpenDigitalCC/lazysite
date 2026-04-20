@@ -516,7 +516,7 @@ sub main {
     }
 
     # Set log level from conf (env var takes priority). No local needed
-    # here — %ENV is already localised at the top of main().
+    # here - %ENV is already localised at the top of main().
     {
         my %sv = resolve_site_vars();
         $ENV{LAZYSITE_LOG_LEVEL}  = $sv{log_level}
@@ -528,7 +528,7 @@ sub main {
     # Trust gate for auth and payment proxy headers (C-1).
     # HTTP_X_REMOTE_* and HTTP_X_PAYMENT_* are only trusted when one of:
     #   - LAZYSITE_AUTH_TRUSTED=1 is set (by lazysite-auth.pl after cookie
-    #     validation; internal sentinel — clients cannot forge it because
+    #     validation; internal sentinel - clients cannot forge it because
     #     CGI strips LAZYSITE_* client headers)
     #   - auth_proxy_trusted: true is set in lazysite.conf (operator opt-in
     #     for upstream auth proxies like Authelia, oauth2-proxy, nginx
@@ -603,7 +603,7 @@ sub main {
         my $auth_user   = $ENV{HTTP_X_REMOTE_USER}   // '';
         my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
         if ( _is_manager( \%sv, $auth_user, $auth_groups ) ) {
-            # %ENV is localised at main() entry — writes are per-request.
+            # %ENV is localised at main() entry - writes are per-request.
             $ENV{LAZYSITE_NOCACHE} = '1';
         }
     }
@@ -959,7 +959,7 @@ sub fetch_url {
     # Only allow http/https
     return unless $url =~ m{\Ahttps?://};
 
-    # H-4: SSRF guard — reject private / loopback / link-local / multicast
+    # H-4: SSRF guard - reject private / loopback / link-local / multicast
     # IP ranges before touching the wire.
     unless ( is_safe_url($url) ) {
         log_event('WARN', $ENV{REDIRECT_URL} // '-', 'SSRF blocked',
@@ -982,7 +982,7 @@ sub fetch_url {
 
 # H-4: reject URLs that resolve to RFC1918 / loopback / link-local /
 # multicast / CGNAT / IPv6-loopback / IPv6-link-local addresses. IPv4-only
-# resolution via inet_aton is a deliberate choice — IPv6 private-range
+# resolution via inet_aton is a deliberate choice - IPv6 private-range
 # detection is more involved and we'd rather fail closed than parse
 # partial v6 addresses incorrectly.
 sub is_safe_url {
@@ -2658,7 +2658,7 @@ sub output_page {
     print "Status: 200 OK\n";
     print "Content-type: $content_type\n";
     # L-1: baseline security headers. CSP and HSTS are deliberately NOT
-    # emitted here — CSP is site-specific (depends on what external
+    # emitted here - CSP is site-specific (depends on what external
     # resources pages load) and HSTS depends on whether TLS is in use;
     # both belong in the Apache vhost config.
     print "X-Content-Type-Options: nosniff\n";

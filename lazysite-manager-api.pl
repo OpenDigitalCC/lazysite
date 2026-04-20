@@ -81,11 +81,11 @@ my %READ_ONLY = map { $_ => 1 } qw(
 
 unless ( $READ_ONLY{$action} ) {
     # Token can arrive via (in order of preference):
-    #   - X-CSRF-Token header (HTTP_X_CSRF_TOKEN env var) — works for any
+    #   - X-CSRF-Token header (HTTP_X_CSRF_TOKEN env var) - works for any
     #     body type including raw binary uploads (theme-upload).
-    #   - csrf_token field in a JSON body — convenient for existing
+    #   - csrf_token field in a JSON body - convenient for existing
     #     apiCall() patterns that send JSON.
-    #   - csrf_token query-string parameter — last-resort fallback.
+    #   - csrf_token query-string parameter - last-resort fallback.
     my $token = $ENV{HTTP_X_CSRF_TOKEN} // '';
     if ( !$token && $body ) {
         my $parsed = eval { decode_json($body) };
@@ -195,7 +195,7 @@ sub _csrf_secret {
         close $mfh;
         return $s if length $s;
     }
-    # Mint one — fail closed if CSPRNG unavailable (M-6).
+    # Mint one - fail closed if CSPRNG unavailable (M-6).
     make_path( dirname($mpath) ) unless -d dirname($mpath);
     open my $rand, '<:raw', '/dev/urandom'
         or die "Cannot open /dev/urandom - no CSPRNG available: $!\n";
@@ -685,7 +685,7 @@ sub action_theme_upload {
 
     # M-4: use Archive::Zip for safe extraction with per-entry path
     # validation, replacing system("unzip") which had to be trusted not
-    # to zip-slip. Archive::Zip is an optional dep — install.sh warns if
+    # to zip-slip. Archive::Zip is an optional dep - install.sh warns if
     # missing, and this action returns a clear error instead of crashing.
     my $have_azip = eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)); 1 };
     unless ($have_azip) {

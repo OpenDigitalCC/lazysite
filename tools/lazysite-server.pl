@@ -368,7 +368,7 @@ sub handle_request {
     my $output;
     if ( length $post_body ) {
         my $post_file = "/tmp/lazysite-post-$$.dat";
-        # L-7: previously this open() was unchecked — silent data loss if
+        # L-7: previously this open() was unchecked - silent data loss if
         # /tmp was full. Now 500s back to the client on failure.
         my $pf;
         unless ( open( $pf, '>:raw', $post_file ) ) {

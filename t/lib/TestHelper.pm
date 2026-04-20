@@ -34,7 +34,7 @@ sub processor_path {
 
 # Load the processor into the current Perl process so its subs become
 # callable as main::func(). The processor calls main() at the bottom,
-# which will produce a 404 for the test URL — we silence STDOUT around
+# which will produce a 404 for the test URL - we silence STDOUT around
 # the `do` so that noise doesn't pollute the TAP stream.
 sub load_processor {
     my ($docroot) = @_;

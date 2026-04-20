@@ -284,7 +284,7 @@ sub load_auth_secret {
     return $s;
 }
 
-# M-6: CSPRNG helper — fail closed, never fall back to rand().
+# M-6: CSPRNG helper - fail closed, never fall back to rand().
 sub generate_random_hex {
     my ($bytes) = @_;
     open my $fh, '<:raw', '/dev/urandom'
@@ -332,7 +332,7 @@ sub verify_password {
         return const_eq( $hash, $expected );
     }
     elsif ( $stored =~ /\A[0-9a-f]{64}\z/ ) {
-        # Legacy unsalted SHA-256 — accept, caller rehashes on success.
+        # Legacy unsalted SHA-256 - accept, caller rehashes on success.
         return const_eq( sha256_hex($password), $stored );
     }
     return 0;
@@ -453,7 +453,7 @@ sub sanitise_next {
     my ($next) = @_;
     return '/' unless defined $next && length $next;
     # H-1: reject protocol-relative URLs (//host) and backslash forms
-    # before the permissive character-class check below — otherwise
+    # before the permissive character-class check below - otherwise
     # //evil.com matches \A/[\w/.-]*\z.
     return '/' if $next =~ m{\A(?://|\\)};
     return '/' unless $next =~ m{\A/[\w/.-]*\z};
