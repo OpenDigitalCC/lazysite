@@ -28,12 +28,19 @@ var currentDir = '/';
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
+  if (!el) return;
+  if (!msg) {
+    el.textContent = '';
+    el.className = '';
+    return;
+  }
   el.className = 'mg-status ' + (isError ? 'mg-status-error' : 'mg-status-success');
   el.textContent = msg;
-  if (!isError) setTimeout(function() { el.textContent = ''; el.className = ''; }, 3000);
+  if (!isError) setTimeout(function() { showStatus(''); }, 3000);
 }
 
 function loadDir(dir) {
+  showStatus('');
   currentDir = dir || '/';
   updateBreadcrumb();
   fetch(API + '?action=list&path=' + encodeURIComponent(currentDir))

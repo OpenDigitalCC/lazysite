@@ -358,9 +358,18 @@ sub handle_request {
         ( $ENV{LAZYSITE_LOG_FORMAT} ? ( LAZYSITE_LOG_FORMAT => $ENV{LAZYSITE_LOG_FORMAT} ) : () ),
     );
 
-    # Pass cookie header
-    if ( $req_headers{'cookie'} ) {
-        $env{HTTP_COOKIE} = $req_headers{'cookie'};
+    # Forward every request header to the CGI env per the CGI/1.1
+    # convention: `X-Foo-Bar: baz` becomes HTTP_X_FOO_BAR=baz. The two
+    # exceptions are Content-Length and Content-Type, which go in as
+    # CONTENT_LENGTH / CONTENT_TYPE without the HTTP_ prefix - those
+    # are already set above from the parsed values. Previously only
+    # Cookie was forwarded, which silently dropped X-CSRF-Token (and
+    # anything else the client sent), breaking the manager API's CSRF
+    # verification on POST.
+    for my $h ( keys %req_headers ) {
+        next if $h eq 'content-length' || $h eq 'content-type';
+        ( my $env_key = uc($h) ) =~ tr/-/_/;
+        $env{"HTTP_$env_key"} = $req_headers{$h};
     }
 
     local @ENV{ keys %env } = values %env;

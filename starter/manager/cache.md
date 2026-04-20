@@ -22,9 +22,17 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
+  if (!el) return;
+  // Empty msg clears the bar. Callers pass '' at the start of a new
+  // operation so a stale error from a previous request doesn't linger.
+  if (!msg) {
+    el.textContent = '';
+    el.className = 'mg-status';
+    return;
+  }
   el.className = 'mg-status' + (isError ? ' mg-status-error' : ' mg-status-success');
   el.textContent = msg;
-  if (!isError) setTimeout(function() { el.textContent = ''; el.className = 'mg-status'; }, 3000);
+  if (!isError) setTimeout(function() { showStatus(''); }, 3000);
 }
 
 function escHtml(s) {
@@ -39,6 +47,7 @@ function formatAge(seconds) {
 }
 
 function loadCache() {
+  showStatus('');
   fetch(API + '?action=cache-list')
     .then(function(r) { return r.json(); })
     .then(function(data) {

@@ -37,12 +37,19 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
+  if (!el) return;
+  if (!msg) {
+    el.textContent = '';
+    el.className = 'mg-status';
+    return;
+  }
   el.className = 'mg-status' + (isError ? ' mg-status-error' : ' mg-status-success');
   el.textContent = msg;
-  if (!isError) setTimeout(function() { el.textContent = ''; el.className = 'mg-status'; }, 3000);
+  if (!isError) setTimeout(function() { showStatus(''); }, 3000);
 }
 
 function loadThemes() {
+  showStatus('');
   fetch(API + '?action=theme-list')
     .then(function(r) { return r.json(); })
     .then(function(data) {
