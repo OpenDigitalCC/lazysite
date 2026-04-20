@@ -38,6 +38,13 @@ query_params:
 
 <div id="ed-cache-notice" class="mg-cache-notice" style="display:none;"></div>
 
+<div id="json-render" class="mg-card" style="display:none">
+  <div class="mg-card-header">
+    <span class="mg-card-title" id="json-render-title">Preview</span>
+  </div>
+  <div class="mg-card-body" id="json-render-body"></div>
+</div>
+
 <div id="ed-main" class="mg-editor-main">
 <div id="ed-editor-pane" class="mg-editor-pane">
 <details id="ed-fm-section" class="mg-fm-section" open>
@@ -343,6 +350,138 @@ function showCacheNotice(mdPath) {
   document.getElementById('ed-save-btn').style.display = 'none';
 }
 
+// --- JSON / JSONL read-only preview above the raw editor ---
+// SM017: when the file being edited is a .json or .jsonl file,
+// render a pretty-printed preview above the CodeMirror editor.
+// Non-JSON files hide the preview card entirely. The raw editor
+// remains the authoritative write surface; the preview is
+// display-only and re-rendered after a successful save.
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function hideJsonPreview() {
+  var card = document.getElementById('json-render');
+  if (card) card.style.display = 'none';
+}
+
+function renderJson(content) {
+  var card  = document.getElementById('json-render');
+  var title = document.getElementById('json-render-title');
+  var body  = document.getElementById('json-render-body');
+  if (!card || !body) return;
+
+  var parsed;
+  try { parsed = JSON.parse(content); }
+  catch (e) { hideJsonPreview(); return; }
+
+  title.textContent = 'Preview';
+  // textContent (not innerHTML) on the <pre> removes every XSS
+  // vector: no user-controlled bytes enter the DOM as markup.
+  var pre = document.createElement('pre');
+  pre.className = 'mg-json-pre';
+  pre.textContent = JSON.stringify(parsed, null, 2);
+  body.innerHTML = '';
+  body.appendChild(pre);
+  card.style.display = '';
+}
+
+function renderJsonl(content) {
+  var card  = document.getElementById('json-render');
+  var title = document.getElementById('json-render-title');
+  var body  = document.getElementById('json-render-body');
+  if (!card || !body) return;
+
+  var lines = (content || '').split(/\n/);
+  var rows = [];
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (!line || !line.replace(/\s+/g, '').length) continue;
+    try { rows.push(JSON.parse(line)); } catch (e) { /* skip malformed line */ }
+  }
+  var total = rows.length;
+  if (total === 0) { hideJsonPreview(); return; }
+
+  // Performance: cap the rendered table at 100 rows.
+  var MAX = 100;
+  var truncated = total > MAX;
+  if (truncated) rows = rows.slice(0, MAX);
+
+  // Column order: natural form fields first (alphabetical),
+  // then leading-underscore internal fields (_submitted last).
+  var seen = {};
+  var natural = [];
+  var meta = [];
+  for (var i = 0; i < rows.length; i++) {
+    for (var k in rows[i]) {
+      if (!Object.prototype.hasOwnProperty.call(rows[i], k)) continue;
+      if (seen[k]) continue;
+      seen[k] = true;
+      if (/^_/.test(k)) { meta.push(k); } else { natural.push(k); }
+    }
+  }
+  natural.sort();
+  meta.sort(function(a, b) {
+    if (a === '_submitted') return 1;
+    if (b === '_submitted') return -1;
+    return a.localeCompare(b);
+  });
+  var columns = natural.concat(meta);
+
+  title.textContent = 'Preview - ' + total + ' submission' + (total === 1 ? '' : 's');
+
+  var html = '<table class="mg-jsonl-table"><thead><tr>';
+  for (var i = 0; i < columns.length; i++) {
+    html += '<th>' + esc(columns[i]) + '</th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  for (var i = 0; i < rows.length; i++) {
+    html += '<tr>';
+    for (var j = 0; j < columns.length; j++) {
+      var val = rows[i][columns[j]];
+      // _submitted is an ISO timestamp produced by the form
+      // handler; render it in the viewer's locale.
+      if (columns[j] === '_submitted' && val) {
+        var d = new Date(val);
+        if (!isNaN(d.getTime())) val = d.toLocaleString();
+      }
+      if (val === undefined || val === null) {
+        val = '';
+      } else if (typeof val === 'object') {
+        // Nested structures: serialise so we don't emit [object Object]
+        try { val = JSON.stringify(val); } catch (e) { val = String(val); }
+      } else {
+        val = String(val);
+      }
+      html += '<td>' + esc(val) + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
+  if (truncated) {
+    html += '<p class="mg-jsonl-more">Showing ' + MAX
+         +  ' of ' + total + ' submissions.</p>';
+  }
+
+  body.innerHTML = html;
+  card.style.display = '';
+}
+
+// Dispatcher: pick a renderer based on the path extension,
+// or hide the preview for anything else.
+function updateJsonPreview(content) {
+  if (!filePath) { hideJsonPreview(); return; }
+  var ext = filePath.split('.').pop().toLowerCase();
+  if      (ext === 'json')  renderJson(content);
+  else if (ext === 'jsonl') renderJsonl(content);
+  else                      hideJsonPreview();
+}
+
 function loadContent() {
   fetch(API + '?action=read&path=' + encodeURIComponent(filePath))
     .then(function(r) { return r.json(); })
@@ -364,6 +503,7 @@ function loadContent() {
       }
       isDirty = false;
       updateStatus();
+      updateJsonPreview(data.content);
       if (isMdFile) setTimeout(refreshPreview, 500);
     });
 }
@@ -386,6 +526,9 @@ function savePage() {
       fileMtime = data.mtime;
       clearDirty();
       if (isMdFile) refreshPreview();
+      // Re-render the JSON/JSONL preview with the content that
+      // was just saved, not what was on disk at load time.
+      updateJsonPreview(contentCm.getValue());
     } else if (data.conflict) {
       if (typeof mgShowWarning === 'function') mgShowWarning('Conflict: modified externally', true);
       document.getElementById('ed-dirty').textContent = 'Conflict: modified externally';
