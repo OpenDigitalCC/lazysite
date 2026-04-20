@@ -704,8 +704,28 @@ sub main {
         }
     }
 
-    # Combined protection flag
-    my $protected = $auth_protected || $payment_protected;
+    # Pages whose URL matches auth_redirect (login) or its matching
+    # logout page must never be cached: they embed [% query.next %] and
+    # similar per-request TT variables, so a stale login.html would
+    # serve the wrong redirect target (or the literal [% … %] markup).
+    # Matches both the bare path (/login) and any sub-path (/login/x),
+    # which parallels how check_auth() treats the login surface.
+    my $auth_redirect = do {
+        my %sv = resolve_site_vars();
+        $sv{auth_redirect} || '/login';
+    };
+    my $logout_path = $auth_redirect;
+    $logout_path =~ s{/login\b}{/logout};
+    my $is_auth_page =
+           $uri eq $auth_redirect
+        || index( $uri, "$auth_redirect/" ) == 0
+        || $uri eq $logout_path
+        || index( $uri, "$logout_path/" ) == 0;
+
+    # Combined protection flag. auth_protected / payment_protected come
+    # from front-matter; the auth-surface check above adds login/logout
+    # even though they ship with `auth: none`.
+    my $protected = $auth_protected || $payment_protected || $is_auth_page;
 
     # Check if this page declares query_params and request has matching ones
     my $has_query_request = 0;
