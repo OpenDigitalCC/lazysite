@@ -38,6 +38,11 @@ timing (`date +%s%3N`) over 10 iterations per case.
 | Cache-miss (simple page) | 78 ms |
 | Cache-miss (50-page scan) | 83 ms |
 
+> Absolute wall-clock figures are environment-dependent. The numbers
+> above were captured on a dedicated i7-1260P under low load. The
+> module count and relative costs (cache-hit vs miss overhead, scan
+> scaling) are the stable figures to compare across environments.
+
 Module-loading accounts for about 50 ms of the ~58 ms total that the
 processor takes to print anything - it dominates both paths. The
 cache-hit path does effectively ~4-8 ms of real work on top of that
@@ -47,7 +52,7 @@ Modules loaded per request, via `%INC`:
 
 | Path | `scalar keys %INC` |
 |---:|---:|
-| Cache-hit, no remote content | 67 |
+| Cache-hit, no remote content | 55 |
 | Cache-hit + remote URL touched (`fetch_url`) | 86 |
 
 The 19-module difference is `LWP::UserAgent` and its transitive
@@ -114,12 +119,17 @@ sibling `.ct` file under `lazysite/cache/ct/`.
 - Template Toolkit is configured with `COMPILE_DIR` so parsed
   templates are cached on disk between process invocations.
 - `EVAL_PERL => 0` is pinned on every `Template->new()` call.
+- `peek_*` family consolidated into `_peek_md()`: single file read
+  per cache-miss render (was up to 5 separate opens for auth,
+  payment, ttl, content_type, query_params). Memoised per-request
+  by path + mtime.
+- `main()` decomposed into five helper functions
+  (`parse_query_string`, `apply_trust_gate`, `handle_manager_path`,
+  `try_serve_cache`, `is_auth_surface`). Cyclomatic complexity
+  reduced from 69 to 54.
 
 ## Remaining opportunities
 
-- Consolidate the `peek_*` family (auth, payment, ttl, content_type,
-  query_params). Each currently opens the source file independently;
-  combining them into one parse would halve the small-page file I/O.
 - Replace `Text::MultiMarkdown` with a lighter Markdown parser. MMD
   contributes ~15 ms of module load. This is a large API change and
   is not scheduled.
