@@ -66,26 +66,21 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
 }
 
 # --- M-1: CSRF gate on write actions --------------------------------
-# Reads are allowlisted (no token required). Writes must carry a valid
-# csrf_token either in the decoded JSON body or the query string.
-my %READ_ONLY = map { $_ => 1 } qw(
-    csrf-token
-    list read preview
-    cache-list
-    theme-list
-    plugin-list plugin-read
-    nav-read
-    handler-list
-    form-targets-read
-);
-
-unless ( $READ_ONLY{$action} ) {
+# The gate is keyed on HTTP method, not action name. Every write action
+# in this script is dispatched via POST; reads (list, cache-list,
+# theme-list, plugin-list, nav-read, handler-list, form-targets-read,
+# csrf-token itself, etc.) come in over GET and do not need a token.
+# Going by method rather than an action allowlist means we cannot
+# accidentally leave a new read action out of the list.
+my $method = $ENV{REQUEST_METHOD} // 'GET';
+if ( $method eq 'POST' ) {
     # Token can arrive via (in order of preference):
     #   - X-CSRF-Token header (HTTP_X_CSRF_TOKEN env var) - works for any
     #     body type including raw binary uploads (theme-upload).
     #   - csrf_token field in a JSON body - convenient for existing
     #     apiCall() patterns that send JSON.
-    #   - csrf_token query-string parameter - last-resort fallback.
+    #   - csrf_token query-string parameter - last-resort fallback for
+    #     sendBeacon() calls that cannot set headers.
     my $token = $ENV{HTTP_X_CSRF_TOKEN} // '';
     if ( !$token && $body ) {
         my $parsed = eval { decode_json($body) };
