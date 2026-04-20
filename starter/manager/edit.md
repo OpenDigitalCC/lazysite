@@ -279,18 +279,7 @@ function acquireLock() {
 // --- Load ---
 function loadFile() {
   if (!filePath) return;
-  var dirPart = filePath.replace(/\/[^/]*$/, '') || '/';
-  var fileName = filePath.replace(/^.*\//, '');
-  var parts = dirPart.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
-  var accumulated = '';
-  var items = ['<a href="/manager/#/">/</a>'];
-  for (var bi = 0; bi < parts.length; bi++) {
-    accumulated += '/' + parts[bi];
-    items.push('<a href="/manager/#' + accumulated + '/">' + parts[bi] + '</a>');
-  }
-  items.push('<span>' + fileName + '</span>');
-  var bcHtml = items.join(' &rsaquo; ');
-  document.getElementById('ed-filepath').innerHTML = bcHtml;
+  document.getElementById('ed-filepath').innerHTML = buildBreadcrumb(filePath);
   var viewPath = filePath.replace(/\.md$/, '').replace(/\/index$/, '/');
   if (viewPath.charAt(0) !== '/') viewPath = '/' + viewPath;
   document.getElementById('ed-view-link').href = viewPath;
@@ -361,6 +350,21 @@ function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function buildBreadcrumb(path) {
+  var parts = String(path || '').replace(/^\/+/, '').split('/').filter(Boolean);
+  var crumbs = ['<a href="/manager/files">/</a>'];
+  var cumulative = '';
+  for (var i = 0; i < parts.length - 1; i++) {
+    cumulative += '/' + parts[i];
+    crumbs.push('<a href="/manager/files?path=' +
+      encodeURIComponent(cumulative) + '">' + esc(parts[i]) + '</a>');
+  }
+  if (parts.length) {
+    crumbs.push('<span>' + esc(parts[parts.length - 1]) + '</span>');
+  }
+  return crumbs.join(' &rsaquo; ');
 }
 
 function hideJsonPreview() {
