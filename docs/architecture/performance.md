@@ -55,8 +55,9 @@ Modules loaded per request, via `%INC`:
 | Cache-hit, no remote content | 55 |
 | Cache-hit + remote URL touched (`fetch_url`) | 86 |
 
-The 19-module difference is `LWP::UserAgent` and its transitive
-dependencies, which are `require`d lazily and only on the fetch path.
+The difference between the two rows is `LWP::UserAgent` and its
+transitive dependencies, lazy-loaded only on paths that fetch
+remote content.
 
 Concurrency (10 cache-hit requests on a 6-core machine):
 
