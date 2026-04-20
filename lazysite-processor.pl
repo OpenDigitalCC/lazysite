@@ -306,9 +306,15 @@ my %ENV_ALLOWLIST = map { $_ => 1 } qw(
 sub peek_auth {
     my ($path) = @_;
     my $m = _peek_md($path);
-    my @groups = $m->{groups} ? @{ $m->{groups} } : ();
-    close $fh;
-    return { auth => $auth, groups => \@groups };
+    # Matches the old peek_auth contract: hashref with `auth`
+    # (possibly undef) and `groups` (always arrayref, possibly
+    # empty). peek_auth was the only peek that returned {} on
+    # "no file" rather than undef; preserve that.
+    return {} unless $path && -f $path;
+    return {
+        auth   => $m->{auth},
+        groups => $m->{groups} // [],
+    };
 }
 
 sub check_auth {
@@ -444,19 +450,14 @@ my %PAYMENT_CONTEXT;  # populated by main(), read by render_content()
 
 sub peek_payment {
     my ($path) = @_;
-    open( my $fh, '<:utf8', $path ) or return {};
-    my %meta;
-    my %want = map { $_ => 1 } qw(payment payment_amount payment_currency
-        payment_network payment_address payment_asset payment_description);
-    while ( <$fh> ) {
-        last if $. > 1 && /^---/;
-        if ( /^([\w]+)\s*:\s*(.+)$/ && $want{$1} ) {
-            $meta{$1} = $2;
-            $meta{$1} =~ s/\s+$//;
-        }
+    my $m = _peek_md($path);
+    my %out;
+    for my $k (qw(payment payment_amount payment_currency
+                  payment_network payment_address
+                  payment_asset payment_description)) {
+        $out{$k} = $m->{$k} if defined $m->{$k};
     }
-    close $fh;
-    return \%meta;
+    return \%out;
 }
 
 sub check_payment {
@@ -569,6 +570,148 @@ sub serve_402 {
 
 main();
 
+# Parse the request's query string into a hash of name => value.
+# Values are URL-decoded and HTML-escaped to be safe for interpolation
+# in rendered pages. Returns a hashref.
+sub parse_query_string {
+    my ($qs_source) = @_;
+    my %query_params;
+    return \%query_params unless defined $qs_source && length $qs_source;
+    for my $pair ( split /&/, $qs_source ) {
+        my ( $key, $val ) = split /=/, $pair, 2;
+        next unless defined $key && length $key;
+        $key =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
+        $val = '' unless defined $val;
+        $val =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
+        $val =~ s/\+/ /g;
+        # HTML-escape value before storing so TT renders it safely
+        $val =~ s/&/&amp;/g;
+        $val =~ s/</&lt;/g;
+        $val =~ s/>/&gt;/g;
+        $val =~ s/"/&quot;/g;
+        $val =~ s/'/&#39;/g;
+        $query_params{$key} = $val;
+    }
+    return \%query_params;
+}
+
+# C-1 trust gate. Strip HTTP_X_REMOTE_* and HTTP_X_PAYMENT_*
+# headers from %ENV unless one of the trusted-source signals is
+# present: LAZYSITE_AUTH_TRUSTED=1 (set by lazysite-auth.pl after
+# cookie validation) or auth_proxy_trusted: true in lazysite.conf
+# (operator opt-in for upstream auth proxies). Logs a WARN if a
+# client attempted to set these directly.
+sub apply_trust_gate {
+    my ($uri) = @_;
+    my %sv = resolve_site_vars();
+    my $proxy_trusted = lc( $sv{auth_proxy_trusted} // 'false' );
+    my $auth_trusted  = $ENV{LAZYSITE_AUTH_TRUSTED}  // '';
+    return if ( $auth_trusted eq '1' ) || ( $proxy_trusted eq 'true' );
+
+    if ( $ENV{HTTP_X_REMOTE_USER} ) {
+        log_event('WARN', $uri,
+            'untrusted auth header ignored - set auth_proxy_trusted: true to enable proxy auth',
+            header => 'X-Remote-User',
+            value  => substr( $ENV{HTTP_X_REMOTE_USER}, 0, 32 ));
+    }
+    if ( $ENV{HTTP_X_PAYMENT_VERIFIED} ) {
+        log_event('WARN', $uri,
+            'untrusted payment header ignored',
+            header => 'X-Payment-Verified');
+    }
+    for my $hdr (qw(
+        HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS
+        HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL
+        HTTP_X_PAYMENT_VERIFIED HTTP_X_PAYMENT_PAYER
+    )) {
+        delete $ENV{$hdr};
+    }
+}
+
+# Enforce manager-path access control. Returns truthy if the
+# request was fully handled (manager disabled -> forbidden,
+# unauthenticated -> redirect, /manager -> /manager/ fixup).
+# Caller must treat a truthy return as "done, stop processing
+# this request". Returns falsy when the URI is not a manager
+# path, or the user is authorised to proceed.
+sub handle_manager_path {
+    my ($uri) = @_;
+    my %sv = resolve_site_vars();
+    my $manager_path = $sv{manager_path} || '/manager';
+
+    return 0
+        unless $uri eq $manager_path
+            || index( $uri, "$manager_path/" ) == 0;
+
+    my $manager_enabled = lc( $sv{manager} // 'disabled' );
+    if ( $manager_enabled ne 'enabled' ) {
+        forbidden();
+        return 1;
+    }
+
+    my $auth_user   = $ENV{HTTP_X_REMOTE_USER}   // '';
+    my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
+
+    unless ( _is_manager( \%sv, $auth_user, $auth_groups ) ) {
+        my $redirect = $sv{auth_redirect} || '/login';
+        binmode( STDOUT, ':utf8' );
+        print "Status: 302 Found\r\n";
+        print "Location: $redirect?next=" . uri_encode($uri) . "\r\n\r\n";
+        return 1;
+    }
+
+    # /manager -> /manager/ for directory index
+    if ( $uri eq $manager_path ) {
+        binmode( STDOUT, ':utf8' );
+        print "Status: 302 Found\r\n";
+        print "Location: $manager_path/\r\n\r\n";
+        return 1;
+    }
+    return 0;
+}
+
+# Attempt to serve a cached .html. Returns truthy if the request
+# was served from cache. Callers should return on truthy.
+# $html_stat and $md_stat are arrayrefs (possibly empty).
+sub try_serve_cache {
+    my ( $base, $md_path, $html_path, $html_stat, $md_stat ) = @_;
+    return 0 unless @$md_stat && @$html_stat;
+
+    if ( $html_stat->[9] >= $md_stat->[9] ) {
+        log_event('DEBUG', $ENV{REDIRECT_URL} // '-', 'cache hit');
+        my $ct  = read_ct($base);
+        my $ttl = peek_ttl($md_path);
+        output_page( read_file($html_path), $ct, $ttl );
+        return 1;
+    }
+
+    # mtime stale but page-level TTL may still keep the cache valid
+    my $ttl = peek_ttl($md_path);
+    if ( defined $ttl && is_fresh_ttl_val_stat( $html_stat, $ttl ) ) {
+        my $ct = read_ct($base);
+        output_page( read_file($html_path), $ct, $ttl );
+        return 1;
+    }
+    return 0;
+}
+
+# Match the auth surface (login / logout) for "never cache these"
+# decisions. The URL may be either the conf-configured
+# auth_redirect value (default /login) or the corresponding
+# /logout path; both are matched for their exact value and any
+# sub-path.
+sub is_auth_surface {
+    my ($uri) = @_;
+    my %sv = resolve_site_vars();
+    my $auth_redirect = $sv{auth_redirect} || '/login';
+    my $logout_path   = $auth_redirect;
+    $logout_path =~ s{/login\b}{/logout};
+    return    $uri eq $auth_redirect
+           || index( $uri, "$auth_redirect/" ) == 0
+           || $uri eq $logout_path
+           || index( $uri, "$logout_path/" ) == 0;
+}
+
 sub main {
     # M-2 / PC-2: localise %ENV for the request so $ENV writes below (log
     # level, NOCACHE, etc.) cannot leak across requests under FastCGI / D016.
@@ -577,7 +720,6 @@ sub main {
     my $uri = $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '';
 
     # Capture query string before stripping
-    my %query_params;
     my $qs_source = '';
     if ( $uri =~ s/\?(.*)$// ) {
         $qs_source = $1;
@@ -585,25 +727,7 @@ sub main {
     elsif ( defined $ENV{QUERY_STRING} && length $ENV{QUERY_STRING} ) {
         $qs_source = $ENV{QUERY_STRING};
     }
-    if ( length $qs_source ) {
-        my $qs = $qs_source;
-        for my $pair ( split /&/, $qs ) {
-            my ( $key, $val ) = split /=/, $pair, 2;
-            next unless defined $key && length $key;
-            # URL-decode key and value
-            $key =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
-            $val = '' unless defined $val;
-            $val =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/ge;
-            $val =~ s/\+/ /g;
-            # HTML-escape value before storing
-            $val =~ s/&/&amp;/g;
-            $val =~ s/</&lt;/g;
-            $val =~ s/>/&gt;/g;
-            $val =~ s/"/&quot;/g;
-            $val =~ s/'/&#39;/g;
-            $query_params{$key} = $val;
-        }
-    }
+    my %query_params = %{ parse_query_string($qs_source) };
 
     # Block access to lazysite system directory
     if ( $uri eq $LAZYSITE_URI || index( $uri, $LAZYSITE_URI . '/' ) == 0 ) {
@@ -621,76 +745,13 @@ sub main {
             if $sv{log_format} && !$ENV{LAZYSITE_LOG_FORMAT};
     }
 
-    # Trust gate for auth and payment proxy headers (C-1).
-    # HTTP_X_REMOTE_* and HTTP_X_PAYMENT_* are only trusted when one of:
-    #   - LAZYSITE_AUTH_TRUSTED=1 is set (by lazysite-auth.pl after cookie
-    #     validation; internal sentinel - clients cannot forge it because
-    #     CGI strips LAZYSITE_* client headers)
-    #   - auth_proxy_trusted: true is set in lazysite.conf (operator opt-in
-    #     for upstream auth proxies like Authelia, oauth2-proxy, nginx
-    #     auth_request, mod_auth_mellon).
-    # Otherwise, strip the headers so the rest of the pipeline sees no auth.
-    {
-        my %sv = resolve_site_vars();
-        my $proxy_trusted = lc( $sv{auth_proxy_trusted} // 'false' );
-        my $auth_trusted  = $ENV{LAZYSITE_AUTH_TRUSTED}  // '';
-        my $trusted = ( $auth_trusted eq '1' ) || ( $proxy_trusted eq 'true' );
+    # Trust gate: strip HTTP_X_REMOTE_* / HTTP_X_PAYMENT_* unless
+    # a trusted source (auth wrapper or configured proxy) set them.
+    apply_trust_gate($uri);
 
-        unless ( $trusted ) {
-            if ( $ENV{HTTP_X_REMOTE_USER} ) {
-                log_event('WARN', $uri,
-                    'untrusted auth header ignored - set auth_proxy_trusted: true to enable proxy auth',
-                    header => 'X-Remote-User',
-                    value  => substr( $ENV{HTTP_X_REMOTE_USER}, 0, 32 ));
-            }
-            if ( $ENV{HTTP_X_PAYMENT_VERIFIED} ) {
-                log_event('WARN', $uri,
-                    'untrusted payment header ignored',
-                    header => 'X-Payment-Verified');
-            }
-            for my $hdr (qw(
-                HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS
-                HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL
-                HTTP_X_PAYMENT_VERIFIED HTTP_X_PAYMENT_PAYER
-            )) {
-                delete $ENV{$hdr};
-            }
-        }
-    }
-
-    # Manager path enforcement
-    {
-        my %sv = resolve_site_vars();
-        my $manager_enabled = lc( $sv{manager} // 'disabled' );
-        my $manager_path    = $sv{manager_path}  || '/manager';
-        my $manager_groups  = $sv{manager_groups} || '';
-
-        if ( $uri eq $manager_path || index( $uri, "$manager_path/" ) == 0 ) {
-            if ( $manager_enabled ne 'enabled' ) {
-                forbidden();
-                return;
-            }
-
-            my $auth_user   = $ENV{HTTP_X_REMOTE_USER}   // '';
-            my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
-
-            unless ( _is_manager( \%sv, $auth_user, $auth_groups ) ) {
-                my $redirect = $sv{auth_redirect} || '/login';
-                binmode( STDOUT, ':utf8' );
-                print "Status: 302 Found\r\n";
-                print "Location: $redirect?next=" . uri_encode($uri) . "\r\n\r\n";
-                return;
-            }
-
-            # Redirect /manager to /manager/ for directory index
-            if ( $uri eq $manager_path ) {
-                binmode( STDOUT, ':utf8' );
-                print "Status: 302 Found\r\n";
-                print "Location: $manager_path/\r\n\r\n";
-                return;
-            }
-        }
-    }
+    # Manager path gate. Returns truthy when the request is
+    # already handled (forbidden, redirected, or bounced to login).
+    return if handle_manager_path($uri);
 
     # Bypass cache for authenticated managers so the injected admin
     # bar doesn't get baked into HTML served to anonymous visitors.
@@ -800,28 +861,12 @@ sub main {
         }
     }
 
-    # Pages whose URL matches auth_redirect (login) or its matching
-    # logout page must never be cached: they embed [% query.next %] and
-    # similar per-request TT variables, so a stale login.html would
-    # serve the wrong redirect target (or the literal [% … %] markup).
-    # Matches both the bare path (/login) and any sub-path (/login/x),
-    # which parallels how check_auth() treats the login surface.
-    my $auth_redirect = do {
-        my %sv = resolve_site_vars();
-        $sv{auth_redirect} || '/login';
-    };
-    my $logout_path = $auth_redirect;
-    $logout_path =~ s{/login\b}{/logout};
-    my $is_auth_page =
-           $uri eq $auth_redirect
-        || index( $uri, "$auth_redirect/" ) == 0
-        || $uri eq $logout_path
-        || index( $uri, "$logout_path/" ) == 0;
-
     # Combined protection flag. auth_protected / payment_protected come
-    # from front-matter; the auth-surface check above adds login/logout
-    # even though they ship with `auth: none`.
-    my $protected = $auth_protected || $payment_protected || $is_auth_page;
+    # from front-matter; is_auth_surface() covers login/logout, which
+    # ship with `auth: none` but must never be cached because they
+    # embed per-request TT variables (query.next etc.).
+    my $protected = $auth_protected || $payment_protected
+                 || is_auth_surface($uri);
 
     # Check if this page declares query_params and request has matching ones
     my $has_query_request = 0;
@@ -840,26 +885,11 @@ sub main {
         }
     }
 
-    # Fast path: .md exists and cache is fresh by mtime
-    # Skip cache if LAZYSITE_NOCACHE is set, query request active, or protected
+    # Fast path: serve from cache if eligible. Skip when NOCACHE,
+    # query-carrying request, or any protection flag is set.
     unless ( $ENV{LAZYSITE_NOCACHE} || $has_query_request || $protected ) {
-        if ( @md_stat && @html_stat ) {
-            if ( $html_stat[9] >= $md_stat[9] ) {
-                # mtime fresh - serve cache immediately
-                log_event('DEBUG', $uri, 'cache hit');
-                my $ct  = read_ct($base);
-                my $ttl = peek_ttl($md_path);
-                output_page( read_file($html_path), $ct, $ttl );
-                return;
-            }
-            # mtime stale - check for page-level TTL override before regenerating
-            my $ttl = peek_ttl($md_path);
-            if ( defined $ttl && is_fresh_ttl_val_stat( \@html_stat, $ttl ) ) {
-                my $ct = read_ct($base);
-                output_page( read_file($html_path), $ct, $ttl );
-                return;
-            }
-        }
+        return if try_serve_cache( $base, $md_path, $html_path,
+                                   \@html_stat, \@md_stat );
     }
 
     # .md exists but no cache yet - process it
@@ -1130,66 +1160,23 @@ sub is_safe_url {
 
 sub peek_ttl {
     my ($md_path) = @_;
-    open( my $fh, '<:utf8', $md_path ) or return;
-    my $ttl;
-    while ( <$fh> ) {
-        last if $. > 1 && /^---/;  # end of front matter
-        if ( /^ttl\s*:\s*(\d+)/ ) {
-            $ttl = $1;
-            last;
-        }
-    }
-    close $fh;
-    return $ttl;
+    return _peek_md($md_path)->{ttl};
 }
 
 sub peek_content_type {
     my ($path) = @_;
-    open( my $fh, '<:utf8', $path ) or return;
-    my ( $raw, $api, $content_type );
-    while ( <$fh> ) {
-        last if $. > 1 && /^---/;
-        $raw          = 1  if /^raw\s*:\s*true/i;
-        $api          = 1  if /^api\s*:\s*true/i;
-        $content_type = $1 if /^content_type\s*:\s*(.+)/;
-    }
-    close $fh;
-
-    return unless $raw || $api;
-
-    if ( $content_type ) {
-        $content_type =~ s/^\s+|\s+$//g;
-        return $content_type;
-    }
-
-    return 'application/json; charset=utf-8' if $api;
-    return 'text/plain; charset=utf-8'       if $raw;
+    my $m = _peek_md($path);
+    return $m->{content_type}                  if $m->{content_type};
+    return                                      unless $m->{raw} || $m->{api};
+    return 'application/json; charset=utf-8'   if $m->{api};
+    return 'text/plain; charset=utf-8'         if $m->{raw};
     return 'text/html; charset=utf-8';
 }
 
 sub peek_query_params {
     my ($md_path) = @_;
-    return unless -f $md_path;
-
-    open( my $fh, '<:utf8', $md_path ) or return;
-    my ( @params, $in_block );
-    while ( <$fh> ) {
-        last if $. > 1 && /^---/;  # end of front matter
-        if ( /^query_params\s*:\s*$/ ) {
-            $in_block = 1;
-            next;
-        }
-        if ( $in_block ) {
-            if ( /^[ \t]+-[ \t]*(\S+)/ ) {
-                push @params, $1;
-            }
-            else {
-                last;  # end of block
-            }
-        }
-    }
-    close $fh;
-    return @params ? \@params : undef;
+    return unless $md_path && -f $md_path;
+    return _peek_md($md_path)->{query_params};
 }
 
 sub is_fresh_ttl_val_stat {
@@ -1884,6 +1871,7 @@ sub resolve_tt_vars {
     sub reset_request_state {
         %_site_vars_cache  = ();
         $_site_vars_loaded = 0;
+        _reset_peek_cache();
     }
 }
 
