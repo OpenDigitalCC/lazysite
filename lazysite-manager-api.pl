@@ -377,6 +377,33 @@ sub is_blocked_path {
     return 0;
 }
 
+# SM020: every manager write path that previously did
+# open/print/close had the same ENOSPC/EIO/quota blind spot.
+# Centralised here so a future site gets the checked pattern by
+# default. unlink-on-failure is deliberate: a half-written
+# handlers.conf or nav.conf breaks every subsequent form
+# submission or page render, which is worse than no file at all
+# - the operator can restore from backup or re-save from the UI.
+# Returns ($ok, $error_string). $! is captured into a lexical
+# before close because close itself resets $!.
+sub write_file_checked {
+    my ( $path, $content ) = @_;
+    open my $fh, '>:utf8', $path
+        or return ( 0, "Cannot write file: $!" );
+    unless ( print $fh $content ) {
+        my $err = "$!";
+        close $fh;
+        unlink $path;
+        return ( 0, "Write failed: $err" );
+    }
+    unless ( close $fh ) {
+        my $err = "$!";
+        unlink $path;
+        return ( 0, "Close failed: $err" );
+    }
+    return ( 1, undef );
+}
+
 # --- Lock management ---
 
 sub acquire_lock {
@@ -540,9 +567,8 @@ sub action_save {
     my $dir = dirname($full);
     make_path($dir) unless -d $dir;
 
-    open my $fh, '>:utf8', $full or return { ok => 0, error => "Cannot write file: $!" };
-    print $fh $content;
-    close $fh;
+    my ( $wok, $werr ) = write_file_checked( $full, $content );
+    return { ok => 0, error => $werr } unless $wok;
 
     # Invalidate cache (only for .md files that have .html cache)
     if ( $full =~ /\.md$/ ) {
@@ -1118,9 +1144,8 @@ sub action_nav_save {
 
     my $dir = dirname($path);
     make_path($dir) unless -d $dir;
-    open my $fh, '>:utf8', $path or return { ok => 0, error => "Cannot write nav: $!" };
-    print $fh $content;
-    close $fh;
+    my ( $wok, $werr ) = write_file_checked( $path, $content );
+    return { ok => 0, error => "Cannot write nav: $werr" } unless $wok;
 
     return { ok => 1 };
 }
@@ -1268,10 +1293,9 @@ sub _update_plugins_conf {
     $new_conf =~ s/\n{3,}/\n\n/g;
     $new_conf .= "\n" unless $new_conf =~ /\n$/;
 
-    open my $out, '>:utf8', $conf_path
-        or return { ok => 0, error => "Cannot write lazysite.conf" };
-    print $out $new_conf;
-    close $out;
+    my ( $wok, $werr ) = write_file_checked( $conf_path, $new_conf );
+    return { ok => 0, error => "Cannot write lazysite.conf: $werr" }
+        unless $wok;
 
     unlink "$DOCROOT/lazysite/cache/plugin-list.cache";
 
@@ -1367,10 +1391,9 @@ sub action_plugin_save {
 
         my $dir = dirname($conf_path);
         make_path($dir) unless -d $dir;
-        open my $fh, '>:utf8', $conf_path
-            or return { ok => 0, error => "Cannot write config: $!" };
-        print $fh $content;
-        close $fh;
+        my ( $wok, $werr ) = write_file_checked( $conf_path, $content );
+        return { ok => 0, error => "Cannot write config: $werr" }
+            unless $wok;
     }
     elsif ( $desc->{config_keys} ) {
         my %want = map { $_ => 1 } @{ $desc->{config_keys} };
@@ -1391,10 +1414,9 @@ sub action_plugin_save {
             }
         }
 
-        open my $fh, '>:utf8', $conf_path
-            or return { ok => 0, error => "Cannot write lazysite.conf: $!" };
-        print $fh $content;
-        close $fh;
+        my ( $wok, $werr ) = write_file_checked( $conf_path, $content );
+        return { ok => 0, error => "Cannot write lazysite.conf: $werr" }
+            unless $wok;
     }
 
     return { ok => 1 };
@@ -1471,10 +1493,8 @@ sub _write_handlers_conf {
         }
     }
 
-    open my $fh, '>:utf8', $path or return 0;
-    print $fh $content;
-    close $fh;
-    return 1;
+    my ( $wok ) = write_file_checked( $path, $content );
+    return $wok;
 }
 
 sub action_handler_list {
@@ -1592,9 +1612,9 @@ sub action_form_targets_save {
         }
     }
 
-    open my $fh, '>:utf8', $path or return { ok => 0, error => "Cannot write form config: $!" };
-    print $fh $content;
-    close $fh;
+    my ( $wok, $werr ) = write_file_checked( $path, $content );
+    return { ok => 0, error => "Cannot write form config: $werr" }
+        unless $wok;
 
     return { ok => 1, form => $form_name };
 }
@@ -2088,12 +2108,26 @@ sub action_file_zip_download {
 
     for my $rel (@requested) {
         my $vr = validate_path($rel);
-        next unless $vr->{ok};
-        next if is_blocked_path( $vr->{rel} );
+        unless ( $vr->{ok} ) {
+            log_event( 'WARN', 'file-zip-download',
+                'skipped (invalid path)',
+                path => $rel, user => $auth_user );
+            next;
+        }
+        if ( is_blocked_path( $vr->{rel} ) ) {
+            log_event( 'WARN', 'file-zip-download',
+                'skipped (blocked path)',
+                path => $rel, user => $auth_user );
+            next;
+        }
 
         my $full = $vr->{full};
-        next unless -f $full;
-        next if -d $full;
+        unless ( -f $full ) {
+            log_event( 'WARN', 'file-zip-download',
+                'skipped (not a file)',
+                path => $rel, user => $auth_user );
+            next;
+        }
 
         my $size = ( stat $full )[7] // 0;
         $total += $size;

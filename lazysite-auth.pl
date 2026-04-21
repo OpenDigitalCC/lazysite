@@ -372,12 +372,15 @@ sub check_login_rate {
     return 1 unless $ip;
     make_path($AUTH_DIR) unless -d $AUTH_DIR;
 
+    # SM022: do not capture the tie return value. A lexical holding
+    # a reference to the tied object triggers "untie attempted
+    # while inner references still exist" on the untie below.
     my %db;
-    my $tied = eval {
-        require DB_File;
+    eval { require DB_File; 1 } or return 1;    # fail open
+    eval {
         tie %db, 'DB_File', $LOGIN_RATE_DB, O_CREAT | O_RDWR, 0o600;
     };
-    return 1 if $@ || !$tied;    # fail open
+    return 1 if $@ || !tied %db;    # fail open
 
     my $window = int( time() / $LOGIN_WINDOW );
     my $key    = "$ip:$window";

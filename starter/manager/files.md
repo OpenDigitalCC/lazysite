@@ -14,6 +14,7 @@ search: false
 <input type="search" id="file-filter" class="mg-file-filter" placeholder="Filter files..." oninput="filterFiles(this.value)">
 <button class="mg-btn" onclick="newFile()">Add File</button>
 <button class="mg-btn" onclick="newFolder()">Add Folder</button>
+<label class="mg-file-select-all" style="margin:0 0.25rem;"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)"> All</label>
 <button class="mg-btn" onclick="triggerUpload()">Upload</button>
 <button class="mg-btn" id="zip-btn" style="display:none" onclick="zipSelected()">Download selected</button>
 <input type="file" id="upload-input" multiple style="display:none" onchange="uploadFiles(this.files)">
@@ -158,6 +159,10 @@ function filterFiles(query) {
     var name = items[i].getAttribute('data-name') || '';
     items[i].style.display = name.toLowerCase().indexOf(query) >= 0 ? '' : 'none';
   }
+  // SM019a: the visible set changed, so the Select-all / zip-btn
+  // state needs to reconcile against the new set. Existing
+  // selections are preserved - we only re-derive the aggregate.
+  if (typeof updateZipButton === 'function') updateZipButton();
 }
 
 function formatSize(bytes) {
@@ -303,10 +308,44 @@ function zipSelected() {
   window.location = url;
 }
 
+// SM019a: "visible" = not hidden by filterFiles, which sets
+// inline display:none. If filterFiles is ever refactored to use
+// a CSS class instead, this selector needs to update too.
+function visibleFileChecks() {
+  return document.querySelectorAll(
+    '.mg-file-item:not([style*="display: none"]) .mg-file-select');
+}
+
+function toggleSelectAll(src) {
+  var checks = visibleFileChecks();
+  for (var i = 0; i < checks.length; i++) {
+    checks[i].checked = src.checked;
+  }
+  updateZipButton();
+}
+
 function updateZipButton() {
-  var checks = document.querySelectorAll('.mg-file-select:checked');
+  var allChecks = visibleFileChecks();
+  var checked = [];
+  for (var i = 0; i < allChecks.length; i++) {
+    if (allChecks[i].checked) checked.push(allChecks[i]);
+  }
   var btn = document.getElementById('zip-btn');
-  if (btn) btn.style.display = checks.length ? '' : 'none';
+  if (btn) btn.style.display = checked.length ? '' : 'none';
+
+  var sa = document.getElementById('select-all');
+  if (sa) {
+    if (checked.length === 0) {
+      sa.checked = false;
+      sa.indeterminate = false;
+    } else if (checked.length === allChecks.length) {
+      sa.checked = true;
+      sa.indeterminate = false;
+    } else {
+      sa.checked = false;
+      sa.indeterminate = true;
+    }
+  }
 }
 
 // SM019: honour ?path= first, fall back to #hash. The edit.md
