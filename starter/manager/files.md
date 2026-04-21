@@ -65,6 +65,16 @@ function isEditable(name) {
   return TEXT_EXTENSIONS[m[1].toLowerCase()] ? true : false;
 }
 
+// SM019c: every path composed from currentDir + a name goes
+// through this. currentDir may have a trailing slash (from
+// breadcrumb and directory-click code paths); names coming
+// from prompts may have a leading slash if the user paste-pasted.
+function joinPath(dir, name) {
+  var d = String(dir || '').replace(/\/+$/, '');
+  var n = String(name || '').replace(/^\/+/, '');
+  return d + '/' + n;
+}
+
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
   if (isError) {
@@ -163,7 +173,7 @@ function renderFiles(files) {
     html += '<td class="mg-col-age">' + (f.mtime ? relativeTime(f.mtime) : '') + '</td>';
 
     if (f.type === 'file') {
-      html += '<td class="mg-file-dl"><a href="' + API + '?action=file-download&path=' + encodeURIComponent(f.path) + '" download="' + escHtml(f.name) + '" title="Download">&darr;</a></td>';
+      html += '<td class="mg-file-dl"><a href="' + API + '?action=file-download&path=' + encodeURIComponent(f.path) + '" download="' + escHtml(f.name) + '" title="Download">&#x2B07;</a></td>';
     } else {
       html += '<td></td>';
     }
@@ -207,7 +217,7 @@ function formatSize(bytes) {
 function newFile() {
   var name = prompt('File name (e.g. page.md):');
   if (!name) return;
-  var path = currentDir + name;
+  var path = joinPath(currentDir, name);
   fetch(API + '?action=save&path=' + encodeURIComponent(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -229,8 +239,7 @@ function newFile() {
 function newFolder() {
   var name = prompt('Folder name:');
   if (!name) return;
-  var path = currentDir + name;
-  path = path.replace(/\/+$/, '');
+  var path = joinPath(currentDir, name).replace(/\/+$/, '');
   fetch(API + '?action=mkdir&path=' + encodeURIComponent(path), {
     method: 'POST'
   })

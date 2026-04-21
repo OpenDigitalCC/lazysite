@@ -459,6 +459,11 @@ sub action_list {
     my ($dir_path) = @_;
     $dir_path //= '/';
     $dir_path =~ s{[^a-zA-Z0-9/_.-]}{}g;
+    # SM019c: collapse a trailing slash so child paths are assembled
+    # as "/dir/name" not "/dir//name". The next line keeps "/" itself
+    # intact because s{/+$}{}  on "/" yields "", which we re-inflate.
+    $dir_path =~ s{/+$}{};
+    $dir_path = '/' if $dir_path eq '';
 
     my $fs_path = "$DOCROOT$dir_path";
     my $real    = realpath($fs_path);
@@ -548,6 +553,8 @@ sub action_save {
 
     return { ok => 0, error => "Path is blocked" }
         if is_blocked_path( $result->{rel} );
+    return { ok => 0, error => "Path is blocked by config" }
+        if is_blocked_config( $result->{rel} );
 
     my $full = $result->{full};
 
@@ -609,6 +616,8 @@ sub action_delete {
 
     return { ok => 0, error => "Path is blocked" }
         if is_blocked_path( $result->{rel} );
+    return { ok => 0, error => "Path is blocked by config" }
+        if is_blocked_config( $result->{rel} );
 
     my $full = $result->{full};
 
@@ -656,6 +665,8 @@ sub action_mkdir {
 
     return { ok => 0, error => "Path is blocked" }
         if is_blocked_path( $result->{rel} );
+    return { ok => 0, error => "Path is blocked by config" }
+        if is_blocked_config( $result->{rel} );
 
     my $full = $result->{full};
     return { ok => 0, error => "Path already exists" } if -e $full;
@@ -1682,15 +1693,22 @@ sub action_form_targets_save {
 
 # --- SM019: upload / download / zip-download ---
 
-# Read the five manager_upload_* keys from lazysite.conf. All are
-# optional; invalid values fall back to the hard-coded defaults and
-# are logged at WARN. Called once per request via upload_limits().
+# Read the manager_upload_* / manager_blocked_* keys from
+# lazysite.conf. All are optional; invalid values fall back to
+# the hard-coded defaults and are logged at WARN. Called once
+# per request via upload_limits().
+#
+# SM019c renamed manager_upload_blocked_paths to
+# manager_blocked_paths because the list now gates download,
+# save, and delete as well as upload. The old key is still
+# accepted with a one-time INFO log so operators have a chance
+# to update their conf on the next restart.
 sub load_upload_limits {
     my %limits = (
         max_bytes          => 10 * 1024 * 1024,
         blocked_paths      => [ qw(
             lazysite/auth lazysite/forms lazysite/cache
-            lazysite/themes/manager cgi-bin
+            lazysite/themes/manager cgi-bin manager
         ) ],
         blocked_extensions => [ qw(pl cgi) ],
         rate_count         => 60,
@@ -1700,6 +1718,8 @@ sub load_upload_limits {
     my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
     return \%limits unless -f $conf_path;
 
+    my $new_key_seen = 0;
+    my $old_key_seen = 0;
     open my $fh, '<', $conf_path or return \%limits;
     while (<$fh>) {
         if ( /^manager_upload_max_mb\s*:\s*(\S+)/ ) {
@@ -1711,7 +1731,7 @@ sub load_upload_limits {
                     'invalid manager_upload_max_mb', value => $mb );
             }
         }
-        elsif ( /^manager_upload_blocked_paths\s*:\s*(.+)/ ) {
+        elsif ( /^manager_blocked_paths\s*:\s*(.+)/ ) {
             my $v = $1;
             $v =~ s/\s+$//;
             if ( length $v ) {
@@ -1721,6 +1741,22 @@ sub load_upload_limits {
                     split /\s*,\s*/, $v
                 ];
             }
+            $new_key_seen = 1;
+        }
+        elsif ( /^manager_upload_blocked_paths\s*:\s*(.+)/ ) {
+            # Deprecated alias; only honoured if the new key
+            # is absent. The new-key check happens after the
+            # loop because they may appear in either order.
+            my $v = $1;
+            $v =~ s/\s+$//;
+            if ( length $v ) {
+                $limits{_deprecated_blocked_paths} = [
+                    map  { my $p = $_; $p =~ s{^/+|/+$}{}g; $p }
+                    grep { length }
+                    split /\s*,\s*/, $v
+                ];
+            }
+            $old_key_seen = 1;
         }
         elsif ( /^manager_upload_blocked_extensions\s*:\s*(.+)/ ) {
             my $v = $1;
@@ -1753,6 +1789,18 @@ sub load_upload_limits {
         }
     }
     close $fh;
+
+    # Apply the deprecated alias only if the new key was not set.
+    # Log INFO so operators know to rename.
+    if ( $old_key_seen && !$new_key_seen
+        && exists $limits{_deprecated_blocked_paths} ) {
+        $limits{blocked_paths} = delete $limits{_deprecated_blocked_paths};
+        log_event( 'INFO', 'config',
+            'manager_upload_blocked_paths is deprecated; '
+          . 'rename to manager_blocked_paths in lazysite.conf' );
+    }
+    delete $limits{_deprecated_blocked_paths};
+
     return \%limits;
 }
 
@@ -1768,21 +1816,29 @@ sub _reset_upload_limits_cache { $_upload_limits_cache = undef }
 
 # Second gate on top of is_blocked_path. is_blocked_path enforces a
 # hard-coded list plus the .pl rule; this one reads the configurable
-# blocked_paths and blocked_extensions lists.
-sub is_blocked_upload_target {
-    my ($rel_path) = @_;
+# blocked_paths and (for uploads only) blocked_extensions lists.
+#
+# SM019c widened the caller set: the path list now gates save,
+# delete, download, zip-download, and upload. The extension list
+# is still upload-only (no reason to block a user from downloading
+# a .pl they already created through other means). The
+# $check_extensions flag controls that.
+sub is_blocked_config {
+    my ( $rel_path, $check_extensions ) = @_;
     my $limits = upload_limits();
 
     for my $prefix ( @{ $limits->{blocked_paths} } ) {
         next unless length $prefix;
         if ( $rel_path eq $prefix
             || index( $rel_path, "$prefix/" ) == 0 ) {
-            log_event( 'WARN', $action, 'upload blocked by path',
+            log_event( 'WARN', $action, 'blocked by config (path)',
                 path => $rel_path, prefix => $prefix,
                 user => $auth_user );
             return 1;
         }
     }
+
+    return 0 unless $check_extensions;
 
     my ($ext) = $rel_path =~ /\.([^.\/]+)$/;
     if ( defined $ext ) {
@@ -1790,7 +1846,7 @@ sub is_blocked_upload_target {
         for my $blocked ( @{ $limits->{blocked_extensions} } ) {
             if ( $lc eq $blocked ) {
                 log_event( 'WARN', $action,
-                    'upload blocked by extension',
+                    'blocked by config (extension)',
                     path => $rel_path, extension => $lc,
                     user => $auth_user );
                 return 1;
@@ -1798,6 +1854,14 @@ sub is_blocked_upload_target {
         }
     }
     return 0;
+}
+
+# SM019c: kept as a thin compat shim so callers (and tests)
+# written against the SM019 name still work. New call sites
+# should use is_blocked_config directly.
+sub is_blocked_upload_target {
+    my ($rel_path) = @_;
+    return is_blocked_config( $rel_path, 1 );
 }
 
 # Per-user hourly budget on upload count and total bytes. Mirrors the
@@ -1985,7 +2049,7 @@ sub action_file_upload {
             : $fname;
 
         if ( is_blocked_path($rel_target)
-            || is_blocked_upload_target($rel_target) ) {
+            || is_blocked_config( $rel_target, 1 ) ) {
             push @errors, { name => $fname,
                             error => 'Blocked target' };
             next;
@@ -2093,6 +2157,13 @@ sub action_file_download {
         respond({ ok => 0, error => "Path is blocked" });
         return;
     }
+    # SM019c: config block list applies to downloads too, so a
+    # caller cannot siphon the manager UI or any other configured
+    # sensitive directory via this surface.
+    if ( is_blocked_config( $result->{rel} ) ) {
+        respond({ ok => 0, error => "Path is blocked by config" });
+        return;
+    }
 
     my $full = $result->{full};
 
@@ -2178,6 +2249,14 @@ sub action_file_zip_download {
         if ( is_blocked_path( $vr->{rel} ) ) {
             log_event( 'WARN', 'file-zip-download',
                 'skipped (blocked path)',
+                path => $rel, user => $auth_user );
+            next;
+        }
+        # SM019c: config block list applies to zip-download too,
+        # mirroring single-file download.
+        if ( is_blocked_config( $vr->{rel} ) ) {
+            log_event( 'WARN', 'file-zip-download',
+                'skipped (blocked by config)',
                 path => $rel, user => $auth_user );
             next;
         }

@@ -24,15 +24,22 @@ manager_path: /manager
 #   - cgi-bin/lazysite-form-smtp.pl
 #   - tools/lazysite-audit.pl
 
-# Manager upload limits (defaults shown).
-# manager_upload_max_mb caps a single multipart request.
-# manager_upload_blocked_paths: comma-separated prefixes under
-#   DOCROOT that reject uploads (on top of the built-in blocks).
+# Manager limits (defaults shown).
+# manager_upload_max_mb caps a single multipart upload request.
+# manager_blocked_paths: comma-separated prefixes under DOCROOT
+#   that reject save, delete, download, and upload (on top of the
+#   built-in blocks). The "manager" prefix protects the manager UI
+#   from editing itself into a broken state; remove it if you want
+#   to edit manager pages via the manager.
+#   (Old name manager_upload_blocked_paths is still accepted for
+#   backward compatibility, with a deprecation log on startup.)
 # manager_upload_blocked_extensions: comma-separated, no dots.
+#   Applies to uploads only - no reason to block downloading a
+#   file the operator already placed on disk.
 # manager_upload_rate_count / manager_upload_rate_mb: per-user
-#   hourly budget (0 disables that dimension).
+#   hourly upload budget (0 disables that dimension).
 # manager_upload_max_mb: 10
-# manager_upload_blocked_paths: lazysite/auth,lazysite/forms,lazysite/cache,lazysite/themes/manager,cgi-bin
+# manager_blocked_paths: lazysite/auth,lazysite/forms,lazysite/cache,lazysite/themes/manager,cgi-bin,manager
 # manager_upload_blocked_extensions: pl,cgi
 # manager_upload_rate_count: 60
 # manager_upload_rate_mb: 500

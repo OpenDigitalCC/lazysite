@@ -541,8 +541,10 @@
 }
 
 .mg-file-table .mg-file-dl a {
+    font-size: 1.15em;
+    font-weight: bold;
     text-decoration: none;
-    color: var(--mg-text-muted);
+    color: var(--mg-text);
 }
 
 .mg-file-table .mg-file-dl a:hover {

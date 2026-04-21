@@ -270,9 +270,16 @@ The manager `file-upload` action layers seven checks:
 5. Each target path is checked against the built-in
    `@BLOCKED_PATHS` list plus the `.pl` rule (`is_blocked_path`).
 6. Each target path is checked against the configurable
-   `manager_upload_blocked_paths` and
+   `manager_blocked_paths` (renamed from
+   `manager_upload_blocked_paths` in SM019c; the old key is
+   still accepted with a deprecation log) and
    `manager_upload_blocked_extensions` lists
-   (`is_blocked_upload_target`).
+   (`is_blocked_config`). The path list also gates
+   `action_save`, `action_delete`, `action_mkdir`,
+   `action_file_download`, and `action_file_zip_download`,
+   so a manager cannot siphon or overwrite protected
+   directories through any of those surfaces. The extension
+   list stays upload-only.
 7. Writes go to a per-pid tempfile then `rename()` to the final
    name. Short-write failures surface as per-file errors; a
    partial file is never left in place.

@@ -277,6 +277,11 @@ while ( my $client = $server->accept() ) {
 sub handle_request {
     my ($client) = @_;
 
+    # SM019c: byte semantics for all socket I/O. Without this, any
+    # inherited or default PerlIO layer could decode/encode bytes
+    # on write, which double-encodes binary CGI bodies (zip, image).
+    binmode $client;
+
     my $t0 = $has_hires ? Time::HiRes::time() : 0;
 
     # Read request line
@@ -445,9 +450,22 @@ sub handle_request {
         }
     }
 
-    # Send HTTP response
-    my $body   = Encode::encode_utf8($output);
-    my $length = length($body);
+    # Send HTTP response.
+    #
+    # SM019c: qx() already returns raw bytes from the CGI process
+    # (no utf8 flag set), so passing them through Encode::encode_utf8
+    # double-encodes every high byte and corrupts binary responses
+    # (zip download, image/* downloads). For text responses the
+    # CGI already emits UTF-8 bytes via its own ':utf8' layer, so
+    # passing the raw bytes through is correct in both cases.
+    # Force-clear any utf8 flag defensively via the ::bytes scope
+    # so length() gives byte count even if some future change taints
+    # $output with the flag.
+    my $body = $output;
+    my $length = do { use bytes; length($body) };
+
+    # Content-Type from the CGI may declare its own charset (most
+    # do for text, none for binary). Forward it verbatim.
 
     print $client "HTTP/1.0 $status\r\n";
     print $client "Content-Type: $content_type\r\n";
