@@ -34,6 +34,7 @@ query_params:
 <button id="ed-save-btn" class="mg-btn mg-btn-primary" onclick="savePage()" disabled>Save</button>
 <button class="mg-btn" onclick="refreshPreview()">Preview</button>
 <a id="ed-view-link" href="#" target="_blank" class="mg-btn">View page</a>
+<a id="ed-download-btn" class="mg-btn mg-btn-outline mg-btn-sm" href="#" download>Download</a>
 </div>
 
 <div id="ed-cache-notice" class="mg-cache-notice" style="display:none;"></div>
@@ -284,6 +285,15 @@ function loadFile() {
   if (viewPath.charAt(0) !== '/') viewPath = '/' + viewPath;
   document.getElementById('ed-view-link').href = viewPath;
 
+  // SM019: Download button is useful for every file type, so wire
+  // it for every path. For binary files the whole toolbar is hidden
+  // below and replaced by the binary panel's big Download button.
+  var dl = document.getElementById('ed-download-btn');
+  if (dl) {
+    dl.href = API + '?action=file-download&path=' + encodeURIComponent(filePath);
+    dl.setAttribute('download', filePath.split('/').pop());
+  }
+
   if (!isMdFile) {
     document.getElementById('ed-fm-section').style.display = 'none';
     document.getElementById('ed-preview-pane').style.display = 'none';
@@ -486,10 +496,39 @@ function updateJsonPreview(content) {
   else                      hideJsonPreview();
 }
 
+// SM019: binary-file landing page. Replaces the editor + preview
+// pane (#ed-main) with a download card and hides the toolbar /
+// statusbar so the user sees only the Download action. #editor-root
+// is left intact so view.tt page chrome still renders.
+function renderBinaryPanel(path) {
+  var main = document.getElementById('ed-main');
+  if (main) {
+    main.innerHTML =
+      '<div class="mg-card">' +
+        '<div class="mg-card-header">Binary file</div>' +
+        '<div class="mg-card-body">' +
+          '<p>This file cannot be edited in the browser. ' +
+             'Download it to edit locally.</p>' +
+          '<a class="mg-btn mg-btn-primary" href="' + API +
+             '?action=file-download&path=' + encodeURIComponent(path) +
+             '" download>Download</a>' +
+        '</div>' +
+      '</div>';
+  }
+  var toolbar = document.querySelector('.mg-editor-toolbar');
+  if (toolbar) toolbar.style.display = 'none';
+  var statusbar = document.querySelector('.mg-editor-statusbar');
+  if (statusbar) statusbar.style.display = 'none';
+}
+
 function loadContent() {
   fetch(API + '?action=read&path=' + encodeURIComponent(filePath))
     .then(function(r) { return r.json(); })
     .then(function(data) {
+      if (data.binary) {
+        renderBinaryPanel(filePath);
+        return;
+      }
       if (!data.ok) {
         document.getElementById('ed-saved').textContent = data.error || 'Load failed';
         return;

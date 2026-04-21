@@ -14,6 +14,9 @@ search: false
 <input type="search" id="file-filter" class="mg-file-filter" placeholder="Filter files..." oninput="filterFiles(this.value)">
 <button class="mg-btn" onclick="newFile()">Add File</button>
 <button class="mg-btn" onclick="newFolder()">Add Folder</button>
+<button class="mg-btn" onclick="triggerUpload()">Upload</button>
+<button class="mg-btn" id="zip-btn" style="display:none" onclick="zipSelected()">Download selected</button>
+<input type="file" id="upload-input" multiple style="display:none" onchange="uploadFiles(this.files)">
 </div>
 
 <div class="mg-file-list" id="file-list">
@@ -25,6 +28,22 @@ search: false
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var currentDir = '/';
+
+// SM019: must mirror %TEXT_EXTENSIONS in lazysite-manager-api.pl.
+// Files whose extension is not in this set are rendered as a plain
+// name (no edit link) and can only be downloaded.
+var TEXT_EXTENSIONS = {
+  md: 1, txt: 1, html: 1, htm: 1, css: 1, js: 1,
+  json: 1, jsonl: 1, xml: 1, yaml: 1, yml: 1,
+  csv: 1, tsv: 1, conf: 1, ini: 1, log: 1,
+  pl: 1, pm: 1, sh: 1, bash: 1, env: 1, example: 1
+};
+
+function isEditable(name) {
+  var m = name.match(/\.([^.]+)$/);
+  if (!m) return true;
+  return TEXT_EXTENSIONS[m[1].toLowerCase()] ? true : false;
+}
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
@@ -89,11 +108,19 @@ function renderFiles(files) {
     var f = files[i];
     var icon = f.type === 'dir' ? '&#128193;' : '&#128196;';
     html += '<div class="mg-file-item" data-name="' + escHtml(f.name) + '">';
-    html += '<span class="mg-file-icon">' + icon + '</span>';
     if (f.type === 'dir') {
+      html += '<span class="mg-file-icon">' + icon + '</span>';
       html += '<span class="mg-file-name"><a href="#" onclick="loadDir(\'' + escHtml(f.path) + '/\'); return false;">' + escHtml(f.name) + '/</a></span>';
     } else {
-      html += '<span class="mg-file-name"><a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a></span>';
+      // SM019: file rows get a selection checkbox for zip download;
+      // directory rows do not (download-folder is out of scope).
+      html += '<input type="checkbox" class="mg-file-select" value="' + escHtml(f.path) + '" onchange="updateZipButton()">';
+      html += '<span class="mg-file-icon">' + icon + '</span>';
+      if (isEditable(f.name)) {
+        html += '<span class="mg-file-name"><a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a></span>';
+      } else {
+        html += '<span class="mg-file-name">' + escHtml(f.name) + '</span>';
+      }
     }
     if (f.size !== undefined) {
       html += '<span class="mg-file-meta">' + formatSize(f.size) + '</span>';
@@ -101,7 +128,12 @@ function renderFiles(files) {
     if (f.mtime) {
       html += '<span class="mg-file-meta">' + relativeTime(f.mtime) + '</span>';
     }
-    html += '<span class="mg-file-actions"><button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteItem(\'' + escHtml(f.path) + '\', \'' + f.type + '\')">Delete</button></span>';
+    html += '<span class="mg-file-actions">';
+    if (f.type !== 'dir') {
+      html += '<a class="mg-file-download" href="' + API + '?action=file-download&path=' + encodeURIComponent(f.path) + '" download="' + escHtml(f.name) + '" title="Download">&darr;</a> ';
+    }
+    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteItem(\'' + escHtml(f.path) + '\', \'' + f.type + '\')">Delete</button>';
+    html += '</span>';
     html += '</div>';
   }
   list.innerHTML = html;
@@ -185,6 +217,115 @@ function deleteItem(path, type) {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-var initDir = decodeURIComponent(location.hash.replace(/^#/, '')) || '/';
-loadDir(initDir);
+// SM019: upload + zip-download handlers. The global fetch wrapper in
+// view.tt already attaches X-CSRF-Token to every POST to the manager
+// API, so multipart uploads just use fetch() directly - no
+// query-string token needed.
+function triggerUpload() {
+  document.getElementById('upload-input').click();
+}
+
+function uploadFiles(files) {
+  if (!files || !files.length) return;
+  var dir = currentDir;
+  var total = files.length;
+  if (typeof mgShowWarning === 'function') {
+    mgShowWarning('Uploading ' + total + ' file(s)...', false);
+  }
+  var fd = new FormData();
+  fd.append('overwrite', '0');
+  for (var i = 0; i < files.length; i++) {
+    fd.append('file', files[i], files[i].name);
+  }
+  var url = API + '?action=file-upload&path=' + encodeURIComponent(dir);
+  fetch(url, { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) {
+        showStatus(data.error || 'Upload failed', true);
+        return;
+      }
+      if (data.skipped && data.skipped.length) {
+        handleSkipped(data.skipped, dir, files);
+      } else {
+        if (typeof mgClearWarning === 'function') mgClearWarning();
+        var savedCount = data.saved ? data.saved.length : 0;
+        var errs = data.errors || [];
+        if (errs.length) {
+          var firstErr = errs[0].error || 'upload error';
+          showStatus('Uploaded ' + savedCount + ' of ' + total + ' (' + firstErr + ')', errs.length > 0 && savedCount === 0);
+        } else {
+          showStatus('Uploaded ' + savedCount + ' file(s).');
+        }
+        loadDir(dir);
+      }
+      document.getElementById('upload-input').value = '';
+    })
+    .catch(function(e) { showStatus('Upload error: ' + e.message, true); });
+}
+
+function handleSkipped(skipped, dir, files) {
+  var msg = 'These files already exist:\n\n' + skipped.join('\n') + '\n\nOverwrite?';
+  if (!confirm(msg)) {
+    showStatus('Upload cancelled for ' + skipped.length + ' file(s).');
+    loadDir(dir);
+    return;
+  }
+  var skipSet = {};
+  for (var i = 0; i < skipped.length; i++) skipSet[skipped[i]] = true;
+  var toRetry = [];
+  for (var j = 0; j < files.length; j++) {
+    if (skipSet[files[j].name]) toRetry.push(files[j]);
+  }
+  var fd = new FormData();
+  fd.append('overwrite', '1');
+  for (var i = 0; i < toRetry.length; i++) {
+    fd.append('file', toRetry[i], toRetry[i].name);
+  }
+  var url = API + '?action=file-upload&path=' + encodeURIComponent(dir);
+  fetch(url, { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (typeof mgClearWarning === 'function') mgClearWarning();
+      loadDir(dir);
+    })
+    .catch(function(e) { showStatus('Overwrite error: ' + e.message, true); });
+}
+
+function zipSelected() {
+  var checks = document.querySelectorAll('.mg-file-select:checked');
+  if (!checks.length) return;
+  var qs = [];
+  for (var i = 0; i < checks.length; i++) {
+    qs.push('paths=' + encodeURIComponent(checks[i].value));
+  }
+  var url = API + '?action=file-zip-download&' + qs.join('&');
+  window.location = url;
+}
+
+function updateZipButton() {
+  var checks = document.querySelectorAll('.mg-file-select:checked');
+  var btn = document.getElementById('zip-btn');
+  if (btn) btn.style.display = checks.length ? '' : 'none';
+}
+
+// SM019: honour ?path= first, fall back to #hash. The edit.md
+// breadcrumb from SM018 links with ?path=, so this is what makes
+// those breadcrumbs land in the right directory.
+function readInitDir() {
+  var qs = location.search;
+  if (qs && qs.length > 1) {
+    var params = qs.substr(1).split('&');
+    for (var i = 0; i < params.length; i++) {
+      var kv = params[i].split('=');
+      if (kv[0] === 'path') {
+        return decodeURIComponent(kv[1] || '') || '/';
+      }
+    }
+  }
+  var h = decodeURIComponent(location.hash.replace(/^#/, ''));
+  return h || '/';
+}
+
+loadDir(readInitDir());
 </script>

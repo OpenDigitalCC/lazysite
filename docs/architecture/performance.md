@@ -128,6 +128,23 @@ sibling `.ct` file under `lazysite/cache/ct/`.
   (`parse_query_string`, `apply_trust_gate`, `handle_manager_path`,
   `try_serve_cache`, `is_auth_surface`). Cyclomatic complexity
   reduced from 69 to 54.
+- Manager upload rejects oversize or rate-exceeding requests
+  before the body is read into memory: the `CONTENT_LENGTH` gate
+  and `check_upload_rate` both run before `read(STDIN, ...)` in
+  `lazysite-manager-api.pl`. An attacker flooding the endpoint
+  with 1 GB multipart bodies pays only the cost of parsing the
+  request line and headers per request.
+- Manager download streams in 64 KB `sysread`/`syswrite` chunks.
+  Peak memory is bounded by the chunk size, not the file size.
+- Manager zip-download builds the archive to a tempfile via
+  `Archive::Zip::writeToFileNamed` then streams it in 64 KB
+  chunks. `Archive::Zip` and `File::Temp` are `require`d lazily
+  inside `action_file_zip_download`, so the majority of manager
+  API calls (list, read, save, etc.) do not pay their load cost.
+- `upload_limits()` is memoised per request: the conf file is
+  parsed once, even if the size gate, rate limit, and
+  per-file blocklist check all consult it within the same
+  request.
 
 ## Remaining opportunities
 

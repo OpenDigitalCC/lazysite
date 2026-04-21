@@ -251,6 +251,46 @@ Front-matter values are passed through `strip_tt_directives()`
 before being made available as TT variables, so a page author
 cannot smuggle directives into their own `title` or `subtitle`.
 
+### Upload validation
+
+The manager `file-upload` action layers seven checks:
+
+1. `CONTENT_LENGTH` is compared against `manager_upload_max_mb`
+   before the request body is read, so an oversize request never
+   allocates a buffer.
+2. Per-user hourly rate limit (count + total bytes) via
+   `lazysite/manager/.upload-rate.db`. Budget is reserved
+   up-front from `CONTENT_LENGTH`, which slightly over-counts -
+   the safe direction. Fails open on DB tie failure.
+3. Target directory is resolved via `realpath()` and rejected
+   unless it lies under `$DOCROOT`.
+4. Each filename is reduced to its basename, stripped of null
+   bytes and control characters, and rejected if it is empty,
+   `.`, or `..`.
+5. Each target path is checked against the built-in
+   `@BLOCKED_PATHS` list plus the `.pl` rule (`is_blocked_path`).
+6. Each target path is checked against the configurable
+   `manager_upload_blocked_paths` and
+   `manager_upload_blocked_extensions` lists
+   (`is_blocked_upload_target`).
+7. Writes go to a per-pid tempfile then `rename()` to the final
+   name. Short-write failures surface as per-file errors; a
+   partial file is never left in place.
+
+The editor additionally suppresses binary files: `action_read`
+returns `{ok: 0, binary: 1}` for any extension not in
+`%TEXT_EXTENSIONS`, and the editor shows a download panel
+instead of a CodeMirror instance. The file browser duplicates
+the same extension set so binary files render without an edit
+link but remain downloadable. `.pm` and `.sh` are in the
+editable set (so an operator can edit an existing script) but
+are not in the default upload blocklist beyond what an operator
+chooses to configure - `manager_upload_blocked_extensions`
+defaults to `pl,cgi`. Dotfiles such as `.htaccess` have their
+"extension" (the suffix after the last dot) captured as
+`htaccess` which is not listed in `%TEXT_EXTENSIONS`, so they
+are treated as binary in the editor.
+
 ### CSRF protection
 
 The manager API requires an `X-CSRF-Token` header on every
@@ -308,12 +348,16 @@ policy depends on site-specific and deployment-specific factors):
 |---|---|---|
 | Login (per IP) | 5 attempts / 5 min | `lazysite/auth/.login-rate.db` (DB_File) |
 | Form submission (per IP) | 5 submissions / hour | `lazysite/forms/.rate-limit.db` (DB_File) |
-| Manager API | no rate limit | - |
+| Manager upload (per user) | 60 requests + 500 MB / hour (configurable) | `lazysite/manager/.upload-rate.db` (DB_File) |
+| Manager API (other) | no rate limit | - |
 
 The form handler also checks a honeypot field (`_hp`) and a
 timestamp token (`_ts`, `_tk`) for spam detection. The manager API
-is rate-unlimited by design: it requires authentication, and
-authenticated operators are expected to be trusted.
+is otherwise rate-unlimited by design: it requires
+authentication, and authenticated operators are expected to be
+trusted. Upload is the exception because per-request cost is
+bounded by a file-size cap but an attacker who compromises a
+manager account could still write a large volume of data.
 
 ## Known constraints
 
