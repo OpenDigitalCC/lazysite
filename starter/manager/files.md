@@ -10,19 +10,38 @@ search: false
 
 <div class="mg-breadcrumb" id="breadcrumb"></div>
 
-<div class="mg-file-toolbar">
+<div class="mg-file-filter-row">
 <input type="search" id="file-filter" class="mg-file-filter" placeholder="Filter files..." oninput="filterFiles(this.value)">
-<button class="mg-btn" onclick="newFile()">Add File</button>
-<button class="mg-btn" onclick="newFolder()">Add Folder</button>
-<label class="mg-file-select-all" style="margin:0 0.25rem;"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)"> All</label>
-<button class="mg-btn" onclick="triggerUpload()">Upload</button>
-<button class="mg-btn" id="zip-btn" style="display:none" onclick="zipSelected()">Download selected</button>
-<input type="file" id="upload-input" multiple style="display:none" onchange="uploadFiles(this.files)">
 </div>
 
-<div class="mg-file-list" id="file-list">
-<div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>
+<div class="mg-file-actions-row">
+<div class="mg-file-actions-left">
+<button class="mg-btn" onclick="newFile()">Add File</button>
+<button class="mg-btn" onclick="newFolder()">Add Folder</button>
+<input type="file" id="upload-input" multiple style="display:none" onchange="uploadFiles(this.files)">
+<button class="mg-btn" onclick="triggerUpload()">Upload</button>
 </div>
+<div class="mg-file-actions-right">
+<button class="mg-btn" id="zip-btn" style="display:none" onclick="zipSelected()">Download selected</button>
+<button class="mg-btn mg-btn-danger" id="del-btn" style="display:none" onclick="deleteSelected()">Delete selected</button>
+</div>
+</div>
+
+<table class="mg-file-table">
+<thead>
+<tr>
+<th class="mg-col-check"><input type="checkbox" id="select-all" title="Select all files and empty folders" onchange="toggleSelectAll(this)"></th>
+<th class="mg-col-icon"></th>
+<th class="mg-col-name">Name</th>
+<th class="mg-col-size">Size</th>
+<th class="mg-col-age">Modified</th>
+<th class="mg-col-dl"></th>
+</tr>
+</thead>
+<tbody id="file-rows">
+<tr><td></td><td></td><td>Loading...</td><td></td><td></td><td></td></tr>
+</tbody>
+</table>
 
 </div>
 
@@ -65,11 +84,17 @@ function loadDir(dir) {
   showStatus('');
   currentDir = dir || '/';
   updateBreadcrumb();
+  // SM019b: directory navigation resets the Select-all state so
+  // it cannot leak stale "checked" across directories. Row
+  // checkboxes are re-rendered below, so they reset naturally.
+  var sa = document.getElementById('select-all');
+  if (sa) { sa.checked = false; sa.indeterminate = false; }
   fetch(API + '?action=list&path=' + encodeURIComponent(currentDir))
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
       renderFiles(data.entries || []);
+      updateSelection();
     })
     .catch(function(e) { showStatus('Failed to load directory: ' + e.message, true); });
 }
@@ -92,52 +117,60 @@ function updateBreadcrumb() {
   document.getElementById('breadcrumb').innerHTML = html;
 }
 
+// SM019b: renders rows into the #file-rows tbody. Every row has
+// the same six cells so columns align; empty cells are used where
+// a row type has no content (directory with no download link,
+// non-empty dir with no checkbox, etc).
 function renderFiles(files) {
-  var list = document.getElementById('file-list');
-  if (files.length === 0) {
-    list.innerHTML = '<div class="mg-file-item"><span class="mg-file-name" style="color:#888;">Empty directory</span></div>';
+  var tbody = document.getElementById('file-rows');
+  if (!files.length) {
+    tbody.innerHTML = '<tr><td></td><td></td><td style="color:var(--mg-text-light)">Empty directory</td><td></td><td></td><td></td></tr>';
     return;
   }
-  var html = '';
-  // Sort: directories first, then files
+  // Directories first, then files; each group alphabetical.
   files.sort(function(a, b) {
     if (a.type === 'dir' && b.type !== 'dir') return -1;
     if (a.type !== 'dir' && b.type === 'dir') return 1;
     return a.name.localeCompare(b.name);
   });
+  var html = '';
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
     var icon = f.type === 'dir' ? '&#128193;' : '&#128196;';
-    html += '<div class="mg-file-item" data-name="' + escHtml(f.name) + '">';
-    if (f.type === 'dir') {
-      html += '<span class="mg-file-icon">' + icon + '</span>';
-      html += '<span class="mg-file-name"><a href="#" onclick="loadDir(\'' + escHtml(f.path) + '/\'); return false;">' + escHtml(f.name) + '/</a></span>';
+    html += '<tr data-name="' + escHtml(f.name) + '">';
+
+    // Checkbox cell: empty dirs get one, files get one, non-empty
+    // dirs get an empty cell for alignment.
+    if (f.type === 'file') {
+      html += '<td><input type="checkbox" class="mg-file-select" data-kind="file" value="' + escHtml(f.path) + '" onchange="updateSelection()"></td>';
+    } else if (f.type === 'dir' && f.empty) {
+      html += '<td><input type="checkbox" class="mg-file-select" data-kind="dir" value="' + escHtml(f.path) + '" onchange="updateSelection()"></td>';
     } else {
-      // SM019: file rows get a selection checkbox for zip download;
-      // directory rows do not (download-folder is out of scope).
-      html += '<input type="checkbox" class="mg-file-select" value="' + escHtml(f.path) + '" onchange="updateZipButton()">';
-      html += '<span class="mg-file-icon">' + icon + '</span>';
-      if (isEditable(f.name)) {
-        html += '<span class="mg-file-name"><a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a></span>';
-      } else {
-        html += '<span class="mg-file-name">' + escHtml(f.name) + '</span>';
-      }
+      html += '<td></td>';
     }
-    if (f.size !== undefined) {
-      html += '<span class="mg-file-meta">' + formatSize(f.size) + '</span>';
+
+    html += '<td class="mg-file-icon">' + icon + '</td>';
+
+    if (f.type === 'dir') {
+      html += '<td class="mg-file-name"><a href="#" onclick="loadDir(\'' + escHtml(f.path) + '/\'); return false;">' + escHtml(f.name) + '/</a></td>';
+    } else if (isEditable(f.name)) {
+      html += '<td class="mg-file-name"><a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a></td>';
+    } else {
+      html += '<td class="mg-file-name">' + escHtml(f.name) + '</td>';
     }
-    if (f.mtime) {
-      html += '<span class="mg-file-meta">' + relativeTime(f.mtime) + '</span>';
+
+    html += '<td class="mg-col-size">' + formatSize(f.size || 0) + '</td>';
+    html += '<td class="mg-col-age">' + (f.mtime ? relativeTime(f.mtime) : '') + '</td>';
+
+    if (f.type === 'file') {
+      html += '<td class="mg-file-dl"><a href="' + API + '?action=file-download&path=' + encodeURIComponent(f.path) + '" download="' + escHtml(f.name) + '" title="Download">&darr;</a></td>';
+    } else {
+      html += '<td></td>';
     }
-    html += '<span class="mg-file-actions">';
-    if (f.type !== 'dir') {
-      html += '<a class="mg-file-download" href="' + API + '?action=file-download&path=' + encodeURIComponent(f.path) + '" download="' + escHtml(f.name) + '" title="Download">&darr;</a> ';
-    }
-    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteItem(\'' + escHtml(f.path) + '\', \'' + f.type + '\')">Delete</button>';
-    html += '</span>';
-    html += '</div>';
+
+    html += '</tr>';
   }
-  list.innerHTML = html;
+  tbody.innerHTML = html;
 }
 
 function escHtml(s) {
@@ -153,16 +186,16 @@ function relativeTime(mtime) {
 }
 
 function filterFiles(query) {
-  var items = document.querySelectorAll('.mg-file-item');
+  var rows = document.querySelectorAll('.mg-file-table tbody tr');
   query = query.toLowerCase();
-  for (var i = 0; i < items.length; i++) {
-    var name = items[i].getAttribute('data-name') || '';
-    items[i].style.display = name.toLowerCase().indexOf(query) >= 0 ? '' : 'none';
+  for (var i = 0; i < rows.length; i++) {
+    var name = rows[i].getAttribute('data-name') || '';
+    rows[i].style.display = name.toLowerCase().indexOf(query) >= 0 ? '' : 'none';
   }
-  // SM019a: the visible set changed, so the Select-all / zip-btn
-  // state needs to reconcile against the new set. Existing
-  // selections are preserved - we only re-derive the aggregate.
-  if (typeof updateZipButton === 'function') updateZipButton();
+  // SM019a/b: visible set changed, so Select-all / action buttons
+  // need to re-derive against the new set. Existing selections
+  // are preserved (subset-building workflow).
+  updateSelection();
 }
 
 function formatSize(bytes) {
@@ -189,14 +222,17 @@ function newFile() {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
+// SM019b: uses the new action=mkdir so the resulting directory
+// has no hidden .gitkeep inside. That keeps the "empty dirs are
+// deletable" semantics honest: a freshly-created folder is
+// genuinely empty and gets a selection checkbox on refresh.
 function newFolder() {
   var name = prompt('Folder name:');
   if (!name) return;
-  var path = currentDir + name + '/.gitkeep';
-  fetch(API + '?action=save&path=' + encodeURIComponent(path), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: '', mtime: null })
+  var path = currentDir + name;
+  path = path.replace(/\/+$/, '');
+  fetch(API + '?action=mkdir&path=' + encodeURIComponent(path), {
+    method: 'POST'
   })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -207,19 +243,54 @@ function newFolder() {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-function deleteItem(path, type) {
-  var label = type === 'dir' ? 'folder' : 'file';
-  if (!confirm('Delete ' + label + ' "' + path + '"?')) return;
-  fetch(API + '?action=delete&path=' + encodeURIComponent(path), {
-    method: 'POST'
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus(label.charAt(0).toUpperCase() + label.slice(1) + ' deleted.');
+// SM019b: batch delete. Runs requests sequentially so the error
+// list is meaningful if only some succeed. Matches the
+// uploadFiles progress-warning / final-status pattern.
+function deleteSelected() {
+  var checks = document.querySelectorAll(
+    '.mg-file-table tbody tr:not([style*="display: none"]) '
+  + '.mg-file-select:checked');
+  if (!checks.length) return;
+
+  var paths = [];
+  for (var i = 0; i < checks.length; i++) paths.push(checks[i].value);
+
+  var msg = 'Delete ' + paths.length + ' item'
+          + (paths.length === 1 ? '' : 's') + '?\n\n'
+          + paths.join('\n');
+  if (!confirm(msg)) return;
+
+  var errors = [];
+  if (typeof mgShowWarning === 'function') {
+    mgShowWarning('Deleting ' + paths.length + ' item(s)...', false);
+  }
+
+  function step(i) {
+    if (i >= paths.length) {
+      if (typeof mgClearWarning === 'function') mgClearWarning();
+      if (errors.length) {
+        showStatus('Some deletes failed: ' + errors.join('; '), true);
+      } else {
+        showStatus(paths.length + ' item(s) deleted.');
+      }
       loadDir(currentDir);
-    })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+      return;
+    }
+    fetch(API + '?action=delete&path=' + encodeURIComponent(paths[i]),
+          { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.ok) {
+          errors.push(paths[i] + ': ' + (data.error || 'unknown'));
+        }
+        step(i + 1);
+      })
+      .catch(function(e) {
+        errors.push(paths[i] + ': ' + e.message);
+        step(i + 1);
+      });
+  }
+  step(0);
 }
 
 // SM019: upload + zip-download handlers. The global fetch wrapper in
@@ -297,23 +368,32 @@ function handleSkipped(skipped, dir, files) {
     .catch(function(e) { showStatus('Overwrite error: ' + e.message, true); });
 }
 
+// Zip-download excludes empty-directory selections: the zip
+// action validates paths as files server-side and would skip
+// them anyway, but filtering here avoids a warn-log per dir.
 function zipSelected() {
-  var checks = document.querySelectorAll('.mg-file-select:checked');
-  if (!checks.length) return;
+  var checks = document.querySelectorAll(
+    '.mg-file-table tbody tr:not([style*="display: none"]) '
+  + '.mg-file-select:checked');
   var qs = [];
   for (var i = 0; i < checks.length; i++) {
-    qs.push('paths=' + encodeURIComponent(checks[i].value));
+    if (checks[i].getAttribute('data-kind') === 'file') {
+      qs.push('paths=' + encodeURIComponent(checks[i].value));
+    }
   }
+  if (!qs.length) return;
   var url = API + '?action=file-zip-download&' + qs.join('&');
   window.location = url;
 }
 
-// SM019a: "visible" = not hidden by filterFiles, which sets
-// inline display:none. If filterFiles is ever refactored to use
-// a CSS class instead, this selector needs to update too.
+// SM019b: the "visible" selector targets the table body and
+// keys off inline display:none set by filterFiles. If
+// filterFiles is refactored to use a CSS class, this selector
+// needs to change too.
 function visibleFileChecks() {
   return document.querySelectorAll(
-    '.mg-file-item:not([style*="display: none"]) .mg-file-select');
+    '.mg-file-table tbody tr:not([style*="display: none"]) '
+  + '.mg-file-select');
 }
 
 function toggleSelectAll(src) {
@@ -321,24 +401,34 @@ function toggleSelectAll(src) {
   for (var i = 0; i < checks.length; i++) {
     checks[i].checked = src.checked;
   }
-  updateZipButton();
+  updateSelection();
 }
 
-function updateZipButton() {
+// Drives both action buttons (Download-selected, Delete-selected)
+// and reconciles the Select-all checkbox's three states.
+function updateSelection() {
   var allChecks = visibleFileChecks();
-  var checked = [];
+  var checkedAll = [];
+  var checkedFiles = 0;
   for (var i = 0; i < allChecks.length; i++) {
-    if (allChecks[i].checked) checked.push(allChecks[i]);
+    if (allChecks[i].checked) {
+      checkedAll.push(allChecks[i]);
+      if (allChecks[i].getAttribute('data-kind') === 'file') checkedFiles++;
+    }
   }
-  var btn = document.getElementById('zip-btn');
-  if (btn) btn.style.display = checked.length ? '' : 'none';
+
+  var zipBtn = document.getElementById('zip-btn');
+  if (zipBtn) zipBtn.style.display = checkedFiles ? '' : 'none';
+
+  var delBtn = document.getElementById('del-btn');
+  if (delBtn) delBtn.style.display = checkedAll.length ? '' : 'none';
 
   var sa = document.getElementById('select-all');
   if (sa) {
-    if (checked.length === 0) {
+    if (checkedAll.length === 0) {
       sa.checked = false;
       sa.indeterminate = false;
-    } else if (checked.length === allChecks.length) {
+    } else if (checkedAll.length === allChecks.length) {
       sa.checked = true;
       sa.indeterminate = false;
     } else {

@@ -455,6 +455,100 @@
 
 .mg-file-actions { display: flex; gap: 0.35rem; }
 
+/* SM019b: table-based layout for the files app. The legacy
+   .mg-file-item flex row above is still used by other manager
+   pages (users, cache, themes) for their own list rows - do not
+   remove it just because files.md no longer uses it. */
+.mg-file-filter-row {
+    margin-bottom: 0.5rem;
+}
+
+.mg-file-filter-row .mg-file-filter {
+    width: 40%;
+    min-width: 280px;
+    flex: none;
+}
+
+.mg-file-actions-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--mg-gap-sm);
+    margin-bottom: 0.5rem;
+}
+
+.mg-file-actions-left,
+.mg-file-actions-right {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.mg-file-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--mg-surface);
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-radius-lg);
+    overflow: hidden;
+    font-size: 0.875rem;
+}
+
+.mg-file-table th,
+.mg-file-table td {
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.mg-file-table thead th {
+    font-weight: 600;
+    color: var(--mg-text-muted);
+    border-bottom: 1px solid var(--mg-border);
+    background: var(--mg-surface-alt);
+}
+
+.mg-file-table tbody tr {
+    border-bottom: 1px solid var(--mg-border-light);
+}
+
+.mg-file-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.mg-file-table tbody tr:hover {
+    background: var(--mg-surface-alt);
+}
+
+.mg-col-check { width: 32px; }
+.mg-col-icon  { width: 24px; text-align: center; }
+.mg-col-size  { width: 80px; text-align: right; white-space: nowrap; color: var(--mg-text-light); }
+.mg-col-age   { width: 90px; text-align: right; white-space: nowrap; color: var(--mg-text-light); }
+.mg-col-dl    { width: 32px; text-align: center; }
+
+.mg-file-table .mg-file-icon {
+    font-size: 1rem;
+    padding: 0.4rem 0;
+}
+
+.mg-file-table .mg-file-name a {
+    color: var(--mg-text);
+    text-decoration: none;
+}
+
+.mg-file-table .mg-file-name a:hover {
+    color: var(--mg-accent);
+}
+
+.mg-file-table .mg-file-dl a {
+    text-decoration: none;
+    color: var(--mg-text-muted);
+}
+
+.mg-file-table .mg-file-dl a:hover {
+    color: var(--mg-accent);
+}
+
 /* ============================================================
    Status badges
    ============================================================ */

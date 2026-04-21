@@ -199,6 +199,7 @@ elsif ( $action eq 'save' )             {
     $result = action_save( $path, $auth_user, $req->{content}, $req->{mtime} );
 }
 elsif ( $action eq 'delete' )           { $result = action_delete( $path, $auth_user ) }
+elsif ( $action eq 'mkdir' )            { $result = action_mkdir($path) }
 elsif ( $action eq 'lock' )             { $result = acquire_lock( $path, $auth_user ) }
 elsif ( $action eq 'unlock' )           { $result = release_lock( $path, $auth_user ) }
 elsif ( $action eq 'renew-lock' )       { $result = renew_lock( $path, $auth_user ) }
@@ -471,13 +472,28 @@ sub action_list {
         my $full = "$real/$name";
         my $rel  = $dir_path eq '/' ? "/$name" : "$dir_path/$name";
         my @st   = stat($full);
-        push @entries, {
+        my $is_dir = -d $full ? 1 : 0;
+        my $entry  = {
             name  => $name,
             path  => $rel,
-            type  => -d $full ? 'dir' : 'file',
-            size  => -d $full ? 0 : ( $st[7] // 0 ),
+            type  => $is_dir ? 'dir' : 'file',
+            size  => $is_dir ? 0 : ( $st[7] // 0 ),
             mtime => $st[9] // 0,
         };
+        # SM019b: surface emptiness so the client knows whether a
+        # dir row should get a delete-selection checkbox. The check
+        # matches action_delete's rmdir semantics: any non-dot
+        # entry (including hidden files) counts as content. We
+        # only count, never stat, so the cost scales with the
+        # directory size, not tree depth.
+        if ( $is_dir ) {
+            if ( opendir my $dh2, $full ) {
+                my @kids = grep { $_ ne '.' && $_ ne '..' } readdir $dh2;
+                closedir $dh2;
+                $entry->{empty} = @kids ? JSON::PP::false : JSON::PP::true;
+            }
+        }
+        push @entries, $entry;
     }
     closedir $dh;
 
@@ -595,7 +611,24 @@ sub action_delete {
         if is_blocked_path( $result->{rel} );
 
     my $full = $result->{full};
-    return { ok => 0, error => "Cannot delete directories" } if -d $full;
+
+    # SM019b: empty directories are deletable from the manager.
+    # Non-empty ones are rejected - no recursive delete.
+    if ( -d $full ) {
+        opendir my $dh, $full
+            or return { ok => 0, error => "Cannot read directory: $!" };
+        my @entries = grep { $_ ne '.' && $_ ne '..' } readdir $dh;
+        closedir $dh;
+        if ( @entries ) {
+            return { ok => 0, error => "Directory is not empty" };
+        }
+        rmdir $full
+            or return { ok => 0, error => "Cannot remove directory: $!" };
+        log_event('INFO', $action, 'directory deleted',
+            path => $rel_path, user => $auth_user);
+        return { ok => 1, path => $rel_path };
+    }
+
     return { ok => 0, error => "File not found" } unless -f $full;
 
     unlink $full or return { ok => 0, error => "Cannot delete: $!" };
@@ -604,6 +637,34 @@ sub action_delete {
     unlink $cache if -f $cache;
 
     log_event('INFO', $action, 'file deleted', path => $rel_path, user => $auth_user);
+
+    return { ok => 1, path => $rel_path };
+}
+
+# SM019b: dedicated mkdir so "Add Folder" creates a genuinely empty
+# directory. The previous files.md trick of writing /<name>/.gitkeep
+# through action_save materialised the directory but left a hidden
+# file inside, which conflicts with the new "empty dirs are
+# deletable" rule - a freshly-created folder would not have a
+# checkbox. Keeping this as a distinct action (rather than piggybacking
+# on action_save with an empty body) also makes the log line clearer.
+sub action_mkdir {
+    my ($rel_path) = @_;
+
+    my $result = validate_path($rel_path);
+    return $result unless $result->{ok};
+
+    return { ok => 0, error => "Path is blocked" }
+        if is_blocked_path( $result->{rel} );
+
+    my $full = $result->{full};
+    return { ok => 0, error => "Path already exists" } if -e $full;
+
+    make_path($full)
+        or return { ok => 0, error => "Cannot create directory: $!" };
+
+    log_event('INFO', $action, 'directory created',
+        path => $rel_path, user => $auth_user);
 
     return { ok => 1, path => $rel_path };
 }
