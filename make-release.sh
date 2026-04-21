@@ -297,7 +297,11 @@ wait "$SMOKE_PID" 2>/dev/null || true
 # The rotation happens as part of the commit-amend step below so the
 # tagged commit's tree has NEXT_VERSION == VERSION (a pristine
 # "release snapshot"), and the amended commit that follows bumps
-# NEXT_VERSION to target+1 for the next dev cycle.
+# NEXT_VERSION matches VERSION at this point. The bump to the
+# next patch happens as a separate follow-up commit (auto mode)
+# or via operator-run command (manual mode), so the tagged
+# release commit contains a pristine release tree AND remains
+# the direct ancestor of the bump commit (linear main history).
 
 echo "$VERSION" > "$REPO_ROOT/VERSION"
 echo "$VERSION" > "$REPO_ROOT/NEXT_VERSION"
@@ -306,9 +310,9 @@ IFS='.' read -r MAJ MIN PAT <<< "$VERSION"
 NEXT_PATCH=$((PAT + 1))
 NEXT="$MAJ.$MIN.$NEXT_PATCH"
 
-info "VERSION set to $VERSION (NEXT_VERSION will bump to $NEXT after commit)"
+info "VERSION set to $VERSION (NEXT_VERSION will bump to $NEXT in a follow-up commit)"
 
-# --- commit / tag / amend or print commands ---
+# --- commit / tag / bump or print commands ---
 
 if [ "$AUTO" -eq 1 ]; then
     info "Auto-committing release $VERSION"
@@ -316,23 +320,32 @@ if [ "$AUTO" -eq 1 ]; then
     git add -f "$TARBALL" "$TARBALL.sha256"
     git commit -m "release: $VERSION"
     git tag -a "v$VERSION" -m "Release $VERSION"
+
+    # Bump NEXT_VERSION as a follow-up commit. Linear history on
+    # main; tag stays anchored to the release commit.
     echo "$NEXT" > "$REPO_ROOT/NEXT_VERSION"
     git add NEXT_VERSION
-    git commit --amend --no-edit
+    git commit -m "chore: bump NEXT_VERSION to $NEXT"
+
     git push
     git push origin "v$VERSION"
-    ok "Release $VERSION committed, tagged, and pushed."
+    ok "Release $VERSION committed, tagged, bumped, and pushed."
 else
-    info "Not auto-committing. Run these commands to finalise:"
+    info "Not auto-committing. Two commits form the release:"
     cat <<CMDS
 
+    # 1. Release commit (tagged):
     git add VERSION NEXT_VERSION release-manifest.json sbom.json
     git add -f dist/lazysite-$VERSION.tar.gz dist/lazysite-$VERSION.tar.gz.sha256
     git commit -m "release: $VERSION"
     git tag -a v$VERSION -m "Release $VERSION"
+
+    # 2. Follow-up commit bumping NEXT_VERSION for the next release:
     echo "$NEXT" > NEXT_VERSION
     git add NEXT_VERSION
-    git commit --amend --no-edit
+    git commit -m "chore: bump NEXT_VERSION to $NEXT"
+
+    # Push:
     git push
     git push origin v$VERSION
 CMDS

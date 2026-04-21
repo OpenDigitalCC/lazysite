@@ -41,12 +41,27 @@ commands it would run. Review, then:
 
 `--auto` (or `--force`) stages the tree, generates the manifest
 and SBOM, tars, hashes, runs the evaluation-ramp smoke test,
-tags `v<version>`, rotates `VERSION` / `NEXT_VERSION`, commits,
-and pushes.
+creates the two release commits described below, tags the first
+one, and pushes.
 
-Without `--auto` the script builds everything except the commit and
-push - it prints the exact `git` commands to run once you've
-reviewed the generated `release-manifest.json` and `sbom.json`.
+Without `--auto` the script builds everything except the git
+operations. It prints the exact sequence of commands (two commits
+plus tag plus push) for you to run once you've reviewed
+`release-manifest.json` and `sbom.json`.
+
+### Release topology
+
+Each release produces two commits on main:
+
+- `release: X.Y.Z` - tagged `vX.Y.Z`. Contains the shipped tree:
+  `VERSION=X.Y.Z`, `NEXT_VERSION=X.Y.Z`, the generated manifest
+  and SBOM, and the tarball / checksum under `dist/`.
+- `chore: bump NEXT_VERSION to X.Y.Z+1` - immediately follows
+  the release commit. Bumps `NEXT_VERSION` only.
+
+`git checkout vX.Y.Z` reproduces the exact shipped tree. Linear
+history: `git log main` shows both commits in sequence; the tag
+is a direct ancestor of the branch tip.
 
 ### Evaluation-ramp smoke test
 

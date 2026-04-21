@@ -5161,7 +5161,7 @@
       "type" : "application",
       "version" : "0.1.0"
     },
-    "timestamp" : "2026-04-21T15:11:23Z",
+    "timestamp" : "2026-04-21T20:01:57Z",
     "tools" : [
       {
         "name" : "manifest-to-sbom.pl",
@@ -5169,7 +5169,7 @@
       }
     ]
   },
-  "serialNumber" : "urn:uuid:3eebf37b-dab8-4b33-b02f-5fb8877af9d6",
+  "serialNumber" : "urn:uuid:b3e6dc11-f605-4b57-89fa-d9cfa10f3ac3",
   "specVersion" : "1.6",
   "version" : 1
 }
