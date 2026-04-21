@@ -1,0 +1,145 @@
+{
+  "schema_version": "1",
+  "_doc": "D021a classification config. Rules are tried in order; first match wins. Excludes are checked before rules. Overrides (by exact path) take precedence over everything.",
+  "rules": [
+    {
+      "_comment": "lazysite-log.pl installs to DOCROOT/../ rather than CGIBIN/ because that matches the @CANDIDATES search path in manager-api's plugin discovery. This is historic placement, not architectural.",
+      "pattern": "^lazysite-log\\.pl$",
+      "install_to": "{DOCROOT}/../lazysite-log.pl",
+      "bucket": "code"
+    },
+    {
+      "pattern": "^lazysite-.*\\.pl$",
+      "install_to": "{CGIBIN}/$0",
+      "bucket": "code"
+    },
+    {
+      "pattern": "^tools/lazysite-users\\.pl$",
+      "install_to": "{DOCROOT}/../tools/lazysite-users.pl",
+      "bucket": "code"
+    },
+    {
+      "pattern": "^tools/lazysite-audit\\.pl$",
+      "install_to": "{DOCROOT}/../tools/lazysite-audit.pl",
+      "bucket": "code"
+    },
+    {
+      "pattern": "^tools/lazysite-server\\.pl$",
+      "install_to": "{DOCROOT}/../tools/lazysite-server.pl",
+      "bucket": "code"
+    },
+    {
+      "pattern": "^tools/build-static\\.sh$",
+      "install_to": "{DOCROOT}/../tools/build-static.sh",
+      "bucket": "code"
+    },
+    {
+      "pattern": "^starter/manager/(.+)$",
+      "install_to": "{DOCROOT}/manager/$1",
+      "bucket": "code"
+    },
+    {
+      "pattern": "^starter/lazysite/themes/manager/(.+)$",
+      "install_to": "{DOCROOT}/lazysite/themes/manager/$1",
+      "bucket": "code"
+    },
+    {
+      "pattern": "^starter/registries/(.+)$",
+      "install_to": "{DOCROOT}/lazysite/templates/registries/$1",
+      "bucket": "seed"
+    },
+    {
+      "pattern": "^starter/lazysite/forms/(.+)\\.conf\\.example$",
+      "install_to": "{DOCROOT}/lazysite/forms/$1.conf",
+      "bucket": "seed"
+    },
+    {
+      "pattern": "^starter/lazysite/auth/(.+)\\.example$",
+      "install_to": "{DOCROOT}/lazysite/auth/$1.example",
+      "bucket": "seed"
+    },
+    {
+      "pattern": "^starter/lazysite\\.conf\\.example$",
+      "install_to": "{DOCROOT}/lazysite/lazysite.conf.example",
+      "bucket": "seed"
+    },
+    {
+      "pattern": "^starter/nav\\.conf\\.example$",
+      "install_to": "{DOCROOT}/lazysite/nav.conf.example",
+      "bucket": "seed"
+    },
+    {
+      "pattern": "^starter/docs/(.+)$",
+      "install_to": "{DOCROOT}/docs/$1",
+      "bucket": "seed"
+    },
+    {
+      "pattern": "^starter/(.+\\.md)$",
+      "install_to": "{DOCROOT}/$1",
+      "bucket": "seed"
+    },
+    {
+      "pattern": "^installers/hestia/(.+)$",
+      "install_to": null,
+      "bucket": "code"
+    },
+    {
+      "pattern": "^install\\.sh$",
+      "install_to": null,
+      "bucket": "code"
+    },
+    {
+      "pattern": "^(LICENSE|README\\.md|SECURITY\\.md)$",
+      "install_to": null,
+      "bucket": "code"
+    }
+  ],
+  "exclude": [
+    "^\\.gitignore$",
+    "^\\.git/",
+    "^\\.github/",
+    "^Makefile$",
+    "^t/",
+    "^docs/architecture/",
+    "^docs/development\\.md$",
+    "^website/",
+    "^starter/lazysite/auth/\\.gitkeep$",
+    "^starter/lazysite/forms/contact\\.conf$",
+    "^starter/lazysite/forms/handlers\\.conf$",
+    "^starter/lazysite/lazysite\\.conf$",
+    "^starter/lazysite/nav\\.conf$",
+    "^starter/.*\\.html$",
+    "^installers/docker/",
+    "^tools/build-manifest\\.pl$",
+    "^tools/manifest-to-sbom\\.pl$",
+    "^make-release\\.sh$",
+    "^release-manifest\\.json$",
+    "^sbom\\.json$",
+    "^VERSION$",
+    "^NEXT_VERSION$",
+    "^dist/"
+  ],
+  "overrides": [],
+  "runtime_paths": [
+    {
+      "path": "{DOCROOT}/lazysite/auth",
+      "mode": "0750",
+      "purpose": "user credentials, session secret, login rate-limit DB"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/cache",
+      "mode": "0755",
+      "purpose": "rendered HTML cache"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/logs",
+      "mode": "0755",
+      "purpose": "application log output"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/manager/locks",
+      "mode": "0755",
+      "purpose": "per-file edit locks"
+    }
+  ]
+}

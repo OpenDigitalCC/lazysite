@@ -1,0 +1,5175 @@
+{
+  "bomFormat" : "CycloneDX",
+  "components" : [
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "dc26e8f5fa48c4ace257ea956f8734d915ba0becd09cde2af3950268ca376024"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-auth.pl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{CGIBIN}/lazysite-auth.pl"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "lazysite-auth.pl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/lazysite-auth.pl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "d491bff572132ffc27e4e6566c01ad5947632ac72edd88a24cd12d349a35b508"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-form-handler.pl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{CGIBIN}/lazysite-form-handler.pl"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "lazysite-form-handler.pl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/lazysite-form-handler.pl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "14af2f7eceaedf54e98cea397bc9b9d7fd889762cd432a48436d54130d6e760b"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-form-smtp.pl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{CGIBIN}/lazysite-form-smtp.pl"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "lazysite-form-smtp.pl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/lazysite-form-smtp.pl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "2349b150541f2cc82ecb7dfb362404c22d894731759dc13db5bb76a9fb2d1d66"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-manager-api.pl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{CGIBIN}/lazysite-manager-api.pl"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "lazysite-manager-api.pl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/lazysite-manager-api.pl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "4c2785788b6931db801aa31444cbc8265c2d4bcaecddd411bc91b4ad40d6a71e"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-payment-demo.pl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{CGIBIN}/lazysite-payment-demo.pl"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "lazysite-payment-demo.pl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/lazysite-payment-demo.pl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "5d1534108ad8d8a42931968e7d24e7e4a7cea422182bab493a196e2ba13cfdc8"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-processor.pl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{CGIBIN}/lazysite-processor.pl"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "lazysite-processor.pl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/lazysite-processor.pl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "f9359d47c53b768b6022d25b3006b4d78d790c4718d8987c104d5671c3c80b2c"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-log.pl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/../lazysite-log.pl"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "lazysite-log.pl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/lazysite-log.pl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "3328fc1615a353089d431bdbb01c951fe0309f871e554d4e4a50992ebc219d7f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "build-static.sh",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/../tools/build-static.sh"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "tools/build-static.sh"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/tools/build-static.sh@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "49c57421f8a0a769d624760b44948057d94441a431c810e923327d837dc880e9"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-audit.pl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/../tools/lazysite-audit.pl"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "tools/lazysite-audit.pl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/tools/lazysite-audit.pl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "35298ff46b593dca70a74bf3429ae3173871310a76483baf6c7b140ef98128df"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-server.pl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/../tools/lazysite-server.pl"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "tools/lazysite-server.pl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/tools/lazysite-server.pl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "cfdc3c70d0d3547759a2019740370611637cb861878a7bbc7e4a3d221f294c09"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-users.pl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/../tools/lazysite-users.pl"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "tools/lazysite-users.pl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/tools/lazysite-users.pl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "0b5f885b07e37915c20f376ee5329cc16e7d03a54770674b94d588df1a5cfa10"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "402.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/402.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/402.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/402.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "f7a17702a4b66f2b8708d83555f9d5795fb3bc859bae4f8cb0de92f7cfd4b0df"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "403.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/403.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/403.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/403.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "46e886f43f51d363f4cfda76d8470494e2f90c7735ba1cf71e7e5fceb220320c"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "404.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/404.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/404.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/404.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "f84153cf0180cda2ebcf3d95be1764b144a9122e8123580d6f75f196eb62ea81"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "contact.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/contact.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/contact.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/contact.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "41cefbab560950dfa71b0f29e87365ac0623bc0f5a8404f11b7112e9fbd15e4f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "ai-briefing-authoring.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/ai-briefing-authoring.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/ai-briefing-authoring.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-authoring.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "616dff90edd9e7939fc2dc6d8ae6aabf79f4f76600a7f05becc2beb1c16ec3ff"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "ai-briefing-configuration.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/ai-briefing-configuration.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/ai-briefing-configuration.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-configuration.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "33022b2b8e024d719098fe24c02eab8f72d003b63045b405bc6097ae580afad3"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "ai-briefing-development.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/ai-briefing-development.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/ai-briefing-development.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-development.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "27d5e4ad244204c9967bcd91eb460d02479c846cd7b3f55839829880d06e6bce"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "ai-briefing-views.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/ai-briefing-views.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/ai-briefing-views.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-views.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "99d6e657d562f8145b0ada9f2c75655f299fb7db57db44ac4dc12a85d0dfdf98"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "api.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/api.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/api.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/api.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "022fea429110383d83b62b643366ab38318dcc2850b316337e55fe792a36155b"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "auth-upgrade.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/auth-upgrade.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/auth-upgrade.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/auth-upgrade.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "a531bdaa23c7f51cce3e8d7118145b2ca4172a8dbff9bc9d9e2edcc26409793e"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "auth.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/auth.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/auth.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/auth.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "fa59fc157734b6290121e3cb18b3f98cda95f740e4a22d83384058d94caa3e08"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "authoring.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/authoring.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/authoring.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/authoring.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "465a42e43c3b14e990b826c5cf7dd5fae7b2eb32840a9c3866a4b3c8e98b14d8"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "configuration.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/configuration.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/configuration.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/configuration.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "f0100c0dc8eedf58daf36ba395d35a510570db027282b2d48aeb24fb38268c3f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "development.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/development.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/development.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/development.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "dc525daac36df0c8b49de67b3aa033b020d050dd8f85e5958f3d991f2a777d09"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "features.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "7f6463d24d5d781f2683297055069c672bd6963b8cb58234b31ea8f669944ffc"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "404-page.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/404-page.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/404-page.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/404-page.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "0ff4b932acef6f0128ff273ea833886c8062d1e6f2c8c24f0ebdf70b617bb17e"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "api-mode.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/api-mode.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/api-mode.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/api-mode.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "7a23056f80dbd2605724be99eb55ec3a32b5af4822a7507a6e52a33c8bb3d54b"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "feeds.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/feeds.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/feeds.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/feeds.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "f75e3dbef6eaad88a5e9fa509cc23f15e681dd633370b58dced3de5710e53938"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "fenced-divs.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/fenced-divs.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/fenced-divs.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/fenced-divs.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "0478b6ffebea2aadf1856e1a3a4515a1755c2cdf250ae6bfa410bf385a8665fe"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "filtered-scan.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/filtered-scan.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/filtered-scan.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/filtered-scan.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "0eada2d63a97f088c33855d282afed198bd984c8089b7b977f792fe657926dae"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "forms.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/forms.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/forms.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/forms.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "90cc3dacc4f7c589e2cab8e592d56e343c90bbf239dfdc3471b1a9d04f46c9eb"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "include-ttl.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/include-ttl.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/include-ttl.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/include-ttl.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "d5e24a7c1e0c9a608757d4e83c5e7a42d0e60dc08e4867bcfb1bb518cfe6d820"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "includes.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/includes.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/includes.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/includes.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "cf2abc59bab6dbe3d8e8b7ab1f87312e20f27bf27c86468fd738dd8dd1841d75"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "oembed.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/oembed.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/oembed.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/oembed.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "86c42f63b66ee886448cc041e1404ea3f70aee0aae23f5d3bdb91e9363a2d6d0"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "page-scan.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/page-scan.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/page-scan.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/page-scan.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "01c9b125f62227bce4e95c1800fac08527d7afc97e11cbefd2cfb7edfb681252"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "query-params.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/query-params.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/query-params.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/query-params.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "63fe0e3680db9bdffe2095b38dd947fe013cee8cb5f4830ff90f4096cdf19f33"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "raw-mode.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/raw-mode.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/raw-mode.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/raw-mode.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "a5d5ac9d4738642c5404f5535fa0124fad1cc49c447ed4e73d41c898551edb9c"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "registries.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/registries.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/registries.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/registries.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "07594460a152cdb52eb33e7bba2b8615939371a3246338c709a75d0fba45038e"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "remote-pages.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/remote-pages.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/remote-pages.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/remote-pages.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "d594c0e89b05b1f9f63f89641c7419681814b38de0daee9883abb165c35149a0"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "search.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/search.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/search.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/search.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "fe048d07b162b135123861a0117d656d9ad9de95c94482f0cdce3e3fb63a5497"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "tt-variables.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/authoring/tt-variables.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/authoring/tt-variables.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/tt-variables.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "c0f453e90776476e8505b1ef9abe4556f22a62de64b269e182142fa87794c41b"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "auth.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/auth.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/auth.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/auth.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "099f267360aa014b196893abbd09bba9aa678ce897b28e0306f71dabf069e327"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "conf-path-override.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/conf-path-override.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/conf-path-override.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/conf-path-override.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "68f4ad9a8d409c4bb0e22e7ebb3ece6c077a97aeb23366cb4068b3585258e2a5"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "layout-override.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/layout-override.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/layout-override.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/layout-override.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "c5eaf857ad3ee4e4f17c348a4643e6780ef9e0722ba0ebea705feb0a2950504d"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-conf.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/lazysite-conf.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/lazysite-conf.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/lazysite-conf.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "4a47676d8cb71c074210403a1e49d3e1131f7886a94ea3cb8c285d999bbab47d"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "manager.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/manager.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/manager.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/manager.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "1536605ce726dcea8e82abedff95d30aeaedd70673a864433318737314931f55"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "nav-conf.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/nav-conf.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/nav-conf.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/nav-conf.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "120200f166f9ccfb0017d2e88fc150800206a4697a1a9dda98a457f0fa89899a"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "payment.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/payment.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/payment.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/payment.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "24b8bbf741a8b047f38e4750d8454c53257b65db83bd154e15fa9fecb8106c0f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "remote-layouts.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/remote-layouts.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/remote-layouts.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/remote-layouts.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "7a2dde3623fbdefdd7aaba60438d878f162e396118ebaca6abba66d6a404d00a"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "theme-json.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/theme-json.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/theme-json.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/theme-json.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "dc9765f96e5db5c1f546b281cc6bffa88ed3895d5ff85d3d58d84fd9f9116721"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "themes.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/themes.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/themes.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/themes.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "c94f7f99c7ae6809a0b6e4f118da2561e8637acbc307855ff73cf77b1e57fe83"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "views.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/views.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/views.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/views.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "4201cbc22ecb98dc43d4c2fe2137564ab8d8e559fcd429f4b1297e522c852ff6"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "build-static.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/development/build-static.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/development/build-static.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/build-static.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "a2b151efbb10d7b2da8e73e2ba01db1fb9649cbb72da9cbe555edf61d975b1e1"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "cache-management.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/development/cache-management.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/development/cache-management.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/cache-management.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "8619e67f5dd036a06619858cd19d9d1a4fca929dc852439a022812c1e19e298e"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "content-type-cache.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/development/content-type-cache.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/development/content-type-cache.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/content-type-cache.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "b5d28a7540c2e467e5a4e2fa1dea099216ce35895946145fd8649bb9bcf7b420"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "dev-server.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/development/dev-server.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/development/dev-server.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/dev-server.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "cb5f7bde81ca5f83dbde94ef17719c4ba47b70169225d415f384028d2d0e0e4f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "link-audit.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/development/link-audit.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/development/link-audit.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/link-audit.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "3c893003e2a46e061b6570bff40a338e9562fa1a93b0a6d316032a84ba327436"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "nocache.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/development/nocache.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/development/nocache.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/nocache.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "063c8c1e1ac8cccdeab25fb30598f58290eb3956dddf55c05bb8dd17b33a9503"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "forms-helpers.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/forms-helpers.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/forms-helpers.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/forms-helpers.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "670a3060808d7646c98c534bd5b1dbbfb370d6954a253d855e54fe6066c066a0"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "forms-smtp.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/forms-smtp.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/forms-smtp.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/forms-smtp.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "61d586d023b12782b175f099350dfa516186716930a2ff82e466c7b7d699421d"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "forms.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/forms.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/forms.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/forms.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "9044ef52965ccf54c12e032439c3d887db2d1a1b2abebd6818f7bb5cf1eecc6a"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "install.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/install.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/install.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/install.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "d4b9922b3bc792fe137975e9b5f0984bf48f7cf73ddf49f191ff6c7e04c8e229"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "manager.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/manager.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/manager.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/manager.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "4a11425a4969f52ded11b549b6974d2658ec76bb56fbcfc57525e1ed2ef606c8"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "payment.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/payment.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/payment.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/payment.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "741cfe6955e389efbb77e4a008606722ff5d019aa1229112da0282d3aa5245e5"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "reference.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/reference.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/reference.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/reference.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "b1f81f0eb4a06c3b93e993ffa880ca7ce6c1e9da5e455ef8e75520818f43a1ac"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "remote-content.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/remote-content.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/remote-content.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/remote-content.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "fc4cf798a7f756080107dc4e5294381082fcc58b4c093c2f9708b89b6ecd890f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "views.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/views.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/views.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/views.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "05ae5a1bae8abfe5467b7dc60af13fb82c20499edd6922b1a3ca7316400546c0"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "index.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/index.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/index.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/index.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "ec4064c88deb0b0bbcbdfcfdf61c38ae87f630cdcf8e048c6f15e3ed6dd76ca4"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite-demo.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite-demo.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/lazysite-demo.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/lazysite-demo.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "60aaaea221bda056837f99da683155a44620020ba9dd9a41c784118b915fee1e"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "groups.example",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/auth/groups.example"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/lazysite/auth/groups.example"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/lazysite/auth/groups.example@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "6f7033ee2a85140ae51b4f050048459685fcd3fe740b217c310b9fb38e857097"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "users.example",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/auth/users.example"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/lazysite/auth/users.example"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/lazysite/auth/users.example@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "cbaa17173a14514c814dd7f54b7af00e90d1f2eb143edf585ecbf86375802b9f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "contact.conf.example",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/forms/contact.conf"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/lazysite/forms/contact.conf.example"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/lazysite/forms/contact.conf.example@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "1e1de2382a247f28db6c8e7b65ea9e64fd187fa13faf588b63f3aa93e85fa406"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "handlers.conf.example",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/forms/handlers.conf"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/lazysite/forms/handlers.conf.example"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/lazysite/forms/handlers.conf.example@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "6e30b9dccc2554015b77a4ea46e11c837cbee09bb5864c2e64ae9f829b5f4f1b"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "smtp.conf.example",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/forms/smtp.conf"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/lazysite/forms/smtp.conf.example"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/lazysite/forms/smtp.conf.example@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "9578ec46382b17addd4648ca75b488b7871ce8d867607c943026b576f8a53421"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite.conf.example",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/lazysite.conf.example"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/lazysite.conf.example"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/lazysite.conf.example@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "d989dbb7bcdff0fcb2534452342cc1156f9e1793fde23a85fd4099e07fc54bd5"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "nav.conf.example",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/nav.conf.example"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/nav.conf.example"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/nav.conf.example@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "64a9d097c42887ad567bf217364c9008ad115cef0fb14740312a07ce09ac91a3"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "feed.atom.tt",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/templates/registries/feed.atom.tt"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/registries/feed.atom.tt"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/registries/feed.atom.tt@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "9aa1818c48bf37ce0c1ef2659c438cff1ebe6babf3737fa6f82c07f8c125ad94"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "feed.rss.tt",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/templates/registries/feed.rss.tt"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/registries/feed.rss.tt"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/registries/feed.rss.tt@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "09d879bca1c59bfd992905b41d32f59169d87d019416184507c3ec145f1a0242"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "llms.txt.tt",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/templates/registries/llms.txt.tt"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/registries/llms.txt.tt"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/registries/llms.txt.tt@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "68cfa51940635774e3a1d5237492b502b7f9de978c2c600799a8693c657c9919"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "sitemap.xml.tt",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/templates/registries/sitemap.xml.tt"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/registries/sitemap.xml.tt"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/registries/sitemap.xml.tt@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "37de43680de0948ae0261e36067a278611c484df6879067eca0933c699a8e827"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "manager.css",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/themes/manager/assets/manager.css"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/lazysite/themes/manager/assets/manager.css"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/lazysite/themes/manager/assets/manager.css@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "5803d55a2230a56d4691c8669fab03b82d5be5a7ea2d3c5f462a05776e52af7c"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "view.tt",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/themes/manager/view.tt"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/lazysite/themes/manager/view.tt"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/lazysite/themes/manager/view.tt@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "dccbfdfbf511adafa3d5ae47c95e1753936c6742519234e0a372ef86ef455860"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "login.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/login.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/login.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/login.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "dc48b4ea311112f0a3eafb0519c4f8d54aa87898d8807588aa1b089cdc5b2547"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "logout.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/logout.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/logout.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/logout.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "df4a87dd3b175b509468755b74d06f0e82ff56f213f341f776c26ff0f0d27b37"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "closebrackets.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/closebrackets.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/closebrackets.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/closebrackets.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "11077112ab6955d29fe41085c62365c7d4a2f00a570c7475e2aec2a8cbc85fc4"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "codemirror.min.css",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/codemirror.min.css"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/codemirror.min.css"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/codemirror.min.css@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "f102bb61fb2ac45c3a611847edd9948faad0ab22a83a2dfa9974be5031079b15"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "codemirror.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/codemirror.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/codemirror.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/codemirror.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "ee0ce00f346a6d7e345a74ab32f2cc600e8b7df878b28715d7d52192fa274eee"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "css.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/css.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/css.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/css.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "506e12c1fc68437c2f5d45b2d7c8cd341f231ad94c5126667c0272bfe6359e6a"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "htmlmixed.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/htmlmixed.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/htmlmixed.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/htmlmixed.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "99b46f351b4b1ce8a14cdf04fe4235ecb429b5b7b986867034a7dc195a710a58"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "javascript.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/javascript.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/javascript.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/javascript.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "6d31310a4719d151d198b604864fa7cb7dcaa5013888863585e06d7c7085f3d8"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "markdown.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/markdown.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/markdown.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/markdown.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "f359c5f395a2a08191557d40b61ef8c3893803da9019171cc44b8d9c8c7d4a3a"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "matchbrackets.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/matchbrackets.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/matchbrackets.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/matchbrackets.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "2d2fc6f219c5ec536fe6bfe38fa241a8aba9045cf79b6e3599c906995644487b"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "overlay.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/overlay.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/overlay.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/overlay.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "d615ceaba33194503018aa01c33784facb70d41b12eec6d5e3095ba372b95474"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "perl.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/perl.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/perl.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/perl.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "08aed7c67ef9d68f8f99eec9af2da275da760b3296615f341f44a5ebae3fbbd7"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "shell.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/shell.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/shell.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/shell.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "1403f6fc04264c38e933891710636ed07761898aa764de95a39a832d433cbe66"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "xml.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/xml.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/xml.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/xml.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "a6925495d3ccd0197fbc85df616cae466f3ba7a04b885db3c4e7d6952a859623"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "yaml.min.js",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/assets/cm/yaml.min.js"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/assets/cm/yaml.min.js"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/yaml.min.js@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "be191f8469a8a03dcdd6b836768b23b0d4235f85db59954bd004478c7fb81cc2"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "cache.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/cache.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/cache.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/cache.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "fa157187141bf01f401b217b9f3324a76d26bf515e8727a838b70c262fb41115"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "config.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/config.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/config.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/config.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "4adeac9488dcbce55adb61220584e73863fb17fed47c6b8517e361489067db96"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "edit.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/edit.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/edit.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/edit.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "5359c158164fe859dad8fd56626ff8453407e948d0db376642636b15966f60a7"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "files.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/files.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/files.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/files.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "523d69afca8069760c8a2f545294ba92a3cec0066768ec978fd50b7d91d0873e"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "index.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/index.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/index.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/index.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "b4be4f9d4c461f07c3cfdc9688cee40e498a6c905f7f48f304dbb315aca8a088"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "nav.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/nav.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/nav.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/nav.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "e60b5b30c50c93ca6ee2d5e2f729541c295daf23983c28861bba0769d6e3c9e0"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "plugins.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/plugins.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/plugins.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/plugins.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "5917bd3ad43182a7b134c8f8e0ab1fbc90454f8556bdb10767866a2725268717"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "themes.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/themes.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/themes.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/themes.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "d1544f168d32c5f01e60061e232435494a395c692fb161ba8eaffa0e784a1f2f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "users.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/manager/users.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/manager/users.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/manager/users.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "5c98961b9e6353187e16b92f86bd89bcca192781a8e3f5fe6b55f8a6eb9829ac"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "members.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/members.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/members.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/members.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "c61afcfa2c96877db6d00b4bcdb85624d678284085a5528f3142371739bdf7df"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "payment-demo.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/payment-demo.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/payment-demo.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/payment-demo.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "bf526f03d4a353efc22eabaf6167f67e2e0e3694274bd482095158e0ed0f327f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "payment-members-demo.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/payment-members-demo.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/payment-members-demo.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/payment-members-demo.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "2eebec8740b256ebc0d97a8cff376b067d78c02b9a2694ba4893ea7715fa8adf"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "search-index.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/search-index.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/search-index.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/search-index.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "90fe2e86cdb67fa4d91871470b21c8aee09e6ac412b29bc1795e4a3a54776bb5"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "search-results.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/search-results.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/search-results.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/search-results.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "d20c42490209e9bc285538f209fc019ae2dd0b23ff12e88e87d2f2495470a7b1"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "LICENSE",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "LICENSE"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/LICENSE@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "81eb7a7926709b1be2cacf6ac12aeff7c53b553f4b9547c58fae5a9fcb9bf37e"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "README.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "README.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/README.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "79a33b4cae6470957d57870e53deeb4f3fa83d22be00bfeae1cdd56ecb164ec0"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "SECURITY.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "SECURITY.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/SECURITY.md@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "cfb2ec7a224aa20b1bc5a230afbe7e57b3c0f30e631c67a64c618fbb52a4a3f5"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "install.sh",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "install.sh"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/install.sh@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "3cc72f59ee5df0d7f083ed0ee032720ce18e38d6313acdab5491661c29b7c475"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "install-hestia.sh",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "installers/hestia/install-hestia.sh"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/installers/hestia/install-hestia.sh@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "99a4298c52a54a4e8f9021c86c705e01d019d08c0665d425678072b99780e1de"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite.stpl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "installers/hestia/lazysite.stpl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/installers/hestia/lazysite.stpl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "eb0f5f4acd9341ef445f69e30406e1426d925c564eea2f03cd89664b114821b5"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite.tpl",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "installers/hestia/lazysite.tpl"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/installers/hestia/lazysite.tpl@0.1.0",
+      "type" : "file",
+      "version" : "0.1.0"
+    },
+    {
+      "bom-ref" : "pkg:cpan/Archive-Zip",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "Archive::Zip",
+      "properties" : [
+        {
+          "name" : "lazysite:alpine_pkg",
+          "value" : "perl-archive-zip"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "false"
+        },
+        {
+          "name" : "lazysite:debian_pkg",
+          "value" : "libarchive-zip-perl"
+        },
+        {
+          "name" : "lazysite:rhel_pkg",
+          "value" : "perl-Archive-Zip"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "theme upload (manager), zip download (manager)"
+        }
+      ],
+      "purl" : "pkg:cpan/Archive-Zip",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/Cwd",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "Cwd",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "path validation (realpath) across processor and manager-api"
+        }
+      ],
+      "purl" : "pkg:cpan/Cwd",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/DB_File",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "DB_File",
+      "properties" : [
+        {
+          "name" : "lazysite:alpine_pkg",
+          "value" : "perl-db_file"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:debian_pkg",
+          "value" : "perl"
+        },
+        {
+          "name" : "lazysite:rhel_pkg",
+          "value" : "perl-DB_File"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "rate limits: login, form submission, manager upload"
+        }
+      ],
+      "purl" : "pkg:cpan/DB_File",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/Digest-SHA",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "Digest::SHA",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "HMAC-SHA256 for auth cookies, CSRF tokens, form tokens; salted iterated SHA-256 password hashing"
+        }
+      ],
+      "purl" : "pkg:cpan/Digest-SHA",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/Encode",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "Encode",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "UTF-8 decoding of query-string values in processor"
+        }
+      ],
+      "purl" : "pkg:cpan/Encode",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/Fcntl",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "Fcntl",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "file locking (flock), O_RDWR/O_CREAT constants for DB_File ties"
+        }
+      ],
+      "purl" : "pkg:cpan/Fcntl",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/File-Basename",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "File::Basename",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "path manipulation throughout"
+        }
+      ],
+      "purl" : "pkg:cpan/File-Basename",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/File-Copy",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "File::Copy",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "dev server static asset copying"
+        }
+      ],
+      "purl" : "pkg:cpan/File-Copy",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/File-Find",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "File::Find",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "cache walks, directory enumeration for audit and manager API"
+        }
+      ],
+      "purl" : "pkg:cpan/File-Find",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/File-Path",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "File::Path",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "make_path for directory creation"
+        }
+      ],
+      "purl" : "pkg:cpan/File-Path",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/File-Temp",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "File::Temp",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "zip download tempfile, theme upload staging"
+        }
+      ],
+      "purl" : "pkg:cpan/File-Temp",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/IO-Socket-INET",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "IO::Socket::INET",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "dev server listening socket"
+        }
+      ],
+      "purl" : "pkg:cpan/IO-Socket-INET",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/IO-Socket-SSL",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "IO::Socket::SSL",
+      "properties" : [
+        {
+          "name" : "lazysite:alpine_pkg",
+          "value" : "perl-io-socket-ssl"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "false"
+        },
+        {
+          "name" : "lazysite:debian_pkg",
+          "value" : "libio-socket-ssl-perl"
+        },
+        {
+          "name" : "lazysite:rhel_pkg",
+          "value" : "perl-IO-Socket-SSL"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "SMTP form delivery over STARTTLS"
+        }
+      ],
+      "purl" : "pkg:cpan/IO-Socket-SSL",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/IPC-Open2",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "IPC::Open2",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "users-admin child process, form webhook delivery with captured output"
+        }
+      ],
+      "purl" : "pkg:cpan/IPC-Open2",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/JSON-PP",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "JSON::PP",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "manager API responses, form payloads, plugin --describe, SBOM/manifest output"
+        }
+      ],
+      "purl" : "pkg:cpan/JSON-PP",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/LWP-UserAgent",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "LWP::UserAgent",
+      "properties" : [
+        {
+          "name" : "lazysite:alpine_pkg",
+          "value" : "perl-lwp-useragent"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "false"
+        },
+        {
+          "name" : "lazysite:debian_pkg",
+          "value" : "libwww-perl"
+        },
+        {
+          "name" : "lazysite:rhel_pkg",
+          "value" : "perl-libwww-perl"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "remote content fetch for :::include and url: variables, form webhook delivery"
+        }
+      ],
+      "purl" : "pkg:cpan/LWP-UserAgent",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/Net-SMTP",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "Net::SMTP",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "form-to-email delivery plugin"
+        }
+      ],
+      "purl" : "pkg:cpan/Net-SMTP",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/POSIX",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "POSIX",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "strftime for timestamps in logs, manifest, SBOM, zip filenames"
+        }
+      ],
+      "purl" : "pkg:cpan/POSIX",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/Socket",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "Socket",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "SSRF guard: inet_aton / inet_ntoa for remote-fetch IP address checks"
+        }
+      ],
+      "purl" : "pkg:cpan/Socket",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/Template",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "Template",
+      "properties" : [
+        {
+          "name" : "lazysite:alpine_pkg",
+          "value" : "perl-template-toolkit"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "false"
+        },
+        {
+          "name" : "lazysite:debian_pkg",
+          "value" : "libtemplate-perl"
+        },
+        {
+          "name" : "lazysite:rhel_pkg",
+          "value" : "perl-Template-Toolkit"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "Template Toolkit page rendering (processor core)"
+        }
+      ],
+      "purl" : "pkg:cpan/Template",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/Text-MultiMarkdown",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "BSD-3-Clause"
+          }
+        }
+      ],
+      "name" : "Text::MultiMarkdown",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "false"
+        },
+        {
+          "name" : "lazysite:debian_pkg",
+          "value" : "libtext-multimarkdown-perl"
+        },
+        {
+          "name" : "lazysite:rhel_pkg",
+          "value" : "perl-Text-MultiMarkdown"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "Markdown to HTML conversion (processor core)"
+        }
+      ],
+      "purl" : "pkg:cpan/Text-MultiMarkdown",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/Time-HiRes",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "Time::HiRes",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "true"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "dev server request timing (optional; falls back when unavailable)"
+        }
+      ],
+      "purl" : "pkg:cpan/Time-HiRes",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "bom-ref" : "pkg:cpan/URI",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "URI",
+      "properties" : [
+        {
+          "name" : "lazysite:alpine_pkg",
+          "value" : "perl-uri"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "dependency"
+        },
+        {
+          "name" : "lazysite:core",
+          "value" : "false"
+        },
+        {
+          "name" : "lazysite:debian_pkg",
+          "value" : "liburi-perl"
+        },
+        {
+          "name" : "lazysite:rhel_pkg",
+          "value" : "perl-URI"
+        },
+        {
+          "name" : "lazysite:used_by",
+          "value" : "URL parsing in SSRF guard and remote-fetch path resolution"
+        }
+      ],
+      "purl" : "pkg:cpan/URI",
+      "type" : "library",
+      "version" : "unknown"
+    },
+    {
+      "description" : "Perl runtime. Required version 5.10+. On Debian: 'perl'. On Alpine: 'perl'. On RHEL: 'perl'. Includes core modules listed above.",
+      "externalReferences" : [
+        {
+          "type" : "distribution",
+          "url" : "https://packages.debian.org/stable/perl"
+        },
+        {
+          "type" : "distribution",
+          "url" : "https://pkgs.alpinelinux.org/package/edge/main/x86_64/perl"
+        }
+      ],
+      "name" : "perl",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "environment"
+        }
+      ],
+      "type" : "application",
+      "version" : "unknown"
+    },
+    {
+      "description" : "CGI host. Operator-provided. Any CGI/1.1-capable server works; Apache is the reference platform. The dev server (tools/lazysite-server.pl) is evaluation-only.",
+      "externalReferences" : [
+        {
+          "type" : "distribution",
+          "url" : "https://packages.debian.org/stable/apache2"
+        }
+      ],
+      "name" : "Apache HTTP Server",
+      "properties" : [
+        {
+          "name" : "lazysite:category",
+          "value" : "environment"
+        }
+      ],
+      "type" : "application",
+      "version" : "unknown"
+    }
+  ],
+  "metadata" : {
+    "component" : {
+      "description" : "Markdown-driven CGI site processor",
+      "externalReferences" : [
+        {
+          "type" : "vcs",
+          "url" : "https://github.com/OpenDigitalCC/lazysite"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "lazysite",
+      "type" : "application",
+      "version" : "0.1.0"
+    },
+    "timestamp" : "2026-04-21T15:11:23Z",
+    "tools" : [
+      {
+        "name" : "manifest-to-sbom.pl",
+        "version" : "0.1.0"
+      }
+    ]
+  },
+  "serialNumber" : "urn:uuid:3eebf37b-dab8-4b33-b02f-5fb8877af9d6",
+  "specVersion" : "1.6",
+  "version" : 1
+}

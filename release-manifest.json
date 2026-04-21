@@ -1,0 +1,863 @@
+{
+  "files" : [
+    {
+      "bucket" : "code",
+      "install_to" : "{CGIBIN}/lazysite-auth.pl",
+      "path" : "lazysite-auth.pl",
+      "sha256" : "dc26e8f5fa48c4ace257ea956f8734d915ba0becd09cde2af3950268ca376024",
+      "size" : 17369
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{CGIBIN}/lazysite-form-handler.pl",
+      "path" : "lazysite-form-handler.pl",
+      "sha256" : "d491bff572132ffc27e4e6566c01ad5947632ac72edd88a24cd12d349a35b508",
+      "size" : 14678
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{CGIBIN}/lazysite-form-smtp.pl",
+      "path" : "lazysite-form-smtp.pl",
+      "sha256" : "14af2f7eceaedf54e98cea397bc9b9d7fd889762cd432a48436d54130d6e760b",
+      "size" : 11094
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{CGIBIN}/lazysite-manager-api.pl",
+      "path" : "lazysite-manager-api.pl",
+      "sha256" : "2349b150541f2cc82ecb7dfb362404c22d894731759dc13db5bb76a9fb2d1d66",
+      "size" : 78152
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{CGIBIN}/lazysite-payment-demo.pl",
+      "path" : "lazysite-payment-demo.pl",
+      "sha256" : "4c2785788b6931db801aa31444cbc8265c2d4bcaecddd411bc91b4ad40d6a71e",
+      "size" : 6099
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{CGIBIN}/lazysite-processor.pl",
+      "path" : "lazysite-processor.pl",
+      "sha256" : "5d1534108ad8d8a42931968e7d24e7e4a7cea422182bab493a196e2ba13cfdc8",
+      "size" : 100998
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/../lazysite-log.pl",
+      "path" : "lazysite-log.pl",
+      "sha256" : "f9359d47c53b768b6022d25b3006b4d78d790c4718d8987c104d5671c3c80b2c",
+      "size" : 1082
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/../tools/build-static.sh",
+      "path" : "tools/build-static.sh",
+      "sha256" : "3328fc1615a353089d431bdbb01c951fe0309f871e554d4e4a50992ebc219d7f",
+      "size" : 5340
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/../tools/lazysite-audit.pl",
+      "path" : "tools/lazysite-audit.pl",
+      "sha256" : "49c57421f8a0a769d624760b44948057d94441a431c810e923327d837dc880e9",
+      "size" : 15489
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/../tools/lazysite-server.pl",
+      "path" : "tools/lazysite-server.pl",
+      "sha256" : "35298ff46b593dca70a74bf3429ae3173871310a76483baf6c7b140ef98128df",
+      "size" : 19706
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/../tools/lazysite-users.pl",
+      "path" : "tools/lazysite-users.pl",
+      "sha256" : "cfdc3c70d0d3547759a2019740370611637cb861878a7bbc7e4a3d221f294c09",
+      "size" : 10250
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/402.md",
+      "path" : "starter/402.md",
+      "sha256" : "0b5f885b07e37915c20f376ee5329cc16e7d03a54770674b94d588df1a5cfa10",
+      "size" : 559
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/403.md",
+      "path" : "starter/403.md",
+      "sha256" : "f7a17702a4b66f2b8708d83555f9d5795fb3bc859bae4f8cb0de92f7cfd4b0df",
+      "size" : 466
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/404.md",
+      "path" : "starter/404.md",
+      "sha256" : "46e886f43f51d363f4cfda76d8470494e2f90c7735ba1cf71e7e5fceb220320c",
+      "size" : 218
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/contact.md",
+      "path" : "starter/contact.md",
+      "sha256" : "f84153cf0180cda2ebcf3d95be1764b144a9122e8123580d6f75f196eb62ea81",
+      "size" : 1833
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/ai-briefing-authoring.md",
+      "path" : "starter/docs/ai-briefing-authoring.md",
+      "sha256" : "41cefbab560950dfa71b0f29e87365ac0623bc0f5a8404f11b7112e9fbd15e4f",
+      "size" : 8135
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/ai-briefing-configuration.md",
+      "path" : "starter/docs/ai-briefing-configuration.md",
+      "sha256" : "616dff90edd9e7939fc2dc6d8ae6aabf79f4f76600a7f05becc2beb1c16ec3ff",
+      "size" : 6538
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/ai-briefing-development.md",
+      "path" : "starter/docs/ai-briefing-development.md",
+      "sha256" : "33022b2b8e024d719098fe24c02eab8f72d003b63045b405bc6097ae580afad3",
+      "size" : 7410
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/ai-briefing-views.md",
+      "path" : "starter/docs/ai-briefing-views.md",
+      "sha256" : "27d5e4ad244204c9967bcd91eb460d02479c846cd7b3f55839829880d06e6bce",
+      "size" : 7486
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/api.md",
+      "path" : "starter/docs/api.md",
+      "sha256" : "99d6e657d562f8145b0ada9f2c75655f299fb7db57db44ac4dc12a85d0dfdf98",
+      "size" : 3344
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/auth-upgrade.md",
+      "path" : "starter/docs/auth-upgrade.md",
+      "sha256" : "022fea429110383d83b62b643366ab38318dcc2850b316337e55fe792a36155b",
+      "size" : 1849
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/auth.md",
+      "path" : "starter/docs/auth.md",
+      "sha256" : "a531bdaa23c7f51cce3e8d7118145b2ca4172a8dbff9bc9d9e2edcc26409793e",
+      "size" : 7611
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/authoring.md",
+      "path" : "starter/docs/authoring.md",
+      "sha256" : "fa59fc157734b6290121e3cb18b3f98cda95f740e4a22d83384058d94caa3e08",
+      "size" : 15927
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/configuration.md",
+      "path" : "starter/docs/configuration.md",
+      "sha256" : "465a42e43c3b14e990b826c5cf7dd5fae7b2eb32840a9c3866a4b3c8e98b14d8",
+      "size" : 8272
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/development.md",
+      "path" : "starter/docs/development.md",
+      "sha256" : "f0100c0dc8eedf58daf36ba395d35a510570db027282b2d48aeb24fb38268c3f",
+      "size" : 6814
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features.md",
+      "path" : "starter/docs/features.md",
+      "sha256" : "dc525daac36df0c8b49de67b3aa033b020d050dd8f85e5958f3d991f2a777d09",
+      "size" : 3612
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/404-page.md",
+      "path" : "starter/docs/features/authoring/404-page.md",
+      "sha256" : "7f6463d24d5d781f2683297055069c672bd6963b8cb58234b31ea8f669944ffc",
+      "size" : 1694
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/api-mode.md",
+      "path" : "starter/docs/features/authoring/api-mode.md",
+      "sha256" : "0ff4b932acef6f0128ff273ea833886c8062d1e6f2c8c24f0ebdf70b617bb17e",
+      "size" : 1574
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/feeds.md",
+      "path" : "starter/docs/features/authoring/feeds.md",
+      "sha256" : "7a23056f80dbd2605724be99eb55ec3a32b5af4822a7507a6e52a33c8bb3d54b",
+      "size" : 1817
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/fenced-divs.md",
+      "path" : "starter/docs/features/authoring/fenced-divs.md",
+      "sha256" : "f75e3dbef6eaad88a5e9fa509cc23f15e681dd633370b58dced3de5710e53938",
+      "size" : 1362
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/filtered-scan.md",
+      "path" : "starter/docs/features/authoring/filtered-scan.md",
+      "sha256" : "0478b6ffebea2aadf1856e1a3a4515a1755c2cdf250ae6bfa410bf385a8665fe",
+      "size" : 1971
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/forms.md",
+      "path" : "starter/docs/features/authoring/forms.md",
+      "sha256" : "0eada2d63a97f088c33855d282afed198bd984c8089b7b977f792fe657926dae",
+      "size" : 1953
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/include-ttl.md",
+      "path" : "starter/docs/features/authoring/include-ttl.md",
+      "sha256" : "90cc3dacc4f7c589e2cab8e592d56e343c90bbf239dfdc3471b1a9d04f46c9eb",
+      "size" : 1391
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/includes.md",
+      "path" : "starter/docs/features/authoring/includes.md",
+      "sha256" : "d5e24a7c1e0c9a608757d4e83c5e7a42d0e60dc08e4867bcfb1bb518cfe6d820",
+      "size" : 2790
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/oembed.md",
+      "path" : "starter/docs/features/authoring/oembed.md",
+      "sha256" : "cf2abc59bab6dbe3d8e8b7ab1f87312e20f27bf27c86468fd738dd8dd1841d75",
+      "size" : 1591
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/page-scan.md",
+      "path" : "starter/docs/features/authoring/page-scan.md",
+      "sha256" : "86c42f63b66ee886448cc041e1404ea3f70aee0aae23f5d3bdb91e9363a2d6d0",
+      "size" : 2557
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/query-params.md",
+      "path" : "starter/docs/features/authoring/query-params.md",
+      "sha256" : "01c9b125f62227bce4e95c1800fac08527d7afc97e11cbefd2cfb7edfb681252",
+      "size" : 1930
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/raw-mode.md",
+      "path" : "starter/docs/features/authoring/raw-mode.md",
+      "sha256" : "63fe0e3680db9bdffe2095b38dd947fe013cee8cb5f4830ff90f4096cdf19f33",
+      "size" : 1399
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/registries.md",
+      "path" : "starter/docs/features/authoring/registries.md",
+      "sha256" : "a5d5ac9d4738642c5404f5535fa0124fad1cc49c447ed4e73d41c898551edb9c",
+      "size" : 2145
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/remote-pages.md",
+      "path" : "starter/docs/features/authoring/remote-pages.md",
+      "sha256" : "07594460a152cdb52eb33e7bba2b8615939371a3246338c709a75d0fba45038e",
+      "size" : 1847
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/search.md",
+      "path" : "starter/docs/features/authoring/search.md",
+      "sha256" : "d594c0e89b05b1f9f63f89641c7419681814b38de0daee9883abb165c35149a0",
+      "size" : 2229
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/authoring/tt-variables.md",
+      "path" : "starter/docs/features/authoring/tt-variables.md",
+      "sha256" : "fe048d07b162b135123861a0117d656d9ad9de95c94482f0cdce3e3fb63a5497",
+      "size" : 2472
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/auth.md",
+      "path" : "starter/docs/features/configuration/auth.md",
+      "sha256" : "c0f453e90776476e8505b1ef9abe4556f22a62de64b269e182142fa87794c41b",
+      "size" : 1944
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/conf-path-override.md",
+      "path" : "starter/docs/features/configuration/conf-path-override.md",
+      "sha256" : "099f267360aa014b196893abbd09bba9aa678ce897b28e0306f71dabf069e327",
+      "size" : 1585
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/layout-override.md",
+      "path" : "starter/docs/features/configuration/layout-override.md",
+      "sha256" : "68f4ad9a8d409c4bb0e22e7ebb3ece6c077a97aeb23366cb4068b3585258e2a5",
+      "size" : 1490
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/lazysite-conf.md",
+      "path" : "starter/docs/features/configuration/lazysite-conf.md",
+      "sha256" : "c5eaf857ad3ee4e4f17c348a4643e6780ef9e0722ba0ebea705feb0a2950504d",
+      "size" : 1810
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/manager.md",
+      "path" : "starter/docs/features/configuration/manager.md",
+      "sha256" : "4a47676d8cb71c074210403a1e49d3e1131f7886a94ea3cb8c285d999bbab47d",
+      "size" : 1955
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/nav-conf.md",
+      "path" : "starter/docs/features/configuration/nav-conf.md",
+      "sha256" : "1536605ce726dcea8e82abedff95d30aeaedd70673a864433318737314931f55",
+      "size" : 1899
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/payment.md",
+      "path" : "starter/docs/features/configuration/payment.md",
+      "sha256" : "120200f166f9ccfb0017d2e88fc150800206a4697a1a9dda98a457f0fa89899a",
+      "size" : 1893
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/remote-layouts.md",
+      "path" : "starter/docs/features/configuration/remote-layouts.md",
+      "sha256" : "24b8bbf741a8b047f38e4750d8454c53257b65db83bd154e15fa9fecb8106c0f",
+      "size" : 1662
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/theme-json.md",
+      "path" : "starter/docs/features/configuration/theme-json.md",
+      "sha256" : "7a2dde3623fbdefdd7aaba60438d878f162e396118ebaca6abba66d6a404d00a",
+      "size" : 1795
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/themes.md",
+      "path" : "starter/docs/features/configuration/themes.md",
+      "sha256" : "dc9765f96e5db5c1f546b281cc6bffa88ed3895d5ff85d3d58d84fd9f9116721",
+      "size" : 1472
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/views.md",
+      "path" : "starter/docs/features/configuration/views.md",
+      "sha256" : "c94f7f99c7ae6809a0b6e4f118da2561e8637acbc307855ff73cf77b1e57fe83",
+      "size" : 1978
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/development/build-static.md",
+      "path" : "starter/docs/features/development/build-static.md",
+      "sha256" : "4201cbc22ecb98dc43d4c2fe2137564ab8d8e559fcd429f4b1297e522c852ff6",
+      "size" : 1821
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/development/cache-management.md",
+      "path" : "starter/docs/features/development/cache-management.md",
+      "sha256" : "a2b151efbb10d7b2da8e73e2ba01db1fb9649cbb72da9cbe555edf61d975b1e1",
+      "size" : 2622
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/development/content-type-cache.md",
+      "path" : "starter/docs/features/development/content-type-cache.md",
+      "sha256" : "8619e67f5dd036a06619858cd19d9d1a4fca929dc852439a022812c1e19e298e",
+      "size" : 1850
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/development/dev-server.md",
+      "path" : "starter/docs/features/development/dev-server.md",
+      "sha256" : "b5d28a7540c2e467e5a4e2fa1dea099216ce35895946145fd8649bb9bcf7b420",
+      "size" : 2068
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/development/link-audit.md",
+      "path" : "starter/docs/features/development/link-audit.md",
+      "sha256" : "cb5f7bde81ca5f83dbde94ef17719c4ba47b70169225d415f384028d2d0e0e4f",
+      "size" : 1724
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/development/nocache.md",
+      "path" : "starter/docs/features/development/nocache.md",
+      "sha256" : "3c893003e2a46e061b6570bff40a338e9562fa1a93b0a6d316032a84ba327436",
+      "size" : 1540
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/forms-helpers.md",
+      "path" : "starter/docs/forms-helpers.md",
+      "sha256" : "063c8c1e1ac8cccdeab25fb30598f58290eb3956dddf55c05bb8dd17b33a9503",
+      "size" : 3068
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/forms-smtp.md",
+      "path" : "starter/docs/forms-smtp.md",
+      "sha256" : "670a3060808d7646c98c534bd5b1dbbfb370d6954a253d855e54fe6066c066a0",
+      "size" : 3114
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/forms.md",
+      "path" : "starter/docs/forms.md",
+      "sha256" : "61d586d023b12782b175f099350dfa516186716930a2ff82e466c7b7d699421d",
+      "size" : 5624
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/install.md",
+      "path" : "starter/docs/install.md",
+      "sha256" : "9044ef52965ccf54c12e032439c3d887db2d1a1b2abebd6818f7bb5cf1eecc6a",
+      "size" : 6787
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/manager.md",
+      "path" : "starter/docs/manager.md",
+      "sha256" : "d4b9922b3bc792fe137975e9b5f0984bf48f7cf73ddf49f191ff6c7e04c8e229",
+      "size" : 5465
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/payment.md",
+      "path" : "starter/docs/payment.md",
+      "sha256" : "4a11425a4969f52ded11b549b6974d2658ec76bb56fbcfc57525e1ed2ef606c8",
+      "size" : 4340
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/reference.md",
+      "path" : "starter/docs/reference.md",
+      "sha256" : "741cfe6955e389efbb77e4a008606722ff5d019aa1229112da0282d3aa5245e5",
+      "size" : 10767
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/remote-content.md",
+      "path" : "starter/docs/remote-content.md",
+      "sha256" : "b1f81f0eb4a06c3b93e993ffa880ca7ce6c1e9da5e455ef8e75520818f43a1ac",
+      "size" : 5078
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/views.md",
+      "path" : "starter/docs/views.md",
+      "sha256" : "fc4cf798a7f756080107dc4e5294381082fcc58b4c093c2f9708b89b6ecd890f",
+      "size" : 6250
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/index.md",
+      "path" : "starter/index.md",
+      "sha256" : "05ae5a1bae8abfe5467b7dc60af13fb82c20499edd6922b1a3ca7316400546c0",
+      "size" : 1129
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite-demo.md",
+      "path" : "starter/lazysite-demo.md",
+      "sha256" : "ec4064c88deb0b0bbcbdfcfdf61c38ae87f630cdcf8e048c6f15e3ed6dd76ca4",
+      "size" : 4838
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite/auth/groups.example",
+      "path" : "starter/lazysite/auth/groups.example",
+      "sha256" : "60aaaea221bda056837f99da683155a44620020ba9dd9a41c784118b915fee1e",
+      "size" : 147
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite/auth/users.example",
+      "path" : "starter/lazysite/auth/users.example",
+      "sha256" : "6f7033ee2a85140ae51b4f050048459685fcd3fe740b217c310b9fb38e857097",
+      "size" : 351
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite/forms/contact.conf",
+      "path" : "starter/lazysite/forms/contact.conf.example",
+      "sha256" : "cbaa17173a14514c814dd7f54b7af00e90d1f2eb143edf585ecbf86375802b9f",
+      "size" : 36
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite/forms/handlers.conf",
+      "path" : "starter/lazysite/forms/handlers.conf.example",
+      "sha256" : "1e1de2382a247f28db6c8e7b65ea9e64fd187fa13faf588b63f3aa93e85fa406",
+      "size" : 218
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite/forms/smtp.conf",
+      "path" : "starter/lazysite/forms/smtp.conf.example",
+      "sha256" : "6e30b9dccc2554015b77a4ea46e11c837cbee09bb5864c2e64ae9f829b5f4f1b",
+      "size" : 321
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite/lazysite.conf.example",
+      "path" : "starter/lazysite.conf.example",
+      "sha256" : "9578ec46382b17addd4648ca75b488b7871ce8d867607c943026b576f8a53421",
+      "size" : 2011
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite/nav.conf.example",
+      "path" : "starter/nav.conf.example",
+      "sha256" : "d989dbb7bcdff0fcb2534452342cc1156f9e1793fde23a85fd4099e07fc54bd5",
+      "size" : 450
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite/templates/registries/feed.atom.tt",
+      "path" : "starter/registries/feed.atom.tt",
+      "sha256" : "64a9d097c42887ad567bf217364c9008ad115cef0fb14740312a07ce09ac91a3",
+      "size" : 535
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite/templates/registries/feed.rss.tt",
+      "path" : "starter/registries/feed.rss.tt",
+      "sha256" : "9aa1818c48bf37ce0c1ef2659c438cff1ebe6babf3737fa6f82c07f8c125ad94",
+      "size" : 665
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite/templates/registries/llms.txt.tt",
+      "path" : "starter/registries/llms.txt.tt",
+      "sha256" : "09d879bca1c59bfd992905b41d32f59169d87d019416184507c3ec145f1a0242",
+      "size" : 222
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/lazysite/templates/registries/sitemap.xml.tt",
+      "path" : "starter/registries/sitemap.xml.tt",
+      "sha256" : "68cfa51940635774e3a1d5237492b502b7f9de978c2c600799a8693c657c9919",
+      "size" : 209
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/lazysite/themes/manager/assets/manager.css",
+      "path" : "starter/lazysite/themes/manager/assets/manager.css",
+      "sha256" : "37de43680de0948ae0261e36067a278611c484df6879067eca0933c699a8e827",
+      "size" : 24721
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/lazysite/themes/manager/view.tt",
+      "path" : "starter/lazysite/themes/manager/view.tt",
+      "sha256" : "5803d55a2230a56d4691c8669fab03b82d5be5a7ea2d3c5f462a05776e52af7c",
+      "size" : 5040
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/login.md",
+      "path" : "starter/login.md",
+      "sha256" : "dccbfdfbf511adafa3d5ae47c95e1753936c6742519234e0a372ef86ef455860",
+      "size" : 2472
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/logout.md",
+      "path" : "starter/logout.md",
+      "sha256" : "dc48b4ea311112f0a3eafb0519c4f8d54aa87898d8807588aa1b089cdc5b2547",
+      "size" : 103
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/closebrackets.min.js",
+      "path" : "starter/manager/assets/cm/closebrackets.min.js",
+      "sha256" : "df4a87dd3b175b509468755b74d06f0e82ff56f213f341f776c26ff0f0d27b37",
+      "size" : 3523
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/codemirror.min.css",
+      "path" : "starter/manager/assets/cm/codemirror.min.css",
+      "sha256" : "11077112ab6955d29fe41085c62365c7d4a2f00a570c7475e2aec2a8cbc85fc4",
+      "size" : 6037
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/codemirror.min.js",
+      "path" : "starter/manager/assets/cm/codemirror.min.js",
+      "sha256" : "f102bb61fb2ac45c3a611847edd9948faad0ab22a83a2dfa9974be5031079b15",
+      "size" : 170535
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/css.min.js",
+      "path" : "starter/manager/assets/cm/css.min.js",
+      "sha256" : "ee0ce00f346a6d7e345a74ab32f2cc600e8b7df878b28715d7d52192fa274eee",
+      "size" : 27098
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/htmlmixed.min.js",
+      "path" : "starter/manager/assets/cm/htmlmixed.min.js",
+      "sha256" : "506e12c1fc68437c2f5d45b2d7c8cd341f231ad94c5126667c0272bfe6359e6a",
+      "size" : 2870
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/javascript.min.js",
+      "path" : "starter/manager/assets/cm/javascript.min.js",
+      "sha256" : "99b46f351b4b1ce8a14cdf04fe4235ecb429b5b7b986867034a7dc195a710a58",
+      "size" : 17315
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/markdown.min.js",
+      "path" : "starter/manager/assets/cm/markdown.min.js",
+      "sha256" : "6d31310a4719d151d198b604864fa7cb7dcaa5013888863585e06d7c7085f3d8",
+      "size" : 14631
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/matchbrackets.min.js",
+      "path" : "starter/manager/assets/cm/matchbrackets.min.js",
+      "sha256" : "f359c5f395a2a08191557d40b61ef8c3893803da9019171cc44b8d9c8c7d4a3a",
+      "size" : 3096
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/overlay.min.js",
+      "path" : "starter/manager/assets/cm/overlay.min.js",
+      "sha256" : "2d2fc6f219c5ec536fe6bfe38fa241a8aba9045cf79b6e3599c906995644487b",
+      "size" : 1323
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/perl.min.js",
+      "path" : "starter/manager/assets/cm/perl.min.js",
+      "sha256" : "d615ceaba33194503018aa01c33784facb70d41b12eec6d5e3095ba372b95474",
+      "size" : 9802
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/shell.min.js",
+      "path" : "starter/manager/assets/cm/shell.min.js",
+      "sha256" : "08aed7c67ef9d68f8f99eec9af2da275da760b3296615f341f44a5ebae3fbbd7",
+      "size" : 2753
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/xml.min.js",
+      "path" : "starter/manager/assets/cm/xml.min.js",
+      "sha256" : "1403f6fc04264c38e933891710636ed07761898aa764de95a39a832d433cbe66",
+      "size" : 5981
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/assets/cm/yaml.min.js",
+      "path" : "starter/manager/assets/cm/yaml.min.js",
+      "sha256" : "a6925495d3ccd0197fbc85df616cae466f3ba7a04b885db3c4e7d6952a859623",
+      "size" : 1819
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/cache.md",
+      "path" : "starter/manager/cache.md",
+      "sha256" : "be191f8469a8a03dcdd6b836768b23b0d4235f85db59954bd004478c7fb81cc2",
+      "size" : 4379
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/config.md",
+      "path" : "starter/manager/config.md",
+      "sha256" : "fa157187141bf01f401b217b9f3324a76d26bf515e8727a838b70c262fb41115",
+      "size" : 8445
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/edit.md",
+      "path" : "starter/manager/edit.md",
+      "sha256" : "4adeac9488dcbce55adb61220584e73863fb17fed47c6b8517e361489067db96",
+      "size" : 25501
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/files.md",
+      "path" : "starter/manager/files.md",
+      "sha256" : "5359c158164fe859dad8fd56626ff8453407e948d0db376642636b15966f60a7",
+      "size" : 16495
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/index.md",
+      "path" : "starter/manager/index.md",
+      "sha256" : "523d69afca8069760c8a2f545294ba92a3cec0066768ec978fd50b7d91d0873e",
+      "size" : 184
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/nav.md",
+      "path" : "starter/manager/nav.md",
+      "sha256" : "b4be4f9d4c461f07c3cfdc9688cee40e498a6c905f7f48f304dbb315aca8a088",
+      "size" : 8282
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/plugins.md",
+      "path" : "starter/manager/plugins.md",
+      "sha256" : "e60b5b30c50c93ca6ee2d5e2f729541c295daf23983c28861bba0769d6e3c9e0",
+      "size" : 36590
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/themes.md",
+      "path" : "starter/manager/themes.md",
+      "sha256" : "5917bd3ad43182a7b134c8f8e0ab1fbc90454f8556bdb10767866a2725268717",
+      "size" : 6396
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/manager/users.md",
+      "path" : "starter/manager/users.md",
+      "sha256" : "d1544f168d32c5f01e60061e232435494a395c692fb161ba8eaffa0e784a1f2f",
+      "size" : 12896
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/members.md",
+      "path" : "starter/members.md",
+      "sha256" : "5c98961b9e6353187e16b92f86bd89bcca192781a8e3f5fe6b55f8a6eb9829ac",
+      "size" : 518
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/payment-demo.md",
+      "path" : "starter/payment-demo.md",
+      "sha256" : "c61afcfa2c96877db6d00b4bcdb85624d678284085a5528f3142371739bdf7df",
+      "size" : 689
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/payment-members-demo.md",
+      "path" : "starter/payment-members-demo.md",
+      "sha256" : "bf526f03d4a353efc22eabaf6167f67e2e0e3694274bd482095158e0ed0f327f",
+      "size" : 510
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/search-index.md",
+      "path" : "starter/search-index.md",
+      "sha256" : "2eebec8740b256ebc0d97a8cff376b067d78c02b9a2694ba4893ea7715fa8adf",
+      "size" : 229
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/search-results.md",
+      "path" : "starter/search-results.md",
+      "sha256" : "90fe2e86cdb67fa4d91871470b21c8aee09e6ac412b29bc1795e4a3a54776bb5",
+      "size" : 6085
+    },
+    {
+      "bucket" : "code",
+      "install_to" : null,
+      "path" : "LICENSE",
+      "sha256" : "d20c42490209e9bc285538f209fc019ae2dd0b23ff12e88e87d2f2495470a7b1",
+      "size" : 1072
+    },
+    {
+      "bucket" : "code",
+      "install_to" : null,
+      "path" : "README.md",
+      "sha256" : "81eb7a7926709b1be2cacf6ac12aeff7c53b553f4b9547c58fae5a9fcb9bf37e",
+      "size" : 3477
+    },
+    {
+      "bucket" : "code",
+      "install_to" : null,
+      "path" : "SECURITY.md",
+      "sha256" : "79a33b4cae6470957d57870e53deeb4f3fa83d22be00bfeae1cdd56ecb164ec0",
+      "size" : 2841
+    },
+    {
+      "bucket" : "code",
+      "install_to" : null,
+      "path" : "install.sh",
+      "sha256" : "cfb2ec7a224aa20b1bc5a230afbe7e57b3c0f30e631c67a64c618fbb52a4a3f5",
+      "size" : 9072
+    },
+    {
+      "bucket" : "code",
+      "install_to" : null,
+      "path" : "installers/hestia/install-hestia.sh",
+      "sha256" : "3cc72f59ee5df0d7f083ed0ee032720ce18e38d6313acdab5491661c29b7c475",
+      "size" : 4093
+    },
+    {
+      "bucket" : "code",
+      "install_to" : null,
+      "path" : "installers/hestia/lazysite.stpl",
+      "sha256" : "99a4298c52a54a4e8f9021c86c705e01d019d08c0665d425678072b99780e1de",
+      "size" : 1720
+    },
+    {
+      "bucket" : "code",
+      "install_to" : null,
+      "path" : "installers/hestia/lazysite.tpl",
+      "sha256" : "eb0f5f4acd9341ef445f69e30406e1426d925c564eea2f03cd89664b114821b5",
+      "size" : 1603
+    }
+  ],
+  "generated" : "2026-04-21T15:11:23Z",
+  "min_upgrade_from" : "0.1.0",
+  "runtime_paths" : [
+    {
+      "mode" : "0750",
+      "path" : "{DOCROOT}/lazysite/auth",
+      "purpose" : "user credentials, session secret, login rate-limit DB"
+    },
+    {
+      "mode" : "0755",
+      "path" : "{DOCROOT}/lazysite/cache",
+      "purpose" : "rendered HTML cache"
+    },
+    {
+      "mode" : "0755",
+      "path" : "{DOCROOT}/lazysite/logs",
+      "purpose" : "application log output"
+    },
+    {
+      "mode" : "0755",
+      "path" : "{DOCROOT}/lazysite/manager/locks",
+      "purpose" : "per-file edit locks"
+    }
+  ],
+  "schema_version" : "1",
+  "version" : "0.1.0"
+}

@@ -28,3 +28,12 @@ rsync-from-source.sh
 
 # OS files
 .DS_Store
+
+# Release artefacts. dist/ root is ignored by default;
+# make-release.sh force-adds the tarball + .sha256 via `git add -f`
+# at release time. dist/config/ is explicitly tracked - it holds
+# build inputs (classification.json, sbom-deps.json) alongside the
+# build outputs.
+dist/*
+!dist/config/
+!dist/config/*

@@ -1,0 +1,161 @@
+{
+  "schema_version": "1",
+  "_doc": "D021b dependency metadata. Describes modules that lazysite's shipped code uses. Does NOT declare which modules exist - make-release.sh's strict-grep check greps the code and demands that every module it finds is listed here. To add a new dependency: add its entry, not just a use statement. Core-Perl modules are listed for completeness (Debian ships them in perl-modules-*; other distros include them with the perl package).",
+  "modules": {
+    "Archive::Zip": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libarchive-zip-perl",
+      "rhel_pkg": "perl-Archive-Zip",
+      "alpine_pkg": "perl-archive-zip",
+      "used_by": "theme upload (manager), zip download (manager)"
+    },
+    "Cwd": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "path validation (realpath) across processor and manager-api"
+    },
+    "DB_File": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "perl",
+      "rhel_pkg": "perl-DB_File",
+      "alpine_pkg": "perl-db_file",
+      "used_by": "rate limits: login, form submission, manager upload",
+      "_note": "Bundled with perl core; links against libdb."
+    },
+    "Digest::SHA": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "HMAC-SHA256 for auth cookies, CSRF tokens, form tokens; salted iterated SHA-256 password hashing"
+    },
+    "Encode": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "UTF-8 decoding of query-string values in processor"
+    },
+    "Fcntl": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "file locking (flock), O_RDWR/O_CREAT constants for DB_File ties"
+    },
+    "File::Basename": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "path manipulation throughout"
+    },
+    "File::Copy": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "dev server static asset copying"
+    },
+    "File::Find": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "cache walks, directory enumeration for audit and manager API"
+    },
+    "File::Path": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "make_path for directory creation"
+    },
+    "File::Temp": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "zip download tempfile, theme upload staging"
+    },
+    "IO::Socket::INET": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "dev server listening socket"
+    },
+    "IO::Socket::SSL": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libio-socket-ssl-perl",
+      "rhel_pkg": "perl-IO-Socket-SSL",
+      "alpine_pkg": "perl-io-socket-ssl",
+      "used_by": "SMTP form delivery over STARTTLS"
+    },
+    "IPC::Open2": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "users-admin child process, form webhook delivery with captured output"
+    },
+    "JSON::PP": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "manager API responses, form payloads, plugin --describe, SBOM/manifest output"
+    },
+    "LWP::UserAgent": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libwww-perl",
+      "rhel_pkg": "perl-libwww-perl",
+      "alpine_pkg": "perl-lwp-useragent",
+      "used_by": "remote content fetch for :::include and url: variables, form webhook delivery"
+    },
+    "Net::SMTP": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "form-to-email delivery plugin"
+    },
+    "POSIX": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "strftime for timestamps in logs, manifest, SBOM, zip filenames"
+    },
+    "Socket": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "SSRF guard: inet_aton / inet_ntoa for remote-fetch IP address checks"
+    },
+    "Time::HiRes": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "dev server request timing (optional; falls back when unavailable)"
+    },
+    "Template": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libtemplate-perl",
+      "rhel_pkg": "perl-Template-Toolkit",
+      "alpine_pkg": "perl-template-toolkit",
+      "used_by": "Template Toolkit page rendering (processor core)"
+    },
+    "Text::MultiMarkdown": {
+      "core": false,
+      "license": "BSD-3-Clause",
+      "debian_pkg": "libtext-multimarkdown-perl",
+      "rhel_pkg": "perl-Text-MultiMarkdown",
+      "alpine_pkg": "",
+      "used_by": "Markdown to HTML conversion (processor core)",
+      "_note": "License confirmed from /usr/share/doc/libtext-multimarkdown-perl/copyright (Debian upstream packaging)."
+    },
+    "URI": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "liburi-perl",
+      "rhel_pkg": "perl-URI",
+      "alpine_pkg": "perl-uri",
+      "used_by": "URL parsing in SSRF guard and remote-fetch path resolution"
+    }
+  },
+  "environment": [
+    {
+      "name": "perl",
+      "description": "Perl runtime. Required version 5.10+. On Debian: 'perl'. On Alpine: 'perl'. On RHEL: 'perl'. Includes core modules listed above.",
+      "external_refs": [
+        {"type": "distribution", "url": "https://packages.debian.org/stable/perl"},
+        {"type": "distribution", "url": "https://pkgs.alpinelinux.org/package/edge/main/x86_64/perl"}
+      ]
+    },
+    {
+      "name": "Apache HTTP Server",
+      "description": "CGI host. Operator-provided. Any CGI/1.1-capable server works; Apache is the reference platform. The dev server (tools/lazysite-server.pl) is evaluation-only.",
+      "external_refs": [
+        {"type": "distribution", "url": "https://packages.debian.org/stable/apache2"}
+      ]
+    }
+  ]
+}
