@@ -26,28 +26,90 @@ The orchestrator is `./make-release.sh`.
    not fail the build but are reported - they won't be in the
    tarball (`git ls-files` is the source of truth for staging).
 
-### Build
-
-```
-./make-release.sh
-```
-
-With no arguments this prints the target version and the commit
-commands it would run. Review, then:
+### Release command
 
 ```
 ./make-release.sh --auto
 ```
 
-`--auto` (or `--force`) stages the tree, generates the manifest
-and SBOM, tars, hashes, runs the evaluation-ramp smoke test,
-creates the two release commits described below, tags the first
-one, and pushes.
+Builds, commits, tags, bumps `NEXT_VERSION`, and pushes. One
+command; the happy path for cutting a release.
 
-Without `--auto` the script builds everything except the git
-operations. It prints the exact sequence of commands (two commits
-plus tag plus push) for you to run once you've reviewed
-`release-manifest.json` and `sbom.json`.
+### Release notes convention
+
+The development assistant writes release notes to
+`.release-notes.md` at repo root as part of each dev session's
+deliverables. The file is gitignored - it is workflow state, not
+part of the project's history.
+
+`make-release.sh --auto` detects the file automatically and
+treats it as if `--notes-file .release-notes.md` had been passed.
+On successful push, the file is deleted so the next release
+cannot silently reuse these notes.
+
+File format: the entire file becomes the body of the release
+commit message. Convention is a one-line title-style first line
+(under ~72 chars is a nice-to-have, not enforced), a blank line,
+then a markdown body. Example:
+
+```
+Plugin restructure and install.sh alignment
+
+Plugins moved from repo root / tools/ into plugins/, dropping
+the lazysite- prefix. install.sh now catches up with the
+release manifest.
+
+Breaking changes: form-handler and payment-demo CGI URLs.
+See UPGRADE.md.
+```
+
+### Release-notes precedence
+
+`--auto` chooses the release notes source in this order:
+
+1. **`--notes-file PATH`** explicitly given on the command line:
+   use that file. Validated upfront (readable, non-empty).
+2. **`.release-notes.md` at repo root**: used implicitly. Deleted
+   on successful push.
+3. **Interactive prompt**: falls through to a single-capture
+   prompt (markdown, end with Ctrl-D). Empty notes are rejected;
+   Ctrl-C / EOF aborts cleanly, removing the just-built tarball
+   and leaving `VERSION` / `NEXT_VERSION` unchanged.
+
+If you want to cut a release without going through CC (or to
+override CC's notes), either edit `.release-notes.md` before
+running `--auto`, or delete it and let `--auto` prompt
+interactively.
+
+### Commit message shape
+
+The release commit message has the form:
+
+```
+release: 0.2.1
+
+<full contents of .release-notes.md>
+```
+
+Subject line is always `release: X.Y.Z`. The first line of the
+notes file becomes the first body line, visible in
+`git log --oneline` via `--format` expansions and on GitHub's
+release-page preview.
+
+### Manual release (secondary)
+
+Running without `--auto` builds the tarball, manifest, and SBOM,
+runs the evaluation-ramp smoke test, then stops and prints the
+two-commit sequence for you to run. Use when you want to inspect
+the generated artefacts before committing, or when debugging the
+release flow.
+
+```
+./make-release.sh
+```
+
+No argument at all prints just a status summary and reminds you
+how to invoke the real command.
 
 ### Release topology
 

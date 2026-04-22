@@ -37,3 +37,8 @@ rsync-from-source.sh
 dist/*
 !dist/config/
 !dist/config/*
+
+# CC-authored release notes. Workflow state, not project history.
+# make-release.sh --auto reads this file automatically and deletes
+# it on successful push. See docs/development.md Releasing section.
+.release-notes.md

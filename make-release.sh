@@ -31,6 +31,7 @@ ok()   { printf "${C_OK}OK${C_RESET} %s\n" "$*"; }
 
 AUTO=0
 ALLOW_DIRTY=0
+NOTES_FILE=""
 usage() {
     cat <<'USAGE'
 make-release.sh - build a lazysite release tarball.
@@ -38,8 +39,16 @@ make-release.sh - build a lazysite release tarball.
 Run with no arguments to see planned version and command summary.
 
 Options:
-  --auto, --force    Commit and push after building the tarball.
-                     Without this, prints the exact git commands.
+  --auto, --force    Full automated release: build, commit, tag,
+                     bump NEXT_VERSION, push. Prompts for release
+                     notes unless --notes-file is given.
+                     Without this, prints the exact git commands
+                     and leaves the working tree for manual use.
+  --notes-file PATH  Read release notes from PATH instead of
+                     prompting. Must be used with --auto. Format:
+                     first line is the summary, remaining lines
+                     are the body. A blank line between them is
+                     optional.
   --allow-dirty      Permit release from a dirty git tree. Intended
                      only for the first release (D021a/b bootstrap).
                      WARNING: a release built from a dirty tree
@@ -61,9 +70,10 @@ if [ $# -eq 0 ]; then
         CV=$(cat VERSION | tr -d ' \t\n\r')
         info "VERSION      = $CV (current release)"
     fi
-    info "Run './make-release.sh --auto' to build, commit, and push."
-    info "Run './make-release.sh --force' to build without auto-push"
-    info "(prints the git commands instead)."
+    info "Run './make-release.sh --auto' for a full release."
+    info "(prompts for notes, then commits, tags, bumps, pushes)"
+    info "Or './make-release.sh --auto --notes-file PATH' for unattended."
+    info "Or './make-release.sh --help' for all options."
     exit 0
 fi
 
@@ -71,13 +81,56 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --auto|--force) AUTO=1; shift ;;
         --allow-dirty)  ALLOW_DIRTY=1; shift ;;
+        --notes-file)   NOTES_FILE="$2"; shift 2 ;;
         --help) usage; exit 0 ;;
         *) err "Unknown option: $1" ;;
     esac
 done
 
 if [ "$AUTO" -eq 1 ] && [ "$ALLOW_DIRTY" -eq 1 ]; then
-    err "--auto and --allow-dirty cannot be combined"
+    err "--auto and --allow-dirty are mutually exclusive. --auto requires a clean tree."
+fi
+
+if [ -n "$NOTES_FILE" ] && [ "$AUTO" -ne 1 ]; then
+    err "--notes-file requires --auto"
+fi
+
+# SM030 + amendment: notes-source detection.
+#
+# Precedence in --auto:
+#   (a) --notes-file PATH explicitly given: use it
+#   (b) .release-notes.md exists at repo root: implicit use
+#   (c) Neither: interactive prompt after build
+#
+# DELETE_NOTES_ON_SUCCESS is set to the file path when that file
+# is the conventional .release-notes.md (implicit or explicit);
+# the file is deleted after a successful push so stale notes
+# cannot silently carry into the next release.
+DELETE_NOTES_ON_SUCCESS=""
+if [ "$AUTO" -eq 1 ]; then
+    if [ -n "$NOTES_FILE" ]; then
+        :   # explicit --notes-file: validated below
+    elif [ -f .release-notes.md ]; then
+        NOTES_FILE=".release-notes.md"
+        info "Using .release-notes.md"
+    fi
+fi
+
+if [ -n "$NOTES_FILE" ]; then
+    [ -r "$NOTES_FILE" ] || err "Cannot read notes file: $NOTES_FILE"
+    [ -s "$NOTES_FILE" ] || err "Notes file is empty: $NOTES_FILE"
+    NOTES_BODY=$(cat "$NOTES_FILE")
+    # Reject effectively-empty files (whitespace-only).
+    if [ -z "$(printf '%s' "$NOTES_BODY" | tr -d '[:space:]')" ]; then
+        err "Notes file $NOTES_FILE contains only whitespace."
+    fi
+    # If the consumed file is the convention file, mark for cleanup
+    # on happy-path success. Path comparison handles both implicit
+    # and an explicit --notes-file .release-notes.md.
+    case "$NOTES_FILE" in
+        .release-notes.md|./.release-notes.md)
+            DELETE_NOTES_ON_SUCCESS="$NOTES_FILE" ;;
+    esac
 fi
 
 # --- preflight ---
@@ -292,34 +345,91 @@ ok "Smoke test passed (HTTP 200, body contains 'lazysite')"
 kill "$SMOKE_PID" 2>/dev/null || true
 wait "$SMOKE_PID" 2>/dev/null || true
 
-# --- write VERSION (but do NOT rotate NEXT_VERSION yet) ---
-#
-# The rotation happens as part of the commit-amend step below so the
-# tagged commit's tree has NEXT_VERSION == VERSION (a pristine
-# "release snapshot"), and the amended commit that follows bumps
-# NEXT_VERSION matches VERSION at this point. The bump to the
-# next patch happens as a separate follow-up commit (auto mode)
-# or via operator-run command (manual mode), so the tagged
-# release commit contains a pristine release tree AND remains
-# the direct ancestor of the bump commit (linear main history).
-
-echo "$VERSION" > "$REPO_ROOT/VERSION"
-echo "$VERSION" > "$REPO_ROOT/NEXT_VERSION"
-
 IFS='.' read -r MAJ MIN PAT <<< "$VERSION"
 NEXT_PATCH=$((PAT + 1))
 NEXT="$MAJ.$MIN.$NEXT_PATCH"
 
+# --- SM030: collect release notes (auto mode only) ---
+#
+# Happens BEFORE VERSION / NEXT_VERSION are touched so that a
+# Ctrl-C during the prompt leaves those files unchanged and the
+# only side-effect is the just-built tarball, which we delete.
+#
+# For --notes-file, the file has already been validated during arg
+# parse, so NOTES_SUMMARY and NOTES_BODY are populated.
+
+notes_interrupt() {
+    printf "\n"
+    warn "Release aborted at notes prompt."
+    rm -f "$TARBALL" "$TARBALL.sha256"
+    exit 130
+}
+
+collect_notes_interactive() {
+    info "Enter release notes for $VERSION"
+    # SIGINT during read fires this trap. The main EXIT trap still
+    # cleans up temp dirs.
+    trap notes_interrupt INT
+    printf "Release notes (markdown; end with Ctrl-D):\n"
+    # cat on stdin reads until EOF. Ctrl-D on an empty line yields "".
+    NOTES_BODY=$(cat || true)
+    if [ -z "$(printf '%s' "$NOTES_BODY" | tr -d '[:space:]')" ]; then
+        warn "Release notes cannot be empty."
+        rm -f "$TARBALL" "$TARBALL.sha256"
+        exit 1
+    fi
+    trap - INT
+}
+
+if [ "$AUTO" -eq 1 ] && [ -z "$NOTES_FILE" ]; then
+    collect_notes_interactive
+fi
+
+# --- write VERSION / NEXT_VERSION ---
+#
+# The pristine release tree has VERSION == NEXT_VERSION. The bump
+# to the next patch happens as a separate follow-up commit
+# (auto mode) or via operator-run command (manual mode), so the
+# tagged release commit contains a pristine release tree AND
+# remains the direct ancestor of the bump commit (linear main
+# history).
+
+echo "$VERSION" > "$REPO_ROOT/VERSION"
+echo "$VERSION" > "$REPO_ROOT/NEXT_VERSION"
+
 info "VERSION set to $VERSION (NEXT_VERSION will bump to $NEXT in a follow-up commit)"
 
-# --- commit / tag / bump or print commands ---
+# --- commit / tag / bump / push or print commands ---
 
 if [ "$AUTO" -eq 1 ]; then
     info "Auto-committing release $VERSION"
-    git add VERSION NEXT_VERSION release-manifest.json sbom.json
+
+    # Build the commit message: title-only subject plus the full
+    # notes as the body. The first line of the notes file shows up
+    # as the first body line (and in GitHub's release-page preview).
+    MSG_FILE=$(mktemp "/tmp/lazysite-relmsg-$VERSION-XXXXXX")
+    printf 'release: %s\n\n%s\n' "$VERSION" "$NOTES_BODY" > "$MSG_FILE"
+
+    # git add -A picks up the release-manifest.json, sbom.json,
+    # VERSION, NEXT_VERSION, plus any other change since the clean-
+    # tree check at the start. The tarball is gitignored so needs -f.
+    git add -A
     git add -f "$TARBALL" "$TARBALL.sha256"
-    git commit -m "release: $VERSION"
-    git tag -a "v$VERSION" -m "Release $VERSION"
+
+    if ! git commit -F "$MSG_FILE"; then
+        rm -f "$MSG_FILE"
+        err "git commit failed. Resolve and rerun."
+    fi
+    rm -f "$MSG_FILE"
+
+    if ! git tag -a "v$VERSION" -m "Release $VERSION"; then
+        warn "git tag failed. Commit is in place. To recover:"
+        warn "  git tag -a v$VERSION -m 'Release $VERSION'"
+        warn "  echo $NEXT > NEXT_VERSION && git add NEXT_VERSION &&"
+        warn "    git commit -m 'chore: bump NEXT_VERSION to $NEXT'"
+        warn "  git push && git push origin v$VERSION"
+        err "Aborting after tag failure."
+    fi
 
     # Bump NEXT_VERSION as a follow-up commit. Linear history on
     # main; tag stays anchored to the release commit.
@@ -327,9 +437,41 @@ if [ "$AUTO" -eq 1 ]; then
     git add NEXT_VERSION
     git commit -m "chore: bump NEXT_VERSION to $NEXT"
 
-    git push
-    git push origin "v$VERSION"
-    ok "Release $VERSION committed, tagged, bumped, and pushed."
+    # Push. Failure leaves commits + tag local; operator retries.
+    PUSH_OK=1
+    if ! git push; then
+        PUSH_OK=0
+    elif ! git push origin "v$VERSION"; then
+        PUSH_OK=0
+    fi
+
+    RELEASE_SHA=$(git rev-parse "v$VERSION^{commit}")
+
+    if [ "$PUSH_OK" -eq 0 ]; then
+        warn "Push failed. Commits and tag are local. Retry with:"
+        warn "  git push && git push origin v$VERSION"
+        ok "Release $VERSION committed, tagged, bumped (NOT pushed)"
+    else
+        ok "Release $VERSION pushed"
+        # Happy path: if the consumed notes were .release-notes.md
+        # (CC convention file), remove it so the next release
+        # cannot silently reuse the now-shipped notes. Preserved on
+        # any failure path so the operator can retry without
+        # re-authoring.
+        if [ -n "$DELETE_NOTES_ON_SUCCESS" ] \
+            && [ -f "$DELETE_NOTES_ON_SUCCESS" ]; then
+            rm -f "$DELETE_NOTES_ON_SUCCESS"
+            info "Removed $DELETE_NOTES_ON_SUCCESS (consumed by release)"
+        fi
+    fi
+    printf "    Tag:       v%s\n"   "$VERSION"
+    printf "    Commit:    %s\n"    "$RELEASE_SHA"
+    printf "    Tarball:   dist/lazysite-%s.tar.gz\n" "$VERSION"
+    if [ "$PUSH_OK" -eq 1 ]; then
+        printf "    Pushed:    origin/main, origin v%s\n" "$VERSION"
+    else
+        printf "    Pushed:    NO (local only, retry required)\n"
+    fi
 else
     info "Not auto-committing. Two commits form the release:"
     cat <<CMDS
@@ -348,6 +490,8 @@ else
     # Push:
     git push
     git push origin v$VERSION
+
+Or run with --auto for one-command release.
 CMDS
 fi
 
