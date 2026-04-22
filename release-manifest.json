@@ -841,8 +841,8 @@
       "size" : 1603
     }
   ],
-  "generated" : "2026-04-22T06:15:58Z",
-  "min_upgrade_from" : "0.2.1",
+  "generated" : "2026-04-22T09:50:06Z",
+  "min_upgrade_from" : "0.2.2",
   "runtime_paths" : [
     {
       "mode" : "0750",
@@ -871,5 +871,5 @@
     }
   ],
   "schema_version" : "1",
-  "version" : "0.2.1"
+  "version" : "0.2.2"
 }
