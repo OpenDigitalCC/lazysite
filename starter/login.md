@@ -77,17 +77,14 @@ query_params:
 </p>
 [% END %]
 
-<form method="POST" action="/cgi-bin/lazysite-auth.pl?action=login"
-      class="login-form">
+<form method="POST" action="/cgi-bin/lazysite-auth.pl?action=login" class="login-form">
   <input type="hidden" name="next" value="[% query.next | html %]">
 
   <label for="username">Username</label>
-  <input type="text" name="username" id="username"
-         required autocomplete="username">
+  <input type="text" name="username" id="username" required autocomplete="username">
 
   <label for="password">Password</label>
-  <input type="password" name="password" id="password"
-         autocomplete="current-password">
+  <input type="password" name="password" id="password" autocomplete="current-password">
 
   <div class="login-submit">
     <button type="submit">Sign in</button>

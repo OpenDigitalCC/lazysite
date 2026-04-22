@@ -123,8 +123,8 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/ai-briefing-development.md",
       "path" : "starter/docs/ai-briefing-development.md",
-      "sha256" : "16ecb079b678536251196ab9dcc6ebcf7388f565eacb2a41ada2ec6611724c35",
-      "size" : 7396
+      "sha256" : "93769781b9d42d0b53e44634cb429eb12c5dff8999b668aa8bb148f470b65ad3",
+      "size" : 7906
     },
     {
       "bucket" : "seed",
@@ -592,8 +592,8 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/login.md",
       "path" : "starter/login.md",
-      "sha256" : "dccbfdfbf511adafa3d5ae47c95e1753936c6742519234e0a372ef86ef455860",
-      "size" : 2472
+      "sha256" : "002cc3aca6db64b9ced8a9139c86460d1d602739734905c91b677286f207ae41",
+      "size" : 2448
     },
     {
       "bucket" : "seed",
@@ -746,8 +746,8 @@
       "bucket" : "code",
       "install_to" : "{DOCROOT}/manager/themes.md",
       "path" : "starter/manager/themes.md",
-      "sha256" : "dd9685d1c0b39d038c08910e22ced41076005c41fa72d4d9233348cc5f08fe99",
-      "size" : 13022
+      "sha256" : "db0bb5c9328d43d821957d07e6736b416a93a6315b69d61b46ffdb37fe70239a",
+      "size" : 13015
     },
     {
       "bucket" : "code",
@@ -855,8 +855,8 @@
       "size" : 1604
     }
   ],
-  "generated" : "2026-04-22T19:10:30Z",
-  "min_upgrade_from" : "0.2.14",
+  "generated" : "2026-04-22T19:38:25Z",
+  "min_upgrade_from" : "0.2.15",
   "runtime_paths" : [
     {
       "mode" : "0750",
@@ -895,5 +895,5 @@
     }
   ],
   "schema_version" : "1",
-  "version" : "0.2.14"
+  "version" : "0.2.15"
 }

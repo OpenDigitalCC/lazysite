@@ -63,6 +63,16 @@ lazysite/
 : Features are specified before implementation. Specs live in the
   session briefings; the implementation follows them.
 
+**HTML tags in markdown source must be single-line**
+: Inline HTML elements in `.md` files must keep their entire tag
+  definition (opening `<` through closing `>`) on one line. The
+  markdown parser treats line breaks inside a tag as block
+  boundaries and can strip attributes, break nesting, or produce
+  HTML whose `id`/`name` attributes never reach the DOM. Same
+  rule for `<div>`, `<input>`, `<form>`, etc. TT template files
+  (`.tt`) are not affected - multi-line tags there pass through
+  untouched.
+
 ## Scripts and responsibilities
 
 `lazysite-processor.pl`

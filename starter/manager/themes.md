@@ -40,8 +40,7 @@ query_params:
 <p class="mg-card-subtitle" style="margin:0 0 8px 0;">Install themes from a published release of the layouts repository. The release repo must use the D013 nested shape (themes at <code>layouts/LAYOUT/themes/THEME/</code>). Each install pulls every valid theme in the release.</p>
 <div class="mg-form-row mg-config-field" style="margin-bottom:0.75rem;">
 <label for="layouts-repo-input">Layouts repo</label>
-<input type="text" id="layouts-repo-input"
-       placeholder="OpenDigitalCC/lazysite-layouts" style="flex:1;">
+<input type="text" id="layouts-repo-input" placeholder="OpenDigitalCC/lazysite-layouts" style="flex:1;">
 <button class="mg-btn mg-btn-outline mg-btn-sm" onclick="saveLayoutsRepo()">Save</button>
 </div>
 <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
