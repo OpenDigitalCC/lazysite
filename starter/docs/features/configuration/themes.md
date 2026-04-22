@@ -1,6 +1,6 @@
 ---
 title: Themes
-subtitle: Switch views site-wide or install multiple named themes.
+subtitle: Design tokens and assets for a layout. Install multiple, activate one.
 tags:
   - configuration
   - template
@@ -8,95 +8,163 @@ tags:
 
 ## Themes
 
-Themes are named view templates that can be switched site-wide via
-`lazysite.conf` or per-page via the `layout:` front matter key.
+A theme supplies colours, fonts, spacing, and assets on top of a
+[layout](/docs/features/configuration/layouts). Themes are
+layout-specific: a theme declares which layouts it's compatible
+with and is installed once under each.
 
 ### Setting a theme
 
 In `lazysite.conf`:
 
-    theme: mytheme
+    layout: default
+    theme: odcc
 
-### Resolution order
+Both keys are required. The theme is loaded from
+`lazysite/layouts/default/themes/odcc/`. If the theme's own
+compatibility list doesn't include `default`, the theme is
+ignored and the page renders with layout chrome only (no theme
+styling).
 
-When a theme name is set, lazysite checks these locations in order:
-
-1. `lazysite/themes/NAME/view.tt` - theme directory
-2. `lazysite/templates/NAME.tt` - named template file
-
-If neither exists, falls back to `lazysite/templates/view.tt`, then
-the built-in fallback.
-
-### Theme directory structure
+### On-disk structure
 
 A theme has two parts, stored in separate locations:
 
-    public_html/lazysite/themes/mytheme/
-      view.tt
-      theme.json           <- optional metadata
+    public_html/lazysite/layouts/default/themes/odcc/
+      theme.json          <- manifest (required)
+      main.css            <- layout-scoped stylesheet
+      assets/             <- fonts, images, etc. (optional)
 
-    public_html/lazysite-assets/mytheme/
-      main.css
+    public_html/lazysite-assets/default/odcc/
+      main.css            <- web-served copy (auto-placed on install)
       logo.svg
-      js/app.js            <- any static assets referenced from view.tt
+      fonts/...
 
-The split is deliberate: `lazysite/themes/` is blocked from web
-access by the Apache / Hestia template (`<Location /lazysite/>`
-denies all), while `lazysite-assets/` is served as normal
-static content. CSS, JS, images, and fonts go under
-`lazysite-assets/NAME/`; templates go under `lazysite/themes/NAME/`.
+The split is deliberate: `lazysite/` is blocked from direct web
+access (`<Location /lazysite/>` denies all in the Hestia
+template); `lazysite-assets/` is served as normal static content.
+
+### theme.json
+
+    {
+      "name": "odcc",
+      "version": "1.0.0",
+      "description": "OpenDigitalCC brand theme",
+      "author": "OpenDigitalCC",
+      "layouts": ["default"],
+      "config": {
+        "colours": {
+          "primary": "#332b82",
+          "text": "#2a2a2a",
+          "accent": "#ff6b35"
+        },
+        "fonts": {
+          "body": "Open Sans",
+          "heading": "Source Sans 3"
+        },
+        "spacing": { "unit": "8px" }
+      },
+      "files": [
+        "theme.json",
+        "main.css",
+        "assets/logo.svg"
+      ]
+    }
+
+**Required fields:** `name`, `version`, `description`, `author`,
+`layouts` (array), `config` (object).
+
+- `layouts` lists the layout names this theme is compatible with.
+  The manager installs the theme under each; the processor refuses
+  to apply it to any layout not in this list.
+- `config` groups design tokens. Each group is a flat object of
+  string values. Group and key names are author-chosen but must
+  match `^[A-Za-z0-9_-]+$` to survive CSS variable naming.
+
+### Auto-generated CSS variables
+
+The processor exposes `[% theme_css %]` in layout.tt: a `<style>`
+block of `:root` CSS custom properties derived from `theme.config`:
+
+    <style>
+    :root {
+      --theme-colours-primary: #332b82;
+      --theme-colours-text: #2a2a2a;
+      --theme-colours-accent: #ff6b35;
+      --theme-fonts-body: Open Sans;
+      --theme-fonts-heading: Source Sans 3;
+      --theme-spacing-unit: 8px;
+    }
+    </style>
+
+Naming convention: `--theme-GROUP-KEY`. Values are written
+verbatim with `;{}<>` stripped to prevent declaration escape.
+
+Use in a layout:
+
+    <head>
+    [% theme_css %]
+    <link rel="stylesheet" href="[% theme_assets %]/main.css">
+    </head>
+
+...and in the theme's CSS:
+
+    body {
+      color: var(--theme-colours-text);
+      background: var(--theme-colours-background);
+      font-family: var(--theme-fonts-body);
+    }
+
+The advantage over hardcoded values: a single theme fork copy
+can tweak just the colours while reusing the layout's structure
+and the theme's base stylesheet.
 
 ### theme_assets TT variable
 
-Inside `view.tt`, the `theme_assets` variable holds the URL
-prefix for the active theme's assets:
-
-    [% IF theme_assets %]
-    <link rel="stylesheet" href="[% theme_assets %]/main.css">
-    <script src="[% theme_assets %]/js/app.js"></script>
-    [% END %]
-
-For a theme installed at `lazysite/themes/mytheme/`,
-`theme_assets` resolves to `/lazysite-assets/mytheme`. This
-holds for both locally-installed themes and
-[remote themes](/docs/features/configuration/remote-layouts) -
-in the remote case the assets are cached under a
-derived key, not the theme name.
-
-The `[% IF theme_assets %]` guard is defensive and can be
-omitted when you know a theme is always active.
+`[% theme_assets %]` resolves to `/lazysite-assets/LAYOUT/THEME/`
+when a compatible theme is active, pointing at the web-served
+assets dir. Nothing when no theme is active.
 
 ### Installing a theme
 
-**Via the manager UI.** Upload a zip containing `view.tt` and
-an `assets/` subdirectory at `/manager/themes`. The manager
-splits the archive automatically: `view.tt` and
-`theme.json` land under `lazysite/themes/NAME/`, and the
-contents of `assets/` land under `lazysite-assets/NAME/`.
+**Via the manager UI.** On `/manager/themes`, click "Browse
+releases" to list published releases of the `layouts_repo`
+(configured in `lazysite.conf`). Install pulls every valid theme
+in a release in one operation.
 
-**Manually.** Create both locations:
+**Manually.** Upload a zip containing `theme.json` at the root
+via the Upload Theme card. The manager:
 
-    mkdir -p public_html/lazysite/themes/clean
-    cp clean-view.tt public_html/lazysite/themes/clean/view.tt
+1. Validates `theme.json`, including that `layouts[]` is present
+   and non-empty.
+2. Verifies every layout listed in `layouts[]` is installed at
+   `lazysite/layouts/NAME/layout.tt`.
+3. Installs a copy of the theme under each layout in the list,
+   with assets mirrored to `/lazysite-assets/LAYOUT/THEME/` for
+   each.
 
-    mkdir -p public_html/lazysite-assets/clean
-    cp -r clean-assets/. public_html/lazysite-assets/clean/
+A theme declaring `layouts: ["default", "landing"]` ends up
+with files duplicated under both layouts. That's the trade-off
+for per-layout scoping; the manager doesn't symlink or share.
 
-Then activate in `lazysite.conf`:
+### Activating a theme
 
-    theme: clean
+Edit `lazysite.conf`:
+
+    theme: odcc
+
+Or use the quick switcher in the admin bar (visible to managers
+only, when more than one compatible theme is installed).
 
 ### Theme name sanitisation
 
-Theme names are sanitised to contain only `a-z`, `A-Z`, `0-9`, `_`,
-and `-`. Any other characters are stripped. If sanitisation removes
-all characters, the theme falls back to the default view.
+Theme names are sanitised to `[A-Za-z0-9_-]` at both install and
+resolve time. Anything else is stripped. A name that sanitises
+to empty falls back to no theme.
 
-### Notes
+### Related
 
-- Theme names can also be remote URLs - see
-  [Remote layouts](/docs/features/configuration/remote-layouts)
-- Per-page theme override via `layout:` in front matter takes
-  precedence over the site-wide `theme:` setting
-- [Per-page layout override](/docs/features/configuration/layout-override) -
-  override the theme for a single page
+- [Layouts](/docs/features/configuration/layouts)
+- [Remote layouts](/docs/features/configuration/remote-layouts)
+  (flat asset path — D013 separation does not apply)
+- [theme.json reference](/docs/features/configuration/theme-json)

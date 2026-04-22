@@ -214,8 +214,8 @@ elsif ( $action eq 'theme-rename' )     {
     $result = action_theme_rename( $path, $req->{new_name} );
 }
 elsif ( $action eq 'theme-upload' )     { $result = action_theme_upload( $body, $params{filename} ) }
-elsif ( $action eq 'views-releases' )   { $result = action_views_releases() }
-elsif ( $action eq 'views-install' )    { $result = action_views_install($body) }
+elsif ( $action eq 'layouts-releases' ) { $result = action_layouts_releases() }
+elsif ( $action eq 'layouts-install' )  { $result = action_layouts_install($body) }
 elsif ( $action eq 'users' )            { $result = action_users( $body, \%params ) }
 elsif ( $action eq 'rotate-auth-secret' ) { $result = action_rotate_auth_secret( $auth_user ) }
 elsif ( $action eq 'plugin-list' )      { $result = action_plugin_list() }
@@ -760,32 +760,51 @@ sub action_cache_invalidate {
 
 # --- Theme actions ---
 
-sub action_theme_list {
-    my $themes_dir = "$DOCROOT/lazysite/themes";
-    my @themes;
-
-    my $active = '';
+# D013: read both the active layout: and theme: values from
+# lazysite.conf. Used by every theme action to locate the nested
+# themes directory under the active layout.
+sub _read_active_layout_and_theme {
+    my $layout = '';
+    my $theme  = '';
     if ( open my $fh, '<', "$DOCROOT/lazysite/lazysite.conf" ) {
-        while (<$fh>) { $active = $1 if /^theme\s*:\s*(\S+)/ }
+        while (<$fh>) {
+            $layout = $1 if /^layout\s*:\s*(\S+)/;
+            $theme  = $1 if /^theme\s*:\s*(\S+)/;
+        }
         close $fh;
     }
+    $layout =~ s/[^a-zA-Z0-9_-]//g;
+    $theme  =~ s/[^a-zA-Z0-9_-]//g;
+    return ( $layout, $theme );
+}
 
-    if ( -d $themes_dir ) {
-        opendir( my $dh, $themes_dir );
-        for my $name ( sort readdir $dh ) {
-            next if $name =~ /^\./;
-            next if $name eq 'manager';
-            next unless -d "$themes_dir/$name";
-            push @themes, {
-                name   => $name,
-                active => $name eq $active ? 1 : 0,
-                valid  => -f "$themes_dir/$name/view.tt" ? 1 : 0,
-            };
+sub action_theme_list {
+    my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
+
+    my @themes;
+    if ( length $active_layout ) {
+        my $themes_dir = "$DOCROOT/lazysite/layouts/$active_layout/themes";
+        if ( -d $themes_dir ) {
+            opendir( my $dh, $themes_dir );
+            for my $name ( sort readdir $dh ) {
+                next if $name =~ /^\./;
+                next unless -d "$themes_dir/$name";
+                push @themes, {
+                    name   => $name,
+                    active => $name eq $active_theme ? 1 : 0,
+                    valid  => -f "$themes_dir/$name/theme.json" ? 1 : 0,
+                };
+            }
+            closedir $dh;
         }
-        closedir $dh;
     }
 
-    return { ok => 1, themes => \@themes, active => $active };
+    return {
+        ok     => 1,
+        themes => \@themes,
+        active => $active_theme,
+        layout => $active_layout,
+    };
 }
 
 sub action_theme_activate {
@@ -833,29 +852,31 @@ sub action_theme_delete {
     my ($theme_name) = @_;
     $theme_name =~ s/[^a-zA-Z0-9_-]//g;
 
-    my $active = '';
-    if ( open my $fh, '<', "$DOCROOT/lazysite/lazysite.conf" ) {
-        while (<$fh>) { $active = $1 if /^theme\s*:\s*(\S+)/ }
-        close $fh;
-    }
+    my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
     return { ok => 0, error => "Cannot delete the active theme" }
-        if $theme_name eq $active;
+        if $theme_name eq $active_theme;
+    return { ok => 0, error => "No active layout set" }
+        unless length $active_layout;
 
-    my $theme_dir = "$DOCROOT/lazysite/themes/$theme_name";
+    # D013: delete only from the active layout's themes dir. A theme
+    # installed under multiple layouts (via theme.json's layouts[])
+    # has copies elsewhere — those remain, and the operator can remove
+    # them by switching to each layout in turn.
+    my $themes_dir = "$DOCROOT/lazysite/layouts/$active_layout/themes";
+    my $theme_dir  = "$themes_dir/$theme_name";
     return { ok => 0, error => "Theme not found" } unless -d $theme_dir;
 
     my $real = realpath($theme_dir);
     return { ok => 0, error => "Invalid theme path" }
-        unless $real && index( $real, "$DOCROOT/lazysite/themes" ) == 0;
+        unless $real && index( $real, $themes_dir ) == 0;
 
-    # M-3: inspect rm return code so partial failures surface to the caller.
     my $rc = system( "rm", "-rf", $theme_dir );
     if ( $rc != 0 ) {
         log_event('ERROR', 'theme-delete', 'rm failed',
             path => $theme_dir, rc => ( $rc >> 8 ));
         return { ok => 0, error => "Delete failed" };
     }
-    my $assets_dir = "$DOCROOT/lazysite-assets/$theme_name";
+    my $assets_dir = "$DOCROOT/lazysite-assets/$active_layout/$theme_name";
     if ( -d $assets_dir ) {
         $rc = system( "rm", "-rf", $assets_dir );
         if ( $rc != 0 ) {
@@ -875,14 +896,18 @@ sub action_theme_rename {
 
     return { ok => 0, error => "Invalid name" } unless $old_name && $new_name;
 
-    my $themes_dir = "$DOCROOT/lazysite/themes";
+    my ( $active_layout ) = _read_active_layout_and_theme();
+    return { ok => 0, error => "No active layout set" }
+        unless length $active_layout;
+
+    my $themes_dir = "$DOCROOT/lazysite/layouts/$active_layout/themes";
     return { ok => 0, error => "Theme not found" } unless -d "$themes_dir/$old_name";
     return { ok => 0, error => "Name already in use" } if -d "$themes_dir/$new_name";
 
     rename "$themes_dir/$old_name", "$themes_dir/$new_name";
 
-    my $old_assets = "$DOCROOT/lazysite-assets/$old_name";
-    my $new_assets = "$DOCROOT/lazysite-assets/$new_name";
+    my $old_assets = "$DOCROOT/lazysite-assets/$active_layout/$old_name";
+    my $new_assets = "$DOCROOT/lazysite-assets/$active_layout/$new_name";
     rename $old_assets, $new_assets if -d $old_assets;
 
     return { ok => 1, old => $old_name, new => $new_name };
@@ -950,14 +975,15 @@ sub action_theme_upload {
     return $result;
 }
 
-# SM037: install a theme from an already-extracted directory. Factored
-# out of action_theme_upload so views-install can call it once per
-# theme subdirectory in a views zipball, without re-zipping each one.
+# D013: install a theme from an already-extracted directory. Themes
+# declare compatible layouts via theme.json's layouts[] array; we
+# install a copy under each declared layout at
+# {DOCROOT}/lazysite/layouts/LAYOUT/themes/THEME/ and duplicate
+# assets at {DOCROOT}/lazysite-assets/LAYOUT/THEME/. DP-C: missing
+# layouts[] is a strict reject.
 sub _install_theme_from_dir {
     my ( $extract_dir, $action_label, $user ) = @_;
 
-    return { ok => 0, error => "Upload must contain view.tt" }
-        unless -f "$extract_dir/view.tt";
     return { ok => 0, error => "Upload must contain theme.json" }
         unless -f "$extract_dir/theme.json";
 
@@ -975,37 +1001,87 @@ sub _install_theme_from_dir {
     return { ok => 0, error => "Invalid theme name in theme.json" }
         unless $theme_name;
 
+    # DP-C: strict reject when layouts[] is missing or empty.
+    my $layouts = $meta->{layouts};
+    unless ( ref $layouts eq 'ARRAY' && @$layouts ) {
+        return { ok => 0,
+            error => "Theme theme.json missing required 'layouts' field. Cannot install." };
+    }
+
+    my @clean_layouts;
+    for my $l (@$layouts) {
+        next unless defined $l && length $l;
+        ( my $sane = $l ) =~ s/[^a-zA-Z0-9_-]//g;
+        next unless length $sane;
+        push @clean_layouts, $sane;
+    }
+    unless (@clean_layouts) {
+        return { ok => 0,
+            error => "Theme theme.json 'layouts' contains no usable layout names." };
+    }
+
+    # Verify every declared layout is installed. Reject the whole
+    # upload if any are missing — the theme author explicitly said
+    # "install under these" and we shouldn't silently skip.
+    my @missing;
+    for my $l (@clean_layouts) {
+        push @missing, $l
+            unless -f "$DOCROOT/lazysite/layouts/$l/layout.tt";
+    }
+    if (@missing) {
+        return { ok => 0,
+            error => "Theme targets missing layout(s): " . join(', ', @missing) };
+    }
+
+    # Resolve the on-disk install name once, using the first layout
+    # to detect collisions. The same $install_name is reused across
+    # every layout so operators can refer to the theme by a single
+    # name in lazysite.conf's theme: key.
     my $install_name = $theme_name;
-    my $themes_dir   = "$DOCROOT/lazysite/themes";
-    if ( -d "$themes_dir/$theme_name" ) {
+    my $first_dest   = "$DOCROOT/lazysite/layouts/$clean_layouts[0]/themes/$theme_name";
+    if ( -d $first_dest ) {
         my @t = localtime( time() );
         $install_name = sprintf( "%04d%02d%02d-%s",
             $t[5] + 1900, $t[4] + 1, $t[3], $theme_name );
     }
 
-    my $dest = "$themes_dir/$install_name";
-    make_path($dest);
-    my $rc = system( "cp", "-r", "$extract_dir/.", $dest );
-    if ( $rc != 0 ) {
-        log_event( 'ERROR', $action_label, 'cp failed',
-            path => $dest, rc => ( $rc >> 8 ) );
-        return { ok => 0, error => "Install failed (cp theme files)" };
-    }
-
-    if ( -d "$extract_dir/assets" ) {
-        my $assets_dest = "$DOCROOT/lazysite-assets/$install_name";
-        make_path($assets_dest);
-        $rc = system( "cp", "-r", "$extract_dir/assets/.", $assets_dest );
+    my @installed;
+    for my $l (@clean_layouts) {
+        my $dest = "$DOCROOT/lazysite/layouts/$l/themes/$install_name";
+        make_path($dest);
+        my $rc = system( "cp", "-r", "$extract_dir/.", $dest );
         if ( $rc != 0 ) {
-            log_event( 'WARN', $action_label, 'cp assets failed',
-                path => $assets_dest, rc => ( $rc >> 8 ) );
+            log_event( 'ERROR', $action_label, 'cp failed',
+                path => $dest, rc => ( $rc >> 8 ) );
+            return { ok => 0,
+                error => "Install failed (cp theme files to $l)" };
         }
+
+        # Nested asset path: /lazysite-assets/LAYOUT/THEME/
+        if ( -d "$extract_dir/assets" ) {
+            my $assets_dest = "$DOCROOT/lazysite-assets/$l/$install_name";
+            make_path($assets_dest);
+            $rc = system( "cp", "-r", "$extract_dir/assets/.", $assets_dest );
+            if ( $rc != 0 ) {
+                log_event( 'WARN', $action_label, 'cp assets failed',
+                    path => $assets_dest, rc => ( $rc >> 8 ) );
+            }
+        }
+
+        push @installed, $l;
     }
 
     log_event( 'INFO', $action_label, 'theme installed',
-        name => $install_name, user => $user );
+        name    => $install_name,
+        layouts => join( ',', @installed ),
+        user    => $user );
 
-    return { ok => 1, name => $install_name, installed_as => $install_name };
+    return {
+        ok           => 1,
+        name         => $install_name,
+        installed_as => $install_name,
+        layouts      => \@installed,
+    };
 }
 
 sub _cleanup_tmp {
@@ -1013,24 +1089,28 @@ sub _cleanup_tmp {
     system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-theme-\d+$};
 }
 
-# --- SM037: views-releases browser + release installer ---
+# --- SM037 + D013: layouts-releases browser + release installer ---
+# The external repo is lazysite-layouts; the config key and function
+# names rename accordingly. The action remains a theme-browser (SM037
+# scope) — it walks release zipballs for theme.json-bearing subdirs
+# and invokes _install_theme_from_dir on each.
 
-sub _views_repo {
+sub _layouts_repo {
     my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
     return undef unless -f $conf_path;
     open my $fh, '<', $conf_path or return undef;
     my $repo;
     while (<$fh>) {
-        if (/^views_repo\s*:\s*(\S+)/) { $repo = $1; last }
+        if (/^layouts_repo\s*:\s*(\S+)/) { $repo = $1; last }
     }
     close $fh;
     return $repo;
 }
 
-sub action_views_releases {
-    my $repo = _views_repo();
+sub action_layouts_releases {
+    my $repo = _layouts_repo();
     return { ok => 0,
-        error => 'Unable to fetch releases. Check the views_repo setting in lazysite.conf.' }
+        error => 'Unable to fetch releases. Check the layouts_repo setting in lazysite.conf.' }
         unless defined $repo && length $repo
             && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
 
@@ -1040,12 +1120,12 @@ sub action_views_releases {
     my $res = $ua->get( $url, 'Accept' => 'application/vnd.github+json' );
 
     return { ok => 0,
-        error => 'Unable to fetch releases. Check the views_repo setting in lazysite.conf.' }
+        error => 'Unable to fetch releases. Check the layouts_repo setting in lazysite.conf.' }
         unless $res->is_success;
 
     my $data = eval { decode_json( $res->decoded_content ) };
     return { ok => 0,
-        error => 'Unable to fetch releases. Check the views_repo setting in lazysite.conf.' }
+        error => 'Unable to fetch releases. Check the layouts_repo setting in lazysite.conf.' }
         unless ref $data eq 'ARRAY';
 
     my @releases;
@@ -1060,7 +1140,7 @@ sub action_views_releases {
     return { ok => 1, repo => $repo, releases => \@releases };
 }
 
-sub action_views_install {
+sub action_layouts_install {
     my ($request_body) = @_;
     my $req = eval { decode_json( $request_body // '{}' ) } // {};
     my $tag = $req->{tag} // '';
@@ -1073,8 +1153,8 @@ sub action_views_install {
             && $tag =~ m{^[A-Za-z0-9._/-]+$}
             && $tag !~ m{\.\.};
 
-    my $repo = _views_repo();
-    return { ok => 0, error => 'views_repo not set or invalid in lazysite.conf' }
+    my $repo = _layouts_repo();
+    return { ok => 0, error => 'layouts_repo not set or invalid in lazysite.conf' }
         unless defined $repo && length $repo
             && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
 
@@ -1091,12 +1171,12 @@ sub action_views_install {
     return { ok => 0, error => 'Failed to fetch zipball: ' . $res->status_line }
         unless $res->is_success;
 
-    my $tmp_dir = "/tmp/lazysite-views-$$";
+    my $tmp_dir = "/tmp/lazysite-layouts-$$";
     make_path($tmp_dir);
 
     my $zip_path = "$tmp_dir/release.zip";
     unless ( open my $zfh, '>:raw', $zip_path ) {
-        _cleanup_tmp_views($tmp_dir);
+        _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => 'Cannot write zipball' };
     }
     else {
@@ -1109,33 +1189,33 @@ sub action_views_install {
 
     my $zip = Archive::Zip->new();
     unless ( $zip->read($zip_path) == Archive::Zip::AZ_OK() ) {
-        _cleanup_tmp_views($tmp_dir);
+        _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => 'Cannot read zipball' };
     }
 
     for my $member ( $zip->members ) {
         my $name = $member->fileName;
         if ( $name =~ m{\A/} ) {
-            _cleanup_tmp_views($tmp_dir);
+            _cleanup_tmp_layouts($tmp_dir);
             return { ok => 0, error => "Zip entry has absolute path: $name" };
         }
         if ( $name =~ m{(?:^|/)\.\.(?:/|$)} ) {
-            _cleanup_tmp_views($tmp_dir);
+            _cleanup_tmp_layouts($tmp_dir);
             return { ok => 0, error => "Zip slip detected in: $name" };
         }
     }
 
     unless ( $zip->extractTree( '', "$extract_dir/" ) == Archive::Zip::AZ_OK() ) {
-        _cleanup_tmp_views($tmp_dir);
+        _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => 'Extraction failed' };
     }
 
-    # DP-B: GitHub zipballs nest everything under a single top-level
-    # wrapper dir named OWNER-REPO-SHA. Strip it so the theme subdirs
-    # sit at the top of our walk.
+    # GitHub zipballs nest everything under a single top-level wrapper
+    # dir named OWNER-REPO-SHA. Strip it so the theme subdirs sit at
+    # the top of our walk.
     my @top;
     unless ( opendir my $dh, $extract_dir ) {
-        _cleanup_tmp_views($tmp_dir);
+        _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => 'Cannot read extracted dir' };
     }
     else {
@@ -1147,19 +1227,18 @@ sub action_views_install {
     }
 
     unless ( @top == 1 ) {
-        _cleanup_tmp_views($tmp_dir);
+        _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0,
             error => 'Unexpected zipball layout (expected single wrapper dir)' };
     }
     my $wrapper = "$extract_dir/$top[0]";
 
-    # Walk subdirs of the wrapper; treat each dir containing BOTH
-    # view.tt and theme.json as an installable theme. DP-A: install
-    # every valid theme in one operation, report per-theme results,
-    # best-effort per individual install.
+    # D013: walk subdirs for theme.json-bearing dirs (no longer
+    # view.tt — themes under D013 don't ship layout templates).
+    # Per-theme install is best-effort.
     my @results;
     unless ( opendir my $wh, $wrapper ) {
-        _cleanup_tmp_views($tmp_dir);
+        _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => 'Cannot read wrapper dir' };
     }
     else {
@@ -1167,23 +1246,23 @@ sub action_views_install {
             next if $entry =~ /^\./;
             my $sub = "$wrapper/$entry";
             next unless -d $sub;
-            next unless -f "$sub/view.tt" && -f "$sub/theme.json";
+            next unless -f "$sub/theme.json";
 
-            my $r = _install_theme_from_dir( $sub, 'views-install', $auth_user );
+            my $r = _install_theme_from_dir( $sub, 'layouts-install', $auth_user );
             push @results, { source => $entry, %$r };
         }
         closedir $wh;
     }
 
-    _cleanup_tmp_views($tmp_dir);
+    _cleanup_tmp_layouts($tmp_dir);
 
     unless (@results) {
         return { ok => 0,
-            error => 'No valid themes found in release (each theme needs view.tt + theme.json)' };
+            error => 'No valid themes found in release (each theme needs theme.json at its root)' };
     }
 
     my $installed = scalar grep { $_->{ok} } @results;
-    log_event( 'INFO', 'views-install', 'release installed',
+    log_event( 'INFO', 'layouts-install', 'release installed',
         repo => $repo, tag => $tag,
         installed => $installed, total => scalar @results,
         user => $auth_user );
@@ -1191,9 +1270,9 @@ sub action_views_install {
     return { ok => 1, repo => $repo, tag => $tag, themes => \@results };
 }
 
-sub _cleanup_tmp_views {
+sub _cleanup_tmp_layouts {
     my ($dir) = @_;
-    system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-views-\d+$};
+    system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-layouts-\d+$};
 }
 
 # --- User management proxy ---

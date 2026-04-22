@@ -103,10 +103,13 @@ that invoke the plugin and display the result.
 `/manager/themes`. Install, activate, rename, and delete themes.
 
 - View all installed themes with active status
-- Upload a theme zip (must contain `view.tt` and `theme.json`)
+- Upload a theme zip (must contain `theme.json` at the root with a
+  non-empty `layouts[]` array naming installed layouts)
 - Activate a theme (writes `theme:` to `lazysite.conf`, clears the
   HTML cache)
-- Rename or delete inactive themes
+- Rename or delete inactive themes (scoped to the active layout)
+- Browse published releases of `layouts_repo` and install themes
+  from a chosen release
 
 Uploading a theme that would overwrite an existing directory prefixes
 the install path with today's date (e.g. `20260419-mytheme`).
@@ -148,8 +151,9 @@ Unauthenticated visitors and non-manager users do not see it.
 
 The installer copies `lazysite-manager-api.pl` to `cgi-bin/` alongside
 `lazysite-processor.pl`. The manager pages in `starter/manager/` are
-served as regular lazysite pages, and the manager theme in
-`starter/lazysite/themes/manager/` supplies their chrome.
+served as regular lazysite pages; the manager's internal template in
+`starter/lazysite/manager/` (D013: outside both `layouts/` and
+`themes/`) supplies its chrome.
 
 For manual installation:
 
@@ -157,7 +161,7 @@ For manual installation:
 cp lazysite-manager-api.pl /path/to/cgi-bin/
 chmod 755 /path/to/cgi-bin/lazysite-manager-api.pl
 cp -r starter/manager /path/to/public_html/manager
-cp -r starter/lazysite/themes/manager /path/to/public_html/lazysite/themes/
+cp -r starter/lazysite/manager /path/to/public_html/lazysite/
 ```
 
 ## Security

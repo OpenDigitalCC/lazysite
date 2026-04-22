@@ -18,8 +18,8 @@ Really, how to install?
 What about content?
 : It comes with some basic content that you can just edit. It's markdown, so simple text. Add your own.
 
-And themes?
-: The lazysite-views repo has some basic themes - you can clone these and install. The quickest way to test a theme is to run the local server, and just copy the theme in to the starter site.
+And layouts and themes?
+: The lazysite-layouts repo has some basic layouts and themes - you can clone these and install. The quickest way to test is to run the local server, and just copy the layout or theme in to the starter site.
 
 Can I build a static site and run elsewhere?
 : Yes, it runs in generation mode. In fsact, lazysite is a dynamic and static system - create your content and it creates the pages on the fly. 
@@ -33,7 +33,7 @@ So - no-commitment whilst you become familair, simple minimal infrastructure to 
 
 Drop a `.md` file in your docroot and it is served as a fully rendered HTML page. The first request generates the HTML and caches it alongside the source file. Every subsequent request is a plain static file - no process, no overhead.
 
-Write content in Markdown. Design the site in a `view.tt` template file. The two never touch each other.
+Write content in Markdown. Design the site in a `layout.tt` template file, with a separate theme layer for colours and fonts. The three never touch each other.
 
 ::: widebox
 This site is its own demonstration. The pages are `.url` files - lazysite fetches the Markdown from the [GitHub repository][github] and renders it on first request.
@@ -59,7 +59,7 @@ Fast by default
 : Dynamic only on the first request. Plain cached HTML is served after that - no interpreter, no overhead.
 
 Design and content separated
-: The `view.tt` template owns the site design. Content authors work only in `.md` files. Neither touches the other's files.
+: The `layout.tt` template owns the structural HTML; a separate theme supplies colours, fonts, and assets. Content authors work only in `.md` files. None of the three touch each other.
 
 Version control ready
 : Everything is a file. The entire site lives in a git repository.
@@ -71,10 +71,10 @@ Content includes
 : `:::include` inlines local or remote content - Markdown partials, code files, remote feeds - directly into a page at render time.
 
 Navigation from a config file
-: `nav.conf` defines the site navigation as a plain text file. The view template reads it as a structured variable and renders the menu. Editing the menu does not require touching the template.
+: `nav.conf` defines the site navigation as a plain text file. The layout template reads it as a structured variable and renders the menu. Editing the menu does not require touching the template.
 
-Views
-: `view.tt` controls the visual presentation. Install a view from [lazysite-views][views] or write your own. Switch views site-wide or per page. lazysite includes a built-in fallback view so it works without any configuration files.
+Layouts and themes
+: `layout.tt` controls the HTML chrome; a theme on top adds colours, fonts, and assets. Install both from [lazysite-layouts][layouts] or write your own. Themes declare compatibility per layout, with design tokens auto-emitted as CSS custom properties. lazysite includes a built-in fallback so it works without any configuration files.
 
 Content is portable
 : Plain `.md` files work with any Markdown processor. Switching tools does not mean rewriting content.
@@ -84,4 +84,4 @@ Content is portable
 MIT. Source on [GitHub][github].
 
 [github]: https://github.com/OpenDigitalCC/lazysite
-[views]: https://github.com/OpenDigitalCC/lazysite-views
+[layouts]: https://github.com/OpenDigitalCC/lazysite-layouts

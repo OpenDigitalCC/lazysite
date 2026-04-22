@@ -11,15 +11,15 @@
       "bucket" : "code",
       "install_to" : "{CGIBIN}/lazysite-manager-api.pl",
       "path" : "lazysite-manager-api.pl",
-      "sha256" : "a2a447b7d7dad7d169dd3247cc01e0d3371735b4efb5c196e0c7da9589bf89c8",
-      "size" : 85275
+      "sha256" : "2144c9f6c998aea534cb4e11425ff02fee7a42437c808942f00e8b9f0c9940f3",
+      "size" : 88420
     },
     {
       "bucket" : "code",
       "install_to" : "{CGIBIN}/lazysite-processor.pl",
       "path" : "lazysite-processor.pl",
-      "sha256" : "b53a6d23300a699d0178b293379c3386bbcbcd1031305c39ecf432f40e57620e",
-      "size" : 101515
+      "sha256" : "43178367e2282e0c1efa60363bf39a32508ff0019481c55be643812dfc7b4565",
+      "size" : 106837
     },
     {
       "bucket" : "code",
@@ -128,10 +128,10 @@
     },
     {
       "bucket" : "seed",
-      "install_to" : "{DOCROOT}/docs/ai-briefing-views.md",
-      "path" : "starter/docs/ai-briefing-views.md",
-      "sha256" : "27d5e4ad244204c9967bcd91eb460d02479c846cd7b3f55839829880d06e6bce",
-      "size" : 7486
+      "install_to" : "{DOCROOT}/docs/ai-briefing-layouts.md",
+      "path" : "starter/docs/ai-briefing-layouts.md",
+      "sha256" : "67fa77d50d046e272c467b661d1e71d9c01b9f08af43abab9d3862cc34cb9470",
+      "size" : 6243
     },
     {
       "bucket" : "seed",
@@ -165,8 +165,8 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/configuration.md",
       "path" : "starter/docs/configuration.md",
-      "sha256" : "599e7adf31b0580ef6557d5f051dc147e07d2169e4ce989b2d45ac9ae06d5dd4",
-      "size" : 8231
+      "sha256" : "1b5b3e9b6089b7caa8791baf3239b4bac39b43c9b9b12a3ccf92f8f601ed3f16",
+      "size" : 8716
     },
     {
       "bucket" : "seed",
@@ -317,6 +317,13 @@
     },
     {
       "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/features/configuration/layouts.md",
+      "path" : "starter/docs/features/configuration/layouts.md",
+      "sha256" : "f5611a7026a7236dbb7007161d39b2168da1438d2e15125c506cc0624c95e750",
+      "size" : 3332
+    },
+    {
+      "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/features/configuration/lazysite-conf.md",
       "path" : "starter/docs/features/configuration/lazysite-conf.md",
       "sha256" : "c5eaf857ad3ee4e4f17c348a4643e6780ef9e0722ba0ebea705feb0a2950504d",
@@ -347,22 +354,22 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/features/configuration/remote-layouts.md",
       "path" : "starter/docs/features/configuration/remote-layouts.md",
-      "sha256" : "24b8bbf741a8b047f38e4750d8454c53257b65db83bd154e15fa9fecb8106c0f",
-      "size" : 1662
+      "sha256" : "3836bc927b99e81a6a79c265f23fa22f0a57dd7c9bf15b0c428e0654bace1da1",
+      "size" : 2947
     },
     {
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/features/configuration/theme-json.md",
       "path" : "starter/docs/features/configuration/theme-json.md",
-      "sha256" : "7a2dde3623fbdefdd7aaba60438d878f162e396118ebaca6abba66d6a404d00a",
-      "size" : 1795
+      "sha256" : "c1a0dca372c7f8afa93e4d792edc1fa011489fa666b8bcd5e3a499b5a46aa0c9",
+      "size" : 3591
     },
     {
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/features/configuration/themes.md",
       "path" : "starter/docs/features/configuration/themes.md",
-      "sha256" : "9dd63258a1f78ccf424bd7bb45262e51c31fa851e122b764eaf92eaa76c612eb",
-      "size" : 3153
+      "sha256" : "8ed567035b6828df204013ddded5d5cfd66c2eec78e7cea5e69d23fbb59f7cf4",
+      "size" : 5082
     },
     {
       "bucket" : "seed",
@@ -438,15 +445,22 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/install.md",
       "path" : "starter/docs/install.md",
-      "sha256" : "2ee0ada3a9c50983e12bd91eb892ed92337e3f7234f393902dd75e7975e31b45",
-      "size" : 8235
+      "sha256" : "7f0f8dcac9514619cb3cdb7a0191635a4353553c23fc3a5dca30398880b31ecc",
+      "size" : 8686
+    },
+    {
+      "bucket" : "seed",
+      "install_to" : "{DOCROOT}/docs/layouts.md",
+      "path" : "starter/docs/layouts.md",
+      "sha256" : "20c1a5cf9d0e48df2033a1272c91b25065cf74e47969554a1a063fcb6c9f2a23",
+      "size" : 5361
     },
     {
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/manager.md",
       "path" : "starter/docs/manager.md",
-      "sha256" : "d4b9922b3bc792fe137975e9b5f0984bf48f7cf73ddf49f191ff6c7e04c8e229",
-      "size" : 5465
+      "sha256" : "479614c6367e8de3ffb7b7dd6c6f4e5addba7800d00b83af32364ccd59b8c951",
+      "size" : 5677
     },
     {
       "bucket" : "seed",
@@ -459,8 +473,8 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/reference.md",
       "path" : "starter/docs/reference.md",
-      "sha256" : "f66dbdb9c70164355e4fa7dd6c40c055fabd6a085e56ded9861f05af49d00072",
-      "size" : 10764
+      "sha256" : "5ca1dc923f123e341506eb47bc2df6492041af1bf91cffb8941bb3ed13ebf7fe",
+      "size" : 12253
     },
     {
       "bucket" : "seed",
@@ -468,13 +482,6 @@
       "path" : "starter/docs/remote-content.md",
       "sha256" : "b1f81f0eb4a06c3b93e993ffa880ca7ce6c1e9da5e455ef8e75520818f43a1ac",
       "size" : 5078
-    },
-    {
-      "bucket" : "seed",
-      "install_to" : "{DOCROOT}/docs/views.md",
-      "path" : "starter/docs/views.md",
-      "sha256" : "fc4cf798a7f756080107dc4e5294381082fcc58b4c093c2f9708b89b6ecd890f",
-      "size" : 6250
     },
     {
       "bucket" : "seed",
@@ -529,8 +536,22 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/lazysite/lazysite.conf.example",
       "path" : "starter/lazysite.conf.example",
-      "sha256" : "1b609b9d22ad52ac6334f4d164ee5a8ca6d877bfefcd68a698cbaa9214240d73",
-      "size" : 2402
+      "sha256" : "b2b0b6f67c6bf32c12fc46c3574d14b729f4875669d075a1fa5682d312429079",
+      "size" : 2805
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/lazysite/manager/assets/manager.css",
+      "path" : "starter/lazysite/manager/assets/manager.css",
+      "sha256" : "37de43680de0948ae0261e36067a278611c484df6879067eca0933c699a8e827",
+      "size" : 24721
+    },
+    {
+      "bucket" : "code",
+      "install_to" : "{DOCROOT}/lazysite/manager/layout.tt",
+      "path" : "starter/lazysite/manager/layout.tt",
+      "sha256" : "5803d55a2230a56d4691c8669fab03b82d5be5a7ea2d3c5f462a05776e52af7c",
+      "size" : 5040
     },
     {
       "bucket" : "seed",
@@ -566,20 +587,6 @@
       "path" : "starter/lazysite/templates/registries/sitemap.xml.tt",
       "sha256" : "68cfa51940635774e3a1d5237492b502b7f9de978c2c600799a8693c657c9919",
       "size" : 209
-    },
-    {
-      "bucket" : "code",
-      "install_to" : "{DOCROOT}/lazysite/themes/manager/assets/manager.css",
-      "path" : "starter/lazysite/themes/manager/assets/manager.css",
-      "sha256" : "37de43680de0948ae0261e36067a278611c484df6879067eca0933c699a8e827",
-      "size" : 24721
-    },
-    {
-      "bucket" : "code",
-      "install_to" : "{DOCROOT}/lazysite/themes/manager/view.tt",
-      "path" : "starter/lazysite/themes/manager/view.tt",
-      "sha256" : "5803d55a2230a56d4691c8669fab03b82d5be5a7ea2d3c5f462a05776e52af7c",
-      "size" : 5040
     },
     {
       "bucket" : "seed",
@@ -739,8 +746,8 @@
       "bucket" : "code",
       "install_to" : "{DOCROOT}/manager/themes.md",
       "path" : "starter/manager/themes.md",
-      "sha256" : "ecad36599203340c53d9230e978dcd5f18ccfc8b62996f6706b8e92ad31a4e2e",
-      "size" : 10648
+      "sha256" : "7caa62fec74481658bb44ff762c341a5d077e7bc71f20601bd7695d1032b3777",
+      "size" : 10669
     },
     {
       "bucket" : "code",
@@ -795,8 +802,8 @@
       "bucket" : "code",
       "install_to" : null,
       "path" : "README.md",
-      "sha256" : "cb6750bb3fcd89b5d9ceb8c9a46d8ad90434ac2d344bdfe4434dca7705969393",
-      "size" : 3728
+      "sha256" : "dc568a5707d481bcef99990eaf85159de3fcb5a278dfd832f8c28094660fc7cf",
+      "size" : 3914
     },
     {
       "bucket" : "code",
@@ -809,15 +816,15 @@
       "bucket" : "code",
       "install_to" : null,
       "path" : "UPGRADE.md",
-      "sha256" : "83dca8dae96ce7d516737603ab13a88a510d2bb73a8604ff0d04c75cc161ce57",
-      "size" : 6535
+      "sha256" : "2c20e88ff035f07ed427a5d4ece775749758bc4d4a70db676f414e8f24e8bcdf",
+      "size" : 6533
     },
     {
       "bucket" : "code",
       "install_to" : null,
       "path" : "install.pl",
-      "sha256" : "6a970af8dfc153e758fb528ad7f8a853530d07e460742e3e39a4646f35b6e688",
-      "size" : 30106
+      "sha256" : "c9ce112877bc7cafb06fa80838650f19a09a200e9a2b7d04ecc8240ca3a7f148",
+      "size" : 30213
     },
     {
       "bucket" : "code",
@@ -830,8 +837,8 @@
       "bucket" : "code",
       "install_to" : null,
       "path" : "installers/hestia/install-hestia.sh",
-      "sha256" : "3cc72f59ee5df0d7f083ed0ee032720ce18e38d6313acdab5491661c29b7c475",
-      "size" : 4093
+      "sha256" : "409eae1eebd9589d889681689497af0d4c6258d4e3c0f5f626c1a90bb28407c5",
+      "size" : 4249
     },
     {
       "bucket" : "code",
@@ -848,8 +855,8 @@
       "size" : 1604
     }
   ],
-  "generated" : "2026-04-22T16:12:46Z",
-  "min_upgrade_from" : "0.2.9",
+  "generated" : "2026-04-22T17:11:09Z",
+  "min_upgrade_from" : "0.2.10",
   "runtime_paths" : [
     {
       "mode" : "0750",
@@ -878,10 +885,15 @@
     },
     {
       "mode" : "0755",
-      "path" : "{DOCROOT}/lazysite/themes",
-      "purpose" : "theme uploads target (D021c)"
+      "path" : "{DOCROOT}/lazysite/layouts",
+      "purpose" : "layouts + nested themes (D013)"
+    },
+    {
+      "mode" : "0755",
+      "path" : "{DOCROOT}/lazysite-assets",
+      "purpose" : "web-served theme assets (D013 nested under LAYOUT/THEME/)"
     }
   ],
   "schema_version" : "1",
-  "version" : "0.2.9"
+  "version" : "0.2.10"
 }

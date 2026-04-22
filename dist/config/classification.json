@@ -35,8 +35,9 @@
       "bucket": "code"
     },
     {
-      "pattern": "^starter/lazysite/themes/manager/(.+)$",
-      "install_to": "{DOCROOT}/lazysite/themes/manager/$1",
+      "_comment": "D013: manager UI template + CSS assets live outside both layouts/ and themes/. Manager is internal plumbing, not a themeable layout.",
+      "pattern": "^starter/lazysite/manager/(.+)$",
+      "install_to": "{DOCROOT}/lazysite/manager/$1",
       "bucket": "code"
     },
     {
@@ -149,9 +150,14 @@
       "purpose": "plugin scripts (D022)"
     },
     {
-      "path": "{DOCROOT}/lazysite/themes",
+      "path": "{DOCROOT}/lazysite/layouts",
       "mode": "0755",
-      "purpose": "theme uploads target (D021c)"
+      "purpose": "layouts + nested themes (D013)"
+    },
+    {
+      "path": "{DOCROOT}/lazysite-assets",
+      "mode": "0755",
+      "purpose": "web-served theme assets (D013 nested under LAYOUT/THEME/)"
     }
   ]
 }

@@ -46,9 +46,11 @@ for tool in lazysite-users.pl lazysite-audit.pl; do
     fi
 done
 
-# Create lazysite directory structure
+# Create lazysite directory structure (D013)
 mkdir -p "$LAZYSITE_DIR/templates/registries"
-mkdir -p "$LAZYSITE_DIR/themes/manager/assets"
+mkdir -p "$LAZYSITE_DIR/manager/assets"
+mkdir -p "$LAZYSITE_DIR/layouts"
+mkdir -p "$docroot/lazysite-assets"
 mkdir -p "$LAZYSITE_DIR/forms"
 mkdir -p "$LAZYSITE_DIR/logs"
 mkdir -p "$LAZYSITE_DIR/cache"
@@ -56,30 +58,29 @@ mkdir -p "$LAZYSITE_DIR/manager/locks"
 mkdir -p "$LAZYSITE_DIR/auth"
 chmod 750 "$LAZYSITE_DIR/auth"
 chown -R "$user":"$user" "$LAZYSITE_DIR"
+chown "$user":"$user" "$docroot/lazysite-assets"
 
-# Install manager view and CSS
-if [ -f "$TEMPLATE_DIR/starter/lazysite/themes/manager/view.tt" ]; then
+# Install manager layout and CSS (D013: manager moved out of themes/)
+if [ -f "$TEMPLATE_DIR/starter/lazysite/manager/layout.tt" ]; then
     install -m 644 -o "$user" -g "$user" \
-        "$TEMPLATE_DIR/starter/lazysite/themes/manager/view.tt" \
-        "$LAZYSITE_DIR/themes/manager/view.tt"
+        "$TEMPLATE_DIR/starter/lazysite/manager/layout.tt" \
+        "$LAZYSITE_DIR/manager/layout.tt"
 fi
-if [ -f "$TEMPLATE_DIR/starter/lazysite/themes/manager/assets/manager.css" ]; then
+if [ -f "$TEMPLATE_DIR/starter/lazysite/manager/assets/manager.css" ]; then
     install -m 644 -o "$user" -g "$user" \
-        "$TEMPLATE_DIR/starter/lazysite/themes/manager/assets/manager.css" \
-        "$LAZYSITE_DIR/themes/manager/assets/manager.css"
+        "$TEMPLATE_DIR/starter/lazysite/manager/assets/manager.css" \
+        "$LAZYSITE_DIR/manager/assets/manager.css"
     mkdir -p "$docroot/manager/assets"
     chown "$user":"$user" "$docroot/manager" "$docroot/manager/assets"
     install -m 644 -o "$user" -g "$user" \
-        "$TEMPLATE_DIR/starter/lazysite/themes/manager/assets/manager.css" \
+        "$TEMPLATE_DIR/starter/lazysite/manager/assets/manager.css" \
         "$docroot/manager/assets/manager.css"
 fi
 
-# Install view.tt only if not already present
-if [ ! -f "$LAZYSITE_DIR/templates/view.tt" ]; then
-    install -m 644 -o "$user" -g "$user" \
-        "$TEMPLATE_DIR/view.tt" \
-        "$LAZYSITE_DIR/templates/view.tt"
-fi
+# D013: no default layout ships with lazysite. The processor falls
+# back to the embedded template when lazysite/layouts/NAME/layout.tt
+# is missing, so operators install a layout from the layouts repo
+# (manager UI at /manager/themes -> Install from Releases).
 
 # Install lazysite.conf only if not already present
 if [ ! -f "$LAZYSITE_DIR/lazysite.conf" ]; then

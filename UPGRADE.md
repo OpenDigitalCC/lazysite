@@ -57,17 +57,15 @@ Restore does not touch runtime state (auth users, cache,
 logs). It invalidates the rendered HTML cache afterwards so
 stale pages don't linger.
 
-### Default theme no longer fetched on install
+### No default layout or theme ships
 
-Previous installers cloned `lazysite-views` over the network
-to install a default `view.tt`. The new installer does not
-fetch anything over the network; a fresh install has no
-`view.tt` and the processor falls back to a built-in template.
-Upload a theme via the manager UI at `/manager/themes` to
-install one.
-
-Existing deployments with a `view.tt` from a prior install
-are untouched.
+0.3.0 ships no layout or theme content of its own. A fresh
+install has no `lazysite/layouts/NAME/layout.tt`, and the
+processor falls back to a built-in template until one is
+installed. Install a layout + theme via the manager UI at
+`/manager/themes` > "Install from Releases" (the configured
+`layouts_repo` default is `OpenDigitalCC/lazysite-layouts`),
+or drop a layout directory in manually.
 
 ### New files installed
 

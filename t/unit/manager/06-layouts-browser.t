@@ -1,8 +1,8 @@
 #!/usr/bin/perl
-# SM037: unit tests for the views-releases browser and views-install
-# endpoints. LWP::UserAgent is stubbed at package level so the tests
-# don't require network or the real LWP module, and so we can script
-# the exact responses exercised by each case.
+# SM037 + D013: unit tests for the layouts-releases browser and
+# layouts-install endpoints. LWP::UserAgent is stubbed at package
+# level so the tests don't require network or the real LWP module,
+# and so we can script the exact responses exercised by each case.
 use strict;
 use warnings;
 use Test::More;
@@ -50,7 +50,12 @@ sub queue_response {
 # --- Fixture setup ---
 my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite");
-make_path("$docroot/lazysite/themes");
+# D013: pre-create the 'default' layout so themes declaring
+# layouts:["default"] can install successfully.
+make_path("$docroot/lazysite/layouts/default");
+open my $lfh, '>', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
+print $lfh "<html>[% content %]</html>\n";
+close $lfh;
 
 sub write_conf {
     my ($content) = @_;
@@ -60,20 +65,29 @@ sub write_conf {
 }
 
 # Build a GitHub-style zipball: one top-level wrapper dir, with
-# subdirs containing view.tt + theme.json (or not, per test).
+# subdirs containing theme.json (or not, per test).
 sub build_zipball {
     my (@theme_specs) = @_;    # each: { name => ..., valid => 0|1 }
     require Archive::Zip;
     my $zip = Archive::Zip->new();
-    my $wrapper = 'OpenDigitalCC-views-abc123';
+    my $wrapper = 'OpenDigitalCC-layouts-abc123';
     for my $spec (@theme_specs) {
         my $dir = "$wrapper/$spec->{name}";
-        $zip->addString( "view.tt content\n",    "$dir/view.tt" );
         if ( $spec->{valid} ) {
             $zip->addString(
-                encode_json( { name => $spec->{name}, version => '1.0' } ),
+                encode_json({
+                    name    => $spec->{name},
+                    version => '1.0',
+                    layouts => ['default'],
+                    config  => { colours => { primary => '#000' } },
+                }),
                 "$dir/theme.json"
             );
+            $zip->addString( "/* css */\n", "$dir/main.css" );
+        }
+        else {
+            # No theme.json in this subdir.
+            $zip->addString( "readme\n", "$dir/README.md" );
         }
     }
     my $tmpfile = "$docroot/zipball-$$.zip";
@@ -99,14 +113,9 @@ my $root = repo_root();
     do "$root/lazysite-manager-api.pl" or die "load failed: $@";
 }
 
-# The manager-api captures $DOCROOT at load time; inject it into the
-# loaded script's package-scoped lexical isn't possible, but since
-# the subs read the env-derived $DOCROOT lexical, and we did load with
-# DOCUMENT_ROOT=$docroot, it's already correct.
-
-# --- Scenario 1: views-releases happy path ---
-subtest 'views-releases happy path' => sub {
-    write_conf("site_name: Test\nviews_repo: OpenDigitalCC/lazysite-views\n");
+# --- Scenario 1: layouts-releases happy path ---
+subtest 'layouts-releases happy path' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
     my $body = encode_json([
         { tag_name => 'v1.0.0', name => 'First release',
           published_at => '2026-04-01T00:00:00Z', body => 'notes' },
@@ -115,73 +124,70 @@ subtest 'views-releases happy path' => sub {
     ]);
     queue_response( 200, $body );
 
-    my $r = main::action_views_releases();
+    my $r = main::action_layouts_releases();
     ok( $r->{ok}, 'ok' );
-    is( $r->{repo}, 'OpenDigitalCC/lazysite-views', 'repo echoed' );
+    is( $r->{repo}, 'OpenDigitalCC/lazysite-layouts', 'repo echoed' );
     is( scalar @{ $r->{releases} }, 2, 'two releases parsed' );
     is( $r->{releases}[0]{tag_name}, 'v1.0.0', 'first tag' );
     is( $r->{releases}[0]{name}, 'First release', 'first name' );
 };
 
-# --- Scenario 2: views-releases missing views_repo ---
-subtest 'views-releases missing views_repo' => sub {
+# --- Scenario 2: layouts-releases missing layouts_repo ---
+subtest 'layouts-releases missing layouts_repo' => sub {
     write_conf("site_name: Test\n");
-    my $r = main::action_views_releases();
+    my $r = main::action_layouts_releases();
     ok( !$r->{ok}, 'not ok' );
-    like( $r->{error}, qr/Check the views_repo setting/,
-        'error points at views_repo' );
+    like( $r->{error}, qr/Check the layouts_repo setting/,
+        'error points at layouts_repo' );
 };
 
-# --- Scenario 3: views-install happy path, mixed themes ---
-subtest 'views-install installs all valid theme dirs' => sub {
-    write_conf("site_name: Test\nviews_repo: OpenDigitalCC/lazysite-views\n");
-    # Clean any previously-installed themes from prior runs.
+# --- Scenario 3: layouts-install happy path, mixed themes ---
+subtest 'layouts-install installs all valid theme dirs' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
     for my $n (qw(alpha beta skipme)) {
-        my $p = "$docroot/lazysite/themes/$n";
+        my $p = "$docroot/lazysite/layouts/default/themes/$n";
         system( 'rm', '-rf', $p ) if -d $p;
     }
     my $zip = build_zipball(
         { name => 'alpha',  valid => 1 },
         { name => 'beta',   valid => 1 },
-        { name => 'skipme', valid => 0 },   # missing theme.json
+        { name => 'skipme', valid => 0 },   # no theme.json
     );
     queue_response( 200, $zip );
 
     my $body = encode_json({ tag => 'v1.0.0' });
-    my $r = main::action_views_install($body);
+    my $r = main::action_layouts_install($body);
     ok( $r->{ok}, 'ok' );
     is( $r->{tag}, 'v1.0.0', 'tag echoed' );
-    # skipme dir has no theme.json so it's not treated as a theme;
-    # _install_theme_from_dir is only called for alpha and beta.
     is( scalar @{ $r->{themes} }, 2, 'two themes installed' );
     my %by_source = map { $_->{source} => $_ } @{ $r->{themes} };
     ok( $by_source{alpha}{ok}, 'alpha installed' );
     ok( $by_source{beta}{ok},  'beta installed' );
-    ok( -f "$docroot/lazysite/themes/alpha/view.tt",
-        'alpha view.tt on disk' );
-    ok( -f "$docroot/lazysite/themes/beta/view.tt",
-        'beta view.tt on disk' );
+    ok( -f "$docroot/lazysite/layouts/default/themes/alpha/theme.json",
+        'alpha theme.json at nested path' );
+    ok( -f "$docroot/lazysite/layouts/default/themes/beta/theme.json",
+        'beta theme.json at nested path' );
 };
 
-# --- Scenario 4: views-install rejects invalid tag ---
-subtest 'views-install invalid tag' => sub {
-    write_conf("site_name: Test\nviews_repo: OpenDigitalCC/lazysite-views\n");
+# --- Scenario 4: layouts-install rejects invalid tag ---
+subtest 'layouts-install invalid tag' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
     my $body = encode_json({ tag => '../etc/passwd' });
-    my $r = main::action_views_install($body);
+    my $r = main::action_layouts_install($body);
     ok( !$r->{ok}, 'not ok' );
     like( $r->{error}, qr/Invalid tag/, 'rejects path-traversal in tag' );
 };
 
-# --- Scenario 5: views-install with zipball containing no themes ---
-subtest 'views-install reports when no valid themes present' => sub {
-    write_conf("site_name: Test\nviews_repo: OpenDigitalCC/lazysite-views\n");
+# --- Scenario 5: layouts-install with zipball containing no themes ---
+subtest 'layouts-install reports when no valid themes present' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
     my $zip = build_zipball(
         { name => 'not-a-theme', valid => 0 },    # no theme.json
     );
     queue_response( 200, $zip );
 
     my $body = encode_json({ tag => 'v1.0.0' });
-    my $r = main::action_views_install($body);
+    my $r = main::action_layouts_install($body);
     ok( !$r->{ok}, 'not ok' );
     like( $r->{error}, qr/No valid themes found/,
         'explains missing theme files' );

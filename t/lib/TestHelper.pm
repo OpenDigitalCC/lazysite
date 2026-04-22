@@ -111,12 +111,16 @@ sub setup_test_site {
     my ($docroot) = @_;
     make_path("$docroot/lazysite/cache");
     make_path("$docroot/lazysite/templates");
+    # D013: layouts live at lazysite/layouts/NAME/layout.tt; write a
+    # 'test' layout and point the conf at it. Themes are optional;
+    # this fixture renders without a theme.
+    make_path("$docroot/lazysite/layouts/test");
 
     open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
-    print $cf "site_name: Test\nsite_url: http://localhost\n";
+    print $cf "site_name: Test\nsite_url: http://localhost\nlayout: test\n";
     close $cf;
 
-    open my $vf, '>', "$docroot/lazysite/templates/view.tt" or die $!;
+    open my $vf, '>', "$docroot/lazysite/layouts/test/layout.tt" or die $!;
     print $vf '<!DOCTYPE html><html><head><title>[% page_title %]</title></head>'
            . '<body>[% content %]</body></html>';
     close $vf;

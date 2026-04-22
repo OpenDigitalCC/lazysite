@@ -34,15 +34,15 @@
           "value" : "lazysite-auth.pl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/lazysite-auth.pl@0.2.9",
+      "purl" : "pkg:generic/opendigital/lazysite-auth.pl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "a2a447b7d7dad7d169dd3247cc01e0d3371735b4efb5c196e0c7da9589bf89c8"
+          "content" : "2144c9f6c998aea534cb4e11425ff02fee7a42437c808942f00e8b9f0c9940f3"
         }
       ],
       "licenses" : [
@@ -71,15 +71,15 @@
           "value" : "lazysite-manager-api.pl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/lazysite-manager-api.pl@0.2.9",
+      "purl" : "pkg:generic/opendigital/lazysite-manager-api.pl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "b53a6d23300a699d0178b293379c3386bbcbcd1031305c39ecf432f40e57620e"
+          "content" : "43178367e2282e0c1efa60363bf39a32508ff0019481c55be643812dfc7b4565"
         }
       ],
       "licenses" : [
@@ -108,9 +108,9 @@
           "value" : "lazysite-processor.pl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/lazysite-processor.pl@0.2.9",
+      "purl" : "pkg:generic/opendigital/lazysite-processor.pl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -145,9 +145,9 @@
           "value" : "plugins/audit.pl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/plugins/audit.pl@0.2.9",
+      "purl" : "pkg:generic/opendigital/plugins/audit.pl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -182,9 +182,9 @@
           "value" : "plugins/form-handler.pl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/plugins/form-handler.pl@0.2.9",
+      "purl" : "pkg:generic/opendigital/plugins/form-handler.pl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -219,9 +219,9 @@
           "value" : "plugins/form-smtp.pl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/plugins/form-smtp.pl@0.2.9",
+      "purl" : "pkg:generic/opendigital/plugins/form-smtp.pl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -256,9 +256,9 @@
           "value" : "plugins/log.pl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/plugins/log.pl@0.2.9",
+      "purl" : "pkg:generic/opendigital/plugins/log.pl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -293,9 +293,9 @@
           "value" : "plugins/payment-demo.pl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/plugins/payment-demo.pl@0.2.9",
+      "purl" : "pkg:generic/opendigital/plugins/payment-demo.pl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -330,9 +330,9 @@
           "value" : "tools/build-static.sh"
         }
       ],
-      "purl" : "pkg:generic/opendigital/tools/build-static.sh@0.2.9",
+      "purl" : "pkg:generic/opendigital/tools/build-static.sh@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -367,9 +367,9 @@
           "value" : "tools/lazysite-server.pl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/tools/lazysite-server.pl@0.2.9",
+      "purl" : "pkg:generic/opendigital/tools/lazysite-server.pl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -404,9 +404,9 @@
           "value" : "tools/lazysite-users.pl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/tools/lazysite-users.pl@0.2.9",
+      "purl" : "pkg:generic/opendigital/tools/lazysite-users.pl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -441,9 +441,9 @@
           "value" : "starter/402.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/402.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/402.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -478,9 +478,9 @@
           "value" : "starter/403.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/403.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/403.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -515,9 +515,9 @@
           "value" : "starter/404.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/404.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/404.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -552,9 +552,9 @@
           "value" : "starter/contact.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/contact.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/contact.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -589,9 +589,9 @@
           "value" : "starter/docs/ai-briefing-authoring.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-authoring.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-authoring.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -626,9 +626,9 @@
           "value" : "starter/docs/ai-briefing-configuration.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-configuration.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-configuration.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -663,15 +663,15 @@
           "value" : "starter/docs/ai-briefing-development.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-development.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-development.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "27d5e4ad244204c9967bcd91eb460d02479c846cd7b3f55839829880d06e6bce"
+          "content" : "67fa77d50d046e272c467b661d1e71d9c01b9f08af43abab9d3862cc34cb9470"
         }
       ],
       "licenses" : [
@@ -681,7 +681,7 @@
           }
         }
       ],
-      "name" : "ai-briefing-views.md",
+      "name" : "ai-briefing-layouts.md",
       "properties" : [
         {
           "name" : "lazysite:bucket",
@@ -693,16 +693,16 @@
         },
         {
           "name" : "lazysite:install_to",
-          "value" : "{DOCROOT}/docs/ai-briefing-views.md"
+          "value" : "{DOCROOT}/docs/ai-briefing-layouts.md"
         },
         {
           "name" : "lazysite:path",
-          "value" : "starter/docs/ai-briefing-views.md"
+          "value" : "starter/docs/ai-briefing-layouts.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-views.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/ai-briefing-layouts.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -737,9 +737,9 @@
           "value" : "starter/docs/api.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/api.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/api.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -774,9 +774,9 @@
           "value" : "starter/docs/auth-upgrade.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/auth-upgrade.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/auth-upgrade.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -811,9 +811,9 @@
           "value" : "starter/docs/auth.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/auth.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/auth.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -848,15 +848,15 @@
           "value" : "starter/docs/authoring.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/authoring.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/authoring.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "599e7adf31b0580ef6557d5f051dc147e07d2169e4ce989b2d45ac9ae06d5dd4"
+          "content" : "1b5b3e9b6089b7caa8791baf3239b4bac39b43c9b9b12a3ccf92f8f601ed3f16"
         }
       ],
       "licenses" : [
@@ -885,9 +885,9 @@
           "value" : "starter/docs/configuration.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/configuration.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/configuration.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -922,9 +922,9 @@
           "value" : "starter/docs/development.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/development.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/development.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -959,9 +959,9 @@
           "value" : "starter/docs/features.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -996,9 +996,9 @@
           "value" : "starter/docs/features/authoring/404-page.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/404-page.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/404-page.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1033,9 +1033,9 @@
           "value" : "starter/docs/features/authoring/api-mode.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/api-mode.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/api-mode.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1070,9 +1070,9 @@
           "value" : "starter/docs/features/authoring/feeds.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/feeds.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/feeds.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1107,9 +1107,9 @@
           "value" : "starter/docs/features/authoring/fenced-divs.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/fenced-divs.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/fenced-divs.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1144,9 +1144,9 @@
           "value" : "starter/docs/features/authoring/filtered-scan.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/filtered-scan.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/filtered-scan.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1181,9 +1181,9 @@
           "value" : "starter/docs/features/authoring/forms.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/forms.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/forms.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1218,9 +1218,9 @@
           "value" : "starter/docs/features/authoring/include-ttl.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/include-ttl.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/include-ttl.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1255,9 +1255,9 @@
           "value" : "starter/docs/features/authoring/includes.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/includes.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/includes.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1292,9 +1292,9 @@
           "value" : "starter/docs/features/authoring/oembed.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/oembed.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/oembed.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1329,9 +1329,9 @@
           "value" : "starter/docs/features/authoring/page-scan.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/page-scan.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/page-scan.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1366,9 +1366,9 @@
           "value" : "starter/docs/features/authoring/query-params.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/query-params.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/query-params.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1403,9 +1403,9 @@
           "value" : "starter/docs/features/authoring/raw-mode.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/raw-mode.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/raw-mode.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1440,9 +1440,9 @@
           "value" : "starter/docs/features/authoring/registries.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/registries.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/registries.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1477,9 +1477,9 @@
           "value" : "starter/docs/features/authoring/remote-pages.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/remote-pages.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/remote-pages.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1514,9 +1514,9 @@
           "value" : "starter/docs/features/authoring/search.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/search.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/search.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1551,9 +1551,9 @@
           "value" : "starter/docs/features/authoring/tt-variables.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/tt-variables.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/authoring/tt-variables.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1588,9 +1588,9 @@
           "value" : "starter/docs/features/configuration/auth.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/auth.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/auth.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1625,9 +1625,9 @@
           "value" : "starter/docs/features/configuration/conf-path-override.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/conf-path-override.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/conf-path-override.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1662,9 +1662,46 @@
           "value" : "starter/docs/features/configuration/layout-override.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/layout-override.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/layout-override.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "f5611a7026a7236dbb7007161d39b2168da1438d2e15125c506cc0624c95e750"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "layouts.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/features/configuration/layouts.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/features/configuration/layouts.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/layouts.md@0.2.10",
+      "type" : "file",
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1699,9 +1736,9 @@
           "value" : "starter/docs/features/configuration/lazysite-conf.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/lazysite-conf.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/lazysite-conf.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1736,9 +1773,9 @@
           "value" : "starter/docs/features/configuration/manager.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/manager.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/manager.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1773,9 +1810,9 @@
           "value" : "starter/docs/features/configuration/nav-conf.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/nav-conf.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/nav-conf.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1810,15 +1847,15 @@
           "value" : "starter/docs/features/configuration/payment.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/payment.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/payment.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "24b8bbf741a8b047f38e4750d8454c53257b65db83bd154e15fa9fecb8106c0f"
+          "content" : "3836bc927b99e81a6a79c265f23fa22f0a57dd7c9bf15b0c428e0654bace1da1"
         }
       ],
       "licenses" : [
@@ -1847,15 +1884,15 @@
           "value" : "starter/docs/features/configuration/remote-layouts.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/remote-layouts.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/remote-layouts.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "7a2dde3623fbdefdd7aaba60438d878f162e396118ebaca6abba66d6a404d00a"
+          "content" : "c1a0dca372c7f8afa93e4d792edc1fa011489fa666b8bcd5e3a499b5a46aa0c9"
         }
       ],
       "licenses" : [
@@ -1884,15 +1921,15 @@
           "value" : "starter/docs/features/configuration/theme-json.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/theme-json.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/theme-json.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "9dd63258a1f78ccf424bd7bb45262e51c31fa851e122b764eaf92eaa76c612eb"
+          "content" : "8ed567035b6828df204013ddded5d5cfd66c2eec78e7cea5e69d23fbb59f7cf4"
         }
       ],
       "licenses" : [
@@ -1921,9 +1958,9 @@
           "value" : "starter/docs/features/configuration/themes.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/themes.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/themes.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1958,9 +1995,9 @@
           "value" : "starter/docs/features/configuration/views.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/views.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/configuration/views.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -1995,9 +2032,9 @@
           "value" : "starter/docs/features/development/build-static.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/development/build-static.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/build-static.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2032,9 +2069,9 @@
           "value" : "starter/docs/features/development/cache-management.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/development/cache-management.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/cache-management.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2069,9 +2106,9 @@
           "value" : "starter/docs/features/development/content-type-cache.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/development/content-type-cache.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/content-type-cache.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2106,9 +2143,9 @@
           "value" : "starter/docs/features/development/dev-server.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/development/dev-server.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/dev-server.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2143,9 +2180,9 @@
           "value" : "starter/docs/features/development/link-audit.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/development/link-audit.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/link-audit.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2180,9 +2217,9 @@
           "value" : "starter/docs/features/development/nocache.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/features/development/nocache.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/features/development/nocache.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2217,9 +2254,9 @@
           "value" : "starter/docs/forms-helpers.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/forms-helpers.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/forms-helpers.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2254,9 +2291,9 @@
           "value" : "starter/docs/forms-smtp.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/forms-smtp.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/forms-smtp.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2291,15 +2328,15 @@
           "value" : "starter/docs/forms.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/forms.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/forms.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "2ee0ada3a9c50983e12bd91eb892ed92337e3f7234f393902dd75e7975e31b45"
+          "content" : "7f0f8dcac9514619cb3cdb7a0191635a4353553c23fc3a5dca30398880b31ecc"
         }
       ],
       "licenses" : [
@@ -2328,15 +2365,52 @@
           "value" : "starter/docs/install.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/install.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/install.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "d4b9922b3bc792fe137975e9b5f0984bf48f7cf73ddf49f191ff6c7e04c8e229"
+          "content" : "20c1a5cf9d0e48df2033a1272c91b25065cf74e47969554a1a063fcb6c9f2a23"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "layouts.md",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "seed"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/docs/layouts.md"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/docs/layouts.md"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/docs/layouts.md@0.2.10",
+      "type" : "file",
+      "version" : "0.2.10"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "479614c6367e8de3ffb7b7dd6c6f4e5addba7800d00b83af32364ccd59b8c951"
         }
       ],
       "licenses" : [
@@ -2365,9 +2439,9 @@
           "value" : "starter/docs/manager.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/manager.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/manager.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2402,15 +2476,15 @@
           "value" : "starter/docs/payment.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/payment.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/payment.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "f66dbdb9c70164355e4fa7dd6c40c055fabd6a085e56ded9861f05af49d00072"
+          "content" : "5ca1dc923f123e341506eb47bc2df6492041af1bf91cffb8941bb3ed13ebf7fe"
         }
       ],
       "licenses" : [
@@ -2439,9 +2513,9 @@
           "value" : "starter/docs/reference.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/reference.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/reference.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2476,46 +2550,9 @@
           "value" : "starter/docs/remote-content.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/docs/remote-content.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/docs/remote-content.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
-    },
-    {
-      "hashes" : [
-        {
-          "alg" : "SHA-256",
-          "content" : "fc4cf798a7f756080107dc4e5294381082fcc58b4c093c2f9708b89b6ecd890f"
-        }
-      ],
-      "licenses" : [
-        {
-          "license" : {
-            "id" : "Artistic-1.0-Perl"
-          }
-        }
-      ],
-      "name" : "views.md",
-      "properties" : [
-        {
-          "name" : "lazysite:bucket",
-          "value" : "seed"
-        },
-        {
-          "name" : "lazysite:category",
-          "value" : "source"
-        },
-        {
-          "name" : "lazysite:install_to",
-          "value" : "{DOCROOT}/docs/views.md"
-        },
-        {
-          "name" : "lazysite:path",
-          "value" : "starter/docs/views.md"
-        }
-      ],
-      "purl" : "pkg:generic/opendigital/starter/docs/views.md@0.2.9",
-      "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2550,9 +2587,9 @@
           "value" : "starter/index.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/index.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/index.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2587,9 +2624,9 @@
           "value" : "starter/lazysite-demo.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite-demo.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/lazysite-demo.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2624,9 +2661,9 @@
           "value" : "starter/lazysite/auth/groups.example"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite/auth/groups.example@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/lazysite/auth/groups.example@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2661,9 +2698,9 @@
           "value" : "starter/lazysite/auth/users.example"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite/auth/users.example@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/lazysite/auth/users.example@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2698,9 +2735,9 @@
           "value" : "starter/lazysite/forms/contact.conf.example"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite/forms/contact.conf.example@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/lazysite/forms/contact.conf.example@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2735,9 +2772,9 @@
           "value" : "starter/lazysite/forms/handlers.conf.example"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite/forms/handlers.conf.example@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/lazysite/forms/handlers.conf.example@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2772,15 +2809,15 @@
           "value" : "starter/lazysite/forms/smtp.conf.example"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite/forms/smtp.conf.example@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/lazysite/forms/smtp.conf.example@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "1b609b9d22ad52ac6334f4d164ee5a8ca6d877bfefcd68a698cbaa9214240d73"
+          "content" : "b2b0b6f67c6bf32c12fc46c3574d14b729f4875669d075a1fa5682d312429079"
         }
       ],
       "licenses" : [
@@ -2809,9 +2846,83 @@
           "value" : "starter/lazysite.conf.example"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite.conf.example@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/lazysite.conf.example@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "37de43680de0948ae0261e36067a278611c484df6879067eca0933c699a8e827"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "manager.css",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/manager/assets/manager.css"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/lazysite/manager/assets/manager.css"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/lazysite/manager/assets/manager.css@0.2.10",
+      "type" : "file",
+      "version" : "0.2.10"
+    },
+    {
+      "hashes" : [
+        {
+          "alg" : "SHA-256",
+          "content" : "5803d55a2230a56d4691c8669fab03b82d5be5a7ea2d3c5f462a05776e52af7c"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Artistic-1.0-Perl"
+          }
+        }
+      ],
+      "name" : "layout.tt",
+      "properties" : [
+        {
+          "name" : "lazysite:bucket",
+          "value" : "code"
+        },
+        {
+          "name" : "lazysite:category",
+          "value" : "source"
+        },
+        {
+          "name" : "lazysite:install_to",
+          "value" : "{DOCROOT}/lazysite/manager/layout.tt"
+        },
+        {
+          "name" : "lazysite:path",
+          "value" : "starter/lazysite/manager/layout.tt"
+        }
+      ],
+      "purl" : "pkg:generic/opendigital/starter/lazysite/manager/layout.tt@0.2.10",
+      "type" : "file",
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2846,9 +2957,9 @@
           "value" : "starter/nav.conf.example"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/nav.conf.example@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/nav.conf.example@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2883,9 +2994,9 @@
           "value" : "starter/lazysite/templates/registries/feed.atom.tt"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite/templates/registries/feed.atom.tt@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/lazysite/templates/registries/feed.atom.tt@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2920,9 +3031,9 @@
           "value" : "starter/lazysite/templates/registries/feed.rss.tt"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite/templates/registries/feed.rss.tt@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/lazysite/templates/registries/feed.rss.tt@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2957,9 +3068,9 @@
           "value" : "starter/lazysite/templates/registries/llms.txt.tt"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite/templates/registries/llms.txt.tt@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/lazysite/templates/registries/llms.txt.tt@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -2994,83 +3105,9 @@
           "value" : "starter/lazysite/templates/registries/sitemap.xml.tt"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite/templates/registries/sitemap.xml.tt@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/lazysite/templates/registries/sitemap.xml.tt@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
-    },
-    {
-      "hashes" : [
-        {
-          "alg" : "SHA-256",
-          "content" : "37de43680de0948ae0261e36067a278611c484df6879067eca0933c699a8e827"
-        }
-      ],
-      "licenses" : [
-        {
-          "license" : {
-            "id" : "Artistic-1.0-Perl"
-          }
-        }
-      ],
-      "name" : "manager.css",
-      "properties" : [
-        {
-          "name" : "lazysite:bucket",
-          "value" : "code"
-        },
-        {
-          "name" : "lazysite:category",
-          "value" : "source"
-        },
-        {
-          "name" : "lazysite:install_to",
-          "value" : "{DOCROOT}/lazysite/themes/manager/assets/manager.css"
-        },
-        {
-          "name" : "lazysite:path",
-          "value" : "starter/lazysite/themes/manager/assets/manager.css"
-        }
-      ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite/themes/manager/assets/manager.css@0.2.9",
-      "type" : "file",
-      "version" : "0.2.9"
-    },
-    {
-      "hashes" : [
-        {
-          "alg" : "SHA-256",
-          "content" : "5803d55a2230a56d4691c8669fab03b82d5be5a7ea2d3c5f462a05776e52af7c"
-        }
-      ],
-      "licenses" : [
-        {
-          "license" : {
-            "id" : "Artistic-1.0-Perl"
-          }
-        }
-      ],
-      "name" : "view.tt",
-      "properties" : [
-        {
-          "name" : "lazysite:bucket",
-          "value" : "code"
-        },
-        {
-          "name" : "lazysite:category",
-          "value" : "source"
-        },
-        {
-          "name" : "lazysite:install_to",
-          "value" : "{DOCROOT}/lazysite/themes/manager/view.tt"
-        },
-        {
-          "name" : "lazysite:path",
-          "value" : "starter/lazysite/themes/manager/view.tt"
-        }
-      ],
-      "purl" : "pkg:generic/opendigital/starter/lazysite/themes/manager/view.tt@0.2.9",
-      "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3105,9 +3142,9 @@
           "value" : "starter/login.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/login.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/login.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3142,9 +3179,9 @@
           "value" : "starter/logout.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/logout.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/logout.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3179,9 +3216,9 @@
           "value" : "starter/manager/assets/cm/closebrackets.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/closebrackets.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/closebrackets.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3216,9 +3253,9 @@
           "value" : "starter/manager/assets/cm/codemirror.min.css"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/codemirror.min.css@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/codemirror.min.css@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3253,9 +3290,9 @@
           "value" : "starter/manager/assets/cm/codemirror.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/codemirror.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/codemirror.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3290,9 +3327,9 @@
           "value" : "starter/manager/assets/cm/css.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/css.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/css.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3327,9 +3364,9 @@
           "value" : "starter/manager/assets/cm/htmlmixed.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/htmlmixed.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/htmlmixed.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3364,9 +3401,9 @@
           "value" : "starter/manager/assets/cm/javascript.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/javascript.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/javascript.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3401,9 +3438,9 @@
           "value" : "starter/manager/assets/cm/markdown.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/markdown.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/markdown.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3438,9 +3475,9 @@
           "value" : "starter/manager/assets/cm/matchbrackets.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/matchbrackets.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/matchbrackets.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3475,9 +3512,9 @@
           "value" : "starter/manager/assets/cm/overlay.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/overlay.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/overlay.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3512,9 +3549,9 @@
           "value" : "starter/manager/assets/cm/perl.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/perl.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/perl.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3549,9 +3586,9 @@
           "value" : "starter/manager/assets/cm/shell.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/shell.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/shell.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3586,9 +3623,9 @@
           "value" : "starter/manager/assets/cm/xml.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/xml.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/xml.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3623,9 +3660,9 @@
           "value" : "starter/manager/assets/cm/yaml.min.js"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/yaml.min.js@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/assets/cm/yaml.min.js@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3660,9 +3697,9 @@
           "value" : "starter/manager/cache.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/cache.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/cache.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3697,9 +3734,9 @@
           "value" : "starter/manager/config.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/config.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/config.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3734,9 +3771,9 @@
           "value" : "starter/manager/edit.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/edit.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/edit.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3771,9 +3808,9 @@
           "value" : "starter/manager/files.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/files.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/files.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3808,9 +3845,9 @@
           "value" : "starter/manager/index.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/index.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/index.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3845,9 +3882,9 @@
           "value" : "starter/manager/nav.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/nav.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/nav.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3882,15 +3919,15 @@
           "value" : "starter/manager/plugins.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/plugins.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/plugins.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "ecad36599203340c53d9230e978dcd5f18ccfc8b62996f6706b8e92ad31a4e2e"
+          "content" : "7caa62fec74481658bb44ff762c341a5d077e7bc71f20601bd7695d1032b3777"
         }
       ],
       "licenses" : [
@@ -3919,9 +3956,9 @@
           "value" : "starter/manager/themes.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/themes.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/themes.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3956,9 +3993,9 @@
           "value" : "starter/manager/users.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/manager/users.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/manager/users.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -3993,9 +4030,9 @@
           "value" : "starter/members.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/members.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/members.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -4030,9 +4067,9 @@
           "value" : "starter/payment-demo.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/payment-demo.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/payment-demo.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -4067,9 +4104,9 @@
           "value" : "starter/payment-members-demo.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/payment-members-demo.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/payment-members-demo.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -4104,9 +4141,9 @@
           "value" : "starter/search-index.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/search-index.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/search-index.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -4141,9 +4178,9 @@
           "value" : "starter/search-results.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/starter/search-results.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/starter/search-results.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -4174,15 +4211,15 @@
           "value" : "LICENSE"
         }
       ],
-      "purl" : "pkg:generic/opendigital/LICENSE@0.2.9",
+      "purl" : "pkg:generic/opendigital/LICENSE@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "cb6750bb3fcd89b5d9ceb8c9a46d8ad90434ac2d344bdfe4434dca7705969393"
+          "content" : "dc568a5707d481bcef99990eaf85159de3fcb5a278dfd832f8c28094660fc7cf"
         }
       ],
       "licenses" : [
@@ -4207,9 +4244,9 @@
           "value" : "README.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/README.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/README.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -4240,15 +4277,15 @@
           "value" : "SECURITY.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/SECURITY.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/SECURITY.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "83dca8dae96ce7d516737603ab13a88a510d2bb73a8604ff0d04c75cc161ce57"
+          "content" : "2c20e88ff035f07ed427a5d4ece775749758bc4d4a70db676f414e8f24e8bcdf"
         }
       ],
       "licenses" : [
@@ -4273,15 +4310,15 @@
           "value" : "UPGRADE.md"
         }
       ],
-      "purl" : "pkg:generic/opendigital/UPGRADE.md@0.2.9",
+      "purl" : "pkg:generic/opendigital/UPGRADE.md@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "6a970af8dfc153e758fb528ad7f8a853530d07e460742e3e39a4646f35b6e688"
+          "content" : "c9ce112877bc7cafb06fa80838650f19a09a200e9a2b7d04ecc8240ca3a7f148"
         }
       ],
       "licenses" : [
@@ -4306,9 +4343,9 @@
           "value" : "install.pl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/install.pl@0.2.9",
+      "purl" : "pkg:generic/opendigital/install.pl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -4339,15 +4376,15 @@
           "value" : "install.sh"
         }
       ],
-      "purl" : "pkg:generic/opendigital/install.sh@0.2.9",
+      "purl" : "pkg:generic/opendigital/install.sh@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
         {
           "alg" : "SHA-256",
-          "content" : "3cc72f59ee5df0d7f083ed0ee032720ce18e38d6313acdab5491661c29b7c475"
+          "content" : "409eae1eebd9589d889681689497af0d4c6258d4e3c0f5f626c1a90bb28407c5"
         }
       ],
       "licenses" : [
@@ -4372,9 +4409,9 @@
           "value" : "installers/hestia/install-hestia.sh"
         }
       ],
-      "purl" : "pkg:generic/opendigital/installers/hestia/install-hestia.sh@0.2.9",
+      "purl" : "pkg:generic/opendigital/installers/hestia/install-hestia.sh@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -4405,9 +4442,9 @@
           "value" : "installers/hestia/lazysite.stpl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/installers/hestia/lazysite.stpl@0.2.9",
+      "purl" : "pkg:generic/opendigital/installers/hestia/lazysite.stpl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "hashes" : [
@@ -4438,9 +4475,9 @@
           "value" : "installers/hestia/lazysite.tpl"
         }
       ],
-      "purl" : "pkg:generic/opendigital/installers/hestia/lazysite.tpl@0.2.9",
+      "purl" : "pkg:generic/opendigital/installers/hestia/lazysite.tpl@0.2.10",
       "type" : "file",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
     {
       "bom-ref" : "pkg:cpan/Archive-Zip",
@@ -5253,17 +5290,17 @@
       ],
       "name" : "lazysite",
       "type" : "application",
-      "version" : "0.2.9"
+      "version" : "0.2.10"
     },
-    "timestamp" : "2026-04-22T16:12:46Z",
+    "timestamp" : "2026-04-22T17:11:09Z",
     "tools" : [
       {
         "name" : "manifest-to-sbom.pl",
-        "version" : "0.2.9"
+        "version" : "0.2.10"
       }
     ]
   },
-  "serialNumber" : "urn:uuid:b7603a7a-d33f-4a39-9fb7-980a672692ae",
+  "serialNumber" : "urn:uuid:afef24da-b738-4972-8b84-713ab14ea85a",
   "specVersion" : "1.6",
   "version" : 1
 }

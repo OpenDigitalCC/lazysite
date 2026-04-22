@@ -383,15 +383,16 @@ subtest '--theme prints warning and does not abort' => sub {
         'deprecation warning present' );
 };
 
-# --- 15. Runtime paths include themes/ ---
+# --- 15. D013 runtime paths include layouts/ and lazysite-assets/ ---
 
-subtest 'runtime_paths: themes/ directory created' => sub {
+subtest 'runtime_paths: D013 directories created' => sub {
     my ($docroot, $cgibin) = fresh_docroot();
     run_install( '--docroot', $docroot, '--cgibin', $cgibin );
 
-    ok( -d "$docroot/lazysite/themes", 'themes/ dir created' );
-    ok( -d "$docroot/lazysite/auth",   'auth/ dir created' );
-    ok( -d "$docroot/lazysite/cache",  'cache/ dir created' );
+    ok( -d "$docroot/lazysite/layouts", 'layouts/ dir created' );
+    ok( -d "$docroot/lazysite-assets",  'lazysite-assets/ dir created' );
+    ok( -d "$docroot/lazysite/auth",    'auth/ dir created' );
+    ok( -d "$docroot/lazysite/cache",   'cache/ dir created' );
 };
 
 done_testing();

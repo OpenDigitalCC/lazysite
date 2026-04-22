@@ -37,7 +37,7 @@ query_params:
 <span class="mg-card-title">Install from Releases</span>
 </div>
 <div class="mg-card-body">
-<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Install themes from a published release of the views repository configured in <code>lazysite.conf</code> (<code>views_repo</code>). Each install pulls every valid theme in the release.</p>
+<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Install themes from a published release of the layouts repository configured in <code>lazysite.conf</code> (<code>layouts_repo</code>). Each install pulls every valid theme in the release.</p>
 <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
 <button class="mg-btn mg-btn-outline" onclick="loadReleases()">Browse releases</button>
 </div>
@@ -188,20 +188,20 @@ function uploadTheme() {
   reader.readAsArrayBuffer(file);
 }
 
-// SM037: browse releases of the configured views repo and install
-// themes from a chosen release. views-releases is GET so anonymous
-// GitHub rate limits (60/hour) apply to the lazysite host, not
-// visitors — the browse action is gated behind an explicit click
+// SM037 / D013: browse releases of the configured layouts repo and
+// install themes from a chosen release. layouts-releases is GET so
+// anonymous GitHub rate limits (60/hour) apply to the lazysite host,
+// not visitors — the browse action is gated behind an explicit click
 // rather than auto-loaded on page view to keep the rate budget.
 function loadReleases() {
   var container = document.getElementById('release-list');
   container.innerHTML = '<div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>';
-  fetch(API + '?action=views-releases')
+  fetch(API + '?action=layouts-releases')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) {
         container.innerHTML = '';
-        showStatus(data.error || 'Unable to fetch releases. Check the views_repo setting in lazysite.conf.', true);
+        showStatus(data.error || 'Unable to fetch releases. Check the layouts_repo setting in lazysite.conf.', true);
         return;
       }
       renderReleases(data.releases || [], data.repo || '');
@@ -246,7 +246,7 @@ function installRelease(tag) {
   showStatus('');
   var prev = document.getElementById('release-list').innerHTML;
   document.getElementById('release-list').innerHTML = '<div class="mg-file-item"><span class="mg-file-name">Installing ' + escHtml(tag) + '...</span></div>';
-  fetch(API + '?action=views-install', {
+  fetch(API + '?action=layouts-install', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tag: tag })

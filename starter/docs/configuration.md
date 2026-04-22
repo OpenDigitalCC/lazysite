@@ -1,6 +1,6 @@
 ---
 title: Configuration
-subtitle: Views, navigation, site variables, forms, auth, and plugins.
+subtitle: Layouts, navigation, site variables, forms, auth, and plugins.
 register:
   - sitemap.xml
   - llms.txt
@@ -9,7 +9,7 @@ register:
 ## lazysite.conf
 
 `lazysite/lazysite.conf` defines site-wide variables available in
-`view.tt` and all page bodies. It is a plain text file with one
+`layout.tt` and all page bodies. It is a plain text file with one
 key-value pair per line.
 
 ### Minimal example
@@ -44,9 +44,18 @@ works on staging and production.
 : Full URL of the site. Typically
   `${REQUEST_SCHEME}://${SERVER_NAME}`.
 
+`layout`
+: Active layout. The processor resolves it to
+  `lazysite/layouts/NAME/layout.tt`. May also be a full remote URL.
+
 `theme`
-: Active theme. The processor loads
-  `lazysite/themes/THEME/view.tt`. May also be a full remote URL.
+: Active theme. Must declare the active layout in its
+  `theme.json`'s `layouts[]`. The processor resolves it to
+  `lazysite/layouts/LAYOUT/themes/THEME/theme.json`.
+
+`layouts_repo`
+: GitHub OWNER/REPO source for the manager's release browser.
+  Default unset hides the browser.
 
 `nav_file`
 : Navigation file path, docroot-relative. Default:
@@ -231,18 +240,24 @@ Both can be overridden at startup with environment variables:
     LAZYSITE_LOG_LEVEL=DEBUG perl tools/lazysite-server.pl ...
     LAZYSITE_LOG_FORMAT=json perl tools/lazysite-server.pl ...
 
-## Themes
+## Layouts and themes
 
-Activate a theme by name in `lazysite.conf`:
+Activate a layout and theme by name in `lazysite.conf`:
 
-    theme: default
+    layout: default
+    theme: odcc
 
-The processor loads `lazysite/themes/default/view.tt`. Assets in the
-theme's `assets/` directory are served from the docroot's
-`lazysite-assets/THEMENAME/` path when the theme declares a
-`theme.json` manifest.
+The processor resolves the layout to
+`lazysite/layouts/default/layout.tt` and the theme to
+`lazysite/layouts/default/themes/odcc/theme.json`. Theme assets
+are web-served from `/lazysite-assets/default/odcc/` (nested).
 
-See [Views and themes](/docs/views) for theme installation and authoring.
+A theme must declare the active layout in its `theme.json`'s
+`layouts[]` array; mismatched themes render layout-only with a
+warning.
+
+See [Layouts and themes](/docs/views) for installation and
+authoring.
 
 ## Page scan
 
@@ -308,5 +323,5 @@ automatically. See
 [Config path override](/docs/features/configuration/conf-path-override)
 for details.
 
-[views]: https://github.com/OpenDigitalCC/lazysite-views
+[views]: https://github.com/OpenDigitalCC/lazysite-layouts
 [github]: https://github.com/OpenDigitalCC/lazysite

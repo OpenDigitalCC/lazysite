@@ -87,7 +87,8 @@ Copy the starter files to your docroot:
 
 ```bash
 mkdir -p /var/www/example.com/public_html/lazysite/templates/registries
-mkdir -p /var/www/example.com/public_html/lazysite/themes
+mkdir -p /var/www/example.com/public_html/lazysite/layouts
+mkdir -p /var/www/example.com/public_html/lazysite-assets
 cp starter/lazysite.conf.example   /var/www/example.com/public_html/lazysite/lazysite.conf
 cp starter/registries/*.tt         /var/www/example.com/public_html/lazysite/templates/registries/
 cp starter/404.md                  /var/www/example.com/public_html/
@@ -135,10 +136,13 @@ configuration required for local development.
 
 ### After installing on a server
 
-1. Install a view from [lazysite-views][views] or write your own `view.tt`
-2. Edit `public_html/lazysite/nav.conf` to define your site navigation
-3. Edit `public_html/index.md` for your home page content
-4. Add pages by dropping `.md` files anywhere in the docroot
+1. Install a layout from
+   [lazysite-layouts][layouts] or write your own `layout.tt`
+2. Install a compatible theme (manager UI or zip upload) and set
+   `layout:` and `theme:` in `lazysite.conf`
+3. Edit `public_html/lazysite/nav.conf` to define your site navigation
+4. Edit `public_html/index.md` for your home page content
+5. Add pages by dropping `.md` files anywhere in the docroot
 
 Pages are available immediately at their extensionless URL:
 
@@ -154,7 +158,7 @@ Create `dirname/index.md` for any directory that needs an index page.
 Four audience-specific briefings live under `starter/docs/`:
 
 - `ai-briefing-authoring.md` - writing content
-- `ai-briefing-views.md` - designing themes
+- `ai-briefing-layouts.md` - designing layouts and themes
 - `ai-briefing-configuration.md` - configuring a site
 - `ai-briefing-development.md` - working on the codebase
 
@@ -218,11 +222,18 @@ Removes Hestia template files only. Deployed domain files are not touched.
       lazysite/
         lazysite.conf         <- site configuration
         nav.conf              <- navigation (YAML)
-        themes/
-          THEME/
-            view.tt           <- theme template
-            assets/           <- theme assets
-          manager/            <- manager chrome (system theme)
+        layouts/
+          LAYOUT/
+            layout.tt         <- layout template
+            layout.json       <- layout metadata (optional)
+            themes/
+              THEME/
+                theme.json    <- theme manifest
+                main.css      <- theme stylesheet
+                assets/       <- theme assets
+        manager/              <- manager chrome (internal; D013)
+          layout.tt
+          assets/manager.css
         templates/
           registries/
             llms.txt.tt
@@ -267,4 +278,4 @@ design decisions, security review, and deployment were directed by the author.
 Claude assisted with code generation, documentation, and iterative refinement
 throughout development.
 
-[views]: https://github.com/OpenDigitalCC/lazysite-views
+[layouts]: https://github.com/OpenDigitalCC/lazysite-layouts

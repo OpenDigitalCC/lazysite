@@ -442,8 +442,8 @@ sub post_install_steps {
 
     # --- manager CSS duplicate ---
     #
-    # The manager CSS source ships at lazysite/themes/manager/assets/
-    # and the manager UI expects it web-accessible at
+    # D013: manager source moved out of themes/ to lazysite/manager/.
+    # The manager UI expects the CSS web-accessible at
     # manager/assets/manager.css. The manifest ships the source copy;
     # this step mirrors it to the web-accessible path.
     #
@@ -451,7 +451,7 @@ sub post_install_steps {
     # rebuilt from the installed source on every install/upgrade,
     # so tracking it would cause the next run to falsely flag it
     # as "in stored but not in manifest" and mark it for removal.
-    my $css_src = "$docroot/lazysite/themes/manager/assets/manager.css";
+    my $css_src = "$docroot/lazysite/manager/assets/manager.css";
     my $css_dst = "$docroot/manager/assets/manager.css";
     if ( -f $css_src ) {
         make_path( dirname($css_dst) );
@@ -915,10 +915,11 @@ sub print_next_steps {
     my ($docroot) = @_;
     print STDERR <<"TEXT";
 Next steps:
-  1. Upload a theme via the manager UI at /manager/themes.
-     A fresh install has no default view.tt - the processor
-     falls back to a built-in template until a theme is
-     activated via /manager/config.
+  1. Install a layout + theme via the manager UI at /manager/themes.
+     A fresh install has no default layout - the processor falls
+     back to a built-in template until a layout is installed and
+     a compatible theme is activated via /manager/config. Set
+     'layout:' and 'theme:' in lazysite.conf to point at them.
   2. Edit $docroot/lazysite/lazysite.conf to configure your site.
   3. Replace $docroot/index.md with your content.
 

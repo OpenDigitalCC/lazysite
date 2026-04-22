@@ -1,73 +1,120 @@
 ---
 title: theme.json
-subtitle: Declare theme assets for automatic fetching alongside a remote view.
+subtitle: Theme manifest - metadata, layout compatibility, design tokens, file list.
 tags:
   - configuration
   - template
-  - remote
+  - theme
 ---
 
 ## theme.json
 
-When a remote layout is fetched, lazysite looks for a `theme.json`
-manifest in the same directory as the view template. If found, the
-listed asset files are downloaded and stored locally.
+Every theme ships a `theme.json` at its root declaring metadata,
+the layouts it's compatible with, design tokens, and the list of
+files shipped. The manager UI validates this manifest on upload;
+the processor reads `config` to generate `theme_css`.
 
 ### Location
 
-The manifest URL is derived from the view template URL by replacing
-the filename with `theme.json`. For a view at
-`https://example.com/themes/clean/view.tt`, lazysite fetches
-`https://example.com/themes/clean/theme.json`.
+For local themes:
+
+    public_html/lazysite/layouts/LAYOUT/themes/THEME/theme.json
+
+For remote layouts (which bundle a theme in the same URL
+directory):
+
+    https://example.com/layouts/clean/theme.json
 
 ### Format
 
     {
+      "name": "odcc",
+      "version": "1.0.0",
+      "description": "OpenDigitalCC brand theme",
+      "author": "OpenDigitalCC",
+      "layouts": ["default"],
+      "config": {
+        "colours": {
+          "primary": "#332b82",
+          "text": "#2a2a2a",
+          "accent": "#ff6b35"
+        },
+        "fonts": {
+          "body": "Open Sans",
+          "heading": "Source Sans 3"
+        },
+        "spacing": {
+          "unit": "8px"
+        }
+      },
       "files": [
-        "style.css",
-        "script.js",
-        "images/logo.png"
+        "theme.json",
+        "main.css",
+        "assets/logo.svg"
       ]
     }
 
-The `files` array lists relative paths to download. Only the `files`
-field is used.
+### Required fields
 
-### Asset storage
+- `name` - matches the directory name. Sanitised to
+  `[A-Za-z0-9_-]` on read.
+- `version` - semver string.
+- `description` - free-text, human-readable.
+- `author` - free-text.
+- `layouts` - array of layout names this theme is compatible
+  with. The manager rejects an upload whose `layouts` field is
+  missing or empty (DP-C, strict). The processor refuses to
+  apply a theme to any layout not in this list.
+- `config` - object grouping design tokens. Group names are
+  author-chosen (common: `colours`, `fonts`, `spacing`, `icons`).
+  Keys within groups are author-chosen. Values must be strings.
 
-Assets are written to:
+### Optional fields
 
-    public_html/lazysite-assets/CACHE_KEY/
+- `files` - array of paths shipped with the theme. Used by
+  remote-layout auto-fetch (downloads each listed file alongside
+  the layout). Not consulted for local themes on upload; the zip
+  contents dictate what lands on disk.
 
-Where `CACHE_KEY` is derived from the view template URL (same key
-used for the layout cache).
+### Auto-generated CSS variables
 
-### TT variable
+The processor walks `config` and emits a `<style>:root { ... }`
+block exposed as `[% theme_css %]`. Naming convention:
 
-The `theme_assets` variable is set automatically for remote themes:
+    --theme-GROUP-KEY
 
-    <link rel="stylesheet" href="[% theme_assets %]/style.css">
+So `config.colours.primary = "#332b82"` becomes
+`--theme-colours-primary: #332b82`. Values are emitted verbatim
+except `;{}<>` characters which are stripped to prevent
+declaration escape.
 
-This resolves to `/lazysite-assets/CACHE_KEY/style.css`.
+### theme_assets variable
 
-### Example
+`[% theme_assets %]` is set to:
 
-    {
-      "files": [
-        "style.css",
-        "fonts/inter.woff2",
-        "images/favicon.ico"
-      ]
-    }
+- Local theme: `/lazysite-assets/LAYOUT/THEME/`
+- Remote layout: `/lazysite-assets/CACHE_KEY/`
+
+### Validation summary
+
+| Condition                         | Result                 |
+| --------------------------------- | ---------------------- |
+| `name` missing or unsanitisable   | Install rejected       |
+| `layouts` missing or empty        | Install rejected       |
+| Declared layout not installed     | Install rejected       |
+| Active layout not in `layouts[]`  | Theme ignored at render |
+| `config` not an object            | `theme_css` empty      |
+| Nested group value (not a scalar) | Value skipped silently |
 
 ### Notes
 
-- `view.tt` in the files list is skipped (already fetched separately)
-- Paths containing `..` are skipped (traversal protection)
-- Subdirectories in file paths are created automatically
-- Assets are fetched at the same time as the layout and follow the
-  same TTL
-- If `theme.json` is not found or fails to parse, only the view
-  template is used - no error is raised
+- `files[]` paths containing `..` are skipped (traversal
+  protection).
+- Subdirectories in `files[]` are created automatically when
+  fetching remote assets.
+- [Themes](/docs/features/configuration/themes) - activation
+  and on-disk structure
+- [Layouts](/docs/features/configuration/layouts) - the
+  structural template themes sit on top of
 - [Remote layouts](/docs/features/configuration/remote-layouts) -
-  remote view template loading
+  remote asset fetching

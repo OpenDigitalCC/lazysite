@@ -26,16 +26,18 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
     print JSON::PP::encode_json({
         id          => 'lazysite',
         name        => 'Site Configuration',
-        description => 'Core lazysite.conf settings: site identity, theme, search, and manager',
+        description => 'Core lazysite.conf settings: site identity, layout, theme, search, and manager',
         version     => '1.0',
         config_file => '',
-        config_keys => [qw(site_name site_url theme nav_file
+        config_keys => [qw(site_name site_url layout theme nav_file
                            search_default manager manager_path manager_groups)],
         config_schema => [
             { key => 'site_name', label => 'Site name', type => 'text',
               default => 'My Site', required => JSON::PP::true() },
             { key => 'site_url', label => 'Site URL', type => 'text',
               default => '${REQUEST_SCHEME}://${SERVER_NAME}' },
+            { key => 'layout', label => 'Active layout', type => 'text',
+              default => '' },
             { key => 'theme', label => 'Active theme', type => 'text',
               default => '' },
             { key => 'nav_file', label => 'Navigation file', type => 'text',
@@ -78,10 +80,15 @@ $CONF_OVERRIDE //= $ENV{LAZYSITE_CONF};
 my $CONF_FILE = $CONF_OVERRIDE
     ? $CONF_OVERRIDE
     : "$LAZYSITE_DIR/lazysite.conf";
-my $LAYOUT_DIR    = "$LAZYSITE_DIR/templates";
-my $LAYOUT        = "$LAZYSITE_DIR/templates/view.tt";
+# D013: layouts/ is the new structural root. A local layout lives at
+# $LAYOUT_DIR/NAME/layout.tt with optional $LAYOUT_DIR/NAME/layout.json
+# metadata. Themes nest under layouts/NAME/themes/THEME/. No flat-template
+# fallback ($LAZYSITE_DIR/templates/*.tt) and no default view.tt path —
+# if no layout is installed, the embedded $FALLBACK_LAYOUT is the sole
+# fallback.
+my $LAYOUT_DIR    = "$LAZYSITE_DIR/layouts";
 my $REGISTRY_DIR  = "$LAZYSITE_DIR/templates/registries";
-my $THEMES_DIR    = "$LAZYSITE_DIR/themes";
+my $MANAGER_LAYOUT = "$LAZYSITE_DIR/manager/layout.tt";
 my $REMOTE_TTL       = 3600;  # seconds before remote content is refetched (default 1 hour)
 my $REGISTRY_TTL     = 14400; # seconds before registries are regenerated (default 4 hours)
 my $LAYOUT_CACHE_DIR = "$LAZYSITE_DIR/cache/layouts";
@@ -89,7 +96,7 @@ my $CT_CACHE_DIR     = "$LAZYSITE_DIR/cache/ct";
 my $TT_COMPILE_DIR   = "$LAZYSITE_DIR/cache/tt";   # P-4 TT on-disk compile cache
 my %AUTH_CONTEXT;    # populated by main() auth check, read by render_content()
 
-# Built-in fallback template - used when no view.tt is found
+# Built-in fallback template - used when no layout.tt is found
 my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 <!DOCTYPE html>
 <html lang="en">
@@ -183,7 +190,7 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
     [% END %]
     <p>Rendered by <a href="https://lazysite.io">lazysite</a>
     [% IF site_name %]- [% site_name %][% END %]
-    - no view.tt found, using built-in fallback</p>
+    - no layout.tt found, using built-in fallback</p>
 </footer>
 </body>
 </html>
@@ -2371,47 +2378,121 @@ sub render_content {
 sub get_layout_path {
     my ( $meta, $vars ) = @_;
 
-    # Manager path gets dedicated view
+    # Manager path gets its own dedicated template. D013: manager lives
+    # outside layouts/ entirely — it's internal plumbing, not a
+    # themeable layout.
     my $manager_path = $vars->{manager_path} || '/manager';
     my $uri = $ENV{REDIRECT_URL} // '';
     if ( index( $uri, $manager_path ) == 0 ) {
-        my $manager_view = "$THEMES_DIR/manager/view.tt";
-        return ( $manager_view, undef ) if -f $manager_view;
+        return ( $MANAGER_LAYOUT, undef ) if -f $MANAGER_LAYOUT;
         return ( undef, undef );
     }
 
-    my $name = $meta->{layout} || $vars->{theme} || '';
+    my $name = $meta->{layout} || $vars->{layout} || '';
 
     if ( $name ) {
-        # Check if theme is a remote URL
+        # Remote layout: URL in layout key. Remote keeps the flat
+        # /lazysite-assets/CACHE_KEY/ asset convention (D013 decision:
+        # remote is a single bundled package).
         if ( $name =~ m{^https?://} ) {
             my ( $cached, $theme_key ) = fetch_remote_layout($name);
             return ( $cached, $theme_key ) if $cached;
-            log_event("WARN", $ENV{REDIRECT_URL} // "-", "remote layout fetch failed", name => $name);
-            return ( undef, undef );  # signals render_template to use fallback
+            log_event("WARN", $ENV{REDIRECT_URL} // "-",
+                "remote layout fetch failed", name => $name);
+            return ( undef, undef );
         }
 
-        # Local theme/layout name - sanitise
         $name =~ s/[^a-zA-Z0-9_-]//g;
-        $name ||= '';  # if sanitise stripped everything, fall back
+        $name ||= '';
 
         if ( $name ) {
-            # Check themes directory first, then templates directory.
-            # SM038: theme-directory branch returns $name so
-            # render_template can set theme_assets = /lazysite-assets/$name.
-            # Flat templates at $LAYOUT_DIR/$name.tt have no conventional
-            # assets dir; they return undef and get no theme_assets.
-            my $theme_path = "$THEMES_DIR/$name/view.tt";
-            my $tmpl_path  = "$LAYOUT_DIR/$name.tt";
+            # D013: layouts/NAME/layout.tt. No flat-template fallback.
+            my $layout_path = "$LAYOUT_DIR/$name/layout.tt";
+            return ( $layout_path, $name ) if -f $layout_path;
 
-            return ( $theme_path, $name )  if -f $theme_path;
-            return ( $tmpl_path, undef )   if -f $tmpl_path;
-
-            log_event('WARN', $ENV{REDIRECT_URL} // '-', 'layout not found, using default', layout => $name);
+            log_event('WARN', $ENV{REDIRECT_URL} // '-',
+                'layout not found, using fallback', layout => $name);
         }
     }
 
-    return ( ( -f $LAYOUT ? $LAYOUT : undef ), undef );
+    return ( undef, undef );
+}
+
+# D013: resolve the theme for a given (validated) layout. Returns a hash
+# with theme_name, theme_data (decoded theme.json), and is_active (true
+# iff theme.json's layouts[] contains the layout name). When the theme
+# cannot be loaded or is incompatible, returns an empty hash and the
+# caller proceeds with no theme (no theme_assets, no theme_css).
+sub resolve_theme {
+    my ( $layout_name, $theme_name ) = @_;
+    return {} unless defined $layout_name && length $layout_name;
+    return {} unless defined $theme_name  && length $theme_name;
+
+    $theme_name =~ s/[^a-zA-Z0-9_-]//g;
+    return {} unless length $theme_name;
+
+    my $theme_dir  = "$LAYOUT_DIR/$layout_name/themes/$theme_name";
+    my $theme_json = "$theme_dir/theme.json";
+    return {} unless -f $theme_json;
+
+    open my $fh, '<:utf8', $theme_json or do {
+        log_event('WARN', $ENV{REDIRECT_URL} // '-',
+            'cannot open theme.json', path => $theme_json);
+        return {};
+    };
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $data = eval { decode_json($raw) };
+    unless ( ref $data eq 'HASH' ) {
+        log_event('WARN', $ENV{REDIRECT_URL} // '-',
+            'invalid theme.json', path => $theme_json);
+        return {};
+    }
+
+    # Strict: theme must declare compatibility with the active layout.
+    my $layouts = $data->{layouts};
+    unless ( ref $layouts eq 'ARRAY' && grep { $_ eq $layout_name } @$layouts ) {
+        log_event('WARN', $ENV{REDIRECT_URL} // '-',
+            'theme not declared for layout; rendering without theme styling',
+            theme => $theme_name, layout => $layout_name);
+        return {};
+    }
+
+    return {
+        theme_name => $theme_name,
+        theme_data => $data,
+        is_active  => 1,
+    };
+}
+
+# D013: generate a <style> block of CSS custom properties from a theme's
+# config object. Naming convention: --theme-GROUP-KEY. Only scalar
+# (non-ref) values are emitted — a theme author using a nested object
+# under a group key is a shape error and is skipped silently.
+sub generate_theme_css {
+    my ($theme_data) = @_;
+    return '' unless ref $theme_data eq 'HASH';
+    my $config = $theme_data->{config};
+    return '' unless ref $config eq 'HASH';
+
+    my @lines;
+    for my $group ( sort keys %$config ) {
+        my $group_val = $config->{$group};
+        next unless ref $group_val eq 'HASH';
+        next unless $group =~ /^[A-Za-z0-9_-]+$/;
+        for my $key ( sort keys %$group_val ) {
+            my $v = $group_val->{$key};
+            next if ref $v;
+            next unless $key =~ /^[A-Za-z0-9_-]+$/;
+            my $safe = defined $v ? $v : '';
+            # Strip anything that could break out of a declaration — the
+            # theme schema says values are strings, not CSS expressions.
+            $safe =~ s/[;\{\}<>]//g;
+            push @lines, "  --theme-$group-$key: $safe;";
+        }
+    }
+    return '' unless @lines;
+    return "<style>\n:root {\n" . join("\n", @lines) . "\n}\n</style>";
 }
 
 sub fetch_remote_layout {
@@ -2462,7 +2543,10 @@ sub fetch_remote_layout {
             make_path($asset_dir) unless -d $asset_dir;
 
             for my $file ( @{ $manifest->{files} } ) {
-                next if $file eq 'view.tt';  # already fetched
+                # D013: remote packages now point at a layout.tt URL.
+                # Still accept legacy view.tt in the files list so a
+                # transitional manifest doesn't re-fetch it.
+                next if $file eq 'layout.tt' || $file eq 'view.tt';
                 next if $file =~ /\.\./;     # no traversal
 
                 my $file_url     = "$base_url/$file";
@@ -2494,15 +2578,49 @@ sub render_template {
         $processed_body = convert_fenced_include( $processed_body, $meta->{_md_path}, $meta );
     }
 
-    my ( $layout, $theme_key ) = get_layout_path( $meta, $vars );
+    my ( $layout, $layout_key ) = get_layout_path( $meta, $vars );
 
-    # Set theme_assets path for any named theme (local or remote).
-    # Local themes get $name as the key (SM038); remote themes get
-    # the sanitised URL hash. Flat $LAYOUT_DIR/*.tt templates and
-    # the fallback default layout have no theme_key and no
-    # theme_assets.
-    if ( defined $theme_key ) {
-        $vars->{theme_assets} = "/lazysite-assets/$theme_key";
+    # D013: $layout_key is the token used for asset URL derivation.
+    # - Local layout name (e.g. "default") — asset dir becomes
+    #   /lazysite-assets/LAYOUT/THEME/ once a theme resolves.
+    # - Remote URL's sanitised cache key — asset dir stays flat at
+    #   /lazysite-assets/CACHE_KEY/ (remote is a single bundled
+    #   package; D013 nested structure does not apply).
+    # - undef for the manager path and for the embedded fallback.
+    my $is_remote_layout = defined $layout
+        && index($layout, $LAYOUT_CACHE_DIR) == 0;
+
+    if ( defined $layout_key && $is_remote_layout ) {
+        # Remote: flat asset path, no theme resolution (§3 decision).
+        # Clear theme/theme_css so templates don't try to index into
+        # the conf string under theme.config.
+        $vars->{theme_assets} = "/lazysite-assets/$layout_key";
+        $vars->{theme}        = {};
+        $vars->{theme_css}    = '';
+    }
+    elsif ( defined $layout_key ) {
+        # Local layout. Expose layout_name and resolve the active theme
+        # against it, populating theme_name, theme, theme_assets, and
+        # theme_css when the theme is compatible. When no theme (or an
+        # incompatible one) is active, $vars->{theme} is replaced with
+        # an empty hash so [% theme.config.foo %] renders empty rather
+        # than trying to index into the raw conf string.
+        $vars->{layout_name} = $layout_key;
+        my $info = resolve_theme( $layout_key, $vars->{theme} );
+        if ( $info->{is_active} ) {
+            $vars->{theme_name}   = $info->{theme_name};
+            $vars->{theme}        = $info->{theme_data};
+            $vars->{theme_assets} = "/lazysite-assets/$layout_key/" . $info->{theme_name};
+            $vars->{theme_css}    = generate_theme_css( $info->{theme_data} );
+        }
+        else {
+            $vars->{theme}     = {};
+            $vars->{theme_css} = '';
+        }
+    }
+    else {
+        $vars->{theme}     = {};
+        $vars->{theme_css} = '';
     }
 
     $vars->{content} = $processed_body;
@@ -2510,7 +2628,7 @@ sub render_template {
 
     if ( !defined $layout ) {
         # No layout found - use built-in fallback directly
-        log_event("WARN", $ENV{REDIRECT_URL} // "-", "view not found, using fallback");
+        log_event("WARN", $ENV{REDIRECT_URL} // "-", "layout not found, using fallback");
         my $tt_fallback = Template->new( ENCODING => 'utf8', EVAL_PERL => 0 )
             or do {
                 log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance');
@@ -2527,7 +2645,7 @@ sub render_template {
     }
 
     # Determine if layout is remote (from cache dir) - sandbox it
-    my $is_remote = index($layout, $LAYOUT_CACHE_DIR) == 0;
+    my $is_remote = $is_remote_layout;
 
     my $tt_layout = $is_remote
         ? Template->new(
@@ -2606,22 +2724,29 @@ sub _inject_admin_bar {
                            .  '" style="color:#6db3f2;text-decoration:none;">Edit</a>';
         }
 
-        # Core theme switcher - changes site default (writes lazysite.conf, clears cache)
-        my $themes_dir = "$LAZYSITE_DIR/themes";
+        # D013: theme switcher enumerates themes nested under the
+        # active layout. Themes for other layouts are installed but
+        # not compatible with the current layout, so they're hidden.
+        my $active_layout = $vars->{layout_name} || '';
         my @installed_themes;
-        if ( -d $themes_dir ) {
-            opendir( my $dh, $themes_dir );
-            for my $t ( sort readdir $dh ) {
-                next if $t =~ /^\./;
-                next if $t eq 'manager';
-                next unless -d "$themes_dir/$t" && -f "$themes_dir/$t/view.tt";
-                push @installed_themes, $t;
+        if ( length $active_layout ) {
+            my $themes_dir = "$LAYOUT_DIR/$active_layout/themes";
+            if ( -d $themes_dir ) {
+                opendir( my $dh, $themes_dir );
+                for my $t ( sort readdir $dh ) {
+                    next if $t =~ /^\./;
+                    next unless -d "$themes_dir/$t"
+                        && -f "$themes_dir/$t/theme.json";
+                    push @installed_themes, $t;
+                }
+                closedir $dh;
             }
-            closedir $dh;
         }
 
         if ( @installed_themes > 1 ) {
-            my $current = $vars->{theme} || '';
+            # D013: theme is now a hash (the decoded theme.json) when
+            # resolved, so use theme_name for the UI.
+            my $current = $vars->{theme_name} || '';
             $manager_tools .= '<select id="ls-theme-sel" data-current="' . $current . '" style="'
                            .  'font-size:11px;background:#333;color:#ccc;border:1px solid #555;'
                            .  'border-radius:3px;padding:1px 4px;cursor:pointer;">';

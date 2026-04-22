@@ -9,17 +9,18 @@ caches it; every subsequent request is a plain static file.
 
 Content
 - Markdown pages with YAML front matter
-- Template Toolkit variables in pages and views
+- Template Toolkit variables in pages and layouts
 - Fenced divs, oEmbed, content includes
 - Remote pages (`.url` files that fetch Markdown from a URL)
 - Page scan for blog/news index pages
 - Registry files: sitemap.xml, llms.txt, RSS, Atom
 - TTL-based cache and API/raw output modes
 
-Views and themes
-- Template Toolkit view templates (`view.tt`)
-- Themes live under `lazysite/themes/THEME/` with their own assets
-- Built-in fallback view so sites work with zero configuration
+Layouts and themes
+- Template Toolkit layout templates (`layout.tt`)
+- Themes nest under `lazysite/layouts/LAYOUT/themes/THEME/`
+- Design tokens auto-emit as CSS custom properties (`theme.config`)
+- Built-in fallback so sites work with zero configuration
 
 Manager
 - Browser-based admin at `/manager`
@@ -79,7 +80,7 @@ Browse locally via the dev server, or read the Markdown directly:
 - `starter/docs/install.md` - installation
 - `starter/docs/authoring.md` - writing content
 - `starter/docs/configuration.md` - lazysite.conf, nav, plugins
-- `starter/docs/views.md` - views and themes
+- `starter/docs/layouts.md` - layouts and themes
 - `starter/docs/manager.md` - the manager UI
 - `starter/docs/auth.md` - authentication
 - `starter/docs/forms.md` - contact forms
@@ -90,15 +91,17 @@ Browse locally via the dev server, or read the Markdown directly:
 AI-assistant briefings:
 
 - `starter/docs/ai-briefing-authoring.md`
-- `starter/docs/ai-briefing-views.md`
+- `starter/docs/ai-briefing-layouts.md`
 - `starter/docs/ai-briefing-configuration.md`
 - `starter/docs/ai-briefing-development.md`
 
-## Views and themes
+## Layouts and themes
 
-Ready-to-use themes live in the companion repo
-[lazysite-views][views]. Install a theme zip via the manager Themes
-page, or unpack manually under `lazysite/themes/`.
+Ready-to-use layouts and themes live in the companion repo
+[lazysite-layouts][layouts]. Install a theme zip via the
+manager Themes page, which unpacks it under
+`lazysite/layouts/LAYOUT/themes/THEME/`. Layouts are installed
+manually or via the "Install from Releases" browser.
 
 ## Requirements
 
@@ -111,4 +114,4 @@ page, or unpack manually under `lazysite/themes/`.
 
 MIT. See [LICENSE](LICENSE).
 
-[views]: https://github.com/OpenDigitalCC/lazysite-views
+[layouts]: https://github.com/OpenDigitalCC/lazysite-layouts

@@ -51,9 +51,10 @@ All keys are optional unless noted.
   back to file mtime if not set.
 
 `layout`
-: Named view template for this page. The processor checks
-  `lazysite/themes/NAME/view.tt` first, then falls back to the default
-  theme.
+: Named layout for this page, overriding the site-wide `layout:` key.
+  The processor resolves it to `lazysite/layouts/NAME/layout.tt`. May
+  also be a remote URL (see
+  [remote layouts](/docs/features/configuration/remote-layouts)).
 
 `auth`
 : Authentication requirement. Values: `required`, `optional`, `none`
@@ -109,15 +110,25 @@ Directory scan
 ### Recognised keys
 
 `site_name`
-: Site name. Used in the view template title and header.
+: Site name. Used in the layout template title and header.
 
 `site_url`
 : Site URL. Typically `${REQUEST_SCHEME}://${SERVER_NAME}` so the same
   config works on staging and production.
 
+`layout`
+: Active layout name. The processor resolves it to
+  `lazysite/layouts/NAME/layout.tt`. May also be a remote URL.
+
 `theme`
-: Active theme name. The processor loads
-  `lazysite/themes/NAME/view.tt`. May also be a remote URL.
+: Active theme name. The processor resolves it to
+  `lazysite/layouts/LAYOUT/themes/THEME/theme.json`. The theme's
+  `layouts[]` array must contain the active layout or the theme is
+  skipped with a warning.
+
+`layouts_repo`
+: GitHub OWNER/REPO path for the manager's "Install from Releases"
+  theme browser. Default unset hides the browser.
 
 `nav_file`
 : Navigation file path, docroot-relative. Default: `lazysite/nav.conf`.
@@ -157,13 +168,13 @@ Directory scan
   `X-Remote-User`, `X-Remote-Name`, `X-Remote-Email`, `X-Remote-Groups`.
 
 All other keys are available as TT variables in page content and the
-view template.
+layout template.
 
 See [Configuration](/docs/configuration) for full details.
 
 ## TT variables
 
-### Automatic variables (always available in view.tt)
+### Automatic variables (always available in layout.tt)
 
 `page_title`
 : From front matter `title:`.
@@ -178,7 +189,7 @@ See [Configuration](/docs/configuration) for full details.
 : ISO 8601 file mtime, e.g. "2026-04-03".
 
 `content`
-: Rendered page body HTML. Available in the view template.
+: Rendered page body HTML. Available in the layout template.
 
 `request_uri`
 : Current request path, e.g. `/about`. Set from `REDIRECT_URL` or
@@ -206,12 +217,27 @@ See [Configuration](/docs/configuration) for full details.
 `site_name`, `site_url`
 : From `lazysite.conf`.
 
+`layout_name`
+: Active layout name, as sanitised by the processor.
+
 `theme`
-: Active theme name.
+: Parsed `theme.json` (hash) when a compatible theme is active. Access
+  config values as `[% theme.config.GROUP.KEY %]`. Empty hash when no
+  theme is active.
+
+`theme_name`
+: Active theme name. Unset when no compatible theme is active.
 
 `theme_assets`
-: Asset path for remote themes. Set to `/lazysite-assets/NAME` when a
-  remote theme is in use. Not set for local themes.
+: URL prefix for active-theme assets.
+  `/lazysite-assets/LAYOUT/THEME/` for local themes (nested per D013);
+  `/lazysite-assets/CACHE_KEY/` for remote layouts (flat).
+  Unset when no theme is active.
+
+`theme_css`
+: Pre-rendered `<style>:root { ... }` block of CSS custom properties
+  derived from `theme.config`. Empty string when no theme is active.
+  Naming convention: `--theme-GROUP-KEY`.
 
 ### Auth variables
 
@@ -232,7 +258,7 @@ See [Configuration](/docs/configuration) for full details.
 
 `editor`
 : `1` if the authenticated user is in `manager_groups` (i.e. has
-  manager access), `0` otherwise. Use in views to gate admin UI.
+  manager access), `0` otherwise. Use in layouts to gate admin UI.
 
 ### Variable precedence
 
@@ -298,10 +324,16 @@ your deployment.
       lazysite/
         lazysite.conf              <- site configuration
         nav.conf                   <- navigation
-        themes/
-          NAME/view.tt             <- theme template (per theme)
-          NAME/assets/             <- theme assets
-          manager/view.tt          <- manager chrome (system theme)
+        layouts/
+          NAME/layout.tt           <- layout template
+          NAME/layout.json         <- layout metadata (optional)
+          NAME/themes/THEME/
+            theme.json             <- theme manifest
+            main.css               <- theme-scoped CSS
+            assets/                <- theme assets (images, fonts)
+        manager/
+          layout.tt                <- manager UI chrome (internal)
+          assets/manager.css       <- manager CSS source
         templates/
           registries/              <- registry templates (.tt)
         auth/
@@ -311,11 +343,15 @@ your deployment.
           FORMNAME.conf            <- per-form target config
           handlers.conf            <- named dispatch handlers
           smtp.conf                <- SMTP connection settings
-        cache/                     <- HTML cache, plugin cache
+        cache/
+          layouts/                 <- remote-layout cache
+          tt/                      <- TT compile cache
         logs/                      <- log files
+      lazysite-assets/
+        LAYOUT/THEME/              <- web-served theme assets (nested)
       manager/
         assets/
-          manager.css              <- manager CSS
+          manager.css              <- manager CSS (mirrored from source)
           cm/                      <- CodeMirror assets
       404.md
       index.md
