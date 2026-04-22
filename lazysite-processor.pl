@@ -2396,12 +2396,16 @@ sub get_layout_path {
         $name ||= '';  # if sanitise stripped everything, fall back
 
         if ( $name ) {
-            # Check themes directory first, then templates directory
+            # Check themes directory first, then templates directory.
+            # SM038: theme-directory branch returns $name so
+            # render_template can set theme_assets = /lazysite-assets/$name.
+            # Flat templates at $LAYOUT_DIR/$name.tt have no conventional
+            # assets dir; they return undef and get no theme_assets.
             my $theme_path = "$THEMES_DIR/$name/view.tt";
             my $tmpl_path  = "$LAYOUT_DIR/$name.tt";
 
-            return ( $theme_path, undef ) if -f $theme_path;
-            return ( $tmpl_path, undef )  if -f $tmpl_path;
+            return ( $theme_path, $name )  if -f $theme_path;
+            return ( $tmpl_path, undef )   if -f $tmpl_path;
 
             log_event('WARN', $ENV{REDIRECT_URL} // '-', 'layout not found, using default', layout => $name);
         }
@@ -2492,7 +2496,11 @@ sub render_template {
 
     my ( $layout, $theme_key ) = get_layout_path( $meta, $vars );
 
-    # Set theme_assets path for remote themes
+    # Set theme_assets path for any named theme (local or remote).
+    # Local themes get $name as the key (SM038); remote themes get
+    # the sanitised URL hash. Flat $LAYOUT_DIR/*.tt templates and
+    # the fallback default layout have no theme_key and no
+    # theme_assets.
     if ( defined $theme_key ) {
         $vars->{theme_assets} = "/lazysite-assets/$theme_key";
     }

@@ -18,8 +18,8 @@
       "bucket" : "code",
       "install_to" : "{CGIBIN}/lazysite-processor.pl",
       "path" : "lazysite-processor.pl",
-      "sha256" : "5d1534108ad8d8a42931968e7d24e7e4a7cea422182bab493a196e2ba13cfdc8",
-      "size" : 100998
+      "sha256" : "b53a6d23300a699d0178b293379c3386bbcbcd1031305c39ecf432f40e57620e",
+      "size" : 101515
     },
     {
       "bucket" : "code",
@@ -361,8 +361,8 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/features/configuration/themes.md",
       "path" : "starter/docs/features/configuration/themes.md",
-      "sha256" : "dc9765f96e5db5c1f546b281cc6bffa88ed3895d5ff85d3d58d84fd9f9116721",
-      "size" : 1472
+      "sha256" : "9dd63258a1f78ccf424bd7bb45262e51c31fa851e122b764eaf92eaa76c612eb",
+      "size" : 3153
     },
     {
       "bucket" : "seed",
@@ -815,6 +815,13 @@
     {
       "bucket" : "code",
       "install_to" : null,
+      "path" : "install.pl",
+      "sha256" : "6a970af8dfc153e758fb528ad7f8a853530d07e460742e3e39a4646f35b6e688",
+      "size" : 30106
+    },
+    {
+      "bucket" : "code",
+      "install_to" : null,
       "path" : "install.sh",
       "sha256" : "5bc035e6ed8383951864f4bbf178acf979fd3a2084471a1e5da1e8713b4082c3",
       "size" : 325
@@ -830,19 +837,19 @@
       "bucket" : "code",
       "install_to" : null,
       "path" : "installers/hestia/lazysite.stpl",
-      "sha256" : "99a4298c52a54a4e8f9021c86c705e01d019d08c0665d425678072b99780e1de",
-      "size" : 1720
+      "sha256" : "1760019cc895b29ebe803ab8fab712d0636e72dfab50f49c98006cb317a31c00",
+      "size" : 1721
     },
     {
       "bucket" : "code",
       "install_to" : null,
       "path" : "installers/hestia/lazysite.tpl",
-      "sha256" : "eb0f5f4acd9341ef445f69e30406e1426d925c564eea2f03cd89664b114821b5",
-      "size" : 1603
+      "sha256" : "a2f5d201221cd92399ed67110f12e077eee17ae54fe465e191cbe1b7cc9ae016",
+      "size" : 1604
     }
   ],
-  "generated" : "2026-04-22T12:48:54Z",
-  "min_upgrade_from" : "0.2.6",
+  "generated" : "2026-04-22T13:12:02Z",
+  "min_upgrade_from" : "0.2.7",
   "runtime_paths" : [
     {
       "mode" : "0750",
@@ -876,5 +883,5 @@
     }
   ],
   "schema_version" : "1",
-  "version" : "0.2.6"
+  "version" : "0.2.7"
 }

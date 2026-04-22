@@ -19,7 +19,7 @@
     IncludeOptional %home%/%user%/conf/web/%domain%/apache2.forcessl.conf*
     DirectoryIndex index.html index.htm
     FallbackResource /cgi-bin/lazysite-processor.pl
-    <Location /lazysite>
+    <Location /lazysite/>
         Require all denied
     </Location>
     <Directory %home%/%user%/web/%domain%/stats>

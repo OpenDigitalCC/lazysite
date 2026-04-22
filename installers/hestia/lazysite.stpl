@@ -18,7 +18,7 @@
     ErrorLog /var/log/%web_system%/domains/%domain%.error.log
     DirectoryIndex index.html index.htm
     FallbackResource /cgi-bin/lazysite-processor.pl
-    <Location /lazysite>
+    <Location /lazysite/>
         Require all denied
     </Location>
     <Directory %home%/%user%/web/%domain%/stats>
