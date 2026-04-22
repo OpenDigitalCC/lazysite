@@ -1,26 +1,22 @@
 {
   "schema_version": "1",
-  "_doc": "D021a classification config. Rules are tried in order; first match wins. Excludes are checked before rules. Overrides (by exact path) take precedence over everything.",
+  "_doc": "D021a + D022 classification config. Rules are tried in order; first match wins. Excludes are checked before rules. Overrides (by exact path) take precedence over everything.",
   "rules": [
     {
-      "_comment": "lazysite-log.pl installs to DOCROOT/../ rather than CGIBIN/ because that matches the @CANDIDATES search path in manager-api's plugin discovery. This is historic placement, not architectural.",
-      "pattern": "^lazysite-log\\.pl$",
-      "install_to": "{DOCROOT}/../lazysite-log.pl",
+      "_comment": "D022: plugins/ is the canonical home for shipped plugins. Drops the lazysite- prefix; installed under DOCROOT/../plugins/ to match manager-api's @CANDIDATES search path.",
+      "pattern": "^plugins/(.+\\.pl)$",
+      "install_to": "{DOCROOT}/../plugins/$1",
       "bucket": "code"
     },
     {
-      "pattern": "^lazysite-.*\\.pl$",
+      "_comment": "Core CGI scripts stay at repo root with the lazysite- prefix. processor, auth, manager-api are explicitly enumerated so a future stray lazysite-*.pl at root won't get silently installed to cgi-bin.",
+      "pattern": "^lazysite-(processor|auth|manager-api)\\.pl$",
       "install_to": "{CGIBIN}/$0",
       "bucket": "code"
     },
     {
       "pattern": "^tools/lazysite-users\\.pl$",
       "install_to": "{DOCROOT}/../tools/lazysite-users.pl",
-      "bucket": "code"
-    },
-    {
-      "pattern": "^tools/lazysite-audit\\.pl$",
-      "install_to": "{DOCROOT}/../tools/lazysite-audit.pl",
       "bucket": "code"
     },
     {
@@ -44,7 +40,8 @@
       "bucket": "code"
     },
     {
-      "pattern": "^starter/registries/(.+)$",
+      "_comment": "D022: registries source path now matches install destination. One rule replaces the previous rule-pair.",
+      "pattern": "^starter/lazysite/templates/registries/(.+)$",
       "install_to": "{DOCROOT}/lazysite/templates/registries/$1",
       "bucket": "seed"
     },
@@ -89,7 +86,8 @@
       "bucket": "code"
     },
     {
-      "pattern": "^(LICENSE|README\\.md|SECURITY\\.md)$",
+      "_comment": "Root-of-tarball docs including UPGRADE.md from 0.2.0 onwards.",
+      "pattern": "^(LICENSE|README\\.md|SECURITY\\.md|UPGRADE\\.md)$",
       "install_to": null,
       "bucket": "code"
     }
@@ -140,6 +138,11 @@
       "path": "{DOCROOT}/lazysite/manager/locks",
       "mode": "0755",
       "purpose": "per-file edit locks"
+    },
+    {
+      "path": "{DOCROOT}/../plugins",
+      "mode": "0755",
+      "purpose": "plugin scripts (D022)"
     }
   ]
 }
