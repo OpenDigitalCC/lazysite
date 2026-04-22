@@ -32,6 +32,19 @@ query_params:
 </div>
 </div>
 
+<div class="mg-card">
+<div class="mg-card-header">
+<span class="mg-card-title">Install from Releases</span>
+</div>
+<div class="mg-card-body">
+<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Install themes from a published release of the views repository configured in <code>lazysite.conf</code> (<code>views_repo</code>). Each install pulls every valid theme in the release.</p>
+<div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
+<button class="mg-btn mg-btn-outline" onclick="loadReleases()">Browse releases</button>
+</div>
+<div id="release-list"></div>
+</div>
+</div>
+
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 
@@ -173,6 +186,97 @@ function uploadTheme() {
       .catch(function(e) { showStatus('Upload failed: ' + e.message, true); });
   };
   reader.readAsArrayBuffer(file);
+}
+
+// SM037: browse releases of the configured views repo and install
+// themes from a chosen release. views-releases is GET so anonymous
+// GitHub rate limits (60/hour) apply to the lazysite host, not
+// visitors — the browse action is gated behind an explicit click
+// rather than auto-loaded on page view to keep the rate budget.
+function loadReleases() {
+  var container = document.getElementById('release-list');
+  container.innerHTML = '<div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>';
+  fetch(API + '?action=views-releases')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) {
+        container.innerHTML = '';
+        showStatus(data.error || 'Unable to fetch releases. Check the views_repo setting in lazysite.conf.', true);
+        return;
+      }
+      renderReleases(data.releases || [], data.repo || '');
+    })
+    .catch(function(e) {
+      container.innerHTML = '';
+      showStatus('Error: ' + e.message, true);
+    });
+}
+
+function renderReleases(releases, repo) {
+  var container = document.getElementById('release-list');
+  if (!releases.length) {
+    container.innerHTML = '<div class="mg-file-item"><span class="mg-file-name mg-empty">No releases found in ' + escHtml(repo) + '</span></div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < releases.length; i++) {
+    var r = releases[i];
+    var tag = r.tag_name || '';
+    var name = r.name || tag;
+    var date = (r.published_at || '').split('T')[0];
+    html += '<div class="mg-file-item">';
+    html += '<span class="mg-file-name">' + escHtml(name) + '</span>';
+    if (tag) {
+      html += '<span class="mg-badge">' + escHtml(tag) + '</span>';
+    }
+    if (date) {
+      html += '<span class="mg-file-meta">' + escHtml(date) + '</span>';
+    }
+    html += '<div class="mg-file-actions">';
+    html += '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="installRelease(\'' + escHtml(tag) + '\')">Install</button>';
+    html += '</div>';
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
+
+function installRelease(tag) {
+  if (!tag) { showStatus('Missing tag.', true); return; }
+  if (!confirm('Install themes from release "' + tag + '"?')) return;
+  showStatus('');
+  var prev = document.getElementById('release-list').innerHTML;
+  document.getElementById('release-list').innerHTML = '<div class="mg-file-item"><span class="mg-file-name">Installing ' + escHtml(tag) + '...</span></div>';
+  fetch(API + '?action=views-install', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tag: tag })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      document.getElementById('release-list').innerHTML = prev;
+      if (!data.ok) { showStatus(data.error || 'Install failed.', true); return; }
+      var themes = data.themes || [];
+      var ok = 0, fail = 0;
+      for (var i = 0; i < themes.length; i++) { if (themes[i].ok) ok++; else fail++; }
+      var msg = 'Installed ' + ok + ' theme' + (ok === 1 ? '' : 's') + ' from ' + tag;
+      if (fail) { msg += ' (' + fail + ' failed)'; }
+      if (fail) {
+        var parts = [];
+        for (var j = 0; j < themes.length; j++) {
+          if (!themes[j].ok) {
+            parts.push(themes[j].source + ': ' + (themes[j].error || 'failed'));
+          }
+        }
+        showStatus(msg + ' — ' + parts.join('; '), true);
+      } else {
+        showStatus(msg + '.');
+      }
+      loadThemes();
+    })
+    .catch(function(e) {
+      document.getElementById('release-list').innerHTML = prev;
+      showStatus('Install failed: ' + e.message, true);
+    });
 }
 
 loadThemes();

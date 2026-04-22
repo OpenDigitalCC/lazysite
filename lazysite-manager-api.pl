@@ -214,6 +214,8 @@ elsif ( $action eq 'theme-rename' )     {
     $result = action_theme_rename( $path, $req->{new_name} );
 }
 elsif ( $action eq 'theme-upload' )     { $result = action_theme_upload( $body, $params{filename} ) }
+elsif ( $action eq 'views-releases' )   { $result = action_views_releases() }
+elsif ( $action eq 'views-install' )    { $result = action_views_install($body) }
 elsif ( $action eq 'users' )            { $result = action_users( $body, \%params ) }
 elsif ( $action eq 'rotate-auth-secret' ) { $result = action_rotate_auth_secret( $auth_user ) }
 elsif ( $action eq 'plugin-list' )      { $result = action_plugin_list() }
@@ -943,30 +945,35 @@ sub action_theme_upload {
         return { ok => 0, error => "Extraction failed" };
     }
 
-    unless ( -f "$extract_dir/view.tt" ) {
-        _cleanup_tmp($tmp_dir);
-        return { ok => 0, error => "Upload must contain view.tt" };
-    }
-    unless ( -f "$extract_dir/theme.json" ) {
-        _cleanup_tmp($tmp_dir);
-        return { ok => 0, error => "Upload must contain theme.json" };
-    }
+    my $result = _install_theme_from_dir( $extract_dir, $action, $auth_user );
+    _cleanup_tmp($tmp_dir);
+    return $result;
+}
+
+# SM037: install a theme from an already-extracted directory. Factored
+# out of action_theme_upload so views-install can call it once per
+# theme subdirectory in a views zipball, without re-zipping each one.
+sub _install_theme_from_dir {
+    my ( $extract_dir, $action_label, $user ) = @_;
+
+    return { ok => 0, error => "Upload must contain view.tt" }
+        unless -f "$extract_dir/view.tt";
+    return { ok => 0, error => "Upload must contain theme.json" }
+        unless -f "$extract_dir/theme.json";
 
     open my $jf, '<:utf8', "$extract_dir/theme.json"
-        or do { _cleanup_tmp($tmp_dir); return { ok => 0, error => "Cannot read theme.json" } };
+        or return { ok => 0, error => "Cannot read theme.json" };
     my $json = do { local $/; <$jf> };
     close $jf;
     my $meta = eval { decode_json($json) }
-        or do { _cleanup_tmp($tmp_dir); return { ok => 0, error => "Invalid theme.json" } };
+        or return { ok => 0, error => "Invalid theme.json" };
 
     my $theme_name = $meta->{name} // '';
     $theme_name =~ s/[^a-zA-Z0-9_-]//g;
     $theme_name = lc($theme_name);
 
-    unless ($theme_name) {
-        _cleanup_tmp($tmp_dir);
-        return { ok => 0, error => "Invalid theme name in theme.json" };
-    }
+    return { ok => 0, error => "Invalid theme name in theme.json" }
+        unless $theme_name;
 
     my $install_name = $theme_name;
     my $themes_dir   = "$DOCROOT/lazysite/themes";
@@ -980,9 +987,8 @@ sub action_theme_upload {
     make_path($dest);
     my $rc = system( "cp", "-r", "$extract_dir/.", $dest );
     if ( $rc != 0 ) {
-        log_event('ERROR', 'theme-upload', 'cp failed',
-            path => $dest, rc => ( $rc >> 8 ));
-        _cleanup_tmp($tmp_dir);
+        log_event( 'ERROR', $action_label, 'cp failed',
+            path => $dest, rc => ( $rc >> 8 ) );
         return { ok => 0, error => "Install failed (cp theme files)" };
     }
 
@@ -991,14 +997,13 @@ sub action_theme_upload {
         make_path($assets_dest);
         $rc = system( "cp", "-r", "$extract_dir/assets/.", $assets_dest );
         if ( $rc != 0 ) {
-            log_event('WARN', 'theme-upload', 'cp assets failed',
-                path => $assets_dest, rc => ( $rc >> 8 ));
+            log_event( 'WARN', $action_label, 'cp assets failed',
+                path => $assets_dest, rc => ( $rc >> 8 ) );
         }
     }
 
-    _cleanup_tmp($tmp_dir);
-
-    log_event('INFO', $action, 'theme installed', name => $install_name, user => $auth_user);
+    log_event( 'INFO', $action_label, 'theme installed',
+        name => $install_name, user => $user );
 
     return { ok => 1, name => $install_name, installed_as => $install_name };
 }
@@ -1006,6 +1011,189 @@ sub action_theme_upload {
 sub _cleanup_tmp {
     my ($dir) = @_;
     system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-theme-\d+$};
+}
+
+# --- SM037: views-releases browser + release installer ---
+
+sub _views_repo {
+    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    return undef unless -f $conf_path;
+    open my $fh, '<', $conf_path or return undef;
+    my $repo;
+    while (<$fh>) {
+        if (/^views_repo\s*:\s*(\S+)/) { $repo = $1; last }
+    }
+    close $fh;
+    return $repo;
+}
+
+sub action_views_releases {
+    my $repo = _views_repo();
+    return { ok => 0,
+        error => 'Unable to fetch releases. Check the views_repo setting in lazysite.conf.' }
+        unless defined $repo && length $repo
+            && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+
+    require LWP::UserAgent;
+    my $ua = LWP::UserAgent->new( timeout => 10, agent => 'lazysite/1.0' );
+    my $url = "https://api.github.com/repos/$repo/releases";
+    my $res = $ua->get( $url, 'Accept' => 'application/vnd.github+json' );
+
+    return { ok => 0,
+        error => 'Unable to fetch releases. Check the views_repo setting in lazysite.conf.' }
+        unless $res->is_success;
+
+    my $data = eval { decode_json( $res->decoded_content ) };
+    return { ok => 0,
+        error => 'Unable to fetch releases. Check the views_repo setting in lazysite.conf.' }
+        unless ref $data eq 'ARRAY';
+
+    my @releases;
+    for my $r (@$data) {
+        push @releases, {
+            tag_name     => $r->{tag_name}     // '',
+            name         => $r->{name}         // '',
+            published_at => $r->{published_at} // '',
+            body         => $r->{body}         // '',
+        };
+    }
+    return { ok => 1, repo => $repo, releases => \@releases };
+}
+
+sub action_views_install {
+    my ($request_body) = @_;
+    my $req = eval { decode_json( $request_body // '{}' ) } // {};
+    my $tag = $req->{tag} // '';
+
+    # Tags can hold versioned names like v1.2.0 or release-2026-04-01
+    # (and optionally refs/tags-style slashes). Reject any ".." sequence
+    # to stop URL traversal into other GitHub API endpoints.
+    return { ok => 0, error => 'Invalid tag' }
+        unless length $tag
+            && $tag =~ m{^[A-Za-z0-9._/-]+$}
+            && $tag !~ m{\.\.};
+
+    my $repo = _views_repo();
+    return { ok => 0, error => 'views_repo not set or invalid in lazysite.conf' }
+        unless defined $repo && length $repo
+            && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+
+    my $have_azip = eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)); 1 };
+    return { ok => 0,
+        error => 'Archive::Zip not installed (apt-get install libarchive-zip-perl)' }
+        unless $have_azip;
+
+    require LWP::UserAgent;
+    # Zipballs are larger than the releases JSON; allow more time.
+    my $ua  = LWP::UserAgent->new( timeout => 30, agent => 'lazysite/1.0' );
+    my $url = "https://api.github.com/repos/$repo/zipball/$tag";
+    my $res = $ua->get($url);
+    return { ok => 0, error => 'Failed to fetch zipball: ' . $res->status_line }
+        unless $res->is_success;
+
+    my $tmp_dir = "/tmp/lazysite-views-$$";
+    make_path($tmp_dir);
+
+    my $zip_path = "$tmp_dir/release.zip";
+    unless ( open my $zfh, '>:raw', $zip_path ) {
+        _cleanup_tmp_views($tmp_dir);
+        return { ok => 0, error => 'Cannot write zipball' };
+    }
+    else {
+        print $zfh $res->content;
+        close $zfh;
+    }
+
+    my $extract_dir = "$tmp_dir/extracted";
+    make_path($extract_dir);
+
+    my $zip = Archive::Zip->new();
+    unless ( $zip->read($zip_path) == Archive::Zip::AZ_OK() ) {
+        _cleanup_tmp_views($tmp_dir);
+        return { ok => 0, error => 'Cannot read zipball' };
+    }
+
+    for my $member ( $zip->members ) {
+        my $name = $member->fileName;
+        if ( $name =~ m{\A/} ) {
+            _cleanup_tmp_views($tmp_dir);
+            return { ok => 0, error => "Zip entry has absolute path: $name" };
+        }
+        if ( $name =~ m{(?:^|/)\.\.(?:/|$)} ) {
+            _cleanup_tmp_views($tmp_dir);
+            return { ok => 0, error => "Zip slip detected in: $name" };
+        }
+    }
+
+    unless ( $zip->extractTree( '', "$extract_dir/" ) == Archive::Zip::AZ_OK() ) {
+        _cleanup_tmp_views($tmp_dir);
+        return { ok => 0, error => 'Extraction failed' };
+    }
+
+    # DP-B: GitHub zipballs nest everything under a single top-level
+    # wrapper dir named OWNER-REPO-SHA. Strip it so the theme subdirs
+    # sit at the top of our walk.
+    my @top;
+    unless ( opendir my $dh, $extract_dir ) {
+        _cleanup_tmp_views($tmp_dir);
+        return { ok => 0, error => 'Cannot read extracted dir' };
+    }
+    else {
+        for my $e ( readdir $dh ) {
+            next if $e =~ /^\./;
+            push @top, $e if -d "$extract_dir/$e";
+        }
+        closedir $dh;
+    }
+
+    unless ( @top == 1 ) {
+        _cleanup_tmp_views($tmp_dir);
+        return { ok => 0,
+            error => 'Unexpected zipball layout (expected single wrapper dir)' };
+    }
+    my $wrapper = "$extract_dir/$top[0]";
+
+    # Walk subdirs of the wrapper; treat each dir containing BOTH
+    # view.tt and theme.json as an installable theme. DP-A: install
+    # every valid theme in one operation, report per-theme results,
+    # best-effort per individual install.
+    my @results;
+    unless ( opendir my $wh, $wrapper ) {
+        _cleanup_tmp_views($tmp_dir);
+        return { ok => 0, error => 'Cannot read wrapper dir' };
+    }
+    else {
+        for my $entry ( sort readdir $wh ) {
+            next if $entry =~ /^\./;
+            my $sub = "$wrapper/$entry";
+            next unless -d $sub;
+            next unless -f "$sub/view.tt" && -f "$sub/theme.json";
+
+            my $r = _install_theme_from_dir( $sub, 'views-install', $auth_user );
+            push @results, { source => $entry, %$r };
+        }
+        closedir $wh;
+    }
+
+    _cleanup_tmp_views($tmp_dir);
+
+    unless (@results) {
+        return { ok => 0,
+            error => 'No valid themes found in release (each theme needs view.tt + theme.json)' };
+    }
+
+    my $installed = scalar grep { $_->{ok} } @results;
+    log_event( 'INFO', 'views-install', 'release installed',
+        repo => $repo, tag => $tag,
+        installed => $installed, total => scalar @results,
+        user => $auth_user );
+
+    return { ok => 1, repo => $repo, tag => $tag, themes => \@results };
+}
+
+sub _cleanup_tmp_views {
+    my ($dir) = @_;
+    system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-views-\d+$};
 }
 
 # --- User management proxy ---
@@ -1249,11 +1437,14 @@ sub action_plugin_list {
     }
 
     # D022: plugins moved to plugins/ with the lazysite- prefix
-    # dropped. lazysite-auth.pl stays at repo root (core wrapper)
-    # but remains a plugin in the manager-UI sense. payment-demo
-    # has no --describe support so it's not listed here; SM027
-    # will decide its plugin status when F0016 (x402) lands.
+    # dropped. lazysite-processor.pl and lazysite-auth.pl stay at
+    # repo root (core) but expose --describe and are plugins in
+    # the manager-UI sense — the site config page at config.md
+    # drives its form from the processor's descriptor rather than
+    # duplicating the schema. payment-demo has no --describe
+    # support so it's not listed here.
     my @CANDIDATES = (
+        'lazysite-processor.pl',
         'lazysite-auth.pl',
         'plugins/form-handler.pl',
         'plugins/form-smtp.pl',

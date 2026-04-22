@@ -18,8 +18,11 @@ search: false
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
-var SITE_PLUGIN_ID     = 'lazysite';
-var SITE_PLUGIN_SCRIPT = 'cgi-bin/lazysite-processor.pl';
+var SITE_PLUGIN_ID = 'lazysite';
+// SM028: script path is discovered from plugin-list (processor exposes
+// --describe with id="lazysite") rather than hardcoded, so the manager
+// keeps working if the processor is ever moved.
+var sitePluginScript = null;
 
 var SITE_SCHEMA = [
   { key: 'site_name',      label: 'Site name',             type: 'text',   required: true,
@@ -46,9 +49,10 @@ function esc(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/<
 // --- Site settings ---
 
 function loadSiteSettings() {
+  if (!sitePluginScript) return;
   fetch(API + '?action=plugin-read&plugin=' + encodeURIComponent(SITE_PLUGIN_ID), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ script: SITE_PLUGIN_SCRIPT })
+    body: JSON.stringify({ script: sitePluginScript })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -119,7 +123,7 @@ function saveSiteSettings(e) {
   status.textContent = 'Saving...';
   fetch(API + '?action=plugin-save&plugin=' + encodeURIComponent(SITE_PLUGIN_ID), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ script: SITE_PLUGIN_SCRIPT, values: values })
+    body: JSON.stringify({ script: sitePluginScript, values: values })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -147,18 +151,40 @@ function loadPluginRegistry() {
   fetch(API + '?action=plugin-list')
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      var container = document.getElementById('plugin-registry');
+      var regContainer = document.getElementById('plugin-registry');
+      var siteContainer = document.getElementById('site-settings');
       if (!data.ok) {
         mgShowWarning(data.error || 'Failed to load plugins', true);
-        container.textContent = '';
+        regContainer.textContent = '';
+        siteContainer.textContent = '';
         return;
       }
       mgClearWarning();
-      renderPluginRegistry(data.plugins || []);
+      var plugins = data.plugins || [];
+
+      // SM028: discover the site-config plugin's script path here so the
+      // settings form uses the same source as the registry. Filter the
+      // core processor out of the togglable registry below — it's the
+      // host, not an optional plugin.
+      var core;
+      for (var i = 0; i < plugins.length; i++) {
+        if (plugins[i].id === SITE_PLUGIN_ID) { core = plugins[i]; break; }
+      }
+      if (core) {
+        sitePluginScript = core._script;
+        loadSiteSettings();
+      } else {
+        siteContainer.textContent = '';
+        mgShowWarning('Site configuration plugin not discovered.', true);
+      }
+
+      var toRender = plugins.filter(function(p) { return p.id !== SITE_PLUGIN_ID; });
+      renderPluginRegistry(toRender);
     })
     .catch(function(e) {
       mgShowWarning('Error: ' + e.message, true);
       document.getElementById('plugin-registry').textContent = '';
+      document.getElementById('site-settings').textContent = '';
     });
 }
 
@@ -209,7 +235,6 @@ function togglePlugin(input, script, name) {
   });
 }
 
-loadSiteSettings();
 loadPluginRegistry();
 </script>
 

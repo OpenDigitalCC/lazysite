@@ -16,6 +16,14 @@ manager_path: /manager
 # cookie validation, so it does not need this flag.
 # auth_proxy_trusted: false
 
+# SM037: views repository for the manager's "Install from Releases"
+# browser (themes page). Format is OWNER/REPO; the manager hits the
+# GitHub REST API anonymously, which is rate-limited to 60 requests
+# per hour per source IP (the lazysite host, not visitors) and
+# requires outbound HTTPS to api.github.com. Unset this to hide the
+# release browser entirely.
+# views_repo: OpenDigitalCC/lazysite-views
+
 # Plugins are auto-discovered from cgi-bin/ and tools/.
 # Scripts with --describe support appear in the manager.
 # Use the manager Plugins page to enable or disable them.

@@ -80,8 +80,12 @@ SKIP: {
     ok( ref $data->{plugins} eq 'ARRAY', 'plugins is array' );
 
     my @ids = map { $_->{id} // '' } @{ $data->{plugins} };
-    ok( !( grep { $_ eq 'lazysite' } @ids ),
-        'core processor (id=lazysite) is NOT listed as plugin' );
+    # SM028: processor is listed server-side (id=lazysite) so the
+    # manager config page can discover its script path. The config
+    # UI filters it out of the togglable plugin registry — that's
+    # a UI concern, not an API one.
+    ok( ( grep { $_ eq 'lazysite' } @ids ),
+        'core processor (id=lazysite) IS listed for UI discovery' );
 
     ok( scalar @{ $data->{plugins} } > 0,
         'at least one plugin discovered' );

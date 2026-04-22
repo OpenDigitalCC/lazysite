@@ -11,8 +11,8 @@
       "bucket" : "code",
       "install_to" : "{CGIBIN}/lazysite-manager-api.pl",
       "path" : "lazysite-manager-api.pl",
-      "sha256" : "0cc2beef458ff7a9a3081daf795640d3778bd0ad88c2dbaebcf91c1c3c0b5b00",
-      "size" : 78425
+      "sha256" : "a2a447b7d7dad7d169dd3247cc01e0d3371735b4efb5c196e0c7da9589bf89c8",
+      "size" : 85275
     },
     {
       "bucket" : "code",
@@ -529,8 +529,8 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/lazysite/lazysite.conf.example",
       "path" : "starter/lazysite.conf.example",
-      "sha256" : "c928f7c9d10b82514e2ad6d22cf09fc0933d3d81a5753125547ba9cb72a46444",
-      "size" : 1995
+      "sha256" : "1b609b9d22ad52ac6334f4d164ee5a8ca6d877bfefcd68a698cbaa9214240d73",
+      "size" : 2402
     },
     {
       "bucket" : "seed",
@@ -697,8 +697,8 @@
       "bucket" : "code",
       "install_to" : "{DOCROOT}/manager/config.md",
       "path" : "starter/manager/config.md",
-      "sha256" : "fa157187141bf01f401b217b9f3324a76d26bf515e8727a838b70c262fb41115",
-      "size" : 8445
+      "sha256" : "7fe95a0c898b9a14c34c441d63f066510c018839576cb5a67fde44fd08169cd8",
+      "size" : 9542
     },
     {
       "bucket" : "code",
@@ -739,8 +739,8 @@
       "bucket" : "code",
       "install_to" : "{DOCROOT}/manager/themes.md",
       "path" : "starter/manager/themes.md",
-      "sha256" : "5917bd3ad43182a7b134c8f8e0ab1fbc90454f8556bdb10767866a2725268717",
-      "size" : 6396
+      "sha256" : "ecad36599203340c53d9230e978dcd5f18ccfc8b62996f6706b8e92ad31a4e2e",
+      "size" : 10648
     },
     {
       "bucket" : "code",
@@ -848,8 +848,8 @@
       "size" : 1604
     }
   ],
-  "generated" : "2026-04-22T13:12:16Z",
-  "min_upgrade_from" : "0.2.8",
+  "generated" : "2026-04-22T16:12:46Z",
+  "min_upgrade_from" : "0.2.9",
   "runtime_paths" : [
     {
       "mode" : "0750",
@@ -883,5 +883,5 @@
     }
   ],
   "schema_version" : "1",
-  "version" : "0.2.8"
+  "version" : "0.2.9"
 }
