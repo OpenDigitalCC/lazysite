@@ -11,8 +11,8 @@
       "bucket" : "code",
       "install_to" : "{CGIBIN}/lazysite-manager-api.pl",
       "path" : "lazysite-manager-api.pl",
-      "sha256" : "fa21946612614bf39bc13eebd1d774ef7614d15474af99f1e32a92e413ec2589",
-      "size" : 93038
+      "sha256" : "0151d3d6ce77012ecd6864e6fe07488d71e3b58a1421157aff819a077720f4cd",
+      "size" : 95866
     },
     {
       "bucket" : "code",
@@ -67,8 +67,8 @@
       "bucket" : "code",
       "install_to" : "{DOCROOT}/../tools/lazysite-server.pl",
       "path" : "tools/lazysite-server.pl",
-      "sha256" : "e0263d7e01e715ed3359d2c567fb6941cf47a40bff795088481edf9cedd36041",
-      "size" : 19699
+      "sha256" : "d4516e4db41e702aca5bc27fbbd0c965f10524bea9606eac033a396a6963f1fe",
+      "size" : 20052
     },
     {
       "bucket" : "code",
@@ -592,8 +592,8 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/login.md",
       "path" : "starter/login.md",
-      "sha256" : "002cc3aca6db64b9ced8a9139c86460d1d602739734905c91b677286f207ae41",
-      "size" : 2448
+      "sha256" : "6ec4432b8909729d47e463b942816ca92fe161e71580894ccbc5e3f9e40fd88d",
+      "size" : 2936
     },
     {
       "bucket" : "seed",
@@ -855,8 +855,8 @@
       "size" : 1604
     }
   ],
-  "generated" : "2026-04-22T19:38:25Z",
-  "min_upgrade_from" : "0.2.15",
+  "generated" : "2026-04-22T19:59:53Z",
+  "min_upgrade_from" : "0.2.16",
   "runtime_paths" : [
     {
       "mode" : "0750",
@@ -895,5 +895,5 @@
     }
   ],
   "schema_version" : "1",
-  "version" : "0.2.15"
+  "version" : "0.2.16"
 }

@@ -1240,32 +1240,96 @@ sub action_layouts_install {
     }
     my $wrapper = "$extract_dir/$top[0]";
 
-    # D013: walk subdirs for theme.json-bearing dirs (no longer
-    # view.tt — themes under D013 don't ship layout templates).
-    # Per-theme install is best-effort.
-    my @results;
-    unless ( opendir my $wh, $wrapper ) {
+    # SM046: LL v0.3.0+ release shape. Themes live nested at
+    # $wrapper/layouts/LAYOUT/themes/THEME/, with theme.json at each
+    # theme root. Pre-LL-v0.3.0 flat shape (theme.json in a top-level
+    # subdir) is rejected — that shape pre-dates D013 and would fail
+    # _install_theme_from_dir's layouts[] check anyway.
+    my $layouts_dir = "$wrapper/layouts";
+    unless ( -d $layouts_dir ) {
         _cleanup_tmp_layouts($tmp_dir);
-        return { ok => 0, error => 'Cannot read wrapper dir' };
+        return { ok => 0,
+            error => 'Release does not contain a layouts/ directory '
+                   . '(repo must follow D013 nested shape: layouts/LAYOUT/themes/THEME/)' };
+    }
+
+    my @results;
+    unless ( opendir my $ld, $layouts_dir ) {
+        _cleanup_tmp_layouts($tmp_dir);
+        return { ok => 0, error => 'Cannot read layouts dir' };
     }
     else {
-        for my $entry ( sort readdir $wh ) {
-            next if $entry =~ /^\./;
-            my $sub = "$wrapper/$entry";
-            next unless -d $sub;
-            next unless -f "$sub/theme.json";
+        for my $layout_name ( sort readdir $ld ) {
+            next if $layout_name =~ /^\./;
+            my $layout_path = "$layouts_dir/$layout_name";
+            next unless -d $layout_path;
 
-            my $r = _install_theme_from_dir( $sub, 'layouts-install', $auth_user );
-            push @results, { source => $entry, %$r };
+            my $themes_path = "$layout_path/themes";
+            next unless -d $themes_path;
+
+            opendir my $th, $themes_path or next;
+            for my $theme_name ( sort readdir $th ) {
+                next if $theme_name =~ /^\./;
+                my $theme_path = "$themes_path/$theme_name";
+                next unless -d $theme_path;
+
+                my $source_rel = "layouts/$layout_name/themes/$theme_name";
+
+                unless ( -f "$theme_path/theme.json" ) {
+                    push @results, {
+                        source => $source_rel,
+                        ok     => JSON::PP::false(),
+                        error  => 'Missing theme.json',
+                    };
+                    next;
+                }
+
+                # SM046 consistency check: theme.json's layouts[] must
+                # include the source-path LAYOUT. Catches repo-author
+                # mistakes (theme filed under the wrong layout dir) at
+                # install time rather than at render time. Does NOT
+                # replace _install_theme_from_dir's target-site check
+                # — that validates every declared layout exists on
+                # this install.
+                my $mismatch;
+                if ( open my $jf, '<:utf8', "$theme_path/theme.json" ) {
+                    my $raw = do { local $/; <$jf> };
+                    close $jf;
+                    my $meta = eval { decode_json($raw) };
+                    if ( ref $meta eq 'HASH' && ref $meta->{layouts} eq 'ARRAY' ) {
+                        unless ( grep { $_ eq $layout_name } @{ $meta->{layouts} } ) {
+                            $mismatch = sprintf(
+                                "Theme %s under %s declares layouts: [%s], "
+                                . "mismatching source path",
+                                $theme_name, $source_rel,
+                                join( ', ', @{ $meta->{layouts} } )
+                            );
+                        }
+                    }
+                }
+                if ($mismatch) {
+                    push @results, {
+                        source => $source_rel,
+                        ok     => JSON::PP::false(),
+                        error  => $mismatch,
+                    };
+                    next;
+                }
+
+                my $r = _install_theme_from_dir(
+                    $theme_path, 'layouts-install', $auth_user );
+                push @results, { source => $source_rel, %$r };
+            }
+            closedir $th;
         }
-        closedir $wh;
+        closedir $ld;
     }
 
     _cleanup_tmp_layouts($tmp_dir);
 
     unless (@results) {
         return { ok => 0,
-            error => 'No valid themes found in release (each theme needs theme.json at its root)' };
+            error => 'No themes found under layouts/*/themes/ in release' };
     }
 
     my $installed = scalar grep { $_->{ok} } @results;

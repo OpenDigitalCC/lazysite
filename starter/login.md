@@ -65,6 +65,18 @@ query_params:
     padding: 0.1em 0.4em;
     border-radius: 3px;
   }
+  /* SM052: .login-context-url replaces a <code> wrapper that
+     was eating the TT expression inside it. render_content's
+     code-block protection regex treats <code>...</code> as
+     literal and skips TT evaluation. This span looks the same
+     but isn't caught. */
+  .login-context-url {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    background: #f0f0f0;
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    word-break: break-all;
+  }
 </style>
 
 [% IF query.error %]
@@ -73,7 +85,7 @@ query_params:
 
 [% IF query.next %]
 <p class="login-context">
-  <code>[% query.next | html %]</code> requires you to sign in.
+  <span class="login-context-url">[% query.next | html %]</span> requires you to sign in.
 </p>
 [% END %]
 

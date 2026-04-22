@@ -64,6 +64,13 @@ my $has_hires = eval { require Time::HiRes; 1 };
 
 my $LOG_COMPONENT = 'dev-server';
 
+# SM051: ignore SIGPIPE so the server survives mid-response client
+# disconnects (browser tab closed, navigation away, DevTools abort).
+# Without this the write syscall gets SIGPIPE on the broken pipe and
+# the server process exits 141. Ignoring the signal makes the write
+# return EPIPE which the regular IO error path handles.
+$SIG{PIPE} = 'IGNORE';
+
 # --- Defaults ---
 
 my $SCRIPT_DIR = dirname( abs_path($0) );
