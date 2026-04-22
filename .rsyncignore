@@ -1,32 +1,31 @@
-# Version control
-.git/
+# Workflow and operator state that should NOT rsync
+# from CC's sandbox to Stuart's environment.
+# Stuart uses this with:
+#     rsync -av --exclude-from=.rsyncignore ...
 
-# Project version state: Stuart owns these
+# Project version state: Stuart owns these.
 VERSION
 NEXT_VERSION
 
-# Runtime operator conf for live sites
+# Runtime operator conf for live sites:
 starter/lazysite/lazysite.conf
 starter/lazysite/nav.conf
 starter/lazysite/forms/contact.conf
 starter/lazysite/forms/handlers.conf
-starter/lazysite/forms/smtp.conf
 
-# Auth state (never transfer)
+# Auth state: never transferred:
 starter/lazysite/auth/users
 starter/lazysite/auth/groups
-starter/lazysite/auth/.secret
 
-# Cache and logs
-starter/lazysite/cache/
-starter/lazysite/logs/
-
-# Build outputs
+# Generated at build time:
 dist/lazysite-*.tar.gz
 dist/lazysite-*.tar.gz.sha256
 release-manifest.json
 sbom.json
 
-# Dev environment
-test-site/
-pre-release.sh
+# Cache and logs if present in sandbox:
+starter/lazysite/cache/
+starter/lazysite/logs/
+
+# Version control
+.git/
