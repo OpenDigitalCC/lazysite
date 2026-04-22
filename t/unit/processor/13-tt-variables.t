@@ -78,4 +78,46 @@ is( $v{blog_pages}[0]{title}, 'Post', 'scan: page title populated' );
         'env var interpolation inside conf value' );
 }
 
+# --- SM038: get_layout_path returns $name as theme_key for local
+#     theme directories, so render_template sets
+#     theme_assets = /lazysite-assets/$name. Flat templates at
+#     $LAYOUT_DIR/*.tt continue to return undef.
+{
+    # Local theme directory at $THEMES_DIR/mytheme/view.tt.
+    my $theme_dir = "$docroot/lazysite/themes/mytheme";
+    make_path($theme_dir);
+    open my $vfh, '>', "$theme_dir/view.tt" or die $!;
+    print $vfh "<html>[% content %]</html>\n";
+    close $vfh;
+
+    # meta->{layout} drives the lookup; no need for a fallback conf value.
+    my $meta = { layout => 'mytheme' };
+    my %vars = ();    # manager_path default OK
+    my ( $layout, $theme_key ) = main::get_layout_path( $meta, \%vars );
+    is( $layout, "$theme_dir/view.tt", 'local theme view.tt resolved' );
+    is( $theme_key, 'mytheme',
+        'local theme-directory returns sanitised name as theme_key' );
+
+    # Flat template at $LAYOUT_DIR/flat.tt - theme_key should stay undef.
+    my $tmpl_dir = "$docroot/lazysite/templates";
+    make_path($tmpl_dir);
+    open my $tfh, '>', "$tmpl_dir/flat.tt" or die $!;
+    print $tfh "<html>[% content %]</html>\n";
+    close $tfh;
+
+    my ( $flat_layout, $flat_key ) = main::get_layout_path(
+        { layout => 'flat' }, \%vars
+    );
+    is( $flat_layout, "$tmpl_dir/flat.tt",
+        'flat template resolved' );
+    is( $flat_key, undef,
+        'flat template returns undef theme_key (no assets convention)' );
+
+    # Missing theme returns fallback with undef key.
+    my ( $fb_layout, $fb_key ) = main::get_layout_path(
+        { layout => 'nonexistent' }, \%vars
+    );
+    is( $fb_key, undef, 'missing theme returns undef theme_key' );
+}
+
 done_testing();
