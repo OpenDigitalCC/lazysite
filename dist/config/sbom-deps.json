@@ -139,6 +139,11 @@
       "rhel_pkg": "perl-URI",
       "alpine_pkg": "perl-uri",
       "used_by": "URL parsing in SSRF guard and remote-fetch path resolution"
+    },
+    "Getopt::Long": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "install.pl CLI argument parsing"
     }
   },
   "environment": [
@@ -146,15 +151,24 @@
       "name": "perl",
       "description": "Perl runtime. Required version 5.10+. On Debian: 'perl'. On Alpine: 'perl'. On RHEL: 'perl'. Includes core modules listed above.",
       "external_refs": [
-        {"type": "distribution", "url": "https://packages.debian.org/stable/perl"},
-        {"type": "distribution", "url": "https://pkgs.alpinelinux.org/package/edge/main/x86_64/perl"}
+        {
+          "type": "distribution",
+          "url": "https://packages.debian.org/stable/perl"
+        },
+        {
+          "type": "distribution",
+          "url": "https://pkgs.alpinelinux.org/package/edge/main/x86_64/perl"
+        }
       ]
     },
     {
       "name": "Apache HTTP Server",
       "description": "CGI host. Operator-provided. Any CGI/1.1-capable server works; Apache is the reference platform. The dev server (tools/lazysite-server.pl) is evaluation-only.",
       "external_refs": [
-        {"type": "distribution", "url": "https://packages.debian.org/stable/apache2"}
+        {
+          "type": "distribution",
+          "url": "https://packages.debian.org/stable/apache2"
+        }
       ]
     }
   ]
