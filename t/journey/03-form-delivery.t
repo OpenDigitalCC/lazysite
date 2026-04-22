@@ -105,7 +105,7 @@ sleep 4;
     require IPC::Open2;
     my ( $cout, $cin );
     my $pid = IPC::Open2::open2( $cout, $cin,
-        $^X, "$root/lazysite-form-handler.pl" );
+        $^X, "$root/plugins/form-handler.pl" );
     print $cin $body;
     close $cin;
     my $out = do { local $/; <$cout> };
@@ -148,7 +148,7 @@ sleep 4;
     require IPC::Open2;
     my ( $cout, $cin );
     my $pid = IPC::Open2::open2( $cout, $cin,
-        $^X, "$root/lazysite-form-handler.pl" );
+        $^X, "$root/plugins/form-handler.pl" );
     print $cin $body;
     close $cin;
     my $out = do { local $/; <$cout> };
@@ -175,7 +175,7 @@ sleep 4;
     require IPC::Open2;
     my ( $cout, $cin );
     my $pid = IPC::Open2::open2( $cout, $cin,
-        $^X, "$root/lazysite-form-handler.pl" );
+        $^X, "$root/plugins/form-handler.pl" );
     print $cin $body;
     close $cin;
     my $out = do { local $/; <$cout> };

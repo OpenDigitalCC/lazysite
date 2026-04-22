@@ -144,7 +144,7 @@ processor looks for `HTTP_X_PAYMENT_VERIFIED=1` as the signal that
 an upstream payment proxy has validated the payment. If absent, the
 processor emits a 402 response with an `X-Payment-Response` header
 in the x402 shape. Demo mode is handled by
-`lazysite-payment-demo.pl`.
+`plugins/payment-demo.pl`.
 
 Payment bypass via group membership is supported:
 `auth_groups: [members]` on a `payment:` page allows authenticated

@@ -1,0 +1,506 @@
+#!/usr/bin/perl
+# lazysite-audit - link audit for lazysite docroots
+# Reports orphaned pages (exist but not linked) and broken links
+#
+# Usage: perl lazysite-audit.pl [options] [docroot]
+#
+# Options:
+#   --exclude path,path,...   comma-separated canonical paths to exclude
+#   --exclude-file FILE       file containing one exclusion per line
+#   --scan                    write Markdown report and output JSON
+#   --describe                print plugin descriptor JSON and exit
+#   --docroot PATH            set docroot explicitly
+
+use strict;
+use warnings;
+use File::Find;
+use File::Basename qw(dirname basename);
+use File::Path qw(make_path);
+use Cwd qw(abs_path);
+
+my $LOG_COMPONENT = 'audit';
+
+# --- Image and asset extensions to ignore as link targets ---
+
+my %IGNORE_EXT = map { $_ => 1 } qw(
+    svg png jpg jpeg gif webp ico bmp tiff
+    pdf zip tar gz bz2 xz
+    css js woff woff2 ttf eot
+    mp4 mp3 ogg webm
+);
+
+# --- Parse arguments ---
+
+my %exclude;
+my $DOCROOT;
+my $SCAN_MODE = 0;
+
+while ( @ARGV ) {
+    my $arg = shift @ARGV;
+    if ( $arg eq '--describe' ) {
+        print_describe();
+        exit 0;
+    }
+    elsif ( $arg eq '--scan' ) {
+        $SCAN_MODE = 1;
+    }
+    elsif ( $arg eq '--docroot' ) {
+        $DOCROOT = shift @ARGV;
+    }
+    elsif ( $arg eq '--exclude' ) {
+        my $list = shift @ARGV or die "Missing value for --exclude\n";
+        $exclude{$_} = 1 for split /,/, $list;
+    }
+    elsif ( $arg eq '--exclude-file' ) {
+        my $file = shift @ARGV or die "Missing value for --exclude-file\n";
+        open( my $fh, '<:utf8', $file ) or die "Cannot read $file: $!\n";  # L-6
+        while (<$fh>) {
+            chomp;
+            s/^\s+|\s+$//g;
+            $exclude{$_} = 1 if length;
+        }
+        close $fh;
+    }
+    else {
+        $DOCROOT = $arg unless $DOCROOT;
+    }
+}
+
+$DOCROOT = abs_path( $DOCROOT || '.' );
+die "Docroot not found: $DOCROOT\n" unless -d $DOCROOT;
+
+# Always exclude these from orphan report
+$exclude{'404'} = 1;
+$exclude{''}    = 1;
+
+# --- Main ---
+
+log_event('INFO', $DOCROOT, 'audit started');
+
+my $results = collect_audit_results();
+
+log_event('INFO', $DOCROOT, 'audit complete', pages => scalar keys %{ $results->{pages} });
+
+if ( $SCAN_MODE ) {
+    run_scan($results);
+}
+else {
+    print_report($results);
+}
+
+# --- Collect results ---
+
+sub collect_audit_results {
+    my %pages;
+    my %sources;
+    my %inbound;
+    my %outbound;
+
+    find( sub {
+        return unless -f;
+        return unless /\.(md|url)$/;
+        my $rel = $File::Find::name;
+        $rel =~ s{^\Q$DOCROOT\E/}{};
+        return if $rel =~ m{^lazysite/};
+        return if $rel =~ m{(^|/)\.};
+        my $canon = canonical($rel);
+        $pages{$canon}   = 1;
+        $sources{$canon} = $rel;
+        # .url files are themselves reachable entry points
+        push @{ $inbound{$canon} }, 'url-entrypoint' if /\.url$/;
+    }, $DOCROOT );
+
+    find( sub {
+        return unless -f && /\.md$/;
+        my $rel = $File::Find::name;
+        $rel =~ s{^\Q$DOCROOT\E/}{};
+        return if $rel =~ m{^lazysite/};
+        return if $rel =~ m{(^|/)\.};
+        extract_links( $File::Find::name, $rel, \%inbound, \%outbound );
+        extract_scan_refs( $File::Find::name, $rel, \%inbound );
+    }, $DOCROOT );
+
+    find( sub {
+        return unless -f && /\.url$/;
+        my $rel = $File::Find::name;
+        $rel =~ s{^\Q$DOCROOT\E/}{};
+        return if $rel =~ m{(^|/)\.};
+        ( my $html_path = $File::Find::name ) =~ s/\.url$/.html/;
+        if ( -f $html_path ) {
+            extract_links( $html_path, $rel, \%inbound, \%outbound );
+        }
+    }, $DOCROOT );
+
+    if ( -d "$DOCROOT/lazysite/templates" ) {
+        find( sub {
+            return unless -f && /\.tt$/;
+            my $rel = $File::Find::name;
+            $rel =~ s{^\Q$DOCROOT\E/}{};
+            return if $rel =~ m{(^|/)\.};
+            extract_links( $File::Find::name, $rel, \%inbound, \%outbound );
+        }, "$DOCROOT/lazysite/templates" );
+    }
+
+    my @orphans;
+    for my $canon ( sort keys %pages ) {
+        next if $exclude{$canon};
+        push @orphans, $canon unless $inbound{$canon};
+    }
+
+    my %seen_broken;
+    my @broken;
+    for my $source ( sort keys %outbound ) {
+        for my $target ( @{ $outbound{$source} } ) {
+            next if $pages{$target};
+            ( my $with_index = $target ) =~ s{/index$}{};
+            next if $pages{$with_index};
+            next if $seen_broken{"$source->$target"}++;
+            push @broken, { source => $source, target => $target };
+        }
+    }
+
+    return {
+        pages    => \%pages,
+        sources  => \%sources,
+        broken   => \@broken,
+        orphaned => \@orphans,
+    };
+}
+
+# --- Scan mode ---
+
+sub run_scan {
+    my ($results) = @_;
+
+    my $report_dir = "$DOCROOT/manager";
+    make_path($report_dir) unless -d $report_dir;
+
+    my $report_path = "$report_dir/audit-report.md";
+    my $report_url  = '/manager/audit-report';
+
+    write_audit_report( $report_path, $results );
+    log_event('INFO', $DOCROOT, 'report written', path => $report_path);
+
+    my $cache = "$report_dir/audit-report.html";
+    unlink $cache if -f $cache;
+
+    require JSON::PP;
+    print JSON::PP::encode_json({
+        ok         => 1,
+        report_url => $report_url,
+        broken     => scalar @{ $results->{broken} },
+        orphaned   => scalar @{ $results->{orphaned} },
+    });
+}
+
+sub write_audit_report {
+    my ( $path, $results ) = @_;
+
+    require POSIX;
+    my $now     = POSIX::strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $now_iso = POSIX::strftime( '%Y-%m-%dT%H:%M:%S', localtime );
+
+    my $broken   = $results->{broken}   // [];
+    my $orphaned = $results->{orphaned} // [];
+    my $b_count  = scalar @$broken;
+    my $o_count  = scalar @$orphaned;
+
+    my $md = "---\ntitle: Link Audit Report\nsubtitle: $now\ndate: $now_iso\n";
+    $md .= "auth: required\nauth_groups:\n  - lazysite-admins\nsearch: false\n---\n\n";
+
+    # Wrap the whole report in an mg-card so the standalone
+    # /manager/audit-report page matches the visual weight of other
+    # manager sections. markdown="1" on the outer and body divs tells
+    # Text::MultiMarkdown to keep parsing headings, lists and tables
+    # inside as Markdown (block-HTML content is otherwise left raw).
+    $md .= qq(<div class="mg-card" markdown="1">\n);
+    $md .= qq(<div class="mg-card-header">\n);
+    $md .= qq(<span class="mg-card-title">Link Audit Report</span>\n);
+    $md .= qq(<span class="mg-card-subtitle">$now</span>\n);
+    $md .= qq(</div>\n);
+    $md .= qq(<div class="mg-card-body" markdown="1">\n\n);
+
+    $md .= "## Summary\n\nAudit completed: $now\n\n";
+
+    if ( $b_count == 0 && $o_count == 0 ) {
+        $md .= "::: widebox\nNo broken links or orphaned pages found.\n:::\n";
+    }
+    else {
+        $md .= "- $b_count broken link(s) found\n";
+        $md .= "- $o_count orphaned page(s) found\n";
+    }
+
+    if ( $b_count > 0 ) {
+        $md .= "\n## Broken internal links\n\n";
+        $md .= "| Page | Broken link | Edit |\n";
+        $md .= "| ---- | ----------- | ---- |\n";
+        for my $item ( @$broken ) {
+            my $page_md = $item->{source};
+            $page_md =~ s{^/}{};
+            $page_md .= '.md' unless $page_md =~ /\.\w+$/;
+            my $edit_url = "/manager/edit?path=" . uri_encode("/$page_md");
+
+            # Display text keeps the file path (with .md) so the table
+            # reads like what the author sees in the editor; the link
+            # target is the live URL (no .md, /index → /).
+            my $page_url = $item->{source};
+            $page_url = "/$page_url" unless $page_url =~ m{^/};
+            $page_url =~ s/\.md$//;
+            $page_url =~ s{/index$}{/};
+            $page_url = '/' if $page_url eq '';
+
+            $md .= "| [$page_md]($page_url) | /$item->{target} | [Edit]($edit_url) |\n";
+        }
+    }
+
+    if ( $o_count > 0 ) {
+        $md .= "\n## Orphaned pages\n\n";
+        $md .= "Pages that exist but are not linked from any other page.\n\n";
+        $md .= "| Page | Edit |\n";
+        $md .= "| ---- | ---- |\n";
+        for my $page ( @$orphaned ) {
+            my $page_md = $page;
+            $page_md .= '.md' unless $page_md =~ /\.\w+$/;
+            my $edit_url = "/manager/edit?path=" . uri_encode("/$page_md");
+            # Orphaned $page is already the URL form (canonical); link it
+            # to itself so the reader can jump to the page directly.
+            $md .= "| [/$page](/$page) | [Edit]($edit_url) |\n";
+        }
+    }
+
+    # Close mg-card-body and mg-card
+    $md .= qq(\n</div>\n</div>\n);
+
+    open my $fh, '>:utf8', $path or die "Cannot write report: $!\n";
+    print $fh $md;
+    close $fh;
+}
+
+# --- CLI report ---
+
+sub print_report {
+    my ($results) = @_;
+    my $broken   = $results->{broken};
+    my $orphaned = $results->{orphaned};
+    my $pages    = $results->{pages};
+    my $sources  = $results->{sources};
+
+    print "lazysite link audit: $DOCROOT\n";
+    print "=" x 60 . "\n\n";
+
+    print "ORPHANED PAGES (" . scalar(@$orphaned) . ")\n";
+    print "Exist but are not linked from any scanned file.\n\n";
+    if (@$orphaned) {
+        printf "  %-40s  %s\n", "/$_", $sources->{$_} // '' for @$orphaned;
+    }
+    else { print "  None found.\n"; }
+
+    print "\nBROKEN LINKS (" . scalar(@$broken) . ")\n";
+    print "Links pointing to pages that do not exist.\n\n";
+    if (@$broken) {
+        for my $b ( sort { $a->{source} cmp $b->{source} } @$broken ) {
+            printf "  %-40s  -> /%s\n", $b->{source}, $b->{target};
+        }
+    }
+    else { print "  None found.\n"; }
+
+    print "\nSUMMARY\n";
+    printf "  Source pages:    %d\n", scalar keys %$pages;
+    printf "  Orphaned:        %d\n", scalar @$orphaned;
+    printf "  Broken links:    %d\n", scalar @$broken;
+    print "\n";
+}
+
+# --- Plugin descriptor ---
+
+sub print_describe {
+    require JSON::PP;
+    print JSON::PP::encode_json({
+        id          => 'link-audit',
+        name        => 'Link Audit',
+        description => 'Scan for broken internal links and orphaned pages',
+        version     => '1.0',
+        config_file => '',
+        config_schema => [],
+        actions     => [
+            {
+                id          => 'run',
+                label       => 'Run audit',
+                confirm     => 'This will scan all pages and may take a moment on large sites.',
+                endpoint    => 'plugin-action',
+                on_complete => 'open_url',
+                result_key  => 'report_url',
+            }
+        ],
+    });
+}
+
+# --- Utilities ---
+
+sub canonical {
+    my ($rel) = @_;
+    $rel =~ s/\.(md|url|html)$//;
+    $rel =~ s{/index$}{};
+    $rel =~ s{^index$}{};
+    $rel =~ s{/$}{};
+    return $rel;
+}
+
+sub extract_links {
+    my ( $path, $label, $inbound, $outbound ) = @_;
+
+    open( my $fh, '<:utf8', $path ) or return;
+    my $content = do { local $/; <$fh> };
+    close $fh;
+
+    my @raw_links;
+    while ( $content =~ /\[(?:[^\]]*)\]\(([^)]+)\)/g ) {
+        push @raw_links, $1;
+    }
+    while ( $content =~ /(?:href|src)\s*=\s*["']([^"']+)["']/g ) {
+        push @raw_links, $1;
+    }
+
+    for my $link (@raw_links) {
+        next if $link =~ /\[%/;
+        next if $link =~ m{^https?://};
+        next if $link =~ m{^mailto:};
+        next if $link =~ m{^#};
+        next if $link =~ m{^data:};
+        next if $link eq 'about:blank';
+
+        $link =~ s/[?#].*$//;
+        next unless length $link;
+
+        if ( $link =~ /\.(\w+)$/ ) {
+            next if $IGNORE_EXT{ lc($1) };
+        }
+
+        $link =~ s{^/}{};
+        next if $link =~ m{^assets/};
+
+        $link =~ s/\.(html|md|url)$//;
+        $link =~ s{/$}{};
+        next unless length $link;
+
+        push @{ $inbound->{$link} },  $label;
+        push @{ $outbound->{$label} }, $link;
+    }
+}
+
+# Parse tt_page_var frontmatter block for scan:/path patterns and mark
+# every matching .md file as reachable in %inbound. Mirrors resolve_scan
+# in lazysite-processor.pl so pages included via scan aren't orphaned.
+sub extract_scan_refs {
+    my ( $path, $label, $inbound ) = @_;
+
+    open( my $fh, '<:utf8', $path ) or return;
+    my @lines = <$fh>;
+    close $fh;
+
+    return unless @lines && $lines[0] =~ /^---\s*$/;
+
+    my $in_tt_vars = 0;
+    for my $i ( 1 .. $#lines ) {
+        last if $lines[$i] =~ /^---\s*$/;
+
+        if ( $lines[$i] =~ /^tt_page_var\s*:\s*$/ ) {
+            $in_tt_vars = 1;
+            next;
+        }
+        next unless $in_tt_vars;
+        # Leaving the tt_page_var block when an unindented key appears
+        if ( $lines[$i] =~ /^\S/ ) { $in_tt_vars = 0; next }
+
+        if ( $lines[$i] =~ /^\s+\w[\w-]*\s*:\s*scan:(\S+)/ ) {
+            resolve_scan_for_audit( $1, $label, $inbound );
+        }
+    }
+}
+
+sub resolve_scan_for_audit {
+    my ( $pattern, $label, $inbound ) = @_;
+    return unless $pattern =~ m{^/};
+    my $fs_pattern = $DOCROOT . $pattern;
+    return unless $fs_pattern =~ /\.md$/;
+
+    my @files;
+    if ( $fs_pattern =~ m{\*\*} ) {
+        my ( $base, $rest ) = $fs_pattern =~ m{^(.*?)/\*\*/(.*)$};
+        if ( defined $base && defined $rest && -d $base ) {
+            my $file_re = $rest;
+            $file_re =~ s/\./\\./g;
+            $file_re =~ s/\*/.*/g;
+            $file_re = qr/\A${file_re}\z/;
+            my @queue = ($base);
+            while ( my $dir = shift @queue ) {
+                opendir( my $dh, $dir ) or next;
+                for my $entry ( readdir($dh) ) {
+                    next if $entry =~ /^\./;
+                    my $p = "$dir/$entry";
+                    if ( -d $p )                    { push @queue, $p }
+                    elsif ( $entry =~ $file_re )    { push @files, $p }
+                }
+                closedir($dh);
+            }
+        }
+    }
+    else {
+        @files = glob($fs_pattern);
+    }
+
+    for my $f (@files) {
+        ( my $rel = $f ) =~ s{^\Q$DOCROOT\E/}{};
+        my $canon = canonical($rel);
+        push @{ $inbound->{$canon} }, "scan:$label";
+    }
+}
+
+sub uri_encode {
+    my ($str) = @_;
+    $str =~ s/([^a-zA-Z0-9_.~-])/sprintf('%%%02X', ord($1))/ge;
+    return $str;
+}
+
+# --- Logging ---
+
+sub log_event {
+    my ($level, $context, $message, %extra) = @_;
+    my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
+    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
+    use POSIX qw(strftime);
+    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
+    if ( $format eq 'json' ) {
+        my $pairs = join ',',
+            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            keys %extra;
+        my $json = '{"ts":"' . $ts . '"'
+            . ',"level":"'     . _json_str($level)          . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
+            . ',"context":"'   . _json_str($context)        . '"'
+            . ',"message":"'   . _json_str($message)        . '"'
+            . ( $pairs ? ",$pairs" : '' )
+            . '}';
+        print STDERR "$json\n";
+    }
+    else {
+        my $extras = join ' ',
+            map { "$_=" . $extra{$_} } keys %extra;
+        my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
+        $line   .= " $extras" if $extras;
+        print STDERR "$line\n";
+    }
+}
+
+sub _json_str {
+    my ($s) = @_;
+    $s //= '';
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    return $s;
+}

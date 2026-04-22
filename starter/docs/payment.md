@@ -146,16 +146,16 @@ payment_header_payer: X-Payment-Payer
 
 ## Demo mode
 
-`lazysite-payment-demo.pl` simulates payment via signed cookies for
+`payment-demo.pl` simulates payment via signed cookies for
 testing. **Not for production use.**
 
 Simulate payment:
 
-    /cgi-bin/lazysite-payment-demo.pl?action=pay&page=/premium&amount=0.01
+    /cgi-bin/payment-demo.pl?action=pay&page=/premium&amount=0.01
 
 Clear payment:
 
-    /cgi-bin/lazysite-payment-demo.pl?action=unpay&page=/premium
+    /cgi-bin/payment-demo.pl?action=unpay&page=/premium
 
 Demo payments expire after 1 hour.
 

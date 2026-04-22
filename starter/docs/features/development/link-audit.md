@@ -13,7 +13,7 @@ links (links pointing to pages that do not exist).
 
 ### Invocation
 
-    perl tools/lazysite-audit.pl [options] [docroot]
+    perl plugins/audit.pl [options] [docroot]
 
 The docroot defaults to the current directory.
 

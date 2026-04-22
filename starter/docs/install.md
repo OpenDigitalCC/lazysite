@@ -193,8 +193,8 @@ Removes Hestia template files only. Deployed domain files are not touched.
       cgi-bin/
         lazysite-processor.pl
         lazysite-auth.pl
-        lazysite-form-handler.pl
-        lazysite-form-smtp.pl
+        plugins/form-handler.pl
+        plugins/form-smtp.pl
         lazysite-manager-api.pl
       404.md
       index.md

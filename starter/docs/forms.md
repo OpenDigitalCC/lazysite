@@ -204,15 +204,19 @@ The HMAC secret is auto-generated and stored at
 
 ## Installation
 
-The installer copies `lazysite-form-handler.pl` and
-`lazysite-form-smtp.pl` to `cgi-bin/`. Both must be executable.
+The installer places both plugins under `{docroot}/../plugins/`
+and symlinks `form-handler.pl` into `cgi-bin/` so Apache can route
+`/cgi-bin/form-handler.pl` at it. `form-smtp.pl` does not need
+`cgi-bin/` presence - it is invoked as a subprocess by
+`form-handler.pl`.
 
 For manual installation:
 
 ```bash
-cp lazysite-form-handler.pl /path/to/cgi-bin/
-cp lazysite-form-smtp.pl /path/to/cgi-bin/
-chmod 755 /path/to/cgi-bin/lazysite-form-*.pl
+mkdir -p /path/to/plugins
+cp plugins/form-handler.pl plugins/form-smtp.pl /path/to/plugins/
+chmod 755 /path/to/plugins/form-handler.pl /path/to/plugins/form-smtp.pl
+ln -s /path/to/plugins/form-handler.pl /path/to/cgi-bin/form-handler.pl
 ```
 
 ## Further reading

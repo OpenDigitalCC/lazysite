@@ -24,4 +24,4 @@ Payment received from [% payment_payer || 'wallet' %].
 
 This is the protected content that only paying visitors can see.
 
-[Simulate unpayment](/cgi-bin/lazysite-payment-demo.pl?action=unpay&page=/payment-demo)
+[Simulate unpayment](/cgi-bin/payment-demo.pl?action=unpay&page=/payment-demo)

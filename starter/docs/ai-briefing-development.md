@@ -22,11 +22,11 @@ configuration work, see the other briefings:
 lazysite/
   lazysite-processor.pl        # main processor (CGI)
   lazysite-auth.pl             # built-in auth wrapper
-  lazysite-form-handler.pl     # form submission dispatch
-  lazysite-form-smtp.pl        # SMTP helper
+  plugins/form-handler.pl     # form submission dispatch
+  plugins/form-smtp.pl        # SMTP helper
   lazysite-manager-api.pl      # manager JSON API
-  lazysite-payment-demo.pl     # x402 payment demo helper
-  lazysite-log.pl              # shared log helper (optional)
+  plugins/payment-demo.pl     # x402 payment demo helper
+  plugins/log.pl              # shared log helper (optional)
   install.sh                   # system installer (HestiaCP + Apache)
   uninstall.sh                 # removes installer files
   tools/
@@ -74,11 +74,11 @@ lazysite/
 : Wraps requests when built-in auth is enabled. Reads the session cookie,
   populates `X-Remote-*` headers, and hands off to the processor.
 
-`lazysite-form-handler.pl`
+`plugins/form-handler.pl`
 : Receives form POSTs, validates (honeypot, HMAC timestamp, rate limit),
   and dispatches to named handlers from `handlers.conf`.
 
-`lazysite-form-smtp.pl`
+`plugins/form-smtp.pl`
 : SMTP helper. Called via pipe from the form handler. Sends email using
   sendmail or Net::SMTP.
 
@@ -86,7 +86,7 @@ lazysite/
 : JSON API backing the manager UI pages. Handles file CRUD, plugin
   enable/disable, theme install, user management.
 
-`lazysite-payment-demo.pl`
+`plugins/payment-demo.pl`
 : x402 payment flow helper.
 
 `tools/lazysite-server.pl`
@@ -96,7 +96,7 @@ lazysite/
 `tools/lazysite-users.pl`
 : CLI for user and group management.
 
-`tools/lazysite-audit.pl`
+`plugins/audit.pl`
 : Link audit - finds orphaned pages and broken internal links.
 
 ## Plugin --describe protocol

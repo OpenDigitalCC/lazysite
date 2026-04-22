@@ -69,8 +69,8 @@ manager_groups: lazysite-admins
 auth_default: none
 plugins:
   - cgi-bin/lazysite-auth.pl
-  - cgi-bin/lazysite-form-handler.pl
-  - tools/lazysite-audit.pl
+  - plugins/form-handler.pl
+  - plugins/audit.pl
 ```
 
 ### Value types
@@ -214,8 +214,8 @@ Enable or disable from the manager Plugins page, or pre-enable in
 ```yaml
 plugins:
   - cgi-bin/lazysite-auth.pl
-  - cgi-bin/lazysite-form-handler.pl
-  - tools/lazysite-audit.pl
+  - plugins/form-handler.pl
+  - plugins/audit.pl
 ```
 
 ## Logging

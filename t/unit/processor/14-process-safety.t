@@ -24,18 +24,21 @@ my $tmp = tempdir( CLEANUP => 1 );
 my $fake_root = "$tmp/fake-repo";
 my $docroot   = "$fake_root/public_html";
 make_path( "$docroot/lazysite/cache",
-           "$fake_root/tools" );
+           "$fake_root/tools",
+           "$fake_root/plugins" );
 
 # Symlink each discoverable script so plugin-list can spawn them.
+# D022: plugins moved under plugins/ (form-handler, form-smtp, log,
+# audit, payment-demo), core scripts stay at root.
 for my $rel ( qw(
     lazysite-auth.pl
-    lazysite-form-handler.pl
-    lazysite-form-smtp.pl
-    lazysite-payment-demo.pl
-    lazysite-log.pl
     lazysite-manager-api.pl
     lazysite-processor.pl
-    tools/lazysite-audit.pl
+    plugins/form-handler.pl
+    plugins/form-smtp.pl
+    plugins/payment-demo.pl
+    plugins/log.pl
+    plugins/audit.pl
 ) ) {
     symlink "$root/$rel", "$fake_root/$rel";
 }

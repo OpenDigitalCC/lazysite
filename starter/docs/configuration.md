@@ -102,8 +102,8 @@ manager: enabled
 manager_path: /manager
 manager_groups: lazysite-admins
 plugins:
-  - cgi-bin/lazysite-auth.pl
-  - cgi-bin/lazysite-form-handler.pl
+  - lazysite-auth.pl
+  - plugins/form-handler.pl
 ```
 
 ### Allowlisted environment variables
@@ -215,9 +215,9 @@ Auto-discovery scans `cgi-bin/` and `tools/` for scripts supporting
 To pre-enable without the manager, list scripts in `lazysite.conf`:
 
     plugins:
-      - cgi-bin/lazysite-auth.pl
-      - cgi-bin/lazysite-form-handler.pl
-      - tools/lazysite-audit.pl
+      - lazysite-auth.pl
+      - plugins/form-handler.pl
+      - plugins/audit.pl
 
 ## Logging
 

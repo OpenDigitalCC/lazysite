@@ -47,7 +47,7 @@ is( main::strip_tt_directives('[% [% x %] %]'), '  x  ',
 }
 
 # --- form-handler sanitise_header ---
-# Load lazysite-form-handler.pl subroutines. It uses its own main:: namespace
+# Load plugins/form-handler.pl subroutines. It uses its own main:: namespace
 # when loaded via the same in-place trick.
 SKIP: {
     # form-handler dies at top if REQUEST_METHOD is not POST, so we use

@@ -67,5 +67,5 @@ Create `402.md` with context variables:
 - Payment-gated pages are never cached
 - Responses include `Cache-Control: no-store, private`
 - Proof validation is delegated to an upstream proxy
-- `lazysite-payment-demo.pl` provides demo mode for testing
+- `plugins/payment-demo.pl` provides demo mode for testing
 - [Payment guide](/docs/payment) - full setup and configuration

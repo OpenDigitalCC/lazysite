@@ -28,13 +28,13 @@ The self-contained-script policy is deliberate:
 ```
 lazysite-processor.pl       Core page processor and renderer
 lazysite-auth.pl            Cookie authentication wrapper
-lazysite-form-handler.pl    Form submission dispatcher
-lazysite-form-smtp.pl       SMTP delivery handler
+plugins/form-handler.pl    Form submission dispatcher
+plugins/form-smtp.pl       SMTP delivery handler
 lazysite-manager-api.pl     Manager web UI API
-lazysite-payment-demo.pl    x402 payment demo handler
-lazysite-log.pl             Plugin descriptor for logging
+plugins/payment-demo.pl    x402 payment demo handler
+plugins/log.pl             Plugin descriptor for logging
 tools/lazysite-server.pl    Development HTTP server
-tools/lazysite-audit.pl     Link audit tool
+plugins/audit.pl     Link audit tool
 tools/lazysite-users.pl     User management CLI / JSON API
 ```
 

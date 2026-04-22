@@ -48,8 +48,8 @@ form from this schema.
 Enable plugins in `lazysite/lazysite.conf`:
 
     plugins:
-      - tools/lazysite-audit.pl
-      - cgi-bin/lazysite-form-smtp.pl
+      - plugins/audit.pl
+      - plugins/form-smtp.pl
 
 Then access via Manager > Plugins.
 

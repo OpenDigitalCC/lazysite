@@ -78,14 +78,14 @@ plain web server.
 
 ## Link audit
 
-`tools/lazysite-audit.pl` scans the docroot and reports orphaned pages
+`plugins/audit.pl` scans the docroot and reports orphaned pages
 (source files with no inbound links) and broken links:
 
-    perl tools/lazysite-audit.pl /home/username/web/example.com/public_html
+    perl plugins/audit.pl /home/username/web/example.com/public_html
 
 Pass `--exclude` to omit specific pages from the orphan report:
 
-    perl tools/lazysite-audit.pl --exclude changelog,contributing /path/to/docroot
+    perl plugins/audit.pl --exclude changelog,contributing /path/to/docroot
 
 ## Cache management
 

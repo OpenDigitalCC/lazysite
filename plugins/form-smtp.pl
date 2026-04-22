@@ -1,0 +1,333 @@
+#!/usr/bin/perl
+# lazysite-form-smtp.pl - SMTP email helper for lazysite forms
+# Accepts JSON POST, sends email via configured method
+use strict;
+use warnings;
+use POSIX qw(strftime);
+use JSON::PP qw(encode_json decode_json);
+use File::Basename qw(dirname);
+
+my $LOG_COMPONENT = 'form-smtp';
+
+if ( grep { $_ eq '--describe' } @ARGV ) {
+    require JSON::PP;
+    print JSON::PP::encode_json({
+        id          => 'form-smtp',
+        name        => 'Form SMTP',
+        description => 'SMTP connection settings for form email delivery',
+        version     => '1.1',
+        config_file => 'lazysite/forms/smtp.conf',
+        config_schema => [
+            { key => 'method', label => 'Send method', type => 'select',
+              options => ['sendmail','smtp'], default => 'sendmail', required => JSON::PP::true() },
+            { key => 'sendmail_path', label => 'Sendmail path', type => 'text',
+              default => '/usr/sbin/sendmail', show_when => { key => 'method', value => ['sendmail'] } },
+            { key => 'host', label => 'SMTP host', type => 'text', default => 'localhost',
+              show_when => { key => 'method', value => ['smtp'] } },
+            { key => 'port', label => 'SMTP port', type => 'number', default => '587',
+              show_when => { key => 'method', value => ['smtp'] } },
+            { key => 'tls', label => 'TLS', type => 'select',
+              options => ['false','starttls','true'], default => 'false',
+              show_when => { key => 'method', value => ['smtp'] } },
+            { key => 'auth', label => 'SMTP authentication', type => 'boolean', default => 'false',
+              show_when => { key => 'method', value => ['smtp'] } },
+            { key => 'username', label => 'SMTP username', type => 'text',
+              show_when => { key => 'auth', value => ['true','1'] } },
+            { key => 'password_file', label => 'Password file path', type => 'path',
+              show_when => { key => 'auth', value => ['true','1'] } },
+        ],
+        actions => [],
+    });
+    exit 0;
+}
+
+# --- Pipe mode: called by form-handler via IPC ---
+
+if ( grep { $_ eq '--pipe' } @ARGV ) {
+    eval {
+        my $json = do { local $/; <STDIN> };
+        die "No input\n" unless defined $json && length $json;
+
+        my $data = decode_json($json);
+        my $config = $data->{config} or die "Missing config\n";
+        my $form   = $data->{form}   or die "Missing form\n";
+
+        # Merge SMTP connection settings from smtp.conf if available
+        my $docroot = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '';
+        if ($docroot) {
+            my $smtp_conf = load_smtp_conf_from("$docroot/lazysite/forms/smtp.conf");
+            # smtp.conf provides connection settings; handler config provides from/to/subject
+            for my $k (qw(method sendmail_path host port tls auth username password_file)) {
+                $config->{$k} //= $smtp_conf->{$k} if defined $smtp_conf->{$k};
+            }
+        }
+
+        # Apply defaults
+        $config->{method}         //= 'sendmail';
+        $config->{sendmail_path}  //= '/usr/sbin/sendmail';
+        $config->{from}           //= 'webforms@localhost';
+        $config->{to}             //= 'root@localhost';
+        $config->{subject_prefix} //= '[Contact] ';
+
+        send_email( $config, $form );
+        log_event('INFO', $config->{to} // '-', 'email sent', method => $config->{method} // 'sendmail', from => $config->{from} // '-');
+        print encode_json( { ok => 1 } );
+    };
+    if ($@) {
+        my $err = $@;
+        $err =~ s/\s+$//;
+        log_event('ERROR', '-', 'smtp failed', error => $err);
+        print encode_json( { ok => 0, error => $err } );
+    }
+    exit 0;
+}
+
+# --- CGI mode (legacy) ---
+
+my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
+    or die "DOCUMENT_ROOT not set\n";
+my $LAZYSITE_DIR = "$DOCROOT/lazysite";
+my $FORMS_DIR    = "$LAZYSITE_DIR/forms";
+
+eval {
+    my $json = do { local $/; <STDIN> };
+    die "No input\n" unless defined $json && length $json;
+
+    my $form = decode_json($json);
+    my $conf = load_smtp_conf();
+    send_email( $conf, $form );
+    log_event('INFO', $conf->{to} // '-', 'email sent', method => $conf->{method} // 'sendmail', from => $conf->{from} // '-');
+
+    binmode( STDOUT, ':utf8' );
+    print "Status: 200 OK\r\n";
+    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
+    print encode_json( { ok => 1 } );
+};
+if ($@) {
+    my $err = $@;
+    $err =~ s/\s+$//;
+    log_event('ERROR', '-', 'smtp failed', error => $err);
+    warn "lazysite-form-smtp: $err\n";
+    binmode( STDOUT, ':utf8' );
+    print "Status: 500 Internal Server Error\r\n";
+    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
+    print encode_json( { ok => 0, error => $err } );
+}
+
+# --- Config ---
+
+sub load_smtp_conf_from {
+    my ($path) = @_;
+    return {} unless -f $path;
+
+    open( my $fh, '<:utf8', $path ) or return {};
+    local $/;
+    my $text = <$fh>;
+    close($fh);
+
+    my %conf;
+    while ( $text =~ /^([a-z_]+)\s*:\s*(.+)$/mg ) {
+        my ( $k, $v ) = ( $1, $2 );
+        $v =~ s/^\s+|\s+$//g;
+        next if $v =~ /^#/;
+        $conf{$k} = $v;
+    }
+    return \%conf;
+}
+
+sub load_smtp_conf {
+    my $path = "$FORMS_DIR/smtp.conf";
+    die "SMTP config not found at $path\n" unless -f $path;
+
+    open( my $fh, '<:utf8', $path ) or die "Cannot read $path: $!\n";
+    local $/;
+    my $text = <$fh>;
+    close($fh);
+
+    my %conf;
+    while ( $text =~ /^([a-z_]+)\s*:\s*(.+)$/mg ) {
+        my ( $k, $v ) = ( $1, $2 );
+        $v =~ s/^\s+|\s+$//g;
+        next if $v =~ /^#/;
+        $conf{$k} = $v;
+    }
+
+    $conf{method}        //= 'sendmail';
+    $conf{sendmail_path} //= '/usr/sbin/sendmail';
+    $conf{from}          //= 'webforms@localhost';
+    $conf{to}            //= 'root@localhost';
+    $conf{subject_prefix} //= '[Form] ';
+
+    return \%conf;
+}
+
+# --- Email ---
+
+sub send_email {
+    my ( $conf, $form ) = @_;
+
+    # Build body from non-internal fields
+    my @lines = ("Form submission");
+    push @lines, "-" x 40;
+    push @lines, "";
+    for my $k ( sort keys %$form ) {
+        next if $k =~ /^_/;
+        my $v = $form->{$k} // '';
+        $v =~ s/[\r\n]+/\n             /g;
+        push @lines, sprintf( "%-12s %s", "$k:", $v );
+    }
+    push @lines, "";
+    push @lines, "-" x 40;
+    push @lines, "Submitted: " . strftime( '%A, %d %B %Y at %H:%M:%S %Z', localtime );
+    push @lines, "IP:        " . ( $ENV{REMOTE_ADDR} // 'unknown' );
+
+    my $body = join( "\n", @lines ) . "\n";
+
+    # Subject from first short field or form name
+    my $subject = $conf->{subject_prefix};
+    for my $k (qw(subject name email)) {
+        if ( defined $form->{$k} && length $form->{$k} ) {
+            $subject .= substr( $form->{$k}, 0, 80 );
+            last;
+        }
+    }
+    $subject =~ s/[\r\n]/ /g;
+
+    my $from = sanitise_email( $conf->{from} );
+    my $to   = sanitise_email( $conf->{to} );
+
+    my $method = $conf->{method};
+
+    if ( $method eq 'sendmail' ) {
+        send_via_sendmail( $conf->{sendmail_path}, $from, $to, $subject, $body );
+    }
+    elsif ( $method eq 'smtp' ) {
+        send_via_smtp( $conf, $from, $to, $subject, $body );
+    }
+    else {
+        die "Unknown SMTP method: $method\n";
+    }
+}
+
+sub send_via_sendmail {
+    my ( $sendmail, $from, $to, $subject, $body ) = @_;
+
+    die "sendmail not found at $sendmail\n" unless -x $sendmail;
+
+    open( my $fh, '|-', $sendmail, '-t', '-oi', '-f', $from )
+        or die "Cannot run sendmail: $!\n";
+    print $fh "From: $from\n";
+    print $fh "To: $to\n";
+    print $fh "Subject: $subject\n";
+    print $fh "Content-Type: text/plain; charset=utf-8\n";
+    print $fh "MIME-Version: 1.0\n";
+    print $fh "\n";
+    print $fh $body;
+    close($fh) or die "sendmail failed: exit $?\n";
+}
+
+sub send_via_smtp {
+    my ( $conf, $from, $to, $subject, $body ) = @_;
+
+    require Net::SMTP;
+
+    my $host = $conf->{host} || 'localhost';
+    my $port = $conf->{port} || 25;
+    my $tls  = $conf->{tls}  || '';
+    my $auth = $conf->{auth} && $conf->{auth} =~ /^true$/i;
+
+    my %opts = (
+        Host    => $host,
+        Port    => $port,
+        Timeout => 10,
+    );
+
+    if ( $tls eq 'true' ) {
+        require IO::Socket::SSL;
+        $opts{SSL} = 1;
+    }
+
+    my $smtp = Net::SMTP->new(%opts) or die "Cannot connect to $host:$port\n";
+
+    if ( $tls eq 'starttls' ) {
+        $smtp->starttls() or die "STARTTLS failed\n";
+    }
+
+    if ($auth) {
+        my $user = $conf->{username} // '';
+        my $pass = '';
+        if ( $conf->{password_file} ) {
+            my $docroot = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '';
+            my $pf = $conf->{password_file};
+            $pf = "$docroot/$pf" if $docroot && $pf !~ m{^/};
+            if ( -f $pf ) {
+                open( my $pfh, '<', $pf ) or die "Cannot read password file: $!\n";
+                chomp( $pass = <$pfh> );
+                close($pfh);
+            }
+        }
+        $smtp->auth( $user, $pass ) or die "SMTP auth failed\n";
+    }
+
+    $smtp->mail($from)           or die "MAIL FROM failed\n";
+    $smtp->to($to)               or die "RCPT TO failed\n";
+    $smtp->data()                or die "DATA failed\n";
+    $smtp->datasend("From: $from\n");
+    $smtp->datasend("To: $to\n");
+    $smtp->datasend("Subject: $subject\n");
+    $smtp->datasend("Content-Type: text/plain; charset=utf-8\n");
+    $smtp->datasend("MIME-Version: 1.0\n");
+    $smtp->datasend("\n");
+    $smtp->datasend($body);
+    $smtp->dataend()             or die "DATA END failed\n";
+    $smtp->quit();
+}
+
+sub sanitise_email {
+    my ($val) = @_;
+    $val =~ s/[\r\n<>]//g;
+    return $val;
+}
+
+# --- Logging ---
+
+sub log_event {
+    my ($level, $context, $message, %extra) = @_;
+    my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
+    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
+    use POSIX qw(strftime);
+    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
+    if ( $format eq 'json' ) {
+        my $pairs = join ',',
+            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            keys %extra;
+        my $json = '{"ts":"' . $ts . '"'
+            . ',"level":"'     . _json_str($level)          . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
+            . ',"context":"'   . _json_str($context)        . '"'
+            . ',"message":"'   . _json_str($message)        . '"'
+            . ( $pairs ? ",$pairs" : '' )
+            . '}';
+        print STDERR "$json\n";
+    }
+    else {
+        my $extras = join ' ',
+            map { "$_=" . $extra{$_} } keys %extra;
+        my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
+        $line   .= " $extras" if $extras;
+        print STDERR "$line\n";
+    }
+}
+
+sub _json_str {
+    my ($s) = @_;
+    $s //= '';
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    return $s;
+}

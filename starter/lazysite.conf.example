@@ -21,8 +21,8 @@ manager_path: /manager
 # Use the manager Plugins page to enable or disable them.
 # To pre-enable plugins without using the manager:
 # plugins:
-#   - cgi-bin/lazysite-form-smtp.pl
-#   - tools/lazysite-audit.pl
+#   - plugins/form-smtp.pl
+#   - plugins/audit.pl
 
 # Manager limits (defaults shown).
 # manager_upload_max_mb caps a single multipart upload request.

@@ -324,10 +324,10 @@ your deployment.
     Scripts (repo root, copied to site by the installer):
       lazysite-processor.pl        <- main processor
       lazysite-auth.pl             <- built-in auth
-      lazysite-form-handler.pl     <- form dispatch
-      lazysite-form-smtp.pl        <- SMTP helper
+      plugins/form-handler.pl     <- form dispatch
+      plugins/form-smtp.pl        <- SMTP helper
       lazysite-manager-api.pl      <- manager JSON API
-      lazysite-payment-demo.pl     <- payment demo helper
+      plugins/payment-demo.pl     <- payment demo helper
 
     Source files:
       *.md                         <- Markdown pages

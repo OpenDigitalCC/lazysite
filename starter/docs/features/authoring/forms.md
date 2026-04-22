@@ -46,7 +46,7 @@ Create `lazysite/forms/FORMNAME.conf`:
 
     targets:
       - type: smtp
-        url: http://localhost/cgi-bin/lazysite-form-smtp.pl
+        url: http://localhost/plugins/form-smtp.pl
 
 Target types: `smtp` (email via helper), `api` with `format: json`
 (webhook), `api` with `format: slack` (Slack notification).

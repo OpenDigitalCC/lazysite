@@ -55,36 +55,58 @@ if [ -z "$CGIBIN" ]; then
     exit 1
 fi
 
-# --- Install processor ---
+# --- Install core CGI scripts ---
 
 echo "Installing lazysite scripts..."
 install -m 755 "$SCRIPT_DIR/lazysite-processor.pl" "$CGIBIN/lazysite-processor.pl"
-for script in lazysite-form-handler.pl lazysite-form-smtp.pl \
-              lazysite-auth.pl lazysite-manager-api.pl \
-              lazysite-payment-demo.pl; do
+for script in lazysite-auth.pl lazysite-manager-api.pl; do
     if [ -f "$SCRIPT_DIR/$script" ]; then
         install -m 755 "$SCRIPT_DIR/$script" "$CGIBIN/$script"
     fi
 done
 
-# Install logging plugin at docroot parent (matches manager-api @CANDIDATES)
-if [ -f "$SCRIPT_DIR/lazysite-log.pl" ]; then
-    install -m 755 "$SCRIPT_DIR/lazysite-log.pl" "$DOCROOT/../lazysite-log.pl"
-    echo "  Installed: lazysite-log.pl"
+# --- Install plugins (D022) ---
+#
+# Plugins live under {docroot}/../plugins/ with the lazysite- prefix
+# dropped. manager-api @CANDIDATES enumerates them from this path.
+mkdir -p "$DOCROOT/../plugins"
+if [ -d "$SCRIPT_DIR/plugins" ]; then
+    for script in "$SCRIPT_DIR/plugins/"*.pl; do
+        [ -f "$script" ] || continue
+        install -m 755 "$script" \
+            "$DOCROOT/../plugins/$(basename "$script")"
+    done
+    echo "  Installed plugins from $SCRIPT_DIR/plugins/"
 fi
 
-# Install tools used by manager-api and audit plugin
+# Web endpoints for plugin-exposed URLs. form-handler receives form
+# POSTs; payment-demo is the x402 simulator. Both need cgi-bin
+# presence so Apache routes /cgi-bin/<name>.pl at them. Symlink
+# where supported, fall back to install for shared-host setups that
+# disable FollowSymLinks.
+for plugin in form-handler payment-demo; do
+    src="$DOCROOT/../plugins/$plugin.pl"
+    dst="$CGIBIN/$plugin.pl"
+    if [ -f "$src" ] && [ ! -e "$dst" ]; then
+        if ln -s "$src" "$dst" 2>/dev/null; then
+            echo "  Linked:    $dst -> $src"
+        else
+            install -m 755 "$src" "$dst"
+            echo "  Installed: $dst (symlink unsupported)"
+        fi
+    fi
+done
+
+# --- Install user-facing tools ---
+
 mkdir -p "$DOCROOT/../tools"
-if [ -f "$SCRIPT_DIR/tools/lazysite-users.pl" ]; then
-    install -m 755 "$SCRIPT_DIR/tools/lazysite-users.pl" \
-        "$DOCROOT/../tools/lazysite-users.pl"
-    echo "  Installed: tools/lazysite-users.pl"
-fi
-if [ -f "$SCRIPT_DIR/tools/lazysite-audit.pl" ]; then
-    install -m 755 "$SCRIPT_DIR/tools/lazysite-audit.pl" \
-        "$DOCROOT/../tools/lazysite-audit.pl"
-    echo "  Installed: tools/lazysite-audit.pl"
-fi
+for tool in lazysite-users.pl lazysite-server.pl build-static.sh; do
+    src="$SCRIPT_DIR/tools/$tool"
+    if [ -f "$src" ]; then
+        install -m 755 "$src" "$DOCROOT/../tools/$tool"
+        echo "  Installed: tools/$tool"
+    fi
+done
 
 # --- Create lazysite directory structure ---
 
@@ -120,6 +142,43 @@ for conf in contact handlers smtp; do
     fi
 done
 
+# D022: install .example reference files so operators can see the
+# shipped defaults alongside their edited copies.
+for ref in "$SCRIPT_DIR/starter/lazysite.conf.example" \
+           "$SCRIPT_DIR/starter/nav.conf.example"; do
+    if [ -f "$ref" ]; then
+        name=$(basename "$ref")
+        dst="$DOCROOT/lazysite/$name"
+        if [ ! -f "$dst" ]; then
+            install -m 644 "$ref" "$dst"
+            echo "  Installed: lazysite/$name"
+        fi
+    fi
+done
+
+for ref in "$SCRIPT_DIR/starter/lazysite/auth/users.example" \
+           "$SCRIPT_DIR/starter/lazysite/auth/groups.example"; do
+    if [ -f "$ref" ]; then
+        name=$(basename "$ref")
+        dst="$DOCROOT/lazysite/auth/$name"
+        if [ ! -f "$dst" ]; then
+            install -m 640 "$ref" "$dst"
+            echo "  Installed: lazysite/auth/$name"
+        fi
+    fi
+done
+
+# D022: seed auth users/groups from the .example files on fresh
+# install. Operators can hand-edit afterwards or use the manager UI.
+for f in users groups; do
+    src="$DOCROOT/lazysite/auth/$f.example"
+    dst="$DOCROOT/lazysite/auth/$f"
+    if [ -f "$src" ] && [ ! -f "$dst" ]; then
+        install -m 640 "$src" "$dst"
+        echo "  Seeded lazysite/auth/$f from $f.example"
+    fi
+done
+
 # --- Copy starter files ---
 
 echo "Installing starter files..."
@@ -134,7 +193,7 @@ for file in index.md lazysite-demo.md 402.md 403.md 404.md \
     fi
 done
 
-# Install docs if not already present
+# Install docs if not already present (top-level docs)
 if [ -d "$SCRIPT_DIR/starter/docs" ]; then
     mkdir -p "$DOCROOT/docs"
     for doc in "$SCRIPT_DIR/starter/docs/"*.md; do
@@ -142,6 +201,19 @@ if [ -d "$SCRIPT_DIR/starter/docs" ]; then
         dest="$DOCROOT/docs/$(basename "$doc")"
         if [ ! -f "$dest" ]; then
             install -m 644 "$doc" "$dest"
+        fi
+    done
+fi
+
+# D022: also install the features subtree (SM025 catch-up).
+if [ -d "$SCRIPT_DIR/starter/docs/features" ]; then
+    find "$SCRIPT_DIR/starter/docs/features" -type f -name '*.md' | \
+    while read -r src; do
+        rel="${src#$SCRIPT_DIR/starter/docs/}"
+        dst="$DOCROOT/docs/$rel"
+        if [ ! -f "$dst" ]; then
+            mkdir -p "$(dirname "$dst")"
+            install -m 644 "$src" "$dst"
         fi
     done
 fi
@@ -167,8 +239,9 @@ if [ -d "$SCRIPT_DIR/starter/manager" ]; then
     fi
 fi
 
-# Install registry templates
-for tmpl in "$SCRIPT_DIR/starter/registries/"*.tt; do
+# Install registry templates (D022: source path moved to mirror
+# install destination under starter/lazysite/templates/registries/)
+for tmpl in "$SCRIPT_DIR/starter/lazysite/templates/registries/"*.tt; do
     [ -f "$tmpl" ] || continue
     dest="$DOCROOT/lazysite/templates/registries/$(basename "$tmpl")"
     if [ ! -f "$dest" ]; then

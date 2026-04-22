@@ -1248,13 +1248,17 @@ sub action_plugin_list {
         close $fh;
     }
 
+    # D022: plugins moved to plugins/ with the lazysite- prefix
+    # dropped. lazysite-auth.pl stays at repo root (core wrapper)
+    # but remains a plugin in the manager-UI sense. payment-demo
+    # has no --describe support so it's not listed here; SM027
+    # will decide its plugin status when F0016 (x402) lands.
     my @CANDIDATES = (
         'lazysite-auth.pl',
-        'lazysite-form-handler.pl',
-        'lazysite-form-smtp.pl',
-        'lazysite-payment-demo.pl',
-        'lazysite-log.pl',
-        'tools/lazysite-audit.pl',
+        'plugins/form-handler.pl',
+        'plugins/form-smtp.pl',
+        'plugins/log.pl',
+        'plugins/audit.pl',
     );
 
     my $base = Cwd::realpath("$DOCROOT/..");

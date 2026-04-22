@@ -10,7 +10,7 @@ register:
 
 SMTP handlers in `lazysite/forms/handlers.conf` receive form
 submissions, format them as email, and hand off to
-`lazysite-form-smtp.pl`. The connection settings (sendmail path, SMTP
+`plugins/form-smtp.pl`. The connection settings (sendmail path, SMTP
 host, TLS, authentication) live in a separate file,
 `lazysite/forms/smtp.conf`, so multiple SMTP handlers can share one
 connection configuration.
@@ -136,7 +136,7 @@ Test with curl:
 ```bash
 echo '{"config":{},"form":{"name":"Test","email":"test@test.com","message":"Hello"}}' | \
   DOCUMENT_ROOT=/path/to/public_html \
-  perl cgi-bin/lazysite-form-smtp.pl --pipe
+  perl plugins/form-smtp.pl --pipe
 ```
 
 ## Dependencies
