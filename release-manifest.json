@@ -746,8 +746,8 @@
       "bucket" : "code",
       "install_to" : "{DOCROOT}/manager/themes.md",
       "path" : "starter/manager/themes.md",
-      "sha256" : "5af58c27eb1885d7464384858f166d31837746d44ff07368fd59858df6ac4a15",
-      "size" : 12267
+      "sha256" : "dd9685d1c0b39d038c08910e22ced41076005c41fa72d4d9233348cc5f08fe99",
+      "size" : 13022
     },
     {
       "bucket" : "code",
@@ -855,8 +855,8 @@
       "size" : 1604
     }
   ],
-  "generated" : "2026-04-22T18:58:40Z",
-  "min_upgrade_from" : "0.2.13",
+  "generated" : "2026-04-22T19:10:30Z",
+  "min_upgrade_from" : "0.2.14",
   "runtime_paths" : [
     {
       "mode" : "0750",
@@ -895,5 +895,5 @@
     }
   ],
   "schema_version" : "1",
-  "version" : "0.2.13"
+  "version" : "0.2.14"
 }

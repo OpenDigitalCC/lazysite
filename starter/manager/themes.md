@@ -197,16 +197,27 @@ function uploadTheme() {
 // SM044: read/write the layouts_repo conf key via dedicated endpoints.
 // loadLayoutsRepo runs on page init; saveLayoutsRepo is wired to the
 // Save button beside the input.
+//
+// SM048: the original loadLayoutsRepo unconditionally assigned
+// input.value to the server response, including when the server
+// returned an empty string (key unset). A user who typed into the
+// field before the async fetch completed had their input clobbered.
+// Fix: only populate from the server when a non-empty value is
+// returned. Empty response = key unset = leave the input alone.
 function loadLayoutsRepo() {
   fetch(API + '?action=layouts-repo-get')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var input = document.getElementById('layouts-repo-input');
       if (!input) return;
-      input.value = (data && data.ok && data.value) ? data.value : '';
+      if (data && data.ok && data.value) {
+        input.value = data.value;
+      }
+      // else: server has no value to restore - don't touch the input,
+      // preserving whatever the user may have typed during the fetch.
     })
     .catch(function() {
-      // Non-fatal; leave the input blank.
+      // Non-fatal; leave the input alone (may contain user input).
     });
 }
 
@@ -225,7 +236,13 @@ function saveLayoutsRepo() {
         showStatus(data.error || 'Save failed.', true);
         return;
       }
-      showStatus(value ? 'Layouts repo saved.' : 'Layouts repo cleared.');
+      // SM048: unambiguous feedback on whether the operator saved
+      // a value or actively cleared the key.
+      if (value) {
+        showStatus('Layouts repo saved: ' + value);
+      } else {
+        showStatus('Layouts repo cleared.');
+      }
     })
     .catch(function(e) {
       showStatus('Error: ' + e.message, true);
