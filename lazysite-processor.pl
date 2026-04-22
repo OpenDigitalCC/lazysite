@@ -29,17 +29,34 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
         description => 'Core lazysite.conf settings: site identity, layout, theme, search, and manager',
         version     => '1.0',
         config_file => '',
-        config_keys => [qw(site_name site_url layout theme nav_file
-                           search_default manager manager_path manager_groups)],
+        # SM044: layouts_repo is in config_keys so action_plugin_save
+        # treats it as write-allowed for the site plugin, but it's
+        # deliberately NOT in config_schema — layouts_repo lives on
+        # /manager/themes (via layouts-repo-get/set), not on the
+        # Config page. Keeping both lists aligned avoids a save-path
+        # surprise if something ever rolls layouts_repo in via
+        # plugin-save.
+        #
+        # NOTE: config.md SITE_SCHEMA duplicates config_schema.
+        # Keep them in sync until SM042 unifies them.
+        config_keys => [qw(site_name site_url layout theme layouts_repo
+                           nav_file search_default
+                           manager manager_path manager_groups)],
         config_schema => [
             { key => 'site_name', label => 'Site name', type => 'text',
               default => 'My Site', required => JSON::PP::true() },
             { key => 'site_url', label => 'Site URL', type => 'text',
               default => '${REQUEST_SCHEME}://${SERVER_NAME}' },
-            { key => 'layout', label => 'Active layout', type => 'text',
-              default => '' },
-            { key => 'theme', label => 'Active theme', type => 'text',
-              default => '' },
+            # SM044: dropdown_layouts / dropdown_themes_for_active_layout
+            # are dynamically-populated selects rendered by config.md's
+            # JS. Options come from manager-api endpoints
+            # (layouts-available / themes-for-layout). The 'text' fallback
+            # in renderSiteForm keeps these sensible on older UIs.
+            { key => 'layout', label => 'Active layout',
+              type => 'dropdown_layouts', default => '' },
+            { key => 'theme',  label => 'Active theme',
+              type => 'dropdown_themes_for_active_layout', default => '',
+              depends_on => 'layout' },
             { key => 'nav_file', label => 'Navigation file', type => 'text',
               default => 'lazysite/nav.conf' },
             { key => 'search_default', label => 'Pages searchable by default', type => 'select',

@@ -37,7 +37,13 @@ query_params:
 <span class="mg-card-title">Install from Releases</span>
 </div>
 <div class="mg-card-body">
-<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Install themes from a published release of the layouts repository configured in <code>lazysite.conf</code> (<code>layouts_repo</code>). Each install pulls every valid theme in the release.</p>
+<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Install themes from a published release of the layouts repository. The release repo must use the D013 nested shape (themes at <code>layouts/LAYOUT/themes/THEME/</code>). Each install pulls every valid theme in the release.</p>
+<div class="mg-form-row mg-config-field" style="margin-bottom:0.75rem;">
+<label for="layouts-repo-input">Layouts repo</label>
+<input type="text" id="layouts-repo-input"
+       placeholder="OpenDigitalCC/lazysite-layouts" style="flex:1;">
+<button class="mg-btn mg-btn-outline mg-btn-sm" onclick="saveLayoutsRepo()">Save</button>
+</div>
 <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
 <button class="mg-btn mg-btn-outline" onclick="loadReleases()">Browse releases</button>
 </div>
@@ -188,6 +194,44 @@ function uploadTheme() {
   reader.readAsArrayBuffer(file);
 }
 
+// SM044: read/write the layouts_repo conf key via dedicated endpoints.
+// loadLayoutsRepo runs on page init; saveLayoutsRepo is wired to the
+// Save button beside the input.
+function loadLayoutsRepo() {
+  fetch(API + '?action=layouts-repo-get')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var input = document.getElementById('layouts-repo-input');
+      if (!input) return;
+      input.value = (data && data.ok && data.value) ? data.value : '';
+    })
+    .catch(function() {
+      // Non-fatal; leave the input blank.
+    });
+}
+
+function saveLayoutsRepo() {
+  var input = document.getElementById('layouts-repo-input');
+  if (!input) return;
+  var value = (input.value || '').trim();
+  fetch(API + '?action=layouts-repo-set', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value: value })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) {
+        showStatus(data.error || 'Save failed.', true);
+        return;
+      }
+      showStatus(value ? 'Layouts repo saved.' : 'Layouts repo cleared.');
+    })
+    .catch(function(e) {
+      showStatus('Error: ' + e.message, true);
+    });
+}
+
 // SM037 / D013: browse releases of the configured layouts repo and
 // install themes from a chosen release. layouts-releases is GET so
 // anonymous GitHub rate limits (60/hour) apply to the lazysite host,
@@ -201,7 +245,7 @@ function loadReleases() {
     .then(function(data) {
       if (!data.ok) {
         container.innerHTML = '';
-        showStatus(data.error || 'Unable to fetch releases. Check the layouts_repo setting in lazysite.conf.', true);
+        showStatus(data.error || 'Unable to fetch releases. Check the Layouts repo setting above.', true);
         return;
       }
       renderReleases(data.releases || [], data.repo || '');
@@ -280,4 +324,5 @@ function installRelease(tag) {
 }
 
 loadThemes();
+loadLayoutsRepo();
 </script>

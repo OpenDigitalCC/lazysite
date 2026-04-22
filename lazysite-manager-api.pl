@@ -216,6 +216,13 @@ elsif ( $action eq 'theme-rename' )     {
 elsif ( $action eq 'theme-upload' )     { $result = action_theme_upload( $body, $params{filename} ) }
 elsif ( $action eq 'layouts-releases' ) { $result = action_layouts_releases() }
 elsif ( $action eq 'layouts-install' )  { $result = action_layouts_install($body) }
+elsif ( $action eq 'layouts-available' ) { $result = action_layouts_available() }
+elsif ( $action eq 'themes-for-layout' ) { $result = action_themes_for_layout( $params{layout} ) }
+elsif ( $action eq 'layouts-repo-get' )  { $result = action_layouts_repo_get() }
+elsif ( $action eq 'layouts-repo-set' )  {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_layouts_repo_set( $req->{value} );
+}
 elsif ( $action eq 'users' )            { $result = action_users( $body, \%params ) }
 elsif ( $action eq 'rotate-auth-secret' ) { $result = action_rotate_auth_secret( $auth_user ) }
 elsif ( $action eq 'plugin-list' )      { $result = action_plugin_list() }
@@ -1273,6 +1280,127 @@ sub action_layouts_install {
 sub _cleanup_tmp_layouts {
     my ($dir) = @_;
     system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-layouts-\d+$};
+}
+
+# --- SM044: dropdown population + layouts_repo read/write ---
+#
+# layouts-available / themes-for-layout feed the config-page
+# dropdowns for the active layout and active theme. layouts-repo-get /
+# layouts-repo-set surface the layouts_repo lazysite.conf key on the
+# /manager/themes page, so operators don't have to hand-edit the conf
+# just to point the release browser at a different repo.
+#
+# Scans are filesystem directory reads; not cached. N is small (<10
+# for typical installs).
+
+sub action_layouts_available {
+    my $layouts_dir = "$DOCROOT/lazysite/layouts";
+    my @layouts;
+    if ( -d $layouts_dir ) {
+        opendir my $dh, $layouts_dir
+            or return { ok => 1, layouts => [] };
+        for my $name ( sort readdir $dh ) {
+            next if $name =~ /^\./;
+            # Sanitise: reject anything that wouldn't be a valid layout
+            # directory under D013's contract.
+            next unless $name =~ /^[A-Za-z0-9_-]+$/;
+            next unless -f "$layouts_dir/$name/layout.tt";
+            push @layouts, $name;
+        }
+        closedir $dh;
+    }
+    return { ok => 1, layouts => \@layouts };
+}
+
+sub action_themes_for_layout {
+    my ($layout) = @_;
+    $layout //= '';
+    $layout =~ s/[^A-Za-z0-9_-]//g;
+    return { ok => 0, error => 'layout parameter required', themes => [] }
+        unless length $layout;
+
+    my $themes_dir = "$DOCROOT/lazysite/layouts/$layout/themes";
+    my @themes;
+    if ( -d $themes_dir ) {
+        opendir my $dh, $themes_dir
+            or return { ok => 1, themes => [] };
+        for my $name ( sort readdir $dh ) {
+            next if $name =~ /^\./;
+            next unless $name =~ /^[A-Za-z0-9_-]+$/;
+            my $tj = "$themes_dir/$name/theme.json";
+            next unless -f $tj;
+
+            # Verify theme declares compatibility with this layout.
+            # A theme whose layouts[] doesn't include $layout got there
+            # via some non-manager install path and shouldn't surface
+            # as a valid choice.
+            open my $jf, '<:utf8', $tj or next;
+            my $raw = do { local $/; <$jf> };
+            close $jf;
+            my $meta = eval { decode_json($raw) };
+            next unless ref $meta eq 'HASH'
+                     && ref $meta->{layouts} eq 'ARRAY'
+                     && grep { $_ eq $layout } @{ $meta->{layouts} };
+
+            push @themes, $name;
+        }
+        closedir $dh;
+    }
+    return { ok => 1, themes => \@themes, layout => $layout };
+}
+
+sub action_layouts_repo_get {
+    my $value = _layouts_repo() // '';
+    return { ok => 1, value => $value };
+}
+
+sub action_layouts_repo_set {
+    my ($value) = @_;
+    $value //= '';
+
+    # Empty string is the explicit "unset" signal; the key is removed
+    # from the conf rather than written as an empty value.
+    if ( length $value ) {
+        # Match GitHub's actual allowed repo-name chars: each segment
+        # starts with alnum and contains alnum/./_/-.
+        unless ( $value =~
+            m{^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$} ) {
+            return { ok => 0,
+                error => 'Invalid layouts_repo format (expected OWNER/REPO)' };
+        }
+    }
+
+    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my $content   = '';
+    if ( -f $conf_path ) {
+        open my $fh, '<:utf8', $conf_path
+            or return { ok => 0, error => "Cannot read lazysite.conf" };
+        $content = do { local $/; <$fh> };
+        close $fh;
+    }
+
+    if ( length $value ) {
+        if ( $content =~ /^layouts_repo\s*:/m ) {
+            $content =~ s/^layouts_repo\s*:.*$/layouts_repo: $value/m;
+        }
+        else {
+            $content =~ s/\n?$/\n/;    # ensure trailing newline
+            $content .= "layouts_repo: $value\n";
+        }
+    }
+    else {
+        # Unset: drop any layouts_repo line entirely.
+        $content =~ s/^layouts_repo\s*:.*\n?//m;
+    }
+
+    my ( $wok, $werr ) = write_file_checked( $conf_path, $content );
+    return { ok => 0, error => "Cannot write lazysite.conf: $werr" }
+        unless $wok;
+
+    log_event( 'INFO', 'layouts-repo-set',
+        'layouts_repo updated', value => $value, user => $auth_user );
+
+    return { ok => 1, value => $value };
 }
 
 # --- User management proxy ---

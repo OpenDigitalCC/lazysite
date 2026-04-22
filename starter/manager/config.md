@@ -24,12 +24,21 @@ var SITE_PLUGIN_ID = 'lazysite';
 // keeps working if the processor is ever moved.
 var sitePluginScript = null;
 
+// NOTE: this mirrors lazysite-processor.pl's config_schema.
+// Keep them in sync until SM042 unifies them.
 var SITE_SCHEMA = [
   { key: 'site_name',      label: 'Site name',             type: 'text',   required: true,
     default: 'My Site' },
   { key: 'site_url',       label: 'Site URL',              type: 'text',
     default: '${REQUEST_SCHEME}://${SERVER_NAME}' },
-  { key: 'theme',          label: 'Default theme',         type: 'text',   default: '' },
+  // SM044: layout + theme are dynamically-populated dropdowns.
+  // Options come from ?action=layouts-available and
+  // ?action=themes-for-layout. The layout change event re-fetches
+  // the theme options (depends_on: 'layout').
+  { key: 'layout',         label: 'Active layout',         type: 'dropdown_layouts',
+    default: '' },
+  { key: 'theme',          label: 'Active theme',          type: 'dropdown_themes_for_active_layout',
+    default: '', depends_on: 'layout' },
   { key: 'nav_file',       label: 'Navigation file',       type: 'text',
     default: 'lazysite/nav.conf' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'select',
@@ -44,32 +53,116 @@ var SITE_SCHEMA = [
     show_when: { key: 'manager', value: ['enabled'] } },
 ];
 
+// SM044: populated by parallel fetch of layouts-available at load time.
+// Null means "not yet loaded"; [] means "loaded, but none installed".
+var availableLayouts = null;
+
 function esc(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // --- Site settings ---
 
 function loadSiteSettings() {
   if (!sitePluginScript) return;
-  fetch(API + '?action=plugin-read&plugin=' + encodeURIComponent(SITE_PLUGIN_ID), {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ script: sitePluginScript })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    var container = document.getElementById('site-settings');
-    if (!data.ok) {
-      mgShowWarning(data.error || 'Failed to load site settings', true);
-      container.textContent = '';
-      return;
+  // SM044: fetch settings and the layouts-available list in parallel,
+  // so the layout dropdown can render with real options on first paint.
+  // Theme dropdown is populated afterwards once we know the layout.
+  var readPromise = fetch(
+    API + '?action=plugin-read&plugin=' + encodeURIComponent(SITE_PLUGIN_ID), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ script: sitePluginScript })
     }
-    mgClearWarning();
-    container.innerHTML = renderSiteForm(data.values || {});
-    applyShowWhen(container);
-  })
-  .catch(function(e) {
-    mgShowWarning('Error: ' + e.message, true);
-    document.getElementById('site-settings').textContent = '';
-  });
+  ).then(function(r) { return r.json(); });
+
+  var layoutsPromise = fetch(API + '?action=layouts-available')
+    .then(function(r) { return r.json(); });
+
+  Promise.all([readPromise, layoutsPromise])
+    .then(function(results) {
+      var data = results[0];
+      var layoutsResp = results[1];
+      var container = document.getElementById('site-settings');
+      if (!data.ok) {
+        mgShowWarning(data.error || 'Failed to load site settings', true);
+        container.textContent = '';
+        return;
+      }
+      mgClearWarning();
+
+      availableLayouts = (layoutsResp && layoutsResp.ok && layoutsResp.layouts)
+        ? layoutsResp.layouts
+        : [];
+
+      var values = data.values || {};
+      container.innerHTML = renderSiteForm(values);
+      applyShowWhen(container);
+      // Now that layout is known, populate theme dropdown for it.
+      refreshThemeDropdown(values.layout || '', values.theme || '');
+    })
+    .catch(function(e) {
+      mgShowWarning('Error: ' + e.message, true);
+      document.getElementById('site-settings').textContent = '';
+    });
+}
+
+// SM044: refresh the theme <select> based on the current layout.
+// Called on initial load and on layout-field change. If the currently
+// configured theme value isn't compatible with the new layout, it's
+// cleared — better than silently pretending an incompatible theme
+// is active.
+function refreshThemeDropdown(layoutValue, preferredTheme) {
+  var sel = document.querySelector('#site-form [name="theme"]');
+  if (!sel) return;
+
+  if (!layoutValue) {
+    sel.innerHTML =
+      '<option value="" disabled selected>'
+      + '(set a layout first)</option>';
+    sel.value = '';
+    return;
+  }
+
+  fetch(API + '?action=themes-for-layout&layout='
+        + encodeURIComponent(layoutValue))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var themes = (data && data.ok && data.themes) ? data.themes : [];
+      if (!themes.length) {
+        sel.innerHTML =
+          '<option value="" disabled selected>'
+          + '(no themes compatible with '
+          + esc(layoutValue) + ')</option>';
+        sel.value = '';
+        return;
+      }
+      var html = '<option value="">(none)</option>';
+      var found = false;
+      for (var i = 0; i < themes.length; i++) {
+        var t = themes[i];
+        var selectedAttr = '';
+        if (preferredTheme && t === preferredTheme) {
+          selectedAttr = ' selected';
+          found = true;
+        }
+        html += '<option value="' + esc(t) + '"' + selectedAttr + '>'
+             + esc(t) + '</option>';
+      }
+      sel.innerHTML = html;
+      if (!found) sel.value = '';
+    })
+    .catch(function() {
+      sel.innerHTML =
+        '<option value="" disabled selected>(failed to load)</option>';
+    });
+}
+
+// SM044: wired into the layout dropdown's onchange in renderSiteForm.
+// Uses the CURRENT theme field value as preferredTheme so operators
+// get the same theme back if it's still compatible.
+function onLayoutChange(select) {
+  var themeSel = document.querySelector('#site-form [name="theme"]');
+  var preferred = themeSel ? themeSel.value : '';
+  refreshThemeDropdown(select.value, preferred);
+  applyShowWhen(select.form);
 }
 
 function renderSiteForm(values) {
@@ -83,6 +176,31 @@ function renderSiteForm(values) {
     if (f.type === 'select') {
       html += '<select name="'+f.key+'" onchange="applyShowWhen(this.form)">';
       (f.options||[]).forEach(function(o) { html += '<option'+(v===o?' selected':'')+'>'+o+'</option>'; });
+      html += '</select>';
+    } else if (f.type === 'dropdown_layouts') {
+      // SM044: populated from the layouts-available response cached
+      // in availableLayouts. On change, refresh the theme dropdown
+      // via onLayoutChange (which also calls applyShowWhen).
+      html += '<select name="'+f.key+'" onchange="onLayoutChange(this)">';
+      if (!availableLayouts || !availableLayouts.length) {
+        html += '<option value="" disabled selected>'
+             +  '(no layouts installed)</option>';
+      } else {
+        html += '<option value=""'+(v===''?' selected':'')+'>(none)</option>';
+        availableLayouts.forEach(function(layoutName) {
+          html += '<option value="'+esc(layoutName)+'"'
+               +  (v===layoutName?' selected':'')+'>'+esc(layoutName)+'</option>';
+        });
+      }
+      html += '</select>';
+    } else if (f.type === 'dropdown_themes_for_active_layout') {
+      // SM044: populated asynchronously by refreshThemeDropdown
+      // after the form renders (and again on layout change). A
+      // placeholder <option> carries the current value so the
+      // form's value round-trips on save before the fetch returns.
+      html += '<select name="'+f.key+'" onchange="applyShowWhen(this.form)">';
+      html += '<option value="'+esc(v)+'" selected>'
+           +  (v ? esc(v) : '(loading...)')+'</option>';
       html += '</select>';
     } else {
       html += '<input type="text" name="'+f.key+'" value="'+esc(v)+'"'+(f.required?' required':'')+'>';
