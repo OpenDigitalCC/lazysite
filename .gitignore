@@ -24,7 +24,7 @@ starter/manager/assets/manager.css
 starter/**/*.html
 
 # Deployment-only rsync helper (lives at /srv/projects/lazysite/)
-rsync-from-source.sh
+pre-release.sh
 
 # OS files
 .DS_Store
