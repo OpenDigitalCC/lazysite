@@ -1982,7 +1982,7 @@ sub load_upload_limits {
         max_bytes          => 10 * 1024 * 1024,
         blocked_paths      => [ qw(
             lazysite/auth lazysite/forms lazysite/cache
-            lazysite/themes/manager cgi-bin manager
+            lazysite/manager cgi-bin manager
         ) ],
         blocked_extensions => [ qw(pl cgi) ],
         rate_count         => 60,

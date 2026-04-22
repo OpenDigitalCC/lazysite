@@ -185,7 +185,7 @@ if ( ! -f $conf_target && -f $conf_source ) {
 
 # Copy manager CSS to web-accessible path
 {
-    my $src = "$DOCROOT/lazysite/themes/manager/assets/manager.css";
+    my $src = "$DOCROOT/lazysite/manager/assets/manager.css";
     my $dst = "$DOCROOT/manager/assets/manager.css";
     if ( -f $src ) {
         require File::Path;
