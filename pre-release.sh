@@ -106,8 +106,39 @@ if [ "$SYNC_ONLY" = "1" ]; then
     exit 0
 fi
 
+# SM036: one-line preview before the confirmation so the operator
+# sees exactly what will be built. NEXT_VERSION is the target
+# version; the bump commit after release sets NEXT_VERSION to the
+# next patch.
+REL_VERSION=""
+REL_NEXT=""
+if [ -f NEXT_VERSION ]; then
+    REL_VERSION=$(tr -d ' \t\n\r' < NEXT_VERSION)
+fi
+if [ -n "$REL_VERSION" ] && [[ "$REL_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    IFS='.' read -r _REL_MAJ _REL_MIN _REL_PAT <<< "$REL_VERSION"
+    REL_NEXT="$_REL_MAJ.$_REL_MIN.$((_REL_PAT + 1))"
+fi
+REL_NOTES_FIRST=""
+if [ -f .release-notes.md ]; then
+    REL_NOTES_FIRST=$(head -n 1 .release-notes.md | tr -d '\r')
+fi
+PRE_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+echo "==> Ready to release ${REL_VERSION:-?}"
+echo "    Commit:  $PRE_SHA  (pre-release)"
+if [ -n "$REL_NOTES_FIRST" ]; then
+    echo "    Notes:   $REL_NOTES_FIRST"
+else
+    echo "    Notes:   (none - interactive prompt will run)"
+fi
+if [ -n "$REL_NEXT" ]; then
+    echo "    Next:    $REL_NEXT (bumped after release)"
+fi
+echo ""
+
 if [ "$AUTO_RELEASE" = "1" ]; then
-    echo "==> Running make-release.sh --auto"
+    echo "==> --auto: running make-release.sh --auto without prompt"
     exec ./make-release.sh --auto
 fi
 
@@ -117,7 +148,7 @@ case "$ans" in
         exec ./make-release.sh --auto
         ;;
     *)
-        echo "==> Aborted. Run ./make-release.sh --auto manually when ready."
+        echo "==> Aborted. Re-run ./pre-release.sh when ready."
         exit 0
         ;;
 esac

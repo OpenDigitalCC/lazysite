@@ -84,31 +84,57 @@ Cutting a release produces three artefacts in one commit:
 - `sbom.json` at repo root: CycloneDX 1.6 SBOM covering source
   files and direct runtime dependencies.
 
-The orchestrator is `./make-release.sh`.
+The front door is `./pre-release.sh`. It rsyncs from CC's
+sandbox, applies release-prep actions (if any), shows the
+working-tree state and release notes, previews the release
+version, and on confirmation runs `make-release.sh --auto`.
 
 ### Prepare
 
 1. Review `NEXT_VERSION`. Edit for minor or major bumps if the next
    release isn't just a patch. The default after a release is
    `VERSION+1` on the patch field.
-2. Ensure the working tree is clean. `make-release.sh` refuses to
-   run on a dirty tree or with staged changes. Untracked files do
-   not fail the build but are reported - they won't be in the
-   tarball (`git ls-files` is the source of truth for staging).
+2. No need to commit CC's session changes first. `pre-release.sh`
+   rsyncs them into the working tree and `make-release.sh --auto`
+   absorbs them into the release commit via `git add -A`.
 
 ### Release command
 
 ```
-./make-release.sh --auto
+./pre-release.sh
 ```
 
-Builds, commits, tags, bumps `NEXT_VERSION`, and pushes. One
-command; the happy path for cutting a release.
+Prompts twice:
 
-In practice, use `./pre-release.sh` as the front door. It
-rsyncs from CC's sandbox, applies release-prep actions if
-present, shows the working-tree state and release notes, and
-then runs `make-release.sh --auto`.
+- **Prep actions** (only if `.release-prep.sh` is present): shows
+  the script, asks to apply.
+- **Release**: shows target version, pre-release commit SHA, first
+  line of release notes, next version. Asks to proceed.
+
+On confirmation, builds, commits, tags, bumps `NEXT_VERSION`, and
+pushes - all in one go. `.release-notes.md` and
+`.release-prep.sh` are deleted on successful push so the next
+session starts clean.
+
+For unattended release (skips both confirmations):
+
+```
+./pre-release.sh --auto
+```
+
+### Manual / debugging path
+
+`make-release.sh --auto` can be run directly. It absorbs
+uncommitted changes via `git add -A`, same as when invoked via
+`pre-release.sh`.
+
+`make-release.sh` without `--auto` stops after the build and
+prints the two-commit sequence for you to run by hand; in this
+mode it requires a clean tree (the manual-operator-driven
+precondition). `--allow-dirty` exists as a one-off bootstrap
+override when even a clean tree cannot be arranged (first
+release of a new feature). `--allow-dirty` is incompatible with
+`--auto` - the latter already handles dirty trees correctly.
 
 ### Release preparation
 
@@ -193,21 +219,6 @@ Subject line is always `release: X.Y.Z`. The first line of the
 notes file becomes the first body line, visible in
 `git log --oneline` via `--format` expansions and on GitHub's
 release-page preview.
-
-### Manual release (secondary)
-
-Running without `--auto` builds the tarball, manifest, and SBOM,
-runs the evaluation-ramp smoke test, then stops and prints the
-two-commit sequence for you to run. Use when you want to inspect
-the generated artefacts before committing, or when debugging the
-release flow.
-
-```
-./make-release.sh
-```
-
-No argument at all prints just a status summary and reminds you
-how to invoke the real command.
 
 ### Release topology
 

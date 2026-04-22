@@ -88,7 +88,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$AUTO" -eq 1 ] && [ "$ALLOW_DIRTY" -eq 1 ]; then
-    err "--auto and --allow-dirty are mutually exclusive. --auto requires a clean tree."
+    err "--auto and --allow-dirty are mutually exclusive. --auto absorbs uncommitted changes into the release commit; --allow-dirty is for manual mode only."
 fi
 
 if [ -n "$NOTES_FILE" ] && [ "$AUTO" -ne 1 ]; then
@@ -145,7 +145,14 @@ fi
 info "Building release $VERSION"
 
 # Clean tree check
-if [ "$ALLOW_DIRTY" -eq 1 ]; then
+if [ "$AUTO" -eq 1 ]; then
+    # SM036: in --auto mode, uncommitted changes are expected.
+    # pre-release.sh puts CC's session deliverables into the
+    # working tree via rsync without a separate commit step; the
+    # git add -A below captures them as part of the release
+    # commit. Manual mode keeps the clean-tree precondition.
+    :
+elif [ "$ALLOW_DIRTY" -eq 1 ]; then
     warn "--allow-dirty: skipping clean-tree check"
 elif ! git diff --quiet || ! git diff --cached --quiet; then
     err "Working tree has uncommitted changes. Commit or stash first."
