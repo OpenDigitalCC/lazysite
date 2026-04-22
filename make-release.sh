@@ -161,6 +161,10 @@ fi
 COMMIT=$(git rev-parse HEAD)
 info "HEAD = $COMMIT"
 
+# SM033: populated after the release commit lands in --auto mode.
+# Empty in manual mode (no commit happens).
+RELEASE_SHA=""
+
 REPO_ROOT=$(pwd)
 STAGE=$(mktemp -d "/tmp/lazysite-$VERSION-stage-XXXXXX")
 STAGE_INNER="$STAGE/lazysite-$VERSION"
@@ -422,6 +426,11 @@ if [ "$AUTO" -eq 1 ]; then
     fi
     rm -f "$MSG_FILE"
 
+    # SM033: capture the release commit's SHA now, before any
+    # follow-up commits move HEAD. Used in both the OK block
+    # below and the final summary.
+    RELEASE_SHA=$(git rev-parse HEAD)
+
     if ! git tag -a "v$VERSION" -m "Release $VERSION"; then
         warn "git tag failed. Commit is in place. To recover:"
         warn "  git tag -a v$VERSION -m 'Release $VERSION'"
@@ -444,8 +453,6 @@ if [ "$AUTO" -eq 1 ]; then
     elif ! git push origin "v$VERSION"; then
         PUSH_OK=0
     fi
-
-    RELEASE_SHA=$(git rev-parse "v$VERSION^{commit}")
 
     if [ "$PUSH_OK" -eq 0 ]; then
         warn "Push failed. Commits and tag are local. Retry with:"
@@ -498,7 +505,15 @@ fi
 info "Summary"
 printf "  version:     %s\n"  "$VERSION"
 printf "  next:        %s\n"  "$NEXT"
-printf "  commit:      %s\n"  "$COMMIT"
+# SM033: release commit SHA in --auto mode; pre-release HEAD in
+# manual mode (with a clarifying suffix so the reader doesn't
+# mistake it for the release commit).
+if [ -n "$RELEASE_SHA" ]; then
+    printf "  commit:      %s  (release)\n" "$RELEASE_SHA"
+else
+    printf "  commit:      %s  (pre-release HEAD; commit not yet created)\n" \
+        "$COMMIT"
+fi
 printf "  tarball:     dist/lazysite-%s.tar.gz\n"       "$VERSION"
 printf "  sha256:      %s\n"                            "$SHA"
 printf "  manifest:    release-manifest.json (%s entries)\n" \

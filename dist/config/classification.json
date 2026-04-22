@@ -94,6 +94,8 @@
   ],
   "exclude": [
     "^\\.gitignore$",
+    "^\\.rsyncignore$",
+    "^\\.release-notes\\.md$",
     "^\\.git/",
     "^\\.github/",
     "^Makefile$",

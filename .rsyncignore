@@ -1,0 +1,32 @@
+# Version control
+.git/
+
+# Project version state: Stuart owns these
+VERSION
+NEXT_VERSION
+
+# Runtime operator conf for live sites
+starter/lazysite/lazysite.conf
+starter/lazysite/nav.conf
+starter/lazysite/forms/contact.conf
+starter/lazysite/forms/handlers.conf
+starter/lazysite/forms/smtp.conf
+
+# Auth state (never transfer)
+starter/lazysite/auth/users
+starter/lazysite/auth/groups
+starter/lazysite/auth/.secret
+
+# Cache and logs
+starter/lazysite/cache/
+starter/lazysite/logs/
+
+# Build outputs
+dist/lazysite-*.tar.gz
+dist/lazysite-*.tar.gz.sha256
+release-manifest.json
+sbom.json
+
+# Dev environment
+test-site/
+rsync-from-source.sh

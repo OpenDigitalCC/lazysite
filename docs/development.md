@@ -3,6 +3,50 @@
 Developer-facing notes for the lazysite repo. User-facing docs live
 under `starter/docs/` and ship inside every installation.
 
+## Working with CC
+
+The development assistant produces deliverables in a sandbox
+working tree. The operator (Stuart) rsyncs that tree into the
+project environment, reviews, and ships.
+
+### Rsyncing CC's deliverables
+
+From CC's sandbox working tree to your dev environment:
+
+```
+rsync -av --delete --exclude-from=.rsyncignore \
+    /path/to/cc-sandbox/ \
+    /srv/projects/lazysite/
+```
+
+The `.rsyncignore` file at repo root lists workflow and operator
+state that should not cross the rsync boundary. The two main
+categories:
+
+- **Project version state.** `VERSION` and `NEXT_VERSION` are
+  owned by the operator. CC's sandbox values are post-rebuild
+  state and may not match what you want to ship next.
+- **Runtime operator conf.** `lazysite.conf`, `nav.conf`, the
+  forms `*.conf` files, and auth state files are per-install
+  operator state. CC's sandbox values are scratch test data.
+
+The `.rsyncignore` also excludes generated build artefacts
+(`dist/lazysite-*.tar.gz`, `release-manifest.json`, `sbom.json`)
+because your `make-release.sh --auto` run regenerates them
+locally from the rsync'd source.
+
+`.release-notes.md` is **not** excluded - that file is CC's
+release-notes deliverable for the next `--auto` run, per the
+SM030 convention documented under [Release notes
+convention](#release-notes-convention).
+
+`--delete` handles files CC removed during the session (e.g.
+plugin files moved to new locations during D022). Without
+`--delete`, removed files linger in your dev tree and confuse
+the next release. The `--exclude-from` patterns are honoured
+under `--delete` too - excluded files on your side are
+preserved.
+
 ## Releasing
 
 Cutting a release produces three artefacts in one commit:
