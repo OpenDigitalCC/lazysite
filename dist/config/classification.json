@@ -81,7 +81,7 @@
       "bucket": "code"
     },
     {
-      "pattern": "^install\\.sh$",
+      "pattern": "^install\\.(sh|pl)$",
       "install_to": null,
       "bucket": "code"
     },
@@ -147,6 +147,11 @@
       "path": "{DOCROOT}/../plugins",
       "mode": "0755",
       "purpose": "plugin scripts (D022)"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/themes",
+      "mode": "0755",
+      "purpose": "theme uploads target (D021c)"
     }
   ]
 }

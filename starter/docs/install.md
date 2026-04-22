@@ -52,8 +52,14 @@ files are deployed automatically on rebuild.
 ```bash
 git clone https://github.com/OpenDigitalCC/lazysite.git
 cd lazysite
-sudo bash install.sh
+sudo bash install.sh --docroot /path/to/public_html --cgibin /path/to/cgi-bin
 ```
+
+`install.sh` is a thin wrapper around `install.pl`; the Perl
+installer reads `release-manifest.json` and tracks installed
+state at `{docroot}/lazysite/.install-state.json` so re-runs
+upgrade in place without losing content you've edited. See
+[Upgrading](#upgrading) below.
 
 Then in HestiaCP:
 
@@ -156,6 +162,49 @@ Feed the relevant briefing to an AI assistant at the start of a
 session to enable help without needing to explain the system each
 time. In Claude Projects, save it as a project document. For other
 AI tools, paste it as context at the start of the conversation.
+
+## Upgrading
+
+Re-run `install.sh` against the same `--docroot` and `--cgibin` to
+upgrade. Seed files you have edited (starter pages, docs) are
+preserved; code files (processor, plugins, manager UI) are
+always refreshed.
+
+```bash
+sudo bash install.sh --docroot /path/to/public_html --cgibin /path/to/cgi-bin
+```
+
+Before applying an upgrade, the installer creates a backup
+tarball at `{docroot}/lazysite/backups/`. Inspect the plan
+before committing:
+
+```bash
+bash install.sh --docroot /path/to/public_html --cgibin /path/to/cgi-bin --dry-run
+```
+
+`backup_retention` in `lazysite.conf` controls how many
+backups are kept (default 3; 0 = keep all).
+
+### If upgrade goes wrong
+
+```bash
+bash install.sh --docroot /path/to/public_html --restore
+```
+
+Restores the most recent backup. For a specific backup:
+
+```bash
+bash install.sh --docroot /path/to/public_html --restore --backup /path/to/backup.tar.gz
+```
+
+List available backups:
+
+```bash
+bash install.sh --docroot /path/to/public_html --list-backups
+```
+
+Restore does not touch runtime state (auth users, cache, logs)
+and invalidates the rendered HTML cache afterwards.
 
 ## Uninstall
 

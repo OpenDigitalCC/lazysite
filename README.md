@@ -62,6 +62,11 @@ Open http://localhost:8080/ to browse the starter site.
                          --cgibin /path/to/cgi-bin \
                          --domain example.com
 
+The installer is upgrade-aware: re-run against the same `--docroot`
+to apply a new release. Seed files you've edited are preserved;
+backups accumulate at `{docroot}/lazysite/backups/`. Use
+`--dry-run` to preview an upgrade, `--restore` to roll back.
+
 HestiaCP users: see `installers/hestia/`. Docker: see `installers/docker/`.
 
 Full installation details in

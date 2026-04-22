@@ -1,5 +1,86 @@
 # Upgrade notes
 
+## 0.2.x to 0.3.0
+
+The installer is now upgrade-aware. This is the first version
+with safe in-place upgrades; you can re-run `install.sh` to
+pick up future releases without losing site content.
+
+### What this enables
+
+- Seed files you have edited (starter pages, your custom docs,
+  registry templates) are preserved across upgrades.
+- Code files (processor, plugins, manager UI, system theme)
+  are overwritten with each new release.
+- Files removed in new versions are cleaned up only if you
+  haven't edited them; edited orphans stay and produce a
+  warning.
+- Pre-upgrade backups accumulate under
+  `{docroot}/lazysite/backups/`, retained per
+  `backup_retention` in `lazysite.conf` (default 3; 0 = keep
+  all).
+- `install.sh --dry-run` shows the full upgrade plan without
+  modifying anything.
+
+### What does NOT get migrated
+
+Installs created with 0.1.x or 0.2.x pre-dating the 0.3.0
+installer do not have `.install-state.json`. The installer
+treats them as fresh installs: it walks the manifest and
+skips-if-present, which is the old behaviour. The first
+post-0.3.0 run establishes `.install-state.json` for future
+upgrades. Effectively, 0.3.0 is where upgrade-tracking begins.
+Plan to back up your docroot before the first 0.3.0 install
+on an existing deployment.
+
+### If upgrade goes wrong
+
+Every upgrade creates a backup first. To restore:
+
+```bash
+bash install.sh --docroot /path/to/public_html --restore
+```
+
+To list available backups:
+
+```bash
+bash install.sh --docroot /path/to/public_html --list-backups
+```
+
+To restore a specific backup:
+
+```bash
+bash install.sh --docroot /path/to/public_html --restore --backup PATH
+```
+
+Restore does not touch runtime state (auth users, cache,
+logs). It invalidates the rendered HTML cache afterwards so
+stale pages don't linger.
+
+### Default theme no longer fetched on install
+
+Previous installers cloned `lazysite-views` over the network
+to install a default `view.tt`. The new installer does not
+fetch anything over the network; a fresh install has no
+`view.tt` and the processor falls back to a built-in template.
+Upload a theme via the manager UI at `/manager/themes` to
+install one.
+
+Existing deployments with a `view.tt` from a prior install
+are untouched.
+
+### New files installed
+
+`install.sh` now installs:
+
+- `install.pl` at the repo root (the real installer; the
+  shell script is a thin wrapper).
+
+### No change for fresh installs
+
+First-time installs work the same as before.
+`.install-state.json` is created automatically on first run.
+
 ## 0.1.0 to 0.2.0
 
 Breaking changes in this release. Read the whole file before

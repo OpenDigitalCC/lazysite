@@ -337,3 +337,88 @@ Each shipped file falls into one of three buckets:
 Rules and overrides are defined in
 `dist/config/classification.json`. Adding a shipped file means
 either matching an existing rule or adding a rule/override.
+
+## Installer (install.pl)
+
+`install.pl` at repo root is the real installer; `install.sh`
+is a thin `exec perl install.pl "$@"` wrapper that preserves
+the historic invocation. The Perl script reads
+`release-manifest.json` at the tarball root and tracks
+installed state at `{docroot}/lazysite/.install-state.json`.
+
+### Three modes
+
+The mode is decided by whether `.install-state.json` exists
+at the destination:
+
+- **fresh**: no state file. Walk the manifest, install
+  everything, write state. No backup (nothing to back up).
+- **upgrade**: state file present, manifest version differs.
+  Compare manifest against state per-file: overwrite code
+  always, preserve operator-edited seed, remove unedited
+  orphans, leave edited orphans with a warning. Back up
+  everything tracked in state before any changes.
+- **reinstall**: state present, same version. Same logic as
+  upgrade; used to recover from corruption or re-apply after
+  manual edits.
+
+### Backup format
+
+Pre-upgrade tarball at
+`{docroot}/lazysite/backups/lazysite-backup-{YYYYMMDD-HHMMSS}-pre-{new-version}.tar.gz`.
+Contains every file listed in the pre-upgrade
+`.install-state.json` plus the state file itself. `tar`
+shells out; backup paths are absolute (captured via
+`--absolute-names`). Extract uses relative mode (no
+`--absolute-names`) into a temp dir, and `install.pl`
+iterates the state file's keys to copy each file to its
+real destination.
+
+Retention: `backup_retention` in `lazysite.conf`, default 3.
+0 keeps all; negative is an error.
+
+### Imperative post-steps
+
+A few steps can't be captured declaratively in the manifest:
+
+- `cgi-bin` symlinks for `form-handler.pl` and
+  `payment-demo.pl` (Apache routes `/cgi-bin/<name>.pl` at
+  the plugin files under `../plugins/`).
+- Duplicating the manager CSS to a web-accessible path.
+- Seeding `auth/users`, `auth/groups`, `nav.conf`, and
+  `lazysite.conf` from their `.example` copies on fresh
+  install.
+- SGID on `{docroot}/lazysite/` so files created there
+  inherit the group.
+
+These stay as named subs inside `install.pl` rather than
+growing the manifest schema. The manager CSS duplicate and
+the `cgi-bin` symlinks are deliberately NOT tracked in
+`.install-state.json` - they are derived from manifest-tracked
+sources and rebuilt on every run, so tracking them would
+cause a false "in stored but not in manifest" match on the
+next upgrade.
+
+### Restore
+
+`install.pl --restore` takes the system back to a backed-up
+state. Without `--backup PATH`, it picks the most recent
+backup. Restore:
+
+- Extracts the backup to a temp dir.
+- Reads the backup's `.install-state.json`.
+- For each file listed there, copies the backup content to
+  the real destination, replacing whatever is there.
+- Writes the backup's state file as the current state.
+- Clears `{docroot}/lazysite/cache/` (rendered HTML may
+  reference state that no longer matches).
+- Leaves runtime state (auth users, logs, edit locks) alone.
+
+No cascading-backup on restore: if you're restoring, you've
+already decided.
+
+### --dry-run
+
+Prints the plan without touching the filesystem. Useful
+before an upgrade to see which files will be preserved,
+overwritten, or removed.

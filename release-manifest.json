@@ -438,8 +438,8 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/install.md",
       "path" : "starter/docs/install.md",
-      "sha256" : "6be2eed5de7a0b49c650115c0f19a1d4943640d65ad46ec015d0720f8b1b150d",
-      "size" : 6785
+      "sha256" : "2ee0ada3a9c50983e12bd91eb892ed92337e3f7234f393902dd75e7975e31b45",
+      "size" : 8235
     },
     {
       "bucket" : "seed",
@@ -795,8 +795,8 @@
       "bucket" : "code",
       "install_to" : null,
       "path" : "README.md",
-      "sha256" : "81eb7a7926709b1be2cacf6ac12aeff7c53b553f4b9547c58fae5a9fcb9bf37e",
-      "size" : 3477
+      "sha256" : "cb6750bb3fcd89b5d9ceb8c9a46d8ad90434ac2d344bdfe4434dca7705969393",
+      "size" : 3728
     },
     {
       "bucket" : "code",
@@ -809,15 +809,15 @@
       "bucket" : "code",
       "install_to" : null,
       "path" : "UPGRADE.md",
-      "sha256" : "ef75b861243ca7a1b104dc1a115267216c745b8b54449f55d97d05e9e843ae31",
-      "size" : 4031
+      "sha256" : "83dca8dae96ce7d516737603ab13a88a510d2bb73a8604ff0d04c75cc161ce57",
+      "size" : 6535
     },
     {
       "bucket" : "code",
       "install_to" : null,
       "path" : "install.sh",
-      "sha256" : "19f6f0b9d7e2f5c73dcf1d93a8d1e5a107348bf8ddbfe8ee465dec98f245ba50",
-      "size" : 11506
+      "sha256" : "5bc035e6ed8383951864f4bbf178acf979fd3a2084471a1e5da1e8713b4082c3",
+      "size" : 325
     },
     {
       "bucket" : "code",
@@ -841,8 +841,8 @@
       "size" : 1603
     }
   ],
-  "generated" : "2026-04-22T11:31:35Z",
-  "min_upgrade_from" : "0.2.5",
+  "generated" : "2026-04-22T12:48:54Z",
+  "min_upgrade_from" : "0.2.6",
   "runtime_paths" : [
     {
       "mode" : "0750",
@@ -868,8 +868,13 @@
       "mode" : "0755",
       "path" : "{DOCROOT}/../plugins",
       "purpose" : "plugin scripts (D022)"
+    },
+    {
+      "mode" : "0755",
+      "path" : "{DOCROOT}/lazysite/themes",
+      "purpose" : "theme uploads target (D021c)"
     }
   ],
   "schema_version" : "1",
-  "version" : "0.2.5"
+  "version" : "0.2.6"
 }
