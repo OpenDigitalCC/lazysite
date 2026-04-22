@@ -42,3 +42,8 @@ dist/*
 # make-release.sh --auto reads this file automatically and deletes
 # it on successful push. See docs/development.md Releasing section.
 .release-notes.md
+
+# CC-authored commit-side actions for a single release. Displayed
+# and executed by pre-release.sh, then removed by
+# make-release.sh --auto on successful push. Session-ephemeral.
+.release-prep.sh

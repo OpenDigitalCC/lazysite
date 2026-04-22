@@ -470,6 +470,13 @@ if [ "$AUTO" -eq 1 ]; then
             rm -f "$DELETE_NOTES_ON_SUCCESS"
             info "Removed $DELETE_NOTES_ON_SUCCESS (consumed by release)"
         fi
+        # SM035: .release-prep.sh is CC's commit-side action script,
+        # consumed by pre-release.sh before the build. Remove it on
+        # successful push so the next session starts clean.
+        if [ -f ".release-prep.sh" ]; then
+            rm -f ".release-prep.sh"
+            info "Removed .release-prep.sh (consumed by release)"
+        fi
     fi
     printf "    Tag:       v%s\n"   "$VERSION"
     printf "    Commit:    %s\n"    "$RELEASE_SHA"

@@ -3,11 +3,14 @@
 #
 # Replaces rsync-from-source.sh. Performs:
 #   1. rsync from CC sandbox to this deployment
-#   2. Show git status after sync
-#   3. Show .release-notes.md contents (what --auto will commit)
-#   4. Prompt for release, run make-release.sh --auto on yes
+#   2. If .release-prep.sh exists: show it, confirm, execute it
+#   3. Show git status after sync + prep
+#   4. Show .release-notes.md contents (what --auto will commit)
+#   5. Prompt for release, run make-release.sh --auto on yes
 #
-# Exclusions live in .rsyncignore at repo root.
+# Exclusions live in .rsyncignore at repo root. Prep actions
+# (.release-prep.sh) are CC-authored per session and consumed on
+# successful release.
 #
 # Flags:
 #   --sync-only    Sync and show status, skip release prompt.
@@ -45,13 +48,50 @@ rsync -av --delete --exclude-from="${DEST}.rsyncignore" \
     "$SOURCE" "$DEST"
 echo ""
 
-# 2. git status
-echo "==> Post-sync working tree state"
 cd "$DEST"
+
+# 2. SM035: release prep actions (.release-prep.sh)
+#
+# CC writes .release-prep.sh when the session needs commit-side
+# operations that rsync cannot replay (git index edits,
+# classification patches, gitignore additions, and similar).
+# Show the file, confirm (unless --auto), and execute it before
+# release. Idempotency is CC's responsibility: every action
+# block should be safe to re-run.
+if [ -f .release-prep.sh ]; then
+    echo "==> Release prep actions (.release-prep.sh)"
+    echo ""
+    cat .release-prep.sh
+    echo ""
+
+    if [ "$AUTO_RELEASE" = "1" ]; then
+        echo "==> --auto: applying prep actions without prompt"
+        chmod +x .release-prep.sh
+        ./.release-prep.sh
+        echo "==> Prep actions applied."
+    else
+        read -r -p "==> Apply these prep actions? [y/N] " prep_ans
+        case "$prep_ans" in
+            y|Y|yes|YES)
+                chmod +x .release-prep.sh
+                ./.release-prep.sh
+                echo "==> Prep actions applied."
+                ;;
+            *)
+                echo "==> Aborted (prep actions declined)."
+                exit 0
+                ;;
+        esac
+    fi
+    echo ""
+fi
+
+# 3. git status
+echo "==> Post-sync working tree state"
 git status --short
 echo ""
 
-# 3. .release-notes.md preview
+# 4. .release-notes.md preview
 echo "==> .release-notes.md"
 if [ -f .release-notes.md ]; then
     cat .release-notes.md
@@ -60,7 +100,7 @@ else
 fi
 echo ""
 
-# 4. Release decision
+# 5. Release decision
 if [ "$SYNC_ONLY" = "1" ]; then
     echo "==> Sync complete. Skipping release (--sync-only)."
     exit 0

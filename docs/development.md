@@ -35,10 +35,15 @@ The `.rsyncignore` also excludes generated build artefacts
 because your `make-release.sh --auto` run regenerates them
 locally from the rsync'd source.
 
-`.release-notes.md` is **not** excluded - that file is CC's
-release-notes deliverable for the next `--auto` run, per the
-SM030 convention documented under [Release notes
-convention](#release-notes-convention).
+Two CC-authored files are **not** excluded because they are
+the session's deliverables for the next release:
+
+- `.release-notes.md` - release notes body, consumed by
+  `make-release.sh --auto`. See [Release notes
+  convention](#release-notes-convention).
+- `.release-prep.sh` - commit-side actions that rsync cannot
+  replay (git index operations, classification patches, and
+  similar). See [Release preparation](#release-preparation).
 
 `--delete` handles files CC removed during the session (e.g.
 plugin files moved to new locations during D022). Without
@@ -46,6 +51,27 @@ plugin files moved to new locations during D022). Without
 the next release. The `--exclude-from` patterns are honoured
 under `--delete` too - excluded files on your side are
 preserved.
+
+### Release prep convention (for CC)
+
+When a session needs commit-side work that the rsync alone
+cannot replay - for example, untracking a file that is
+transitioning to gitignored state, or patching
+`dist/config/classification.json` for a new top-level file -
+CC writes `.release-prep.sh` at repo root in addition to
+the usual deliverables.
+
+The file is a short bash script with:
+
+- `set -e` at the top.
+- Each action block commented with what and why.
+- Idempotent guards (e.g. `git ls-files --error-unmatch`, `jq`
+  `| unique`, existence checks) so re-running is safe.
+- No long-running or interactive operations.
+
+`pre-release.sh` displays the file, asks for confirmation
+(unless `--auto`), and executes it before the release proper.
+`make-release.sh --auto` removes it on successful push.
 
 ## Releasing
 
@@ -78,6 +104,34 @@ The orchestrator is `./make-release.sh`.
 
 Builds, commits, tags, bumps `NEXT_VERSION`, and pushes. One
 command; the happy path for cutting a release.
+
+In practice, use `./pre-release.sh` as the front door. It
+rsyncs from CC's sandbox, applies release-prep actions if
+present, shows the working-tree state and release notes, and
+then runs `make-release.sh --auto`.
+
+### Release preparation
+
+When CC's session requires commit-side actions that rsync
+cannot replay (git index operations, classification patches,
+gitignore edits, and similar), CC writes `.release-prep.sh`
+at repo root alongside the usual rsynced changes.
+
+`pre-release.sh` detects the file after rsync, displays its
+contents, and prompts for confirmation before executing it -
+after rsync and before the release proper. In `--auto` mode
+the prompt is skipped (the operator has explicitly opted into
+unattended release).
+
+Prep scripts are idempotent by convention. Each action block
+has a guard (existence check, `jq` unique dedup, and so on)
+so re-runs are safe.
+
+The file is consumed on successful release: deleted by
+`make-release.sh --auto` alongside `.release-notes.md` after
+the push succeeds. Any failure path (commit, tag, or push
+failure) preserves the file so the operator can re-run the
+release without re-authoring prep.
 
 ### Release notes convention
 

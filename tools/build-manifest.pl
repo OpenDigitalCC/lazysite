@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # tools/build-manifest.pl - generate release-manifest.json from the
 # repo or a staged release tree, using rules in
-# tools/manifest-classification.json. Core-only Perl; no CPAN deps.
+# dist/config/classification.json. Core-only Perl; no CPAN deps.
 #
 # Produces deterministic output: two runs on the same tree yield
 # byte-identical JSON (modulo the "generated" timestamp).
@@ -229,7 +229,10 @@ sub generate_manifest {
     if ( @unmatched ) {
         print STDERR "build-manifest: files match no rule and no exclude:\n";
         print STDERR "  $_\n" for @unmatched;
-        print STDERR "Add a rule or exclude to tools/manifest-classification.json.\n";
+        # SM034: use the actual config path in use so the message is
+        # accurate regardless of the --config override. The path
+        # moved to dist/config/classification.json during D021a/b.
+        print STDERR "Add a rule or exclude to $opt{config}.\n";
         return 1;
     }
 
