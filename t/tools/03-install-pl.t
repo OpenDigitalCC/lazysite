@@ -20,9 +20,34 @@ use FindBin;
 my $ROOT = "$FindBin::Bin/../..";
 my $INSTALL = "$ROOT/install.pl";
 my $MANIFEST = "$ROOT/release-manifest.json";
+my $BUILD_MF = "$ROOT/tools/build-manifest.pl";
 
 die "install.pl not found at $INSTALL" unless -f $INSTALL;
-die "release-manifest.json not found at $MANIFEST" unless -f $MANIFEST;
+
+# SM065: release-manifest.json is no longer tracked (it ships only
+# in release tarballs). install.pl at the repo root needs a
+# manifest alongside it to run. Generate one on demand so the test
+# exercises a freshly-built catalogue against the current working
+# tree.
+#
+# The file is gitignored, but if we create it during the test run
+# we also delete it at END so rsync-based commit flows don't pick
+# up a phantom "modified" manifest for a file that should be absent
+# on main. Track whether WE built it so we don't nuke an operator's
+# locally-generated copy.
+my $MANIFEST_CREATED_BY_US = 0;
+unless ( -f $MANIFEST ) {
+    die "build-manifest.pl not found at $BUILD_MF" unless -f $BUILD_MF;
+    system( $^X, $BUILD_MF ) == 0
+        or die "failed to build release-manifest.json via $BUILD_MF";
+    die "manifest build produced no file at $MANIFEST" unless -f $MANIFEST;
+    $MANIFEST_CREATED_BY_US = 1;
+}
+END {
+    if ( $MANIFEST_CREATED_BY_US && -f $MANIFEST ) {
+        unlink $MANIFEST;
+    }
+}
 
 sub fresh_docroot {
     my $dir = tempdir( 'lazysite-install-test-XXXXXX', TMPDIR => 1, CLEANUP => 1 );

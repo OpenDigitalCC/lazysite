@@ -30,13 +30,20 @@ rsync-from-source.sh
 .DS_Store
 
 # Release artefacts. dist/ root is ignored by default;
-# make-release.sh force-adds the tarball + .sha256 via `git add -f`
-# at release time. dist/config/ is explicitly tracked - it holds
-# build inputs (classification.json, sbom-deps.json) alongside the
-# build outputs.
+# tools/release.sh drops new tarballs + .sha256 there on every
+# release cut. dist/config/ is explicitly tracked - it holds
+# build inputs (classification.json, sbom-deps.json) alongside
+# the build outputs.
 dist/*
 !dist/config/
 !dist/config/*
+
+# SM065: release-generated, per-release artefacts. Under SM063
+# these live in the tarball only (tools/release.sh generates
+# them fresh into staging). Tracked copies would drift behind
+# the last-released tarball and mislead operators.
+sbom.json
+release-manifest.json
 
 # SM063: CC writes .commit-message.md per session; tools/commit.sh
 # reads it as the commit body and deletes it on success. The file
@@ -47,9 +54,3 @@ dist/*
 # Never committed; documented in docs/development.md if they inform
 # subsequent SMs.
 .release-audit.md
-
-# Pre-SM063 workflow files. Not produced under the new flow; the
-# ignores stay for a transition period so stale sandbox artefacts
-# don't accidentally commit.
-.release-notes.md
-.release-prep.sh
