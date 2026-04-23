@@ -267,6 +267,9 @@ subtest 'layouts-releases happy path' => sub {
     is( scalar @{ $r->{releases} }, 2, 'two releases parsed' );
     is( $r->{releases}[0]{tag_name}, 'v1.0.0', 'first tag' );
     is( $r->{releases}[0]{name}, 'First release', 'first name' );
+    # SM058: body from GitHub's release.body is surfaced.
+    is( $r->{releases}[0]{body}, 'notes', 'body surfaced for first' );
+    is( $r->{releases}[1]{body}, '',      'empty body stays empty' );
 };
 
 # --- Scenario 2: layouts-releases missing layouts_repo ---
@@ -615,6 +618,62 @@ subtest 'layouts-install: release missing layout.tt, target missing too' => sub 
     open my $lfh, '>', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
     print $lfh "<html>[% content %]</html>\n";
     close $lfh;
+};
+
+# --- SM056: layouts-release-contents ---
+
+subtest 'layouts-release-contents: happy path lists themes' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
+
+    # Same fixture as a layouts-install happy path — release with
+    # two valid themes under layouts/default/themes/.
+    my $zip = build_zipball_nested(
+        { layout => 'default', theme => 'alpha', valid => 1 },
+        { layout => 'default', theme => 'beta',  valid => 1 },
+    );
+    queue_response( 200, $zip );
+
+    my $r = main::action_layouts_release_contents('v1.0.0');
+    ok( $r->{ok}, 'ok' );
+    is( $r->{tag}, 'v1.0.0', 'tag echoed' );
+    is( scalar @{ $r->{themes} }, 2, 'two themes listed' );
+
+    # Order is readdir-sorted; alpha then beta alphabetically.
+    my %by = map { $_->{name} => $_ } @{ $r->{themes} };
+    ok( exists $by{alpha}, 'alpha listed' );
+    ok( exists $by{beta},  'beta listed' );
+    is( $by{alpha}{layout}, 'default', 'alpha layout' );
+    is( $by{beta}{layout},  'default', 'beta layout' );
+};
+
+subtest 'layouts-release-contents: invalid tag rejected' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
+
+    my $r = main::action_layouts_release_contents('../etc/passwd');
+    ok( !$r->{ok}, 'invalid tag rejected' );
+    like( $r->{error}, qr/Invalid tag/,
+        'error explains the rejection' );
+};
+
+subtest 'layouts-release-contents: empty tag rejected' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
+
+    my $r = main::action_layouts_release_contents('');
+    ok( !$r->{ok}, 'empty tag rejected' );
+    like( $r->{error}, qr/Invalid tag/,
+        'empty tag hits the same validator' );
+};
+
+subtest 'layouts-release-contents: release without layouts/ dir' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
+
+    my $zip = build_zipball_no_layouts();
+    queue_response( 200, $zip );
+
+    my $r = main::action_layouts_release_contents('v1.0.0');
+    ok( !$r->{ok}, 'rejected for missing layouts/' );
+    like( $r->{error}, qr{layouts/ directory},
+        'error mentions layouts/ dir' );
 };
 
 done_testing();

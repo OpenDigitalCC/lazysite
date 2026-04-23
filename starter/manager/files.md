@@ -111,7 +111,10 @@ function loadDir(dir) {
 
 function buildBreadcrumb(dirPath, linkFn) {
   var parts = dirPath.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
-  var items = [linkFn('/', '/')];
+  // SM049: bare "/" was visually empty; operators read it as "no
+  // breadcrumb rendered". Label the root as "Site root" so the
+  // first segment is discoverable at a glance.
+  var items = [linkFn('/', 'Site root')];
   var accumulated = '';
   for (var i = 0; i < parts.length; i++) {
     accumulated += '/' + parts[i];

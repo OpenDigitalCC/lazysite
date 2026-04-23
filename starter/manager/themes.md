@@ -284,20 +284,90 @@ function renderReleases(releases, repo) {
     var tag = r.tag_name || '';
     var name = r.name || tag;
     var date = (r.published_at || '').split('T')[0];
+    // SM058: release body (GitHub release description). Rendered
+    // as preformatted text under the tag row so Markdown in the
+    // body displays readably without pulling in a markdown
+    // renderer. Keeping it simple per briefing.
+    var body = r.body || '';
+    // SM056: per-release "show contents" affordance. tagSafe used
+    // to build both the inline onclick arg and the container id.
+    var tagSafe = escHtml(tag);
+    var contentsId = 'rc-' + tag.replace(/[^A-Za-z0-9._-]/g, '_');
+
+    html += '<div class="mg-release" data-tag="' + tagSafe + '">';
     html += '<div class="mg-file-item">';
     html += '<span class="mg-file-name">' + escHtml(name) + '</span>';
     if (tag) {
-      html += '<span class="mg-badge">' + escHtml(tag) + '</span>';
+      html += '<span class="mg-badge">' + tagSafe + '</span>';
     }
     if (date) {
       html += '<span class="mg-file-meta">' + escHtml(date) + '</span>';
     }
     html += '<div class="mg-file-actions">';
-    html += '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="installRelease(\'' + escHtml(tag) + '\')">Install</button>';
+    html += '<button class="mg-btn mg-btn-sm" onclick="toggleReleaseContents(\'' + tagSafe + '\',\'' + contentsId + '\')">Contents</button>';
+    html += '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="installRelease(\'' + tagSafe + '\')">Install</button>';
     html += '</div>';
+    html += '</div>';
+    if (body) {
+      html += '<pre class="mg-release-body" style="white-space:pre-wrap;'
+           +  'font-family:inherit;font-size:0.85rem;color:var(--mg-text-muted);'
+           +  'background:var(--mg-surface-alt);padding:0.5rem 0.75rem;'
+           +  'border-radius:4px;margin:0.25rem 0 0.5rem;">'
+           +  escHtml(body) + '</pre>';
+    }
+    html += '<div id="' + contentsId + '" class="mg-release-contents" '
+         +  'style="margin:0 0 0.75rem 0.5rem;font-size:0.85rem;" hidden></div>';
     html += '</div>';
   }
   container.innerHTML = html;
+}
+
+// SM056: lazy-fetch the theme list for one release. First click
+// fetches and renders; subsequent clicks toggle visibility without
+// re-fetching.
+function toggleReleaseContents(tag, contentsId) {
+  var el = document.getElementById(contentsId);
+  if (!el) return;
+  if (el.dataset.loaded === '1') {
+    el.hidden = !el.hidden;
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = '<span class="mg-empty">Loading contents...</span>';
+  fetch(API + '?action=layouts-release-contents&tag=' + encodeURIComponent(tag))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) {
+        el.innerHTML = '<span class="mg-empty">'
+          + escHtml(data.error || 'Unable to list contents.') + '</span>';
+        return;
+      }
+      var themes = data.themes || [];
+      if (!themes.length) {
+        el.innerHTML = '<span class="mg-empty">(no themes in this release)</span>';
+        el.dataset.loaded = '1';
+        return;
+      }
+      var rows = '';
+      for (var i = 0; i < themes.length; i++) {
+        var t = themes[i];
+        rows += '<li style="margin:0.25rem 0;"><strong>'
+             +  escHtml(t.name) + '</strong>'
+             +  ' <span class="mg-file-meta">(' + escHtml(t.layout) + ')</span>';
+        if (t.description) {
+          rows += '<div style="color:var(--mg-text-muted);margin-left:1rem;">'
+               +  escHtml(t.description) + '</div>';
+        }
+        rows += '</li>';
+      }
+      el.innerHTML = '<ul style="margin:0;padding-left:1.25rem;">'
+        + rows + '</ul>';
+      el.dataset.loaded = '1';
+    })
+    .catch(function(e) {
+      el.innerHTML = '<span class="mg-empty">Error: '
+        + escHtml(e.message) + '</span>';
+    });
 }
 
 function installRelease(tag) {

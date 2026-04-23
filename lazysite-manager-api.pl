@@ -216,6 +216,9 @@ elsif ( $action eq 'theme-rename' )     {
 elsif ( $action eq 'theme-upload' )     { $result = action_theme_upload( $body, $params{filename} ) }
 elsif ( $action eq 'layouts-releases' ) { $result = action_layouts_releases() }
 elsif ( $action eq 'layouts-install' )  { $result = action_layouts_install($body) }
+elsif ( $action eq 'layouts-release-contents' ) {
+    $result = action_layouts_release_contents( $params{tag} );
+}
 elsif ( $action eq 'layouts-available' ) { $result = action_layouts_available() }
 elsif ( $action eq 'themes-for-layout' ) { $result = action_themes_for_layout( $params{layout} ) }
 elsif ( $action eq 'layouts-repo-get' )  { $result = action_layouts_repo_get() }
@@ -1495,6 +1498,146 @@ sub action_layouts_install {
 sub _cleanup_tmp_layouts {
     my ($dir) = @_;
     system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-layouts-\d+$};
+}
+
+# SM056: fetch a single release zipball and walk
+# layouts/LAYOUT/themes/THEME/theme.json, returning a flat array of
+# {layout, name, description} entries. Lazy: UI calls this per
+# release on an explicit "show contents" click, NOT for every
+# release in the listing. Does NOT install anything.
+#
+# Shares fetch + extract shape with action_layouts_install but
+# stops before the install step and doesn't enforce source-path
+# consistency — contents-preview is operator-informational, not
+# contract-enforcing.
+sub action_layouts_release_contents {
+    my ($tag) = @_;
+    $tag //= '';
+
+    return { ok => 0, error => 'Invalid tag' }
+        unless length $tag
+            && $tag =~ m{^[A-Za-z0-9._/-]+$}
+            && $tag !~ m{\.\.};
+
+    my $repo = _layouts_repo();
+    return { ok => 0, error => 'layouts_repo not set or invalid in lazysite.conf' }
+        unless defined $repo && length $repo
+            && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+
+    my $have_azip = eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)); 1 };
+    return { ok => 0,
+        error => 'Archive::Zip not installed (apt-get install libarchive-zip-perl)' }
+        unless $have_azip;
+
+    require LWP::UserAgent;
+    my $ua  = LWP::UserAgent->new( timeout => 30, agent => 'lazysite/1.0' );
+    my $url = "https://api.github.com/repos/$repo/zipball/$tag";
+    my $res = $ua->get($url);
+    return { ok => 0, error => 'Failed to fetch zipball: ' . $res->status_line }
+        unless $res->is_success;
+
+    my $tmp_dir = "/tmp/lazysite-layouts-$$";
+    make_path($tmp_dir);
+
+    my $zip_path = "$tmp_dir/release.zip";
+    unless ( open my $zfh, '>:raw', $zip_path ) {
+        _cleanup_tmp_layouts($tmp_dir);
+        return { ok => 0, error => 'Cannot write zipball' };
+    }
+    else {
+        print $zfh $res->content;
+        close $zfh;
+    }
+
+    my $extract_dir = "$tmp_dir/extracted";
+    make_path($extract_dir);
+
+    my $zip = Archive::Zip->new();
+    unless ( $zip->read($zip_path) == Archive::Zip::AZ_OK() ) {
+        _cleanup_tmp_layouts($tmp_dir);
+        return { ok => 0, error => 'Cannot read zipball' };
+    }
+
+    for my $member ( $zip->members ) {
+        my $name = $member->fileName;
+        if ( $name =~ m{\A/} || $name =~ m{(?:^|/)\.\.(?:/|$)} ) {
+            _cleanup_tmp_layouts($tmp_dir);
+            return { ok => 0, error => "Unsafe zip entry: $name" };
+        }
+    }
+
+    unless ( $zip->extractTree( '', "$extract_dir/" ) == Archive::Zip::AZ_OK() ) {
+        _cleanup_tmp_layouts($tmp_dir);
+        return { ok => 0, error => 'Extraction failed' };
+    }
+
+    # Strip the GitHub wrapper dir (OWNER-REPO-SHA/).
+    my @top;
+    opendir my $dh, $extract_dir or do {
+        _cleanup_tmp_layouts($tmp_dir);
+        return { ok => 0, error => 'Cannot read extracted dir' };
+    };
+    for my $e ( readdir $dh ) {
+        next if $e =~ /^\./;
+        push @top, $e if -d "$extract_dir/$e";
+    }
+    closedir $dh;
+    unless ( @top == 1 ) {
+        _cleanup_tmp_layouts($tmp_dir);
+        return { ok => 0,
+            error => 'Unexpected zipball layout (expected single wrapper dir)' };
+    }
+    my $wrapper = "$extract_dir/$top[0]";
+
+    my $layouts_dir = "$wrapper/layouts";
+    unless ( -d $layouts_dir ) {
+        _cleanup_tmp_layouts($tmp_dir);
+        return { ok => 0,
+            error => 'Release does not contain a layouts/ directory '
+                   . '(repo must follow D013 nested shape)' };
+    }
+
+    # Walk layouts/LAYOUT/themes/THEME/theme.json. Any parse errors
+    # or missing manifests produce an entry with ok => 0 rather than
+    # aborting the whole walk — the operator still gets a partial
+    # preview.
+    my @themes;
+    if ( opendir my $ld, $layouts_dir ) {
+        for my $layout_name ( sort readdir $ld ) {
+            next if $layout_name =~ /^\./;
+            my $themes_path = "$layouts_dir/$layout_name/themes";
+            next unless -d $themes_path;
+
+            opendir my $th, $themes_path or next;
+            for my $theme_name ( sort readdir $th ) {
+                next if $theme_name =~ /^\./;
+                my $theme_path = "$themes_path/$theme_name";
+                next unless -d $theme_path;
+
+                my $tj = "$theme_path/theme.json";
+                my $description = '';
+                if ( -f $tj && open my $jf, '<:utf8', $tj ) {
+                    my $raw = do { local $/; <$jf> };
+                    close $jf;
+                    my $meta = eval { decode_json($raw) };
+                    if ( ref $meta eq 'HASH' && defined $meta->{description} ) {
+                        $description = $meta->{description};
+                    }
+                }
+                push @themes, {
+                    layout      => $layout_name,
+                    name        => $theme_name,
+                    description => $description,
+                };
+            }
+            closedir $th;
+        }
+        closedir $ld;
+    }
+
+    _cleanup_tmp_layouts($tmp_dir);
+
+    return { ok => 1, repo => $repo, tag => $tag, themes => \@themes };
 }
 
 # --- SM044: dropdown population + layouts_repo read/write ---
