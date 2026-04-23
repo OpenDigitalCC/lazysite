@@ -2735,7 +2735,14 @@ sub _inject_admin_bar {
     my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
     my $is_manager  = _is_manager( $vars, $auth_user, $auth_groups );
 
-    # Manager tools: Manage / Edit / core theme switcher / sign-out
+    # Manager tools: Manage / Edit / no-password warning / sign-out.
+    # SM069: the core theme switcher that used to live here has been
+    # removed. It POSTed to action=theme-activate from a live-site
+    # page without the CSRF token (the manager-api CSRF wrapper only
+    # runs on /manager/* pages), so the server rejected the POST and
+    # the switch silently failed. The duplicate is also out of scope:
+    # /manager/config's Active theme dropdown (SM044) is now the
+    # single path to set the site-wide active theme.
     my $manager_tools = '';
     if ( $is_manager ) {
         $manager_tools .= '<a href="/manager/" style="color:#6db3f2;text-decoration:none;">Manage</a>';
@@ -2743,39 +2750,6 @@ sub _inject_admin_bar {
         if ( $page_source ) {
             $manager_tools .= '<a href="/manager/edit?path=' . $page_source
                            .  '" style="color:#6db3f2;text-decoration:none;">Edit</a>';
-        }
-
-        # D013: theme switcher enumerates themes nested under the
-        # active layout. Themes for other layouts are installed but
-        # not compatible with the current layout, so they're hidden.
-        my $active_layout = $vars->{layout_name} || '';
-        my @installed_themes;
-        if ( length $active_layout ) {
-            my $themes_dir = "$LAYOUT_DIR/$active_layout/themes";
-            if ( -d $themes_dir ) {
-                opendir( my $dh, $themes_dir );
-                for my $t ( sort readdir $dh ) {
-                    next if $t =~ /^\./;
-                    next unless -d "$themes_dir/$t"
-                        && -f "$themes_dir/$t/theme.json";
-                    push @installed_themes, $t;
-                }
-                closedir $dh;
-            }
-        }
-
-        if ( @installed_themes > 1 ) {
-            # D013: theme is now a hash (the decoded theme.json) when
-            # resolved, so use theme_name for the UI.
-            my $current = $vars->{theme_name} || '';
-            $manager_tools .= '<select id="ls-theme-sel" data-current="' . $current . '" style="'
-                           .  'font-size:11px;background:#333;color:#ccc;border:1px solid #555;'
-                           .  'border-radius:3px;padding:1px 4px;cursor:pointer;">';
-            for my $t (@installed_themes) {
-                my $sel = $t eq $current ? ' selected' : '';
-                $manager_tools .= "<option value=\"$t\"$sel>$t</option>";
-            }
-            $manager_tools .= '</select>';
         }
 
         if ( $ENV{LAZYSITE_AUTH_NO_PASSWORD} ) {
@@ -2790,8 +2764,10 @@ sub _inject_admin_bar {
         }
     }
 
-    # TODO (D013): theme variant switcher - cookie-based, theme-defined,
-    # rendered outside the $is_manager gate so all visitors can use it.
+    # F0017 stub: when the cookie-based per-visitor theme variant
+    # switcher lands, it will populate $variant_switcher here,
+    # outside the $is_manager gate so all visitors can use it. For
+    # now the bar never carries a switcher.
     my $variant_switcher = '';
 
     # Nothing to show? Skip the bar entirely.
@@ -2806,23 +2782,6 @@ sub _inject_admin_bar {
     $bar .= $variant_switcher;
     $bar .= '</div>';
     $bar .= '<div id="ls-admin-spacer" style="height:22px;"></div>';
-
-    # Theme switcher: activate site-wide via manager API, with confirm + reload
-    if ( $is_manager ) {
-        $bar .= '<script>(function(){'
-              . 'var sel=document.getElementById("ls-theme-sel");'
-              . 'if(!sel)return;'
-              . 'sel.addEventListener("change",function(){'
-              . 'var t=sel.value,cur=sel.dataset.current;'
-              . 'if(t===cur)return;'
-              . 'if(!confirm("Switch site theme to "+t+"? This affects all visitors.")){sel.value=cur;return;}'
-              . 'fetch("/cgi-bin/lazysite-manager-api.pl?action=theme-activate&path="+encodeURIComponent(t),{method:"POST"})'
-              . '.then(function(r){return r.json();})'
-              . '.then(function(d){if(d.ok){location.reload();}'
-              . 'else{alert("Failed: "+(d.error||"unknown"));sel.value=cur;}})'
-              . '.catch(function(e){alert("Error: "+e.message);sel.value=cur;});'
-              . '});})();</script>';
-    }
 
     # Hide in iframes
     $bar .= '<script>if(window!==window.top){var ab=document.getElementById("ls-admin-bar");'
