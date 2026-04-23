@@ -1096,6 +1096,101 @@ sub _cleanup_tmp {
     system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-theme-\d+$};
 }
 
+# SM060: install a layout from $layout_source (the extracted
+# zipball's $wrapper/layouts/LAYOUT/ directory). Called by
+# action_layouts_install before each LAYOUT's theme walk, so
+# _install_theme_from_dir's target-site check
+# (layouts/LAYOUT/layout.tt must exist) passes for themes shipping
+# in the same release as their target layout.
+#
+# Collision policy: skip-if-identical, refuse-if-different. Byte
+# comparison across every file the release would write. Any content
+# difference is an operator edit we won't clobber.
+#
+# Return actions:
+#   'installed'         - new install, files copied
+#   'already_installed' - on-disk files byte-match the release
+# Or ok=0 with error:
+#   - 'missing layout.tt in release'
+#   - 'already installed and differs; refusing to overwrite (LIST)'
+sub _install_layout_from_dir {
+    my ( $layout_source, $layout_name, $action_label, $user ) = @_;
+
+    return { ok => 0, error => 'missing layout.tt in release' }
+        unless -f "$layout_source/layout.tt";
+
+    my $target_dir = "$DOCROOT/lazysite/layouts/$layout_name";
+
+    # Collect the release's layout files (layout.tt + layout.json).
+    # layout.json is optional; copy if present.
+    my @rel_files;
+    opendir my $sh, $layout_source
+        or return { ok => 0, error => 'Cannot read layout source dir' };
+    for my $f ( sort readdir $sh ) {
+        next if $f =~ /^\./;
+        my $src = "$layout_source/$f";
+        # Only copy regular files at the layout root (layout.tt,
+        # layout.json). The themes/ subtree is handled by the walker.
+        next if $f eq 'themes';
+        next unless -f $src;
+        push @rel_files, $f;
+    }
+    closedir $sh;
+
+    # Compare files. If the target directory exists AND every
+    # release file is present AND byte-identical, it's a no-op.
+    # If anything differs, refuse.
+    if ( -d $target_dir ) {
+        my @differs;
+        for my $f (@rel_files) {
+            my $src = "$layout_source/$f";
+            my $dst = "$target_dir/$f";
+            unless ( -f $dst ) {
+                push @differs, $f;
+                next;
+            }
+            # Cheap byte compare.
+            my $sb = _slurp_bytes($src);
+            my $db = _slurp_bytes($dst);
+            if ( !defined $sb || !defined $db || $sb ne $db ) {
+                push @differs, $f;
+            }
+        }
+        if (@differs) {
+            return { ok => 0,
+                error => 'already installed and differs; refusing to overwrite ('
+                       . join( ', ', @differs ) . ')' };
+        }
+        return { ok => 1, action => 'already_installed' };
+    }
+
+    # New install.
+    make_path($target_dir);
+    for my $f (@rel_files) {
+        my $rc = system( 'cp', "$layout_source/$f", "$target_dir/$f" );
+        if ( $rc != 0 ) {
+            log_event( 'ERROR', $action_label, 'cp layout failed',
+                file => $f, layout => $layout_name, rc => ( $rc >> 8 ) );
+            return { ok => 0,
+                error => "Install failed (cp $f to layout $layout_name)" };
+        }
+    }
+
+    log_event( 'INFO', $action_label, 'layout installed',
+        name => $layout_name, files => join( ',', @rel_files ),
+        user => $user );
+
+    return { ok => 1, action => 'installed' };
+}
+
+sub _slurp_bytes {
+    my ($path) = @_;
+    open my $fh, '<:raw', $path or return undef;
+    my $data = do { local $/; <$fh> };
+    close $fh;
+    return $data;
+}
+
 # --- SM037 + D013: layouts-releases browser + release installer ---
 # The external repo is lazysite-layouts; the config key and function
 # names rename accordingly. The action remains a theme-browser (SM037
@@ -1254,6 +1349,7 @@ sub action_layouts_install {
     }
 
     my @results;
+    my @layout_results;    # SM060: per-layout install outcomes
     unless ( opendir my $ld, $layouts_dir ) {
         _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => 'Cannot read layouts dir' };
@@ -1264,8 +1360,51 @@ sub action_layouts_install {
             my $layout_path = "$layouts_dir/$layout_name";
             next unless -d $layout_path;
 
+            # SM060: install the layout itself before its themes, so
+            # _install_theme_from_dir's target-site check finds the
+            # expected layout.tt on disk. A layout without a themes/
+            # subdir still gets installed — operators can publish a
+            # release with just a layout update.
+            my $layout_src_rel = "layouts/$layout_name";
+            my $layout_had_tt  = -f "$layout_path/layout.tt";
+            my $layout_ok      = 1;
+            if ($layout_had_tt) {
+                my $lr = _install_layout_from_dir(
+                    $layout_path, $layout_name,
+                    'layouts-install', $auth_user );
+                push @layout_results,
+                    { source => $layout_src_rel, %$lr };
+                $layout_ok = $lr->{ok} ? 1 : 0;
+            }
+            # If there's no layout.tt in the release for this layout
+            # dir, we don't record a layout entry — this is common
+            # for release repos that ship only themes, and the
+            # existing theme-level error ('Theme targets missing
+            # layout(s): X') carries the useful message when the
+            # target site doesn't have the layout either.
+
             my $themes_path = "$layout_path/themes";
             next unless -d $themes_path;
+
+            # Per-layout failure: don't install orphaned themes under
+            # a layout we couldn't successfully place or verify.
+            unless ($layout_ok) {
+                if ( opendir my $th_skip, $themes_path ) {
+                    for my $theme_name ( sort readdir $th_skip ) {
+                        next if $theme_name =~ /^\./;
+                        my $theme_path = "$themes_path/$theme_name";
+                        next unless -d $theme_path;
+                        push @results, {
+                            source => "layouts/$layout_name/themes/$theme_name",
+                            ok     => JSON::PP::false(),
+                            error  => "Skipped: layout $layout_name install did "
+                                   . "not succeed",
+                        };
+                    }
+                    closedir $th_skip;
+                }
+                next;
+            }
 
             opendir my $th, $themes_path or next;
             for my $theme_name ( sort readdir $th ) {
@@ -1327,18 +1466,30 @@ sub action_layouts_install {
 
     _cleanup_tmp_layouts($tmp_dir);
 
-    unless (@results) {
+    # SM060: release may ship a layout-only update (no themes at all).
+    # Only error "no themes found" if we ALSO installed no layouts.
+    unless ( @results || @layout_results ) {
         return { ok => 0,
-            error => 'No themes found under layouts/*/themes/ in release' };
+            error => 'No layouts or themes found under layouts/*/ in release' };
     }
 
-    my $installed = scalar grep { $_->{ok} } @results;
+    my $themes_installed  = scalar grep { $_->{ok} } @results;
+    my $layouts_installed = scalar grep { $_->{ok} } @layout_results;
     log_event( 'INFO', 'layouts-install', 'release installed',
-        repo => $repo, tag => $tag,
-        installed => $installed, total => scalar @results,
-        user => $auth_user );
+        repo             => $repo, tag => $tag,
+        layouts_total    => scalar @layout_results,
+        layouts_ok       => $layouts_installed,
+        themes_total     => scalar @results,
+        themes_ok        => $themes_installed,
+        user             => $auth_user );
 
-    return { ok => 1, repo => $repo, tag => $tag, themes => \@results };
+    return {
+        ok      => 1,
+        repo    => $repo,
+        tag     => $tag,
+        layouts => \@layout_results,
+        themes  => \@results,
+    };
 }
 
 sub _cleanup_tmp_layouts {

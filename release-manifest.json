@@ -11,8 +11,8 @@
       "bucket" : "code",
       "install_to" : "{CGIBIN}/lazysite-manager-api.pl",
       "path" : "lazysite-manager-api.pl",
-      "sha256" : "0151d3d6ce77012ecd6864e6fe07488d71e3b58a1421157aff819a077720f4cd",
-      "size" : 95866
+      "sha256" : "8fedc0485fe7aa11005b334eda8f7a9b6572081d76b384311db861c30583ce5b",
+      "size" : 101954
     },
     {
       "bucket" : "code",
@@ -855,8 +855,8 @@
       "size" : 1604
     }
   ],
-  "generated" : "2026-04-22T19:59:53Z",
-  "min_upgrade_from" : "0.2.16",
+  "generated" : "2026-04-23T04:59:36Z",
+  "min_upgrade_from" : "0.2.17",
   "runtime_paths" : [
     {
       "mode" : "0750",
@@ -895,5 +895,5 @@
     }
   ],
   "schema_version" : "1",
-  "version" : "0.2.16"
+  "version" : "0.2.17"
 }

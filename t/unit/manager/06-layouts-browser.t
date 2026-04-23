@@ -113,6 +113,60 @@ sub build_zipball_nested {
     return $bytes;
 }
 
+# SM060: build_zipball_nested plus a layout.tt + layout.json
+# under $wrapper/layouts/LAYOUT/. The $layout_content override lets
+# individual subtests ship a DIFFERENT layout.tt to exercise the
+# "already installed and differs" refusal path.
+sub build_zipball_with_layout {
+    my (%args) = @_;
+    my $theme_specs    = $args{themes}          // [];
+    my $layout_content = $args{layout_content}  // "<html>[% content %]</html>\n";
+    my $layout_name    = $args{layout}          // 'default';
+    require Archive::Zip;
+    my $zip = Archive::Zip->new();
+    my $wrapper = 'OpenDigitalCC-lazysite-layouts-abc123';
+
+    $zip->addString( $layout_content,
+        "$wrapper/layouts/$layout_name/layout.tt" );
+    # Canonical key order so the layout.json bytes are stable across
+    # calls within the process. Perl hashes are unordered; without
+    # this, identical-content tests can fail because the release
+    # zipballs embed different key orderings run-to-run.
+    my $layout_json = JSON::PP->new->canonical(1)->encode({
+        name => $layout_name, version => '1.0.0',
+        description => "Test layout $layout_name",
+        author => 'lazysite',
+    });
+    $zip->addString( $layout_json,
+        "$wrapper/layouts/$layout_name/layout.json" );
+
+    for my $spec (@$theme_specs) {
+        my $layout = $spec->{layout} // $layout_name;
+        my $theme  = $spec->{theme};
+        my $declared = $spec->{declared_layouts} // [$layout];
+        my $dir = "$wrapper/layouts/$layout/themes/$theme";
+        $zip->addString(
+            encode_json({
+                name    => $theme,
+                version => '1.0',
+                layouts => $declared,
+                config  => { colours => { primary => '#000' } },
+            }),
+            "$dir/theme.json"
+        );
+        $zip->addString( "/* css */\n", "$dir/assets/main.css" );
+    }
+
+    my $tmpfile = "$docroot/with-layout-zip-$$.zip";
+    $zip->writeToFileNamed($tmpfile) == Archive::Zip::AZ_OK()
+        or die "failed to build with-layout zipball";
+    open my $fh, '<:raw', $tmpfile or die $!;
+    my $bytes = do { local $/; <$fh> };
+    close $fh;
+    unlink $tmpfile;
+    return $bytes;
+}
+
 # Pre-LL-v0.3.0 flat shape: wrapper/THEME/theme.json (no layouts/
 # directory). Used by the rejection subtest only.
 sub build_zipball_flat {
@@ -314,17 +368,38 @@ subtest 'layouts-install rejects pre-LL-v0.3.0 flat shape' => sub {
         'error calls out the missing layouts/ dir' );
 };
 
-# --- SM046 Scenario D: layouts/LAYOUT/ with no themes/ subdir ---
-subtest 'layouts-install silently skips layout without themes dir' => sub {
+# --- SM046 Scenario D / SM060: layouts/LAYOUT/ with no themes/ subdir.
+# Under SM060 this is a valid "layout-only release" — the layout
+# installs, no themes are present, response is ok with an empty
+# themes array and a populated layouts array.
+subtest 'layouts-install: layout-only release installs the layout' => sub {
     write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
+    # Remove the fixture-pre-created layout so the release has
+    # something to install into a clean slot.
+    system( 'rm', '-rf', "$docroot/lazysite/layouts/default" );
+
     my $zip = build_zipball_empty_themes_dir();
     queue_response( 200, $zip );
 
     my $body = encode_json({ tag => 'v1.0.0' });
     my $r = main::action_layouts_install($body);
-    ok( !$r->{ok}, 'overall not ok (no themes installed)' );
-    like( $r->{error}, qr/No themes found/,
-        'error reports no themes under layouts/*/themes/' );
+    ok( $r->{ok}, 'overall ok (layout installed)' );
+    is( scalar @{ $r->{layouts} }, 1, 'one layout reported' );
+    is( $r->{layouts}[0]{action}, 'installed', 'layout action = installed' );
+    is( $r->{layouts}[0]{source}, 'layouts/default', 'nested source path' );
+    is( scalar @{ $r->{themes} }, 0, 'no themes (release had none)' );
+    ok( -f "$docroot/lazysite/layouts/default/layout.tt",
+        'layout.tt now on disk' );
+    ok( -f "$docroot/lazysite/layouts/default/layout.json",
+        'layout.json also copied' );
+
+    # Restore the fixture layout for subsequent scenarios.
+    open my $lfh2, '>', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
+    print $lfh2 "<html>[% content %]</html>\n";
+    close $lfh2;
+    # Remove the SM060-installed layout.json so subsequent comparisons
+    # reflect the "bare fixture" state.
+    unlink "$docroot/lazysite/layouts/default/layout.json";
 };
 
 # --- SM046 Scenario E: partial failure (good + mismatch + no theme.json) ---
@@ -365,6 +440,181 @@ subtest 'layouts-install: partial failure reports per-theme results' => sub {
         'wrong theme NOT installed' );
     ok( !-d "$docroot/lazysite/layouts/default/themes/no-json",
         'no-json theme NOT installed' );
+};
+
+# --- SM060 Scenario 1: release ships layout + themes; target has
+# neither. Fresh install. Both layout and themes land on disk.
+subtest 'layouts-install installs layout THEN themes (fresh target)' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
+    clean_installed_themes();
+    system( 'rm', '-rf', "$docroot/lazysite/layouts/default" );
+
+    my $zip = build_zipball_with_layout(
+        layout         => 'default',
+        layout_content => "<html><!-- v0.3.0 -->[% content %]</html>\n",
+        themes         => [
+            { theme => 'alpha', declared_layouts => ['default'] },
+            { theme => 'beta',  declared_layouts => ['default'] },
+        ],
+    );
+    queue_response( 200, $zip );
+
+    my $body = encode_json({ tag => 'v1.0.0' });
+    my $r = main::action_layouts_install($body);
+    ok( $r->{ok}, 'overall ok' );
+
+    is( scalar @{ $r->{layouts} }, 1, 'one layout reported' );
+    is( $r->{layouts}[0]{action}, 'installed',
+        'layout action = installed' );
+    ok( -f "$docroot/lazysite/layouts/default/layout.tt",
+        'layout.tt on disk after install' );
+    ok( -f "$docroot/lazysite/layouts/default/layout.json",
+        'layout.json on disk after install' );
+
+    is( scalar @{ $r->{themes} }, 2, 'two themes reported' );
+    my %by = map { $_->{source} => $_ } @{ $r->{themes} };
+    ok( $by{'layouts/default/themes/alpha'}{ok}, 'alpha installed' );
+    ok( $by{'layouts/default/themes/beta'}{ok},  'beta installed' );
+    ok( -f "$docroot/lazysite/layouts/default/themes/alpha/theme.json",
+        'alpha on disk' );
+    ok( -f "$docroot/lazysite/layouts/default/themes/beta/theme.json",
+        'beta on disk' );
+
+    # Restore bare fixture for downstream (not needed here as this
+    # test runs last, but defensive).
+    unlink "$docroot/lazysite/layouts/default/layout.json";
+    open my $lfh, '>', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
+    print $lfh "<html>[% content %]</html>\n";
+    close $lfh;
+};
+
+# --- SM060 Scenario 2: layout byte-identical on target. Silent skip,
+# themes still install. Avoid hash-ordering gotchas by installing
+# once (populates target) then running the SAME zipball again —
+# second run's comparison is byte-trivial.
+subtest 'layouts-install: identical layout skipped, themes still install' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
+    clean_installed_themes();
+    system( 'rm', '-rf', "$docroot/lazysite/layouts/default" );
+
+    my $build_zip = sub {
+        return build_zipball_with_layout(
+            layout         => 'default',
+            layout_content => "<html>[% content %]</html>\n",
+            themes         => [ { theme => 'alpha' } ],
+        );
+    };
+
+    # First install: layout is installed fresh.
+    queue_response( 200, $build_zip->() );
+    main::action_layouts_install( encode_json({ tag => 'v1.0.0' }) );
+    ok( -f "$docroot/lazysite/layouts/default/layout.tt",
+        'layout.tt present after first install' );
+    # Remove the alpha theme so the second install also has work to do
+    # on the theme side — otherwise _install_theme_from_dir dedup-
+    # renames it with a date prefix, which complicates the assertion.
+    system( 'rm', '-rf', "$docroot/lazysite/layouts/default/themes/alpha" );
+
+    # Second install: layout should register as already_installed.
+    queue_response( 200, $build_zip->() );
+    my $r = main::action_layouts_install( encode_json({ tag => 'v1.0.0' }) );
+    ok( $r->{ok}, 'overall ok' );
+    is( $r->{layouts}[0]{action}, 'already_installed',
+        'layout action = already_installed (byte-identical)' );
+    ok( $r->{layouts}[0]{ok}, 'layout entry marked ok' );
+    is( scalar @{ $r->{themes} }, 1, 'one theme entry' );
+    ok( $r->{themes}[0]{ok}, 'alpha installed despite layout skip' );
+
+    # Restore bare fixture for downstream scenarios.
+    unlink "$docroot/lazysite/layouts/default/layout.json";
+    open my $lfh2, '>', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
+    print $lfh2 "<html>[% content %]</html>\n";
+    close $lfh2;
+};
+
+# --- SM060 Scenario 3: layout differs on target. Refuse to overwrite;
+# themes for that layout are NOT installed.
+subtest 'layouts-install: differing layout refused; themes skipped' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
+    clean_installed_themes();
+
+    # Customised layout on target. Release will ship something different.
+    open my $lfh, '>', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
+    print $lfh "<html><!-- operator-customised -->[% content %]</html>\n";
+    close $lfh;
+
+    my $zip = build_zipball_with_layout(
+        layout         => 'default',
+        layout_content => "<html><!-- v0.3.0 release -->[% content %]</html>\n",
+        themes => [ { theme => 'alpha' } ],
+    );
+    queue_response( 200, $zip );
+
+    my $body = encode_json({ tag => 'v1.0.0' });
+    my $r = main::action_layouts_install($body);
+    ok( $r->{ok}, 'overall ok (best-effort walk completed)' );
+
+    is( scalar @{ $r->{layouts} }, 1, 'layout entry recorded' );
+    ok( !$r->{layouts}[0]{ok}, 'layout entry marked failed' );
+    like( $r->{layouts}[0]{error},
+        qr/already installed and differs/,
+        'error explains refusal reason' );
+    like( $r->{layouts}[0]{error}, qr/layout\.tt/,
+        'error names the differing file' );
+
+    is( scalar @{ $r->{themes} }, 1, 'theme entry recorded' );
+    ok( !$r->{themes}[0]{ok},
+        'theme skipped due to layout install failure' );
+    like( $r->{themes}[0]{error},
+        qr/layout .* install did not succeed/i,
+        'theme error explains cause' );
+    ok( !-d "$docroot/lazysite/layouts/default/themes/alpha",
+        'alpha NOT installed' );
+
+    # Operator's customised layout.tt must still be on disk, untouched.
+    open my $r_lfh, '<', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
+    my $preserved = do { local $/; <$r_lfh> };
+    close $r_lfh;
+    like( $preserved, qr/operator-customised/,
+        'operator layout.tt preserved, not clobbered' );
+
+    # Restore bare fixture.
+    open my $lfh2, '>', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
+    print $lfh2 "<html>[% content %]</html>\n";
+    close $lfh2;
+};
+
+# --- SM060 Scenario 4: release has themes but no layout.tt for
+# their layout; target doesn't have the layout either. Themes fail
+# with existing target-site check message.
+subtest 'layouts-install: release missing layout.tt, target missing too' => sub {
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
+    clean_installed_themes();
+    system( 'rm', '-rf', "$docroot/lazysite/layouts/default" );
+
+    # build_zipball_nested does NOT include layout files — only themes.
+    my $zip = build_zipball_nested(
+        { layout => 'default', theme => 'alpha', valid => 1,
+          declared_layouts => ['default'] },
+    );
+    queue_response( 200, $zip );
+
+    my $body = encode_json({ tag => 'v1.0.0' });
+    my $r = main::action_layouts_install($body);
+    ok( $r->{ok}, 'overall ok (walk ran)' );
+    is_deeply( $r->{layouts}, [],
+        'no layout entries when release ships no layout.tt' );
+    is( scalar @{ $r->{themes} }, 1, 'theme entry recorded' );
+    ok( !$r->{themes}[0]{ok},
+        'theme rejected (target has no layout)' );
+    like( $r->{themes}[0]{error}, qr/missing layout\(s\)/,
+        'error names the missing-on-target layout' );
+
+    # Restore bare fixture.
+    make_path("$docroot/lazysite/layouts/default");
+    open my $lfh, '>', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
+    print $lfh "<html>[% content %]</html>\n";
+    close $lfh;
 };
 
 done_testing();
