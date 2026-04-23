@@ -37,7 +37,8 @@ lazysite/
   starter/                     # template files copied to docroot
     lazysite.conf.example
     lazysite/
-      themes/manager/          # manager theme (system)
+      manager/                 # manager UI template + CSS (D013; internal)
+      layouts/                 # operator-installed layouts + themes (D013)
       forms/                   # form config examples
     manager/                   # manager UI pages
     docs/                      # documentation (this site)

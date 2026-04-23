@@ -123,8 +123,8 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/docs/ai-briefing-development.md",
       "path" : "starter/docs/ai-briefing-development.md",
-      "sha256" : "93769781b9d42d0b53e44634cb429eb12c5dff8999b668aa8bb148f470b65ad3",
-      "size" : 7906
+      "sha256" : "79401c0022662b71409dd454670e854686b1dfd60f6830be0b898a24cb91eaa6",
+      "size" : 8002
     },
     {
       "bucket" : "seed",
@@ -536,15 +536,15 @@
       "bucket" : "seed",
       "install_to" : "{DOCROOT}/lazysite/lazysite.conf.example",
       "path" : "starter/lazysite.conf.example",
-      "sha256" : "b2b0b6f67c6bf32c12fc46c3574d14b729f4875669d075a1fa5682d312429079",
-      "size" : 2805
+      "sha256" : "0eebc22e2e61b6c150336d0c911b6cf95b48d723b26a06eaea54c5964a7a1d8a",
+      "size" : 2798
     },
     {
       "bucket" : "code",
       "install_to" : "{DOCROOT}/lazysite/manager/assets/manager.css",
       "path" : "starter/lazysite/manager/assets/manager.css",
-      "sha256" : "37de43680de0948ae0261e36067a278611c484df6879067eca0933c699a8e827",
-      "size" : 24721
+      "sha256" : "e6068cf5bfc7934fdb06afb6ae08ae13deaffcfaf817ddd9b073b93dceb319b8",
+      "size" : 24714
     },
     {
       "bucket" : "code",
@@ -855,8 +855,8 @@
       "size" : 1604
     }
   ],
-  "generated" : "2026-04-23T04:59:36Z",
-  "min_upgrade_from" : "0.2.17",
+  "generated" : "2026-04-23T05:42:58Z",
+  "min_upgrade_from" : "0.2.18",
   "runtime_paths" : [
     {
       "mode" : "0750",
@@ -895,5 +895,5 @@
     }
   ],
   "schema_version" : "1",
-  "version" : "0.2.17"
+  "version" : "0.2.18"
 }

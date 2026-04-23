@@ -56,7 +56,7 @@ manager_path: /manager
 # manager_upload_rate_count / manager_upload_rate_mb: per-user
 #   hourly upload budget (0 disables that dimension).
 # manager_upload_max_mb: 10
-# manager_blocked_paths: lazysite/auth,lazysite/forms,lazysite/cache,lazysite/themes/manager,cgi-bin,manager
+# manager_blocked_paths: lazysite/auth,lazysite/forms,lazysite/cache,lazysite/manager,cgi-bin,manager
 # manager_upload_blocked_extensions: pl,cgi
 # manager_upload_rate_count: 60
 # manager_upload_rate_mb: 500
