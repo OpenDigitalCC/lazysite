@@ -38,12 +38,18 @@ dist/*
 !dist/config/
 !dist/config/*
 
-# CC-authored release notes. Workflow state, not project history.
-# make-release.sh --auto reads this file automatically and deletes
-# it on successful push. See docs/development.md Releasing section.
-.release-notes.md
+# SM063: CC writes .commit-message.md per session; tools/commit.sh
+# reads it as the commit body and deletes it on success. The file
+# is session-ephemeral workflow state, never committed.
+.commit-message.md
 
-# CC-authored commit-side actions for a single release. Displayed
-# and executed by pre-release.sh, then removed by
-# make-release.sh --auto on successful push. Session-ephemeral.
+# SM063: audit/research artefacts produced by exploratory sessions.
+# Never committed; documented in docs/development.md if they inform
+# subsequent SMs.
+.release-audit.md
+
+# Pre-SM063 workflow files. Not produced under the new flow; the
+# ignores stay for a transition period so stale sandbox artefacts
+# don't accidentally commit.
+.release-notes.md
 .release-prep.sh
