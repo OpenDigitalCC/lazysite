@@ -68,46 +68,111 @@ function showStatus(msg, isError) {
   setTimeout(function() { showStatus(''); }, 3000);
 }
 
+// SM068: use themes-list-all so the panel shows every installed
+// theme, grouped by layout, regardless of which layout is active.
+// Themes under the active layout are activatable; themes under
+// other layouts surface as "installed for layout X" so operators
+// can see them at all (pre-SM068 they were filtered out of view
+// entirely when the active layout didn't match).
 function loadThemes() {
   showStatus('');
-  fetch(API + '?action=theme-list')
+  fetch(API + '?action=themes-list-all')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
-      renderThemes(data.themes || [], data.active || '');
+      renderThemes(
+        data.themes        || [],
+        data.active        || '',
+        data.active_layout || ''
+      );
     })
     .catch(function(e) { showStatus('Failed to load themes: ' + e.message, true); });
 }
 
-function renderThemes(themes, active) {
+function renderThemes(themes, active, activeLayout) {
   var list = document.getElementById('theme-list');
-  var visible = themes.filter(function(t) { return t.name !== 'manager'; });
-  if (visible.length === 0) {
-    list.innerHTML = '<div class="mg-file-item"><span class="mg-file-name mg-empty">No themes installed</span></div>';
+  if (themes.length === 0) {
+    list.innerHTML = '<div class="mg-file-item">'
+      + '<span class="mg-file-name mg-empty">No themes installed</span></div>';
     return;
   }
+
+  // Group by layout. Active layout first, then others alphabetical.
+  var groups = {};
+  for (var i = 0; i < themes.length; i++) {
+    var t = themes[i];
+    if (!groups[t.layout]) groups[t.layout] = [];
+    groups[t.layout].push(t);
+  }
+  var layoutOrder = Object.keys(groups).sort();
+  if (activeLayout && groups[activeLayout]) {
+    layoutOrder = [activeLayout].concat(
+      layoutOrder.filter(function(l) { return l !== activeLayout; })
+    );
+  }
+
   var html = '';
-  for (var i = 0; i < visible.length; i++) {
-    var t = visible[i];
-    var isActive = t.name === active;
-    html += '<div class="mg-file-item">';
-    html += '<span class="mg-file-name">' + escHtml(t.name) + '</span>';
-    if (isActive) {
-      html += '<span class="mg-badge mg-badge-success">active</span>';
+  if (!activeLayout) {
+    html += '<div class="mg-file-item">'
+      + '<span class="mg-file-name mg-empty">'
+      + 'Set an active layout on <a href="/manager">Config</a> '
+      + 'to activate any of these themes.</span></div>';
+  }
+
+  for (var g = 0; g < layoutOrder.length; g++) {
+    var layoutName = layoutOrder[g];
+    var isActiveLayout = layoutName === activeLayout;
+    var groupThemes = groups[layoutName];
+
+    html += '<div class="mg-theme-group" style="margin-top:'
+         +  (g === 0 ? '0' : '1rem') + ';">';
+    html += '<h3 style="font-size:0.8rem;margin:0 0 0.25rem;'
+         +  'color:var(--mg-text-muted);text-transform:uppercase;'
+         +  'letter-spacing:0.04em;">'
+         +  'Themes for layout ' + escHtml(layoutName);
+    if (isActiveLayout) {
+      html += ' <span class="mg-badge mg-badge-success">active</span>';
     }
-    html += '<div class="mg-file-actions">';
-    if (isActive) {
-      html += '<button class="mg-btn mg-btn-sm" onclick="deactivateTheme()">Deactivate</button>';
-    } else {
-      html += '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="activateTheme(\'' + escHtml(t.name) + '\')">Activate</button>';
+    html += '</h3>';
+
+    for (var i = 0; i < groupThemes.length; i++) {
+      var t = groupThemes[i];
+      var isActive = isActiveLayout && t.name === active;
+      html += '<div class="mg-file-item">';
+      html += '<span class="mg-file-name">' + escHtml(t.name) + '</span>';
+      if (isActive) {
+        html += '<span class="mg-badge mg-badge-success">active</span>';
+      } else if (!isActiveLayout) {
+        html += '<span class="mg-file-meta">'
+             +  'installed for layout ' + escHtml(layoutName) + '</span>';
+      }
+      html += '<div class="mg-file-actions">';
+      if (isActiveLayout) {
+        if (isActive) {
+          html += '<button class="mg-btn mg-btn-sm" onclick="deactivateTheme()">Deactivate</button>';
+        } else {
+          html += '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="activateTheme(\'' + escHtml(t.name) + '\')">Activate</button>';
+        }
+        html += '<button class="mg-btn mg-btn-sm" onclick="renameTheme(\'' + escHtml(t.name) + '\')">Rename</button>';
+        if (!isActive) {
+          html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteTheme(\'' + escHtml(t.name) + '\')">Delete</button>';
+        }
+      }
+      // Non-active-layout themes get no buttons; they're display-only
+      // until the operator switches active layout on Config.
+      html += '</div>';
+      html += '</div>';
     }
-    html += '<button class="mg-btn mg-btn-sm" onclick="renameTheme(\'' + escHtml(t.name) + '\')">Rename</button>';
-    if (!isActive) {
-      html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteTheme(\'' + escHtml(t.name) + '\')">Delete</button>';
+
+    if (!isActiveLayout && activeLayout) {
+      html += '<p class="mg-empty" style="font-size:0.8rem;margin:0.25rem 0 0;">'
+           +  'Switch active layout on <a href="/manager">Config</a> '
+           +  'to activate themes for this layout.</p>';
     }
-    html += '</div>';
+
     html += '</div>';
   }
+
   list.innerHTML = html;
 }
 
@@ -390,6 +455,21 @@ function installRelease(tag) {
       for (var i = 0; i < themes.length; i++) { if (themes[i].ok) ok++; else fail++; }
       var msg = 'Installed ' + ok + ' theme' + (ok === 1 ? '' : 's') + ' from ' + tag;
       if (fail) { msg += ' (' + fail + ' failed)'; }
+      // SM068: append a note when the install auto-set layout:/theme:
+      // in lazysite.conf so the operator sees what happened
+      // implicitly. Server only sets keys that were previously unset.
+      var autoNotes = [];
+      if (data.layout_auto_set) {
+        autoNotes.push('active layout set to ' +
+          (data.layout_auto_set_name || ''));
+      }
+      if (data.theme_auto_set) {
+        autoNotes.push('active theme set to ' +
+          (data.theme_auto_set_name || ''));
+      }
+      if (autoNotes.length) {
+        msg += ' — ' + autoNotes.join(', ');
+      }
       if (fail) {
         var parts = [];
         for (var j = 0; j < themes.length; j++) {

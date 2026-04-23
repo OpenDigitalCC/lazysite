@@ -39,6 +39,12 @@ var SITE_SCHEMA = [
     default: '' },
   { key: 'theme',          label: 'Active theme',          type: 'dropdown_themes_for_active_layout',
     default: '', depends_on: 'layout' },
+  // SM068: read-only display; editing happens on /manager/themes
+  // (via layouts-repo-get/set). Shown here so operators see the
+  // current value in the same place as layout/theme.
+  { key: 'layouts_repo',   label: 'Layouts repo',          type: 'readonly_with_link',
+    default: '', link_href: '/manager/themes',
+    link_label: 'Edit on Themes' },
   { key: 'nav_file',       label: 'Navigation file',       type: 'text',
     default: 'lazysite/nav.conf' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'select',
@@ -202,6 +208,21 @@ function renderSiteForm(values) {
       html += '<option value="'+esc(v)+'" selected>'
            +  (v ? esc(v) : '(loading...)')+'</option>';
       html += '</select>';
+    } else if (f.type === 'readonly_with_link') {
+      // SM068: read-only display with an edit-elsewhere link.
+      // Shows the current value (or "(not set)") and a small
+      // link that points at f.link_href. The field is NOT
+      // part of the submitted form — no <input name>, so
+      // plugin-save doesn't see it.
+      var disp = v ? esc(v) : '<em class="mg-empty">(not set)</em>';
+      html += '<span class="mg-readonly-value" '
+           +  'style="flex:1;color:var(--mg-text);">'
+           +  disp + '</span>';
+      if (f.link_href) {
+        html += '<a href="' + esc(f.link_href) + '" '
+             +  'class="mg-btn mg-btn-sm mg-btn-outline">'
+             +  esc(f.link_label || 'Edit') + '</a>';
+      }
     } else {
       html += '<input type="text" name="'+f.key+'" value="'+esc(v)+'"'+(f.required?' required':'')+'>';
     }

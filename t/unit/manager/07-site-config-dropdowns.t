@@ -48,16 +48,14 @@ sub write_theme {
     close $fh;
 }
 
-# --- 1. Processor --describe has the SM044 shape ---
+# --- 1. Processor --describe shape (SM044 + SM068) ---
 
-subtest 'processor --describe includes SM044 fields' => sub {
+subtest 'processor --describe includes SM044 + SM068 fields' => sub {
     my $out = qx($^X \Q$root/lazysite-processor.pl\E --describe 2>/dev/null);
     my $desc = decode_json($out);
 
     ok( ( grep { $_ eq 'layouts_repo' } @{ $desc->{config_keys} } ),
         'layouts_repo in config_keys' );
-    ok( !( grep { $_->{key} eq 'layouts_repo' } @{ $desc->{config_schema} } ),
-        'layouts_repo NOT in config_schema (lives on /manager/themes)' );
 
     my ($layout_entry) = grep { $_->{key} eq 'layout' }
         @{ $desc->{config_schema} };
@@ -70,6 +68,18 @@ subtest 'processor --describe includes SM044 fields' => sub {
         'theme entry has dropdown_themes_for_active_layout type' );
     is( $theme_entry->{depends_on}, 'layout',
         'theme entry depends_on layout' );
+
+    # SM068: layouts_repo is now displayed on Config as a
+    # read-only entry linking to /manager/themes.
+    my ($lr_entry) = grep { $_->{key} eq 'layouts_repo' }
+        @{ $desc->{config_schema} };
+    ok( $lr_entry, 'layouts_repo now IN config_schema' );
+    is( $lr_entry->{type}, 'readonly_with_link',
+        'layouts_repo is readonly_with_link' );
+    is( $lr_entry->{link_href}, '/manager/themes',
+        'layouts_repo link points at /manager/themes' );
+    ok( $lr_entry->{link_label},
+        'layouts_repo has a link_label for the UI button' );
 };
 
 # --- Load the manager-api after setting DOCROOT ---

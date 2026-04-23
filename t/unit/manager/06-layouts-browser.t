@@ -277,8 +277,8 @@ subtest 'layouts-releases missing layouts_repo' => sub {
     write_conf("site_name: Test\n");
     my $r = main::action_layouts_releases();
     ok( !$r->{ok}, 'not ok' );
-    like( $r->{error}, qr/Check the layouts_repo setting/,
-        'error points at layouts_repo' );
+    like( $r->{error}, qr/Layouts repo setting above/,
+        'error points at the in-page Layouts repo field (SM068)' );
 };
 
 # --- Scenario 3 (SM046 rewrite): LL v0.3.0 nested happy path ---
@@ -674,6 +674,141 @@ subtest 'layouts-release-contents: release without layouts/ dir' => sub {
     ok( !$r->{ok}, 'rejected for missing layouts/' );
     like( $r->{error}, qr{layouts/ directory},
         'error mentions layouts/ dir' );
+};
+
+# --- SM068: themes-list-all ---
+
+subtest 'themes-list-all returns themes grouped by layout' => sub {
+    write_conf("site_name: Test\nlayout: default\ntheme: alpha\n");
+    clean_installed_themes();
+
+    # Install themes under both default and studio so we can see
+    # the grouping.
+    make_path("$docroot/lazysite/layouts/default/themes/alpha");
+    open my $aj, '>', "$docroot/lazysite/layouts/default/themes/alpha/theme.json" or die $!;
+    print $aj encode_json({ name => 'alpha', version => '1.0',
+        layouts => ['default'], config => {} });
+    close $aj;
+
+    make_path("$docroot/lazysite/layouts/default/themes/beta");
+    open my $bj, '>', "$docroot/lazysite/layouts/default/themes/beta/theme.json" or die $!;
+    print $bj encode_json({ name => 'beta', version => '1.0',
+        layouts => ['default'], config => {} });
+    close $bj;
+
+    make_path("$docroot/lazysite/layouts/studio/themes/slate");
+    open my $sj, '>', "$docroot/lazysite/layouts/studio/themes/slate/theme.json" or die $!;
+    print $sj encode_json({ name => 'slate', version => '1.0',
+        layouts => ['studio'], config => {} });
+    close $sj;
+
+    my $r = main::action_themes_list_all();
+    ok( $r->{ok}, 'ok' );
+    is( $r->{active},        'alpha',   'active theme echoed' );
+    is( $r->{active_layout}, 'default', 'active layout echoed' );
+    is( scalar @{ $r->{themes} }, 3, 'all three themes listed' );
+
+    my %by = map { $_->{layout} . '/' . $_->{name} => $_ } @{ $r->{themes} };
+    ok( $by{'default/alpha'}, 'alpha listed under default' );
+    ok( $by{'default/beta'},  'beta listed under default' );
+    ok( $by{'studio/slate'},  'slate listed under studio' );
+    is( $by{'default/alpha'}{active}, 1, 'alpha marked active' );
+    is( $by{'default/beta'}{active},  0, 'beta not active (same layout, diff name)' );
+    is( $by{'studio/slate'}{active},  0, 'slate not active (diff layout)' );
+};
+
+subtest 'themes-list-all: empty when no themes installed' => sub {
+    write_conf("site_name: Test\nlayout: default\n");
+    clean_installed_themes();
+
+    my $r = main::action_themes_list_all();
+    ok( $r->{ok}, 'ok' );
+    is_deeply( $r->{themes}, [], 'empty themes array' );
+    is( $r->{active_layout}, 'default', 'active layout still reported' );
+};
+
+subtest 'themes-list-all: no active layout' => sub {
+    write_conf("site_name: Test\n");
+    clean_installed_themes();
+
+    # Install a theme despite no active layout.
+    make_path("$docroot/lazysite/layouts/default/themes/alpha");
+    open my $aj, '>', "$docroot/lazysite/layouts/default/themes/alpha/theme.json" or die $!;
+    print $aj encode_json({ name => 'alpha', version => '1.0',
+        layouts => ['default'], config => {} });
+    close $aj;
+
+    my $r = main::action_themes_list_all();
+    ok( $r->{ok}, 'ok' );
+    is( scalar @{ $r->{themes} }, 1, 'theme still listed' );
+    is( $r->{active_layout}, '', 'active_layout empty' );
+    is( $r->{themes}[0]{active}, 0, 'not marked active (no active layout)' );
+};
+
+# --- SM068: layouts-install auto-sets layout:/theme: when unset ---
+
+subtest 'layouts-install auto-sets layout:/theme: on fresh conf' => sub {
+    # Fresh conf with neither layout: nor theme: set.
+    write_conf("site_name: Test\nlayouts_repo: OpenDigitalCC/lazysite-layouts\n");
+    clean_installed_themes();
+    system( 'rm', '-rf', "$docroot/lazysite/layouts/default" );
+
+    my $zip = build_zipball_with_layout(
+        layout => 'default',
+        themes => [ { theme => 'alpha' } ],
+    );
+    queue_response( 200, $zip );
+
+    my $body = encode_json({ tag => 'v1.0.0' });
+    my $r = main::action_layouts_install($body);
+    ok( $r->{ok}, 'install succeeded' );
+
+    # Response flags the auto-set.
+    ok( $r->{layout_auto_set}, 'layout_auto_set = true' );
+    ok( $r->{theme_auto_set},  'theme_auto_set = true' );
+    is( $r->{layout_auto_set_name}, 'default', 'layout name echoed' );
+    is( $r->{theme_auto_set_name},  'alpha',   'theme name echoed' );
+
+    # Conf on disk has the new values.
+    my ( $layout, $theme ) = main::_read_active_layout_and_theme();
+    is( $layout, 'default', 'layout: written to conf' );
+    is( $theme,  'alpha',   'theme: written to conf' );
+
+    # Restore fixture layout for subsequent scenarios.
+    open my $lfh, '>', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
+    print $lfh "<html>[% content %]</html>\n";
+    close $lfh;
+};
+
+subtest 'layouts-install does NOT overwrite existing layout:/theme:' => sub {
+    # Conf already has operator-chosen values.
+    write_conf(
+        "site_name: Test\n"
+        . "layout: studio\n"
+        . "theme: slate\n"
+        . "layouts_repo: OpenDigitalCC/lazysite-layouts\n"
+    );
+    clean_installed_themes();
+
+    my $zip = build_zipball_with_layout(
+        layout => 'default',
+        themes => [ { theme => 'alpha' } ],
+    );
+    queue_response( 200, $zip );
+
+    my $body = encode_json({ tag => 'v1.0.0' });
+    my $r = main::action_layouts_install($body);
+    ok( $r->{ok}, 'install succeeded' );
+
+    ok( !$r->{layout_auto_set},
+        'layout_auto_set = false (already set)' );
+    ok( !$r->{theme_auto_set},
+        'theme_auto_set = false (already set)' );
+
+    # Values unchanged.
+    my ( $layout, $theme ) = main::_read_active_layout_and_theme();
+    is( $layout, 'studio', 'layout: preserved' );
+    is( $theme,  'slate',  'theme: preserved' );
 };
 
 done_testing();

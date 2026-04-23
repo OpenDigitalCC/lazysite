@@ -30,15 +30,13 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
         version     => '1.0',
         config_file => '',
         # SM044: layouts_repo is in config_keys so action_plugin_save
-        # treats it as write-allowed for the site plugin, but it's
-        # deliberately NOT in config_schema — layouts_repo lives on
-        # /manager/themes (via layouts-repo-get/set), not on the
-        # Config page. Keeping both lists aligned avoids a save-path
-        # surprise if something ever rolls layouts_repo in via
-        # plugin-save.
+        # treats it as write-allowed for the site plugin.
         #
-        # NOTE: config.md SITE_SCHEMA duplicates config_schema.
-        # Keep them in sync until SM042 unifies them.
+        # SM068: layouts_repo now also appears in config_schema as
+        # a readonly_with_link entry — the operator sees its current
+        # value on Config with a link to /manager/themes where it's
+        # editable. SITE_SCHEMA in config.md duplicates this; they
+        # must stay in sync until SM042 unifies them.
         config_keys => [qw(site_name site_url layout theme layouts_repo
                            nav_file search_default
                            manager manager_path manager_groups)],
@@ -57,6 +55,12 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             { key => 'theme',  label => 'Active theme',
               type => 'dropdown_themes_for_active_layout', default => '',
               depends_on => 'layout' },
+            # SM068: read-only display of layouts_repo on Config.
+            # Edit happens on /manager/themes via layouts-repo-set.
+            { key => 'layouts_repo', label => 'Layouts repo',
+              type => 'readonly_with_link', default => '',
+              link_href => '/manager/themes',
+              link_label => 'Edit on Themes' },
             { key => 'nav_file', label => 'Navigation file', type => 'text',
               default => 'lazysite/nav.conf' },
             { key => 'search_default', label => 'Pages searchable by default', type => 'select',

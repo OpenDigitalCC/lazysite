@@ -355,6 +355,17 @@
     box-shadow: 0 0 0 2px rgba(13,110,253,0.15);
 }
 
+/* SM068: placeholder text is a hint, not a value. Make that
+   visually obvious - browsers default placeholders to ~40%
+   opacity which can read as "greyed-out value" rather than
+   "hint". Explicit muted colour + italic lifts the ambiguity. */
+.mg-form-row input::placeholder,
+.mg-form-row textarea::placeholder {
+    color: var(--mg-text-light);
+    opacity: 1;
+    font-style: italic;
+}
+
 .mg-form-row input[type="checkbox"] {
     flex: none;
     width: auto;

@@ -207,6 +207,7 @@ elsif ( $action eq 'preview' )          { $result = action_preview($path) }
 elsif ( $action eq 'cache-list' )       { $result = action_cache_list() }
 elsif ( $action eq 'cache-invalidate' ) { $result = action_cache_invalidate($path) }
 elsif ( $action eq 'theme-list' )       { $result = action_theme_list() }
+elsif ( $action eq 'themes-list-all' )  { $result = action_themes_list_all() }
 elsif ( $action eq 'theme-activate' )   { $result = action_theme_activate($path) }
 elsif ( $action eq 'theme-delete' )     { $result = action_theme_delete($path) }
 elsif ( $action eq 'theme-rename' )     {
@@ -817,6 +818,59 @@ sub action_theme_list {
     };
 }
 
+# SM068: list every installed theme across all layouts, not only
+# the active one. The Installed Themes panel on /manager/themes
+# uses this to show themes grouped by layout — themes for the
+# active layout are activatable; themes for other layouts are
+# shown for visibility but with no Activate button.
+#
+# Shape matches action_theme_list where possible but adds a
+# `layout` field per entry (action_theme_list implies it from the
+# top-level active layout).
+sub action_themes_list_all {
+    my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
+
+    my $layouts_dir = "$DOCROOT/lazysite/layouts";
+    my @themes;
+
+    if ( -d $layouts_dir ) {
+        opendir my $ld, $layouts_dir or return {
+            ok => 1, themes => [], active => $active_theme,
+            active_layout => $active_layout,
+        };
+        for my $layout_name ( sort readdir $ld ) {
+            next if $layout_name =~ /^\./;
+            my $themes_path = "$layouts_dir/$layout_name/themes";
+            next unless -d $themes_path;
+
+            opendir my $th, $themes_path or next;
+            for my $name ( sort readdir $th ) {
+                next if $name =~ /^\./;
+                next unless -d "$themes_path/$name";
+
+                my $valid  = -f "$themes_path/$name/theme.json" ? 1 : 0;
+                my $active = ( $layout_name eq $active_layout
+                            && $name         eq $active_theme ) ? 1 : 0;
+                push @themes, {
+                    layout => $layout_name,
+                    name   => $name,
+                    active => $active,
+                    valid  => $valid,
+                };
+            }
+            closedir $th;
+        }
+        closedir $ld;
+    }
+
+    return {
+        ok            => 1,
+        themes        => \@themes,
+        active        => $active_theme,
+        active_layout => $active_layout,
+    };
+}
+
 sub action_theme_activate {
     my ($theme_name) = @_;
     $theme_name =~ s/[^a-zA-Z0-9_-]//g;
@@ -1215,7 +1269,7 @@ sub _layouts_repo {
 sub action_layouts_releases {
     my $repo = _layouts_repo();
     return { ok => 0,
-        error => 'Unable to fetch releases. Check the layouts_repo setting in lazysite.conf.' }
+        error => 'Unable to fetch releases. Check the Layouts repo setting above.' }
         unless defined $repo && length $repo
             && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
 
@@ -1225,12 +1279,12 @@ sub action_layouts_releases {
     my $res = $ua->get( $url, 'Accept' => 'application/vnd.github+json' );
 
     return { ok => 0,
-        error => 'Unable to fetch releases. Check the layouts_repo setting in lazysite.conf.' }
+        error => 'Unable to fetch releases. Check the Layouts repo setting above.' }
         unless $res->is_success;
 
     my $data = eval { decode_json( $res->decoded_content ) };
     return { ok => 0,
-        error => 'Unable to fetch releases. Check the layouts_repo setting in lazysite.conf.' }
+        error => 'Unable to fetch releases. Check the Layouts repo setting above.' }
         unless ref $data eq 'ARRAY';
 
     my @releases;
@@ -1478,21 +1532,106 @@ sub action_layouts_install {
 
     my $themes_installed  = scalar grep { $_->{ok} } @results;
     my $layouts_installed = scalar grep { $_->{ok} } @layout_results;
+
+    # SM068: auto-set layout:/theme: in lazysite.conf on a fresh
+    # site so the operator isn't left at an empty config after a
+    # successful install. Never overwrite an operator-set value —
+    # only populate when the key is currently unset or empty. If
+    # the install had zero layout successes, no auto-set happens
+    # (same for theme).
+    my ( $layout_auto_set, $layout_auto_set_name ) = ( 0, '' );
+    my ( $theme_auto_set,  $theme_auto_set_name )  = ( 0, '' );
+    if ( $layouts_installed >= 1 ) {
+        my ($cur_layout, $cur_theme) = _read_active_layout_and_theme();
+
+        unless ( length $cur_layout ) {
+            my ($first_layout) = map  { $_->{source} =~ m{^layouts/([^/]+)$} ? $1 : () }
+                                 grep { $_->{ok} } @layout_results;
+            if ( defined $first_layout && length $first_layout ) {
+                if ( _write_conf_key( 'layout', $first_layout ) ) {
+                    $layout_auto_set      = 1;
+                    $layout_auto_set_name = $first_layout;
+                    $cur_layout           = $first_layout;
+                    log_event( 'INFO', 'layouts-install',
+                        'layout auto-set', name => $first_layout,
+                        user => $auth_user );
+                }
+            }
+        }
+
+        # Theme auto-set only when we now have a layout AND theme is
+        # unset AND at least one theme installed under that layout.
+        if ( length $cur_layout && !length $cur_theme
+             && $themes_installed >= 1 ) {
+            my ($first_theme) = map  {
+                    $_->{source} =~ m{^layouts/\Q$cur_layout\E/themes/([^/]+)$}
+                        ? $1 : ()
+                } grep { $_->{ok} } @results;
+            if ( defined $first_theme && length $first_theme ) {
+                if ( _write_conf_key( 'theme', $first_theme ) ) {
+                    $theme_auto_set      = 1;
+                    $theme_auto_set_name = $first_theme;
+                    log_event( 'INFO', 'layouts-install',
+                        'theme auto-set', name => $first_theme,
+                        layout => $cur_layout, user => $auth_user );
+                }
+            }
+        }
+    }
+
     log_event( 'INFO', 'layouts-install', 'release installed',
         repo             => $repo, tag => $tag,
         layouts_total    => scalar @layout_results,
         layouts_ok       => $layouts_installed,
         themes_total     => scalar @results,
         themes_ok        => $themes_installed,
+        layout_auto_set  => $layout_auto_set,
+        theme_auto_set   => $theme_auto_set,
         user             => $auth_user );
 
     return {
-        ok      => 1,
-        repo    => $repo,
-        tag     => $tag,
-        layouts => \@layout_results,
-        themes  => \@results,
+        ok              => 1,
+        repo            => $repo,
+        tag             => $tag,
+        layouts         => \@layout_results,
+        themes          => \@results,
+        layout_auto_set => $layout_auto_set
+                            ? JSON::PP::true() : JSON::PP::false(),
+        theme_auto_set  => $theme_auto_set
+                            ? JSON::PP::true() : JSON::PP::false(),
+        layout_auto_set_name => $layout_auto_set_name,
+        theme_auto_set_name  => $theme_auto_set_name,
     };
+}
+
+# SM068: write-or-replace a single key in lazysite.conf. Same
+# replace-or-append pattern as action_plugin_save and
+# action_layouts_repo_set, kept as a small helper so the
+# auto-set-on-install path isn't a third copy. Empty value is
+# rejected (callers should skip rather than write an empty key).
+sub _write_conf_key {
+    my ( $key, $value ) = @_;
+    return 0 unless defined $key && length $key && defined $value && length $value;
+    return 0 unless $key =~ /^[A-Za-z_][A-Za-z0-9_-]*$/;
+
+    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my $content   = '';
+    if ( -f $conf_path ) {
+        open my $fh, '<:utf8', $conf_path or return 0;
+        $content = do { local $/; <$fh> };
+        close $fh;
+    }
+
+    if ( $content =~ /^$key\s*:/m ) {
+        $content =~ s/^$key\s*:.*$/$key: $value/m;
+    }
+    else {
+        $content =~ s/\n?$/\n/;
+        $content .= "$key: $value\n";
+    }
+
+    my ( $ok, $err ) = write_file_checked( $conf_path, $content );
+    return $ok ? 1 : 0;
 }
 
 sub _cleanup_tmp_layouts {
