@@ -272,6 +272,50 @@ subtest 'pragmas not flagged as missing deps' => sub {
         or diag $out;
 };
 
+# --- 7a. SM059: string-literal "use X" is NOT captured ---
+#
+# The pre-SM059 regex matched any `\buse Word` run, including
+# occurrences inside string literals. The D013 error message
+# "repo must use D013 nested shape" carried a "use D013" run
+# that was captured as a module name, blocking the 0.2.16
+# release. This subtest fixtures a file with a real use statement
+# plus a string-literal "use MODULE" and asserts --strict only
+# flags the real one.
+
+subtest 'string-literal "use X" is not treated as a module' => sub {
+    my $dir = tempdir( CLEANUP => 1 );
+    fixture_manifest( $dir,
+        files => [
+            { path => 'bin/trap.pl',
+              content =>
+                    "use strict;\n"
+                  . "use Digest::SHA;\n"
+                  . "# comment with the literal: use Fake::Module\n"
+                  . "my \$msg = 'please use Other::Module to do this';\n"
+                  . "die \"repo must use D013 shape\" unless 1;\n",
+              install_to => '{CGIBIN}/trap.pl' },
+        ],
+    );
+    fixture_deps("$dir-deps.json");
+
+    my ( $rc, $out ) = run_script(
+        '--manifest', "$dir-manifest.json",
+        '--deps',     "$dir-deps.json",
+        '--staged',   $dir,
+        '--out',      "$dir-sbom.json",
+        '--strict',
+    );
+    is( $rc, 0,
+        'string-literal and comment "use X" did not trigger --strict failure' )
+        or diag $out;
+    unlike( $out, qr/\bFake::Module\b/,
+        'module name from comment not reported' );
+    unlike( $out, qr/\bOther::Module\b/,
+        'module name from single-quoted string not reported' );
+    unlike( $out, qr/\bD013\b/,
+        'module name from double-quoted string not reported' );
+};
+
 # --- 8. Unused sbom-deps entry is noted but not failing ---
 
 subtest '--strict notes unused sbom-deps entries but does not fail' => sub {

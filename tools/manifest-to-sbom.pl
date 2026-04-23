@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # tools/manifest-to-sbom.pl - generate CycloneDX 1.6 sbom.json from
-# release-manifest.json + tools/sbom-deps.json. Core-only Perl.
+# release-manifest.json + dist/config/sbom-deps.json. Core-only Perl.
 #
 # In --strict mode, greps every shipped .pl/.pm for use/require and
 # aborts if any module is missing from sbom-deps.json. This is the
@@ -104,7 +104,18 @@ sub strict_check {
         open my $fh, '<', $full or next;
         while ( my $line = <$fh> ) {
             next if $line =~ /^\s*#/;
-            while ( $line =~ /(?:\buse|\brequire)\s+([A-Z][\w:]*)/g ) {
+            # SM059: anchor the use/require match to statement
+            # boundaries. The previous `\b(use|require)` regex
+            # captured "use D013" inside a string literal like
+            # 'repo must use D013 nested shape' (D013 error-
+            # message text), so the false positive blocked
+            # releases. The new regex requires start-of-line,
+            # a preceding `;` (same-line chained statements),
+            # or a `{` (block-opening, for patterns like
+            # `eval { require Module; 1 }`). Each is a real
+            # Perl statement boundary; none occur inside a
+            # string literal mid-line.
+            while ( $line =~ /(?:^|[{;])\s*(?:use|require)\s+([A-Z][\w:]*)/g ) {
                 my $mod = $1;
                 next if $PRAGMAS->{$mod};
                 $found{$mod}++;
@@ -118,7 +129,7 @@ sub strict_check {
         print STDERR "manifest-to-sbom --strict: modules in code but "
           . "missing from sbom-deps.json:\n";
         print STDERR "  $_\n" for @missing;
-        print STDERR "Add entries to tools/sbom-deps.json and re-run.\n";
+        print STDERR "Add entries to dist/config/sbom-deps.json and re-run.\n";
         return 1;
     }
 

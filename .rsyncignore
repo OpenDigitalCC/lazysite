@@ -17,11 +17,18 @@ starter/lazysite/forms/handlers.conf
 starter/lazysite/auth/users
 starter/lazysite/auth/groups
 
-# Generated at build time:
+# Generated at release time only (tools/release.sh writes tarballs
+# to /srv/projects/lazysite/dist/ after cutting). Keep them out of
+# the sandbox -> /srv transfer so release.sh's outputs aren't
+# clobbered by CC's (absent) copies.
 dist/lazysite-*.tar.gz
 dist/lazysite-*.tar.gz.sha256
-release-manifest.json
-sbom.json
+
+# SM065 removed sbom.json and release-manifest.json from git
+# tracking: they're tarball-only artefacts now. SM067: also remove
+# them from .rsyncignore so sandbox absences propagate via rsync
+# --delete (previously the entries here prevented that and left
+# SM065's intended deletions unshipped against origin).
 
 # Cache and logs if present in sandbox:
 starter/lazysite/cache/
