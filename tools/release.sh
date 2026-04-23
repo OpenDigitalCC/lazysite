@@ -8,15 +8,20 @@
 # made on main. Main is unstable; tags are the stable identifiers.
 #
 # Usage:
-#   tools/release.sh VERSION [--notes NOTES_FILE] [--commit COMMIT]
+#   tools/release.sh [VERSION] [--notes NOTES_FILE] [--commit COMMIT]
 #
-#   VERSION         required, e.g. 0.2.19 (semver X.Y.Z)
+#   VERSION         optional, e.g. 0.2.19 (semver X.Y.Z). When
+#                   omitted, release.sh proposes the next patch bump
+#                   from the most recent v*.*.* tag and prompts for
+#                   confirmation (SM064). Pass VERSION explicitly to
+#                   skip the prompt - useful for non-interactive
+#                   runs.
 #   --notes FILE    release-notes file. Default: use the target
 #                   commit's own commit message.
 #   --commit REF    SHA or ref to release. Default: origin/main HEAD.
 #
 # Preconditions:
-#   - VERSION is a semver string.
+#   - VERSION (provided or proposed) is a semver string.
 #   - Tag vVERSION does not already exist on origin.
 #   - dist/config/sbom-deps.json exists in the target commit.
 #
@@ -65,9 +70,61 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# SM064: when VERSION is omitted, propose the next patch bump from
+# the most recent v*.*.* tag and prompt. Explicit VERSION argument
+# bypasses the prompt for non-interactive use.
 if [ -z "$VERSION" ]; then
-    echo "release.sh: VERSION required (e.g. 0.2.19). --help for usage." >&2
-    exit 2
+    # Need the repo's tags available. Origin is our source of truth.
+    if [ ! -d "$ORIGIN/.git" ]; then
+        echo "release.sh: no git repo at $ORIGIN" >&2
+        exit 1
+    fi
+    git -C "$ORIGIN" fetch --tags origin >/dev/null 2>&1 || true
+
+    # `tag -l 'v*.*.*' | sort -V | tail -1` is deterministic across
+    # mixed-tag repos in a way `git describe --tags` isn't.
+    LAST_TAG=$(git -C "$ORIGIN" tag -l 'v*.*.*' | sort -V | tail -1)
+    if [ -z "$LAST_TAG" ]; then
+        echo "release.sh: no v*.*.* tags on origin; cannot propose a version." >&2
+        echo "release.sh: pass VERSION explicitly for the first release." >&2
+        exit 1
+    fi
+
+    # Strip leading 'v', split on '.', bump the patch field.
+    LAST_VER="${LAST_TAG#v}"
+    IFS='.' read -r _M _m _p <<< "$LAST_VER"
+    if ! [[ "$_M" =~ ^[0-9]+$ && "$_m" =~ ^[0-9]+$ && "$_p" =~ ^[0-9]+$ ]]; then
+        echo "release.sh: latest tag '$LAST_TAG' doesn't look like vX.Y.Z" >&2
+        echo "release.sh: pass VERSION explicitly." >&2
+        exit 1
+    fi
+    PROPOSED="$_M.$_m.$((_p + 1))"
+
+    echo "Latest tag: $LAST_TAG"
+    read -r -p "Release as $PROPOSED [Y/n/edit]? " ans
+    case "$ans" in
+        ''|y|Y|yes|YES)
+            VERSION="$PROPOSED"
+            ;;
+        n|N|no|NO)
+            echo "release.sh: aborted."
+            exit 0
+            ;;
+        e|E|edit|EDIT)
+            read -r -p "Enter version: " edited
+            # Strip any leading 'v' to be kind.
+            edited="${edited#v}"
+            if ! [[ "$edited" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "release.sh: '$edited' is not a valid semver (X.Y.Z). Aborted." >&2
+                exit 2
+            fi
+            VERSION="$edited"
+            ;;
+        *)
+            echo "release.sh: unrecognised response '$ans'. Aborted." >&2
+            exit 2
+            ;;
+    esac
 fi
 
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

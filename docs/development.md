@@ -94,24 +94,44 @@ name (`vX.Y.Z`), not a per-release commit.
 
 ### Cutting a release
 
+Interactive form - release.sh proposes the next patch bump
+from the most recent `v*.*.*` tag and prompts (SM064):
+
 ```
-tools/release.sh 0.2.19
+tools/release.sh
+# Latest tag: v0.2.19
+# Release as 0.2.20 [Y/n/edit]?
 ```
 
-Defaults to releasing `origin/main` HEAD. Tag annotation is
-the target commit's own message.
+Answers:
+
+- `Y`, `y`, or empty → proceed with the proposed version.
+- `n` → abort with no side effects.
+- `edit` or `e` → prompt for a version string, validate as
+  X.Y.Z, then proceed. Useful for minor or major bumps.
+
+Non-interactive form - pass VERSION explicitly to skip the
+prompt (matches 0.2.19 behaviour):
+
+```
+tools/release.sh 0.2.20
+```
+
+Both forms default to releasing `origin/main` HEAD. Tag
+annotation is the target commit's own message.
 
 Other forms:
 
 ```
-tools/release.sh 0.2.19 --commit abc1234     # specific commit
-tools/release.sh 0.2.19 --notes NOTES.md     # override annotation
-tools/release.sh 0.2.19 --commit HEAD~3 --notes NOTES.md
+tools/release.sh 0.2.20 --commit abc1234     # specific commit
+tools/release.sh 0.2.20 --notes NOTES.md     # override annotation
+tools/release.sh 0.2.20 --commit HEAD~3 --notes NOTES.md
 ```
 
 ### What release.sh does
 
-1. Verifies VERSION is semver and the tag is unused.
+1. Proposes / accepts VERSION (see above), verifies it's
+   semver and the tag is unused.
 2. Stages a fresh clone of `/srv/projects/lazysite` at
    `/tmp/lazysite-release-$$/`.
 3. Checks out the target commit (detached HEAD in staging).
