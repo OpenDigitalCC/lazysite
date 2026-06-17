@@ -2,7 +2,7 @@
 # lazysite-manager-api.pl - file operations CGI for lazysite manager
 use strict;
 use warnings;
-use Digest::SHA qw(hmac_sha256_hex);
+use Digest::SHA qw(hmac_sha256_hex sha256_hex);
 use JSON::PP qw(encode_json decode_json);
 use File::Find;
 use File::Path qw(make_path);
@@ -276,7 +276,7 @@ elsif ( $action eq 'cache-list' )       { $result = action_cache_list() }
 elsif ( $action eq 'cache-invalidate' ) { $result = action_cache_invalidate($path) }
 elsif ( $action eq 'theme-list' )       { $result = action_theme_list() }
 elsif ( $action eq 'themes-list-all' )  { $result = action_themes_list_all() }
-elsif ( $action eq 'theme-activate' )   { $result = action_theme_activate($path) }
+elsif ( $action eq 'theme-activate' )   { $result = action_theme_activate($path, \%params) }
 elsif ( $action eq 'theme-delete' )     { $result = action_theme_delete($path) }
 elsif ( $action eq 'theme-rename' )     {
     my $req = eval { decode_json($body) } // {};
@@ -574,8 +574,19 @@ sub action_artifact_manifest {
     return $a unless $a->{ok};
     return { ok => 0, error => 'artifact not found' } unless -d $a->{dir};
 
-    my %manifest;
-    my $dir = $a->{dir};
+    my $manifest = _compute_manifest( $a->{dir} );
+    # digest is the optimistic-concurrency token: the client passes it back
+    # as `base` to activate, which 409s if the artifact drifted since.
+    return { ok => 1, layout => $a->{layout}, theme => $a->{theme},
+             manifest => $manifest,
+             digest   => sha256_hex( JSON::PP->new->canonical->encode($manifest) ) };
+}
+
+# Content manifest of a directory: { relpath => { sha256, size } }.
+sub _compute_manifest {
+    my ($dir) = @_;
+    my %m;
+    return \%m unless -d $dir;
     File::Find::find( { no_chdir => 1, wanted => sub {
         return unless -f $_;
         ( my $rel = $_ ) =~ s{^\Q$dir\E/}{};
@@ -583,11 +594,14 @@ sub action_artifact_manifest {
         my $sha = Digest::SHA->new(256);
         $sha->addfile($fh);
         close $fh;
-        $manifest{$rel} = { sha256 => $sha->hexdigest, size => ( -s $_ ) + 0 };
+        $m{$rel} = { sha256 => $sha->hexdigest, size => ( -s $_ ) + 0 };
     } }, $dir );
+    return \%m;
+}
 
-    return { ok => 1, layout => $a->{layout}, theme => $a->{theme},
-             manifest => \%manifest };
+sub _artifact_digest {
+    my ($dir) = @_;
+    return sha256_hex( JSON::PP->new->canonical->encode( _compute_manifest($dir) ) );
 }
 
 # Dry-run validation of a theme/layout (the activate gate, P3.4 reuses it).
@@ -1196,45 +1210,139 @@ sub action_themes_list_all {
     };
 }
 
+# SM071 Phase 3: activate-with-backup. Validates the candidate, optionally
+# enforces an optimistic-concurrency base manifest (409 on drift), takes an
+# artifact-level lock for the transition, snapshots the outgoing live theme
+# (for back-out) with retention, then flips the pointer and drops the cache.
 sub action_theme_activate {
-    my ($theme_name) = @_;
+    my ( $theme_name, $params ) = @_;
+    $params ||= {};
     $theme_name =~ s/[^a-zA-Z0-9_-]//g;
 
+    # Deactivation: clear the pointer, no validation/backup.
+    return _set_theme_pointer('') if $theme_name eq '';
+
+    my ( $active_layout, $old_theme ) = _read_active_layout_and_theme();
+    return { ok => 0, error => "No active layout set" } unless length $active_layout;
+
+    my $themes_dir = "$LAZYSITE_DIR/layouts/$active_layout/themes";
+    my $theme_dir  = "$themes_dir/$theme_name";
+    return { ok => 0, error => "Theme not found" } unless -d $theme_dir;
+
+    # Artifact-level lock across validate -> snapshot -> flip.
+    my $lock_rel = "lazysite/layouts/$active_layout/themes/$theme_name";
+    my $lk = acquire_lock( $lock_rel, $auth_user );
+    unless ( $lk->{ok} ) {
+        return { ok => 0, locked => 1, error => "Theme is locked by "
+            . ( $lk->{locked_by} // 'another session' ) };
+    }
+
+    my $out = eval {
+        my $v = _validate_theme_dir( $theme_dir, $active_layout );
+        return { ok => 0, error => "Theme invalid: " . join( '; ', @{ $v->{errors} } ) }
+            unless $v->{valid};
+
+        if ( defined $params->{base} && length $params->{base} ) {
+            return { ok => 0, conflict => 1,
+                error => "Theme changed since the supplied base manifest" }
+                if _artifact_digest($theme_dir) ne $params->{base};
+        }
+
+        if ( length $old_theme && $old_theme ne $theme_name ) {
+            _snapshot_artifact( $themes_dir, $old_theme );
+            _prune_backups( $themes_dir, $old_theme );
+        }
+        return _set_theme_pointer($theme_name);
+    };
+    my $err = $@;
+    release_lock( $lock_rel, $auth_user );
+    die $err if $err;
+    return $out;
+}
+
+# Rewrite the theme: pointer in conf and invalidate the page cache.
+sub _set_theme_pointer {
+    my ($theme_name) = @_;
     my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
     return { ok => 0, error => "Cannot read conf" } unless -f $conf_path;
-
     open my $fh, '<:utf8', $conf_path or return { ok => 0, error => "Cannot read conf" };
     my $conf = do { local $/; <$fh> };
     close $fh;
-
-    if ( $theme_name eq '' ) {
-        # Deactivate - remove theme line
-        $conf =~ s/^theme\s*:.*\n?//m;
-    }
-    elsif ( $conf =~ /^theme\s*:/m ) {
-        $conf =~ s/^theme\s*:.*$/theme: $theme_name/m;
-    }
-    else {
-        $conf .= "\ntheme: $theme_name\n";
-    }
-
-    open my $out, '>:utf8', $conf_path or return { ok => 0, error => "Cannot write conf" };
-    print $out $conf;
-    close $out;
-
-    # Invalidate all cached pages
-    find(
-        sub {
-            return unless /\.html$/;
-            my $rel = $File::Find::name;
-            $rel =~ s{^\Q$DOCROOT\E/?}{/};
-            return if $rel =~ m{^/lazysite/};
-            unlink $_;
-        },
-        $DOCROOT
-    );
-
+    if    ( $theme_name eq '' )         { $conf =~ s/^theme\s*:.*\n?//m }
+    elsif ( $conf =~ /^theme\s*:/m )    { $conf =~ s/^theme\s*:.*$/theme: $theme_name/m }
+    else                                { $conf .= "\ntheme: $theme_name\n" }
+    open my $o, '>:utf8', $conf_path or return { ok => 0, error => "Cannot write conf" };
+    print $o $conf;
+    close $o;
+    _invalidate_html_cache();
     return { ok => 1, theme => $theme_name };
+}
+
+sub _invalidate_html_cache {
+    find( sub {
+        return unless /\.html$/;
+        my $rel = $File::Find::name;
+        $rel =~ s{^\Q$DOCROOT\E/?}{/};
+        return if $rel =~ m{^/lazysite/};
+        unlink $_;
+    }, $DOCROOT );
+}
+
+# Theme validity gate: theme.json present + valid JSON + layouts[] declares
+# the active layout. { valid => 0/1, errors => [...] }.
+sub _validate_theme_dir {
+    my ( $dir, $layout ) = @_;
+    my $tj = "$dir/theme.json";
+    return { valid => 0, errors => ['theme.json missing'] } unless -f $tj;
+    open my $fh, '<:utf8', $tj
+        or return { valid => 0, errors => ['theme.json unreadable'] };
+    my $raw  = do { local $/; <$fh> };
+    close $fh;
+    my $data = eval { decode_json($raw) };
+    my @err;
+    if ( ref $data ne 'HASH' ) { push @err, 'theme.json invalid' }
+    elsif ( ref $data->{layouts} ne 'ARRAY' || !@{ $data->{layouts} } ) {
+        push @err, 'theme.json layouts[] missing or empty';
+    }
+    elsif ( !grep { $_ eq $layout } @{ $data->{layouts} } ) {
+        push @err, "theme not declared for active layout '$layout'";
+    }
+    return { valid => ( @err ? 0 : 1 ), errors => \@err };
+}
+
+# Snapshot an artifact dir as <name>-backup-<UTCstamp> alongside it, for
+# back-out (the snapshot is itself a selectable theme).
+sub _snapshot_artifact {
+    my ( $parent, $name ) = @_;
+    my $src = "$parent/$name";
+    return unless -d $src;
+    my $dst = "$parent/$name-backup-" . strftime( '%Y%m%dT%H%M%SZ', gmtime );
+    return if -e $dst;
+    system( 'cp', '-r', $src, $dst );
+}
+
+# Keep the newest backup_retention snapshots of $name; remove older ones.
+# Names embed a UTC stamp, so a lexical sort is chronological.
+sub _prune_backups {
+    my ( $parent, $name ) = @_;
+    my $keep = _backup_retention();
+    return if $keep <= 0;   # 0 (or negative) = keep all
+    opendir my $dh, $parent or return;
+    my @backups = sort grep { /^\Q$name\E-backup-/ && -d "$parent/$_" } readdir $dh;
+    closedir $dh;
+    while ( @backups > $keep ) {
+        my $old = shift @backups;
+        system( 'rm', '-rf', "$parent/$old" );
+    }
+}
+
+sub _backup_retention {
+    my $n = 3;
+    if ( open my $fh, '<', "$DOCROOT/lazysite/lazysite.conf" ) {
+        while (<$fh>) { if (/^backup_retention\s*:\s*(-?\d+)/) { $n = $1; last } }
+        close $fh;
+    }
+    return $n;
 }
 
 sub action_theme_delete {
