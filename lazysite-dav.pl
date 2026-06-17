@@ -174,7 +174,7 @@ sub main {
     }
     my $scope    = scope_for($user);
     my $is_write = ( $method =~ /^(?:PUT|DELETE|MKCOL|MOVE|COPY|LOCK)$/ );
-    if ( my $code = authorise( $rel, $scope, $is_write, $conf ) ) {
+    if ( my $code = authorise( $rel, $scope, $is_write, $conf, $user ) ) {
         log_event( 'WARN', $user, 'dav path denied', path => $rel, status => $code );
         return send_status( $code, body => "Forbidden\n" );
     }
@@ -467,7 +467,7 @@ sub do_copy_move {
     return send_status( 400, body => "Bad Destination\n" ) unless defined $drel;
 
     # Destination passes the full authorisation chain too.
-    if ( my $code = authorise( $drel, $a{scope}, 1, $a{conf} ) ) {
+    if ( my $code = authorise( $drel, $a{scope}, 1, $a{conf}, $a{user} ) ) {
         return send_status( $code, body => "Forbidden destination\n" );
     }
     my $dst = resolve_under_docroot($drel);
@@ -848,13 +848,17 @@ sub sanitise_path {
 
 # Returns an HTTP error code if denied, or undef if allowed.
 sub authorise {
-    my ( $rel, $scope, $is_write, $conf ) = @_;
+    my ( $rel, $scope, $is_write, $conf, $user ) = @_;
 
-    # Internal-tree denial: the whole lazysite/ subtree is off limits to
-    # WebDAV, stricter than the manager API's file-level blocklist.
-    return 403 if $rel eq 'lazysite' || $rel =~ m{^lazysite/};
+    # SM071 Phase 3: the one carve-out from the whole-lazysite/ denial is
+    # theme/layout authoring under lazysite/layouts/**, governed per object
+    # by the manage_themes / manage_layouts capabilities and the active
+    # pointers. Everything else under lazysite/ stays denied.
+    if ( $rel eq 'lazysite' || $rel =~ m{^lazysite/} ) {
+        return authorise_layout( $rel, $is_write, $conf, $user );
+    }
 
-    # Scope confinement (applies to reads and writes alike).
+    # Content namespace: scope confinement + write blocklist (unchanged).
     if ( defined $scope && length $scope ) {
         ( my $s = $scope ) =~ s{^/+|/+$}{}g;
         if ( length $s ) {
@@ -866,6 +870,68 @@ sub authorise {
         return 403 if is_blocked( $rel, $conf );
     }
     return undef;
+}
+
+# SM071 Phase 3: per-object authorisation for the lazysite/layouts/** tree.
+# Returns 403 (deny) or undef (allow). dav_scope is a content-namespace
+# control and does not apply here - theme/layout reachability is governed
+# solely by the capabilities and the active-pointer read-only rule.
+sub authorise_layout {
+    my ( $rel, $is_write, $conf, $user ) = @_;
+
+    my $can_themes  = manage_themes_for($user);
+    my $can_layouts = manage_layouts_for($user);
+    return 403 unless $can_themes || $can_layouts;
+
+    # Only the layouts subtree is reachable; the rest of lazysite/ is denied.
+    return 403 unless $rel eq 'lazysite/layouts'
+                   || $rel =~ m{^lazysite/layouts/};
+
+    my $active_layout = $conf->{active_layout} // '';
+    my $active_theme  = $conf->{active_theme}  // '';
+
+    # The all-layouts container: read-only navigation with either capability.
+    return ( $is_write ? 403 : undef ) if $rel eq 'lazysite/layouts';
+
+    my ( $layout, $rest ) = $rel =~ m{^lazysite/layouts/([^/]+)(?:/(.*))?$};
+    return 403 unless defined $layout;
+    $rest //= '';
+
+    # A theme path: lazysite/layouts/<L>/themes/<T>/...
+    if ( $rest =~ m{^themes/([^/]+)} ) {
+        my $theme = $1;
+        return 403 unless $can_themes;
+        return 403 if $is_write
+                   && $layout eq $active_layout && $theme eq $active_theme;
+        return undef;
+    }
+
+    # The layout dir or its themes/ container: structural. Readable with
+    # either capability (navigation); writing structure needs manage_layouts
+    # and the layout must not be the active one.
+    if ( $rest eq '' || $rest eq 'themes' ) {
+        return undef unless $is_write;
+        return 403 unless $can_layouts;
+        return 403 if $layout eq $active_layout;
+        return undef;
+    }
+
+    # layout.tt and other layout-level assets.
+    return 403 unless $can_layouts;
+    return 403 if $is_write && $layout eq $active_layout;
+    return undef;
+}
+
+sub manage_themes_for {
+    my ($user) = @_;
+    my $s = read_settings()->{$user};
+    return ( ref $s eq 'HASH' && $s->{manage_themes} ) ? 1 : 0;
+}
+
+sub manage_layouts_for {
+    my ($user) = @_;
+    my $s = read_settings()->{$user};
+    return ( ref $s eq 'HASH' && $s->{manage_layouts} ) ? 1 : 0;
 }
 
 sub is_blocked {
@@ -1085,6 +1151,8 @@ sub read_conf {
         webdav_enabled     => 0,
         dav_allow_insecure => 0,
         max_bytes          => 10 * 1024 * 1024,
+        active_layout      => '',   # SM071 Phase 3: theme/layout pointers
+        active_theme       => '',
         blocked_paths      => [ qw(
             lazysite/auth lazysite/forms lazysite/cache
             lazysite/manager cgi-bin manager
@@ -1097,6 +1165,8 @@ sub read_conf {
     while (<$fh>) {
         if    ( /^webdav_enabled\s*:\s*(\S+)/ )     { $c{webdav_enabled}     = $1 }
         elsif ( /^dav_allow_insecure\s*:\s*(\S+)/ ) { $c{dav_allow_insecure} = $1 }
+        elsif ( /^layout\s*:\s*(\S+)/ )             { $c{active_layout}      = $1 }
+        elsif ( /^theme\s*:\s*(\S+)/ )              { $c{active_theme}       = $1 }
         elsif ( /^manager_upload_max_mb\s*:\s*(\d+)/ && $1 > 0 ) {
             $c{max_bytes} = $1 * 1024 * 1024;
         }
