@@ -179,6 +179,18 @@ sub main {
         return send_status( $code, body => "Forbidden\n" );
     }
 
+    # SM071 Phase 3 (P3.6): per-token volume throttle on writes (a deploy
+    # is many PUTs). 429 + Retry-After per the retry contract.
+    if ($is_write) {
+        my $rl = _rate_ok($user);
+        unless ( $rl->{ok} ) {
+            log_event( 'WARN', $user, 'dav rate limited', ip => $ip );
+            return send_status( 429,
+                headers => ["Retry-After: $rl->{retry_after}"],
+                body    => "Rate limit exceeded\n" );
+        }
+    }
+
     # 6. Dispatch.
     my %args = ( rel => $rel, user => $user, conf => $conf, scope => $scope, ip => $ip );
     if    ( $method eq 'PROPFIND' )  { return do_propfind(%args) }
@@ -1094,6 +1106,33 @@ sub webdav_enabled_for {
     return ( ref $s eq 'HASH' && $s->{webdav} ) ? 1 : 0;
 }
 
+# SM071 Phase 3 (P3.6): per-token volume token-bucket, shared with the
+# control API (same store + format under auth/, keyed by user). Defaults
+# burst 200 / refill 20/s, env-overridable. Fails open on any IO error.
+sub _rate_ok {
+    my ($key) = @_;
+    my $burst = defined $ENV{LAZYSITE_RATE_BURST}  ? $ENV{LAZYSITE_RATE_BURST}  : 200;
+    my $rate  = defined $ENV{LAZYSITE_RATE_REFILL} ? $ENV{LAZYSITE_RATE_REFILL} : 20;
+    return { ok => 1 } if $burst <= 0;
+    my $path = "$AUTH_DIR/.token-rate.json";
+    sysopen( my $fh, $path, O_RDWR | O_CREAT, 0600 ) or return { ok => 1 };
+    flock( $fh, LOCK_EX );
+    my $raw  = do { local $/; <$fh> };
+    my $data = eval { JSON::PP::decode_json( $raw || '{}' ) };
+    $data = {} unless ref $data eq 'HASH';
+    my $now    = time();
+    my $b      = $data->{$key} || { tokens => $burst, last => $now };
+    my $tokens = $b->{tokens} + ( $now - ( $b->{last} // $now ) ) * $rate;
+    $tokens = $burst if $tokens > $burst;
+    my ( $allow, $retry ) = ( 0, 0 );
+    if ( $tokens >= 1 ) { $tokens -= 1; $allow = 1 }
+    else { $retry = $rate > 0 ? int( ( 1 - $tokens ) / $rate ) + 1 : 60 }
+    $data->{$key} = { tokens => $tokens, last => $now };
+    seek( $fh, 0, 0 ); truncate( $fh, 0 ); print $fh JSON::PP::encode_json($data);
+    flock( $fh, LOCK_UN ); close $fh;
+    return $allow ? { ok => 1 } : { ok => 0, retry_after => $retry };
+}
+
 # SM071 Phase 2: a disabled account fails all DAV access.
 sub disabled_for {
     my ($user) = @_;
@@ -1323,7 +1362,14 @@ sub send_response {
     my $reason = $REASON{$code} // 'Status';
     binmode( STDOUT, ':utf8' );
     print "Status: $code $reason\r\n";
-    for my $h ( @{ $o{headers} || [] } ) {
+    # SM071 Phase 3 (P3.6): the retry contract - 423 (locked) and 429
+    # (throttled) always carry a Retry-After so clients back off.
+    my @headers = @{ $o{headers} || [] };
+    if ( ( $code == 423 || $code == 429 )
+         && !grep { /^Retry-After:/i } @headers ) {
+        push @headers, 'Retry-After: 30';
+    }
+    for my $h (@headers) {
         print "$h\r\n";
     }
     if ( defined $o{body} ) {

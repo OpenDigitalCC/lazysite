@@ -9,7 +9,7 @@ use File::Path qw(make_path);
 use File::Basename qw(dirname basename);
 use Cwd qw(realpath);
 use IPC::Open2;
-use Fcntl qw(O_RDWR O_CREAT);
+use Fcntl qw(:flock O_RDWR O_CREAT);
 use POSIX qw(strftime);
 
 my $LOG_COMPONENT = 'manager-api';
@@ -253,6 +253,18 @@ if ( $token_auth ) {
     }
     unless ( $check->( \%token_caps ) ) {
         respond({ ok => 0, error => "Insufficient capability for $action" });
+        exit 0;
+    }
+
+    # SM071 Phase 3 (P3.6): per-token volume throttle. 429 + Retry-After
+    # so the client can back off per the documented retry contract.
+    my $rl = _rate_ok($auth_user);
+    unless ( $rl->{ok} ) {
+        binmode( STDOUT, ':utf8' );
+        print "Status: 429 Too Many Requests\r\n";
+        print "Retry-After: $rl->{retry_after}\r\n";
+        print "Content-Type: application/json; charset=utf-8\r\n\r\n";
+        print encode_json({ ok => 0, error => 'Rate limit exceeded' });
         exit 0;
     }
 }
@@ -519,6 +531,35 @@ sub action_preview_clear {
 }
 
 # --- SM071 Phase 3: control-API helpers ---
+
+# SM071 Phase 3 (P3.6): per-token volume token-bucket, shared with the
+# DAV endpoint (same store + format, keyed by user) so one identity has
+# one bucket across both surfaces. Defaults burst 200 / refill 20/s,
+# overridable via env for tuning and tests. Fails open on any IO error.
+sub _rate_ok {
+    my ($key) = @_;
+    my $burst = defined $ENV{LAZYSITE_RATE_BURST}  ? $ENV{LAZYSITE_RATE_BURST}  : 200;
+    my $rate  = defined $ENV{LAZYSITE_RATE_REFILL} ? $ENV{LAZYSITE_RATE_REFILL} : 20;
+    return { ok => 1 } if $burst <= 0;
+    my $path = "$LAZYSITE_DIR/auth/.token-rate.json";
+    make_path("$LAZYSITE_DIR/auth") unless -d "$LAZYSITE_DIR/auth";
+    sysopen( my $fh, $path, O_RDWR | O_CREAT, 0600 ) or return { ok => 1 };
+    flock( $fh, LOCK_EX );
+    my $raw  = do { local $/; <$fh> };
+    my $data = eval { decode_json( $raw || '{}' ) };
+    $data = {} unless ref $data eq 'HASH';
+    my $now    = time();
+    my $b      = $data->{$key} || { tokens => $burst, last => $now };
+    my $tokens = $b->{tokens} + ( $now - ( $b->{last} // $now ) ) * $rate;
+    $tokens = $burst if $tokens > $burst;
+    my ( $allow, $retry ) = ( 0, 0 );
+    if ( $tokens >= 1 ) { $tokens -= 1; $allow = 1 }
+    else { $retry = $rate > 0 ? int( ( 1 - $tokens ) / $rate ) + 1 : 60 }
+    $data->{$key} = { tokens => $tokens, last => $now };
+    seek( $fh, 0, 0 ); truncate( $fh, 0 ); print $fh encode_json($data);
+    flock( $fh, LOCK_UN ); close $fh;
+    return $allow ? { ok => 1 } : { ok => 0, retry_after => $retry };
+}
 
 # Resolve the user-management tool across install layouts (cgi-bin sibling
 # of tools/ in production; repo root in tests). LAZYSITE_USERS_TOOL wins.
