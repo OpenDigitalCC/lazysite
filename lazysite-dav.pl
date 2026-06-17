@@ -248,7 +248,7 @@ sub do_propfind {
     }
 
     my $xml = qq{<?xml version="1.0" encoding="utf-8"?>\n}
-            . qq{<D:multistatus xmlns:D="DAV:">\n}
+            . qq{<D:multistatus xmlns:D="DAV:" xmlns:lzs="urn:lazysite:dav">\n}
             . join( '', @blocks )
             . qq{</D:multistatus>\n};
     send_response( 207, type => 'application/xml; charset=utf-8', body => $xml );
@@ -276,6 +276,14 @@ sub prop_response {
         $props .= "        <D:getcontentlength>$size</D:getcontentlength>\n";
         $props .= "        <D:getcontenttype>$ct</D:getcontenttype>\n";
         $props .= "        <D:getetag>$etag</D:getetag>\n";
+        # SM071 Phase 3: content-hash manifest. A custom live property
+        # gives a vanilla DAV client a content identity (not the weak
+        # dev-ino-mtime-size ETag) for drift detection. Scoped to the
+        # layouts subtree so content PROPFINDs are not made to hash files.
+        if ( $rel =~ m{^lazysite/layouts/} ) {
+            my $sha = file_sha256($abs);
+            $props .= "        <lzs:sha256>$sha</lzs:sha256>\n" if defined $sha;
+        }
     }
     $props .= "        <D:getlastmodified>$lastmod</D:getlastmodified>\n";
     $props .= "        <D:supportedlock>\n"
@@ -1214,6 +1222,16 @@ sub etag_for {
     my ($st) = @_;
     my ( $dev, $ino, $mtime, $size ) = ( $st->[0], $st->[1], $st->[9], $st->[7] );
     return sprintf( '"%x-%x-%x-%x"', $dev // 0, $ino // 0, $mtime // 0, $size // 0 );
+}
+
+# SM071 Phase 3: content SHA-256 of a file (the manifest identity).
+sub file_sha256 {
+    my ($abs) = @_;
+    open my $fh, '<:raw', $abs or return undef;
+    my $sha = Digest::SHA->new(256);
+    $sha->addfile($fh);
+    close $fh;
+    return $sha->hexdigest;
 }
 
 sub content_type_for {
