@@ -54,3 +54,7 @@ release-manifest.json
 # Never committed; documented in docs/development.md if they inform
 # subsequent SMs.
 .release-audit.md
+
+# Local Claude Code project-instructions file for this checkout. Not part
+# of the shipped project; kept local per operator preference.
+/CLAUDE.md
