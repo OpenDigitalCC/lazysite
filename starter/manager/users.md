@@ -32,6 +32,27 @@ search: false
 
 <div class="mg-card">
 <div class="mg-card-header">
+<span class="mg-card-title">Create sub-user</span>
+</div>
+<div class="mg-card-body">
+<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Creates an account owned by you (recorded as its parent). You need the "Sub-users" permission; partners typically get a token credential and an onboarding brief.</p>
+<div class="mg-form-row">
+<label>Username</label>
+<input type="text" id="sub-username" placeholder="partner-name">
+</div>
+<div class="mg-form-row">
+<label>Password</label>
+<input type="password" id="sub-password" placeholder="password (or set a token credential after)">
+</div>
+<div class="mg-form-row">
+<label></label>
+<button class="mg-btn mg-btn-outline" onclick="createSubUser()">Create sub-user</button>
+</div>
+</div>
+</div>
+
+<div class="mg-card">
+<div class="mg-card-header">
 <span class="mg-card-title">Users</span>
 </div>
 <div id="user-list">
@@ -126,32 +147,65 @@ function renderUsers(rows) {
   for (var i = 0; i < rows.length; i++) {
     var u = rows[i].user;
     var s = rows[i].settings || {};
+    var ue = escHtml(u);
     var webdav = !!s.webdav;
     var ui = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
     var scope = s.dav_scope || '';
-    var ue = escHtml(u);
+    var disabled = !!s.disabled;
+
+    var prov = '';
+    if (s.created_by) {
+      prov = 'created by ' + escHtml(s.created_by);
+      if (s.managed_by && s.managed_by !== s.created_by) {
+        prov += ', managed by ' + escHtml(s.managed_by);
+      }
+    }
+
     html += '<div class="mg-file-item mg-user-row">';
-    html +=   '<span class="mg-file-name">' + ue + '</span>';
-    html +=   '<div class="mg-user-mech">';
-    html +=     '<button class="mg-btn mg-btn-sm mg-toggle ' + (ui ? 'mg-on' : 'mg-off') + '" ' +
-                 'onclick="toggleSetting(\'' + ue + '\',\'ui\',' + (ui ? 'true' : 'false') + ')" ' +
-                 'title="Interactive (browser) login">UI: ' + (ui ? 'on' : 'off') + '</button>';
-    html +=     '<button class="mg-btn mg-btn-sm mg-toggle ' + (webdav ? 'mg-on' : 'mg-off') + '" ' +
-                 'onclick="toggleSetting(\'' + ue + '\',\'webdav\',' + (webdav ? 'true' : 'false') + ')" ' +
-                 'title="WebDAV publishing access">WebDAV: ' + (webdav ? 'on' : 'off') + '</button>';
-    html +=     '<input type="text" class="mg-scope-input" id="scope-' + ue + '" ' +
-                 'value="' + escHtml(scope) + '" placeholder="/path (WebDAV scope)">';
-    html +=     '<button class="mg-btn mg-btn-sm" onclick="setUserScope(\'' + ue + '\')">Set scope</button>';
-    html +=   '</div>';
-    html +=   '<div class="mg-file-actions">';
-    html +=     '<button class="mg-btn mg-btn-sm" onclick="generateCredential(\'' + ue + '\')">Generate credential</button>';
-    html +=     '<button class="mg-btn mg-btn-sm" onclick="changePassword(\'' + ue + '\')">Password</button>';
-    html +=     '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + ue + '\')">Delete</button>';
-    html +=   '</div>';
-    html +=   '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>';
+    html +=   '<span class="mg-file-name">' + ue +
+              ( disabled ? ' <span style="color:#c33;font-size:0.75rem;">disabled</span>' : '' ) +
+              '</span>';
+    if (prov) html += '<span class="mg-file-meta">' + prov + '</span>';
+
+    // Access mechanisms (SM070) + WebDAV scope.
+    html += '<div class="mg-user-mech">';
+    html += capBtn(ue, 'ui', ui, 'UI', 'Interactive (browser) login');
+    html += capBtn(ue, 'webdav', webdav, 'WebDAV', 'WebDAV publishing access');
+    html += '<input type="text" class="mg-scope-input" id="scope-' + ue + '" ' +
+            'value="' + escHtml(scope) + '" placeholder="/path (WebDAV scope)">';
+    html += '<button class="mg-btn mg-btn-sm" onclick="setUserScope(\'' + ue + '\')">Set scope</button>';
+    html += '</div>';
+
+    // Capabilities + sub-user permissions + account state (SM071).
+    html += '<div class="mg-user-mech">';
+    html += capBtn(ue, 'manage_themes',  !!s.manage_themes,  'Themes',    'Manage themes');
+    html += capBtn(ue, 'manage_layouts', !!s.manage_layouts, 'Layouts',   'Manage layouts');
+    html += capBtn(ue, 'manage_config',  !!s.manage_config,  'Config',    'Set allowlisted config');
+    html += capBtn(ue, 'create_sub_users', !!s.create_sub_users, 'Sub-users', 'May create sub-users');
+    html += capBtn(ue, 'delegate_sub_user_creation', !!s.delegate_sub_user_creation, 'Delegate', 'May pass on sub-user creation');
+    html += '<button class="mg-btn mg-btn-sm mg-toggle ' + (disabled ? 'mg-off' : 'mg-on') + '" ' +
+            'onclick="toggleDisabled(\'' + ue + '\',' + (disabled ? 'true' : 'false') + ')" ' +
+            'title="Account enabled/disabled">' + (disabled ? 'Disabled' : 'Enabled') + '</button>';
+    html += '</div>';
+
+    html += '<div class="mg-file-actions">';
+    html += '<button class="mg-btn mg-btn-sm" onclick="generateCredential(\'' + ue + '\')">Generate credential</button>';
+    html += '<button class="mg-btn mg-btn-sm" onclick="downloadOnboarding(\'' + ue + '\')">Onboarding</button>';
+    html += '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\',\'' + escHtml(s.managed_by || s.created_by || '') + '\')">Reassign</button>';
+    html += '<button class="mg-btn mg-btn-sm" onclick="changePassword(\'' + ue + '\')">Password</button>';
+    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + ue + '\')">Delete</button>';
+    html += '</div>';
+    html += '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>';
     html += '</div>';
   }
   list.innerHTML = html;
+}
+
+// Render a settings-backed on/off toggle button (flips via settings-set).
+function capBtn(user, key, on, label, title) {
+  return '<button class="mg-btn mg-btn-sm mg-toggle ' + (on ? 'mg-on' : 'mg-off') + '" ' +
+    'onclick="toggleSetting(\'' + user + '\',\'' + key + '\',' + (on ? 'true' : 'false') + ')" ' +
+    'title="' + title + '">' + label + ': ' + (on ? 'on' : 'off') + '</button>';
 }
 
 // SM070: flip a per-user boolean mechanism (ui / webdav).
@@ -209,6 +263,71 @@ function copyCred(user) {
     navigator.clipboard.writeText(code.textContent)
       .then(function() { showStatus('Credential copied to clipboard.'); });
   }
+}
+
+// SM071: enable/disable an account (ancestry-authorised server-side).
+function toggleDisabled(user, disabled) {
+  if (!disabled && !confirm('Disable "' + user + '"? They will be unable ' +
+      'to authenticate anywhere until re-enabled.')) return;
+  var act = disabled ? 'account-enable' : 'account-disable';
+  apiCall({ action: act, username: user })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus((disabled ? 'Enabled' : 'Disabled') + ' "' + user + '".');
+      loadUsers();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM071: reassign an account to a new parent (managed_by). Server enforces
+// that the actor is an ancestor of the account being moved.
+function reassignUser(user, current) {
+  var to = prompt('Reassign "' + user + '" to which parent account?', current || '');
+  if (!to) return;
+  apiCall({ action: 'account-reassign', username: user, to: to })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus('Reassigned "' + user + '" to "' + to + '".');
+      loadUsers();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM071: download a fresh onboarding brief (with a one-time pairing key)
+// for an automated partner.
+function downloadOnboarding(user) {
+  apiCall({ action: 'onboarding', username: user })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      var blob = new Blob([data.onboarding], { type: 'text/markdown' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'automated-partner-' + user + '.md';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+      showStatus('Onboarding brief for "' + user + '" downloaded ' +
+                 '(contains a single-use pairing key).');
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM071: create a sub-user owned by the current manager (account-create;
+// the server records created_by/managed_by and enforces create_sub_users).
+function createSubUser() {
+  var u = (document.getElementById('sub-username').value || '').trim();
+  var p = (document.getElementById('sub-password').value || '').trim();
+  if (!u || !p) { showStatus('Sub-user username and password required.', true); return; }
+  apiCall({ action: 'account-create', username: u, password: p })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus('Sub-user "' + u + '" created.');
+      document.getElementById('sub-username').value = '';
+      document.getElementById('sub-password').value = '';
+      loadUsers();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function renderGroups(groups) {

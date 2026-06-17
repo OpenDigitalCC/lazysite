@@ -175,6 +175,10 @@ if ( $API_MODE ) {
         elsif ( $action eq 'verify-credential' ) {
             $result = cmd_verify_credential( $req->{username}, $req->{secret} );
         }
+        elsif ( $action eq 'onboarding' ) {
+            my $r = cmd_onboarding( $req->{username} );
+            $result = { ok => 1, %$r };
+        }
         elsif ( $action eq 'partner-create' ) {
             my $r = cmd_partner_create( $req->{username},
                 created_by  => $req->{created_by},
@@ -873,6 +877,24 @@ sub cmd_verify_credential {
 # applies the partner capability defaults (webdav + manage_themes, plus
 # any requested extras), mints a pairing key, and returns the onboarding
 # brief.
+# SM071: mint a fresh pairing key + onboarding brief for an existing user
+# (the manager Users-page "download onboarding" affordance).
+sub cmd_onboarding {
+    my ($user) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+    my $all = read_settings();
+    my $key = _issue_pairing_key( $all, $user );
+    write_settings($all);
+    log_event( 'INFO', $user, 'onboarding brief issued' );
+    return {
+        username    => $user,
+        pairing_key => $key,
+        onboarding  => _onboarding_brief( $user, $key, $all->{$user} || {} ),
+    };
+}
+
 sub cmd_partner_create {
     my ( $name, %opt ) = @_;
     die "Partner name required\n" unless defined $name && length $name;
