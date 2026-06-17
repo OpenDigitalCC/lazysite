@@ -277,6 +277,7 @@ elsif ( $action eq 'cache-invalidate' ) { $result = action_cache_invalidate($pat
 elsif ( $action eq 'theme-list' )       { $result = action_theme_list() }
 elsif ( $action eq 'themes-list-all' )  { $result = action_themes_list_all() }
 elsif ( $action eq 'theme-activate' )   { $result = action_theme_activate($path, \%params) }
+elsif ( $action eq 'layout-activate' )  { $result = action_layout_activate($path, \%params) }
 elsif ( $action eq 'theme-delete' )     { $result = action_theme_delete($path) }
 elsif ( $action eq 'theme-rename' )     {
     my $req = eval { decode_json($body) } // {};
@@ -632,7 +633,8 @@ sub action_artifact_validate {
         }
     }
     else {
-        push @err, 'layout.tt missing' unless -f "$a->{dir}/layout.tt";
+        my $v = _validate_layout_dir( $a->{dir} );
+        return { ok => 1, valid => $v->{valid}, errors => $v->{errors} };
     }
     return { ok => 1, valid => ( @err ? 0 : 1 ), errors => \@err };
 }
@@ -1343,6 +1345,121 @@ sub _backup_retention {
         close $fh;
     }
     return $n;
+}
+
+# SM071 Phase 3 (P3.5): activate a layout. Reuses the activate-with-backup
+# machinery, adds the layout-specific rules: layout.tt must compile, and
+# the resulting (layout, theme) pair must be compatible - either the
+# current theme declares the new layout, or a compatible theme is named.
+sub action_layout_activate {
+    my ( $layout_name, $params ) = @_;
+    $params ||= {};
+    $layout_name =~ s/[^a-zA-Z0-9_-]//g;
+    return { ok => 0, error => "Layout name required" } unless length $layout_name;
+
+    my ( $old_layout, $cur_theme ) = _read_active_layout_and_theme();
+    my $layout_dir = "$LAZYSITE_DIR/layouts/$layout_name";
+    return { ok => 0, error => "Layout not found" } unless -d $layout_dir;
+
+    my $theme = defined $params->{theme} ? $params->{theme} : $cur_theme;
+    $theme = '' unless defined $theme;
+    $theme =~ s/[^a-zA-Z0-9_-]//g;
+    my $theme_specified = ( defined $params->{theme} && length $params->{theme} ) ? 1 : 0;
+
+    my $lock_rel = "lazysite/layouts/$layout_name";
+    my $lk = acquire_lock( $lock_rel, $auth_user );
+    unless ( $lk->{ok} ) {
+        return { ok => 0, locked => 1, error => "Layout is locked by "
+            . ( $lk->{locked_by} // 'another session' ) };
+    }
+
+    my $out = eval {
+        my $v = _validate_layout_dir($layout_dir);
+        return { ok => 0, error => "Layout invalid: " . join( '; ', @{ $v->{errors} } ) }
+            unless $v->{valid};
+
+        # Compatible (layout, theme) pair.
+        if ( length $theme && !_theme_declares_layout( $layout_name, $theme ) ) {
+            return { ok => 0, incompatible => 1,
+                error => "Theme '$theme' is not declared for layout '$layout_name'"
+                       . " - name a compatible theme to switch to" };
+        }
+
+        if ( defined $params->{base} && length $params->{base} ) {
+            return { ok => 0, conflict => 1,
+                error => "Layout changed since the supplied base manifest" }
+                if _artifact_digest($layout_dir) ne $params->{base};
+        }
+
+        if ( length $old_layout && $old_layout ne $layout_name ) {
+            _snapshot_artifact( "$LAZYSITE_DIR/layouts", $old_layout );
+            _prune_backups( "$LAZYSITE_DIR/layouts", $old_layout );
+        }
+        return _set_layout_pointer( $layout_name,
+            ( $theme_specified && length $theme ) ? $theme : undef );
+    };
+    my $err = $@;
+    release_lock( $lock_rel, $auth_user );
+    die $err if $err;
+    return $out;
+}
+
+# Rewrite the layout: pointer (and theme: when a theme is given), then
+# invalidate the page cache.
+sub _set_layout_pointer {
+    my ( $layout, $theme ) = @_;
+    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    return { ok => 0, error => "Cannot read conf" } unless -f $conf_path;
+    open my $fh, '<:utf8', $conf_path or return { ok => 0, error => "Cannot read conf" };
+    my $conf = do { local $/; <$fh> };
+    close $fh;
+    if ( $conf =~ /^layout\s*:/m ) { $conf =~ s/^layout\s*:.*$/layout: $layout/m }
+    else                           { $conf .= "\nlayout: $layout\n" }
+    if ( defined $theme ) {
+        if ( $conf =~ /^theme\s*:/m ) { $conf =~ s/^theme\s*:.*$/theme: $theme/m }
+        else                          { $conf .= "\ntheme: $theme\n" }
+    }
+    open my $o, '>:utf8', $conf_path or return { ok => 0, error => "Cannot write conf" };
+    print $o $conf;
+    close $o;
+    _invalidate_html_cache();
+    return { ok => 1, layout => $layout, ( defined $theme ? ( theme => $theme ) : () ) };
+}
+
+# Layout validity gate: layout.tt present and parses as Template Toolkit.
+# The compile check is best-effort - if Template::Parser is unavailable
+# we fall back to the presence check rather than blocking.
+sub _validate_layout_dir {
+    my ($dir) = @_;
+    my $lt = "$dir/layout.tt";
+    return { valid => 0, errors => ['layout.tt missing'] } unless -f $lt;
+    my $ok = eval {
+        require Template::Parser;
+        open my $fh, '<:utf8', $lt or die "layout.tt unreadable\n";
+        my $src = do { local $/; <$fh> };
+        close $fh;
+        my $p = Template::Parser->new( {} );
+        $p->parse($src) or die( $p->error . "\n" );
+        1;
+    };
+    return { valid => 1, errors => [] } if $ok;
+    my $e = $@ || 'parse error';
+    return { valid => 1, errors => [] } if $e =~ /Can't locate Template/;
+    chomp $e;
+    return { valid => 0, errors => ["layout.tt does not compile: $e"] };
+}
+
+# Does the theme declare compatibility with the layout (theme.json layouts[])?
+sub _theme_declares_layout {
+    my ( $layout, $theme ) = @_;
+    my $tj = "$LAZYSITE_DIR/layouts/$layout/themes/$theme/theme.json";
+    return 0 unless -f $tj;
+    open my $fh, '<:utf8', $tj or return 0;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $data = eval { decode_json($raw) };
+    return 0 unless ref $data eq 'HASH' && ref $data->{layouts} eq 'ARRAY';
+    return ( grep { $_ eq $layout } @{ $data->{layouts} } ) ? 1 : 0;
 }
 
 sub action_theme_delete {
