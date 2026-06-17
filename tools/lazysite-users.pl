@@ -48,6 +48,12 @@ sub generate_token {
 
 my $LOG_COMPONENT = 'users';
 
+# SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
+# exchanged for a short-lived access token that the client rotates before
+# it expires. TTLs in seconds.
+my $PAIRING_TTL      = 900;     # 15 minutes
+my $ACCESS_TOKEN_TTL = 86_400;  # 24 hours
+
 my $DOCROOT;
 my $API_MODE = 0;
 my @args;
@@ -154,6 +160,18 @@ if ( $API_MODE ) {
                 actor => $req->{actor} );
             $result = { ok => 1, message => "Account reassigned" };
         }
+        elsif ( $action eq 'pairing-key' ) {
+            my $key = cmd_pairing_key( $req->{username} );
+            $result = { ok => 1, pairing_key => $key };
+        }
+        elsif ( $action eq 'token-exchange' ) {
+            my $token = cmd_token_exchange( $req->{username}, $req->{pairing_key} );
+            $result = { ok => 1, token => $token };
+        }
+        elsif ( $action eq 'token-rotate' ) {
+            my $token = cmd_token_rotate( $req->{username} );
+            $result = { ok => 1, token => $token };
+        }
         else {
             $result = { ok => 0, error => "Unknown action: $action" };
         }
@@ -186,6 +204,9 @@ elsif ( $cmd eq 'account-create' )   { cmd_account_create_cli(@args) }
 elsif ( $cmd eq 'account-disable' )  { cmd_account_disable_cli(@args) }
 elsif ( $cmd eq 'account-enable' )   { cmd_account_enable_cli(@args) }
 elsif ( $cmd eq 'account-reassign' ) { cmd_account_reassign_cli(@args) }
+elsif ( $cmd eq 'pairing-key' )    { cmd_pairing_key(@args) }
+elsif ( $cmd eq 'token-exchange' ) { cmd_token_exchange(@args) }
+elsif ( $cmd eq 'token-rotate' )   { cmd_token_rotate(@args) }
 else {
     print STDERR "Unknown command: $cmd\n\n" if $cmd;
     usage();
@@ -217,6 +238,7 @@ sub cmd_passwd {
 
     $users{$user} = hash_password($pass);
     write_users(%users);
+    clear_token_expiry($user);   # SM071: a password has no token expiry
     log_event('INFO', $user, 'password changed');
     print "Password updated for '$user'.\n" unless $API_MODE;
 }
@@ -329,6 +351,9 @@ sub effective_settings {
         manage_themes  => $s->{manage_themes}  ? JSON::PP::true() : JSON::PP::false(),
         manage_layouts => $s->{manage_layouts} ? JSON::PP::true() : JSON::PP::false(),
         manage_config  => $s->{manage_config}  ? JSON::PP::true() : JSON::PP::false(),
+        # SM071 Phase 2: access-token expiry (null = no expiry, e.g. a
+        # human password or an operator-minted permanent credential).
+        token_expires_at => $s->{token_expires_at},
     };
 }
 
@@ -412,6 +437,7 @@ sub cmd_token {
     my $token = generate_token();
     $users{$user} = hash_token($token);
     write_users(%users);
+    clear_token_expiry($user);   # SM071: operator credential is permanent
     log_event( 'INFO', $user, 'credential generated' );
 
     unless ($API_MODE) {
@@ -623,6 +649,120 @@ sub cmd_account_reassign_cli {
         else                      { push @pos, $x }
     }
     cmd_account_reassign( $pos[0], $to, actor => $actor );
+}
+
+# SM071 Phase 2: token lifecycle (model A).
+#
+# Verify a plaintext secret against a stored sha256iter hash (the format
+# hash_token / hash_password write). Constant-time on the digest.
+sub verify_secret {
+    my ( $plain, $stored ) = @_;
+    return 0 unless defined $plain && defined $stored;
+    return 0 unless $stored =~ /\Asha256iter:([0-9a-f]+):(\d+):([0-9a-f]{64})\z/;
+    my ( $salt, $iters, $want ) = ( $1, $2, $3 );
+    my $h = $plain;
+    $h = sha256_hex( $salt . $h ) for 1 .. $iters;
+    return 0 unless length $h == length $want;
+    my $diff = 0;
+    $diff |= ord( substr $h, $_, 1 ) ^ ord( substr $want, $_, 1 )
+        for 0 .. length($h) - 1;
+    return $diff == 0;
+}
+
+# Drop any access-token expiry for a user (the credential is now a
+# password or a permanent operator credential, neither of which expires).
+sub clear_token_expiry {
+    my ($user) = @_;
+    my $all = read_settings();
+    return unless exists $all->{$user} && exists $all->{$user}{token_expires_at};
+    delete $all->{$user}{token_expires_at};
+    write_settings($all);
+}
+
+# Mint a single-use, short-lived pairing key for a user. The hash and an
+# expiry are stored in the user's settings; the plaintext is returned
+# once. This is the bootstrap secret an automated partner exchanges for
+# an access token on first connection.
+sub cmd_pairing_key {
+    my ($user) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+
+    my $key = 'lzp_' . generate_random_hex(24);
+    my $all = read_settings();
+    $all->{$user} ||= {};
+    $all->{$user}{pairing_key_hash}       = hash_token($key);
+    $all->{$user}{pairing_key_expires_at} = time() + $PAIRING_TTL;
+    write_settings($all);
+    log_event( 'INFO', $user, 'pairing key issued' );
+
+    unless ($API_MODE) {
+        print "Pairing key for '$user' (single use, expires in "
+            . int( $PAIRING_TTL / 60 ) . " min; shown once):\n$key\n";
+    }
+    return $key;
+}
+
+# Exchange a valid pairing key for a fresh access token. The pairing key
+# is single-use (consumed on success). The access token replaces the
+# user's credential and is stamped with an expiry.
+sub cmd_token_exchange {
+    my ( $user, $key ) = @_;
+    die "Username and pairing key required\n"
+        unless defined $user && length $user && defined $key && length $key;
+
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+
+    my $all = read_settings();
+    my $s   = $all->{$user} || {};
+    die "No pairing key issued for '$user'\n" unless $s->{pairing_key_hash};
+    die "Pairing key expired\n"
+        if !$s->{pairing_key_expires_at} || time() > $s->{pairing_key_expires_at};
+    die "Invalid pairing key\n" unless verify_secret( $key, $s->{pairing_key_hash} );
+
+    delete $all->{$user}{pairing_key_hash};         # single use
+    delete $all->{$user}{pairing_key_expires_at};
+
+    my $token = generate_token();
+    $users{$user} = hash_token($token);
+    write_users(%users);
+    $all->{$user}{token_expires_at} = time() + $ACCESS_TOKEN_TTL;
+    write_settings($all);
+    log_event( 'INFO', $user, 'access token issued via pairing exchange' );
+
+    unless ($API_MODE) {
+        print "Access token for '$user' (expires in "
+            . int( $ACCESS_TOKEN_TTL / 3600 ) . "h; shown once):\n$token\n";
+    }
+    return $token;
+}
+
+# Rotate the access token: mint a new one and reset the expiry. The old
+# token is replaced immediately (no overlap window - a grace window is a
+# deferred refinement; the client rotates before expiry and uses the new
+# token from the rotate response).
+sub cmd_token_rotate {
+    my ($user) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+
+    my $token = generate_token();
+    $users{$user} = hash_token($token);
+    write_users(%users);
+    my $all = read_settings();
+    $all->{$user} ||= {};
+    $all->{$user}{token_expires_at} = time() + $ACCESS_TOKEN_TTL;
+    write_settings($all);
+    log_event( 'INFO', $user, 'access token rotated' );
+
+    unless ($API_MODE) {
+        print "Rotated access token for '$user' (expires in "
+            . int( $ACCESS_TOKEN_TTL / 3600 ) . "h; shown once):\n$token\n";
+    }
+    return $token;
 }
 
 sub parse_onoff {
@@ -857,7 +997,10 @@ Commands:
                               manage_themes, manage_layouts, manage_config;
                               or dav_scope (/path). (set ui off honours a
                               last-manager guard; pass --force to override)
-  token USERNAME              Generate a strong credential (shown once)
+  token USERNAME              Generate a strong permanent credential (shown once)
+  pairing-key USERNAME        Mint a single-use, short-lived pairing key (shown once)
+  token-exchange USER KEY     Exchange a pairing key for a fresh access token
+  token-rotate USERNAME       Rotate the access token and reset its expiry
   account-create USER PASS --by PARENT [--create-subs]
                               Create a sub-user owned by PARENT (records
                               provenance; PARENT needs create_sub_users,

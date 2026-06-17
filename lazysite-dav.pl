@@ -148,6 +148,14 @@ sub main {
         return send_status( 403, body => "Account disabled\n" );
     }
 
+    # SM071 Phase 2: an expired access token must be rotated/re-exchanged.
+    if ( token_expired($user) ) {
+        log_event( 'WARN', $user, 'dav access denied (credential expired)', ip => $ip );
+        return send_status( 401,
+            headers => ['WWW-Authenticate: Basic realm="lazysite-dav"'],
+            body    => "Credential expired\n" );
+    }
+
     # 4. Mechanism gate - WebDAV must be enabled for this user.
     unless ( webdav_enabled_for($user) ) {
         log_event( 'WARN', $user, 'dav access denied (mechanism off)', ip => $ip );
@@ -1017,6 +1025,15 @@ sub disabled_for {
     my ($user) = @_;
     my $s = read_settings()->{$user};
     return ( ref $s eq 'HASH' && $s->{disabled} ) ? 1 : 0;
+}
+
+# SM071 Phase 2: an access token past its expiry is invalid (a password
+# or permanent credential has no token_expires_at, so this never trips).
+sub token_expired {
+    my ($user) = @_;
+    my $s = read_settings()->{$user};
+    return 0 unless ref $s eq 'HASH' && $s->{token_expires_at};
+    return time() > $s->{token_expires_at} ? 1 : 0;
 }
 
 sub scope_for {

@@ -152,6 +152,14 @@ sub handle_login {
         return;
     }
 
+    # SM071 Phase 2: an expired access-token credential cannot start a
+    # session (a human password has no expiry, so this never affects them).
+    if ( token_expired($username) ) {
+        log_event('WARN', $username, 'login refused: credential expired', ip => $ip);
+        redirect("$auth_redirect?error=1");
+        return;
+    }
+
     unless ( ui_enabled($username) ) {
         log_event('WARN', $username, 'interactive login disabled for account', ip => $ip);
         reject_ui_disabled();
@@ -314,6 +322,24 @@ sub account_disabled {
     return 0 unless ref $data eq 'HASH';
     my $s = $data->{$username};
     return ( ref $s eq 'HASH' && $s->{disabled} ) ? 1 : 0;
+}
+
+# SM071 Phase 2: a credential with an access-token expiry in the past is
+# treated as invalid. Read-only consumer; fails open (not expired) on a
+# missing/corrupt file, matching the other settings consumers here.
+sub token_expired {
+    my ($username) = @_;
+    my $path = "$AUTH_DIR/user-settings.json";
+    return 0 unless -f $path;
+    open my $fh, '<:utf8', $path or return 0;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    require JSON::PP;
+    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
+    return 0 unless ref $data eq 'HASH';
+    my $s = $data->{$username};
+    return 0 unless ref $s eq 'HASH' && $s->{token_expires_at};
+    return time() > $s->{token_expires_at} ? 1 : 0;
 }
 
 sub load_user_groups {
