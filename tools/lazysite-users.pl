@@ -172,6 +172,17 @@ if ( $API_MODE ) {
             my $token = cmd_token_rotate( $req->{username} );
             $result = { ok => 1, token => $token };
         }
+        elsif ( $action eq 'partner-create' ) {
+            my $r = cmd_partner_create( $req->{username},
+                created_by  => $req->{created_by},
+                themes      => ( exists $req->{manage_themes}
+                                 ? ( $req->{manage_themes} ? 1 : 0 ) : 1 ),
+                layouts     => ( $req->{manage_layouts}   ? 1 : 0 ),
+                config      => ( $req->{manage_config}    ? 1 : 0 ),
+                scope       => $req->{dav_scope},
+                create_subs => ( $req->{create_sub_users} ? 1 : 0 ) );
+            $result = { ok => 1, %$r };
+        }
         else {
             $result = { ok => 0, error => "Unknown action: $action" };
         }
@@ -207,6 +218,7 @@ elsif ( $cmd eq 'account-reassign' ) { cmd_account_reassign_cli(@args) }
 elsif ( $cmd eq 'pairing-key' )    { cmd_pairing_key(@args) }
 elsif ( $cmd eq 'token-exchange' ) { cmd_token_exchange(@args) }
 elsif ( $cmd eq 'token-rotate' )   { cmd_token_rotate(@args) }
+elsif ( $cmd eq 'partner-create' ) { cmd_partner_create_cli(@args) }
 else {
     print STDERR "Unknown command: $cmd\n\n" if $cmd;
     usage();
@@ -683,17 +695,25 @@ sub clear_token_expiry {
 # expiry are stored in the user's settings; the plaintext is returned
 # once. This is the bootstrap secret an automated partner exchanges for
 # an access token on first connection.
+# Issue a single-use pairing key into the in-memory settings (the caller
+# writes). Returns the plaintext key.
+sub _issue_pairing_key {
+    my ( $all, $user ) = @_;
+    my $key = 'lzp_' . generate_random_hex(24);
+    $all->{$user} ||= {};
+    $all->{$user}{pairing_key_hash}       = hash_token($key);
+    $all->{$user}{pairing_key_expires_at} = time() + $PAIRING_TTL;
+    return $key;
+}
+
 sub cmd_pairing_key {
     my ($user) = @_;
     die "Username required\n" unless defined $user && length $user;
     my %users = read_users();
     die "User '$user' not found\n" unless exists $users{$user};
 
-    my $key = 'lzp_' . generate_random_hex(24);
     my $all = read_settings();
-    $all->{$user} ||= {};
-    $all->{$user}{pairing_key_hash}       = hash_token($key);
-    $all->{$user}{pairing_key_expires_at} = time() + $PAIRING_TTL;
+    my $key = _issue_pairing_key( $all, $user );
     write_settings($all);
     log_event( 'INFO', $user, 'pairing key issued' );
 
@@ -763,6 +783,119 @@ sub cmd_token_rotate {
             . int( $ACCESS_TOKEN_TTL / 3600 ) . "h; shown once):\n$token\n";
     }
     return $token;
+}
+
+# Read a scalar value from lazysite.conf (for the onboarding brief).
+sub read_conf_value {
+    my ($key) = @_;
+    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    return undef unless -f $conf;
+    open my $fh, '<', $conf or return undef;
+    my $val;
+    while (<$fh>) { if (/^\Q$key\E\s*:\s*(.+)/) { $val = $1; last } }
+    close $fh;
+    return undef unless defined $val;
+    $val =~ s/^\s+|\s+$//g;
+    return $val;
+}
+
+# Build the partner onboarding brief (plain Markdown) - the file a human
+# hands to their automated partner. Accurate to what exists now; notes
+# the control-API surface as forthcoming.
+sub _onboarding_brief {
+    my ( $name, $key, $s ) = @_;
+    my $base = read_conf_value('site_url') // 'https://YOUR-SITE';
+    my @caps;
+    push @caps, 'publish content over WebDAV (`/dav`)' if $s->{webdav};
+    push @caps, 'manage themes'             if $s->{manage_themes};
+    push @caps, 'manage layouts'            if $s->{manage_layouts};
+    push @caps, 'set allowlisted site config' if $s->{manage_config};
+    my $caps = join "\n", map { "- $_" } @caps;
+    my $scope = ( defined $s->{dav_scope} && length $s->{dav_scope} )
+        ? $s->{dav_scope} : 'whole docroot (minus denied paths)';
+
+    return <<"BRIEF";
+# Automated partner: $name
+
+You are an automated publishing partner for $base.
+
+## Your capabilities
+
+$caps
+- Content scope: $scope
+
+## Getting connected
+
+Your operator exchanges this one-time pairing key for an access token:
+
+    pairing key: $key
+
+The key is single-use and short-lived. Exchange yields an access token
+(prefix `lzs_`) that you present as HTTP Basic auth to the WebDAV
+endpoint:
+
+    $base/dav/
+
+Rotate the token before it expires; an expired token returns HTTP 401.
+
+## Notes
+
+- HTTP-based token exchange/rotation and theme/layout management over the
+  control API arrive with the control-API release. Until then your
+  operator performs the exchange and hands you the access token.
+BRIEF
+}
+
+# SM071 Phase 2: one-step partner provisioning. Creates a sub-user with a
+# locked password (a partner authenticates with a token, not a password),
+# applies the partner capability defaults (webdav + manage_themes, plus
+# any requested extras), mints a pairing key, and returns the onboarding
+# brief.
+sub cmd_partner_create {
+    my ( $name, %opt ) = @_;
+    die "Partner name required\n" unless defined $name && length $name;
+    die "Creator (--by USERNAME) required\n"
+        unless defined $opt{created_by} && length $opt{created_by};
+
+    my $locked = generate_random_hex(32);
+    cmd_account_create( $name, $locked,
+        created_by => $opt{created_by}, create_subs => $opt{create_subs} );
+
+    my $all = read_settings();
+    $all->{$name}{webdav}         = JSON::PP::true();
+    $all->{$name}{manage_themes}  = JSON::PP::true()
+        unless defined $opt{themes} && !$opt{themes};
+    $all->{$name}{manage_layouts} = JSON::PP::true() if $opt{layouts};
+    $all->{$name}{manage_config}  = JSON::PP::true() if $opt{config};
+    if ( defined $opt{scope} && length $opt{scope} ) {
+        my $sc = normalise_scope( $opt{scope} );
+        $all->{$name}{dav_scope} = $sc if defined $sc;
+    }
+    my $key = _issue_pairing_key( $all, $name );
+    write_settings($all);
+    log_event( 'INFO', $name, 'partner created', created_by => $opt{created_by} );
+
+    my $brief = _onboarding_brief( $name, $key, $all->{$name} );
+    print $brief unless $API_MODE;
+    return { username => $name, pairing_key => $key, onboarding => $brief };
+}
+
+sub cmd_partner_create_cli {
+    my @a = @_;
+    my ( @pos, %opt );
+    $opt{themes} = 1;   # partner default
+    while (@a) {
+        my $x = shift @a;
+        if    ( $x eq '--by' )          { $opt{created_by}  = shift @a }
+        elsif ( $x eq '--themes' )      { $opt{themes}      = 1 }
+        elsif ( $x eq '--no-themes' )   { $opt{themes}      = 0 }
+        elsif ( $x eq '--layouts' )     { $opt{layouts}     = 1 }
+        elsif ( $x eq '--config' )      { $opt{config}      = 1 }
+        elsif ( $x eq '--scope' )       { $opt{scope}       = shift @a }
+        elsif ( $x eq '--create-subs' ) { $opt{create_subs} = 1 }
+        else                            { push @pos, $x }
+    }
+    cmd_partner_create( $pos[0], %opt );
 }
 
 sub parse_onoff {
@@ -1001,6 +1134,11 @@ Commands:
   pairing-key USERNAME        Mint a single-use, short-lived pairing key (shown once)
   token-exchange USER KEY     Exchange a pairing key for a fresh access token
   token-rotate USERNAME       Rotate the access token and reset its expiry
+  partner-create NAME --by PARENT [--layouts] [--config] [--scope /p] [--no-themes] [--create-subs]
+                              Provision an automated partner: sub-user with
+                              partner capability defaults (webdav +
+                              manage_themes), a pairing key, and a printed
+                              onboarding brief.
   account-create USER PASS --by PARENT [--create-subs]
                               Create a sub-user owned by PARENT (records
                               provenance; PARENT needs create_sub_users,
