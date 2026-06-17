@@ -133,6 +133,12 @@ if ( $API_MODE ) {
             my $token = cmd_token( $req->{username} );
             $result = { ok => 1, token => $token };
         }
+        elsif ( $action eq 'account-create' ) {
+            cmd_account_create( $req->{username}, $req->{password},
+                created_by  => $req->{created_by},
+                create_subs => ( $req->{create_sub_users} ? 1 : 0 ) );
+            $result = { ok => 1, message => "Sub-user created" };
+        }
         else {
             $result = { ok => 0, error => "Unknown action: $action" };
         }
@@ -161,6 +167,7 @@ elsif ( $cmd eq 'groups' )       { cmd_groups() }
 elsif ( $cmd eq 'settings' )     { cmd_settings(@args) }
 elsif ( $cmd eq 'set' )          { cmd_set_cli(@args) }
 elsif ( $cmd eq 'token' )        { cmd_token(@args) }
+elsif ( $cmd eq 'account-create' ) { cmd_account_create_cli(@args) }
 else {
     print STDERR "Unknown command: $cmd\n\n" if $cmd;
     usage();
@@ -290,6 +297,15 @@ sub effective_settings {
         webdav    => $s->{webdav} ? JSON::PP::true() : JSON::PP::false(),
         ui        => ( exists $s->{ui} && !$s->{ui} ) ? JSON::PP::false() : JSON::PP::true(),
         dav_scope => $scope,
+        # SM071 Phase 2: sub-user provenance and delegation. created_by /
+        # created_at are immutable; managed_by defaults to created_by and
+        # changes only on reassign. Top-level (operator-created) accounts
+        # have no provenance row, so these are null/false for them.
+        created_by => $s->{created_by},
+        created_at => $s->{created_at},
+        managed_by => ( defined $s->{managed_by} ? $s->{managed_by} : $s->{created_by} ),
+        create_sub_users           => $s->{create_sub_users}           ? JSON::PP::true() : JSON::PP::false(),
+        delegate_sub_user_creation => $s->{delegate_sub_user_creation} ? JSON::PP::true() : JSON::PP::false(),
     };
 }
 
@@ -328,7 +344,14 @@ sub cmd_set {
     my $all = read_settings();
     $all->{$user} ||= {};
 
-    if ( $key eq 'webdav' || $key eq 'ui' ) {
+    # SM071 Phase 2: create_sub_users / delegate_sub_user_creation join
+    # the boolean settings. Provenance keys (created_by / created_at /
+    # managed_by) are deliberately NOT settable here - they are stamped at
+    # creation and changed only by account-create / account-reassign.
+    my %bool_key = map { $_ => 1 }
+        qw(webdav ui create_sub_users delegate_sub_user_creation);
+
+    if ( $bool_key{$key} ) {
         my $bool = parse_onoff($value);
         if ( $key eq 'ui' && !$bool && !$opt{force} ) {
             die "would disable last manager-capable UI account\n"
@@ -342,7 +365,8 @@ sub cmd_set {
         else                  { delete $all->{$user}{dav_scope} }
     }
     else {
-        die "Unknown setting '$key' (expected webdav, ui, or dav_scope)\n";
+        die "Unknown setting '$key' (expected webdav, ui, dav_scope, "
+          . "create_sub_users, or delegate_sub_user_creation)\n";
     }
 
     write_settings($all);
@@ -370,6 +394,66 @@ sub cmd_token {
         print "$token\n";
     }
     return $token;
+}
+
+# SM071 Phase 2: create a sub-user with provenance. Unlike `add` (an
+# operator bootstrap that creates a top-level account with no settings
+# row), account-create records who created the account and gates on the
+# creator's permissions:
+#   - the creator must hold create_sub_users;
+#   - granting the new account create_sub_users requires the creator to
+#     also hold delegate_sub_user_creation (the right to pass on the right).
+# created_by and managed_by are set to the creator; created_at to now.
+sub cmd_account_create {
+    my ( $user, $pass, %opt ) = @_;
+    my $creator = $opt{created_by};
+    die "Username and password required\n"
+        unless defined $user && length $user && defined $pass && length $pass;
+    die "Creator (--by USERNAME) required\n"
+        unless defined $creator && length $creator;
+    $user =~ s/[^a-zA-Z0-9_.-]//g;
+    die "Username and password required\n" unless length $user;
+
+    my %users = read_users();
+    die "User '$user' already exists\n" if $users{$user};
+    die "Creator '$creator' not found\n" unless exists $users{$creator};
+
+    my $all = read_settings();
+    my $cs  = $all->{$creator} || {};
+    die "Creator '$creator' lacks create_sub_users permission\n"
+        unless $cs->{create_sub_users};
+    if ( $opt{create_subs} ) {
+        die "Creator '$creator' lacks delegate_sub_user_creation permission\n"
+            unless $cs->{delegate_sub_user_creation};
+    }
+
+    $users{$user} = hash_password($pass);
+    write_users(%users);
+
+    $all->{$user} ||= {};
+    $all->{$user}{created_by} = $creator;
+    $all->{$user}{managed_by} = $creator;
+    $all->{$user}{created_at} = time();
+    $all->{$user}{create_sub_users} = JSON::PP::true() if $opt{create_subs};
+    write_settings($all);
+
+    log_event( 'INFO', $user, 'sub-user created', created_by => $creator );
+    print "Sub-user '$user' created (parent '$creator').\n" unless $API_MODE;
+}
+
+# CLI wrapper: account-create USER PASS --by PARENT [--create-subs]
+sub cmd_account_create_cli {
+    my @pos;
+    my ( $created_by, $create_subs );
+    my @a = @_;
+    while (@a) {
+        my $x = shift @a;
+        if    ( $x eq '--by' )          { $created_by  = shift @a }
+        elsif ( $x eq '--create-subs' ) { $create_subs = 1 }
+        else                            { push @pos, $x }
+    }
+    cmd_account_create( $pos[0], $pos[1],
+        created_by => $created_by, create_subs => $create_subs );
 }
 
 sub parse_onoff {
@@ -599,10 +683,15 @@ Commands:
   group-remove USERNAME GROUP Remove user from a group
   groups                      List all groups and members
   settings USERNAME           Show a user's access-mechanism settings
-  set USERNAME KEY VALUE      Set webdav|ui (on/off) or dav_scope (/path)
-                              (set ui off honours a last-manager guard;
-                               pass --force to override)
+  set USERNAME KEY VALUE      Set webdav|ui|create_sub_users|
+                              delegate_sub_user_creation (on/off) or
+                              dav_scope (/path). (set ui off honours a
+                              last-manager guard; pass --force to override)
   token USERNAME              Generate a strong credential (shown once)
+  account-create USER PASS --by PARENT [--create-subs]
+                              Create a sub-user owned by PARENT (records
+                              provenance; PARENT needs create_sub_users,
+                              and --create-subs needs delegate_sub_user_creation)
 
 Options:
   --docroot PATH              Path to web document root (required)
