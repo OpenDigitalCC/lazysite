@@ -31,12 +31,22 @@ lazysite-auth.pl            Cookie authentication wrapper
 plugins/form-handler.pl    Form submission dispatcher
 plugins/form-smtp.pl       SMTP delivery handler
 lazysite-manager-api.pl     Manager web UI API
+lazysite-dav.pl             WebDAV (class 1+2) publishing endpoint
 plugins/payment-demo.pl    x402 payment demo handler
 plugins/log.pl             Plugin descriptor for logging
 tools/lazysite-server.pl    Development HTTP server
 plugins/audit.pl     Link audit tool
 tools/lazysite-users.pl     User management CLI / JSON API
 ```
+
+`lazysite-dav.pl` (SM070) follows the self-contained policy and so
+duplicates, by convention: `log_event` / `_json_str`, `const_eq`,
+`verify_password`, a CSPRNG helper, a settings reader, the
+blocked-path check, the `.md`→`.html` cache invalidation, and the
+lock-record read/write. The lock-record format is shared with
+`lazysite-manager-api.pl` (both read JSON lock files and the legacy
+single-line form); that is a deliberate cross-script data contract,
+not accidental duplication.
 
 ## Perl::Critic policy
 

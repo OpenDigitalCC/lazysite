@@ -51,6 +51,10 @@ Directory scan:
 - `theme` - set the site-wide view template name or remote URL
 - `nav_file` - override the navigation file path (docroot-relative,
   default: `lazysite/nav.conf`)
+- `webdav_enabled` - enable the `/dav` WebDAV publishing endpoint
+  (default off). See [WebDAV publishing](/docs/features/configuration/webdav).
+- `dav_allow_insecure` - allow WebDAV Basic auth without HTTPS
+  (default off; for a TLS-terminating proxy or trusted LAN only)
 
 ### Example
 

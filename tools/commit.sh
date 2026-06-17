@@ -1,41 +1,39 @@
 #!/bin/bash
-# tools/commit.sh - rsync CC's sandbox into the working tree, commit,
-# push main. Replaces the rsync+commit portion of the old
+# tools/commit.sh - commit CC's in-place working-tree edits to
+# origin/main. Replaces the rsync+commit portion of the old
 # pre-release.sh + make-release.sh flow.
 #
-# SM063 split: this script handles ONLY the transfer from CC's
-# sandbox to origin/main. Release (tag, tarball, SBOM check) is in
+# SM063 split: this script handles ONLY the transfer of CC's edits
+# to origin/main. Release (tag, tarball, SBOM check) is in
 # tools/release.sh and runs independently.
 #
+# SM070 update: the /home/claude/lazysite sandbox + rsync arrangement
+# was retired 2026-05-22 (see CLAUDE.md). CC now edits the working
+# tree in place at /srv/projects/lazysite, so there is no sandbox to
+# rsync from. This script commits the in-place tree directly. The
+# previous version rsynced --delete from a sandbox copy that is now a
+# stale snapshot - running it would have reverted the tree. That step
+# is removed.
+#
 # Preconditions (verified, abort with clear message on any failure):
-#   - /srv/projects/lazysite working tree is clean (no uncommitted
-#     changes, no untracked non-ignored files).
+#   - /srv/projects/lazysite is a git working tree.
 #   - On branch main.
 #   - main is up to date with origin/main.
-#   - CC's sandbox has .commit-message.md ready.
+#   - CC's .commit-message.md is present at the repo root.
 #
 # Flow:
-#   1. rsync /home/claude/lazysite/ to /srv/projects/lazysite/
-#      (excluding .git and .commit-message.md itself).
-#   2. Abort if rsync produced no net changes.
-#   3. git add -A; git commit -F <message>; git push.
-#   4. Delete CC's .commit-message.md so the next session starts
-#      clean.
+#   1. git add -A; git commit -F .commit-message.md; git push.
+#      (.commit-message.md is gitignored, so it is never staged.)
+#   2. Delete .commit-message.md so the next session starts clean.
 #
 # No tag, no tarball, no SBOM rebuild, no version bump - those all
 # live in release.sh.
 set -e
 
-SOURCE=/home/claude/lazysite
 DEST=/srv/projects/lazysite
-MSG_FILE="$SOURCE/.commit-message.md"
+MSG_FILE="$DEST/.commit-message.md"
 
 # --- preconditions ---
-
-if [ ! -d "$SOURCE" ]; then
-    echo "commit.sh: CC sandbox not found at $SOURCE" >&2
-    exit 1
-fi
 
 if [ ! -d "$DEST/.git" ]; then
     echo "commit.sh: not a git working tree at $DEST" >&2
@@ -54,14 +52,6 @@ if [ "$BRANCH" != "main" ]; then
     exit 1
 fi
 
-DIRTY=$(git -C "$DEST" status --porcelain)
-if [ -n "$DIRTY" ]; then
-    echo "commit.sh: $DEST has uncommitted changes:" >&2
-    echo "$DIRTY" >&2
-    echo "commit.sh: aborting. Clean the tree before running." >&2
-    exit 1
-fi
-
 echo "==> Fetching origin/main to verify up-to-date"
 git -C "$DEST" fetch origin main
 
@@ -73,29 +63,14 @@ if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
     exit 1
 fi
 
-# --- rsync ---
-
-# Exclusions: use the repo's .rsyncignore if present (legacy
-# convention), plus explicit excludes for .git and the commit
-# message file itself.
-RSYNC_IGNORE=""
-if [ -f "$DEST/.rsyncignore" ]; then
-    RSYNC_IGNORE="--exclude-from=$DEST/.rsyncignore"
-fi
-
-echo "==> Syncing $SOURCE/ -> $DEST/"
-rsync -av --delete \
-    --exclude=.git \
-    --exclude=.commit-message.md \
-    $RSYNC_IGNORE \
-    "$SOURCE/" "$DEST/"
-echo ""
-
 # --- commit ---
 
-POST_DIRTY=$(git -C "$DEST" status --porcelain)
-if [ -z "$POST_DIRTY" ]; then
-    echo "commit.sh: no changes after rsync - nothing to commit."
+# The in-place working tree is expected to carry CC's edits. If it is
+# clean there is nothing to do - leave the message file for a later
+# run rather than committing an empty change.
+DIRTY=$(git -C "$DEST" status --porcelain)
+if [ -z "$DIRTY" ]; then
+    echo "commit.sh: working tree clean - nothing to commit."
     echo "commit.sh: leaving $MSG_FILE in place for a future run."
     exit 0
 fi
@@ -119,7 +94,7 @@ echo ""
 echo "==> Committed $NEW_SHA: $SUMMARY"
 echo "==> Pushed to origin/main"
 
-# --- cleanup CC's sandbox ---
+# --- cleanup ---
 
 rm -f "$MSG_FILE"
 echo "==> Removed $MSG_FILE (next session starts clean)"

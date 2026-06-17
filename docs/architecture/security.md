@@ -64,6 +64,16 @@ Storage format:
 
 Current parameters: 100,000 iterations, 16-byte random salt.
 
+**Generated credentials (SM070).** `tools/lazysite-users.pl token`
+issues a 256-bit random credential (`lzs_<64 hex>`) and stores it in
+the same format but with **iterations=1**. A 256-bit random secret is
+not brute-forceable, so the iteration stretching that protects
+low-entropy human passwords buys nothing, while WebDAV verifies the
+credential on every request — one SHA-256 versus 100,000. Only the
+`token` path writes iterations=1; `add`/`passwd` keep 100,000.
+`verify_password` reads the iteration count from the stored row, so no
+verifier change was needed.
+
 Legacy unsalted SHA-256 hashes (from earlier releases) are still
 accepted on login. On successful authentication against a legacy
 hash, the user's row is rewritten in the new format transparently.
@@ -356,6 +366,7 @@ policy depends on site-specific and deployment-specific factors):
 | Login (per IP) | 5 attempts / 5 min | `lazysite/auth/.login-rate.db` (DB_File) |
 | Form submission (per IP) | 5 submissions / hour | `lazysite/forms/.rate-limit.db` (DB_File) |
 | Manager upload (per user) | 60 requests + 500 MB / hour (configurable) | `lazysite/manager/.upload-rate.db` (DB_File) |
+| WebDAV auth (per IP) | 5 failed attempts / 5 min | `lazysite/auth/.dav-rate.db` (DB_File) |
 | Manager API (other) | no rate limit | - |
 
 The form handler also checks a honeypot field (`_hp`) and a
@@ -365,6 +376,79 @@ authentication, and authenticated operators are expected to be
 trusted. Upload is the exception because per-request cost is
 bounded by a file-size cap but an attacker who compromises a
 manager account could still write a large volume of data.
+
+## WebDAV endpoint (SM070)
+
+`lazysite-dav.pl` is a self-contained CGI mounted at `/dav` that
+exposes content over WebDAV (class 1 + 2). It is reached **directly**,
+not through `lazysite-auth.pl`: it performs its own HTTP Basic
+authentication and never reads cookies or `X-Remote-*` headers (and
+ignores them if a misconfigured proxy injects them). Off by default
+(`webdav_enabled` absent → 404, zero new surface on upgrade).
+
+### Per-user access mechanisms
+
+`lazysite/auth/user-settings.json` (mode 0640, written only by
+`tools/lazysite-users.pl`, single-writer with temp-then-rename) holds
+per-user flags:
+
+- `webdav` (default **off**) — may this account use `/dav`.
+- `ui` (default **on**) — may this account log in through the browser.
+  Enforced in `lazysite-auth.pl` *after* password verification, so it
+  leaks nothing to a guesser; a `ui:off` account is never issued a
+  cookie, which gates the manager UI, the manager API, and
+  auth-protected pages in one place. The localhost no-password bypass
+  respects it too.
+- `dav_scope` (default unset) — confines the account's WebDAV access
+  (reads and writes) to a path subtree.
+
+A corrupt settings file fails safe: `webdav` defaults off (closed) and
+`ui` defaults on (open, matching pre-SM070 behaviour so a damaged file
+cannot lock the operator out), with a WARN. `user-settings.json` is in
+the manager API's `@BLOCKED_PATHS`, so it is not readable or writable
+through the manager file surfaces.
+
+### Request gate chain
+
+Every request runs, in order: site gate (`webdav_enabled`, else 404) →
+transport gate (HTTPS or loopback or `dav_allow_insecure`, else 403,
+never challenging over plaintext) → Basic auth with a per-IP
+failed-attempt limiter (5 / 5 min → 429; a missing credential just
+gets a 401 challenge with no penalty) → mechanism gate (`webdav` on) →
+path chain. No filesystem access happens before authentication.
+
+### Path protection
+
+The path chain rejects null bytes, control characters, and `..`
+segments (PATH_INFO arrives server-decoded and is **not** decoded
+again — double-decoding would re-open traversal), resolves the parent
+via `realpath` and confirms it under `$DOCROOT` (catching symlink
+escapes), then applies: whole-`lazysite/` denial (stricter than the
+manager's file-level blocklist — auth data, manager, cache, and config
+are unreachable over DAV), the manager's blocked-path / blocked-
+extension rules on writes, and the per-user `dav_scope`. The COPY/MOVE
+`Destination` is url-decoded and passes the same chain.
+
+### Locking
+
+WebDAV locks live in the **same store** as manager-editor locks
+(`lazysite/manager/locks`), now JSON records carrying `origin`
+(`dav`/`manager`), `token`, `timeout`, and an opaque `owner`. The
+manager and DAV honour each other's locks (423 both ways); a legacy
+single-line lock is read as `origin: manager`. Lock tokens come from
+the fail-closed CSPRNG; UNLOCK requires both token **and** owner match;
+manager-origin locks cannot be overridden from DAV (no client-known
+token); per-user lock count is capped at 100; client `owner` XML is
+truncated to 1 KiB and XML-escaped wherever echoed (no stored-XSS into
+the manager lock display).
+
+### Residual risk
+
+No per-user WebDAV upload quota in this release (consistent with the
+manager API being rate-unlimited for authenticated users except
+uploads). A `dav_scope` turns a leaked deploy credential into a
+content-defacement problem rather than a site takeover, so a scope is
+recommended for every WebDAV-enabled account.
 
 ## Known constraints
 

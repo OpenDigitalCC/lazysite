@@ -136,6 +136,19 @@ sub handle_login {
         }
     }
 
+    # SM070: enforce the per-user `ui` access mechanism. Placed after
+    # credential verification (both the verified-password and the
+    # localhost no-password branches converge here), so it leaks
+    # nothing to a password guesser - an attacker without the password
+    # never reaches it. A ui-disabled account never receives a cookie,
+    # which keeps it out of the manager UI, the manager API, and
+    # auth-protected pages alike.
+    unless ( ui_enabled($username) ) {
+        log_event('WARN', $username, 'interactive login disabled for account', ip => $ip);
+        reject_ui_disabled();
+        return;
+    }
+
     # Load groups for user
     my $groups_str = load_user_groups($username);
 
@@ -241,6 +254,32 @@ sub load_users {
     }
     close $fh;
     return \%users;
+}
+
+# SM070: per-user `ui` access mechanism. Defaults to on (accounts with
+# no settings row behave exactly as before SM070). A corrupt settings
+# file fails open for ui - matching pre-SM070 behaviour so a damaged
+# file cannot lock the operator out of the manager - and the WARN
+# surfaces the problem. The settings file is written only by
+# tools/lazysite-users.pl; this is a read-only consumer.
+sub ui_enabled {
+    my ($username) = @_;
+    my $path = "$AUTH_DIR/user-settings.json";
+    return 1 unless -f $path;
+
+    open my $fh, '<:utf8', $path or return 1;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+
+    require JSON::PP;
+    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
+    if ( !$data || ref $data ne 'HASH' ) {
+        log_event('WARN', $username, 'user-settings.json unparseable; ui defaults on');
+        return 1;
+    }
+    my $s = $data->{$username};
+    return 1 unless ref $s eq 'HASH' && exists $s->{ui};
+    return $s->{ui} ? 1 : 0;
 }
 
 sub load_user_groups {
@@ -480,6 +519,25 @@ sub reject_no_password {
 <body style="font-family:system-ui,sans-serif;max-width:480px;margin:3em auto;padding:0 1em;">
 <h1 style="font-size:1.3rem;">Sign in unavailable</h1>
 <p>Password not configured - contact your administrator.</p>
+</body></html>
+HTML
+}
+
+# SM070: a credential-valid account whose `ui` mechanism is disabled.
+# No Set-Cookie is emitted, so the account cannot reach the manager or
+# auth-protected pages through the browser. These accounts are for
+# WebDAV / automation; point the operator there.
+sub reject_ui_disabled {
+    binmode( STDOUT, ':utf8' );
+    print "Status: 403 Forbidden\r\n";
+    print "Content-Type: text/html; charset=utf-8\r\n\r\n";
+    print <<'HTML';
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Sign in</title></head>
+<body style="font-family:system-ui,sans-serif;max-width:480px;margin:3em auto;padding:0 1em;">
+<h1 style="font-size:1.3rem;">Interactive login is disabled for this account</h1>
+<p>This account does not have interactive (browser) access. If it is
+used for publishing, connect over WebDAV instead.</p>
 </body></html>
 HTML
 }

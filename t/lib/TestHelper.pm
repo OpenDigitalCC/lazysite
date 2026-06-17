@@ -12,7 +12,8 @@ our @EXPORT_OK = qw(
     repo_root processor_path
     load_processor silence_stdout
     setup_test_site setup_minimal_site setup_auth_site setup_search_site
-    run_processor run_script
+    run_processor run_script run_dav
+    setup_dav_site dav_users_tool
 );
 
 sub repo_root {
@@ -243,6 +244,108 @@ sub run_script {
         return $out;
     }
     return qx($^X \Q$script\E 2>/dev/null);
+}
+
+# SM070: drive lazysite-dav.pl as a CGI subprocess.
+#   run_dav($docroot, $method, $path, %opt)
+# %opt keys are passed through as CGI environment variables
+# (HTTP_AUTHORIZATION, HTTP_DEPTH, HTTP_DESTINATION, REMOTE_ADDR, ...),
+# except `body`, which is fed on STDIN. CONTENT_LENGTH is derived from
+# the body unless given. The failed-auth sleep is disabled by default
+# so the suite stays fast. Returns a hashref:
+#   { code, headers (lc-keyed hashref), body, raw, stderr }
+sub run_dav {
+    my ( $docroot, $method, $path, %opt ) = @_;
+    my $body = delete $opt{body};
+    $body = '' unless defined $body;
+
+    my $script = repo_root() . "/lazysite-dav.pl";
+    local %ENV = %ENV;
+    $ENV{DOCUMENT_ROOT}  = $docroot;
+    $ENV{REQUEST_METHOD} = $method;
+    $ENV{PATH_INFO}      = $path;
+    $ENV{SCRIPT_NAME}            = '/dav'      unless exists $opt{SCRIPT_NAME};
+    $ENV{REMOTE_ADDR}           = '127.0.0.1' unless exists $opt{REMOTE_ADDR};
+    $ENV{LAZYSITE_DAV_FAIL_DELAY} = 0         unless exists $opt{LAZYSITE_DAV_FAIL_DELAY};
+    $ENV{CONTENT_LENGTH} = length($body)
+        if length($body) && !exists $opt{CONTENT_LENGTH};
+
+    for my $k ( keys %opt ) {
+        if ( defined $opt{$k} ) { $ENV{$k} = $opt{$k} }
+        else                    { delete $ENV{$k} }
+    }
+
+    require IPC::Open3;
+    require Symbol;
+    my ( $wtr, $rdr );
+    my $err = Symbol::gensym();
+    my $pid = IPC::Open3::open3( $wtr, $rdr, $err, $^X, $script );
+    binmode $wtr;
+    print {$wtr} $body;
+    close $wtr;
+    my $out  = do { local $/; <$rdr> };
+    my $eout = do { local $/; <$err> };
+    waitpid $pid, 0;
+    $out  //= '';
+    $eout //= '';
+
+    my ($code) = $out =~ /^Status:\s*(\d+)/;
+    my ( $hblock, $rbody ) = split /\r\n\r\n/, $out, 2;
+    my %headers;
+    for my $line ( split /\r\n/, $hblock // '' ) {
+        next unless $line =~ /^([^:]+):\s*(.*)$/;
+        my ( $k, $v ) = ( lc $1, $2 );
+        $headers{$k} = exists $headers{$k} ? "$headers{$k}\n$v" : $v;
+    }
+    return {
+        code    => $code,
+        headers => \%headers,
+        body    => $rbody // '',
+        raw     => $out,
+        stderr  => $eout,
+    };
+}
+
+# SM070: run tools/lazysite-users.pl quietly, returning its exit code.
+sub dav_users_tool {
+    my ( $docroot, @args ) = @_;
+    require IPC::Open3;
+    require Symbol;
+    my $root = repo_root();
+    my $err  = Symbol::gensym();
+    my $pid  = IPC::Open3::open3( my $in, my $out, $err,
+        $^X, "$root/tools/lazysite-users.pl", '--docroot', $docroot, @args );
+    close $in;
+    { local $/; my $o = <$out>; my $e = <$err>; }
+    waitpid $pid, 0;
+    return $? >> 8;
+}
+
+# SM070: build a docroot with WebDAV enabled and one webdav-capable
+# user, returning { docroot, user, password, auth }. Options: user,
+# password, webdav ('on'/'off'), scope, conf (full conf body), no_user.
+sub setup_dav_site {
+    my (%o) = @_;
+    require MIME::Base64;
+    my $d = tempdir( CLEANUP => 1 );
+    make_path("$d/lazysite/auth");
+    make_path("$d/content");
+
+    my $conf = defined $o{conf} ? $o{conf} : "webdav_enabled: true\n";
+    open my $cf, '>', "$d/lazysite/lazysite.conf" or die "conf: $!";
+    print $cf $conf;
+    close $cf;
+
+    my $user = defined $o{user}     ? $o{user}     : 'deploy';
+    my $pass = defined $o{password} ? $o{password} : 'secret';
+    unless ( $o{no_user} ) {
+        dav_users_tool( $d, 'add', $user, $pass );
+        dav_users_tool( $d, 'set', $user, 'webdav', ( $o{webdav} // 'on' ) );
+        dav_users_tool( $d, 'set', $user, 'dav_scope', $o{scope} )
+            if defined $o{scope};
+    }
+    my $auth = 'Basic ' . MIME::Base64::encode_base64( "$user:$pass", '' );
+    return { docroot => $d, user => $user, password => $pass, auth => $auth };
 }
 
 1;

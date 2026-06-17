@@ -7,7 +7,7 @@
 | Location | `t/` |
 | Runner | `prove -r t/` |
 | Framework | `Test::More` (core Perl, no extra dependencies) |
-| Total | 482 tests across 33 files |
+| Total | 883 tests across 61 files |
 
 The suite is pure core-Perl. If `perl` and `prove` are installed,
 the suite runs.
@@ -18,9 +18,12 @@ the suite runs.
 t/
   unit/                 Function-level tests
     processor/          Core processor functions
-    auth/               Password hashing, cookie signing, login rate limit
+    auth/               Password hashing, cookie signing, login rate limit, ui flag
     forms/              Form field parsing
     users/              CLI and API mode of tools/lazysite-users.pl
+    dav/                WebDAV endpoint: gates, auth, paths, PROPFIND,
+                        write methods, locking, conditionals
+    manager/            Manager API helpers incl. lock-store interop
   integration/          End-to-end pipeline tests
   smoke/                All starter pages render HTTP 200
   journey/              Multi-step scenario tests
@@ -155,6 +158,29 @@ and 40x templates) is rendered against a disposable docroot. Each
 must return `Status: 200 OK`, `302`, or `402` - anything else fails
 the test. The `402` allowance covers the intentional
 `payment: required` demos.
+
+## WebDAV (SM070)
+
+`t/unit/dav/` exercises `lazysite-dav.pl` through the
+`TestHelper::run_dav` subprocess harness (a real CGI invocation):
+gate chain and Basic auth incl. the per-IP rate limiter and ignored
+proxy headers (`01`), path traversal / internal-tree / blocked-path /
+scope / symlink containment (`02`), PROPFIND depth 0/1 and the
+PROPPATCH refusal (`03`), PUT/DELETE/MKCOL incl. size gate and cache
+drop (`04`), COPY/MOVE incl. Destination validation and Overwrite
+(`05`), class-2 LOCK/UNLOCK incl. refresh, flood guard, and owner
+escaping (`06`), and conditionals + If lock-token enforcement (`07`).
+`t/unit/manager/08-lock-interop.t` covers the manager side of the
+shared lock store (honouring and not stealing DAV locks; legacy-line
+compatibility). `t/integration/dav-publish.t` checks a DAV write
+becomes a served page with cache invalidation; `t/journey/05-webdav-
+publish.t` runs the full provision → publish → scope → lock → disable
+→ credential-rotation lifecycle.
+
+A `litmus` compliance run (`basic`, `copymove`, `locks` suites) is the
+recommended manual check before a release that touches the endpoint;
+the `props` suite is expected to report failures (no dead-property
+store — see the feature request, §2 exclusion 3).
 
 ## What is not covered
 

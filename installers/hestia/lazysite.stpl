@@ -9,7 +9,18 @@
     %alias_string%
     ServerAdmin %email%
     DocumentRoot %sdocroot%
+    # Strip client-supplied trust headers before any trusted component
+    # sets them (security.md "Apache config requirement"). Needs mod_headers.
+    RequestHeader unset X-Remote-User
+    RequestHeader unset X-Remote-Groups
+    RequestHeader unset X-Remote-Name
+    RequestHeader unset X-Remote-Email
+    RequestHeader unset X-Payment-Verified
+    RequestHeader unset X-Payment-Payer
     ScriptAlias /cgi-bin/ %home%/%user%/web/%domain%/cgi-bin/
+    # SM070: WebDAV publishing endpoint - its own Basic auth, bypasses
+    # the cookie auth wrapper.
+    ScriptAlias /dav %home%/%user%/web/%domain%/cgi-bin/lazysite-dav.pl
     Alias /vstats/ %home%/%user%/web/%domain%/stats/
     Alias /error/ %home%/%user%/web/%domain%/document_errors/
     #SuexecUserGroup %user% %group%

@@ -28,6 +28,24 @@ sub hash_password {
     return "sha256iter:$salt:$iters:$hash";
 }
 
+# SM070: a generated credential is a 256-bit random token, so a single
+# SHA-256 round is enough - the iterated stretching that protects
+# low-entropy human passwords buys nothing against a 256-bit secret,
+# and WebDAV verifies the credential on every request. Stored in the
+# same sha256iter format with iterations=1; verify_password reads the
+# iteration count from the row, so no verifier changes are needed.
+# Only this path writes iterations=1.
+sub hash_token {
+    my ($token) = @_;
+    my $salt = generate_random_hex(16);
+    my $hash = sha256_hex( $salt . $token );
+    return "sha256iter:$salt:1:$hash";
+}
+
+sub generate_token {
+    return 'lzs_' . generate_random_hex(32);   # 64 hex chars = 32 bytes
+}
+
 my $LOG_COMPONENT = 'users';
 
 my $DOCROOT;
@@ -52,8 +70,9 @@ my $AUTH_DIR = "$DOCROOT/lazysite/auth";
 make_path($AUTH_DIR) unless -d $AUTH_DIR;
 chmod 0750, $AUTH_DIR;
 
-my $USERS_FILE  = "$AUTH_DIR/users";
-my $GROUPS_FILE = "$AUTH_DIR/groups";
+my $USERS_FILE    = "$AUTH_DIR/users";
+my $GROUPS_FILE   = "$AUTH_DIR/groups";
+my $SETTINGS_FILE = "$AUTH_DIR/user-settings.json";
 
 # --- API mode ---
 
@@ -99,6 +118,21 @@ if ( $API_MODE ) {
             my %groups = read_groups();
             $result = { ok => 1, groups => \%groups };
         }
+        elsif ( $action eq 'settings-get' ) {
+            my %users = read_users();
+            die "User '" . ( $req->{username} // '' ) . "' not found\n"
+                unless $req->{username} && exists $users{ $req->{username} };
+            $result = { ok => 1, settings => effective_settings( $req->{username} ) };
+        }
+        elsif ( $action eq 'settings-set' ) {
+            cmd_set( $req->{username}, $req->{key}, $req->{value},
+                     force => ( $req->{force} ? 1 : 0 ) );
+            $result = { ok => 1, message => "Setting updated" };
+        }
+        elsif ( $action eq 'token' ) {
+            my $token = cmd_token( $req->{username} );
+            $result = { ok => 1, token => $token };
+        }
         else {
             $result = { ok => 0, error => "Unknown action: $action" };
         }
@@ -124,6 +158,9 @@ elsif ( $cmd eq 'list' )         { cmd_list() }
 elsif ( $cmd eq 'group-add' )    { cmd_group_add(@args) }
 elsif ( $cmd eq 'group-remove' ) { cmd_group_remove(@args) }
 elsif ( $cmd eq 'groups' )       { cmd_groups() }
+elsif ( $cmd eq 'settings' )     { cmd_settings(@args) }
+elsif ( $cmd eq 'set' )          { cmd_set_cli(@args) }
+elsif ( $cmd eq 'token' )        { cmd_token(@args) }
 else {
     print STDERR "Unknown command: $cmd\n\n" if $cmd;
     usage();
@@ -176,6 +213,14 @@ sub cmd_remove {
         }
         write_groups(%groups);
     }
+
+    # SM070: drop the user's access-mechanism settings too.
+    my $settings = read_settings();
+    if ( exists $settings->{$user} ) {
+        delete $settings->{$user};
+        write_settings($settings);
+    }
+
     print "User '$user' removed.\n" unless $API_MODE;
 }
 
@@ -227,6 +272,178 @@ sub cmd_groups {
     else {
         print "No groups.\n";
     }
+}
+
+# --- SM070: access-mechanism settings and credential generation ---
+
+# Effective settings for a user, defaults applied:
+#   ui:        on  (preserve existing behaviour for users with no row)
+#   webdav:    off (new surface is opt-in per user)
+#   dav_scope: undef (docroot-wide, still subject to endpoint denials)
+sub effective_settings {
+    my ($user) = @_;
+    my $all = read_settings();
+    my $s   = $all->{$user} || {};
+    my $scope = $s->{dav_scope};
+    $scope = undef unless defined $scope && length $scope;
+    return {
+        webdav    => $s->{webdav} ? JSON::PP::true() : JSON::PP::false(),
+        ui        => ( exists $s->{ui} && !$s->{ui} ) ? JSON::PP::false() : JSON::PP::true(),
+        dav_scope => $scope,
+    };
+}
+
+sub cmd_settings {
+    my ($user) = @_;
+    die "Username required\n" unless $user;
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+
+    my $eff = effective_settings($user);
+    printf "%-11s %s\n", 'webdav:', $eff->{webdav}        ? 'on' : 'off';
+    printf "%-11s %s\n", 'ui:',     $eff->{ui}            ? 'on' : 'off';
+    printf "%-11s %s\n", 'dav_scope:',
+        defined $eff->{dav_scope} ? $eff->{dav_scope} : '(unset)';
+}
+
+# CLI wrapper: pull an optional --force flag out of the positional args.
+sub cmd_set_cli {
+    my @pos;
+    my $force = 0;
+    for my $a (@_) {
+        if   ( $a eq '--force' ) { $force = 1 }
+        else                     { push @pos, $a }
+    }
+    cmd_set( $pos[0], $pos[1], $pos[2], force => $force );
+}
+
+sub cmd_set {
+    my ( $user, $key, $value, %opt ) = @_;
+    die "Usage: set USERNAME (webdav|ui|dav_scope) VALUE\n"
+        unless defined $user && length $user && defined $key && length $key;
+
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+
+    my $all = read_settings();
+    $all->{$user} ||= {};
+
+    if ( $key eq 'webdav' || $key eq 'ui' ) {
+        my $bool = parse_onoff($value);
+        if ( $key eq 'ui' && !$bool && !$opt{force} ) {
+            die "would disable last manager-capable UI account\n"
+                if is_last_manager_ui( $user, $all );
+        }
+        $all->{$user}{$key} = $bool ? JSON::PP::true() : JSON::PP::false();
+    }
+    elsif ( $key eq 'dav_scope' ) {
+        my $scope = normalise_scope($value);
+        if ( defined $scope ) { $all->{$user}{dav_scope} = $scope }
+        else                  { delete $all->{$user}{dav_scope} }
+    }
+    else {
+        die "Unknown setting '$key' (expected webdav, ui, or dav_scope)\n";
+    }
+
+    write_settings($all);
+    log_event( 'INFO', $user, 'settings changed', key => $key );
+    print "Set $key for '$user'.\n" unless $API_MODE;
+}
+
+# Generate and store a fresh credential. Returns the plaintext token
+# (shown to the caller exactly once); never logged, never stored in
+# the clear.
+sub cmd_token {
+    my ($user) = @_;
+    die "Username required\n" unless $user;
+
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+
+    my $token = generate_token();
+    $users{$user} = hash_token($token);
+    write_users(%users);
+    log_event( 'INFO', $user, 'credential generated' );
+
+    unless ($API_MODE) {
+        print "Generated credential for '$user' (shown once, store it now):\n";
+        print "$token\n";
+    }
+    return $token;
+}
+
+sub parse_onoff {
+    my ($v) = @_;
+    $v = lc( $v // '' );
+    return 1 if $v eq 'on'  || $v eq 'true'  || $v eq '1' || $v eq 'yes';
+    return 0 if $v eq 'off' || $v eq 'false' || $v eq '0' || $v eq 'no';
+    die "Value must be 'on' or 'off'\n";
+}
+
+# Normalise a dav_scope value. Returns undef to mean "clear / unset"
+# (empty string or '/'), a normalised site-absolute path otherwise.
+sub normalise_scope {
+    my ($v) = @_;
+    $v //= '';
+    $v =~ s/^\s+|\s+$//g;
+    return undef if $v eq '' || $v eq '/';
+    $v = "/$v" unless $v =~ m{^/};
+    $v =~ s{/+}{/}g;
+    $v =~ s{/$}{};
+    die "Invalid scope path\n"
+        if $v =~ m{(?:^|/)\.\.(?:/|$)} || $v =~ /[\0<>"']/;
+    return $v;
+}
+
+# Would setting ui:off on $user leave no manager-capable account that
+# can still log in interactively? $all is the in-progress settings
+# hashref (pre-write).
+sub is_last_manager_ui {
+    my ( $user, $all ) = @_;
+    my @mgroups = read_manager_groups();
+    my %users   = read_users();
+    my %groups  = read_groups();
+
+    my %manager_user;
+    if (@mgroups) {
+        for my $g (@mgroups) {
+            next unless $groups{$g};
+            $manager_user{$_} = 1 for @{ $groups{$g} };
+        }
+    }
+    else {
+        # Empty manager_groups: any authenticated user has manager access.
+        $manager_user{$_} = 1 for keys %users;
+    }
+
+    return 0 unless $manager_user{$user};   # target isn't manager-capable
+
+    my $cur = $all->{$user} || {};
+    my $cur_ui = ( exists $cur->{ui} && !$cur->{ui} ) ? 0 : 1;
+    return 0 unless $cur_ui;                 # already off, no reduction
+
+    for my $u ( keys %manager_user ) {
+        next if $u eq $user;
+        next unless exists $users{$u};
+        my $s  = $all->{$u} || {};
+        my $ui = ( exists $s->{ui} && !$s->{ui} ) ? 0 : 1;
+        return 0 if $ui;                     # someone else still covers it
+    }
+    return 1;                                # $user is the last one
+}
+
+sub read_manager_groups {
+    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    return () unless -f $conf;
+    open my $fh, '<', $conf or return ();
+    my $line;
+    while (<$fh>) {
+        if (/^manager_groups\s*:\s*(.+)/) { $line = $1; last }
+    }
+    close $fh;
+    return () unless defined $line;
+    $line =~ s/^\s+|\s+$//g;
+    return grep { length } split /[,\s]+/, $line;
 }
 
 # --- File I/O ---
@@ -287,6 +504,42 @@ sub write_groups {
     chmod 0644, $GROUPS_FILE;
 }
 
+# SM070: per-user access-mechanism settings, JSON object keyed by
+# username. Single writer (this tool), write-temp-then-rename.
+# Unparseable content yields defaults (empty) plus a WARN, so a
+# corrupt file cannot wedge user management.
+sub read_settings {
+    require JSON::PP;
+    return {} unless -f $SETTINGS_FILE;
+    open my $fh, '<:utf8', $SETTINGS_FILE or do {
+        log_event( 'WARN', 'settings', 'cannot read user-settings.json', error => "$!" );
+        return {};
+    };
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
+    if ( !$data || ref $data ne 'HASH' ) {
+        log_event( 'WARN', 'settings', 'user-settings.json unparseable; using defaults' );
+        return {};
+    }
+    return $data;
+}
+
+sub write_settings {
+    my ($data) = @_;
+    require JSON::PP;
+    my $json = JSON::PP->new->canonical->pretty->encode($data);
+    my $tmp  = "$SETTINGS_FILE.tmp.$$";
+    open my $fh, '>:utf8', $tmp or die "Cannot write $SETTINGS_FILE: $!\n";
+    flock( $fh, LOCK_EX );
+    print $fh $json;
+    flock( $fh, LOCK_UN );
+    close $fh;
+    chmod 0640, $tmp;
+    rename $tmp, $SETTINGS_FILE
+        or die "Cannot rename settings file into place: $!\n";
+}
+
 # --- Logging ---
 
 sub log_event {
@@ -345,6 +598,11 @@ Commands:
   group-add USERNAME GROUP    Add user to a group
   group-remove USERNAME GROUP Remove user from a group
   groups                      List all groups and members
+  settings USERNAME           Show a user's access-mechanism settings
+  set USERNAME KEY VALUE      Set webdav|ui (on/off) or dav_scope (/path)
+                              (set ui off honours a last-manager guard;
+                               pass --force to override)
+  token USERNAME              Generate a strong credential (shown once)
 
 Options:
   --docroot PATH              Path to web document root (required)

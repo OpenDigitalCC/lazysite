@@ -24,6 +24,7 @@ my @BLOCKED_PATHS = (
     'lazysite/forms/.secret',
     'lazysite/auth/users',
     'lazysite/auth/groups',
+    'lazysite/auth/user-settings.json',
 );
 
 # SM019: download Content-Type table. Unknown extensions fall back to
@@ -420,6 +421,51 @@ sub write_file_checked {
 
 # --- Lock management ---
 
+# SM070: lock records are shared with lazysite-dav.pl. On-disk format
+# is a JSON object {user,at,origin,token,timeout,owner}; a legacy
+# single-line "user epoch" file (pre-SM070 manager locks) is read as
+# an origin=manager record. This lets the manager editor and WebDAV
+# clients see each other's locks through one store.
+sub _read_lock_record {
+    my ($lock_file) = @_;
+    return undef unless -f $lock_file;
+    open my $fh, '<', $lock_file or return undef;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    return undef unless defined $raw;
+    $raw =~ s/^\s+//;
+    if ( $raw =~ /^\{/ ) {
+        my $rec = eval { decode_json($raw) };
+        return undef unless ref $rec eq 'HASH';
+        $rec->{origin}  ||= 'manager';
+        $rec->{timeout} ||= $LOCK_TIMEOUT;
+        return $rec;
+    }
+    my ( $user, $at ) = split /\s+/, $raw, 2;
+    return undef unless defined $user;
+    $at //= 0;
+    $at =~ s/\D.*$//;
+    return { user => $user, at => ( $at || 0 ), origin => 'manager',
+             timeout => $LOCK_TIMEOUT, token => undef, owner => '' };
+}
+
+sub _write_lock_record {
+    my ( $lock_file, $rec ) = @_;
+    my $tmp = "$lock_file.tmp.$$";
+    open my $fh, '>', $tmp or return 0;
+    print $fh JSON::PP->new->canonical->encode($rec);
+    close $fh;
+    chmod 0640, $tmp;
+    return rename $tmp, $lock_file;
+}
+
+sub _lock_fresh {
+    my ($rec) = @_;
+    return 0 unless $rec;
+    my $age = time() - ( $rec->{at} // 0 );
+    return $age < ( $rec->{timeout} // $LOCK_TIMEOUT ) ? 1 : 0;
+}
+
 sub acquire_lock {
     my ( $rel_path, $username ) = @_;
     make_path($LOCK_DIR) unless -d $LOCK_DIR;
@@ -428,27 +474,26 @@ sub acquire_lock {
     $lock_key =~ s{/}{:}g;
     my $lock_file = "$LOCK_DIR/$lock_key.lock";
 
-    if ( -f $lock_file ) {
-        open my $fh, '<', $lock_file or return { ok => 0, error => "Cannot read lock" };
-        chomp( my $content = <$fh> );
-        close $fh;
-        my ( $locked_by, $locked_at ) = split /\s+/, $content, 2;
-        my $age = time() - ( $locked_at // 0 );
-
-        if ( $age < $LOCK_TIMEOUT && $locked_by ne $username ) {
-            return {
-                ok        => 0,
-                locked    => 1,
-                locked_by => $locked_by,
-                locked_at => $locked_at,
-                expires   => $locked_at + $LOCK_TIMEOUT,
-            };
-        }
+    my $rec = _read_lock_record($lock_file);
+    # A fresh lock blocks if it is held via WebDAV (opaque to the
+    # manager) or by a different manager user. The user may refresh
+    # their own manager lock.
+    if ( _lock_fresh($rec)
+         && ( $rec->{origin} eq 'dav' || ( $rec->{user} // '' ) ne $username ) ) {
+        return {
+            ok        => 0,
+            locked    => 1,
+            locked_by => $rec->{user},
+            locked_at => $rec->{at},
+            origin    => $rec->{origin},
+            expires   => ( $rec->{at} // 0 ) + ( $rec->{timeout} // $LOCK_TIMEOUT ),
+        };
     }
 
-    open my $fh, '>', $lock_file or return { ok => 0, error => "Cannot write lock" };
-    print $fh "$username " . time();
-    close $fh;
+    _write_lock_record( $lock_file, {
+        user => $username, at => time(), origin => 'manager',
+        timeout => $LOCK_TIMEOUT, token => undef, owner => '',
+    } ) or return { ok => 0, error => "Cannot write lock" };
     return { ok => 1, locked_by => $username };
 }
 
@@ -457,6 +502,12 @@ sub release_lock {
     my $lock_key = $rel_path;
     $lock_key =~ s{/}{:}g;
     my $lock_file = "$LOCK_DIR/$lock_key.lock";
+
+    # Never let the manager UI release a live WebDAV lock.
+    my $rec = _read_lock_record($lock_file);
+    if ( _lock_fresh($rec) && $rec->{origin} eq 'dav' ) {
+        return { ok => 0, error => "Locked via WebDAV" };
+    }
     unlink $lock_file if -f $lock_file;
     return { ok => 1 };
 }
@@ -3230,14 +3281,14 @@ sub _get_lock_info {
     my $lock_key = $rel_path;
     $lock_key =~ s{/}{:}g;
     my $lock_file = "$LOCK_DIR/$lock_key.lock";
-    return {} unless -f $lock_file;
-
-    open my $lf, '<', $lock_file or return {};
-    chomp( my $lc = <$lf> );
-    close $lf;
-    my ( $by, $at ) = split /\s+/, $lc, 2;
-    my $age = time() - ( $at // 0 );
-    return { locked_by => $by, locked_at => $at, active => $age < $LOCK_TIMEOUT ? 1 : 0 };
+    my $rec = _read_lock_record($lock_file);
+    return {} unless $rec;
+    return {
+        locked_by => $rec->{user},
+        locked_at => $rec->{at},
+        origin    => $rec->{origin},
+        active    => _lock_fresh($rec) ? 1 : 0,
+    };
 }
 
 # --- Logging ---

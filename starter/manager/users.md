@@ -99,7 +99,14 @@ function loadUsers() {
   apiCall({ action: 'list' })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
-      renderUsers(data.users || []);
+      var users = data.users || [];
+      // SM070: fetch each user's access-mechanism settings so the row
+      // can show UI / WebDAV state and the scope.
+      Promise.all(users.map(function(u) {
+        return apiCall({ action: 'settings-get', username: u })
+          .then(function(s) { return { user: u, settings: (s.ok ? s.settings : {}) }; })
+          .catch(function() { return { user: u, settings: {} }; });
+      })).then(renderUsers);
     })
     .catch(function(e) { showStatus('Failed to load users: ' + e.message, true); });
   apiCall({ action: 'groups' })
@@ -109,24 +116,99 @@ function loadUsers() {
     });
 }
 
-function renderUsers(users) {
+function renderUsers(rows) {
   var list = document.getElementById('user-list');
-  if (users.length === 0) {
+  if (rows.length === 0) {
     list.innerHTML = '<div class="mg-file-item"><span class="mg-file-name mg-empty">No users</span></div>';
     return;
   }
   var html = '';
-  for (var i = 0; i < users.length; i++) {
-    var u = users[i];
-    html += '<div class="mg-file-item">';
-    html += '<span class="mg-file-name">' + escHtml(u) + '</span>';
-    html += '<div class="mg-file-actions">';
-    html += '<button class="mg-btn mg-btn-sm" onclick="changePassword(\'' + escHtml(u) + '\')">Password</button>';
-    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + escHtml(u) + '\')">Delete</button>';
-    html += '</div>';
+  for (var i = 0; i < rows.length; i++) {
+    var u = rows[i].user;
+    var s = rows[i].settings || {};
+    var webdav = !!s.webdav;
+    var ui = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
+    var scope = s.dav_scope || '';
+    var ue = escHtml(u);
+    html += '<div class="mg-file-item mg-user-row">';
+    html +=   '<span class="mg-file-name">' + ue + '</span>';
+    html +=   '<div class="mg-user-mech">';
+    html +=     '<button class="mg-btn mg-btn-sm mg-toggle ' + (ui ? 'mg-on' : 'mg-off') + '" ' +
+                 'onclick="toggleSetting(\'' + ue + '\',\'ui\',' + (ui ? 'true' : 'false') + ')" ' +
+                 'title="Interactive (browser) login">UI: ' + (ui ? 'on' : 'off') + '</button>';
+    html +=     '<button class="mg-btn mg-btn-sm mg-toggle ' + (webdav ? 'mg-on' : 'mg-off') + '" ' +
+                 'onclick="toggleSetting(\'' + ue + '\',\'webdav\',' + (webdav ? 'true' : 'false') + ')" ' +
+                 'title="WebDAV publishing access">WebDAV: ' + (webdav ? 'on' : 'off') + '</button>';
+    html +=     '<input type="text" class="mg-scope-input" id="scope-' + ue + '" ' +
+                 'value="' + escHtml(scope) + '" placeholder="/path (WebDAV scope)">';
+    html +=     '<button class="mg-btn mg-btn-sm" onclick="setUserScope(\'' + ue + '\')">Set scope</button>';
+    html +=   '</div>';
+    html +=   '<div class="mg-file-actions">';
+    html +=     '<button class="mg-btn mg-btn-sm" onclick="generateCredential(\'' + ue + '\')">Generate credential</button>';
+    html +=     '<button class="mg-btn mg-btn-sm" onclick="changePassword(\'' + ue + '\')">Password</button>';
+    html +=     '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + ue + '\')">Delete</button>';
+    html +=   '</div>';
+    html +=   '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>';
     html += '</div>';
   }
   list.innerHTML = html;
+}
+
+// SM070: flip a per-user boolean mechanism (ui / webdav).
+function toggleSetting(user, key, current) {
+  var val = current ? 'off' : 'on';
+  apiCall({ action: 'settings-set', username: user, key: key, value: val })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus(key + ' set ' + val + ' for "' + user + '".');
+      loadUsers();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM070: set or clear a user's WebDAV path scope.
+function setUserScope(user) {
+  var input = document.getElementById('scope-' + user);
+  var val = ((input && input.value) || '').trim();
+  apiCall({ action: 'settings-set', username: user, key: 'dav_scope', value: val })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus(val ? ('Scope set to ' + val + ' for "' + user + '".')
+                     : ('Scope cleared for "' + user + '".'));
+      loadUsers();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM070: generate a strong credential and reveal it once in place. The
+// row is NOT reloaded afterwards, so the one-time value stays visible
+// until the operator navigates away or reloads.
+function generateCredential(user) {
+  if (!confirm('Generate a new credential for "' + user + '"? Any existing ' +
+               'password or credential for this account will stop working.')) return;
+  apiCall({ action: 'token', username: user })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      var panel = document.getElementById('cred-' + user);
+      if (panel) {
+        panel.style.display = '';
+        panel.innerHTML =
+          '<strong>Credential (shown once — store it now):</strong> ' +
+          '<code class="mg-cred-value">' + escHtml(data.token) + '</code> ' +
+          '<button class="mg-btn mg-btn-sm" onclick="copyCred(\'' + escHtml(user) + '\')">Copy</button>';
+      }
+      showStatus('Credential generated for "' + user + '".');
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+function copyCred(user) {
+  var panel = document.getElementById('cred-' + user);
+  var code = panel && panel.querySelector('.mg-cred-value');
+  if (code && navigator.clipboard) {
+    navigator.clipboard.writeText(code.textContent)
+      .then(function() { showStatus('Credential copied to clipboard.'); });
+  }
 }
 
 function renderGroups(groups) {
@@ -350,5 +432,36 @@ loadUsers();
   align-items: center;
   gap: 0.5rem;
   border-top: 1px solid var(--mg-border, #e5e5e5);
+}
+/* SM070: per-user access-mechanism controls */
+.mg-user-row { flex-wrap: wrap; }
+.mg-user-mech {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+  margin: 0 0.5rem;
+}
+.mg-toggle.mg-on  { border-color: var(--mg-success, #2a7); color: var(--mg-success, #2a7); }
+.mg-toggle.mg-off { color: var(--mg-text-muted, #888); }
+.mg-scope-input {
+  width: 11rem;
+  font-size: 0.8125rem;
+  padding: 0.1875rem 0.375rem;
+}
+.mg-cred-reveal {
+  flex-basis: 100%;
+  margin-top: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  background: var(--mg-bg-muted, #f6f6f6);
+  border-radius: 3px;
+  font-size: 0.875rem;
+}
+.mg-cred-value {
+  font-family: monospace;
+  word-break: break-all;
+  background: var(--mg-bg, #fff);
+  padding: 0.125rem 0.25rem;
+  border-radius: 2px;
 }
 </style>

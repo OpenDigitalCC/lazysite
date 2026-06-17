@@ -1,5 +1,25 @@
 # Upgrade notes
 
+## WebDAV publishing (SM070)
+
+A WebDAV endpoint (`/dav`) is available for headless, per-file
+content publishing. It is **off by default** — an existing install is
+unchanged after upgrade until you opt in. To enable it:
+
+1. Add `webdav_enabled: true` to `lazysite/lazysite.conf`.
+2. Add the `/dav` ScriptAlias to your web server. The shipped Hestia
+   templates include it; for a hand-rolled Apache vhost add
+   `ScriptAlias /dav /path/to/cgi-bin/lazysite-dav.pl` and ensure the
+   `RequestHeader unset X-Remote-*` lines are present (now in the
+   shipped templates).
+3. For each publishing account, set `webdav on` (and usually a
+   `dav_scope`) on the manager Users page, then generate a credential.
+
+The Hestia templates also gained the `RequestHeader unset X-Remote-*`
+directives that `docs/architecture/security.md` has always required;
+they need Apache's `mod_headers`. See
+`docs/features/configuration/webdav.md` for the full guide.
+
 ## 0.2.x to 0.3.0
 
 The installer is now upgrade-aware. This is the first version

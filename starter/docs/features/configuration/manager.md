@@ -31,10 +31,12 @@ Add to `lazysite/lazysite.conf`:
 - File browser with create, edit, and delete
 - Page editor with front matter form and content textarea
 - Live preview pane showing rendered output
-- Collaborative file locking (5-minute expiry, auto-renew)
+- Collaborative file locking (5-minute expiry, auto-renew; shared with
+  the WebDAV endpoint so editor and deploy locks respect each other)
 - Save with mtime conflict detection
 - Theme manager: install, activate, rename, delete themes
-- User management: add/remove users, manage groups
+- User management: add/remove users, manage groups, per-user UI/WebDAV
+  toggles, WebDAV path scope, and one-time credential generation
 - Cache manager: view and invalidate cached pages
 
 ### Plugin system

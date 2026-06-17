@@ -94,6 +94,16 @@ works on staging and production.
   Defaults: `X-Remote-User`, `X-Remote-Name`, `X-Remote-Email`,
   `X-Remote-Groups`.
 
+`webdav_enabled`
+: `true` or `false` (default). Master switch for the `/dav` WebDAV
+  publishing endpoint. While off, `/dav` returns 404. See
+  [WebDAV publishing](/docs/features/configuration/webdav).
+
+`dav_allow_insecure`
+: `true` or `false` (default). Permit WebDAV Basic auth without HTTPS
+  (for a TLS-terminating proxy or trusted LAN). Loopback is always
+  allowed; leave off otherwise.
+
 All other keys become TT variables available in page content and the
 view template.
 

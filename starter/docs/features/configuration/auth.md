@@ -71,3 +71,13 @@ Create `403.md` with these context variables:
   (Authentik, Authelia, etc.) that sets the same headers
 - [Authentication guide](/docs/auth) - full setup and configuration
 - [Upgrading to external auth](/docs/auth-upgrade) - migration guide
+
+### Per-user access mechanisms (SM070)
+
+Each user has independent access-mechanism settings — `ui` (browser
+login, default on), `webdav` (WebDAV publishing, default off), and an
+optional `dav_scope`. Disabling `ui` blocks the browser login (no
+cookie is issued), so the account cannot reach the manager or
+auth-protected pages — useful for publish-only deploy identities. See
+[WebDAV publishing](/docs/features/configuration/webdav) for managing
+these and generating strong credentials.

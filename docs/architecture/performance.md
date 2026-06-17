@@ -48,6 +48,19 @@ processor takes to print anything - it dominates both paths. The
 cache-hit path does effectively ~4-8 ms of real work on top of that
 floor.
 
+### WebDAV endpoint (SM070)
+
+`lazysite-dav.pl` follows the same per-request CGI model. Its
+auth/gate overhead is a single SHA-256 when the client uses a
+generated credential (`iterations=1`); a human password costs the full
+100,000 iterations per request, which is the documented reason to use
+generated credentials for automation. PUT streams the body in 64 KiB
+chunks (memory bounded regardless of file size). PROPFIND is the
+hot path for desktop mounts (Explorer/Finder are PROPFIND-heavy): it
+is O(directory entries) with one `stat` and one lock-store lookup per
+entry, capped at Depth 0/1 — no recursive tree walks. Confirm the
+depth-1 cost against a large directory in the close-out report.
+
 Modules loaded per request, via `%INC`:
 
 | Path | `scalar keys %INC` |

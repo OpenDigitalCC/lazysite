@@ -31,6 +31,12 @@ Authentication
 - Built-in cookie auth (`lazysite-auth.pl`) with users and groups
 - Drop-in replacement by any proxy that sets `X-Remote-*` headers
 - Per-page `auth:` and `auth_groups:` front matter
+- Per-user access mechanisms (browser UI / WebDAV) and generated credentials
+
+Publishing
+- WebDAV endpoint (`/dav`, class 1+2) for headless per-file deploys
+- Works with `curl`, `rclone`, `davfs2`, and Explorer/Finder mounts
+- Per-user path scopes; off by default, opt-in per user
 
 Forms
 - Inline `:::form` blocks with field validation

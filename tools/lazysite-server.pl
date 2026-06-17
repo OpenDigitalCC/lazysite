@@ -350,6 +350,24 @@ sub handle_request {
         $target = $cgi_script if $cgi_script && -f $cgi_script;
     }
 
+    # SM070: /dav routes straight to lazysite-dav.pl, bypassing the auth
+    # wrapper - the WebDAV endpoint performs its own HTTP Basic auth and
+    # must not see cookie-derived X-Remote-* headers. PATH_INFO is the
+    # part after /dav, url-decoded to match what Apache's ScriptAlias
+    # would hand a CGI; SCRIPT_NAME is the mount point.
+    my $is_dav        = 0;
+    my $dav_path_info = '';
+    if ( $uri eq '/dav' || $uri =~ m{^/dav/} ) {
+        my $dav_script = abs_path("$SCRIPT_DIR/../lazysite-dav.pl");
+        if ( $dav_script && -f $dav_script ) {
+            $is_dav        = 1;
+            $target        = $dav_script;
+            $dav_path_info = $uri;
+            $dav_path_info =~ s{^/dav}{};
+            $dav_path_info =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
+        }
+    }
+
     # Under `use_auth` mode, always run lazysite-auth.pl first so that
     # HTTP_X_REMOTE_USER / _GROUPS are set from the signed cookie before
     # the target CGI (processor OR manager-api OR any other cgi-bin
@@ -359,7 +377,7 @@ sub handle_request {
     # Exception: requests *to* lazysite-auth.pl itself (login/logout
     # endpoints) must go direct, or we'd exec ourselves recursively.
     my $script = $target;
-    if ( $use_auth ) {
+    if ( $use_auth && !$is_dav ) {
         my $target_is_auth = defined $target_rel && $target_rel eq 'lazysite-auth.pl';
         $script = $auth_script unless $target_is_auth;
     }
@@ -395,6 +413,11 @@ sub handle_request {
         next if $h eq 'content-length' || $h eq 'content-type';
         ( my $env_key = uc($h) ) =~ tr/-/_/;
         $env{"HTTP_$env_key"} = $req_headers{$h};
+    }
+
+    if ($is_dav) {
+        $env{PATH_INFO}   = $dav_path_info;
+        $env{SCRIPT_NAME} = '/dav';
     }
 
     local @ENV{ keys %env } = values %env;

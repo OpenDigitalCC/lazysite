@@ -95,6 +95,11 @@
       "alpine_pkg": "perl-lwp-useragent",
       "used_by": "remote content fetch for :::include and url: variables, form webhook delivery"
     },
+    "MIME::Base64": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "HTTP Basic auth decoding in lazysite-dav.pl (WebDAV endpoint)"
+    },
     "Net::SMTP": {
       "core": true,
       "license": "Artistic-1.0-Perl",
