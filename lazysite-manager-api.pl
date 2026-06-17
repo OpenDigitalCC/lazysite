@@ -90,12 +90,50 @@ if ( open my $cfh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
 }
 $manager_groups_conf =~ s/^\s+|\s+$//g;
 
-my $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
-if ( $manager_groups_conf && !$auth_user ) {
-    respond({ ok => 0, error => "Authentication required" });
-    exit 0;
+# SM071 Phase 3: control-API token front-path. A request authenticated by
+# Authorization: Basic <user>:<lzs_ token> carries no session cookie; it is
+# verified against the user database (via the users tool, which owns the
+# hashing), gated per-action by capability (below), and exempt from the
+# CSRF check (no cookie ⇒ no ambient authority ⇒ no CSRF vector).
+my $auth_user;
+my $token_auth = 0;
+my %token_caps;
+{
+    my $hdr = $ENV{HTTP_AUTHORIZATION} // '';
+    if ( $hdr =~ /^Basic\s+(\S+)/ ) {
+        require MIME::Base64;
+        my ( $u, $secret ) = split /:/,
+            ( MIME::Base64::decode_base64($1) // '' ), 2;
+        if ( defined $u && defined $secret && $secret =~ /^lzs_/ ) {
+            # A token request must not also carry a session cookie, so the
+            # CSRF exemption can never be used to ride a browser session.
+            if ( length( $ENV{HTTP_X_REMOTE_USER} // '' ) ) {
+                respond({ ok => 0, error => 'Do not combine cookie and token auth' });
+                exit 0;
+            }
+            my $v = users_api({ action => 'verify-credential',
+                                username => $u, secret => $secret });
+            unless ( $v && $v->{ok} ) {
+                sleep 1;   # brute-force delay (per-IP limiter lands in P3.6)
+                respond({ ok => 0, error => 'Invalid credentials' });
+                exit 0;
+            }
+            $auth_user  = $u;
+            $token_auth = 1;
+            %token_caps = %{ $v->{settings} || {} };
+        }
+    }
 }
-$auth_user ||= 'local';
+
+# Cookie (manager) auth: the trusted X-Remote-User set by the auth wrapper.
+unless ( $token_auth ) {
+    $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
+    if ( $manager_groups_conf && !$auth_user ) {
+        respond({ ok => 0, error => "Authentication required" });
+        exit 0;
+    }
+    $auth_user ||= 'local';
+}
 
 # --- Parse request ---
 
@@ -149,7 +187,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
 # Going by method rather than an action allowlist means we cannot
 # accidentally leave a new read action out of the list.
 my $method = $ENV{REQUEST_METHOD} // 'GET';
-if ( $method eq 'POST' ) {
+if ( $method eq 'POST' && !$token_auth ) {
     # Token can arrive via (in order of preference):
     #   - X-CSRF-Token header (HTTP_X_CSRF_TOKEN env var) - works for any
     #     body type including raw binary uploads (theme-upload).
@@ -194,6 +232,29 @@ if ( $method eq 'POST' ) {
 if ( $action eq 'csrf-token' ) {
     respond({ ok => 1, token => generate_csrf_token($auth_user) });
     exit 0;
+}
+
+# SM071 Phase 3: token clients are confined to the control-API action set
+# and gated by capability. Cookie (manager) requests are unaffected and
+# keep their existing manager-group authorisation.
+if ( $token_auth ) {
+    my %need = (
+        'artifact-manifest' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
+        'artifact-validate' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
+        'theme-activate'    => sub { $_[0]->{manage_themes} },
+        'layout-activate'   => sub { $_[0]->{manage_layouts} },
+        'preview-grant'     => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
+        'config-set'        => sub { $_[0]->{manage_config} },
+    );
+    my $check = $need{$action};
+    unless ($check) {
+        respond({ ok => 0, error => "Action not available to token clients: $action" });
+        exit 0;
+    }
+    unless ( $check->( \%token_caps ) ) {
+        respond({ ok => 0, error => "Insufficient capability for $action" });
+        exit 0;
+    }
 }
 
 # --- Dispatch ---
@@ -297,6 +358,8 @@ elsif ( $action eq 'preview-clear' ) {
     action_preview_clear();
     exit 0;
 }
+elsif ( $action eq 'artifact-manifest' ) { $result = action_artifact_manifest( \%params ) }
+elsif ( $action eq 'artifact-validate' ) { $result = action_artifact_validate( \%params ) }
 else  { $result = { ok => 0, error => "Unknown action: $action" } }
 
 respond($result);
@@ -452,6 +515,112 @@ sub action_preview_clear {
     print "Set-Cookie: $PREVIEW_COOKIE=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json({ ok => 1 });
+}
+
+# --- SM071 Phase 3: control-API helpers ---
+
+# Resolve the user-management tool across install layouts (cgi-bin sibling
+# of tools/ in production; repo root in tests). LAZYSITE_USERS_TOOL wins.
+sub _users_tool_path {
+    for my $c (
+        $ENV{LAZYSITE_USERS_TOOL},
+        dirname($0) . "/../tools/lazysite-users.pl",
+        dirname($0) . "/tools/lazysite-users.pl",
+        "$DOCROOT/../tools/lazysite-users.pl",
+    ) {
+        return $c if defined $c && -f $c;
+    }
+    return undef;
+}
+
+# Run a request against tools/lazysite-users.pl --api and return the
+# decoded response (used by the token front-path's verify-credential).
+sub users_api {
+    my ($payload) = @_;
+    my $script = _users_tool_path();
+    return { ok => 0, error => 'user management unavailable' } unless $script;
+    my ( $out, $in );
+    my $pid = eval { open2( $out, $in, $^X, $script, '--api', '--docroot', $DOCROOT ) };
+    return { ok => 0, error => 'cannot run user management' } unless $pid;
+    print $in encode_json($payload);
+    close $in;
+    my $resp = do { local $/; <$out> };
+    close $out;
+    waitpid $pid, 0;
+    return eval { decode_json( $resp // '{}' ) } // { ok => 0, error => 'invalid response' };
+}
+
+# Resolve a theme/layout artifact directory from request params.
+sub _artifact_dir {
+    my ($p) = @_;
+    my $layout = $p->{layout} // '';
+    my $theme  = $p->{theme}  // '';
+    return { ok => 0, error => 'invalid or missing layout' }
+        unless $layout =~ /^[A-Za-z0-9_-]+$/;
+    if ( length $theme ) {
+        return { ok => 0, error => 'invalid theme' }
+            unless $theme =~ /^[A-Za-z0-9_-]+$/;
+        return { ok => 1, layout => $layout, theme => $theme,
+                 dir => "$LAZYSITE_DIR/layouts/$layout/themes/$theme" };
+    }
+    return { ok => 1, layout => $layout, theme => '',
+             dir => "$LAZYSITE_DIR/layouts/$layout" };
+}
+
+# Content-hash manifest of a theme/layout: { relpath => {sha256,size} }.
+sub action_artifact_manifest {
+    my ($p) = @_;
+    my $a = _artifact_dir($p);
+    return $a unless $a->{ok};
+    return { ok => 0, error => 'artifact not found' } unless -d $a->{dir};
+
+    my %manifest;
+    my $dir = $a->{dir};
+    File::Find::find( { no_chdir => 1, wanted => sub {
+        return unless -f $_;
+        ( my $rel = $_ ) =~ s{^\Q$dir\E/}{};
+        open my $fh, '<:raw', $_ or return;
+        my $sha = Digest::SHA->new(256);
+        $sha->addfile($fh);
+        close $fh;
+        $manifest{$rel} = { sha256 => $sha->hexdigest, size => ( -s $_ ) + 0 };
+    } }, $dir );
+
+    return { ok => 1, layout => $a->{layout}, theme => $a->{theme},
+             manifest => \%manifest };
+}
+
+# Dry-run validation of a theme/layout (the activate gate, P3.4 reuses it).
+# Theme: theme.json present with a non-empty layouts[]. Layout: layout.tt
+# present (the TT-compile check is added in P3.5).
+sub action_artifact_validate {
+    my ($p) = @_;
+    my $a = _artifact_dir($p);
+    return $a unless $a->{ok};
+    return { ok => 1, valid => 0, errors => ['artifact not found'] }
+        unless -d $a->{dir};
+
+    my @err;
+    if ( length $a->{theme} ) {
+        my $tj = "$a->{dir}/theme.json";
+        if ( !-f $tj ) { push @err, 'theme.json missing' }
+        else {
+            open my $fh, '<:utf8', $tj or push @err, 'theme.json unreadable';
+            if (@err == 0) {
+                my $raw  = do { local $/; <$fh> };
+                close $fh;
+                my $data = eval { decode_json($raw) };
+                if ( ref $data ne 'HASH' ) { push @err, 'theme.json invalid' }
+                elsif ( ref $data->{layouts} ne 'ARRAY' || !@{ $data->{layouts} } ) {
+                    push @err, 'theme.json layouts[] missing or empty';
+                }
+            }
+        }
+    }
+    else {
+        push @err, 'layout.tt missing' unless -f "$a->{dir}/layout.tt";
+    }
+    return { ok => 1, valid => ( @err ? 0 : 1 ), errors => \@err };
 }
 
 # --- Response ---
@@ -2061,12 +2230,9 @@ sub action_layouts_repo_set {
 sub action_users {
     my ( $request_body, $params_ref ) = @_;
 
-    my $users_script = dirname($0) . "/../tools/lazysite-users.pl";
-    unless ( -f $users_script ) {
-        $users_script = "$DOCROOT/../tools/lazysite-users.pl";
-    }
+    my $users_script = _users_tool_path();
     return { ok => 0, error => "User management not available" }
-        unless -f $users_script;
+        unless $users_script;
 
     # The child (tools/lazysite-users.pl --api) always expects a single
     # JSON object on stdin. If we're hit with a plain GET (empty body),
@@ -2081,6 +2247,20 @@ sub action_users {
         return { ok => 0, error => "Read-only sub-action on GET; allowed: list, groups" }
             unless $sub eq 'list' || $sub eq 'groups';
         $request_body = encode_json({ action => $sub });
+    }
+
+    # SM071 Phase 3: scope sub-user management to the actor's own sub-tree.
+    # For the account-* actions, inject actor=$auth_user (and created_by on
+    # account-create) so the users tool enforces ancestry. The operator
+    # ('local', i.e. no manager_groups configured) is left unrestricted.
+    if ( $auth_user ne 'local' && length $request_body ) {
+        my $parsed = eval { decode_json($request_body) };
+        if ( ref $parsed eq 'HASH'
+             && ( $parsed->{action} // '' ) =~ /^account-(create|disable|enable|reassign)$/ ) {
+            $parsed->{actor} = $auth_user;
+            $parsed->{created_by} = $auth_user if $1 eq 'create';
+            $request_body = encode_json($parsed);
+        }
     }
 
     my ( $child_out, $child_in );

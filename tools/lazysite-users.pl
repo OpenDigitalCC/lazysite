@@ -172,6 +172,9 @@ if ( $API_MODE ) {
             my $token = cmd_token_rotate( $req->{username} );
             $result = { ok => 1, token => $token };
         }
+        elsif ( $action eq 'verify-credential' ) {
+            $result = cmd_verify_credential( $req->{username}, $req->{secret} );
+        }
         elsif ( $action eq 'partner-create' ) {
             my $r = cmd_partner_create( $req->{username},
                 created_by  => $req->{created_by},
@@ -844,6 +847,25 @@ Rotate the token before it expires; an expired token returns HTTP 401.
   control API arrive with the control-API release. Until then your
   operator performs the exchange and hands you the access token.
 BRIEF
+}
+
+# SM071 Phase 3: verify a presented credential (used by the control-API
+# front-path in lazysite-manager-api.pl). Verifies the secret against the
+# stored hash, rejects disabled accounts and expired access tokens, and
+# returns the effective settings (capabilities) for the caller to gate on.
+sub cmd_verify_credential {
+    my ( $user, $secret ) = @_;
+    return { ok => 0 } unless defined $user && length $user && defined $secret;
+    my %users  = read_users();
+    my $stored = $users{$user};
+    return { ok => 0 } unless defined $stored && verify_secret( $secret, $stored );
+
+    my $eff = effective_settings($user);
+    return { ok => 0 } if $eff->{disabled};
+    my $exp = $eff->{token_expires_at};
+    return { ok => 0 } if $exp && time() > $exp;
+
+    return { ok => 1, username => $user, settings => $eff };
 }
 
 # SM071 Phase 2: one-step partner provisioning. Creates a sub-user with a
