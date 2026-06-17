@@ -192,6 +192,21 @@ if ! prove -r "$STAGE/t/"; then
     exit 1
 fi
 
+# --- build the release manifest ---
+# release-manifest.json is generated, not tracked (SM065), so the fresh
+# clone has none. Build it from the staged tree before the SBOM gate
+# (which reads it) and the tarball (which ships it).
+
+echo "==> build-manifest.pl"
+if ! perl "$STAGE/tools/build-manifest.pl" \
+        --staged  "$STAGE" \
+        --out     "$STAGE/release-manifest.json" \
+        --version "$VERSION" ; then
+    echo "release.sh: manifest build failed; not releasing." >&2
+    echo "release.sh: staging dir retained: $STAGE" >&2
+    exit 1
+fi
+
 # --- SBOM strictness gate ---
 
 echo "==> manifest-to-sbom.pl --strict"
@@ -216,7 +231,14 @@ mkdir -p "$DIST_DIR"
 # Use git archive against the target SHA. This captures the COMMIT
 # state exactly - staging dir edits (if any) don't leak in.
 echo "==> Building tarball $TARBALL"
-git -C "$STAGE" archive --format=tar.gz --prefix="lazysite-$VERSION/" \
+# release-manifest.json + sbom.json are generated (untracked, SM065), so
+# git archive would omit them; --add-file injects them at the tarball
+# root (after --prefix, so they land under lazysite-VERSION/). The
+# installer reads release-manifest.json from there.
+git -C "$STAGE" archive --format=tar.gz \
+    --prefix="lazysite-$VERSION/" \
+    --add-file=release-manifest.json \
+    --add-file=sbom.json \
     -o "$TARBALL" "$TARGET_SHA"
 
 SHA256=$(sha256sum "$TARBALL" | awk '{print $1}')
