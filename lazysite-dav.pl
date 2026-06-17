@@ -141,6 +141,13 @@ sub main {
             body    => "Authentication failed\n" );
     }
 
+    # SM071 Phase 2: a disabled account is denied outright, ahead of the
+    # mechanism gate.
+    if ( disabled_for($user) ) {
+        log_event( 'WARN', $user, 'dav access denied (account disabled)', ip => $ip );
+        return send_status( 403, body => "Account disabled\n" );
+    }
+
     # 4. Mechanism gate - WebDAV must be enabled for this user.
     unless ( webdav_enabled_for($user) ) {
         log_event( 'WARN', $user, 'dav access denied (mechanism off)', ip => $ip );
@@ -1003,6 +1010,13 @@ sub webdav_enabled_for {
     my ($user) = @_;
     my $s = read_settings()->{$user};
     return ( ref $s eq 'HASH' && $s->{webdav} ) ? 1 : 0;
+}
+
+# SM071 Phase 2: a disabled account fails all DAV access.
+sub disabled_for {
+    my ($user) = @_;
+    my $s = read_settings()->{$user};
+    return ( ref $s eq 'HASH' && $s->{disabled} ) ? 1 : 0;
 }
 
 sub scope_for {

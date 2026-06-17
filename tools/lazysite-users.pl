@@ -139,6 +139,21 @@ if ( $API_MODE ) {
                 create_subs => ( $req->{create_sub_users} ? 1 : 0 ) );
             $result = { ok => 1, message => "Sub-user created" };
         }
+        elsif ( $action eq 'account-disable' ) {
+            cmd_account_set_disabled( $req->{username}, 1,
+                actor => $req->{actor}, cascade => ( $req->{cascade} ? 1 : 0 ) );
+            $result = { ok => 1, message => "Account disabled" };
+        }
+        elsif ( $action eq 'account-enable' ) {
+            cmd_account_set_disabled( $req->{username}, 0,
+                actor => $req->{actor}, cascade => ( $req->{cascade} ? 1 : 0 ) );
+            $result = { ok => 1, message => "Account enabled" };
+        }
+        elsif ( $action eq 'account-reassign' ) {
+            cmd_account_reassign( $req->{username}, $req->{to},
+                actor => $req->{actor} );
+            $result = { ok => 1, message => "Account reassigned" };
+        }
         else {
             $result = { ok => 0, error => "Unknown action: $action" };
         }
@@ -167,7 +182,10 @@ elsif ( $cmd eq 'groups' )       { cmd_groups() }
 elsif ( $cmd eq 'settings' )     { cmd_settings(@args) }
 elsif ( $cmd eq 'set' )          { cmd_set_cli(@args) }
 elsif ( $cmd eq 'token' )        { cmd_token(@args) }
-elsif ( $cmd eq 'account-create' ) { cmd_account_create_cli(@args) }
+elsif ( $cmd eq 'account-create' )   { cmd_account_create_cli(@args) }
+elsif ( $cmd eq 'account-disable' )  { cmd_account_disable_cli(@args) }
+elsif ( $cmd eq 'account-enable' )   { cmd_account_enable_cli(@args) }
+elsif ( $cmd eq 'account-reassign' ) { cmd_account_reassign_cli(@args) }
 else {
     print STDERR "Unknown command: $cmd\n\n" if $cmd;
     usage();
@@ -306,6 +324,7 @@ sub effective_settings {
         managed_by => ( defined $s->{managed_by} ? $s->{managed_by} : $s->{created_by} ),
         create_sub_users           => $s->{create_sub_users}           ? JSON::PP::true() : JSON::PP::false(),
         delegate_sub_user_creation => $s->{delegate_sub_user_creation} ? JSON::PP::true() : JSON::PP::false(),
+        disabled                   => $s->{disabled}                   ? JSON::PP::true() : JSON::PP::false(),
     };
 }
 
@@ -454,6 +473,150 @@ sub cmd_account_create_cli {
     }
     cmd_account_create( $pos[0], $pos[1],
         created_by => $created_by, create_subs => $create_subs );
+}
+
+# SM071 Phase 2: sub-user tree helpers (managed_by edges).
+
+sub _managed_by {
+    my ($s) = @_;
+    return defined $s->{managed_by} ? $s->{managed_by} : $s->{created_by};
+}
+
+# All accounts in $user's sub-tree (transitive children via managed_by).
+sub descendants {
+    my ( $user, $all ) = @_;
+    my %children;
+    for my $u ( keys %$all ) {
+        my $p = _managed_by( $all->{$u} );
+        push @{ $children{$p} }, $u if defined $p;
+    }
+    my @queue = ($user);
+    my ( %seen, @out );
+    while (@queue) {
+        my $cur = shift @queue;
+        for my $c ( @{ $children{$cur} || [] } ) {
+            next if $seen{$c}++;
+            push @out, $c;
+            push @queue, $c;
+        }
+    }
+    return @out;
+}
+
+# Is $actor an ancestor of $target via the managed_by chain?
+sub is_ancestor {
+    my ( $actor, $target, $all ) = @_;
+    return 0 unless defined $actor && defined $target;
+    my %seen;
+    my $cur = $target;
+    while ( defined $cur && !$seen{$cur}++ ) {
+        my $p = _managed_by( $all->{$cur} || {} );
+        return 0 unless defined $p;
+        return 1 if $p eq $actor;
+        $cur = $p;
+    }
+    return 0;
+}
+
+# Authorise a management action. CLI (no actor) is the unrestricted
+# operator; an API actor may only manage accounts in its own sub-tree.
+sub _authorise_manage {
+    my ( $actor, $target, $all ) = @_;
+    return if !defined $actor || !length $actor;   # operator / CLI
+    die "Not authorised to manage '$target'\n"
+        unless is_ancestor( $actor, $target, $all );
+}
+
+# SM071 Phase 2: disable / enable, optionally cascading over the
+# sub-tree. Disabling leaves the tree structure intact so enable can
+# reverse it. A disabled account fails authentication everywhere.
+sub cmd_account_set_disabled {
+    my ( $user, $disabled, %opt ) = @_;   # opt: actor, cascade
+    die "Username required\n" unless defined $user && length $user;
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+
+    my $all = read_settings();
+    _authorise_manage( $opt{actor}, $user, $all );
+
+    my @targets = ($user);
+    push @targets, descendants( $user, $all ) if $opt{cascade};
+
+    for my $t (@targets) {
+        $all->{$t} ||= {};
+        if   ($disabled) { $all->{$t}{disabled} = JSON::PP::true() }
+        else             { delete $all->{$t}{disabled} }
+    }
+    write_settings($all);
+    log_event( 'INFO', $user, ( $disabled ? 'account disabled' : 'account enabled' ),
+        cascade => ( $opt{cascade} ? 1 : 0 ), count => scalar(@targets) );
+    print( ( $disabled ? 'Disabled ' : 'Enabled ' )
+         . scalar(@targets) . " account(s).\n" ) unless $API_MODE;
+}
+
+# SM071 Phase 2: reassign an account (and its sub-tree, which follows
+# via managed_by) to a new parent. created_by is left as immutable
+# provenance; only managed_by changes.
+sub cmd_account_reassign {
+    my ( $user, $new_parent, %opt ) = @_;   # opt: actor
+    die "Usage: account-reassign USER --to NEWPARENT\n"
+        unless defined $user && length $user
+            && defined $new_parent && length $new_parent;
+    die "Cannot reassign an account to itself\n" if $user eq $new_parent;
+
+    my %users = read_users();
+    die "User '$user' not found\n"        unless exists $users{$user};
+    die "New parent '$new_parent' not found\n" unless exists $users{$new_parent};
+
+    my $all = read_settings();
+    _authorise_manage( $opt{actor}, $user, $all );
+
+    my %desc = map { $_ => 1 } descendants( $user, $all );
+    die "Cannot reassign '$user' under its own sub-tree (cycle)\n"
+        if $desc{$new_parent};
+
+    $all->{$user} ||= {};
+    $all->{$user}{managed_by} = $new_parent;   # created_by untouched
+    write_settings($all);
+    log_event( 'INFO', $user, 'account reassigned', to => $new_parent );
+    print "Reassigned '$user' to '$new_parent'.\n" unless $API_MODE;
+}
+
+# CLI wrappers: pull --actor / --cascade / --to out of positional args.
+sub cmd_account_disable_cli {
+    my ( @pos, $actor, $cascade );
+    my @a = @_;
+    while (@a) {
+        my $x = shift @a;
+        if    ( $x eq '--actor' )   { $actor   = shift @a }
+        elsif ( $x eq '--cascade' ) { $cascade = 1 }
+        else                        { push @pos, $x }
+    }
+    cmd_account_set_disabled( $pos[0], 1, actor => $actor, cascade => $cascade );
+}
+
+sub cmd_account_enable_cli {
+    my ( @pos, $actor, $cascade );
+    my @a = @_;
+    while (@a) {
+        my $x = shift @a;
+        if    ( $x eq '--actor' )   { $actor   = shift @a }
+        elsif ( $x eq '--cascade' ) { $cascade = 1 }
+        else                        { push @pos, $x }
+    }
+    cmd_account_set_disabled( $pos[0], 0, actor => $actor, cascade => $cascade );
+}
+
+sub cmd_account_reassign_cli {
+    my ( @pos, $actor, $to );
+    my @a = @_;
+    while (@a) {
+        my $x = shift @a;
+        if    ( $x eq '--actor' ) { $actor = shift @a }
+        elsif ( $x eq '--to' )    { $to    = shift @a }
+        else                      { push @pos, $x }
+    }
+    cmd_account_reassign( $pos[0], $to, actor => $actor );
 }
 
 sub parse_onoff {
@@ -692,6 +855,15 @@ Commands:
                               Create a sub-user owned by PARENT (records
                               provenance; PARENT needs create_sub_users,
                               and --create-subs needs delegate_sub_user_creation)
+  account-disable USER [--cascade] [--actor U]
+                              Disable USER (and its sub-tree with --cascade).
+                              A disabled account fails authentication.
+  account-enable USER [--cascade] [--actor U]
+                              Re-enable USER (and its sub-tree with --cascade).
+  account-reassign USER --to PARENT [--actor U]
+                              Move USER (and its sub-tree) to a new parent.
+                              --actor restricts to the actor's own sub-tree
+                              (omit for unrestricted operator use).
 
 Options:
   --docroot PATH              Path to web document root (required)

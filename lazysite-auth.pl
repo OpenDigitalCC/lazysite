@@ -143,6 +143,15 @@ sub handle_login {
     # never reaches it. A ui-disabled account never receives a cookie,
     # which keeps it out of the manager UI, the manager API, and
     # auth-protected pages alike.
+    # SM071 Phase 2: a disabled account fails authentication outright,
+    # ahead of the ui mechanism check. After credential verification, so
+    # it leaks nothing to a password guesser.
+    if ( account_disabled($username) ) {
+        log_event('WARN', $username, 'login refused: account disabled', ip => $ip);
+        redirect("$auth_redirect?error=1");
+        return;
+    }
+
     unless ( ui_enabled($username) ) {
         log_event('WARN', $username, 'interactive login disabled for account', ip => $ip);
         reject_ui_disabled();
@@ -208,6 +217,12 @@ sub handle_request {
 
                 if ( !defined $ts || $ts !~ /^\d+$/ || ( time() - $ts ) >= $COOKIE_MAX ) {
                     log_event('WARN', $uri, 'auth: cookie expired or malformed ts', ts => $ts // 'undef');
+                }
+                elsif ( account_disabled($user) ) {
+                    # SM071: reject an existing cookie for a now-disabled
+                    # account; no trusted headers are set, so the request is
+                    # treated as unauthenticated.
+                    log_event('WARN', $uri, 'auth: account disabled', user => $user);
                 }
                 else {
                     # C-1: these headers come from our HMAC-verified cookie,
@@ -280,6 +295,25 @@ sub ui_enabled {
     my $s = $data->{$username};
     return 1 unless ref $s eq 'HASH' && exists $s->{ui};
     return $s->{ui} ? 1 : 0;
+}
+
+# SM071 Phase 2: a disabled account fails authentication everywhere.
+# Read-only consumer of user-settings.json (written by
+# tools/lazysite-users.pl). Fails open (not disabled) on a missing or
+# corrupt file, matching ui_enabled, so a damaged file cannot lock the
+# operator out.
+sub account_disabled {
+    my ($username) = @_;
+    my $path = "$AUTH_DIR/user-settings.json";
+    return 0 unless -f $path;
+    open my $fh, '<:utf8', $path or return 0;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    require JSON::PP;
+    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
+    return 0 unless ref $data eq 'HASH';
+    my $s = $data->{$username};
+    return ( ref $s eq 'HASH' && $s->{disabled} ) ? 1 : 0;
 }
 
 sub load_user_groups {
