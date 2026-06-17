@@ -325,6 +325,10 @@ sub effective_settings {
         create_sub_users           => $s->{create_sub_users}           ? JSON::PP::true() : JSON::PP::false(),
         delegate_sub_user_creation => $s->{delegate_sub_user_creation} ? JSON::PP::true() : JSON::PP::false(),
         disabled                   => $s->{disabled}                   ? JSON::PP::true() : JSON::PP::false(),
+        # SM071 Phase 2: theme/layout/config management capabilities.
+        manage_themes  => $s->{manage_themes}  ? JSON::PP::true() : JSON::PP::false(),
+        manage_layouts => $s->{manage_layouts} ? JSON::PP::true() : JSON::PP::false(),
+        manage_config  => $s->{manage_config}  ? JSON::PP::true() : JSON::PP::false(),
     };
 }
 
@@ -368,7 +372,8 @@ sub cmd_set {
     # managed_by) are deliberately NOT settable here - they are stamped at
     # creation and changed only by account-create / account-reassign.
     my %bool_key = map { $_ => 1 }
-        qw(webdav ui create_sub_users delegate_sub_user_creation);
+        qw(webdav ui create_sub_users delegate_sub_user_creation
+           manage_themes manage_layouts manage_config);
 
     if ( $bool_key{$key} ) {
         my $bool = parse_onoff($value);
@@ -385,7 +390,8 @@ sub cmd_set {
     }
     else {
         die "Unknown setting '$key' (expected webdav, ui, dav_scope, "
-          . "create_sub_users, or delegate_sub_user_creation)\n";
+          . "create_sub_users, delegate_sub_user_creation, "
+          . "manage_themes, manage_layouts, or manage_config)\n";
     }
 
     write_settings($all);
@@ -846,9 +852,10 @@ Commands:
   group-remove USERNAME GROUP Remove user from a group
   groups                      List all groups and members
   settings USERNAME           Show a user's access-mechanism settings
-  set USERNAME KEY VALUE      Set webdav|ui|create_sub_users|
-                              delegate_sub_user_creation (on/off) or
-                              dav_scope (/path). (set ui off honours a
+  set USERNAME KEY VALUE      Set a boolean (on/off): webdav, ui,
+                              create_sub_users, delegate_sub_user_creation,
+                              manage_themes, manage_layouts, manage_config;
+                              or dav_scope (/path). (set ui off honours a
                               last-manager guard; pass --force to override)
   token USERNAME              Generate a strong credential (shown once)
   account-create USER PASS --by PARENT [--create-subs]
