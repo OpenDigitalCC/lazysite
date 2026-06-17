@@ -19,6 +19,12 @@ my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
 
+# SM071 Phase 1: theme/layout preview. preview-grant mints the signed
+# cookie the processor verifies; declared here (before dispatch runs) so
+# the action subs see initialised values.
+my $PREVIEW_COOKIE = 'lzs_preview';
+my $PREVIEW_TTL    = 3600;   # 1 hour
+
 my @BLOCKED_PATHS = (
     'lazysite/auth/.secret',
     'lazysite/forms/.secret',
@@ -283,6 +289,14 @@ elsif ( $action eq 'file-zip-download' ) {
     action_file_zip_download();
     exit 0;
 }
+elsif ( $action eq 'preview-grant' ) {
+    action_preview_grant( \%params );
+    exit 0;
+}
+elsif ( $action eq 'preview-clear' ) {
+    action_preview_clear();
+    exit 0;
+}
 else  { $result = { ok => 0, error => "Unknown action: $action" } }
 
 respond($result);
@@ -347,6 +361,97 @@ sub _const_eq {
     $r |= ord( substr( $a, $_, 1 ) ) ^ ord( substr( $b, $_, 1 ) )
         for 0 .. length($a) - 1;
     return $r == 0;
+}
+
+# --- SM071 Phase 1: theme/layout preview minting ---
+#
+# preview-grant mints the signed lzs_preview cookie the processor
+# verifies (see lazysite-processor.pl check_preview). Same primitive as
+# the auth cookie: payload ":" hmac_sha256_hex over lazysite/auth/.secret.
+# Manager-only (behind the manager auth + CSRF gate). A valid cookie tells
+# the processor to render that session against the named layout/theme,
+# uncacheable. Payload: v1:<exp-epoch>:<layout>:<theme>:<user>.
+
+# Read (or mint) the per-install auth secret - the same file the auth
+# wrapper and the processor's preview verifier use. Fail closed without
+# a CSPRNG.
+sub _preview_secret {
+    my $path = "$LAZYSITE_DIR/auth/.secret";
+    if ( -f $path && open my $fh, '<', $path ) {
+        chomp( my $s = <$fh> );
+        close $fh;
+        return $s if length $s;
+    }
+    make_path("$LAZYSITE_DIR/auth") unless -d "$LAZYSITE_DIR/auth";
+    open my $rand, '<:raw', '/dev/urandom'
+        or die "Cannot open /dev/urandom - no CSPRNG available: $!\n";
+    my $raw = '';
+    my $got = read( $rand, $raw, 32 );
+    close $rand;
+    die "Short read from /dev/urandom\n" unless $got == 32;
+    my $s = unpack( 'H*', $raw );
+    open my $wfh, '>', $path or die "Cannot write $path: $!\n";
+    chmod 0o600, $path;
+    print $wfh "$s\n";
+    close $wfh;
+    return $s;
+}
+
+sub action_preview_grant {
+    my ($p) = @_;
+    my $layout = $p->{layout} // '';
+    my $theme  = $p->{theme}  // '';
+
+    unless ( $layout =~ /^[A-Za-z0-9_-]+$/ ) {
+        respond({ ok => 0, error => 'Invalid or missing layout' });
+        return;
+    }
+    unless ( $theme =~ /^[A-Za-z0-9_-]*$/ ) {
+        respond({ ok => 0, error => 'Invalid theme' });
+        return;
+    }
+
+    # The layout must exist; a named theme must exist under it. An empty
+    # theme means "preview the layout, no theme styling". This stops the
+    # manager handing out a preview of something that cannot render.
+    unless ( -f "$LAZYSITE_DIR/layouts/$layout/layout.tt" ) {
+        respond({ ok => 0, error => "No such layout: $layout" });
+        return;
+    }
+    if ( length $theme
+        && !-f "$LAZYSITE_DIR/layouts/$layout/themes/$theme/theme.json" ) {
+        respond({ ok => 0, error => "No such theme: $theme" });
+        return;
+    }
+
+    # Cookie-safe user field (no CRLF / header injection); the processor
+    # records but does not re-validate it.
+    ( my $user = $auth_user ) =~ s/[^A-Za-z0-9_.\@-]//g;
+
+    my $exp     = time() + $PREVIEW_TTL;
+    my $payload = "v1:$exp:$layout:$theme:$user";
+    my $sig     = hmac_sha256_hex( $payload, _preview_secret() );
+    my $value   = "$payload:$sig";
+    my $secure  = $ENV{HTTPS} ? '; Secure' : '';
+
+    log_event( 'INFO', 'preview-grant', 'preview granted',
+        layout => $layout, theme => $theme, user => $auth_user );
+
+    binmode( STDOUT, ':utf8' );
+    print "Status: 200 OK\r\n";
+    print "Set-Cookie: $PREVIEW_COOKIE=$value; HttpOnly; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure\r\n";
+    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
+    print encode_json({ ok => 1, layout => $layout, theme => $theme, expires => $exp });
+}
+
+sub action_preview_clear {
+    my $secure = $ENV{HTTPS} ? '; Secure' : '';
+    log_event( 'INFO', 'preview-clear', 'preview cleared', user => $auth_user );
+    binmode( STDOUT, ':utf8' );
+    print "Status: 200 OK\r\n";
+    print "Set-Cookie: $PREVIEW_COOKIE=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
+    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
+    print encode_json({ ok => 1 });
 }
 
 # --- Response ---

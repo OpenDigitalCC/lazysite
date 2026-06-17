@@ -12,6 +12,7 @@ query_params:
 <div class="mg-card">
 <div class="mg-card-header">
 <span class="mg-card-title">Installed Themes</span>
+<button class="mg-btn mg-btn-outline mg-btn-sm" onclick="clearPreview()">Stop preview</button>
 </div>
 <p class="mg-card-subtitle" style="margin:0 8px 8px;">Activating a theme sets it as the site default for all visitors and clears the page cache.</p>
 <div id="theme-list">
@@ -147,6 +148,12 @@ function renderThemes(themes, active, activeLayout) {
              +  'installed for layout ' + escHtml(layoutName) + '</span>';
       }
       html += '<div class="mg-file-actions">';
+      // Preview is available for any non-active theme, including themes
+      // for a non-active layout - it renders the candidate (layout,theme)
+      // pair for this session only, without activating anything.
+      if (!isActive) {
+        html += '<button class="mg-btn mg-btn-sm" onclick="previewTheme(\'' + escHtml(t.name) + '\',\'' + escHtml(layoutName) + '\')">Preview</button>';
+      }
       if (isActiveLayout) {
         if (isActive) {
           html += '<button class="mg-btn mg-btn-sm" onclick="deactivateTheme()">Deactivate</button>';
@@ -188,6 +195,29 @@ function activateTheme(name) {
       if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('Theme "' + name + '" activated.');
       loadThemes();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+function previewTheme(name, layout) {
+  fetch(API + '?action=preview-grant&layout=' + encodeURIComponent(layout)
+            + '&theme=' + encodeURIComponent(name), { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus('Previewing "' + name + '" - opening the site in a new tab. '
+               + 'Use "Stop preview" to end the preview.');
+      window.open('/', '_blank');
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+function clearPreview() {
+  fetch(API + '?action=preview-clear', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) { showStatus(data.error, true); return; }
+      showStatus('Preview cleared. The site renders the active theme again.');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
