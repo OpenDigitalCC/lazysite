@@ -153,8 +153,23 @@ Edit `lazysite.conf`:
 
     theme: odcc
 
-Or use the quick switcher in the admin bar (visible to managers
-only, when more than one compatible theme is installed).
+Or click **Activate** next to a theme on the manager Themes page
+(`/manager/themes`), which sets it site-wide and clears the page cache.
+
+### Previewing a theme
+
+Before activating a theme for all visitors, a manager can preview it for
+their own session only. On the manager Themes page, click **Preview**
+next to any non-active theme - including themes built for a layout that
+is not currently active. The site opens in a new tab rendered against
+the previewed layout and theme; other visitors keep seeing the active
+theme.
+
+Preview is driven by a short-lived, signed `lzs_preview` cookie scoped
+to the previewing browser. Previewed pages are never cached and never
+served from cache, so a preview cannot leak into what anonymous visitors
+see. Click **Stop preview** to end it; the cookie also expires on its
+own after an hour.
 
 ### Theme name sanitisation
 
