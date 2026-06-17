@@ -131,6 +131,19 @@ conditional, lost-update-safe writes.
 | 403 | Account lacks `webdav`, the path is outside the account's `dav_scope`, the path is internal/blocked, or credentials arrived over plaintext without `dav_allow_insecure`. |
 | 412 | An `If-Match` / `If-None-Match` precondition failed. |
 | 413 | Upload exceeds `manager_upload_max_mb`. |
-| 423 | The target is locked (by another DAV client or the manager editor). |
-| 429 | Too many failed authentication attempts from this IP; wait and retry. |
+| 423 | The target is locked (by another DAV client or the manager editor). Carries `Retry-After`. |
+| 429 | Too many failed auth attempts from this IP, or the per-token write throttle is exhausted. Carries `Retry-After`. |
 | 503 | This account holds too many concurrent locks. |
+
+### Control API and the retry contract
+
+Theme and layout *management* (not file publishing) is driven through the
+control API - the manager API reached with the same token as
+`Authorization: Basic <user>:<lzs_ token>`. It is capability-gated and
+CSRF-exempt for token requests. See
+[Theme and layout publishing](/docs/features/configuration/theme-publishing).
+
+Writes are throttled per token (a token bucket shared with this endpoint).
+When throttled (`429`) or blocked by a lock (`423`), the response carries a
+`Retry-After` header: honour it, backing off with a little jitter rather
+than hammering.

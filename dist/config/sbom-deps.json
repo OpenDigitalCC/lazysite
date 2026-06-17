@@ -128,6 +128,14 @@
       "alpine_pkg": "perl-template-toolkit",
       "used_by": "Template Toolkit page rendering (processor core)"
     },
+    "Template::Parser": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libtemplate-perl",
+      "rhel_pkg": "perl-Template-Toolkit",
+      "alpine_pkg": "perl-template-toolkit",
+      "used_by": "SM071 layout.tt compile validation in the control API (ships with Template)"
+    },
     "Text::MultiMarkdown": {
       "core": false,
       "license": "BSD-3-Clause",

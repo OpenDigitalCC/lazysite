@@ -7,7 +7,7 @@
 | Location | `t/` |
 | Runner | `prove -r t/` |
 | Framework | `Test::More` (core Perl, no extra dependencies) |
-| Total | 883 tests across 61 files |
+| Total | 1034 tests across 75 files |
 
 The suite is pure core-Perl. If `perl` and `prove` are installed,
 the suite runs.
@@ -181,6 +181,27 @@ A `litmus` compliance run (`basic`, `copymove`, `locks` suites) is the
 recommended manual check before a release that touches the endpoint;
 the `props` suite is expected to report failures (no dead-property
 store — see the feature request, §2 exclusion 3).
+
+## Theme and layout management (SM071)
+
+- **Preview:** `t/integration/06-preview.t` (render override, no-store +
+  no cache write, tamper/expiry/malformed rejection) and
+  `t/unit/manager/09-preview-grant.t` (mint → verify → render chain, CSRF,
+  validation).
+- **Sub-user accounts:** `t/unit/users/07-sub-users.t` (provenance,
+  delegation gates), `08-account-management.t` (disable/enable, cascade,
+  ancestry authorisation, reassign, and disabled-denied-over-DAV),
+  `09-capabilities.t` (the manage_* flags), `10-token-lifecycle.t`
+  (pairing → exchange → rotate, expiry enforced over DAV),
+  `11-partner-create.t` (partner provisioning + onboarding brief).
+- **Control API and authoring:** `t/unit/dav/08-layout-authz.t`
+  (per-object active/inactive rule, capability gating, dav_scope
+  orthogonality), `09-manifest.t` (lzs:sha256 property),
+  `10-rate-limit.t` (write throttle + Retry-After, 423 Retry-After);
+  `t/unit/manager/10-control-api.t` (token auth, capability gating, CSRF
+  exemption, actor injection), `11-activate-backup.t` (validation, base
+  conflict, lock, snapshot), `12-layout-activate.t` (compile gate,
+  compatible pair), `13-rate-limit.t` (control-API 429).
 
 ## What is not covered
 

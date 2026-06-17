@@ -18,11 +18,21 @@ Keying
 
 ## Unreleased
 
-SM071 Phase 1 - theme/layout preview (`2e06318`, `3663f9d`, `85f28d9`)
-: Session-scoped, signed-cookie preview of an inactive layout or theme,
-  granted from the manager Themes page. Previewed pages are never cached
-  and never served from cache, so a preview cannot leak to other visitors.
-  The SM071 feature-request spec was added in `a61857b`.
+SM071 - WebDAV theme and layout management
+: Staged authoring of themes and layouts with a safe back-out, in three
+  phases. Phase 1: session-scoped, signed-cookie preview of an inactive
+  layout/theme (never cached, never leaked). Phase 2: a delegated sub-user
+  account model - provenance (`created_by`/`managed_by`), the
+  `create_sub_users` / `delegate_sub_user_creation` permissions,
+  disable/enable/cascade/reassign on ancestry, the `manage_themes` /
+  `manage_layouts` / `manage_config` capabilities, a pairing-key → rotating
+  access-token lifecycle, and `partner-create` with an onboarding brief.
+  Phase 3: per-object WebDAV authoring of `lazysite/layouts/**` (active
+  read-only), an `lzs:sha256` content-hash manifest, a token-authenticated
+  control API (capability-gated, CSRF-exempt), activate-with-backup
+  (validation, base-manifest 409, artifact lock, retention) for themes and
+  layouts, and a per-token rate limit with a `Retry-After` retry contract.
+  See `docs/feature-requests/SM071-webdav-theme-layout-management.md`.
 
 SM070 - WebDAV publishing endpoint (`8687562`)
 : RFC 4918 class 1 + 2 `/dav` endpoint, authenticated with HTTP Basic over

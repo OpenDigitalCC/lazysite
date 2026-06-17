@@ -450,6 +450,42 @@ uploads). A `dav_scope` turns a leaked deploy credential into a
 content-defacement problem rather than a site takeover, so a scope is
 recommended for every WebDAV-enabled account.
 
+## Theme and layout management (SM071)
+
+**Delegated sub-users.** Authority is two delegable permissions
+(`create_sub_users`, `delegate_sub_user_creation` - the right to pass
+the right on) plus a `created_by`/`managed_by` provenance tree. Account
+management (disable/enable/cascade/reassign) authorises on **ancestry**:
+the actor must be an ancestor of the target via `managed_by`. The
+manager API injects `actor=$auth_user` for these actions, so a manager
+can never manage accounts outside its own sub-tree; the operator
+(`local`, no `manager_groups`) is unrestricted.
+
+**Disabled and token expiry** are enforced in both `lazysite-auth.pl`
+(login refused, cookie rejected) and `lazysite-dav.pl` (403 / 401),
+ahead of the mechanism gate. Both fail open on a missing/corrupt
+settings file (matching `ui`), so a damaged file cannot lock the
+operator out.
+
+**Token lifecycle (model A).** A single-use, short-lived pairing key is
+exchanged for a short-lived access token that rotates. A leaked token
+self-expires; a spent pairing key is dead.
+
+**Control API.** The manager API accepts `Authorization: Basic
+<user>:<lzs_ token>`. Token requests are CSRF-exempt (no cookie, no
+ambient authority), are refused if they also carry a session cookie, and
+are confined to the control-API action set, each gated by capability
+(`manage_themes` / `manage_layouts` / `manage_config`). `config-set`
+writes an allowlist that excludes every access-widening key.
+
+**Per-object authoring.** Over WebDAV the active theme and active layout
+are read-only; only inactive artifacts are writable. Activation is the
+single validated, locked, backed-up transition; `dav_scope` does not gate
+theme/layout access.
+
+**Rate limiting.** A per-token volume bucket spans WebDAV and the control
+API; 429 (throttle) and 423 (locked) responses carry `Retry-After`.
+
 ## Known constraints
 
 **Session revocation.** No server-side session store. Individual
