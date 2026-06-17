@@ -86,6 +86,7 @@ my $DOCROOT     = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
 
 my $LAZYSITE_DIR  = "$DOCROOT/lazysite";
 my $LAZYSITE_URI  = "/lazysite";
+my $PREVIEW_COOKIE = 'lzs_preview';   # SM071: theme/layout preview cookie
 
 # F0003: lazysite.conf path override
 # Priority: --conf arg > LAZYSITE_CONF env var > default
@@ -476,6 +477,7 @@ sub serve_403 {
 # --- Payment ---
 
 my %PAYMENT_CONTEXT;  # populated by main(), read by render_content()
+my %PREVIEW_CONTEXT;  # SM071: preview layout/theme override, set by main()
 
 sub peek_payment {
     my ($path) = @_;
@@ -917,6 +919,21 @@ sub main {
     my $protected = $auth_protected || $payment_protected
                  || is_auth_surface($uri);
 
+    # SM071: theme/layout preview. A valid preview cookie overrides the
+    # active layout/theme for this request only (%PREVIEW_CONTEXT, merged
+    # in render_content) and forces the request uncacheable - never served
+    # from cache, never written to cache (NOCACHE), and no-store on output
+    # via the protected flag. Reset per request so a stale value cannot
+    # leak under a persistent interpreter.
+    %PREVIEW_CONTEXT = ();
+    if ( my $pv = check_preview() ) {
+        %PREVIEW_CONTEXT       = ( layout => $pv->{layout}, theme => $pv->{theme} );
+        $protected             = 1;
+        $ENV{LAZYSITE_NOCACHE} = '1';
+        log_event( 'INFO', $uri, 'preview render',
+            layout => $pv->{layout}, theme => $pv->{theme}, user => $pv->{user} );
+    }
+
     # Check if this page declares query_params and request has matching ones
     my $has_query_request = 0;
     my $declared_params   = undef;
@@ -1335,6 +1352,78 @@ sub parse_yaml_front_matter {
 }
 
 # --- Forms ---
+
+# --- SM071 Phase 1: theme/layout preview ---------------------------------
+#
+# A signed, short-lived cookie lets an authorised user render the live
+# site against an alternative layout/theme for their session only. The
+# cookie reuses the auth-cookie primitive (payload ":" hmac_sha256_hex),
+# signed with the shared auth secret at lazysite/auth/.secret. It is
+# minted elsewhere (manager UI / SM071 control API); here we only verify
+# it and, when valid, expose the override (%PREVIEW_CONTEXT) and force the
+# request uncacheable. Payload: v1:<exp-epoch>:<layout>:<theme>:<user>.
+
+# Read a single cookie value from the request. '' when absent.
+sub read_request_cookie {
+    my ($name) = @_;
+    my $cookies = $ENV{HTTP_COOKIE} // '';
+    for my $pair ( split /;\s*/, $cookies ) {
+        my ( $k, $v ) = split /=/, $pair, 2;
+        next unless defined $k && defined $v;
+        return $v if $k eq $name;
+    }
+    return '';
+}
+
+# Read-only load of the shared auth secret. Unlike the auth wrapper we
+# never create it here: if it is absent, no valid preview cookie can
+# exist, so verification fails closed.
+sub load_preview_secret {
+    my $path = "$LAZYSITE_DIR/auth/.secret";
+    return undef unless -f $path;
+    open my $fh, '<', $path or return undef;
+    chomp( my $s = <$fh> );
+    close $fh;
+    return ( defined $s && length $s ) ? $s : undef;
+}
+
+# Constant-time compare (mirrors lazysite-auth.pl const_eq).
+sub preview_const_eq {
+    my ( $a, $b ) = @_;
+    return 0 unless defined $a && defined $b && length $a == length $b;
+    my $diff = 0;
+    $diff |= ord( substr $a, $_, 1 ) ^ ord( substr $b, $_, 1 )
+        for 0 .. length($a) - 1;
+    return $diff == 0;
+}
+
+# Verify the preview cookie. Returns { layout, theme, user } when a
+# valid, unexpired cookie is present, else undef. No filesystem access
+# on the common (no-cookie) path.
+sub check_preview {
+    my $cookie = read_request_cookie($PREVIEW_COOKIE);
+    return undef unless length $cookie;
+
+    my ( $payload, $sig ) = $cookie =~ /^(.+):([a-f0-9]{64})$/;
+    return undef unless defined $payload && defined $sig;
+
+    my $secret = load_preview_secret();
+    return undef unless defined $secret;
+    return undef
+        unless preview_const_eq( $sig, hmac_sha256_hex( $payload, $secret ) );
+
+    my ( $ver, $exp, $layout, $theme, $user ) = split /:/, $payload, 5;
+    return undef unless defined $ver && $ver eq 'v1';
+    return undef unless defined $exp && $exp =~ /^\d+$/ && time() < $exp;
+    $layout //= '';
+    $theme  //= '';
+    return undef
+        unless length $layout
+        && $layout =~ /^[A-Za-z0-9_-]+$/
+        && $theme  =~ /^[A-Za-z0-9_-]*$/;
+
+    return { layout => $layout, theme => $theme, user => ( $user // '' ) };
+}
 
 sub load_form_secret {
     my $secret_path = "$LAZYSITE_DIR/forms/.secret";
@@ -2350,6 +2439,7 @@ sub render_content {
         %page_vars,
         %AUTH_CONTEXT,
         %PAYMENT_CONTEXT,
+        %PREVIEW_CONTEXT,   # SM071: preview override wins over site layout/theme
         page_title        => $meta->{title}            || '',
         page_subtitle     => $meta->{subtitle}         || '',
         page_modified     => $meta->{page_modified}    || '',
