@@ -252,8 +252,13 @@ sub handle_request {
         }
     }
 
-    # Exec processor
+    # Exec processor. LAZYSITE_PROCESSOR names the real CGI target (the
+    # dev server and the Apache cgi-bin->auth rewrite thread it through so
+    # the manager-api etc. run behind the wrapper). Apache may surface a
+    # mod_rewrite [E=] var REDIRECT_-prefixed after a passthrough, so accept
+    # either spelling before falling back to the processor.
     my $processor = $ENV{LAZYSITE_PROCESSOR}
+        // $ENV{REDIRECT_LAZYSITE_PROCESSOR}
         // "$DOCROOT/../cgi-bin/lazysite-processor.pl";
 
     exec $^X, $processor;
