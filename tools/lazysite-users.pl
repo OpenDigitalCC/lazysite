@@ -817,6 +817,10 @@ sub read_conf_value {
 sub _onboarding_brief {
     my ( $name, $key, $s ) = @_;
     my $base = read_conf_value('site_url') // 'https://YOUR-SITE';
+    # Resolve ${REQUEST_SCHEME}/${SERVER_NAME} - set in the CGI env when the
+    # brief is generated via the manager API; sensible fallbacks otherwise.
+    $base =~ s/\$\{REQUEST_SCHEME\}/$ENV{REQUEST_SCHEME} || 'https'/ge;
+    $base =~ s/\$\{SERVER_NAME\}/$ENV{SERVER_NAME} || $ENV{HTTP_HOST} || 'YOUR-SITE'/ge;
     my @caps;
     push @caps, 'publish content over WebDAV (`/dav`)' if $s->{webdav};
     push @caps, 'manage themes'             if $s->{manage_themes};

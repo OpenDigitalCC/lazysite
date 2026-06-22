@@ -12,7 +12,7 @@ query_params:
 <div class="mg-card">
 <div class="mg-card-header">
 <span class="mg-card-title">Installed Themes</span>
-<button class="mg-btn mg-btn-outline mg-btn-sm" onclick="clearPreview()">Stop preview</button>
+<button id="lzs-stop-preview" class="mg-btn mg-btn-outline mg-btn-sm" onclick="clearPreview()" style="display:none">Stop preview</button>
 </div>
 <p class="mg-card-subtitle" style="margin:0 8px 8px;">Activating a theme sets it as the site default for all visitors and clears the page cache.</p>
 <div id="theme-list">
@@ -38,7 +38,7 @@ query_params:
 <span class="mg-card-title">Install from Releases</span>
 </div>
 <div class="mg-card-body">
-<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Install themes from a published release of the layouts repository. The release repo must use the D013 nested shape (themes at <code>layouts/LAYOUT/themes/THEME/</code>). Each install pulls every valid theme in the release.</p>
+<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Installs the standard theme pack from the layouts repo shown above. Pick a release and it pulls in the themes it contains. Leave the default repo, or set your own here. See the <a href="/docs/features/configuration/remote-layouts">docs</a> for building a custom theme pack.</p>
 <div class="mg-form-row mg-config-field" style="margin-bottom:0.75rem;">
 <label for="layouts-repo-input">Layouts repo</label>
 <input type="text" id="layouts-repo-input" placeholder="OpenDigitalCC/lazysite-layouts" style="flex:1;">
@@ -207,6 +207,7 @@ function previewTheme(name, layout) {
       if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('Previewing "' + name + '" - opening the site in a new tab. '
                + 'Use "Stop preview" to end the preview.');
+      syncStopPreview();
       window.open('/', '_blank');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
@@ -218,6 +219,7 @@ function clearPreview() {
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
       showStatus('Preview cleared. The site renders the active theme again.');
+      syncStopPreview();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
@@ -519,6 +521,16 @@ function installRelease(tag) {
     });
 }
 
+// Show "Stop preview" only when a preview is actually active. The manager
+// sets a non-HttpOnly lzs_preview_active marker cookie alongside the signed
+// (HttpOnly) preview cookie, so JS can detect it.
+function syncStopPreview() {
+  var on = /(?:^|;\s*)lzs_preview_active=1(?:;|$)/.test(document.cookie);
+  var btn = document.getElementById('lzs-stop-preview');
+  if (btn) btn.style.display = on ? '' : 'none';
+}
+
 loadThemes();
 loadLayoutsRepo();
+syncStopPreview();
 </script>

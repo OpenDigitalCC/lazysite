@@ -18,6 +18,9 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
         name        => 'Built-in Auth',
         description => 'Cookie-based authentication with user and group management',
         version     => '1.0',
+        # Wired in the web-server config (FallbackResource), not toggled via
+        # the plugins list - the manager renders core plugins as "always on".
+        core        => 1,
         config_file => '',
         config_keys => [qw(auth_default auth_redirect auth_header_user
                            auth_header_name auth_header_email auth_header_groups)],

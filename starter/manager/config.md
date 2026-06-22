@@ -31,6 +31,12 @@ var SITE_SCHEMA = [
     default: 'My Site' },
   { key: 'site_url',       label: 'Site URL',              type: 'text',
     default: '${REQUEST_SCHEME}://${SERVER_NAME}' },
+  // Layouts repo first: layout + theme are installed FROM it, so it's the
+  // prerequisite. Read-only here (edit on /manager/themes); defaults to the
+  // standard pack so the release browser works with no setup.
+  { key: 'layouts_repo',   label: 'Layouts repo',          type: 'readonly_with_link',
+    default: 'OpenDigitalCC/lazysite-layouts', link_href: '/manager/themes',
+    link_label: 'Edit on Themes' },
   // SM044: layout + theme are dynamically-populated dropdowns.
   // Options come from ?action=layouts-available and
   // ?action=themes-for-layout. The layout change event re-fetches
@@ -39,12 +45,6 @@ var SITE_SCHEMA = [
     default: '' },
   { key: 'theme',          label: 'Active theme',          type: 'dropdown_themes_for_active_layout',
     default: '', depends_on: 'layout' },
-  // SM068: read-only display; editing happens on /manager/themes
-  // (via layouts-repo-get/set). Shown here so operators see the
-  // current value in the same place as layout/theme.
-  { key: 'layouts_repo',   label: 'Layouts repo',          type: 'readonly_with_link',
-    default: '', link_href: '/manager/themes',
-    link_label: 'Edit on Themes' },
   { key: 'nav_file',       label: 'Navigation file',       type: 'text',
     default: 'lazysite/nav.conf' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'select',
@@ -214,7 +214,11 @@ function renderSiteForm(values) {
       // link that points at f.link_href. The field is NOT
       // part of the submitted form — no <input name>, so
       // plugin-save doesn't see it.
-      var disp = v ? esc(v) : '<em class="mg-empty">(not set)</em>';
+      // Show the effective value: the configured one, or the field default
+      // (e.g. the standard layouts repo) so it never reads "(not set)" when
+      // a sensible default is in force.
+      var eff = v || f.default;
+      var disp = eff ? esc(eff) : '<em class="mg-empty">(not set)</em>';
       html += '<span class="mg-readonly-value" '
            +  'style="flex:1;color:var(--mg-text);">'
            +  disp + '</span>';
@@ -335,9 +339,15 @@ function renderPluginRegistry(plugins) {
   }
   var html = '<div class="mg-plugin-registry">';
   plugins.forEach(function(p) {
-    var checked = p._enabled ? ' checked' : '';
     html += '<label class="mg-plugin-row" data-script="' + esc(p._script) + '">';
-    html += '<input type="checkbox"' + checked + ' onchange="togglePlugin(this,\'' + esc(p._script) + '\',\'' + esc(p.name) + '\')">';
+    if (p.core) {
+      // Core plugins (e.g. Built-in Auth) are wired in the web-server config,
+      // not toggled here - show an "always on" marker instead of a checkbox.
+      html += '<span class="mg-badge enabled" title="Always on - wired in the web server config, managed via its own page">core</span>';
+    } else {
+      var checked = p._enabled ? ' checked' : '';
+      html += '<input type="checkbox"' + checked + ' onchange="togglePlugin(this,\'' + esc(p._script) + '\',\'' + esc(p.name) + '\')">';
+    }
     html += '<span class="mg-plugin-row-name">' + esc(p.name) + '</span>';
     html += '<span class="mg-plugin-row-desc">' + esc(p.description || '') + '</span>';
     html += '<span class="mg-plugin-row-path">' + esc(p._script) + '</span>';

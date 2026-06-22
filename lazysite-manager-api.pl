@@ -516,6 +516,9 @@ sub action_preview_grant {
     binmode( STDOUT, ':utf8' );
     print "Status: 200 OK\r\n";
     print "Set-Cookie: $PREVIEW_COOKIE=$value; HttpOnly; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure\r\n";
+    # Non-HttpOnly UI marker so the manager can show/hide "Stop preview".
+    # Carries no auth value - the signed HttpOnly cookie above is the gate.
+    print "Set-Cookie: ${PREVIEW_COOKIE}_active=1; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json({ ok => 1, layout => $layout, theme => $theme, expires => $exp });
 }
@@ -526,6 +529,7 @@ sub action_preview_clear {
     binmode( STDOUT, ':utf8' );
     print "Status: 200 OK\r\n";
     print "Set-Cookie: $PREVIEW_COOKIE=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
+    print "Set-Cookie: ${PREVIEW_COOKIE}_active=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json({ ok => 1 });
 }
@@ -1847,14 +1851,17 @@ sub _slurp_bytes {
 
 sub _layouts_repo {
     my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
-    return undef unless -f $conf_path;
-    open my $fh, '<', $conf_path or return undef;
     my $repo;
-    while (<$fh>) {
-        if (/^layouts_repo\s*:\s*(\S+)/) { $repo = $1; last }
+    if ( -f $conf_path && open my $fh, '<', $conf_path ) {
+        while (<$fh>) {
+            if (/^layouts_repo\s*:\s*(\S+)/) { $repo = $1; last }
+        }
+        close $fh;
     }
-    close $fh;
-    return $repo;
+    # Sensible default so the release browser works out of the box; a
+    # layouts_repo key in lazysite.conf overrides it for a custom repo.
+    return ( defined $repo && length $repo ) ? $repo
+                                             : 'OpenDigitalCC/lazysite-layouts';
 }
 
 sub action_layouts_releases {
