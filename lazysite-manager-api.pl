@@ -2609,16 +2609,21 @@ sub action_rotate_auth_secret {
 sub resolve_plugin_script {
     my ($script) = @_;
     return unless $script;
-    # Check relative to docroot parent (installed layout)
-    my $full = "$DOCROOT/../$script";
-    return $full if -f $full;
-    # Check relative to docroot
-    $full = "$DOCROOT/$script";
-    return $full if -f $full;
-    # Check basename at docroot parent (dev mode - scripts at repo root)
     my $base = basename($script);
-    $full = "$DOCROOT/../$base";
-    return $full if -f $full;
+    # In order: installed layout (plugins/...), under docroot, core scripts
+    # in cgi-bin/ (real install) by path then basename, and finally the
+    # repo/dev layout where scripts sit at the tree root. The cgi-bin cases
+    # are what let plugin-read/save find lazysite-processor.pl (the site
+    # config descriptor) on a deployed site, not just the dev layout.
+    for my $cand (
+        "$DOCROOT/../$script",
+        "$DOCROOT/$script",
+        "$DOCROOT/../cgi-bin/$script",
+        "$DOCROOT/../cgi-bin/$base",
+        "$DOCROOT/../$base",
+    ) {
+        return $cand if -f $cand;
+    }
     return;
 }
 
