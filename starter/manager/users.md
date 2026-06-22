@@ -159,92 +159,103 @@ function cap(user, key, on, label) {
     ' onchange="toggleSetting(\'' + user + '\',\'' + key + '\',this)"> ' + label + '</label>';
 }
 
+// Wrap a card section in a bounded box with a heading.
+function sec(title, inner) {
+  return '<div class="mg-box"><div class="mg-sec">' + title + '</div>' + inner + '</div>';
+}
+
 function renderUserRow(row) {
   var u = row.user, s = row.settings || {}, ue = escHtml(u);
   var webdav   = !!s.webdav;
   var ui       = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
   var disabled = !!s.disabled;
   var scope    = s.dav_scope || '';
-  var type     = ui ? 'human' : 'automated';
-  var status   = disabled ? '<span class="mg-tag mg-tag-off">disabled</span>' : '<span class="mg-tag mg-tag-on">enabled</span>';
+  var status   = disabled ? '<span class="mg-tag mg-tag-off">disabled</span>'
+                          : '<span class="mg-tag mg-tag-on">enabled</span>';
+  // "automated" == no interactive login (the Access > Interactive login box
+  // is off); a normal interactive account gets no tag. Same language as the
+  // checkbox, so the summary and the control agree.
+  var autoTag  = ui ? '' : '<span class="mg-tag mg-tag-auto">automated</span> &middot; ';
   var by       = s.created_by ? ' &middot; by ' + escHtml(s.created_by) : '';
 
-  var h = '<details class="mg-acc">';
-  h += '<summary><span class="mg-acc-name">' + ue + '</span>' +
-       '<span class="mg-acc-tags">' + type + ' &middot; ' + status + by + '</span></summary>';
-  h += '<div class="mg-acc-body">';
+  var h = '<details class="mg-acc"><summary>' +
+    '<span class="mg-acc-name">' + ue + '</span>' +
+    '<span class="mg-acc-tags">' + autoTag + status + by + '</span></summary>' +
+    '<div class="mg-acc-body">';
 
   // --- Access ---
-  h += '<div class="mg-sec">Access</div><div class="mg-checks">';
-  h += cap(ue, 'ui', ui, 'Interactive login');
-  h += cap(ue, 'webdav', webdav, 'WebDAV');
-  h += cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes');
-  h += cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts');
-  h += cap(ue, 'manage_config', !!s.manage_config, 'Manage config');
-  h += cap(ue, 'create_sub_users', !!s.create_sub_users, 'Create sub-users');
-  h += cap(ue, 'delegate_sub_user_creation', !!s.delegate_sub_user_creation, 'Delegate sub-users');
-  h += '</div>';
+  var acc = '<div class="mg-checks">';
+  acc += cap(ue, 'ui', ui, 'Interactive login');
+  acc += cap(ue, 'webdav', webdav, 'WebDAV');
+  acc += cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes');
+  acc += cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts');
+  acc += cap(ue, 'manage_config', !!s.manage_config, 'Manage config');
+  acc += cap(ue, 'create_sub_users', !!s.create_sub_users, 'Create sub-users');
+  acc += cap(ue, 'delegate_sub_user_creation', !!s.delegate_sub_user_creation, 'Delegate sub-users');
+  acc += '</div>';
+  h += sec('Access', acc);
 
   // --- Groups ---
   var mine = groupsForUser(u);
-  h += '<div class="mg-sec">Groups</div><div class="mg-checks">';
   var gnames = Object.keys(allGroups).sort();
-  if (gnames.length) {
-    h += gnames.map(function(g) {
-      var on = mine.indexOf(g) !== -1;
-      return '<label class="mg-chk"><input type="checkbox"' + (on ? ' checked' : '') +
-        ' onchange="toggleGroup(\'' + ue + '\',\'' + escHtml(g) + '\',this)"> ' + escHtml(g) + '</label>';
-    }).join('');
-  } else { h += '<span class="mg-empty">No groups yet.</span>'; }
-  h += '</div>';
+  var grp = '<div class="mg-checks">';
+  grp += gnames.length ? gnames.map(function(g) {
+    var on = mine.indexOf(g) !== -1;
+    return '<label class="mg-chk"><input type="checkbox"' + (on ? ' checked' : '') +
+      ' onchange="toggleGroup(\'' + ue + '\',\'' + escHtml(g) + '\',this)"> ' + escHtml(g) + '</label>';
+  }).join('') : '<span class="mg-empty">No groups yet.</span>';
+  grp += '</div>';
+  h += sec('Groups', grp);
 
   // --- Credentials ---
-  h += '<div class="mg-sec">Credentials</div>';
-  h += '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
-       '<input type="password" class="mg-inp" id="pw-' + ue + '" placeholder="new password">' +
-       '<button class="mg-btn mg-btn-sm" onclick="savePassword(\'' + ue + '\')">Save</button>' +
-       '<span class="mg-inline-msg" id="pwmsg-' + ue + '"></span></div>';
-  h += '<div class="mg-line"><span class="mg-line-lbl">Token</span>' +
-       '<button class="mg-btn mg-btn-sm" onclick="generateCredential(\'' + ue + '\')">Generate credential</button>' +
-       '<span class="mg-help" title="Mints a strong, single-use machine credential (prefix lzs_), shown once. Use it as the password for WebDAV / API clients. Replaces any existing password or token.">&#9432;</span></div>';
-  h += '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>';
+  var cred = '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
+    '<input type="password" class="mg-inp" id="pw-' + ue + '" placeholder="new password">' +
+    '<button class="mg-btn mg-btn-sm" onclick="savePassword(\'' + ue + '\')">Save</button>' +
+    '<span class="mg-inline-msg" id="pwmsg-' + ue + '"></span></div>';
+  cred += '<div class="mg-line"><span class="mg-line-lbl">Token</span>' +
+    '<button class="mg-btn mg-btn-sm" onclick="generateCredential(\'' + ue + '\')">Generate credential</button>' +
+    '<span class="mg-help" title="Mints a strong machine credential (prefix lzs_), shown once. Use it as the WebDAV / API password: it verifies far faster than the account password and is revoked by regenerating.">&#9432;</span></div>';
+  cred += '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>';
+  h += sec('Credentials', cred);
 
   // --- WebDAV (publishing accounts only) ---
   if (webdav) {
-    var davUrl = DAV_BASE + (scope ? scope.replace(/\/+$/,'') : '');
-    h += '<div class="mg-sec">WebDAV</div>';
-    h += '<div class="mg-line"><span class="mg-line-lbl">URL</span>' +
-         '<code class="mg-code" id="dav-' + ue + '">' + escHtml(davUrl) + '</code>' +
-         '<button class="mg-btn mg-btn-sm" onclick="copyText(\'dav-' + ue + '\')">Copy</button></div>';
-    h += '<div class="mg-line"><span class="mg-line-lbl">Username</span><code class="mg-code">' + ue + '</code>' +
-         ' <span class="mg-muted">password = this account\'s password or a generated token</span></div>';
-    h += '<div class="mg-line"><span class="mg-line-lbl">Scope</span>' +
-         '<input type="text" class="mg-inp" id="scope-' + ue + '" value="' + escHtml(scope) + '" placeholder="/ (whole site)">' +
-         '<button class="mg-btn mg-btn-sm" onclick="setUserScope(\'' + ue + '\')">Set</button>' +
-         '<span class="mg-help" title="Limits this account\'s WebDAV writes to a path prefix under the docroot. Empty = whole site (minus denied paths).">&#9432;</span></div>';
+    var davUrl = DAV_BASE + (scope ? scope.replace(/\/+$/, '') : '');
+    var wd = '<div class="mg-line"><span class="mg-line-lbl">URL</span>' +
+      '<code class="mg-code" id="dav-' + ue + '">' + escHtml(davUrl) + '</code>' +
+      '<button class="mg-btn mg-btn-sm" onclick="copyText(\'dav-' + ue + '\')">Copy</button></div>';
+    wd += '<div class="mg-line"><span class="mg-line-lbl">Username</span><code class="mg-code">' + ue + '</code></div>';
+    wd += '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
+      '<span class="mg-muted">use a <strong>Generate credential</strong> token (above) &mdash; far faster than the account password</span></div>';
+    wd += '<div class="mg-line"><span class="mg-line-lbl">Scope</span>' +
+      '<input type="text" class="mg-inp" id="scope-' + ue + '" value="' + escHtml(scope) + '" placeholder="/ (whole site)">' +
+      '<button class="mg-btn mg-btn-sm" onclick="setUserScope(\'' + ue + '\')">Set</button>' +
+      '<span class="mg-help" title="Limits this account\'s WebDAV writes to a path prefix under the docroot. Empty = whole site (minus denied paths).">&#9432;</span></div>';
+    h += sec('WebDAV', wd);
   }
 
   // --- AI partner onboarding (publishing accounts only) ---
   if (webdav) {
-    h += '<div class="mg-sec">AI partner onboarding</div>';
-    h += '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showOnboarding(\'' + ue + '\')">Generate brief</button>' +
-         '<span class="mg-muted">single-use pairing key &rarr; access token; copy-paste to your partner</span></div>';
-    h += '<div id="onb-' + ue + '" style="display:none"></div>';
+    var ob = '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showOnboarding(\'' + ue + '\')">Generate brief</button>' +
+      '<span class="mg-muted">single-use pairing key &rarr; access token; copy-paste to your partner</span></div>' +
+      '<div id="onb-' + ue + '" style="display:none"></div>';
+    h += sec('AI partner onboarding', ob);
   }
 
   // --- Account ---
-  h += '<div class="mg-sec">Account</div>';
-  h += '<div class="mg-line">';
-  h += '<button class="mg-btn mg-btn-sm" onclick="toggleDisabled(\'' + ue + '\',' + (disabled ? 'true' : 'false') + ')">' +
-       (disabled ? 'Enable' : 'Disable') + '</button>';
-  h += '<input type="text" class="mg-inp" id="reassign-' + ue + '" placeholder="reassign to parent" value="' +
-       escHtml(s.managed_by || s.created_by || '') + '">';
-  h += '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Reassign</button>';
-  h += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + ue + '\')">Delete</button>';
-  h += '</div>';
-  var prov = s.created_by ? ('created by ' + escHtml(s.created_by) +
-             (s.managed_by && s.managed_by !== s.created_by ? ', managed by ' + escHtml(s.managed_by) : '')) : '';
-  if (prov) h += '<div class="mg-prov">' + prov + '</div>';
+  var ac = '<div class="mg-line">' +
+    '<button class="mg-btn mg-btn-sm" onclick="toggleDisabled(\'' + ue + '\',' + (disabled ? 'true' : 'false') + ')">' +
+    (disabled ? 'Enable' : 'Disable') + '</button>' +
+    '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + ue + '\')">Delete</button></div>';
+  // Owner + reassign only for sub-users (accounts with a recorded parent).
+  if (s.created_by) {
+    var owner = s.managed_by || s.created_by;
+    ac += '<div class="mg-line"><span class="mg-line-lbl">Owner</span>' +
+      '<code class="mg-code">' + escHtml(owner) + '</code>' +
+      '<input type="text" class="mg-inp" id="reassign-' + ue + '" placeholder="reassign to a new parent">' +
+      '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Reassign</button></div>';
+  }
+  h += sec('Account', ac);
 
   h += '</div></details>';
   return h;
@@ -548,6 +559,10 @@ loadUsers();
 .mg-tag { font-size:0.72rem; padding:0.05rem 0.35rem; border-radius:3px; }
 .mg-tag-on  { color:var(--mg-success,#2a7); }
 .mg-tag-off { color:var(--mg-danger,#c33); }
+.mg-tag-auto { color:var(--mg-text-muted,#888); }
+.mg-box { border:1px solid var(--mg-border,#e5e5e5); border-radius:4px;
+  padding:0.35rem 0.6rem 0.6rem; margin:0.5rem 0; background:var(--mg-bg,#fff); }
+.mg-box .mg-sec { margin-top:0.2rem; }
 .mg-new-group-row { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;
   border-top:1px solid var(--mg-border,#e5e5e5); }
 </style>
