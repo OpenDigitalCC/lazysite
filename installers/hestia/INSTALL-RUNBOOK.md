@@ -82,6 +82,29 @@ the passthrough. This rule belongs in BOTH `lazysite-app.tpl` and
 - `nginx.conf` already sets `client_max_body_size 1024m;` globally — do
   NOT add another in conf.d (duplicate directive = nginx won't start).
 
+## One-command deploy (recommended)
+
+Once the `lazysite-app` template is on the host (the three files under
+`…/web/apache2/php-fpm/`, plus `a2enmod headers rewrite`), a whole domain
+install/upgrade is ONE command, run as root from an unpacked release:
+
+```
+sudo bash STAGE/installers/hestia/lazysite-hestia-deploy.sh USER DOMAIN STAGE
+# e.g. sudo bash /tmp/lazysite-0.3.6/installers/hestia/lazysite-hestia-deploy.sh \
+#        ispadmin community.dhcf.eu /tmp/lazysite-0.3.6
+```
+
+It applies the template, runs `install.pl` as the domain user, sets the
+www-data docroot perms (`2775` dirs / `664` files, `2770` on auth/forms),
+and drops the Hestia `index.html` stub. On a NEW install it prints the two
+remaining first-run touches (`manager_groups`/`webdav_enabled` in
+`lazysite.conf`, and the manager password).
+
+This is the fix for "`install.pl` as the domain user can't write the
+0551-locked domain root or chgrp to www-data": **run the whole thing as
+root, once.** The manual steps below are the breakdown of what the wrapper
+does (and the fallback if you're not using it).
+
 ## Procedure
 
 1. Create the template (as `sysadmin`) in the **php-fpm backend** dir:
@@ -121,11 +144,9 @@ ships ONE line: `manager:` — user `manager` with an EMPTY password
 (it is in the `lazysite-admins` and `members` groups via
 `groups.example`). There is no default password to "know".
 
-- `list` shows `manager`, but `passwd manager …` fails with
-  "User 'manager' not found" — because `passwd` tests `unless
-  $users{$user}` and an empty hash is falsey. Use `add manager '<pass>'`
-  instead (the same falsey check means `add` does not see it as
-  existing, so it sets the hash).
+- `passwd manager '<pass>'` sets the password in place. (It used to fail
+  "User not found" because `passwd` tested the truthiness of the empty
+  hash; now fixed to test existence. `add manager '<pass>'` also works.)
 - An empty-password account can only sign in from localhost
   (127.0.0.1/::1); a remote browser login is refused. So the correct
   first-run step is: operator sets the manager password with the users

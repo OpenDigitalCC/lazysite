@@ -162,4 +162,13 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
     ok( !defined settings( $d, 'bot' )->{comment}, 'empty comment clears it' );
 }
 
+# --- passwd works on a seeded empty-password account -------------------
+{
+    my $d = fresh_docroot();
+    open my $fh, ">", "$d/lazysite/auth/users" or die $!;
+    print $fh "manager:\n"; close $fh;
+    my $r = cli( $d, "passwd", "manager", "newpass" );
+    is( $r->{code}, 0, "passwd succeeds on an empty-password account" );
+}
+
 done_testing();

@@ -259,7 +259,9 @@ sub cmd_passwd {
     die "Username and password required\n" unless $user && $pass;
 
     my %users = read_users();
-    die "User '$user' not found\n" unless $users{$user};
+    # exists, not truthiness: a seeded account with an empty password hash
+    # ('user:') is present but falsey - passwd must still set its password.
+    die "User '$user' not found\n" unless exists $users{$user};
 
     $users{$user} = hash_password($pass);
     write_users(%users);

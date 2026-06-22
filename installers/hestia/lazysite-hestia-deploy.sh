@@ -1,0 +1,54 @@
+#!/bin/bash
+# lazysite-hestia-deploy USER DOMAIN [STAGE_DIR]
+#
+# One-command lazysite install/upgrade for a HestiaCP domain. RUN AS ROOT.
+# It folds the whole INSTALL-RUNBOOK into a single invocation:
+#   1. apply the lazysite-app web template (its rebuild hook, as root,
+#      creates the plugins/ and tools/ children of the 0551-locked domain
+#      root and sets the base www-data docroot perms);
+#   2. run install.pl as the domain user to deploy/upgrade the code;
+#   3. set the directory layout + permissions a www-data CGI needs (the
+#      reason a plain `install.pl` as the domain user can't do it alone -
+#      it can't write the locked domain root or chgrp to www-data);
+#   4. drop the Hestia placeholder index.html so index.md renders.
+#
+# STAGE_DIR is the unpacked release (defaults to this script's dir, so it
+# works straight from inside an extracted tarball: installers/hestia/..).
+set -e
+
+U="$1"; DOMAIN="$2"
+STAGE="${3:-$(cd "$(dirname "$0")/../.." && pwd)}"
+[ -n "$U" ] && [ -n "$DOMAIN" ] || { echo "usage: $0 USER DOMAIN [STAGE_DIR]" >&2; exit 2; }
+[ "$(id -u)" = 0 ] || { echo "$0: must run as root (it sets ownership/perms)" >&2; exit 1; }
+[ -f "$STAGE/install.sh" ] || { echo "$0: no install.sh under STAGE '$STAGE'" >&2; exit 2; }
+
+HESTIA=/usr/local/hestia
+DOM="/home/$U/web/$DOMAIN"
+DOC="$DOM/public_html"
+CGI="$DOM/cgi-bin"
+[ -d "$DOC" ] || { echo "$0: no docroot at $DOC" >&2; exit 1; }
+
+echo "==> applying lazysite-app web template"
+"$HESTIA/bin/v-change-web-domain-tpl" "$U" "$DOMAIN" lazysite-app yes
+
+echo "==> install.pl (as $U)"
+sudo -u "$U" bash "$STAGE/install.sh" --docroot "$DOC" --cgibin "$CGI"
+
+echo "==> permissions (CGI runs as www-data)"
+chown -R "$U":www-data "$DOC"
+find "$DOC" -type d -exec chmod 2775 {} \;
+find "$DOC" -type f -exec chmod 664  {} \;
+[ -d "$DOC/lazysite/auth" ]  && chmod 2770 "$DOC/lazysite/auth"
+[ -d "$DOC/lazysite/forms" ] && chmod 2770 "$DOC/lazysite/forms"
+
+# lazysite renders index.html from index.md; remove any stub so it's not
+# shadowed (a lazysite site uses index.md, and lazysite regenerates the html).
+[ -f "$DOC/index.html" ] && [ -f "$DOC/index.md" ] && rm -f "$DOC/index.html"
+
+echo
+echo "Deployed lazysite to $DOMAIN."
+if ! grep -q '^manager_groups:' "$DOC/lazysite/lazysite.conf" 2>/dev/null; then
+  echo "First-time setup (new install):"
+  echo "  printf 'manager_groups: lazysite-admins\\nwebdav_enabled: yes\\n' >> $DOC/lazysite/lazysite.conf"
+  echo "  sudo -u $U perl $DOM/tools/lazysite-users.pl --docroot $DOC passwd manager 'STRONG-PASS'"
+fi
