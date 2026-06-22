@@ -126,4 +126,40 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
     ok( $s->{create_sub_users}, 'API: delegated permission granted' );
 }
 
+# --- create a sub-user owned by a managed descendant (not just self) ---
+{
+    my $d = fresh_docroot();
+    cli( $d, 'add', 'mgr', 'pw' );
+    cli( $d, 'set', 'mgr', 'create_sub_users', 'on' );
+    cli( $d, 'set', 'mgr', 'delegate_sub_user_creation', 'on' );
+
+    my $r1 = api( $d, { action => 'account-create', username => 'child', password => 'pw',
+                        created_by => 'mgr', actor => 'mgr', create_sub_users => 1 } );
+    ok( $r1->{ok}, 'mgr creates child under itself' );
+
+    my $r2 = api( $d, { action => 'account-create', username => 'gkid', password => 'pw',
+                        created_by => 'child', actor => 'mgr' } );
+    ok( $r2->{ok}, 'mgr creates a sub-user owned by its descendant child' );
+    is( settings( $d, 'gkid' )->{created_by}, 'child', 'owned by the chosen parent' );
+
+    cli( $d, 'add', 'other', 'pw' );
+    cli( $d, 'set', 'other', 'create_sub_users', 'on' );
+    my $r3 = api( $d, { action => 'account-create', username => 'nope', password => 'pw',
+                        created_by => 'child', actor => 'other' } );
+    ok( !$r3->{ok}, 'an unrelated actor cannot create under child' );
+    like( $r3->{error} // $r3->{_raw} // '', qr/[Nn]ot authorised/, 'ancestry enforced' );
+}
+
+# --- comment annotation round-trips ------------------------------------
+{
+    my $d = fresh_docroot();
+    cli( $d, 'add', 'bot', 'pw' );
+    api( $d, { action => 'settings-set', username => 'bot', key => 'comment',
+               value => "Claude dav publisher" } );
+    is( settings( $d, 'bot' )->{comment}, 'Claude dav publisher',
+        'comment stored and returned' );
+    api( $d, { action => 'settings-set', username => 'bot', key => 'comment', value => '' } );
+    ok( !defined settings( $d, 'bot' )->{comment}, 'empty comment clears it' );
+}
+
 done_testing();

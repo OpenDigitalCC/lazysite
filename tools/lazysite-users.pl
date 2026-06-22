@@ -147,6 +147,7 @@ if ( $API_MODE ) {
         elsif ( $action eq 'account-create' ) {
             cmd_account_create( $req->{username}, $req->{password},
                 created_by  => $req->{created_by},
+                actor       => $req->{actor},
                 create_subs => ( $req->{create_sub_users} ? 1 : 0 ) );
             $result = { ok => 1, message => "Sub-user created" };
         }
@@ -378,6 +379,8 @@ sub effective_settings {
         # SM071 Phase 2: access-token expiry (null = no expiry, e.g. a
         # human password or an operator-minted permanent credential).
         token_expires_at => $s->{token_expires_at},
+        # Free-text operator annotation (what this account is for).
+        comment => $s->{comment},
     };
 }
 
@@ -437,8 +440,17 @@ sub cmd_set {
         if ( defined $scope ) { $all->{$user}{dav_scope} = $scope }
         else                  { delete $all->{$user}{dav_scope} }
     }
+    elsif ( $key eq 'comment' ) {
+        # Free-text operator annotation (single line, length-capped).
+        my $c = defined $value ? "$value" : '';
+        $c =~ s/[\r\n\t]+/ /g;
+        $c =~ s/^\s+|\s+$//g;
+        $c = substr( $c, 0, 200 ) if length($c) > 200;
+        if ( length $c ) { $all->{$user}{comment} = $c }
+        else             { delete $all->{$user}{comment} }
+    }
     else {
-        die "Unknown setting '$key' (expected webdav, ui, dav_scope, "
+        die "Unknown setting '$key' (expected webdav, ui, dav_scope, comment, "
           . "create_sub_users, delegate_sub_user_creation, "
           . "manage_themes, manage_layouts, or manage_config)\n";
     }
@@ -500,6 +512,16 @@ sub cmd_account_create {
     if ( $opt{create_subs} ) {
         die "Creator '$creator' lacks delegate_sub_user_creation permission\n"
             unless $cs->{delegate_sub_user_creation};
+    }
+
+    # Authorise the actor: you may create an account owned by yourself or by
+    # anyone in your sub-tree (the parent must still hold create_sub_users,
+    # checked above). The operator ('local', no manager_groups) is
+    # unrestricted.
+    my $actor = $opt{actor};
+    if ( defined $actor && length $actor && $actor ne 'local' ) {
+        die "Not authorised to create an account under '$creator'\n"
+            unless $actor eq $creator || is_ancestor( $actor, $creator, $all );
     }
 
     $users{$user} = hash_password($pass);

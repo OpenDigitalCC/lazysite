@@ -2531,7 +2531,10 @@ sub action_users {
         if ( ref $parsed eq 'HASH'
              && ( $parsed->{action} // '' ) =~ /^account-(create|disable|enable|reassign)$/ ) {
             $parsed->{actor} = $auth_user;
-            $parsed->{created_by} = $auth_user if $1 eq 'create';
+            # Default the owner to the actor, but let a request name a parent
+            # (create a sub-user under any account in your sub-tree). The
+            # users tool enforces ancestry against the injected actor.
+            $parsed->{created_by} //= $auth_user if $1 eq 'create';
             $request_body = encode_json($parsed);
         }
     }

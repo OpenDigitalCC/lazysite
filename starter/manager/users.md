@@ -28,25 +28,6 @@ search: false
 </div>
 </details>
 
-<details class="mg-add-card">
-<summary>+ Create sub-user / partner</summary>
-<div class="mg-card-body">
-<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Creates an account owned by you (recorded as its parent). You need the "Sub-users" capability. For an automated partner, create it here, enable WebDAV, then use the credential + onboarding brief in its row below.</p>
-<div class="mg-form-row">
-<label>Username</label>
-<input type="text" id="sub-username" placeholder="partner-name">
-</div>
-<div class="mg-form-row">
-<label>Password</label>
-<input type="password" id="sub-password" placeholder="password (or set a token credential after)">
-</div>
-<div class="mg-form-row">
-<label></label>
-<button class="mg-btn mg-btn-outline" onclick="createSubUser()">Create sub-user</button>
-</div>
-</div>
-</details>
-
 <div class="mg-card">
 <div class="mg-card-header">
 <span class="mg-card-title">Users</span>
@@ -177,11 +158,21 @@ function renderUserRow(row) {
   // checkbox, so the summary and the control agree.
   var autoTag  = ui ? '' : '<span class="mg-tag mg-tag-auto">automated</span> &middot; ';
   var by       = s.created_by ? ' &middot; by ' + escHtml(s.created_by) : '';
+  var comment  = s.comment || '';
+  var note     = comment ? '<span class="mg-acc-note">' + escHtml(comment) + '</span>' : '';
 
   var h = '<details class="mg-acc"><summary>' +
-    '<span class="mg-acc-name">' + ue + '</span>' +
+    '<span class="mg-acc-name">' + ue + '</span>' + note +
     '<span class="mg-acc-tags">' + autoTag + status + by + '</span></summary>' +
     '<div class="mg-acc-body">';
+
+  // --- Notes ---
+  var nb = '<div class="mg-line">' +
+    '<input type="text" class="mg-inp mg-inp-wide" id="note-' + ue + '" value="' + escHtml(comment) +
+    '" placeholder="what this account is for (e.g. Claude dav publisher)">' +
+    '<button class="mg-btn mg-btn-sm" onclick="saveComment(\'' + ue + '\')">Save</button>' +
+    '<span class="mg-inline-msg" id="notemsg-' + ue + '"></span></div>';
+  h += sec('Notes', nb);
 
   // --- Access ---
   var acc = '<div class="mg-checks">';
@@ -259,6 +250,17 @@ function renderUserRow(row) {
       '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Reassign</button></div>';
   }
   h += sec('Account', ac);
+
+  // --- Create sub-user (owned by this account; needs its create_sub_users) ---
+  if (s.create_sub_users) {
+    var cu = '<div class="mg-line"><span class="mg-line-lbl">Username</span>' +
+      '<input type="text" class="mg-inp" id="sub-u-' + ue + '" placeholder="new sub-user"></div>' +
+      '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
+      '<input type="password" class="mg-inp" id="sub-p-' + ue + '" placeholder="password"></div>' +
+      '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="createSubUser(\'' + ue + '\')">Create &mdash; owned by ' + ue + '</button>' +
+      '<span class="mg-inline-msg" id="submsg-' + ue + '"></span></div>';
+    h += sec('Create sub-user', cu);
+  }
 
   h += '</div></details>';
   return h;
@@ -410,19 +412,31 @@ function deleteUser(user) {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-function createSubUser() {
-  var u = (document.getElementById('sub-username').value || '').trim();
-  var p = (document.getElementById('sub-password').value || '').trim();
-  if (!u || !p) { showStatus('Sub-user username and password required.', true); return; }
-  apiCall({ action: 'account-create', username: u, password: p })
+// Create a sub-user OWNED BY `parent` (any account in your sub-tree that
+// has create_sub_users). The server enforces ancestry against the actor.
+function createSubUser(parent) {
+  var u = (document.getElementById('sub-u-' + parent).value || '').trim();
+  var p = (document.getElementById('sub-p-' + parent).value || '').trim();
+  var msg = document.getElementById('submsg-' + parent);
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  if (!u || !p) { say('Username and password required.', false); return; }
+  apiCall({ action: 'account-create', username: u, password: p, created_by: parent })
     .then(function(d) {
-      if (!d.ok) { showStatus(d.error, true); return; }
-      showStatus('Sub-user "' + u + '" created.');
-      document.getElementById('sub-username').value = '';
-      document.getElementById('sub-password').value = '';
+      if (!d.ok) { say(d.error, false); return; }
+      say('Created "' + u + '" under "' + parent + '".', true);
       loadUsers();
     })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+    .catch(function(e) { say('Error: ' + e.message, false); });
+}
+
+// Save the free-text annotation (comment) for an account.
+function saveComment(user) {
+  var inp = document.getElementById('note-' + user);
+  var msg = document.getElementById('notemsg-' + user);
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  apiCall({ action: 'settings-set', username: user, key: 'comment', value: (inp && inp.value) || '' })
+    .then(function(d) { if (!d.ok) { say(d.error, false); return; } say('Saved.', true); })
+    .catch(function(e) { say('Error: ' + e.message, false); });
 }
 
 function addUser() {
@@ -546,6 +560,8 @@ loadUsers();
 .mg-line { display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; margin:0.25rem 0; }
 .mg-line-lbl { width:5.5rem; color:var(--mg-text-muted,#888); font-size:0.8rem; }
 .mg-inp { font-size:0.8125rem; padding:0.2rem 0.4rem; min-width:11rem; }
+.mg-inp-wide { min-width:20rem; flex:1; }
+.mg-acc-note { color:var(--mg-text-muted,#888); font-style:italic; font-size:0.85rem; }
 .mg-code { font-family:monospace; background:var(--mg-bg,#fff); padding:0.1rem 0.3rem;
   border-radius:2px; word-break:break-all; }
 .mg-muted { color:var(--mg-text-muted,#999); font-size:0.8rem; }
