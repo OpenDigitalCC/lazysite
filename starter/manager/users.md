@@ -6,10 +6,8 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
-<div class="mg-card">
-<div class="mg-card-header">
-<span class="mg-card-title">Add User</span>
-</div>
+<details class="mg-add-card">
+<summary>+ Add user</summary>
 <div class="mg-card-body">
 <div class="mg-form-row">
 <label>Username</label>
@@ -25,17 +23,15 @@ search: false
 </div>
 <div class="mg-form-row">
 <label></label>
-<button class="mg-btn mg-btn-outline" onclick="addUser()">Add User</button>
+<button class="mg-btn mg-btn-outline" onclick="addUser()">Add user</button>
 </div>
 </div>
-</div>
+</details>
 
-<div class="mg-card">
-<div class="mg-card-header">
-<span class="mg-card-title">Create sub-user</span>
-</div>
+<details class="mg-add-card">
+<summary>+ Create sub-user / partner</summary>
 <div class="mg-card-body">
-<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Creates an account owned by you (recorded as its parent). You need the "Sub-users" permission; partners typically get a token credential and an onboarding brief.</p>
+<p class="mg-card-subtitle" style="margin:0 0 8px 0;">Creates an account owned by you (recorded as its parent). You need the "Sub-users" capability. For an automated partner, create it here, enable WebDAV, then use the credential + onboarding brief in its row below.</p>
 <div class="mg-form-row">
 <label>Username</label>
 <input type="text" id="sub-username" placeholder="partner-name">
@@ -49,14 +45,14 @@ search: false
 <button class="mg-btn mg-btn-outline" onclick="createSubUser()">Create sub-user</button>
 </div>
 </div>
-</div>
+</details>
 
 <div class="mg-card">
 <div class="mg-card-header">
 <span class="mg-card-title">Users</span>
 </div>
-<div id="user-list">
-<div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>
+<div id="user-list" class="mg-acc-list">
+<div class="mg-empty" style="padding:0.75rem;">Loading...</div>
 </div>
 </div>
 
@@ -64,30 +60,30 @@ search: false
 <div class="mg-card-header">
 <span class="mg-card-title">Groups</span>
 </div>
-<div class="mg-card-body" id="groups-info">Loading...</div>
+<div id="groups-info" class="mg-acc-list">Loading...</div>
 <div class="mg-card-body mg-new-group-row">
-<label for="new-group-name">New group name:</label>
-<input type="text" id="new-group-name" placeholder="group name">
-<button class="mg-btn mg-btn-outline" onclick="createGroup()">Add</button>
+<input type="text" id="new-group-name" placeholder="new group name">
+<input type="text" id="new-group-member" placeholder="first member">
+<button class="mg-btn mg-btn-outline" onclick="createGroup()">Add group</button>
 </div>
 </div>
 
-<div class="mg-card">
-<div class="mg-card-header">
-<span class="mg-card-title">Sessions</span>
-</div>
+<details class="mg-add-card mg-danger-card">
+<summary>Sessions</summary>
 <div class="mg-card-body">
 <p class="mg-card-subtitle" style="margin:0 0 0.5rem">
-Rotate the session-signing secret. Invalidates every signed cookie
-currently in circulation, including your own. Everyone (including you)
-will need to sign in again.
+Rotate the session-signing secret. Invalidates every signed cookie currently
+in circulation, including your own &mdash; everyone must sign in again.
 </p>
 <button class="mg-btn mg-btn-danger" onclick="rotateAuthSecret()">Log out all users</button>
 </div>
-</div>
+</details>
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
+var DAV_BASE = location.origin + '/dav';
+var allGroups = {};   // {group: [members]}
+var allUsers  = [];   // [username]
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
@@ -105,7 +101,9 @@ function showStatus(msg, isError) {
 }
 
 function escHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return (s == null ? '' : String(s))
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function apiCall(body) {
@@ -116,139 +114,208 @@ function apiCall(body) {
   }).then(function(r) { return r.json(); });
 }
 
+// Load users + their settings + groups, then render both sections.
 function loadUsers() {
-  apiCall({ action: 'list' })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      var users = data.users || [];
-      // SM070: fetch each user's access-mechanism settings so the row
-      // can show UI / WebDAV state and the scope.
-      Promise.all(users.map(function(u) {
+  var gp = apiCall({ action: 'groups' })
+    .then(function(d) { return (d.ok && d.groups) ? d.groups : {}; })
+    .catch(function() { return {}; });
+  var up = apiCall({ action: 'list' })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return []; }
+      var users = d.users || [];
+      return Promise.all(users.map(function(u) {
         return apiCall({ action: 'settings-get', username: u })
           .then(function(s) { return { user: u, settings: (s.ok ? s.settings : {}) }; })
           .catch(function() { return { user: u, settings: {} }; });
-      })).then(renderUsers);
-    })
-    .catch(function(e) { showStatus('Failed to load users: ' + e.message, true); });
-  apiCall({ action: 'groups' })
-    .then(function(data) {
-      if (!data.ok) return;
-      renderGroups(data.groups || {});
+      }));
     });
+  Promise.all([up, gp]).then(function(res) {
+    var rows = res[0] || [];
+    allGroups = res[1] || {};
+    allUsers = rows.map(function(r) { return r.user; });
+    renderUsers(rows);
+    renderGroups();
+  }).catch(function(e) { showStatus('Failed to load users: ' + e.message, true); });
 }
 
+function groupsForUser(user) {
+  var out = [];
+  Object.keys(allGroups).forEach(function(g) {
+    var m = Array.isArray(allGroups[g]) ? allGroups[g] : [];
+    if (m.indexOf(user) !== -1) out.push(g);
+  });
+  return out;
+}
+
+// One <details> accordion row per user.
 function renderUsers(rows) {
   var list = document.getElementById('user-list');
-  if (rows.length === 0) {
-    list.innerHTML = '<div class="mg-file-item"><span class="mg-file-name mg-empty">No users</span></div>';
-    return;
-  }
-  var html = '';
-  for (var i = 0; i < rows.length; i++) {
-    var u = rows[i].user;
-    var s = rows[i].settings || {};
-    var ue = escHtml(u);
-    var webdav = !!s.webdav;
-    var ui = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
-    var scope = s.dav_scope || '';
-    var disabled = !!s.disabled;
-
-    var prov = '';
-    if (s.created_by) {
-      prov = 'created by ' + escHtml(s.created_by);
-      if (s.managed_by && s.managed_by !== s.created_by) {
-        prov += ', managed by ' + escHtml(s.managed_by);
-      }
-    }
-
-    html += '<div class="mg-file-item mg-user-row">';
-    html +=   '<span class="mg-file-name">' + ue +
-              ( disabled ? ' <span style="color:#c33;font-size:0.75rem;">disabled</span>' : '' ) +
-              '</span>';
-    if (prov) html += '<span class="mg-file-meta">' + prov + '</span>';
-
-    // Access mechanisms (SM070) + WebDAV scope.
-    html += '<div class="mg-user-mech">';
-    html += capBtn(ue, 'ui', ui, 'UI', 'Interactive (browser) login');
-    html += capBtn(ue, 'webdav', webdav, 'WebDAV', 'WebDAV publishing access');
-    html += '<input type="text" class="mg-scope-input" id="scope-' + ue + '" ' +
-            'value="' + escHtml(scope) + '" placeholder="/path (WebDAV scope)">';
-    html += '<button class="mg-btn mg-btn-sm" onclick="setUserScope(\'' + ue + '\')">Set scope</button>';
-    html += '</div>';
-
-    // Capabilities + sub-user permissions + account state (SM071).
-    html += '<div class="mg-user-mech">';
-    html += capBtn(ue, 'manage_themes',  !!s.manage_themes,  'Themes',    'Manage themes');
-    html += capBtn(ue, 'manage_layouts', !!s.manage_layouts, 'Layouts',   'Manage layouts');
-    html += capBtn(ue, 'manage_config',  !!s.manage_config,  'Config',    'Set allowlisted config');
-    html += capBtn(ue, 'create_sub_users', !!s.create_sub_users, 'Sub-users', 'May create sub-users');
-    html += capBtn(ue, 'delegate_sub_user_creation', !!s.delegate_sub_user_creation, 'Delegate', 'May pass on sub-user creation');
-    html += '<button class="mg-btn mg-btn-sm mg-toggle ' + (disabled ? 'mg-off' : 'mg-on') + '" ' +
-            'onclick="toggleDisabled(\'' + ue + '\',' + (disabled ? 'true' : 'false') + ')" ' +
-            'title="Account enabled/disabled">' + (disabled ? 'Disabled' : 'Enabled') + '</button>';
-    html += '</div>';
-
-    html += '<div class="mg-file-actions">';
-    html += '<button class="mg-btn mg-btn-sm" onclick="generateCredential(\'' + ue + '\')">Generate credential</button>';
-    html += '<button class="mg-btn mg-btn-sm" onclick="downloadOnboarding(\'' + ue + '\')">Onboarding</button>';
-    html += '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\',\'' + escHtml(s.managed_by || s.created_by || '') + '\')">Reassign</button>';
-    html += '<button class="mg-btn mg-btn-sm" onclick="changePassword(\'' + ue + '\')">Password</button>';
-    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + ue + '\')">Delete</button>';
-    html += '</div>';
-    html += '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>';
-    html += '</div>';
-  }
-  list.innerHTML = html;
+  if (!rows.length) { list.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No users</div>'; return; }
+  list.innerHTML = rows.map(renderUserRow).join('');
 }
 
-// Render a settings-backed on/off toggle button (flips via settings-set).
-function capBtn(user, key, on, label, title) {
-  return '<button class="mg-btn mg-btn-sm mg-toggle ' + (on ? 'mg-on' : 'mg-off') + '" ' +
-    'onclick="toggleSetting(\'' + user + '\',\'' + key + '\',' + (on ? 'true' : 'false') + ')" ' +
-    'title="' + title + '">' + label + ': ' + (on ? 'on' : 'off') + '</button>';
+function cap(user, key, on, label) {
+  return '<label class="mg-chk"><input type="checkbox"' + (on ? ' checked' : '') +
+    ' onchange="toggleSetting(\'' + user + '\',\'' + key + '\',this)"> ' + label + '</label>';
 }
 
-// SM070: flip a per-user boolean mechanism (ui / webdav).
-function toggleSetting(user, key, current) {
-  var val = current ? 'off' : 'on';
-  apiCall({ action: 'settings-set', username: user, key: key, value: val })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus(key + ' set ' + val + ' for "' + user + '".');
-      loadUsers();
+function renderUserRow(row) {
+  var u = row.user, s = row.settings || {}, ue = escHtml(u);
+  var webdav   = !!s.webdav;
+  var ui       = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
+  var disabled = !!s.disabled;
+  var scope    = s.dav_scope || '';
+  var type     = ui ? 'human' : 'automated';
+  var status   = disabled ? '<span class="mg-tag mg-tag-off">disabled</span>' : '<span class="mg-tag mg-tag-on">enabled</span>';
+  var by       = s.created_by ? ' &middot; by ' + escHtml(s.created_by) : '';
+
+  var h = '<details class="mg-acc">';
+  h += '<summary><span class="mg-acc-name">' + ue + '</span>' +
+       '<span class="mg-acc-tags">' + type + ' &middot; ' + status + by + '</span></summary>';
+  h += '<div class="mg-acc-body">';
+
+  // --- Access ---
+  h += '<div class="mg-sec">Access</div><div class="mg-checks">';
+  h += cap(ue, 'ui', ui, 'Interactive login');
+  h += cap(ue, 'webdav', webdav, 'WebDAV');
+  h += cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes');
+  h += cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts');
+  h += cap(ue, 'manage_config', !!s.manage_config, 'Manage config');
+  h += cap(ue, 'create_sub_users', !!s.create_sub_users, 'Create sub-users');
+  h += cap(ue, 'delegate_sub_user_creation', !!s.delegate_sub_user_creation, 'Delegate sub-users');
+  h += '</div>';
+
+  // --- Groups ---
+  var mine = groupsForUser(u);
+  h += '<div class="mg-sec">Groups</div><div class="mg-checks">';
+  var gnames = Object.keys(allGroups).sort();
+  if (gnames.length) {
+    h += gnames.map(function(g) {
+      var on = mine.indexOf(g) !== -1;
+      return '<label class="mg-chk"><input type="checkbox"' + (on ? ' checked' : '') +
+        ' onchange="toggleGroup(\'' + ue + '\',\'' + escHtml(g) + '\',this)"> ' + escHtml(g) + '</label>';
+    }).join('');
+  } else { h += '<span class="mg-empty">No groups yet.</span>'; }
+  h += '</div>';
+
+  // --- Credentials ---
+  h += '<div class="mg-sec">Credentials</div>';
+  h += '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
+       '<input type="password" class="mg-inp" id="pw-' + ue + '" placeholder="new password">' +
+       '<button class="mg-btn mg-btn-sm" onclick="savePassword(\'' + ue + '\')">Save</button>' +
+       '<span class="mg-inline-msg" id="pwmsg-' + ue + '"></span></div>';
+  h += '<div class="mg-line"><span class="mg-line-lbl">Token</span>' +
+       '<button class="mg-btn mg-btn-sm" onclick="generateCredential(\'' + ue + '\')">Generate credential</button>' +
+       '<span class="mg-help" title="Mints a strong, single-use machine credential (prefix lzs_), shown once. Use it as the password for WebDAV / API clients. Replaces any existing password or token.">&#9432;</span></div>';
+  h += '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>';
+
+  // --- WebDAV (publishing accounts only) ---
+  if (webdav) {
+    var davUrl = DAV_BASE + (scope ? scope.replace(/\/+$/,'') : '');
+    h += '<div class="mg-sec">WebDAV</div>';
+    h += '<div class="mg-line"><span class="mg-line-lbl">URL</span>' +
+         '<code class="mg-code" id="dav-' + ue + '">' + escHtml(davUrl) + '</code>' +
+         '<button class="mg-btn mg-btn-sm" onclick="copyText(\'dav-' + ue + '\')">Copy</button></div>';
+    h += '<div class="mg-line"><span class="mg-line-lbl">Username</span><code class="mg-code">' + ue + '</code>' +
+         ' <span class="mg-muted">password = this account\'s password or a generated token</span></div>';
+    h += '<div class="mg-line"><span class="mg-line-lbl">Scope</span>' +
+         '<input type="text" class="mg-inp" id="scope-' + ue + '" value="' + escHtml(scope) + '" placeholder="/ (whole site)">' +
+         '<button class="mg-btn mg-btn-sm" onclick="setUserScope(\'' + ue + '\')">Set</button>' +
+         '<span class="mg-help" title="Limits this account\'s WebDAV writes to a path prefix under the docroot. Empty = whole site (minus denied paths).">&#9432;</span></div>';
+  }
+
+  // --- AI partner onboarding (publishing accounts only) ---
+  if (webdav) {
+    h += '<div class="mg-sec">AI partner onboarding</div>';
+    h += '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showOnboarding(\'' + ue + '\')">Generate brief</button>' +
+         '<span class="mg-muted">single-use pairing key &rarr; access token; copy-paste to your partner</span></div>';
+    h += '<div id="onb-' + ue + '" style="display:none"></div>';
+  }
+
+  // --- Account ---
+  h += '<div class="mg-sec">Account</div>';
+  h += '<div class="mg-line">';
+  h += '<button class="mg-btn mg-btn-sm" onclick="toggleDisabled(\'' + ue + '\',' + (disabled ? 'true' : 'false') + ')">' +
+       (disabled ? 'Enable' : 'Disable') + '</button>';
+  h += '<input type="text" class="mg-inp" id="reassign-' + ue + '" placeholder="reassign to parent" value="' +
+       escHtml(s.managed_by || s.created_by || '') + '">';
+  h += '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Reassign</button>';
+  h += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + ue + '\')">Delete</button>';
+  h += '</div>';
+  var prov = s.created_by ? ('created by ' + escHtml(s.created_by) +
+             (s.managed_by && s.managed_by !== s.created_by ? ', managed by ' + escHtml(s.managed_by) : '')) : '';
+  if (prov) h += '<div class="mg-prov">' + prov + '</div>';
+
+  h += '</div></details>';
+  return h;
+}
+
+// --- per-row actions ---
+
+function toggleSetting(user, key, el) {
+  var checked = el.checked;
+  apiCall({ action: 'settings-set', username: user, key: key, value: checked ? 'on' : 'off' })
+    .then(function(d) {
+      if (!d.ok) { el.checked = !checked; showStatus(d.error, true); return; }
+      showStatus(key + ' ' + (checked ? 'on' : 'off') + ' for "' + user + '".');
     })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+    .catch(function(e) { el.checked = !checked; showStatus('Error: ' + e.message, true); });
 }
 
-// SM070: set or clear a user's WebDAV path scope.
+function toggleGroup(user, group, el) {
+  var checked = el.checked;
+  var act = checked ? 'group-add' : 'group-remove';
+  apiCall({ action: act, username: user, group: group })
+    .then(function(d) {
+      if (!d.ok) { el.checked = !checked; showStatus(d.error, true); return; }
+      // keep local cache in sync so other rows reflect it without a reload
+      var m = Array.isArray(allGroups[group]) ? allGroups[group] : (allGroups[group] = []);
+      var idx = m.indexOf(user);
+      if (checked && idx === -1) m.push(user);
+      if (!checked && idx !== -1) m.splice(idx, 1);
+      showStatus((checked ? 'Added ' : 'Removed ') + user + (checked ? ' to ' : ' from ') + group + '.');
+    })
+    .catch(function(e) { el.checked = !checked; showStatus('Error: ' + e.message, true); });
+}
+
 function setUserScope(user) {
   var input = document.getElementById('scope-' + user);
   var val = ((input && input.value) || '').trim();
   apiCall({ action: 'settings-set', username: user, key: 'dav_scope', value: val })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus(val ? ('Scope set to ' + val + ' for "' + user + '".')
-                     : ('Scope cleared for "' + user + '".'));
-      loadUsers();
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
+      var code = document.getElementById('dav-' + user);
+      if (code) code.textContent = DAV_BASE + (val ? val.replace(/\/+$/, '') : '');
+      showStatus(val ? ('Scope set to ' + val + ' for "' + user + '".') : ('Scope cleared for "' + user + '".'));
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-// SM070: generate a strong credential and reveal it once in place. The
-// row is NOT reloaded afterwards, so the one-time value stays visible
-// until the operator navigates away or reloads.
+function savePassword(user) {
+  var inp = document.getElementById('pw-' + user);
+  var msg = document.getElementById('pwmsg-' + user);
+  var pw = (inp && inp.value) || '';
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  if (!pw) { say('Enter a password.', false); return; }
+  apiCall({ action: 'passwd', username: user, password: pw })
+    .then(function(d) {
+      if (!d.ok) { say(d.error || 'Failed', false); return; }
+      if (inp) inp.value = '';
+      say('Password updated.', true);
+    })
+    .catch(function(e) { say('Error: ' + e.message, false); });
+}
+
 function generateCredential(user) {
-  if (!confirm('Generate a new credential for "' + user + '"? Any existing ' +
-               'password or credential for this account will stop working.')) return;
+  if (!confirm('Generate a new credential for "' + user + '"? Any existing password or credential for this account will stop working.')) return;
   apiCall({ action: 'token', username: user })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
       var panel = document.getElementById('cred-' + user);
       if (panel) {
         panel.style.display = '';
-        panel.innerHTML =
-          '<strong>Credential (shown once — store it now):</strong> ' +
-          '<code class="mg-cred-value">' + escHtml(data.token) + '</code> ' +
+        panel.innerHTML = '<strong>Credential (shown once &mdash; store it now):</strong> ' +
+          '<code class="mg-cred-value">' + escHtml(d.token) + '</code> ' +
           '<button class="mg-btn mg-btn-sm" onclick="copyCred(\'' + escHtml(user) + '\')">Copy</button>';
       }
       showStatus('Credential generated for "' + user + '".');
@@ -259,200 +326,86 @@ function generateCredential(user) {
 function copyCred(user) {
   var panel = document.getElementById('cred-' + user);
   var code = panel && panel.querySelector('.mg-cred-value');
-  if (code && navigator.clipboard) {
-    navigator.clipboard.writeText(code.textContent)
-      .then(function() { showStatus('Credential copied to clipboard.'); });
-  }
+  if (code && navigator.clipboard) navigator.clipboard.writeText(code.textContent).then(function() { showStatus('Credential copied.'); });
 }
 
-// SM071: enable/disable an account (ancestry-authorised server-side).
+function showOnboarding(user) {
+  var box = document.getElementById('onb-' + user);
+  apiCall({ action: 'onboarding', username: user })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
+      box._text = d.onboarding;
+      box.style.display = '';
+      box.innerHTML = '<textarea class="mg-onb" readonly rows="12">' + escHtml(d.onboarding) + '</textarea>' +
+        '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copyOnboarding(\'' + escHtml(user) + '\')">Copy</button>' +
+        '<button class="mg-btn mg-btn-sm" onclick="downloadOnb(\'' + escHtml(user) + '\')">Download .md</button></div>';
+      showStatus('Onboarding brief generated (contains a single-use pairing key).');
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+function copyOnboarding(user) {
+  var box = document.getElementById('onb-' + user);
+  if (box && box._text && navigator.clipboard) navigator.clipboard.writeText(box._text).then(function() { showStatus('Onboarding copied.'); });
+}
+
+function downloadOnb(user) {
+  var box = document.getElementById('onb-' + user);
+  if (!box || !box._text) return;
+  var blob = new Blob([box._text], { type: 'text/markdown' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'automated-partner-' + user + '.md';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
 function toggleDisabled(user, disabled) {
-  if (!disabled && !confirm('Disable "' + user + '"? They will be unable ' +
-      'to authenticate anywhere until re-enabled.')) return;
+  if (!disabled && !confirm('Disable "' + user + '"? They will be unable to authenticate anywhere until re-enabled.')) return;
   var act = disabled ? 'account-enable' : 'account-disable';
   apiCall({ action: act, username: user })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
       showStatus((disabled ? 'Enabled' : 'Disabled') + ' "' + user + '".');
       loadUsers();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-// SM071: reassign an account to a new parent (managed_by). Server enforces
-// that the actor is an ancestor of the account being moved.
-function reassignUser(user, current) {
-  var to = prompt('Reassign "' + user + '" to which parent account?', current || '');
-  if (!to) return;
+function reassignUser(user) {
+  var inp = document.getElementById('reassign-' + user);
+  var to = ((inp && inp.value) || '').trim();
+  if (!to) { showStatus('Enter a parent username to reassign to.', true); return; }
   apiCall({ action: 'account-reassign', username: user, to: to })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
       showStatus('Reassigned "' + user + '" to "' + to + '".');
       loadUsers();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-// SM071: download a fresh onboarding brief (with a one-time pairing key)
-// for an automated partner.
-function downloadOnboarding(user) {
-  apiCall({ action: 'onboarding', username: user })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      var blob = new Blob([data.onboarding], { type: 'text/markdown' });
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'automated-partner-' + user + '.md';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(a.href);
-      showStatus('Onboarding brief for "' + user + '" downloaded ' +
-                 '(contains a single-use pairing key).');
+function deleteUser(user) {
+  if (!confirm('Delete user "' + user + '"? This cannot be undone.')) return;
+  apiCall({ action: 'remove', username: user })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
+      showStatus('User "' + user + '" removed.');
+      loadUsers();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-// SM071: create a sub-user owned by the current manager (account-create;
-// the server records created_by/managed_by and enforces create_sub_users).
 function createSubUser() {
   var u = (document.getElementById('sub-username').value || '').trim();
   var p = (document.getElementById('sub-password').value || '').trim();
   if (!u || !p) { showStatus('Sub-user username and password required.', true); return; }
   apiCall({ action: 'account-create', username: u, password: p })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
       showStatus('Sub-user "' + u + '" created.');
       document.getElementById('sub-username').value = '';
       document.getElementById('sub-password').value = '';
-      loadUsers();
-    })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
-}
-
-function renderGroups(groups) {
-  var el = document.getElementById('groups-info');
-  var keys = Object.keys(groups);
-  if (keys.length === 0) {
-    el.innerHTML = '<span class="mg-empty">No groups defined.</span>';
-    return;
-  }
-  var html = '<table class="mg-table"><thead><tr><th>Group</th><th>Members</th><th>Actions</th></tr></thead><tbody>';
-  keys.sort().forEach(function(g) {
-    var members = Array.isArray(groups[g]) ? groups[g] : [];
-    var memberHtml = members.map(function(m) {
-      return '<span class="mg-group-member">' + escHtml(m) +
-        ' <button class="mg-chip-remove" title="Remove ' + escHtml(m) + ' from ' + escHtml(g) + '" ' +
-        'onclick="deleteGroupMember(\'' + escHtml(m) + '\',\'' + escHtml(g) + '\')">&times;</button></span>';
-    }).join(' ');
-    html += '<tr data-group="' + escHtml(g) + '">';
-    html += '<td><strong>' + escHtml(g) + '</strong></td>';
-    html += '<td>' + (memberHtml || '<span class="mg-empty">&mdash;</span>') + '</td>';
-    html += '<td class="mg-group-actions">';
-    html += '<button class="mg-btn mg-btn-sm" onclick="showAddMember(\'' + escHtml(g) + '\')">Add user</button> ';
-    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteGroup(\'' + escHtml(g) + '\')">Delete</button>';
-    html += '</td>';
-    html += '</tr>';
-    html += '<tr class="mg-add-member-row" data-add-for="' + escHtml(g) + '" style="display:none">';
-    html += '<td colspan="3">';
-    html += '<input type="text" class="mg-add-member-input" placeholder="username" ' +
-      'onkeydown="if(event.key===\'Enter\')confirmAddMember(\'' + escHtml(g) + '\')"> ';
-    html += '<button class="mg-btn mg-btn-sm mg-btn-outline" onclick="confirmAddMember(\'' + escHtml(g) + '\')">Confirm</button> ';
-    html += '<button class="mg-btn mg-btn-sm" onclick="hideAddMember(\'' + escHtml(g) + '\')">Cancel</button>';
-    html += '</td></tr>';
-  });
-  html += '</tbody></table>';
-  el.innerHTML = html;
-}
-
-function showAddMember(group) {
-  var row = document.querySelector('tr.mg-add-member-row[data-add-for="' + group + '"]');
-  if (!row) return;
-  row.style.display = '';
-  var input = row.querySelector('input');
-  if (input) { input.value = ''; input.focus(); }
-}
-
-function hideAddMember(group) {
-  var row = document.querySelector('tr.mg-add-member-row[data-add-for="' + group + '"]');
-  if (row) row.style.display = 'none';
-}
-
-function confirmAddMember(group) {
-  var row = document.querySelector('tr.mg-add-member-row[data-add-for="' + group + '"]');
-  if (!row) return;
-  var input = row.querySelector('input');
-  var username = (input.value || '').trim();
-  if (!username) { showStatus('Username required.', true); return; }
-  apiCall({ action: 'group-add', username: username, group: group })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus('Added "' + username + '" to "' + group + '".');
-      loadUsers();
-    })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
-}
-
-function deleteGroupMember(username, group) {
-  if (!confirm('Remove "' + username + '" from group "' + group + '"?')) return;
-  apiCall({ action: 'group-remove', username: username, group: group })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus('Removed "' + username + '" from "' + group + '".');
-      loadUsers();
-    })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
-}
-
-function deleteGroup(group) {
-  apiCall({ action: 'groups' }).then(function(data) {
-    if (!data.ok) { showStatus(data.error, true); return; }
-    var members = (data.groups && Array.isArray(data.groups[group])) ? data.groups[group] : [];
-    var prompt = members.length
-      ? 'Delete group "' + group + '"? This will remove ' + members.length + ' member' +
-        (members.length === 1 ? '' : 's') + ' from it.'
-      : 'Delete group "' + group + '"?';
-    if (!confirm(prompt)) return;
-    if (!members.length) { showStatus('Group "' + group + '" already empty.', false); loadUsers(); return; }
-    deleteGroupMembersSequential(members, group, 0);
-  });
-}
-
-function deleteGroupMembersSequential(members, group, i) {
-  if (i >= members.length) {
-    showStatus('Group "' + group + '" deleted.');
-    loadUsers();
-    return;
-  }
-  var username = members[i];
-  apiCall({ action: 'group-remove', username: username, group: group })
-    .then(function(r) {
-      if (!r.ok) {
-        showStatus('Failed removing ' + username + ' from "' + group + '": ' + r.error, true);
-        loadUsers();
-        return;
-      }
-      deleteGroupMembersSequential(members, group, i + 1);
-    })
-    .catch(function(e) {
-      showStatus('Error removing ' + username + ' from "' + group + '": ' + e.message, true);
-      loadUsers();
-    });
-}
-
-function createGroup() {
-  var input = document.getElementById('new-group-name');
-  var group = (input.value || '').trim();
-  if (!group) { showStatus('Group name required.', true); return; }
-  var username = prompt('First member username for group "' + group + '":');
-  if (!username) return;
-  username = username.trim();
-  if (!username) return;
-  apiCall({ action: 'group-add', username: username, group: group })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus('Group "' + group + '" created with member "' + username + '".');
-      input.value = '';
       loadUsers();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
@@ -463,60 +416,86 @@ function addUser() {
   var password = document.getElementById('new-password').value;
   var groups = document.getElementById('new-groups').value.trim();
   if (!username || !password) { showStatus('Username and password required.', true); return; }
-
   apiCall({ action: 'add', username: username, password: password })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus('User "' + username + '" added.');
-      document.getElementById('new-username').value = '';
-      document.getElementById('new-password').value = '';
-      document.getElementById('new-groups').value = '';
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
+      var gl = groups ? groups.split(',').map(function(x) { return x.trim(); }).filter(Boolean) : [];
+      var chain = Promise.resolve();
+      gl.forEach(function(g) { chain = chain.then(function() { return apiCall({ action: 'group-add', username: username, group: g }); }); });
+      chain.then(function() {
+        showStatus('User "' + username + '" added.');
+        document.getElementById('new-username').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('new-groups').value = '';
+        loadUsers();
+      });
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// --- Groups section: one accordion per group, members as checkboxes ---
+
+function renderGroups() {
+  var el = document.getElementById('groups-info');
+  var keys = Object.keys(allGroups).sort();
+  if (!keys.length) { el.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No groups defined.</div>'; return; }
+  el.innerHTML = keys.map(function(g) {
+    var members = Array.isArray(allGroups[g]) ? allGroups[g] : [];
+    var ge = escHtml(g);
+    var h = '<details class="mg-acc"><summary><span class="mg-acc-name">' + ge + '</span>' +
+            '<span class="mg-acc-tags">' + members.length + ' member' + (members.length === 1 ? '' : 's') + '</span></summary>';
+    h += '<div class="mg-acc-body"><div class="mg-sec">Members</div><div class="mg-checks">';
+    var roster = allUsers.length ? allUsers : members;
+    h += roster.map(function(u) {
+      var on = members.indexOf(u) !== -1;
+      return '<label class="mg-chk"><input type="checkbox"' + (on ? ' checked' : '') +
+        ' onchange="toggleGroup(\'' + escHtml(u) + '\',\'' + ge + '\',this)"> ' + escHtml(u) + '</label>';
+    }).join('');
+    h += '</div><div class="mg-line"><button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteGroup(\'' + ge + '\')">Delete group</button></div>';
+    h += '</div></details>';
+    return h;
+  }).join('');
+}
+
+function createGroup() {
+  var ni = document.getElementById('new-group-name');
+  var mi = document.getElementById('new-group-member');
+  var group = (ni.value || '').trim();
+  var member = (mi.value || '').trim();
+  if (!group) { showStatus('Group name required.', true); return; }
+  if (!member) { showStatus('A first member is required (groups are defined by membership).', true); return; }
+  apiCall({ action: 'group-add', username: member, group: group })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
+      showStatus('Group "' + group + '" created with member "' + member + '".');
+      ni.value = ''; mi.value = '';
       loadUsers();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-function changePassword(username) {
-  var pw = prompt('New password for "' + username + '":');
-  if (!pw) return;
-  apiCall({ action: 'passwd', username: username, password: pw })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus('Password updated for "' + username + '".');
-    })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+function deleteGroup(group) {
+  var members = Array.isArray(allGroups[group]) ? allGroups[group] : [];
+  if (!confirm('Delete group "' + group + '"?' + (members.length ? ' Removes ' + members.length + ' member(s).' : ''))) return;
+  if (!members.length) { showStatus('Group "' + group + '" already empty.'); loadUsers(); return; }
+  var chain = Promise.resolve();
+  members.slice().forEach(function(m) { chain = chain.then(function() { return apiCall({ action: 'group-remove', username: m, group: group }); }); });
+  chain.then(function() { showStatus('Group "' + group + '" deleted.'); loadUsers(); })
+       .catch(function(e) { showStatus('Error: ' + e.message, true); loadUsers(); });
 }
 
-function deleteUser(username) {
-  if (!confirm('Delete user "' + username + '"? This cannot be undone.')) return;
-  apiCall({ action: 'remove', username: username })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus('User "' + username + '" removed.');
-      loadUsers();
-    })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+function copyText(id) {
+  var el = document.getElementById(id);
+  if (el && navigator.clipboard) navigator.clipboard.writeText(el.textContent).then(function() { showStatus('Copied.'); });
 }
 
-// Rotate the server-side HMAC secret. Every outstanding signed
-// cookie (including ours) becomes invalid on the next request, so
-// we redirect straight to /login after success rather than leaving
-// the user on a page that now has no valid session.
 function rotateAuthSecret() {
-  if (!confirm(
-    'This will sign every user (including you) out immediately. ' +
-    'Every cookie currently in circulation will stop working. ' +
-    'Proceed?'
-  )) return;
-
+  if (!confirm('This will sign every user (including you) out immediately. Every cookie currently in circulation will stop working. Proceed?')) return;
   fetch(API + '?action=rotate-auth-secret', { method: 'POST' })
     .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error || 'Rotation failed', true); return; }
-      // Our own session is dead now; send us to /login. The next
-      // request would be rejected with 401 anyway; going to /login
-      // directly is the cleanest UX.
-      mgShowWarning(data.message || 'All sessions invalidated.', false);
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Rotation failed', true); return; }
+      if (typeof mgShowWarning === 'function') mgShowWarning(d.message || 'All sessions invalidated.', false);
       setTimeout(function() { location.href = '/login'; }, 1200);
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
@@ -526,61 +505,49 @@ loadUsers();
 </script>
 
 <style>
-.mg-group-member {
-  display: inline-block;
-  padding: 0.125rem 0.375rem;
-  margin: 0.125rem 0.25rem 0.125rem 0;
-  background: var(--mg-bg-muted, #f0f0f0);
-  border-radius: 3px;
-  font-size: 0.875rem;
+.mg-add-card { border:1px solid var(--mg-border,#e5e5e5); border-radius:4px; margin:0 0 1rem; background:var(--mg-bg,#fff); }
+.mg-add-card > summary { cursor:pointer; padding:0.5rem 0.75rem; font-weight:600; list-style:none; }
+.mg-add-card > summary::-webkit-details-marker { display:none; }
+.mg-add-card[open] > summary { border-bottom:1px solid var(--mg-border,#e5e5e5); }
+.mg-danger-card > summary { color:var(--mg-danger,#c33); }
+
+.mg-acc-list { padding:0; }
+.mg-acc { border-bottom:1px solid var(--mg-border,#eee); }
+.mg-acc > summary {
+  cursor:pointer; padding:0.5rem 0.75rem; display:flex; align-items:center;
+  gap:0.75rem; list-style:none;
 }
-.mg-chip-remove {
-  border: none;
-  background: transparent;
-  color: var(--mg-text-muted, #888);
-  cursor: pointer;
-  padding: 0 0.125rem;
-  font-size: 1rem;
-  line-height: 1;
-}
-.mg-chip-remove:hover { color: var(--mg-danger, #c00); }
-.mg-group-actions { white-space: nowrap; }
-.mg-add-member-row td { background: var(--mg-bg-muted, #fafafa); }
-.mg-new-group-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  border-top: 1px solid var(--mg-border, #e5e5e5);
-}
-/* SM070: per-user access-mechanism controls */
-.mg-user-row { flex-wrap: wrap; }
-.mg-user-mech {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  flex-wrap: wrap;
-  margin: 0 0.5rem;
-}
-.mg-toggle.mg-on  { border-color: var(--mg-success, #2a7); color: var(--mg-success, #2a7); }
-.mg-toggle.mg-off { color: var(--mg-text-muted, #888); }
-.mg-scope-input {
-  width: 11rem;
-  font-size: 0.8125rem;
-  padding: 0.1875rem 0.375rem;
-}
-.mg-cred-reveal {
-  flex-basis: 100%;
-  margin-top: 0.375rem;
-  padding: 0.375rem 0.5rem;
-  background: var(--mg-bg-muted, #f6f6f6);
-  border-radius: 3px;
-  font-size: 0.875rem;
-}
-.mg-cred-value {
-  font-family: monospace;
-  word-break: break-all;
-  background: var(--mg-bg, #fff);
-  padding: 0.125rem 0.25rem;
-  border-radius: 2px;
-}
+.mg-acc > summary::-webkit-details-marker { display:none; }
+.mg-acc > summary::before { content:'\25B8'; color:var(--mg-text-muted,#999); font-size:0.8em; }
+.mg-acc[open] > summary::before { content:'\25BE'; }
+.mg-acc > summary:hover { background:var(--mg-bg-muted,#f7f7f7); }
+.mg-acc-name { font-weight:600; }
+.mg-acc-tags { color:var(--mg-text-muted,#888); font-size:0.85rem; margin-left:auto; }
+.mg-acc-body { padding:0.5rem 0.75rem 0.9rem 1.75rem; background:var(--mg-bg-muted,#fbfbfb); }
+
+.mg-sec { font-size:0.72rem; text-transform:uppercase; letter-spacing:0.04em;
+  color:var(--mg-text-muted,#999); margin:0.7rem 0 0.3rem; }
+.mg-checks { display:flex; flex-wrap:wrap; gap:0.4rem 1rem; }
+.mg-chk { font-size:0.875rem; display:inline-flex; align-items:center; gap:0.3rem; cursor:pointer; }
+.mg-line { display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; margin:0.25rem 0; }
+.mg-line-lbl { width:5.5rem; color:var(--mg-text-muted,#888); font-size:0.8rem; }
+.mg-inp { font-size:0.8125rem; padding:0.2rem 0.4rem; min-width:11rem; }
+.mg-code { font-family:monospace; background:var(--mg-bg,#fff); padding:0.1rem 0.3rem;
+  border-radius:2px; word-break:break-all; }
+.mg-muted { color:var(--mg-text-muted,#999); font-size:0.8rem; }
+.mg-help { cursor:help; color:var(--mg-text-muted,#aaa); }
+.mg-prov { color:var(--mg-text-muted,#999); font-size:0.8rem; margin-top:0.4rem; }
+.mg-inline-msg { font-size:0.8rem; }
+.mg-inline-msg.mg-ok  { color:var(--mg-success,#2a7); }
+.mg-inline-msg.mg-err { color:var(--mg-danger,#c33); }
+.mg-onb { width:100%; font-family:monospace; font-size:0.78rem; }
+.mg-cred-reveal { margin:0.4rem 0; padding:0.4rem 0.5rem; background:var(--mg-bg,#fff);
+  border:1px solid var(--mg-border,#e5e5e5); border-radius:3px; font-size:0.875rem; }
+.mg-cred-value { font-family:monospace; word-break:break-all; background:var(--mg-bg-muted,#f6f6f6);
+  padding:0.1rem 0.25rem; border-radius:2px; }
+.mg-tag { font-size:0.72rem; padding:0.05rem 0.35rem; border-radius:3px; }
+.mg-tag-on  { color:var(--mg-success,#2a7); }
+.mg-tag-off { color:var(--mg-danger,#c33); }
+.mg-new-group-row { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;
+  border-top:1px solid var(--mg-border,#e5e5e5); }
 </style>
