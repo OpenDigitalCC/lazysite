@@ -73,8 +73,13 @@ unless ($DOCROOT) {
 }
 
 my $AUTH_DIR = "$DOCROOT/lazysite/auth";
-make_path($AUTH_DIR) unless -d $AUTH_DIR;
-chmod 0750, $AUTH_DIR;
+# Only set the default mode when we create the dir. Re-chmodding on every
+# run would clobber an operator's deliberate perms (e.g. 2770 group-write
+# for a www-data CGI that must mint .secret / rate DBs here).
+unless ( -d $AUTH_DIR ) {
+    make_path($AUTH_DIR);
+    chmod 0750, $AUTH_DIR;
+}
 
 my $USERS_FILE    = "$AUTH_DIR/users";
 my $GROUPS_FILE   = "$AUTH_DIR/groups";
