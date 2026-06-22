@@ -250,9 +250,12 @@ function renderUserRow(row) {
   // Owner + reassign only for sub-users (accounts with a recorded parent).
   if (s.created_by) {
     var owner = s.managed_by || s.created_by;
+    var ropts = '<option value="">reassign to&hellip;</option>' +
+      allUsers.filter(function(x) { return x !== u; })
+        .map(function(x) { return '<option value="' + escHtml(x) + '">' + escHtml(x) + '</option>'; }).join('');
     ac += '<div class="mg-line"><span class="mg-line-lbl">Owner</span>' +
       '<code class="mg-code">' + escHtml(owner) + '</code>' +
-      '<input type="text" class="mg-inp" id="reassign-' + ue + '" placeholder="reassign to a new parent">' +
+      '<select class="mg-inp" id="reassign-' + ue + '">' + ropts + '</select>' +
       '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Reassign</button></div>';
   }
   h += sec('Account', ac);
