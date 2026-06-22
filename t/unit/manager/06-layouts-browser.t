@@ -272,13 +272,20 @@ subtest 'layouts-releases happy path' => sub {
     is( $r->{releases}[1]{body}, '',      'empty body stays empty' );
 };
 
-# --- Scenario 2: layouts-releases missing layouts_repo ---
-subtest 'layouts-releases missing layouts_repo' => sub {
+# --- Scenario 2: no configured layouts_repo falls back to the default ---
+# The release browser now works out of the box: an unset layouts_repo
+# resolves to the standard pack (OpenDigitalCC/lazysite-layouts); a
+# lazysite.conf key still overrides it.
+subtest 'layouts-releases defaults the layouts_repo when unset' => sub {
     write_conf("site_name: Test\n");
+    queue_response( 200, encode_json([
+        { tag_name => 'v1.0.0', name => 'First release',
+          published_at => '2026-04-01T00:00:00Z', body => '' },
+    ]) );
     my $r = main::action_layouts_releases();
-    ok( !$r->{ok}, 'not ok' );
-    like( $r->{error}, qr/Layouts repo setting above/,
-        'error points at the in-page Layouts repo field (SM068)' );
+    ok( $r->{ok}, 'ok - defaults to the standard layouts repo' );
+    is( $r->{repo}, 'OpenDigitalCC/lazysite-layouts',
+        'default repo used when none is configured' );
 };
 
 # --- Scenario 3 (SM046 rewrite): LL v0.3.0 nested happy path ---

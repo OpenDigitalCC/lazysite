@@ -164,11 +164,12 @@ subtest 'layouts-repo-get reads the conf key' => sub {
     is( $r->{value}, 'OpenDigitalCC/lazysite-layouts', 'value returned' );
 };
 
-subtest 'layouts-repo-get: empty when key unset' => sub {
+subtest 'layouts-repo-get: defaults when key unset' => sub {
     write_conf("site_name: T\n");
     my $r = main::action_layouts_repo_get();
     ok( $r->{ok}, 'ok' );
-    is( $r->{value}, '', 'empty string when unset' );
+    is( $r->{value}, 'OpenDigitalCC/lazysite-layouts',
+        'falls back to the standard layouts repo when unset' );
 };
 
 # --- 5. layouts-repo-set writes atomically ---
