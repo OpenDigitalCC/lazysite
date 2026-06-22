@@ -2763,6 +2763,12 @@ sub action_plugin_list {
 
     for my $rel ( @CANDIDATES ) {
         my $full = "$base/$rel";
+        # Core scripts (processor, auth) install into cgi-bin/, not the
+        # docroot parent. The repo/dev layout has them at $base; a real
+        # deployment has them under $base/cgi-bin/. Fall back so the site
+        # config descriptor is discovered in both.
+        $full = "$base/cgi-bin/$rel"
+            if !-f $full && -f "$base/cgi-bin/$rel";
         next unless -f $full && -r $full;
 
         local $SIG{ALRM} = sub { die "timeout\n" };
