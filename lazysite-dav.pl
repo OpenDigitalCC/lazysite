@@ -247,14 +247,21 @@ sub do_propfind {
     }
     $depth = ( $depth eq '0' ) ? 0 : 1;
 
-    my @blocks = prop_response( $a{rel}, $r->{abs} );
+    # P-perf: the lzs:sha256 live property means hashing each file, which is
+    # expensive on a directory listing. Compute it only when the client asks
+    # for it by name. Vanilla clients (davfs2, Finder, ...) send allprop /
+    # propname and never request it, so they skip the hashing entirely - and
+    # a custom dead property need not appear under allprop (RFC 4918).
+    my $want_sha = ( read_request_body() =~ /sha256/ ) ? 1 : 0;
+
+    my @blocks = prop_response( $a{rel}, $r->{abs}, $want_sha );
     if ( $depth == 1 && -d $r->{abs} ) {
         if ( opendir my $dh, $r->{abs} ) {
             my @kids = sort grep { $_ ne '.' && $_ ne '..' } readdir $dh;
             closedir $dh;
             for my $kid (@kids) {
                 my $krel = length $a{rel} ? "$a{rel}/$kid" : $kid;
-                push @blocks, prop_response( $krel, "$r->{abs}/$kid" );
+                push @blocks, prop_response( $krel, "$r->{abs}/$kid", $want_sha );
             }
         }
     }
@@ -268,7 +275,7 @@ sub do_propfind {
 
 # A single <D:response> for one resource.
 sub prop_response {
-    my ( $rel, $abs ) = @_;
+    my ( $rel, $abs, $want_sha ) = @_;
     my @st = stat $abs;
     my $is_dir = -d _;
     my $href = href_for( $rel, $is_dir );
@@ -292,7 +299,7 @@ sub prop_response {
         # gives a vanilla DAV client a content identity (not the weak
         # dev-ino-mtime-size ETag) for drift detection. Scoped to the
         # layouts subtree so content PROPFINDs are not made to hash files.
-        if ( $rel =~ m{^lazysite/layouts/} ) {
+        if ( $want_sha && $rel =~ m{^lazysite/layouts/} ) {
             my $sha = file_sha256($abs);
             $props .= "        <lzs:sha256>$sha</lzs:sha256>\n" if defined $sha;
         }

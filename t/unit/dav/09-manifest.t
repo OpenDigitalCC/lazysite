@@ -22,13 +22,25 @@ open my $f, '>', "$doc/lazysite/layouts/base/themes/live/style.css" or die $!;
 print $f $body; close $f;
 my $expected = sha256_hex($body);
 
-# --- theme file carries lzs:sha256 matching the content --------------
+# P-perf: lzs:sha256 is computed only when the client requests it by name.
+my $sha_req = '<?xml version="1.0"?>'
+    . '<propfind xmlns:D="DAV:" xmlns:lzs="urn:lazysite:dav">'
+    . '<prop><lzs:sha256/></prop></propfind>';
+
+# --- theme file carries lzs:sha256 (when requested) matching content --
 my $r = run_dav( $doc, 'PROPFIND', '/lazysite/layouts/base/themes/live/style.css',
-    HTTP_AUTHORIZATION => $auth, HTTP_DEPTH => '0' );
+    HTTP_AUTHORIZATION => $auth, HTTP_DEPTH => '0', body => $sha_req );
 is( $r->{code}, 207, 'PROPFIND on theme file ok' );
 like( $r->{body}, qr/xmlns:lzs="urn:lazysite:dav"/, 'lzs namespace declared' );
 like( $r->{body}, qr{<lzs:sha256>\Q$expected\E</lzs:sha256>},
     'lzs:sha256 matches the file content hash' );
+
+# --- not computed for a plain (allprop) PROPFIND - the davfs2 fast path -
+my $rp = run_dav( $doc, 'PROPFIND', '/lazysite/layouts/base/themes/live/style.css',
+    HTTP_AUTHORIZATION => $auth, HTTP_DEPTH => '0' );
+is( $rp->{code}, 207, 'PROPFIND (allprop) on theme file ok' );
+unlike( $rp->{body}, qr/lzs:sha256/,
+    'lzs:sha256 skipped when the client did not request it' );
 
 # --- content files do not carry the property (scoped to layouts) ------
 open my $c, '>', "$doc/content/page.md" or die $!;

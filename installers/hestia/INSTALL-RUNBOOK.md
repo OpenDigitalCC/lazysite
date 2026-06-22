@@ -243,6 +243,35 @@ matters. Files the tool writes (`users`, `groups`, `user-settings.json`)
 come out group `ispadmin` / mode 0640, so the wrapper must `chgrp
 www-data` + `chmod 660` them after seeding the admin account.
 
+## WebDAV performance (davfs2 and friends)
+
+WebDAV runs as CGI and clients like davfs2 re-send Basic auth on EVERY
+request. Per-request latency is dominated by:
+
+- Auth. A password is a 100,000-iteration KDF - ~117 ms measured PER
+  REQUEST. A token credential (prefix `lzs_`) verifies in one iteration
+  (~0 ms). So MOUNT WITH A TOKEN, not the password: mint one with
+  `lazysite-users.pl --docroot DOCROOT token USER` (or the Users page
+  "Generate credential") and use it as the password. Biggest single win.
+- CGI process spawn (~30 ms/request). Removing it needs a persistent
+  worker (FastCGI/PSGI) - deliberately deferred; not worth it once auth
+  is cheap and the client is tuned.
+
+Reduce davfs2 chattiness in `/etc/davfs2/davfs2.conf` (or `~/.davfs2/`):
+
+```
+use_locks    0     # skip LOCK/UNLOCK round-trips - biggest client lever
+gui_optimize 1
+dir_refresh  30
+file_refresh 30
+cache_size   256   # MiB
+delay_upload 2
+```
+
+The `lzs:sha256` PROPFIND property (content-drift detection, scoped to the
+`lazysite/layouts/` subtree) is computed only when a client requests it by
+name, so vanilla clients never pay the hashing cost.
+
 ## Suggested code improvements (for the commit)
 
 - `install.pl` `--domain`: seed from `lazysite.conf.example` (substitute
