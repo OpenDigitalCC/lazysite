@@ -2493,7 +2493,10 @@ sub get_layout_path {
     # outside layouts/ entirely — it's internal plumbing, not a
     # themeable layout.
     my $manager_path = $vars->{manager_path} || '/manager';
-    my $uri = $ENV{REDIRECT_URL} // '';
+    # Match the URI resolution used for content (and request_uri TT var):
+    # behind the auth wrapper, REDIRECT_URL may be unset while REQUEST_URI
+    # carries the real path, so the manager-layout check must fall back too.
+    my $uri = $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '';
     if ( index( $uri, $manager_path ) == 0 ) {
         return ( $MANAGER_LAYOUT, undef ) if -f $MANAGER_LAYOUT;
         return ( undef, undef );
