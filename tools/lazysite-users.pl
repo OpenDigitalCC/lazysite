@@ -1320,9 +1320,11 @@ capabilities:
 $mcaps_yaml
 scope:
   allow: ["$allow"]
-  deny: ["/cgi-bin/", "/manager/", "/lazysite/auth/", "/lazysite/forms/",
-         "/lazysite/cache/", "/lazysite/logs/", "/lazysite/manager/",
-         "/lazysite/templates/", "/lazysite/lazysite.conf", "*.pl"]
+  deny: ["/cgi-bin/", "/manager/", "/lazysite/auth/",
+         "/lazysite/forms/smtp.conf", "/lazysite/forms/handlers.conf",
+         "/lazysite/forms/submissions/", "/lazysite/cache/", "/lazysite/logs/",
+         "/lazysite/manager/", "/lazysite/templates/",
+         "/lazysite/lazysite.conf", "*.pl"]
 docs:
   - $base/docs/ai-briefing-publishing
   - $base/docs/reference

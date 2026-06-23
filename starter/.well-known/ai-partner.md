@@ -23,7 +23,7 @@ register:
   "scope": {
     "webdav": "content, assets, layout/theme files under lazysite/layouts/, and lazysite/nav.conf (the last with manage_config)",
     "control_api": "config keys, theme/layout activation, HTML-cache clear (manage_config / manage_themes / manage_layouts)",
-    "deny": ["/cgi-bin/", "/manager/", "/lazysite/auth/", "/lazysite/forms/", "/lazysite/cache/", "/lazysite/logs/", "/lazysite/manager/", "/lazysite/templates/", "/lazysite/lazysite.conf", "*.pl"]
+    "deny": ["/cgi-bin/", "/manager/", "/lazysite/auth/", "/lazysite/forms/smtp.conf", "/lazysite/forms/handlers.conf", "/lazysite/forms/submissions/", "/lazysite/cache/", "/lazysite/logs/", "/lazysite/manager/", "/lazysite/templates/", "/lazysite/lazysite.conf", "*.pl"]
   },
   "docs": [
     "[% site_url %]/docs/ai-briefing-publishing",

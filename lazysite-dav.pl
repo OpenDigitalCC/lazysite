@@ -916,6 +916,19 @@ sub authorise {
         return manage_config_for($user) ? undef : 403;
     }
 
+    # A per-form dispatch config (lazysite/forms/<name>.conf) is agent-editable
+    # over WebDAV, gated by manage_config: it only names which operator-defined
+    # handlers a form dispatches to, never credentials. The secret files -
+    # smtp.conf (SMTP creds), handlers.conf (handler definitions, addresses,
+    # webhook URLs), .smtp-password - and the submissions store stay denied,
+    # so an agent can wire a form to file storage but cannot read creds, add
+    # handlers, or read submissions.
+    if ( $rel =~ m{^lazysite/forms/([A-Za-z0-9_-]+)\.conf$} ) {
+        my $name = $1;
+        return 403 if $name eq 'smtp' || $name eq 'handlers';
+        return manage_config_for($user) ? undef : 403;
+    }
+
     # SM071 Phase 3: the one carve-out from the whole-lazysite/ denial is
     # theme/layout authoring under lazysite/layouts/**, governed per object
     # by the manage_themes / manage_layouts capabilities and the active

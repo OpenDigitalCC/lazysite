@@ -18,6 +18,17 @@ Keying
 
 ## Unreleased
 
+Forms - an agent can wire a form over WebDAV
+: A per-form dispatch config `lazysite/forms/<name>.conf` is now agent-editable
+  over WebDAV with `manage_config` - it only names operator-defined handlers,
+  no secrets. So a publishing agent deploys an enquiry/contact form to file
+  storage itself (`local-storage` ships by default), with no operator step.
+  The secret files (`smtp.conf`, `handlers.conf`) and the `submissions/` store
+  stay denied, and email delivery still needs operator-configured SMTP. The
+  canonical deny list (dav, well-known, brief, whoami) now names those specific
+  files instead of all of `lazysite/forms/`, pinned by `06-deny-consistency.t`;
+  the publishing brief gains a "Wiring a form" task.
+
 Docs - `.brief` guidance is now a full spec template
 : The publishing briefing spells out what a good brief contains (purpose,
   sections in order, tone & style, images & sources, constraints, a "To

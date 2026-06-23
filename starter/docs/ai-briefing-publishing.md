@@ -162,9 +162,10 @@ address the `.md` (or `.url`) file.
 ## Scope and denied paths
 
 Your capabilities and path scope come from the brief (and `whoami`). The content
-tree, assets, the layout/theme files under `lazysite/layouts/`, and
-`lazysite/nav.conf` (with `manage_config`) are writable within scope. These
-paths are **denied** and the server rejects writes to them:
+tree, assets, the layout/theme files under `lazysite/layouts/`, `lazysite/nav.conf`,
+and a form's dispatch config `lazysite/forms/<name>.conf` (the last two with
+`manage_config`) are writable within scope. These paths are **denied** and the
+server rejects writes to them:
 
 `/cgi-bin/`
 : Executable scripts (processor, auth CGI, manager API, plugins). Never writable.
@@ -176,8 +177,11 @@ paths are **denied** and the server rejects writes to them:
 `/lazysite/auth/`
 : User and group credential store.
 
-`/lazysite/forms/`
-: Form target and SMTP configuration (`smtp.conf`, `handlers.conf`) - secrets.
+`/lazysite/forms/smtp.conf`, `/lazysite/forms/handlers.conf`, `/lazysite/forms/submissions/`
+: SMTP credentials, handler definitions (addresses, webhook URLs), and the
+  submitted entries - secrets and data. But a form's own dispatch config,
+  `lazysite/forms/<name>.conf`, **is** writable with `manage_config` (it only
+  names handlers) - see *Wiring a form* under Tasks.
 
 `/lazysite/manager/`
 : Manager UI internals.
@@ -407,6 +411,30 @@ A `2xx` is not proof the page is right. After publishing, confirm:
 1. `GET` `/dav/lazysite/nav.conf`, edit, `PUT` it back.
 2. Re-PUT affected pages (or clear the cache) so the new nav appears on warm
    pages.
+
+### Wiring a form
+
+A `::: form` block named e.g. `enquire` needs a dispatch config to receive
+submissions. With `manage_config` you deploy this yourself - no operator step
+for file storage:
+
+1. `PUT` `/dav/lazysite/forms/<name>.conf` (matching the form's name), listing
+   the handlers it dispatches to:
+
+   ```yaml
+   targets:
+     - handler: local-storage
+   ```
+
+2. `local-storage` ships by default and writes submissions to
+   `lazysite/forms/submissions/` - nothing else to set up. **Email delivery
+   needs the operator:** the SMTP credentials (`smtp.conf`) and the email
+   handler in `handlers.conf` are secrets you cannot write - ask the operator
+   to configure them, then reference that handler id here.
+3. Submit a test entry and confirm it lands.
+
+You may write only the per-form `<name>.conf`; `smtp.conf`, `handlers.conf`,
+and the `submissions/` store are denied (secrets and data).
 
 ### Rotating your token
 

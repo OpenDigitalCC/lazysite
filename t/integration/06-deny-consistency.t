@@ -17,9 +17,10 @@ my $root = repo_root();
 # THE canonical agent-facing deny list. Change it here, in lock-step with the
 # two rendered copies below, or this test fails.
 my @CANONICAL = sort qw(
-    /cgi-bin/ /manager/ /lazysite/auth/ /lazysite/forms/ /lazysite/cache/
-    /lazysite/logs/ /lazysite/manager/ /lazysite/templates/
-    /lazysite/lazysite.conf *.pl
+    /cgi-bin/ /manager/ /lazysite/auth/ /lazysite/cache/ /lazysite/logs/
+    /lazysite/manager/ /lazysite/templates/ /lazysite/lazysite.conf *.pl
+    /lazysite/forms/smtp.conf /lazysite/forms/handlers.conf
+    /lazysite/forms/submissions/
 );
 
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> }
