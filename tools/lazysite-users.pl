@@ -154,7 +154,11 @@ my $AUTH_DIR = "$DOCROOT/lazysite/auth";
 # for a www-data CGI that must mint .secret / rate DBs here).
 unless ( -d $AUTH_DIR ) {
     make_path($AUTH_DIR);
-    chmod 0750, $AUTH_DIR;
+    # 02770: setgid + group-write, so a www-data CGI sharing the auth-dir
+    # group can mint .secret / rate DBs and manage the store. Matches what
+    # the deploy sets; only applied when we create the dir (never re-chmod,
+    # to honour an operator's deliberate perms).
+    chmod 02770, $AUTH_DIR;
 }
 
 my $USERS_FILE    = "$AUTH_DIR/users";
@@ -1542,7 +1546,11 @@ sub write_users {
     }
     flock( $fh, LOCK_UN );
     close $fh;
-    chmod 0640, $USERS_FILE;
+    # 0660, not 0640: the auth store is managed by BOTH this CLI tool (as the
+    # domain user) and the web manager (as www-data, the setgid auth-dir
+    # group). Owner-write-only locks www-data out of a file the CLI wrote -
+    # the auth dir is 02770 so there is no world access regardless.
+    chmod 0660, $USERS_FILE;
 }
 
 sub read_groups {
@@ -1571,7 +1579,7 @@ sub write_groups {
     }
     flock( $fh, LOCK_UN );
     close $fh;
-    chmod 0644, $GROUPS_FILE;
+    chmod 0660, $GROUPS_FILE;   # group-writable: CLI + www-data both manage it
 }
 
 # SM070: per-user access-mechanism settings, JSON object keyed by
@@ -1605,7 +1613,7 @@ sub write_settings {
     print $fh $json;
     flock( $fh, LOCK_UN );
     close $fh;
-    chmod 0640, $tmp;
+    chmod 0660, $tmp;   # group-writable: CLI + www-data both manage it
     rename $tmp, $SETTINGS_FILE
         or die "Cannot rename settings file into place: $!\n";
 }

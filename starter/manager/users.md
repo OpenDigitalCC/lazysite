@@ -37,7 +37,7 @@ search: false
 </div>
 <div class="mg-form-row">
 <label>Create under</label>
-<select id="new-parent"><option value="">(top-level account)</option></select>
+<select id="new-parent"><option value="">(top level - under you, the manager)</option></select>
 </div>
 <div class="mg-form-row">
 <label></label>
@@ -206,8 +206,14 @@ function renderUserRow(row) {
   h += sec('Notes', nb);
 
   // --- Access ---
-  var acc = '<div class="mg-checks">';
-  acc += cap(ue, 'ui', ui, 'Interactive login');
+  // Type is a Human/AI switch (the `ui` setting), matching the Add-user
+  // form, rather than a lone "Interactive login" checkbox.
+  var acc = '<div class="mg-line"><span class="mg-line-lbl">Type</span>' +
+    '<select class="mg-inp" onchange="setUserType(\'' + ue + '\', this.value)">' +
+    '<option value="human"' + (ui ? ' selected' : '') + '>Human (interactive login)</option>' +
+    '<option value="ai"' + (ui ? '' : ' selected') + '>AI / backend (token)</option>' +
+    '</select></div>';
+  acc += '<div class="mg-checks">';
   acc += cap(ue, 'webdav', webdav, 'WebDAV');
   acc += cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes');
   acc += cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts');
@@ -318,6 +324,20 @@ function toggleSetting(user, key, el) {
       showStatus(key + ' ' + (checked ? 'on' : 'off') + ' for "' + user + '".');
     })
     .catch(function(e) { el.checked = !checked; showStatus('Error: ' + e.message, true); });
+}
+
+// Human/AI switch for an existing account (the `ui` setting). Reloads so
+// the summary tag and any form state reflect the new type.
+function setUserType(user, value) {
+  var ui = (value === 'human') ? 'on' : 'off';
+  apiCall({ action: 'settings-set', username: user, key: 'ui', value: ui })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
+      showStatus('"' + user + '" set to ' +
+        (value === 'human' ? 'human (interactive login)' : 'AI / backend (token)') + '.');
+      loadUsers();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function toggleGroup(user, group, el) {
@@ -584,7 +604,7 @@ function populateAddUserParents() {
   var sel = document.getElementById('new-parent');
   if (!sel) return;
   var cur = sel.value;
-  sel.innerHTML = '<option value="">(top-level account)</option>' +
+  sel.innerHTML = '<option value="">(top level - under you, the manager)</option>' +
     parentList.map(function(p) { return '<option value="' + escHtml(p) + '">under ' + escHtml(p) + '</option>'; }).join('');
   sel.value = cur;
 }

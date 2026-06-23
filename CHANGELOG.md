@@ -18,6 +18,21 @@ Keying
 
 ## Unreleased
 
+Fix - www-data manager could not write the auth store
+: The auth files the CLI tool and the web manager both manage (`users`,
+  `groups`, `user-settings.json`) were written `0640`/`0644` - owner-write
+  only - so after a CLI write (e.g. the post-deploy `passwd manager`) the
+  www-data CGI (no suexec) could not edit them: "Permission denied" on
+  add-user. Now written `0660` (group-writable; the auth dir is `02770`, so
+  no world access), and the users tool creates the auth dir `02770` to match
+  what the deploy sets.
+
+Manager Users card
+: The Access section's lone "Interactive login" checkbox is now a Human / AI
+  type switch (the `ui` setting), matching the Add-user form; the "Create
+  under" default option is relabelled to make clear it creates the account
+  directly under you, the manager.
+
 Docs + consistency follow-ups
 : The publishing briefing's control-API section now documents each action's
   exact parameters (and notes `config-set` is gated but not yet wired - use
