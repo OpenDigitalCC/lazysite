@@ -2785,9 +2785,10 @@ sub action_whoami {
         groups => \@groups,
         scope  => {
             allow => ( defined $s->{dav_scope} && length $s->{dav_scope} ) ? $s->{dav_scope} : '/',
-            deny  => [ '/lazysite/auth', '/lazysite/cache', '/lazysite/logs',
-                       '/lazysite/forms/.smtp-password', '/lazysite/manager',
-                       '/lazysite/lazysite.conf' ],
+            deny  => [ '/cgi-bin/', '/manager/', '/lazysite/auth/',
+                       '/lazysite/forms/', '/lazysite/cache/', '/lazysite/logs/',
+                       '/lazysite/manager/', '/lazysite/templates/',
+                       '/lazysite/lazysite.conf', '*.pl' ],
         },
         layouts => {
             active_layout => $active_layout,

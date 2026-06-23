@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+Fix - `whoami` reported a stale `scope.deny`
+: `whoami` listed only `/lazysite/forms/.smtp-password` as denied while the
+  dav denies all of `/lazysite/forms/` (and `/cgi-bin/`, `/manager/`,
+  templates) - so an agent trusting `whoami` thought it could write form
+  configs it cannot. `whoami` now reports the canonical deny set, and
+  `06-deny-consistency.t` pins it alongside the well-known and brief.
+
 Control API - `config-set` wired
 : A token client with `manage_config` can now set an allowlisted site-config
   key (`site_name`, `site_url`, `search_default`) in `lazysite.conf` over the

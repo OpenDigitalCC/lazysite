@@ -54,4 +54,13 @@ my %bp = map { $_ => 1 } split ' ', $1;
 ok( $bp{'cgi-bin'}, 'dav blocked_paths includes cgi-bin' );
 ok( $bp{'manager'}, 'dav blocked_paths includes the docroot manager' );
 
+# whoami reports scope.deny to agents; it must be the same canonical set, or
+# an agent trusting whoami sees a different denied set than the dav enforces
+# (e.g. believing all of lazysite/forms/ is writable bar the smtp password).
+my $mapi_src = slurp("$root/lazysite-manager-api.pl");
+$mapi_src =~ /deny\s*=>\s*\[(.*?)\]/s
+    or die "no whoami scope.deny in lazysite-manager-api.pl";
+is_deeply( [ sort ( $1 =~ /'([^']+)'/g ) ], \@CANONICAL,
+    'whoami scope.deny matches the canonical set' );
+
 done_testing();
