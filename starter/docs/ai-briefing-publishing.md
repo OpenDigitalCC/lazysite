@@ -234,20 +234,50 @@ Every file you author should carry a sidecar **`<file>.brief`** beside it -
 `index.md.brief` next to `index.md`, `main.css.brief` next to a theme's
 `main.css`. The brief records *why* the file exists and *what* each edit
 changed, so the next agent (or the operator) understands intent before
-touching it. Maintain it as you work:
+touching it.
 
-- On create, `PUT` a brief next to the file with a one-line `intent:` and a
-  first `## Log` entry.
-- On every later edit, `GET` the brief, append one log line
-  (`date · action · who · what`), and `PUT` it back. Append - do not rewrite.
+A brief is a real spec, not a thin note - the richer it is, the better the
+owner can steer the page by editing it. Write it in markdown and cover:
+
+- **Purpose** - the page's goal and who it is for.
+- **Sections, in order** - what is on the page and why each part is there.
+- **Tone & style** - voice and language conventions (e.g. British English, no
+  em-dashes, warm but honest).
+- **Images & sources** - which images are used, and which source document the
+  content came from.
+- **Constraints** - anything that must hold: "genuine quotes only, never
+  invent", photo-permission rules, a required credit, or a dependency (e.g.
+  "the enquiry form needs `forms/enquire.conf`").
+- **To change this page…** - a closing line with concrete examples of edits an
+  owner might ask for, so they know what they can change.
+- **## Log** - append-only `date · action · who · what`, one line per edit.
+
+Maintain it as you work: `PUT` the brief when you create the file; on every
+later edit `GET` it, append a log line, and `PUT` it back (append - never
+rewrite the history).
 
 ```text
 # Brief - index.md
 
-intent: the site landing page; hero + three feature cards + contact CTA.
+## Purpose
+The landing page: convince a visitor to enquire within one screen.
+
+## Sections
+1. Hero - the doorway photo + a one-line promise.
+2. Highlights strip - three short proof points.
+3. Contact CTA - links to /enquire.
+
+## Tone & style
+Warm rustic-luxury; British English; no em-dashes; honest, never overstated.
+
+## Images & sources
+hero: doorway.jpg. Copy drawn from the owner's "Welcome" document.
+
+## To change this page
+e.g. "swap the hero to the garden photo", "drop the highlights strip",
+"make the CTA say Book a viewing".
 
 ## Log
-
 - 2026-06-23 · created · <you> · initial landing page
 - 2026-06-24 · edit · <you> · reworded hero, added contact CTA
 ```

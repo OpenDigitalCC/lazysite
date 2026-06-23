@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+Docs - `.brief` guidance is now a full spec template
+: The publishing briefing spells out what a good brief contains (purpose,
+  sections in order, tone & style, images & sources, constraints, a "To
+  change this page…" line, and the append-only log), with a worked example;
+  the authoring briefing's page-creation steps now include writing the brief
+  and point to it. So any agent produces briefs rich enough for the
+  edit-the-brief → refactor-the-page loop.
+
 Fix - `whoami` reported a stale `scope.deny`
 : `whoami` listed only `/lazysite/forms/.smtp-password` as denied while the
   dav denies all of `/lazysite/forms/` (and `/cgi-bin/`, `/manager/`,
