@@ -60,7 +60,9 @@ my $method  = $ENV{REQUEST_METHOD} // 'GET';
 my $uri     = $ENV{REDIRECT_URL}   // '/';
 my $query   = $ENV{QUERY_STRING}   // '';
 my $action  = '';
-$action = $1 if $query =~ /action=([a-z]+)/;
+# Capture the FULL action token (including hyphens) so a short action like
+# `rotate` does not shadow a longer one such as `rotate-auth-secret`.
+$action = $1 if $query =~ /action=([a-z][a-z-]*)/;
 
 if ( $action eq 'login' && $method eq 'POST' ) {
     handle_login();
@@ -70,6 +72,12 @@ elsif ( $action eq 'logout' ) {
 }
 elsif ( $action eq 'claim' && $method eq 'POST' ) {
     handle_claim();
+}
+elsif ( $action eq 'exchange' && $method eq 'POST' ) {
+    handle_exchange();
+}
+elsif ( $action eq 'rotate' && $method eq 'POST' ) {
+    handle_rotate();
 }
 else {
     handle_request();
@@ -312,6 +320,92 @@ sub users_tool_api {
     close $out;
     waitpid $pid, 0;
     return eval { JSON::PP::decode_json( $resp // '{}' ) };
+}
+
+# Emit a JSON body with an HTTP status (the control token-lifecycle paths).
+sub json_response {
+    my ( $data, $code ) = @_;
+    $code ||= 200;
+    require JSON::PP;
+    binmode( STDOUT, ':utf8' );
+    print "Status: $code\r\n";
+    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
+    print JSON::PP::encode_json($data);
+    return;
+}
+
+# SM072 Flow C: public pairing-key -> access-token exchange. The agent
+# presents its single-use pairing key and receives {token, expires_at}.
+sub handle_exchange {
+    my %form = parse_post();
+    my $username = $form{username} // '';
+    $username =~ s/[^a-zA-Z0-9_.-]//g;
+    my $key = $form{pairing_key} // $form{key} // '';
+    $key =~ s/[^a-zA-Z0-9_]//g;
+    my $ip = $ENV{REMOTE_ADDR} // '';
+
+    unless ( $ENV{HTTPS} || $ip eq '127.0.0.1' || $ip eq '::1' ) {
+        json_response( { ok => 0, error => 'HTTPS required' }, 403 );
+        return;
+    }
+    unless ( check_login_rate($ip) ) {
+        sleep $LOGIN_DELAY;
+        json_response( { ok => 0, error => 'Too many attempts' }, 429 );
+        return;
+    }
+
+    my $r = users_tool_api({
+        action => 'token-exchange', username => $username, pairing_key => $key,
+    });
+    unless ( ref $r eq 'HASH' && $r->{ok} ) {
+        sleep $LOGIN_DELAY;
+        log_event('WARN', $username, 'pairing exchange failed', ip => $ip);
+        json_response( { ok => 0, error => 'Invalid or expired pairing key' }, 401 );
+        return;
+    }
+    log_event('INFO', $username, 'access token issued (HTTP exchange)', ip => $ip);
+    json_response( { ok => 1, token => $r->{token}, expires_at => $r->{expires_at} }, 200 );
+    return;
+}
+
+# SM072 Flow C: rotate the access token. The agent authenticates with its
+# CURRENT token (Basic auth) and receives a fresh {token, expires_at}.
+sub handle_rotate {
+    my $ip = $ENV{REMOTE_ADDR} // '';
+    unless ( $ENV{HTTPS} || $ip eq '127.0.0.1' || $ip eq '::1' ) {
+        json_response( { ok => 0, error => 'HTTPS required' }, 403 );
+        return;
+    }
+    my ( $u, $token );
+    if ( ( $ENV{HTTP_AUTHORIZATION} // '' ) =~ /^Basic\s+(\S+)/ ) {
+        require MIME::Base64;
+        ( $u, $token ) = split /:/, ( MIME::Base64::decode_base64($1) // '' ), 2;
+    }
+    unless ( defined $u && length $u && defined $token && $token =~ /^lzs_/ ) {
+        json_response( { ok => 0, error => 'Token authentication required' }, 401 );
+        return;
+    }
+    $u =~ s/[^a-zA-Z0-9_.-]//g;
+    unless ( check_login_rate($ip) ) {
+        sleep $LOGIN_DELAY;
+        json_response( { ok => 0, error => 'Too many attempts' }, 429 );
+        return;
+    }
+    my $v = users_tool_api({ action => 'verify-credential', username => $u, secret => $token });
+    unless ( ref $v eq 'HASH' && $v->{ok} ) {
+        sleep $LOGIN_DELAY;
+        log_event('WARN', $u, 'token rotation: invalid current token', ip => $ip);
+        json_response( { ok => 0, error => 'Invalid token' }, 401 );
+        return;
+    }
+    my $r = users_tool_api({ action => 'token-rotate', username => $u });
+    unless ( ref $r eq 'HASH' && $r->{ok} ) {
+        json_response( { ok => 0, error => 'Rotation failed' }, 500 );
+        return;
+    }
+    log_event('INFO', $u, 'access token rotated (HTTP)', ip => $ip);
+    json_response( { ok => 1, token => $r->{token}, expires_at => $r->{expires_at} }, 200 );
+    return;
 }
 
 sub handle_request {

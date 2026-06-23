@@ -190,12 +190,12 @@ if ( $API_MODE ) {
             $result = { ok => 1, pairing_key => $key };
         }
         elsif ( $action eq 'token-exchange' ) {
-            my $token = cmd_token_exchange( $req->{username}, $req->{pairing_key} );
-            $result = { ok => 1, token => $token };
+            my $r = cmd_token_exchange( $req->{username}, $req->{pairing_key} );
+            $result = { ok => 1, %$r };
         }
         elsif ( $action eq 'token-rotate' ) {
-            my $token = cmd_token_rotate( $req->{username} );
-            $result = { ok => 1, token => $token };
+            my $r = cmd_token_rotate( $req->{username} );
+            $result = { ok => 1, %$r };
         }
         elsif ( $action eq 'claim-create' ) {
             my $r = cmd_claim_create( $req->{username},
@@ -838,7 +838,7 @@ sub cmd_token_exchange {
         print "Access token for '$user' (expires in "
             . int( $ACCESS_TOKEN_TTL / 3600 ) . "h; shown once):\n$token\n";
     }
-    return $token;
+    return { token => $token, expires_at => $all->{$user}{token_expires_at} };
 }
 
 # Rotate the access token: mint a new one and reset the expiry. The old
@@ -864,7 +864,7 @@ sub cmd_token_rotate {
         print "Rotated access token for '$user' (expires in "
             . int( $ACCESS_TOKEN_TTL / 3600 ) . "h; shown once):\n$token\n";
     }
-    return $token;
+    return { token => $token, expires_at => $all->{$user}{token_expires_at} };
 }
 
 # --- SM072: the claim-token primitive --------------------------------
