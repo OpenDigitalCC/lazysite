@@ -30,6 +30,17 @@ SM072 - Self-service credentials, claim links, and account expiry
   on credential verification. Also a fourth AI briefing,
   `ai-briefing-publishing`, documenting the agreed WebDAV-for-files /
   control-API-for-config publishing model. Design of record: SM072 spec.
+  Batch 3: the token lifecycle over HTTP - `?action=exchange` (pairing key
+  -> access token) and `?action=rotate`, both returning `{token,
+  expires_at}` (one live credential). Batch 4: TOTP MFA (RFC 6238,
+  self-contained) - enrol on the card (secret + otpauth URI + 8 single-use
+  recovery codes), a login second factor, gated per account. Also: account
+  Type (Human/AI) at creation with the type shown in the list; account
+  rename across all stores; agent-editable `lazysite/nav.conf` over WebDAV
+  (manage_config). Roadmap recorded in the spec: audit-log UI, agent
+  introspection API, editor<->WebDAV lock propagation, manager version
+  display, the /.well-known bootstrap, email (gated on plugin capabilities),
+  and the offline publish bundle.
 
 SM071 - WebDAV theme and layout management
 : Staged authoring of themes and layouts with a safe back-out, in three

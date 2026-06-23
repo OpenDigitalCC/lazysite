@@ -188,6 +188,21 @@ sub handle_login {
         return;
     }
 
+    # SM072 batch 4: second factor. If TOTP is enrolled, a valid code (or a
+    # single-use recovery code) is required before a cookie issues. After
+    # password + ui verification, so it leaks nothing to a password guesser.
+    if ( mfa_enrolled($username) ) {
+        my $code = $form{code} // '';
+        $code =~ s/[^0-9A-Za-z-]//g;
+        my $v = users_tool_api({ action => 'mfa-verify', username => $username, code => $code });
+        unless ( ref $v eq 'HASH' && $v->{ok} ) {
+            log_event('WARN', $username, 'login refused: 2FA required or invalid', ip => $ip);
+            sleep $LOGIN_DELAY;
+            redirect("$auth_redirect?error=mfa");
+            return;
+        }
+    }
+
     # Load groups for user
     my $groups_str = load_user_groups($username);
 
@@ -571,6 +586,21 @@ sub account_expired {
     my $s = $data->{$username};
     return 0 unless ref $s eq 'HASH' && $s->{expires_at};
     return time() > $s->{expires_at} ? 1 : 0;
+}
+
+# SM072 batch 4: is TOTP enrolled for this account?
+sub mfa_enrolled {
+    my ($username) = @_;
+    my $path = "$AUTH_DIR/user-settings.json";
+    return 0 unless -f $path;
+    open my $fh, '<:utf8', $path or return 0;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    require JSON::PP;
+    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
+    return 0 unless ref $data eq 'HASH';
+    my $s = $data->{$username};
+    return ( ref $s eq 'HASH' && $s->{totp_secret} ) ? 1 : 0;
 }
 
 sub load_user_groups {

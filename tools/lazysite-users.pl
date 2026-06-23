@@ -64,6 +64,63 @@ sub parse_when {
     die "Invalid date '$v' (use YYYY-MM-DD, YYYY-MM-DD HH:MM, or an epoch)\n";
 }
 
+# --- SM072 batch 4: TOTP (RFC 6238), self-contained (Digest::SHA) ------
+my @B32 = split //, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+sub _base32_encode {
+    my ($bytes) = @_;
+    my $bits = '';
+    $bits .= sprintf( '%08b', ord $_ ) for split //, $bytes;
+    my $out = '';
+    while ( length($bits) >= 5 ) { $out .= $B32[ oct( '0b' . substr( $bits, 0, 5, '' ) ) ] }
+    if ( length $bits ) {
+        $bits .= '0' x ( 5 - length $bits );
+        $out  .= $B32[ oct( '0b' . $bits ) ];
+    }
+    return $out;
+}
+
+sub _base32_decode {
+    my ($b32) = @_;
+    $b32 = uc $b32;
+    $b32 =~ s/[^A-Z2-7]//g;
+    my %map; my $i = 0; $map{$_} = $i++ for @B32;
+    my $bits = '';
+    $bits .= sprintf( '%05b', $map{$_} ) for split //, $b32;
+    my $bytes = '';
+    while ( length($bits) >= 8 ) { $bytes .= chr( oct( '0b' . substr( $bits, 0, 8, '' ) ) ) }
+    return $bytes;
+}
+
+sub generate_totp_secret { return _base32_encode( pack 'H*', generate_random_hex(20) ) }
+
+# RFC 6238 code for a secret at a given time (defaults: 30s step, 6 digits).
+sub totp_code {
+    my ( $secret_b32, $time, $step, $digits ) = @_;
+    $step   ||= 30;
+    $digits ||= 6;
+    my $key     = _base32_decode($secret_b32);
+    my $counter = int( $time / $step );
+    my $msg     = pack 'N2', int( $counter / 2**32 ), $counter % 2**32;
+    require Digest::SHA;
+    my $hash   = Digest::SHA::hmac_sha1( $msg, $key );
+    my $offset = ord( substr $hash, -1 ) & 0x0f;
+    my $bin    = unpack( 'N', substr( $hash, $offset, 4 ) ) & 0x7fffffff;
+    return sprintf '%0*d', $digits, $bin % ( 10**$digits );
+}
+
+# Verify a 6-digit code against the current time +/- a window of steps.
+sub totp_verify {
+    my ( $secret_b32, $code, $window, $now ) = @_;
+    return 0 unless defined $code && $code =~ /^\d{6}$/;
+    $window //= 1;
+    $now    //= time();
+    for my $w ( -$window .. $window ) {
+        return 1 if totp_code( $secret_b32, $now + $w * 30, 30, 6 ) eq $code;
+    }
+    return 0;
+}
+
 my $LOG_COMPONENT = 'users';
 
 # SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
@@ -211,6 +268,20 @@ if ( $API_MODE ) {
             $result = cmd_claim_redeem( $req->{username}, $req->{claim},
                 password => $req->{password} );
         }
+        elsif ( $action eq 'mfa-enroll' ) {
+            my $r = cmd_mfa_enroll( $req->{username} );
+            $result = { ok => 1, %$r };
+        }
+        elsif ( $action eq 'mfa-disable' ) {
+            cmd_mfa_disable( $req->{username} );
+            $result = { ok => 1, message => 'MFA disabled' };
+        }
+        elsif ( $action eq 'mfa-verify' ) {
+            $result = cmd_mfa_verify( $req->{username}, $req->{code} );
+        }
+        elsif ( $action eq 'totp-code' ) {
+            $result = { ok => 1, code => totp_code( $req->{secret}, $req->{time}, $req->{step}, $req->{digits} ) };
+        }
         elsif ( $action eq 'verify-credential' ) {
             $result = cmd_verify_credential( $req->{username}, $req->{secret} );
         }
@@ -267,6 +338,8 @@ elsif ( $cmd eq 'token-exchange' ) { cmd_token_exchange(@args) }
 elsif ( $cmd eq 'token-rotate' )   { cmd_token_rotate(@args) }
 elsif ( $cmd eq 'claim-create' )   { cmd_claim_create_cli(@args) }
 elsif ( $cmd eq 'claim-redeem' )   { cmd_claim_redeem_cli(@args) }
+elsif ( $cmd eq 'mfa-enroll' )     { cmd_mfa_enroll(@args) }
+elsif ( $cmd eq 'mfa-disable' )    { cmd_mfa_disable(@args) }
 elsif ( $cmd eq 'partner-create' ) { cmd_partner_create_cli(@args) }
 else {
     print STDERR "Unknown command: $cmd\n\n" if $cmd;
@@ -472,6 +545,9 @@ sub effective_settings {
         claim_purpose => ( $s->{claim_hash} ? $s->{claim_purpose} : undef ),
         # SM072: account-level expiry (epoch); after it all auth fails.
         expires_at => $s->{expires_at},
+        # SM072 batch 4: MFA status (the secret is never exposed).
+        mfa_enrolled => $s->{totp_secret}  ? JSON::PP::true() : JSON::PP::false(),
+        mfa_required => $s->{mfa_required} ? JSON::PP::true() : JSON::PP::false(),
     };
 }
 
@@ -1044,6 +1120,87 @@ sub cmd_claim_create_cli {
 sub cmd_claim_redeem_cli {
     my ( $user, $claim, $pw ) = @_;
     cmd_claim_redeem( $user, $claim, password => $pw );
+}
+
+sub _uri_escape {
+    my ($s) = @_;
+    $s = defined $s ? "$s" : '';
+    $s =~ s/([^A-Za-z0-9._~-])/sprintf('%%%02X', ord $1)/ge;
+    return $s;
+}
+
+# SM072 batch 4: enrol TOTP. Generates a secret + 8 single-use recovery
+# codes; stores the secret and the HASHED recovery codes; returns the
+# secret, an otpauth:// URI (for a QR), and the plaintext recovery codes
+# (shown once).
+sub cmd_mfa_enroll {
+    my ($user) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+
+    my $secret   = generate_totp_secret();
+    my @recovery = map {
+        my $h = generate_random_hex(5);            # 10 hex chars
+        substr( $h, 0, 5 ) . '-' . substr( $h, 5, 5 );
+    } 1 .. 8;
+
+    my $all = read_settings();
+    $all->{$user} ||= {};
+    $all->{$user}{totp_secret}     = $secret;
+    $all->{$user}{recovery_hashes} = [ map { hash_token($_) } @recovery ];
+    write_settings($all);
+
+    my $issuer = read_conf_value('site_name') || 'lazysite';
+    $issuer =~ s/[^A-Za-z0-9 ._-]//g;
+    my $uri = 'otpauth://totp/' . _uri_escape("$issuer:$user")
+            . "?secret=$secret&issuer=" . _uri_escape($issuer)
+            . '&algorithm=SHA1&digits=6&period=30';
+
+    log_event( 'INFO', $user, 'mfa enrolled' );
+    my $r = { secret => $secret, otpauth_uri => $uri, recovery_codes => \@recovery };
+    unless ($API_MODE) {
+        print "TOTP secret for '$user': $secret\n";
+        print "otpauth URI: $uri\n";
+        print "Recovery codes (store now):\n  " . join( "\n  ", @recovery ) . "\n";
+    }
+    return $r;
+}
+
+sub cmd_mfa_disable {
+    my ($user) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my $all = read_settings();
+    if ( exists $all->{$user} ) {
+        delete $all->{$user}{$_} for qw(totp_secret recovery_hashes mfa_required);
+        write_settings($all);
+    }
+    log_event( 'INFO', $user, 'mfa disabled' );
+    print "MFA disabled for '$user'.\n" unless $API_MODE;
+    return { ok => 1 };
+}
+
+# Verify a TOTP (6 digits) or a single-use recovery code. Returns { ok }.
+sub cmd_mfa_verify {
+    my ( $user, $code ) = @_;
+    return { ok => 0 } unless defined $user && length $user && defined $code && length $code;
+    my $all    = read_settings();
+    my $s      = $all->{$user} || {};
+    my $secret = $s->{totp_secret};
+    return { ok => 0 } unless $secret;          # not enrolled
+
+    return { ok => 1 } if $code =~ /^\d{6}$/ && totp_verify( $secret, $code );
+
+    my $rec = $s->{recovery_hashes} || [];
+    for my $i ( 0 .. $#$rec ) {
+        next unless verify_secret( $code, $rec->[$i] );
+        splice @$rec, $i, 1;                     # single use
+        $all->{$user}{recovery_hashes} = $rec;
+        write_settings($all);
+        log_event( 'INFO', $user, 'mfa recovery code used' );
+        return { ok => 1, recovery_used => JSON::PP::true() };
+    }
+    return { ok => 0 };
 }
 
 # Read a scalar value from lazysite.conf (for the onboarding brief).

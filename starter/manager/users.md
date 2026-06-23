@@ -231,6 +231,12 @@ function renderUserRow(row) {
     (s.claim_pending ? ' <span class="mg-muted">(link outstanding)</span>' : '') +
     '<span class="mg-help" title="A one-time link the user opens to set their OWN password (or mint their own token) - you never see it. Reset credential revokes the current one first. Single-use, expires in 24h.">&#9432;</span></div>';
   cred += '<div class="mg-cred-reveal" id="setup-' + ue + '" style="display:none"></div>';
+  cred += '<div class="mg-line"><span class="mg-line-lbl">Two-factor</span>' +
+    (s.mfa_enrolled
+      ? '<span class="mg-tag mg-tag-on">enabled</span> <button class="mg-btn mg-btn-sm" onclick="disable2fa(\'' + ue + '\')">Disable</button>'
+      : '<button class="mg-btn mg-btn-sm" onclick="enable2fa(\'' + ue + '\')">Enable 2FA</button>') +
+    '<span class="mg-inline-msg" id="mfamsg-' + ue + '"></span></div>';
+  cred += '<div class="mg-cred-reveal" id="mfa-' + ue + '" style="display:none"></div>';
   h += sec('Credentials', cred);
 
   // --- WebDAV (publishing accounts only) ---
@@ -535,6 +541,36 @@ function renameUser(user) {
   apiCall({ action: 'rename', username: user, to: to })
     .then(function(d) { if (!d.ok) { say(d.error, false); return; } say('Renamed.', true); loadUsers(); })
     .catch(function(e) { say('Error: ' + e.message, false); });
+}
+
+// Enrol TOTP: reveal the secret, otpauth URI, and recovery codes once.
+function enable2fa(user) {
+  var box = document.getElementById('mfa-' + user);
+  function show(html) { if (box) { box.style.display = 'block'; box.innerHTML = html; } }
+  apiCall({ action: 'mfa-enroll', username: user })
+    .then(function(d) {
+      if (!d.ok) { show('<span class="mg-err">' + escHtml(d.error) + '</span>'); return; }
+      var codes = (d.recovery_codes || []).map(escHtml).join('<br>');
+      show('<div class="mg-muted">Add to an authenticator app, then sign out and back in with a code. Shown once.</div>' +
+        '<div class="mg-line"><span class="mg-line-lbl">Secret</span><code class="mg-code" id="mfasec-' + user + '">' + escHtml(d.secret) + '</code>' +
+        '<button class="mg-btn mg-btn-sm" onclick="copyText(\'mfasec-' + user + '\')">Copy</button></div>' +
+        '<div class="mg-line"><span class="mg-line-lbl">otpauth</span><code class="mg-code" id="mfauri-' + user + '">' + escHtml(d.otpauth_uri) + '</code>' +
+        '<button class="mg-btn mg-btn-sm" onclick="copyText(\'mfauri-' + user + '\')">Copy</button></div>' +
+        '<div class="mg-muted">Recovery codes (store now, each works once):</div>' +
+        '<div class="mg-code" style="white-space:normal">' + codes + '</div>');
+    })
+    .catch(function(e) { show('<span class="mg-err">Error: ' + escHtml(e.message) + '</span>'); });
+}
+
+function disable2fa(user) {
+  var msg = document.getElementById('mfamsg-' + user);
+  if (!confirm('Disable two-factor for "' + user + '"?')) return;
+  apiCall({ action: 'mfa-disable', username: user })
+    .then(function(d) {
+      if (msg) { msg.textContent = d.ok ? 'Disabled.' : d.error; msg.className = 'mg-inline-msg ' + (d.ok ? 'mg-ok' : 'mg-err'); }
+      loadUsers();
+    })
+    .catch(function(e) {});
 }
 
 // Fill the Add-user group multi-select from the loaded groups.

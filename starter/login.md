@@ -80,7 +80,9 @@ query_params:
   }
 </style>
 
-[% IF query.error %]
+[% IF query.error == 'mfa' %]
+<p class="auth-error">Enter your two-factor code to finish signing in.</p>
+[% ELSIF query.error %]
 <p class="auth-error">Invalid username or password.</p>
 [% END %]
 
@@ -102,6 +104,9 @@ query_params:
 
   <label for="password">Password</label>
   <input type="password" name="password" id="password" autocomplete="current-password">
+
+  <label for="code">2FA code</label>
+  <input type="text" name="code" id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="if 2FA is enabled">
 
   <div class="login-submit">
     <button type="submit">Sign in</button>
