@@ -337,6 +337,7 @@ elsif ( $action eq 'nav-save' )         {
     $result = action_nav_save( $req->{items} // [] );
 }
 elsif ( $action eq 'handler-list' )     { $result = action_handler_list() }
+elsif ( $action eq 'version' )          { $result = action_version() }
 elsif ( $action eq 'handler-save' )     {
     my $req = eval { decode_json($body) } // {};
     $result = action_handler_save($req);
@@ -2499,6 +2500,17 @@ sub action_layouts_repo_set {
 }
 
 # --- User management proxy ---
+
+# SM072: the running version, read from the install state .install-state.json.
+sub action_version {
+    my $path = "$DOCROOT/lazysite/.install-state.json";
+    return { ok => 1, version => undef } unless -f $path;
+    open my $fh, '<', $path or return { ok => 1, version => undef };
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $d = eval { decode_json($raw) } || {};
+    return { ok => 1, version => $d->{version}, installed_at => $d->{installed_at} };
+}
 
 sub action_users {
     my ( $request_body, $params_ref ) = @_;
