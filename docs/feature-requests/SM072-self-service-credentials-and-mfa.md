@@ -271,6 +271,9 @@ Token presentation and rotation [SM071 control API]
 Account type at creation + rename [SM072 addition, near-term]
 : Choosing **Human (interactive)** or **AI / backend (token)** when adding a user drives the lifecycle - human shows the password field; AI creates with `ui` off + `webdav` on, so the card leads with the setup-link / onboarding brief. The row summary shows the type. Plus a **rename** action (updates the credential store, settings, group membership, and provenance references).
 
+Per-page ownership + per-file ACLs [roadmap]
+: Each page shows its created date and created-by/group; the owner can set read/write on their own files (a per-file ACL), enforced at the WebDAV / manager layer. For multi-author sites where authors want to limit who can modify their pages. Likely a sidecar/metadata model since content files have no native ACL.
+
 Files page: list by type [roadmap]
 : The manager Files page groups/filters files by type (e.g. all generated `.html`), so an operator can quickly review and selectively delete them - useful after content moves or theme changes leave stale cached HTML.
 

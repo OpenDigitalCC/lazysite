@@ -682,12 +682,12 @@ sub cmd_token {
 sub cmd_account_create {
     my ( $user, $pass, %opt ) = @_;
     my $creator = $opt{created_by};
-    die "Username and password required\n"
-        unless defined $user && length $user && defined $pass && length $pass;
+    die "Username required\n" unless defined $user && length $user;
+    $pass = '' unless defined $pass;   # empty => token-only sub-user (setup link)
     die "Creator (--by USERNAME) required\n"
         unless defined $creator && length $creator;
     $user =~ s/[^a-zA-Z0-9_.-]//g;
-    die "Username and password required\n" unless length $user;
+    die "Username required\n" unless length $user;
 
     my %users = read_users();
     die "User '$user' already exists\n" if $users{$user};
@@ -712,7 +712,7 @@ sub cmd_account_create {
             unless $actor eq $creator || is_ancestor( $actor, $creator, $all );
     }
 
-    $users{$user} = hash_password($pass);
+    $users{$user} = length($pass) ? hash_password($pass) : '';
     write_users(%users);
 
     $all->{$user} ||= {};

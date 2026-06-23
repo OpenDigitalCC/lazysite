@@ -180,4 +180,16 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
     like( $c, qr/^davbot:\s*$/m, "token-only account stored with empty hash" );
 }
 
+# --- account-create allows an empty password (token-only sub-user) -----
+{
+    my $d = fresh_docroot();
+    cli( $d, 'add', 'boss', 'pw' );
+    cli( $d, 'set', 'boss', 'create_sub_users', 'on' );
+    my $r = api( $d, { action => 'account-create', username => 'bot', password => '',
+                       created_by => 'boss', actor => 'boss' } );
+    ok( $r->{ok}, 'account-create with no password succeeds' );
+    open my $fh, '<', "$d/lazysite/auth/users"; my $c = do { local $/; <$fh> }; close $fh;
+    like( $c, qr/^bot:\s*$/m, 'token-only sub-user stored with empty hash' );
+}
+
 done_testing();

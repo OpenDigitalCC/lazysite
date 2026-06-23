@@ -36,6 +36,10 @@ search: false
 <select multiple id="new-groups" class="mg-inp mg-inp-wide" size="3"></select>
 </div>
 <div class="mg-form-row">
+<label>Create under</label>
+<select id="new-parent"><option value="">(top-level account)</option></select>
+</div>
+<div class="mg-form-row">
 <label></label>
 <button class="mg-btn mg-btn-outline" onclick="addUser()">Add user</button>
 </div>
@@ -74,6 +78,7 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 var DAV_BASE = location.origin + '/dav';
 var allGroups = {};   // {group: [members]}
 var allUsers  = [];   // [username]
+var parentList = [];  // [username] - accounts that can own sub-users (create_sub_users)
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
@@ -125,7 +130,10 @@ function loadUsers() {
     allUsers = rows.map(function(r) { return r.user; });
     renderUsers(rows);
     renderGroups();
+    parentList = rows.filter(function(r) { return r.settings && r.settings.create_sub_users; })
+                     .map(function(r) { return r.user; }).sort();
     populateAddUserGroups();
+    populateAddUserParents();
   }).catch(function(e) { showStatus('Failed to load users: ' + e.message, true); });
 }
 
@@ -296,17 +304,6 @@ function renderUserRow(row) {
   }
   h += sec('Account', ac);
 
-  // --- Create sub-user (owned by this account; needs its create_sub_users) ---
-  if (s.create_sub_users) {
-    var cu = '<div class="mg-line"><span class="mg-line-lbl">Username</span>' +
-      '<input type="text" class="mg-inp" id="sub-u-' + ue + '" placeholder="new sub-user"></div>' +
-      '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
-      '<input type="password" class="mg-inp" id="sub-p-' + ue + '" placeholder="password"></div>' +
-      '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="createSubUser(\'' + ue + '\')">Create &mdash; owned by ' + ue + '</button>' +
-      '<span class="mg-inline-msg" id="submsg-' + ue + '"></span></div>';
-    h += sec('Create sub-user', cu);
-  }
-
   h += '</div></details>';
   return h;
 }
@@ -457,23 +454,6 @@ function deleteUser(user) {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-// Create a sub-user OWNED BY `parent` (any account in your sub-tree that
-// has create_sub_users). The server enforces ancestry against the actor.
-function createSubUser(parent) {
-  var u = (document.getElementById('sub-u-' + parent).value || '').trim();
-  var p = (document.getElementById('sub-p-' + parent).value || '').trim();
-  var msg = document.getElementById('submsg-' + parent);
-  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
-  if (!u || !p) { say('Username and password required.', false); return; }
-  apiCall({ action: 'account-create', username: u, password: p, created_by: parent })
-    .then(function(d) {
-      if (!d.ok) { say(d.error, false); return; }
-      say('Created "' + u + '" under "' + parent + '".', true);
-      loadUsers();
-    })
-    .catch(function(e) { say('Error: ' + e.message, false); });
-}
-
 // Save the free-text annotation (comment) for an account.
 function saveComment(user) {
   var inp = document.getElementById('note-' + user);
@@ -599,6 +579,16 @@ function populateAddUserGroups() {
     : '<option value="" disabled>no groups yet</option>';
 }
 
+// Fill the "Create under" parent dropdown from accounts that can own sub-users.
+function populateAddUserParents() {
+  var sel = document.getElementById('new-parent');
+  if (!sel) return;
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">(top-level account)</option>' +
+    parentList.map(function(p) { return '<option value="' + escHtml(p) + '">under ' + escHtml(p) + '</option>'; }).join('');
+  sel.value = cur;
+}
+
 // Account type drives the form: AI/backend accounts take no password.
 function onTypeChange() {
   var t = document.getElementById('new-type').value;
@@ -610,11 +600,16 @@ function addUser() {
   var username = document.getElementById('new-username').value.trim();
   var type = document.getElementById('new-type').value;            // human | ai
   var password = (type === 'ai') ? '' : document.getElementById('new-password').value;
+  var parent = document.getElementById('new-parent').value;        // '' = top-level
   var sel = document.getElementById('new-groups');
   var gl = sel ? Array.prototype.slice.call(sel.selectedOptions)
                    .map(function(o) { return o.value; }).filter(Boolean) : [];
   if (!username) { showStatus('Username required.', true); return; }
-  apiCall({ action: 'add', username: username, password: password })
+  // A parent makes this a sub-user (owned by that account); otherwise top-level.
+  var req = parent
+    ? { action: 'account-create', username: username, password: password, created_by: parent }
+    : { action: 'add', username: username, password: password };
+  apiCall(req)
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
       var chain = Promise.resolve();
@@ -626,10 +621,11 @@ function addUser() {
                      .then(function() { return apiCall({ action: 'settings-set', username: username, key: 'webdav', value: 'on' }); });
       }
       chain.then(function() {
+        var where = parent ? (' under "' + parent + '"') : '';
         showStatus(type === 'ai'
-          ? ('AI account "' + username + '" added - open its card to Generate a setup link or onboarding brief.')
-          : (password ? ('User "' + username + '" added.')
-                      : ('User "' + username + '" added - use Generate setup link in its card so they set their own password.')));
+          ? ('AI account "' + username + '" added' + where + ' - open its card to Generate a setup link or onboarding brief.')
+          : (password ? ('User "' + username + '" added' + where + '.')
+                      : ('User "' + username + '" added' + where + ' - use Generate setup link in its card so they set their own password.')));
         document.getElementById('new-username').value = '';
         document.getElementById('new-password').value = '';
         loadUsers();
