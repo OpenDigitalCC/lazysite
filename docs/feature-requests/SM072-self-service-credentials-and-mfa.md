@@ -99,6 +99,14 @@ the secret - with no SMTP, no email address, and no new cryptography beyond the
 claim primitive.
 :::
 
+**Operator-triggered reset.** The operator can issue a claim to an existing
+account at any time - this is the admin's password-replacement mechanism, with
+the admin never choosing the value. A plain claim is additive: the current
+credential keeps working until the user redeems. A **Reset credential** variant
+additionally **revokes** the current credential (clears its hash) so the account
+cannot authenticate until the new claim is redeemed - the forced reset for a
+lost, rotated, or compromised secret.
+
 ## 5. Flow B - email delivery (gated on SMTP)
 
 Where the SMTP plugin (`plugins/form-smtp.pl` + `lazysite/forms/smtp.conf`) is
@@ -186,9 +194,9 @@ tone: light
 login flow | POST | Add the TOTP second-factor step after password verify (Flow D).
 ```
 
-Starter pages: `claim.md`, `forgot.md`. Manager card gains an **email** field
-and a **Generate setup link** action (and **Send set-password email** when SMTP
-is configured).
+Starter pages: `claim.md`, `forgot.md`. Manager card gains an **email** field, a
+**Generate setup link** action, and a **Reset credential** action (revoke +
+fresh claim) - plus **Send set-password email** when SMTP is configured.
 
 ## 10. Security model
 
@@ -245,5 +253,7 @@ Docs | Update auth.md + the AI briefings; CHANGELOG entries per batch; this spec
 - WebAuthn / passkeys - `[DEFER]`; the login second-factor slot from batch 4 is
   the future extension point.
 - Session invalidation on credential change - `[DEFER]` (§10).
-- Admin-set passwords - explicitly removed as the default path; an operator may
-  still set one via the CLI for break-glass, but the UI leads with claims.
+- Admin-*chosen* passwords - removed. The operator cannot pick a credential's
+  value, but **can trigger its replacement** by issuing a new claim (the
+  **Reset credential** action of §4): the old secret is revoked and the user
+  sets a fresh one. A CLI `passwd` remains for break-glass only.
