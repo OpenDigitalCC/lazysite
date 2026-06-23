@@ -179,6 +179,7 @@ claim_purpose | enum | set-password \| mint-token.
 mfa_required | bool | Force TOTP enrolment at next login (Flow D).
 totp_secret | string | Base32 shared secret once enrolled (Flow D).
 recovery_hashes | array | sha256 of one-time recovery codes (Flow D).
+expires_at | epoch | Account-level expiry; after it ALL authentication fails (time-boxed access). Distinct from token_expires_at. Operator-set.
 ```
 
 ## 9. Endpoints and pages
@@ -249,7 +250,28 @@ Security | The §10 model is the acceptance gate: enumeration, replay, brute-for
 Docs | Update auth.md + the AI briefings; CHANGELOG entries per batch; this spec is the design of record.
 ```
 
-## 13. Out of scope / deferred
+## 13. Adjacent decisions (publishing-model review, 2026-06-23)
+
+A review of the partner onboarding against the live briefings raised the
+following. They are recorded here as the design of record; most extend
+SM071's control API or sit beside SM072 rather than inside its four batches.
+
+Config and themes - control API, not raw WebDAV [DECISION]
+: Config-key changes and theme/layout *activation* (with HTML-cache invalidation) go through the token control API with a **key allowlist**, never a raw PUT of `lazysite.conf` - that file carries privilege-escalation keys (`plugins`, `auth_default`, `manager_groups`). WebDAV stays for content, assets, and layout/theme *files* under the `lazysite/layouts/` scope. The dav **deny-list enforces this server-side** regardless of any bootstrap prose (verified by test: `lazysite/auth`, `lazysite/forms/.smtp-password`, `lazysite.conf`, `lazysite/manager` are write-denied). Consequence for the plan: an agent's "manage config / activate theme" capability is **gated on the control-API release**; until then the operator performs those through the manager UI.
+
+Account expiry [SM072 addition, near-term]
+: A per-account `expires_at` (date, optional time) after which the account fails authentication outright - the operator grants time-boxed access ("one day, then auto-expire"). Independent of `token_expires_at` (which expires a single access token); `expires_at` expires the whole account whatever its credential. Enforced in login and verify-credential; surfaced as a date field on the card.
+
+Machine-readable bootstrap + well-known path [roadmap]
+: The onboarding brief gains a compact parseable block (partner, site, endpoints, auth, capabilities, scope, docs) alongside the prose, fetchable from a well-known path (e.g. `/.well-known/ai-partner`) and referenced from `llms.txt` - so a cold agent can start from a URL alone. The brief documents the grant; the token enforces it. The bootstrap is the write/discovery counterpart to `llms.txt`'s read/discovery index, and does exactly four jobs: identify, authorise, locate, point-to-docs.
+
+Token presentation and rotation [SM071 control API]
+: Basic-auth username = the partner id, password = the `lzs_` token (per-partner attribution in the access log, per-partner revoke). The exchange/rotation response returns `{token, expires_at}` so rotation is deterministic, not 401-driven.
+
+Offline publish bundle [new feature, separate]
+: For no-egress agents: assemble the in-scope file set once, then either transport it live over WebDAV or serialise it to a **docroot-relative archive + audited manifest** (target paths, create/overwrite, post-extract actions such as "clear HTML cache") for the operator to apply by hand. One file-set builder, two transports - unit-testable with no network. The apply step stays operator-supervised (a manifest to audit, not a script that auto-runs).
+
+## 14. Out of scope / deferred
 
 - SSO / external IdP (OIDC, SAML) - the existing external-auth-proxy trust
   model already covers that case; SM072 is built-in auth only.
