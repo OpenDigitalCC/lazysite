@@ -470,7 +470,9 @@ sub cmd_group_add {
     die "Username and group required\n" unless $user && $group;
 
     my %users = read_users();
-    die "User '$user' not found\n" unless $users{$user};
+    # exists, not truthiness: a token-only account (empty hash) can still
+    # join groups.
+    die "User '$user' not found\n" unless exists $users{$user};
 
     my %groups = read_groups();
     $groups{$group} //= [];

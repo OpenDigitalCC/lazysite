@@ -79,6 +79,16 @@ PROPFIND /dav/   Depth: 0   Authorization: Basic base64(<partner-id>:<lzs_ token
 -> 207 means authenticated; 401 means the username or token is wrong.
 ```
 
+For your **full grant** - capabilities, groups, scope, and the plugins,
+layouts, and themes the site offers (with their active status) - introspect
+over the control API rather than assuming from the bootstrap:
+
+```
+GET /cgi-bin/lazysite-manager-api.pl?action=whoami
+Authorization: Basic base64(<partner-id>:<lzs_ token>)
+-> { partner, capabilities, groups, scope, layouts, themes, plugins }
+```
+
 ### Exchange and rotation
 
 Exchange your single-use pairing key for an access token by POSTing it to

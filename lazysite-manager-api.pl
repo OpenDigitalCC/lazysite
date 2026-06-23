@@ -245,6 +245,7 @@ if ( $token_auth ) {
         'layout-activate'   => sub { $_[0]->{manage_layouts} },
         'preview-grant'     => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'config-set'        => sub { $_[0]->{manage_config} },
+        'whoami'            => sub { 1 },   # any authenticated token may introspect its own grant
     );
     my $check = $need{$action};
     unless ($check) {
@@ -338,6 +339,7 @@ elsif ( $action eq 'nav-save' )         {
 }
 elsif ( $action eq 'handler-list' )     { $result = action_handler_list() }
 elsif ( $action eq 'version' )          { $result = action_version() }
+elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
 elsif ( $action eq 'handler-save' )     {
     my $req = eval { decode_json($body) } // {};
     $result = action_handler_save($req);
@@ -2500,6 +2502,50 @@ sub action_layouts_repo_set {
 }
 
 # --- User management proxy ---
+
+# SM072: agent introspection. Returns the CALLER's grant (capabilities,
+# groups, scope) and what the site offers (plugins with status, layouts and
+# themes with their active flags) - so an agent learns its real grant rather
+# than parsing the bootstrap prose. Allowed for any authenticated caller.
+sub action_whoami {
+    my ($user) = @_;
+    my $s = ( users_api({ action => 'settings-get', username => $user }) || {} )->{settings} || {};
+
+    my $allg = ( users_api({ action => 'groups' }) || {} )->{groups} || {};
+    my @groups = sort grep {
+        ref $allg->{$_} eq 'ARRAY' && ( grep { $_ eq $user } @{ $allg->{$_} } )
+    } keys %$allg;
+
+    my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
+    my $bool = sub { $_[0] ? JSON::PP::true() : JSON::PP::false() };
+
+    return {
+        ok      => 1,
+        partner => $user,
+        capabilities => {
+            webdav           => $bool->( $s->{webdav} ),
+            ui               => $bool->( !( exists $s->{ui} && !$s->{ui} ) ),
+            manage_themes    => $bool->( $s->{manage_themes} ),
+            manage_layouts   => $bool->( $s->{manage_layouts} ),
+            manage_config    => $bool->( $s->{manage_config} ),
+            create_sub_users => $bool->( $s->{create_sub_users} ),
+        },
+        groups => \@groups,
+        scope  => {
+            allow => ( defined $s->{dav_scope} && length $s->{dav_scope} ) ? $s->{dav_scope} : '/',
+            deny  => [ '/lazysite/auth', '/lazysite/cache', '/lazysite/logs',
+                       '/lazysite/forms/.smtp-password', '/lazysite/manager',
+                       '/lazysite/lazysite.conf' ],
+        },
+        layouts => {
+            active_layout => $active_layout,
+            active_theme  => $active_theme,
+            available     => ( action_layouts_available() || {} )->{layouts} || [],
+        },
+        themes  => ( action_theme_list()  || {} )->{themes}  || [],
+        plugins => ( action_plugin_list() || {} )->{plugins} || [],
+    };
+}
 
 # SM072: the running version, read from the install state .install-state.json.
 sub action_version {

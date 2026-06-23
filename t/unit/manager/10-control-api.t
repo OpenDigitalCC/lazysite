@@ -128,4 +128,22 @@ my $deny = mapi( $d, REQUEST_METHOD => 'POST',
     body => encode_json({ action => 'account-disable', username => 'other' }) );
 ok( !$deny->{ok}, 'manager may not disable an account outside its sub-tree' );
 
+# --- SM072: whoami introspection of the caller's own grant --------------
+uapi( $d, { action => 'settings-set', username => 'partner', key => 'webdav', value => 'on' } );
+uapi( $d, { action => 'group-add', username => 'partner', group => 'editors' } );
+my $who = mapi( $d, QUERY_STRING => 'action=whoami',
+    HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+ok( $who->{ok}, 'whoami ok for a token client' );
+is( $who->{partner}, 'partner', 'whoami returns the caller id' );
+ok( $who->{capabilities}{manage_themes},  'whoami reports manage_themes on' );
+ok( !$who->{capabilities}{manage_layouts}, 'whoami reports manage_layouts off' );
+is_deeply( $who->{groups}, ['editors'], 'whoami lists the caller groups' );
+ok( ref $who->{plugins} eq 'ARRAY', 'whoami lists plugins' );
+ok( exists $who->{layouts}{active_layout}, 'whoami reports the active layout' );
+
+# whoami needs no special capability - nocap can still introspect itself
+my $who2 = mapi( $d, QUERY_STRING => 'action=whoami',
+    HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
+ok( $who2->{ok} && $who2->{partner} eq 'nocap', 'whoami available without a capability' );
+
 done_testing();
