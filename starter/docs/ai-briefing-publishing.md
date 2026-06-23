@@ -217,9 +217,17 @@ writes it to a bundle plus manifest. Same file set, two transports.
 
 ## The machine-readable bootstrap
 
-Alongside the prose, your brief carries (or will carry, fetched from a
-well-known path) a compact parseable block. Parse capabilities and scope
-from this, do not infer them from sentences:
+Two parseable sources exist - parse identity, scope, and endpoints from
+these, never from prose:
+
+- **Your onboarding brief** carries a per-partner YAML block (under a
+  `## Machine-readable` heading) with your `partner:` id, `pairing_key:`,
+  capabilities, and scope.
+- **`[% site_url %]/.well-known/ai-partner`** is a partner-agnostic JSON
+  document (endpoints, auth scheme, capabilities, deny list, docs) a cold
+  agent can fetch from the site URL alone, before it has any credential.
+
+The shape (YAML form shown; the well-known serves the same data as JSON):
 
 ```yaml
 partner: claude

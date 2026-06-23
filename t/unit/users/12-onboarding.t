@@ -40,6 +40,11 @@ ok( $r->{ok}, 'onboarding ok for existing user' );
 like( $r->{pairing_key}, qr/^lzp_/, 'onboarding returns a pairing key' );
 like( $r->{onboarding}, qr/partner/, 'brief names the user' );
 like( $r->{onboarding}, qr{https://example\.test/dav/}, 'brief carries the DAV URL' );
+# SM072: the machine-readable block - identity + capabilities parseable.
+like( $r->{onboarding}, qr/## Machine-readable/, 'brief has a machine-readable block' );
+like( $r->{onboarding}, qr/^partner: partner$/m, 'block carries the partner id' );
+like( $r->{onboarding}, qr/- publish-content/,   'block lists machine capabilities' );
+like( $r->{onboarding}, qr/scheme: basic/,       'block states the basic-auth scheme' );
 
 # The minted pairing key exchanges for a token.
 my $ex = uapi( $d, { action => 'token-exchange',

@@ -1236,6 +1236,17 @@ sub _onboarding_brief {
     my $scope = ( defined $s->{dav_scope} && length $s->{dav_scope} )
         ? $s->{dav_scope} : 'whole docroot (minus denied paths)';
 
+    # Machine-readable capability tokens + allow scope for the parseable block.
+    my @mcaps;
+    push @mcaps, 'publish-content'        if $s->{webdav};
+    push @mcaps, 'manage-themes'          if $s->{manage_themes};
+    push @mcaps, 'manage-layouts'         if $s->{manage_layouts};
+    push @mcaps, 'set-config-allowlisted' if $s->{manage_config};
+    push @mcaps, 'edit-nav'               if $s->{manage_config};
+    my $mcaps_yaml = join "\n", map { "  - $_" } @mcaps;
+    my $allow = ( defined $s->{dav_scope} && length $s->{dav_scope} )
+        ? $s->{dav_scope} : '/';
+
     return <<"BRIEF";
 # Automated partner: $name
 
@@ -1266,6 +1277,38 @@ Rotate before expiry (an expired token returns HTTP 401) by presenting your
 current token as Basic auth, no body:
 
     POST $base/cgi-bin/lazysite-auth.pl?action=rotate
+
+## Machine-readable
+
+Parse your identity, scope, and endpoints from this block - do not infer them
+from the prose. The site also publishes a partner-agnostic copy at
+`$base/.well-known/ai-partner`.
+
+```yaml
+partner: $name
+site: $base
+endpoints:
+  webdav: $base/dav/
+  exchange: $base/cgi-bin/lazysite-auth.pl?action=exchange
+  rotate: $base/cgi-bin/lazysite-auth.pl?action=rotate
+auth:
+  pairing_key: $key
+  token_prefix: lzs_
+  scheme: basic                 # username = partner (this id), password = token
+capabilities:
+$mcaps_yaml
+scope:
+  allow: ["$allow"]
+  deny: ["/lazysite/auth", "/lazysite/cache", "/lazysite/logs",
+         "/lazysite/forms/.smtp-password", "/lazysite/manager",
+         "/lazysite/lazysite.conf"]
+docs:
+  - $base/docs/ai-briefing-publishing
+  - $base/docs/ai-briefing-authoring
+  - $base/docs/ai-briefing-configuration
+  - $base/docs/ai-briefing-layouts
+  - $base/llms.txt
+```
 
 ## Documentation
 
