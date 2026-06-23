@@ -190,6 +190,38 @@ In `lazysite.conf`:
 
 Both values are sanitised to `[A-Za-z0-9_-]` at resolve time.
 
+## Staging a layout over WebDAV
+
+If you publish over WebDAV you do NOT edit the live look in place - you
+stage a new layout beside the active one, preview it, and hand it to the
+operator to activate.
+
+1. **Capabilities come from your account, not your token.** Editing layout
+   structure (including `layout.tt`) needs `manage_layouts`; theme files
+   need `manage_themes` (separate capabilities). The token does not encode
+   capabilities - they are read from your account on every request - so an
+   operator's grant takes effect immediately and you do NOT need a new
+   token. If a layout write still `403`s right after a grant, you are
+   almost certainly writing the **active** layout (next point), which is
+   denied regardless of capability.
+2. **Stage a NEW layout dir - never the active one.** A `PUT` into the
+   active layout returns `403`: the live layout is immutable in place, by
+   design (a deliberate guard, not a grant failure). A path under a new
+   layout returns `409` until you create its collections, then it is
+   writable - so `MKCOL` `lazysite/layouts/<new>` and
+   `…/themes/<theme>` first, then `PUT` the files.
+3. **Preview by per-page override.** Set `layout: <new>` in a single page's
+   front matter to render that page through the staged layout before any
+   global switch - this is the preview mechanism. The theme's SOURCE css is
+   web-served at `/lazysite/layouts/<new>/themes/<theme>/main.css`, so
+   reference that for preview; the canonical mirror
+   `/lazysite-assets/<new>/<theme>/main.css` is `404` until activation.
+4. **Hand off for activation.** Setting `layout:`/`theme:` in
+   `lazysite.conf` and clearing the HTML cache is an operator / control-API
+   action - the partner stages and previews, the operator activates. Once
+   active, drop the per-page `layout:` overrides; the canonical
+   `/lazysite-assets/` mirror then serves the theme CSS.
+
 ## Theme incompatibility
 
 If `theme.json.layouts` does NOT contain the active layout:
