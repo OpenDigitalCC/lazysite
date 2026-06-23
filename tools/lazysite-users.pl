@@ -242,13 +242,17 @@ else {
 
 sub cmd_add {
     my ( $user, $pass ) = @_;
-    die "Username and password required\n" unless $user && $pass;
+    die "Username required\n" unless defined $user && length $user;
     $user =~ s/[^a-zA-Z0-9_.-]//g;
+    die "Username required\n" unless length $user;
+    $pass = '' unless defined $pass;
 
     my %users = read_users();
     die "User '$user' already exists\n" if $users{$user};
 
-    $users{$user} = hash_password($pass);
+    # Empty password => empty hash: a token-only account (no interactive
+    # login; generate a token for WebDAV/API). Same form as the seed.
+    $users{$user} = length($pass) ? hash_password($pass) : '';
     write_users(%users);
     log_event('INFO', $user, 'user added');
     print "User '$user' added.\n" unless $API_MODE;

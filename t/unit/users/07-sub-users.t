@@ -171,4 +171,13 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
     is( $r->{code}, 0, "passwd succeeds on an empty-password account" );
 }
 
+# --- add with no password creates a token-only (empty-hash) account ----
+{
+    my $d = fresh_docroot();
+    my $r = cli( $d, "add", "davbot", "" );
+    is( $r->{code}, 0, "add with empty password succeeds" );
+    open my $fh, "<", "$d/lazysite/auth/users"; my $c = do { local $/; <$fh> }; close $fh;
+    like( $c, qr/^davbot:\s*$/m, "token-only account stored with empty hash" );
+}
+
 done_testing();

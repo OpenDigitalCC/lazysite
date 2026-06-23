@@ -6,7 +6,14 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
-<details class="mg-add-card">
+<div class="mg-card">
+<div class="mg-card-header">
+<span class="mg-card-title">Users</span>
+</div>
+<div id="user-list" class="mg-acc-list">
+<div class="mg-empty" style="padding:0.75rem;">Loading...</div>
+</div>
+<details class="mg-add-card" style="margin:0.5rem;">
 <summary>+ Add user</summary>
 <div class="mg-card-body">
 <div class="mg-form-row">
@@ -15,11 +22,11 @@ search: false
 </div>
 <div class="mg-form-row">
 <label>Password</label>
-<input type="password" id="new-password" placeholder="password">
+<input type="password" id="new-password" placeholder="leave blank for a token-only (WebDAV/API) account">
 </div>
 <div class="mg-form-row">
 <label>Groups</label>
-<input type="text" id="new-groups" placeholder="editor, admin (comma-separated)">
+<select multiple id="new-groups" class="mg-inp mg-inp-wide" size="3"></select>
 </div>
 <div class="mg-form-row">
 <label></label>
@@ -27,14 +34,6 @@ search: false
 </div>
 </div>
 </details>
-
-<div class="mg-card">
-<div class="mg-card-header">
-<span class="mg-card-title">Users</span>
-</div>
-<div id="user-list" class="mg-acc-list">
-<div class="mg-empty" style="padding:0.75rem;">Loading...</div>
-</div>
 </div>
 
 <div class="mg-card">
@@ -42,11 +41,14 @@ search: false
 <span class="mg-card-title">Groups</span>
 </div>
 <div id="groups-info" class="mg-acc-list">Loading...</div>
+<details class="mg-add-card" style="margin:0.5rem;">
+<summary>+ Add group</summary>
 <div class="mg-card-body mg-new-group-row">
 <input type="text" id="new-group-name" placeholder="new group name">
 <input type="text" id="new-group-member" placeholder="first member">
 <button class="mg-btn mg-btn-outline" onclick="createGroup()">Add group</button>
 </div>
+</details>
 </div>
 
 <details class="mg-add-card mg-danger-card">
@@ -116,6 +118,7 @@ function loadUsers() {
     allUsers = rows.map(function(r) { return r.user; });
     renderUsers(rows);
     renderGroups();
+    populateAddUserGroups();
   }).catch(function(e) { showStatus('Failed to load users: ' + e.message, true); });
 }
 
@@ -439,22 +442,33 @@ function saveComment(user) {
     .catch(function(e) { say('Error: ' + e.message, false); });
 }
 
+// Fill the Add-user group multi-select from the loaded groups.
+function populateAddUserGroups() {
+  var sel = document.getElementById('new-groups');
+  if (!sel) return;
+  var keys = Object.keys(allGroups).sort();
+  sel.innerHTML = keys.length
+    ? keys.map(function(g) { return '<option value="' + escHtml(g) + '">' + escHtml(g) + '</option>'; }).join('')
+    : '<option value="" disabled>no groups yet</option>';
+}
+
 function addUser() {
   var username = document.getElementById('new-username').value.trim();
-  var password = document.getElementById('new-password').value;
-  var groups = document.getElementById('new-groups').value.trim();
-  if (!username || !password) { showStatus('Username and password required.', true); return; }
+  var password = document.getElementById('new-password').value;  // optional: blank => token-only account
+  var sel = document.getElementById('new-groups');
+  var gl = sel ? Array.prototype.slice.call(sel.selectedOptions)
+                   .map(function(o) { return o.value; }).filter(Boolean) : [];
+  if (!username) { showStatus('Username required.', true); return; }
   apiCall({ action: 'add', username: username, password: password })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
-      var gl = groups ? groups.split(',').map(function(x) { return x.trim(); }).filter(Boolean) : [];
       var chain = Promise.resolve();
       gl.forEach(function(g) { chain = chain.then(function() { return apiCall({ action: 'group-add', username: username, group: g }); }); });
       chain.then(function() {
-        showStatus('User "' + username + '" added.');
+        showStatus(password ? ('User "' + username + '" added.')
+          : ('User "' + username + '" added (no password - enable WebDAV and Generate credential in its card).'));
         document.getElementById('new-username').value = '';
         document.getElementById('new-password').value = '';
-        document.getElementById('new-groups').value = '';
         loadUsers();
       });
     })
