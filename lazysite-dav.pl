@@ -873,6 +873,37 @@ sub sanitise_path {
     return $path;
 }
 
+# SM074: per-file ACLs. Ownership and read/write allowlists live in one
+# central store, lazysite/auth/acls.json (keyed by the dav-relative path),
+# not in per-file sidecars - so the content tree stays uncluttered. The
+# store sits inside the already write-denied lazysite/ tree; ACLs are set
+# through the control API, never by a raw PUT. The dav only reads it.
+sub load_acls {
+    return {} unless defined $DOCROOT;
+    my $path = "$DOCROOT/lazysite/auth/acls.json";
+    return {} unless -f $path;
+    open my $fh, '<', $path or return {};
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    require JSON::PP;
+    my $m = eval { JSON::PP::decode_json( $raw // '{}' ) };
+    return ref $m eq 'HASH' ? $m : {};
+}
+
+# 1 if $user may access $rel in $mode ('read'|'write'). Owner always passes;
+# an absent/empty list for the mode leaves it open (scope still applies); a
+# present list is an allowlist.
+sub acl_allows {
+    my ( $rel, $mode, $user ) = @_;
+    my $a = load_acls()->{$rel};
+    return 1 unless $a;
+    return 1 if defined $a->{owner} && defined $user && $a->{owner} eq $user;
+    my $list = $a->{$mode};
+    return 1 unless ref $list eq 'ARRAY' && @$list;
+    for my $u (@$list) { return 1 if defined $u && defined $user && $u eq $user }
+    return 0;
+}
+
 # Returns an HTTP error code if denied, or undef if allowed.
 sub authorise {
     my ( $rel, $scope, $is_write, $conf, $user ) = @_;
@@ -904,6 +935,12 @@ sub authorise {
     if ($is_write) {
         return 403 if is_blocked( $rel, $conf );
     }
+
+    # SM074: per-file ACLs (content namespace; the lazysite/ subtree returned
+    # earlier). Ownership + read/write lists come from the central store.
+    return 403
+        unless acl_allows( $rel, ( $is_write ? 'write' : 'read' ), $user );
+
     return undef;
 }
 

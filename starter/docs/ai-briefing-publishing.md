@@ -128,6 +128,10 @@ actions your capabilities permit.
   generated cache - `<page>.html` with a `.md`/`.url` source - not your author
   `.html` partials.)
 
+`acl-set` / `acl-get` / `acl-remove`
+: Own a file you publish so co-authors on the same scope cannot overwrite it -
+  see *Own your pages* below. Needs `webdav`.
+
 ## Path mapping
 
 The WebDAV root maps one to one onto the docroot. You address the source `.md`
@@ -222,6 +226,29 @@ over WebDAV and to the operator in the manager. A `.brief` is not a blocked
 extension, so it writes through your normal content (and theme/layout) scope
 exactly like the file it accompanies. Briefs are encouraged, not enforced - a
 publish without one still succeeds, but the Files page flags what is missing.
+
+## Own your pages: ACLs
+
+On a shared scope where several authors write, you can **own** a file so others
+cannot overwrite it. Ownership and permissions are *not* files in the content
+tree - they live in a central store and are set through the control API:
+
+```
+POST .../lazysite-manager-api.pl?action=acl-set&path=/content/about.md
+{ "write": ["your-partner-id"], "read": ["your-partner-id"] }
+```
+
+- The first `acl-set` on a file you can write records **you** as its `owner`.
+- `write` - an allowlist; if present, only the owner and these users may
+  `PUT`/`DELETE`/`MOVE` the file. Omit to leave writes open (scope still
+  applies).
+- `read` - an allowlist for `GET` over WebDAV. Omit to leave reads open. (This
+  governs WebDAV/manager access only - the public still sees the rendered
+  page.)
+
+`acl-get` returns the current entry; `acl-remove` clears it (owner only - so no
+one can take over a file you own). Without an entry, access is just your
+account's scope, exactly as before. Usernames only for now (no groups).
 
 ## Cache behaviour
 

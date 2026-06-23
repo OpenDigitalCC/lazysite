@@ -202,13 +202,20 @@ function briefBadge(f) {
   if (f.is_brief) {
     return ' <span class="mg-brief-tag" title="Authoring brief (private, never served)">brief</span>';
   }
+  var out;
   var bpath = f.path + '.brief';
   if (f.has_brief) {
-    return ' <a class="mg-brief mg-brief-has" title="Edit the authoring brief"'
-         + ' href="/manager/edit?path=' + encodeURIComponent(bpath) + '">&#128221;</a>';
+    out = ' <a class="mg-brief mg-brief-has" title="Edit the authoring brief"'
+        + ' href="/manager/edit?path=' + encodeURIComponent(bpath) + '">&#128221;</a>';
+  } else {
+    out = ' <a class="mg-brief mg-brief-missing" title="No brief yet - add one"'
+        + ' href="#" onclick="createBrief(\'' + escHtml(f.path) + '\'); return false;">&#9633;</a>';
   }
-  return ' <a class="mg-brief mg-brief-missing" title="No brief yet - add one"'
-       + ' href="#" onclick="createBrief(\'' + escHtml(f.path) + '\'); return false;">&#9633;</a>';
+  if (f.owner) {
+    out += ' <span class="mg-owner" title="Owner (per-file ACL)">&#128100;'
+         + escHtml(f.owner) + '</span>';
+  }
+  return out;
 }
 
 // Rebuild the type-filter options from the current directory's files,

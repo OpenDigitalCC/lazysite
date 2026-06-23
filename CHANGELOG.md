@@ -18,6 +18,25 @@ Keying
 
 ## Unreleased
 
+SM074 - Per-file ownership and ACLs
+: An opt-in entry in a central store (`lazysite/auth/acls.json`: `owner` +
+  `read`/`write` allowlists) narrows access within a shared WebDAV scope -
+  others can no longer overwrite a page you own, and a `read` list hides the
+  source from other authors. ACLs are metadata, not content, so they live in
+  one file (no per-file sidecars cluttering the tree) and are managed through
+  `acl-set` / `acl-get` / `acl-remove` (manager + token control API, the
+  latter gated on `webdav`). Enforced in `lazysite-dav.pl` (read + write) and
+  the manager API (operators bypass; owners pass). The store sits in the
+  write-denied `lazysite/` tree, so a raw `PUT` can never touch it. No entry
+  means unchanged scope-only behaviour. The Files page shows a file's owner.
+  Usernames only in v1 (groups deferred).
+
+Lock propagation fix
+: A WebDAV lock (or another manager user's lock) now blocks a manager
+  *save*, not just opening the editor - `action_save` was parsing the shared
+  lock record with the legacy line format and silently ignoring JSON/DAV
+  locks.
+
 SM073 - Per-file `.brief` sidecars
 : Every authored file gets a sibling `<file>.brief` recording its intent and
   an append-only edit log. Briefs are writable over WebDAV and editable in

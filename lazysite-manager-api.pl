@@ -246,6 +246,10 @@ if ( $token_auth ) {
         'preview-grant'     => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'config-set'        => sub { $_[0]->{manage_config} },
         'whoami'            => sub { 1 },   # any authenticated token may introspect its own grant
+        # SM074: a publishing partner manages ACLs on the content it owns.
+        'acl-get'           => sub { $_[0]->{webdav} },
+        'acl-set'           => sub { $_[0]->{webdav} },
+        'acl-remove'        => sub { $_[0]->{webdav} },
     );
     my $check = $need{$action};
     unless ($check) {
@@ -280,6 +284,13 @@ elsif ( $action eq 'save' )             {
     $result = action_save( $path, $auth_user, $req->{content}, $req->{mtime} );
 }
 elsif ( $action eq 'delete' )           { $result = action_delete( $path, $auth_user ) }
+elsif ( $action eq 'acl-get' )          { $result = action_acl_get( $path, $auth_user ) }
+elsif ( $action eq 'acl-set' )          {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_acl_set( $path, $auth_user,
+        $req->{read}, $req->{write}, $req->{owner} );
+}
+elsif ( $action eq 'acl-remove' )       { $result = action_acl_remove( $path, $auth_user ) }
 elsif ( $action eq 'mkdir' )            { $result = action_mkdir($path) }
 elsif ( $action eq 'lock' )             { $result = acquire_lock( $path, $auth_user ) }
 elsif ( $action eq 'unlock' )           { $result = release_lock( $path, $auth_user ) }
@@ -881,6 +892,7 @@ sub action_list {
         unless $real && index( $real, $DOCROOT ) == 0 && -d $real;
 
     my @entries;
+    my $acls = load_acls();   # SM074: owner display, read once per listing
     opendir my $dh, $real or return { ok => 0, error => "Cannot read directory" };
     for my $name ( sort readdir $dh ) {
         next if $name =~ /^\./;
@@ -930,6 +942,10 @@ sub action_list {
             else {
                 $entry->{has_brief} =
                     ( -f "$full.brief" ) ? JSON::PP::true : JSON::PP::false;
+                # SM074: surface ownership from the central ACL store.
+                my $a = $acls->{ _acl_norm($rel) };
+                $entry->{owner} = $a->{owner}
+                    if $a && defined $a->{owner};
             }
         }
         push @entries, $entry;
@@ -937,6 +953,145 @@ sub action_list {
     closedir $dh;
 
     return { ok => 1, path => $dir_path, entries => \@entries };
+}
+
+# SM074: per-file ACLs. Ownership + read/write allowlists live in one
+# central store, lazysite/auth/acls.json (keyed by the content-relative
+# path), not in per-file sidecars - so the content tree stays uncluttered.
+# Operators (manager group, or 'local' when unsecured) administer
+# everything; otherwise access follows the owner + allowlists. The store is
+# read by the dav for enforcement and written here via the acl-* actions.
+sub _acls_path { "$DOCROOT/lazysite/auth/acls.json" }
+
+sub load_acls {
+    my $path = _acls_path();
+    return {} unless -f $path;
+    open my $fh, '<', $path or return {};
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $m = eval { decode_json( $raw // '{}' ) };
+    return ref $m eq 'HASH' ? $m : {};
+}
+
+sub save_acls {
+    my ($map) = @_;
+    my $path = _acls_path();
+    my $dir  = dirname($path);
+    make_path($dir) unless -d $dir;
+    my $tmp = "$path.tmp.$$";
+    open my $fh, '>', $tmp or return 0;
+    print $fh JSON::PP->new->canonical->pretty->encode($map);
+    close $fh;
+    chmod 0640, $tmp;
+    return rename $tmp, $path;
+}
+
+sub _acl_norm { my $r = shift; $r =~ s{^/+}{} if defined $r; return $r }
+
+# Normalise a list value (arrayref or comma/space string) to an arrayref,
+# or undef if not provided.
+sub _to_list {
+    my ($v) = @_;
+    return undef unless defined $v;
+    return [ grep { length } @$v ] if ref $v eq 'ARRAY';
+    return [ grep { length } split /[,\s]+/, $v ];
+}
+
+sub _acl_allows {
+    my ( $rel, $mode, $user ) = @_;
+    my $a = load_acls()->{ _acl_norm($rel) };
+    return 1 unless $a;
+    return 1 if defined $a->{owner} && defined $user && $a->{owner} eq $user;
+    my $list = $a->{$mode};
+    return 1 unless ref $list eq 'ARRAY' && @$list;
+    for my $u (@$list) { return 1 if defined $u && defined $user && $u eq $user }
+    return 0;
+}
+
+sub _is_operator {
+    return 1 unless length $manager_groups_conf;       # unsecured / dev
+    return 1 if ( $auth_user // '' ) eq 'local';
+    my %mg = map { $_ => 1 } grep { length } split /[,\s]+/, $manager_groups_conf;
+    for my $g ( grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' ) ) {
+        return 1 if $mg{$g};
+    }
+    return 0;
+}
+
+# Returns an error hashref if $user may not access $rel in $mode
+# ('read'|'write'), else undef. Operators always pass.
+sub _acl_denied {
+    my ( $rel, $mode, $user ) = @_;
+    return undef if _is_operator();
+    return undef if _acl_allows( $rel, $mode, $user );
+    return { ok => 0, error => "You do not have $mode access to this file" };
+}
+
+# --- SM074 ACL management actions (manager + control API) ----------------
+sub action_acl_get {
+    my ( $rel_path, $user ) = @_;
+    my $r = validate_path($rel_path);
+    return $r unless $r->{ok};
+    my $a = load_acls()->{ _acl_norm( $r->{rel} ) };
+    unless ( _is_operator() ) {
+        return { ok => 0, error => "Not the owner of this file" }
+            if $a && ( $a->{owner} // '' ) ne ( $user // '' );
+    }
+    return { ok => 1, path => $r->{rel}, acl => $a };
+}
+
+sub action_acl_set {
+    my ( $rel_path, $user, $read, $write, $owner_req ) = @_;
+    my $r = validate_path($rel_path);
+    return $r unless $r->{ok};
+    my $rel = _acl_norm( $r->{rel} );
+    return { ok => 0, error => "Path is blocked" } if is_blocked_path($rel);
+
+    my $acls     = load_acls();
+    my $existing = $acls->{$rel};
+
+    unless ( _is_operator() ) {
+        if ($existing) {
+            return { ok => 0, error => "Only the owner may change permissions" }
+                unless ( $existing->{owner} // '' ) eq ( $user // '' );
+        }
+        else {
+            # Creating the first ACL needs write access to the file.
+            return { ok => 0, error => "You cannot set permissions on this file" }
+                unless _acl_allows( $rel, 'write', $user );
+        }
+    }
+
+    # Keep an existing owner; otherwise an operator may name one, and a
+    # normal user always becomes the owner of what they claim.
+    my $owner =
+        $existing ? $existing->{owner}
+      : ( _is_operator() && defined $owner_req && length $owner_req ) ? $owner_req
+      : $user;
+    my %rec = ( owner => $owner );
+    my $rl = _to_list($read);  $rec{read}  = $rl if defined $rl;
+    my $wl = _to_list($write); $rec{write} = $wl if defined $wl;
+    $acls->{$rel} = \%rec;
+    save_acls($acls) or return { ok => 0, error => "Cannot write the ACL store" };
+    log_event( 'INFO', 'acl-set', 'acl set', path => $rel, user => $auth_user );
+    return { ok => 1, path => $r->{rel}, acl => \%rec };
+}
+
+sub action_acl_remove {
+    my ( $rel_path, $user ) = @_;
+    my $r = validate_path($rel_path);
+    return $r unless $r->{ok};
+    my $rel  = _acl_norm( $r->{rel} );
+    my $acls = load_acls();
+    my $existing = $acls->{$rel};
+    return { ok => 1, path => $r->{rel}, removed => 0 } unless $existing;
+    unless ( _is_operator() || ( $existing->{owner} // '' ) eq ( $user // '' ) ) {
+        return { ok => 0, error => "Only the owner may remove permissions" };
+    }
+    delete $acls->{$rel};
+    save_acls($acls) or return { ok => 0, error => "Cannot write the ACL store" };
+    log_event( 'INFO', 'acl-remove', 'acl removed', path => $rel, user => $auth_user );
+    return { ok => 1, path => $r->{rel}, removed => 1 };
 }
 
 sub action_read {
@@ -947,6 +1102,8 @@ sub action_read {
 
     return { ok => 0, error => "Path is blocked" }
         if is_blocked_path( $result->{rel} );
+
+    if ( my $d = _acl_denied( $result->{rel}, 'read', $username ) ) { return $d }
 
     my $full = $result->{full};
     return { ok => 0, error => "File not found" } unless -f $full;
@@ -1026,6 +1183,9 @@ sub action_save {
         };
     }
 
+    # SM074: per-file ACL write gate (operators bypass).
+    if ( my $d = _acl_denied( $result->{rel}, 'write', $username ) ) { return $d }
+
     # Create parent directories
     my $dir = dirname($full);
     make_path($dir) unless -d $dir;
@@ -1058,6 +1218,9 @@ sub action_delete {
         if is_blocked_path( $result->{rel} );
     return { ok => 0, error => "Path is blocked by config" }
         if is_blocked_config( $result->{rel} );
+
+    # SM074: per-file ACL write gate (operators bypass).
+    if ( my $d = _acl_denied( $result->{rel}, 'write', $username ) ) { return $d }
 
     my $full = $result->{full};
 
