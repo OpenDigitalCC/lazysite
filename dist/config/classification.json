@@ -117,6 +117,7 @@
     "^docs/architecture/",
     "^docs/development\\.md$",
     "^docs/feature-requests/",
+    "^docs/review/",
     "^CHANGELOG\\.md$",
     "^\\.nonfunctional-report\\.md$",
     "^\\.commit-message\\.md$",
