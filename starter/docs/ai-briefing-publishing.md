@@ -105,32 +105,40 @@ Control API
 
 ## Control API actions
 
-Issue these to the control-API endpoint with your access token as HTTP Basic
-auth, the same as WebDAV. Each is a `?action=<name>` on that endpoint with the
-action's own parameters (e.g. `path`, `theme`); call `whoami` to see which
-actions your capabilities permit.
+Issue these to the control-API endpoint (`/cgi-bin/lazysite-manager-api.pl`)
+with your access token as HTTP Basic auth, the same as WebDAV. Each is a
+`?action=<name>` query; parameters are passed in the query string unless noted
+as a JSON body, and a token client's POSTs need no CSRF token. Call `whoami`
+first to see which your capabilities permit.
 
-`whoami`
-: Your partner identity, capabilities, groups, and effective scope, plus the
-  plugins/layouts/themes the site offers. Call it first to confirm your grant
+`whoami` (GET)
+: No parameters. Returns your partner identity, capabilities, groups, effective
+  scope, and the plugins/layouts/themes the site offers - confirm your grant
   from the server rather than the brief alone.
 
-`theme-activate` / `layout-activate`
-: Set `theme:` / `layout:` in `lazysite.conf` and clear the affected cache in
-  one step. Needs `manage_themes` / `manage_layouts`.
+`theme-activate` / `layout-activate` (POST)
+: `path=<name>` - the theme or layout to make active (an empty `path`
+  deactivates). Sets `theme:`/`layout:` in `lazysite.conf` and clears the
+  affected cache in one step. Needs `manage_themes` / `manage_layouts`.
 
-`config-set`
-: Set an allowlisted site config key. Needs `manage_config`; keys outside the
-  allowlist are rejected.
+`cache-invalidate` (POST)
+: `path=<dir-or-page>` - clear generated HTML under that path (use `/` for the
+  whole site). Deletes only generated cache (`<page>.html` with a `.md`/`.url`
+  source), never your author `.html` partials.
 
-`cache-invalidate`
-: Clear cached HTML so a structural change takes effect. (It deletes only
-  generated cache - `<page>.html` with a `.md`/`.url` source - not your author
-  `.html` partials.)
+`acl-set` (POST)
+: `path=<file>` in the query, plus a JSON body `{ "read": [...], "write": [...] }`
+  (an operator may also pass `"owner"`). The first `acl-set` on a file you can
+  write records you as owner. Needs `webdav`. See *Own your pages*.
 
-`acl-set` / `acl-get` / `acl-remove`
-: Own a file you publish so co-authors on the same scope cannot overwrite it -
-  see *Own your pages* below. Needs `webdav`.
+`acl-get` (GET) / `acl-remove` (POST)
+: `path=<file>`. `acl-get` returns the entry; `acl-remove` clears it (both
+  owner-only, operators aside). Needs `webdav`.
+
+Setting arbitrary allowlisted config keys over the token API (`config-set`) is
+planned but not yet wired - use the manager Config page for config changes
+meanwhile. `manage_config` already governs theme/layout activation and editing
+`lazysite/nav.conf` over WebDAV.
 
 ## Path mapping
 

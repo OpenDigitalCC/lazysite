@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+Docs + consistency follow-ups
+: The publishing briefing's control-API section now documents each action's
+  exact parameters (and notes `config-set` is gated but not yet wired - use
+  the manager Config page meanwhile). A new `06-deny-consistency.t` pins the
+  `.well-known` and onboarding-brief deny lists to one canonical set and
+  checks the dav backs them, so the three can no longer drift apart.
+
 SM074 - Per-file ownership and ACLs
 : An opt-in entry in a central store (`lazysite/auth/acls.json`: `owner` +
   `read`/`write` allowlists) narrows access within a shared WebDAV scope -
