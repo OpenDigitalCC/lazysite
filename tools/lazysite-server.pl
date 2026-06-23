@@ -328,7 +328,7 @@ sub handle_request {
 
     # Static file serving
     # Skip .html files that have a .md or .url source - let the processor handle them
-    if ( $method eq 'GET' && -f $file_path && $file_path !~ /\.(md|url|tt|conf)$/
+    if ( $method eq 'GET' && -f $file_path && $file_path !~ /\.(md|url|tt|conf|brief)$/
          && !( $file_path =~ /\.html$/ && ( -f ($file_path =~ s/\.html$/.md/r) || -f ($file_path =~ s/\.html$/.url/r) ) ) ) {
         serve_static( $client, $file_path, $method, $uri, $t0 );
         return;

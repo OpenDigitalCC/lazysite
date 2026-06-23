@@ -56,7 +56,7 @@ var TEXT_EXTENSIONS = {
   md: 1, txt: 1, html: 1, htm: 1, css: 1, js: 1,
   json: 1, jsonl: 1, xml: 1, yaml: 1, yml: 1,
   csv: 1, tsv: 1, conf: 1, ini: 1, log: 1,
-  pl: 1, pm: 1, sh: 1, bash: 1, env: 1, example: 1
+  pl: 1, pm: 1, sh: 1, bash: 1, env: 1, example: 1, brief: 1
 };
 
 function isEditable(name) {

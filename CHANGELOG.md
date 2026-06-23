@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+SM073 - Per-file `.brief` sidecars
+: Every authored file gets a sibling `<file>.brief` recording its intent and
+  an append-only edit log. Briefs are writable over WebDAV and editable in
+  the manager, but never served publicly (Apache `FilesMatch`, the dev
+  server, and the processor all deny them) and never indexed in `sitemap.xml`
+  / `llms.txt`. Encouraged, not enforced - the Files page will flag what is
+  missing. Phase 1 (the sidecar mechanism); Files-page surfacing follows.
+
 SM072 - Self-service credentials, claim links, and account expiry
 : The operator sets account parameters; the user provisions their own
   secret. Batch 1: the claim-token primitive - a single-use, short-lived,

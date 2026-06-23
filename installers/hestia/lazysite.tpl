@@ -33,6 +33,12 @@
     <Location /lazysite/>
         Require all denied
     </Location>
+    # SM073: .brief sidecars document authoring intent and are never public.
+    # FallbackResource only routes non-existent paths to the processor, so an
+    # existing .brief is otherwise served raw - deny it here at the origin.
+    <FilesMatch "\.brief$">
+        Require all denied
+    </FilesMatch>
     <Directory %home%/%user%/web/%domain%/stats>
         AllowOverride All
     </Directory>

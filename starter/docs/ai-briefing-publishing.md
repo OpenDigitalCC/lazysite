@@ -192,6 +192,37 @@ paths are **denied** and the server rejects writes to them:
 `DELETE`, `MOVE`, `COPY`
 : Remove, rename, or duplicate resources within scope.
 
+## Document your intent: `.brief` sidecars
+
+Every file you author should carry a sidecar **`<file>.brief`** beside it -
+`index.md.brief` next to `index.md`, `main.css.brief` next to a theme's
+`main.css`. The brief records *why* the file exists and *what* each edit
+changed, so the next agent (or the operator) understands intent before
+touching it. Maintain it as you work:
+
+- On create, `PUT` a brief next to the file with a one-line `intent:` and a
+  first `## Log` entry.
+- On every later edit, `GET` the brief, append one log line
+  (`date · action · who · what`), and `PUT` it back. Append - do not rewrite.
+
+```text
+# Brief - index.md
+
+intent: the site landing page; hero + three feature cards + contact CTA.
+
+## Log
+
+- 2026-06-23 · created · <you> · initial landing page
+- 2026-06-24 · edit · <you> · reworded hero, added contact CTA
+```
+
+Briefs are **private**: they are denied to public visitors at every layer and
+never appear in `sitemap.xml` or `llms.txt`. They are reachable only to you
+over WebDAV and to the operator in the manager. A `.brief` is not a blocked
+extension, so it writes through your normal content (and theme/layout) scope
+exactly like the file it accompanies. Briefs are encouraged, not enforced - a
+publish without one still succeeds, but the Files page flags what is missing.
+
 ## Cache behaviour
 
 The processor serves a cached `.html` only when it is newer than its `.md`

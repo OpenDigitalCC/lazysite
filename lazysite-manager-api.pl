@@ -68,7 +68,7 @@ my %CONTENT_TYPE_MAP = (
 my %TEXT_EXTENSIONS = map { $_ => 1 } qw(
     md txt html htm css js json jsonl xml
     yaml yml csv tsv conf ini log pl pm
-    sh bash env example
+    sh bash env example brief
 );
 
 # SM019: unit-test hook. When set, `do "lazysite-manager-api.pl"` from a

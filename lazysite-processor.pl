@@ -823,6 +823,14 @@ sub main {
         return;
     }
 
+    # SM073: .brief sidecars are private - never served publicly. In
+    # production Apache denies them directly (FilesMatch); this covers
+    # processor-routed requests (the dev server, or any non-existent path).
+    if ( $base =~ /\.brief$/ ) {
+        not_found($uri);
+        return;
+    }
+
     my $md_path   = "$DOCROOT/$base.md";
     my $url_path  = "$DOCROOT/$base.url";
     my $html_path = "$DOCROOT/$base.html";
@@ -2361,6 +2369,7 @@ sub scan_pages {
         opendir( my $dh, $dir ) or next;
         for my $entry ( sort readdir($dh) ) {
             next if $entry =~ /^\./;
+            next if $entry =~ /\.brief$/;   # SM073: briefs never index
             my $path = "$dir/$entry";
             if ( -d $path ) {
                 push @queue, $path;
