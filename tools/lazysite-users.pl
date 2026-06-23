@@ -361,7 +361,7 @@ sub cmd_add {
     $pass = '' unless defined $pass;
 
     my %users = read_users();
-    die "User '$user' already exists\n" if $users{$user};
+    die "User '$user' already exists\n" if exists $users{$user};
 
     # Empty password => empty hash: a token-only account (no interactive
     # login; generate a token for WebDAV/API). Same form as the seed.
@@ -694,7 +694,7 @@ sub cmd_account_create {
     die "Username required\n" unless length $user;
 
     my %users = read_users();
-    die "User '$user' already exists\n" if $users{$user};
+    die "User '$user' already exists\n" if exists $users{$user};
     die "Creator '$creator' not found\n" unless exists $users{$creator};
 
     my $all = read_settings();

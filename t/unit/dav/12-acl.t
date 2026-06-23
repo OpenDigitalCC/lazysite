@@ -53,4 +53,12 @@ my $w = run_dav( $s->{docroot}, 'PUT', '/lazysite/auth/acls.json',
     body => '{}', HTTP_AUTHORIZATION => $bob );
 is( $w->{code}, 403, 'the ACL store cannot be rewritten over WebDAV' );
 
+# --- review F2: the blocklist applies to READS, not just writes ---------
+# An unscoped account must not be able to GET CGI source (cgi-bin/*.pl) or
+# other blocked paths - previously is_blocked was consulted only on write.
+is( get( '/cgi-bin/lazysite-dav.pl', $alice )->{code}, 403,
+    'F2: GET of a .pl under cgi-bin is blocked (read-side blocklist)' );
+is( get( '/content/evil.pl', $alice )->{code}, 403,
+    'F2: GET of any .pl is blocked' );
+
 done_testing();

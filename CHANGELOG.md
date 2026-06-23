@@ -18,6 +18,21 @@ Keying
 
 ## Unreleased
 
+Security - review fixes (priority 1-4 of the 2026-06-23 seven-dimension review)
+: 1. The control-API **token path is no longer treated as a manager operator**
+     (`_is_operator` returns 0 under token auth), so a `webdav` partner can no
+     longer rewrite or clear another author's ACL ownership, and the token path
+     never consults the client-influenceable `X-Remote-Groups`.
+  2. The WebDAV blocklist now applies to **reads** as well as writes - an
+     unscoped account can no longer `GET` `cgi-bin/*.pl` source.
+  3. `action_read` and the `acl-*` actions enforce the full deny-set
+     (`is_blocked_config`), so a manager can no longer read `forms/smtp.conf`'s
+     plaintext password and ACLs cannot be set on system files.
+  4. `account-create` / `add` use `exists`, not truthiness, so they can no
+     longer clobber an existing passwordless account.
+  Tests: `18-security-fixes.t` + F2 in `12-acl.t`. Full report in
+  `docs/review/2026-06-23-seven-dimension-review.md`.
+
 Ops - update every lazysite site at once
 : A new `installers/hestia/lazysite-hestia-update-all.sh` discovers all
   lazysite sites on a Hestia host (by the `lazysite/.install-state.json`

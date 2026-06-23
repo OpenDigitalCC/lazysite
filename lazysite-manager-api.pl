@@ -1015,6 +1015,12 @@ sub _acl_allows {
 }
 
 sub _is_operator {
+    # A token (control-API) client is NEVER an operator: it has the same
+    # identity and ambient authority as a WebDAV partner, so per-file ACL
+    # ownership must apply to it (SM074), not the manager's operator bypass.
+    # Returning here first also means the token path never consults the
+    # client-influenceable X-Remote-Groups below.
+    return 0 if $token_auth;
     return 1 unless length $manager_groups_conf;       # unsecured / dev
     return 1 if ( $auth_user // '' ) eq 'local';
     my %mg = map { $_ => 1 } grep { length } split /[,\s]+/, $manager_groups_conf;
@@ -1038,6 +1044,8 @@ sub action_acl_get {
     my ( $rel_path, $user ) = @_;
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
+    return { ok => 0, error => "Path is blocked" }
+        if is_blocked_path( $r->{rel} ) || is_blocked_config( $r->{rel} );
     my $a = load_acls()->{ _acl_norm( $r->{rel} ) };
     unless ( _is_operator() ) {
         return { ok => 0, error => "Not the owner of this file" }
@@ -1051,7 +1059,8 @@ sub action_acl_set {
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
     my $rel = _acl_norm( $r->{rel} );
-    return { ok => 0, error => "Path is blocked" } if is_blocked_path($rel);
+    return { ok => 0, error => "Path is blocked" }
+        if is_blocked_path($rel) || is_blocked_config($rel);
 
     my $acls     = load_acls();
     my $existing = $acls->{$rel};
@@ -1088,6 +1097,8 @@ sub action_acl_remove {
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
     my $rel  = _acl_norm( $r->{rel} );
+    return { ok => 0, error => "Path is blocked" }
+        if is_blocked_path($rel) || is_blocked_config($rel);
     my $acls = load_acls();
     my $existing = $acls->{$rel};
     return { ok => 1, path => $r->{rel}, removed => 0 } unless $existing;
@@ -1108,6 +1119,8 @@ sub action_read {
 
     return { ok => 0, error => "Path is blocked" }
         if is_blocked_path( $result->{rel} );
+    return { ok => 0, error => "Path is blocked by config" }
+        if is_blocked_config( $result->{rel} );
 
     if ( my $d = _acl_denied( $result->{rel}, 'read', $username ) ) { return $d }
 

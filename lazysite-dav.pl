@@ -945,9 +945,10 @@ sub authorise {
         }
     }
 
-    if ($is_write) {
-        return 403 if is_blocked( $rel, $conf );
-    }
+    # Apply the blocklist on READS as well as writes - otherwise an unscoped
+    # account could GET the source of cgi-bin/*.pl (the blocklist's own
+    # cgi-bin / manager entries imply these are meant to be unreachable).
+    return 403 if is_blocked( $rel, $conf );
 
     # SM074: per-file ACLs (content namespace; the lazysite/ subtree returned
     # earlier). Ownership + read/write lists come from the central store.
