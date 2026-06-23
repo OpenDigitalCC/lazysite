@@ -1005,19 +1005,25 @@ sub action_save {
         }
     }
 
-    # Lock check
+    # Lock check. Refuse to overwrite a file held by a live lock that the
+    # saver does not own - whether that lock came from WebDAV (origin=dav,
+    # opaque to the manager) or another manager user. Mirrors acquire_lock.
+    # (The previous inline parser only understood the legacy "user epoch"
+    # line format and silently ignored JSON/DAV locks - a lock-propagation
+    # hole where a manager save could clobber a WebDAV-locked file.)
     my $lock_key = $rel_path;
     $lock_key =~ s{/}{:}g;
     my $lock_file = "$LOCK_DIR/$lock_key.lock";
-    if ( -f $lock_file ) {
-        open my $lf, '<', $lock_file;
-        chomp( my $lc = <$lf> );
-        close $lf;
-        my ( $by, $at ) = split /\s+/, $lc, 2;
-        my $age = time() - ( $at // 0 );
-        if ( $age < $LOCK_TIMEOUT && $by ne $username ) {
-            return { ok => 0, error => "File is locked by $by" };
-        }
+    my $lrec = _read_lock_record($lock_file);
+    if ( _lock_fresh($lrec)
+         && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) ) {
+        return {
+            ok     => 0,
+            locked => 1,
+            error  => $lrec->{origin} eq 'dav'
+                ? "File is locked via WebDAV by " . ( $lrec->{user} // 'another client' )
+                : "File is locked by " . ( $lrec->{user} // 'another user' ),
+        };
     }
 
     # Create parent directories

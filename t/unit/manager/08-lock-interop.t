@@ -90,4 +90,25 @@ sub lock_exists {
     is( $r2->{ok}, 1, 'owner can refresh their own manager lock' );
 }
 
+# --- a DAV lock blocks a manager SAVE, not just acquire ---------------
+# Regression: action_save used to parse the lock as the legacy "user
+# epoch" line, so a (spaceless) JSON / DAV lock record slipped through
+# and a save could clobber a WebDAV-locked file.
+{
+    my $r = main::action_save( 'content/p.md', 'editor', "new body\n", undef );
+    is( $r->{ok}, 0, 'manager save refused while a DAV lock is held' );
+    is( $r->{locked}, 1, 'save reports the lock' );
+    like( $r->{error}, qr/WebDAV/, 'error names the WebDAV lock' );
+}
+
+# --- a manager lock blocks a different user, allows the owner ---------
+{
+    # carol holds content/mine.md from the refresh block above.
+    my $blocked = main::action_save( 'content/mine.md', 'dave', "x\n", undef );
+    is( $blocked->{ok}, 0, "another user cannot save over carol's lock" );
+
+    my $owner = main::action_save( 'content/mine.md', 'carol', "ok\n", undef );
+    is( $owner->{ok}, 1, 'the lock owner can save their own locked file' );
+}
+
 done_testing();
