@@ -1091,17 +1091,24 @@ $caps
 
 ## Getting connected
 
-Your operator exchanges this one-time pairing key for an access token:
+Exchange this one-time pairing key for an access token over HTTP:
 
     pairing key: $key
 
-The key is single-use and short-lived. Exchange yields an access token
-(prefix `lzs_`) that you present as HTTP Basic auth to the WebDAV
-endpoint:
+    POST $base/cgi-bin/lazysite-auth.pl?action=exchange
+    body: username=$name&pairing_key=$key
+    -> { "ok": true, "token": "lzs_...", "expires_at": <epoch> }
+
+The key is single-use and short-lived. Present the returned token (prefix
+`lzs_`) as HTTP Basic auth - username `$name`, password the token - to the
+WebDAV endpoint:
 
     $base/dav/
 
-Rotate the token before it expires; an expired token returns HTTP 401.
+Rotate before expiry (an expired token returns HTTP 401) by presenting your
+current token as Basic auth, no body:
+
+    POST $base/cgi-bin/lazysite-auth.pl?action=rotate
 
 ## Documentation
 
@@ -1117,9 +1124,10 @@ All publishing and management docs live on this site - fetch them over HTTP:
 
 ## Notes
 
-- HTTP-based token exchange/rotation and theme/layout management over the
-  control API arrive with the control-API release. Until then your
-  operator performs the exchange and hands you the access token.
+- Token exchange and rotation are available over HTTP now (above), and the
+  navigation (lazysite/nav.conf) is editable over WebDAV with manage_config.
+- Config and theme/layout *activation* over the control API arrive with the
+  control-API release; until then your operator performs those.
 BRIEF
 }
 

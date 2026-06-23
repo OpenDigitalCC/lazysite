@@ -66,22 +66,37 @@ token invalidates the old.
 
 ### Exchange and rotation
 
-Until the control API ships, the operator performs the exchange by hand
-and gives you the `lzs_` token and, ideally, its expiry timestamp. When
-the control API lands you POST the pairing key to the token endpoint and
-receive `{token, expires_at}`; rotate before expiry by presenting the
-current valid token for a fresh one.
+Exchange your single-use pairing key for an access token by POSTing it to
+the token endpoint:
 
-An expired token returns `401`. Your recovery path: rotate if you still
-hold a recently valid token; otherwise fall back to operator re-pairing.
-Knowing `expires_at` lets you rotate deterministically instead of
-guessing from `401`s.
+```
+POST /cgi-bin/lazysite-auth.pl?action=exchange
+body: username=<you>&pairing_key=<lzp_...>
+-> { "ok": true, "token": "lzs_...", "expires_at": <epoch> }
+```
+
+Rotate before expiry by presenting your CURRENT token as HTTP Basic auth
+(no body needed):
+
+```
+POST /cgi-bin/lazysite-auth.pl?action=rotate
+Authorization: Basic base64(<you>:<lzs_ current token>)
+-> { "ok": true, "token": "lzs_...", "expires_at": <epoch> }
+```
+
+Each exchange or rotation invalidates the previous token (one live
+credential per account). An expired token returns `401`: recover by
+rotating while you still hold a valid token, otherwise ask the operator
+to re-pair. `expires_at` lets you rotate deterministically rather than
+guessing from `401`s. Both endpoints are HTTPS-only and rate-limited.
 
 ## Endpoints
 
 ```
-/dav/        WebDAV - content, assets, and layout/theme files (live now)
-/control/    control API - config, activation, cache (with that release)
+/dav/                                         WebDAV - content, assets, layout/theme files, nav.conf
+/cgi-bin/lazysite-auth.pl?action=exchange     pairing key -> access token (live)
+/cgi-bin/lazysite-auth.pl?action=rotate       rotate the access token (live)
+/control/                                     config, activation, cache (control-API release)
 ```
 
 ## What you may write, and what you may not

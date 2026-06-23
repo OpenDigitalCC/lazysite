@@ -271,6 +271,9 @@ Token presentation and rotation [SM071 control API]
 Account type at creation + rename [SM072 addition, near-term]
 : Choosing **Human (interactive)** or **AI / backend (token)** when adding a user drives the lifecycle - human shows the password field; AI creates with `ui` off + `webdav` on, so the card leads with the setup-link / onboarding brief. The row summary shows the type. Plus a **rename** action (updates the credential store, settings, group membership, and provenance references).
 
+Manager shows the running version [roadmap]
+: The manager interface prints the currently running lazysite version (from the install state / manifest), so an operator can confirm what is deployed.
+
 Audit log UI [roadmap]
 : The manager interface surfaces the existing `lazysite/logs/` audit trail - who changed what, when, and from where (IP) - as a readable page, with a per-user view reachable from that account's card. The data already exists (every `log_event` records actor/action/ip); this is the UI over it.
 
