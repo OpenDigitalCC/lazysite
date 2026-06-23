@@ -131,6 +131,17 @@ the mtime and self-invalidates that page). To roll a nav change across the
 site, **re-PUT the affected pages** - this stays inside the content scope and
 needs no operator cache clear.
 
+**Themes and layouts have their own capabilities, and the live ones are
+read-only.** Theme files (`lazysite/layouts/<layout>/themes/<theme>/…`) need
+**`manage_themes`**; the layout structure and its shared wrapper
+(`layout.tt`) need **`manage_layouts`** - a *separate* capability, so a grant
+with `manage_themes` alone gets `403` on `layout.tt`. And the **active**
+layout and theme are **read-only over WebDAV** by design: you cannot PUT the
+live `layout.tt`. To re-skin globally, edit an **inactive** layout/theme and
+**activate** it through the control API - that gives a safe back-out and never
+serves a half-edited site. (A per-page `raw: true` page that embeds its own
+chrome is an escape hatch, not the intended path.)
+
 The following paths are **write-denied by the server**, whatever your
 scope says. Do not attempt to write them; treat a denial as correct:
 
