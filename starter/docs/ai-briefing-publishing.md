@@ -204,6 +204,28 @@ paths are **denied** and the server rejects writes to them:
 `DELETE`, `MOVE`, `COPY`
 : Remove, rename, or duplicate resources within scope.
 
+## If `/dav` does not respond
+
+Read the status before concluding the path is wrong - each one is a specific
+gate, not a missing endpoint:
+
+`404` on every method (including `OPTIONS`)
+: WebDAV is **disabled site-wide** - not a wrong path. The endpoint returns
+  404 by design until the operator enables it (manager Config → *WebDAV
+  publishing*, or `webdav_enabled: yes` in `lazysite.conf`). Ask the operator
+  to enable it; the path is correct.
+
+`403 "WebDAV not enabled for this account"`
+: The site is on, but your account lacks WebDAV. Ask the operator to enable
+  WebDAV on your Users-page card.
+
+`403 "HTTPS required"`
+: WebDAV refuses Basic auth over plaintext - use `https://`.
+
+`401`
+: Normal when unauthenticated - retry with your token as HTTP Basic auth
+  (username = your partner id, password = the `lzs_` token).
+
 ## Document your intent: `.brief` sidecars
 
 Every file you author should carry a sidecar **`<file>.brief`** beside it -

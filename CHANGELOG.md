@@ -23,8 +23,9 @@ Manager - WebDAV publishing toggle
   publishing: enabled / disabled) and a documented commented entry in the
   shipped `lazysite.conf`, instead of an undocumented hand-edit-only key.
   (The dav still 404s every method until it is on - that is its deliberate
-  "feature off = the endpoint does not exist" gate, which had surfaced as a
-  confusing 404 for an agent following the brief.)
+  "feature off = the endpoint does not exist" gate.) The publishing briefing
+  gains an "If `/dav` does not respond" section so an agent reads that 404 as
+  "WebDAV disabled", not "wrong path", and knows the next 403/401 gates.
 
 Fix - www-data manager could not write the auth store
 : The auth files the CLI tool and the web manager both manage (`users`,
