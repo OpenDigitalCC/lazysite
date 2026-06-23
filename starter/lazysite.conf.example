@@ -7,6 +7,12 @@ site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
 manager: enabled
 manager_path: /manager
 
+# WebDAV publishing endpoint (/dav). Off by default - the dav handler
+# returns 404 for every method until this is enabled. Toggle it on the
+# manager Config page, or set it here. Per-account access is still gated by
+# each user's WebDAV setting on the Users page.
+# webdav_enabled: yes
+
 # External authentication proxy trust (default: false)
 # Set to true only when using an upstream proxy that validates
 # credentials and sets X-Remote-User after authentication

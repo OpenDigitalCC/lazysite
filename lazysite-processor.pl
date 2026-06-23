@@ -38,7 +38,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
         # editable. SITE_SCHEMA in config.md duplicates this; they
         # must stay in sync until SM042 unifies them.
         config_keys => [qw(site_name site_url layout theme layouts_repo
-                           nav_file search_default
+                           nav_file search_default webdav_enabled
                            manager manager_path manager_groups)],
         config_schema => [
             { key => 'site_name', label => 'Site name', type => 'text',
@@ -73,6 +73,8 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             { key => 'manager_groups', label => 'Manager access groups', type => 'text',
               default => '',
               show_when => { key => 'manager', value => ['enabled'] } },
+            { key => 'webdav_enabled', label => 'WebDAV publishing', type => 'select',
+              options => ['disabled', 'enabled'], default => 'disabled' },
         ],
         actions => [],
     });

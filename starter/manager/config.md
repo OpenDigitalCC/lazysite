@@ -57,6 +57,8 @@ var SITE_SCHEMA = [
   { key: 'manager_groups', label: 'Manager access groups', type: 'text',
     default: '',
     show_when: { key: 'manager', value: ['enabled'] } },
+  { key: 'webdav_enabled', label: 'WebDAV publishing', type: 'select',
+    options: ['disabled', 'enabled'], default: 'disabled' },
 ];
 
 // SM044: populated by parallel fetch of layouts-available at load time.
