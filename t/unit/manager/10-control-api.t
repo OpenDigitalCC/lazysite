@@ -147,4 +147,13 @@ my $who2 = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
 ok( $who2->{ok} && $who2->{partner} eq 'nocap', 'whoami available without a capability' );
 
+# --- SM072: the audit trail records the POST actions above --------------
+my $aud = mapi( $d, QUERY_STRING => 'action=audit', HTTP_X_REMOTE_USER => 'boss' );
+ok( $aud->{ok} && ref $aud->{entries} eq 'ARRAY', 'audit returns an entries list' );
+ok( scalar( @{ $aud->{entries} } ) > 0, 'audit recorded the POST actions' );
+ok( ( grep { ( $_->{action} // '' ) =~ /theme-activate|account-disable|users/ } @{ $aud->{entries} } ),
+    'audit captured a known POST action with who/what' );
+my $auf = mapi( $d, QUERY_STRING => 'action=audit&user=boss', HTTP_X_REMOTE_USER => 'boss' );
+ok( !( grep { ( $_->{user} // '' ) ne 'boss' } @{ $auf->{entries} } ), 'per-user filter returns only that user' );
+
 done_testing();

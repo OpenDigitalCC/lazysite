@@ -37,10 +37,17 @@ SM072 - Self-service credentials, claim links, and account expiry
   recovery codes), a login second factor, gated per account. Also: account
   Type (Human/AI) at creation with the type shown in the list; account
   rename across all stores; agent-editable `lazysite/nav.conf` over WebDAV
-  (manage_config). Roadmap recorded in the spec: audit-log UI, agent
-  introspection API, editor<->WebDAV lock propagation, manager version
-  display, the /.well-known bootstrap, email (gated on plugin capabilities),
-  and the offline publish bundle.
+  (manage_config). Also shipped from the roadmap: the machine-readable
+  bootstrap (per-partner brief block + `/.well-known/ai-partner`); manager
+  version display; agent introspection (`whoami` over the control API -
+  capabilities, groups, scope, plugins, layouts/themes, site capabilities);
+  plugins publish `provides` (form-smtp -> email-send) for detection; email
+  set-password / forgot-password (gated on SMTP + the email capability,
+  generic responses); and an audit-log UI (state-changing POSTs to
+  `lazysite/logs/audit.log`, a `/manager/audit` page with a per-user
+  filter). The contact-form 404 (stale `lazysite-form-handler.pl` action
+  name) is fixed. Still roadmap: editor<->WebDAV lock propagation and the
+  offline publish bundle.
 
 SM071 - WebDAV theme and layout management
 : Staged authoring of themes and layouts with a safe back-out, in three

@@ -340,6 +340,7 @@ elsif ( $action eq 'nav-save' )         {
 elsif ( $action eq 'handler-list' )     { $result = action_handler_list() }
 elsif ( $action eq 'version' )          { $result = action_version() }
 elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
+elsif ( $action eq 'audit' )            { $result = action_audit( user => $params{user} ) }
 elsif ( $action eq 'handler-save' )     {
     my $req = eval { decode_json($body) } // {};
     $result = action_handler_save($req);
@@ -377,6 +378,13 @@ elsif ( $action eq 'preview-clear' ) {
 elsif ( $action eq 'artifact-manifest' ) { $result = action_artifact_manifest( \%params ) }
 elsif ( $action eq 'artifact-validate' ) { $result = action_artifact_validate( \%params ) }
 else  { $result = { ok => 0, error => "Unknown action: $action" } }
+
+# SM072 audit trail: record state-changing (POST) requests to a
+# manager-readable log - who did what, when, from where, and the outcome.
+if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' && $action ne 'csrf-token' ) {
+    audit_log( $auth_user, $action, $ENV{REMOTE_ADDR} // '',
+        ( ref $result eq 'HASH' && $result->{ok} ) ? 'ok' : 'fail' );
+}
 
 respond($result);
 
@@ -2560,6 +2568,42 @@ sub action_whoami {
         # SM072: site-level capabilities from enabled plugins (e.g. email-send).
         site_capabilities => site_capabilities(),
     };
+}
+
+# SM072 audit trail: append one line per state-changing request to a
+# manager-readable log. Fields are pipe-delimited: ts | user | action | ip | status.
+sub audit_log {
+    my ( $user, $act, $ip, $status ) = @_;
+    my $dir = "$LAZYSITE_DIR/logs";
+    return unless -d $dir || mkdir($dir);
+    require POSIX;
+    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
+    $_ = defined $_ ? "$_" : '' for ( $user, $act, $ip, $status );
+    s/[|\r\n]+/ /g for ( $user, $act, $ip, $status );
+    open my $fh, '>>', "$dir/audit.log" or return;
+    print $fh "$ts | $user | $act | $ip | $status\n";
+    close $fh;
+    return;
+}
+
+# SM072: read the audit trail (newest first), optionally filtered by user.
+sub action_audit {
+    my (%opt) = @_;
+    my $file = "$LAZYSITE_DIR/logs/audit.log";
+    return { ok => 1, entries => [] } unless -f $file;
+    open my $fh, '<', $file or return { ok => 1, entries => [] };
+    my @lines = <$fh>;
+    close $fh;
+    my $want = $opt{user};
+    my @entries;
+    for my $line ( reverse @lines ) {
+        chomp $line;
+        my ( $ts, $u, $act, $ip, $status ) = split / \| /, $line, 5;
+        next if defined $want && length $want && ( $u // '' ) ne $want;
+        push @entries, { ts => $ts, user => $u, action => $act, ip => $ip, status => $status };
+        last if @entries >= 500;
+    }
+    return { ok => 1, entries => \@entries };
 }
 
 # SM072: the running version, read from the install state .install-state.json.

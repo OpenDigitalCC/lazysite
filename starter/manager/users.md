@@ -273,6 +273,7 @@ function renderUserRow(row) {
     '<button class="mg-btn mg-btn-sm" onclick="toggleDisabled(\'' + ue + '\',' + (disabled ? 'true' : 'false') + ')">' +
     (disabled ? 'Enable' : 'Disable') + '</button>' +
     '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + ue + '\')">Delete</button></div>';
+  ac += '<div class="mg-line"><a href="/manager/audit?user=' + encodeURIComponent(u) + '">View this account\'s audit log &rarr;</a></div>';
   ac += '<div class="mg-line"><span class="mg-line-lbl">Expires</span>' +
     '<input type="date" class="mg-inp" id="exp-' + ue + '" value="' + expiryDate(s.expires_at) + '">' +
     '<button class="mg-btn mg-btn-sm" onclick="setExpiry(\'' + ue + '\')">Set</button>' +
