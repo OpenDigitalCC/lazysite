@@ -40,7 +40,10 @@ header, and footer.
 
 `title`
 : Page title. Required for most pages. Used in the `<title>` tag and
-  the page `<h1>`.
+  the page `<h1>`. The browser `<title>` renders as "page title - site
+  name", so on the **home page** make this differ from `site_name` in
+  `lazysite.conf` - an identical title and site name read as
+  "My Site - My Site".
 
 `subtitle`
 : Short description shown below the title. Optional.

@@ -55,14 +55,29 @@ Two credentials, in sequence:
 : The working credential. Presented as HTTP Basic auth on every request,
   carries an expiry, and is rotatable.
 
-Present the token as Basic auth with **username = your partner id** (e.g.
-`claude`) and **password = the `lzs_` token** - not the token as the
-username. This gives per-partner attribution in the server logs and lets
-the operator scope and revoke you individually.
+Present the token as Basic auth with **username = your partner id** and
+**password = the `lzs_` token** - not the token as the username. This gives
+per-partner attribution in the server logs and lets the operator scope and
+revoke you individually.
+
+Your partner id is the **exact id from your onboarding brief** (the `# Automated
+partner: <id>` heading, and the bootstrap `partner:` field). It is often **not**
+a bare name like `claude` - e.g. `claude-dhcf`. Use that exact string; the wrong
+username returns `401` even with a valid token.
 
 There is exactly **one live credential per account**: minting or rotating
 a token replaces the previous one. A new session that obtains a fresh
 token invalidates the old.
+
+### Check your access first
+
+Before publishing, confirm the token is live with a cheap, side-effect-free
+probe - a `PROPFIND` of the WebDAV root:
+
+```
+PROPFIND /dav/   Depth: 0   Authorization: Basic base64(<partner-id>:<lzs_ token>)
+-> 207 means authenticated; 401 means the username or token is wrong.
+```
 
 ### Exchange and rotation
 
@@ -108,6 +123,13 @@ The site navigation, **`lazysite/nav.conf`**, is also editable when your
 account holds `manage_config` - it is benign structure (label `|` URL lines,
 indented for sub-items), no more powerful than the content you can already
 publish, so update it when you add or remove pages.
+
+A `nav.conf` change is **config-class**: it does NOT retro-invalidate pages
+already in the HTML cache. Pages you re-render after the edit show the new nav;
+older cached pages keep the old nav until each is re-PUT (a content PUT bumps
+the mtime and self-invalidates that page). To roll a nav change across the
+site, **re-PUT the affected pages** - this stays inside the content scope and
+needs no operator cache clear.
 
 The following paths are **write-denied by the server**, whatever your
 scope says. Do not attempt to write them; treat a denial as correct:
@@ -156,6 +178,21 @@ no separate cache-bust is needed.
 The asymmetry to design around: content edits self-invalidate, but
 theme, layout, and config changes need an **explicit cache clear**, which
 is a control-API action (above).
+
+### Verify your publish
+
+Don't assume a `2xx` means the page is right. After publishing, confirm:
+
+- **Fetch the page** (`GET` its public URL) and expect `200`.
+- **No leaked Template Toolkit** - the body must not contain a literal
+  `[%` … `%]` (that means a variable or directive did not resolve).
+- **The nav bar reflects your `nav.conf`** on every affected page (re-PUT any
+  that still show the old nav - see the config-class caveat above).
+- For a **form** page, the form's action URL must be reachable: `GET` it and
+  expect anything other than `404`. The receiver is a server-side CGI
+  (`/cgi-bin/form-handler.pl`) the operator must have installed and made
+  executable; it is outside your WebDAV scope, so if it `404`s, report it to
+  the operator rather than trying to fix it.
 
 ## The offline bundle
 

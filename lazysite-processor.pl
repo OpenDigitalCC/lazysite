@@ -1555,7 +1555,7 @@ sub _render_form {
 
     return <<"END_FORM";
 <form method="POST"
-      action="/cgi-bin/lazysite-form-handler.pl"
+      action="/cgi-bin/form-handler.pl"
       class="lazysite-form"
       data-form="$form_name">
   <input type="hidden" name="_form" value="$form_name">

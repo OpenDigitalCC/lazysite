@@ -28,6 +28,10 @@ load_processor($docroot);
         { form => 'contact' },
     );
     like( $out, qr/<form\b/,                 '<form> tag present' );
+    # The form posts to the cgi-bin endpoint install.pl actually creates
+    # (form-handler.pl, no lazysite- prefix - see UPGRADE.md rename).
+    like(   $out, qr{action="/cgi-bin/form-handler\.pl"}, 'form action is the deployed handler name' );
+    unlike( $out, qr{lazysite-form-handler},             'no stale lazysite- prefix on the action' );
     like( $out, qr/name="_ts"/,               'timestamp hidden field' );
     like( $out, qr/name="_tk"/,               'token hidden field' );
     like( $out, qr/name="_hp"/,               'honeypot field' );
