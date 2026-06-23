@@ -183,18 +183,27 @@ need to duplicate CSS structure.
 
 ## Activating layout + theme
 
-In `lazysite.conf`:
+A site has ONE active layout + theme, set in `lazysite.conf`:
 
     layout: default
     theme: odcc
 
-Both values are sanitised to `[A-Za-z0-9_-]` at resolve time.
+Both values are sanitised to `[A-Za-z0-9_-]` at resolve time. **Activate the
+theme globally and keep pages layout-agnostic** - do not put `layout:` in page
+front matter as the way to apply a design. Every page then inherits the active
+layout, so the whole site re-themes in one step. A per-page `layout:` is only
+for previewing a staged candidate (below) or a deliberate one-off page - and
+you remove preview overrides once you activate.
+
+Agents set these **themselves** through the control API (`layout-activate` /
+`theme-activate`), which also clears the cache - it is a self-serve action with
+`manage_layouts` / `manage_themes`, not an operator hand-off.
 
 ## Staging a layout over WebDAV
 
 If you publish over WebDAV you do NOT edit the live look in place - you
-stage a new layout beside the active one, preview it, and hand it to the
-operator to activate.
+stage a new layout beside the active one, preview it, and **activate it
+yourself** over the control API.
 
 1. **Capabilities come from your account, not your token.** Editing layout
    structure (including `layout.tt`) needs `manage_layouts`; theme files
@@ -217,11 +226,14 @@ operator to activate.
    web-served at `/lazysite/layouts/<new>/themes/<theme>/main.css`, so
    reference that for preview; the canonical mirror
    `/lazysite-assets/<new>/<theme>/main.css` is `404` until activation.
-4. **Hand off for activation.** Setting `layout:`/`theme:` in
-   `lazysite.conf` and clearing the HTML cache is an operator / control-API
-   action - the partner stages and previews, the operator activates. Once
-   active, drop the per-page `layout:` overrides; the canonical
-   `/lazysite-assets/` mirror then serves the theme CSS.
+4. **Activate it yourself.** `POST` `action=layout-activate&path=<new>` then
+   `action=theme-activate&path=<theme>` to the control API (needs
+   `manage_layouts` / `manage_themes`); each sets the pointer in
+   `lazysite.conf` AND clears the cache atomically - no operator step. Then
+   **remove the per-page `layout:` preview overrides**: they are a preview
+   tool, not the deploy mechanism, and left in place they quietly defeat the
+   next site-wide theme switch. Once active, the canonical `/lazysite-assets/`
+   mirror serves the theme CSS.
 
 ## Theme assets and the activation mirror
 

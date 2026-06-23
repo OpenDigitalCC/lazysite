@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+Docs - authoring guides updated from a real build (partner feedback)
+: The layouts briefing now states the deploy model plainly - **activate the
+  theme globally, keep pages layout-agnostic**, and a per-page `layout:` is a
+  preview tool you remove after activating - and corrects activation to
+  **self-serve** (`theme-activate` / `layout-activate` over the control API),
+  not an operator hand-off. The authoring briefing gains the embedded-HTML
+  rules (4-space indent becomes a code block; blank lines wrap in `<p>`; keep
+  HTML flush and contiguous, or use a `.md` partial) and the
+  multi-line-include requirement.
+
 Forms - an agent can wire a form over WebDAV
 : A per-form dispatch config `lazysite/forms/<name>.conf` is now agent-editable
   over WebDAV with `manage_config` - it only names operator-defined handlers,

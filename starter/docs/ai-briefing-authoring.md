@@ -188,6 +188,25 @@ syntax-highlighted code blocks. `.html` files are inserted bare.
 Includes are single-pass - includes inside included files are not
 processed.
 
+Use the **multi-line fenced form** above. A one-line `::: include path` is left
+as literal text, not expanded. Keep consecutive includes contiguous.
+
+### Embedded HTML
+
+You can drop raw HTML into a page, but Markdown's block rules bite - both of
+these silently mangle it:
+
+- HTML indented **4 or more spaces** is treated as a **code block**. Keep
+  embedded HTML flush to the left margin.
+- HTML blocks separated by **blank lines** get wrapped in `<p>`. Keep a run of
+  HTML **contiguous** - no blank lines inside it.
+
+When a fragment is awkward to keep flush and contiguous, move it into a `.md`
+**include partial** and pull it in with `::: include`; the partial's HTML is
+inserted as-is. (This is also why an activation cache-clear that removes
+generated `<page>.html` never touches your author partials - keep reusable
+chrome in `.md`/`.html` partials.)
+
 ## Template Toolkit in page content
 
 TT variables are expanded in the page content before Markdown
