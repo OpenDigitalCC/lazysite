@@ -107,9 +107,11 @@ does (and the fallback if you're not using it).
 
 ## Procedure
 
-1. Create the template (as `sysadmin`) in the **php-fpm backend** dir:
-   - `cp installers/hestia/lazysite.tpl  .../apache2/php-fpm/lazysite-app.tpl`
-   - `cp installers/hestia/lazysite.stpl .../apache2/php-fpm/lazysite-app.stpl`
+1. Create the template (as `sysadmin`) in the **php-fpm backend** dir.
+   Use the `lazysite-app` files (cookie auth wrapper + manager + WebDAV); the
+   plain `lazysite.tpl`/`.stpl` are the basic, no-auth variant:
+   - `cp installers/hestia/lazysite-app.tpl  .../apache2/php-fpm/lazysite-app.tpl`
+   - `cp installers/hestia/lazysite-app.stpl .../apache2/php-fpm/lazysite-app.stpl`
    - install the thin hook as `.../apache2/php-fpm/lazysite-app.sh`
      (creates plugins/tools in the locked domain root, sets
      `<owner>:www-data` + setgid `2775` across the docroot, `2770` on
@@ -136,6 +138,26 @@ does (and the fallback if you're not using it).
    - Verify `auth/` is writable by the CGI user (www-data) so `.secret`
      can be minted — otherwise login 500s with
      `End of script output before headers: lazysite-auth.pl`.
+
+## Updating every site at once
+
+To upgrade all lazysite sites on the host from one release, instead of running
+the per-site deploy by hand:
+
+```bash
+tar xzf lazysite-X.Y.Z.tar.gz -C /tmp
+# preview which sites are found and their current versions
+sudo bash /tmp/lazysite-X.Y.Z/installers/hestia/lazysite-hestia-update-all.sh --list
+# update them all (code + content + perms)
+sudo bash /tmp/lazysite-X.Y.Z/installers/hestia/lazysite-hestia-update-all.sh
+```
+
+It discovers sites by their own marker (`public_html/lazysite/.install-state.json`),
+so it never touches non-lazysite domains, and runs the normal per-site deploy
+for each (a per-site failure is reported and the run continues). Add
+`--templates` to also refresh the shared `lazysite-app` web template first - do
+that for a release that changes the vhost (e.g. a new `FilesMatch`), once you
+have confirmed your sites use the `lazysite-app` template.
 
 ## The seeded `manager` account (first-login gotcha)
 

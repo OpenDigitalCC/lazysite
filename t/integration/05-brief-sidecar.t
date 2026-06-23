@@ -44,10 +44,14 @@ unlike( $reg, qr/SHOULD NOT APPEAR/, 'brief front-matter is never indexed' );
 
 # 3. The shipped Apache template denies .brief at the origin (the primary
 #    guard: FallbackResource serves existing files raw otherwise).
-open my $th, '<', repo_root() . "/installers/hestia/lazysite.tpl" or die $!;
-my $tpl = do { local $/; <$th> };
-close $th;
-like( $tpl, qr/FilesMatch[^>]*brief/,
-    'Apache template has a FilesMatch deny targeting .brief at the origin' );
+# Every shipped vhost template must deny .brief - especially lazysite-app.*,
+# which is the one the deploy actually applies. (lazysite.* is the basic
+# variant.)
+for my $t (qw( lazysite.tpl lazysite.stpl lazysite-app.tpl lazysite-app.stpl )) {
+    open my $th, '<', repo_root() . "/installers/hestia/$t" or die "$t: $!";
+    my $tpl = do { local $/; <$th> };
+    close $th;
+    like( $tpl, qr/FilesMatch[^>]*brief/, "$t denies .brief at the origin" );
+}
 
 done_testing();

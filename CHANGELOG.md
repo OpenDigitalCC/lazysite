@@ -18,6 +18,23 @@ Keying
 
 ## Unreleased
 
+Ops - update every lazysite site at once
+: A new `installers/hestia/lazysite-hestia-update-all.sh` discovers all
+  lazysite sites on a Hestia host (by the `lazysite/.install-state.json`
+  marker, so it never touches non-lazysite domains) and runs the per-site
+  deploy on each from one release - `--list` previews, `--templates` also
+  refreshes the shared vhost template. No more per-domain deploys.
+
+Fix - the `.brief` deny was missing from the DEPLOYED vhost template
+: The `.brief` `FilesMatch` deny had been added only to `lazysite.tpl` (the
+  basic, no-auth variant), not `lazysite-app.tpl`/`.stpl` which the deploy
+  actually applies - so on real sites `.brief` sidecars were still served raw
+  by Apache (the processor 404 only covers non-existent paths). Added the deny
+  to all four shipped templates, and `05-brief-sidecar.t` now checks every one,
+  not just `lazysite.tpl`. Re-apply the template (deploy with `--templates`) to
+  pick it up on existing sites. Also corrected the runbook, which told you to
+  install the basic template as `lazysite-app`.
+
 Docs - authoring guides updated from a real build (partner feedback)
 : The layouts briefing now states the deploy model plainly - **activate the
   theme globally, keep pages layout-agnostic**, and a per-page `layout:` is a
