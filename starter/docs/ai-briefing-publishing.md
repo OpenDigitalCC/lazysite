@@ -89,6 +89,11 @@ guessing from `401`s.
 WebDAV is for **content, assets, and layout/theme files**. It maps 1:1
 to the docroot: `/dav/about.md` is the file behind the `/about` page.
 
+The site navigation, **`lazysite/nav.conf`**, is also editable when your
+account holds `manage_config` - it is benign structure (label `|` URL lines,
+indented for sub-items), no more powerful than the content you can already
+publish, so update it when you add or remove pages.
+
 The following paths are **write-denied by the server**, whatever your
 scope says. Do not attempt to write them; treat a denial as correct:
 

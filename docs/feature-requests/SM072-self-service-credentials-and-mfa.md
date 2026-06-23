@@ -277,6 +277,12 @@ Audit log UI [roadmap]
 Agent introspection API [roadmap]
 : An authenticated agent can query, over the control API, what it is actually allowed to do: its groups/access, the plugins present with their capabilities and status, and the themes/layouts available with their active/inactive status. This is the runtime, token-scoped counterpart to the static bootstrap block - the agent discovers its real grant rather than reading prose. Depends on plugins publishing capabilities (the email-detection gap noted for batch 2).
 
+Lock propagation: editor <-> WebDAV [roadmap]
+: A unified lock model so the manager's online editor and WebDAV class-2 locks see each other - a page open in the editor reports `423 Locked` to a `LOCK`/`PUT` over `/dav`, and a WebDAV lock blocks the editor. One lock store, both surfaces honour it.
+
+Agent-editable navigation [SM072 addition, near-term decision]
+: `lazysite/nav.conf` is currently write-denied over WebDAV (only `lazysite/layouts/**` is carved out). Make the nav agent-editable - either a WebDAV carve-out for `lazysite/nav.conf` gated by a capability (nav is benign, file-shaped, and natural to a publishing agent) or a control-API action (consistent with config-via-control-API). Recommendation: WebDAV carve-out, since nav carries no privilege-escalation keys, provided nav rendering is injection-safe.
+
 Offline publish bundle [new feature, separate]
 : For no-egress agents: assemble the in-scope file set once, then either transport it live over WebDAV or serialise it to a **docroot-relative archive + audited manifest** (target paths, create/overwrite, post-extract actions such as "clear HTML cache") for the operator to apply by hand. One file-set builder, two transports - unit-testable with no network. The apply step stays operator-supervised (a manifest to audit, not a script that auto-runs).
 

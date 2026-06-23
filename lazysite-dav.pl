@@ -877,6 +877,14 @@ sub sanitise_path {
 sub authorise {
     my ( $rel, $scope, $is_write, $conf, $user ) = @_;
 
+    # SM072: lazysite/nav.conf is agent-editable over WebDAV, gated by
+    # manage_config. Nav is benign structure - no more powerful than the
+    # content pages a webdav account can already publish - and carries no
+    # privilege-escalation keys, unlike lazysite.conf which stays denied.
+    if ( $rel eq 'lazysite/nav.conf' ) {
+        return manage_config_for($user) ? undef : 403;
+    }
+
     # SM071 Phase 3: the one carve-out from the whole-lazysite/ denial is
     # theme/layout authoring under lazysite/layouts/**, governed per object
     # by the manage_themes / manage_layouts capabilities and the active
@@ -959,6 +967,12 @@ sub manage_layouts_for {
     my ($user) = @_;
     my $s = read_settings()->{$user};
     return ( ref $s eq 'HASH' && $s->{manage_layouts} ) ? 1 : 0;
+}
+
+sub manage_config_for {
+    my ($user) = @_;
+    my $s = read_settings()->{$user};
+    return ( ref $s eq 'HASH' && $s->{manage_config} ) ? 1 : 0;
 }
 
 sub is_blocked {
