@@ -140,6 +140,7 @@ ok( !$who->{capabilities}{manage_layouts}, 'whoami reports manage_layouts off' )
 is_deeply( $who->{groups}, ['editors'], 'whoami lists the caller groups' );
 ok( ref $who->{plugins} eq 'ARRAY', 'whoami lists plugins' );
 ok( exists $who->{layouts}{active_layout}, 'whoami reports the active layout' );
+ok( ref $who->{site_capabilities} eq 'ARRAY', 'whoami reports site capabilities from enabled plugins' );
 
 # whoami needs no special capability - nocap can still introspect itself
 my $who2 = mapi( $d, QUERY_STRING => 'action=whoami',

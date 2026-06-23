@@ -2503,6 +2503,19 @@ sub action_layouts_repo_set {
 
 # --- User management proxy ---
 
+# SM072: capabilities the site provides, collected from the `provides`
+# field of ENABLED plugins (e.g. form-smtp provides 'email-send'). Lets
+# other code detect whether the site can, say, send email.
+sub site_capabilities {
+    my %caps;
+    my $pl = action_plugin_list() || {};
+    for my $p ( @{ $pl->{plugins} || [] } ) {
+        next unless $p->{_enabled} && ref $p->{provides} eq 'ARRAY';
+        $caps{$_} = 1 for @{ $p->{provides} };
+    }
+    return [ sort keys %caps ];
+}
+
 # SM072: agent introspection. Returns the CALLER's grant (capabilities,
 # groups, scope) and what the site offers (plugins with status, layouts and
 # themes with their active flags) - so an agent learns its real grant rather
@@ -2544,6 +2557,8 @@ sub action_whoami {
         },
         themes  => ( action_theme_list()  || {} )->{themes}  || [],
         plugins => ( action_plugin_list() || {} )->{plugins} || [],
+        # SM072: site-level capabilities from enabled plugins (e.g. email-send).
+        site_capabilities => site_capabilities(),
     };
 }
 

@@ -16,6 +16,9 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
         name        => 'Form SMTP',
         description => 'SMTP connection settings for form email delivery',
         version     => '1.1',
+        # SM072: capabilities this plugin provides when enabled, so other
+        # code can detect (e.g.) that the site can send email.
+        provides    => ['email-send'],
         config_file => 'lazysite/forms/smtp.conf',
         config_schema => [
             { key => 'method', label => 'Send method', type => 'select',
