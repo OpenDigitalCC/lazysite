@@ -11,7 +11,7 @@ register:
 This document briefs an AI assistant helping a user author content on
 a lazysite site. It covers the page format, front matter, Markdown
 extensions, and URL conventions. For view/theme authoring, see
-[AI briefing - views](/docs/ai-briefing-views). For configuration, see
+[AI briefing - layouts](/docs/ai-briefing-layouts). For configuration, see
 [AI briefing - configuration](/docs/ai-briefing-configuration).
 
 ## Page format
@@ -87,7 +87,8 @@ tt_page_var:
   `content_type: text/html; charset=utf-8`.
 
 `layout`
-: Per-page view override. Names a theme under `lazysite/themes/`.
+: Per-page layout override - names a layout under `lazysite/layouts/`.
+  Useful for previewing a staged layout on one page before activation.
 
 `auth`
 : Authentication requirement. `required`, `optional`, or `none`

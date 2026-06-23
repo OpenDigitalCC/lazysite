@@ -11,7 +11,7 @@ register:
 This briefs an AI assistant helping a user configure a lazysite
 installation. For content authoring, see
 [AI briefing - authoring](/docs/ai-briefing-authoring). For view/theme
-work, see [AI briefing - views](/docs/ai-briefing-views).
+work, see [AI briefing - layouts](/docs/ai-briefing-layouts).
 
 ## Layout
 
@@ -22,7 +22,8 @@ DOCROOT/
   lazysite/
     lazysite.conf         # site config
     nav.conf              # navigation
-    themes/               # installed themes
+    layouts/              # layouts, each with nested themes/ (D013)
+      LAYOUT/themes/THEME/ #   theme.json + CSS/assets
     auth/
       users               # user credentials
       groups              # group memberships
@@ -234,16 +235,22 @@ Logs go to `lazysite/logs/` (when writable) or stderr.
 
 ## Theme activation
 
-Install a theme under `lazysite/themes/THEMENAME/`, then set in
+Themes live nested under a layout (the D013 model):
+`lazysite/layouts/LAYOUT/themes/THEME/`, and the theme's `theme.json` must
+list its layout in `layouts: [...]`. Activate by setting both in
 `lazysite.conf`:
 
-    theme: THEMENAME
+    layout: LAYOUT
+    theme: THEME
 
-After changing the theme, clear the HTML cache so pages regenerate:
+After changing the layout or theme, clear the HTML cache so pages
+regenerate - the manager / control API does this atomically with the
+activation:
 
     find DOCROOT -name "*.html" -delete
 
-Or use Manager > Cache > Clear all.
+Or use Manager > Cache > Clear all. For the full layout/theme model, see
+[AI briefing - layouts](/docs/ai-briefing-layouts).
 
 ## Tasks
 

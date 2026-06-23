@@ -1319,6 +1319,7 @@ scope:
          "/lazysite/lazysite.conf"]
 docs:
   - $base/docs/ai-briefing-publishing
+  - $base/docs/reference
   - $base/docs/ai-briefing-authoring
   - $base/docs/ai-briefing-configuration
   - $base/docs/ai-briefing-layouts
@@ -1334,6 +1335,8 @@ All publishing and management docs live on this site - fetch them over HTTP:
     $base/docs/ai-briefing-authoring
     $base/docs/ai-briefing-configuration
     $base/docs/ai-briefing-layouts
+- Reference (front matter keys, config keys, env allowlist, file layout):
+    $base/docs/reference
 - Every page, machine-readable (discover the rest from here):
     $base/llms.txt
 

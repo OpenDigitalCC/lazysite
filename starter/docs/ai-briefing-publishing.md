@@ -217,24 +217,54 @@ Don't assume a `2xx` means the page is right. After publishing, confirm:
 
 ## The offline bundle
 
-For an environment with no egress, no token, or a locked-down runner:
-assemble the exact file set you would have `PUT`, but serialise it
-instead of pushing it.
+If you have **no egress, no token, or a locked-down runner** (for example an
+editor working inside a chat), you cannot `PUT` over WebDAV - so emit the exact
+file set you *would* have published as a single **bundle document** that the
+operator applies. Same content, no network.
 
-- The archive is **docroot-relative**, so the operator applies it with
-  `tar xf bundle.tgz -C DOCROOT` - every file lands in its correct place
-  with no path rewriting.
-- It contains **only in-scope files** - never `auth/`, never `cache/`.
-- It ships a **manifest** listing every file, its target path, the
-  intended operation (create vs overwrite), and any required post-extract
-  action - notably "clear HTML cache" if a theme or config file changed.
-  Optionally a checksum file.
-- The apply step stays with the operator: a manifest they audit before
-  committing, not a script that auto-runs.
+Emit a JSON document with this shape:
 
-Build it from the same source of truth as a live publish: one function
-assembles the in-scope file set, one transports it over WebDAV, one
-writes it to a bundle plus manifest. Same file set, two transports.
+```json
+{
+  "lazysite_bundle": 1,
+  "post": ["clear-cache"],
+  "files": [
+    { "path": "about.md",
+      "content": "---\ntitle: About\n---\nAbout us.\n" },
+    { "path": "lazysite/layouts/dhcf/layout.tt",
+      "content": "<!doctype html>…[% content %]…" },
+    { "path": "lazysite/layouts/dhcf/themes/dhcf/main.css",
+      "content": "body{…}" }
+  ]
+}
+```
+
+- `path` is **docroot-relative** - the same path you would have used under
+  `/dav/`.
+- `content` is the full file body (JSON-escaped - no length counting, no
+  delimiters to collide with).
+- Include **only in-scope files** - never `lazysite/auth`, `lazysite/forms`,
+  `lazysite/cache`, `lazysite/logs`, `lazysite/manager`, `lazysite.conf`, or
+  any `*.pl`. The apply tool rejects them anyway, but a clean bundle is the
+  contract.
+- `post` lists post-extract actions - use `"clear-cache"` whenever the bundle
+  changes a theme, layout, or config file (content pages self-invalidate).
+
+The operator applies it (auditing first - it is a manifest, not a script that
+auto-runs):
+
+```bash
+# dry run: audit what would be written + what is denied
+perl tools/lazysite-bundle-apply.pl --docroot DOCROOT bundle.json
+# then write
+perl tools/lazysite-bundle-apply.pl --docroot DOCROOT --apply bundle.json
+```
+
+The tool validates every path against the deny list, confines writes to the
+docroot (no `..`), reports create-vs-overwrite per file, and prints the
+post-extract commands to run. Build the bundle from the **same in-scope file
+set** as a live publish - one source of truth, two transports (WebDAV or
+bundle).
 
 ## The machine-readable bootstrap
 

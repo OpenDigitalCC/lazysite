@@ -13,7 +13,7 @@ the processor, CGI scripts, and tools. For content, view, and
 configuration work, see the other briefings:
 
 - [AI briefing - authoring](/docs/ai-briefing-authoring)
-- [AI briefing - views](/docs/ai-briefing-views)
+- [AI briefing - layouts](/docs/ai-briefing-layouts)
 - [AI briefing - configuration](/docs/ai-briefing-configuration)
 
 ## Repository structure

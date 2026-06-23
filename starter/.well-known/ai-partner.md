@@ -26,6 +26,7 @@ register:
   },
   "docs": [
     "[% site_url %]/docs/ai-briefing-publishing",
+    "[% site_url %]/docs/reference",
     "[% site_url %]/docs/ai-briefing-authoring",
     "[% site_url %]/docs/ai-briefing-configuration",
     "[% site_url %]/docs/ai-briefing-layouts",

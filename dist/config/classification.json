@@ -25,6 +25,11 @@
       "bucket": "code"
     },
     {
+      "pattern": "^tools/lazysite-bundle-apply\\.pl$",
+      "install_to": "{DOCROOT}/../tools/lazysite-bundle-apply.pl",
+      "bucket": "code"
+    },
+    {
       "pattern": "^tools/build-static\\.sh$",
       "install_to": "{DOCROOT}/../tools/build-static.sh",
       "bucket": "code"

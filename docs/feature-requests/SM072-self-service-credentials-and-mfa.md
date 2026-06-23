@@ -271,6 +271,9 @@ Token presentation and rotation [SM071 control API]
 Account type at creation + rename [SM072 addition, near-term]
 : Choosing **Human (interactive)** or **AI / backend (token)** when adding a user drives the lifecycle - human shows the password field; AI creates with `ui` off + `webdav` on, so the card leads with the setup-link / onboarding brief. The row summary shows the type. Plus a **rename** action (updates the credential store, settings, group membership, and provenance references).
 
+Files page: list by type [roadmap]
+: The manager Files page groups/filters files by type (e.g. all generated `.html`), so an operator can quickly review and selectively delete them - useful after content moves or theme changes leave stale cached HTML.
+
 Manager shows the running version [roadmap]
 : The manager interface prints the currently running lazysite version (from the install state / manifest), so an operator can confirm what is deployed.
 
