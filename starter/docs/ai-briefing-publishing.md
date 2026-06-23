@@ -100,10 +100,31 @@ Exchange / Rotate
 
 Control API
 : `https://SITE/cgi-bin/lazysite-manager-api.pl` - token-authenticated (the
-  same Basic auth). Carries the operations that are not file-shaped:
-  `whoami`, `theme-activate`, `layout-activate`, `config-set` (allowlisted),
-  and `cache-invalidate`. Each is gated by the matching capability from your
-  grant.
+  same Basic auth). Carries the operations that are not file-shaped. Each is
+  gated by the matching capability from your grant.
+
+## Control API actions
+
+Issue these to the control-API endpoint with your access token as HTTP Basic
+auth, the same as WebDAV. See [Manager](/docs/manager) for exact parameters.
+
+`whoami`
+: Your partner identity, capabilities, groups, and effective scope, plus the
+  plugins/layouts/themes the site offers. Call it first to confirm your grant
+  from the server rather than the brief alone.
+
+`theme-activate` / `layout-activate`
+: Set `theme:` / `layout:` in `lazysite.conf` and clear the affected cache in
+  one step. Needs `manage_themes` / `manage_layouts`.
+
+`config-set`
+: Set an allowlisted site config key. Needs `manage_config`; keys outside the
+  allowlist are rejected.
+
+`cache-invalidate`
+: Clear cached HTML so a structural change takes effect. (It deletes only
+  generated cache - `<page>.html` with a `.md`/`.url` source - not your author
+  `.html` partials.)
 
 ## Path mapping
 

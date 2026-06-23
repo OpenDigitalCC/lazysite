@@ -1342,7 +1342,12 @@ sub _invalidate_html_cache {
         my $rel = $File::Find::name;
         $rel =~ s{^\Q$DOCROOT\E/?}{/};
         return if $rel =~ m{^/lazysite/};
-        unlink $_;
+        # Only delete a GENERATED cache file: a <page>.html whose <page>.md or
+        # <page>.url source exists. An author-supplied .html with no such
+        # source (e.g. an include partial) is content, not cache - never
+        # delete it (deleting author partials gutted pages, SM072 report).
+        ( my $base = $File::Find::name ) =~ s/\.html$//;
+        unlink $_ if -f "$base.md" || -f "$base.url";
     }, $DOCROOT );
 }
 
@@ -1358,7 +1363,11 @@ sub _validate_theme_dir {
     close $fh;
     my $data = eval { decode_json($raw) };
     my @err;
-    if ( ref $data ne 'HASH' ) { push @err, 'theme.json invalid' }
+    if ( ref $data ne 'HASH' ) {
+        my $why = $@ ? do { ( my $e = $@ ) =~ s/\s+at \S+ line \d+.*//s; $e =~ s/\s+$//; $e }
+                     : 'top level is not a JSON object';
+        push @err, "theme.json invalid: $why";
+    }
     elsif ( ref $data->{layouts} ne 'ARRAY' || !@{ $data->{layouts} } ) {
         push @err, 'theme.json layouts[] missing or empty';
     }

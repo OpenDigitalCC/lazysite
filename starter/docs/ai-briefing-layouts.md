@@ -203,7 +203,8 @@ operator to activate.
    operator's grant takes effect immediately and you do NOT need a new
    token. If a layout write still `403`s right after a grant, you are
    almost certainly writing the **active** layout (next point), which is
-   denied regardless of capability.
+   denied regardless of capability. (Ruled that out and a fresh grant still
+   seems not to apply? Rotating your token is a reliable belt-and-braces.)
 2. **Stage a NEW layout dir - never the active one.** A `PUT` into the
    active layout returns `403`: the live layout is immutable in place, by
    design (a deliberate guard, not a grant failure). A path under a new
@@ -221,6 +222,34 @@ operator to activate.
    action - the partner stages and previews, the operator activates. Once
    active, drop the per-page `layout:` overrides; the canonical
    `/lazysite-assets/` mirror then serves the theme CSS.
+
+## Theme assets and the activation mirror
+
+`main.css` and other theme assets must live under the theme's **`assets/`**
+directory: `lazysite/layouts/<layout>/themes/<theme>/assets/main.css`. On
+activation the server builds a flattened mirror served at
+`/lazysite-assets/<layout>/<theme>/main.css`, and `layout.tt` links that mirror.
+
+- A `main.css` at the theme ROOT (not under `assets/`) is **not** mirrored, so
+  the page links a `404`. Put assets under `assets/`.
+- **Verify the mirror built** after activation: `GET`
+  `/lazysite-assets/<layout>/<theme>/main.css` and expect `200`. If it `404`s
+  the mirror did not materialise - recover by writing the mirror files directly
+  over WebDAV (a supported recovery), or re-activate.
+- Before activation, the theme SOURCE css is web-served at
+  `/lazysite/layouts/<layout>/themes/<theme>/main.css` - use that for preview;
+  switch links to the `/lazysite-assets/` mirror once active.
+
+`theme.json` must be **strict JSON, ASCII, and quote-free in values** - a
+non-ASCII character (e.g. an em-dash in `description`) or embedded quotes in a
+`config` value fails validation. The check runs **at activation** (and is
+cached), so after fixing `theme.json` you must **re-activate**, not just
+re-PUT it; a rejection now names the failing reason.
+
+Author `.html` files in the content tree (include partials with no matching
+`.md`/`.url` source) are **content, not cache** - the activation cache-clear
+leaves them alone. Generated cache (`<page>.html` beside `<page>.md`) is what
+gets cleared.
 
 ## Theme incompatibility
 

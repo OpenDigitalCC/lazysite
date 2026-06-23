@@ -90,11 +90,21 @@ my $inc = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=layout-act
 ok( !$inc->{ok} && $inc->{incompatible}, 'incompatible (layout, theme) pair refused' );
 is( ( active() )[0], 'base', 'layout unchanged after incompatible activate' );
 
+# --- the activation cache-clear must spare author .html partials -----
+# (SM072 report: activation deleted author include-partials, gutting pages).
+# Files at the DOCROOT root (not under lazysite/, which the clear skips).
+make_path("$d/partials");
+open my $cm, '>', "$d/about.md"           or die $!; print $cm "---\ntitle: About\n---\nhi\n"; close $cm;
+open my $ch, '>', "$d/about.html"         or die $!; print $ch '<cached>';                     close $ch;
+open my $cp, '>', "$d/partials/note.html" or die $!; print $cp '<p>author partial</p>';        close $cp;
+
 # --- compatible: name a theme that declares the new layout -----------
 my $okr = mapi( $d, REQUEST_METHOD => 'POST',
     QUERY_STRING => 'action=layout-activate&path=alt&theme=shared',
     HTTP_AUTHORIZATION => $auth );
 ok( $okr->{ok}, 'activate with a compatible theme succeeds' );
+ok( !-f "$d/about.html",         'activation cleared the generated cache (.html with a .md source)' );
+ok(  -f "$d/partials/note.html", 'activation preserved the author .html partial (no .md source)' );
 my ( $L, $T ) = active();
 is( $L, 'alt',    'layout flipped to alt' );
 is( $T, 'shared', 'theme switched to the compatible one' );
