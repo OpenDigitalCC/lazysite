@@ -17,12 +17,19 @@ search: false
 <summary>+ Add user</summary>
 <div class="mg-card-body">
 <div class="mg-form-row">
+<label>Type</label>
+<select id="new-type" onchange="onTypeChange()">
+<option value="human">Human (interactive login)</option>
+<option value="ai">AI / backend (token)</option>
+</select>
+</div>
+<div class="mg-form-row">
 <label>Username</label>
 <input type="text" id="new-username" placeholder="username">
 </div>
-<div class="mg-form-row">
+<div class="mg-form-row" id="new-pw-row">
 <label>Password</label>
-<input type="password" id="new-password" placeholder="leave blank for a token-only (WebDAV/API) account">
+<input type="password" id="new-password" placeholder="optional - blank sends a setup link">
 </div>
 <div class="mg-form-row">
 <label>Groups</label>
@@ -159,7 +166,9 @@ function renderUserRow(row) {
   // "automated" == no interactive login (the Access > Interactive login box
   // is off); a normal interactive account gets no tag. Same language as the
   // checkbox, so the summary and the control agree.
-  var autoTag  = ui ? '' : '<span class="mg-tag mg-tag-auto">automated</span> &middot; ';
+  var typeTag  = ui
+    ? '<span class="mg-tag mg-tag-human">human</span> &middot; '
+    : '<span class="mg-tag mg-tag-auto">AI</span> &middot; ';
   var by       = s.created_by ? ' &middot; by ' + escHtml(s.created_by) : '';
   var comment  = s.comment || '';
   var note     = comment ? '<span class="mg-acc-note">' + escHtml(comment) + '</span>' : '';
@@ -172,7 +181,7 @@ function renderUserRow(row) {
 
   var h = '<details class="mg-acc"><summary>' +
     '<span class="mg-acc-name">' + ue + '</span>' + note +
-    '<span class="mg-acc-tags">' + autoTag + status + by + expTag + '</span></summary>' +
+    '<span class="mg-acc-tags">' + typeTag + status + by + expTag + '</span></summary>' +
     '<div class="mg-acc-body">';
 
   // --- Notes ---
@@ -258,6 +267,10 @@ function renderUserRow(row) {
     '<button class="mg-btn mg-btn-sm" onclick="setExpiry(\'' + ue + '\')">Set</button>' +
     '<button class="mg-btn mg-btn-sm" onclick="clearExpiry(\'' + ue + '\')">Clear</button>' +
     '<span class="mg-inline-msg" id="expmsg-' + ue + '"></span></div>';
+  ac += '<div class="mg-line"><span class="mg-line-lbl">Rename</span>' +
+    '<input type="text" class="mg-inp" id="rename-' + ue + '" placeholder="new username">' +
+    '<button class="mg-btn mg-btn-sm" onclick="renameUser(\'' + ue + '\')">Rename</button>' +
+    '<span class="mg-inline-msg" id="renmsg-' + ue + '"></span></div>';
   // Owner + reassign only for sub-users (accounts with a recorded parent).
   if (s.created_by) {
     var owner = s.managed_by || s.created_by;
@@ -512,6 +525,18 @@ function clearExpiry(user) {
     .catch(function(e) {});
 }
 
+// Rename an account (credentials, settings, groups, provenance all move).
+function renameUser(user) {
+  var inp = document.getElementById('rename-' + user);
+  var msg = document.getElementById('renmsg-' + user);
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  var to = ((inp && inp.value) || '').trim();
+  if (!to) { say('New username required.', false); return; }
+  apiCall({ action: 'rename', username: user, to: to })
+    .then(function(d) { if (!d.ok) { say(d.error, false); return; } say('Renamed.', true); loadUsers(); })
+    .catch(function(e) { say('Error: ' + e.message, false); });
+}
+
 // Fill the Add-user group multi-select from the loaded groups.
 function populateAddUserGroups() {
   var sel = document.getElementById('new-groups');
@@ -522,9 +547,17 @@ function populateAddUserGroups() {
     : '<option value="" disabled>no groups yet</option>';
 }
 
+// Account type drives the form: AI/backend accounts take no password.
+function onTypeChange() {
+  var t = document.getElementById('new-type').value;
+  var row = document.getElementById('new-pw-row');
+  if (row) row.style.display = (t === 'ai') ? 'none' : '';
+}
+
 function addUser() {
   var username = document.getElementById('new-username').value.trim();
-  var password = document.getElementById('new-password').value;  // optional: blank => token-only account
+  var type = document.getElementById('new-type').value;            // human | ai
+  var password = (type === 'ai') ? '' : document.getElementById('new-password').value;
   var sel = document.getElementById('new-groups');
   var gl = sel ? Array.prototype.slice.call(sel.selectedOptions)
                    .map(function(o) { return o.value; }).filter(Boolean) : [];
@@ -534,9 +567,17 @@ function addUser() {
       if (!d.ok) { showStatus(d.error, true); return; }
       var chain = Promise.resolve();
       gl.forEach(function(g) { chain = chain.then(function() { return apiCall({ action: 'group-add', username: username, group: g }); }); });
+      if (type === 'ai') {
+        // backend account: no interactive login, WebDAV on - the card then
+        // leads with Generate setup link / onboarding brief.
+        chain = chain.then(function() { return apiCall({ action: 'settings-set', username: username, key: 'ui', value: 'off' }); })
+                     .then(function() { return apiCall({ action: 'settings-set', username: username, key: 'webdav', value: 'on' }); });
+      }
       chain.then(function() {
-        showStatus(password ? ('User "' + username + '" added.')
-          : ('User "' + username + '" added (no password - enable WebDAV and Generate credential in its card).'));
+        showStatus(type === 'ai'
+          ? ('AI account "' + username + '" added - open its card to Generate a setup link or onboarding brief.')
+          : (password ? ('User "' + username + '" added.')
+                      : ('User "' + username + '" added - use Generate setup link in its card so they set their own password.')));
         document.getElementById('new-username').value = '';
         document.getElementById('new-password').value = '';
         loadUsers();
@@ -663,6 +704,7 @@ loadUsers();
 .mg-tag-on  { color:var(--mg-success,#2a7); }
 .mg-tag-off { color:var(--mg-danger,#c33); }
 .mg-tag-auto { color:var(--mg-text-muted,#888); }
+.mg-tag-human { color:var(--mg-accent,#06c); }
 .mg-box { border:1px solid var(--mg-border,#e5e5e5); border-radius:4px;
   padding:0.35rem 0.6rem 0.6rem; margin:0.5rem 0; background:var(--mg-bg,#fff); }
 .mg-box .mg-sec { margin-top:0.2rem; }

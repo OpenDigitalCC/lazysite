@@ -2535,7 +2535,7 @@ sub action_users {
             return { ok => 0, error => "claim-redeem is not a manager action" }
                 if $act eq 'claim-redeem';
             if ( $auth_user ne 'local'
-                 && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create)$/ ) {
+                 && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|rename)$/ ) {
                 $parsed->{actor} = $auth_user;
                 # Default a sub-user's owner to the actor, but let a request
                 # name a parent in the actor's sub-tree.

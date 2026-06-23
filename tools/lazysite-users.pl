@@ -132,6 +132,10 @@ if ( $API_MODE ) {
             cmd_remove( $req->{username} );
             $result = { ok => 1, message => "User removed" };
         }
+        elsif ( $action eq 'rename' ) {
+            cmd_rename( $req->{username}, $req->{to}, actor => $req->{actor} );
+            $result = { ok => 1, message => "Account renamed" };
+        }
         elsif ( $action eq 'list' ) {
             my %users = read_users();
             $result = { ok => 1, users => [ sort keys %users ] };
@@ -246,6 +250,7 @@ my $cmd = shift @args // '';
 if    ( $cmd eq 'add' )          { cmd_add(@args) }
 elsif ( $cmd eq 'passwd' )       { cmd_passwd(@args) }
 elsif ( $cmd eq 'remove' )       { cmd_remove(@args) }
+elsif ( $cmd eq 'rename' )       { cmd_rename(@args) }
 elsif ( $cmd eq 'list' )         { cmd_list() }
 elsif ( $cmd eq 'group-add' )    { cmd_group_add(@args) }
 elsif ( $cmd eq 'group-remove' ) { cmd_group_remove(@args) }
@@ -287,6 +292,50 @@ sub cmd_add {
     write_users(%users);
     log_event('INFO', $user, 'user added');
     print "User '$user' added.\n" unless $API_MODE;
+}
+
+# SM072: rename an account across every store - credentials, settings
+# (including created_by/managed_by provenance in OTHER accounts), and group
+# memberships. actor (when set and not 'local') must manage the account.
+sub cmd_rename {
+    my ( $old, $new, %opt ) = @_;
+    die "Old and new username required\n"
+        unless defined $old && length $old && defined $new && length $new;
+    $new =~ s/[^a-zA-Z0-9_.-]//g;
+    die "Invalid new username\n" unless length $new;
+    return if $old eq $new;
+
+    my %users = read_users();
+    die "User '$old' not found\n" unless exists $users{$old};
+    die "User '$new' already exists\n" if exists $users{$new};
+
+    my $all = read_settings();
+    my $actor = $opt{actor};
+    if ( defined $actor && length $actor && $actor ne 'local' ) {
+        die "Not authorised to manage '$old'\n"
+            unless $actor eq $old || is_ancestor( $actor, $old, $all );
+    }
+
+    $users{$new} = delete $users{$old};
+    write_users(%users);
+
+    $all->{$new} = delete $all->{$old} if exists $all->{$old};
+    for my $u ( keys %$all ) {
+        for my $k (qw(created_by managed_by)) {
+            $all->{$u}{$k} = $new
+                if defined $all->{$u}{$k} && $all->{$u}{$k} eq $old;
+        }
+    }
+    write_settings($all);
+
+    my %groups = read_groups();
+    for my $g ( keys %groups ) {
+        $groups{$g} = [ map { $_ eq $old ? $new : $_ } @{ $groups{$g} } ];
+    }
+    write_groups(%groups);
+
+    log_event( 'INFO', $new, 'account renamed', from => $old );
+    print "Renamed '$old' to '$new'.\n" unless $API_MODE;
 }
 
 sub cmd_passwd {

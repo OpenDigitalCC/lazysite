@@ -268,6 +268,15 @@ Machine-readable bootstrap + well-known path [roadmap]
 Token presentation and rotation [SM071 control API]
 : Basic-auth username = the partner id, password = the `lzs_` token (per-partner attribution in the access log, per-partner revoke). The exchange/rotation response returns `{token, expires_at}` so rotation is deterministic, not 401-driven.
 
+Account type at creation + rename [SM072 addition, near-term]
+: Choosing **Human (interactive)** or **AI / backend (token)** when adding a user drives the lifecycle - human shows the password field; AI creates with `ui` off + `webdav` on, so the card leads with the setup-link / onboarding brief. The row summary shows the type. Plus a **rename** action (updates the credential store, settings, group membership, and provenance references).
+
+Audit log UI [roadmap]
+: The manager interface surfaces the existing `lazysite/logs/` audit trail - who changed what, when, and from where (IP) - as a readable page, with a per-user view reachable from that account's card. The data already exists (every `log_event` records actor/action/ip); this is the UI over it.
+
+Agent introspection API [roadmap]
+: An authenticated agent can query, over the control API, what it is actually allowed to do: its groups/access, the plugins present with their capabilities and status, and the themes/layouts available with their active/inactive status. This is the runtime, token-scoped counterpart to the static bootstrap block - the agent discovers its real grant rather than reading prose. Depends on plugins publishing capabilities (the email-detection gap noted for batch 2).
+
 Offline publish bundle [new feature, separate]
 : For no-egress agents: assemble the in-scope file set once, then either transport it live over WebDAV or serialise it to a **docroot-relative archive + audited manifest** (target paths, create/overwrite, post-extract actions such as "clear HTML cache") for the operator to apply by hand. One file-set builder, two transports - unit-testable with no network. The apply step stays operator-supervised (a manifest to audit, not a script that auto-runs).
 

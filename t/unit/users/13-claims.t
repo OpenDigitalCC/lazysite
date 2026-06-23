@@ -163,4 +163,29 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
     ok( verify( $d, 'temp', 'pw' )->{ok}, 'valid again once expiry cleared' );
 }
 
+# --- rename moves credentials, settings, groups, and provenance --------
+{
+    my $d = fresh_docroot();
+    cli( $d, 'add', 'alice', 'pw' );
+    cli( $d, 'set', 'alice', 'create_sub_users', 'on' );
+    cli( $d, 'group-add', 'alice', 'editors' );
+    api( $d, { action => 'account-create', username => 'kid', password => 'pw',
+               created_by => 'alice', actor => 'alice' } );
+
+    my $r = api( $d, { action => 'rename', username => 'alice', to => 'alice2' } );
+    ok( $r->{ok}, 'rename ok' );
+    ok(  verify( $d, 'alice2', 'pw' )->{ok}, 'credential moved to the new name' );
+    ok( !verify( $d, 'alice',  'pw' )->{ok}, 'old name no longer authenticates' );
+    ok( settings( $d, 'alice2' )->{create_sub_users}, 'settings moved with the account' );
+    is( settings( $d, 'kid' )->{created_by}, 'alice2', 'sub-user provenance follows the rename' );
+
+    my @ed = @{ api( $d, { action => 'groups' } )->{groups}{editors} || [] };
+    ok(  ( grep { $_ eq 'alice2' } @ed ), 'group membership renamed' );
+    ok( !( grep { $_ eq 'alice'  } @ed ), 'old name gone from the group' );
+
+    cli( $d, 'add', 'bob', 'pw' );
+    my $clash = api( $d, { action => 'rename', username => 'alice2', to => 'bob' } );
+    ok( !$clash->{ok}, 'rename to an existing name is rejected' );
+}
+
 done_testing();
