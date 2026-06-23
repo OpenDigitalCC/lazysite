@@ -6,6 +6,7 @@ query_params:
   - error
   - next
   - claimed
+  - reset
 ---
 
 <style>
@@ -90,6 +91,10 @@ query_params:
 <p class="login-context">Your password is set. Sign in below.</p>
 [% END %]
 
+[% IF query.reset %]
+<p class="login-context">If an interactive account with an email on file matches, a one-time reset link has been sent.</p>
+[% END %]
+
 [% IF query.next %]
 <p class="login-context">
   <span class="login-context-url">[% query.next | html %]</span> requires you to sign in.
@@ -112,6 +117,8 @@ query_params:
     <button type="submit">Sign in</button>
   </div>
 </form>
+
+<p style="margin-top:0.5rem;font-size:0.9rem;"><a href="/forgot">Forgot password?</a></p>
 
 <p class="demo-creds">Username: <code>manager</code><br>Password: (none required on localhost)</p>
 

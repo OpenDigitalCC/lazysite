@@ -185,11 +185,16 @@ function renderUserRow(row) {
     '<div class="mg-acc-body">';
 
   // --- Notes ---
-  var nb = '<div class="mg-line">' +
+  var nb = '<div class="mg-line"><span class="mg-line-lbl">Note</span>' +
     '<input type="text" class="mg-inp mg-inp-wide" id="note-' + ue + '" value="' + escHtml(comment) +
     '" placeholder="what this account is for (e.g. Claude dav publisher)">' +
     '<button class="mg-btn mg-btn-sm" onclick="saveComment(\'' + ue + '\')">Save</button>' +
     '<span class="mg-inline-msg" id="notemsg-' + ue + '"></span></div>';
+  nb += '<div class="mg-line"><span class="mg-line-lbl">Email</span>' +
+    '<input type="email" class="mg-inp" id="email-' + ue + '" value="' + escHtml(s.email || '') +
+    '" placeholder="for emailed setup / reset links">' +
+    '<button class="mg-btn mg-btn-sm" onclick="saveEmail(\'' + ue + '\')">Save</button>' +
+    '<span class="mg-inline-msg" id="emailmsg-' + ue + '"></span></div>';
   h += sec('Notes', nb);
 
   // --- Access ---
@@ -474,6 +479,16 @@ function saveComment(user) {
   var msg = document.getElementById('notemsg-' + user);
   function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
   apiCall({ action: 'settings-set', username: user, key: 'comment', value: (inp && inp.value) || '' })
+    .then(function(d) { if (!d.ok) { say(d.error, false); return; } say('Saved.', true); })
+    .catch(function(e) { say('Error: ' + e.message, false); });
+}
+
+// Save the contact email (for emailed setup/reset links).
+function saveEmail(user) {
+  var inp = document.getElementById('email-' + user);
+  var msg = document.getElementById('emailmsg-' + user);
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  apiCall({ action: 'settings-set', username: user, key: 'email', value: (inp && inp.value) || '' })
     .then(function(d) { if (!d.ok) { say(d.error, false); return; } say('Saved.', true); })
     .catch(function(e) { say('Error: ' + e.message, false); });
 }

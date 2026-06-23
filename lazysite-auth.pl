@@ -79,6 +79,9 @@ elsif ( $action eq 'exchange' && $method eq 'POST' ) {
 elsif ( $action eq 'rotate' && $method eq 'POST' ) {
     handle_rotate();
 }
+elsif ( $action eq 'forgot' && $method eq 'POST' ) {
+    handle_forgot();
+}
 else {
     handle_request();
 }
@@ -420,6 +423,101 @@ sub handle_rotate {
     }
     log_event('INFO', $u, 'access token rotated (HTTP)', ip => $ip);
     json_response( { ok => 1, token => $r->{token}, expires_at => $r->{expires_at} }, 200 );
+    return;
+}
+
+# SM072 batch 2: forgot-password. Mint a set-password claim and email the
+# link to the account's registered address - gated on SMTP being configured
+# and the account having an email. ALWAYS a generic response, so it cannot
+# enumerate accounts or emails.
+sub handle_forgot {
+    my %form = parse_post();
+    my $ident = $form{identifier} // $form{username} // $form{email} // '';
+    $ident =~ s/^\s+|\s+$//g;
+    my $ip = $ENV{REMOTE_ADDR} // '';
+    my $auth_redirect = read_conf_key('auth_redirect') || '/login';
+
+    if ( check_login_rate($ip) ) {
+        eval { _forgot_dispatch( $ident, $ip ); 1 };
+    }
+    else { sleep $LOGIN_DELAY }
+
+    redirect("$auth_redirect?reset=1");   # generic, always
+    return;
+}
+
+sub _forgot_dispatch {
+    my ( $ident, $ip ) = @_;
+    return unless length $ident;
+    return unless -f "$LAZYSITE_DIR/forms/smtp.conf";   # SMTP must be configured
+
+    my ( $user, $email ) = _resolve_account($ident);
+    return unless $user && $email;
+    return if account_disabled($user);
+    return unless ui_enabled($user);                    # interactive accounts only
+
+    my $r = users_tool_api({ action => 'claim-create', username => $user });
+    return unless ref $r eq 'HASH' && $r->{ok} && $r->{claim};
+
+    my $scheme = $ENV{HTTPS} ? 'https' : 'http';
+    my $host   = $ENV{HTTP_HOST} // '';
+    _send_setup_email( $email, $user, "$scheme://$host/claim?u=$user&c=$r->{claim}" );
+    log_event( 'INFO', $user, 'forgot-password claim emailed', ip => $ip );
+    return;
+}
+
+# Resolve a username or email to (username, email) from user-settings.json.
+sub _resolve_account {
+    my ($ident) = @_;
+    my $path = "$AUTH_DIR/user-settings.json";
+    return () unless -f $path;
+    open my $fh, '<:utf8', $path or return ();
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    require JSON::PP;
+    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) } || {};
+    return () unless ref $data eq 'HASH';
+    if ( $ident =~ /\@/ ) {
+        for my $u ( sort keys %$data ) {
+            my $s = $data->{$u};
+            return ( $u, $s->{email} )
+                if ref $s eq 'HASH' && lc( $s->{email} // '' ) eq lc($ident);
+        }
+        return ();
+    }
+    $ident =~ s/[^a-zA-Z0-9_.-]//g;
+    my $s = $data->{$ident};
+    return () unless ref $s eq 'HASH' && $s->{email};
+    return ( $ident, $s->{email} );
+}
+
+# Send the setup link by invoking the form-smtp plugin (--pipe).
+sub _send_setup_email {
+    my ( $to, $user, $link ) = @_;
+    my $smtp;
+    for my $c ( dirname($0) . "/../plugins/form-smtp.pl",
+                "$DOCROOT/../plugins/form-smtp.pl",
+                "$DOCROOT/plugins/form-smtp.pl" ) {
+        $smtp = $c, last if -f $c;
+    }
+    return unless $smtp;
+    require JSON::PP;
+    my $payload = JSON::PP::encode_json({
+        config => { to => $to, subject_prefix => 'Set your password - ' },
+        form   => { message =>
+              "A password setup link was requested for '$user'.\n\n"
+            . "Open this one-time link (it expires in 24 hours) to set your password:\n\n"
+            . "$link\n\n"
+            . "If you did not request this, you can ignore this email." },
+    });
+    my ( $out, $in );
+    my $pid = eval { open2( $out, $in, $^X, $smtp, '--pipe' ) };
+    return unless $pid;
+    print $in $payload;
+    close $in;
+    do { local $/; <$out> };
+    close $out;
+    waitpid $pid, 0;
     return;
 }
 

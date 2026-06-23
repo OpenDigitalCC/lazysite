@@ -550,6 +550,8 @@ sub effective_settings {
         # SM072 batch 4: MFA status (the secret is never exposed).
         mfa_enrolled => $s->{totp_secret}  ? JSON::PP::true() : JSON::PP::false(),
         mfa_required => $s->{mfa_required} ? JSON::PP::true() : JSON::PP::false(),
+        # SM072 batch 2: contact email (for emailed setup/reset links).
+        email => $s->{email},
     };
 }
 
@@ -623,6 +625,17 @@ sub cmd_set {
         my $epoch = parse_when($value);
         if ( defined $epoch ) { $all->{$user}{expires_at} = $epoch }
         else                  { delete $all->{$user}{expires_at} }
+    }
+    elsif ( $key eq 'email' ) {
+        # SM072: contact email (for emailed setup/reset links). Empty clears.
+        my $e = defined $value ? "$value" : '';
+        $e =~ s/^\s+|\s+$//g;
+        if ( length $e ) {
+            die "Invalid email address\n"
+                unless $e =~ /^[^@\s]+\@[^@\s]+\.[^@\s]+$/;
+            $all->{$user}{email} = $e;
+        }
+        else { delete $all->{$user}{email} }
     }
     else {
         die "Unknown setting '$key' (expected webdav, ui, dav_scope, comment, "
