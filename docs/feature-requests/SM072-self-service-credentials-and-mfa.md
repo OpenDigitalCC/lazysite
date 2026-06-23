@@ -58,6 +58,9 @@ Interactive vs machine, one model
 Fail closed, leak nothing
 : Single-use, short TTL, rate-limited, HTTPS-only, and generic responses (no account-existence disclosure). Disabled and token-only accounts cannot obtain an interactive password.
 
+One live credential per account
+: Minting a token, rotating it, or redeeming a claim replaces the previous secret - there is never more than one active credential. A fresh agent session that mints a new token thereby invalidates the old one: one agent, one live key. Token renewal on expiry (Flow C) is this same replace-in-place.
+
 ## 3. The claim-token primitive
 
 A claim is minted against an account, shown once as a high-entropy string, and
@@ -257,3 +260,10 @@ Docs | Update auth.md + the AI briefings; CHANGELOG entries per batch; this spec
   value, but **can trigger its replacement** by issuing a new claim (the
   **Reset credential** action of §4): the old secret is revoked and the user
   sets a fresh one. A CLI `passwd` remains for break-glass only.
+- Agent-initiated access request with owner approval - `[DEFER]`, a future
+  **Flow E**: the inverse direction of this spec. Instead of the operator
+  pushing a claim down, an agent (or user) *requests* access and is handed a
+  URL for its upstream owner, who authenticates as manager and approves -
+  releasing the credential. It reuses the same single-use claim primitive (the
+  approval mints/redeems the claim), so nothing here precludes it. Recorded for
+  a later cycle; not in batches 1-4.

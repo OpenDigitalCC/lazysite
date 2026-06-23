@@ -53,6 +53,7 @@ my $LOG_COMPONENT = 'users';
 # it expires. TTLs in seconds.
 my $PAIRING_TTL      = 900;     # 15 minutes
 my $ACCESS_TOKEN_TTL = 86_400;  # 24 hours
+my $CLAIM_TTL        = 86_400;  # SM072 setup/reset claim: 24 hours
 
 my $DOCROOT;
 my $API_MODE = 0;
@@ -178,6 +179,16 @@ if ( $API_MODE ) {
             my $token = cmd_token_rotate( $req->{username} );
             $result = { ok => 1, token => $token };
         }
+        elsif ( $action eq 'claim-create' ) {
+            my $r = cmd_claim_create( $req->{username},
+                actor  => $req->{actor},
+                revoke => ( $req->{revoke} ? 1 : 0 ) );
+            $result = { ok => 1, %$r };
+        }
+        elsif ( $action eq 'claim-redeem' ) {
+            $result = cmd_claim_redeem( $req->{username}, $req->{claim},
+                password => $req->{password} );
+        }
         elsif ( $action eq 'verify-credential' ) {
             $result = cmd_verify_credential( $req->{username}, $req->{secret} );
         }
@@ -231,6 +242,8 @@ elsif ( $cmd eq 'account-reassign' ) { cmd_account_reassign_cli(@args) }
 elsif ( $cmd eq 'pairing-key' )    { cmd_pairing_key(@args) }
 elsif ( $cmd eq 'token-exchange' ) { cmd_token_exchange(@args) }
 elsif ( $cmd eq 'token-rotate' )   { cmd_token_rotate(@args) }
+elsif ( $cmd eq 'claim-create' )   { cmd_claim_create_cli(@args) }
+elsif ( $cmd eq 'claim-redeem' )   { cmd_claim_redeem_cli(@args) }
 elsif ( $cmd eq 'partner-create' ) { cmd_partner_create_cli(@args) }
 else {
     print STDERR "Unknown command: $cmd\n\n" if $cmd;
@@ -387,6 +400,9 @@ sub effective_settings {
         token_expires_at => $s->{token_expires_at},
         # Free-text operator annotation (what this account is for).
         comment => $s->{comment},
+        # SM072: an outstanding setup/reset claim (the hash is never exposed).
+        claim_pending => $s->{claim_hash} ? JSON::PP::true() : JSON::PP::false(),
+        claim_purpose => ( $s->{claim_hash} ? $s->{claim_purpose} : undef ),
     };
 }
 
@@ -823,6 +839,136 @@ sub cmd_token_rotate {
             . int( $ACCESS_TOKEN_TTL / 3600 ) . "h; shown once):\n$token\n";
     }
     return $token;
+}
+
+# --- SM072: the claim-token primitive --------------------------------
+# A claim is a single-use, short-lived secret the holder redeems to set an
+# account's credential. The operator mints it (Generate setup link / Reset
+# credential) but never sees or chooses the resulting secret; the user
+# redeems it to set their own password (interactive account) or mint their
+# own token (machine account). Purpose follows the ui flag at mint time.
+# ($CLAIM_TTL is declared with the other TTLs near the top, so it is set
+# before the API/CLI dispatch runs.)
+
+sub _issue_claim {
+    my ( $all, $user, $purpose ) = @_;
+    my $claim = 'lzc_' . generate_random_hex(24);
+    $all->{$user} ||= {};
+    $all->{$user}{claim_hash}       = hash_token($claim);
+    $all->{$user}{claim_expires_at} = time() + $CLAIM_TTL;
+    $all->{$user}{claim_purpose}    = $purpose;
+    return $claim;
+}
+
+# Mint a setup claim for an account. With revoke => 1 (Reset credential)
+# the current credential is cleared first, so the account cannot
+# authenticate until the claim is redeemed. actor (when set and not the
+# unrestricted operator 'local') must manage the target.
+sub cmd_claim_create {
+    my ( $user, %opt ) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+
+    my $all = read_settings();
+    my $s   = $all->{$user} ||= {};
+    die "Account '$user' is disabled\n" if $s->{disabled};
+
+    my $actor = $opt{actor};
+    if ( defined $actor && length $actor && $actor ne 'local' ) {
+        die "Not authorised to manage '$user'\n"
+            unless $actor eq $user || is_ancestor( $actor, $user, $all );
+    }
+
+    # purpose follows the ui flag: interactive => password, machine => token
+    my $ui      = ( exists $s->{ui} && !$s->{ui} ) ? 0 : 1;
+    my $purpose = $ui ? 'set-password' : 'mint-token';
+
+    if ( $opt{revoke} ) {
+        $users{$user} = '';                  # revoke the current credential
+        write_users(%users);
+        delete $s->{token_expires_at};
+    }
+
+    my $claim = _issue_claim( $all, $user, $purpose );
+    write_settings($all);
+    log_event( 'INFO', $user,
+        $opt{revoke} ? 'credential reset; setup claim issued' : 'setup claim issued',
+        purpose => $purpose );
+
+    unless ($API_MODE) {
+        print "Setup claim for '$user' ($purpose, single use, expires in "
+            . int( $CLAIM_TTL / 3600 ) . "h; shown once):\n$claim\n";
+    }
+    return { claim => $claim, purpose => $purpose };
+}
+
+# Redeem a claim to set the account's own credential. set-password needs a
+# password (opt{password}); mint-token generates and returns a token. The
+# claim is single-use (cleared on success). Every "no valid claim" path
+# returns ONE generic error, so the endpoint cannot enumerate accounts or
+# probe claim validity.
+sub cmd_claim_redeem {
+    my ( $user, $claim, %opt ) = @_;
+    my $GENERIC = "Invalid or expired claim\n";
+    die $GENERIC unless defined $user && length $user
+                     && defined $claim && length $claim;
+
+    my %users = read_users();
+    die $GENERIC unless exists $users{$user};
+
+    my $all = read_settings();
+    my $s   = $all->{$user} || {};
+    die $GENERIC unless $s->{claim_hash}
+        && $s->{claim_expires_at} && time() <= $s->{claim_expires_at}
+        && verify_secret( $claim, $s->{claim_hash} );
+    die $GENERIC if $s->{disabled};
+
+    my $purpose = $s->{claim_purpose} || 'set-password';
+    my $result;
+    if ( $purpose eq 'set-password' ) {
+        # token-only (ui off) accounts have no interactive password
+        my $ui = ( exists $s->{ui} && !$s->{ui} ) ? 0 : 1;
+        die $GENERIC unless $ui;
+        my $pw = $opt{password};
+        die "Password required\n" unless defined $pw && length $pw;
+        $users{$user} = hash_password($pw);
+        $result = { ok => 1, purpose => $purpose };
+    }
+    else {   # mint-token
+        my $token = generate_token();
+        $users{$user} = hash_token($token);
+        $result = { ok => 1, purpose => $purpose, token => $token };
+    }
+    write_users(%users);
+
+    delete $all->{$user}{claim_hash};            # single use
+    delete $all->{$user}{claim_expires_at};
+    delete $all->{$user}{claim_purpose};
+    delete $all->{$user}{token_expires_at};      # a claim-set credential is permanent
+    write_settings($all);
+    log_event( 'INFO', $user, 'claim redeemed', purpose => $purpose );
+
+    unless ($API_MODE) {
+        if ( $result->{token} ) {
+            print "Credential for '$user' (shown once, store it now):\n$result->{token}\n";
+        }
+        else { print "Password set for '$user'.\n" }
+    }
+    return $result;
+}
+
+# CLI wrappers: pull --reset out of the positionals; map the 3rd
+# positional of redeem to the password option.
+sub cmd_claim_create_cli {
+    my @pos; my $revoke = 0;
+    for (@_) { if ( $_ eq '--reset' ) { $revoke = 1 } else { push @pos, $_ } }
+    cmd_claim_create( $pos[0], revoke => $revoke );
+}
+
+sub cmd_claim_redeem_cli {
+    my ( $user, $claim, $pw ) = @_;
+    cmd_claim_redeem( $user, $claim, password => $pw );
 }
 
 # Read a scalar value from lazysite.conf (for the onboarding brief).
