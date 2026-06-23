@@ -8,6 +8,7 @@ use Fcntl qw(:flock O_RDWR O_CREAT);
 use File::Path qw(make_path);
 use File::Basename qw(dirname);
 use POSIX qw(strftime);
+use IPC::Open2 qw(open2);
 
 my $LOG_COMPONENT = 'auth';
 
@@ -66,6 +67,9 @@ if ( $action eq 'login' && $method eq 'POST' ) {
 }
 elsif ( $action eq 'logout' ) {
     handle_logout();
+}
+elsif ( $action eq 'claim' && $method eq 'POST' ) {
+    handle_claim();
 }
 else {
     handle_request();
@@ -163,6 +167,13 @@ sub handle_login {
         return;
     }
 
+    # SM072: account-level expiry (time-boxed access)
+    if ( account_expired($username) ) {
+        log_event('WARN', $username, 'login refused: account expired', ip => $ip);
+        redirect("$auth_redirect?error=1");
+        return;
+    }
+
     unless ( ui_enabled($username) ) {
         log_event('WARN', $username, 'interactive login disabled for account', ip => $ip);
         reject_ui_disabled();
@@ -200,6 +211,107 @@ sub handle_logout {
     print "Status: 302 Found\r\n";
     print "Set-Cookie: $COOKIE_NAME=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
     print "Location: /logout\r\n\r\n";
+}
+
+# SM072: public claim redemption. The holder of a single-use setup/reset
+# claim sets their own credential here - the operator never sees it. The
+# claim token IS the authentication; we shell to the (tested) users-tool
+# claim-redeem, which returns ONE generic error on any failure.
+sub handle_claim {
+    my %form = parse_post();
+    my $username = $form{username} // '';
+    $username =~ s/[^a-zA-Z0-9_.-]//g;
+    $username = substr( $username, 0, 64 ) if length($username) > 64;
+    my $claim    = $form{claim} // '';
+    $claim =~ s/[^a-zA-Z0-9_]//g;
+    my $password = $form{password} // '';
+    my $ip = $ENV{REMOTE_ADDR} // '';
+
+    # HTTPS-only (setting a secret); localhost allowed for dev/CLI.
+    unless ( $ENV{HTTPS} || $ip eq '127.0.0.1' || $ip eq '::1' ) {
+        log_event('WARN', $username, 'claim over plaintext refused', ip => $ip);
+        redirect("/claim?u=$username&error=1");
+        return;
+    }
+
+    # H-3: reuse the per-IP login rate limiter.
+    unless ( check_login_rate($ip) ) {
+        sleep $LOGIN_DELAY;
+        redirect("/claim?u=$username&error=1");
+        return;
+    }
+
+    my $r = users_tool_api({
+        action => 'claim-redeem', username => $username,
+        claim  => $claim, password => $password,
+    });
+
+    unless ( ref $r eq 'HASH' && $r->{ok} ) {
+        sleep $LOGIN_DELAY;
+        log_event('WARN', $username, 'claim redeem failed', ip => $ip);
+        redirect("/claim?u=$username&error=1");
+        return;
+    }
+
+    log_event('INFO', $username, 'claim redeemed', ip => $ip);
+    if ( $r->{token} ) {
+        claim_token_page( $username, $r->{token} );   # machine: show token once
+    }
+    else {
+        my $auth_redirect = read_conf_key('auth_redirect') || '/login';
+        redirect("$auth_redirect?claimed=1");          # human: go sign in
+    }
+    return;
+}
+
+# Show a freshly-minted token once (a mint-token claim was redeemed).
+sub claim_token_page {
+    my ( $user, $token ) = @_;
+    $user  =~ s/[^a-zA-Z0-9_.-]//g;
+    $token =~ s/[^a-zA-Z0-9_]//g;
+    binmode( STDOUT, ':utf8' );
+    print "Status: 200 OK\r\n";
+    print "Content-Type: text/html; charset=utf-8\r\n\r\n";
+    print <<"HTML";
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Credential</title></head>
+<body style="font-family:system-ui,sans-serif;max-width:560px;margin:3em auto;padding:0 1em;">
+<h1 style="font-size:1.3rem;">Your credential for $user</h1>
+<p>Store this now &mdash; it is shown once and cannot be retrieved again. Use it
+as the password for WebDAV / API requests (username: <code>$user</code>).</p>
+<p style="font-family:ui-monospace,Menlo,Consolas,monospace;background:#f0f0f0;padding:0.6em 0.8em;border-radius:4px;word-break:break-all;">$token</p>
+</body></html>
+HTML
+    return;
+}
+
+# Locate the users tool (same candidates as the manager API).
+sub _users_tool_path {
+    for my $c (
+        $ENV{LAZYSITE_USERS_TOOL},
+        dirname($0) . "/../tools/lazysite-users.pl",
+        "$DOCROOT/../tools/lazysite-users.pl",
+    ) {
+        return $c if defined $c && -f $c;
+    }
+    return undef;
+}
+
+# Invoke the users tool in --api mode with a JSON payload; return the
+# decoded response (or undef on any failure).
+sub users_tool_api {
+    my ($payload) = @_;
+    my $tool = _users_tool_path() or return undef;
+    require JSON::PP;
+    my ( $out, $in );
+    my $pid = eval { open2( $out, $in, $^X, $tool, '--api', '--docroot', $DOCROOT ) };
+    return undef unless $pid;
+    print $in JSON::PP::encode_json($payload);
+    close $in;
+    my $resp = do { local $/; <$out> };
+    close $out;
+    waitpid $pid, 0;
+    return eval { JSON::PP::decode_json( $resp // '{}' ) };
 }
 
 sub handle_request {
@@ -348,6 +460,23 @@ sub token_expired {
     my $s = $data->{$username};
     return 0 unless ref $s eq 'HASH' && $s->{token_expires_at};
     return time() > $s->{token_expires_at} ? 1 : 0;
+}
+
+# SM072: account-level expiry (time-boxed access). After expires_at the
+# whole account fails authentication, whatever credential it holds.
+sub account_expired {
+    my ($username) = @_;
+    my $path = "$AUTH_DIR/user-settings.json";
+    return 0 unless -f $path;
+    open my $fh, '<:utf8', $path or return 0;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    require JSON::PP;
+    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
+    return 0 unless ref $data eq 'HASH';
+    my $s = $data->{$username};
+    return 0 unless ref $s eq 'HASH' && $s->{expires_at};
+    return time() > $s->{expires_at} ? 1 : 0;
 }
 
 sub load_user_groups {

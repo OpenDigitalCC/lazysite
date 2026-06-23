@@ -163,10 +163,16 @@ function renderUserRow(row) {
   var by       = s.created_by ? ' &middot; by ' + escHtml(s.created_by) : '';
   var comment  = s.comment || '';
   var note     = comment ? '<span class="mg-acc-note">' + escHtml(comment) + '</span>' : '';
+  var expTag   = '';
+  if (s.expires_at) {
+    expTag = (s.expires_at < Date.now() / 1000)
+      ? ' &middot; <span class="mg-tag mg-tag-off">expired</span>'
+      : ' &middot; <span class="mg-acc-note">expires ' + expiryDate(s.expires_at) + '</span>';
+  }
 
   var h = '<details class="mg-acc"><summary>' +
     '<span class="mg-acc-name">' + ue + '</span>' + note +
-    '<span class="mg-acc-tags">' + autoTag + status + by + '</span></summary>' +
+    '<span class="mg-acc-tags">' + autoTag + status + by + expTag + '</span></summary>' +
     '<div class="mg-acc-body">';
 
   // --- Notes ---
@@ -210,6 +216,12 @@ function renderUserRow(row) {
     '<button class="mg-btn mg-btn-sm" onclick="generateCredential(\'' + ue + '\')">Generate credential</button>' +
     '<span class="mg-help" title="Mints a strong machine credential (prefix lzs_), shown once. Use it as the WebDAV / API password: it verifies far faster than the account password and is revoked by regenerating.">&#9432;</span></div>';
   cred += '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>';
+  cred += '<div class="mg-line"><span class="mg-line-lbl">Setup link</span>' +
+    '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',false)">Generate setup link</button>' +
+    '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',true)">Reset credential</button>' +
+    (s.claim_pending ? ' <span class="mg-muted">(link outstanding)</span>' : '') +
+    '<span class="mg-help" title="A one-time link the user opens to set their OWN password (or mint their own token) - you never see it. Reset credential revokes the current one first. Single-use, expires in 24h.">&#9432;</span></div>';
+  cred += '<div class="mg-cred-reveal" id="setup-' + ue + '" style="display:none"></div>';
   h += sec('Credentials', cred);
 
   // --- WebDAV (publishing accounts only) ---
@@ -241,6 +253,11 @@ function renderUserRow(row) {
     '<button class="mg-btn mg-btn-sm" onclick="toggleDisabled(\'' + ue + '\',' + (disabled ? 'true' : 'false') + ')">' +
     (disabled ? 'Enable' : 'Disable') + '</button>' +
     '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + ue + '\')">Delete</button></div>';
+  ac += '<div class="mg-line"><span class="mg-line-lbl">Expires</span>' +
+    '<input type="date" class="mg-inp" id="exp-' + ue + '" value="' + expiryDate(s.expires_at) + '">' +
+    '<button class="mg-btn mg-btn-sm" onclick="setExpiry(\'' + ue + '\')">Set</button>' +
+    '<button class="mg-btn mg-btn-sm" onclick="clearExpiry(\'' + ue + '\')">Clear</button>' +
+    '<span class="mg-inline-msg" id="expmsg-' + ue + '"></span></div>';
   // Owner + reassign only for sub-users (accounts with a recorded parent).
   if (s.created_by) {
     var owner = s.managed_by || s.created_by;
@@ -440,6 +457,59 @@ function saveComment(user) {
   apiCall({ action: 'settings-set', username: user, key: 'comment', value: (inp && inp.value) || '' })
     .then(function(d) { if (!d.ok) { say(d.error, false); return; } say('Saved.', true); })
     .catch(function(e) { say('Error: ' + e.message, false); });
+}
+
+// --- SM072: setup links + account expiry ---
+
+// Mint a one-time setup link to hand to the user; reset=true also revokes
+// the current credential first (Reset credential). The operator never sees
+// the secret the user will set.
+function setupLink(user, reset) {
+  var box = document.getElementById('setup-' + user);
+  function show(html) { if (box) { box.style.display = 'block'; box.innerHTML = html; } }
+  apiCall({ action: 'claim-create', username: user, revoke: reset ? 1 : 0 })
+    .then(function(d) {
+      if (!d.ok) { show('<span class="mg-err">' + escHtml(d.error) + '</span>'); return; }
+      var link = location.origin + '/claim?u=' + encodeURIComponent(user) + '&c=' + encodeURIComponent(d.claim);
+      var what = d.purpose === 'mint-token'
+        ? 'Opening the link mints this account a token.'
+        : 'The user sets their own password when they open it.';
+      show('<div class="mg-muted">' + (reset ? 'Current credential revoked. ' : '') + what +
+        ' Single-use, expires in 24h &mdash; copy it now.</div>' +
+        '<code class="mg-code" id="setuplink-' + user + '">' + escHtml(link) + '</code>' +
+        '<button class="mg-btn mg-btn-sm" onclick="copyText(\'setuplink-' + user + '\')">Copy</button>');
+    })
+    .catch(function(e) { show('<span class="mg-err">Error: ' + escHtml(e.message) + '</span>'); });
+}
+
+// epoch -> YYYY-MM-DD for the date input (local time).
+function expiryDate(epoch) {
+  if (!epoch) return '';
+  var d = new Date(epoch * 1000);
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+
+function setExpiry(user) {
+  var inp = document.getElementById('exp-' + user);
+  var msg = document.getElementById('expmsg-' + user);
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  var v = inp && inp.value;
+  if (!v) { say('Pick a date, or use Clear.', false); return; }
+  var epoch = Math.floor(new Date(v + 'T23:59:59').getTime() / 1000);   // end of the chosen day
+  apiCall({ action: 'settings-set', username: user, key: 'expires_at', value: String(epoch) })
+    .then(function(d) { if (!d.ok) { say(d.error, false); return; } say('Expires ' + v + '.', true); })
+    .catch(function(e) { say('Error: ' + e.message, false); });
+}
+
+function clearExpiry(user) {
+  var inp = document.getElementById('exp-' + user);
+  var msg = document.getElementById('expmsg-' + user);
+  apiCall({ action: 'settings-set', username: user, key: 'expires_at', value: '' })
+    .then(function(d) {
+      if (msg) { msg.textContent = d.ok ? 'No expiry.' : d.error; msg.className = 'mg-inline-msg ' + (d.ok ? 'mg-ok' : 'mg-err'); }
+      if (d.ok && inp) inp.value = '';
+    })
+    .catch(function(e) {});
 }
 
 // Fill the Add-user group multi-select from the loaded groups.

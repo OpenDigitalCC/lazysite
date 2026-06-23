@@ -18,6 +18,19 @@ Keying
 
 ## Unreleased
 
+SM072 - Self-service credentials, claim links, and account expiry
+: The operator sets account parameters; the user provisions their own
+  secret. Batch 1: the claim-token primitive - a single-use, short-lived,
+  hashed claim the holder redeems to set their own password or mint their
+  own token (the operator never sees it). `Generate setup link` and
+  `Reset credential` (revoke + fresh claim) on the Users card; a public
+  `/claim` page (`auth.pl`, rate-limited, HTTPS-only, one generic error
+  with no account enumeration). Plus per-account `expires_at` for
+  time-boxed access ("one day, then auto-expire"), enforced at login and
+  on credential verification. Also a fourth AI briefing,
+  `ai-briefing-publishing`, documenting the agreed WebDAV-for-files /
+  control-API-for-config publishing model. Design of record: SM072 spec.
+
 SM071 - WebDAV theme and layout management
 : Staged authoring of themes and layouts with a safe back-out, in three
   phases. Phase 1: session-scoped, signed-cookie preview of an inactive

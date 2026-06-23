@@ -2522,20 +2522,26 @@ sub action_users {
         $request_body = encode_json({ action => $sub });
     }
 
-    # SM071 Phase 3: scope sub-user management to the actor's own sub-tree.
-    # For the account-* actions, inject actor=$auth_user (and created_by on
-    # account-create) so the users tool enforces ancestry. The operator
-    # ('local', i.e. no manager_groups configured) is left unrestricted.
-    if ( $auth_user ne 'local' && length $request_body ) {
+    # SM071/SM072: scope sub-user management to the actor's own sub-tree.
+    # claim-redeem is the PUBLIC redemption flow (lazysite-auth.pl /claim) -
+    # the user sets their own secret, so it is never a manager action and is
+    # refused here. For the account-* actions and claim-create (Generate setup
+    # link / Reset credential), inject actor=$auth_user so the users tool
+    # enforces ancestry. The operator ('local') is left unrestricted.
+    if ( length $request_body ) {
         my $parsed = eval { decode_json($request_body) };
-        if ( ref $parsed eq 'HASH'
-             && ( $parsed->{action} // '' ) =~ /^account-(create|disable|enable|reassign)$/ ) {
-            $parsed->{actor} = $auth_user;
-            # Default the owner to the actor, but let a request name a parent
-            # (create a sub-user under any account in your sub-tree). The
-            # users tool enforces ancestry against the injected actor.
-            $parsed->{created_by} //= $auth_user if $1 eq 'create';
-            $request_body = encode_json($parsed);
+        if ( ref $parsed eq 'HASH' ) {
+            my $act = $parsed->{action} // '';
+            return { ok => 0, error => "claim-redeem is not a manager action" }
+                if $act eq 'claim-redeem';
+            if ( $auth_user ne 'local'
+                 && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create)$/ ) {
+                $parsed->{actor} = $auth_user;
+                # Default a sub-user's owner to the actor, but let a request
+                # name a parent in the actor's sub-tree.
+                $parsed->{created_by} //= $auth_user if $act eq 'account-create';
+                $request_body = encode_json($parsed);
+            }
         }
     }
 

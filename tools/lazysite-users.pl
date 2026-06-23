@@ -46,6 +46,24 @@ sub generate_token {
     return 'lzs_' . generate_random_hex(32);   # 64 hex chars = 32 bytes
 }
 
+# SM072: parse an account-expiry value into an epoch. Accepts an epoch
+# (>= 9 digits), an ISO date (YYYY-MM-DD => end of that day, local), or a
+# date+time (YYYY-MM-DD HH:MM[:SS]). Empty/undef clears (returns undef).
+sub parse_when {
+    my ($v) = @_;
+    return undef unless defined $v && length $v;
+    $v =~ s/^\s+|\s+$//g;
+    return undef unless length $v;
+    return $v + 0 if $v =~ /^\d{9,}$/;
+    if ( $v =~ /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/ ) {
+        my ( $Y, $Mo, $D, $h, $mi, $s ) =
+            ( $1, $2, $3, defined $4 ? $4 : 23, defined $5 ? $5 : 59, defined $6 ? $6 : 59 );
+        require Time::Local;
+        return Time::Local::timelocal( $s, $mi, $h, $D, $Mo - 1, $Y );
+    }
+    die "Invalid date '$v' (use YYYY-MM-DD, YYYY-MM-DD HH:MM, or an epoch)\n";
+}
+
 my $LOG_COMPONENT = 'users';
 
 # SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
@@ -403,6 +421,8 @@ sub effective_settings {
         # SM072: an outstanding setup/reset claim (the hash is never exposed).
         claim_pending => $s->{claim_hash} ? JSON::PP::true() : JSON::PP::false(),
         claim_purpose => ( $s->{claim_hash} ? $s->{claim_purpose} : undef ),
+        # SM072: account-level expiry (epoch); after it all auth fails.
+        expires_at => $s->{expires_at},
     };
 }
 
@@ -471,9 +491,15 @@ sub cmd_set {
         if ( length $c ) { $all->{$user}{comment} = $c }
         else             { delete $all->{$user}{comment} }
     }
+    elsif ( $key eq 'expires_at' ) {
+        # SM072: account-level expiry (time-boxed access). Empty clears.
+        my $epoch = parse_when($value);
+        if ( defined $epoch ) { $all->{$user}{expires_at} = $epoch }
+        else                  { delete $all->{$user}{expires_at} }
+    }
     else {
         die "Unknown setting '$key' (expected webdav, ui, dav_scope, comment, "
-          . "create_sub_users, delegate_sub_user_creation, "
+          . "expires_at, create_sub_users, delegate_sub_user_creation, "
           . "manage_themes, manage_layouts, or manage_config)\n";
     }
 
@@ -1063,6 +1089,8 @@ sub cmd_verify_credential {
     return { ok => 0 } if $eff->{disabled};
     my $exp = $eff->{token_expires_at};
     return { ok => 0 } if $exp && time() > $exp;
+    my $aexp = $eff->{expires_at};   # SM072: account-level expiry
+    return { ok => 0 } if $aexp && time() > $aexp;
 
     return { ok => 1, username => $user, settings => $eff };
 }

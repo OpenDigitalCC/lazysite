@@ -145,4 +145,22 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
     like( $no->{error}, qr/[Nn]ot authorised/, 'ancestry enforced' );
 }
 
+# --- account expiry: time-boxed access --------------------------------
+{
+    my $d = fresh_docroot();
+    cli( $d, 'add', 'temp', 'pw' );
+    ok( verify( $d, 'temp', 'pw' )->{ok}, 'valid before any expiry' );
+
+    cli( $d, 'set', 'temp', 'expires_at', '2000-01-01' );      # past
+    ok( !verify( $d, 'temp', 'pw' )->{ok}, 'expired account fails auth' );
+
+    cli( $d, 'set', 'temp', 'expires_at', '2999-12-31' );      # future
+    ok( verify( $d, 'temp', 'pw' )->{ok}, 'future expiry still authenticates' );
+    ok( settings( $d, 'temp' )->{expires_at} > time(), 'expires_at stored as a future epoch' );
+
+    cli( $d, 'set', 'temp', 'expires_at', '' );                # clear
+    ok( !defined settings( $d, 'temp' )->{expires_at}, 'empty value clears the expiry' );
+    ok( verify( $d, 'temp', 'pw' )->{ok}, 'valid again once expiry cleared' );
+}
+
 done_testing();

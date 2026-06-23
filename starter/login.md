@@ -5,6 +5,7 @@ search: false
 query_params:
   - error
   - next
+  - claimed
 ---
 
 <style>
@@ -81,6 +82,10 @@ query_params:
 
 [% IF query.error %]
 <p class="auth-error">Invalid username or password.</p>
+[% END %]
+
+[% IF query.claimed %]
+<p class="login-context">Your password is set. Sign in below.</p>
 [% END %]
 
 [% IF query.next %]
