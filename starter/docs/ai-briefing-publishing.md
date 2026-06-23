@@ -106,7 +106,9 @@ Control API
 ## Control API actions
 
 Issue these to the control-API endpoint with your access token as HTTP Basic
-auth, the same as WebDAV. See [Manager](/docs/manager) for exact parameters.
+auth, the same as WebDAV. Each is a `?action=<name>` on that endpoint with the
+action's own parameters (e.g. `path`, `theme`); call `whoami` to see which
+actions your capabilities permit.
 
 `whoami`
 : Your partner identity, capabilities, groups, and effective scope, plus the

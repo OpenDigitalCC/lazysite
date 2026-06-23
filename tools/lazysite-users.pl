@@ -1252,12 +1252,13 @@ sub _onboarding_brief {
         ? $s->{dav_scope} : 'whole docroot (minus denied paths)';
 
     # Machine-readable capability tokens + allow scope for the parseable block.
+    # Machine-readable capability tokens - the snake_case names whoami
+    # returns (nav editing is part of manage_config; there is no edit-nav).
     my @mcaps;
-    push @mcaps, 'publish-content'        if $s->{webdav};
-    push @mcaps, 'manage-themes'          if $s->{manage_themes};
-    push @mcaps, 'manage-layouts'         if $s->{manage_layouts};
-    push @mcaps, 'set-config-allowlisted' if $s->{manage_config};
-    push @mcaps, 'edit-nav'               if $s->{manage_config};
+    push @mcaps, 'webdav'         if $s->{webdav};
+    push @mcaps, 'manage_themes'  if $s->{manage_themes};
+    push @mcaps, 'manage_layouts' if $s->{manage_layouts};
+    push @mcaps, 'manage_config'  if $s->{manage_config};
     my $mcaps_yaml = join "\n", map { "  - $_" } @mcaps;
     my $allow = ( defined $s->{dav_scope} && length $s->{dav_scope} )
         ? $s->{dav_scope} : '/';
@@ -1306,6 +1307,7 @@ endpoints:
   webdav: $base/dav/
   exchange: $base/cgi-bin/lazysite-auth.pl?action=exchange
   rotate: $base/cgi-bin/lazysite-auth.pl?action=rotate
+  control: $base/cgi-bin/lazysite-manager-api.pl
 auth:
   pairing_key: $key
   token_prefix: lzs_
@@ -1314,9 +1316,9 @@ capabilities:
 $mcaps_yaml
 scope:
   allow: ["$allow"]
-  deny: ["/lazysite/auth", "/lazysite/cache", "/lazysite/logs",
-         "/lazysite/forms/.smtp-password", "/lazysite/manager",
-         "/lazysite/lazysite.conf"]
+  deny: ["/cgi-bin/", "/manager/", "/lazysite/auth/", "/lazysite/forms/",
+         "/lazysite/cache/", "/lazysite/logs/", "/lazysite/manager/",
+         "/lazysite/templates/", "/lazysite/lazysite.conf", "*.pl"]
 docs:
   - $base/docs/ai-briefing-publishing
   - $base/docs/reference
