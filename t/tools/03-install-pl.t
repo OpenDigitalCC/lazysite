@@ -420,6 +420,43 @@ subtest 'runtime_paths: D013 directories created' => sub {
     ok( -d "$docroot/lazysite/cache",   'cache/ dir created' );
 };
 
+# --- edited content stays preserved across REPEATED upgrades ---
+# Regression: the preserve action used to record the on-disk (user) SHA as the
+# baseline, so the next upgrade saw the file as "unedited" and clobbered it.
+subtest 'edited content preserved across repeated upgrades' => sub {
+    my ( $docroot, $cgibin ) = fresh_docroot();
+    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+
+    my $index = "$docroot/index.md";
+    open my $fh, '>', $index or die $!;
+    print $fh "# my own homepage\n"; close $fh;
+    my $mine = sha_file($index);
+
+    my ( $rc1 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc1, 0, 'first upgrade ok' );
+    is( sha_file($index), $mine, 'edited index.md preserved (1st upgrade)' );
+
+    my ( $rc2 ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc2, 0, 'second upgrade ok' );
+    is( sha_file($index), $mine, 'edited index.md STILL preserved (2nd upgrade)' );
+};
+
+# --- an unwritable content file is non-fatal ---
+subtest 'unwritable content file does not abort the install' => sub {
+    my ( $docroot, $cgibin ) = fresh_docroot();
+    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+
+    my $about = "$docroot/about.md";
+    SKIP: {
+        skip 'about.md not shipped', 2 unless -f $about;
+        chmod 0444, $about;   # read-only: an unedited overwrite copy will fail
+        my ( $rc, $out ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+        is( $rc, 0, 'install completes despite an unwritable content file' );
+        like( $out, qr/skipped \(not writable/, 'reports the skipped file' );
+        chmod 0644, $about;
+    }
+};
+
 done_testing();
 
 # --- helpers ---

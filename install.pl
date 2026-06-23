@@ -244,6 +244,7 @@ sub compute_plan {
                 source => $source,
                 dest   => $dest,
                 bucket => $entry->{bucket},
+                sha256 => $entry->{sha256},
                 path   => $entry->{path},
             };
             next;
@@ -259,6 +260,7 @@ sub compute_plan {
                 source => $source,
                 dest   => $dest,
                 bucket => $entry->{bucket},
+                sha256 => $entry->{sha256},
                 path   => $entry->{path},
             };
         }
@@ -270,6 +272,7 @@ sub compute_plan {
                     source      => $source,
                     dest        => $dest,
                     bucket      => 'code',
+                    sha256      => $entry->{sha256},
                     was_edited  => 1,
                     path        => $entry->{path},
                 };
@@ -279,6 +282,7 @@ sub compute_plan {
                     action => 'preserve',
                     dest   => $dest,
                     bucket => $entry->{bucket},
+                    sha256 => $entry->{sha256},
                     path   => $entry->{path},
                 };
             }
@@ -350,20 +354,30 @@ sub execute_plan {
     for my $step (@$plan) {
         my $a = $step->{action};
 
-        if ( $a eq 'install' ) {
-            install_file( $step->{source}, $step->{dest} );
+        if ( $a eq 'install' || $a eq 'overwrite' ) {
+            my $ok = eval { install_file( $step->{source}, $step->{dest} ); 1 };
+            if ( !$ok ) {
+                my $err = $@; $err =~ s/\s+$//;
+                # Code files (the app) are critical - fail. Content/seed files
+                # are not: a page the owner (or a webdav partner) wrote may not
+                # be writable by the installer - warn, leave it, carry on.
+                die "$err\n" if ( $step->{bucket} // '' ) eq 'code';
+                push @warnings, "skipped (not writable, left as-is): $step->{dest}";
+                # Record the SHIPPED sha as the baseline so a future upgrade
+                # treats it as edited-vs-shipped and keeps preserving it.
+                $state_files{ $step->{dest} } =
+                    defined $step->{sha256} ? "sha256:$step->{sha256}" : '';
+                next;
+            }
             $state_files{ $step->{dest} } = 'sha256:' . sha256_of( $step->{dest} );
-            $stats{installed}++;
-        }
-        elsif ( $a eq 'overwrite' ) {
-            install_file( $step->{source}, $step->{dest} );
-            $state_files{ $step->{dest} } = 'sha256:' . sha256_of( $step->{dest} );
-            $stats{overwrote}++;
+            $a eq 'install' ? $stats{installed}++ : $stats{overwrote}++;
         }
         elsif ( $a eq 'preserve' ) {
-            # Keep on-disk contents; record current SHA in new state
-            # so next upgrade's preservation check is accurate.
-            $state_files{ $step->{dest} } = 'sha256:' . sha256_of( $step->{dest} );
+            # Record the SHIPPED sha as the baseline (not the on-disk/user
+            # version), so an edited file stays "edited vs shipped" and keeps
+            # being preserved on future upgrades instead of being clobbered.
+            $state_files{ $step->{dest} } =
+                defined $step->{sha256} ? "sha256:$step->{sha256}" : 'sha256:' . sha256_of( $step->{dest} );
             push @{ $stats{preserved} }, $step->{dest};
         }
         elsif ( $a eq 'remove' ) {
