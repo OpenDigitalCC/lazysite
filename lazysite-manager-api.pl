@@ -298,6 +298,12 @@ elsif ( $action eq 'renew-lock' )       { $result = renew_lock( $path, $auth_use
 elsif ( $action eq 'preview' )          { $result = action_preview($path) }
 elsif ( $action eq 'cache-list' )       { $result = action_cache_list() }
 elsif ( $action eq 'cache-invalidate' ) { $result = action_cache_invalidate($path) }
+elsif ( $action eq 'config-set' )       {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_config_set(
+        ( defined $req->{key}   ? $req->{key}   : $params{key} ),
+        ( defined $req->{value} ? $req->{value} : $params{value} ) );
+}
 elsif ( $action eq 'theme-list' )       { $result = action_theme_list() }
 elsif ( $action eq 'themes-list-all' )  { $result = action_themes_list_all() }
 elsif ( $action eq 'theme-activate' )   { $result = action_theme_activate($path, \%params) }
@@ -2450,6 +2456,29 @@ sub _cleanup_tmp_layouts {
     system( "rm", "-rf", $dir ) if $dir =~ m{^/tmp/lazysite-layouts-\d+$};
 }
 
+# SM072 §13 / control API: set an allowlisted site-config key in
+# lazysite.conf. The allowlist is deliberately narrow - benign display /
+# behaviour keys only, NEVER privilege-relevant keys (manager_groups,
+# plugins, auth_default) or ones with dedicated actions (layout/theme via
+# theme-activate/layout-activate). Gated on manage_config by %need.
+# (Defined inside the sub: the dispatch runs above this point in the file,
+# so a file-level `my` initialised here would still be empty at call time.)
+sub action_config_set {
+    my ( $key, $value ) = @_;
+    my %allow = map { $_ => 1 } qw(site_name site_url search_default);
+    $key = '' unless defined $key;
+    return { ok => 0, error => "Config key '$key' is not settable via the API" }
+        unless $allow{$key};
+    return { ok => 0, error => "A value is required" }
+        unless defined $value && length $value;
+    return { ok => 0, error => "Value must be a single line" }
+        if $value =~ /[\r\n]/;
+    _write_conf_key( $key, $value )
+        or return { ok => 0, error => "Could not write lazysite.conf" };
+    log_event( 'INFO', 'config-set', 'config key set', key => $key, user => $auth_user );
+    return { ok => 1, key => $key, value => $value };
+}
+
 # SM056: fetch a single release zipball and walk
 # layouts/LAYOUT/themes/THEME/theme.json, returning a flat array of
 # {layout, name, description} entries. Lazy: UI calls this per
@@ -2845,8 +2874,14 @@ sub action_users {
     # claim-redeem is the PUBLIC redemption flow (lazysite-auth.pl /claim) -
     # the user sets their own secret, so it is never a manager action and is
     # refused here. For the account-* actions and claim-create (Generate setup
-    # link / Reset credential), inject actor=$auth_user so the users tool
-    # enforces ancestry. The operator ('local') is left unrestricted.
+    # link / Reset credential) we inject actor=$auth_user so the users tool
+    # confines a DELEGATED sub-manager to its own sub-tree.
+    #
+    # A manager-group operator (and 'local') is unrestricted and must get NO
+    # actor, or it can only manage accounts it personally created - the cause
+    # of "Not authorised to manage 'X'" when an operator generates a setup
+    # link for a user it owns through the tree but did not directly create.
+    # created_by still defaults to the actor so a new account has an owner.
     if ( length $request_body ) {
         my $parsed = eval { decode_json($request_body) };
         if ( ref $parsed eq 'HASH' ) {
@@ -2855,9 +2890,7 @@ sub action_users {
                 if $act eq 'claim-redeem';
             if ( $auth_user ne 'local'
                  && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|rename)$/ ) {
-                $parsed->{actor} = $auth_user;
-                # Default a sub-user's owner to the actor, but let a request
-                # name a parent in the actor's sub-tree.
+                $parsed->{actor} = $auth_user unless _is_operator();
                 $parsed->{created_by} //= $auth_user if $act eq 'account-create';
                 $request_body = encode_json($parsed);
             }

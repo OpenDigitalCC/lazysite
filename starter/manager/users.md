@@ -18,7 +18,7 @@ search: false
 <div class="mg-card-body">
 <div class="mg-form-row">
 <label>Type</label>
-<select id="new-type" onchange="onTypeChange()">
+<select id="new-type">
 <option value="human">Human (interactive login)</option>
 <option value="ai">AI / backend (token)</option>
 </select>
@@ -26,10 +26,6 @@ search: false
 <div class="mg-form-row">
 <label>Username</label>
 <input type="text" id="new-username" placeholder="username">
-</div>
-<div class="mg-form-row" id="new-pw-row">
-<label>Password</label>
-<input type="password" id="new-password" placeholder="optional - blank sends a setup link">
 </div>
 <div class="mg-form-row">
 <label>Groups</label>
@@ -609,26 +605,20 @@ function populateAddUserParents() {
   sel.value = cur;
 }
 
-// Account type drives the form: AI/backend accounts take no password.
-function onTypeChange() {
-  var t = document.getElementById('new-type').value;
-  var row = document.getElementById('new-pw-row');
-  if (row) row.style.display = (t === 'ai') ? 'none' : '';
-}
-
 function addUser() {
   var username = document.getElementById('new-username').value.trim();
   var type = document.getElementById('new-type').value;            // human | ai
-  var password = (type === 'ai') ? '' : document.getElementById('new-password').value;
   var parent = document.getElementById('new-parent').value;        // '' = top-level
   var sel = document.getElementById('new-groups');
   var gl = sel ? Array.prototype.slice.call(sel.selectedOptions)
                    .map(function(o) { return o.value; }).filter(Boolean) : [];
   if (!username) { showStatus('Username required.', true); return; }
-  // A parent makes this a sub-user (owned by that account); otherwise top-level.
+  // Accounts are created with no password - credentials are set afterward
+  // from the card (Generate setup link, or Generate credential). A parent
+  // makes this a sub-user (owned by that account); otherwise top-level.
   var req = parent
-    ? { action: 'account-create', username: username, password: password, created_by: parent }
-    : { action: 'add', username: username, password: password };
+    ? { action: 'account-create', username: username, password: '', created_by: parent }
+    : { action: 'add', username: username, password: '' };
   apiCall(req)
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
@@ -644,10 +634,8 @@ function addUser() {
         var where = parent ? (' under "' + parent + '"') : '';
         showStatus(type === 'ai'
           ? ('AI account "' + username + '" added' + where + ' - open its card to Generate a setup link or onboarding brief.')
-          : (password ? ('User "' + username + '" added' + where + '.')
-                      : ('User "' + username + '" added' + where + ' - use Generate setup link in its card so they set their own password.')));
+          : ('User "' + username + '" added' + where + ' - use Generate setup link in its card so they set their own password.'));
         document.getElementById('new-username').value = '';
-        document.getElementById('new-password').value = '';
         loadUsers();
       });
     })

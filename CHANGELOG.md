@@ -18,6 +18,28 @@ Keying
 
 ## Unreleased
 
+Control API - `config-set` wired
+: A token client with `manage_config` can now set an allowlisted site-config
+  key (`site_name`, `site_url`, `search_default`) in `lazysite.conf` over the
+  control API - previously the action was in the capability allowlist but had
+  no dispatch handler ("not available to token clients"). Privilege-relevant
+  keys (manager groups, plugins, auth) and ones with dedicated actions
+  (layout/theme) are refused. So a publishing agent can set its own site name
+  without operator hand-editing.
+
+Fix - operator could not manage accounts it did not personally create
+: "Generate setup link" (and the other account actions) failed with "Not
+  authorised to manage 'X'" for a manager-group operator: every named actor
+  was confined to its own `managed_by` sub-tree, and a top-level account is
+  created with `add`, which stamps no sub-tree at all. A manager-group
+  operator (like `local`) is now unrestricted and may manage any account; a
+  delegated sub-manager stays confined to its own tree.
+
+Manager Users card
+: The Add-user form drops the optional password box - accounts are created
+  with no password and credentials are set afterward from the card (Generate
+  setup link, or Generate credential), removing the duplication.
+
 Manager - WebDAV publishing toggle
 : `webdav_enabled` is now a first-class Config-page setting (WebDAV
   publishing: enabled / disabled) and a documented commented entry in the
@@ -44,8 +66,7 @@ Manager Users card
 
 Docs + consistency follow-ups
 : The publishing briefing's control-API section now documents each action's
-  exact parameters (and notes `config-set` is gated but not yet wired - use
-  the manager Config page meanwhile). A new `06-deny-consistency.t` pins the
+  exact parameters. A new `06-deny-consistency.t` pins the
   `.well-known` and onboarding-brief deny lists to one canonical set and
   checks the dav backs them, so the three can no longer drift apart.
 

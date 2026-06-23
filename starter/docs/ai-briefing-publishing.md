@@ -135,10 +135,12 @@ first to see which your capabilities permit.
 : `path=<file>`. `acl-get` returns the entry; `acl-remove` clears it (both
   owner-only, operators aside). Needs `webdav`.
 
-Setting arbitrary allowlisted config keys over the token API (`config-set`) is
-planned but not yet wired - use the manager Config page for config changes
-meanwhile. `manage_config` already governs theme/layout activation and editing
-`lazysite/nav.conf` over WebDAV.
+`config-set` (POST)
+: `key=<name>` and `value=<…>` (query string or JSON body). Sets one
+  allowlisted site-config key in `lazysite.conf` - currently `site_name`,
+  `site_url`, `search_default`. Privilege-relevant keys (manager groups,
+  plugins, auth) and ones with their own action (layout/theme - use
+  `layout-activate`/`theme-activate`) are refused. Needs `manage_config`.
 
 ## Path mapping
 
@@ -249,6 +251,18 @@ intent: the site landing page; hero + three feature cards + contact CTA.
 - 2026-06-23 · created · <you> · initial landing page
 - 2026-06-24 · edit · <you> · reworded hero, added contact CTA
 ```
+
+**The brief is a two-way spec, not just a record** - it is how you and the
+owner collaborate on a page without hand-editing its markup:
+
+- **Backfill what already exists.** For every page on the site, write a brief
+  capturing your best understanding of its purpose and structure. A page with
+  no brief is undocumented - give it one, based on what the page currently is.
+- **The owner drives changes through the brief.** When they want a change, they
+  edit the `.brief` in plain language. On your next pass, read the brief, diff
+  it against the page, and **refactor the page to match the brief**, then
+  append a log line. The brief is the source of intent; the `.md` is its
+  current rendering - so the editable thing is the brief, and the page follows.
 
 Briefs are **private**: they are denied to public visitors at every layer and
 never appear in `sitemap.xml` or `llms.txt`. They are reachable only to you
