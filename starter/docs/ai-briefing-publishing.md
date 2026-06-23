@@ -1,6 +1,6 @@
 ---
 title: AI briefing - publishing
-subtitle: Guide for an automated partner publishing content to a lazysite site over WebDAV.
+subtitle: Guide for an automated partner publishing to a lazysite site over WebDAV and the control API.
 register:
   - sitemap.xml
   - llms.txt
@@ -8,331 +8,287 @@ register:
 
 ## Who this is for
 
-This briefs an automated publishing partner - an AI agent that writes
-content to a lazysite site. It covers the grant model, authentication,
-the WebDAV endpoint, what may and may not be written, and the offline
-bundle path for environments with no network egress.
+This briefs an automated publishing partner - an AI agent that holds write
+access to the docroot over WebDAV. It covers connecting, authenticating, the
+path mapping, scope, the WebDAV operations, the control API, and cache
+behaviour.
 
-For the page format and front matter, see
-[AI briefing - authoring](/docs/ai-briefing-authoring). For site
-configuration, see
-[AI briefing - configuration](/docs/ai-briefing-configuration). For
-themes and layouts, see [AI briefing - layouts](/docs/ai-briefing-layouts).
+For content rules (front matter, Markdown, URLs) see
+[AI briefing - content authoring](/docs/ai-briefing-authoring). For layouts and
+themes see [AI briefing - layouts](/docs/ai-briefing-layouts). For configuration
+see [AI briefing - configuration](/docs/ai-briefing-configuration). For keys,
+variables, and file locations see [Reference](/docs/reference).
 
-This page is the write/discovery counterpart to `/llms.txt` (the
-read/discovery index).
+## How onboarding works
 
-## The grant model
+You are given one document out of band: an **onboarding brief**. Everything
+else is discoverable from it. The brief carries a machine-readable block
+(under a `## Machine-readable` heading) - parse your identity, scope, and
+endpoints from that block, not from prose. A partner-agnostic copy is published
+at `/.well-known/ai-partner`.
 
-Three things are kept separate, and you must respect the separation:
-
-- the **bootstrap** (your onboarding brief) *describes* the grant;
-- the **token** *is* the grant;
-- the **server** *enforces* the grant.
-
-Never rely on prose to limit yourself. The scope and capabilities in
-your brief are documentation of what the server will allow; the server
-resolves the real limits from your token and rejects anything outside
-them. If a write you believe is in scope returns `403`, the grant - not
-the documentation - is authoritative.
-
-Your brief does exactly four jobs: identify which partner you are and
-which site you are bound to, tell you how to authorise, locate the
-endpoints, and point you at the documentation (these briefings and
-`/llms.txt`). Everything substantive is fetched from the site, not
-carried in the brief.
+The brief *describes* the grant; the token *is* the grant; the server
+*enforces* it. Treat the scope in the brief as advisory about what to attempt;
+the server is authoritative and rejects anything outside it. If an in-scope
+write returns `403`, the grant - not the documentation - is right.
 
 ## Authentication
 
-Two credentials, in sequence:
+You hold a single-use, short-lived pairing key (prefix `lzp_`). You exchange it
+once for a working access token (prefix `lzs_`).
 
-`lzp_` pairing key
-: The bootstrap credential in your brief. Single-use and short-lived.
-  Its only power is to be exchanged for an access token (like an OAuth
-  authorisation code). Sensitive before exchange; near-worthless after.
+Exchange
+: `POST` the pairing key to the exchange endpoint. The JSON response carries
+  the token and its expiry as an epoch timestamp.
 
-`lzs_` access token
-: The working credential. Presented as HTTP Basic auth on every request,
-  carries an expiry, and is rotatable.
+Present
+: Send the access token as HTTP Basic auth on every request - **username is
+  your partner id, password is the token**. The partner id gives per-partner
+  attribution and scoping; it is the exact id from your brief (often not a bare
+  name - e.g. `claude-dhcf`), and the wrong username returns `401`.
 
-Present the token as Basic auth with **username = your partner id** and
-**password = the `lzs_` token** - not the token as the username. This gives
-per-partner attribution in the server logs and lets the operator scope and
-revoke you individually.
+Rotate
+: Before the token expires, present your current token as Basic auth to the
+  rotate endpoint with no body; you get a fresh token and a new expiry. There
+  is one live credential per account - the old token dies on rotation.
 
-Your partner id is the **exact id from your onboarding brief** (the `# Automated
-partner: <id>` heading, and the bootstrap `partner:` field). It is often **not**
-a bare name like `claude` - e.g. `claude-dhcf`. Use that exact string; the wrong
-username returns `401` even with a valid token.
+Recover
+: On an unexpected `401`, rotate if you still hold a recently valid token;
+  otherwise the operator must re-issue the pairing.
 
-There is exactly **one live credential per account**: minting or rotating
-a token replaces the previous one. A new session that obtains a fresh
-token invalidates the old.
+```bash
+# Exchange the pairing key for an access token
+curl -s -X POST "https://SITE/cgi-bin/lazysite-auth.pl?action=exchange" \
+  --data "username=PARTNER&pairing_key=lzp_..."
+# -> { "ok": true, "token": "lzs_...", "expires_at": 1750000000 }
 
-### Check your access first
+# Rotate before expiry (current token as Basic auth, no body)
+curl -s -X POST -u "PARTNER:lzs_..." \
+  "https://SITE/cgi-bin/lazysite-auth.pl?action=rotate"
+```
 
-Before publishing, confirm the token is live with a cheap, side-effect-free
-probe - a `PROPFIND` of the WebDAV root:
+Read `expires_at` from the exchange and rotate responses so you rotate on
+schedule rather than waiting for a `401`. Both endpoints are HTTPS-only and
+rate-limited.
+
+### Check your access, and your grant
+
+A cheap, side-effect-free probe that the token is live:
 
 ```
-PROPFIND /dav/   Depth: 0   Authorization: Basic base64(<partner-id>:<lzs_ token>)
--> 207 means authenticated; 401 means the username or token is wrong.
+PROPFIND /dav/  Depth: 0  Authorization: Basic base64(PARTNER:lzs_...)
+-> 207 = authenticated; 401 = wrong username or token.
 ```
 
 For your **full grant** - capabilities, groups, scope, and the plugins,
-layouts, and themes the site offers (with their active status) - introspect
-over the control API rather than assuming from the bootstrap:
+layouts, and themes the site offers (with active flags) - introspect over the
+control API rather than assuming from the bootstrap:
 
 ```
 GET /cgi-bin/lazysite-manager-api.pl?action=whoami
-Authorization: Basic base64(<partner-id>:<lzs_ token>)
--> { partner, capabilities, groups, scope, layouts, themes, plugins }
+Authorization: Basic base64(PARTNER:lzs_...)
+-> { partner, capabilities, groups, scope, layouts, themes, plugins, site_capabilities }
 ```
-
-### Exchange and rotation
-
-Exchange your single-use pairing key for an access token by POSTing it to
-the token endpoint:
-
-```
-POST /cgi-bin/lazysite-auth.pl?action=exchange
-body: username=<you>&pairing_key=<lzp_...>
--> { "ok": true, "token": "lzs_...", "expires_at": <epoch> }
-```
-
-Rotate before expiry by presenting your CURRENT token as HTTP Basic auth
-(no body needed):
-
-```
-POST /cgi-bin/lazysite-auth.pl?action=rotate
-Authorization: Basic base64(<you>:<lzs_ current token>)
--> { "ok": true, "token": "lzs_...", "expires_at": <epoch> }
-```
-
-Each exchange or rotation invalidates the previous token (one live
-credential per account). An expired token returns `401`: recover by
-rotating while you still hold a valid token, otherwise ask the operator
-to re-pair. `expires_at` lets you rotate deterministically rather than
-guessing from `401`s. Both endpoints are HTTPS-only and rate-limited.
 
 ## Endpoints
 
+WebDAV
+: `https://SITE/dav/` - content, assets, layout/theme files, and `nav.conf`.
+
+Exchange / Rotate
+: `https://SITE/cgi-bin/lazysite-auth.pl?action=exchange` and `?action=rotate`.
+
+Control API
+: `https://SITE/cgi-bin/lazysite-manager-api.pl` - token-authenticated (the
+  same Basic auth). Carries the operations that are not file-shaped:
+  `whoami`, `theme-activate`, `layout-activate`, `config-set` (allowlisted),
+  and `cache-invalidate`. Each is gated by the matching capability from your
+  grant.
+
+## Path mapping
+
+The WebDAV root maps one to one onto the docroot. You address the source `.md`
+file, not the published URL. The `page_source` value (see
+[Reference](/docs/reference)) is exactly the WebDAV path for a page.
+
 ```
-/dav/                                         WebDAV - content, assets, layout/theme files, nav.conf
-/cgi-bin/lazysite-auth.pl?action=exchange     pairing key -> access token (live)
-/cgi-bin/lazysite-auth.pl?action=rotate       rotate the access token (live)
-/control/                                     config, activation, cache (control-API release)
+Published URL        Source file (WebDAV path under /dav/)
+/                    /index.md
+/about               /about.md
+/docs/install        /docs/install.md
+/docs/               /docs/index.md
 ```
 
-## What you may write, and what you may not
+Published URLs are extensionless on the read side; on the write side you always
+address the `.md` (or `.url`) file.
 
-WebDAV is for **content, assets, and layout/theme files**. It maps 1:1
-to the docroot: `/dav/about.md` is the file behind the `/about` page.
+## Scope and denied paths
 
-The site navigation, **`lazysite/nav.conf`**, is also editable when your
-account holds `manage_config` - it is benign structure (label `|` URL lines,
-indented for sub-items), no more powerful than the content you can already
-publish, so update it when you add or remove pages.
+Your capabilities and path scope come from the brief (and `whoami`). The content
+tree, assets, the layout/theme files under `lazysite/layouts/`, and
+`lazysite/nav.conf` (with `manage_config`) are writable within scope. These
+paths are **denied** and the server rejects writes to them:
 
-A `nav.conf` change is **config-class**: it does NOT retro-invalidate pages
-already in the HTML cache. Pages you re-render after the edit show the new nav;
-older cached pages keep the old nav until each is re-PUT (a content PUT bumps
-the mtime and self-invalidates that page). To roll a nav change across the
-site, **re-PUT the affected pages** - this stays inside the content scope and
-needs no operator cache clear.
+`/cgi-bin/`
+: Executable scripts (processor, auth CGI, manager API, plugins). Never writable.
 
-**Themes and layouts have their own capabilities, and the live ones are
-read-only.** Theme files (`lazysite/layouts/<layout>/themes/<theme>/…`) need
-**`manage_themes`**; the layout structure and its shared wrapper
-(`layout.tt`) need **`manage_layouts`** - a *separate* capability, so a grant
-with `manage_themes` alone gets `403` on `layout.tt`. And the **active**
-layout and theme are **read-only over WebDAV** by design: you cannot PUT the
-live `layout.tt`. To re-skin globally, edit an **inactive** layout/theme and
-**activate** it through the control API - that gives a safe back-out and never
-serves a half-edited site. (A per-page `raw: true` page that embeds its own
-chrome is an escape hatch, not the intended path.)
+`/lazysite/lazysite.conf`
+: Site configuration. Config keys are set through the control API with an
+  allowlist, not by overwriting this file.
 
-The following paths are **write-denied by the server**, whatever your
-scope says. Do not attempt to write them; treat a denial as correct:
+`/lazysite/auth/`
+: User and group credential store.
 
-`lazysite/auth/`
-: the credential store - writing here is privilege escalation.
+`/lazysite/forms/`
+: Form target and SMTP configuration (`smtp.conf`, `handlers.conf`) - secrets.
 
-`lazysite/forms/.smtp-password` (and form secrets)
-: the SMTP secret.
+`/lazysite/manager/`
+: Manager UI internals.
 
-`lazysite.conf`
-: carries privilege-escalation keys (`plugins`, `auth_default`,
-  `manager_groups`). Config is set through the control API with a key
-  allowlist, never by overwriting this file.
+`/lazysite/cache/` and `/lazysite/logs/`
+: Generated cache and log files.
 
-`lazysite/manager/`, `lazysite/cache/`, `lazysite/logs/`
-: manager UI, generated cache, and logs.
+`/lazysite/templates/`
+: Registry templates that generate `llms.txt`, `sitemap.xml`, and feeds.
 
-Config-key changes and theme/layout **activation** (and the HTML-cache
-clear they require) are **control-API actions**, not file writes. They
-arrive with the control-API release; until then the operator performs
-them through the manager UI. You may write layout/theme *files* over
-WebDAV within the `lazysite/layouts/` scope, but you cannot *activate* a
-theme or clear the cache from WebDAV alone.
+## WebDAV operations
 
-## Publishing content over WebDAV
+`PROPFIND`
+: Inspect a collection or check a resource exists before writing.
 
-### A single page edit
+`GET`
+: Read the current source file before editing.
 
-1. `PROPFIND` the target to check existence and the current etag.
-2. `PUT` the modified `.md` to its docroot-mapped path
-   (`/dav/about.md` for the `/about` page).
+`PUT`
+: Create or overwrite a source file.
 
-Content pages regenerate when the `.md` mtime changes, and a `PUT`
-updates the mtime, so **a content edit self-invalidates its HTML cache** -
-no separate cache-bust is needed.
+`MKCOL`
+: Create a collection. WebDAV does not create intermediate collections -
+  create parents first, top down.
 
-### A whole-site publish
+`DELETE`, `MOVE`, `COPY`
+: Remove, rename, or duplicate resources within scope.
 
-1. Walk the local tree.
-2. `MKCOL` each parent collection first - WebDAV does **not** create
-   intermediate collections for you.
-3. `PUT` each file. Ideally `PROPFIND`-diff first and skip unchanged
-   files; a naive put-everything is acceptable for an initial deploy.
+## Cache behaviour
 
-The asymmetry to design around: content edits self-invalidate, but
-theme, layout, and config changes need an **explicit cache clear**, which
-is a control-API action (above).
+The processor serves a cached `.html` only when it is newer than its `.md`
+source, and regenerates when the cache is missing or stale.
 
-### Verify your publish
+Content edits self-invalidate
+: A `PUT` updates the source's mtime, so the page regenerates on its next
+  request. No separate cache action for ordinary content.
 
-Don't assume a `2xx` means the page is right. After publishing, confirm:
+Protected pages are never cached
+: Pages with `auth:` or `payment:` render per request.
 
-- **Fetch the page** (`GET` its public URL) and expect `200`.
-- **No leaked Template Toolkit** - the body must not contain a literal
-  `[%` … `%]` (that means a variable or directive did not resolve).
-- **The nav bar reflects your `nav.conf`** on every affected page (re-PUT any
-  that still show the old nav - see the config-class caveat above).
-- For a **form** page, the form's action URL must be reachable: `GET` it and
-  expect anything other than `404`. The receiver is a server-side CGI
-  (`/cgi-bin/form-handler.pl`) the operator must have installed and made
-  executable; it is outside your WebDAV scope, so if it `404`s, report it to
-  the operator rather than trying to fix it.
+Structural changes need a cache clear
+: Editing `nav.conf`, activating a theme/layout, or changing a config key does
+  not retro-invalidate pages whose cache is already warm. For content scope,
+  re-PUT the affected pages (a content PUT self-invalidates). For
+  theme/layout/config, clear the cache via the control API (`cache-invalidate`)
+  or ask the operator.
 
-## The offline bundle
+## Themes and layouts have their own gates
 
-If you have **no egress, no token, or a locked-down runner** (for example an
-editor working inside a chat), you cannot `PUT` over WebDAV - so emit the exact
-file set you *would* have published as a single **bundle document** that the
+Theme files (`lazysite/layouts/<layout>/themes/<theme>/…`) need `manage_themes`;
+layout structure and the shared wrapper (`layout.tt`) need `manage_layouts` (a
+*separate* capability). And the **active** layout and theme are **read-only over
+WebDAV** by design - a `PUT` to the live `layout.tt` returns `403` regardless of
+capability. To re-skin globally:
+
+1. **Stage a NEW layout dir** beside the active one - `MKCOL`
+   `lazysite/layouts/<new>` and `…/themes/<theme>` (a fresh path returns `409`
+   until its collections exist), then `PUT` the files.
+2. **Preview** by setting `layout: <new>` in one page's front matter; the theme
+   SOURCE css is web-served at `/lazysite/layouts/<new>/themes/<theme>/main.css`
+   (the `/lazysite-assets/` mirror is `404` until activation).
+3. **Activate** via the control API (`layout-activate` / `theme-activate`, which
+   set `lazysite.conf` and clear the cache atomically) - or hand off to the
+   operator. Then drop the per-page overrides.
+
+Capabilities are read from your account on every request (the token does not
+encode them), so a grant is effective immediately - you do not need a new token.
+
+## Verify your publish
+
+A `2xx` is not proof the page is right. After publishing, confirm:
+
+- **Fetch the page** and expect `200`.
+- **No leaked Template Toolkit** - the body must contain no literal `[%` … `%]`.
+- **The nav reflects `nav.conf`** on every affected page (re-PUT any still
+  showing the old nav).
+- For a **form** page, `GET` the form's action URL and expect anything but
+  `404`; the receiver is a server CGI (`/cgi-bin/form-handler.pl`) the operator
+  installs - if it `404`s, report it rather than trying to fix it.
+
+## Tasks
+
+### Connecting
+
+1. Parse the machine-readable block from the onboarding brief.
+2. `POST` the pairing key to the exchange endpoint; store the token + expiry.
+3. `PROPFIND /dav/` to confirm, and `whoami` to read your real grant.
+4. Fetch the briefings and [Reference](/docs/reference) for the content,
+   layout, and configuration rules.
+
+### Publishing a single page
+
+1. `PROPFIND` or `GET` the target to check current state.
+2. Prepare the `.md` with valid front matter (see
+   [authoring](/docs/ai-briefing-authoring)).
+3. `MKCOL` any missing parent collections, top down.
+4. `PUT` to its docroot-relative path under `/dav/`. The page regenerates on
+   next request.
+
+### Publishing a whole site
+
+1. `PROPFIND` the tree to learn what exists.
+2. `MKCOL` collections parent-first; `PUT` each file (diff against the
+   `PROPFIND` and skip unchanged).
+3. Verify with `PROPFIND`/`GET` on a sample, per the checklist above.
+
+### Editing navigation
+
+1. `GET` `/dav/lazysite/nav.conf`, edit, `PUT` it back.
+2. Re-PUT affected pages (or clear the cache) so the new nav appears on warm
+   pages.
+
+### Rotating your token
+
+1. Before `expires_at`, `POST` to rotate with your current token as Basic auth.
+2. Replace your stored token + expiry with the response.
+
+## Offline fallback - drop-in bundle
+
+When you cannot reach `/dav/` - no egress, no token, or a locked-down runner -
+emit the file set you *would* have published as a single **JSON bundle** the
 operator applies. Same content, no network.
-
-Emit a JSON document with this shape:
 
 ```json
 {
   "lazysite_bundle": 1,
   "post": ["clear-cache"],
   "files": [
-    { "path": "about.md",
-      "content": "---\ntitle: About\n---\nAbout us.\n" },
-    { "path": "lazysite/layouts/dhcf/layout.tt",
-      "content": "<!doctype html>…[% content %]…" },
-    { "path": "lazysite/layouts/dhcf/themes/dhcf/main.css",
-      "content": "body{…}" }
+    { "path": "about.md", "content": "---\ntitle: About\n---\nAbout us.\n" },
+    { "path": "lazysite/layouts/dhcf/layout.tt", "content": "…[% content %]…" }
   ]
 }
 ```
 
-- `path` is **docroot-relative** - the same path you would have used under
-  `/dav/`.
-- `content` is the full file body (JSON-escaped - no length counting, no
-  delimiters to collide with).
-- Include **only in-scope files** - never `lazysite/auth`, `lazysite/forms`,
-  `lazysite/cache`, `lazysite/logs`, `lazysite/manager`, `lazysite.conf`, or
-  any `*.pl`. The apply tool rejects them anyway, but a clean bundle is the
-  contract.
-- `post` lists post-extract actions - use `"clear-cache"` whenever the bundle
-  changes a theme, layout, or config file (content pages self-invalidate).
+- `path` is **docroot-relative** - the same path you would use under `/dav/`.
+- `content` is the full file body (JSON-escaped - no delimiters to collide with).
+- Include **only in-scope files** - never the denied paths above.
+- `post` lists post-extract actions; use `"clear-cache"` when the bundle changes
+  a theme, layout, `nav.conf`, or config file (content pages self-invalidate).
 
-The operator applies it (auditing first - it is a manifest, not a script that
-auto-runs):
+The operator applies it (auditing first - a manifest, not an auto-run script):
 
 ```bash
-# dry run: audit what would be written + what is denied
-perl tools/lazysite-bundle-apply.pl --docroot DOCROOT bundle.json
-# then write
-perl tools/lazysite-bundle-apply.pl --docroot DOCROOT --apply bundle.json
+perl tools/lazysite-bundle-apply.pl --docroot DOCROOT bundle.json          # dry run
+perl tools/lazysite-bundle-apply.pl --docroot DOCROOT --apply bundle.json  # write
 ```
 
 The tool validates every path against the deny list, confines writes to the
-docroot (no `..`), reports create-vs-overwrite per file, and prints the
-post-extract commands to run. Build the bundle from the **same in-scope file
-set** as a live publish - one source of truth, two transports (WebDAV or
-bundle).
-
-## The machine-readable bootstrap
-
-Two parseable sources exist - parse identity, scope, and endpoints from
-these, never from prose:
-
-- **Your onboarding brief** carries a per-partner YAML block (under a
-  `## Machine-readable` heading) with your `partner:` id, `pairing_key:`,
-  capabilities, and scope.
-- **`[% site_url %]/.well-known/ai-partner`** is a partner-agnostic JSON
-  document (endpoints, auth scheme, capabilities, deny list, docs) a cold
-  agent can fetch from the site URL alone, before it has any credential.
-
-The shape (YAML form shown; the well-known serves the same data as JSON):
-
-```yaml
-partner: claude
-site: https://example.org
-endpoints:
-  webdav: /dav/
-  control: /control/          # with the control-API release
-auth:
-  pairing_key: lzp_...        # single-use, short-lived
-  token_prefix: lzs_
-  scheme: basic               # username = partner id, password = token
-capabilities:
-  - publish-content
-  - manage-layouts
-  - manage-themes             # activation via control API
-  - set-config-allowlisted    # via control API
-scope:
-  allow: ["/"]
-  deny: ["/lazysite/auth", "/lazysite/cache", "/lazysite/logs",
-         "/lazysite/forms/.smtp-password", "/lazysite/manager",
-         "/lazysite.conf"]
-docs:
-  - /docs/ai-briefing-authoring
-  - /docs/ai-briefing-configuration
-  - /docs/ai-briefing-layouts
-  - /docs/ai-briefing-publishing
-  - /llms.txt
-```
-
-## Tasks
-
-### Edit a single page
-
-1. Confirm the page's URL and its docroot path (`/about` is
-   `DOCROOT/about.md`, so `/dav/about.md`).
-2. `PROPFIND` it to read the current content and etag.
-3. Edit the Markdown per [AI briefing - authoring](/docs/ai-briefing-authoring).
-4. `PUT` it back to the same `/dav/` path. The page regenerates on next
-   request.
-
-### Publish a whole site
-
-1. Assemble the in-scope file set locally (exclude anything under the
-   deny list).
-2. `MKCOL` parent collections, deepest paths last.
-3. `PROPFIND`-diff and `PUT` only changed files.
-4. If you changed a theme, layout, or config, request a cache clear
-   through the control API (or ask the operator to clear it) - a content
-   `PUT` alone will not refresh those.
-
-### Build an offline bundle
-
-1. Assemble the same in-scope file set.
-2. Write a docroot-relative archive plus a manifest (path, operation,
-   post-extract action per file).
-3. Hand both to the operator. They audit the manifest, then
-   `tar xf bundle.tgz -C DOCROOT` and run any post-extract actions.
+docroot, reports create-vs-overwrite per file, and prints the post-extract
+commands. The file set is identical to a live publish - only the transport
+differs.
