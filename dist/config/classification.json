@@ -74,7 +74,12 @@
     {
       "pattern": "^starter/docs/(.+)$",
       "install_to": "{DOCROOT}/docs/$1",
-      "bucket": "seed"
+      "bucket": "code"
+    },
+    {
+      "pattern": "^starter/(\\.well-known/.+)$",
+      "install_to": "{DOCROOT}/$1",
+      "bucket": "code"
     },
     {
       "pattern": "^starter/(.+\\.md)$",
