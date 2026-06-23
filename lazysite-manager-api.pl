@@ -908,6 +908,30 @@ sub action_list {
                 $entry->{empty} = @kids ? JSON::PP::false : JSON::PP::true;
             }
         }
+        else {
+            # File metadata for the Files-page list-by-type and brief view.
+            my ($ext) = $name =~ /\.([^.]+)$/;
+            $entry->{ext} = defined $ext ? lc $ext : '';
+
+            # A generated cache file is an .html with a .md/.url source
+            # beside it - distinguishable from author .html (partials).
+            if ( $name =~ /\.html$/ ) {
+                ( my $stem = $full ) =~ s/\.html$//;
+                $entry->{generated} =
+                    ( -f "$stem.md" || -f "$stem.url" )
+                    ? JSON::PP::true : JSON::PP::false;
+            }
+
+            # SM073: brief presence. A .brief is itself a sidecar; any other
+            # file may carry one at "<file>.brief".
+            if ( $name =~ /\.brief$/ ) {
+                $entry->{is_brief} = JSON::PP::true;
+            }
+            else {
+                $entry->{has_brief} =
+                    ( -f "$full.brief" ) ? JSON::PP::true : JSON::PP::false;
+            }
+        }
         push @entries, $entry;
     }
     closedir $dh;

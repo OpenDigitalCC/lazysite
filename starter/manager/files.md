@@ -11,7 +11,10 @@ search: false
 <div class="mg-breadcrumb" id="breadcrumb"></div>
 
 <div class="mg-file-filter-row">
-<input type="search" id="file-filter" class="mg-file-filter" placeholder="Filter files..." oninput="filterFiles(this.value)">
+<input type="search" id="file-filter" class="mg-file-filter" placeholder="Filter files..." oninput="applyFilters()">
+<select id="type-filter" class="mg-file-typefilter" onchange="applyFilters()" title="Filter by file type">
+<option value="">All types</option>
+</select>
 </div>
 
 <div class="mg-file-actions-row">
@@ -150,7 +153,10 @@ function renderFiles(files) {
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
     var icon = f.type === 'dir' ? '&#128193;' : '&#128196;';
-    html += '<tr data-name="' + escHtml(f.name) + '">';
+    html += '<tr data-name="' + escHtml(f.name) + '"'
+          + ' data-ext="' + escHtml(f.ext || '') + '"'
+          + ' data-kind="' + (f.type === 'dir' ? 'dir' : 'file') + '"'
+          + ' data-generated="' + (f.generated ? '1' : '0') + '">';
 
     // Checkbox cell: empty dirs get one, files get one, non-empty
     // dirs get an empty cell for alignment.
@@ -166,10 +172,11 @@ function renderFiles(files) {
 
     if (f.type === 'dir') {
       html += '<td class="mg-file-name"><a href="#" onclick="loadDir(\'' + escHtml(f.path) + '/\'); return false;">' + escHtml(f.name) + '/</a></td>';
-    } else if (isEditable(f.name)) {
-      html += '<td class="mg-file-name"><a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a></td>';
     } else {
-      html += '<td class="mg-file-name">' + escHtml(f.name) + '</td>';
+      var label = isEditable(f.name)
+        ? '<a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a>'
+        : escHtml(f.name);
+      html += '<td class="mg-file-name">' + label + briefBadge(f) + '</td>';
     }
 
     html += '<td class="mg-col-size">' + formatSize(f.size || 0) + '</td>';
@@ -184,6 +191,72 @@ function renderFiles(files) {
     html += '</tr>';
   }
   tbody.innerHTML = html;
+  populateTypeFilter(files);
+}
+
+// SM073 / list-by-type: a brief indicator per file. A .brief file is
+// tagged; any other file links to edit its brief (or create one if
+// missing). Briefs are private - this is the only place to reach them.
+function briefBadge(f) {
+  if (f.type !== 'file') return '';
+  if (f.is_brief) {
+    return ' <span class="mg-brief-tag" title="Authoring brief (private, never served)">brief</span>';
+  }
+  var bpath = f.path + '.brief';
+  if (f.has_brief) {
+    return ' <a class="mg-brief mg-brief-has" title="Edit the authoring brief"'
+         + ' href="/manager/edit?path=' + encodeURIComponent(bpath) + '">&#128221;</a>';
+  }
+  return ' <a class="mg-brief mg-brief-missing" title="No brief yet - add one"'
+       + ' href="#" onclick="createBrief(\'' + escHtml(f.path) + '\'); return false;">&#9633;</a>';
+}
+
+// Rebuild the type-filter options from the current directory's files,
+// preserving the operator's current selection where it still applies.
+function populateTypeFilter(files) {
+  var sel = document.getElementById('type-filter');
+  if (!sel) return;
+  var current = sel.value;
+  var exts = {}, hasGen = false, hasDir = false;
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    if (f.type === 'dir') { hasDir = true; continue; }
+    if (f.ext) exts[f.ext] = 1;
+    if (f.generated) hasGen = true;
+  }
+  var opts = ['<option value="">All types</option>'];
+  if (hasDir) opts.push('<option value="__dir">Folders</option>');
+  if (hasGen) opts.push('<option value="__generated">Generated HTML</option>');
+  var keys = Object.keys(exts).sort();
+  for (var k = 0; k < keys.length; k++) {
+    opts.push('<option value="' + escHtml(keys[k]) + '">.' + escHtml(keys[k]) + '</option>');
+  }
+  sel.innerHTML = opts.join('');
+  sel.value = current;
+  if (sel.value !== current) sel.value = '';   // selection no longer present
+}
+
+// Create a starter brief next to a file, then open it in the editor.
+function createBrief(filePath) {
+  var bpath = filePath + '.brief';
+  var stem = filePath.split('/').pop();
+  var tmpl = '# Brief - ' + stem + '\n\nintent: \n\n## Log\n\n- '
+           + isoDate() + ' · created · · \n';
+  fetch(API + '?action=save&path=' + encodeURIComponent(bpath), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: tmpl, mtime: null })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not create brief', true); return; }
+      window.location = '/manager/edit?path=' + encodeURIComponent(bpath);
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+function isoDate() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function escHtml(s) {
@@ -198,16 +271,29 @@ function relativeTime(mtime) {
   return Math.floor(diff/86400) + 'd ago';
 }
 
-function filterFiles(query) {
+// Combined text + type filter. A row is shown only if it matches both
+// the name search and the type selector ('' = all, '__dir' = folders,
+// '__generated' = generated .html with a source, else a bare extension).
+function applyFilters() {
+  var q = (document.getElementById('file-filter').value || '').toLowerCase();
+  var type = (document.getElementById('type-filter') || {}).value || '';
   var rows = document.querySelectorAll('.mg-file-table tbody tr');
-  query = query.toLowerCase();
   for (var i = 0; i < rows.length; i++) {
-    var name = rows[i].getAttribute('data-name') || '';
-    rows[i].style.display = name.toLowerCase().indexOf(query) >= 0 ? '' : 'none';
+    var row = rows[i];
+    var name = (row.getAttribute('data-name') || '').toLowerCase();
+    var okText = name.indexOf(q) >= 0;
+    var okType = true;
+    if (type === '__dir') {
+      okType = row.getAttribute('data-kind') === 'dir';
+    } else if (type === '__generated') {
+      okType = row.getAttribute('data-generated') === '1';
+    } else if (type) {
+      okType = (row.getAttribute('data-ext') || '') === type;
+    }
+    row.style.display = (okText && okType) ? '' : 'none';
   }
   // SM019a/b: visible set changed, so Select-all / action buttons
-  // need to re-derive against the new set. Existing selections
-  // are preserved (subset-building workflow).
+  // re-derive against the new set. Existing selections are preserved.
   updateSelection();
 }
 
@@ -399,8 +485,8 @@ function zipSelected() {
 }
 
 // SM019b: the "visible" selector targets the table body and
-// keys off inline display:none set by filterFiles. If
-// filterFiles is refactored to use a CSS class, this selector
+// keys off inline display:none set by applyFilters. If
+// applyFilters is refactored to use a CSS class, this selector
 // needs to change too.
 function visibleFileChecks() {
   return document.querySelectorAll(

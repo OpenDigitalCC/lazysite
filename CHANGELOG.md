@@ -23,8 +23,16 @@ SM073 - Per-file `.brief` sidecars
   an append-only edit log. Briefs are writable over WebDAV and editable in
   the manager, but never served publicly (Apache `FilesMatch`, the dev
   server, and the processor all deny them) and never indexed in `sitemap.xml`
-  / `llms.txt`. Encouraged, not enforced - the Files page will flag what is
-  missing. Phase 1 (the sidecar mechanism); Files-page surfacing follows.
+  / `llms.txt`. Encouraged, not enforced. The manager Files page flags each
+  file's brief (present / missing, with one-click create) and is editable
+  there.
+
+Files page - list by type (SM072 §13 roadmap)
+: The manager Files page gains a type filter - by extension, by folder, or
+  "Generated HTML" (an `.html` with a `.md`/`.url` source beside it) - so an
+  operator can quickly isolate and selectively delete stale cached pages
+  after content moves or theme changes. `action=list` now returns per-file
+  `ext`, `generated`, `has_brief` / `is_brief` metadata.
 
 SM072 - Self-service credentials, claim links, and account expiry
 : The operator sets account parameters; the user provisions their own
