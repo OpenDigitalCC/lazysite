@@ -95,7 +95,7 @@ sub verify_bearer {
     my $pid = eval { open2( $out, $in, $^X, $tool, '--api', '--docroot', $DOCROOT ) }
         or return ();
     print $in encode_json(
-        { action => 'verify-credential', username => $user, secret => $secret } );
+        { action => 'verify-credential', username => $user, secret => $secret, touch => 1 } );
     close $in;
     my $resp = do { local $/; <$out> };
     close $out;

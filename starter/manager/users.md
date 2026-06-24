@@ -410,22 +410,72 @@ function closeOnboarding(user) {
   if (box) { box.style.display = 'none'; box.innerHTML = ''; box._text = ''; }
 }
 
-// SM076: connector setup for Claude.ai (token goes in the connector settings).
+// SM076: two-step Claude.ai connector setup. Step 1 = operator adds the
+// connector (the only place the token goes). We then poll until the credential
+// authenticates (Claude connected + ran a tool), and only then reveal Step 2 -
+// the no-secret task prompt to hand the assistant.
 function showConnector(user) {
   var box = document.getElementById('onb-' + user);
   apiCall({ action: 'onboarding-web', username: user })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
-      box._text = d.connector_setup;
+      box._setup = d.connector_setup;
+      box._prompt = d.assistant_prompt;
+      box._poll = (box._poll || 0) + 1;
       box.style.display = '';
-      box.innerHTML = '<textarea class="mg-onb" readonly rows="16">' + escHtml(d.connector_setup) + '</textarea>' +
-        '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copyOnboarding(\'' + escHtml(user) + '\')">Copy</button>' +
-        '<button class="mg-btn mg-btn-sm" onclick="closeOnboarding(\'' + escHtml(user) + '\')">Close</button></div>' +
-        '<div class="mg-muted" style="font-size:0.8em;margin-top:0.25rem">Contains a fresh credential &mdash; put the token in the connector\'s settings, <strong>not a chat</strong>. ' +
-        'Generating this again revokes the token shown here.</div>';
-      showStatus('Connector setup generated - a fresh credential (any previous one is now revoked).');
+      box.innerHTML =
+        '<div class="mg-onb-step"><strong>Step 1 &mdash; add the connector in Claude.ai</strong>' +
+        '<textarea class="mg-onb" readonly rows="11">' + escHtml(d.connector_setup) + '</textarea>' +
+        '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copySetup(\'' + escHtml(user) + '\')">Copy</button>' +
+        '<button class="mg-btn mg-btn-sm" onclick="closeOnboarding(\'' + escHtml(user) + '\')">Close</button>' +
+        '<span id="conn-wait-' + escHtml(user) + '" class="mg-muted">&nbsp;&#8987; waiting for Claude to connect&hellip;</span></div></div>' +
+        '<div id="conn-step2-' + escHtml(user) + '"></div>';
+      showStatus('Fresh credential minted - add it to the connector settings (not a chat).');
+      pollConnector(user, box._poll, Date.now());
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+function pollConnector(user, gen, started) {
+  var box = document.getElementById('onb-' + user);
+  if (!box || box.style.display === 'none' || box._poll !== gen) return;   // closed/superseded
+  apiCall({ action: 'credential-status', username: user })
+    .then(function(d) {
+      if (!box || box.style.display === 'none' || box._poll !== gen) return;
+      if (d && d.ok && d.used) { revealPrompt(user); return; }
+      var wait = document.getElementById('conn-wait-' + user);
+      if (Date.now() - started > 180000) {
+        if (wait) wait.innerHTML = '&nbsp;not detected yet &mdash; <a href="#" onclick="pollConnector(\'' +
+          escHtml(user) + '\',' + gen + ',Date.now());return false;">check again</a>';
+        return;
+      }
+      setTimeout(function() { pollConnector(user, gen, started); }, 3000);
+    })
+    .catch(function() { setTimeout(function() { pollConnector(user, gen, started); }, 5000); });
+}
+
+function revealPrompt(user) {
+  var box = document.getElementById('onb-' + user);
+  if (!box) return;
+  var wait = document.getElementById('conn-wait-' + user);
+  if (wait) wait.innerHTML = '&nbsp;<span style="color:#1a7f37">&#10003; connected</span>';
+  var s2 = document.getElementById('conn-step2-' + user);
+  if (s2) {
+    s2.innerHTML = '<div class="mg-onb-step" style="margin-top:0.6rem">' +
+      '<strong>Step 2 &mdash; give Claude the task</strong> <span class="mg-muted">(no secret &mdash; safe to paste in chat)</span>' +
+      '<textarea class="mg-onb" readonly rows="6">' + escHtml(box._prompt) + '</textarea>' +
+      '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copyPrompt(\'' + escHtml(user) + '\')">Copy prompt</button></div></div>';
+  }
+  showStatus('Connector authenticated - Claude is connected.');
+}
+
+function copySetup(user) {
+  var box = document.getElementById('onb-' + user);
+  if (box && box._setup && navigator.clipboard) navigator.clipboard.writeText(box._setup).then(function() { showStatus('Setup copied.'); });
+}
+function copyPrompt(user) {
+  var box = document.getElementById('onb-' + user);
+  if (box && box._prompt && navigator.clipboard) navigator.clipboard.writeText(box._prompt).then(function() { showStatus('Prompt copied.'); });
 }
 
 function showOnboarding(user) {

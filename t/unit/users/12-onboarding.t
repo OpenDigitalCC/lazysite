@@ -64,6 +64,28 @@ like( $w->{connector_setup}, qr{/cgi-bin/lazysite-mcp\.pl}, 'setup names the MCP
 like( $w->{connector_setup}, qr/\Q$w->{token}\E/, 'setup carries the token (for the connector field)' );
 like( $w->{connector_setup}, qr/whoami/, 'setup includes a whoami confirmation step' );
 like( $w->{connector_setup}, qr/not (?:a chat|into a chat)/i, 'setup warns: token in settings, not chat' );
+is( $w->{domain}, 'example.test', 'connector name is the site domain (one per site)' );
+like( $w->{connector_setup}, qr/Name:\s+example\.test/, 'setup names the connector by domain' );
+
+# The assistant prompt is separate and carries NO secret.
+like( $w->{assistant_prompt}, qr/connector tools/i, 'assistant prompt steers to native connector tools' );
+unlike( $w->{assistant_prompt}, qr/lzs_|\Q$w->{token}\E/, 'assistant prompt contains no token/secret' );
+
+# Detection: not "used" until a touch-verify (the connector) authenticates.
+my $st0 = uapi( $d, { action => 'credential-status', username => 'partner' } );
+ok( $st0->{ok} && !$st0->{used}, 'credential-status: not used right after issuance' );
+my $vc = uapi( $d, { action => 'verify-credential',
+    username => 'partner', secret => $w->{token}, touch => 1 } );
+ok( $vc->{ok}, 'the new token verifies' );
+my $st1 = uapi( $d, { action => 'credential-status', username => 'partner' } );
+ok( $st1->{ok} && $st1->{used}, 'credential-status: used after a connector (touch) verify' );
+
+# A verify WITHOUT touch (e.g. WebDAV) does not flip an already-used flag back,
+# and a fresh issuance resets it.
+uapi( $d, { action => 'onboarding-web', username => 'partner' } );
+ok( !uapi( $d, { action => 'credential-status', username => 'partner' } )->{used},
+    'reissuing the credential resets the used flag' );
+
 ok( !uapi( $d, { action => 'onboarding-web', username => 'ghost' } )->{ok},
     'onboarding-web rejects an unknown user' );
 

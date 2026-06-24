@@ -278,7 +278,10 @@ if ( $API_MODE ) {
             $result = { ok => 1, code => totp_code( $req->{secret}, $req->{time}, $req->{step}, $req->{digits} ) };
         }
         elsif ( $action eq 'verify-credential' ) {
-            $result = cmd_verify_credential( $req->{username}, $req->{secret} );
+            $result = cmd_verify_credential( $req->{username}, $req->{secret}, $req->{touch} );
+        }
+        elsif ( $action eq 'credential-status' ) {
+            $result = cmd_credential_status( $req->{username} );
         }
         elsif ( $action eq 'onboarding' ) {
             my $r = cmd_onboarding( $req->{username} );
@@ -661,6 +664,13 @@ sub cmd_token {
     $users{$user} = hash_token($token);
     write_users(%users);
     clear_token_expiry($user);   # SM071: operator credential is permanent
+    # SM076: record issuance + clear any prior "used" mark, so the connector
+    # setup flow can detect the first time this credential authenticates.
+    my $all = read_settings();
+    $all->{$user} ||= {};
+    $all->{$user}{cred_issued_at} = time();
+    delete $all->{$user}{cred_used_at};
+    write_settings($all);
     log_event( 'INFO', $user, 'credential generated' );
 
     unless ($API_MODE) {
@@ -1373,8 +1383,24 @@ BRIEF
 # front-path in lazysite-manager-api.pl). Verifies the secret against the
 # stored hash, rejects disabled accounts and expired access tokens, and
 # returns the effective settings (capabilities) for the caller to gate on.
+# SM076: has this user's credential authenticated (via the connector) since it
+# was last issued? Drives the connector-setup "connected" detection.
+sub cmd_credential_status {
+    my ($user) = @_;
+    return { ok => 0, error => 'Username required' } unless defined $user && length $user;
+    my $s = ( read_settings()->{$user} ) || {};
+    my $iss  = $s->{cred_issued_at} || 0;
+    my $used = $s->{cred_used_at}   || 0;
+    return {
+        ok        => 1,
+        issued_at => $iss,
+        used_at   => $used,
+        used      => ( $used && $used >= $iss ) ? 1 : 0,
+    };
+}
+
 sub cmd_verify_credential {
-    my ( $user, $secret ) = @_;
+    my ( $user, $secret, $touch ) = @_;
     return { ok => 0 } unless defined $user && length $user && defined $secret;
     my %users  = read_users();
     my $stored = $users{$user};
@@ -1386,6 +1412,19 @@ sub cmd_verify_credential {
     return { ok => 0 } if $exp && time() > $exp;
     my $aexp = $eff->{expires_at};   # SM072: account-level expiry
     return { ok => 0 } if $aexp && time() > $aexp;
+
+    # SM076: when the caller asks (the MCP connector path), record the first use
+    # of this credential since issuance - one write per issuance cycle - so the
+    # connector setup flow can confirm the connection works.
+    if ($touch) {
+        my $all = read_settings();
+        my $u = $all->{$user} ||= {};
+        my $iss = $u->{cred_issued_at} || 0;
+        if ( !$u->{cred_used_at} || $u->{cred_used_at} < $iss ) {
+            $u->{cred_used_at} = time();
+            write_settings($all);
+        }
+    }
 
     return { ok => 1, username => $user, settings => $eff };
 }
@@ -1416,66 +1455,67 @@ sub cmd_onboarding_web {
     die "User '$user' not found\n" unless exists $users{$user};
     my $token = cmd_token($user);    # mints + stores the credential, revokes any prior
     my $s = ( read_settings()->{$user} ) || {};
+    my $base = _brief_base();
+    ( my $domain = $base ) =~ s{^https?://}{};
+    $domain =~ s{/.*$}{};
     log_event( 'INFO', $user, 'connector setup issued' );
     return {
-        username        => $user,
-        token           => $token,
-        connector_setup => _connector_setup_text( $user, $token, $s ),
+        username         => $user,
+        token            => $token,
+        domain           => $domain,         # the connector name (one per site)
+        connector_url    => "$base/cgi-bin/lazysite-mcp.pl",
+        bearer           => "$user:$token",
+        connector_setup  => _connector_setup_text( $user, $token, $domain, $base ),
+        assistant_prompt => _assistant_prompt( $user, $domain, $base, $s ),
     };
 }
 
+# The OPERATOR's instructions: add the connector (the only place the secret
+# goes). Named by the site domain - an operator may connect several sites.
 sub _connector_setup_text {
-    my ( $name, $token, $s ) = @_;
-    my $base = _brief_base();
+    my ( $name, $token, $domain, $base ) = @_;
+    return <<"WEB";
+Claude.ai publishes through a connector - the credential lives in the connector
+settings, never in chat. Do this once, then just talk to Claude.
+
+In Claude.ai: Settings -> Connectors -> Add custom connector
+
+    Name:   $domain
+    URL:    $base/cgi-bin/lazysite-mcp.pl
+    Auth:   API key / Bearer token
+    Token:  $name:$token
+
+Paste the Token into the connector's token field - not into a chat. Then open a
+new chat, enable the "$domain" connector, and ask Claude to run whoami. This page
+confirms when the connection authenticates, then gives you the prompt to hand
+Claude.
+WEB
+}
+
+# The ASSISTANT's task prompt: no secret, revealed only after the connection is
+# confirmed. This is what the operator pastes to Claude.
+sub _assistant_prompt {
+    my ( $name, $domain, $base, $s ) = @_;
     my @caps;
     push @caps, 'publish & edit content' if $s->{webdav};
     push @caps, 'activate themes'        if $s->{manage_themes};
     push @caps, 'activate layouts'       if $s->{manage_layouts};
     push @caps, 'set site config'        if $s->{manage_config};
-    my $caps = @caps ? join( ', ', @caps ) : 'introspect its own grant';
-    return <<"WEB";
-# Connect Claude.ai to $base - one-time setup
+    my $caps = @caps ? join( ', ', @caps ) : 'introspect your grant';
+    return <<"PROMPT";
+You have a "$domain" connector to $base. Its tools appear directly in your
+toolset (whoami, list_files, read_file, write_file, move_file, delete_file, ...).
+Call those connector tools directly. Do NOT use curl, a browser, or raw HTTP,
+and do not look for a token - the connector injects authentication for you;
+reaching the endpoint any other way is unauthenticated and will fail.
 
-Claude.ai works best through a connector: the credential lives in the connector
-settings, never in chat, so there are no secrets to paste and nothing to go
-wrong mid-conversation. Do this once; afterwards just talk to Claude.
-
-## Step 1 - add the connector (in Claude.ai)
-
-Settings -> Connectors -> Add custom connector, then enter:
-
-    Name:  lazysite - $name
-    URL:   $base/cgi-bin/lazysite-mcp.pl
-    Auth:  API key / Bearer token
-    Token: $name:$token
-
-Paste that Token line into the connector's token field - NOT into a chat
-message. (If a conversation ever asks you to paste it into the chat, that is the
-wrong place; it belongs only in the connector settings.)
-
-## Step 2 - confirm it works
-
-Open a new chat, turn on the "lazysite - $name" connector, and say:
-
-    Use the lazysite connector to run whoami.
-
-You should see partner id "$name" and your capabilities ($caps).
-
-## Step 3 - hand Claude the work (paste this - it contains no secret)
-
-----------------------------------------------------------------------
-You have a "lazysite - $name" connector to $base. Use its tools to maintain this
-site. Start with whoami to confirm what you can do. To add or edit a page, use
-write_file with a path like content/<page>.md (Markdown, optional front matter);
-use list_files to see what exists and read_file before editing. After a change,
-fetch the rendered URL to verify (the source content/foo.md serves at /foo).
-Make one change at a time and confirm it before the next.
-----------------------------------------------------------------------
-
-The Token above is the live credential. Generating connector setup again mints a
-new one and revokes this; a token that has appeared in a chat is spent.
-Capabilities: $caps.
-WEB
+Start by calling the whoami tool to confirm your identity and capabilities
+($caps). To add or edit a page, call write_file with a path like
+content/<page>.md (Markdown, optional front matter); use list_files to see what
+exists and read_file before editing. After a change, verify by fetching the
+rendered URL ($base/<page>, i.e. content/foo.md serves at /foo). Make one change
+at a time and confirm it before the next.
+PROMPT
 }
 
 sub cmd_onboarding {
