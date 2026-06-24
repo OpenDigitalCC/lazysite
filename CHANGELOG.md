@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.4.3 - Complete audit trail, @group over WebDAV, Files rights editor (2026-06-24)
+
 Feature - Files config card: unified rights editor (SM077)
 : The card's two native multi-selects are replaced by one "People & groups with
   access" list - each principal is a chip with r / w toggles and a remove
