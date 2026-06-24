@@ -284,6 +284,10 @@ if ( $API_MODE ) {
             my $r = cmd_onboarding( $req->{username} );
             $result = { ok => 1, %$r };
         }
+        elsif ( $action eq 'onboarding-web' ) {
+            my $r = cmd_onboarding_web( $req->{username} );
+            $result = { ok => 1, %$r };
+        }
         elsif ( $action eq 'partner-create' ) {
             my $r = cmd_partner_create( $req->{username},
                 created_by  => $req->{created_by},
@@ -1393,6 +1397,87 @@ sub cmd_verify_credential {
 # brief.
 # SM071: mint a fresh pairing key + onboarding brief for an existing user
 # (the manager Users-page "download onboarding" affordance).
+sub _brief_base {
+    my $base = read_conf_value('site_url') // 'https://YOUR-SITE';
+    $base =~ s/\$\{REQUEST_SCHEME\}/$ENV{REQUEST_SCHEME} || 'https'/ge;
+    $base =~ s/\$\{SERVER_NAME\}/$ENV{SERVER_NAME} || $ENV{HTTP_HOST} || 'YOUR-SITE'/ge;
+    return $base;
+}
+
+# SM076: connector setup for a conversational assistant (Claude.ai / Desktop).
+# The robust path for a chat agent: mint a token that goes in the connector's
+# SETTINGS (never in chat), and step the operator through adding the connector,
+# plus a non-secret task prompt to hand the assistant. The web counterpart to
+# cmd_onboarding (which is the agentic / Claude-Code pairing-key flow).
+sub cmd_onboarding_web {
+    my ($user) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+    my $token = cmd_token($user);    # mints + stores the credential, revokes any prior
+    my $s = ( read_settings()->{$user} ) || {};
+    log_event( 'INFO', $user, 'connector setup issued' );
+    return {
+        username        => $user,
+        token           => $token,
+        connector_setup => _connector_setup_text( $user, $token, $s ),
+    };
+}
+
+sub _connector_setup_text {
+    my ( $name, $token, $s ) = @_;
+    my $base = _brief_base();
+    my @caps;
+    push @caps, 'publish & edit content' if $s->{webdav};
+    push @caps, 'activate themes'        if $s->{manage_themes};
+    push @caps, 'activate layouts'       if $s->{manage_layouts};
+    push @caps, 'set site config'        if $s->{manage_config};
+    my $caps = @caps ? join( ', ', @caps ) : 'introspect its own grant';
+    return <<"WEB";
+# Connect Claude.ai to $base - one-time setup
+
+Claude.ai works best through a connector: the credential lives in the connector
+settings, never in chat, so there are no secrets to paste and nothing to go
+wrong mid-conversation. Do this once; afterwards just talk to Claude.
+
+## Step 1 - add the connector (in Claude.ai)
+
+Settings -> Connectors -> Add custom connector, then enter:
+
+    Name:  lazysite - $name
+    URL:   $base/cgi-bin/lazysite-mcp.pl
+    Auth:  API key / Bearer token
+    Token: $name:$token
+
+Paste that Token line into the connector's token field - NOT into a chat
+message. (If a conversation ever asks you to paste it into the chat, that is the
+wrong place; it belongs only in the connector settings.)
+
+## Step 2 - confirm it works
+
+Open a new chat, turn on the "lazysite - $name" connector, and say:
+
+    Use the lazysite connector to run whoami.
+
+You should see partner id "$name" and your capabilities ($caps).
+
+## Step 3 - hand Claude the work (paste this - it contains no secret)
+
+----------------------------------------------------------------------
+You have a "lazysite - $name" connector to $base. Use its tools to maintain this
+site. Start with whoami to confirm what you can do. To add or edit a page, use
+write_file with a path like content/<page>.md (Markdown, optional front matter);
+use list_files to see what exists and read_file before editing. After a change,
+fetch the rendered URL to verify (the source content/foo.md serves at /foo).
+Make one change at a time and confirm it before the next.
+----------------------------------------------------------------------
+
+The Token above is the live credential. Generating connector setup again mints a
+new one and revokes this; a token that has appeared in a chat is spent.
+Capabilities: $caps.
+WEB
+}
+
 sub cmd_onboarding {
     my ($user) = @_;
     die "Username required\n" unless defined $user && length $user;

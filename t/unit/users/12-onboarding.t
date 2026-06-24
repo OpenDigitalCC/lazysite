@@ -55,4 +55,16 @@ ok( $ex->{ok} && $ex->{token} =~ /^lzs_/, 'onboarding pairing key exchanges for 
 my $bad = uapi( $d, { action => 'onboarding', username => 'ghost' } );
 ok( !$bad->{ok}, 'onboarding rejects an unknown user' );
 
+# SM076: the web/connector variant mints a token (in the setup, for the
+# connector settings) and steps the operator through adding the connector.
+my $w = uapi( $d, { action => 'onboarding-web', username => 'partner' } );
+ok( $w->{ok}, 'onboarding-web ok' );
+like( $w->{token}, qr/^lzs_/, 'onboarding-web mints an lzs_ token' );
+like( $w->{connector_setup}, qr{/cgi-bin/lazysite-mcp\.pl}, 'setup names the MCP endpoint' );
+like( $w->{connector_setup}, qr/\Q$w->{token}\E/, 'setup carries the token (for the connector field)' );
+like( $w->{connector_setup}, qr/whoami/, 'setup includes a whoami confirmation step' );
+like( $w->{connector_setup}, qr/not (?:a chat|into a chat)/i, 'setup warns: token in settings, not chat' );
+ok( !uapi( $d, { action => 'onboarding-web', username => 'ghost' } )->{ok},
+    'onboarding-web rejects an unknown user' );
+
 done_testing();

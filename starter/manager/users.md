@@ -272,8 +272,10 @@ function renderUserRow(row) {
 
   // --- AI partner onboarding (publishing accounts only) ---
   if (webdav) {
-    var ob = '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showOnboarding(\'' + ue + '\')">Generate brief</button>' +
-      '<span class="mg-muted">single-use pairing key &rarr; access token; copy-paste to your partner</span></div>' +
+    var ob = '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showConnector(\'' + ue + '\')">Set up Claude.ai</button>' +
+      '<span class="mg-muted">connector setup (token in connector settings) &mdash; easiest, for ongoing tweaks via the web app</span></div>' +
+      '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showOnboarding(\'' + ue + '\')">Generate agent brief</button>' +
+      '<span class="mg-muted">pairing-key + API/WebDAV brief &mdash; for Claude Code or a script (deliver the key out of band)</span></div>' +
       '<div id="onb-' + ue + '" style="display:none"></div>';
     h += sec('AI partner onboarding', ob);
   }
@@ -406,6 +408,24 @@ function copyCred(user) {
 function closeOnboarding(user) {
   var box = document.getElementById('onb-' + user);
   if (box) { box.style.display = 'none'; box.innerHTML = ''; box._text = ''; }
+}
+
+// SM076: connector setup for Claude.ai (token goes in the connector settings).
+function showConnector(user) {
+  var box = document.getElementById('onb-' + user);
+  apiCall({ action: 'onboarding-web', username: user })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); return; }
+      box._text = d.connector_setup;
+      box.style.display = '';
+      box.innerHTML = '<textarea class="mg-onb" readonly rows="16">' + escHtml(d.connector_setup) + '</textarea>' +
+        '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copyOnboarding(\'' + escHtml(user) + '\')">Copy</button>' +
+        '<button class="mg-btn mg-btn-sm" onclick="closeOnboarding(\'' + escHtml(user) + '\')">Close</button></div>' +
+        '<div class="mg-muted" style="font-size:0.8em;margin-top:0.25rem">Contains a fresh credential &mdash; put the token in the connector\'s settings, <strong>not a chat</strong>. ' +
+        'Generating this again revokes the token shown here.</div>';
+      showStatus('Connector setup generated - a fresh credential (any previous one is now revoked).');
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function showOnboarding(user) {
