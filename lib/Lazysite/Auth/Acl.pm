@@ -12,9 +12,17 @@ use File::Path qw(make_path);
 use File::Basename qw(dirname);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path);
+our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
+    _is_operator _acl_denied);
 
 our $DOCROOT;    # set by the script
+
+# Manager auth-state, set per request by the dispatcher (the operator-bypass
+# decision). A token client is never an operator; otherwise the manager group
+# membership decides.
+our $auth_user           = '';
+our $token_auth          = 0;
+our $manager_groups_conf = '';
 
 sub _acls_path { "$DOCROOT/lazysite/auth/acls.json" }
 
@@ -65,6 +73,31 @@ sub _acl_allows {
     return 1 unless ref $list eq 'ARRAY' && @$list;
     for my $u (@$list) { return 1 if defined $u && defined $user && $u eq $user }
     return 0;
+}
+
+# Operator bypass (manager-only). A token (control-API) client is NEVER an
+# operator - per-file ACL ownership applies to it like any WebDAV partner. An
+# unsecured site (no manager_groups) treats cookie clients as operators; the
+# 'local' user is always operator; else manager-group membership decides. The
+# token path never consults the client-influenceable X-Remote-Groups.
+sub _is_operator {
+    return 0 if $token_auth;
+    return 1 unless length $manager_groups_conf;       # unsecured / dev
+    return 1 if ( $auth_user // '' ) eq 'local';
+    my %mg = map { $_ => 1 } grep { length } split /[,\s]+/, $manager_groups_conf;
+    for my $g ( grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' ) ) {
+        return 1 if $mg{$g};
+    }
+    return 0;
+}
+
+# Combine operator bypass + the per-file allow check; returns a refusal hashref
+# or undef if access is allowed.
+sub _acl_denied {
+    my ( $rel, $mode, $user ) = @_;
+    return undef if _is_operator();
+    return undef if _acl_allows( $rel, $mode, $user );
+    return { ok => 0, error => "You do not have $mode access to this file" };
 }
 
 1;

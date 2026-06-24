@@ -24,7 +24,7 @@ BEGIN {
     }
 }
 use Lazysite::Util qw(log_event const_eq);
-use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows);
+use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Auth::Session qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache);
@@ -146,6 +146,9 @@ $Lazysite::Manager::Common::action    = $action;
 $Lazysite::Manager::Common::auth_user = $auth_user;
 $Lazysite::Manager::Upload::auth_user = $auth_user;
 $Lazysite::Manager::Plugins::action   = $action;
+$Lazysite::Auth::Acl::auth_user            = $auth_user;
+$Lazysite::Auth::Acl::token_auth           = $token_auth;
+$Lazysite::Auth::Acl::manager_groups_conf  = $manager_groups_conf;
 
 my $body = '';
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
@@ -864,30 +867,9 @@ sub action_list {
 # or undef if not provided.
 
 
-sub _is_operator {
-    # A token (control-API) client is NEVER an operator: it has the same
-    # identity and ambient authority as a WebDAV partner, so per-file ACL
-    # ownership must apply to it (SM074), not the manager's operator bypass.
-    # Returning here first also means the token path never consults the
-    # client-influenceable X-Remote-Groups below.
-    return 0 if $token_auth;
-    return 1 unless length $manager_groups_conf;       # unsecured / dev
-    return 1 if ( $auth_user // '' ) eq 'local';
-    my %mg = map { $_ => 1 } grep { length } split /[,\s]+/, $manager_groups_conf;
-    for my $g ( grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' ) ) {
-        return 1 if $mg{$g};
-    }
-    return 0;
-}
 
 # Returns an error hashref if $user may not access $rel in $mode
 # ('read'|'write'), else undef. Operators always pass.
-sub _acl_denied {
-    my ( $rel, $mode, $user ) = @_;
-    return undef if _is_operator();
-    return undef if _acl_allows( $rel, $mode, $user );
-    return { ok => 0, error => "You do not have $mode access to this file" };
-}
 
 # --- SM074 ACL management actions (manager + control API) ----------------
 sub action_acl_get {
