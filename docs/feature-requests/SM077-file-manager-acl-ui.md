@@ -14,13 +14,22 @@ the four gaps that make it a complete manager: an **editable permissions panel**
 
 ## Status
 
-**Built (2026-06-24).** All four features delivered. Backend (`70f889d`):
-`Auth::Acl` `@group` matching, `Manager::Files::action_move` (+ ACL re-key,
-lock/ACL guards, `.brief`/cache move), and `action_list` surfacing read/write +
-lock state. UI: `files.md` expand-in-place permissions editor (owner chip),
-lock glyph, and the rename/move affordance. Tests: `04-acl.t` (`@group`),
-`09-files-handlers.t` (move + list surfacing), `15-acl.t` (CGI journey: `@group`
-write, move + re-key + listing). Full suite 1454. Unreleased (toward 0.4.1).
+**v1 built (`70f889d`/`e3cfded`, shipped in 0.4.1):** `@group` ACLs,
+`Manager::Files::action_move`, `action_list` surfacing read/write + lock state,
+and a first UI (expand-in-place row + appended badges).
+
+**v2 built (2026-06-24):** a clean-row redesign after the v1 UI read as
+cluttered (badges appended to the filename). The row is now icon + name on the
+left; **Access** (owner + colour-coded `r`/`w`, `g` when a group is granted -
+green = open, red = restricted), **Modified** (relative, absolute on hover,
+linking to that file's audit history), a right-side select checkbox + select-all,
+and a chevron that opens a per-file **config card** (one open at a time). The
+card holds the permissions editor (Owner + Read/Write as native multi-selects
+populated by a new `principals` action), Download, Add/Edit brief, Move, and
+Save. Audit also gained an **origin** column (ui = cookie, api = control-API
+token) and a **target filter** so the Modified link lands on one file's history.
+Tests: `19-audit-target.t` (origin, target filter, back-compat, principals).
+Full suite 1473.
 
 ## 1. Permissions panel - expand-in-place
 

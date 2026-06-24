@@ -18,6 +18,18 @@ Keying
 
 ## Unreleased
 
+Feature - Files-manager UI v2 + richer audit (SM077)
+: The Files page is redesigned for clarity: icon + name on the left; an Access
+  column (owner + colour-coded r/w, g for a group; green = open, red = restricted),
+  a Modified column (relative, absolute on hover, linking to that file's audit
+  history), a right-side selection checkbox + select-all, and a chevron opening a
+  per-file config card (one open at a time) holding the permissions editor
+  (Owner + Read/Write as native multi-selects), Download, Add/Edit brief, Move
+  and Save. New `principals` action lists assignable users + `@groups` for the
+  pickers. The audit trail gains an **origin** column (ui = cookie manager,
+  api = control-API token) and a **target** filter; the reader stays
+  backward-compatible with older 5- and 6-field lines.
+
 Fix - Hestia upgrade to 0.4.x creates the lib/ module dir
 : The Hestia template hook (`lazysite-app.sh`) pre-creates the site-root
   siblings install.pl needs (the domain root is mode 0551, not user-writable),

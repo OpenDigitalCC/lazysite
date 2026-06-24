@@ -33,16 +33,15 @@ search: false
 <table class="mg-file-table">
 <thead>
 <tr>
-<th class="mg-col-check"><input type="checkbox" id="select-all" title="Select all files and empty folders" onchange="toggleSelectAll(this)"></th>
-<th class="mg-col-icon"></th>
 <th class="mg-col-name">Name</th>
-<th class="mg-col-size">Size</th>
-<th class="mg-col-age">Modified</th>
-<th class="mg-col-dl"></th>
+<th class="mg-col-access">Access</th>
+<th class="mg-col-mod">Modified</th>
+<th class="mg-col-check"><input type="checkbox" id="select-all" title="Select all files and empty folders" onchange="toggleSelectAll(this)"></th>
+<th class="mg-col-exp"></th>
 </tr>
 </thead>
 <tbody id="file-rows">
-<tr><td></td><td></td><td>Loading...</td><td></td><td></td><td></td></tr>
+<tr><td colspan="5">Loading...</td></tr>
 </tbody>
 </table>
 
@@ -51,10 +50,9 @@ search: false
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var currentDir = '/';
+var PRINCIPALS = { users: [], groups: [] };   // SM077: assignable users + @groups
 
 // SM019: must mirror %TEXT_EXTENSIONS in lazysite-manager-api.pl.
-// Files whose extension is not in this set are rendered as a plain
-// name (no edit link) and can only be downloaded.
 var TEXT_EXTENSIONS = {
   md: 1, txt: 1, html: 1, htm: 1, css: 1, js: 1,
   json: 1, jsonl: 1, xml: 1, yaml: 1, yml: 1,
@@ -68,14 +66,16 @@ function isEditable(name) {
   return TEXT_EXTENSIONS[m[1].toLowerCase()] ? true : false;
 }
 
-// SM019c: every path composed from currentDir + a name goes
-// through this. currentDir may have a trailing slash (from
-// breadcrumb and directory-click code paths); names coming
-// from prompts may have a leading slash if the user paste-pasted.
 function joinPath(dir, name) {
   var d = String(dir || '').replace(/\/+$/, '');
   var n = String(name || '').replace(/^\/+/, '');
   return d + '/' + n;
+}
+
+function escHtml(s) {
+  s = (s == null ? '' : String(s));
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function showStatus(msg, isError) {
@@ -93,13 +93,18 @@ function showStatus(msg, isError) {
   setTimeout(function() { showStatus(''); }, 3000);
 }
 
+// SM077: fetch the assignable principals once (best-effort) for the pickers.
+function loadPrincipals() {
+  return fetch(API + '?action=principals')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { if (d && d.ok) PRINCIPALS = { users: d.users || [], groups: d.groups || [] }; })
+    .catch(function() { /* pickers fall back to the file's current entries */ });
+}
+
 function loadDir(dir) {
   showStatus('');
   currentDir = dir || '/';
   updateBreadcrumb();
-  // SM019b: directory navigation resets the Select-all state so
-  // it cannot leak stale "checked" across directories. Row
-  // checkboxes are re-rendered below, so they reset naturally.
   var sa = document.getElementById('select-all');
   if (sa) { sa.checked = false; sa.indeterminate = false; }
   fetch(API + '?action=list&path=' + encodeURIComponent(currentDir))
@@ -114,9 +119,6 @@ function loadDir(dir) {
 
 function buildBreadcrumb(dirPath, linkFn) {
   var parts = dirPath.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
-  // SM049: bare "/" was visually empty; operators read it as "no
-  // breadcrumb rendered". Label the root as "Site root" so the
-  // first segment is discoverable at a glance.
   var items = [linkFn('/', 'Site root')];
   var accumulated = '';
   for (var i = 0; i < parts.length; i++) {
@@ -133,17 +135,118 @@ function updateBreadcrumb() {
   document.getElementById('breadcrumb').innerHTML = html;
 }
 
-// SM019b: renders rows into the #file-rows tbody. Every row has
-// the same six cells so columns align; empty cells are used where
-// a row type has no content (directory with no download link,
-// non-empty dir with no checkbox, etc).
+function relativeTime(mtime) {
+  var diff = Math.floor(Date.now() / 1000) - mtime;
+  if (diff < 60)    return 'just now';
+  if (diff < 3600)  return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+function absTime(mtime) {
+  var d = new Date(mtime * 1000);
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+       + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+// MODIFIED cell: relative shown, absolute on hover, links to this file's
+// audit history (SM077/SM078: the audit log keys entries by target path).
+function modifiedCell(f) {
+  if (!f.mtime) return '';
+  return '<a class="mg-modlink" title="' + escHtml(absTime(f.mtime)) + ' · view audit history"'
+       + ' href="/manager/audit?target=' + encodeURIComponent(f.path) + '">'
+       + escHtml(relativeTime(f.mtime)) + '</a>';
+}
+
+// ACCESS cell: owner + colour-coded r / w (+ g when a @group is listed).
+// A read/write list means access is RESTRICTED to it (red); no list = open
+// within the account scope (green).
+function accessBadge(f) {
+  var rRestricted = f.read  && f.read.length;
+  var wRestricted = f.write && f.write.length;
+  var owner = f.owner
+    ? '<span class="mg-owner-name" title="Owner">' + escHtml(f.owner) + '</span>'
+    : '<span class="mg-acc-none" title="Unrestricted (account scope governs)">&mdash;</span>';
+  var r = '<span class="mg-acc ' + (rRestricted ? 'mg-acc-no' : 'mg-acc-ok')
+        + '" title="read ' + (rRestricted ? 'restricted to: ' + escHtml(f.read.join(', ')) : 'open') + '">r</span>';
+  var w = '<span class="mg-acc ' + (wRestricted ? 'mg-acc-no' : 'mg-acc-ok')
+        + '" title="write ' + (wRestricted ? 'restricted to: ' + escHtml(f.write.join(', ')) : 'open') + '">w</span>';
+  var listed = (f.read || []).concat(f.write || []);
+  var hasGroup = false;
+  for (var i = 0; i < listed.length; i++) { if (/^@/.test(listed[i])) { hasGroup = true; break; } }
+  var g = hasGroup ? ' <span class="mg-acc-g" title="a @group is granted access">g</span>' : '';
+  return owner + ' ' + r + w + g;
+}
+
+function lockGlyph(f) {
+  if (!f.lock) return '';
+  var who = f.lock.origin === 'dav'
+    ? 'locked via WebDAV'
+    : 'locked by ' + (f.lock.locked_by || 'another user');
+  return '<span class="mg-lock" title="' + escHtml(who) + '">&#128274;</span>';
+}
+
+// Build <option>s for a multi-select, merging the known principals with the
+// file's current entries (so an entry shows even if the principals list failed
+// or the entry is stale). `selected` pre-selects matching options.
+function principalOptions(selected) {
+  selected = selected || [];
+  var all = {};
+  (PRINCIPALS.users  || []).forEach(function(u) { all[u] = 1; });
+  (PRINCIPALS.groups || []).forEach(function(g) { all['@' + g] = 1; });
+  selected.forEach(function(s) { all[s] = 1; });
+  var sel = {};
+  selected.forEach(function(s) { sel[s] = 1; });
+  return Object.keys(all).sort().map(function(k) {
+    return '<option value="' + escHtml(k) + '"' + (sel[k] ? ' selected' : '') + '>' + escHtml(k) + '</option>';
+  }).join('');
+}
+
+function ownerOptions(owner) {
+  var h = '<option value="">(unrestricted)</option>';
+  var users = (PRINCIPALS.users || []).slice();
+  if (owner && users.indexOf(owner) < 0) users.push(owner);
+  users.sort().forEach(function(u) {
+    h += '<option value="' + escHtml(u) + '"' + (u === owner ? ' selected' : '') + '>' + escHtml(u) + '</option>';
+  });
+  return h;
+}
+
+function briefButton(f) {
+  if (f.is_brief) return '';
+  if (f.has_brief) {
+    return '<a class="mg-btn" href="/manager/edit?path=' + encodeURIComponent(f.path + '.brief') + '">&#128221; Edit brief</a>';
+  }
+  return '<button class="mg-btn" onclick="addBrief(this)">&#128221; Add brief</button>';
+}
+
+// The per-file config card (collapsed by default; one open at a time).
+function permsCard(f) {
+  return '<tr class="mg-perms-row" style="display:none"><td colspan="5" class="mg-perms-cell">'
+    + '<div class="mg-perms-grid">'
+    +   '<label>Owner</label><select class="mg-perm-owner">' + ownerOptions(f.owner) + '</select>'
+    +   '<label>Read</label><select class="mg-perm-read" multiple size="4">' + principalOptions(f.read) + '</select>'
+    +   '<label>Write</label><select class="mg-perm-write" multiple size="4">' + principalOptions(f.write) + '</select>'
+    + '</div>'
+    + '<div class="mg-perms-hint">No selection in Read/Write = open within the account scope. Empty Owner + Read + Write clears the ACL.</div>'
+    + '<div class="mg-perms-actions">'
+    +   '<a class="mg-btn" href="' + API + '?action=file-download&path=' + encodeURIComponent(f.path) + '" download="' + escHtml(f.name) + '">&#11015; Download</a> '
+    +   briefButton(f) + ' '
+    +   '<button class="mg-btn" onclick="moveFile(this)">&#8644; Move&hellip;</button>'
+    +   '<button class="mg-btn mg-btn-primary mg-perms-save" onclick="savePerms(this)">Save permissions</button>'
+    + '</div>'
+    + '</td></tr>';
+}
+
+// SM077: clean row (icon + name on the left; Access / Modified / select /
+// expander on the right). Advanced functions live in the expand card.
 function renderFiles(files) {
   var tbody = document.getElementById('file-rows');
   if (!files.length) {
-    tbody.innerHTML = '<tr><td></td><td></td><td style="color:var(--mg-text-light)">Empty directory</td><td></td><td></td><td></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--mg-text-light)">Empty directory</td></tr>';
     return;
   }
-  // Directories first, then files; each group alphabetical.
   files.sort(function(a, b) {
     if (a.type === 'dir' && b.type !== 'dir') return -1;
     if (a.type !== 'dir' && b.type === 'dir') return 1;
@@ -152,136 +255,86 @@ function renderFiles(files) {
   var html = '';
   for (var i = 0; i < files.length; i++) {
     var f = files[i];
-    var icon = f.type === 'dir' ? '&#128193;' : '&#128196;';
+    var isDir = f.type === 'dir';
+    var icon = isDir ? '&#128193;' : '&#128196;';
     html += '<tr data-name="' + escHtml(f.name) + '"'
           + ' data-path="' + escHtml(f.path || '') + '"'
           + ' data-ext="' + escHtml(f.ext || '') + '"'
-          + ' data-kind="' + (f.type === 'dir' ? 'dir' : 'file') + '"'
+          + ' data-kind="' + (isDir ? 'dir' : 'file') + '"'
           + ' data-generated="' + (f.generated ? '1' : '0') + '">';
 
-    // Checkbox cell: empty dirs get one, files get one, non-empty
-    // dirs get an empty cell for alignment.
-    if (f.type === 'file') {
-      html += '<td><input type="checkbox" class="mg-file-select" data-kind="file" value="' + escHtml(f.path) + '" onchange="updateSelection()"></td>';
-    } else if (f.type === 'dir' && f.empty) {
-      html += '<td><input type="checkbox" class="mg-file-select" data-kind="dir" value="' + escHtml(f.path) + '" onchange="updateSelection()"></td>';
+    // NAME (left): icon + name only.
+    var name;
+    if (isDir) {
+      name = '<a href="#" onclick="loadDir(\'' + escHtml(f.path) + '/\'); return false;">' + escHtml(f.name) + '/</a>';
     } else {
-      html += '<td></td>';
-    }
-
-    html += '<td class="mg-file-icon">' + icon + '</td>';
-
-    if (f.type === 'dir') {
-      html += '<td class="mg-file-name"><a href="#" onclick="loadDir(\'' + escHtml(f.path) + '/\'); return false;">' + escHtml(f.name) + '/</a></td>';
-    } else {
-      var label = isEditable(f.name)
+      name = isEditable(f.name)
         ? '<a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a>'
         : escHtml(f.name);
-      html += '<td class="mg-file-name">' + label + lockBadge(f) + briefBadge(f) + permsChip(f) + moveLink(f) + '</td>';
+      if (f.is_brief) name += ' <span class="mg-brief-tag" title="Authoring brief (private, never served)">brief</span>';
     }
+    html += '<td class="mg-file-name"><span class="mg-file-icon">' + icon + '</span> ' + name + '</td>';
 
-    html += '<td class="mg-col-size">' + formatSize(f.size || 0) + '</td>';
-    html += '<td class="mg-col-age">' + (f.mtime ? relativeTime(f.mtime) : '') + '</td>';
+    // ACCESS / MODIFIED.
+    html += '<td class="mg-col-access">' + (isDir ? '' : accessBadge(f)) + '</td>';
+    html += '<td class="mg-col-mod">' + (isDir ? (f.mtime ? '<span title="' + escHtml(absTime(f.mtime)) + '">' + escHtml(relativeTime(f.mtime)) + '</span>' : '') : modifiedCell(f)) + '</td>';
 
-    if (f.type === 'file') {
-      html += '<td class="mg-file-dl"><a href="' + API + '?action=file-download&path=' + encodeURIComponent(f.path) + '" download="' + escHtml(f.name) + '" title="Download">&#x2B07;</a></td>';
+    // SELECT (files + empty dirs).
+    if (f.type === 'file' || (isDir && f.empty)) {
+      html += '<td class="mg-col-check"><input type="checkbox" class="mg-file-select" data-kind="' + (isDir ? 'dir' : 'file') + '" value="' + escHtml(f.path) + '" onchange="updateSelection()"></td>';
     } else {
-      html += '<td></td>';
+      html += '<td class="mg-col-check"></td>';
     }
 
+    // EXPANDER (files): lock glyph + chevron.
+    if (isDir) {
+      html += '<td class="mg-col-exp"></td>';
+    } else {
+      html += '<td class="mg-col-exp">' + lockGlyph(f)
+            + '<a href="#" class="mg-chev" onclick="togglePerms(this); return false;" title="File settings &amp; permissions">&#9662;</a></td>';
+    }
     html += '</tr>';
-    if (f.type === 'file') html += permsRow(f);
+
+    if (!isDir) html += permsCard(f);
   }
   tbody.innerHTML = html;
   populateTypeFilter(files);
 }
 
-// SM073 / list-by-type: a brief indicator per file. A .brief file is
-// tagged; any other file links to edit its brief (or create one if
-// missing). Briefs are private - this is the only place to reach them.
-function briefBadge(f) {
-  if (f.type !== 'file') return '';
-  if (f.is_brief) {
-    return ' <span class="mg-brief-tag" title="Authoring brief (private, never served)">brief</span>';
-  }
-  var out;
-  var bpath = f.path + '.brief';
-  if (f.has_brief) {
-    out = ' <a class="mg-brief mg-brief-has" title="Edit the authoring brief"'
-        + ' href="/manager/edit?path=' + encodeURIComponent(bpath) + '">&#128221;</a>';
-  } else {
-    out = ' <a class="mg-brief mg-brief-missing" title="No brief yet - add one"'
-        + ' href="#" onclick="createBrief(\'' + escHtml(f.path) + '\'); return false;">&#9633;</a>';
+// Expand/collapse the config card; only one open at a time.
+function togglePerms(el) {
+  var row = el.closest('tr');
+  var card = row.nextElementSibling;
+  if (!card || card.className.indexOf('mg-perms-row') < 0) return;
+  var willOpen = card.style.display === 'none';
+  var allCards = document.querySelectorAll('.mg-perms-row');
+  for (var i = 0; i < allCards.length; i++) allCards[i].style.display = 'none';
+  var allChev = document.querySelectorAll('.mg-chev');
+  for (var j = 0; j < allChev.length; j++) allChev[j].innerHTML = '&#9662;';
+  if (willOpen) { card.style.display = ''; el.innerHTML = '&#9652;'; }
+}
+
+function selectedValues(sel) {
+  var out = [];
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].selected) out.push(sel.options[i].value);
   }
   return out;
 }
 
-// SM077: a clickable permissions chip per file. Shows the owner (or
-// "permissions" when unrestricted); clicking toggles the inline editor row.
-function permsChip(f) {
-  if (f.type !== 'file') return '';
-  var label = f.owner ? ('&#128100;' + escHtml(f.owner)) : 'permissions';
-  return ' <a href="#" class="mg-owner" title="Edit permissions (per-file ACL)"'
-       + ' onclick="togglePerms(this); return false;">' + label + '</a>';
-}
-
-// SM077: a lock glyph when the file is held by another session or WebDAV.
-function lockBadge(f) {
-  if (f.type !== 'file' || !f.lock) return '';
-  var who = f.lock.origin === 'dav'
-    ? 'locked via WebDAV'
-    : 'locked by ' + (f.lock.locked_by || 'another user');
-  return ' <span class="mg-lock" title="' + escHtml(who) + '">&#128274;</span>';
-}
-
-// SM077: a rename/move affordance per file.
-function moveLink(f) {
-  if (f.type !== 'file') return '';
-  return ' <a href="#" class="mg-move" title="Rename or move"'
-       + ' onclick="moveFile(this); return false;">&#8644;</a>';
-}
-
-// The hidden inline permissions editor row, rendered after each file row.
-// Pre-filled from the read/write lists the listing already returned.
-function permsRow(f) {
-  var read  = (f.read  || []).join(', ');
-  var write = (f.write || []).join(', ');
-  return '<tr class="mg-perms-row" style="display:none">'
-       + '<td></td><td></td><td colspan="4" class="mg-perms-cell">'
-       + '<label>Read <input type="text" class="mg-perms-read" value="' + escHtml(read) + '"'
-       + ' placeholder="users / @groups, comma-separated"></label> '
-       + '<label>Write <input type="text" class="mg-perms-write" value="' + escHtml(write) + '"'
-       + ' placeholder="users / @groups"></label> '
-       + '<button class="mg-btn" onclick="savePerms(this)">Save</button> '
-       + '<span class="mg-perms-hint">Empty Read &amp; Write clears the ACL (unrestricted).</span>'
-       + '</td></tr>';
-}
-
-// Expand/collapse the editor row that follows a file row.
-function togglePerms(link) {
-  var row = link.closest('tr');
-  var editor = row.nextElementSibling;
-  if (!editor || editor.className.indexOf('mg-perms-row') < 0) return;
-  editor.style.display = editor.style.display === 'none' ? '' : 'none';
-}
-
-// Save the inline permissions: acl-set with the read/write lists, or
-// acl-remove when both are empty. The owner is implied by the API (the
-// caller, for a new ACL) / preserved (for an existing one).
 function savePerms(btn) {
-  var editor  = btn.closest('tr');
-  var fileRow = editor.previousElementSibling;
-  var path    = fileRow.getAttribute('data-path');
-  var read    = editor.querySelector('.mg-perms-read').value.trim();
-  var write   = editor.querySelector('.mg-perms-write').value.trim();
+  var card = btn.closest('tr');
+  var row  = card.previousElementSibling;
+  var path = row.getAttribute('data-path');
+  var owner = card.querySelector('.mg-perm-owner').value;
+  var read  = selectedValues(card.querySelector('.mg-perm-read'));
+  var write = selectedValues(card.querySelector('.mg-perm-write'));
 
   var action, body;
-  if (!read && !write) {
-    action = 'acl-remove';
-    body   = {};
+  if (!owner && !read.length && !write.length) {
+    action = 'acl-remove'; body = {};
   } else {
-    action = 'acl-set';
-    body   = { read: read, write: write };
+    action = 'acl-set'; body = { owner: owner, read: read, write: write };
   }
   fetch(API + '?action=' + action + '&path=' + encodeURIComponent(path), {
     method: 'POST',
@@ -297,13 +350,13 @@ function savePerms(btn) {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-// Rename / move a file to a new path (action=move; cookie/manager action).
-function moveFile(link) {
-  var path = link.closest('tr').getAttribute('data-path');
+function moveFile(btn) {
+  var card = btn.closest('tr');
+  var row  = card.previousElementSibling;
+  var path = row.getAttribute('data-path');
   var dest = prompt('New path for this file:', path);
   if (!dest || dest === path) return;
-  fetch(API + '?action=move&path=' + encodeURIComponent(path)
-            + '&to=' + encodeURIComponent(dest), { method: 'POST' })
+  fetch(API + '?action=move&path=' + encodeURIComponent(path) + '&to=' + encodeURIComponent(dest), { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Move failed', true); return; }
@@ -313,8 +366,12 @@ function moveFile(link) {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-// Rebuild the type-filter options from the current directory's files,
-// preserving the operator's current selection where it still applies.
+function addBrief(btn) {
+  var card = btn.closest('tr');
+  var row  = card.previousElementSibling;
+  createBrief(row.getAttribute('data-path'));
+}
+
 function populateTypeFilter(files) {
   var sel = document.getElementById('type-filter');
   if (!sel) return;
@@ -335,10 +392,9 @@ function populateTypeFilter(files) {
   }
   sel.innerHTML = opts.join('');
   sel.value = current;
-  if (sel.value !== current) sel.value = '';   // selection no longer present
+  if (sel.value !== current) sel.value = '';
 }
 
-// Create a starter brief next to a file, then open it in the editor.
 function createBrief(filePath) {
   var bpath = filePath + '.brief';
   var stem = filePath.split('/').pop();
@@ -357,45 +413,28 @@ function createBrief(filePath) {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-function isoDate() {
-  return new Date().toISOString().slice(0, 10);
-}
+function isoDate() { return new Date().toISOString().slice(0, 10); }
 
-function escHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-function relativeTime(mtime) {
-  var diff = Math.floor(Date.now() / 1000) - mtime;
-  if (diff < 60)    return 'just now';
-  if (diff < 3600)  return Math.floor(diff/60) + 'm ago';
-  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
-  return Math.floor(diff/86400) + 'd ago';
-}
-
-// Combined text + type filter. A row is shown only if it matches both
-// the name search and the type selector ('' = all, '__dir' = folders,
-// '__generated' = generated .html with a source, else a bare extension).
+// Combined text + type filter. Operates on file/dir rows (those carry
+// data-name); config cards are kept collapsed so they never orphan.
 function applyFilters() {
   var q = (document.getElementById('file-filter').value || '').toLowerCase();
   var type = (document.getElementById('type-filter') || {}).value || '';
-  var rows = document.querySelectorAll('.mg-file-table tbody tr');
+  var cards = document.querySelectorAll('.mg-perms-row');
+  for (var c = 0; c < cards.length; c++) cards[c].style.display = 'none';
+  var chev = document.querySelectorAll('.mg-chev');
+  for (var v = 0; v < chev.length; v++) chev[v].innerHTML = '&#9662;';
+  var rows = document.querySelectorAll('.mg-file-table tbody tr[data-name]');
   for (var i = 0; i < rows.length; i++) {
     var row = rows[i];
     var name = (row.getAttribute('data-name') || '').toLowerCase();
     var okText = name.indexOf(q) >= 0;
     var okType = true;
-    if (type === '__dir') {
-      okType = row.getAttribute('data-kind') === 'dir';
-    } else if (type === '__generated') {
-      okType = row.getAttribute('data-generated') === '1';
-    } else if (type) {
-      okType = (row.getAttribute('data-ext') || '') === type;
-    }
+    if (type === '__dir')            okType = row.getAttribute('data-kind') === 'dir';
+    else if (type === '__generated') okType = row.getAttribute('data-generated') === '1';
+    else if (type)                   okType = (row.getAttribute('data-ext') || '') === type;
     row.style.display = (okText && okType) ? '' : 'none';
   }
-  // SM019a/b: visible set changed, so Select-all / action buttons
-  // re-derive against the new set. Existing selections are preserved.
   updateSelection();
 }
 
@@ -423,17 +462,11 @@ function newFile() {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-// SM019b: uses the new action=mkdir so the resulting directory
-// has no hidden .gitkeep inside. That keeps the "empty dirs are
-// deletable" semantics honest: a freshly-created folder is
-// genuinely empty and gets a selection checkbox on refresh.
 function newFolder() {
   var name = prompt('Folder name:');
   if (!name) return;
   var path = joinPath(currentDir, name).replace(/\/+$/, '');
-  fetch(API + '?action=mkdir&path=' + encodeURIComponent(path), {
-    method: 'POST'
-  })
+  fetch(API + '?action=mkdir&path=' + encodeURIComponent(path), { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
@@ -443,84 +476,50 @@ function newFolder() {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-// SM019b: batch delete. Runs requests sequentially so the error
-// list is meaningful if only some succeed. Matches the
-// uploadFiles progress-warning / final-status pattern.
 function deleteSelected() {
   var checks = document.querySelectorAll(
-    '.mg-file-table tbody tr:not([style*="display: none"]) '
-  + '.mg-file-select:checked');
+    '.mg-file-table tbody tr:not([style*="display: none"]) .mg-file-select:checked');
   if (!checks.length) return;
-
   var paths = [];
   for (var i = 0; i < checks.length; i++) paths.push(checks[i].value);
-
-  var msg = 'Delete ' + paths.length + ' item'
-          + (paths.length === 1 ? '' : 's') + '?\n\n'
-          + paths.join('\n');
+  var msg = 'Delete ' + paths.length + ' item' + (paths.length === 1 ? '' : 's') + '?\n\n' + paths.join('\n');
   if (!confirm(msg)) return;
-
   var errors = [];
-  if (typeof mgShowWarning === 'function') {
-    mgShowWarning('Deleting ' + paths.length + ' item(s)...', false);
-  }
-
+  if (typeof mgShowWarning === 'function') mgShowWarning('Deleting ' + paths.length + ' item(s)...', false);
   function step(i) {
     if (i >= paths.length) {
       if (typeof mgClearWarning === 'function') mgClearWarning();
-      if (errors.length) {
-        showStatus('Some deletes failed: ' + errors.join('; '), true);
-      } else {
-        showStatus(paths.length + ' item(s) deleted.');
-      }
+      if (errors.length) showStatus('Some deletes failed: ' + errors.join('; '), true);
+      else showStatus(paths.length + ' item(s) deleted.');
       loadDir(currentDir);
       return;
     }
-    fetch(API + '?action=delete&path=' + encodeURIComponent(paths[i]),
-          { method: 'POST' })
+    fetch(API + '?action=delete&path=' + encodeURIComponent(paths[i]), { method: 'POST' })
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        if (!data.ok) {
-          errors.push(paths[i] + ': ' + (data.error || 'unknown'));
-        }
+        if (!data.ok) errors.push(paths[i] + ': ' + (data.error || 'unknown'));
         step(i + 1);
       })
-      .catch(function(e) {
-        errors.push(paths[i] + ': ' + e.message);
-        step(i + 1);
-      });
+      .catch(function(e) { errors.push(paths[i] + ': ' + e.message); step(i + 1); });
   }
   step(0);
 }
 
-// SM019: upload + zip-download handlers. The global fetch wrapper in
-// view.tt already attaches X-CSRF-Token to every POST to the manager
-// API, so multipart uploads just use fetch() directly - no
-// query-string token needed.
-function triggerUpload() {
-  document.getElementById('upload-input').click();
-}
+function triggerUpload() { document.getElementById('upload-input').click(); }
 
 function uploadFiles(files) {
   if (!files || !files.length) return;
   var dir = currentDir;
   var total = files.length;
-  if (typeof mgShowWarning === 'function') {
-    mgShowWarning('Uploading ' + total + ' file(s)...', false);
-  }
+  if (typeof mgShowWarning === 'function') mgShowWarning('Uploading ' + total + ' file(s)...', false);
   var fd = new FormData();
   fd.append('overwrite', '0');
-  for (var i = 0; i < files.length; i++) {
-    fd.append('file', files[i], files[i].name);
-  }
+  for (var i = 0; i < files.length; i++) fd.append('file', files[i], files[i].name);
   var url = API + '?action=file-upload&path=' + encodeURIComponent(dir);
   fetch(url, { method: 'POST', body: fd })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (!data.ok) {
-        showStatus(data.error || 'Upload failed', true);
-        return;
-      }
+      if (!data.ok) { showStatus(data.error || 'Upload failed', true); return; }
       if (data.skipped && data.skipped.length) {
         handleSkipped(data.skipped, dir, files);
       } else {
@@ -542,70 +541,42 @@ function uploadFiles(files) {
 
 function handleSkipped(skipped, dir, files) {
   var msg = 'These files already exist:\n\n' + skipped.join('\n') + '\n\nOverwrite?';
-  if (!confirm(msg)) {
-    showStatus('Upload cancelled for ' + skipped.length + ' file(s).');
-    loadDir(dir);
-    return;
-  }
+  if (!confirm(msg)) { showStatus('Upload cancelled for ' + skipped.length + ' file(s).'); loadDir(dir); return; }
   var skipSet = {};
   for (var i = 0; i < skipped.length; i++) skipSet[skipped[i]] = true;
   var toRetry = [];
-  for (var j = 0; j < files.length; j++) {
-    if (skipSet[files[j].name]) toRetry.push(files[j]);
-  }
+  for (var j = 0; j < files.length; j++) if (skipSet[files[j].name]) toRetry.push(files[j]);
   var fd = new FormData();
   fd.append('overwrite', '1');
-  for (var i = 0; i < toRetry.length; i++) {
-    fd.append('file', toRetry[i], toRetry[i].name);
-  }
-  var url = API + '?action=file-upload&path=' + encodeURIComponent(dir);
-  fetch(url, { method: 'POST', body: fd })
+  for (var k = 0; k < toRetry.length; k++) fd.append('file', toRetry[k], toRetry[k].name);
+  fetch(API + '?action=file-upload&path=' + encodeURIComponent(dir), { method: 'POST', body: fd })
     .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (typeof mgClearWarning === 'function') mgClearWarning();
-      loadDir(dir);
-    })
+    .then(function() { if (typeof mgClearWarning === 'function') mgClearWarning(); loadDir(dir); })
     .catch(function(e) { showStatus('Overwrite error: ' + e.message, true); });
 }
 
-// Zip-download excludes empty-directory selections: the zip
-// action validates paths as files server-side and would skip
-// them anyway, but filtering here avoids a warn-log per dir.
 function zipSelected() {
   var checks = document.querySelectorAll(
-    '.mg-file-table tbody tr:not([style*="display: none"]) '
-  + '.mg-file-select:checked');
+    '.mg-file-table tbody tr:not([style*="display: none"]) .mg-file-select:checked');
   var qs = [];
   for (var i = 0; i < checks.length; i++) {
-    if (checks[i].getAttribute('data-kind') === 'file') {
-      qs.push('paths=' + encodeURIComponent(checks[i].value));
-    }
+    if (checks[i].getAttribute('data-kind') === 'file') qs.push('paths=' + encodeURIComponent(checks[i].value));
   }
   if (!qs.length) return;
-  var url = API + '?action=file-zip-download&' + qs.join('&');
-  window.location = url;
+  window.location = API + '?action=file-zip-download&' + qs.join('&');
 }
 
-// SM019b: the "visible" selector targets the table body and
-// keys off inline display:none set by applyFilters. If
-// applyFilters is refactored to use a CSS class, this selector
-// needs to change too.
 function visibleFileChecks() {
   return document.querySelectorAll(
-    '.mg-file-table tbody tr:not([style*="display: none"]) '
-  + '.mg-file-select');
+    '.mg-file-table tbody tr:not([style*="display: none"]) .mg-file-select');
 }
 
 function toggleSelectAll(src) {
   var checks = visibleFileChecks();
-  for (var i = 0; i < checks.length; i++) {
-    checks[i].checked = src.checked;
-  }
+  for (var i = 0; i < checks.length; i++) checks[i].checked = src.checked;
   updateSelection();
 }
 
-// Drives both action buttons (Download-selected, Delete-selected)
-// and reconciles the Select-all checkbox's three states.
 function updateSelection() {
   var allChecks = visibleFileChecks();
   var checkedAll = [];
@@ -616,45 +587,30 @@ function updateSelection() {
       if (allChecks[i].getAttribute('data-kind') === 'file') checkedFiles++;
     }
   }
-
   var zipBtn = document.getElementById('zip-btn');
   if (zipBtn) zipBtn.style.display = checkedFiles ? '' : 'none';
-
   var delBtn = document.getElementById('del-btn');
   if (delBtn) delBtn.style.display = checkedAll.length ? '' : 'none';
-
   var sa = document.getElementById('select-all');
   if (sa) {
-    if (checkedAll.length === 0) {
-      sa.checked = false;
-      sa.indeterminate = false;
-    } else if (checkedAll.length === allChecks.length) {
-      sa.checked = true;
-      sa.indeterminate = false;
-    } else {
-      sa.checked = false;
-      sa.indeterminate = true;
-    }
+    if (checkedAll.length === 0) { sa.checked = false; sa.indeterminate = false; }
+    else if (checkedAll.length === allChecks.length) { sa.checked = true; sa.indeterminate = false; }
+    else { sa.checked = false; sa.indeterminate = true; }
   }
 }
 
-// SM019: honour ?path= first, fall back to #hash. The edit.md
-// breadcrumb from SM018 links with ?path=, so this is what makes
-// those breadcrumbs land in the right directory.
 function readInitDir() {
   var qs = location.search;
   if (qs && qs.length > 1) {
     var params = qs.substr(1).split('&');
     for (var i = 0; i < params.length; i++) {
       var kv = params[i].split('=');
-      if (kv[0] === 'path') {
-        return decodeURIComponent(kv[1] || '') || '/';
-      }
+      if (kv[0] === 'path') return decodeURIComponent(kv[1] || '') || '/';
     }
   }
   var h = decodeURIComponent(location.hash.replace(/^#/, ''));
   return h || '/';
 }
 
-loadDir(readInitDir());
+loadPrincipals().then(function() { loadDir(readInitDir()); });
 </script>

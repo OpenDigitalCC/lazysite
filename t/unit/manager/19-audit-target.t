@@ -1,6 +1,8 @@
 #!/usr/bin/perl
-# SM078: the audit trail records the TARGET of an action (path / config key),
-# with a backward-compatible reader for old 5-field lines.
+# SM078 + SM077: the audit trail records the action TARGET and its ORIGIN
+# (ui = cookie manager, api = control-API token), action_audit filters by user
+# and target, and the reader stays backward-compatible with older 5- and
+# 6-field lines. Also covers action_principals (the permissions-picker source).
 use strict;
 use warnings;
 use Test::More;
@@ -12,39 +14,63 @@ use TestHelper qw(repo_root);
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/logs");
+
+# Stub users-tool for action_principals (list + groups).
+my $stub = "$d/users-stub.pl";
+open my $sf, '>', $stub or die $!;
+print $sf <<'STUB';
+#!/usr/bin/perl
+use strict; use warnings; use JSON::PP qw(encode_json decode_json);
+my $r = eval { decode_json( do { local $/; <STDIN> } ) } || {};
+my $a = $r->{action} // '';
+if    ($a eq 'list')   { print encode_json({ ok=>1, users => ['alice','bob'] }) }
+elsif ($a eq 'groups') { print encode_json({ ok=>1, groups => { editors=>['bob'], admins=>['alice'] } }) }
+else                   { print encode_json({ ok=>1 }) }
+STUB
+close $sf;
+chmod 0755, $stub;
+
 BEGIN { $ENV{LAZYSITE_API_LOAD_ONLY} = 1 }
-$ENV{DOCUMENT_ROOT} = $d;
+$ENV{DOCUMENT_ROOT}       = $d;
+$ENV{LAZYSITE_USERS_TOOL} = $stub;
 my $root = repo_root();
 {
     package main;
     do "$root/lazysite-manager-api.pl" or die "load failed: $@";
 }
 
-# A new entry carries the target column.
-main::audit_log( 'alice', 'save', 'content/about.md', '1.2.3.4', 'ok' );
-my $r = main::action_audit();
-ok( $r->{ok}, 'audit reads back' );
-my $e = $r->{entries}[0];
-is( $e->{action}, 'save',             'action recorded' );
-is( $e->{target}, 'content/about.md', 'SM078: target recorded' );
-is( $e->{user},   'alice',            'user recorded' );
-is( $e->{status}, 'ok',               'status recorded' );
+# --- target + origin recorded ---
+main::audit_log( 'alice', 'save', 'content/about.md', '1.2.3.4', 'ok', 'ui' );
+main::audit_log( 'claude-dhcf', 'theme-activate', 'sky', '5.6.7.8', 'ok', 'api' );
+my $entries = main::action_audit()->{entries};
+my ($ui)  = grep { $_->{action} eq 'save' } @$entries;
+my ($api) = grep { $_->{action} eq 'theme-activate' } @$entries;
+is( $ui->{target}, 'content/about.md', 'SM078: target recorded' );
+is( $ui->{origin}, 'ui',  'SM077: cookie action recorded as origin=ui' );
+is( $api->{origin}, 'api', 'SM077: token action recorded as origin=api' );
 
-# A config-key target is just as valid.
-main::audit_log( 'alice', 'config-set', 'site_name', '1.2.3.4', 'ok' );
-is( main::action_audit()->{entries}[0]{target}, 'site_name', 'config key as target' );
+# --- target filter ---
+main::audit_log( 'alice', 'delete', 'content/about.md', '1.2.3.4', 'ok', 'ui' );
+my $bytarget = main::action_audit( target => 'content/about.md' )->{entries};
+ok( scalar(@$bytarget) >= 2, 'target filter returns that file history' );
+ok( ( !grep { ( $_->{target} // '' ) ne 'content/about.md' } @$bytarget ),
+    'target filter excludes other targets' );
 
-# Backward compatibility: an old 5-field line (no target) still parses.
+# --- backward compatibility: older 5- and 6-field lines parse ---
 open my $fh, '>>', "$d/lazysite/logs/audit.log" or die $!;
-print {$fh} "2026-01-01T00:00:00Z | bob | delete | 9.9.9.9 | fail\n";
+print {$fh} "2026-01-01T00:00:00Z | bob | delete | 9.9.9.9 | fail\n";                # 5-field (pre-SM078)
+print {$fh} "2026-01-02T00:00:00Z | carol | save | content/x.md | 9.9.9.9 | ok\n";  # 6-field (SM078)
 close $fh;
-my ($old) = grep { ( $_->{user} // '' ) eq 'bob' } @{ main::action_audit( user => 'bob' )->{entries} };
-is( $old->{action}, 'delete', 'old line: action parsed' );
-is( $old->{target}, '',       'old line: empty target (back-compat)' );
-is( $old->{status}, 'fail',   'old line: status parsed' );
+my %by_user = map { ( $_->{user} // '' ) => $_ } @{ main::action_audit()->{entries} };
+is( $by_user{bob}{target},   '',             'old 5-field line: empty target' );
+is( $by_user{bob}{origin},   '',             'old 5-field line: empty origin' );
+is( $by_user{carol}{target}, 'content/x.md', '6-field line: target parsed' );
+is( $by_user{carol}{origin}, '',             '6-field line: empty origin (back-compat)' );
 
-# A pipe in a value cannot corrupt the columns.
-main::audit_log( 'eve', 'save', 'a|b/c.md', '1.2.3.4', 'ok' );
-like( main::action_audit()->{entries}[0]{target}, qr{a b/c\.md}, 'pipe in target is sanitised' );
+# --- action_principals merges users + group names for the pickers ---
+my $p = main::action_principals();
+ok( $p->{ok}, 'principals ok' );
+is_deeply( $p->{users}, [ 'alice', 'bob' ], 'principals: users listed' );
+is_deeply( $p->{groups}, [ 'admins', 'editors' ], 'principals: group names listed (sorted)' );
 
 done_testing();

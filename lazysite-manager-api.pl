@@ -355,6 +355,7 @@ elsif ( $action eq 'layouts-repo-set' )  {
     $result = action_layouts_repo_set( $req->{value} );
 }
 elsif ( $action eq 'users' )            { $result = action_users( $body, \%params ) }
+elsif ( $action eq 'principals' )       { $result = action_principals() }
 elsif ( $action eq 'rotate-auth-secret' ) { $result = action_rotate_auth_secret( $auth_user ) }
 elsif ( $action eq 'plugin-list' )      { $result = action_plugin_list() }
 elsif ( $action eq 'plugin-enable' )    {
@@ -385,7 +386,7 @@ elsif ( $action eq 'nav-save' )         {
 elsif ( $action eq 'handler-list' )     { $result = action_handler_list() }
 elsif ( $action eq 'version' )          { $result = action_version() }
 elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
-elsif ( $action eq 'audit' )            { $result = action_audit( user => $params{user} ) }
+elsif ( $action eq 'audit' )            { $result = action_audit( user => $params{user}, target => $params{target} ) }
 elsif ( $action eq 'handler-save' )     {
     my $req = eval { decode_json($body) } // {};
     $result = action_handler_save($req);
@@ -431,7 +432,8 @@ else  { $result = { ok => 0, error => "Unknown action: $action" } }
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' && $action ne 'csrf-token' ) {
     my $target = $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' );
     audit_log( $auth_user, $action, $target, $ENV{REMOTE_ADDR} // '',
-        ( ref $result eq 'HASH' && $result->{ok} ) ? 'ok' : 'fail' );
+        ( ref $result eq 'HASH' && $result->{ok} ) ? 'ok' : 'fail',
+        $token_auth ? 'api' : 'ui' );
 }
 
 respond($result);
@@ -914,15 +916,17 @@ sub action_whoami {
 # SM072 audit trail: append one line per state-changing request to a
 # manager-readable log. Fields are pipe-delimited: ts | user | action | ip | status.
 sub audit_log {
-    my ( $user, $act, $target, $ip, $status ) = @_;
+    my ( $user, $act, $target, $ip, $status, $origin ) = @_;
     my $dir = "$LAZYSITE_DIR/logs";
     return unless -d $dir || mkdir($dir);
     require POSIX;
     my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
-    $_ = defined $_ ? "$_" : '' for ( $user, $act, $target, $ip, $status );
-    s/[|\r\n]+/ /g for ( $user, $act, $target, $ip, $status );
+    # SM077: origin (ui = cookie manager, api = control-API token) is appended
+    # last so the existing column positions stay stable for older readers.
+    $_ = defined $_ ? "$_" : '' for ( $user, $act, $target, $ip, $status, $origin );
+    s/[|\r\n]+/ /g for ( $user, $act, $target, $ip, $status, $origin );
     open my $fh, '>>', "$dir/audit.log" or return;
-    print $fh "$ts | $user | $act | $target | $ip | $status\n";
+    print $fh "$ts | $user | $act | $target | $ip | $status | $origin\n";
     close $fh;
     return;
 }
@@ -935,18 +939,22 @@ sub action_audit {
     open my $fh, '<', $file or return { ok => 1, entries => [] };
     my @lines = <$fh>;
     close $fh;
-    my $want = $opt{user};
+    my $want   = $opt{user};
+    my $want_t = $opt{target};    # SM077: filter to one file's history
     my @entries;
     for my $line ( reverse @lines ) {
         chomp $line;
         my @f = split / \| /, $line;
-        # SM078: new lines carry a target column (6 fields); old lines have 5.
-        my ( $ts, $u, $act, $target, $ip, $status );
-        if ( @f >= 6 ) { ( $ts, $u, $act, $target, $ip, $status ) = @f[ 0 .. 5 ] }
-        else           { ( $ts, $u, $act, $ip, $status ) = @f[ 0 .. 4 ]; $target = '' }
-        next if defined $want && length $want && ( $u // '' ) ne $want;
+        # Column growth over releases: 5 = ts|user|action|ip|status (pre-SM078);
+        # 6 adds target (SM078); 7 appends origin (SM077, ui/api). Parse by count.
+        my ( $ts, $u, $act, $target, $ip, $status, $origin );
+        if    ( @f >= 7 ) { ( $ts, $u, $act, $target, $ip, $status, $origin ) = @f[ 0 .. 6 ] }
+        elsif ( @f == 6 ) { ( $ts, $u, $act, $target, $ip, $status ) = @f[ 0 .. 5 ]; $origin = '' }
+        else              { ( $ts, $u, $act, $ip, $status ) = @f[ 0 .. 4 ]; $target = ''; $origin = '' }
+        next if defined $want   && length $want   && ( $u      // '' ) ne $want;
+        next if defined $want_t && length $want_t && ( $target // '' ) ne $want_t;
         push @entries, { ts => $ts, user => $u, action => $act,
-            target => $target, ip => $ip, status => $status };
+            target => $target, ip => $ip, status => $status, origin => $origin };
         last if @entries >= 500;
     }
     return { ok => 1, entries => \@entries };
@@ -961,6 +969,16 @@ sub action_version {
     close $fh;
     my $d = eval { decode_json($raw) } || {};
     return { ok => 1, version => $d->{version}, installed_at => $d->{installed_at} };
+}
+
+# SM077: assignable principals for the permissions pickers - usernames + group
+# names only (no settings/records). Cookie-manager action, like 'users'.
+sub action_principals {
+    my $u = users_api( { action => 'list' } )   || {};
+    my $g = users_api( { action => 'groups' } )  || {};
+    my @users  = ref $u->{users}  eq 'ARRAY' ? @{ $u->{users} } : ();
+    my @groups = ref $g->{groups} eq 'HASH'  ? ( sort keys %{ $g->{groups} } ) : ();
+    return { ok => 1, users => \@users, groups => \@groups };
 }
 
 sub action_users {

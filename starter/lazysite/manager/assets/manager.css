@@ -551,34 +551,57 @@
     color: var(--mg-accent);
 }
 
-/* SM077: per-file permissions chip, lock glyph, rename/move link, and the
-   inline expand-in-place permissions editor row. */
-.mg-file-table .mg-owner,
-.mg-file-table .mg-move {
-    font-size: 0.85em;
-    color: var(--mg-text-light);
-    text-decoration: none;
-    margin-left: 0.4em;
+/* SM077 v2: clean row (icon + name left; Access / Modified / select / expander
+   right) with a per-file config card that expands in place. */
+.mg-file-table .mg-col-access,
+.mg-file-table .mg-col-mod,
+.mg-file-table .mg-col-check,
+.mg-file-table .mg-col-exp { white-space: nowrap; text-align: right; }
+.mg-file-table .mg-col-access { text-align: left; font-size: 0.85em; }
+.mg-file-table th.mg-col-access { text-align: left; }
+
+.mg-owner-name { color: var(--mg-text); }
+.mg-acc-none   { color: var(--mg-text-light); }
+.mg-acc {
+    display: inline-block;
+    width: 1.1em; text-align: center;
+    font-weight: 700; font-family: monospace;
+    border-radius: 2px; margin-left: 0.1em;
 }
-.mg-file-table .mg-owner:hover,
-.mg-file-table .mg-move:hover { color: var(--mg-accent); }
-.mg-lock { margin-left: 0.4em; }
+.mg-acc-ok  { color: #1a7f37; }            /* open within scope */
+.mg-acc-no  { color: #c33; }               /* restricted to owner/list */
+.mg-acc-g   { color: var(--mg-accent); font-weight: 700; font-family: monospace; }
+
+.mg-modlink { color: var(--mg-text-light); text-decoration: none; }
+.mg-modlink:hover { color: var(--mg-accent); text-decoration: underline; }
+
+.mg-lock { margin-right: 0.35em; }
+.mg-chev {
+    text-decoration: none; color: var(--mg-text-light);
+    font-size: 1.1em; padding: 0 0.3em; cursor: pointer;
+}
+.mg-chev:hover { color: var(--mg-accent); }
+
 .mg-perms-row .mg-perms-cell {
-    padding: 0.5em 0.75em;
+    padding: 0.6em 0.9em 0.8em;
     background: var(--mg-bg-alt, #f6f6f6);
+    border-bottom: 2px solid var(--mg-accent);
 }
-.mg-perms-cell label { font-size: 0.85em; margin-right: 0.75em; }
-.mg-perms-cell input[type=text] {
-    font-size: 0.85em;
-    padding: 0.2em 0.4em;
-    min-width: 14em;
+.mg-perms-grid {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr;
+    gap: 0.4em 0.8em;
+    align-items: start;
+    max-width: 48em;
 }
+.mg-perms-grid label { font-size: 0.85em; font-weight: 600; padding-top: 0.3em; }
+.mg-perms-grid select { font-size: 0.85em; width: 100%; }
+.mg-perms-grid select[multiple] { min-height: 4.5em; }
 .mg-perms-hint {
-    display: block;
-    margin-top: 0.4em;
-    font-size: 0.75em;
-    color: var(--mg-text-light);
+    margin: 0.5em 0; font-size: 0.75em; color: var(--mg-text-light);
 }
+.mg-perms-actions { display: flex; gap: 0.5em; flex-wrap: wrap; align-items: center; }
+.mg-perms-actions .mg-perms-save { margin-left: auto; }
 
 .mg-file-table .mg-file-dl a {
     font-size: 1.15em;
