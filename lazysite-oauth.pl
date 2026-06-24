@@ -151,7 +151,9 @@ if ( $action eq 'register' ) {
     respond_json( 400, { error => 'invalid_redirect_uri',
         error_description => 'redirect_uris required' } ) unless @uris;
     my $client_id = register_client( \@uris, $req->{client_name} );
-    log_event( 'INFO', 'oauth', 'client registered', client_id => $client_id );
+    my $total = scalar keys %{ Lazysite::Auth::OAuth::load_store()->{clients} };
+    log_event( 'INFO', 'oauth', 'client registered',
+        client_id => $client_id, redirect => $uris[0], total_clients => $total );
     respond_json( 201, {
         client_id                  => $client_id,
         client_id_issued_at        => time(),
@@ -164,10 +166,19 @@ if ( $action eq 'register' ) {
 elsif ( $action eq 'authorize' ) {
     my %p = $method eq 'POST' ? parse_form( read_body() ) : %q;
     my $client = get_client( $p{client_id} // '' );
-    respond_json( 400, { error => 'invalid_client' } ) unless $client;
+    unless ($client) {
+        log_event( 'WARN', 'oauth', 'authorize: client_id not registered',
+            method => $method, client_id => ( $p{client_id} // '(none)' ),
+            known_clients => scalar keys %{ Lazysite::Auth::OAuth::load_store()->{clients} } );
+        respond_json( 400, { error => 'invalid_client' } );
+    }
     my $redirect_uri = $p{redirect_uri} // '';
     my $ok_uri = grep { $_ eq $redirect_uri } @{ $client->{redirect_uris} || [] };
-    respond_json( 400, { error => 'invalid_redirect_uri' } ) unless $ok_uri;
+    unless ($ok_uri) {
+        log_event( 'WARN', 'oauth', 'authorize: redirect_uri mismatch',
+            got => $redirect_uri, registered => join( ' ', @{ $client->{redirect_uris} || [] } ) );
+        respond_json( 400, { error => 'invalid_redirect_uri' } );
+    }
 
     if ( $method ne 'POST' ) {
         respond_json( 400, { error => 'unsupported_response_type' } )
