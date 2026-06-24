@@ -10,7 +10,19 @@ use File::Basename qw(dirname);
 use POSIX qw(strftime);
 use IPC::Open2 qw(open2);
 
-my $LOG_COMPONENT = 'auth';
+BEGIN {
+    # Locate the Lazysite module tree relative to this script (run-in-place,
+    # tar and Hestia installs), falling back to the system @INC (package
+    # installs). No configuration needed.
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+}
+use Lazysite::Util qw(log_event const_eq);
+$Lazysite::Util::COMPONENT = 'auth';
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
     require JSON::PP;
@@ -756,15 +768,6 @@ sub generate_random_hex {
 }
 
 # M-5: constant-time byte comparison (length-preserving).
-sub const_eq {
-    my ( $a, $b ) = @_;
-    return 0 unless defined $a && defined $b;
-    return 0 if length($a) != length($b);
-    my $r = 0;
-    $r |= ord( substr( $a, $_, 1 ) ) ^ ord( substr( $b, $_, 1 ) )
-        for 0 .. length($a) - 1;
-    return $r == 0;
-}
 
 # H-2: salted iterated SHA-256 password hashing. Format:
 #   sha256iter:SALT(32 hex):ITERATIONS:HASH(64 hex)
@@ -975,43 +978,4 @@ sub uri_decode_simple {
 
 # --- Logging ---
 
-sub log_event {
-    my ($level, $context, $message, %extra) = @_;
-    my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
-    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
-    return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
-    use POSIX qw(strftime);
-    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
-    my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
-    if ( $format eq 'json' ) {
-        my $pairs = join ',',
-            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
-            keys %extra;
-        my $json = '{"ts":"' . $ts . '"'
-            . ',"level":"'     . _json_str($level)          . '"'
-            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
-            . ',"context":"'   . _json_str($context)        . '"'
-            . ',"message":"'   . _json_str($message)        . '"'
-            . ( $pairs ? ",$pairs" : '' )
-            . '}';
-        print STDERR "$json\n";
-    }
-    else {
-        my $extras = join ' ',
-            map { "$_=" . $extra{$_} } keys %extra;
-        my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
-        $line   .= " $extras" if $extras;
-        print STDERR "$line\n";
-    }
-}
 
-sub _json_str {
-    my ($s) = @_;
-    $s //= '';
-    $s =~ s/\\/\\\\/g;
-    $s =~ s/"/\\"/g;
-    $s =~ s/\n/\\n/g;
-    $s =~ s/\r/\\r/g;
-    $s =~ s/\t/\\t/g;
-    return $s;
-}

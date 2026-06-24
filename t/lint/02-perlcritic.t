@@ -16,7 +16,7 @@ chomp( my $critic = `which perlcritic 2>/dev/null` );
 plan skip_all => 'perlcritic not installed' unless $critic;
 plan skip_all => 'no profile' unless -f "$root/.perlcriticrc";
 
-my @scripts = sort glob("$root/*.pl $root/tools/*.pl $root/plugins/*.pl");
+my @scripts = sort glob("$root/*.pl $root/tools/*.pl $root/plugins/*.pl $root/lib/Lazysite/*.pm $root/lib/Lazysite/*/*.pm");
 ok( scalar @scripts, 'found production scripts to lint' );
 
 # One invocation over all scripts; --quiet prints only violations, so clean

@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+Refactor (SM079 step 1) - shared-module bootstrap + Lazysite::Util
+: The modular scripts (auth, dav, manager-api, the users tool) now load shared
+  helpers from `lib/Lazysite/` via a relative `use lib` bootstrap that resolves
+  the module tree next to the script (run-in-place, tar, package and Hestia all
+  just work, with the system `@INC` as the package fallback). The first module,
+  `Lazysite::Util`, holds `log_event`, `const_eq` and the JSON log escaper -
+  removing those copies from all four scripts. `lazysite-processor.pl` stays
+  self-contained and depends on no module. `Util` is unit-tested in-process
+  (`t/unit/lib/01-util.t`); it installs to `{DOCROOT}/../lib`.
+
 Conformance (item 7, WP-2 / D2) - coverage instrumentation + regression floor
 : The tests run the CGIs as subprocesses, which defeated `Devel::Cover` (it saw
   only the parent `prove` and reported `n/a`). `tools/coverage.sh` now
