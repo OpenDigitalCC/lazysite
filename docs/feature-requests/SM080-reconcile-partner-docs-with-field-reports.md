@@ -59,14 +59,22 @@ Queued - not yet done. Observed 2026-06-24.
   resolves for a copied-then-activated layout and copy-then-activate is
   zero-edit. Pinned by `t/unit/lib/10-theme-mirror.t`.
 
-## Open documentation work (remaining)
+## Documentation reconciliation - DONE (2026-06-24)
 
-The doc reconciliation above (trust-the-server preamble, copy-then-activate
-section, theme.json rules, template-variable reference, partner-id auth gotcha,
-cache-clear caveat) is still to fold into the shipped briefings. Note: the
-asset-mirror fix removes the *need* for the hardcoded-CSS-path workaround the
-field reports describe, so that part of the guidance can be simplified rather
-than documented as a limitation.
+On review, the shipped briefings already carried most of the field-report
+guidance (added during the 0.3.x work): the trust-the-server principle ("the
+brief describes, the token is, the server enforces" + the `/dav` status guide),
+the stage/copy-then-activate loop (`ai-briefing-layouts` "Staging a layout over
+WebDAV"), the partner-id auth gotcha, the theme.json ASCII/quote-free +
+validate-at-activation rules, and the cache-vs-content `.html` distinction.
+
+Reconciled the remainder this pass:
+- Added the **no-randomness** note to `ai-briefing-authoring` (use a carousel /
+  build-time pick / `scan` + `FOREACH`, not a per-request random helper).
+- Updated the **activation mirror** section in `ai-briefing-layouts` for the
+  SM080 fix: the mirror is rebuilt on every activation, so a copied-then-
+  activated layout is drop-in (`200` on the mirror) with no CSS-path edits - the
+  404-recovery is now a rare fallback, not the expected path.
 
 ## Process note
 

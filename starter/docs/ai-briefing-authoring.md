@@ -227,6 +227,12 @@ This feature is in beta.
 Inline code and fenced code blocks are protected from TT. Put TT tags
 outside code blocks if you want them to render.
 
+**No randomness primitive.** There is no random/shuffle helper in the template
+context, so a "random quote" or "random image" cannot be computed per request.
+Either pick one at author time, or render the set as a carousel/cycle in the
+page or layout. For list-driven pages (reviews, a homepage highlight strip),
+`scan:` + a `FOREACH` loop give you the data deterministically.
+
 Markdown link URLs do not reliably resolve TT variables (the Markdown
 parser processes links before TT runs). Use HTML `<a>` tags when the
 href contains a TT variable:

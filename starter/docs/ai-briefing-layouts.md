@@ -244,10 +244,12 @@ activation the server builds a flattened mirror served at
 
 - A `main.css` at the theme ROOT (not under `assets/`) is **not** mirrored, so
   the page links a `404`. Put assets under `assets/`.
-- **Verify the mirror built** after activation: `GET`
-  `/lazysite-assets/<layout>/<theme>/main.css` and expect `200`. If it `404`s
-  the mirror did not materialise - recover by writing the mirror files directly
-  over WebDAV (a supported recovery), or re-activate.
+- **The mirror is rebuilt on every activation** (`theme-activate` /
+  `layout-activate`), so after activating, `GET`
+  `/lazysite-assets/<layout>/<theme>/main.css` returns `200` - a
+  copied-then-activated layout is drop-in, with no CSS-path edits needed. If it
+  ever `404`s, re-activate to rebuild it (or, as a fallback, write the mirror
+  files directly over WebDAV).
 - Before activation, the theme SOURCE css is web-served at
   `/lazysite/layouts/<layout>/themes/<theme>/main.css` - use that for preview;
   switch links to the `/lazysite-assets/` mirror once active.
