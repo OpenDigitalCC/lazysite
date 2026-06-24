@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.4.4 - Audit WebDAV reads; document MCP + per-client connection modes (2026-06-24)
+
 Feature - audit WebDAV reads; document MCP vs API onboarding modes
 : WebDAV reads (GET/PROPFIND) are now recorded in the audit trail too (origin
   dav), so a partner's authenticated browse/read activity is visible - not only
