@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.5 - Fix Users/Groups page layout regression (2026-06-24)
+
+Fix - Users/Groups management page was scrambled
+: The SM077 file Access badges (0.4.2) added a `.mg-acc` CSS rule that collided
+  with the Users/Groups accordion `<details class="mg-acc">`, collapsing every
+  row into a 1.1em inline box (rows overlapping). The file access flags are
+  renamed to `mg-rwflag*`, so the accordion returns to its normal layout.
+
 ## 0.4.4 - Audit WebDAV reads; document MCP + per-client connection modes (2026-06-24)
 
 Feature - audit WebDAV reads; document MCP vs API onboarding modes
