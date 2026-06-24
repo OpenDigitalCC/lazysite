@@ -24,9 +24,11 @@ BEGIN {
     }
 }
 use Lazysite::Util qw(log_event const_eq);
+use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
+$Lazysite::Auth::Acl::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
@@ -970,52 +972,13 @@ sub action_list {
 # Operators (manager group, or 'local' when unsecured) administer
 # everything; otherwise access follows the owner + allowlists. The store is
 # read by the dav for enforcement and written here via the acl-* actions.
-sub _acls_path { "$DOCROOT/lazysite/auth/acls.json" }
 
-sub load_acls {
-    my $path = _acls_path();
-    return {} unless -f $path;
-    open my $fh, '<', $path or return {};
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    my $m = eval { decode_json( $raw // '{}' ) };
-    return ref $m eq 'HASH' ? $m : {};
-}
 
-sub save_acls {
-    my ($map) = @_;
-    my $path = _acls_path();
-    my $dir  = dirname($path);
-    make_path($dir) unless -d $dir;
-    my $tmp = "$path.tmp.$$";
-    open my $fh, '>', $tmp or return 0;
-    print $fh JSON::PP->new->canonical->pretty->encode($map);
-    close $fh;
-    chmod 0640, $tmp;
-    return rename $tmp, $path;
-}
 
-sub _acl_norm { my $r = shift; $r =~ s{^/+}{} if defined $r; return $r }
 
 # Normalise a list value (arrayref or comma/space string) to an arrayref,
 # or undef if not provided.
-sub _to_list {
-    my ($v) = @_;
-    return undef unless defined $v;
-    return [ grep { length } @$v ] if ref $v eq 'ARRAY';
-    return [ grep { length } split /[,\s]+/, $v ];
-}
 
-sub _acl_allows {
-    my ( $rel, $mode, $user ) = @_;
-    my $a = load_acls()->{ _acl_norm($rel) };
-    return 1 unless $a;
-    return 1 if defined $a->{owner} && defined $user && $a->{owner} eq $user;
-    my $list = $a->{$mode};
-    return 1 unless ref $list eq 'ARRAY' && @$list;
-    for my $u (@$list) { return 1 if defined $u && defined $user && $u eq $user }
-    return 0;
-}
 
 sub _is_operator {
     # A token (control-API) client is NEVER an operator: it has the same
