@@ -18,6 +18,18 @@ Keying
 
 ## Unreleased
 
+Fixes - field-report + review bugs (SM080 / SM081 / SM078)
+: **SM080** - the theme-asset mirror (`/lazysite-assets/LAYOUT/THEME/`) is now
+  built on theme/layout **activation**, not only on a repo install, so
+  `theme_assets` resolves for a copied-then-activated layout (copy-then-activate
+  is zero-edit; no more hardcoded CSS paths). **SM081** - `form-targets` read now
+  parses mixed `handler:`/`type:` configs in document order (it used to drop the
+  `type:` targets when any handler existed). **SM078** - the audit trail records
+  the **target** of each action (path, or config key), with a backward-compatible
+  reader and a Target column in the manager Audit page. Tests:
+  `10-theme-mirror.t`, the `07-plugins-handlers.t` mixed-format assertion,
+  `19-audit-target.t`.
+
 ## 0.4.0 - Modular refactor, security hardening & conformance (QC review 2026-06-24)
 
 Quality-control close-out audit for this milestone: **1416 tests green**;
