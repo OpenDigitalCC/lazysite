@@ -1,0 +1,100 @@
+---
+title: Onboarding brief template (operator)
+auth: manager
+search: false
+---
+
+This is the **operator's template** for the out-of-band onboarding brief you hand
+an AI publishing partner. Fill the placeholders, issue a fresh pairing key
+immediately before sending (they are single-use and short-lived), and send the
+result as the partner's **first and only** message so it has clean context.
+
+Keep the `## Machine-readable` block - partners parse identity, endpoints and the
+key from it, not from prose. The partner-agnostic copy lives at
+`/.well-known/ai-partner`; this brief adds the partner id, the pairing key, and
+the task.
+
+---
+
+# lazysite publishing partner - onboarding brief
+
+You are being onboarded as an automated publishing partner to a lazysite site.
+This message is your complete brief - act on it directly. Your goal: validate
+the publish round-trip end to end, then report exactly what happened at each
+step.
+
+## Machine-readable
+
+    {
+      "partner_id": "<PARTNER-ID>",
+      "site": "https://<SITE>",
+      "pairing_key": "<lzp_FRESH-KEY>",
+      "auth": { "scheme": "basic", "username": "<PARTNER-ID>", "password": "the lzs_ token from exchange" },
+      "endpoints": {
+        "well_known": "https://<SITE>/.well-known/ai-partner",
+        "exchange":   "https://<SITE>/cgi-bin/lazysite-auth.pl?action=exchange",
+        "rotate":     "https://<SITE>/cgi-bin/lazysite-auth.pl?action=rotate",
+        "webdav":     "https://<SITE>/dav/",
+        "control":    "https://<SITE>/cgi-bin/lazysite-manager-api.pl"
+      },
+      "capabilities": ["webdav"]
+    }
+
+## Step 0 - Preflight (confirm you can reach the host)
+
+`GET https://<SITE>/.well-known/ai-partner`.
+
+- JSON back: you have egress - continue.
+- Blocked before reaching the origin (proxy `403` with `host_not_allowed` / an
+  allowlist message, or no network): **stop and report it as a client-side
+  egress block** - the host must be allowlisted; the pairing key is **not**
+  consumed. Note `<SITE>` may be two labels deep, so a single-label wildcard
+  (`*.example.com`) can still deny it - the literal host or a deeper wildcard
+  may be needed. If a fresh conversation just got network access, a sandbox
+  provisioned earlier may still hold the old policy - start a new one.
+
+Report which case you got before going further.
+
+## Step 1 - Exchange the pairing key (do promptly - single-use, short-lived)
+
+    curl -s -X POST "https://<SITE>/cgi-bin/lazysite-auth.pl?action=exchange" \
+      --data "username=<PARTNER-ID>&pairing_key=<lzp_FRESH-KEY>"
+
+Expect `{"ok":true,"token":"lzs_...","expires_at":...}`. A `401` means the key is
+spent or expired - report it and ask for a fresh one.
+
+## Step 2 - Confirm your grant
+
+    curl -s -u "<PARTNER-ID>:<lzs_...>" \
+      "https://<SITE>/cgi-bin/lazysite-manager-api.pl?action=whoami"
+
+Note your capabilities (expect `webdav`) and effective scope. The server is
+authoritative - trust `whoami` over the brief.
+
+## Step 3 - Publish a test page over WebDAV (Basic auth = partner-id:token)
+
+    curl -s -o /dev/null -w "%{http_code}\n" -X PUT -u "<PARTNER-ID>:<lzs_...>" \
+      --data-binary $'---\ntitle: Round-trip test\n---\n\nPublished by the partner.\n' \
+      "https://<SITE>/dav/partner-test.md"
+
+Expect `201` (created) or `204` (overwrite).
+
+## Step 4 - Verify the round-trip
+
+The source `partner-test.md` renders at the URL `/partner-test`:
+
+    curl -s "https://<SITE>/partner-test"
+
+Confirm your content is in the returned HTML.
+
+## Step 5 - Report and clean up
+
+Report the HTTP code from every step, the exact text of any error or proxy
+message, and whether `/partner-test` contained its content. Then remove the
+test file:
+
+    curl -s -o /dev/null -w "%{http_code}\n" -X DELETE -u "<PARTNER-ID>:<lzs_...>" \
+      "https://<SITE>/dav/partner-test.md"
+
+Your writes (and reads) appear in the site's audit log as `origin=dav`, so the
+operator can see the round-trip from their side too.
