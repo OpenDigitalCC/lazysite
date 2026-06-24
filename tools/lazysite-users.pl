@@ -291,6 +291,16 @@ if ( $API_MODE ) {
             my $r = cmd_onboarding_web( $req->{username} );
             $result = { ok => 1, %$r };
         }
+        elsif ( $action eq 'connect-code' ) {
+            my $r = cmd_connect_code( $req->{username} );
+            $result = { ok => 1, %$r };
+        }
+        elsif ( $action eq 'redeem-connect-code' ) {
+            $result = cmd_redeem_connect_code( $req->{code} );
+        }
+        elsif ( $action eq 'partner-caps' ) {
+            $result = cmd_partner_caps( $req->{username} );
+        }
         elsif ( $action eq 'partner-create' ) {
             my $r = cmd_partner_create( $req->{username},
                 created_by  => $req->{created_by},
@@ -1436,6 +1446,64 @@ sub cmd_verify_credential {
 # brief.
 # SM071: mint a fresh pairing key + onboarding brief for an existing user
 # (the manager Users-page "download onboarding" affordance).
+# SM076 OAuth: a single-use, short-lived connect code proves authorization to
+# act as a partner. The operator issues it; it is consumed at the OAuth consent
+# screen. Issuing it also resets the connector "used" detection.
+sub cmd_connect_code {
+    my ($user) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+    my $code = 'lzo_' . generate_random_hex(18);
+    my $all  = read_settings();
+    my $u    = $all->{$user} ||= {};
+    $u->{connect_code_hash}    = sha256_hex($code);
+    $u->{connect_code_expires} = time() + 900;    # 15 min
+    $u->{cred_issued_at}       = time();
+    delete $u->{cred_used_at};
+    write_settings($all);
+    log_event( 'INFO', $user, 'oauth connect code issued' );
+    return { code => $code, expires_in => 900 };
+}
+
+# Validate + consume a connect code; returns the partner it authorizes.
+sub cmd_redeem_connect_code {
+    my ($code) = @_;
+    return { ok => 0, error => 'code required' } unless defined $code && length $code;
+    my $h   = sha256_hex($code);
+    my $all = read_settings();
+    for my $user ( keys %$all ) {
+        my $s = $all->{$user};
+        next unless ( $s->{connect_code_hash} // '' ) eq $h;
+        my $exp = $s->{connect_code_expires} || 0;
+        delete $s->{connect_code_hash};
+        delete $s->{connect_code_expires};
+        write_settings($all);
+        return { ok => 0, error => 'expired' } if $exp < time();
+        return { ok => 1, username => $user };
+    }
+    return { ok => 0, error => 'invalid' };
+}
+
+# Partner capabilities for an OAuth-authenticated MCP request; stamps first use
+# so the connector-setup "connected" detection fires for the OAuth path too.
+sub cmd_partner_caps {
+    my ($user) = @_;
+    return { ok => 0 } unless defined $user && length $user;
+    my %users = read_users();
+    return { ok => 0 } unless exists $users{$user};
+    my $eff = effective_settings($user);
+    return { ok => 0 } if $eff->{disabled};
+    my $all = read_settings();
+    my $u   = $all->{$user} ||= {};
+    my $iss = $u->{cred_issued_at} || 0;
+    if ( !$u->{cred_used_at} || $u->{cred_used_at} < $iss ) {
+        $u->{cred_used_at} = time();
+        write_settings($all);
+    }
+    return { ok => 1, username => $user, settings => $eff };
+}
+
 sub _brief_base {
     my $base = read_conf_value('site_url') // 'https://YOUR-SITE';
     $base =~ s/\$\{REQUEST_SCHEME\}/$ENV{REQUEST_SCHEME} || 'https'/ge;
@@ -1453,7 +1521,7 @@ sub cmd_onboarding_web {
     die "Username required\n" unless defined $user && length $user;
     my %users = read_users();
     die "User '$user' not found\n" unless exists $users{$user};
-    my $token = cmd_token($user);    # mints + stores the credential, revokes any prior
+    my $cc = cmd_connect_code($user);    # mints the connect code + resets detection
     my $s = ( read_settings()->{$user} ) || {};
     my $base = _brief_base();
     ( my $domain = $base ) =~ s{^https?://}{};
@@ -1461,34 +1529,36 @@ sub cmd_onboarding_web {
     log_event( 'INFO', $user, 'connector setup issued' );
     return {
         username         => $user,
-        token            => $token,
+        connect_code     => $cc->{code},
         domain           => $domain,         # the connector name (one per site)
         connector_url    => "$base/cgi-bin/lazysite-mcp.pl",
-        bearer           => "$user:$token",
-        connector_setup  => _connector_setup_text( $user, $token, $domain, $base ),
+        connector_setup  => _connector_setup_text( $user, $cc->{code}, $domain, $base ),
         assistant_prompt => _assistant_prompt( $user, $domain, $base, $s ),
     };
 }
 
-# The OPERATOR's instructions: add the connector (the only place the secret
-# goes). Named by the site domain - an operator may connect several sites.
+# The OPERATOR's instructions. Claude.ai web connectors are OAuth-only: the user
+# adds the connector by URL (no token field) and, during sign-in, enters a
+# single-use connect code that authorises this partner. No secret is pasted.
 sub _connector_setup_text {
-    my ( $name, $token, $domain, $base ) = @_;
+    my ( $name, $code, $domain, $base ) = @_;
     return <<"WEB";
-Claude.ai publishes through a connector - the credential lives in the connector
-settings, never in chat. Do this once, then just talk to Claude.
+Claude.ai connects through OAuth: you add the connector by its URL (there is no
+token to paste), and when Claude.ai asks you to sign in you enter a one-time
+connect code.
 
 In Claude.ai: Settings -> Connectors -> Add custom connector
 
-    Name:   $domain
-    URL:    $base/cgi-bin/lazysite-mcp.pl
-    Auth:   API key / Bearer token
-    Token:  $name:$token
+    Name:  $domain
+    URL:   $base/cgi-bin/lazysite-mcp.pl
 
-Paste the Token into the connector's token field - not into a chat. Then open a
-new chat, enable the "$domain" connector, and ask Claude to run whoami. This page
-confirms when the connection authenticates, then gives you the prompt to hand
-Claude.
+Enable it for a chat. When Claude.ai opens the authorisation page, enter this
+single-use connect code (valid 15 minutes) on that page - not in a chat:
+
+    $code
+
+This page confirms when the connection authenticates, then gives you the prompt
+to hand Claude.
 WEB
 }
 

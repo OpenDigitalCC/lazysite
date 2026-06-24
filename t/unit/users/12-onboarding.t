@@ -55,36 +55,39 @@ ok( $ex->{ok} && $ex->{token} =~ /^lzs_/, 'onboarding pairing key exchanges for 
 my $bad = uapi( $d, { action => 'onboarding', username => 'ghost' } );
 ok( !$bad->{ok}, 'onboarding rejects an unknown user' );
 
-# SM076: the web/connector variant mints a token (in the setup, for the
-# connector settings) and steps the operator through adding the connector.
+# SM076: the web/connector variant issues an OAuth connect code (entered on the
+# sign-in page) and steps the operator through adding the connector by URL.
 my $w = uapi( $d, { action => 'onboarding-web', username => 'partner' } );
 ok( $w->{ok}, 'onboarding-web ok' );
-like( $w->{token}, qr/^lzs_/, 'onboarding-web mints an lzs_ token' );
+like( $w->{connect_code}, qr/^lzo_/, 'onboarding-web issues a connect code' );
 like( $w->{connector_setup}, qr{/cgi-bin/lazysite-mcp\.pl}, 'setup names the MCP endpoint' );
-like( $w->{connector_setup}, qr/\Q$w->{token}\E/, 'setup carries the token (for the connector field)' );
-like( $w->{connector_setup}, qr/whoami/, 'setup includes a whoami confirmation step' );
-like( $w->{connector_setup}, qr/not (?:a chat|into a chat)/i, 'setup warns: token in settings, not chat' );
+like( $w->{connector_setup}, qr/\Q$w->{connect_code}\E/, 'setup carries the connect code' );
+like( $w->{connector_setup}, qr/connect code/i, 'setup explains the connect-code step' );
+like( $w->{connector_setup}, qr/not in a chat/i, 'setup warns: enter it on the page, not a chat' );
 is( $w->{domain}, 'example.test', 'connector name is the site domain (one per site)' );
 like( $w->{connector_setup}, qr/Name:\s+example\.test/, 'setup names the connector by domain' );
 
 # The assistant prompt is separate and carries NO secret.
 like( $w->{assistant_prompt}, qr/connector tools/i, 'assistant prompt steers to native connector tools' );
-unlike( $w->{assistant_prompt}, qr/lzs_|\Q$w->{token}\E/, 'assistant prompt contains no token/secret' );
+unlike( $w->{assistant_prompt}, qr/lzs_|lzo_|\Q$w->{connect_code}\E/, 'assistant prompt contains no secret' );
 
-# Detection: not "used" until a touch-verify (the connector) authenticates.
+# Detection: issuing the connect code resets it; an OAuth-authenticated call
+# (partner-caps) marks it used.
 my $st0 = uapi( $d, { action => 'credential-status', username => 'partner' } );
 ok( $st0->{ok} && !$st0->{used}, 'credential-status: not used right after issuance' );
-my $vc = uapi( $d, { action => 'verify-credential',
-    username => 'partner', secret => $w->{token}, touch => 1 } );
-ok( $vc->{ok}, 'the new token verifies' );
+ok( uapi( $d, { action => 'partner-caps', username => 'partner' } )->{ok}, 'partner-caps ok' );
 my $st1 = uapi( $d, { action => 'credential-status', username => 'partner' } );
-ok( $st1->{ok} && $st1->{used}, 'credential-status: used after a connector (touch) verify' );
+ok( $st1->{ok} && $st1->{used}, 'credential-status: used after an OAuth-authenticated call' );
 
-# A verify WITHOUT touch (e.g. WebDAV) does not flip an already-used flag back,
-# and a fresh issuance resets it.
+# Re-issuing the connect code resets the used flag.
 uapi( $d, { action => 'onboarding-web', username => 'partner' } );
 ok( !uapi( $d, { action => 'credential-status', username => 'partner' } )->{used},
-    'reissuing the credential resets the used flag' );
+    'reissuing the connect code resets the used flag' );
+
+# The connect code redeems once.
+my $cc = uapi( $d, { action => 'connect-code', username => 'partner' } );
+ok( uapi( $d, { action => 'redeem-connect-code', code => $cc->{code} } )->{ok}, 'connect code redeems' );
+ok( !uapi( $d, { action => 'redeem-connect-code', code => $cc->{code} } )->{ok}, 'connect code is single-use' );
 
 ok( !uapi( $d, { action => 'onboarding-web', username => 'ghost' } )->{ok},
     'onboarding-web rejects an unknown user' );

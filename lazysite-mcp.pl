@@ -30,6 +30,7 @@ BEGIN {
 }
 use Lazysite::Util qw(log_event);
 use Lazysite::Audit qw(audit_log);
+use Lazysite::Auth::OAuth ();
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
     action_move action_acl_set action_acl_remove);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
@@ -41,6 +42,7 @@ my $PROTOCOL = '2025-11-25';
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // '';
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
+$Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
 
 # --- output helpers -------------------------------------------------------
 
@@ -100,27 +102,44 @@ sub _users_tool {
     return undef;
 }
 
-# Verify "Authorization: Bearer <user>:<lzs_ token>". Returns ($user, \%caps)
-# on success, or () on failure. Mirrors the manager API's token front-path.
-sub verify_bearer {
-    my $hdr = $ENV{HTTP_AUTHORIZATION} // '';
-    return () unless $hdr =~ /^Bearer\s+(\S.*)$/;
-    my $cred = $1;
-    my ( $user, $secret ) = split /:/, $cred, 2;
-    return () unless defined $user && defined $secret && $secret =~ /^lzs_/;
-    my $tool = _users_tool() or return ();
+sub _users_api {
+    my ($payload) = @_;
+    my $tool = _users_tool() or return undef;
     my ( $out, $in );
     my $pid = eval { open2( $out, $in, $^X, $tool, '--api', '--docroot', $DOCROOT ) }
-        or return ();
-    print $in encode_json(
-        { action => 'verify-credential', username => $user, secret => $secret, touch => 1 } );
+        or return undef;
+    print $in encode_json($payload);
     close $in;
     my $resp = do { local $/; <$out> };
     close $out;
     waitpid $pid, 0;
-    my $v = eval { decode_json( $resp // '{}' ) };
-    return () unless $v && $v->{ok};
-    return ( $user, $v->{settings} || {} );
+    return eval { decode_json( $resp // '{}' ) };
+}
+
+# Resolve the Authorization bearer to ($partner, \%caps), or () on failure.
+# Two shapes: the static "<partner>:<lzs_ token>" (Claude Code / Desktop), or an
+# opaque OAuth access token (Claude.ai web, SM076). Some Apache setups expose
+# the forwarded header as REDIRECT_HTTP_AUTHORIZATION.
+sub verify_bearer {
+    my $hdr = $ENV{HTTP_AUTHORIZATION} || $ENV{REDIRECT_HTTP_AUTHORIZATION} || '';
+    return () unless $hdr =~ /^Bearer\s+(\S.*)$/;
+    my $cred = $1;
+
+    my ( $user, $secret ) = split /:/, $cred, 2;
+    if ( defined $user && defined $secret && $secret =~ /^lzs_/ ) {
+        my $v = _users_api( { action => 'verify-credential',
+            username => $user, secret => $secret, touch => 1 } );
+        return () unless $v && $v->{ok};
+        return ( $user, $v->{settings} || {} );
+    }
+
+    # Opaque OAuth access token: resolve to its partner, then its capabilities
+    # (partner-caps also stamps first use for the connector-setup detection).
+    my $partner = Lazysite::Auth::OAuth::validate_token($cred);
+    return () unless defined $partner;
+    my $r = _users_api( { action => 'partner-caps', username => $partner } );
+    return () unless $r && $r->{ok};
+    return ( $partner, $r->{settings} || {} );
 }
 
 # Set the per-request module context once the caller is known.

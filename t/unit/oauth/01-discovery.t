@@ -56,12 +56,16 @@ ok( $store->{clients}{ $r->{client_id} }, 'client recorded in oauth.json' );
 ( $st, $r ) = oauth( 'action=register', encode_json( {} ) );
 is( $st, 400, 'register without redirect_uris -> 400' );
 
-# --- authorize / token are stubbed in stage 1 ---
-( $st ) = oauth('action=authorize&client_id=x');
-is( $st, 501, 'authorize -> 501 (stage 2)' );
-( $st, $r ) = oauth( 'action=token', 'grant_type=authorization_code' );
-is( $st, 501, 'token -> 501 (stage 3)' );
-is( $r->{error}, 'temporarily_unavailable', 'token stub returns an OAuth error' );
+# --- authorize / token error paths (the happy path is in 02-flow.t) ---
+( $st, $r ) = oauth('action=authorize&client_id=nope&redirect_uri=https://x');
+is( $st, 400, 'authorize with an unregistered client -> 400' );
+is( $r->{error}, 'invalid_client', 'invalid_client error' );
+( $st, $r ) = oauth( 'action=token',
+    'grant_type=authorization_code&code=nope&client_id=x&redirect_uri=y&code_verifier=z' );
+is( $st, 400, 'token with a bad code -> 400' );
+is( $r->{error}, 'invalid_grant', 'invalid_grant error' );
+( $st, $r ) = oauth( 'action=token', 'grant_type=password' );
+is( $r->{error}, 'unsupported_grant_type', 'unsupported grant rejected' );
 
 ( $st, $r ) = oauth('');
 is( $st, 400, 'no action -> 400 invalid_request' );

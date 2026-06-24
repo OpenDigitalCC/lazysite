@@ -273,7 +273,7 @@ function renderUserRow(row) {
   // --- AI partner onboarding (publishing accounts only) ---
   if (webdav) {
     var ob = '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showConnector(\'' + ue + '\')">Set up Claude.ai</button>' +
-      '<span class="mg-muted">connector setup (token in connector settings) &mdash; easiest, for ongoing tweaks via the web app</span></div>' +
+      '<span class="mg-muted">OAuth connector setup (add by URL, enter a connect code at sign-in) &mdash; easiest, for ongoing tweaks via the web app</span></div>' +
       '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showOnboarding(\'' + ue + '\')">Generate agent brief</button>' +
       '<span class="mg-muted">pairing-key + API/WebDAV brief &mdash; for Claude Code or a script (deliver the key out of band)</span></div>' +
       '<div id="onb-' + ue + '" style="display:none"></div>';
@@ -430,7 +430,7 @@ function showConnector(user) {
         '<button class="mg-btn mg-btn-sm" onclick="closeOnboarding(\'' + escHtml(user) + '\')">Close</button>' +
         '<span id="conn-wait-' + escHtml(user) + '" class="mg-muted">&nbsp;&#8987; waiting for Claude to connect&hellip;</span></div></div>' +
         '<div id="conn-step2-' + escHtml(user) + '"></div>';
-      showStatus('Fresh credential minted - add it to the connector settings (not a chat).');
+      showStatus('Connect code generated - add the connector by URL, then enter the code when Claude.ai signs in.');
       pollConnector(user, box._poll, Date.now());
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });

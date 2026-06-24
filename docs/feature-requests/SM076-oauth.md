@@ -91,6 +91,18 @@ discovery.)
 
 ## Status
 
-Stage 1 in progress. Stages 2-5 follow. Security notes: PKCE S256 mandatory;
-auth codes + connect codes single-use and short-lived; redirect_uri exact-match;
-all stored secrets hashed; the store sits in the write-denied auth tree.
+**Complete (2026-06-24).** All five stages built + tested. `Lazysite::Auth::OAuth`
+holds the store + PKCE; `lazysite-oauth.pl` serves register/authorize/token; the
+MCP server resolves either a `partner:lzs_` static bearer (Code/Desktop) or an
+opaque OAuth access token (web), and challenges with 401 + `WWW-Authenticate`.
+The manager "Set up Claude.ai" issues a connect code (no token paste) and reveals
+the task prompt once the connection authenticates. Tests: `oauth/01-discovery`
+(DCR, metadata, error paths), `oauth/02-flow` (register -> connect code ->
+authorize/PKCE -> token -> MCP whoami -> detection, single-use + wrong-verifier
+negatives), `mcp/01-protocol` (the 401 challenge), `users/12-onboarding`.
+Full suite 1534.
+
+Security: PKCE S256 mandatory; auth codes + connect codes single-use and
+short-lived; redirect_uri exact-match against the registered set; all stored
+secrets hashed (sha256 of high-entropy randoms); the store is 0600 in the
+write-denied `lazysite/auth/` tree; expired records GC'd on write.
