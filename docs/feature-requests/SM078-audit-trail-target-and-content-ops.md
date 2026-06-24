@@ -14,7 +14,16 @@ in the application log (`log_event`), but the Audit page does not surface it.
 
 ## Status
 
-Queued - not yet specced. Observed 2026-06-24.
+**Done (2026-06-24).** `audit_log` gained a **target** column
+(`ts | user | action | target | ip | status`), populated at the dispatch tail
+from the request path (content / ACL / theme / layout / mkdir / upload ops) or
+the config key (`config-set`). `action_audit` reads it with a backward-compatible
+parser (old 5-field lines yield an empty target), and the manager Audit page
+shows a Target column. Pinned by `t/unit/manager/19-audit-target.t`.
+
+Follow-up (optional): plugin / handler / form-target actions still log the path
+param (often `/`); deriving their specific target from the request body would
+make those rows precise too.
 
 ## The gap
 

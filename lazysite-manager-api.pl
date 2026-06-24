@@ -421,9 +421,12 @@ elsif ( $action eq 'artifact-validate' ) { $result = action_artifact_validate( \
 else  { $result = { ok => 0, error => "Unknown action: $action" } }
 
 # SM072 audit trail: record state-changing (POST) requests to a
-# manager-readable log - who did what, when, from where, and the outcome.
+# manager-readable log - who did what, TO WHAT (SM078), when, from where, and
+# the outcome. The target is the path for content/ACL/theme/layout ops, or the
+# config key for config-set.
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' && $action ne 'csrf-token' ) {
-    audit_log( $auth_user, $action, $ENV{REMOTE_ADDR} // '',
+    my $target = $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' );
+    audit_log( $auth_user, $action, $target, $ENV{REMOTE_ADDR} // '',
         ( ref $result eq 'HASH' && $result->{ok} ) ? 'ok' : 'fail' );
 }
 
@@ -907,15 +910,15 @@ sub action_whoami {
 # SM072 audit trail: append one line per state-changing request to a
 # manager-readable log. Fields are pipe-delimited: ts | user | action | ip | status.
 sub audit_log {
-    my ( $user, $act, $ip, $status ) = @_;
+    my ( $user, $act, $target, $ip, $status ) = @_;
     my $dir = "$LAZYSITE_DIR/logs";
     return unless -d $dir || mkdir($dir);
     require POSIX;
     my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
-    $_ = defined $_ ? "$_" : '' for ( $user, $act, $ip, $status );
-    s/[|\r\n]+/ /g for ( $user, $act, $ip, $status );
+    $_ = defined $_ ? "$_" : '' for ( $user, $act, $target, $ip, $status );
+    s/[|\r\n]+/ /g for ( $user, $act, $target, $ip, $status );
     open my $fh, '>>', "$dir/audit.log" or return;
-    print $fh "$ts | $user | $act | $ip | $status\n";
+    print $fh "$ts | $user | $act | $target | $ip | $status\n";
     close $fh;
     return;
 }
@@ -932,9 +935,14 @@ sub action_audit {
     my @entries;
     for my $line ( reverse @lines ) {
         chomp $line;
-        my ( $ts, $u, $act, $ip, $status ) = split / \| /, $line, 5;
+        my @f = split / \| /, $line;
+        # SM078: new lines carry a target column (6 fields); old lines have 5.
+        my ( $ts, $u, $act, $target, $ip, $status );
+        if ( @f >= 6 ) { ( $ts, $u, $act, $target, $ip, $status ) = @f[ 0 .. 5 ] }
+        else           { ( $ts, $u, $act, $ip, $status ) = @f[ 0 .. 4 ]; $target = '' }
         next if defined $want && length $want && ( $u // '' ) ne $want;
-        push @entries, { ts => $ts, user => $u, action => $act, ip => $ip, status => $status };
+        push @entries, { ts => $ts, user => $u, action => $act,
+            target => $target, ip => $ip, status => $status };
         last if @entries >= 500;
     }
     return { ok => 1, entries => \@entries };

@@ -42,12 +42,13 @@ function loadAudit() {
     if (!d.ok) { el.textContent = d.error || 'Failed to load.'; return; }
     if (!d.entries.length) { el.textContent = 'No audit entries yet.'; return; }
     var h = '<table class="audit-table"><thead><tr>' +
-      '<th>When (UTC)</th><th>User</th><th>Action</th><th>From</th><th>Status</th>' +
+      '<th>When (UTC)</th><th>User</th><th>Action</th><th>Target</th><th>From</th><th>Status</th>' +
       '</tr></thead><tbody>';
     d.entries.forEach(function (e) {
       var cls = e.status === 'fail' ? ' class="audit-fail"' : '';
       h += '<tr' + cls + '><td>' + aesc(e.ts) + '</td><td>' + aesc(e.user) +
-        '</td><td>' + aesc(e.action) + '</td><td>' + aesc(e.ip) +
+        '</td><td>' + aesc(e.action) + '</td><td>' + aesc(e.target || '') +
+        '</td><td>' + aesc(e.ip) +
         '</td><td>' + aesc(e.status) + '</td></tr>';
     });
     h += '</tbody></table>';
