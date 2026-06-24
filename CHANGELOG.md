@@ -18,6 +18,31 @@ Keying
 
 ## Unreleased
 
+## 0.4.6 - Claude.ai connector onboarding + injection-resistant briefs (2026-06-24)
+
+Feature - one-click Claude.ai connector setup (SM076)
+: The Users page now offers two onboarding paths matched to the audience.
+  **Set up Claude.ai** (new) mints a credential for the MCP connector's settings
+  (never chat) and steps the operator through adding the connector, confirming
+  with `whoami`, and a no-secret task prompt - the robust path for the web app /
+  ongoing tweaks. **Generate agent brief** is the existing pairing-key + API/
+  WebDAV flow for Claude Code or a script (key delivered out of band).
+
+Security - injection-resistant onboarding briefs
+: After a Claude.ai partner correctly declined a brief that embedded a secret,
+  asked an assistant to autonomously handle credentials, and read like a prompt
+  injection: the generated brief is reframed as operator-issued data to *verify*
+  (against `/.well-known/ai-partner`), not commands to obey, and carries explicit
+  secret-handling guidance (out-of-band delivery to a supervised agent; connector
+  settings for a chat assistant; a key seen in a transcript is spent). The Users
+  panel warns the same, and gained a Close button + a "supersedes the previous
+  key" note.
+
+Docs - partner onboarding
+: A "First: confirm you can reach the site" egress preflight (detect a blocked
+  egress / wildcard-depth / stale sandbox and report early rather than retry),
+  and an operator onboarding-brief template documenting who-runs-which-part.
+
 ## 0.4.5 - Fix Users/Groups page layout regression (2026-06-24)
 
 Fix - Users/Groups management page was scrambled
