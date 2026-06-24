@@ -18,6 +18,26 @@ Keying
 
 ## Unreleased
 
+## 0.4.7 - OAuth for Claude.ai web connectors (SM076) (2026-06-24)
+
+Feature - OAuth 2.1 authorization server for the MCP connector
+: Claude.ai **web** custom connectors are OAuth-only (no static bearer field), so
+  the MCP server now speaks OAuth. New `lazysite-oauth.pl` + `Lazysite::Auth::OAuth`
+  implement discovery (RFC 9728/8414), dynamic client registration (RFC 7591),
+  an authorize endpoint (a consent page taking the operator's single-use
+  **connect code**, PKCE S256), and a token endpoint (authorization_code +
+  refresh). The MCP server challenges an unauthenticated tool call with
+  `401 WWW-Authenticate` and accepts either the opaque OAuth access token (web)
+  or the existing `partner:lzs_` static bearer (Claude Code / Desktop). Access
+  tokens map to the partner's grant - identical capability + ACL enforcement.
+
+Feature - two-step "Set up Claude.ai"
+: The Users-page connector setup is a guided two-step flow: add the connector by
+  URL + enter a connect code, then - once the manager detects the connection has
+  authenticated - it reveals the no-secret task prompt. The connector is named by
+  the site domain; the assistant prompt steers Claude to the native connector
+  tools (not raw HTTP).
+
 ## 0.4.6 - Claude.ai connector onboarding + injection-resistant briefs (2026-06-24)
 
 Feature - one-click Claude.ai connector setup (SM076)
