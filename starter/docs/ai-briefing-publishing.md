@@ -128,6 +128,17 @@ MCP mode
   credential, colon-joined). It writes one file per call, so for a large initial
   build prefer API mode + WebDAV; for ongoing maintenance either works.
 
+Which to use, by client
+: **Claude.ai (web / mobile)** reaches a site only through a connector, so it
+  uses **MCP mode** - add `…/cgi-bin/lazysite-mcp.pl` as a remote custom
+  connector with the bearer credential. **Claude Code / Claude Desktop** can use
+  **either**: API mode directly (curl the control API, `PUT`/mount over WebDAV -
+  best for a full build or bulk upload), or add the same endpoint as a remote
+  (HTTP) MCP server with an `Authorization: Bearer <partner-id>:<lzs_ token>`
+  header for guided, tool-shaped maintenance. A scripted or non-AI client uses
+  **API mode**. The credential, capabilities and per-file ACLs are identical
+  whichever you pick - call `whoami` first to confirm your grant.
+
 ## Control API actions
 
 Issue these to the control-API endpoint (`/cgi-bin/lazysite-manager-api.pl`)
