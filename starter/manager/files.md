@@ -165,15 +165,15 @@ function accessBadge(f) {
   var wRestricted = f.write && f.write.length;
   var owner = f.owner
     ? '<span class="mg-owner-name" title="Owner">' + escHtml(f.owner) + '</span>'
-    : '<span class="mg-acc-none" title="Unrestricted (account scope governs)">&mdash;</span>';
-  var r = '<span class="mg-acc ' + (rRestricted ? 'mg-acc-no' : 'mg-acc-ok')
+    : '<span class="mg-rwflag-none" title="Unrestricted (account scope governs)">&mdash;</span>';
+  var r = '<span class="mg-rwflag ' + (rRestricted ? 'mg-rwflag-no' : 'mg-rwflag-ok')
         + '" title="read ' + (rRestricted ? 'restricted to: ' + escHtml(f.read.join(', ')) : 'open') + '">r</span>';
-  var w = '<span class="mg-acc ' + (wRestricted ? 'mg-acc-no' : 'mg-acc-ok')
+  var w = '<span class="mg-rwflag ' + (wRestricted ? 'mg-rwflag-no' : 'mg-rwflag-ok')
         + '" title="write ' + (wRestricted ? 'restricted to: ' + escHtml(f.write.join(', ')) : 'open') + '">w</span>';
   var listed = (f.read || []).concat(f.write || []);
   var hasGroup = false;
   for (var i = 0; i < listed.length; i++) { if (/^@/.test(listed[i])) { hasGroup = true; break; } }
-  var g = hasGroup ? ' <span class="mg-acc-g" title="a @group is granted access">g</span>' : '';
+  var g = hasGroup ? ' <span class="mg-rwflag-g" title="a @group is granted access">g</span>' : '';
   return owner + ' ' + r + w + g;
 }
 

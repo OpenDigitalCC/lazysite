@@ -560,17 +560,19 @@
 .mg-file-table .mg-col-access { text-align: left; font-size: 0.85em; }
 .mg-file-table th.mg-col-access { text-align: left; }
 
-.mg-owner-name { color: var(--mg-text); }
-.mg-acc-none   { color: var(--mg-text-light); }
-.mg-acc {
+/* NB: do not use `.mg-acc` here - that class is the Users/Groups accordion
+   <details>. The file access flags use their own `mg-rwflag*` names. */
+.mg-owner-name  { color: var(--mg-text); }
+.mg-rwflag-none { color: var(--mg-text-light); }
+.mg-rwflag {
     display: inline-block;
     width: 1.1em; text-align: center;
     font-weight: 700; font-family: monospace;
     border-radius: 2px; margin-left: 0.1em;
 }
-.mg-acc-ok  { color: #1a7f37; }            /* open within scope */
-.mg-acc-no  { color: #c33; }               /* restricted to owner/list */
-.mg-acc-g   { color: var(--mg-accent); font-weight: 700; font-family: monospace; }
+.mg-rwflag-ok { color: #1a7f37; }            /* open within scope */
+.mg-rwflag-no { color: #c33; }               /* restricted to owner/list */
+.mg-rwflag-g  { color: var(--mg-accent); font-weight: 700; font-family: monospace; }
 
 .mg-modlink { color: var(--mg-text-light); text-decoration: none; }
 .mg-modlink:hover { color: var(--mg-accent); text-decoration: underline; }
