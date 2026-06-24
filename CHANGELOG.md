@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+Feature - Files-manager UI overhaul (SM077)
+: The manager Files page gains an editable **permissions** panel (the owner chip
+  expands in place to inline read/write editors -> `acl-set`/`acl-remove`),
+  inline **rename/move** (a new cookie-only `move` action that re-keys the ACL
+  and carries the `.brief` + generated cache), a **lock indicator** glyph, and
+  **`@group` ACLs** (`Auth::Acl` matches a `@group` entry against the requester's
+  X-Remote-Groups; token partners carry none, so it never matches them). The
+  listing now returns each file's read/write lists + lock state. Tests: 04-acl,
+  09-files-handlers, 15-acl.
+
 Fixes - field-report + review bugs (SM080 / SM081 / SM078)
 : **SM080** - the theme-asset mirror (`/lazysite-assets/LAYOUT/THEME/`) is now
   built on theme/layout **activation**, not only on a repo install, so

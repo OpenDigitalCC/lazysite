@@ -154,6 +154,7 @@ function renderFiles(files) {
     var f = files[i];
     var icon = f.type === 'dir' ? '&#128193;' : '&#128196;';
     html += '<tr data-name="' + escHtml(f.name) + '"'
+          + ' data-path="' + escHtml(f.path || '') + '"'
           + ' data-ext="' + escHtml(f.ext || '') + '"'
           + ' data-kind="' + (f.type === 'dir' ? 'dir' : 'file') + '"'
           + ' data-generated="' + (f.generated ? '1' : '0') + '">';
@@ -176,7 +177,7 @@ function renderFiles(files) {
       var label = isEditable(f.name)
         ? '<a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a>'
         : escHtml(f.name);
-      html += '<td class="mg-file-name">' + label + briefBadge(f) + '</td>';
+      html += '<td class="mg-file-name">' + label + lockBadge(f) + briefBadge(f) + permsChip(f) + moveLink(f) + '</td>';
     }
 
     html += '<td class="mg-col-size">' + formatSize(f.size || 0) + '</td>';
@@ -189,6 +190,7 @@ function renderFiles(files) {
     }
 
     html += '</tr>';
+    if (f.type === 'file') html += permsRow(f);
   }
   tbody.innerHTML = html;
   populateTypeFilter(files);
@@ -211,11 +213,104 @@ function briefBadge(f) {
     out = ' <a class="mg-brief mg-brief-missing" title="No brief yet - add one"'
         + ' href="#" onclick="createBrief(\'' + escHtml(f.path) + '\'); return false;">&#9633;</a>';
   }
-  if (f.owner) {
-    out += ' <span class="mg-owner" title="Owner (per-file ACL)">&#128100;'
-         + escHtml(f.owner) + '</span>';
-  }
   return out;
+}
+
+// SM077: a clickable permissions chip per file. Shows the owner (or
+// "permissions" when unrestricted); clicking toggles the inline editor row.
+function permsChip(f) {
+  if (f.type !== 'file') return '';
+  var label = f.owner ? ('&#128100;' + escHtml(f.owner)) : 'permissions';
+  return ' <a href="#" class="mg-owner" title="Edit permissions (per-file ACL)"'
+       + ' onclick="togglePerms(this); return false;">' + label + '</a>';
+}
+
+// SM077: a lock glyph when the file is held by another session or WebDAV.
+function lockBadge(f) {
+  if (f.type !== 'file' || !f.lock) return '';
+  var who = f.lock.origin === 'dav'
+    ? 'locked via WebDAV'
+    : 'locked by ' + (f.lock.locked_by || 'another user');
+  return ' <span class="mg-lock" title="' + escHtml(who) + '">&#128274;</span>';
+}
+
+// SM077: a rename/move affordance per file.
+function moveLink(f) {
+  if (f.type !== 'file') return '';
+  return ' <a href="#" class="mg-move" title="Rename or move"'
+       + ' onclick="moveFile(this); return false;">&#8644;</a>';
+}
+
+// The hidden inline permissions editor row, rendered after each file row.
+// Pre-filled from the read/write lists the listing already returned.
+function permsRow(f) {
+  var read  = (f.read  || []).join(', ');
+  var write = (f.write || []).join(', ');
+  return '<tr class="mg-perms-row" style="display:none">'
+       + '<td></td><td></td><td colspan="4" class="mg-perms-cell">'
+       + '<label>Read <input type="text" class="mg-perms-read" value="' + escHtml(read) + '"'
+       + ' placeholder="users / @groups, comma-separated"></label> '
+       + '<label>Write <input type="text" class="mg-perms-write" value="' + escHtml(write) + '"'
+       + ' placeholder="users / @groups"></label> '
+       + '<button class="mg-btn" onclick="savePerms(this)">Save</button> '
+       + '<span class="mg-perms-hint">Empty Read &amp; Write clears the ACL (unrestricted).</span>'
+       + '</td></tr>';
+}
+
+// Expand/collapse the editor row that follows a file row.
+function togglePerms(link) {
+  var row = link.closest('tr');
+  var editor = row.nextElementSibling;
+  if (!editor || editor.className.indexOf('mg-perms-row') < 0) return;
+  editor.style.display = editor.style.display === 'none' ? '' : 'none';
+}
+
+// Save the inline permissions: acl-set with the read/write lists, or
+// acl-remove when both are empty. The owner is implied by the API (the
+// caller, for a new ACL) / preserved (for an existing one).
+function savePerms(btn) {
+  var editor  = btn.closest('tr');
+  var fileRow = editor.previousElementSibling;
+  var path    = fileRow.getAttribute('data-path');
+  var read    = editor.querySelector('.mg-perms-read').value.trim();
+  var write   = editor.querySelector('.mg-perms-write').value.trim();
+
+  var action, body;
+  if (!read && !write) {
+    action = 'acl-remove';
+    body   = {};
+  } else {
+    action = 'acl-set';
+    body   = { read: read, write: write };
+  }
+  fetch(API + '?action=' + action + '&path=' + encodeURIComponent(path), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not save permissions', true); return; }
+      showStatus('Permissions updated.');
+      loadDir(currentDir);
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// Rename / move a file to a new path (action=move; cookie/manager action).
+function moveFile(link) {
+  var path = link.closest('tr').getAttribute('data-path');
+  var dest = prompt('New path for this file:', path);
+  if (!dest || dest === path) return;
+  fetch(API + '?action=move&path=' + encodeURIComponent(path)
+            + '&to=' + encodeURIComponent(dest), { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Move failed', true); return; }
+      showStatus('Moved to ' + dest + '.');
+      loadDir(currentDir);
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 // Rebuild the type-filter options from the current directory's files,

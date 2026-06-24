@@ -87,4 +87,29 @@ ok(  aclset( $d, 'admin', 'managers', '/content/x.md', { write => ['alice','bob'
 ok( save_as( $d, 'bob', 'authors', '/content/x.md', 'bob-now' )->{ok},
     'a newly listed user may write' );
 
+# --- SM077: @group ACL entry - a group member may write ------------------
+ok( aclset( $d, 'admin', 'managers', '/content/x.md', { write => ['@editors'] } )->{ok},
+    'operator sets a @group write entry' );
+ok( save_as( $d, 'carol', 'editors', '/content/x.md', 'carol-grp' )->{ok},
+    '@group: a member of @editors may write (X-Remote-Groups)' );
+ok( !save_as( $d, 'dave', 'authors', '/content/x.md', 'dave-no' )->{ok},
+    '@group: a non-member is denied' );
+
+# --- SM077: move re-keys the ACL, and the listing surfaces it ------------
+my $mv = post( $d, 'admin', 'managers',
+    'action=move&path=/content/x.md&to=/content/moved.md', {} );
+ok( $mv->{ok}, 'operator moves the file' );
+ok( -f "$d/content/moved.md" && !-e "$d/content/x.md", 'file moved on disk' );
+
+my $list = mapi( $d,
+    REQUEST_METHOD       => 'GET',
+    HTTP_X_REMOTE_USER   => 'admin',
+    HTTP_X_REMOTE_GROUPS => 'managers',
+    QUERY_STRING         => 'action=list&path=/content',
+);
+my ($entry) = grep { $_->{name} eq 'moved.md' } @{ $list->{entries} || [] };
+ok( $entry, 'moved.md is listed at the new path' );
+is( $entry->{owner}, 'alice', 'ACL re-keyed: owner preserved + surfaced in the listing' );
+is_deeply( $entry->{write}, ['@editors'], 'listing surfaces the @group write list' );
+
 done_testing();

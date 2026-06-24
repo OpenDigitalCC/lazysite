@@ -551,6 +551,35 @@
     color: var(--mg-accent);
 }
 
+/* SM077: per-file permissions chip, lock glyph, rename/move link, and the
+   inline expand-in-place permissions editor row. */
+.mg-file-table .mg-owner,
+.mg-file-table .mg-move {
+    font-size: 0.85em;
+    color: var(--mg-text-light);
+    text-decoration: none;
+    margin-left: 0.4em;
+}
+.mg-file-table .mg-owner:hover,
+.mg-file-table .mg-move:hover { color: var(--mg-accent); }
+.mg-lock { margin-left: 0.4em; }
+.mg-perms-row .mg-perms-cell {
+    padding: 0.5em 0.75em;
+    background: var(--mg-bg-alt, #f6f6f6);
+}
+.mg-perms-cell label { font-size: 0.85em; margin-right: 0.75em; }
+.mg-perms-cell input[type=text] {
+    font-size: 0.85em;
+    padding: 0.2em 0.4em;
+    min-width: 14em;
+}
+.mg-perms-hint {
+    display: block;
+    margin-top: 0.4em;
+    font-size: 0.75em;
+    color: var(--mg-text-light);
+}
+
 .mg-file-table .mg-file-dl a {
     font-size: 1.15em;
     font-weight: bold;

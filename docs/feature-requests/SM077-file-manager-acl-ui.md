@@ -14,9 +14,13 @@ the four gaps that make it a complete manager: an **editable permissions panel**
 
 ## Status
 
-Specced (this doc), ready to build. Scope confirmed: all four features. The
-SM074 ACL store/actions and the lock store already exist; this adds the move
-action, group support, and the UI.
+**Built (2026-06-24).** All four features delivered. Backend (`70f889d`):
+`Auth::Acl` `@group` matching, `Manager::Files::action_move` (+ ACL re-key,
+lock/ACL guards, `.brief`/cache move), and `action_list` surfacing read/write +
+lock state. UI: `files.md` expand-in-place permissions editor (owner chip),
+lock glyph, and the rename/move affordance. Tests: `04-acl.t` (`@group`),
+`09-files-handlers.t` (move + list surfacing), `15-acl.t` (CGI journey: `@group`
+write, move + re-key + listing). Full suite 1454. Unreleased (toward 0.4.1).
 
 ## 1. Permissions panel - expand-in-place
 
