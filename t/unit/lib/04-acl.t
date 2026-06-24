@@ -29,4 +29,24 @@ ok( _acl_allows( 'content/x.md', 'write', 'bob' ),   'write-list member allowed'
 ok( !_acl_allows( 'content/x.md', 'write', 'eve' ),  'non-member denied' );
 ok( _acl_allows( 'unlisted.md', 'write', 'eve' ),    'no entry -> allowed (scope governs)' );
 
+# --- SM077: @group entries match via the requester's groups ---
+save_acls( { 'content/team.md' => { owner => 'alice', write => [ '@editors' ] } } );
+{
+    local @Lazysite::Auth::Acl::user_groups = ('editors');
+    ok( _acl_allows( 'content/team.md', 'write', 'bob' ),
+        '@group entry allows a member of that group' );
+}
+{
+    local @Lazysite::Auth::Acl::user_groups = ('authors');
+    ok( !_acl_allows( 'content/team.md', 'write', 'bob' ),
+        'a non-member of the @group is denied' );
+}
+{
+    local @Lazysite::Auth::Acl::user_groups = ();   # e.g. a token partner
+    ok( !_acl_allows( 'content/team.md', 'write', 'bob' ),
+        'a requester with no groups never matches a @group (safe default)' );
+}
+ok( _acl_allows( 'content/team.md', 'write', 'alice' ),
+    'owner still allowed regardless of groups' );
+
 done_testing();

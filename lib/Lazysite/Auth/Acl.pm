@@ -24,6 +24,11 @@ our $auth_user           = '';
 our $token_auth          = 0;
 our $manager_groups_conf = '';
 
+# SM077: the requesting user's groups (for @group ACL entries), set per request
+# by the dispatcher from X-Remote-Groups. A token/WebDAV partner carries none,
+# so a @group entry never matches it - the safe default.
+our @user_groups;
+
 sub _acls_path { "$DOCROOT/lazysite/auth/acls.json" }
 
 sub load_acls {
@@ -71,7 +76,16 @@ sub _acl_allows {
     return 1 if defined $a->{owner} && defined $user && $a->{owner} eq $user;
     my $list = $a->{$mode};
     return 1 unless ref $list eq 'ARRAY' && @$list;
-    for my $u (@$list) { return 1 if defined $u && defined $user && $u eq $user }
+    my %grp = map { $_ => 1 } @user_groups;
+    for my $entry (@$list) {
+        next unless defined $entry && length $entry;
+        if ( $entry =~ /\A\@(.+)\z/ ) {          # SM077: @group entry
+            return 1 if $grp{$1};
+        }
+        elsif ( defined $user && $entry eq $user ) {
+            return 1;
+        }
+    }
     return 0;
 }
 

@@ -22,7 +22,7 @@ use Lazysite::Manager::Upload qw(is_editable_text);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
-    action_list action_read action_save action_delete action_mkdir
+    action_list action_read action_save action_delete action_mkdir action_move
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove
 );
@@ -102,9 +102,20 @@ sub action_list {
                 $entry->{has_brief} =
                     ( -f "$full.brief" ) ? JSON::PP::true : JSON::PP::false;
                 # SM074: surface ownership from the central ACL store.
+                # SM077: also surface the read/write lists (for the inline
+                # permissions editor) and any live lock (for the lock glyph).
                 my $a = $acls->{ _acl_norm($rel) };
-                $entry->{owner} = $a->{owner}
-                    if $a && defined $a->{owner};
+                if ($a) {
+                    $entry->{owner} = $a->{owner}  if defined $a->{owner};
+                    $entry->{read}  = $a->{read}   if ref $a->{read}  eq 'ARRAY';
+                    $entry->{write} = $a->{write}  if ref $a->{write} eq 'ARRAY';
+                }
+                ( my $lk = $rel ) =~ s{/}{:}g;
+                my $lrec = _read_lock_record("$LOCK_DIR/$lk.lock");
+                if ( _lock_fresh($lrec) ) {
+                    $entry->{lock} =
+                        { locked_by => $lrec->{user}, origin => $lrec->{origin} };
+                }
             }
         }
         push @entries, $entry;
@@ -296,6 +307,69 @@ sub action_mkdir {
         path => $rel_path, user => $auth_user);
 
     return { ok => 1, path => $rel_path };
+}
+
+# SM077: rename / move a file or directory. Validates + deny-checks both ends,
+# refuses an existing target or a live foreign lock on the source, enforces the
+# per-file ACL (write on the source), then moves the file, its .brief sidecar
+# and any generated .html cache, and re-keys the source's ACL entry to the new
+# path. (A moved directory's own ACL entry is re-keyed; descendant entries are
+# not - rare, noted.)
+sub action_move {
+    my ( $src_rel, $dst_rel, $username ) = @_;
+    my $s = validate_path($src_rel);
+    return $s unless $s->{ok};
+    my $d = validate_path($dst_rel);
+    return $d unless $d->{ok};
+
+    for my $r ( $s->{rel}, $d->{rel} ) {
+        return { ok => 0, error => "Path is blocked" }
+            if is_blocked_path($r) || is_blocked_config($r);
+    }
+
+    my ( $src_full, $dst_full ) = ( $s->{full}, $d->{full} );
+    return { ok => 0, error => "Source not found" }     unless -e $src_full;
+    return { ok => 0, error => "Target already exists" } if -e $dst_full;
+
+    # Refuse a live foreign lock on the source (mirror action_save).
+    my $lock_key = $src_rel;
+    $lock_key =~ s{/}{:}g;
+    my $lock_file = "$LOCK_DIR/$lock_key.lock";
+    my $lrec = _read_lock_record($lock_file);
+    if ( _lock_fresh($lrec)
+         && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) ) {
+        return { ok => 0, locked => 1,
+            error => "Source is locked by " . ( $lrec->{user} // 'another user' ) };
+    }
+
+    # Per-file ACL: write access on the source (operators bypass).
+    if ( my $deny = _acl_denied( $s->{rel}, 'write', $username ) ) { return $deny }
+
+    my $dst_dir = dirname($dst_full);
+    make_path($dst_dir) unless -d $dst_dir;
+    rename( $src_full, $dst_full )
+        or return { ok => 0, error => "Move failed: $!" };
+
+    # Move the .brief sidecar and any generated .html cache alongside.
+    rename( "$src_full.brief", "$dst_full.brief" ) if -e "$src_full.brief";
+    if ( $src_full =~ /\.md$/ ) {
+        ( my $src_cache = $src_full ) =~ s/\.md$/.html/;
+        ( my $dst_cache = $dst_full ) =~ s/\.md$/.html/;
+        rename( $src_cache, $dst_cache ) if -f $src_cache;
+    }
+
+    # Re-key the ACL entry to the new path.
+    my $acls = load_acls();
+    my ( $sk, $dk ) = ( _acl_norm( $s->{rel} ), _acl_norm( $d->{rel} ) );
+    if ( exists $acls->{$sk} ) {
+        $acls->{$dk} = delete $acls->{$sk};
+        save_acls($acls);
+    }
+
+    unlink $lock_file if -f $lock_file;
+    log_event( 'INFO', $action, 'file moved',
+        from => $src_rel, to => $dst_rel, user => $auth_user );
+    return { ok => 1, from => $s->{rel}, to => $d->{rel} };
 }
 
 sub _read_lock_record {

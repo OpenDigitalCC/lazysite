@@ -11,7 +11,7 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Files
-    qw(action_mkdir action_delete action_acl_set action_acl_remove
+    qw(action_list action_mkdir action_delete action_move action_acl_set action_acl_remove
        acquire_lock renew_lock release_lock);
 use Lazysite::Manager::Common ();
 use Lazysite::Auth::Acl qw(load_acls);
@@ -100,5 +100,37 @@ sub _write_dav_lock {
     print {$lf} encode_json( { user => $user, at => time(), origin => 'dav', timeout => 300 } );
     close $lf;
 }
+
+# --- action_move (rename/move + .brief + ACL re-key) ---
+open my $of, '>', "$d/content/orig.md" or die $!;       print {$of} 'body'; close $of;
+open my $ob, '>', "$d/content/orig.md.brief" or die $!; print {$ob} 'why';  close $ob;
+action_acl_set( 'content/orig.md', 'alice', undef, ['alice'], 'alice' );
+my $mv = action_move( 'content/orig.md', 'content/renamed.md', 'alice' );
+ok( $mv->{ok}, 'move succeeds' );
+ok( -f "$d/content/renamed.md" && !-e "$d/content/orig.md", 'file moved' );
+ok( -f "$d/content/renamed.md.brief" && !-e "$d/content/orig.md.brief", '.brief sidecar moved' );
+my $acls = load_acls();
+ok( exists $acls->{'content/renamed.md'} && !exists $acls->{'content/orig.md'},
+    'ACL entry re-keyed to the new path' );
+
+open my $tk, '>', "$d/content/taken.md" or die $!; print {$tk} 'x'; close $tk;
+ok( !action_move( 'content/renamed.md', 'content/taken.md', 'alice' )->{ok},
+    'move onto an existing target is refused' );
+ok( !action_move( 'content/renamed.md', 'lazysite/auth/users', 'alice' )->{ok},
+    'move to a blocked path is refused' );
+ok( !action_move( 'content/missing.md', 'content/x.md', 'alice' )->{ok},
+    'move of a missing source is refused' );
+
+# --- action_list surfaces ACL read/write + lock state (SM077) ---
+open my $sh, '>', "$d/content/shared.md" or die $!; print {$sh} 'x'; close $sh;
+action_acl_set( 'content/shared.md', 'alice', ['bob'], ['alice'], 'alice' );
+acquire_lock( '/content/shared.md', 'alice' );   # leading slash, as the dispatch passes it
+my ($e) = grep { $_->{name} eq 'shared.md' }
+    @{ action_list('/content')->{entries} };
+ok( $e, 'shared.md is listed' );
+is( $e->{owner}, 'alice',           'list surfaces owner' );
+is_deeply( $e->{read},  ['bob'],    'list surfaces the read list' );
+is_deeply( $e->{write}, ['alice'],  'list surfaces the write list' );
+ok( $e->{lock} && $e->{lock}{locked_by} eq 'alice', 'list surfaces the lock holder' );
 
 done_testing();
