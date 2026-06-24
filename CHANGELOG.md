@@ -18,6 +18,12 @@ Keying
 
 ## Unreleased
 
+Refactor (SM079 step 2a) - Lazysite::Auth::Credential
+: The credential primitives - the `/dev/urandom` CSPRNG, password and token
+  hashing + verification, single-use secret verification, and token minting -
+  move to `Lazysite::Auth::Credential`, removing the copies from `auth`, `dav`
+  and the users tool. Unit-tested in-process (`t/unit/lib/02-credential.t`).
+
 Refactor (SM079 step 1) - shared-module bootstrap + Lazysite::Util
 : The modular scripts (auth, dav, manager-api, the users tool) now load shared
   helpers from `lib/Lazysite/` via a relative `use lib` bootstrap that resolves

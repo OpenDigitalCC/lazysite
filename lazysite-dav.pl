@@ -36,6 +36,7 @@ BEGIN {
     }
 }
 use Lazysite::Util qw(log_event const_eq);
+use Lazysite::Auth::Credential qw(verify_password);
 $Lazysite::Util::COMPONENT = 'dav';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT};
@@ -1143,21 +1144,6 @@ sub load_users {
 }
 
 # H-2 verify (duplicated): both salted-iterated and legacy formats.
-sub verify_password {
-    my ( $password, $stored ) = @_;
-    return 0 unless defined $password && defined $stored && length $stored;
-    if ( $stored =~ /\Asha256iter:([0-9a-f]{32}):(\d+):([0-9a-f]{64})\z/ ) {
-        my ( $salt, $iters, $expected ) = ( $1, $2, $3 );
-        return 0 if $iters < 1 || $iters > 1_000_000;
-        my $hash = $password;
-        $hash = sha256_hex( $salt . $hash ) for 1 .. $iters;
-        return const_eq( $hash, $expected );
-    }
-    elsif ( $stored =~ /\A[0-9a-f]{64}\z/ ) {
-        return const_eq( sha256_hex($password), $stored );
-    }
-    return 0;
-}
 
 
 sub read_settings {

@@ -7,26 +7,7 @@ use Fcntl qw(:flock);
 use File::Path qw(make_path);
 
 # H-2 / M-6: salted iterated SHA-256 hashing, CSPRNG fail-closed.
-sub generate_random_hex {
-    my ($bytes) = @_;
-    open my $fh, '<:raw', '/dev/urandom'
-        or die "Cannot open /dev/urandom - no CSPRNG available: $!\n";
-    my $raw = '';
-    my $got = read( $fh, $raw, $bytes );
-    close $fh;
-    die "Short read from /dev/urandom ($got of $bytes bytes)\n"
-        unless defined $got && $got == $bytes;
-    return unpack( 'H*', $raw );
-}
 
-sub hash_password {
-    my ($password) = @_;
-    my $salt  = generate_random_hex(16);   # 32 hex chars = 16 bytes
-    my $iters = 100_000;
-    my $hash  = $password;
-    $hash = sha256_hex( $salt . $hash ) for 1 .. $iters;
-    return "sha256iter:$salt:$iters:$hash";
-}
 
 # SM070: a generated credential is a 256-bit random token, so a single
 # SHA-256 round is enough - the iterated stretching that protects
@@ -35,16 +16,7 @@ sub hash_password {
 # same sha256iter format with iterations=1; verify_password reads the
 # iteration count from the row, so no verifier changes are needed.
 # Only this path writes iterations=1.
-sub hash_token {
-    my ($token) = @_;
-    my $salt = generate_random_hex(16);
-    my $hash = sha256_hex( $salt . $token );
-    return "sha256iter:$salt:1:$hash";
-}
 
-sub generate_token {
-    return 'lzs_' . generate_random_hex(32);   # 64 hex chars = 32 bytes
-}
 
 # SM072: parse an account-expiry value into an epoch. Accepts an epoch
 # (>= 9 digits), an ISO date (YYYY-MM-DD => end of that day, local), or a
@@ -137,6 +109,8 @@ BEGIN {
     }
 }
 use Lazysite::Util qw(log_event const_eq);
+use Lazysite::Auth::Credential
+    qw(generate_random_hex hash_password hash_token verify_secret generate_token);
 $Lazysite::Util::COMPONENT = 'users';
 
 # SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
@@ -909,19 +883,6 @@ sub cmd_account_reassign_cli {
 #
 # Verify a plaintext secret against a stored sha256iter hash (the format
 # hash_token / hash_password write). Constant-time on the digest.
-sub verify_secret {
-    my ( $plain, $stored ) = @_;
-    return 0 unless defined $plain && defined $stored;
-    return 0 unless $stored =~ /\Asha256iter:([0-9a-f]+):(\d+):([0-9a-f]{64})\z/;
-    my ( $salt, $iters, $want ) = ( $1, $2, $3 );
-    my $h = $plain;
-    $h = sha256_hex( $salt . $h ) for 1 .. $iters;
-    return 0 unless length $h == length $want;
-    my $diff = 0;
-    $diff |= ord( substr $h, $_, 1 ) ^ ord( substr $want, $_, 1 )
-        for 0 .. length($h) - 1;
-    return $diff == 0;
-}
 
 # Drop any access-token expiry for a user (the credential is now a
 # password or a permanent operator credential, neither of which expires).

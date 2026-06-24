@@ -22,6 +22,7 @@ BEGIN {
     }
 }
 use Lazysite::Util qw(log_event const_eq);
+use Lazysite::Auth::Credential qw(generate_random_hex hash_password verify_password);
 $Lazysite::Util::COMPONENT = 'auth';
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
@@ -755,17 +756,6 @@ sub load_auth_secret {
 }
 
 # M-6: CSPRNG helper - fail closed, never fall back to rand().
-sub generate_random_hex {
-    my ($bytes) = @_;
-    open my $fh, '<:raw', '/dev/urandom'
-        or die "Cannot open /dev/urandom - no CSPRNG available: $!\n";
-    my $raw = '';
-    my $got = read( $fh, $raw, $bytes );
-    close $fh;
-    die "Short read from /dev/urandom ($got of $bytes bytes)\n"
-        unless defined $got && $got == $bytes;
-    return unpack( 'H*', $raw );
-}
 
 # M-5: constant-time byte comparison (length-preserving).
 
@@ -773,31 +763,7 @@ sub generate_random_hex {
 #   sha256iter:SALT(32 hex):ITERATIONS:HASH(64 hex)
 # Legacy format (64-hex-char unsalted SHA-256) still accepted; login
 # handler rehashes legacy hashes on success.
-sub hash_password {
-    my ($password) = @_;
-    my $salt  = generate_random_hex(16);   # 32 hex chars = 16 bytes
-    my $iters = 100_000;
-    my $hash  = $password;
-    $hash = sha256_hex( $salt . $hash ) for 1 .. $iters;
-    return "sha256iter:$salt:$iters:$hash";
-}
 
-sub verify_password {
-    my ( $password, $stored ) = @_;
-    return 0 unless defined $password && defined $stored && length $stored;
-    if ( $stored =~ /\Asha256iter:([0-9a-f]{32}):(\d+):([0-9a-f]{64})\z/ ) {
-        my ( $salt, $iters, $expected ) = ( $1, $2, $3 );
-        return 0 if $iters < 1 || $iters > 1_000_000;  # sanity cap
-        my $hash = $password;
-        $hash = sha256_hex( $salt . $hash ) for 1 .. $iters;
-        return const_eq( $hash, $expected );
-    }
-    elsif ( $stored =~ /\A[0-9a-f]{64}\z/ ) {
-        # Legacy unsalted SHA-256 - accept, caller rehashes on success.
-        return const_eq( sha256_hex($password), $stored );
-    }
-    return 0;
-}
 
 # Rewrite one user's hash in the users file, preserving other lines.
 sub update_user_hash {
