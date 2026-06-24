@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+Feature - audit WebDAV reads; document MCP vs API onboarding modes
+: WebDAV reads (GET/PROPFIND) are now recorded in the audit trail too (origin
+  dav), so a partner's authenticated browse/read activity is visible - not only
+  writes. Default-on; a busy site can quiet it with `audit_reads: false` in
+  `lazysite.conf`. The partner onboarding (`ai-briefing-publishing` +
+  `.well-known/ai-partner`) now documents both connection modes - API
+  (WebDAV + control API) and MCP (the `lazysite-mcp.pl` connector) - so a
+  partner can pick the best for its capabilities.
+
 ## 0.4.3 - Complete audit trail, @group over WebDAV, Files rights editor (2026-06-24)
 
 Feature - Files config card: unified rights editor (SM077)

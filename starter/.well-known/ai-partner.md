@@ -12,7 +12,12 @@ register:
     "webdav": "[% site_url %]/dav/",
     "exchange": "[% site_url %]/cgi-bin/lazysite-auth.pl?action=exchange",
     "rotate": "[% site_url %]/cgi-bin/lazysite-auth.pl?action=rotate",
-    "control": "[% site_url %]/cgi-bin/lazysite-manager-api.pl"
+    "control": "[% site_url %]/cgi-bin/lazysite-manager-api.pl",
+    "mcp": "[% site_url %]/cgi-bin/lazysite-mcp.pl"
+  },
+  "modes": {
+    "api": "WebDAV (file ops, bulk) + control API (theme/layout/acl/config) over Basic auth; the full surface, best for scripted builds.",
+    "mcp": "Remote MCP server at the mcp endpoint exposing the maintenance verbs as tools; add as a connector with bearer auth '<partner-id>:<lzs_ token>'. Best for an MCP-capable agent; one file per write call."
   },
   "auth": {
     "scheme": "basic",

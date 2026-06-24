@@ -94,6 +94,15 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
     is( $a->{code}, 201, '@group member (eve in @editors) may PUT over WebDAV' );
     my $b = run_dav( $docroot, 'PUT', '/grouped.md', body => "y\n", HTTP_AUTHORIZATION => $mal );
     is( $b->{code}, 403, 'non-member (mallory) is denied by the @group ACL' );
+
+    # Reads are audited too (so a partner's browse/read activity is visible).
+    my $g = run_dav( $docroot, 'GET', '/grouped.md', HTTP_AUTHORIZATION => $eve );
+    is( $g->{code}, 200, 'eve can GET the file (read open within scope)' );
+    open my $l2, '<', "$docroot/lazysite/logs/audit.log" or die $!;
+    my @al = <$l2>;
+    close $l2;
+    ok( ( grep { /\| eve \| get \|/ && /\| dav\s*$/ } @al ),
+        'a GET (read) is recorded in the audit trail (origin=dav)' );
 }
 
 done_testing();

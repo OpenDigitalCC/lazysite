@@ -103,6 +103,31 @@ Control API
   same Basic auth). Carries the operations that are not file-shaped. Each is
   gated by the matching capability from your grant.
 
+MCP (optional)
+: `https://SITE/cgi-bin/lazysite-mcp.pl` - a remote MCP server exposing the
+  maintenance operations as tools, for an MCP-capable agent. See
+  *Connection modes*.
+
+## Connection modes
+
+Two ways to drive a site - pick by what you are. The credential, capabilities
+and per-file ACLs are identical in both; only the transport differs.
+
+API mode (WebDAV + control API)
+: Direct HTTP. The full surface, and the right choice for a scripted build or
+  bulk file work - WebDAV moves many files (a whole site deploy) efficiently,
+  and the control API carries theme/layout/ACL/config. Authenticate with Basic
+  auth (partner id + `lzs_` token).
+
+MCP mode
+: The MCP server wraps the *maintenance* verbs - `whoami`, list / read / write /
+  move / delete files, `set_permissions`, `activate_theme`, `activate_layout` -
+  as MCP tools. Best for an MCP-capable conversational agent (e.g. a Claude.ai
+  custom connector, or Claude Desktop/Code): add `…/cgi-bin/lazysite-mcp.pl` as
+  a remote connector with bearer auth `<partner-id>:<lzs_ token>` (the same
+  credential, colon-joined). It writes one file per call, so for a large initial
+  build prefer API mode + WebDAV; for ongoing maintenance either works.
+
 ## Control API actions
 
 Issue these to the control-API endpoint (`/cgi-bin/lazysite-manager-api.pl`)

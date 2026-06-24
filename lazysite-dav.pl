@@ -215,19 +215,23 @@ sub main {
     # dav) so a partner's WebDAV writes are visible alongside the manager UI /
     # control-API entries.
     my %args = ( rel => $rel, user => $user, conf => $conf, scope => $scope, ip => $ip );
-    if    ( $method eq 'PROPFIND' )  { return do_propfind(%args) }
-    elsif ( $method eq 'PROPPATCH' ) { return do_proppatch(%args) }
-    elsif ( $method eq 'GET' )       { return do_get( %args, head => 0 ) }
-    elsif ( $method eq 'HEAD' )      { return do_get( %args, head => 1 ) }
 
-    my $code;
-    if    ( $method eq 'PUT' )    { $code = do_put(%args) }
-    elsif ( $method eq 'MKCOL' )  { $code = do_mkcol(%args) }
-    elsif ( $method eq 'DELETE' ) { $code = do_delete(%args) }
-    elsif ( $method eq 'COPY' )   { $code = do_copy_move( %args, move => 0 ) }
-    elsif ( $method eq 'MOVE' )   { $code = do_copy_move( %args, move => 1 ) }
+    # HEAD / LOCK / UNLOCK are not audited (metadata probe + lock plumbing).
+    if    ( $method eq 'HEAD' )   { return do_get( %args, head => 1 ) }
     elsif ( $method eq 'LOCK' )   { return do_lock(%args) }
     elsif ( $method eq 'UNLOCK' ) { return do_unlock(%args) }
+
+    # Reads (GET / PROPFIND) are audited too, so a partner's authenticated
+    # browse/read activity is visible - not only writes.
+    my $code;
+    if    ( $method eq 'PROPFIND' )  { $code = do_propfind(%args) }
+    elsif ( $method eq 'PROPPATCH' ) { $code = do_proppatch(%args) }
+    elsif ( $method eq 'GET' )       { $code = do_get( %args, head => 0 ) }
+    elsif ( $method eq 'PUT' )       { $code = do_put(%args) }
+    elsif ( $method eq 'MKCOL' )     { $code = do_mkcol(%args) }
+    elsif ( $method eq 'DELETE' )    { $code = do_delete(%args) }
+    elsif ( $method eq 'COPY' )      { $code = do_copy_move( %args, move => 0 ) }
+    elsif ( $method eq 'MOVE' )      { $code = do_copy_move( %args, move => 1 ) }
     else {
         return send_status( 405,
             headers => [ allow_header() ],
@@ -239,8 +243,14 @@ sub main {
         my $dest = destination_rel();
         $target .= ' -> ' . $dest if defined $dest;
     }
-    audit_log( $user, lc($method), $target, $ip,
-        ( defined $code && $code < 400 ? 'ok' : 'fail' ), 'dav' );
+    # Writes are always audited; reads (GET/PROPFIND) are too by default, but a
+    # busy site can quiet them with `audit_reads: false` in lazysite.conf.
+    my $is_read = ( $method eq 'GET' || $method eq 'PROPFIND' );
+    my $audit_reads = !defined $conf->{audit_reads} || is_truthy( $conf->{audit_reads} );
+    if ( !$is_read || $audit_reads ) {
+        audit_log( $user, lc($method), $target, $ip,
+            ( defined $code && $code < 400 ? 'ok' : 'fail' ), 'dav' );
+    }
     return $code;
 }
 
@@ -402,6 +412,7 @@ sub do_get {
         print $buf while read( $fh, $buf, $PUT_CHUNK );
     }
     close $fh;
+    return 200;
 }
 
 sub do_put {
