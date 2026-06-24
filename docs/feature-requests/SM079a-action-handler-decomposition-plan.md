@@ -113,3 +113,20 @@ Files -500, Layouts -600, Themes -900 -> dispatcher ~700.
 `Lazysite::*` modules; each Manager module unit-tested in-process, so manager
 coverage is measured per-module and climbs toward the 75% target - closing the
 D2 work too. The processor remains a standalone single file throughout.
+
+## Done (2026-06-24)
+
+All five modules extracted (Upload, Plugins, Files, Themes - the last combining
+layouts + the artifact-manifest chain, since themes/layouts are deeply coupled).
+`lazysite-manager-api.pl`: **4286 -> 1238 lines** (-71%), now a front-controller
+(request setup + %need gate + dispatch table + auth + the small site handlers:
+whoami/users/audit/version/nav/config-set/rotate/preview). 10 `Lazysite::*`
+modules; the processor stayed a standalone single file throughout; suite 1342
+green at every commit; all modules perlcritic-clean. The full-suite-before-commit
+discipline caught several missing-import slips (subs the dispatcher called
+directly, not only via handlers) before they landed.
+
+Remaining polish (optional): `Manager::Themes` is 1414 lines - a cohesive
+theming subsystem, but could be split into Themes / Layouts / Artifact later.
+Re-run `tools/coverage.sh` to capture the new per-module coverage (the logic is
+now in-process-testable) and raise the floor toward 75%.
