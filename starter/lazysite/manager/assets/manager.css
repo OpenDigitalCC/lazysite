@@ -583,23 +583,49 @@
 .mg-chev:hover { color: var(--mg-accent); }
 
 .mg-perms-row .mg-perms-cell {
-    padding: 0.6em 0.9em 0.8em;
+    padding: 0;
     background: var(--mg-bg-alt, #f6f6f6);
     border-bottom: 2px solid var(--mg-accent);
 }
-.mg-perms-grid {
-    display: grid;
-    grid-template-columns: auto 1fr 1fr;
-    gap: 0.4em 0.8em;
-    align-items: start;
-    max-width: 48em;
+.mg-perms-card { padding: 1em 1.2em 1.1em; max-width: 56em; }
+.mg-perms-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 0.7em; padding-bottom: 0.5em;
+    border-bottom: 1px solid var(--mg-border, #ddd);
 }
-.mg-perms-grid label { font-size: 0.85em; font-weight: 600; padding-top: 0.3em; }
-.mg-perms-grid select { font-size: 0.85em; width: 100%; }
-.mg-perms-grid select[multiple] { min-height: 4.5em; }
-.mg-perms-hint {
-    margin: 0.5em 0; font-size: 0.75em; color: var(--mg-text-light);
+.mg-perms-title { font-weight: 600; font-size: 0.95em; }
+.mg-perms-history { font-size: 0.8em; text-decoration: none; color: var(--mg-text-light); }
+.mg-perms-history:hover { color: var(--mg-accent); }
+
+.mg-perms-owner { display: flex; align-items: center; gap: 0.6em; margin-bottom: 0.9em; }
+.mg-perms-owner label { font-size: 0.85em; font-weight: 600; }
+.mg-perms-owner select { font-size: 0.85em; min-width: 12em; }
+
+.mg-perms-rights-label { font-size: 0.85em; font-weight: 600; margin-bottom: 0.4em; }
+.mg-rights { display: flex; flex-wrap: wrap; gap: 0.5em; min-height: 1.8em; }
+.mg-chip {
+    display: inline-flex; align-items: center; gap: 0.3em;
+    padding: 0.2em 0.3em 0.2em 0.6em;
+    background: #fff; border: 1px solid var(--mg-border, #ccc); border-radius: 1em;
+    font-size: 0.85em;
 }
+.mg-chip-name { font-weight: 600; }
+.mg-chip-right {
+    width: 1.5em; height: 1.5em; border-radius: 50%;
+    border: 1px solid var(--mg-border, #ccc); cursor: pointer;
+    font-family: monospace; font-weight: 700; font-size: 0.85em; line-height: 1;
+    background: #eee; color: #999;
+}
+.mg-chip-right.on { background: #1a7f37; border-color: #1a7f37; color: #fff; }
+.mg-chip-x {
+    border: none; background: none; cursor: pointer;
+    color: var(--mg-text-light); font-size: 1.1em; line-height: 1; padding: 0 0.2em;
+}
+.mg-chip-x:hover { color: #c33; }
+.mg-rights-add { margin-top: 0.6em; }
+.mg-rights-pick { font-size: 0.85em; min-width: 16em; }
+
+.mg-perms-hint { margin: 0.8em 0; font-size: 0.75em; color: var(--mg-text-light); }
 .mg-perms-actions { display: flex; gap: 0.5em; flex-wrap: wrap; align-items: center; }
 .mg-perms-actions .mg-perms-save { margin-left: auto; }
 

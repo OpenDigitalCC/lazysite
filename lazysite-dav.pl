@@ -37,6 +37,7 @@ BEGIN {
 }
 use Lazysite::Util qw(log_event const_eq);
 use Lazysite::Audit qw(audit_log);
+use Lazysite::Auth::Acl qw(_acl_allows);
 use Lazysite::Auth::Credential qw(verify_password);
 use Lazysite::Auth::Settings qw(read_settings);
 $Lazysite::Util::COMPONENT = 'dav';
@@ -44,6 +45,7 @@ $Lazysite::Util::COMPONENT = 'dav';
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT};
 my $LAZYSITE_DIR = defined $DOCROOT ? "$DOCROOT/lazysite" : undef;
 $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
+$Lazysite::Auth::Acl::DOCROOT  = $DOCROOT;
 my $AUTH_DIR     = defined $DOCROOT ? "$LAZYSITE_DIR/auth" : undef;
 my $LOCK_DIR     = defined $DOCROOT ? "$LAZYSITE_DIR/manager/locks" : undef;
 my $DAV_RATE_DB  = defined $DOCROOT ? "$AUTH_DIR/.dav-rate.db" : undef;
@@ -904,35 +906,42 @@ sub sanitise_path {
     return $path;
 }
 
-# SM074: per-file ACLs. Ownership and read/write allowlists live in one
-# central store, lazysite/auth/acls.json (keyed by the dav-relative path),
-# not in per-file sidecars - so the content tree stays uncluttered. The
-# store sits inside the already write-denied lazysite/ tree; ACLs are set
-# through the control API, never by a raw PUT. The dav only reads it.
-sub load_acls {
-    return {} unless defined $DOCROOT;
-    my $path = "$DOCROOT/lazysite/auth/acls.json";
-    return {} unless -f $path;
-    open my $fh, '<', $path or return {};
-    my $raw = do { local $/; <$fh> };
+# SM074/SM077: per-file ACLs live in lazysite/auth/acls.json (set through the
+# control API, never a raw PUT; the dav only reads). The owner/allowlist + the
+# @group rules are delegated to the shared Lazysite::Auth::Acl so WebDAV
+# enforces exactly what the manager and MCP do - previously a private copy here
+# silently ignored @group entries.
+
+# The user's group memberships, read from lazysite/auth/groups (for @group
+# ACLs). WebDAV has no X-Remote-Groups, so it resolves them from the store.
+sub user_groups_for {
+    my ($user) = @_;
+    return () unless defined $user && defined $LAZYSITE_DIR;
+    my $gf = "$LAZYSITE_DIR/auth/groups";
+    return () unless -f $gf;
+    open my $fh, '<', $gf or return ();
+    my @groups;
+    while (<$fh>) {
+        chomp;
+        s/^\s+|\s+$//g;
+        next if /^#/ || !length;
+        my ( $g, $members ) = split /:\s*/, $_, 2;
+        next unless defined $members;
+        for my $m ( split /,/, $members ) {
+            $m =~ s/^\s+|\s+$//g;
+            push @groups, $g if $m eq $user;
+        }
+    }
     close $fh;
-    require JSON::PP;
-    my $m = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    return ref $m eq 'HASH' ? $m : {};
+    return @groups;
 }
 
-# 1 if $user may access $rel in $mode ('read'|'write'). Owner always passes;
-# an absent/empty list for the mode leaves it open (scope still applies); a
-# present list is an allowlist.
+# 1 if $user may access $rel in $mode ('read'|'write'); delegates to the shared
+# allow check with the user's groups in scope (so @group entries match).
 sub acl_allows {
     my ( $rel, $mode, $user ) = @_;
-    my $a = load_acls()->{$rel};
-    return 1 unless $a;
-    return 1 if defined $a->{owner} && defined $user && $a->{owner} eq $user;
-    my $list = $a->{$mode};
-    return 1 unless ref $list eq 'ARRAY' && @$list;
-    for my $u (@$list) { return 1 if defined $u && defined $user && $u eq $user }
-    return 0;
+    local @Lazysite::Auth::Acl::user_groups = user_groups_for($user);
+    return _acl_allows( $rel, $mode, $user ) ? 1 : 0;
 }
 
 # Returns an HTTP error code if denied, or undef if allowed.

@@ -31,6 +31,17 @@ token) and a **target filter** so the Modified link lands on one file's history.
 Tests: `19-audit-target.t` (origin, target filter, back-compat, principals).
 Full suite 1473.
 
+**v3 built (2026-06-24):** the card's two native multi-selects are replaced by a
+**unified rights editor** - one "People & groups with access" list where each
+principal is a chip with `r`/`w` toggles + remove, added via a typeahead;
+`read[]`/`write[]` are derived on save. The audit **History** link moved into
+the card (off the Modified date) and the card is roomier. Also fixed a real
+consistency bug: WebDAV had a private `acl_allows` that ignored `@group`, so a
+group grant was dropped over WebDAV; it now delegates to the shared
+`Auth::Acl` (groups resolved from `lazysite/auth/groups`), and `audit_log` is
+shared so WebDAV + MCP writes are recorded too. Tests: `dav-publish.t`
+(`@group` over WebDAV, dav audit), `19-audit-target.t`. Full suite 1479.
+
 ## 1. Permissions panel - expand-in-place
 
 Clicking the owner chip on a file row expands the row to show inline read/write

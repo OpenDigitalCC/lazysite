@@ -150,13 +150,11 @@ function absTime(mtime) {
        + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
 }
 
-// MODIFIED cell: relative shown, absolute on hover, links to this file's
-// audit history (SM077/SM078: the audit log keys entries by target path).
+// MODIFIED cell: relative shown, absolute on hover. (Audit history now lives
+// in the config card, not on the date.)
 function modifiedCell(f) {
   if (!f.mtime) return '';
-  return '<a class="mg-modlink" title="' + escHtml(absTime(f.mtime)) + ' · view audit history"'
-       + ' href="/manager/audit?target=' + encodeURIComponent(f.path) + '">'
-       + escHtml(relativeTime(f.mtime)) + '</a>';
+  return '<span title="' + escHtml(absTime(f.mtime)) + '">' + escHtml(relativeTime(f.mtime)) + '</span>';
 }
 
 // ACCESS cell: owner + colour-coded r / w (+ g when a @group is listed).
@@ -187,20 +185,53 @@ function lockGlyph(f) {
   return '<span class="mg-lock" title="' + escHtml(who) + '">&#128274;</span>';
 }
 
-// Build <option>s for a multi-select, merging the known principals with the
-// file's current entries (so an entry shows even if the principals list failed
-// or the entry is stale). `selected` pre-selects matching options.
-function principalOptions(selected) {
-  selected = selected || [];
-  var all = {};
-  (PRINCIPALS.users  || []).forEach(function(u) { all[u] = 1; });
-  (PRINCIPALS.groups || []).forEach(function(g) { all['@' + g] = 1; });
-  selected.forEach(function(s) { all[s] = 1; });
-  var sel = {};
-  selected.forEach(function(s) { sel[s] = 1; });
-  return Object.keys(all).sort().map(function(k) {
-    return '<option value="' + escHtml(k) + '"' + (sel[k] ? ' selected' : '') + '>' + escHtml(k) + '</option>';
+// The "+ add" dropdown: every known principal (users + @groups).
+function addOptions() {
+  var all = [];
+  (PRINCIPALS.users  || []).forEach(function(u) { all.push(u); });
+  (PRINCIPALS.groups || []).forEach(function(g) { all.push('@' + g); });
+  return all.sort().map(function(k) {
+    return '<option value="' + escHtml(k) + '">' + escHtml(k) + '</option>';
   }).join('');
+}
+
+// One principal chip with r / w rights toggles and a remove control.
+function chipHtml(name, r, w) {
+  return '<span class="mg-chip" data-name="' + escHtml(name) + '">'
+       + '<span class="mg-chip-name">' + escHtml(name) + '</span>'
+       + '<button type="button" class="mg-chip-right ' + (r ? 'on' : 'off') + '" data-right="r" onclick="toggleRight(this)" title="read">r</button>'
+       + '<button type="button" class="mg-chip-right ' + (w ? 'on' : 'off') + '" data-right="w" onclick="toggleRight(this)" title="write">w</button>'
+       + '<button type="button" class="mg-chip-x" onclick="removeChip(this)" title="remove">&times;</button>'
+       + '</span>';
+}
+
+// Initial chips for a file: the union of its read + write lists, each chip
+// carrying which rights it holds.
+function buildRights(f) {
+  var read = {}, write = {}, order = [];
+  (f.read  || []).forEach(function(p) { if (!read[p] && !write[p]) order.push(p); read[p] = 1; });
+  (f.write || []).forEach(function(p) { if (!read[p] && !write[p]) order.push(p); write[p] = 1; });
+  return order.map(function(p) { return chipHtml(p, read[p], write[p]); }).join('');
+}
+
+function toggleRight(btn) {
+  var on = btn.className.indexOf('on') >= 0;
+  btn.className = 'mg-chip-right ' + (on ? 'off' : 'on');
+}
+
+function removeChip(btn) {
+  var chip = btn.parentNode;
+  chip.parentNode.removeChild(chip);
+}
+
+// Add a principal from the dropdown (default: read on, write off).
+function addPrincipal(sel) {
+  var name = sel.value;
+  if (!name) return;
+  var rights = sel.parentNode.parentNode.querySelector('.mg-rights');
+  var existing = rights.querySelector('.mg-chip[data-name="' + name.replace(/"/g, '\\"') + '"]');
+  if (!existing) rights.insertAdjacentHTML('beforeend', chipHtml(name, 1, 0));
+  sel.value = '';
 }
 
 function ownerOptions(owner) {
@@ -224,17 +255,27 @@ function briefButton(f) {
 // The per-file config card (collapsed by default; one open at a time).
 function permsCard(f) {
   return '<tr class="mg-perms-row" style="display:none"><td colspan="5" class="mg-perms-cell">'
-    + '<div class="mg-perms-grid">'
-    +   '<label>Owner</label><select class="mg-perm-owner">' + ownerOptions(f.owner) + '</select>'
-    +   '<label>Read</label><select class="mg-perm-read" multiple size="4">' + principalOptions(f.read) + '</select>'
-    +   '<label>Write</label><select class="mg-perm-write" multiple size="4">' + principalOptions(f.write) + '</select>'
-    + '</div>'
-    + '<div class="mg-perms-hint">No selection in Read/Write = open within the account scope. Empty Owner + Read + Write clears the ACL.</div>'
-    + '<div class="mg-perms-actions">'
-    +   '<a class="mg-btn" href="' + API + '?action=file-download&path=' + encodeURIComponent(f.path) + '" download="' + escHtml(f.name) + '">&#11015; Download</a> '
-    +   briefButton(f) + ' '
-    +   '<button class="mg-btn" onclick="moveFile(this)">&#8644; Move&hellip;</button>'
-    +   '<button class="mg-btn mg-btn-primary mg-perms-save" onclick="savePerms(this)">Save permissions</button>'
+    + '<div class="mg-perms-card">'
+    +   '<div class="mg-perms-head">'
+    +     '<span class="mg-perms-title">' + escHtml(f.name) + '</span>'
+    +     '<a class="mg-perms-history" href="/manager/audit?target=' + encodeURIComponent(f.path) + '" title="This file\'s audit history">&#128340; History</a>'
+    +   '</div>'
+    +   '<div class="mg-perms-owner"><label>Owner</label>'
+    +     '<select class="mg-perm-owner">' + ownerOptions(f.owner) + '</select></div>'
+    +   '<div class="mg-perms-rights-label">People &amp; groups with access</div>'
+    +   '<div class="mg-rights">' + buildRights(f) + '</div>'
+    +   '<div class="mg-rights-add">'
+    +     '<select class="mg-rights-pick" onchange="addPrincipal(this)">'
+    +       '<option value="">+ add person or @group&hellip;</option>' + addOptions()
+    +     '</select>'
+    +   '</div>'
+    +   '<div class="mg-perms-hint">Toggle <b>r</b> / <b>w</b> per person. Nobody listed = open within the account scope; no owner and nobody listed clears the ACL.</div>'
+    +   '<div class="mg-perms-actions">'
+    +     '<a class="mg-btn" href="' + API + '?action=file-download&path=' + encodeURIComponent(f.path) + '" download="' + escHtml(f.name) + '">&#11015; Download</a> '
+    +     briefButton(f) + ' '
+    +     '<button class="mg-btn" onclick="moveFile(this)">&#8644; Move&hellip;</button>'
+    +     '<button class="mg-btn mg-btn-primary mg-perms-save" onclick="savePerms(this)">Save permissions</button>'
+    +   '</div>'
     + '</div>'
     + '</td></tr>';
 }
@@ -277,7 +318,7 @@ function renderFiles(files) {
 
     // ACCESS / MODIFIED.
     html += '<td class="mg-col-access">' + (isDir ? '' : accessBadge(f)) + '</td>';
-    html += '<td class="mg-col-mod">' + (isDir ? (f.mtime ? '<span title="' + escHtml(absTime(f.mtime)) + '">' + escHtml(relativeTime(f.mtime)) + '</span>' : '') : modifiedCell(f)) + '</td>';
+    html += '<td class="mg-col-mod">' + modifiedCell(f) + '</td>';
 
     // SELECT (files + empty dirs).
     if (f.type === 'file' || (isDir && f.empty)) {
@@ -314,21 +355,23 @@ function togglePerms(el) {
   if (willOpen) { card.style.display = ''; el.innerHTML = '&#9652;'; }
 }
 
-function selectedValues(sel) {
-  var out = [];
-  for (var i = 0; i < sel.options.length; i++) {
-    if (sel.options[i].selected) out.push(sel.options[i].value);
-  }
-  return out;
-}
-
 function savePerms(btn) {
   var card = btn.closest('tr');
   var row  = card.previousElementSibling;
   var path = row.getAttribute('data-path');
   var owner = card.querySelector('.mg-perm-owner').value;
-  var read  = selectedValues(card.querySelector('.mg-perm-read'));
-  var write = selectedValues(card.querySelector('.mg-perm-write'));
+
+  // Derive read[] / write[] from the per-principal rights chips.
+  var read = [], write = [];
+  var chips = card.querySelectorAll('.mg-rights .mg-chip');
+  for (var i = 0; i < chips.length; i++) {
+    var name = chips[i].getAttribute('data-name');
+    var rights = chips[i].querySelectorAll('.mg-chip-right.on');
+    for (var j = 0; j < rights.length; j++) {
+      if (rights[j].getAttribute('data-right') === 'r') read.push(name);
+      if (rights[j].getAttribute('data-right') === 'w') write.push(name);
+    }
+  }
 
   var action, body;
   if (!owner && !read.length && !write.length) {

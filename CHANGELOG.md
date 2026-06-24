@@ -18,6 +18,20 @@ Keying
 
 ## Unreleased
 
+Feature - Files config card: unified rights editor (SM077)
+: The card's two native multi-selects are replaced by one "People & groups with
+  access" list - each principal is a chip with r / w toggles and a remove
+  control, added via a typeahead; read[]/write[] are derived on save. The audit
+  "History" link moves into the card (off the Modified date), and the card is
+  roomier.
+
+Fix - @group ACLs now enforced over WebDAV
+: `lazysite-dav.pl` had a private `acl_allows` predating SM077 that ignored
+  `@group` entries, so a group grant set in the UI was silently dropped over
+  WebDAV. It now delegates to the shared `Lazysite::Auth::Acl` (resolving the
+  user's groups from `lazysite/auth/groups`), so the manager, MCP and WebDAV all
+  enforce the same rules. Pinned by `dav-publish.t`.
+
 Fix - WebDAV + MCP writes now appear in the audit trail
 : The audit trail only covered the manager control API, so a partner's WebDAV
   writes (PUT/DELETE/MOVE/COPY/MKCOL) and MCP tool calls were invisible.

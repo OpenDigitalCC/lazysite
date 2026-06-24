@@ -74,4 +74,26 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
         'a DELETE is audited (origin=dav)' );
 }
 
+# --- SM077: @group ACLs are enforced over WebDAV (shared Auth::Acl) -----
+{
+    dav_users_tool( $docroot, 'add', 'eve', 'pw' );
+    dav_users_tool( $docroot, 'set', 'eve', 'webdav', 'on' );
+    dav_users_tool( $docroot, 'add', 'mallory', 'pw' );
+    dav_users_tool( $docroot, 'set', 'mallory', 'webdav', 'on' );
+
+    open my $gf, '>', "$docroot/lazysite/auth/groups" or die $!;
+    print {$gf} "editors: eve\n";    # eve is a member; mallory is not
+    close $gf;
+    open my $af, '>', "$docroot/lazysite/auth/acls.json" or die $!;
+    print {$af} '{"grouped.md":{"owner":"deploy","write":["@editors"]}}';
+    close $af;
+
+    my $eve = 'Basic ' . encode_base64( 'eve:pw', '' );
+    my $mal = 'Basic ' . encode_base64( 'mallory:pw', '' );
+    my $a = run_dav( $docroot, 'PUT', '/grouped.md', body => "x\n", HTTP_AUTHORIZATION => $eve );
+    is( $a->{code}, 201, '@group member (eve in @editors) may PUT over WebDAV' );
+    my $b = run_dav( $docroot, 'PUT', '/grouped.md', body => "y\n", HTTP_AUTHORIZATION => $mal );
+    is( $b->{code}, 403, 'non-member (mallory) is denied by the @group ACL' );
+}
+
 done_testing();
