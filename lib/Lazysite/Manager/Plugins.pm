@@ -475,19 +475,19 @@ sub action_form_targets_read {
 
     my @targets;
 
-    # New format: handler references
-    while ( $text =~ /^\s*-\s+handler:\s*(\S+)/mg ) {
-        push @targets, { handler => $1 };
-    }
-
-    # Legacy format: inline type config
-    if ( !@targets ) {
-        while ( $text =~ /^\s*-\s+type:\s*(\w+)\s*$(.*?)(?=^\s*-\s+type:|\z)/gms ) {
-            my ( $type, $block ) = ( $1, $2 );
-            my %t = ( type => $type );
-            $t{url}    = $1 if $block =~ /^\s*url:\s*(.+)$/m;
-            $t{format} = $1 if $block =~ /^\s*format:\s*(.+)$/m;
-            $t{path}   = $1 if $block =~ /^\s*path:\s*(.+)$/m;
+    # SM081: parse the YAML-ish list in document order, recognising either a
+    # handler reference or an inline type config at EACH entry. (Previously the
+    # legacy type block was parsed only `if (!@targets)`, so a form mixing both
+    # formats silently dropped its type targets on read-back.)
+    for my $entry ( split /^[ \t]*-[ \t]+/m, $text ) {
+        if ( $entry =~ /\Ahandler:\s*(\S+)/ ) {
+            push @targets, { handler => $1 };
+        }
+        elsif ( $entry =~ /\Atype:\s*(\w+)/ ) {
+            my %t = ( type => $1 );
+            $t{url}    = $1 if $entry =~ /^\s*url:\s*(.+)$/m;
+            $t{format} = $1 if $entry =~ /^\s*format:\s*(.+)$/m;
+            $t{path}   = $1 if $entry =~ /^\s*path:\s*(.+)$/m;
             $t{$_} =~ s/^\s+|\s+$//g for grep { defined $t{$_} } keys %t;
             push @targets, \%t;
         }

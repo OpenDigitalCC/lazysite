@@ -14,9 +14,12 @@ review of SM079a, 2026-06-24.
 
 ## Status
 
-Queued - real but narrow (only affects configs mixing the new `handler:` and
-legacy `type:` target formats). The current behaviour is pinned by a test in
-`t/unit/lib/07-plugins-handlers.t` so a fix is a deliberate change.
+**Fixed (2026-06-24).** `action_form_targets_read` now parses the YAML-ish list
+in a single document-order pass, recognising either a `handler:` or a `type:`
+entry at each list item (instead of skipping the legacy block whenever a handler
+existed). A mixed-format config round-trips both targets in order;
+`t/unit/lib/07-plugins-handlers.t` asserts the fixed behaviour plus the
+all-handler and all-type round-trips.
 
 ## The bug
 

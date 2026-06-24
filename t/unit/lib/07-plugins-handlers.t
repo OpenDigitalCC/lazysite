@@ -69,13 +69,12 @@ is_deeply( action_form_targets_read('legacy')->{targets},
     [ { type => 'file', path => 'submissions' } ],
     'all-type targets round-trip exactly' );
 
-# Known limitation (SM081): a form mixing handler: + type: drops the type targets
-# on read (action_form_targets_read skips the legacy block if any handler
-# exists). Pin the CURRENT behaviour so a fix is a deliberate change.
+# SM081 (fixed): a form mixing handler: + type: now round-trips BOTH targets in
+# document order (the read used to drop the type targets if any handler existed).
 action_form_targets_save( 'mixed', [ { handler => 'email1' }, { type => 'file' } ] );
-my $mixed = action_form_targets_read('mixed')->{targets};
-is_deeply( $mixed, [ { handler => 'email1' } ],
-    'mixed-format read currently drops the type target (SM081 - documented bug)' );
+is_deeply( action_form_targets_read('mixed')->{targets},
+    [ { handler => 'email1' }, { type => 'file' } ],
+    'SM081 fixed: mixed-format read preserves both targets in order' );
 
 # --- resolve_plugin_script ---
 open my $p, '>', "$d/../sample-plugin.pl" or die $!;
