@@ -34,6 +34,11 @@
       "license": "Artistic-1.0-Perl",
       "used_by": "UTF-8 decoding of query-string values in processor"
     },
+    "Exporter": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "import() for the shared Lazysite::* modules (SM079)"
+    },
     "Fcntl": {
       "core": true,
       "license": "Artistic-1.0-Perl",

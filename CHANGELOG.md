@@ -18,6 +18,32 @@ Keying
 
 ## Unreleased
 
+## 0.4.0 - Modular refactor, security hardening & conformance (QC review 2026-06-24)
+
+Quality-control close-out audit for this milestone: **1416 tests green**;
+`perlcritic` clean across every script and the new `Lazysite::*` modules; the
+**strict SBOM gate passes** (180 components, `Exporter` declared for the new
+modules); secrets gate clean; `tools/bench.pl --check` and
+`tools/coverage.sh --check` floors hold.
+
+- **Security** - seven-dimension review items 1-6 fixed: the control-API token
+  path is no longer a manager operator (ACL-ownership bypass), the WebDAV
+  blocklist applies to reads, `action_read`/`acl-*` enforce the full deny-set,
+  account-create/add use `exists`, TOTP is replay-guarded, and single-use
+  redemption is serialised by a consume lock.
+- **Architecture (SM079)** - `lazysite-manager-api.pl` decomposed from 4286
+  lines to a ~1240-line front-controller over 10 `Lazysite::*` modules
+  (`Util`, `Auth::{Credential,Settings,Acl,Session}`,
+  `Manager::{Common,Upload,Plugins,Files,Themes,Layouts,Artifact}`). The
+  processor stays a standalone single file you can run against a folder.
+- **Conformance** - curated `.perlcriticrc` gate, performance benchmark +
+  baseline, committed secrets gate, five-audience docs taxonomy, `COPYRIGHT`,
+  `bump-version.pl`; coverage is now measurable per-module (in-process module
+  tests). `runtime_paths` perms corrected so a plain `install.pl` install is
+  group-writable for www-data.
+
+The detailed per-step log follows.
+
 Refactor (SM079 step 2a) - Lazysite::Auth::Credential
 : The credential primitives - the `/dev/urandom` CSPRNG, password and token
   hashing + verification, single-use secret verification, and token minting -

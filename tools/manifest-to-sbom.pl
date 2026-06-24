@@ -118,6 +118,7 @@ sub strict_check {
             while ( $line =~ /(?:^|[{;])\s*(?:use|require)\s+([A-Z][\w:]*)/g ) {
                 my $mod = $1;
                 next if $PRAGMAS->{$mod};
+                next if $mod =~ /^Lazysite::/;   # first-party (SM079), not a dependency
                 $found{$mod}++;
             }
         }
