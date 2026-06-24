@@ -18,6 +18,17 @@ Keying
 
 ## Unreleased
 
+Security - review items 5 & 6 (TOTP/consume hardening + supply chain)
+: TOTP codes are now **replay-protected** - a per-user `totp_last_step`
+  rejects a code whose time-step was already accepted. Single-use redemption
+  (claim / pairing key / recovery code / TOTP step) is **serialised by a
+  scope-held flock** (`_consume_lock`), closing the read-verify-consume-write
+  TOCTOU so the same secret can't be consumed twice under concurrency. The
+  strict **SBOM gate passes** again (`Time::Local` was undeclared), and the
+  stale `VERSION`/`NEXT_VERSION` (0.2.18) are bumped to the current line. The
+  TOTP **seed-at-rest** item is accepted-risk (the verifier is the web tier),
+  documented in the review.
+
 Security - review fixes (priority 1-4 of the 2026-06-23 seven-dimension review)
 : 1. The control-API **token path is no longer treated as a manager operator**
      (`_is_operator` returns 0 under token auth), so a `webdav` partner can no

@@ -74,6 +74,8 @@ sub settings { api( $_[0], { action => 'settings-get', username => $_[1] } )->{s
                           time => time(), step => 30, digits => 6 } )->{code};
     ok(  api( $d, { action => 'mfa-verify', username => 'alice', code => $code } )->{ok},
         'the current TOTP verifies' );
+    ok( !api( $d, { action => 'mfa-verify', username => 'alice', code => $code } )->{ok},
+        'the same TOTP code cannot be replayed (review item 5)' );
     ok( !api( $d, { action => 'mfa-verify', username => 'alice', code => 'nope' } )->{ok},
         'an invalid code fails' );
 

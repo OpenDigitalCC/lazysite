@@ -105,5 +105,19 @@ Items 1–4 are small, real, and security-relevant — the recommended immediate
 (2); `action_read` + the `acl-*` actions enforce `is_blocked_config` (3);
 `account-create`/`add` use `exists` (4). Regression tests in
 `t/unit/manager/18-security-fixes.t` and `t/unit/dav/12-acl.t`. Suite 1269.
-Items 5–7 (TOTP/consume hardening, SBOM gate + VERSION, the conformance backlog)
-remain open.
+**Update (2026-06-24):** items **5 and 6 done** (in 0.3.40):
+- 5 (TOTP/consume hardening): TOTP codes are now replay-protected (a per-user
+  `totp_last_step` rejects a re-presented code), and single-use redemption
+  (claim / pairing key / recovery code / TOTP step) is serialised by a
+  scope-held `flock` (`_consume_lock`) so a secret cannot be consumed twice
+  under concurrency. Tests in `14-totp.t`. The **seed-at-rest** sub-item is
+  **accepted risk, not fixed**: the TOTP verifier *is* the web tier (www-data),
+  so it must read the seed — hiding it from www-data would break verification.
+  A real fix means moving MFA verification to a separate privilege, deferred
+  (a full web-tier compromise is already total site control; the marginal loss
+  is the per-site seeds).
+- 6 (supply chain): the strict SBOM gate **passes** (`Time::Local` declared in
+  `sbom-deps.json`); `VERSION`/`NEXT_VERSION` bumped off the stale 0.2.18.
+
+Item **7** (coverage instrumentation, perf baseline, five-audience docs
+taxonomy, RPM/Alpine/OCI recipes, policy artefacts + regime) remains open.

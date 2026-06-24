@@ -110,15 +110,19 @@ sub totp_code {
 }
 
 # Verify a 6-digit code against the current time +/- a window of steps.
+# Returns the matched 30s time-step counter (a large positive int, truthy)
+# if $code is valid within the window, or undef. The step lets the caller
+# reject replays (a code re-presented within its window has the same step).
 sub totp_verify {
     my ( $secret_b32, $code, $window, $now ) = @_;
-    return 0 unless defined $code && $code =~ /^\d{6}$/;
+    return undef unless defined $code && $code =~ /^\d{6}$/;
     $window //= 1;
     $now    //= time();
     for my $w ( -$window .. $window ) {
-        return 1 if totp_code( $secret_b32, $now + $w * 30, 30, 6 ) eq $code;
+        my $t = $now + $w * 30;
+        return int( $t / 30 ) if totp_code( $secret_b32, $t, 30, 6 ) eq $code;
     }
-    return 0;
+    return undef;
 }
 
 my $LOG_COMPONENT = 'users';
@@ -958,6 +962,8 @@ sub cmd_token_exchange {
     die "Username and pairing key required\n"
         unless defined $user && length $user && defined $key && length $key;
 
+    my $lk = _consume_lock();   # single-use: serialise verify-consume
+
     my %users = read_users();
     die "User '$user' not found\n" unless exists $users{$user};
 
@@ -1084,6 +1090,8 @@ sub cmd_claim_redeem {
     die $GENERIC unless defined $user && length $user
                      && defined $claim && length $claim;
 
+    my $lk = _consume_lock();   # single-use: serialise verify-consume
+
     my %users = read_users();
     die $GENERIC unless exists $users{$user};
 
@@ -1203,12 +1211,22 @@ sub cmd_mfa_disable {
 sub cmd_mfa_verify {
     my ( $user, $code ) = @_;
     return { ok => 0 } unless defined $user && length $user && defined $code && length $code;
+    my $lk     = _consume_lock();   # serialise verify-consume across processes
     my $all    = read_settings();
     my $s      = $all->{$user} || {};
     my $secret = $s->{totp_secret};
     return { ok => 0 } unless $secret;          # not enrolled
 
-    return { ok => 1 } if $code =~ /^\d{6}$/ && totp_verify( $secret, $code );
+    if ( $code =~ /^\d{6}$/ ) {
+        my $step = totp_verify( $secret, $code );
+        if ( defined $step ) {
+            # Replay guard: reject a code whose time-step was already accepted.
+            return { ok => 0 } if $step <= ( $s->{totp_last_step} // 0 );
+            $all->{$user}{totp_last_step} = $step;
+            write_settings($all);
+            return { ok => 1 };
+        }
+    }
 
     my $rec = $s->{recovery_hashes} || [];
     for my $i ( 0 .. $#$rec ) {
@@ -1582,6 +1600,20 @@ sub write_groups {
     flock( $fh, LOCK_UN );
     close $fh;
     chmod 0660, $GROUPS_FILE;   # group-writable: CLI + www-data both manage it
+}
+
+# Returns an exclusive lock handle held until it goes out of scope (the
+# caller's function returns) or the process exits. Serialises single-use
+# redemption (claim / pairing key / recovery code / TOTP step) across the
+# concurrent CGI subprocesses that each run this tool, so the same secret
+# cannot be consumed twice (the read-verify-delete-write TOCTOU). Fail-open
+# (undef) if the lock can't be taken - rare (AUTH_DIR unwritable), and
+# consistent with the rate-limiter philosophy.
+sub _consume_lock {
+    my $path = "$AUTH_DIR/.consume.lock";
+    open my $lk, '>', $path or return undef;
+    flock( $lk, LOCK_EX ) or do { close $lk; return undef };
+    return $lk;
 }
 
 # SM070: per-user access-mechanism settings, JSON object keyed by

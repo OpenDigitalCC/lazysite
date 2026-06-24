@@ -120,6 +120,11 @@
       "license": "Artistic-1.0-Perl",
       "used_by": "dev server request timing (optional; falls back when unavailable)"
     },
+    "Time::Local": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "timelocal in lazysite-users.pl parse_when (account expiry dates)"
+    },
     "Template": {
       "core": false,
       "license": "Artistic-1.0-Perl",
