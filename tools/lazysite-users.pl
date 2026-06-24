@@ -1573,18 +1573,19 @@ sub _assistant_prompt {
     push @caps, 'set site config'        if $s->{manage_config};
     my $caps = @caps ? join( ', ', @caps ) : 'introspect your grant';
     return <<"PROMPT";
-You have a "$domain" connector to $base. Its tools appear directly in your
-toolset (whoami, list_files, read_file, write_file, move_file, delete_file, ...).
-Call those connector tools directly. Do NOT use curl, a browser, or raw HTTP,
-and do not look for a token - the connector injects authentication for you;
-reaching the endpoint any other way is unauthenticated and will fail.
+You have a "$domain" connector to $base, with its tools in your toolset (whoami,
+list_files, read_file, write_file, move_file, delete_file, plus activate_theme
+and activate_layout). Use those connector tools directly - the connector handles
+authentication, so there is no token to find and no reason to use curl or raw
+HTTP.
 
-Start by calling the whoami tool to confirm your identity and capabilities
-($caps). To add or edit a page, call write_file with a path like
-content/<page>.md (Markdown, optional front matter); use list_files to see what
-exists and read_file before editing. After a change, verify by fetching the
-rendered URL ($base/<page>, i.e. content/foo.md serves at /foo). Make one change
-at a time and confirm it before the next.
+Start with whoami to confirm your identity and capabilities ($caps), then
+list_files to see the site's layout before changing anything. A page is a
+Markdown file served at its own path - about.md serves at /about, docs/help.md
+at /docs/help; pages usually sit at the site root, not under a content/ folder,
+so check list_files rather than assuming a path. read_file before you edit,
+write_file to add or change a page, then fetch the rendered URL to confirm. Make
+one change at a time.
 PROMPT
 }
 
