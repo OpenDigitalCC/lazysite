@@ -33,6 +33,9 @@ use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action action_handler_list
     action_handler_save action_handler_delete action_form_targets_read action_form_targets_save);
+use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
+    acquire_lock release_lock renew_lock _get_lock_info
+    action_acl_get action_acl_set action_acl_remove);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
@@ -40,11 +43,14 @@ $Lazysite::Auth::Acl::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Common::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Upload::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
+$Lazysite::Manager::Files::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Manager::Upload::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
+$Lazysite::Manager::Files::LOCK_DIR     = $LOCK_DIR;
+$Lazysite::Manager::Files::LOCK_TIMEOUT = $LOCK_TIMEOUT;
 
 # SM071 Phase 1: theme/layout preview. preview-grant mints the signed
 # cookie the processor verifies; declared here (before dispatch runs) so
@@ -146,6 +152,8 @@ $Lazysite::Manager::Common::action    = $action;
 $Lazysite::Manager::Common::auth_user = $auth_user;
 $Lazysite::Manager::Upload::auth_user = $auth_user;
 $Lazysite::Manager::Plugins::action   = $action;
+$Lazysite::Manager::Files::auth_user  = $auth_user;
+$Lazysite::Manager::Files::action     = $action;
 $Lazysite::Auth::Acl::auth_user            = $auth_user;
 $Lazysite::Auth::Acl::token_auth           = $token_auth;
 $Lazysite::Auth::Acl::manager_groups_conf  = $manager_groups_conf;
@@ -681,177 +689,14 @@ sub action_artifact_validate {
 # single-line "user epoch" file (pre-SM070 manager locks) is read as
 # an origin=manager record. This lets the manager editor and WebDAV
 # clients see each other's locks through one store.
-sub _read_lock_record {
-    my ($lock_file) = @_;
-    return undef unless -f $lock_file;
-    open my $fh, '<', $lock_file or return undef;
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    return undef unless defined $raw;
-    $raw =~ s/^\s+//;
-    if ( $raw =~ /^\{/ ) {
-        my $rec = eval { decode_json($raw) };
-        return undef unless ref $rec eq 'HASH';
-        $rec->{origin}  ||= 'manager';
-        $rec->{timeout} ||= $LOCK_TIMEOUT;
-        return $rec;
-    }
-    my ( $user, $at ) = split /\s+/, $raw, 2;
-    return undef unless defined $user;
-    $at //= 0;
-    $at =~ s/\D.*$//;
-    return { user => $user, at => ( $at || 0 ), origin => 'manager',
-             timeout => $LOCK_TIMEOUT, token => undef, owner => '' };
-}
 
-sub _write_lock_record {
-    my ( $lock_file, $rec ) = @_;
-    my $tmp = "$lock_file.tmp.$$";
-    open my $fh, '>', $tmp or return 0;
-    print $fh JSON::PP->new->canonical->encode($rec);
-    close $fh;
-    chmod 0640, $tmp;
-    return rename $tmp, $lock_file;
-}
 
-sub _lock_fresh {
-    my ($rec) = @_;
-    return 0 unless $rec;
-    my $age = time() - ( $rec->{at} // 0 );
-    return $age < ( $rec->{timeout} // $LOCK_TIMEOUT ) ? 1 : 0;
-}
 
-sub acquire_lock {
-    my ( $rel_path, $username ) = @_;
-    make_path($LOCK_DIR) unless -d $LOCK_DIR;
 
-    my $lock_key = $rel_path;
-    $lock_key =~ s{/}{:}g;
-    my $lock_file = "$LOCK_DIR/$lock_key.lock";
 
-    my $rec = _read_lock_record($lock_file);
-    # A fresh lock blocks if it is held via WebDAV (opaque to the
-    # manager) or by a different manager user. The user may refresh
-    # their own manager lock.
-    if ( _lock_fresh($rec)
-         && ( $rec->{origin} eq 'dav' || ( $rec->{user} // '' ) ne $username ) ) {
-        return {
-            ok        => 0,
-            locked    => 1,
-            locked_by => $rec->{user},
-            locked_at => $rec->{at},
-            origin    => $rec->{origin},
-            expires   => ( $rec->{at} // 0 ) + ( $rec->{timeout} // $LOCK_TIMEOUT ),
-        };
-    }
-
-    _write_lock_record( $lock_file, {
-        user => $username, at => time(), origin => 'manager',
-        timeout => $LOCK_TIMEOUT, token => undef, owner => '',
-    } ) or return { ok => 0, error => "Cannot write lock" };
-    return { ok => 1, locked_by => $username };
-}
-
-sub release_lock {
-    my ( $rel_path, $username ) = @_;
-    my $lock_key = $rel_path;
-    $lock_key =~ s{/}{:}g;
-    my $lock_file = "$LOCK_DIR/$lock_key.lock";
-
-    # Never let the manager UI release a live WebDAV lock.
-    my $rec = _read_lock_record($lock_file);
-    if ( _lock_fresh($rec) && $rec->{origin} eq 'dav' ) {
-        return { ok => 0, error => "Locked via WebDAV" };
-    }
-    unlink $lock_file if -f $lock_file;
-    return { ok => 1 };
-}
-
-sub renew_lock {
-    my ( $rel_path, $username ) = @_;
-    return acquire_lock( $rel_path, $username );
-}
 
 # --- File actions ---
 
-sub action_list {
-    my ($dir_path) = @_;
-    $dir_path //= '/';
-    $dir_path =~ s{[^a-zA-Z0-9/_.-]}{}g;
-    # SM019c: collapse a trailing slash so child paths are assembled
-    # as "/dir/name" not "/dir//name". The next line keeps "/" itself
-    # intact because s{/+$}{}  on "/" yields "", which we re-inflate.
-    $dir_path =~ s{/+$}{};
-    $dir_path = '/' if $dir_path eq '';
-
-    my $fs_path = "$DOCROOT$dir_path";
-    my $real    = realpath($fs_path);
-    return { ok => 0, error => "Invalid path" }
-        unless $real && index( $real, $DOCROOT ) == 0 && -d $real;
-
-    my @entries;
-    my $acls = load_acls();   # SM074: owner display, read once per listing
-    opendir my $dh, $real or return { ok => 0, error => "Cannot read directory" };
-    for my $name ( sort readdir $dh ) {
-        next if $name =~ /^\./;
-        my $full = "$real/$name";
-        my $rel  = $dir_path eq '/' ? "/$name" : "$dir_path/$name";
-        my @st   = stat($full);
-        my $is_dir = -d $full ? 1 : 0;
-        my $entry  = {
-            name  => $name,
-            path  => $rel,
-            type  => $is_dir ? 'dir' : 'file',
-            size  => $is_dir ? 0 : ( $st[7] // 0 ),
-            mtime => $st[9] // 0,
-        };
-        # SM019b: surface emptiness so the client knows whether a
-        # dir row should get a delete-selection checkbox. The check
-        # matches action_delete's rmdir semantics: any non-dot
-        # entry (including hidden files) counts as content. We
-        # only count, never stat, so the cost scales with the
-        # directory size, not tree depth.
-        if ( $is_dir ) {
-            if ( opendir my $dh2, $full ) {
-                my @kids = grep { $_ ne '.' && $_ ne '..' } readdir $dh2;
-                closedir $dh2;
-                $entry->{empty} = @kids ? JSON::PP::false : JSON::PP::true;
-            }
-        }
-        else {
-            # File metadata for the Files-page list-by-type and brief view.
-            my ($ext) = $name =~ /\.([^.]+)$/;
-            $entry->{ext} = defined $ext ? lc $ext : '';
-
-            # A generated cache file is an .html with a .md/.url source
-            # beside it - distinguishable from author .html (partials).
-            if ( $name =~ /\.html$/ ) {
-                ( my $stem = $full ) =~ s/\.html$//;
-                $entry->{generated} =
-                    ( -f "$stem.md" || -f "$stem.url" )
-                    ? JSON::PP::true : JSON::PP::false;
-            }
-
-            # SM073: brief presence. A .brief is itself a sidecar; any other
-            # file may carry one at "<file>.brief".
-            if ( $name =~ /\.brief$/ ) {
-                $entry->{is_brief} = JSON::PP::true;
-            }
-            else {
-                $entry->{has_brief} =
-                    ( -f "$full.brief" ) ? JSON::PP::true : JSON::PP::false;
-                # SM074: surface ownership from the central ACL store.
-                my $a = $acls->{ _acl_norm($rel) };
-                $entry->{owner} = $a->{owner}
-                    if $a && defined $a->{owner};
-            }
-        }
-        push @entries, $entry;
-    }
-    closedir $dh;
-
-    return { ok => 1, path => $dir_path, entries => \@entries };
-}
 
 # SM074: per-file ACLs. Ownership + read/write allowlists live in one
 # central store, lazysite/auth/acls.json (keyed by the content-relative
@@ -872,237 +717,11 @@ sub action_list {
 # ('read'|'write'), else undef. Operators always pass.
 
 # --- SM074 ACL management actions (manager + control API) ----------------
-sub action_acl_get {
-    my ( $rel_path, $user ) = @_;
-    my $r = validate_path($rel_path);
-    return $r unless $r->{ok};
-    return { ok => 0, error => "Path is blocked" }
-        if is_blocked_path( $r->{rel} ) || is_blocked_config( $r->{rel} );
-    my $a = load_acls()->{ _acl_norm( $r->{rel} ) };
-    unless ( _is_operator() ) {
-        return { ok => 0, error => "Not the owner of this file" }
-            if $a && ( $a->{owner} // '' ) ne ( $user // '' );
-    }
-    return { ok => 1, path => $r->{rel}, acl => $a };
-}
 
-sub action_acl_set {
-    my ( $rel_path, $user, $read, $write, $owner_req ) = @_;
-    my $r = validate_path($rel_path);
-    return $r unless $r->{ok};
-    my $rel = _acl_norm( $r->{rel} );
-    return { ok => 0, error => "Path is blocked" }
-        if is_blocked_path($rel) || is_blocked_config($rel);
 
-    my $acls     = load_acls();
-    my $existing = $acls->{$rel};
 
-    unless ( _is_operator() ) {
-        if ($existing) {
-            return { ok => 0, error => "Only the owner may change permissions" }
-                unless ( $existing->{owner} // '' ) eq ( $user // '' );
-        }
-        else {
-            # Creating the first ACL needs write access to the file.
-            return { ok => 0, error => "You cannot set permissions on this file" }
-                unless _acl_allows( $rel, 'write', $user );
-        }
-    }
 
-    # Keep an existing owner; otherwise an operator may name one, and a
-    # normal user always becomes the owner of what they claim.
-    my $owner =
-        $existing ? $existing->{owner}
-      : ( _is_operator() && defined $owner_req && length $owner_req ) ? $owner_req
-      : $user;
-    my %rec = ( owner => $owner );
-    my $rl = _to_list($read);  $rec{read}  = $rl if defined $rl;
-    my $wl = _to_list($write); $rec{write} = $wl if defined $wl;
-    $acls->{$rel} = \%rec;
-    save_acls($acls) or return { ok => 0, error => "Cannot write the ACL store" };
-    log_event( 'INFO', 'acl-set', 'acl set', path => $rel, user => $auth_user );
-    return { ok => 1, path => $r->{rel}, acl => \%rec };
-}
 
-sub action_acl_remove {
-    my ( $rel_path, $user ) = @_;
-    my $r = validate_path($rel_path);
-    return $r unless $r->{ok};
-    my $rel  = _acl_norm( $r->{rel} );
-    return { ok => 0, error => "Path is blocked" }
-        if is_blocked_path($rel) || is_blocked_config($rel);
-    my $acls = load_acls();
-    my $existing = $acls->{$rel};
-    return { ok => 1, path => $r->{rel}, removed => 0 } unless $existing;
-    unless ( _is_operator() || ( $existing->{owner} // '' ) eq ( $user // '' ) ) {
-        return { ok => 0, error => "Only the owner may remove permissions" };
-    }
-    delete $acls->{$rel};
-    save_acls($acls) or return { ok => 0, error => "Cannot write the ACL store" };
-    log_event( 'INFO', 'acl-remove', 'acl removed', path => $rel, user => $auth_user );
-    return { ok => 1, path => $r->{rel}, removed => 1 };
-}
-
-sub action_read {
-    my ( $rel_path, $username ) = @_;
-
-    my $result = validate_path($rel_path);
-    return $result unless $result->{ok};
-
-    return { ok => 0, error => "Path is blocked" }
-        if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config" }
-        if is_blocked_config( $result->{rel} );
-
-    if ( my $d = _acl_denied( $result->{rel}, 'read', $username ) ) { return $d }
-
-    my $full = $result->{full};
-    return { ok => 0, error => "File not found" } unless -f $full;
-
-    # SM019: refuse to load binary files as text. The editor handles
-    # the binary=1 response by showing a download panel; decoding a
-    # PNG as :utf8 here would otherwise emit replacement characters
-    # and write the corrupted bytes back on save.
-    unless ( is_editable_text( $result->{rel} ) ) {
-        return {
-            ok     => 0,
-            binary => 1,
-            path   => $rel_path,
-            error  => "Binary file - download instead of edit",
-        };
-    }
-
-    open my $fh, '<:utf8', $full or return { ok => 0, error => "Cannot read file" };
-    my $content = do { local $/; <$fh> };
-    close $fh;
-
-    my $lock_info = _get_lock_info( $rel_path );
-
-    return {
-        ok      => 1,
-        path    => $rel_path,
-        content => $content,
-        mtime   => ( stat $full )[9],
-        lock    => $lock_info,
-    };
-}
-
-sub action_save {
-    my ( $rel_path, $username, $content, $mtime_check ) = @_;
-
-    my $result = validate_path($rel_path);
-    return $result unless $result->{ok};
-
-    return { ok => 0, error => "Path is blocked" }
-        if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config" }
-        if is_blocked_config( $result->{rel} );
-
-    my $full = $result->{full};
-
-    # Conflict check
-    if ( -f $full && $mtime_check ) {
-        my $current_mtime = ( stat $full )[9];
-        if ( $current_mtime != $mtime_check ) {
-            return {
-                ok       => 0,
-                conflict => 1,
-                error    => "File was modified since you opened it",
-                mtime    => $current_mtime,
-            };
-        }
-    }
-
-    # Lock check. Refuse to overwrite a file held by a live lock that the
-    # saver does not own - whether that lock came from WebDAV (origin=dav,
-    # opaque to the manager) or another manager user. Mirrors acquire_lock.
-    # (The previous inline parser only understood the legacy "user epoch"
-    # line format and silently ignored JSON/DAV locks - a lock-propagation
-    # hole where a manager save could clobber a WebDAV-locked file.)
-    my $lock_key = $rel_path;
-    $lock_key =~ s{/}{:}g;
-    my $lock_file = "$LOCK_DIR/$lock_key.lock";
-    my $lrec = _read_lock_record($lock_file);
-    if ( _lock_fresh($lrec)
-         && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) ) {
-        return {
-            ok     => 0,
-            locked => 1,
-            error  => $lrec->{origin} eq 'dav'
-                ? "File is locked via WebDAV by " . ( $lrec->{user} // 'another client' )
-                : "File is locked by " . ( $lrec->{user} // 'another user' ),
-        };
-    }
-
-    # SM074: per-file ACL write gate (operators bypass).
-    if ( my $d = _acl_denied( $result->{rel}, 'write', $username ) ) { return $d }
-
-    # Create parent directories
-    my $dir = dirname($full);
-    make_path($dir) unless -d $dir;
-
-    my ( $wok, $werr ) = write_file_checked( $full, $content );
-    return { ok => 0, error => $werr } unless $wok;
-
-    # Invalidate cache (only for .md files that have .html cache)
-    if ( $full =~ /\.md$/ ) {
-        ( my $cache = $full ) =~ s/\.md$/.html/;
-        unlink $cache if -f $cache;
-    }
-
-    # Release lock
-    unlink $lock_file if -f $lock_file;
-
-    log_event('INFO', $action, 'file saved', path => $rel_path, user => $auth_user);
-
-    my @st = stat($full);
-    return { ok => 1, path => $rel_path, mtime => $st[9] // 0 };
-}
-
-sub action_delete {
-    my ( $rel_path, $username ) = @_;
-
-    my $result = validate_path($rel_path);
-    return $result unless $result->{ok};
-
-    return { ok => 0, error => "Path is blocked" }
-        if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config" }
-        if is_blocked_config( $result->{rel} );
-
-    # SM074: per-file ACL write gate (operators bypass).
-    if ( my $d = _acl_denied( $result->{rel}, 'write', $username ) ) { return $d }
-
-    my $full = $result->{full};
-
-    # SM019b: empty directories are deletable from the manager.
-    # Non-empty ones are rejected - no recursive delete.
-    if ( -d $full ) {
-        opendir my $dh, $full
-            or return { ok => 0, error => "Cannot read directory: $!" };
-        my @entries = grep { $_ ne '.' && $_ ne '..' } readdir $dh;
-        closedir $dh;
-        if ( @entries ) {
-            return { ok => 0, error => "Directory is not empty" };
-        }
-        rmdir $full
-            or return { ok => 0, error => "Cannot remove directory: $!" };
-        log_event('INFO', $action, 'directory deleted',
-            path => $rel_path, user => $auth_user);
-        return { ok => 1, path => $rel_path };
-    }
-
-    return { ok => 0, error => "File not found" } unless -f $full;
-
-    unlink $full or return { ok => 0, error => "Cannot delete: $!" };
-
-    ( my $cache = $full ) =~ s/\.md$/.html/;
-    unlink $cache if -f $cache;
-
-    log_event('INFO', $action, 'file deleted', path => $rel_path, user => $auth_user);
-
-    return { ok => 1, path => $rel_path };
-}
 
 # SM019b: dedicated mkdir so "Add Folder" creates a genuinely empty
 # directory. The previous files.md trick of writing /<name>/.gitkeep
@@ -1111,28 +730,6 @@ sub action_delete {
 # deletable" rule - a freshly-created folder would not have a
 # checkbox. Keeping this as a distinct action (rather than piggybacking
 # on action_save with an empty body) also makes the log line clearer.
-sub action_mkdir {
-    my ($rel_path) = @_;
-
-    my $result = validate_path($rel_path);
-    return $result unless $result->{ok};
-
-    return { ok => 0, error => "Path is blocked" }
-        if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config" }
-        if is_blocked_config( $result->{rel} );
-
-    my $full = $result->{full};
-    return { ok => 0, error => "Path already exists" } if -e $full;
-
-    make_path($full)
-        or return { ok => 0, error => "Cannot create directory: $!" };
-
-    log_event('INFO', $action, 'directory created',
-        path => $rel_path, user => $auth_user);
-
-    return { ok => 1, path => $rel_path };
-}
 
 sub action_preview {
     my ($rel_path) = @_;
@@ -2982,20 +2579,6 @@ sub action_nav_save {
 
 # --- Helpers ---
 
-sub _get_lock_info {
-    my ($rel_path) = @_;
-    my $lock_key = $rel_path;
-    $lock_key =~ s{/}{:}g;
-    my $lock_file = "$LOCK_DIR/$lock_key.lock";
-    my $rec = _read_lock_record($lock_file);
-    return {} unless $rec;
-    return {
-        locked_by => $rec->{user},
-        locked_at => $rec->{at},
-        origin    => $rec->{origin},
-        active    => _lock_fresh($rec) ? 1 : 0,
-    };
-}
 
 # --- Logging ---
 
