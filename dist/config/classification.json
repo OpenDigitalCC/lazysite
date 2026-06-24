@@ -141,10 +141,12 @@
     "^starter/lazysite/nav\\.conf$",
     "^t/",
     "^tmp/",
+    "^cover_db/",
     "^tools/build-manifest\\.pl$",
     "^tools/manifest-to-sbom\\.pl$",
     "^tools/bump-version\\.pl$",
     "^tools/bench\\.pl$",
+    "^tools/coverage\\.sh$",
     "^website/"
   ],
   "overrides": [],

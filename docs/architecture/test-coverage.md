@@ -234,6 +234,48 @@ Tests self-contained: each `.t` file builds and tears down its
 own `File::Temp::tempdir(CLEANUP => 1)` docroot. Nothing writes to
 the repo tree.
 
+## Measuring coverage (WP-2 / D2)
+
+The tests run the CGIs as **subprocesses** (`open2`/`open3` with `$^X`), so a
+plain `cover -test` instruments only the parent `prove` process and reports
+`n/a` for the scripts that matter. `tools/coverage.sh` solves this by exporting
+`PERL5OPT=-MDevel::Cover=...` so **every** `perl` invocation - the test scripts
+*and* the spawned CGIs - loads Devel::Cover and writes to one shared
+`cover_db`, which `cover` merges into a single report.
+
+```bash
+tools/coverage.sh            # run the suite under coverage, print the report
+tools/coverage.sh --check    # also enforce the declared floor (exit 1 if below)
+```
+
+It is slow (every subprocess is instrumented), so it is a **signoff** tool run
+on demand, not part of `prove -r t/`. The declared floor lives in
+`dist/config/coverage-floor`; under the Commercial regime the target is **75%**
+statement coverage.
+
+### Measured baseline
+
+Full suite, subprocess-instrumented (2026-06-24), statement / branch:
+
+| Script | stmt | branch |
+|---|---:|---:|
+| `lazysite-dav.pl` | 92% | 71% |
+| `tools/lazysite-users.pl` | 90% | 71% |
+| `tools/lazysite-bundle-apply.pl` | 90% | 65% |
+| `lazysite-processor.pl` | 81% | 69% |
+| `lazysite-manager-api.pl` | 60% | 49% |
+
+The core CGIs clear the 75% statement target; `lazysite-manager-api.pl` (4273
+lines) is the gap, and is the same file flagged for a split under D1 - raising
+its coverage and splitting it are one piece of work. The enforced regression
+floor is **60%** statements per cleanly-measured CGI
+(`dist/config/coverage-floor`), ratcheted upward as coverage improves.
+
+**Known limitation:** `lazysite-auth.pl`, `install.pl` and the plugins are run
+by some tests from a copied tempdir tree, so Devel::Cover splits their coverage
+across paths and they are not cleanly aggregated yet. Making those tests
+exercise the repo-root scripts would close the measurement gap.
+
 ## Writing tests for new features
 
 **Unit tests.** Put them under `t/unit/<area>/`. Load the processor

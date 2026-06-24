@@ -18,6 +18,19 @@ Keying
 
 ## Unreleased
 
+Conformance (item 7, WP-2 / D2) - coverage instrumentation + regression floor
+: The tests run the CGIs as subprocesses, which defeated `Devel::Cover` (it saw
+  only the parent `prove` and reported `n/a`). `tools/coverage.sh` now
+  instruments the children by exporting `PERL5OPT=-MDevel::Cover` so every
+  spawned `perl` writes to one shared `cover_db` - a real coverage number for
+  the first time. Measured: the core CGIs clear the 75% statement target
+  (`dav` 92%, `users` 90%, `bundle-apply` 90%, `processor` 81%);
+  `lazysite-manager-api.pl` is the gap at 60% (its 4273 lines - the same file
+  flagged for a D1 split). A regression floor of 60% per cleanly-measured CGI
+  is enforced by `tools/coverage.sh --check` (`dist/config/coverage-floor`),
+  with 75% as the Commercial target. `auth.pl`/`install.pl`/plugins are split
+  across tempdir copies (a measurement limitation, documented).
+
 Fix - runtime directories were not group-writable on a plain install.pl install
 : `install.pl` created `lazysite/auth` (and `cache`/`logs`/`manager/locks`/
   `layouts`/`lazysite-assets`) at non-group-writable modes on a fresh install:

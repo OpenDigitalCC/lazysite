@@ -1,0 +1,21 @@
+# Statement-coverage floor for `tools/coverage.sh --check`.
+#
+# Commercial-regime TARGET: 75% statements.
+# Enforced regression floor: 60% per cleanly-measured production CGI (the
+# current low-water mark, lazysite-manager-api.pl). Ratchet this upward as
+# coverage improves - never down.
+#
+# Measured baseline (full suite, subprocess-instrumented; see
+# docs/architecture/test-coverage.md), statement / branch:
+#   lazysite-dav.pl                 92% / 71%
+#   tools/lazysite-users.pl         90% / 71%
+#   tools/lazysite-bundle-apply.pl  90% / 65%
+#   lazysite-processor.pl           81% / 69%
+#   lazysite-manager-api.pl         60% / 49%   <- the gap (4273 lines; D1 split)
+#
+# lazysite-auth.pl, install.pl and the plugins are run by tests from copied
+# tempdir trees, so Devel::Cover splits their coverage across paths and they are
+# not yet cleanly aggregated - excluded from the gate until the tests exercise
+# the repo-root scripts. Tracked.
+floor=60
+target=75
