@@ -14,8 +14,49 @@ WebDAV that already exist; it adds no authority of its own.
 
 ## Status
 
-Queued - not yet specced. Captures the intent + the shape so it can be picked
-up. Depends on the control-API surface that already ships (SM071–SM074).
+**v1 implemented (2026-06-24)** - `lazysite-mcp.pl`. A Streamable-HTTP JSON-RPC
+MCP server reusing the shared `Lazysite::*` action handlers (the SM079 refactor
+payoff). Pinned by `t/unit/mcp/01-protocol.t`. Remaining for later cuts: OAuth
+2.1, the GET/SSE notification stream, and `set_config` + more tools.
+
+### v1 shape
+
+- **Transport** - single endpoint, `POST` = JSON-RPC request -> JSON response
+  (`initialize`, `tools/list`, `tools/call`, `ping`, notifications -> `202`).
+  Protocol `2025-11-25`. `GET` returns `405` (no SSE stream in v1; the server is
+  stateless, issues no `MCP-Session-Id`).
+- **Auth** - static bearer: `Authorization: Bearer <partner-id>:<lzs_ token>`,
+  verified by the same `verify-credential` path as the control API, so
+  capabilities + per-file ACLs bind identically. A token client is never a
+  manager operator. (OAuth 2.1 is the v2 - Claude.ai accepts a static bearer
+  today, confirmed 2026-06-24.)
+- **Tools** (maintenance only, each gated by the matching capability):
+  `whoami` (any), `list_files`/`read_file`/`write_file`/`move_file`/
+  `delete_file`/`set_permissions` (`webdav`), `activate_theme` (`manage_themes`),
+  `activate_layout` (`manage_layouts`). No user-admin or secrets surface.
+- **Errors** - JSON-RPC codes: `-32001` unauthorized, `-32002` insufficient
+  capability, `-32602` unknown tool / bad params, `-32601` unknown method.
+
+### Connector setup (how an operator wires Claude.ai to a site)
+
+1. Deploy `lazysite-mcp.pl` to `{CGIBIN}` (the classification installs it
+   alongside the other CGIs) behind HTTPS.
+2. In Claude.ai, add a custom connector pointing at
+   `https://<site>/cgi-bin/lazysite-mcp.pl`, with bearer auth set to
+   `<partner-id>:<lzs_ token>` (the same credential issued for the control API).
+3. Claude can then call the maintenance tools within the partner's granted
+   capabilities + ACLs.
+
+### Deferred to later cuts
+
+- OAuth 2.1 (RFC 9728 protected-resource metadata + PKCE) for per-user
+  browser-grant auth instead of a pasted bearer.
+- The GET/SSE notification channel + session resumability.
+- `set_config` and additional tools (nav, plugins) as the control API exposes
+  them as clean module functions.
+- The Apache deploy snippet (the `RequestHeader unset X-Remote-*` trust-strip
+  already applies; the MCP endpoint needs the same Basic/Bearer pass-through as
+  the control API).
 
 ## Goal
 

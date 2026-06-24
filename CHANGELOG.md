@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+Feature - MCP server v1 (SM076)
+: `lazysite-mcp.pl` - a remote MCP server (Streamable-HTTP JSON-RPC) that lets an
+  AI client (Claude.ai custom connector, Claude Desktop/Code) call site
+  MAINTENANCE tools. Reuses the shared `Lazysite::*` action handlers; static
+  bearer auth (`<partner-id>:<lzs_ token>`) verified by the same credential path
+  as the control API, so capabilities + per-file ACLs bind identically. Tools:
+  whoami, list/read/write/move/delete files, set_permissions, activate_theme,
+  activate_layout. OAuth + SSE + set_config deferred. Pinned by
+  `t/unit/mcp/01-protocol.t`.
+
 ## 0.4.1 - Files-UI overhaul + field-report fixes (2026-06-24)
 
 Feature - Files-manager UI overhaul (SM077)
