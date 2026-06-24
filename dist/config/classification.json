@@ -9,8 +9,8 @@
       "bucket": "code"
     },
     {
-      "_comment": "Core CGI scripts stay at repo root with the lazysite- prefix. processor, auth, manager-api, dav, mcp are explicitly enumerated so a future stray lazysite-*.pl at root won't get silently installed to cgi-bin.",
-      "pattern": "^lazysite-(processor|auth|manager-api|dav|mcp)\\.pl$",
+      "_comment": "Core CGI scripts stay at repo root with the lazysite- prefix. processor, auth, manager-api, dav, mcp, oauth are explicitly enumerated so a future stray lazysite-*.pl at root won't get silently installed to cgi-bin.",
+      "pattern": "^lazysite-(processor|auth|manager-api|dav|mcp|oauth)\\.pl$",
       "install_to": "{CGIBIN}/$0",
       "bucket": "code"
     },

@@ -70,6 +70,24 @@ sub rpc_error {
         error => { code => $code, message => $msg } } );
 }
 
+# SM076 OAuth: a tool call without valid auth returns HTTP 401 with a
+# WWW-Authenticate challenge pointing at the protected-resource metadata, so an
+# OAuth client (Claude.ai web) discovers the authorization server and starts the
+# flow. (initialize / tools/list stay open for discovery.)
+sub send_401 {
+    my ($id) = @_;
+    my $host = $ENV{HTTP_HOST} // $ENV{SERVER_NAME} // '';
+    my $meta = "https://$host/.well-known/oauth-protected-resource";
+    binmode STDOUT, ':utf8';
+    print "Status: 401 Unauthorized\r\n";
+    print "WWW-Authenticate: Bearer resource_metadata=\"$meta\"\r\n";
+    print "Content-Type: application/json\r\n";
+    print "MCP-Protocol-Version: $PROTOCOL\r\n\r\n";
+    print encode_json( { jsonrpc => '2.0', id => $id,
+        error => { code => -32001, message => 'Unauthorized' } } );
+    exit 0;
+}
+
 # --- token auth (reuses the control-API credential verification) ----------
 
 sub _users_tool {
@@ -272,9 +290,7 @@ elsif ( $method eq 'tools/call' ) {
     rpc_error( $id, -32602, "Unknown tool: $name" ) unless $tool;
 
     my ( $user, $caps ) = verify_bearer();
-    rpc_error( $id, -32001,
-        'Unauthorized: present Authorization: Bearer <partner-id>:<lzs_ token>' )
-        unless defined $user;
+    send_401($id) unless defined $user;
 
     if ( defined $tool->{cap} && !$caps->{ $tool->{cap} } ) {
         rpc_error( $id, -32002, "Insufficient capability for $name (needs $tool->{cap})" );

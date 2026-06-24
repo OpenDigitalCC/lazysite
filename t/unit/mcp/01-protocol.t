@@ -61,7 +61,7 @@ sub mcp {
     my ($status) = $resp =~ /Status:\s*(\d+)/;
     my ($jb)     = $resp =~ /\r?\n\r?\n(.*)/s;
     my $obj = ( defined $jb && length $jb ) ? eval { decode_json($jb) } : undef;
-    return ( $status, $obj );
+    return ( $status, $obj, $resp );
 }
 
 sub call { mcp( { jsonrpc => '2.0', id => 1, method => 'tools/call',
@@ -89,9 +89,14 @@ is_deeply( $r->{result}, {}, 'ping: empty result' );
 ( $st, $r ) = mcp( { jsonrpc => '2.0', method => 'notifications/initialized' } );
 is( $st, 202, 'notification: 202 Accepted, no JSON-RPC body' );
 
-# --- auth gate ---
-( $st, $r ) = call( 'list_files', { path => '/content' } );    # no Authorization
-is( $r->{error}{code}, -32001, 'tools/call without a bearer is unauthorized' );
+# --- auth gate: no bearer -> HTTP 401 + WWW-Authenticate (OAuth challenge) ---
+my $raw;
+( $st, $r, $raw ) = call( 'list_files', { path => '/content' } );    # no Authorization
+is( $st, 401, 'tools/call without a bearer -> HTTP 401 (OAuth challenge)' );
+like( $raw,
+    qr{WWW-Authenticate:\s*Bearer\s+resource_metadata="[^"]+/\.well-known/oauth-protected-resource"},
+    '401 carries the protected-resource metadata pointer' );
+is( $r->{error}{code}, -32001, 'body is a JSON-RPC unauthorized error' );
 
 ( $st, $r ) = call( 'list_files', { path => '/content' }, $bearer_lim );
 ok( !$r->{error}, 'authenticated tools/call succeeds' );
