@@ -403,6 +403,11 @@ function copyCred(user) {
   if (code && navigator.clipboard) navigator.clipboard.writeText(code.textContent).then(function() { showStatus('Credential copied.'); });
 }
 
+function closeOnboarding(user) {
+  var box = document.getElementById('onb-' + user);
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; box._text = ''; }
+}
+
 function showOnboarding(user) {
   var box = document.getElementById('onb-' + user);
   apiCall({ action: 'onboarding', username: user })
@@ -412,8 +417,11 @@ function showOnboarding(user) {
       box.style.display = '';
       box.innerHTML = '<textarea class="mg-onb" readonly rows="12">' + escHtml(d.onboarding) + '</textarea>' +
         '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copyOnboarding(\'' + escHtml(user) + '\')">Copy</button>' +
-        '<button class="mg-btn mg-btn-sm" onclick="downloadOnb(\'' + escHtml(user) + '\')">Download .md</button></div>';
-      showStatus('Onboarding brief generated (contains a single-use pairing key).');
+        '<button class="mg-btn mg-btn-sm" onclick="downloadOnb(\'' + escHtml(user) + '\')">Download .md</button>' +
+        '<button class="mg-btn mg-btn-sm" onclick="closeOnboarding(\'' + escHtml(user) + '\')">Close</button></div>' +
+        '<div class="mg-muted" style="font-size:0.8em;margin-top:0.25rem">Single-use, expires in 24h. ' +
+        'Generating another brief mints a fresh key and <strong>invalidates this one</strong> &mdash; only the most recent works.</div>';
+      showStatus('Onboarding brief generated - a fresh single-use pairing key (any previous one is now invalid).');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
