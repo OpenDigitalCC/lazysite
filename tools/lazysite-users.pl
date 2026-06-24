@@ -111,6 +111,7 @@ BEGIN {
 use Lazysite::Util qw(log_event const_eq);
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
+use Lazysite::Auth::Settings qw(read_settings write_settings _consume_lock);
 $Lazysite::Util::COMPONENT = 'users';
 
 # SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
@@ -153,7 +154,7 @@ unless ( -d $AUTH_DIR ) {
 
 my $USERS_FILE    = "$AUTH_DIR/users";
 my $GROUPS_FILE   = "$AUTH_DIR/groups";
-my $SETTINGS_FILE = "$AUTH_DIR/user-settings.json";
+$Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
 
 # --- API mode ---
 
@@ -1582,48 +1583,12 @@ sub write_groups {
 # cannot be consumed twice (the read-verify-delete-write TOCTOU). Fail-open
 # (undef) if the lock can't be taken - rare (AUTH_DIR unwritable), and
 # consistent with the rate-limiter philosophy.
-sub _consume_lock {
-    my $path = "$AUTH_DIR/.consume.lock";
-    open my $lk, '>', $path or return undef;
-    flock( $lk, LOCK_EX ) or do { close $lk; return undef };
-    return $lk;
-}
 
 # SM070: per-user access-mechanism settings, JSON object keyed by
 # username. Single writer (this tool), write-temp-then-rename.
 # Unparseable content yields defaults (empty) plus a WARN, so a
 # corrupt file cannot wedge user management.
-sub read_settings {
-    require JSON::PP;
-    return {} unless -f $SETTINGS_FILE;
-    open my $fh, '<:utf8', $SETTINGS_FILE or do {
-        log_event( 'WARN', 'settings', 'cannot read user-settings.json', error => "$!" );
-        return {};
-    };
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    if ( !$data || ref $data ne 'HASH' ) {
-        log_event( 'WARN', 'settings', 'user-settings.json unparseable; using defaults' );
-        return {};
-    }
-    return $data;
-}
 
-sub write_settings {
-    my ($data) = @_;
-    require JSON::PP;
-    my $json = JSON::PP->new->canonical->pretty->encode($data);
-    my $tmp  = "$SETTINGS_FILE.tmp.$$";
-    open my $fh, '>:utf8', $tmp or die "Cannot write $SETTINGS_FILE: $!\n";
-    flock( $fh, LOCK_EX );
-    print $fh $json;
-    flock( $fh, LOCK_UN );
-    close $fh;
-    chmod 0660, $tmp;   # group-writable: CLI + www-data both manage it
-    rename $tmp, $SETTINGS_FILE
-        or die "Cannot rename settings file into place: $!\n";
-}
 
 # --- Logging ---
 

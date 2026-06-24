@@ -37,6 +37,7 @@ BEGIN {
 }
 use Lazysite::Util qw(log_event const_eq);
 use Lazysite::Auth::Credential qw(verify_password);
+use Lazysite::Auth::Settings qw(read_settings);
 $Lazysite::Util::COMPONENT = 'dav';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT};
@@ -44,6 +45,7 @@ my $LAZYSITE_DIR = defined $DOCROOT ? "$DOCROOT/lazysite" : undef;
 my $AUTH_DIR     = defined $DOCROOT ? "$LAZYSITE_DIR/auth" : undef;
 my $LOCK_DIR     = defined $DOCROOT ? "$LAZYSITE_DIR/manager/locks" : undef;
 my $DAV_RATE_DB  = defined $DOCROOT ? "$AUTH_DIR/.dav-rate.db" : undef;
+$Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
 
 # Failed-auth rate limit (per IP), mirroring the login limiter (H-3).
 my $RATE_MAX    = 5;       # failures per window
@@ -1146,20 +1148,6 @@ sub load_users {
 # H-2 verify (duplicated): both salted-iterated and legacy formats.
 
 
-sub read_settings {
-    my $path = "$AUTH_DIR/user-settings.json";
-    return {} unless -f $path;
-    open my $fh, '<:utf8', $path or return {};
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    require JSON::PP;
-    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    if ( !$data || ref $data ne 'HASH' ) {
-        log_event( 'WARN', '-', 'user-settings.json unparseable; webdav defaults off' );
-        return {};
-    }
-    return $data;
-}
 
 sub webdav_enabled_for {
     my ($user) = @_;
