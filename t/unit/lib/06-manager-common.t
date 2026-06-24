@@ -38,4 +38,19 @@ close $fh;
 my ( $ok2, $err2 ) = write_file_checked( "$d/missing-dir/out.txt", 'x' );
 ok( !$ok2 && $err2, 'write into a missing dir fails with an error' );
 
+# is_blocked_config (deny-by-config: blocked path prefixes + upload extensions)
+{
+    my $buf = '';
+    local *STDERR;
+    open STDERR, '>', \$buf or die;
+    ok( is_blocked_config('lazysite/auth/x'), 'lazysite/auth prefix blocked by config' );
+    ok( is_blocked_config('cgi-bin/y'),       'cgi-bin prefix blocked' );
+    ok( !is_blocked_config('content/page.md'), 'normal content not config-blocked' );
+    ok( is_blocked_upload_target('evil.pl'),  'pl extension blocked for upload targets' );
+    ok( !is_blocked_config('evil.pl'),        'extension only checked when requested' );
+}
+my $lim = upload_limits();
+is( ref $lim, 'HASH', 'upload_limits returns a hashref' );
+ok( $lim->{max_bytes} > 0, 'upload_limits has a max_bytes default' );
+
 done_testing();

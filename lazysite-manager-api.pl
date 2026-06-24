@@ -26,7 +26,8 @@ BEGIN {
 use Lazysite::Util qw(log_event const_eq);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows);
 use Lazysite::Auth::Session qw(generate_csrf_token verify_csrf_token);
-use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond);
+use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
+    is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
@@ -3465,116 +3466,10 @@ sub action_form_targets_save {
 # save, and delete as well as upload. The old key is still
 # accepted with a one-time INFO log so operators have a chance
 # to update their conf on the next restart.
-sub load_upload_limits {
-    my %limits = (
-        max_bytes          => 10 * 1024 * 1024,
-        blocked_paths      => [ qw(
-            lazysite/auth lazysite/forms lazysite/cache
-            lazysite/manager cgi-bin manager
-        ) ],
-        blocked_extensions => [ qw(pl cgi) ],
-        rate_count         => 60,
-        rate_bytes         => 500 * 1024 * 1024,
-    );
 
-    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
-    return \%limits unless -f $conf_path;
-
-    my $new_key_seen = 0;
-    my $old_key_seen = 0;
-    open my $fh, '<', $conf_path or return \%limits;
-    while (<$fh>) {
-        if ( /^manager_upload_max_mb\s*:\s*(\S+)/ ) {
-            my $mb = $1;
-            if ( $mb =~ /^\d+$/ && $mb > 0 ) {
-                $limits{max_bytes} = $mb * 1024 * 1024;
-            } else {
-                log_event( 'WARN', 'config',
-                    'invalid manager_upload_max_mb', value => $mb );
-            }
-        }
-        elsif ( /^manager_blocked_paths\s*:\s*(.+)/ ) {
-            my $v = $1;
-            $v =~ s/\s+$//;
-            if ( length $v ) {
-                $limits{blocked_paths} = [
-                    map  { my $p = $_; $p =~ s{^/+|/+$}{}g; $p }
-                    grep { length }
-                    split /\s*,\s*/, $v
-                ];
-            }
-            $new_key_seen = 1;
-        }
-        elsif ( /^manager_upload_blocked_paths\s*:\s*(.+)/ ) {
-            # Deprecated alias; only honoured if the new key
-            # is absent. The new-key check happens after the
-            # loop because they may appear in either order.
-            my $v = $1;
-            $v =~ s/\s+$//;
-            if ( length $v ) {
-                $limits{_deprecated_blocked_paths} = [
-                    map  { my $p = $_; $p =~ s{^/+|/+$}{}g; $p }
-                    grep { length }
-                    split /\s*,\s*/, $v
-                ];
-            }
-            $old_key_seen = 1;
-        }
-        elsif ( /^manager_upload_blocked_extensions\s*:\s*(.+)/ ) {
-            my $v = $1;
-            $v =~ s/\s+$//;
-            if ( length $v ) {
-                $limits{blocked_extensions} = [
-                    map  { lc $_ }
-                    grep { length }
-                    split /\s*,\s*/, $v
-                ];
-            }
-        }
-        elsif ( /^manager_upload_rate_count\s*:\s*(\S+)/ ) {
-            my $n = $1;
-            if ( $n =~ /^\d+$/ ) {
-                $limits{rate_count} = $n + 0;
-            } else {
-                log_event( 'WARN', 'config',
-                    'invalid manager_upload_rate_count', value => $n );
-            }
-        }
-        elsif ( /^manager_upload_rate_mb\s*:\s*(\S+)/ ) {
-            my $mb = $1;
-            if ( $mb =~ /^\d+$/ ) {
-                $limits{rate_bytes} = $mb * 1024 * 1024;
-            } else {
-                log_event( 'WARN', 'config',
-                    'invalid manager_upload_rate_mb', value => $mb );
-            }
-        }
-    }
-    close $fh;
-
-    # Apply the deprecated alias only if the new key was not set.
-    # Log INFO so operators know to rename.
-    if ( $old_key_seen && !$new_key_seen
-        && exists $limits{_deprecated_blocked_paths} ) {
-        $limits{blocked_paths} = delete $limits{_deprecated_blocked_paths};
-        log_event( 'INFO', 'config',
-            'manager_upload_blocked_paths is deprecated; '
-          . 'rename to manager_blocked_paths in lazysite.conf' );
-    }
-    delete $limits{_deprecated_blocked_paths};
-
-    return \%limits;
-}
-
-my $_upload_limits_cache;
-sub upload_limits {
-    $_upload_limits_cache //= load_upload_limits();
-    return $_upload_limits_cache;
-}
 
 # Reset hook used by tests that rewrite the conf between calls. Not
 # referenced from production code paths; CGI processes are one-shot.
-sub _reset_upload_limits_cache { $_upload_limits_cache = undef }
 
 # Second gate on top of is_blocked_path. is_blocked_path enforces a
 # hard-coded list plus the .pl rule; this one reads the configurable
@@ -3585,46 +3480,10 @@ sub _reset_upload_limits_cache { $_upload_limits_cache = undef }
 # is still upload-only (no reason to block a user from downloading
 # a .pl they already created through other means). The
 # $check_extensions flag controls that.
-sub is_blocked_config {
-    my ( $rel_path, $check_extensions ) = @_;
-    my $limits = upload_limits();
-
-    for my $prefix ( @{ $limits->{blocked_paths} } ) {
-        next unless length $prefix;
-        if ( $rel_path eq $prefix
-            || index( $rel_path, "$prefix/" ) == 0 ) {
-            log_event( 'WARN', $action, 'blocked by config (path)',
-                path => $rel_path, prefix => $prefix,
-                user => $auth_user );
-            return 1;
-        }
-    }
-
-    return 0 unless $check_extensions;
-
-    my ($ext) = $rel_path =~ /\.([^.\/]+)$/;
-    if ( defined $ext ) {
-        my $lc = lc $ext;
-        for my $blocked ( @{ $limits->{blocked_extensions} } ) {
-            if ( $lc eq $blocked ) {
-                log_event( 'WARN', $action,
-                    'blocked by config (extension)',
-                    path => $rel_path, extension => $lc,
-                    user => $auth_user );
-                return 1;
-            }
-        }
-    }
-    return 0;
-}
 
 # SM019c: kept as a thin compat shim so callers (and tests)
 # written against the SM019 name still work. New call sites
 # should use is_blocked_config directly.
-sub is_blocked_upload_target {
-    my ($rel_path) = @_;
-    return is_blocked_config( $rel_path, 1 );
-}
 
 # Per-user hourly budget on upload count and total bytes. Mirrors the
 # .login-rate.db pattern in lazysite-auth.pl: fail-open on DB failure,
