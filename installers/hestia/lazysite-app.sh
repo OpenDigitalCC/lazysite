@@ -9,11 +9,13 @@
 user="$1"; domain="$2"; ip="$3"; home="$4"; docroot="$5"
 domdir="$(dirname "$docroot")"
 
-# install.pl writes plugins/ and tools/ as siblings of public_html, but
+# install.pl writes plugins/, tools/ and lib/ as siblings of public_html, but
 # the Hestia domain root is mode 0551 (the user can't create files there).
 # Create them as root, owned by the user so install.pl can populate them.
-mkdir -p "$domdir/plugins" "$domdir/tools"
-chown "$user":"$user" "$domdir/plugins" "$domdir/tools"
+# (lib/ holds the shared Lazysite::* modules added in 0.4.0 / SM079 - it must
+# be pre-created here for the same reason as plugins/ and tools/.)
+mkdir -p "$domdir/plugins" "$domdir/tools" "$domdir/lib"
+chown "$user":"$user" "$domdir/plugins" "$domdir/tools" "$domdir/lib"
 
 # The processor runs as the web-server user (www-data when SuexecUserGroup
 # is off, as in this template) and writes rendered .html across the docroot

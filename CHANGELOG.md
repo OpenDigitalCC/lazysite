@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+Fix - Hestia upgrade to 0.4.x creates the lib/ module dir
+: The Hestia template hook (`lazysite-app.sh`) pre-creates the site-root
+  siblings install.pl needs (the domain root is mode 0551, not user-writable),
+  but the SM079 `lib/` was never added - so `install.pl` failed with
+  `mkdir .../lib: Permission denied` on a domain whose root is not user-writable.
+  The hook now creates `lib/` alongside `plugins/` and `tools/`. `install.pl`
+  also turns that bare mkdir failure into an actionable message pointing at the
+  template hook. Operators on 0.4.x must re-apply the template before upgrading.
+
 Feature - MCP server v1 (SM076)
 : `lazysite-mcp.pl` - a remote MCP server (Streamable-HTTP JSON-RPC) that lets an
   AI client (Claude.ai custom connector, Claude Desktop/Code) call site

@@ -404,7 +404,17 @@ sub execute_plan {
 
 sub install_file {
     my ( $src, $dest ) = @_;
-    make_path( dirname($dest) );
+    my $dir = dirname($dest);
+    if ( !-d $dir && !eval { make_path($dir); 1 } ) {
+        # Most often: a site-root sibling (plugins/, tools/, lib/) on a Hestia
+        # domain, whose root is mode 0551 - the template hook (lazysite-app.sh)
+        # must pre-create those as root. Give an actionable message rather than
+        # a bare "mkdir ... Permission denied".
+        die "Cannot create directory $dir: $@"
+          . "  If this is a Hestia install, the domain root is not user-writable;\n"
+          . "  re-apply the lazysite-app web template (it pre-creates plugins/,\n"
+          . "  tools/ and lib/ as root), then re-run the install.\n";
+    }
     File::Copy::copy( $src, $dest )
         or die "Failed to copy $src -> $dest: $!\n";
     chmod mode_for($dest), $dest;
