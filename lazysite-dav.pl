@@ -36,12 +36,14 @@ BEGIN {
     }
 }
 use Lazysite::Util qw(log_event const_eq);
+use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential qw(verify_password);
 use Lazysite::Auth::Settings qw(read_settings);
 $Lazysite::Util::COMPONENT = 'dav';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT};
 my $LAZYSITE_DIR = defined $DOCROOT ? "$DOCROOT/lazysite" : undef;
+$Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $AUTH_DIR     = defined $DOCROOT ? "$LAZYSITE_DIR/auth" : undef;
 my $LOCK_DIR     = defined $DOCROOT ? "$LAZYSITE_DIR/manager/locks" : undef;
 my $DAV_RATE_DB  = defined $DOCROOT ? "$AUTH_DIR/.dav-rate.db" : undef;
@@ -206,24 +208,38 @@ sub main {
         }
     }
 
-    # 6. Dispatch.
+    # 6. Dispatch. Read methods return directly; state-changing methods have
+    # their outcome captured and recorded to the shared audit trail (origin =
+    # dav) so a partner's WebDAV writes are visible alongside the manager UI /
+    # control-API entries.
     my %args = ( rel => $rel, user => $user, conf => $conf, scope => $scope, ip => $ip );
     if    ( $method eq 'PROPFIND' )  { return do_propfind(%args) }
     elsif ( $method eq 'PROPPATCH' ) { return do_proppatch(%args) }
     elsif ( $method eq 'GET' )       { return do_get( %args, head => 0 ) }
     elsif ( $method eq 'HEAD' )      { return do_get( %args, head => 1 ) }
-    elsif ( $method eq 'PUT' )       { return do_put(%args) }
-    elsif ( $method eq 'MKCOL' )     { return do_mkcol(%args) }
-    elsif ( $method eq 'DELETE' )    { return do_delete(%args) }
-    elsif ( $method eq 'COPY' )      { return do_copy_move( %args, move => 0 ) }
-    elsif ( $method eq 'MOVE' )      { return do_copy_move( %args, move => 1 ) }
-    elsif ( $method eq 'LOCK' )      { return do_lock(%args) }
-    elsif ( $method eq 'UNLOCK' )    { return do_unlock(%args) }
+
+    my $code;
+    if    ( $method eq 'PUT' )    { $code = do_put(%args) }
+    elsif ( $method eq 'MKCOL' )  { $code = do_mkcol(%args) }
+    elsif ( $method eq 'DELETE' ) { $code = do_delete(%args) }
+    elsif ( $method eq 'COPY' )   { $code = do_copy_move( %args, move => 0 ) }
+    elsif ( $method eq 'MOVE' )   { $code = do_copy_move( %args, move => 1 ) }
+    elsif ( $method eq 'LOCK' )   { return do_lock(%args) }
+    elsif ( $method eq 'UNLOCK' ) { return do_unlock(%args) }
     else {
         return send_status( 405,
             headers => [ allow_header() ],
             body    => "Method not allowed\n" );
     }
+
+    my $target = $rel;
+    if ( $method eq 'MOVE' || $method eq 'COPY' ) {
+        my $dest = destination_rel();
+        $target .= ' -> ' . $dest if defined $dest;
+    }
+    audit_log( $user, lc($method), $target, $ip,
+        ( defined $code && $code < 400 ? 'ok' : 'fail' ), 'dav' );
+    return $code;
 }
 
 # ---------------------------------------------------------------------
@@ -1430,6 +1446,7 @@ sub send_response {
     else {
         print "\r\n";
     }
+    return $code;    # so main() can audit write outcomes
 }
 
 # ---------------------------------------------------------------------

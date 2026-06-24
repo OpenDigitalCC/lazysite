@@ -29,6 +29,7 @@ BEGIN {
     }
 }
 use Lazysite::Util qw(log_event);
+use Lazysite::Audit qw(audit_log);
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
     action_move action_acl_set action_acl_remove);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
@@ -122,6 +123,7 @@ sub setup_context {
     $Lazysite::Auth::Acl::auth_user            = $user;
     $Lazysite::Auth::Acl::token_auth           = 1;     # never an operator
     @Lazysite::Auth::Acl::user_groups          = ();    # token carries no groups
+    $Lazysite::Audit::LAZYSITE_DIR             = $LAZYSITE_DIR;
     return;
 }
 
@@ -287,6 +289,14 @@ elsif ( $method eq 'tools/call' ) {
     }
     log_event( 'INFO', 'mcp', 'tool call',
         tool => $name, user => $user, ok => ( $out->{ok} ? 1 : 0 ) );
+
+    # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
+    my %READ = ( whoami => 1, list_files => 1, read_file => 1 );
+    unless ( $READ{$name} ) {
+        my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
+        audit_log( $user, $name, $target, $ENV{REMOTE_ADDR} // '',
+            ( ref $out eq 'HASH' && $out->{ok} ) ? 'ok' : 'fail', 'mcp' );
+    }
 
     my $is_err = ( ref $out eq 'HASH' && $out->{ok} ) ? JSON::PP::false : JSON::PP::true;
     rpc_result( $id, {

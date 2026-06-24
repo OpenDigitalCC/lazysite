@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+Fix - WebDAV + MCP writes now appear in the audit trail
+: The audit trail only covered the manager control API, so a partner's WebDAV
+  writes (PUT/DELETE/MOVE/COPY/MKCOL) and MCP tool calls were invisible.
+  `audit_log` is now a shared `Lazysite::Audit` module called by all three
+  writers, with origin `dav` and `mcp` joining `ui`/`api`. WebDAV writes record
+  the method, path (and destination for MOVE/COPY) and outcome; MCP records the
+  state-changing tools. Pinned by `dav-publish.t`.
+
 ## 0.4.2 - MCP server, Files-UI v2, Hestia lib/ fix (2026-06-24)
 
 Feature - Files-manager UI v2 + richer audit (SM077)

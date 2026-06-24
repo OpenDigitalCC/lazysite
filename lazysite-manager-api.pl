@@ -24,6 +24,7 @@ BEGIN {
     }
 }
 use Lazysite::Util qw(log_event const_eq);
+use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Auth::Session qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
@@ -55,6 +56,7 @@ $Lazysite::Manager::Files::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Themes::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Layouts::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
+$Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Manager::Upload::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Manager::Themes::LAZYSITE_DIR = $LAZYSITE_DIR;
@@ -915,21 +917,9 @@ sub action_whoami {
 
 # SM072 audit trail: append one line per state-changing request to a
 # manager-readable log. Fields are pipe-delimited: ts | user | action | ip | status.
-sub audit_log {
-    my ( $user, $act, $target, $ip, $status, $origin ) = @_;
-    my $dir = "$LAZYSITE_DIR/logs";
-    return unless -d $dir || mkdir($dir);
-    require POSIX;
-    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
-    # SM077: origin (ui = cookie manager, api = control-API token) is appended
-    # last so the existing column positions stay stable for older readers.
-    $_ = defined $_ ? "$_" : '' for ( $user, $act, $target, $ip, $status, $origin );
-    s/[|\r\n]+/ /g for ( $user, $act, $target, $ip, $status, $origin );
-    open my $fh, '>>', "$dir/audit.log" or return;
-    print $fh "$ts | $user | $act | $target | $ip | $status | $origin\n";
-    close $fh;
-    return;
-}
+# audit_log now lives in Lazysite::Audit (shared with WebDAV + MCP); imported
+# at the top. action_audit (the reader, below) stays here - it is a manager
+# action.
 
 # SM072: read the audit trail (newest first), optionally filtered by user.
 sub action_audit {

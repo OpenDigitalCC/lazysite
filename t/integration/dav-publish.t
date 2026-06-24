@@ -58,4 +58,20 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
     like( $out, qr/Status:\s*404/, 'deleted page now 404s' );
 }
 
+# --- SM077: WebDAV writes land in the shared audit trail (origin=dav) ---
+{
+    my $log = "$docroot/lazysite/logs/audit.log";
+    ok( -f $log, 'audit log created by the dav writes' );
+    open my $lf, '<', $log or die $!;
+    my @lines = <$lf>;
+    close $lf;
+    my @dav = grep { /\| dav\s*$/ } @lines;
+    ok( scalar(@dav) >= 3, 'PUT, re-PUT and DELETE all recorded with origin=dav' )
+        or diag( join '', @lines );
+    ok( ( grep { /\| deploy \| put \|/ && /\| dav\s*$/ } @lines ),
+        'a PUT is audited (user=deploy, action=put, origin=dav)' );
+    ok( ( grep { /\| deploy \| delete \|/ && /\| dav\s*$/ } @lines ),
+        'a DELETE is audited (origin=dav)' );
+}
+
 done_testing();
