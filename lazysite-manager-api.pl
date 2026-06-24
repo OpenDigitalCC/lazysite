@@ -26,10 +26,12 @@ BEGIN {
 use Lazysite::Util qw(log_event const_eq);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows);
 use Lazysite::Auth::Session qw(generate_csrf_token verify_csrf_token);
+use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
 $Lazysite::Auth::Acl::DOCROOT = $DOCROOT;
+$Lazysite::Manager::Common::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
@@ -40,14 +42,6 @@ my $LOCK_TIMEOUT = 300;
 # the action subs see initialised values.
 my $PREVIEW_COOKIE = 'lzs_preview';
 my $PREVIEW_TTL    = 3600;   # 1 hour
-
-my @BLOCKED_PATHS = (
-    'lazysite/auth/.secret',
-    'lazysite/forms/.secret',
-    'lazysite/auth/users',
-    'lazysite/auth/groups',
-    'lazysite/auth/user-settings.json',
-);
 
 # SM019: download Content-Type table. Unknown extensions fall back to
 # application/octet-stream so the browser treats the body as raw bytes.
@@ -166,6 +160,9 @@ for my $pair ( split /&/, $ENV{QUERY_STRING} // '' ) {
 
 my $action = $params{action} // '';
 my $path   = $params{path}   // '/';
+# Mirror the per-request context into Manager::Common for log attribution.
+$Lazysite::Manager::Common::action    = $action;
+$Lazysite::Manager::Common::auth_user = $auth_user;
 
 my $body = '';
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
@@ -676,46 +673,10 @@ sub action_artifact_validate {
 
 # --- Response ---
 
-sub respond {
-    my ($data) = @_;
-    binmode( STDOUT, ':utf8' );
-    print "Status: 200 OK\r\n";
-    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-    print encode_json($data);
-}
 
 # --- Path validation ---
 
-sub validate_path {
-    my ($rel_path) = @_;
-    return { ok => 0, error => "No path" } unless $rel_path;
 
-    $rel_path =~ s{^/+}{};
-
-    my $full = "$DOCROOT/$rel_path";
-    my $check = -e $full ? $full : dirname($full);
-    my $real = realpath($check);
-
-    return { ok => 0, error => "Invalid path" }
-        unless $real && index( $real, $DOCROOT ) == 0;
-
-    return { ok => 1, full => $full, rel => $rel_path };
-}
-
-sub is_blocked_path {
-    my ($rel_path) = @_;
-    for my $blocked (@BLOCKED_PATHS) {
-        if ( $rel_path eq $blocked ) {
-            log_event('WARN', $action, 'blocked path access', path => $rel_path, user => $auth_user);
-            return 1;
-        }
-    }
-    if ( $rel_path =~ /\.pl$/ ) {
-        log_event('WARN', $action, 'blocked path access', path => $rel_path, user => $auth_user);
-        return 1;
-    }
-    return 0;
-}
 
 # SM020: every manager write path that previously did
 # open/print/close had the same ENOSPC/EIO/quota blind spot.
@@ -726,23 +687,6 @@ sub is_blocked_path {
 # - the operator can restore from backup or re-save from the UI.
 # Returns ($ok, $error_string). $! is captured into a lexical
 # before close because close itself resets $!.
-sub write_file_checked {
-    my ( $path, $content ) = @_;
-    open my $fh, '>:utf8', $path
-        or return ( 0, "Cannot write file: $!" );
-    unless ( print $fh $content ) {
-        my $err = "$!";
-        close $fh;
-        unlink $path;
-        return ( 0, "Write failed: $err" );
-    }
-    unless ( close $fh ) {
-        my $err = "$!";
-        unlink $path;
-        return ( 0, "Close failed: $err" );
-    }
-    return ( 1, undef );
-}
 
 # --- Lock management ---
 
