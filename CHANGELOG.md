@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.4.2 - MCP server, Files-UI v2, Hestia lib/ fix (2026-06-24)
+
 Feature - Files-manager UI v2 + richer audit (SM077)
 : The Files page is redesigned for clarity: icon + name on the left; an Access
   column (owner + colour-coded r/w, g for a group; green = open, red = restricted),
