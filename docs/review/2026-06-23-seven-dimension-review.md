@@ -78,7 +78,7 @@ Foundations are sound — constant-time compares (`const_eq`), CSRF (HMAC, hourl
 
 ## 7. Policy compliance — RED (pending regime)
 
-- **Regime undetermined** — needed before scoring (it sets floors + required artefacts). lazysite is operator-deployed *and* exposed to external AI partners, so it's past experiment/internal.
+- **Regime: COMMERCIAL** (set 2026-06-24). This sets the bar: **CRA 2024/1689 Art. 13 duties** — Declaration of Conformity, Annex VII technical file, support-period commitment, signed releases; **CE marking from 11 Dec 2027**; **OpenChain 5230 + 18974** written policies; coverage floor **75%**; performance is a gate (not warn-only); the **five-audience documentation taxonomy** is required. (Commercial-*regulated* would add a threat model + ISO 27001 SoA + sector overlays — not selected.)
 - **Strength:** the SBOM machinery (`sbom-deps.json` cross-distro schema + `manifest-to-sbom.pl --strict`) is the framework's named seed — but it **currently fails** (Time::Local).
 - **Gaps:** no Declaration of Conformity, no support-period statement, no OpenChain policy docs, no release signing (Sigstore), no `docs/POLICY.md`. **VERSION drift** (file says 0.2.18; latest 0.3.38). Build recipes: RPM/Alpine/OCI **missing** (`installers/docker/` is empty; no `.spec`/`APKBUILD`) — metadata exists, recipes don't.
 
