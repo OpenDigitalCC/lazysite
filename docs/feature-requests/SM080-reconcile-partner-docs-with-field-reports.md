@@ -51,14 +51,22 @@ Queued - not yet done. Observed 2026-06-24.
 - **Cache-clear caveat**: activation deletes generated `<page>.html`; author
   partials as `.md` (`.html` now preserved); never hand-run `find ... -delete`.
 
-## Open code work (the real enabler)
+## Code work - DONE (2026-06-24)
 
-- **Fix the activation asset mirror.** `theme_assets` resolves to
-  `/lazysite-assets/<layout>/<theme>/main.css` but that 404s - the mirror never
-  builds on activation, which forces `layout.tt` to hardcode the source CSS path,
-  which is what stops a copied layout from being drop-in. A reliable
-  `theme_assets` makes copy-then-activate truly zero-edit. Until fixed, document
-  the source-path workaround (above).
+- **Activation asset mirror - fixed.** `_mirror_theme_assets($layout, $theme)`
+  now copies the theme's `assets/` to `/lazysite-assets/<layout>/<theme>/` on
+  every theme/layout activation (not only on a repo install), so `theme_assets`
+  resolves for a copied-then-activated layout and copy-then-activate is
+  zero-edit. Pinned by `t/unit/lib/10-theme-mirror.t`.
+
+## Open documentation work (remaining)
+
+The doc reconciliation above (trust-the-server preamble, copy-then-activate
+section, theme.json rules, template-variable reference, partner-id auth gotcha,
+cache-clear caveat) is still to fold into the shipped briefings. Note: the
+asset-mirror fix removes the *need* for the hardcoded-CSS-path workaround the
+field reports describe, so that part of the guidance can be simplified rather
+than documented as a limitation.
 
 ## Process note
 

@@ -165,7 +165,9 @@ sub action_theme_activate {
             _snapshot_artifact( $themes_dir, $old_theme );
             _prune_backups( $themes_dir, $old_theme );
         }
-        return _set_theme_pointer($theme_name);
+        my $res = _set_theme_pointer($theme_name);
+        _mirror_theme_assets( $active_layout, $theme_name ) if $res->{ok};
+        return $res;
     };
     my $err = $@;
     release_lock( $lock_rel, $auth_user );
@@ -203,6 +205,26 @@ sub _invalidate_html_cache {
         ( my $base = $File::Find::name ) =~ s/\.html$//;
         unlink $_ if -f "$base.md" || -f "$base.url";
     }, $DOCROOT );
+}
+
+# SM080: build the web-served asset mirror at /lazysite-assets/LAYOUT/THEME/ so
+# the processor's `theme_assets` variable resolves after ACTIVATION, not only
+# after a repo install. Without this a copied-then-activated layout/theme 404s
+# its CSS (theme_assets points at a mirror that was never built), which forced
+# layout.tt to hardcode the source path and blocked drop-in layout copies.
+# Idempotent; a no-op when the theme has no assets/ dir.
+sub _mirror_theme_assets {
+    my ( $layout, $theme ) = @_;
+    return unless length $layout && length $theme;
+    my $src = "$LAZYSITE_DIR/layouts/$layout/themes/$theme/assets";
+    return unless -d $src;
+    my $dest = "$DOCROOT/lazysite-assets/$layout/$theme";
+    make_path($dest) unless -d $dest;
+    my $rc = system( 'cp', '-r', "$src/.", $dest );
+    log_event( 'WARN', $action, 'theme asset mirror failed',
+        layout => $layout, theme => $theme, rc => ( $rc >> 8 ) )
+        if $rc != 0;
+    return;
 }
 
 sub _validate_theme_dir {
@@ -304,8 +326,11 @@ sub action_layout_activate {
             _snapshot_artifact( "$LAZYSITE_DIR/layouts", $old_layout );
             _prune_backups( "$LAZYSITE_DIR/layouts", $old_layout );
         }
-        return _set_layout_pointer( $layout_name,
+        my $res = _set_layout_pointer( $layout_name,
             ( $theme_specified && length $theme ) ? $theme : undef );
+        _mirror_theme_assets( $layout_name, ( length $theme ? $theme : $cur_theme ) )
+            if $res->{ok};
+        return $res;
     };
     my $err = $@;
     release_lock( $lock_rel, $auth_user );

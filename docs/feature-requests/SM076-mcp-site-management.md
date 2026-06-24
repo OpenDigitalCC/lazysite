@@ -40,6 +40,18 @@ directly, with schemas and the partner's real capabilities.
   site + credential per session (so claude.ai can manage several of the
   operator's sites).
 
+## Claude.ai vs Claude Code (verified 2026-06-24)
+
+Claude Code already drives full builds + maintenance over the control API +
+WebDAV (the dhcf + Barn field reports are the evidence). The open question was
+**Claude.ai** (web/mobile): it connects to MCP servers only as **remote custom
+connectors** - Streamable HTTP / SSE transport with OAuth - it cannot launch a
+local stdio server. So for Claude.ai to manage a site, SM076 must be a **hosted,
+remote MCP server** that authenticates the user (OAuth) and proxies to the
+control API + WebDAV with a partner `lzs_` token. (Claude Desktop/Code could use
+a local stdio build, but the remote form serves both.) This is the binding
+design constraint: build the remote/HTTP transport first.
+
 ## Considerations
 
 - **Language / packaging:** lazysite itself is core-Perl, no-CPAN. An MCP
