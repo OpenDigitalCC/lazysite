@@ -1,0 +1,10 @@
+lazysite
+Copyright (c) 2026 Open Digital CC
+
+Licensed under the MIT License; see LICENSE for the full text.
+
+lazysite is a self-contained Perl CGI application and bundles no third-party
+source. Its runtime dependencies are Perl core modules plus the optional
+Template Toolkit, Archive::Zip and DB_File - each under its own copyright and
+licence, enumerated with SPDX identifiers in dist/config/sbom-deps.json and in
+the generated CycloneDX SBOM shipped with each release.

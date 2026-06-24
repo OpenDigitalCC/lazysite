@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+Docs - five-audience documentation taxonomy + security-model refresh (item 7, WP-4)
+: Adds the framework's audience entry points - `docs/USER.md`, `DEVELOPER.md`,
+  `IMPLEMENTOR.md`, `OPERATOR.md`, `POLICY.md` - plus `COPYRIGHT`, and refreshes
+  `docs/architecture/security.md` for the SM072-074 surfaces (claim/TOTP
+  lifecycle, per-file ACLs, the forms carve-out), stating the Apache
+  `X-Remote-*` trust-strip as a **hard** deployment requirement. `POLICY.md`
+  records the Commercial regime and the CRA Art. 13 obligation status.
+
 Conformance (seven-dimension review, item 7) - code quality, perf, hygiene
 : D1: a curated Perl::Critic profile (`.perlcriticrc`, severity 4) enforced by
   `t/lint/02-perlcritic.t` with zero violations; the `return undef` convention

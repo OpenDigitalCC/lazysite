@@ -534,3 +534,61 @@ restarts.
 applies only to the manager API. The payment and form handlers
 have their own protections (HMAC timestamp tokens, honeypot,
 rate limits) appropriate to their flows.
+
+## Hard deployment requirement: strip client trust headers
+
+The auth model is two-layer. lazysite-auth.pl validates the session cookie and
+sets `X-Remote-User` / `X-Remote-Groups` for downstream CGIs; the processor's
+trust gate keeps those headers only when `LAZYSITE_AUTH_TRUSTED=1` (set
+internally) or `auth_proxy_trusted: true`. **The integrity of this depends on
+the web server stripping any client-supplied `X-Remote-*` / `X-Payment-*`
+before a trusted component runs.** Every shipped vhost template emits
+`RequestHeader unset X-Remote-User/Groups/Name/Email` and the payment headers
+(needs `mod_headers`).
+
+This is a **hard requirement, not advisory**: a single missing `RequestHeader
+unset` line (e.g. on a hand-rolled vhost, or a separate API vhost) lets a client
+inject its own group membership and become an operator. Defence in depth in the
+code: the **token (control-API) path never consults `X-Remote-Groups` and is
+never an operator** (`_is_operator` returns 0 under token auth), so a publishing
+partner cannot escalate even if the strip is misconfigured; but the *cookie*
+operator distinction still relies on the strip. If you front lazysite with
+anything other than the shipped templates, replicate the unset directives, and
+prefer a trusted-proxy IP allowlist over `auth_proxy_trusted: true`.
+
+## Credential lifecycle and MFA (SM072)
+
+- **One live credential per account.** A password, an `lzs_` access token, a
+  pairing-key exchange, or a claim redemption each *replaces* the previous
+  secret - there is never more than one active credential.
+- **Single-use secrets** - claims (`lzc_`), pairing keys (`lzp_`), recovery
+  codes - are stored only as `sha256iter` hashes, are short-lived (TTL'd), and
+  are consumed under an exclusive `flock` (`_consume_lock`) so the
+  read-verify-delete-write cycle cannot be raced into a double-redeem.
+- **No enumeration.** `/claim`, `/forgot`, `/exchange`, `/rotate` return one
+  generic result; login checks (disabled / expired / ui / MFA) run only *after*
+  credential verification, so none leaks account existence.
+- **TOTP MFA** (RFC 6238) verifies in constant time, with **replay protection**
+  (a per-user `totp_last_step` rejects a re-presented code) and hashed,
+  single-use recovery codes. *Accepted risk:* the TOTP seed is stored at rest in
+  `user-settings.json` (group-readable by the www-data verifier); hiding it from
+  the web tier would break verification, so a full web-tier compromise exposes
+  per-site seeds. A separate-privilege verifier is the deferred mitigation.
+
+## Per-file ACLs and forms (SM074)
+
+- **ACLs** are an opt-in central store (`lazysite/auth/acls.json`, inside the
+  write-denied tree) of `{owner, read[], write[]}` per content path, enforced by
+  the dav (`authorise`) and the manager API. No entry = the account's `dav_scope`
+  only. The store is set through the `acl-*` control-API actions, never a raw
+  PUT. A token client is bound by ownership like any partner (it is not an
+  operator); the actions also honour the full deny-set.
+- **Forms:** a per-form dispatch config `lazysite/forms/<name>.conf` is
+  agent-writable with `manage_config` (it only names operator-defined handlers);
+  the secret files (`smtp.conf`, `handlers.conf`, `.smtp-password`) and the
+  submissions store stay denied to agents.
+
+The agent-facing deny set (the dav enforcement, `/.well-known/ai-partner`, the
+onboarding brief, and `whoami`) is held identical by
+`t/integration/06-deny-consistency.t`, so the advertised and enforced sets
+cannot drift.

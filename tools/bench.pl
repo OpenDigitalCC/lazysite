@@ -53,7 +53,7 @@ print $cf "site_name: Bench\n"; close $cf;
 open my $ix, '>', "$d/index.md" or die $!;
 print $ix "---\ntitle: Home\n---\n\n# Hello\n\nA page with **markdown**, a [link](/about), and a list:\n\n- one\n- two\n- three\n";
 close $ix;
-uapi( $d, { action => 'add', username => 'pwuser',  password => 'a-real-password' } );
+uapi( $d, { action => 'add', username => 'pwuser',  password => 'benchpw' } );
 uapi( $d, { action => 'add', username => 'tokuser', password => 'x' } );
 my $token = uapi( $d, { action => 'token', username => 'tokuser' } )->{token};
 die "bench setup failed (no token)\n" unless $token;
@@ -70,7 +70,7 @@ my %result = (
         uapi( $d, { action => 'verify-credential', username => 'tokuser', secret => $token } );
     } ),
     verify_password_ms => bench( $ITER, sub {
-        uapi( $d, { action => 'verify-credential', username => 'pwuser', secret => 'a-real-password' } );
+        uapi( $d, { action => 'verify-credential', username => 'pwuser', secret => 'benchpw' } );
     } ),
 );
 

@@ -98,7 +98,7 @@
     },
     {
       "_comment": "Root-of-tarball docs including UPGRADE.md from 0.2.0 onwards.",
-      "pattern": "^(LICENSE|README\\.md|SECURITY\\.md|UPGRADE\\.md)$",
+      "pattern": "^(LICENSE|COPYRIGHT|README\\.md|SECURITY\\.md|UPGRADE\\.md)$",
       "install_to": null,
       "bucket": "code"
     }
@@ -110,6 +110,7 @@
     "^\\.git/",
     "^\\.github/",
     "^\\.gitignore$",
+    "^\\.perlcriticrc$",
     "^\\.release-notes\\.md$",
     "^\\.release-prep\\.sh$",
     "^\\.rsyncignore$",
@@ -118,6 +119,7 @@
     "^docs/development\\.md$",
     "^docs/feature-requests/",
     "^docs/review/",
+    "^docs/(USER|DEVELOPER|IMPLEMENTOR|OPERATOR|POLICY)\\.md$",
     "^CHANGELOG\\.md$",
     "^\\.nonfunctional-report\\.md$",
     "^\\.commit-message\\.md$",
