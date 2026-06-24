@@ -7,18 +7,8 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
-
-BEGIN {
-    $ENV{LAZYSITE_API_LOAD_ONLY} = 1;
-    $ENV{DOCUMENT_ROOT}          = '/tmp';
-}
-
-my $root = repo_root();
-{
-    package main;
-    do "$root/lazysite-manager-api.pl" or die "load failed: $@";
-}
+use lib "$FindBin::Bin/../../../lib";
+use Lazysite::Manager::Upload qw(parse_multipart_body sanitise_upload_filename);
 
 # Helper: build a multipart body with a given boundary and parts.
 # Each part is [name => value] for text fields or
@@ -50,7 +40,7 @@ subtest 'one text field, one file field' => sub {
         [ 'overwrite' => '1' ],
         [ 'file'      => "hello world\n", 'hello.txt', 'text/plain' ],
     );
-    my @parts = main::parse_multipart_body(
+    my @parts = parse_multipart_body(
         $body, "multipart/form-data; boundary=$b" );
     is( scalar @parts, 2, 'two parts parsed' );
     is( $parts[0]{name}, 'overwrite',       'text field name' );
@@ -68,7 +58,7 @@ subtest 'two files' => sub {
         [ 'file' => "one\n", 'a.txt', 'text/plain' ],
         [ 'file' => "two\n", 'b.txt', 'text/plain' ],
     );
-    my @parts = main::parse_multipart_body(
+    my @parts = parse_multipart_body(
         $body, "multipart/form-data; boundary=$b" );
     is( scalar @parts, 2, 'two file parts' );
     is( $parts[0]{filename}, 'a.txt', 'first filename' );
@@ -82,14 +72,14 @@ subtest 'binary content with null bytes and CRLF in payload' => sub {
         $b,
         [ 'file' => $payload, 'image.png', 'image/png' ],
     );
-    my @parts = main::parse_multipart_body(
+    my @parts = parse_multipart_body(
         $body, "multipart/form-data; boundary=$b" );
     is( scalar @parts, 1, 'one part parsed' );
     is( $parts[0]{data}, $payload, 'binary payload preserved byte-for-byte' );
 };
 
 subtest 'missing boundary returns empty' => sub {
-    my @parts = main::parse_multipart_body( "whatever", "text/plain" );
+    my @parts = parse_multipart_body( "whatever", "text/plain" );
     is( scalar @parts, 0, 'no parts when content-type is not multipart' );
 };
 
@@ -98,12 +88,12 @@ subtest 'quoted and unquoted boundary' => sub {
     my $body = build_multipart(
         $b, [ 'x' => 'y' ],
     );
-    my @q = main::parse_multipart_body(
+    my @q = parse_multipart_body(
         $body, qq{multipart/form-data; boundary="$b"} );
     is( scalar @q, 1, 'quoted boundary parsed' );
     is( $q[0]{data}, 'y', 'quoted value intact' );
 
-    my @u = main::parse_multipart_body(
+    my @u = parse_multipart_body(
         $body, "multipart/form-data; boundary=$b" );
     is( scalar @u, 1, 'unquoted boundary parsed' );
 };
@@ -111,29 +101,29 @@ subtest 'quoted and unquoted boundary' => sub {
 # --- sanitise_upload_filename ---
 
 subtest 'sanitise strips path components' => sub {
-    is( main::sanitise_upload_filename('../../../etc/passwd'),
+    is( sanitise_upload_filename('../../../etc/passwd'),
         'passwd', 'dot-dot path collapsed to basename' );
-    is( main::sanitise_upload_filename('/abs/foo.txt'),
+    is( sanitise_upload_filename('/abs/foo.txt'),
         'foo.txt', 'absolute path collapsed' );
-    is( main::sanitise_upload_filename('C:\\Windows\\x.exe'),
+    is( sanitise_upload_filename('C:\\Windows\\x.exe'),
         'x.exe', 'backslash path collapsed' );
 };
 
 subtest 'sanitise rejects null bytes' => sub {
-    is( main::sanitise_upload_filename("ok\x00.jpg"),
+    is( sanitise_upload_filename("ok\x00.jpg"),
         '', 'null byte rejected' );
 };
 
 subtest 'sanitise rejects dotfile-only and empty' => sub {
-    is( main::sanitise_upload_filename(''),   '', 'empty rejected' );
-    is( main::sanitise_upload_filename('.'),  '', 'dot rejected' );
-    is( main::sanitise_upload_filename('..'), '', 'dotdot rejected' );
+    is( sanitise_upload_filename(''),   '', 'empty rejected' );
+    is( sanitise_upload_filename('.'),  '', 'dot rejected' );
+    is( sanitise_upload_filename('..'), '', 'dotdot rejected' );
 };
 
 subtest 'sanitise strips control chars but keeps normal name' => sub {
-    is( main::sanitise_upload_filename("name\x01\x1f.txt"),
+    is( sanitise_upload_filename("name\x01\x1f.txt"),
         'name.txt', 'control chars stripped' );
-    is( main::sanitise_upload_filename('normal-name.jpg'),
+    is( sanitise_upload_filename('normal-name.jpg'),
         'normal-name.jpg', 'normal name unchanged' );
 };
 
