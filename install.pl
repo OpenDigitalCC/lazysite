@@ -194,7 +194,7 @@ sub cmd_install {
     }
 
     # ---- runtime paths ----
-    create_runtime_paths( $manifest->{runtime_paths} || [], \%subs );
+    create_runtime_paths( $manifest->{runtime_paths} || [], \%subs, $mode );
 
     # ---- execute plan ----
     my ( $state_files, $plan_stats, $warnings ) = execute_plan( $plan );
@@ -548,13 +548,20 @@ sub post_install_steps {
 # =========================================================
 
 sub create_runtime_paths {
-    my ( $rps, $subs ) = @_;
+    my ( $rps, $subs, $install_mode ) = @_;
+    $install_mode ||= 'fresh';
     for my $rp (@$rps) {
         my $path = resolve_placeholders( $rp->{path}, $subs );
         my $mode = oct( $rp->{mode} );
         if ( -d $path ) {
-            # Directory exists; do not chmod. Operators may have
-            # tightened it. Only chmod when we create.
+            # On a FRESH install the directory may already exist because the
+            # file-install pass created it (e.g. to hold the seeded
+            # auth/*.example), in which case it carries a default mode, not the
+            # declared one - so apply the runtime mode (these dirs must be
+            # group-writable + setgid for the www-data CGI to write them). On an
+            # UPGRADE, leave an existing directory alone: the operator may have
+            # tightened it deliberately.
+            chmod $mode, $path if $install_mode eq 'fresh';
             next;
         }
         make_path( $path, { mode => $mode } );

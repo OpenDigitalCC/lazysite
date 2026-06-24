@@ -140,6 +140,7 @@
     "^starter/lazysite/lazysite\\.conf$",
     "^starter/lazysite/nav\\.conf$",
     "^t/",
+    "^tmp/",
     "^tools/build-manifest\\.pl$",
     "^tools/manifest-to-sbom\\.pl$",
     "^tools/bump-version\\.pl$",
@@ -150,23 +151,23 @@
   "runtime_paths": [
     {
       "path": "{DOCROOT}/lazysite/auth",
-      "mode": "0750",
-      "purpose": "user credentials, session secret, login rate-limit DB"
+      "mode": "2770",
+      "purpose": "credentials, session secret, ACLs, consume lock, rate-limit DB - setgid + group-writable by the web user (www-data), no world access"
     },
     {
       "path": "{DOCROOT}/lazysite/cache",
-      "mode": "0755",
-      "purpose": "rendered HTML cache"
+      "mode": "2775",
+      "purpose": "rendered HTML cache - setgid + group-writable by www-data (the CGI writes it), world-readable (Apache serves it)"
     },
     {
       "path": "{DOCROOT}/lazysite/logs",
-      "mode": "0755",
-      "purpose": "application log output"
+      "mode": "2775",
+      "purpose": "application log output - setgid + group-writable by www-data"
     },
     {
       "path": "{DOCROOT}/lazysite/manager/locks",
-      "mode": "0755",
-      "purpose": "per-file edit locks"
+      "mode": "2775",
+      "purpose": "per-file edit locks - setgid + group-writable by www-data"
     },
     {
       "path": "{DOCROOT}/../plugins",
@@ -175,13 +176,13 @@
     },
     {
       "path": "{DOCROOT}/lazysite/layouts",
-      "mode": "0755",
-      "purpose": "layouts + nested themes (D013)"
+      "mode": "2775",
+      "purpose": "layouts + nested themes (D013) - setgid + group-writable by www-data (manage_layouts installs over the API)"
     },
     {
       "path": "{DOCROOT}/lazysite-assets",
-      "mode": "0755",
-      "purpose": "web-served theme assets (D013 nested under LAYOUT/THEME/)"
+      "mode": "2775",
+      "purpose": "web-served theme assets (D013 nested under LAYOUT/THEME/) - setgid + group-writable by www-data (written on layout install)"
     }
   ]
 }

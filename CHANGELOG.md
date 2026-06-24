@@ -18,6 +18,18 @@ Keying
 
 ## Unreleased
 
+Fix - runtime directories were not group-writable on a plain install.pl install
+: `install.pl` created `lazysite/auth` (and `cache`/`logs`/`manager/locks`/
+  `layouts`/`lazysite-assets`) at non-group-writable modes on a fresh install:
+  the file-install pass makes the directories first, so `create_runtime_paths`
+  skipped them (its "don't touch an existing dir" guard, meant for upgrades). A
+  plain (non-Hestia) install therefore reproduced the "add user: Permission
+  denied" bug that the Hestia deploy only worked around by chmod-ing afterwards.
+  The declared runtime modes (`auth` 2770, the rest 2775 - setgid +
+  group-writable for the www-data CGI) are now applied on a **fresh** install
+  even when the directory pre-exists; an **upgrade** still leaves an
+  operator-tightened directory alone. Pinned by a new `03-install-pl.t` subtest.
+
 Docs - five-audience documentation taxonomy + security-model refresh (item 7, WP-4)
 : Adds the framework's audience entry points - `docs/USER.md`, `DEVELOPER.md`,
   `IMPLEMENTOR.md`, `OPERATOR.md`, `POLICY.md` - plus `COPYRIGHT`, and refreshes

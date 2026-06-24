@@ -117,6 +117,29 @@ subtest 'fresh install: manifest applied, state written, SHAs match' => sub {
     is( $state->{files}{$index}, sha_file($index), 'index.md SHA in state' );
 };
 
+# Runtime dirs must be setgid + group-writable so the www-data CGI can write
+# them (the auth dir is the one that broke "add user: Permission denied"). The
+# file-install pass creates these dirs first, so install.pl must apply the
+# declared runtime mode on a fresh install even though the dir already exists.
+subtest 'fresh install: runtime dirs are setgid + group-writable' => sub {
+    my ( $docroot, $cgibin ) = fresh_docroot();
+    my ( $rc, $out ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc, 0, 'exit 0' ) or diag $out;
+
+    my %want = (
+        'lazysite/auth'          => 02770,    # private: no world access
+        'lazysite/cache'         => 02775,
+        'lazysite/logs'          => 02775,
+        'lazysite/manager/locks' => 02775,
+        'lazysite/layouts'       => 02775,
+    );
+    for my $rel ( sort keys %want ) {
+        my $got = ( stat "$docroot/$rel" )[2] & 07777;
+        is( $got, $want{$rel}, sprintf( '%s is %04o (setgid + group-write)', $rel, $want{$rel} ) );
+    }
+    is( ( ( stat "$docroot/lazysite/auth" )[2] & 07 ), 0, 'auth dir has no world bits' );
+};
+
 # --- 2. Upgrade with no edits: all overwritten, state refreshed ---
 
 subtest 'upgrade (same version), no edits: all overwritten, state refreshed' => sub {

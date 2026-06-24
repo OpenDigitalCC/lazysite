@@ -60,3 +60,4 @@ release-manifest.json
 # Local Claude Code project-instructions file for this checkout. Not part
 # of the shipped project; kept local per operator preference.
 /CLAUDE.md
+tmp/
