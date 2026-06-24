@@ -32,6 +32,26 @@ The brief *describes* the grant; the token *is* the grant; the server
 the server is authoritative and rejects anything outside it. If an in-scope
 write returns `403`, the grant - not the documentation - is right.
 
+## First: confirm you can reach the site
+
+Before authenticating, do one cheap unauthenticated request - `GET
+https://SITE/.well-known/ai-partner` (it also returns your machine-readable
+bootstrap). This proves your environment can egress to the host.
+
+- JSON came back: you are connected - proceed.
+- The request was blocked **before reaching the site** - no network, or a proxy
+  `403` whose body names an allowlist (`host_not_allowed`, "add this host to your
+  egress settings"): **stop and report that immediately.** The block is on your
+  side; the host must be added to your network egress allowlist. Do not retry
+  blindly, and do not conclude the site is down - you have not reached it yet.
+  Note that a pairing key denied at your proxy is **not** consumed (it never
+  reached the origin), so it is still live - say so in your report.
+- A response that reached the origin but is not the expected JSON (a wrong-host
+  page, DNS failure, timeout) is a wrong address, not an egress block.
+
+Report which of these you got before going further, so a human can act on the
+right thing.
+
 ## Authentication
 
 You hold a single-use, short-lived pairing key (prefix `lzp_`). You exchange it
