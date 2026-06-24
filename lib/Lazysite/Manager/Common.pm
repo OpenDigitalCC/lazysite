@@ -14,7 +14,8 @@ use Lazysite::Util qw(log_event);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
-    is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache);
+    is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
+    _write_conf_key);
 
 our $DOCROOT;          # set by the script
 our $action    = '';   # current request action (for log attribution)
@@ -237,5 +238,30 @@ sub is_blocked_upload_target {
 }
 
 sub _reset_upload_limits_cache { $_upload_limits_cache = undef }
+
+sub _write_conf_key {
+    my ( $key, $value ) = @_;
+    return 0 unless defined $key && length $key && defined $value && length $value;
+    return 0 unless $key =~ /^[A-Za-z_][A-Za-z0-9_-]*$/;
+
+    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my $content   = '';
+    if ( -f $conf_path ) {
+        open my $fh, '<:utf8', $conf_path or return 0;
+        $content = do { local $/; <$fh> };
+        close $fh;
+    }
+
+    if ( $content =~ /^$key\s*:/m ) {
+        $content =~ s/^$key\s*:.*$/$key: $value/m;
+    }
+    else {
+        $content =~ s/\n?$/\n/;
+        $content .= "$key: $value\n";
+    }
+
+    my ( $ok, $err ) = write_file_checked( $conf_path, $content );
+    return $ok ? 1 : 0;
+}
 
 1;
