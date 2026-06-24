@@ -25,11 +25,13 @@ BEGIN {
 }
 use Lazysite::Util qw(log_event const_eq);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows);
+use Lazysite::Auth::Session qw(generate_csrf_token verify_csrf_token);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
 $Lazysite::Auth::Acl::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
+$Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
 
@@ -423,53 +425,8 @@ respond($result);
 
 # Shared secret for CSRF token HMAC. Reuses the auth secret if present,
 # otherwise creates a dedicated manager secret under lazysite/auth/.
-sub _csrf_secret {
-    my $path = "$LAZYSITE_DIR/auth/.secret";
-    if ( -f $path && open my $fh, '<', $path ) {
-        chomp( my $s = <$fh> );
-        close $fh;
-        return $s if length $s;
-    }
-    # Dedicated manager secret (only used if auth secret missing)
-    my $mpath = "$LAZYSITE_DIR/manager/.csrf-secret";
-    if ( -f $mpath && open my $mfh, '<', $mpath ) {
-        chomp( my $s = <$mfh> );
-        close $mfh;
-        return $s if length $s;
-    }
-    # Mint one - fail closed if CSPRNG unavailable (M-6).
-    make_path( dirname($mpath) ) unless -d dirname($mpath);
-    open my $rand, '<:raw', '/dev/urandom'
-        or die "Cannot open /dev/urandom - no CSPRNG available: $!\n";
-    my $raw = '';
-    my $got = read( $rand, $raw, 32 );
-    close $rand;
-    die "Short read from /dev/urandom\n" unless $got == 32;
-    my $s = unpack( 'H*', $raw );
-    open my $wfh, '>', $mpath or die "Cannot write $mpath: $!\n";
-    chmod 0o600, $mpath;
-    print $wfh "$s\n";
-    close $wfh;
-    return $s;
-}
 
-sub generate_csrf_token {
-    my ($user) = @_;
-    my $ts = int( time() / 3600 );    # rotates hourly
-    return hmac_sha256_hex( "csrf:$user:$ts", _csrf_secret() );
-}
 
-sub verify_csrf_token {
-    my ( $token, $user ) = @_;
-    return 0 unless defined $token && length $token;
-    return 0 unless defined $user  && length $user;
-    my $secret = _csrf_secret();
-    for my $ts ( int( time() / 3600 ), int( time() / 3600 ) - 1 ) {
-        my $expected = hmac_sha256_hex( "csrf:$user:$ts", $secret );
-        return 1 if const_eq( $token, $expected );
-    }
-    return 0;
-}
 
 
 # --- SM071 Phase 1: theme/layout preview minting ---
