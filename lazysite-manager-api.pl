@@ -39,10 +39,11 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_acl_get action_acl_set action_acl_remove);
 use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action_theme_activate
     action_layout_activate action_theme_delete action_theme_rename action_theme_upload
-    action_layouts_releases action_layouts_install action_layouts_release_contents
-    action_layouts_available action_themes_for_layout action_layouts_repo_get action_layouts_repo_set
     action_cache_list action_cache_invalidate _read_active_layout_and_theme
     action_artifact_manifest action_artifact_validate);
+use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
+    action_layouts_release_contents action_layouts_available action_themes_for_layout
+    action_layouts_repo_get action_layouts_repo_set);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
@@ -52,10 +53,13 @@ $Lazysite::Manager::Upload::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Files::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Themes::DOCROOT = $DOCROOT;
+$Lazysite::Manager::Layouts::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Manager::Upload::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Manager::Themes::LAZYSITE_DIR = $LAZYSITE_DIR;
+$Lazysite::Manager::Layouts::LAZYSITE_DIR = $LAZYSITE_DIR;
+$Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
 $Lazysite::Manager::Files::LOCK_DIR     = $LOCK_DIR;
@@ -165,6 +169,8 @@ $Lazysite::Manager::Files::auth_user  = $auth_user;
 $Lazysite::Manager::Files::action     = $action;
 $Lazysite::Manager::Themes::auth_user = $auth_user;
 $Lazysite::Manager::Themes::action    = $action;
+$Lazysite::Manager::Layouts::auth_user = $auth_user;
+$Lazysite::Manager::Layouts::action    = $action;
 $Lazysite::Auth::Acl::auth_user            = $auth_user;
 $Lazysite::Auth::Acl::token_auth           = $token_auth;
 $Lazysite::Auth::Acl::manager_groups_conf  = $manager_groups_conf;
