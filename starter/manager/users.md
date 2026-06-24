@@ -420,7 +420,10 @@ function showOnboarding(user) {
         '<button class="mg-btn mg-btn-sm" onclick="downloadOnb(\'' + escHtml(user) + '\')">Download .md</button>' +
         '<button class="mg-btn mg-btn-sm" onclick="closeOnboarding(\'' + escHtml(user) + '\')">Close</button></div>' +
         '<div class="mg-muted" style="font-size:0.8em;margin-top:0.25rem">Single-use, expires in 24h. ' +
-        'Generating another brief mints a fresh key and <strong>invalidates this one</strong> &mdash; only the most recent works.</div>';
+        'Generating another brief mints a fresh key and <strong>invalidates this one</strong> &mdash; only the most recent works.<br>' +
+        'Contains a secret: deliver it out of band to the agent that does the writes (Claude Code / a script / yourself), ' +
+        'or for a chat assistant use the MCP connector (token in connector settings). ' +
+        '<strong>Don\'t paste it into a shared/logged chat</strong> &mdash; a key seen in a transcript is spent; regenerate.</div>';
       showStatus('Onboarding brief generated - a fresh single-use pairing key (any previous one is now invalid).');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
