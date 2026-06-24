@@ -7,6 +7,8 @@ starter/lazysite/nav.conf
 starter/lazysite/auth/users
 starter/lazysite/auth/groups
 starter/lazysite/auth/.secret
+starter/lazysite/auth/.consume.lock
+starter/lazysite/auth/.dav-rate.db
 starter/lazysite/forms/.secret
 starter/lazysite/forms/.rate-limit.db
 starter/lazysite/forms/.smtp-password

@@ -498,7 +498,7 @@ sub _send_setup_email {
     for my $c ( dirname($0) . "/../plugins/form-smtp.pl",
                 "$DOCROOT/../plugins/form-smtp.pl",
                 "$DOCROOT/plugins/form-smtp.pl" ) {
-        $smtp = $c, last if -f $c;
+        if ( -f $c ) { $smtp = $c; last }
     }
     return unless $smtp;
     require JSON::PP;

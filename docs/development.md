@@ -160,6 +160,13 @@ part because the release flow rsync'd, tested, committed,
 tagged, and version-bumped in one tangled step. Separating
 commit from release removes the coupling.
 
+The files are still kept roughly current for human clarity (the 2026
+seven-dimension review flagged them stuck at 0.2.18 while releases were at
+0.3.x): run `tools/bump-version.pl` after a release to promote `NEXT_VERSION`
+into `VERSION` and advance `NEXT_VERSION`. It does not commit - fold it into a
+normal commit - and the **git tag remains the authoritative release
+identifier**.
+
 ### Strict dependency check
 
 `release.sh` runs `tools/manifest-to-sbom.pl --strict`. This:

@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+Conformance (seven-dimension review, item 7) - code quality, perf, hygiene
+: D1: a curated Perl::Critic profile (`.perlcriticrc`, severity 4) enforced by
+  `t/lint/02-perlcritic.t` with zero violations; the `return undef` convention
+  is decided + documented and one real comma-statement was fixed. D3:
+  `tools/bench.pl` - a host-relative benchmark (page render, token/password
+  verify) with a committed baseline + a gross-regression gate (`--check`).
+  D5/process: a committed secrets gate (`t/lint/03-secrets.t`);
+  `tools/bump-version.pl` to roll the stale `VERSION`/`NEXT_VERSION`.
+
+
 Security - review items 5 & 6 (TOTP/consume hardening + supply chain)
 : TOTP codes are now **replay-protected** - a per-user `totp_last_step`
   rejects a code whose time-step was already accepted. Single-use redemption

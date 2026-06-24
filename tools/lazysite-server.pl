@@ -49,7 +49,7 @@ my @optional = (
 my @opt_missing;
 for my $pair ( @optional ) {
     my ( $mod, $pkg, $note ) = @$pair;
-    eval "require $mod";
+    eval "require $mod";   ## no critic (ProhibitStringyEval) - dynamic optional-module probe, dev server only
     push @opt_missing, [ $mod, $pkg, $note ] if $@;
 }
 

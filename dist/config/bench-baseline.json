@@ -1,0 +1,10 @@
+{
+   "_doc" : "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. The gate (--check) fails only on >tolerance x regression.",
+   "iterations" : 20,
+   "ops" : {
+      "render_ms" : 65.1,
+      "verify_password_ms" : 132.3,
+      "verify_token_ms" : 32.7
+   },
+   "tolerance" : 3
+}

@@ -50,19 +50,27 @@ not accidental duplication.
 
 ## Perl::Critic policy
 
-The codebase is audited against `perlcritic --severity 3+`.
-Intentional deviations:
+Enforced by `t/lint/02-perlcritic.t` against the project profile
+`.perlcriticrc` at **severity 4** (the serious set), so the gate passes with
+zero violations; tightening to severity 3 is future work. The profile disables
+the policies below for documented reasons (deliberate project conventions); a
+genuine one-off (the dev-server module probe) carries an inline
+`## no critic` so the policy stays active for production code. Intentional
+deviations:
 
 | Policy | Deviation | Reason |
 |---|---|---|
 | `RegularExpressions::RequireExtendedFormatting` (~485 hits) | `/x` not used on simple one-line patterns | `/x` adds clutter to short patterns with no clarity win. Used where patterns are genuinely multi-line (the `convert_fenced_*` family). |
 | `InputOutput::RequireEncodingWithUTF8Layer` (~90 hits) | `:utf8` used instead of `:encoding(UTF-8)` | `:utf8` is the looser mode. The strict variant would raise a decoding error on latin1 content, turning a legacy file into a 500 rather than rendering it with replacement chars. Looser mode chosen so operator-supplied content does not need to be re-encoded on upgrade. |
 | `InputOutput::ProhibitInteractiveTest` in `tools/lazysite-server.pl` | `-t STDOUT` for TTY detection | Single line, single check. Adding `IO::Interactive` as a dependency for one call would be over-engineering. |
-| `Subroutines::RequireFinalReturn` on each `log_event` | No explicit `return` | The sub ends on a `print STDERR`; its return value is not meaningful. The 40+ copies agree on this shape. |
-| `BuiltinFunctions::ProhibitStringyEval` in `tools/lazysite-server.pl` | `eval "require $mod"` for module probing | `$mod` comes from a hard-coded list in the same file; there is no user-input injection surface. |
+| `Subroutines::RequireFinalReturn` (~119 hits) | Subs end on their last expression | Self-contained CGIs use the last-expression return throughout; the 119 sites agree on this shape. |
+| `Subroutines::ProhibitExplicitReturnUndef` (~53 hits) | `return undef`, not bare `return` | **Decision:** keep `return undef`. It is the project idiom for "no value" as a *scalar*; none of these returns is consumed in list context (where `return undef` and `return` differ), so the list-context footgun the policy guards against does not apply. Rewriting 53 sites would be churn with no behavioural gain. |
+| `TestingAndDebugging::ProhibitNoWarnings` (2 hits) | Narrow `no warnings 'category'` | Used deliberately - `'once'` around a `DB_File` tie and `'uninitialized'` around a log join. A *bare* `no warnings` would still want review. |
+| `BuiltinFunctions::ProhibitStringyEval` in `tools/lazysite-server.pl` | `eval "require $mod"` for module probing | Inline `## no critic` (policy stays active elsewhere). `$mod` is from a hard-coded list; no injection surface; dev server only. |
 
-All other Perl::Critic violations at severity 3+ are either fixed or
-tracked.
+The profile passes at severity 4 with zero violations; the one real cleanup
+from the 2026 review (a comma-operator statement in `lazysite-auth.pl`) was
+fixed rather than excluded.
 
 ## Naming conventions
 

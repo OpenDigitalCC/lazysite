@@ -48,6 +48,23 @@ processor takes to print anything - it dominates both paths. The
 cache-hit path does effectively ~4-8 ms of real work on top of that
 floor.
 
+### Automated benchmark + regression gate
+
+`tools/bench.pl` measures the hot paths repeatably and gates on regression:
+
+| Op | What it times |
+|---|---|
+| `render_ms` | a processor render of a simple page (subprocess, incl. perl startup) |
+| `verify_token_ms` | a token credential verification (1 iteration - the partner hot path) |
+| `verify_password_ms` | a password verification (100k iterations - the deliberate slow path) |
+
+The committed baseline (`dist/config/bench-baseline.json`) is **host-relative**;
+re-capture it on your CI/deploy host with `tools/bench.pl --baseline`. The gate
+`tools/bench.pl --check` fails only on a **gross** regression (>3x the baseline),
+so it catches real slowdowns without flaking on host variance - run it at
+signoff, not in the unit suite. The token-vs-password gap (token ~4x faster) is
+the stable relative figure, and confirms why partners use `lzs_` tokens for DAV.
+
 ### WebDAV endpoint (SM070)
 
 `lazysite-dav.pl` follows the same per-request CGI model. Its

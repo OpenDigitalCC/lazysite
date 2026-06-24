@@ -1,0 +1,40 @@
+# lazysite Perl::Critic profile - the project's curated quality gate,
+# enforced over the production scripts by t/lint/02-perlcritic.t at
+# severity 4. The policies disabled below are DELIBERATELY excluded
+# because lazysite's documented conventions differ from the Perl::Critic
+# defaults; everything else at severity 4 (and 5) must pass. Tightening to
+# severity 3 is future work - see docs/architecture/code-quality.md.
+
+severity = 4
+
+# `return undef` is the project idiom for a falsy scalar return (these are
+# never used in list context); see docs/architecture/code-quality.md.
+[-Subroutines::ProhibitExplicitReturnUndef]
+
+# Self-contained CGIs end many subs with their last expression by design.
+[-Subroutines::RequireFinalReturn]
+
+# Encoding is handled explicitly (binmode / :utf8 where it matters); the
+# blanket "open with an encoding layer" policy over-fires on the binary and
+# control files (locks, rate DBs, the SBOM).
+[-InputOutput::RequireEncodingWithUTF8Layer]
+
+# File handles are intentionally held open across a read/write in several
+# readers and writers.
+[-InputOutput::RequireBriefOpen]
+
+# Some subs read @_ directly (dispatchers, thin wrappers).
+[-Subroutines::RequireArgUnpacking]
+
+# Octal file modes are written 0640-style throughout.
+[-ValuesAndExpressions::ProhibitLeadingZeros]
+
+# CGIs read the request body from STDIN; $| and similar are set without local.
+[-InputOutput::ProhibitExplicitStdin]
+[-Variables::RequireLocalizedPunctuationVars]
+[-InputOutput::ProhibitInteractiveTest]
+
+# Narrow `no warnings 'category'` suppression is permitted and used
+# deliberately (e.g. 'once' for a DB_File tie, 'uninitialized' for a log
+# join). A BARE `no warnings` would still want review - keep it narrow.
+[-TestingAndDebugging::ProhibitNoWarnings]
