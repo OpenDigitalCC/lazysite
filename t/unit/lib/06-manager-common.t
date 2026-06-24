@@ -7,7 +7,8 @@ use Test::More;
 use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
-use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked);
+use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked
+    is_blocked_config is_blocked_upload_target upload_limits);
 
 my $d = tempdir( CLEANUP => 1 );
 $Lazysite::Manager::Common::DOCROOT = $d;
