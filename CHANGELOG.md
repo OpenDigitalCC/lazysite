@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.4.1 - Files-UI overhaul + field-report fixes (2026-06-24)
+
 Feature - Files-manager UI overhaul (SM077)
 : The manager Files page gains an editable **permissions** panel (the owner chip
   expands in place to inline read/write editors -> `acl-set`/`acl-remove`),
