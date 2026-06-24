@@ -1,21 +1,35 @@
 # Statement-coverage floor for `tools/coverage.sh --check`.
 #
 # Commercial-regime TARGET: 75% statements.
-# Enforced regression floor: 60% per cleanly-measured production CGI (the
-# current low-water mark, lazysite-manager-api.pl). Ratchet this upward as
-# coverage improves - never down.
+# Enforced regression floor: 60% per cleanly-measured production CGI. Ratchet
+# upward as coverage improves - never down.
 #
-# Measured baseline (full suite, subprocess-instrumented; see
-# docs/architecture/test-coverage.md), statement / branch:
-#   lazysite-dav.pl                 92% / 71%
-#   tools/lazysite-users.pl         90% / 71%
-#   tools/lazysite-bundle-apply.pl  90% / 65%
-#   lazysite-processor.pl           81% / 69%
-#   lazysite-manager-api.pl         60% / 49%   <- the gap (4273 lines; D1 split)
+# Measured baseline (full suite, subprocess-instrumented; 2026-06-24, AFTER the
+# SM079 modular refactor), statement / branch:
 #
-# lazysite-auth.pl, install.pl and the plugins are run by tests from copied
-# tempdir trees, so Devel::Cover splits their coverage across paths and they are
-# not yet cleanly aggregated - excluded from the gate until the tests exercise
-# the repo-root scripts. Tracked.
+#   CGIs (the gate):
+#     lazysite-dav.pl                 93% / 72%
+#     install.pl                      92% / 66%
+#     tools/lazysite-users.pl         92% / 71%
+#     tools/lazysite-bundle-apply.pl  90% / 65%
+#     lazysite-processor.pl           81% / 69%
+#     lazysite-manager-api.pl         68% / 74%   <- branch was 49% pre-refactor;
+#                                                    thinning it to a dispatcher
+#                                                    raised branch coverage sharply
+#
+#   Modules with in-process unit tests (well measured):
+#     Util 100/92 · Auth::Acl 100/80 · Session 100/73 · Credential 98/67
+#     Settings 92/64 · Manager::Common 88/75
+#
+#   Action-handler modules (under-measured, see note):
+#     Manager::Files 75/50 · Themes 79/57 · Plugins 21/11 · Upload 37/29
+#
+# NOTE: the low Plugins/Upload numbers are a measurement artifact, not a test
+# gap - their action_* handlers are exercised only by SUBPROCESS integration
+# tests, whose coverage does not aggregate into cover_db (whereas Themes'
+# handlers, hit by in-process LOAD_ONLY tests, measure fine). The refactor makes
+# the fix straightforward: add in-process unit tests that call the handlers as
+# module functions (as the Upload pure-function tests already do), which will
+# both raise and correctly measure them toward the 75% target.
 floor=60
 target=75

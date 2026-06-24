@@ -255,26 +255,43 @@ statement coverage.
 
 ### Measured baseline
 
-Full suite, subprocess-instrumented (2026-06-24), statement / branch:
+Full suite, subprocess-instrumented (2026-06-24, after the SM079 modular
+refactor), statement / branch:
 
-| Script | stmt | branch |
-|---|---:|---:|
-| `lazysite-dav.pl` | 92% | 71% |
-| `tools/lazysite-users.pl` | 90% | 71% |
-| `tools/lazysite-bundle-apply.pl` | 90% | 65% |
-| `lazysite-processor.pl` | 81% | 69% |
-| `lazysite-manager-api.pl` | 60% | 49% |
+| Component | stmt | branch | note |
+|---|---:|---:|---|
+| `lazysite-dav.pl` | 93% | 72% | |
+| `install.pl` | 92% | 66% | |
+| `tools/lazysite-users.pl` | 92% | 71% | |
+| `tools/lazysite-bundle-apply.pl` | 90% | 65% | |
+| `lazysite-processor.pl` | 81% | 69% | standalone, unchanged |
+| `lazysite-manager-api.pl` | 68% | **74%** | branch was 49% before the refactor |
+| `Lazysite::Util` | 100% | 92% | in-process unit-tested |
+| `Lazysite::Auth::Acl` | 100% | 80% | in-process |
+| `Lazysite::Auth::Session` | 100% | 73% | in-process |
+| `Lazysite::Auth::Credential` | 98% | 67% | in-process |
+| `Lazysite::Auth::Settings` | 92% | 64% | in-process |
+| `Lazysite::Manager::Common` | 88% | 75% | in-process |
+| `Lazysite::Manager::Themes` | 79% | 57% | LOAD_ONLY-tested handlers |
+| `Lazysite::Manager::Files` | 75% | 50% | mixed |
+| `Lazysite::Manager::Upload` | 37% | 29% | *handlers subprocess-only* |
+| `Lazysite::Manager::Plugins` | 21% | 11% | *handlers subprocess-only* |
 
-The core CGIs clear the 75% statement target; `lazysite-manager-api.pl` (4273
-lines) is the gap, and is the same file flagged for a split under D1 - raising
-its coverage and splitting it are one piece of work. The enforced regression
-floor is **60%** statements per cleanly-measured CGI
-(`dist/config/coverage-floor`), ratcheted upward as coverage improves.
+The refactor's effect: thinning `manager-api.pl` to a dispatcher raised its
+**branch** coverage from 49% to 74%, and the extracted auth/util logic is now
+unit-tested in-process at 88-100% statements. The enforced regression floor is
+**60%** statements per cleanly-measured CGI (`dist/config/coverage-floor`),
+ratcheted upward as coverage improves.
 
-**Known limitation:** `lazysite-auth.pl`, `install.pl` and the plugins are run
-by some tests from a copied tempdir tree, so Devel::Cover splits their coverage
-across paths and they are not cleanly aggregated yet. Making those tests
-exercise the repo-root scripts would close the measurement gap.
+**The under-measured modules are a test-style artifact, not a gap.**
+`Manager::Plugins` and `Manager::Upload`'s `action_*` handlers show ~0 because
+they are exercised only by **subprocess** integration tests, whose coverage does
+not aggregate into `cover_db` - whereas `Themes`' handlers, hit by **in-process
+`LOAD_ONLY`** tests, measure fine. The handlers are tested (the suite is green);
+they just don't register. The clear next step the refactor unlocks: add
+in-process unit tests that call those handlers as **module functions** (as the
+Upload pure-function tests already do), which both raises and correctly measures
+them toward the 75% target.
 
 ## Writing tests for new features
 
