@@ -1,9 +1,11 @@
 #!/usr/bin/perl
-# SM079a coverage: in-process tests for Manager::Files action handlers that the
-# subprocess tests did not measure (delete, mkdir, acl-set/remove, renew_lock).
+# SM079a coverage: in-process tests for Manager::Files action handlers. Covers
+# both the operator happy paths AND the non-operator deny paths + lock
+# contention (which the operator-only context would otherwise mask).
 use strict;
 use warnings;
 use Test::More;
+use JSON::PP qw(encode_json);
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
@@ -12,46 +14,91 @@ use Lazysite::Manager::Files
     qw(action_mkdir action_delete action_acl_set action_acl_remove
        acquire_lock renew_lock release_lock);
 use Lazysite::Manager::Common ();
-use Lazysite::Auth::Acl ();
+use Lazysite::Auth::Acl qw(load_acls);
 
 my $d = tempdir( CLEANUP => 1 );
-make_path( "$d/content", "$d/lazysite/auth", "$d/lazysite/manager/locks" );
+my $LOCKS = "$d/lazysite/manager/locks";
+make_path( "$d/content", "$d/lazysite/auth", $LOCKS );
 $Lazysite::Manager::Files::DOCROOT   = $d;
-$Lazysite::Manager::Files::LOCK_DIR  = "$d/lazysite/manager/locks";
+$Lazysite::Manager::Files::LOCK_DIR  = $LOCKS;
 $Lazysite::Manager::Files::auth_user = 'alice';
 $Lazysite::Manager::Files::action    = 'test';
 $Lazysite::Manager::Common::DOCROOT  = $d;
 $Lazysite::Auth::Acl::DOCROOT             = $d;
 $Lazysite::Auth::Acl::auth_user           = 'alice';
 $Lazysite::Auth::Acl::token_auth          = 0;
-$Lazysite::Auth::Acl::manager_groups_conf = '';    # unsecured => operator
+$Lazysite::Auth::Acl::manager_groups_conf = '';    # operator for the happy paths
 
-# --- action_mkdir ---
+# --- mkdir (assert the rejection reason, not just falsiness) ---
 ok( action_mkdir('content/sub')->{ok}, 'mkdir creates a directory' );
 ok( -d "$d/content/sub", 'directory exists on disk' );
-ok( !action_mkdir('../escape')->{ok}, 'traversal mkdir rejected' );
+my $mk = action_mkdir('../escape');
+ok( !$mk->{ok}, 'traversal mkdir rejected' );
+like( $mk->{error}, qr/Invalid path/, 'rejected specifically as an invalid path' );
 
-# --- action_delete ---
+# --- delete + blocked reason ---
 open my $f, '>', "$d/content/x.md" or die $!;
-print {$f} 'hi';
-close $f;
+print {$f} 'hi'; close $f;
 ok( action_delete( 'content/x.md', 'alice' )->{ok}, 'delete a file' );
 ok( !-f "$d/content/x.md", 'file removed' );
-ok( !action_delete( 'lazysite/auth/users', 'alice' )->{ok},
-    'delete of a blocked path refused' );
+my $bd = action_delete( 'lazysite/auth/users', 'alice' );
+ok( !$bd->{ok}, 'delete of a blocked path refused' );
+like( $bd->{error}, qr/block/i, 'refused with a "blocked" reason' );
 
-# --- ACL set then remove ---
-my $set = action_acl_set( 'content/y.md', 'alice', undef, ['bob'], 'alice' );
-ok( $set->{ok}, 'acl-set as operator' );
-my $rem = action_acl_remove( 'content/y.md', 'alice' );
-ok( $rem->{ok}, 'acl-remove' );
+# --- acl-set ACTUALLY stores the record (operator) ---
+my $set = action_acl_set( 'content/secret.md', 'alice', undef, ['alice'], 'alice' );
+ok( $set->{ok}, 'acl-set succeeds' );
+is( $set->{acl}{owner}, 'alice', 'returned owner is correct' );
+is_deeply( $set->{acl}{write}, ['alice'], 'returned write-list is correct' );
+ok( !exists $set->{acl}{read}, 'undef read is omitted (not stored empty)' );
+is_deeply( load_acls()->{'content/secret.md'}, { owner => 'alice', write => ['alice'] },
+    'ACL is persisted to acls.json byte-for-byte' );
+
+# --- NON-OPERATOR deny paths (H1: the security-relevant logic) ---
+{
+    local $Lazysite::Auth::Acl::manager_groups_conf = 'managers';
+    local $Lazysite::Auth::Acl::auth_user           = 'eve';   # not operator, not owner
+    local $Lazysite::Manager::Files::auth_user      = 'eve';
+    open my $sf, '>', "$d/content/secret.md" or die $!;
+    print {$sf} 'secret'; close $sf;
+
+    my $r = action_acl_set( 'content/secret.md', 'eve', undef, ['eve'], 'eve' );
+    ok( !$r->{ok}, 'non-owner cannot rewrite an existing ACL' );
+    like( $r->{error}, qr/owner/i, 'refused: only the owner may change permissions' );
+
+    my $del = action_delete( 'content/secret.md', 'eve' );
+    ok( !$del->{ok}, 'non-owner cannot delete an ACL-protected file' );
+    like( $del->{error}, qr/access/i, 'refused via the per-file ACL write gate' );
+    ok( -f "$d/content/secret.md", 'the protected file is untouched' );
+
+    my $rm = action_acl_remove( 'content/secret.md', 'eve' );
+    ok( !$rm->{ok}, 'non-owner cannot remove the ACL' );
+}
+
+# back to operator: acl-remove works + clears the store
+ok( action_acl_remove( 'content/secret.md', 'alice' )->{ok}, 'owner removes the ACL' );
+ok( !exists load_acls()->{'content/secret.md'}, 'ACL gone from the store' );
 my $rem2 = action_acl_remove( 'content/none.md', 'alice' );
-ok( $rem2->{ok} && !$rem2->{removed}, 'acl-remove of an unset path is a no-op' );
+ok( $rem2->{ok} && !$rem2->{removed}, 'remove of an unset path is a no-op' );
 
-# --- locks: acquire then renew then release ---
-my $lk = acquire_lock( 'content/z.md', 'alice' );
-ok( $lk->{ok}, 'lock acquired' );
-ok( renew_lock( 'content/z.md', 'alice' )->{ok}, 'lock renewed by owner' );
-ok( release_lock( 'content/z.md', 'alice' )->{ok}, 'lock released' );
+# --- lock contention (H3) ---
+ok( acquire_lock( 'content/z.md', 'alice' )->{ok}, 'alice acquires a lock' );
+my $contend = acquire_lock( 'content/z.md', 'bob' );
+ok( !$contend->{ok} && $contend->{locked}, "bob is blocked by alice's lock" );
+is( $contend->{locked_by}, 'alice', 'contention reports the holder' );
+ok( renew_lock( 'content/z.md', 'alice' )->{ok}, 'owner may renew their own lock' );
+
+# a live WebDAV lock must never be released by the manager
+_write_dav_lock( 'content:dav.md.lock', 'davclient' );
+my $rel = release_lock( 'content/dav.md', 'alice' );
+ok( !$rel->{ok}, 'manager refuses to release a live WebDAV lock' );
+like( $rel->{error}, qr/WebDAV/i, 'refused: locked via WebDAV' );
+
+sub _write_dav_lock {
+    my ( $name, $user ) = @_;
+    open my $lf, '>', "$LOCKS/$name" or die $!;
+    print {$lf} encode_json( { user => $user, at => time(), origin => 'dav', timeout => 300 } );
+    close $lf;
+}
 
 done_testing();
