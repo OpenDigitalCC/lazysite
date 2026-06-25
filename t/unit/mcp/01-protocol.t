@@ -163,6 +163,11 @@ ok( ( grep { $_->{path} eq '/content/about.md' && $_->{title} eq 'About Us' }
         @{ $r->{result}{structuredContent}{pages} || [] } ),
     'list_pages includes the page with its title' );
 
+# --- preview_page: in-channel server-side render ---
+( $st, $r ) = call( 'preview_page', { path => '/content/about' }, $bearer_lim );
+ok( !$r->{result}{isError} && $r->{result}{structuredContent}{ok}, 'preview_page renders' );
+like( $r->{result}{structuredContent}{html}, qr/Body text here/, 'preview_page returns the rendered HTML body' );
+
 # --- validate_page: public-data warning + form-rule check ---
 ( $st, $r ) = call( 'validate_page', { content =>
     "---\ntitle: Guest Info\n---\nWiFi password: hunter2\nCall +44 20 7946 0958\n" }, $bearer_lim );

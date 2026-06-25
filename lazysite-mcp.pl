@@ -374,6 +374,14 @@ my %TOOLS = (
             required => ['path'], additionalProperties => JSON::PP::false },
         run => sub { _read_page( $_[0]->{path}, $_[1] ) },
     },
+    preview_page => {
+        description => 'Render a page server-side (fresh, bypassing the cache) and return its HTML, so you can verify layout / nav / form output in-channel - no web fetch needed. Renders the public view; a protected page shows the auth gate.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => { path => { type => 'string', description => 'page path, e.g. /enquire' } },
+            required => ['path'], additionalProperties => JSON::PP::false },
+        run => sub { _preview_page( $_[0]->{path} ) },
+    },
     page_status => {
         description => 'Publish status for a page: whether the source exists, when it was last modified, whether the public HTML render is pending (cache dropped after an edit - it re-renders on the next visit), and the public URL. Use after an edit to confirm it will reach visitors.',
         cap         => 'manage_content',
@@ -474,6 +482,49 @@ sub _page_status {
         $out{public_url} = length $host ? "https://$host/$slug" : "/$slug";
     }
     return \%out;
+}
+
+# --- SM087: authenticated in-channel preview (server-side render) ----------
+sub _processor_tool {
+    my $bin = dirname( Cwd::abs_path(__FILE__) );
+    for my $c ( "$bin/lazysite-processor.pl", "$DOCROOT/../cgi-bin/lazysite-processor.pl" ) {
+        return $c if -f $c;
+    }
+    return undef;
+}
+
+sub _preview_page {
+    my ($path) = @_;
+    return { ok => 0, error => 'path required' } unless defined $path && length $path;
+    ( my $slug = $path ) =~ s{^/+}{}; $slug =~ s{\.\.}{}g; $slug =~ s{\.md$}{}; $slug =~ s{/+$}{};
+    my $proc = _processor_tool()
+        or return { ok => 0, kind => 'not-found', error => 'processor not available' };
+
+    # Render fresh (no cache, no cache write), as a public visitor.
+    local %ENV = ( %ENV,
+        DOCUMENT_ROOT    => $DOCROOT,
+        REDIRECT_URL     => "/$slug",
+        REQUEST_URI      => "/$slug",
+        REQUEST_METHOD   => 'GET',
+        CONTENT_LENGTH   => '0',
+        LAZYSITE_NOCACHE => '1',
+    );
+    delete $ENV{HTTP_AUTHORIZATION};
+    delete $ENV{REDIRECT_HTTP_AUTHORIZATION};
+
+    my $out = '';
+    if ( open my $ph, '-|', $^X, $proc ) { local $/; $out = <$ph> // ''; close $ph }
+    else { return { ok => 0, error => 'could not run the processor' } }
+
+    my ( $head, $body ) = split /\r?\n\r?\n/, $out, 2;
+    $body = '' unless defined $body;
+    my ($status) = ( ( $head // '' ) =~ /Status:\s*(\d+)/i );
+    $status ||= 200;
+    my $truncated = 0;
+    if ( length $body > $MAX_READ_BYTES ) { $body = substr( $body, 0, $MAX_READ_BYTES ); $truncated = 1 }
+    return { ok => 1, path => "/$slug", status => $status, bytes => length $body, html => $body,
+        truncated => ( $truncated ? JSON::PP::true : JSON::PP::false ),
+        note => 'rendered fresh as a public visitor; a protected page shows the auth gate' };
 }
 
 # --- SM087 Tier 2: page-aware helpers -------------------------------------
@@ -736,6 +787,7 @@ my %ANNOTATE = (
     read_file       => [ 1, 0, 0 ],
     search_files    => [ 1, 0, 0 ],
     page_status     => [ 1, 0, 0 ],
+    preview_page    => [ 1, 0, 0 ],
     list_pages      => [ 1, 0, 0 ],
     read_page       => [ 1, 0, 0 ],
     validate_page   => [ 1, 0, 0 ],
@@ -835,7 +887,7 @@ elsif ( $method eq 'tools/call' ) {
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
     my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1 );
+        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the

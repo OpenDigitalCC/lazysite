@@ -72,9 +72,10 @@ A grounded Claude.ai review of the *deployed* connector mapped to status:
 - **Tool manifest / discovery** (their #1) - **DONE**: whoami echoes `tools: [...]`.
 - **Write-time validation/lint** (#2) - `validate_page` done; auto-run on write is
   the follow-on.
-- **Authenticated render/preview** (#3) - **TODO (high value)**: a `preview_page`
-  that returns the rendered HTML (bypassing cache) so verification stays
-  in-channel; it surfaced two real bugs. `page_status` partly covers "is it live".
+- **Authenticated render/preview** (#3) - **DONE**: `preview_page(path)` renders
+  the page server-side (fresh, no-cache) and returns its HTML, so verification
+  stays in-channel - no web fetch. (Public-view render; protected pages show the
+  auth gate.)
 - **Partial-edit** (#4) - **DONE**: `replace_text`.
 - **401 disambiguation** (#5) - **DONE**: sign-in-incomplete vs credential-invalid
   + `error.data.reason`.
