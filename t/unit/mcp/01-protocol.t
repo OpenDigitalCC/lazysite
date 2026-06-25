@@ -134,6 +134,16 @@ ok( $r->{result}{structuredContent}{count} >= 1, 'search_files finds a match' );
 ok( ( grep { ( $_->{path} // '' ) =~ m{new\.md} } @{ $r->{result}{structuredContent}{matches} || [] } ),
     'search_files reports the matching file + path' );
 
+# --- page_status ---
+( $st, $r ) = call( 'page_status', { path => '/content/new.md' }, $bearer_lim );
+ok( !$r->{result}{isError}, 'page_status succeeds' );
+ok( $r->{result}{structuredContent}{exists}, 'page_status: source exists' );
+like( $r->{result}{structuredContent}{public_url}, qr{/content/new$}, 'page_status: public URL derived' );
+
+# --- error diagnostics: a missing-file read reports a kind ---
+( $st, $r ) = call( 'read_file', { path => '/content/does-not-exist.md' }, $bearer_lim );
+is( $r->{result}{structuredContent}{kind}, 'not-found', 'read of a missing file reports kind=not-found' );
+
 # --- capability gate: a webdav-only token cannot activate a theme ---
 ( $st, $r ) = call( 'activate_theme', { theme => 'sky' }, $bearer_lim );
 is( $r->{error}{code}, -32002, 'insufficient capability is rejected (needs manage_themes)' );

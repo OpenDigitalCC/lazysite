@@ -111,7 +111,7 @@ sub _acl_denied {
     my ( $rel, $mode, $user ) = @_;
     return undef if _is_operator();
     return undef if _acl_allows( $rel, $mode, $user );
-    return { ok => 0, error => "You do not have $mode access to this file" };
+    return { ok => 0, error => "You do not have $mode access to this file", kind => 'permission' };
 }
 
 1;

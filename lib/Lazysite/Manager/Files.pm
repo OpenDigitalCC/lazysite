@@ -131,15 +131,15 @@ sub action_read {
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
 
-    return { ok => 0, error => "Path is blocked" }
+    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
         if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config" }
+    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
         if is_blocked_config( $result->{rel} );
 
     if ( my $d = _acl_denied( $result->{rel}, 'read', $username ) ) { return $d }
 
     my $full = $result->{full};
-    return { ok => 0, error => "File not found" } unless -f $full;
+    return { ok => 0, error => "File not found", kind => 'not-found' } unless -f $full;
 
     # SM019: refuse to load binary files as text. The editor handles
     # the binary=1 response by showing a download panel; decoding a
@@ -149,6 +149,7 @@ sub action_read {
         return {
             ok     => 0,
             binary => 1,
+            kind   => 'binary',
             path   => $rel_path,
             error  => "Binary file - download instead of edit",
         };
@@ -175,9 +176,9 @@ sub action_save {
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
 
-    return { ok => 0, error => "Path is blocked" }
+    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
         if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config" }
+    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
         if is_blocked_config( $result->{rel} );
 
     my $full = $result->{full};
@@ -271,9 +272,9 @@ sub action_delete {
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
 
-    return { ok => 0, error => "Path is blocked" }
+    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
         if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config" }
+    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
         if is_blocked_config( $result->{rel} );
 
     # SM074: per-file ACL write gate (operators bypass).
@@ -298,7 +299,7 @@ sub action_delete {
         return { ok => 1, path => $rel_path };
     }
 
-    return { ok => 0, error => "File not found" } unless -f $full;
+    return { ok => 0, error => "File not found", kind => 'not-found' } unless -f $full;
 
     unlink $full or return { ok => 0, error => "Cannot delete: $!" };
 
@@ -317,9 +318,9 @@ sub action_mkdir {
     my $result = validate_path($rel_path);
     return $result unless $result->{ok};
 
-    return { ok => 0, error => "Path is blocked" }
+    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
         if is_blocked_path( $result->{rel} );
-    return { ok => 0, error => "Path is blocked by config" }
+    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
         if is_blocked_config( $result->{rel} );
 
     my $full = $result->{full};
@@ -348,7 +349,7 @@ sub action_move {
     return $d unless $d->{ok};
 
     for my $r ( $s->{rel}, $d->{rel} ) {
-        return { ok => 0, error => "Path is blocked" }
+        return { ok => 0, error => "Path is blocked", kind => 'blocked' }
             if is_blocked_path($r) || is_blocked_config($r);
     }
 
@@ -508,7 +509,7 @@ sub action_acl_get {
     my ( $rel_path, $user ) = @_;
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
-    return { ok => 0, error => "Path is blocked" }
+    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
         if is_blocked_path( $r->{rel} ) || is_blocked_config( $r->{rel} );
     my $a = load_acls()->{ _acl_norm( $r->{rel} ) };
     unless ( _is_operator() ) {
@@ -523,7 +524,7 @@ sub action_acl_set {
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
     my $rel = _acl_norm( $r->{rel} );
-    return { ok => 0, error => "Path is blocked" }
+    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
         if is_blocked_path($rel) || is_blocked_config($rel);
 
     my $acls     = load_acls();
@@ -561,7 +562,7 @@ sub action_acl_remove {
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
     my $rel  = _acl_norm( $r->{rel} );
-    return { ok => 0, error => "Path is blocked" }
+    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
         if is_blocked_path($rel) || is_blocked_config($rel);
     my $acls = load_acls();
     my $existing = $acls->{$rel};

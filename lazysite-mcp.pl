@@ -204,7 +204,7 @@ my %TOOLS = (
             # written back would destroy content.
             if ( ref $out eq 'HASH' && $out->{ok} && defined $out->{content}
                  && length( $out->{content} ) > $MAX_READ_BYTES ) {
-                return { ok => 0, too_large => 1, path => $_[0]->{path},
+                return { ok => 0, too_large => 1, kind => 'too-large', path => $_[0]->{path},
                     error => 'File too large to read through the connector ('
                         . length( $out->{content} ) . ' bytes); edit it over WebDAV instead.' };
             }
@@ -294,6 +294,14 @@ my %TOOLS = (
             action_layout_activate( $_[0]->{layout}, $p );
         },
     },
+    page_status => {
+        description => 'Publish status for a page: whether the source exists, when it was last modified, whether the public HTML render is pending (cache dropped after an edit - it re-renders on the next visit), and the public URL. Use after an edit to confirm it will reach visitors.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => { path => { type => 'string', description => 'page path, e.g. /enquire.md' } },
+            required => ['path'], additionalProperties => JSON::PP::false },
+        run => sub { _page_status( $_[0]->{path} ) },
+    },
     search_files => {
         description => 'Search the site text files for a string (case-insensitive). Returns matching files with line numbers and snippets - use to find pages mentioning a term, links to a path, or duplicated text. Excludes the lazysite/ infrastructure and binary/asset files.',
         cap         => 'manage_content',
@@ -362,6 +370,32 @@ sub _mcp_search {
         matches => \@matches, truncated => ( $truncated ? JSON::PP::true : JSON::PP::false ) };
 }
 
+# Publish status for a page: is the source there, has the rendered HTML cache
+# been dropped (so a visitor re-renders it fresh), and where is it public.
+sub _page_status {
+    my ($path) = @_;
+    return { ok => 0, error => 'path required' } unless defined $path && length $path;
+    ( my $rel = $path ) =~ s{^/+}{}; $rel =~ s{\.\.}{}g;
+    my $full   = "$DOCROOT/$rel";
+    my $exists = -f $full;
+    my %out = ( ok => 1, path => "/$rel",
+        exists => ( $exists ? JSON::PP::true : JSON::PP::false ) );
+    $out{modified} = ( stat $full )[9] if $exists;
+    if ( $rel =~ /\.md$/ ) {
+        ( my $html = $full ) =~ s/\.md$/.html/;
+        my $cached = -f $html;
+        # render_pending: the public HTML is missing or older than the source, so
+        # the next visit re-renders it (a normal state right after an edit).
+        $out{render_pending} =
+            ( !$cached || ( $exists && ( stat $html )[9] < ( stat $full )[9] ) )
+            ? JSON::PP::true : JSON::PP::false;
+        ( my $slug = $rel ) =~ s/\.md$//;
+        my $host = $ENV{HTTP_HOST} // $ENV{SERVER_NAME} // '';
+        $out{public_url} = length $host ? "https://$host/$slug" : "/$slug";
+    }
+    return \%out;
+}
+
 # MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
 # ChatGPT (drives its per-call approval + read/write gating) and good practice
 # for every client. openWorld = the action publishes to / changes the live site.
@@ -370,6 +404,7 @@ my %ANNOTATE = (
     list_files      => [ 1, 0, 0 ],
     read_file       => [ 1, 0, 0 ],
     search_files    => [ 1, 0, 0 ],
+    page_status     => [ 1, 0, 0 ],
     write_file      => [ 0, 0, 1 ],
     replace_text    => [ 0, 0, 1 ],
     move_file       => [ 0, 0, 1 ],
@@ -458,7 +493,7 @@ elsif ( $method eq 'tools/call' ) {
         tool => $name, user => $user, ok => ( $out->{ok} ? 1 : 0 ) );
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
-    my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1 );
+    my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1, page_status => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the
