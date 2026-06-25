@@ -294,6 +294,17 @@ my %TOOLS = (
             action_layout_activate( $_[0]->{layout}, $p );
         },
     },
+    search_files => {
+        description => 'Search the site text files for a string (case-insensitive). Returns matching files with line numbers and snippets - use to find pages mentioning a term, links to a path, or duplicated text. Excludes the lazysite/ infrastructure and binary/asset files.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => {
+                query => { type => 'string', description => 'text to search for' },
+                path  => { type => 'string', description => 'directory to search under (default /)' },
+            },
+            required => ['query'], additionalProperties => JSON::PP::false },
+        run => sub { _mcp_search( $_[0]->{query}, $_[0]->{path} ) },
+    },
     invalidate_cache => {
         description => 'Drop the cached HTML for a page so it re-renders on the next request. A normal write already clears the saved page; use this to force a refresh or to rebuild pages that embed another (pass "*" to clear every page).',
         cap         => 'manage_content',
@@ -304,6 +315,53 @@ my %TOOLS = (
     },
 );
 
+# Content search (grep) over site text files. Excludes the lazysite/ infra and
+# binary/asset files; bounded by file + match caps so a big site can't produce a
+# runaway response.
+my %SEARCH_EXT = map { $_ => 1 } qw(md txt html htm xml json js css svg atom rss);
+sub _mcp_search {
+    my ( $query, $base ) = @_;
+    return { ok => 0, error => 'query must not be empty' } unless defined $query && length $query;
+    $base = '/' unless defined $base && length $base;
+    $base =~ s{^/+}{}; $base =~ s{/+$}{}; $base =~ s{\.\.}{}g;
+    my $root = $DOCROOT . ( length $base ? "/$base" : '' );
+    my $qre  = qr/\Q$query\E/i;
+    my ( @matches, $files, $truncated );
+    my @stack = ($root);
+    while (@stack) {
+        my $dir = pop @stack;
+        opendir my $dh, $dir or next;
+        for my $e ( sort readdir $dh ) {
+            next if $e =~ /^\./;
+            my $full = "$dir/$e";
+            if ( -d $full ) {
+                push @stack, $full unless $e eq 'lazysite' || $e eq 'lazysite-assets';
+                next;
+            }
+            next unless -f $full;
+            my ($ext) = $e =~ /\.([^.]+)$/;
+            next unless $ext && $SEARCH_EXT{ lc $ext };
+            if ( ++$files > 2000 ) { $truncated = 1; last }
+            open my $fh, '<', $full or next;
+            my $ln = 0;
+            while ( my $line = <$fh> ) {
+                $ln++;
+                next unless $line =~ $qre;
+                ( my $rel = $full ) =~ s{^\Q$DOCROOT\E/?}{/};
+                chomp $line; $line =~ s/^\s+//; $line = substr( $line, 0, 200 );
+                push @matches, { path => $rel, line => $ln, text => $line };
+                if ( @matches >= 200 ) { $truncated = 1; last }
+            }
+            close $fh;
+            last if $truncated;
+        }
+        closedir $dh;
+        last if $truncated;
+    }
+    return { ok => 1, query => $query, count => scalar @matches,
+        matches => \@matches, truncated => ( $truncated ? JSON::PP::true : JSON::PP::false ) };
+}
+
 # MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
 # ChatGPT (drives its per-call approval + read/write gating) and good practice
 # for every client. openWorld = the action publishes to / changes the live site.
@@ -311,6 +369,7 @@ my %ANNOTATE = (
     whoami          => [ 1, 0, 0 ],
     list_files      => [ 1, 0, 0 ],
     read_file       => [ 1, 0, 0 ],
+    search_files    => [ 1, 0, 0 ],
     write_file      => [ 0, 0, 1 ],
     replace_text    => [ 0, 0, 1 ],
     move_file       => [ 0, 0, 1 ],
@@ -399,7 +458,7 @@ elsif ( $method eq 'tools/call' ) {
         tool => $name, user => $user, ok => ( $out->{ok} ? 1 : 0 ) );
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
-    my %READ = ( whoami => 1, list_files => 1, read_file => 1 );
+    my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the

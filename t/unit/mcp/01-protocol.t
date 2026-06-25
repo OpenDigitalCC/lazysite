@@ -127,6 +127,13 @@ is( $r->{result}{structuredContent}{replacements}, 1, 'replace_text reports the 
 ( $st, $r ) = call( 'replace_text', { path => '/content/new.md', old => 'NOPE', new => 'x' }, $bearer_lim );
 ok( $r->{result}{structuredContent}{error}, 'replace_text errors when old text is absent (no silent clobber)' );
 
+# --- search_files: grep over content ---
+( $st, $r ) = call( 'search_files', { query => 'updated' }, $bearer_lim );
+ok( !$r->{result}{isError}, 'search_files succeeds' );
+ok( $r->{result}{structuredContent}{count} >= 1, 'search_files finds a match' );
+ok( ( grep { ( $_->{path} // '' ) =~ m{new\.md} } @{ $r->{result}{structuredContent}{matches} || [] } ),
+    'search_files reports the matching file + path' );
+
 # --- capability gate: a webdav-only token cannot activate a theme ---
 ( $st, $r ) = call( 'activate_theme', { theme => 'sky' }, $bearer_lim );
 is( $r->{error}{code}, -32002, 'insufficient capability is rejected (needs manage_themes)' );
