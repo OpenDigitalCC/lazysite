@@ -67,9 +67,14 @@ function auditTargetLink(e) {
   var t = e.target || '';
   if (!t) return '';
   if (/^user-/.test(e.action || '')) return auditUserLink(t);
-  if (/\.md$/.test(t)) {
-    var slug = t.replace(/\.md$/, '');
-    return '<a href="' + aesc(slug) + '" target="_blank" rel="noopener" title="Visit the page">' + aesc(t) + '</a>';
+  // A move logs "from -> to"; point the link at the destination.
+  var fileT = t, arrow = t.indexOf(' -> ');
+  if (arrow >= 0) fileT = t.slice(arrow + 4);
+  // Any file (by slash or extension) opens in the manager editor - this covers
+  // .md plus .conf, .brief and other editable files, not just public pages.
+  if (/\//.test(fileT) || /\.[A-Za-z0-9]+$/.test(fileT)) {
+    return '<a href="/manager/edit?path=' + encodeURIComponent(fileT) +
+      '" title="Edit this file">' + aesc(t) + '</a>';
   }
   return aesc(t);
 }
