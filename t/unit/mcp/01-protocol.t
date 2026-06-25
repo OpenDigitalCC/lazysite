@@ -144,6 +144,21 @@ like( $r->{result}{structuredContent}{public_url}, qr{/content/new$}, 'page_stat
 ( $st, $r ) = call( 'read_file', { path => '/content/does-not-exist.md' }, $bearer_lim );
 is( $r->{result}{structuredContent}{kind}, 'not-found', 'read of a missing file reports kind=not-found' );
 
+# --- page API: read_page + list_pages ---
+call( 'write_file', { path => '/content/about.md',
+    content => "---\ntitle: About Us\nregister: [sitemap, llms]\n---\nBody text here.\n" }, $bearer_lim );
+( $st, $r ) = call( 'read_page', { path => '/content/about.md' }, $bearer_lim );
+is( $r->{result}{structuredContent}{front_matter}{title}, 'About Us', 'read_page parses the front-matter title' );
+like( $r->{result}{structuredContent}{body}, qr/Body text here/, 'read_page returns the body' );
+is_deeply( $r->{result}{structuredContent}{front_matter}{register}, [ 'sitemap', 'llms' ],
+    'read_page parses a [list] field' );
+
+( $st, $r ) = call( 'list_pages', {}, $bearer_lim );
+ok( $r->{result}{structuredContent}{count} >= 1, 'list_pages returns pages' );
+ok( ( grep { $_->{path} eq '/content/about.md' && $_->{title} eq 'About Us' }
+        @{ $r->{result}{structuredContent}{pages} || [] } ),
+    'list_pages includes the page with its title' );
+
 # --- capability gate: a webdav-only token cannot activate a theme ---
 ( $st, $r ) = call( 'activate_theme', { theme => 'sky' }, $bearer_lim );
 is( $r->{error}{code}, -32002, 'insufficient capability is rejected (needs manage_themes)' );

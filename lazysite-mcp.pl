@@ -294,6 +294,20 @@ my %TOOLS = (
             action_layout_activate( $_[0]->{layout}, $p );
         },
     },
+    list_pages => {
+        description => 'List the site pages with their title, public URL, and which registries (sitemap/llms/feed) each is in. A page-level view rather than a raw file list.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run         => sub { _list_pages() },
+    },
+    read_page => {
+        description => 'Read a page as structured data: parsed front matter, the Markdown body, whether it has an authoring brief, and its public URL. Higher-level than read_file for editing a page.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => { path => { type => 'string', description => 'page path, e.g. /enquire.md' } },
+            required => ['path'], additionalProperties => JSON::PP::false },
+        run => sub { _read_page( $_[0]->{path}, $_[1] ) },
+    },
     page_status => {
         description => 'Publish status for a page: whether the source exists, when it was last modified, whether the public HTML render is pending (cache dropped after an edit - it re-renders on the next visit), and the public URL. Use after an edit to confirm it will reach visitors.',
         cap         => 'manage_content',
@@ -396,6 +410,87 @@ sub _page_status {
     return \%out;
 }
 
+# --- SM087 Tier 2: page-aware helpers -------------------------------------
+sub _split_front_matter {
+    my ($c) = @_;
+    return ( $1, $2 ) if $c =~ /\A---\s*\n(.*?)\n---\s*\n?(.*)\z/s;
+    return ( '', $c );
+}
+
+sub _parse_fm {
+    my ($fm) = @_;
+    my %h;
+    for my $line ( split /\n/, $fm ) {
+        next unless $line =~ /^([A-Za-z0-9_-]+)\s*:\s*(.*)$/;
+        my ( $k, $v ) = ( $1, $2 );
+        $v =~ s/\s+$//;
+        if ( $v =~ /^\[(.*)\]$/ ) { $h{$k} = [ grep { length } map { s/^\s+|\s+$|["']//gr } split /,/, $1 ]; }
+        else { $v =~ s/^["']|["']$//g; $h{$k} = $v; }
+    }
+    return \%h;
+}
+
+sub _public_url {
+    my ($rel) = @_;
+    ( my $slug = $rel ) =~ s/\.md$//;
+    my $host = $ENV{HTTP_HOST} // $ENV{SERVER_NAME} // '';
+    return length $host ? "https://$host/$slug" : "/$slug";
+}
+
+sub _read_page {
+    my ( $path, $user ) = @_;
+    my $r = action_read( $path, $user );
+    return $r unless ref $r eq 'HASH' && $r->{ok};
+    my ( $fm, $body ) = _split_front_matter( $r->{content} );
+    ( my $rel = $path ) =~ s{^/+}{};
+    return { ok => 1, path => "/$rel",
+        front_matter => _parse_fm($fm), body => $body,
+        has_brief  => ( -f "$DOCROOT/$rel.brief" ? JSON::PP::true : JSON::PP::false ),
+        public_url => _public_url($rel), modified => $r->{mtime} };
+}
+
+# Walk top-level + content/ .md pages (skip infra/manager/generated partials).
+sub _each_page {
+    my ($cb) = @_;
+    my @stack = ($DOCROOT);
+    my $n = 0;
+    while (@stack) {
+        my $dir = pop @stack;
+        opendir my $dh, $dir or next;
+        for my $e ( sort readdir $dh ) {
+            next if $e =~ /^\./;
+            my $full = "$dir/$e";
+            if ( -d $full ) {
+                push @stack, $full
+                    unless $e =~ /^(lazysite|lazysite-assets|manager|img|quotes|docs)$/;
+                next;
+            }
+            next unless -f $full && $e =~ /\.md$/ && $e !~ /\.md\.brief$/;
+            ( my $rel = $full ) =~ s{^\Q$DOCROOT\E/+}{};
+            return if ++$n > 1000;
+            $cb->( $rel, $full );
+        }
+        closedir $dh;
+    }
+    return;
+}
+
+sub _list_pages {
+    my @pages;
+    _each_page( sub {
+        my ( $rel, $full ) = @_;
+        open my $fh, '<', $full or return;
+        local $/; my $c = <$fh>; close $fh;
+        my ( $fm ) = _split_front_matter($c);
+        my $h = _parse_fm($fm);
+        push @pages, { path => "/$rel", title => ( $h->{title} // '' ),
+            registers => ( ref $h->{register} eq 'ARRAY' ? $h->{register} : ( $h->{register} ? [ $h->{register} ] : [] ) ),
+            public_url => _public_url($rel) };
+    } );
+    @pages = sort { $a->{path} cmp $b->{path} } @pages;
+    return { ok => 1, count => scalar @pages, pages => \@pages };
+}
+
 # MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
 # ChatGPT (drives its per-call approval + read/write gating) and good practice
 # for every client. openWorld = the action publishes to / changes the live site.
@@ -405,6 +500,8 @@ my %ANNOTATE = (
     read_file       => [ 1, 0, 0 ],
     search_files    => [ 1, 0, 0 ],
     page_status     => [ 1, 0, 0 ],
+    list_pages      => [ 1, 0, 0 ],
+    read_page       => [ 1, 0, 0 ],
     write_file      => [ 0, 0, 1 ],
     replace_text    => [ 0, 0, 1 ],
     move_file       => [ 0, 0, 1 ],
@@ -493,7 +590,8 @@ elsif ( $method eq 'tools/call' ) {
         tool => $name, user => $user, ok => ( $out->{ok} ? 1 : 0 ) );
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
-    my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1, page_status => 1 );
+    my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
+        page_status => 1, list_pages => 1, read_page => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the
