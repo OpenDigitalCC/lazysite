@@ -1672,7 +1672,13 @@ sub convert_fenced_divs {
         # Reject class names containing unsafe characters (S4)
         # Valid: word chars and hyphens only, must start with a word char
         elsif ( $class =~ /\A[\w][\w-]*\z/ ) {
-            qq(<div class="$class">\n${body}</div>\n);
+            # Render the body's Markdown (block AND inline) so headings/lists
+            # inside a box don't leak as literal '##' - Text::MultiMarkdown
+            # otherwise treats <div> content as verbatim HTML. Skip pre-render if
+            # the body nests another fenced block (include/oembed/form) that the
+            # later pipeline passes must still see.
+            my $inner = ( $body =~ /^:::/m ) ? $body : convert_md($body);
+            qq(<div class="$class">\n${inner}</div>\n);
         }
         else {
             log_event('WARN', $ENV{REDIRECT_URL} // '-', 'fenced div rejected unsafe class', class => $class);
@@ -1833,7 +1839,7 @@ sub convert_fenced_code {
 # block-level element. (Reported from an AI-partner site review, 2026-06.)
 sub unwrap_block_html {
     my ($html) = @_;
-    my $block = qr/(?:section|article|aside|nav|header|footer|figure|figcaption|main|div|details|summary|address|blockquote|form|fieldset|table|ul|ol|dl|hr)/i;
+    my $block = qr/(?:section|article|aside|nav|header|footer|figure|figcaption|main|div|details|summary|address|blockquote|form|fieldset|table|ul|ol|dl|hr|style)/i;
     $html =~ s{<p>\s*(<$block\b)}{$1}g;
     $html =~ s{(</$block>)\s*</p>}{$1}g;
     return $html;

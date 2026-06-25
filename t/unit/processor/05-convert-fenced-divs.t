@@ -35,8 +35,15 @@ for my $class ( qw(widebox textbox marginbox examplebox my-class) ) {
 {
     my $out = main::convert_fenced_divs(
         "::: textbox\n**Bold** and *italic*\n:::\n");
-    like( $out, qr/\*\*Bold\*\*/,  'bold markdown preserved' );
-    like( $out, qr/\*italic\*/,    'italic markdown preserved' );
+    like( $out, qr{<strong>Bold</strong>}, 'bold markdown rendered inside the box' );
+    like( $out, qr{<em>italic</em>},        'italic markdown rendered inside the box' );
+}
+
+# A heading inside a box renders (no leaked literal ##) - the fenced-div bug.
+{
+    my $out = main::convert_fenced_divs("::: widebox\n## Boxed Heading\n\ntext\n:::\n");
+    like(   $out, qr{<h2[^>]*>Boxed Heading</h2>}, 'block markdown (heading) renders inside a box' );
+    unlike( $out, qr/##/,                          'no literal ## leaks' );
 }
 
 # --- multiple divs ---

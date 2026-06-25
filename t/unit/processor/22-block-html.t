@@ -19,7 +19,7 @@ unlike( $html, qr/<p>\s*<section/,        'no <p> hugging the opening <section>'
 unlike( $html, qr{</section>\s*</p>},     'no </p> hugging the closing </section>' );
 like(   $html, qr/<section class="hero">/, 'the section element survives' );
 
-for my $tag (qw(section div article figure header footer ul table)) {
+for my $tag (qw(section div article figure header footer ul table style)) {
     my $h = main::convert_md("<$tag>\ncontent\n</$tag>\n");
     unlike( $h, qr/<p>\s*<$tag\b/, "no spurious <p> before <$tag>" );
 }
