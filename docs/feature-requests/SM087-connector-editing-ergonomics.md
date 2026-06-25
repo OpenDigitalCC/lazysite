@@ -33,18 +33,18 @@ generated-index refresh and rollback.**
 
 ## Tier 2 - higher-level + validation
 
-6. **Page-aware API** (#7): `list_pages`, `read_page(slug)` (front matter + body +
-   brief + registration), `create_page`, `delete_page(slug, clean_references)`,
-   `rename_page(old, new, update_links)`, `set_nav`. Treats the site as pages, not
-   a bag of files.
-7. **Validate before save** (#8): malformed YAML front matter, invalid form-field
-   syntax/rules, unclosed HTML, broken TT blocks, invalid JSON-LD, missing
-   title/subtitle - and a **public-data warning** (phone, Wi-Fi password, full
-   private address) since guest-instruction uploads carry operational secrets.
-8. **`audit_site`** (#4): broken links, pages linking to deleted files, duplicate /
-   near-duplicate content (repeated review/testimonial blocks), orphan pages, nav
-   entries pointing nowhere, sitemap entries for missing pages, SEO/title gaps,
-   forms/CTA coverage.
+6. **Page-aware API** (#7) - **PARTIAL**: `read_page(path)` (parsed front matter +
+   body + brief + public URL) and `list_pages` (title + registries + URL) done.
+   Remaining: `create_page`, `delete_page(clean_references)`,
+   `rename_page(update_links)`, `set_nav` - the link-rewrite is the harder part.
+7. **Validate before save** (#8) - **DONE**: `validate_page(path|content)` -
+   unterminated front matter, missing title, invalid/typo'd form rules, and the
+   **public-data warning** (Wi-Fi passwords, postcodes/addresses, phone numbers).
+   Follow-ons: unclosed HTML, broken TT, invalid JSON-LD; auto-run on write.
+8. **`audit_site`** (#4) - **DONE**: broken internal links, orphan pages, missing
+   titles, stale generated HTML, and duplicate content blocks (same paragraph on
+   multiple pages - the repeated-reviews case). Follow-ons: nav-vs-sitemap
+   coverage, near-duplicate (fuzzy) detection.
 
 ## Tier 3 - bigger builds
 

@@ -170,6 +170,16 @@ ok( ( grep { $_->{kind} eq 'public-phone' } @$vw ),      'validate_page warns on
 ok( ( grep { $_->{kind} eq 'invalid-form-rule' } @{ $r->{result}{structuredContent}{issues} || [] } ),
     'validate_page flags an unknown form rule (typo)' );
 
+# --- audit_site: broken link + duplicate block + missing title ---
+my $shared = "This exact testimonial paragraph is shared across two pages and is plenty long.";
+call( 'write_file', { path => '/content/p1.md', content => "---\ntitle: One\n---\nSee [gone](/content/missing).\n\n$shared\n" }, $bearer_lim );
+call( 'write_file', { path => '/content/p2.md', content => "---\n---\n$shared\n" }, $bearer_lim );
+( $st, $r ) = call( 'audit_site', {}, $bearer_lim );
+my $au = $r->{result}{structuredContent};
+ok( ( grep { $_->{to} =~ m{/content/missing} } @{ $au->{broken_links} || [] } ), 'audit_site finds a broken internal link' );
+ok( ( grep { $_ eq '/content/p2' } @{ $au->{missing_title} || [] } ), 'audit_site flags a page missing a title' );
+ok( ( grep { $_->{pages} && @{ $_->{pages} } >= 2 } @{ $au->{duplicate_blocks} || [] } ), 'audit_site detects a duplicated block across pages' );
+
 # --- capability gate: a webdav-only token cannot activate a theme ---
 ( $st, $r ) = call( 'activate_theme', { theme => 'sky' }, $bearer_lim );
 is( $r->{error}{code}, -32002, 'insufficient capability is rejected (needs manage_themes)' );

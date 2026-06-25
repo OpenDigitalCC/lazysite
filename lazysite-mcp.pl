@@ -294,6 +294,12 @@ my %TOOLS = (
             action_layout_activate( $_[0]->{layout}, $p );
         },
     },
+    audit_site => {
+        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), and duplicate content blocks (the same paragraph on multiple pages, e.g. repeated reviews). Returns lists per category.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run         => sub { _audit_site() },
+    },
     validate_page => {
         description => 'Check page content before saving: malformed/unterminated front matter, missing title, invalid form-field rules, and a PUBLIC-DATA warning (Wi-Fi passwords, postcodes/addresses, phone numbers) so private operational details are not published by accident. Pass content to check a draft, or path to check a saved file.',
         cap         => 'manage_content',
@@ -424,7 +430,7 @@ sub _page_status {
 # --- SM087 Tier 2: page-aware helpers -------------------------------------
 sub _split_front_matter {
     my ($c) = @_;
-    return ( $1, $2 ) if $c =~ /\A---\s*\n(.*?)\n---\s*\n?(.*)\z/s;
+    return ( $1, $2 ) if $c =~ /\A---[ \t]*\n(.*?)\n?---[ \t]*\n?(.*)\z/s;
     return ( '', $c );
 }
 
@@ -562,6 +568,71 @@ sub _validate_page {
         issues => \@issues, warnings => \@warnings };
 }
 
+# --- SM087 Tier 2: whole-site audit ---------------------------------------
+sub _audit_site {
+    my ( %exists, %inbound, %para, @info, @links );
+    _each_page( sub {
+        my ( $rel, $full ) = @_;
+        ( my $slug = "/$rel" ) =~ s/\.md$//;
+        $exists{$slug} = 1;
+        open my $fh, '<', $full or return;
+        local $/; my $c = <$fh>; close $fh;
+        my ( $fm, $body ) = _split_front_matter($c);
+        my $h = _parse_fm($fm);
+        push @info, { slug => $slug, title => ( $h->{title} // '' ) };
+        while ( $body =~ /\]\(([^)\s]+)\)/g )      { push @links, [ $slug, $1 ] }
+        while ( $body =~ /href=["']([^"'#?]+)/g )   { push @links, [ $slug, $1 ] }
+        for my $p ( split /\n\s*\n/, $body ) {
+            $p =~ s/\s+/ /g; $p =~ s/^\s+|\s+$//g;
+            push @{ $para{$p} }, $slug if length $p >= 60;
+        }
+    } );
+
+    my @broken;
+    for my $l (@links) {
+        my ( $from, $to ) = @$l;
+        next unless $to =~ m{^/};
+        next if $to =~ m{^/(?:cgi-bin|manager|lazysite|img|lazysite-assets)/};
+        ( my $t = $to ) =~ s/[#?].*$//; $t =~ s{/$}{};
+        next unless length $t;
+        if ( $exists{$t} || -e "$DOCROOT$t" || -f "$DOCROOT$t.md" || -f "$DOCROOT$t.html" ) {
+            $inbound{$t}++;
+        }
+        else { push @broken, { from => $from, to => $to }; last if @broken >= 200 }
+    }
+
+    my @orphans   = map { $_->{slug} } grep { $_->{slug} ne '/index' && !$inbound{ $_->{slug} } } @info;
+    my @no_title  = map { $_->{slug} } grep { !length $_->{title} } @info;
+
+    # Stale generated HTML: a rendered .html with no .md source.
+    my ( @stale, @stack ) = ( (), $DOCROOT );
+    while (@stack) {
+        my $dir = pop @stack;
+        opendir my $dh, $dir or next;
+        for my $e ( readdir $dh ) {
+            next if $e =~ /^\./;
+            my $full = "$dir/$e";
+            if ( -d $full ) { push @stack, $full unless $e =~ /^(?:lazysite|lazysite-assets)$/; next }
+            next unless $e =~ /\.html$/;
+            ( my $src = $full ) =~ s/\.html$/.md/;
+            unless ( -f $src ) { ( my $rel = $full ) =~ s{^\Q$DOCROOT\E/+}{/}; push @stale, $rel; last if @stale >= 200 }
+        }
+        closedir $dh;
+    }
+
+    my @dups;
+    for my $p ( sort keys %para ) {
+        my %u = map { $_ => 1 } @{ $para{$p} };
+        next unless keys %u > 1;
+        push @dups, { text => substr( $p, 0, 120 ), pages => [ sort keys %u ] };
+        last if @dups >= 50;
+    }
+
+    return { ok => 1, pages => scalar @info,
+        broken_links => \@broken, orphan_pages => \@orphans,
+        missing_title => \@no_title, stale_html => \@stale, duplicate_blocks => \@dups };
+}
+
 # MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
 # ChatGPT (drives its per-call approval + read/write gating) and good practice
 # for every client. openWorld = the action publishes to / changes the live site.
@@ -574,6 +645,7 @@ my %ANNOTATE = (
     list_pages      => [ 1, 0, 0 ],
     read_page       => [ 1, 0, 0 ],
     validate_page   => [ 1, 0, 0 ],
+    audit_site      => [ 1, 0, 0 ],
     write_file      => [ 0, 0, 1 ],
     replace_text    => [ 0, 0, 1 ],
     move_file       => [ 0, 0, 1 ],
@@ -663,7 +735,7 @@ elsif ( $method eq 'tools/call' ) {
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
     my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1 );
+        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the
