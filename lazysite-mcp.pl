@@ -294,6 +294,17 @@ my %TOOLS = (
             action_layout_activate( $_[0]->{layout}, $p );
         },
     },
+    validate_page => {
+        description => 'Check page content before saving: malformed/unterminated front matter, missing title, invalid form-field rules, and a PUBLIC-DATA warning (Wi-Fi passwords, postcodes/addresses, phone numbers) so private operational details are not published by accident. Pass content to check a draft, or path to check a saved file.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => {
+                path    => { type => 'string', description => 'page to validate' },
+                content => { type => 'string', description => 'draft content to validate instead of a saved file' },
+            },
+            additionalProperties => JSON::PP::false },
+        run => sub { _validate_page( $_[0]->{path}, $_[0]->{content}, $_[1] ) },
+    },
     list_pages => {
         description => 'List the site pages with their title, public URL, and which registries (sitemap/llms/feed) each is in. A page-level view rather than a raw file list.',
         cap         => 'manage_content',
@@ -491,6 +502,66 @@ sub _list_pages {
     return { ok => 1, count => scalar @pages, pages => \@pages };
 }
 
+# --- SM087 Tier 2: validate a page (incl. public-data warnings) ------------
+my %FORM_FLAGS = map { $_ => 1 }
+    qw(required optional email tel date time number url password textarea);
+sub _validate_page {
+    my ( $path, $content, $user ) = @_;
+    if ( !defined $content ) {
+        return { ok => 0, error => 'path or content required' }
+            unless defined $path && length $path;
+        my $r = action_read( $path, $user );
+        return $r unless ref $r eq 'HASH' && $r->{ok};
+        $content = $r->{content};
+    }
+    my ( @issues, @warnings );
+
+    # Front matter: opened-but-unterminated, and missing title.
+    if ( $content =~ /\A---\s*\n/ && $content !~ /\A---\s*\n.*?\n---\s*\n/s ) {
+        push @issues, { kind => 'front-matter-unterminated',
+            message => 'front matter opened with --- but never closed' };
+    }
+    my ( $fm, $body ) = _split_front_matter($content);
+    my $h = _parse_fm($fm);
+    push @warnings, { kind => 'no-title', message => 'page has no title in front matter' }
+        unless length( $h->{title} // '' );
+
+    # Form-field rules (catch typos/unsupported rules before publish).
+    if ( $content =~ /:::\s*form\b(.*?):::/s ) {
+        for my $line ( split /\n/, $1 ) {
+            $line =~ s/^\s+|\s+$//g;
+            next unless length $line;
+            my ( $name, undef, $rules ) = split /\s*\|\s*/, $line, 3;
+            next if !defined $name || $name eq 'submit' || !defined $rules;
+            for my $tok ( split /\s+/, $rules ) {
+                next if $FORM_FLAGS{$tok} || $tok =~ /^[a-z]+:/;    # known flag or key:value
+                next if $tok !~ /^[a-z]+$/;                          # only flag plain words
+                push @issues, { kind => 'invalid-form-rule',
+                    message => "unknown form rule '$tok' on field '$name'" };
+            }
+        }
+    }
+
+    # Public-data warnings - private/operational details that should not be
+    # published accidentally (guest-instruction uploads carry these).
+    my $ln = 0;
+    for my $line ( split /\n/, $body ) {
+        $ln++;
+        push @warnings, { kind => 'public-credential', line => $ln,
+            message => 'possible Wi-Fi / password value - confirm this should be public' }
+            if $line =~ /\b(?:wi-?fi|password|passphrase|wpa2?|psk)\b\s*[:=]/i;
+        push @warnings, { kind => 'public-postcode', line => $ln,
+            message => 'looks like a UK postcode - confirm the full address should be public' }
+            if $line =~ /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/;
+        push @warnings, { kind => 'public-phone', line => $ln,
+            message => 'contains a phone number - fine for a contact CTA, not for a private number' }
+            if $line =~ /\+?\d[\d\s().-]{8,}\d/ && $line =~ /\d{3}/;
+    }
+
+    return { ok => 1, valid => ( @issues ? JSON::PP::false : JSON::PP::true ),
+        issues => \@issues, warnings => \@warnings };
+}
+
 # MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
 # ChatGPT (drives its per-call approval + read/write gating) and good practice
 # for every client. openWorld = the action publishes to / changes the live site.
@@ -502,6 +573,7 @@ my %ANNOTATE = (
     page_status     => [ 1, 0, 0 ],
     list_pages      => [ 1, 0, 0 ],
     read_page       => [ 1, 0, 0 ],
+    validate_page   => [ 1, 0, 0 ],
     write_file      => [ 0, 0, 1 ],
     replace_text    => [ 0, 0, 1 ],
     move_file       => [ 0, 0, 1 ],
@@ -591,7 +663,7 @@ elsif ( $method eq 'tools/call' ) {
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
     my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-        page_status => 1, list_pages => 1, read_page => 1 );
+        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the

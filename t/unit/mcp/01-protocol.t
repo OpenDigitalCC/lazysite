@@ -159,6 +159,17 @@ ok( ( grep { $_->{path} eq '/content/about.md' && $_->{title} eq 'About Us' }
         @{ $r->{result}{structuredContent}{pages} || [] } ),
     'list_pages includes the page with its title' );
 
+# --- validate_page: public-data warning + form-rule check ---
+( $st, $r ) = call( 'validate_page', { content =>
+    "---\ntitle: Guest Info\n---\nWiFi password: hunter2\nCall +44 20 7946 0958\n" }, $bearer_lim );
+my $vw = $r->{result}{structuredContent}{warnings} || [];
+ok( ( grep { $_->{kind} eq 'public-credential' } @$vw ), 'validate_page warns on a published password' );
+ok( ( grep { $_->{kind} eq 'public-phone' } @$vw ),      'validate_page warns on a phone number' );
+( $st, $r ) = call( 'validate_page', { content =>
+    "---\ntitle: T\n---\n::: form\nname | Name | requierd\nsubmit | Go\n:::\n" }, $bearer_lim );
+ok( ( grep { $_->{kind} eq 'invalid-form-rule' } @{ $r->{result}{structuredContent}{issues} || [] } ),
+    'validate_page flags an unknown form rule (typo)' );
+
 # --- capability gate: a webdav-only token cannot activate a theme ---
 ( $st, $r ) = call( 'activate_theme', { theme => 'sky' }, $bearer_lim );
 is( $r->{error}{code}, -32002, 'insufficient capability is rejected (needs manage_themes)' );
