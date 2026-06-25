@@ -45,6 +45,7 @@ use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action
 use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
     action_layouts_release_contents action_layouts_available action_themes_for_layout
     action_layouts_repo_get action_layouts_repo_set);
+use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
@@ -55,7 +56,9 @@ $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Files::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Themes::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Layouts::DOCROOT = $DOCROOT;
+$Lazysite::Manager::Backups::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
+$Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Manager::Upload::LAZYSITE_DIR = $LAZYSITE_DIR;
@@ -166,6 +169,7 @@ my $path   = $params{path}   // '/';
 $Lazysite::Manager::Common::action    = $action;
 $Lazysite::Manager::Common::auth_user = $auth_user;
 $Lazysite::Manager::Upload::auth_user = $auth_user;
+$Lazysite::Manager::Backups::auth_user = $auth_user;
 $Lazysite::Manager::Plugins::action   = $action;
 $Lazysite::Manager::Files::auth_user  = $auth_user;
 $Lazysite::Manager::Files::action     = $action;
@@ -411,6 +415,12 @@ elsif ( $action eq 'file-download' ) {
     action_file_download($path);
     exit 0;
 }
+elsif ( $action eq 'backup-list' )   { $result = action_backup_list() }
+elsif ( $action eq 'backup-create' ) { $result = action_backup_create() }
+elsif ( $action eq 'backup-download' ) {
+    action_backup_download( $params{name} );
+    exit 0;
+}
 elsif ( $action eq 'file-zip-download' ) {
     action_file_zip_download();
     exit 0;
@@ -437,7 +447,8 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         cache-invalidate nav-read theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
-        artifact-validate lock unlock renew-lock preview preview-clear preview-grant );
+        artifact-validate lock unlock renew-lock preview preview-clear preview-grant
+        backup-list );
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );

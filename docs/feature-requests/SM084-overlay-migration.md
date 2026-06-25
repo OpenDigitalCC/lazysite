@@ -74,6 +74,13 @@ In progress (2026-06-25).
   `index.html` untouched; `deploy.sh` no longer deletes it (it just warns if a
   placeholder shadows a new `index.md`). lazysite can now be installed over a live
   HTML/SSI site without losing the homepage.
-- **TODO - pre-install tar snapshot** of the docroot to `lazysite/backups/`.
+- **Done - content backups.** A one-time pre-install tar snapshot of the docroot
+  (excluding `lazysite/`) is taken by the Hestia hook the first time lazysite is
+  installed over existing content, stored at `lazysite/backups/preinstall-*.tar.gz`.
+  A new manager **Backups** page lists them, takes manual snapshots on demand, and
+  downloads them; `lazysite/backups/` is infrastructure and never served.
 - **Moved out - git versioning** is now its own opt-in plugin, [[SM085]]; its
   initial commit can serve as the backup when enabled.
+
+SM084 is now complete: non-destructive install + content backups. Inline page-by-
+page migration works on top (existing HTML/SSI served until a `.md` replaces it).

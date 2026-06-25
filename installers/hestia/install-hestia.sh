@@ -60,6 +60,22 @@ chmod 750 "$LAZYSITE_DIR/auth"
 chown -R "$user":"$user" "$LAZYSITE_DIR"
 chown "$user":"$user" "$docroot/lazysite-assets"
 
+# SM084: one-time pre-install snapshot of the original docroot, so installing
+# lazysite over an existing HTML/SSI site is always recoverable. Excludes the
+# lazysite/ infra; skipped if a snapshot already exists or there is no content
+# yet. Surfaced + downloadable in the manager (Backups).
+BACKUP_DIR="$LAZYSITE_DIR/backups"
+mkdir -p "$BACKUP_DIR"
+if ! ls "$BACKUP_DIR"/preinstall-*.tar.gz >/dev/null 2>&1; then
+    if find "$docroot" -mindepth 1 -maxdepth 1 \
+            ! -name lazysite ! -name lazysite-assets -print -quit | grep -q .; then
+        stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+        tar czf "$BACKUP_DIR/preinstall-$stamp.tar.gz" -C "$docroot" \
+            --exclude=./lazysite --exclude=./lazysite-assets . 2>/dev/null || true
+    fi
+fi
+chown -R "$user":"$user" "$BACKUP_DIR" 2>/dev/null || true
+
 # Install manager layout and CSS (D013: manager moved out of themes/)
 if [ -f "$TEMPLATE_DIR/starter/lazysite/manager/layout.tt" ]; then
     install -m 644 -o "$user" -g "$user" \

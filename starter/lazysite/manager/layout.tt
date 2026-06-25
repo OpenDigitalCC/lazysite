@@ -95,6 +95,10 @@
          [% IF request_uri.match('^/manager/cache') %]
          class="active" aria-current="page"
          [% END %]>Cache</a>
+      <a href="/manager/backups"
+         [% IF request_uri.match('^/manager/backups') %]
+         class="active" aria-current="page"
+         [% END %]>Backups</a>
       <a href="/manager/audit"
          [% IF request_uri.match('^/manager/audit') %]
          class="active" aria-current="page"
