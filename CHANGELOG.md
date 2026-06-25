@@ -18,6 +18,33 @@ Keying
 
 ## Unreleased
 
+## 0.4.12 - Connector polish, in-channel preview, form binding (2026-06-25)
+
+Feature - more connector tools (from live Claude.ai / ChatGPT use)
+: `preview_page` renders a page server-side (fresh, no-cache) and returns its
+  HTML, so an agent can verify layout/nav/form output without a public fetch.
+  `whoami` now echoes the full `tools` manifest (one-call discovery).
+  `copy_file` templates a new page from an existing one; `get_permissions` reads
+  a path's ACL before changing it. `list_form_handlers` + `bind_form` (SM088)
+  let an agent wire a form to an operator-vetted delivery handler without ever
+  seeing a destination or credential.
+
+Fix - clearer connector errors + cache correctness
+: A `401` now distinguishes *sign-in incomplete* from *credential invalid/expired*
+  (with `error.data.reason`). Error responses carry a machine-readable `kind`.
+  A `nav.conf` save clears all page caches (nav shows on every page) and flags
+  `cache_rebuilt`.
+
+Feature - audit log usability
+: Failure reasons are recorded and shown (ⓘ tooltip + inline note); the page
+  gains a Target filter and a Refresh button; clicking a user opens the Users
+  page with that account expanded, and a page target opens the rendered page.
+
+Change - Generate credential clarified
+: The affordance now states it is for Claude Code / Desktop / scripts (static
+  bearer), not Claude.ai / ChatGPT web (OAuth-only - use Connect an AI assistant),
+  and that the account needs the relevant capability.
+
 ## 0.4.11 - Form field types + connector editing tools (SM087) (2026-06-25)
 
 Feature - more form field types
