@@ -262,7 +262,7 @@ function renderUserRow(row) {
     '<span class="mg-inline-msg" id="pwmsg-' + ue + '"></span></div>';
   cred += '<div class="mg-line"><span class="mg-line-lbl">Token</span>' +
     '<button class="mg-btn mg-btn-sm" onclick="generateCredential(\'' + ue + '\')">Generate credential</button>' +
-    '<span class="mg-help" title="Mints a strong machine credential (prefix lzs_), shown once. Use it as the WebDAV / API password: it verifies far faster than the account password and is revoked by regenerating.">&#9432;</span></div>';
+    '<span class="mg-help" title="Mints a strong machine credential (lzs_), shown once, revoked by regenerating. For Claude Code / Desktop / a script: the WebDAV / API password, or the bearer username:token. NOT for Claude.ai or ChatGPT web - those are OAuth-only and have no token field; use Connect an AI assistant below. The account also needs the right capability (e.g. Manage content) to actually edit.">&#9432;</span> <span class="mg-muted">for Claude Code / Desktop / scripts</span></div>';
   cred += '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>';
   cred += '<div class="mg-line"><span class="mg-line-lbl">Setup link</span>' +
     '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',false)">Generate setup link</button>' +

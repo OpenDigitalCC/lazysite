@@ -53,5 +53,4 @@ in the loop.
 
 ## Status
 
-Queued (design). Raised 2026-06-25 from a live session where the AI built a review
 form but could not wire its delivery. Complements the page-aware API ([[SM087]]).

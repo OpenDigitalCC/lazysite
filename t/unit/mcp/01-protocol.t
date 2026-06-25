@@ -19,7 +19,10 @@ my $root = repo_root();
 my $mcp  = "$root/lazysite-mcp.pl";
 
 my $d = tempdir( CLEANUP => 1 );
-make_path( "$d/content", "$d/lazysite/manager/locks", "$d/lazysite/auth" );
+make_path( "$d/content", "$d/lazysite/manager/locks", "$d/lazysite/auth", "$d/lazysite/forms" );
+open my $hc, '>', "$d/lazysite/forms/handlers.conf" or die $!;
+print $hc "handlers:\n  - id: local-storage\n    enabled: true\n    name: Local file storage\n    type: file\n";
+close $hc;
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "layout: base\ntheme: sky\n";
 close $cf;
@@ -179,6 +182,19 @@ my $au = $r->{result}{structuredContent};
 ok( ( grep { $_->{to} =~ m{/content/missing} } @{ $au->{broken_links} || [] } ), 'audit_site finds a broken internal link' );
 ok( ( grep { $_ eq '/content/p2' } @{ $au->{missing_title} || [] } ), 'audit_site flags a page missing a title' );
 ok( ( grep { $_->{pages} && @{ $_->{pages} } >= 2 } @{ $au->{duplicate_blocks} || [] } ), 'audit_site detects a duplicated block across pages' );
+
+# --- SM088: list_form_handlers + bind_form ---
+( $st, $r ) = call( 'list_form_handlers', {}, $bearer_lim );
+ok( ( grep { $_->{id} eq 'local-storage' && $_->{type} eq 'file' } @{ $r->{result}{structuredContent}{handlers} || [] } ),
+    'list_form_handlers returns the configured handler (id + type, no secrets)' );
+( $st, $r ) = call( 'bind_form', { form => 'review', handler => 'local-storage' }, $bearer_lim );
+ok( !$r->{result}{isError} && $r->{result}{structuredContent}{ok}, 'bind_form succeeds' );
+{
+    open my $fh, '<', "$d/lazysite/forms/review.conf"; local $/; my $c = <$fh>; close $fh;
+    like( $c, qr/handler:\s*local-storage/, 'bind_form wrote a handler reference (no destination/creds)' );
+}
+( $st, $r ) = call( 'bind_form', { form => 'review', handler => 'no-such' }, $bearer_lim );
+is( $r->{result}{structuredContent}{kind}, 'not-found', 'bind_form rejects an unknown handler' );
 
 # --- capability gate: a webdav-only token cannot activate a theme ---
 ( $st, $r ) = call( 'activate_theme', { theme => 'sky' }, $bearer_lim );

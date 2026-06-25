@@ -294,6 +294,23 @@ my %TOOLS = (
             action_layout_activate( $_[0]->{layout}, $p );
         },
     },
+    list_form_handlers => {
+        description => 'List the configured form delivery handlers (id, type, name) - what a form can be bound to. Destinations and credentials are operator-only and never returned.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run         => sub { _list_form_handlers() },
+    },
+    bind_form => {
+        description => 'Wire a form to delivery by referencing an existing handler (from list_form_handlers). A :::form only delivers once bound. You choose an operator-vetted handler by id; you never set a destination or credential (those stay operator-only). Writes lazysite/forms/<form>.conf.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => {
+                form    => { type => 'string', description => 'the form name (the _form / front-matter form key)' },
+                handler => { type => 'string', description => 'an existing handler id from list_form_handlers' },
+            },
+            required => [ 'form', 'handler' ], additionalProperties => JSON::PP::false },
+        run => sub { _bind_form( $_[0]->{form}, $_[0]->{handler} ) },
+    },
     audit_site => {
         description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), and duplicate content blocks (the same paragraph on multiple pages, e.g. repeated reviews). Returns lists per category.',
         cap         => 'manage_content',
@@ -633,6 +650,51 @@ sub _audit_site {
         missing_title => \@no_title, stale_html => \@stale, duplicate_blocks => \@dups };
 }
 
+# --- SM088: bind a form to an operator-vetted delivery handler ------------
+# Handlers (with their destinations + credentials) live in handlers.conf and
+# are operator-only. The connector may only REFERENCE an existing handler by id;
+# it never sees or sets a destination or secret.
+sub _list_form_handlers {
+    my $f = "$LAZYSITE_DIR/forms/handlers.conf";
+    return { ok => 1, handlers => [] } unless -f $f;
+    open my $fh, '<', $f or return { ok => 0, error => 'cannot read handlers.conf' };
+    local $/; my $c = <$fh>; close $fh;
+    my @h;
+    while ( $c =~ /^[ \t]*-[ \t]+id:[ \t]*(\S+)(.*?)(?=^[ \t]*-[ \t]+id:|\z)/gms ) {
+        my ( $id, $block ) = ( $1, $2 );
+        my %x = ( id => $id, type => 'unknown' );
+        $x{type} = $1 if $block =~ /^[ \t]*type:[ \t]*(\S+)/m;
+        $x{name} = $1 if $block =~ /^[ \t]*name:[ \t]*(.+?)[ \t]*$/m;
+        $x{enabled} = ( $block =~ /^[ \t]*enabled:[ \t]*(?:true|yes|1)[ \t]*$/mi )
+            ? JSON::PP::true : JSON::PP::false;
+        push @h, \%x;
+    }
+    return { ok => 1, handlers => \@h };
+}
+
+sub _bind_form {
+    my ( $form, $handler ) = @_;
+    $form    = '' unless defined $form;
+    $handler = '' unless defined $handler;
+    return { ok => 0, error => 'form and handler are required' } unless length $form && length $handler;
+    for my $n ( $form, $handler ) {
+        return { ok => 0, error => "invalid name '$n'", kind => 'invalid-path' }
+            unless $n =~ /\A[A-Za-z0-9_-]+\z/;
+    }
+    my $hl = _list_form_handlers();
+    return $hl unless $hl->{ok};
+    unless ( grep { $_->{id} eq $handler } @{ $hl->{handlers} } ) {
+        return { ok => 0, kind => 'not-found',
+            error => "no handler '$handler' - call list_form_handlers to see the configured ones" };
+    }
+    my $dir = "$LAZYSITE_DIR/forms";
+    return { ok => 0, error => 'forms directory is missing' } unless -d $dir;
+    open my $fh, '>', "$dir/$form.conf" or return { ok => 0, error => "cannot write the form config: $!" };
+    print {$fh} "targets:\n  - handler: $handler\n";
+    close $fh;
+    return { ok => 1, form => $form, handler => $handler, path => "/lazysite/forms/$form.conf" };
+}
+
 # MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
 # ChatGPT (drives its per-call approval + read/write gating) and good practice
 # for every client. openWorld = the action publishes to / changes the live site.
@@ -646,6 +708,8 @@ my %ANNOTATE = (
     read_page       => [ 1, 0, 0 ],
     validate_page   => [ 1, 0, 0 ],
     audit_site      => [ 1, 0, 0 ],
+    list_form_handlers => [ 1, 0, 0 ],
+    bind_form          => [ 0, 0, 1 ],
     write_file      => [ 0, 0, 1 ],
     replace_text    => [ 0, 0, 1 ],
     move_file       => [ 0, 0, 1 ],
@@ -735,7 +799,7 @@ elsif ( $method eq 'tools/call' ) {
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
     my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1 );
+        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the
