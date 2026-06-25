@@ -34,7 +34,7 @@ use Lazysite::Auth::OAuth ();
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
     action_move action_acl_set action_acl_remove);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
-    _read_active_layout_and_theme);
+    action_cache_invalidate _read_active_layout_and_theme);
 
 our $VERSION = '0.1';
 my $PROTOCOL = '2025-11-25';
@@ -254,6 +254,14 @@ my %TOOLS = (
             action_layout_activate( $_[0]->{layout}, $p );
         },
     },
+    invalidate_cache => {
+        description => 'Drop the cached HTML for a page so it re-renders on the next request. A normal write already clears the saved page; use this to force a refresh or to rebuild pages that embed another (pass "*" to clear every page).',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => { path => { type => 'string', description => 'Page path (e.g. /enquire), or "*" for all pages' } },
+            required => ['path'], additionalProperties => JSON::PP::false },
+        run => sub { action_cache_invalidate( $_[0]->{path} ) },
+    },
 );
 
 # MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
@@ -269,6 +277,7 @@ my %ANNOTATE = (
     set_permissions => [ 0, 0, 0 ],
     activate_theme  => [ 0, 0, 1 ],
     activate_layout => [ 0, 0, 1 ],
+    invalidate_cache => [ 0, 0, 0 ],
 );
 
 sub tool_list {

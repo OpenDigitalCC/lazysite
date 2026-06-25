@@ -80,6 +80,7 @@ is( $r->{result}{serverInfo}{name}, 'lazysite-mcp', 'initialize: serverInfo' );
 my %names = map { $_->{name} => $_ } @{ $r->{result}{tools} };
 ok( $names{whoami} && $names{list_files} && $names{write_file} && $names{activate_theme},
     'tools/list advertises the maintenance tools' );
+ok( $names{invalidate_cache}, 'tools/list advertises invalidate_cache' );
 ok( $names{write_file}{inputSchema}{required}, 'a tool carries a JSON-Schema inputSchema' );
 ok( $names{whoami}{annotations}{readOnlyHint}, 'whoami is annotated read-only' );
 ok( !$names{write_file}{annotations}{readOnlyHint} && $names{write_file}{annotations}{openWorldHint},
