@@ -1789,6 +1789,18 @@ sub convert_fenced_code {
     return $text;
 }
 
+# Text::MultiMarkdown paragraph-wraps top-level block HTML that is not isolated
+# by blank lines (e.g. a hero <section> with Markdown inside), emitting invalid
+# <p><section>...</section></p>. Strip the spurious <p>/</p> that hug a
+# block-level element. (Reported from an AI-partner site review, 2026-06.)
+sub unwrap_block_html {
+    my ($html) = @_;
+    my $block = qr/(?:section|article|aside|nav|header|footer|figure|figcaption|main|div|details|summary|address|blockquote|form|fieldset|table|ul|ol|dl|hr)/i;
+    $html =~ s{<p>\s*(<$block\b)}{$1}g;
+    $html =~ s{(</$block>)\s*</p>}{$1}g;
+    return $html;
+}
+
 sub convert_md {
     my ($body) = @_;
 
@@ -1810,7 +1822,7 @@ sub convert_md {
         $html =~ s/(?:<p>)?SCRIPTBLOCK_${i}_END(?:<\/p>)?/$scripts[$i]/;
     }
 
-    return $html;
+    return unwrap_block_html($html);
 }
 
 sub convert_dt_links {
