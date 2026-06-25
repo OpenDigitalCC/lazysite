@@ -115,6 +115,18 @@ ok( ( grep { $_->{name} eq 'page.md' } @{ $sc->{entries} } ), 'list_files return
 ok( !$r->{result}{isError}, 'write_file succeeds' );
 ok( -f "$d/content/new.md", 'write_file created the file on disk' );
 
+# --- replace_text: exact patch edit (no whole-file overwrite) ---
+( $st, $r ) = call( 'replace_text', { path => '/content/new.md', old => 'fresh', new => 'updated' }, $bearer_lim );
+ok( !$r->{result}{isError}, 'replace_text succeeds' );
+is( $r->{result}{structuredContent}{replacements}, 1, 'replace_text reports the replacement count' );
+{
+    open my $fh, '<', "$d/content/new.md"; local $/; my $c = <$fh>; close $fh;
+    like( $c, qr/updated/, 'file content was patched' );
+    unlike( $c, qr/fresh/, 'old text gone' );
+}
+( $st, $r ) = call( 'replace_text', { path => '/content/new.md', old => 'NOPE', new => 'x' }, $bearer_lim );
+ok( $r->{result}{structuredContent}{error}, 'replace_text errors when old text is absent (no silent clobber)' );
+
 # --- capability gate: a webdav-only token cannot activate a theme ---
 ( $st, $r ) = call( 'activate_theme', { theme => 'sky' }, $bearer_lim );
 is( $r->{error}{code}, -32002, 'insufficient capability is rejected (needs manage_themes)' );

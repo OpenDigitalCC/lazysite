@@ -219,6 +219,31 @@ my %TOOLS = (
             required => [ 'path', 'content' ], additionalProperties => JSON::PP::false },
         run => sub { action_save( $_[0]->{path}, $_[1], $_[0]->{content}, undef ) },
     },
+    replace_text => {
+        description => 'Edit a file by replacing exact text - safer than rewriting the whole file for a small change to a page with HTML / front matter / scripts. Replaces every occurrence of "old" with "new"; errors if "old" is not present. read_file first to copy the exact text (including whitespace).',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => {
+                path => { type => 'string' },
+                old  => { type => 'string', description => 'exact text to find (must match including whitespace)' },
+                new  => { type => 'string', description => 'replacement text' },
+            },
+            required => [ 'path', 'old', 'new' ], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $a, $user ) = @_;
+            my $old = $a->{old};
+            return { ok => 0, error => 'old text must not be empty' } unless defined $old && length $old;
+            my $r = action_read( $a->{path}, $user );
+            return $r unless ref $r eq 'HASH' && $r->{ok};
+            my @parts = split /\Q$old\E/, $r->{content}, -1;
+            my $count = @parts - 1;
+            return { ok => 0, error => 'text not found in ' . ( $a->{path} // '' ) } unless $count;
+            my $content = join( ( defined $a->{new} ? $a->{new} : '' ), @parts );
+            my $s = action_save( $a->{path}, $user, $content, undef );
+            $s->{replacements} = $count if ref $s eq 'HASH' && $s->{ok};
+            return $s;
+        },
+    },
     move_file => {
         description => 'Rename or move a file (carries its .brief and re-keys its ACL).',
         cap         => 'manage_content',
@@ -287,6 +312,7 @@ my %ANNOTATE = (
     list_files      => [ 1, 0, 0 ],
     read_file       => [ 1, 0, 0 ],
     write_file      => [ 0, 0, 1 ],
+    replace_text    => [ 0, 0, 1 ],
     move_file       => [ 0, 0, 1 ],
     delete_file     => [ 0, 1, 1 ],
     set_permissions => [ 0, 0, 0 ],
@@ -379,10 +405,11 @@ elsif ( $method eq 'tools/call' ) {
         # Meaningful file-event labels (create/edit/delete/move) to match the
         # manager UI + WebDAV audit vocabulary.
         my $act =
-            $name eq 'write_file'  ? ( ( ref $out eq 'HASH' && $out->{created} ) ? 'create' : 'edit' )
-          : $name eq 'delete_file' ? 'delete'
-          : $name eq 'move_file'   ? 'move'
-          :                          $name;
+            $name eq 'write_file'   ? ( ( ref $out eq 'HASH' && $out->{created} ) ? 'create' : 'edit' )
+          : $name eq 'replace_text' ? 'edit'
+          : $name eq 'delete_file'  ? 'delete'
+          : $name eq 'move_file'    ? 'move'
+          :                           $name;
         audit_log( $user, $act, $target, $ENV{REMOTE_ADDR} // '',
             ( ref $out eq 'HASH' && $out->{ok} ) ? 'ok' : 'fail', 'mcp' );
     }
