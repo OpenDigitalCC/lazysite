@@ -1525,9 +1525,12 @@ sub _render_form {
             if ( $r eq 'required' )      { $rules{required} = 1; }
             elsif ( $r eq 'optional' )   { $rules{optional} = 1; }
             elsif ( $r eq 'email' )      { $rules{type} = 'email'; }
+            elsif ( $r =~ /^(tel|date|time|number|url|password)$/ ) { $rules{type} = $1; }
             elsif ( $r eq 'textarea' )   { $rules{textarea} = 1; }
             elsif ( $r =~ /^select:(.+)/ ) { $rules{select} = [ split /,/, $1 ]; }
             elsif ( $r =~ /^max:(\d+)/ ) { $rules{max} = $1; }
+            elsif ( $r =~ /^min:(\d+)/ ) { $rules{min} = $1; }
+            elsif ( $r =~ /^pattern:(.+)/ ) { $rules{pattern} = $1; }
         }
 
         my $req_attr = $rules{required} ? ' required' : '';
@@ -1550,9 +1553,26 @@ sub _render_form {
             $field_html .= qq(    </select>\n);
         }
         else {
-            my $type = $rules{type} || 'text';
+            my $type  = $rules{type} || 'text';
+            my $attrs = '';
+            if ( $type eq 'number' ) {
+                # For numbers, min/max are value bounds (not maxlength).
+                $attrs .= qq( min="$rules{min}") if defined $rules{min};
+                $attrs .= qq( max="$rules{max}") if defined $rules{max};
+            }
+            else {
+                $attrs .= qq( maxlength="$max");
+            }
+            # tel gets a sensible default validation pattern unless overridden.
+            my $pat = $rules{pattern};
+            $pat = '[\\d\\s()+.-]{6,20}' if !defined $pat && $type eq 'tel';
+            if ( defined $pat ) {
+                $pat =~ s/&/&amp;/g;
+                $pat =~ s/"/&quot;/g;
+                $attrs .= qq( pattern="$pat");
+            }
             $field_html = qq(    <input type="$type" name="$name" id="$name")
-                        . qq( maxlength="$max"$req_attr>\n);
+                        . $attrs . qq($req_attr>\n);
         }
 
         push @fields, qq(  <div class="form-field">\n)

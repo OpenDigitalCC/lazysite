@@ -36,9 +36,21 @@ The name must be alphanumeric with hyphens and underscores. Without
 - `required` - field must be filled in, adds `required` attribute
 - `optional` - field is optional (default)
 - `email` - renders as `type="email"` input
+- `tel` - telephone input; gets a default validation pattern (override with `pattern:`)
+- `date` / `time` - date / time picker (`type="date"` / `type="time"`)
+- `number` - numeric input; `min:N` / `max:N` set the value bounds
+- `url` - URL input (`type="url"`)
+- `password` - masked input
 - `textarea` - renders as a textarea
 - `select:opt1,opt2,opt3` - renders as a dropdown
-- `max:N` - sets maxlength (default 1000)
+- `pattern:REGEX` - HTML5 validation pattern (no spaces; use `\s` / `\d`). Example:
+  `phone | Phone | tel pattern:[0-9+()\s-]{7,20}`
+- `max:N` - maxlength for text inputs (default 1000); the max **value** for `number`
+- `min:N` - the min **value** for `number`
+
+Validation is enforced in the browser (HTML5 attributes); the handler accepts the
+submitted fields. A field with spaces in its `pattern:` is not yet supported (rules
+are whitespace-separated) - use `\s` instead of a literal space.
 
 ### Handler configuration
 

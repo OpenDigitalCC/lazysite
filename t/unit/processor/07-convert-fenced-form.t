@@ -44,6 +44,27 @@ load_processor($docroot);
     like( $out, qr/class="form-status"/,       'status live region' );
 }
 
+# --- new HTML5 field types + validation (date/tel/number/url/pattern) ---
+{
+    my $out = main::convert_fenced_form(
+        "::: form\n"
+      . "when   | Date      | required date\n"
+      . "phone  | Phone     | tel\n"
+      . "guests | Guests    | number min:1 max:20\n"
+      . "site   | Website   | url\n"
+      . "ref    | Reference | pattern:[A-Z]{3}\\d+\n"
+      . "submit | Send\n:::\n",
+        { form => 'booking' },
+    );
+    like(   $out, qr/type="date"/,                'date type applied' );
+    like(   $out, qr/type="tel"[^>]*pattern=/,    'tel gets a default validation pattern' );
+    like(   $out, qr/type="number"[^>]*min="1"/,  'number min value' );
+    like(   $out, qr/type="number"[^>]*max="20"/, 'number max value (not maxlength)' );
+    unlike( $out, qr/type="number"[^>]*maxlength=/, 'number field has no maxlength' );
+    like(   $out, qr/type="url"/,                 'url type applied' );
+    like(   $out, qr/pattern="\[A-Z\]\{3\}/,      'custom pattern applied' );
+}
+
 # --- textarea rule renders <textarea> ---
 {
     my $out = main::convert_fenced_form(
