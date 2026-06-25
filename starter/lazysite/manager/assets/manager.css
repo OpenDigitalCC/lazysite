@@ -652,6 +652,7 @@
 .mg-perms-actions .mg-perms-save { margin-left: auto; }
 
 /* SM076: Claude.ai connector setup - the two-step instruction cards. */
+.mg-file-size { color: var(--mg-text-light); font-size: 0.85em; }
 .mg-onb { width: 100%; font-size: 0.85em; box-sizing: border-box; }
 .mg-onb-card {
     border: 1px solid var(--mg-border, #ddd); border-left: 3px solid var(--mg-accent);

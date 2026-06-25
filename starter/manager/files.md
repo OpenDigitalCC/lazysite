@@ -154,7 +154,12 @@ function absTime(mtime) {
 // in the config card, not on the date.)
 function modifiedCell(f) {
   if (!f.mtime) return '';
-  return '<span title="' + escHtml(absTime(f.mtime)) + '">' + escHtml(relativeTime(f.mtime)) + '</span>';
+  var when = '<span title="' + escHtml(absTime(f.mtime)) + '">' + escHtml(relativeTime(f.mtime)) + '</span>';
+  // Size after the date (files only - directories have no meaningful size).
+  if (f.type === 'file' && f.size != null) {
+    when += ' <span class="mg-file-size">&middot; ' + escHtml(formatSize(f.size)) + '</span>';
+  }
+  return when;
 }
 
 // ACCESS cell: owner + colour-coded r / w (+ g when a @group is listed).

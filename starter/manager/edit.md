@@ -266,7 +266,12 @@ function acquireLock() {
       var dot = document.getElementById('ed-lock-dot');
       var lbl = document.getElementById('ed-lock-label');
       if (data.locked && data.locked_by) {
-        dot.className = 'lock-dot locked'; lbl.textContent = 'Locked by ' + data.locked_by;
+        dot.className = 'lock-dot locked';
+        // A stale lock (e.g. an editor left open across a restart) can't be
+        // waited out without the 5-min TTL, so offer to take it over. The server
+        // still refuses a live WebDAV lock.
+        lbl.innerHTML = 'Locked by ' + String(data.locked_by).replace(/[<>&"]/g, '') +
+          ' <button class="mg-btn mg-btn-sm" onclick="takeOverLock()">Take over</button>';
         document.getElementById('ed-save-btn').disabled = true;
       } else {
         dot.className = 'lock-dot editing'; lbl.textContent = '';
@@ -275,6 +280,18 @@ function acquireLock() {
         }, 60000);
       }
     }).catch(function() {});
+}
+
+// Clear a stale lock and re-acquire it. The server refuses a live WebDAV lock.
+function takeOverLock() {
+  if (!confirm('Take over this file? Any unsaved edits in the other session may be lost.')) return;
+  fetch(API + '?action=unlock&path=' + encodeURIComponent(filePath), { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) { acquireLock(); }
+      else { alert(d.error || 'Could not clear the lock (it may be a live WebDAV lock).'); }
+    })
+    .catch(function() {});
 }
 
 // --- Load ---
