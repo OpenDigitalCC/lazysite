@@ -182,6 +182,10 @@ sub action_save {
 
     my $full = $result->{full};
 
+    # Whether this is a create (new file) or an edit (overwrite) - surfaced in
+    # the result so callers can record a meaningful audit action.
+    my $existed = -f $full;
+
     # Conflict check
     if ( -f $full && $mtime_check ) {
         my $current_mtime = ( stat $full )[9];
@@ -238,7 +242,7 @@ sub action_save {
     log_event('INFO', $action, 'file saved', path => $rel_path, user => $auth_user);
 
     my @st = stat($full);
-    return { ok => 1, path => $rel_path, mtime => $st[9] // 0 };
+    return { ok => 1, path => $rel_path, mtime => $st[9] // 0, created => $existed ? 0 : 1 };
 }
 
 sub action_delete {

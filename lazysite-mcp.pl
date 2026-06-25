@@ -352,7 +352,14 @@ elsif ( $method eq 'tools/call' ) {
     my %READ = ( whoami => 1, list_files => 1, read_file => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
-        audit_log( $user, $name, $target, $ENV{REMOTE_ADDR} // '',
+        # Meaningful file-event labels (create/edit/delete/move) to match the
+        # manager UI + WebDAV audit vocabulary.
+        my $act =
+            $name eq 'write_file'  ? ( ( ref $out eq 'HASH' && $out->{created} ) ? 'create' : 'edit' )
+          : $name eq 'delete_file' ? 'delete'
+          : $name eq 'move_file'   ? 'move'
+          :                          $name;
+        audit_log( $user, $act, $target, $ENV{REMOTE_ADDR} // '',
             ( ref $out eq 'HASH' && $out->{ok} ) ? 'ok' : 'fail', 'mcp' );
     }
 

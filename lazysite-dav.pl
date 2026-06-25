@@ -245,7 +245,15 @@ sub main {
         my $dest = destination_rel();
         $target .= ' -> ' . $dest if defined $dest;
     }
-    audit_log( $user, lc($method), $target, $ip,
+    # Meaningful file-event labels: a PUT is a create (201) or an edit (204).
+    my $act =
+        $method eq 'PUT'    ? ( ( defined $code && $code == 201 ) ? 'create' : 'edit' )
+      : $method eq 'DELETE' ? 'delete'
+      : $method eq 'MKCOL'  ? 'mkdir'
+      : $method eq 'MOVE'   ? 'move'
+      : $method eq 'COPY'   ? 'copy'
+      :                       lc($method);
+    audit_log( $user, $act, $target, $ip,
         ( defined $code && $code < 400 ? 'ok' : 'fail' ), 'dav' );
     return $code;
 }

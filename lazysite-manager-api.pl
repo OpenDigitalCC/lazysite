@@ -457,6 +457,11 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         }
     }
 
+    # Meaningful file events: a save is a create (new file) or an edit.
+    if ( $action eq 'save' && ref $result eq 'HASH' ) {
+        $aud_action = $result->{created} ? 'create' : 'edit';
+    }
+
     if ( defined $aud_action && !$skip{$aud_action} ) {
         audit_log( $auth_user, $aud_action, $aud_target, $ENV{REMOTE_ADDR} // '',
             ( ref $result eq 'HASH' && $result->{ok} ) ? 'ok' : 'fail',

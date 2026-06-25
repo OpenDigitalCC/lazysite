@@ -68,8 +68,10 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
     my @dav = grep { /\| dav\s*$/ } @lines;
     ok( scalar(@dav) >= 3, 'PUT, re-PUT and DELETE all recorded with origin=dav' )
         or diag( join '', @lines );
-    ok( ( grep { /\| deploy \| put \|/ && /\| dav\s*$/ } @lines ),
-        'a PUT is audited (user=deploy, action=put, origin=dav)' );
+    ok( ( grep { /\| deploy \| create \|/ && /\| dav\s*$/ } @lines ),
+        'a new-file PUT is audited as create (origin=dav)' );
+    ok( ( grep { /\| deploy \| edit \|/ && /\| dav\s*$/ } @lines ),
+        'a re-PUT is audited as edit (origin=dav)' );
     ok( ( grep { /\| deploy \| delete \|/ && /\| dav\s*$/ } @lines ),
         'a DELETE is audited (origin=dav)' );
 }
