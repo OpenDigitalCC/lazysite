@@ -47,6 +47,11 @@ my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
 
+# How the current request authenticated, for whoami to surface the real session
+# lifetime (an OAuth access token expires ~hourly even when the partner's static
+# token_expires_at is null).
+my %AUTH_INFO = ( method => 'none', expires_at => undef );
+
 # --- output helpers -------------------------------------------------------
 
 sub send_json {
@@ -141,6 +146,8 @@ sub verify_bearer {
         my $v = _users_api( { action => 'verify-credential',
             username => $user, secret => $secret, touch => 1 } );
         return () unless $v && $v->{ok};
+        %AUTH_INFO = ( method => 'bearer',
+            expires_at => ( $v->{settings} ? $v->{settings}{token_expires_at} : undef ) );
         return ( $user, $v->{settings} || {} );
     }
 
@@ -150,6 +157,8 @@ sub verify_bearer {
     return () unless defined $partner;
     my $r = _users_api( { action => 'partner-caps', username => $partner } );
     return () unless $r && $r->{ok};
+    %AUTH_INFO = ( method => 'oauth',
+        expires_at => Lazysite::Auth::OAuth::token_expiry($cred) );
     return ( $partner, $r->{settings} || {} );
 }
 
@@ -191,7 +200,11 @@ my %TOOLS = (
             # call (the connector loads tools a few at a time, which can hide some).
             return { ok => 1, user => $user, capabilities => $caps,
                 active_layout => $layout, active_theme => $theme,
-                tools => _tool_names() };
+                tools => _tool_names(),
+                # How this session authenticated + when the credential expires
+                # (OAuth tokens expire ~hourly and refresh transparently; a
+                # static/operator credential may be permanent = null).
+                auth => { method => $AUTH_INFO{method}, expires_at => $AUTH_INFO{expires_at} } };
         },
     },
     list_files => {

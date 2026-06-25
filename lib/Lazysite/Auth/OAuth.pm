@@ -158,6 +158,15 @@ sub validate_token {
     return $rec->{partner};
 }
 
+# The access token's expiry (epoch), so a caller can surface the session
+# lifetime; undef if the token is unknown.
+sub token_expiry {
+    my ($access) = @_;
+    return undef unless defined $access && length $access;
+    my $rec = load_store()->{tokens}{ _hash($access) } or return undef;
+    return $rec->{exp};
+}
+
 # Exchange a refresh token for a fresh access (+ rotated refresh) token.
 sub refresh_access {
     my ($refresh) = @_;

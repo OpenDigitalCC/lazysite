@@ -110,6 +110,8 @@ my $who = jbody( run( $mcp, method => 'POST',
     auth => "Bearer $tok->{access_token}" ) );
 ok( !$who->{error}, 'whoami over OAuth token is authorized' ) or diag( encode_json($who) );
 is( $who->{result}{structuredContent}{user}, 'claude.ai', 'whoami returns the partner identity' );
+is( $who->{result}{structuredContent}{auth}{method}, 'oauth', 'whoami reports method=oauth for an OAuth session' );
+ok( $who->{result}{structuredContent}{auth}{expires_at} > time(), 'whoami surfaces the OAuth access-token expiry (not null)' );
 
 # detection: partner-caps stamped the credential used
 ok( uapi( { action => 'credential-status', username => 'claude.ai' } )->{used},

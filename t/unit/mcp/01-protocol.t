@@ -212,6 +212,8 @@ ok( $r->{result}{structuredContent}{capabilities}{manage_themes},
     'whoami reflects the full grant' );
 ok( ( grep { $_ eq 'write_file' } @{ $r->{result}{structuredContent}{tools} || [] } ),
     'whoami echoes the full tool manifest (one-call discovery)' );
+is( $r->{result}{structuredContent}{auth}{method}, 'bearer',
+    'whoami reports the auth method + lifetime (static bearer here)' );
 
 # --- copy_file + get_permissions ---
 call( 'copy_file', { from => '/content/about.md', to => '/content/about-copy.md' }, $bearer_lim );
