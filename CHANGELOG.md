@@ -18,6 +18,37 @@ Keying
 
 ## Unreleased
 
+## 0.4.9 - Material audit trail + connector robustness (2026-06-25)
+
+Change - the audit trail records MATERIAL events only
+: It was behaving like an access log. Now it records state changes and security
+  grants - not browsing - so it does not overlap the web server access log (whose
+  analytics belong in a future stats plugin, SM083). WebDAV reads are no longer
+  audited; the control API audits only material POSTs (user management is logged
+  as `user-add` / `user-settings-set` / ... with the target username, its reads
+  skipped); and an OAuth token issue records a `connect` event - the "X connected"
+  signal that a read-only connector session was missing. File writes now read as
+  the actual event: **create** / **edit** / **delete** / **move** / **mkdir**
+  across the control API, MCP tools and WebDAV.
+
+Feature - invalidate_cache MCP tool
+: A normal write already drops the saved page's HTML cache, but the AI can now
+  force a re-render (a page, or `"*"` for all) - useful for pages that embed
+  another.
+
+Fix - connector reliability with slower assistants (ChatGPT)
+: The task prompt now tells the assistant to confirm a write with `read_file`
+  through the connector and NOT to fetch the rendered page (a separate slow
+  request that could stall - the apparent "hang after the first edit"). `read_file`
+  also refuses a file over 512 KB rather than returning a slow/oversized reply
+  that could trip a client timeout.
+
+Change - manager UI polish
+: The open file rights-editor is bracketed top and bottom by an accent rule with
+  the expander turning accent-blue while open; the `@group` indicator sits beside
+  the owner; and the Users page explains the two access domains (file management
+  vs site access) that share one account set.
+
 ## 0.4.8 - Multi-client AI connector, processor fix, theme-only partners (2026-06-25)
 
 Feature - the AI connector is client-neutral (SM076)
