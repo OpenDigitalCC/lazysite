@@ -18,6 +18,31 @@ Keying
 
 ## Unreleased
 
+## 0.4.8 - Multi-client AI connector, processor fix, theme-only partners (2026-06-25)
+
+Feature - the AI connector is client-neutral (SM076)
+: Validated live on both Claude.ai and ChatGPT (developer mode), the OAuth + MCP
+  server now serves any MCP client on one implementation. Every tool declares the
+  `readOnlyHint`/`destructiveHint`/`openWorldHint` annotations + an output schema
+  (ChatGPT's requirement). The Users-page button is "Connect an AI assistant"
+  (was "Set up Claude.ai") with a styled Step-1 card (URL + connect code, a
+  per-app pointer, expiry path), and a new operator guide at
+  `/docs/ai-connector-setup` covers Claude.ai, ChatGPT, and the static-bearer
+  path for Desktop/Code/scripts.
+
+Fix - processor paragraph-wrapped block HTML
+: `Text::MultiMarkdown` wrapped top-level block HTML (e.g. a hero `<section>`)
+  into invalid `<p><section>...</section></p>` - found by an AI partner reviewing
+  a live site. `convert_md` now unwraps the spurious `<p>`/`</p>` around
+  block-level elements; ordinary paragraphs are untouched.
+
+Feature - content vs theme capability (SM082)
+: A new `manage_content` capability governs the content namespace, defaulting to
+  the `webdav` grant when unset (existing partners unchanged). Turning it off
+  (a new Users-page toggle) makes a theme-only partner: content reads/writes
+  refused while theme/layout work still functions - enforced in both the MCP
+  tools and raw WebDAV.
+
 ## 0.4.7 - OAuth for Claude.ai web connectors (SM076) (2026-06-24)
 
 Feature - OAuth 2.1 authorization server for the MCP connector
