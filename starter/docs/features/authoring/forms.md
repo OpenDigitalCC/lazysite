@@ -43,14 +43,17 @@ The name must be alphanumeric with hyphens and underscores. Without
 - `password` - masked input
 - `textarea` - renders as a textarea
 - `select:opt1,opt2,opt3` - renders as a dropdown
-- `pattern:REGEX` - HTML5 validation pattern (no spaces; use `\s` / `\d`). Example:
-  `phone | Phone | tel pattern:[0-9+()\s-]{7,20}`
+- `pattern:REGEX` - HTML5 validation pattern. Example: `phone | Phone | tel pattern:[0-9+()-]{7,20}`
+- `placeholder:TEXT` - greyed-out hint text inside the field
 - `max:N` - maxlength for text inputs (default 1000); the max **value** for `number`
 - `min:N` - the min **value** for `number`
 
+Rules are whitespace-separated. A value that needs **spaces** (a placeholder, or a
+pattern with a literal space) is quoted: `placeholder:"Your full name"` or
+`pattern:"[0-9 +()-]{7,20}"`.
+
 Validation is enforced in the browser (HTML5 attributes); the handler accepts the
-submitted fields. A field with spaces in its `pattern:` is not yet supported (rules
-are whitespace-separated) - use `\s` instead of a literal space.
+submitted fields.
 
 ### Handler configuration
 

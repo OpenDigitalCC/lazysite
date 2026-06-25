@@ -1519,9 +1519,20 @@ sub _render_form {
             next;
         }
 
-        # Parse rules
+        # Parse rules. Tokens are whitespace-separated, but a key:"value" may
+        # quote a value that contains spaces (e.g. placeholder:"Your full name"
+        # or pattern:"[0-9 +()-]{7,20}").
         my %rules;
-        for my $r ( split /\s+/, $rules_str ) {
+        my @rule_tokens;
+        my $rs = $rules_str;
+        while ( length $rs ) {
+            $rs =~ s/^\s+//;
+            last unless length $rs;
+            if    ( $rs =~ s/^([A-Za-z]+:)"([^"]*)"// ) { push @rule_tokens, "$1$2"; }
+            elsif ( $rs =~ s/^(\S+)// )                 { push @rule_tokens, $1; }
+            else  { last; }
+        }
+        for my $r ( @rule_tokens ) {
             if ( $r eq 'required' )      { $rules{required} = 1; }
             elsif ( $r eq 'optional' )   { $rules{optional} = 1; }
             elsif ( $r eq 'email' )      { $rules{type} = 'email'; }
@@ -1530,7 +1541,14 @@ sub _render_form {
             elsif ( $r =~ /^select:(.+)/ ) { $rules{select} = [ split /,/, $1 ]; }
             elsif ( $r =~ /^max:(\d+)/ ) { $rules{max} = $1; }
             elsif ( $r =~ /^min:(\d+)/ ) { $rules{min} = $1; }
-            elsif ( $r =~ /^pattern:(.+)/ ) { $rules{pattern} = $1; }
+            elsif ( $r =~ /^pattern:(.+)/ )     { $rules{pattern} = $1; }
+            elsif ( $r =~ /^placeholder:(.+)/ ) { $rules{placeholder} = $1; }
+        }
+        my $ph_attr = '';
+        if ( defined $rules{placeholder} ) {
+            ( my $ph = $rules{placeholder} ) =~ s/&/&amp;/g;
+            $ph =~ s/"/&quot;/g;
+            $ph_attr = qq( placeholder="$ph");
         }
 
         my $req_attr = $rules{required} ? ' required' : '';
@@ -1541,7 +1559,7 @@ sub _render_form {
         my $field_html;
         if ( $rules{textarea} ) {
             $field_html = qq(    <textarea name="$name" id="$name")
-                        . qq( maxlength="$max"$req_attr></textarea>\n);
+                        . qq( maxlength="$max"$ph_attr$req_attr></textarea>\n);
         }
         elsif ( $rules{select} ) {
             $field_html = qq(    <select name="$name" id="$name"$req_attr>\n);
@@ -1572,7 +1590,7 @@ sub _render_form {
                 $attrs .= qq( pattern="$pat");
             }
             $field_html = qq(    <input type="$type" name="$name" id="$name")
-                        . $attrs . qq($req_attr>\n);
+                        . $attrs . $ph_attr . qq($req_attr>\n);
         }
 
         push @fields, qq(  <div class="form-field">\n)

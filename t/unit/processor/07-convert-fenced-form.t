@@ -65,6 +65,19 @@ load_processor($docroot);
     like(   $out, qr/pattern="\[A-Z\]\{3\}/,      'custom pattern applied' );
 }
 
+# --- quoted values carry spaces (placeholder / pattern with a space) ---
+{
+    my $out = main::convert_fenced_form(
+        "::: form\n"
+      . qq(fullname | Name  | required placeholder:"Your full name"\n)
+      . qq(phone    | Phone | tel pattern:"[0-9 +()-]{7,20}"\n)
+      . "submit | Send\n:::\n",
+        { form => 'q' },
+    );
+    like( $out, qr/placeholder="Your full name"/, 'placeholder with spaces (quoted)' );
+    like( $out, qr/pattern="\[0-9 /,              'pattern with a space (quoted)' );
+}
+
 # --- textarea rule renders <textarea> ---
 {
     my $out = main::convert_fenced_form(
