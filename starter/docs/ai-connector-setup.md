@@ -9,6 +9,10 @@ tools (list, read, write, move, delete pages; set permissions; activate
 themes/layouts). It speaks standard MCP + OAuth, so it works with any MCP-capable
 client - Claude.ai, ChatGPT, Claude Desktop, Claude Code, and others.
 
+For the full tool catalogue, auth/capability model and error reference, see
+[AI connector - tools reference](/docs/ai-connector-tools). This page covers
+*connecting*.
+
 The endpoint is the same for everyone:
 
     https://YOUR-SITE/cgi-bin/lazysite-mcp.pl
