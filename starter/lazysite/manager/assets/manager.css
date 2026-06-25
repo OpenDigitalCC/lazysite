@@ -631,6 +631,27 @@
 .mg-perms-actions { display: flex; gap: 0.5em; flex-wrap: wrap; align-items: center; }
 .mg-perms-actions .mg-perms-save { margin-left: auto; }
 
+/* SM076: Claude.ai connector setup - the two-step instruction cards. */
+.mg-onb { width: 100%; font-size: 0.85em; box-sizing: border-box; }
+.mg-onb-card {
+    border: 1px solid var(--mg-border, #ddd); border-left: 3px solid var(--mg-accent);
+    border-radius: 4px; padding: 0.8em 1em; margin-top: 0.5em;
+    background: var(--mg-bg-alt, #f6f6f6);
+}
+.mg-onb-card-go { border-left-color: #1a7f37; }
+.mg-onb-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5em; }
+.mg-onb-list { margin: 0.3em 0 0.3em 1.1em; padding: 0; font-size: 0.9em; line-height: 1.5; }
+.mg-onb-list li { margin-bottom: 0.55em; }
+.mg-code-box {
+    background: #fff; border: 1px solid var(--mg-border, #ccc); border-radius: 3px;
+    padding: 0.4em 0.6em; margin: 0.4em 0; font-family: monospace; font-size: 0.95em;
+    display: flex; flex-direction: column; gap: 0.2em; word-break: break-all;
+}
+.mg-code-token { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.6em; }
+.mg-code-token code { font-size: 1.05em; font-weight: 700; color: var(--mg-accent); }
+.mg-onb-wait { margin-top: 0.6em; font-size: 0.85em; color: var(--mg-text-light); }
+.mg-onb-ok { color: #1a7f37; font-weight: 600; }
+
 .mg-file-table .mg-file-dl a {
     font-size: 1.15em;
     font-weight: bold;

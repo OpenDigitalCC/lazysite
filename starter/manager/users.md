@@ -410,27 +410,41 @@ function closeOnboarding(user) {
   if (box) { box.style.display = 'none'; box.innerHTML = ''; box._text = ''; }
 }
 
-// SM076: two-step Claude.ai connector setup. Step 1 = operator adds the
-// connector (the only place the token goes). We then poll until the credential
-// authenticates (Claude connected + ran a tool), and only then reveal Step 2 -
-// the no-secret task prompt to hand the assistant.
+// SM076: two-step Claude.ai connector setup. Step 1 is a styled instruction
+// card (add the connector, then enter the connect code at Claude.ai's OAuth
+// prompt). We poll until the connection authenticates, then reveal Step 2 - the
+// no-secret task prompt to paste to Claude.
 function showConnector(user) {
   var box = document.getElementById('onb-' + user);
   apiCall({ action: 'onboarding-web', username: user })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
-      box._setup = d.connector_setup;
       box._prompt = d.assistant_prompt;
+      box._code = d.connect_code;
       box._poll = (box._poll || 0) + 1;
+      var ue = escHtml(user), dom = escHtml(d.domain), url = escHtml(d.connector_url), code = escHtml(d.connect_code);
       box.style.display = '';
       box.innerHTML =
-        '<div class="mg-onb-step"><strong>Step 1 &mdash; add the connector in Claude.ai</strong>' +
-        '<textarea class="mg-onb" readonly rows="11">' + escHtml(d.connector_setup) + '</textarea>' +
-        '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copySetup(\'' + escHtml(user) + '\')">Copy</button>' +
-        '<button class="mg-btn mg-btn-sm" onclick="closeOnboarding(\'' + escHtml(user) + '\')">Close</button>' +
-        '<span id="conn-wait-' + escHtml(user) + '" class="mg-muted">&nbsp;&#8987; waiting for Claude to connect&hellip;</span></div></div>' +
-        '<div id="conn-step2-' + escHtml(user) + '"></div>';
-      showStatus('Connect code generated - add the connector by URL, then enter the code when Claude.ai signs in.');
+        '<div class="mg-onb-card">' +
+        '<div class="mg-onb-head"><strong>Step 1 &mdash; connect Claude.ai (do this once)</strong>' +
+        '<button class="mg-btn mg-btn-sm" onclick="closeOnboarding(\'' + ue + '\')">Close</button></div>' +
+        '<ol class="mg-onb-list">' +
+        '<li>In Claude.ai, open <b>Settings</b> (click your username) &rarr; the <b>Connectors</b> section under <i>Customize</i> &rarr; <b>Add custom connector</b>.</li>' +
+        '<li>Enter these, leave <b>Advanced settings</b> blank, then press <b>Add</b>:' +
+        '<div class="mg-code-box"><div>Name&ensp;<code>' + dom + '</code></div>' +
+        '<div>URL&ensp;<code>' + url + '</code></div></div></li>' +
+        '<li>Within <b>15 minutes</b>, open a <b>new chat</b>, turn on the &ldquo;' + dom + '&rdquo; connector, and tell Claude: ' +
+        '<i>&ldquo;Use the ' + dom + ' connector &mdash; run whoami.&rdquo;</i></li>' +
+        '<li>Claude.ai shows a pop-up asking for a one-time authorisation token. Paste this code into it:' +
+        '<div class="mg-code-box mg-code-token"><code id="cc-' + ue + '">' + code + '</code>' +
+        '<button class="mg-btn mg-btn-sm" onclick="copyConnectCode(\'' + ue + '\')">Copy</button></div>' +
+        '<span class="mg-muted">Single-use, expires in 15&nbsp;min. If it expires before you use it, ' +
+        '<a href="#" onclick="showConnector(\'' + ue + '\');return false;">get a fresh code</a>.</span></li>' +
+        '</ol>' +
+        '<div class="mg-onb-wait" id="conn-wait-' + ue + '">&#8987; waiting for Claude to connect&hellip;</div>' +
+        '</div>' +
+        '<div id="conn-step2-' + ue + '"></div>';
+      showStatus('Connect code ready - follow Step 1 to connect Claude.ai.');
       pollConnector(user, box._poll, Date.now());
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
@@ -458,20 +472,21 @@ function revealPrompt(user) {
   var box = document.getElementById('onb-' + user);
   if (!box) return;
   var wait = document.getElementById('conn-wait-' + user);
-  if (wait) wait.innerHTML = '&nbsp;<span style="color:#1a7f37">&#10003; connected</span>';
+  if (wait) wait.innerHTML = '<span class="mg-onb-ok">&#10003; connected</span>';
   var s2 = document.getElementById('conn-step2-' + user);
   if (s2) {
-    s2.innerHTML = '<div class="mg-onb-step" style="margin-top:0.6rem">' +
-      '<strong>Step 2 &mdash; give Claude the task</strong> <span class="mg-muted">(no secret &mdash; safe to paste in chat)</span>' +
-      '<textarea class="mg-onb" readonly rows="6">' + escHtml(box._prompt) + '</textarea>' +
+    s2.innerHTML = '<div class="mg-onb-card mg-onb-card-go">' +
+      '<div class="mg-onb-head"><strong>Step 2 &mdash; paste this to Claude</strong> ' +
+      '<span class="mg-muted">(no secret &mdash; safe in chat)</span></div>' +
+      '<textarea class="mg-onb" readonly rows="7">' + escHtml(box._prompt) + '</textarea>' +
       '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copyPrompt(\'' + escHtml(user) + '\')">Copy prompt</button></div></div>';
   }
   showStatus('Connector authenticated - Claude is connected.');
 }
 
-function copySetup(user) {
+function copyConnectCode(user) {
   var box = document.getElementById('onb-' + user);
-  if (box && box._setup && navigator.clipboard) navigator.clipboard.writeText(box._setup).then(function() { showStatus('Setup copied.'); });
+  if (box && box._code && navigator.clipboard) navigator.clipboard.writeText(box._code).then(function() { showStatus('Connect code copied.'); });
 }
 function copyPrompt(user) {
   var box = document.getElementById('onb-' + user);
