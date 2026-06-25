@@ -42,5 +42,13 @@ existing model). Option 2 is cleaner long-term but heavier.
 
 ## Status
 
-Queued. Noted 2026-06-25 from the first ChatGPT connector session. Relates to the
-per-file ACLs (SM074/SM077) - this is the coarser *capability* layer above them.
+**Done (2026-06-25)** - option 2, the back-compatible way. A new `manage_content`
+capability governs the content namespace; `effective_settings` resolves it to the
+`webdav` grant when unset, so existing partners are unchanged. Setting it **off**
+(a new Users-page toggle) makes a **theme-only** partner: content reads/writes are
+refused while `manage_themes`/`manage_layouts` (theme files via the WebDAV
+carve-out + the activate tools) still work. Enforced in both surfaces - the MCP
+content tools gate on `manage_content`, and `lazysite-dav.pl` refuses the content
+namespace - so neither the connector nor raw WebDAV can bypass it. Pinned by
+`12-onboarding.t` (default/override) and `dav-publish.t` (a theme-only partner is
+refused a content PUT + read). Full suite 1557.

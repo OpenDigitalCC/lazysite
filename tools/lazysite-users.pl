@@ -549,6 +549,12 @@ sub effective_settings {
         manage_themes  => $s->{manage_themes}  ? JSON::PP::true() : JSON::PP::false(),
         manage_layouts => $s->{manage_layouts} ? JSON::PP::true() : JSON::PP::false(),
         manage_config  => $s->{manage_config}  ? JSON::PP::true() : JSON::PP::false(),
+        # SM082: content (page) read/write. Defaults to the webdav grant when
+        # unset, so existing partners are unchanged; set it off explicitly for a
+        # theme-only partner that cannot touch content.
+        manage_content => ( defined $s->{manage_content}
+            ? ( $s->{manage_content} ? JSON::PP::true() : JSON::PP::false() )
+            : ( $s->{webdav}         ? JSON::PP::true() : JSON::PP::false() ) ),
         # SM071 Phase 2: access-token expiry (null = no expiry, e.g. a
         # human password or an operator-minted permanent credential).
         token_expires_at => $s->{token_expires_at},
@@ -608,7 +614,7 @@ sub cmd_set {
     # creation and changed only by account-create / account-reassign.
     my %bool_key = map { $_ => 1 }
         qw(webdav ui create_sub_users delegate_sub_user_creation
-           manage_themes manage_layouts manage_config);
+           manage_content manage_themes manage_layouts manage_config);
 
     if ( $bool_key{$key} ) {
         my $bool = parse_onoff($value);
@@ -652,7 +658,7 @@ sub cmd_set {
     else {
         die "Unknown setting '$key' (expected webdav, ui, dav_scope, comment, "
           . "expires_at, create_sub_users, delegate_sub_user_creation, "
-          . "manage_themes, manage_layouts, or manage_config)\n";
+          . "manage_content, manage_themes, manage_layouts, or manage_config)\n";
     }
 
     write_settings($all);

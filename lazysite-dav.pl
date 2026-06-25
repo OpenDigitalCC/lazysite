@@ -988,6 +988,11 @@ sub authorise {
         return authorise_layout( $rel, $is_write, $conf, $user );
     }
 
+    # SM082: the content namespace requires the content capability (defaults to
+    # the webdav grant). A theme-only partner (manage_content off) is refused -
+    # they keep theme/layout access via the carve-out above.
+    return 403 unless manage_content_for($user);
+
     # Content namespace: scope confinement + write blocklist (unchanged).
     if ( defined $scope && length $scope ) {
         ( my $s = $scope ) =~ s{^/+|/+$}{}g;
@@ -1075,6 +1080,18 @@ sub manage_config_for {
     my ($user) = @_;
     my $s = read_settings()->{$user};
     return ( ref $s eq 'HASH' && $s->{manage_config} ) ? 1 : 0;
+}
+
+# SM082: may this user read/write the content namespace? Defaults to the webdav
+# grant when manage_content is unset (back-compat); set off for a theme-only
+# partner.
+sub manage_content_for {
+    my ($user) = @_;
+    my $s = read_settings()->{$user};
+    return 0 unless ref $s eq 'HASH';
+    return defined $s->{manage_content}
+        ? ( $s->{manage_content} ? 1 : 0 )
+        : ( $s->{webdav}         ? 1 : 0 );
 }
 
 sub is_blocked {

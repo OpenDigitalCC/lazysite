@@ -92,4 +92,13 @@ ok( !uapi( $d, { action => 'redeem-connect-code', code => $cc->{code} } )->{ok},
 ok( !uapi( $d, { action => 'onboarding-web', username => 'ghost' } )->{ok},
     'onboarding-web rejects an unknown user' );
 
+# SM082: manage_content defaults to the webdav grant; turning it off makes a
+# theme-only partner without touching webdav / theme caps.
+my $eff = uapi( $d, { action => 'settings-get', username => 'partner' } )->{settings};
+ok( $eff->{webdav} && $eff->{manage_content}, 'manage_content defaults on for a webdav partner' );
+uapi( $d, { action => 'settings-set', username => 'partner', key => 'manage_content', value => 'off' } );
+my $eff2 = uapi( $d, { action => 'settings-get', username => 'partner' } )->{settings};
+ok( !$eff2->{manage_content}, 'manage_content can be turned off' );
+ok( $eff2->{webdav} && $eff2->{manage_themes}, 'webdav + theme caps unaffected (theme-only partner)' );
+
 done_testing();

@@ -105,4 +105,16 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
         'a GET (read) is recorded in the audit trail (origin=dav)' );
 }
 
+# --- SM082: a theme-only partner (manage_content off) is refused content ------
+{
+    dav_users_tool( $docroot, 'add', 'themer', 'pw' );
+    dav_users_tool( $docroot, 'set', 'themer', 'webdav', 'on' );
+    dav_users_tool( $docroot, 'set', 'themer', 'manage_content', 'off' );
+    my $auth_t = 'Basic ' . encode_base64( 'themer:pw', '' );
+    my $put = run_dav( $docroot, 'PUT', '/themer-page.md', body => "x\n", HTTP_AUTHORIZATION => $auth_t );
+    is( $put->{code}, 403, 'manage_content=off partner is refused a content PUT' );
+    my $get = run_dav( $docroot, 'GET', '/published.md', HTTP_AUTHORIZATION => $auth_t );
+    is( $get->{code}, 403, 'and refused a content read' );
+}
+
 done_testing();

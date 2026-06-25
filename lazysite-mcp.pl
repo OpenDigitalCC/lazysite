@@ -182,7 +182,7 @@ my %TOOLS = (
     },
     list_files => {
         description => 'List files and folders under a site-relative directory path (default "/").',
-        cap         => 'webdav',
+        cap         => 'manage_content',
         inputSchema => { type => 'object',
             properties => { path => { type => 'string', description => 'Directory path, e.g. /content' } },
             additionalProperties => JSON::PP::false },
@@ -190,7 +190,7 @@ my %TOOLS = (
     },
     read_file => {
         description => 'Read the contents of a text file by site-relative path.',
-        cap         => 'webdav',
+        cap         => 'manage_content',
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
             required => ['path'], additionalProperties => JSON::PP::false },
@@ -198,7 +198,7 @@ my %TOOLS = (
     },
     write_file => {
         description => 'Create or overwrite a text file with the given content.',
-        cap         => 'webdav',
+        cap         => 'manage_content',
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' }, content => { type => 'string' } },
             required => [ 'path', 'content' ], additionalProperties => JSON::PP::false },
@@ -206,7 +206,7 @@ my %TOOLS = (
     },
     move_file => {
         description => 'Rename or move a file (carries its .brief and re-keys its ACL).',
-        cap         => 'webdav',
+        cap         => 'manage_content',
         inputSchema => { type => 'object',
             properties => { from => { type => 'string' }, to => { type => 'string' } },
             required => [ 'from', 'to' ], additionalProperties => JSON::PP::false },
@@ -214,7 +214,7 @@ my %TOOLS = (
     },
     delete_file => {
         description => 'Delete a file by site-relative path.',
-        cap         => 'webdav',
+        cap         => 'manage_content',
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
             required => ['path'], additionalProperties => JSON::PP::false },
@@ -222,7 +222,7 @@ my %TOOLS = (
     },
     set_permissions => {
         description => 'Set the per-file ACL: owner plus read/write lists (users or @groups).',
-        cap         => 'webdav',
+        cap         => 'manage_content',
         inputSchema => { type => 'object',
             properties => {
                 path  => { type => 'string' },

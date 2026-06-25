@@ -211,6 +211,7 @@ function renderUserRow(row) {
     '</select></div>';
   acc += '<div class="mg-checks">';
   acc += cap(ue, 'webdav', webdav, 'WebDAV');
+  acc += cap(ue, 'manage_content', !!s.manage_content, 'Manage content (pages)');
   acc += cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes');
   acc += cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts');
   acc += cap(ue, 'manage_config', !!s.manage_config, 'Manage config');

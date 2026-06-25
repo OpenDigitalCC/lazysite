@@ -34,8 +34,8 @@ use strict; use warnings; use JSON::PP qw(encode_json decode_json);
 my $in = do { local $/; <STDIN> };
 my $r = eval { decode_json($in) } || {};
 my $u = $r->{username} // '';
-my %caps = $u =~ /full/ ? (webdav=>1, manage_themes=>1, manage_layouts=>1, manage_config=>1)
-                        : (webdav=>1);
+my %caps = $u =~ /full/ ? (webdav=>1, manage_content=>1, manage_themes=>1, manage_layouts=>1, manage_config=>1)
+                        : (webdav=>1, manage_content=>1);
 print encode_json({ ok => 1, settings => \%caps });
 STUB
 close $sf;
