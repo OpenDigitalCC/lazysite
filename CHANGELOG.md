@@ -18,6 +18,34 @@ Keying
 
 ## Unreleased
 
+## 0.4.15 - UTF-8 fix, page-aware verbs, MCP docs (2026-06-25)
+
+Fix - non-ASCII corruption in JSON responses (important)
+: `send_json` (MCP), `respond` (control API), `respond_json` (OAuth) and the
+  manager-api error/preview responders printed `encode_json`'s already-UTF-8
+  output under a `:utf8` STDOUT layer, re-encoding it - so non-ASCII (`±`, `£`,
+  `é`, en-dashes, curly quotes) came back as mojibake on read / preview. The write
+  path was correct; the read response was corrupting. They now print the bytes
+  raw; HTML/XML responders correctly keep `:utf8`. Found by the live Claude.ai
+  review.
+
+Fix - front-matter quotes kept as content
+: `title: "Welcome"` yielded a literal `"Welcome"` (which a template then
+  double-quoted - the doubled review quotes). The front-matter parser now strips
+  one matched pair of surrounding quotes (YAML semantics).
+
+Feature - page-aware verbs (SM087)
+: `create_page` (front-matter fields + body; errors if it exists), `delete_page`
+  (removes the page + its `.brief`, reports remaining references), and
+  `rename_page` (carries `.brief` + ACL; `update_links` rewrites internal links
+  across pages). `write_file` now validates on write, returning warnings/issues.
+
+Change - audit error reason is a popup
+: The fail reason is a click-to-reveal popup on the (i) rather than always inline.
+
+Docs - full MCP connector tools reference at `/docs/ai-connector-tools` (endpoint,
+  auth, capability/ACL model, all tools, error kinds, edit loop).
+
 ## 0.4.14 - Multi-word select options + lock take-over (2026-06-25)
 
 Fix - multi-word `select:` form options
