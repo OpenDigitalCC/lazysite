@@ -64,5 +64,16 @@ is the hazard.
 
 ## Status
 
-Queued (design). Raised 2026-06-25. The overlay-install + backup parts are the
-firm requirement; the git-versioning part is a larger, valuable follow-on.
+In progress (2026-06-25).
+
+- **Done - non-destructive index.html (narrowed delete, no overlay flag).** Rather
+  than an overlay install mode (which could be forgotten, leaving the same
+  hazard), the delete is narrowed: `install-hestia.sh` clears `index.html` ONLY
+  when `index.md` already existed (so it was the cache rendered from it). A
+  freshly-seeded `index.md`, or a static-site overlay, leaves an existing
+  `index.html` untouched; `deploy.sh` no longer deletes it (it just warns if a
+  placeholder shadows a new `index.md`). lazysite can now be installed over a live
+  HTML/SSI site without losing the homepage.
+- **TODO - pre-install tar snapshot** of the docroot to `lazysite/backups/`.
+- **Moved out - git versioning** is now its own opt-in plugin, [[SM085]]; its
+  initial commit can serve as the backup when enabled.

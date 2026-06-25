@@ -105,11 +105,28 @@ if [ ! -f "$docroot/404.md" ]; then
         "$docroot/404.md"
 fi
 
+# Did a real index.md already exist before we (maybe) seed one? This decides
+# whether a sibling index.html is a regenerable lazysite cache or untouchable
+# content (see the index.html handling below).
+index_md_preexisted=0
+[ -f "$docroot/index.md" ] && index_md_preexisted=1
+
 # Install starter index.md only if not already present
 if [ ! -f "$docroot/index.md" ]; then
     install -m 644 -o "$user" -g "$user" \
         "$TEMPLATE_DIR/index.md" \
         "$docroot/index.md"
+fi
+
+# Clear a shadowing index.html ONLY when index.md already existed - i.e. the
+# index.html was rendered FROM that index.md and lazysite will regenerate it.
+# If index.md was just seeded now, or absent, any existing index.html is real
+# content (a static site being overlaid, or the Hestia stub) and is left ALONE,
+# so lazysite can be installed over an existing HTML/SSI site without losing the
+# homepage. (DirectoryIndex serves index.html first, so a migrated page replaces
+# its .html deliberately, never via the installer.)
+if [ "$index_md_preexisted" = 1 ] && [ -f "$docroot/index.html" ]; then
+    rm -f "$docroot/index.html"
 fi
 
 # Ensure www-data can write generated .html files to docroot

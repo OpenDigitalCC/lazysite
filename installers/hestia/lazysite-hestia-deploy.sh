@@ -41,12 +41,17 @@ find "$DOC" -type f -exec chmod 664  {} \;
 [ -d "$DOC/lazysite/auth" ]  && chmod 2770 "$DOC/lazysite/auth"
 [ -d "$DOC/lazysite/forms" ] && chmod 2770 "$DOC/lazysite/forms"
 
-# lazysite renders index.html from index.md; remove any stub so it's not
-# shadowed (a lazysite site uses index.md, and lazysite regenerates the html).
-[ -f "$DOC/index.html" ] && [ -f "$DOC/index.md" ] && rm -f "$DOC/index.html"
-
+# index.html is handled by the template hook (install-hestia.sh): it clears only
+# an index.html that was rendered from a PRE-EXISTING index.md - never real
+# content - so lazysite can overlay an existing static site safely. We do NOT
+# delete index.html here.
 echo
 echo "Deployed lazysite to $DOMAIN."
+if [ -f "$DOC/index.html" ] && [ -f "$DOC/index.md" ]; then
+  echo "Note: an index.html is present alongside index.md and will be served"
+  echo "first (DirectoryIndex). If the homepage shows a placeholder, and that"
+  echo "index.html is NOT your content, remove it:  rm -f $DOC/index.html"
+fi
 if ! grep -q '^manager_groups:' "$DOC/lazysite/lazysite.conf" 2>/dev/null; then
   echo "First-time setup (new install):"
   echo "  printf 'manager_groups: lazysite-admins\\nwebdav_enabled: yes\\n' >> $DOC/lazysite/lazysite.conf"
