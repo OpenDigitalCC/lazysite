@@ -18,6 +18,25 @@ Keying
 
 ## Unreleased
 
+## 0.4.16 - UTF-8 corruption fully fixed + set_nav (2026-06-25)
+
+Fix - non-ASCII corruption through the connector (the real root cause)
+: 0.4.15 fixed one encoding layer (`send_json`); a second remained. A tool result
+  puts `$out` in both `structuredContent` (fine) and
+  `content[0].text => encode_json($out)` - and that inner `encode_json` emits
+  UTF-8 bytes which the outer `encode_json` re-encoded, double-encoding non-ASCII
+  in the text part the client reads. Now the inner JSON is decoded so the outer
+  layer encodes once. The page-walk / search / preview / nav helpers also read
+  `:utf8`, and STDIN is binmoded raw so `decode_json` owns the decode. So `±`,
+  `£`, `é`, en-dashes and curly quotes round-trip cleanly (verified on file bytes
+  + the raw response, not just a round-trip that would cancel the error).
+
+Feature - read_nav / set_nav (completes the SM087 page API)
+: `read_nav` returns the navigation as a structured list (items + children) plus
+  raw nav.conf; `set_nav { items }` replaces it from an ordered
+  `{ label, url[, children] }` list, written via `action_save` so it audits and
+  rebuilds the cache.
+
 ## 0.4.15 - UTF-8 fix, page-aware verbs, MCP docs (2026-06-25)
 
 Fix - non-ASCII corruption in JSON responses (important)
