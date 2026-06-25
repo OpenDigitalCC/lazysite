@@ -18,6 +18,25 @@ Keying
 
 ## Unreleased
 
+## 0.4.14 - Multi-word select options + lock take-over (2026-06-25)
+
+Fix - multi-word `select:` form options
+: `select:` options containing spaces were truncated at the first space, and
+  quoting didn't help (neither the renderer nor the validator honoured it). The
+  rule parser now treats `select:` as taking the rest of the rule line, so
+  `select:No,Yes - one small dog` renders both options whole, no quotes needed
+  (quotes are still tolerated). The validator drops the `select:` clause before
+  checking, so it no longer flags option words. Put `select:` last among a
+  field's rules.
+
+Feature - take over a stale editor lock
+: A file shown as "Locked by …" in the editor now offers a Take over button that
+  clears the (non-WebDAV) lock and re-acquires it - so a lock orphaned by an
+  editor left open across a restart no longer means waiting out the 5-minute TTL.
+
+Change - file size in the Files list
+: The Modified column now shows the file size after the date.
+
 ## 0.4.13 - Fenced-div Markdown fix + connector review follow-ups (2026-06-25)
 
 Fix - block Markdown inside ::: boxes
