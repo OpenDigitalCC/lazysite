@@ -436,7 +436,8 @@ function showConnector(user) {
         '<span class="mg-muted"><b>Claude.ai:</b> Settings &rarr; Connectors &rarr; Add custom connector. ' +
         '<b>ChatGPT:</b> Settings &rarr; Apps &rarr; Developer mode &rarr; create. ' +
         '<a href="/docs/ai-connector-setup" target="_blank">full guide</a></span></li>' +
-        '<li>Open a <b>new chat</b>, enable the &ldquo;' + dom + '&rdquo; connector, and ask the assistant to <b>run whoami</b>.</li>' +
+        '<li>Open a <b>new chat</b> and use this prompt: <i>&ldquo;Enable the ' + dom +
+        ' connector, and verify it is active by running whoami.&rdquo;</i></li>' +
         '<li>When it asks you to sign in, paste this one-time connect code:' +
         '<div class="mg-code-box mg-code-token"><code id="cc-' + ue + '">' + code + '</code>' +
         '<button class="mg-btn mg-btn-sm" onclick="copyConnectCode(\'' + ue + '\')">Copy</button></div>' +
