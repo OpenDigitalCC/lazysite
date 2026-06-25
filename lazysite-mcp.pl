@@ -746,8 +746,11 @@ elsif ( $method eq 'tools/call' ) {
           : $name eq 'delete_file'  ? 'delete'
           : $name eq 'move_file'    ? 'move'
           :                           $name;
+        my $aok = ref $out eq 'HASH' && $out->{ok};
+        my $detail = $aok ? ''
+            : ( ref $out eq 'HASH' ? ( $out->{kind} || $out->{error} || '' ) : '' );
         audit_log( $user, $act, $target, $ENV{REMOTE_ADDR} // '',
-            ( ref $out eq 'HASH' && $out->{ok} ) ? 'ok' : 'fail', 'mcp' );
+            ( $aok ? 'ok' : 'fail' ), 'mcp', $detail );
     }
 
     my $is_err = ( ref $out eq 'HASH' && $out->{ok} ) ? JSON::PP::false : JSON::PP::true;

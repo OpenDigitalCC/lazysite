@@ -14,10 +14,13 @@ query_params:
 <div class="mg-card-body">
 
 <div class="mg-line">
-  <label for="audit-user">Filter by user</label>
-  <input type="text" id="audit-user" class="mg-inp" placeholder="(all users)">
+  <label for="audit-user">User</label>
+  <input type="text" id="audit-user" class="mg-inp" placeholder="(all)" style="max-width:10rem">
+  <label for="audit-target-f">Target</label>
+  <input type="text" id="audit-target-f" class="mg-inp" placeholder="(all)" style="max-width:14rem">
   <button class="mg-btn mg-btn-sm" onclick="filterAudit()">Filter</button>
-  <button class="mg-btn mg-btn-sm" onclick="document.getElementById('audit-user').value='';filterAudit()">Clear</button>
+  <button class="mg-btn mg-btn-sm" onclick="clearAuditFilter()">Clear</button>
+  <button class="mg-btn mg-btn-sm" onclick="loadAudit()">Refresh</button>
 </div>
 
 <div id="audit-scope" style="margin-top:0.4rem;font-size:0.85rem;color:#666;"></div>
@@ -32,6 +35,7 @@ query_params:
   .audit-table th, .audit-table td { text-align:left; padding:0.3rem 0.5rem; border-bottom:1px solid #eee; }
   .audit-table th { color:#666; font-weight:600; }
   .audit-fail { color:#c33; }
+  .audit-detail { color:#c33; font-size:0.8rem; opacity:0.85; }
 </style>
 
 <script>
@@ -40,8 +44,35 @@ function aesc(s) { var d = document.createElement('div'); d.textContent = (s == 
 var auditTarget = '';   // SM077: when set, show one file's history
 var auditPage = 1;      // pagination (50 rows/page)
 
-function filterAudit() { auditPage = 1; loadAudit(); }
+function filterAudit() {
+  auditPage = 1;
+  var t = document.getElementById('audit-target-f');
+  if (t) auditTarget = t.value.trim();
+  loadAudit();
+}
+function clearAuditFilter() {
+  document.getElementById('audit-user').value = '';
+  var t = document.getElementById('audit-target-f'); if (t) t.value = '';
+  auditTarget = ''; auditPage = 1; loadAudit();
+}
 function goAuditPage(n) { auditPage = n; loadAudit(); }
+
+// Click-through: a username -> the Users page with that user expanded; a page
+// target -> the rendered public page; a file/config target stays plain text.
+function auditUserLink(u) {
+  if (!u) return '';
+  return '<a href="/manager/users?user=' + encodeURIComponent(u) + '">' + aesc(u) + '</a>';
+}
+function auditTargetLink(e) {
+  var t = e.target || '';
+  if (!t) return '';
+  if (/^user-/.test(e.action || '')) return auditUserLink(t);
+  if (/\.md$/.test(t)) {
+    var slug = t.replace(/\.md$/, '');
+    return '<a href="' + aesc(slug) + '" target="_blank" rel="noopener" title="Visit the page">' + aesc(t) + '</a>';
+  }
+  return aesc(t);
+}
 
 function paginationHtml(d) {
   var pages = d.pages || 1, page = d.page || 1, total = d.total || 0;
@@ -74,11 +105,16 @@ function loadAudit() {
       '</tr></thead><tbody>';
     d.entries.forEach(function (e) {
       var cls = e.status === 'fail' ? ' class="audit-fail"' : '';
-      h += '<tr' + cls + '><td>' + aesc(e.ts) + '</td><td>' + aesc(e.user) +
+      var statusCell = aesc(e.status);
+      if (e.status === 'fail' && e.detail) {
+        statusCell = '<span title="' + aesc(e.detail) + '">' + aesc(e.status) +
+          ' &#9432;</span> <span class="audit-detail">' + aesc(e.detail) + '</span>';
+      }
+      h += '<tr' + cls + '><td>' + aesc(e.ts) + '</td><td>' + auditUserLink(e.user) +
         '</td><td>' + aesc(e.origin || '') +
-        '</td><td>' + aesc(e.action) + '</td><td>' + aesc(e.target || '') +
+        '</td><td>' + aesc(e.action) + '</td><td>' + auditTargetLink(e) +
         '</td><td>' + aesc(e.ip) +
-        '</td><td>' + aesc(e.status) + '</td></tr>';
+        '</td><td>' + statusCell + '</td></tr>';
     });
     h += '</tbody></table>';
     el.innerHTML = h + paginationHtml(d);
@@ -89,7 +125,7 @@ function loadAudit() {
   var mu = location.search.match(/[?&]user=([^&]+)/);
   if (mu) { document.getElementById('audit-user').value = decodeURIComponent(mu[1]); }
   var mt = location.search.match(/[?&]target=([^&]+)/);
-  if (mt) { auditTarget = decodeURIComponent(mt[1]); }
+  if (mt) { auditTarget = decodeURIComponent(mt[1]); var tf = document.getElementById('audit-target-f'); if (tf) tf.value = auditTarget; }
   loadAudit();
 })();
 </script>

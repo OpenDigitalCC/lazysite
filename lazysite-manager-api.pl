@@ -474,9 +474,13 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     }
 
     if ( defined $aud_action && !$skip{$aud_action} ) {
+        my $ok = ref $result eq 'HASH' && $result->{ok};
+        # On failure, record a short reason (kind, else the error text) as the
+        # detail field so the audit can show WHY it failed.
+        my $detail = $ok ? ''
+            : ( ref $result eq 'HASH' ? ( $result->{kind} || $result->{error} || '' ) : '' );
         audit_log( $auth_user, $aud_action, $aud_target, $ENV{REMOTE_ADDR} // '',
-            ( ref $result eq 'HASH' && $result->{ok} ) ? 'ok' : 'fail',
-            $token_auth ? 'api' : 'ui' );
+            ( $ok ? 'ok' : 'fail' ), ( $token_auth ? 'api' : 'ui' ), $detail );
     }
 }
 
@@ -979,14 +983,15 @@ sub action_audit {
         my @f = split / \| /, $line;
         # Column growth over releases: 5 = ts|user|action|ip|status (pre-SM078);
         # 6 adds target (SM078); 7 appends origin (SM077, ui/api). Parse by count.
-        my ( $ts, $u, $act, $target, $ip, $status, $origin );
-        if    ( @f >= 7 ) { ( $ts, $u, $act, $target, $ip, $status, $origin ) = @f[ 0 .. 6 ] }
-        elsif ( @f == 6 ) { ( $ts, $u, $act, $target, $ip, $status ) = @f[ 0 .. 5 ]; $origin = '' }
-        else              { ( $ts, $u, $act, $ip, $status ) = @f[ 0 .. 4 ]; $target = ''; $origin = '' }
+        my ( $ts, $u, $act, $target, $ip, $status, $origin, $detail );
+        if    ( @f >= 8 ) { ( $ts, $u, $act, $target, $ip, $status, $origin, $detail ) = @f[ 0 .. 7 ] }
+        elsif ( @f == 7 ) { ( $ts, $u, $act, $target, $ip, $status, $origin ) = @f[ 0 .. 6 ]; $detail = '' }
+        elsif ( @f == 6 ) { ( $ts, $u, $act, $target, $ip, $status ) = @f[ 0 .. 5 ]; $origin = ''; $detail = '' }
+        else              { ( $ts, $u, $act, $ip, $status ) = @f[ 0 .. 4 ]; $target = ''; $origin = ''; $detail = '' }
         next if defined $want   && length $want   && ( $u      // '' ) ne $want;
         next if defined $want_t && length $want_t && ( $target // '' ) ne $want_t;
         push @entries, { ts => $ts, user => $u, action => $act,
-            target => $target, ip => $ip, status => $status, origin => $origin };
+            target => $target, ip => $ip, status => $status, origin => $origin, detail => $detail };
         last if @entries >= 5000;    # bound the scan; paginate within
     }
 

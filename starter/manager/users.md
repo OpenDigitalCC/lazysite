@@ -2,6 +2,8 @@
 title: User Management
 auth: manager
 search: false
+query_params:
+  - user
 ---
 
 <div id="status" class="mg-status"></div>
@@ -156,6 +158,18 @@ function renderUsers(rows) {
   var list = document.getElementById('user-list');
   if (!rows.length) { list.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No users</div>'; return; }
   list.innerHTML = rows.map(renderUserRow).join('');
+  focusUserFromUrl();
+}
+
+// Deep-link support: /manager/users?user=NAME opens that user's row and centres
+// it (e.g. clicking a user in the audit log).
+function focusUserFromUrl() {
+  var m = location.search.match(/[?&]user=([^&]+)/);
+  if (!m) return;
+  var u = decodeURIComponent(m[1].replace(/\+/g, ' '));
+  var sel = (window.CSS && CSS.escape) ? CSS.escape(u) : u.replace(/"/g, '\\"');
+  var el = document.querySelector('#user-list details[data-user="' + sel + '"]');
+  if (el) { el.open = true; el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
 }
 
 function cap(user, key, on, label) {
@@ -192,7 +206,7 @@ function renderUserRow(row) {
       : ' &middot; <span class="mg-acc-note">expires ' + expiryDate(s.expires_at) + '</span>';
   }
 
-  var h = '<details class="mg-acc"><summary>' +
+  var h = '<details class="mg-acc" data-user="' + ue + '"><summary>' +
     '<span class="mg-acc-name">' + ue + '</span>' + note +
     '<span class="mg-acc-tags">' + typeTag + status + by + expTag + '</span></summary>' +
     '<div class="mg-acc-body">';

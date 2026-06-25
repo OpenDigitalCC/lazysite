@@ -253,8 +253,9 @@ sub main {
       : $method eq 'MOVE'   ? 'move'
       : $method eq 'COPY'   ? 'copy'
       :                       lc($method);
+    my $ok = defined $code && $code < 400;
     audit_log( $user, $act, $target, $ip,
-        ( defined $code && $code < 400 ? 'ok' : 'fail' ), 'dav' );
+        ( $ok ? 'ok' : 'fail' ), 'dav', ( $ok ? '' : "http $code" ) );
     return $code;
 }
 

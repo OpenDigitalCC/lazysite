@@ -85,4 +85,10 @@ is( scalar @{ $pg2->{entries} }, 10, 'page 2 returns the remaining 10 rows' );
 my $pgX = main::action_audit( user => 'pager', per_page => 50, page => 99 );
 is( $pgX->{page}, 2, 'an out-of-range page clamps to the last' );
 
+# --- failure detail (8th field) round-trips ---
+main::audit_log( 'dave', 'edit', 'lazysite/forms/x.conf', '2.2.2.2', 'fail', 'mcp', 'blocked-config' );
+my ($f) = grep { ( $_->{status} // '' ) eq 'fail' && ( $_->{target} // '' ) eq 'lazysite/forms/x.conf' }
+    @{ main::action_audit()->{entries} };
+is( $f->{detail}, 'blocked-config', 'audit records + returns a failure detail' );
+
 done_testing();
