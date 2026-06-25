@@ -122,9 +122,19 @@ ok( -f "$d/content/new.md", 'write_file created the file on disk' );
 # --- non-ASCII round-trips (no double-encode mojibake) ---
 ( $st, $r ) = call( 'write_file', { path => '/content/utf8.md', content => "price \x{a3}5, flexible \x{b1}1 day - caf\x{e9}\n" }, $bearer_lim );
 ok( !$r->{result}{isError}, 'write_file with non-ASCII succeeds' );
-( $st, $r ) = call( 'read_file', { path => '/content/utf8.md' }, $bearer_lim );
+# the file on disk must be correct single-encoded UTF-8
+{
+    open my $uf, '<:raw', "$d/content/utf8.md"; local $/; my $bytes = <$uf>; close $uf;
+    like( $bytes, qr/\xc2\xa3/, 'file stored correct UTF-8 (pound = c2 a3)' );
+    unlike( $bytes, qr/\xc3\x82\xc2\xa3/, 'file is not double-encoded on disk' );
+}
+my $uraw;
+( $st, $r, $uraw ) = call( 'read_file', { path => '/content/utf8.md' }, $bearer_lim );
 is( $r->{result}{structuredContent}{content}, "price \x{a3}5, flexible \x{b1}1 day - caf\x{e9}\n",
-    'non-ASCII (pound/plus-minus/accent) round-trips intact - no mojibake' );
+    'non-ASCII round-trips intact in structuredContent' );
+# the raw response (incl. the content[].text part the client reads) must not
+# double-encode - this is what round-trip comparison alone misses.
+unlike( $uraw, qr/\xc3\x82\xc2\xa3/, 'no double-encoded UTF-8 anywhere in the response bytes' );
 
 # --- replace_text: exact patch edit (no whole-file overwrite) ---
 ( $st, $r ) = call( 'replace_text', { path => '/content/new.md', old => 'fresh', new => 'updated' }, $bearer_lim );

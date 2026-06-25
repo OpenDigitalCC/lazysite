@@ -513,7 +513,7 @@ sub _mcp_search {
             my ($ext) = $e =~ /\.([^.]+)$/;
             next unless $ext && $SEARCH_EXT{ lc $ext };
             if ( ++$files > 2000 ) { $truncated = 1; last }
-            open my $fh, '<', $full or next;
+            open my $fh, '<:utf8', $full or next;
             my $ln = 0;
             while ( my $line = <$fh> ) {
                 $ln++;
@@ -588,7 +588,9 @@ sub _preview_page {
     delete $ENV{REDIRECT_HTTP_AUTHORIZATION};
 
     my $out = '';
-    if ( open my $ph, '-|', $^X, $proc ) { local $/; $out = <$ph> // ''; close $ph }
+    # Decode the rendered HTML so the JSON layer encodes it once (raw bytes here
+    # would be re-encoded into mojibake).
+    if ( open my $ph, '-|', $^X, $proc ) { binmode $ph, ':utf8'; local $/; $out = <$ph> // ''; close $ph }
     else { return { ok => 0, error => 'could not run the processor' } }
 
     my ( $head, $body ) = split /\r?\n\r?\n/, $out, 2;
@@ -671,7 +673,7 @@ sub _list_pages {
     my @pages;
     _each_page( sub {
         my ( $rel, $full ) = @_;
-        open my $fh, '<', $full or return;
+        open my $fh, '<:utf8', $full or return;
         local $/; my $c = <$fh>; close $fh;
         my ( $fm ) = _split_front_matter($c);
         my $h = _parse_fm($fm);
@@ -753,7 +755,7 @@ sub _audit_site {
         my ( $rel, $full ) = @_;
         ( my $slug = "/$rel" ) =~ s/\.md$//;
         $exists{$slug} = 1;
-        open my $fh, '<', $full or return;
+        open my $fh, '<:utf8', $full or return;
         local $/; my $c = <$fh>; close $fh;
         my ( $fm, $body ) = _split_front_matter($c);
         my $h = _parse_fm($fm);
@@ -818,7 +820,7 @@ sub _audit_site {
 sub _list_form_handlers {
     my $f = "$LAZYSITE_DIR/forms/handlers.conf";
     return { ok => 1, handlers => [] } unless -f $f;
-    open my $fh, '<', $f or return { ok => 0, error => 'cannot read handlers.conf' };
+    open my $fh, '<:utf8', $f or return { ok => 0, error => 'cannot read handlers.conf' };
     local $/; my $c = <$fh>; close $fh;
     my @h;
     while ( $c =~ /^[ \t]*-[ \t]+id:[ \t]*(\S+)(.*?)(?=^[ \t]*-[ \t]+id:|\z)/gms ) {
@@ -862,7 +864,7 @@ sub _bind_form {
 sub _read_nav {
     my $f = "$LAZYSITE_DIR/nav.conf";
     return { ok => 1, items => [], raw => '' } unless -f $f;
-    open my $fh, '<', $f or return { ok => 0, error => 'cannot read nav.conf' };
+    open my $fh, '<:utf8', $f or return { ok => 0, error => 'cannot read nav.conf' };
     local $/; my $raw = <$fh>; close $fh;
     my @items;
     for my $line ( split /\n/, $raw ) {
@@ -942,7 +944,7 @@ sub _rewrite_links {
     my $changed = 0;
     _each_page( sub {
         my ( $rel, $full ) = @_;
-        open my $fh, '<', $full or return;
+        open my $fh, '<:utf8', $full or return;
         local $/; my $c = <$fh>; close $fh;
         my $orig = $c;
         $c =~ s{(/)\Q$old\E(?=[\s)"'#?\]]|\z)}{$1$new}g;
@@ -1030,6 +1032,8 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'GET' ) {
 
 my $len  = $ENV{CONTENT_LENGTH} || 0;
 my $body = '';
+binmode STDIN;    # raw bytes - decode_json does the UTF-8 decode (some setups
+                  # otherwise apply a :utf8 layer and corrupt non-ASCII content)
 read( STDIN, $body, $len ) if $len > 0;
 my $req = eval { decode_json($body) };
 rpc_error( undef, -32700, 'Parse error' ) unless ref $req eq 'HASH';
@@ -1102,8 +1106,14 @@ elsif ( $method eq 'tools/call' ) {
     }
 
     my $is_err = ( ref $out eq 'HASH' && $out->{ok} ) ? JSON::PP::false : JSON::PP::true;
+    # The text part is $out re-serialised to JSON. encode_json emits UTF-8 BYTES;
+    # decode them back to characters so the OUTER encode_json (in send_json)
+    # encodes them exactly once - otherwise non-ASCII in the text part is
+    # double-encoded into mojibake (the structuredContent part is already fine).
+    my $text = encode_json($out);
+    utf8::decode($text);
     rpc_result( $id, {
-        content          => [ { type => 'text', text => encode_json($out) } ],
+        content          => [ { type => 'text', text => $text } ],
         structuredContent => $out,
         isError          => $is_err,
     } );
