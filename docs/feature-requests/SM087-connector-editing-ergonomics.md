@@ -33,11 +33,12 @@ generated-index refresh and rollback.**
 
 ## Tier 2 - higher-level + validation
 
-6. **Page-aware API** (#7) - **PARTIAL**: `read_page(path)` (parsed front matter +
-   body + brief + public URL) and `list_pages` (title + registries + URL) done.
-   Remaining: `create_page`, `delete_page(clean_references)`,
-   `rename_page(update_links)`, `set_nav` - the link-rewrite is the harder part.
-7. **Validate before save** (#8) - **DONE**: `validate_page(path|content)` -
+6. **Page-aware API** (#7) - **DONE**: `read_page`, `list_pages`, `create_page`,
+   `delete_page` (deletes the .brief + reports remaining references),
+   `rename_page` (with `update_links` rewriting internal links across pages).
+   Remaining: `set_nav` (nav.conf is not rewritten by `rename_page`).
+7. **Validate before save** (#8) - **DONE**: `validate_page(path|content)`, also
+   auto-run by `write_file` (warnings/issues returned in the write result) -
    unterminated front matter, missing title, invalid/typo'd form rules, and the
    **public-data warning** (Wi-Fi passwords, postcodes/addresses, phone numbers).
    Follow-ons: unclosed HTML, broken TT, invalid JSON-LD; auto-run on write.

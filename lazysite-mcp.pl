@@ -388,6 +388,39 @@ my %TOOLS = (
             additionalProperties => JSON::PP::false },
         run => sub { _validate_page( $_[0]->{path}, $_[0]->{content}, $_[1] ) },
     },
+    create_page => {
+        description => 'Create a new page from front-matter fields (title, subtitle, register list) + Markdown body. Errors if the page already exists (use write_file to overwrite). Higher-level than assembling front matter by hand.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => {
+                slug     => { type => 'string', description => 'page path, e.g. things-to-do' },
+                title    => { type => 'string' },
+                subtitle => { type => 'string' },
+                body     => { type => 'string', description => 'Markdown body' },
+                register => { type => 'array', items => { type => 'string' }, description => 'registries, e.g. ["sitemap","llms"]' },
+            },
+            required => ['slug'], additionalProperties => JSON::PP::false },
+        run => sub { _create_page( $_[0], $_[1] ) },
+    },
+    delete_page => {
+        description => 'Delete a page and its .brief, and report where its slug is still referenced (nav, other pages) so you can clean up. Generated indexes (sitemap/llms/feeds) refresh automatically.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => { slug => { type => 'string' } },
+            required => ['slug'], additionalProperties => JSON::PP::false },
+        run => sub { _delete_page( $_[0], $_[1] ) },
+    },
+    rename_page => {
+        description => 'Rename / move a page (carries its .brief + ACL). With update_links:true, rewrites internal links to the old path across pages (best-effort - verify with preview_page; nav.conf is not rewritten).',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => {
+                old => { type => 'string' }, new => { type => 'string' },
+                update_links => { type => 'boolean' },
+            },
+            required => [ 'old', 'new' ], additionalProperties => JSON::PP::false },
+        run => sub { _rename_page( $_[0], $_[1] ) },
+    },
     list_pages => {
         description => 'List the site pages with their title, public URL, and which registries (sitemap/llms/feed) each is in. A page-level view rather than a raw file list.',
         cap         => 'manage_content',
@@ -809,6 +842,76 @@ sub _bind_form {
     return { ok => 1, form => $form, handler => $handler, path => "/lazysite/forms/$form.conf" };
 }
 
+# --- SM087: page-aware verbs (create / delete / rename) -------------------
+sub _yaml_scalar {
+    my ($v) = @_;
+    $v = '' unless defined $v;
+    return ( $v =~ /[:#\[\]"']/ || $v =~ /\A["'\s]/ )
+        ? '"' . ( $v =~ s/"/\\"/gr ) . '"' : $v;
+}
+
+sub _create_page {
+    my ( $a, $user ) = @_;
+    my $slug = $a->{slug} // '';
+    $slug =~ s{^/+}{}; $slug =~ s{\.\.}{}g; $slug =~ s{\.md\z}{}; $slug =~ s{/+\z}{};
+    return { ok => 0, error => 'slug required' } unless length $slug;
+    return { ok => 0, kind => 'exists', error => "page already exists: /$slug (use write_file to overwrite)" }
+        if -e "$DOCROOT/$slug.md";
+    my $fm = "---\n";
+    $fm .= 'title: ' . _yaml_scalar( $a->{title} ) . "\n"       if defined $a->{title}    && length $a->{title};
+    $fm .= 'subtitle: ' . _yaml_scalar( $a->{subtitle} ) . "\n" if defined $a->{subtitle} && length $a->{subtitle};
+    $fm .= 'register: [' . join( ', ', @{ $a->{register} } ) . "]\n"
+        if ref $a->{register} eq 'ARRAY' && @{ $a->{register} };
+    $fm .= "---\n";
+    my $body = defined $a->{body} ? $a->{body} : '';
+    $body .= "\n" unless $body eq '' || $body =~ /\n\z/;
+    return action_save( "/$slug.md", $user, $fm . $body, undef );
+}
+
+sub _delete_page {
+    my ( $a, $user ) = @_;
+    my $slug = $a->{slug} // '';
+    $slug =~ s{^/+}{}; $slug =~ s{\.\.}{}g; $slug =~ s{\.md\z}{};
+    return { ok => 0, error => 'slug required' } unless length $slug;
+    my $r = action_delete( "/$slug.md", $user );
+    return $r unless ref $r eq 'HASH' && $r->{ok};
+    action_delete( "/$slug.md.brief", $user ) if -f "$DOCROOT/$slug.md.brief";
+    # Report remaining references (nav, other pages); registries auto-refresh.
+    my $s = _mcp_search( "/$slug", '/' );
+    my %seen;
+    $r->{still_referenced_in} = [ grep { !$seen{$_}++ } map { $_->{path} } @{ $s->{matches} || [] } ];
+    return $r;
+}
+
+sub _rewrite_links {
+    my ( $old, $new, $user ) = @_;
+    my $changed = 0;
+    _each_page( sub {
+        my ( $rel, $full ) = @_;
+        open my $fh, '<', $full or return;
+        local $/; my $c = <$fh>; close $fh;
+        my $orig = $c;
+        $c =~ s{(/)\Q$old\E(?=[\s)"'#?\]]|\z)}{$1$new}g;
+        $c =~ s{\b\Q$old\E\.md\b}{$new.md}g;
+        if ( $c ne $orig ) {
+            my $sr = action_save( "/$rel", $user, $c, undef );
+            $changed++ if ref $sr eq 'HASH' && $sr->{ok};
+        }
+    } );
+    return $changed;
+}
+
+sub _rename_page {
+    my ( $a, $user ) = @_;
+    my ( $old, $new ) = ( $a->{old} // '', $a->{new} // '' );
+    for my $s ( \$old, \$new ) { $$s =~ s{^/+}{}; $$s =~ s{\.\.}{}g; $$s =~ s{\.md\z}{}; $$s =~ s{/+\z}{} }
+    return { ok => 0, error => 'old and new required' } unless length $old && length $new;
+    my $r = action_move( "/$old.md", "/$new.md", $user );
+    return $r unless ref $r eq 'HASH' && $r->{ok};
+    $r->{links_updated} = _rewrite_links( $old, $new, $user ) if $a->{update_links};
+    return $r;
+}
+
 # MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
 # ChatGPT (drives its per-call approval + read/write gating) and good practice
 # for every client. openWorld = the action publishes to / changes the live site.
@@ -828,6 +931,9 @@ my %ANNOTATE = (
     write_file      => [ 0, 0, 1 ],
     replace_text    => [ 0, 0, 1 ],
     copy_file       => [ 0, 0, 1 ],
+    create_page     => [ 0, 0, 1 ],
+    delete_page     => [ 0, 1, 1 ],
+    rename_page     => [ 0, 0, 1 ],
     get_permissions => [ 1, 0, 0 ],
     move_file       => [ 0, 0, 1 ],
     delete_file     => [ 0, 1, 1 ],
@@ -926,7 +1032,10 @@ elsif ( $method eq 'tools/call' ) {
         my $act =
             $name eq 'write_file'   ? ( ( ref $out eq 'HASH' && $out->{created} ) ? 'create' : 'edit' )
           : $name eq 'replace_text' ? 'edit'
+          : $name eq 'create_page'  ? 'create'
           : $name eq 'delete_file'  ? 'delete'
+          : $name eq 'delete_page'  ? 'delete'
+          : $name eq 'rename_page'  ? 'move'
           : $name eq 'move_file'    ? 'move'
           :                           $name;
         my $aok = ref $out eq 'HASH' && $out->{ok};

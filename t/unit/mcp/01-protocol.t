@@ -170,6 +170,21 @@ ok( ( grep { $_->{path} eq '/content/about.md' && $_->{title} eq 'About Us' }
         @{ $r->{result}{structuredContent}{pages} || [] } ),
     'list_pages includes the page with its title' );
 
+# --- page verbs: create_page / rename_page (update_links) / delete_page ---
+( $st, $r ) = call( 'create_page', { slug => 'newpage', title => 'New Page', body => "Hello.\n", register => ['sitemap'] }, $bearer_lim );
+ok( !$r->{result}{isError} && $r->{result}{structuredContent}{ok}, 'create_page succeeds' );
+( $st, $r ) = call( 'read_page', { path => '/newpage.md' }, $bearer_lim );
+is( $r->{result}{structuredContent}{front_matter}{title}, 'New Page', 'create_page wrote the title' );
+( $st, $r ) = call( 'create_page', { slug => 'newpage', title => 'Dup' }, $bearer_lim );
+is( $r->{result}{structuredContent}{kind}, 'exists', 'create_page refuses an existing page' );
+call( 'write_file', { path => '/linker.md', content => "See [it](/newpage).\n" }, $bearer_lim );
+( $st, $r ) = call( 'rename_page', { old => 'newpage', new => 'renamed', update_links => JSON::PP::true }, $bearer_lim );
+ok( $r->{result}{structuredContent}{ok}, 'rename_page succeeds' );
+( $st, $r ) = call( 'read_file', { path => '/linker.md' }, $bearer_lim );
+like( $r->{result}{structuredContent}{content}, qr{/renamed}, 'rename_page update_links rewrote the internal link' );
+( $st, $r ) = call( 'delete_page', { slug => 'renamed' }, $bearer_lim );
+ok( $r->{result}{structuredContent}{ok} && !( -f "$d/renamed.md" ), 'delete_page removes the page' );
+
 # --- preview_page: in-channel server-side render ---
 ( $st, $r ) = call( 'preview_page', { path => '/content/about' }, $bearer_lim );
 ok( !$r->{result}{isError} && $r->{result}{structuredContent}{ok}, 'preview_page renders' );
