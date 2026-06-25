@@ -16,8 +16,8 @@ query_params:
 <div class="mg-line">
   <label for="audit-user">Filter by user</label>
   <input type="text" id="audit-user" class="mg-inp" placeholder="(all users)">
-  <button class="mg-btn mg-btn-sm" onclick="loadAudit()">Filter</button>
-  <button class="mg-btn mg-btn-sm" onclick="document.getElementById('audit-user').value='';loadAudit()">Clear</button>
+  <button class="mg-btn mg-btn-sm" onclick="filterAudit()">Filter</button>
+  <button class="mg-btn mg-btn-sm" onclick="document.getElementById('audit-user').value='';filterAudit()">Clear</button>
 </div>
 
 <div id="audit-scope" style="margin-top:0.4rem;font-size:0.85rem;color:#666;"></div>
@@ -38,10 +38,24 @@ query_params:
 function aesc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
 
 var auditTarget = '';   // SM077: when set, show one file's history
+var auditPage = 1;      // pagination (50 rows/page)
+
+function filterAudit() { auditPage = 1; loadAudit(); }
+function goAuditPage(n) { auditPage = n; loadAudit(); }
+
+function paginationHtml(d) {
+  var pages = d.pages || 1, page = d.page || 1, total = d.total || 0;
+  var info = 'Page ' + page + ' of ' + pages + ' (' + total + ' event' + (total === 1 ? '' : 's') + ')';
+  if (pages <= 1) return '<div class="audit-pagination"><span class="audit-page-info">' + total + ' event' + (total === 1 ? '' : 's') + '</span></div>';
+  var prev = page > 1 ? '<button class="mg-btn mg-btn-sm" onclick="goAuditPage(' + (page - 1) + ')">&larr; Prev</button>' : '';
+  var next = page < pages ? '<button class="mg-btn mg-btn-sm" onclick="goAuditPage(' + (page + 1) + ')">Next &rarr;</button>' : '';
+  return '<div class="audit-pagination">' + prev + '<span class="audit-page-info">' + info + '</span>' + next + '</div>';
+}
 
 function loadAudit() {
   var u = document.getElementById('audit-user').value.trim();
   var url = '/cgi-bin/lazysite-manager-api.pl?action=audit'
+          + '&page=' + auditPage + '&per_page=50'
           + (u ? ('&user=' + encodeURIComponent(u)) : '')
           + (auditTarget ? ('&target=' + encodeURIComponent(auditTarget)) : '');
   fetch(url).then(function (r) { return r.json(); }).then(function (d) {
@@ -51,7 +65,7 @@ function loadAudit() {
     if (note) {
       note.innerHTML = auditTarget
         ? 'History for <code>' + aesc(auditTarget) + '</code> '
-          + '<a href="#" onclick="auditTarget=\'\';this.parentNode.innerHTML=\'\';loadAudit();return false;">(show all)</a>'
+          + '<a href="#" onclick="auditTarget=\'\';auditPage=1;this.parentNode.innerHTML=\'\';loadAudit();return false;">(show all)</a>'
         : '';
     }
     if (!d.entries.length) { el.textContent = 'No audit entries yet.'; return; }
@@ -67,7 +81,7 @@ function loadAudit() {
         '</td><td>' + aesc(e.status) + '</td></tr>';
     });
     h += '</tbody></table>';
-    el.innerHTML = h;
+    el.innerHTML = h + paginationHtml(d);
   }).catch(function (e) { document.getElementById('audit-table').textContent = 'Error: ' + e.message; });
 }
 

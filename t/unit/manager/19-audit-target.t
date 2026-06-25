@@ -73,4 +73,16 @@ ok( $p->{ok}, 'principals ok' );
 is_deeply( $p->{users}, [ 'alice', 'bob' ], 'principals: users listed' );
 is_deeply( $p->{groups}, [ 'admins', 'editors' ], 'principals: group names listed (sorted)' );
 
+# --- pagination: 50 rows per page ---
+main::audit_log( 'pager', 'create', "content/p$_.md", '1.1.1.1', 'ok', 'ui' ) for ( 1 .. 60 );
+my $pg1 = main::action_audit( user => 'pager', per_page => 50, page => 1 );
+is( scalar @{ $pg1->{entries} }, 50, 'page 1 returns 50 rows' );
+is( $pg1->{total}, 60, 'total counts all matching entries' );
+is( $pg1->{pages}, 2,  'two pages at 50/page' );
+is( $pg1->{page},  1,  'page echoed' );
+my $pg2 = main::action_audit( user => 'pager', per_page => 50, page => 2 );
+is( scalar @{ $pg2->{entries} }, 10, 'page 2 returns the remaining 10 rows' );
+my $pgX = main::action_audit( user => 'pager', per_page => 50, page => 99 );
+is( $pgX->{page}, 2, 'an out-of-range page clamps to the last' );
+
 done_testing();

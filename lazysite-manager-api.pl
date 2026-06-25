@@ -392,7 +392,7 @@ elsif ( $action eq 'nav-save' )         {
 elsif ( $action eq 'handler-list' )     { $result = action_handler_list() }
 elsif ( $action eq 'version' )          { $result = action_version() }
 elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
-elsif ( $action eq 'audit' )            { $result = action_audit( user => $params{user}, target => $params{target} ) }
+elsif ( $action eq 'audit' )            { $result = action_audit( user => $params{user}, target => $params{target}, page => $params{page}, per_page => $params{per_page} ) }
 elsif ( $action eq 'handler-save' )     {
     my $req = eval { decode_json($body) } // {};
     $result = action_handler_save($req);
@@ -987,9 +987,25 @@ sub action_audit {
         next if defined $want_t && length $want_t && ( $target // '' ) ne $want_t;
         push @entries, { ts => $ts, user => $u, action => $act,
             target => $target, ip => $ip, status => $status, origin => $origin };
-        last if @entries >= 500;
+        last if @entries >= 5000;    # bound the scan; paginate within
     }
-    return { ok => 1, entries => \@entries };
+
+    # Paginate (newest first); default 50 rows per page.
+    my $per = $opt{per_page} || 50;
+    $per = 50  if $per < 1;
+    $per = 200 if $per > 200;
+    my $total = scalar @entries;
+    my $pages = $total ? int( ( $total + $per - 1 ) / $per ) : 1;
+    my $page  = $opt{page} || 1;
+    $page = 1      if $page < 1;
+    $page = $pages if $page > $pages;
+    my $start = ( $page - 1 ) * $per;
+    my $end   = $start + $per - 1;
+    $end = $#entries if $end > $#entries;
+    my @slice = $total ? @entries[ $start .. $end ] : ();
+
+    return { ok => 1, entries => \@slice,
+        total => $total, page => $page, per_page => $per, pages => $pages };
 }
 
 # SM072: the running version, read from the install state .install-state.json.
