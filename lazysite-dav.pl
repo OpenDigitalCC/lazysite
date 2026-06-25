@@ -221,12 +221,14 @@ sub main {
     elsif ( $method eq 'LOCK' )   { return do_lock(%args) }
     elsif ( $method eq 'UNLOCK' ) { return do_unlock(%args) }
 
-    # Reads (GET / PROPFIND) are audited too, so a partner's authenticated
-    # browse/read activity is visible - not only writes.
+    # Reads (GET / PROPFIND) are NOT audited - the audit trail records MATERIAL
+    # actions only, not access (the access log + a future stats plugin cover
+    # browsing). Only state-changing methods are recorded below.
+    if ( $method eq 'GET' )      { return do_get( %args, head => 0 ) }
+    if ( $method eq 'PROPFIND' ) { return do_propfind(%args) }
+
     my $code;
-    if    ( $method eq 'PROPFIND' )  { $code = do_propfind(%args) }
-    elsif ( $method eq 'PROPPATCH' ) { $code = do_proppatch(%args) }
-    elsif ( $method eq 'GET' )       { $code = do_get( %args, head => 0 ) }
+    if    ( $method eq 'PROPPATCH' ) { $code = do_proppatch(%args) }
     elsif ( $method eq 'PUT' )       { $code = do_put(%args) }
     elsif ( $method eq 'MKCOL' )     { $code = do_mkcol(%args) }
     elsif ( $method eq 'DELETE' )    { $code = do_delete(%args) }
@@ -243,14 +245,8 @@ sub main {
         my $dest = destination_rel();
         $target .= ' -> ' . $dest if defined $dest;
     }
-    # Writes are always audited; reads (GET/PROPFIND) are too by default, but a
-    # busy site can quiet them with `audit_reads: false` in lazysite.conf.
-    my $is_read = ( $method eq 'GET' || $method eq 'PROPFIND' );
-    my $audit_reads = !defined $conf->{audit_reads} || is_truthy( $conf->{audit_reads} );
-    if ( !$is_read || $audit_reads ) {
-        audit_log( $user, lc($method), $target, $ip,
-            ( defined $code && $code < 400 ? 'ok' : 'fail' ), 'dav' );
-    }
+    audit_log( $user, lc($method), $target, $ip,
+        ( defined $code && $code < 400 ? 'ok' : 'fail' ), 'dav' );
     return $code;
 }
 

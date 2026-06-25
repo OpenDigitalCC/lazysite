@@ -93,6 +93,16 @@ ok( $tok->{refresh_token}, 'refresh token issued' );
 # the access token resolves to the partner
 is( validate_token( $tok->{access_token} ), 'claude.ai', 'access token maps to the partner' );
 
+# the OAuth connect is a MATERIAL audit event ("X connected") - this is what the
+# operator wants to see when an AI authenticates.
+{
+    open my $al, '<', "$d/lazysite/logs/audit.log" or die "no audit log: $!";
+    my @lines = <$al>;
+    close $al;
+    ok( ( grep { /\| claude\.ai \| connect \| oauth \|/ } @lines ),
+        'OAuth token issue records a material connect event for the partner' );
+}
+
 # --- 4. the MCP server accepts the opaque OAuth access token ---
 my $who = jbody( run( $mcp, method => 'POST',
     body => encode_json( { jsonrpc => '2.0', id => 1, method => 'tools/call',

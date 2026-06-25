@@ -95,14 +95,15 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
     my $b = run_dav( $docroot, 'PUT', '/grouped.md', body => "y\n", HTTP_AUTHORIZATION => $mal );
     is( $b->{code}, 403, 'non-member (mallory) is denied by the @group ACL' );
 
-    # Reads are audited too (so a partner's browse/read activity is visible).
+    # Reads are NOT audited - the audit trail records material actions only
+    # (the access log + stats plugin cover browsing). A GET leaves no entry.
     my $g = run_dav( $docroot, 'GET', '/grouped.md', HTTP_AUTHORIZATION => $eve );
     is( $g->{code}, 200, 'eve can GET the file (read open within scope)' );
     open my $l2, '<', "$docroot/lazysite/logs/audit.log" or die $!;
     my @al = <$l2>;
     close $l2;
-    ok( ( grep { /\| eve \| get \|/ && /\| dav\s*$/ } @al ),
-        'a GET (read) is recorded in the audit trail (origin=dav)' );
+    ok( !( grep { /\| eve \| get \|/ } @al ),
+        'a GET (read) is NOT recorded in the audit trail (material events only)' );
 }
 
 # --- SM082: a theme-only partner (manage_content off) is refused content ------

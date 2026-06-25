@@ -22,12 +22,14 @@ BEGIN {
     }
 }
 use Lazysite::Util qw(log_event);
+use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::OAuth
     qw(register_client get_client mint_code redeem_code issue_token refresh_access);
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT} // '';
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
+$Lazysite::Audit::LAZYSITE_DIR        = $LAZYSITE_DIR;
 
 # --- helpers --------------------------------------------------------------
 
@@ -210,6 +212,9 @@ elsif ( $action eq 'token' ) {
         respond_json( 400, { error => 'invalid_grant' } ) unless defined $partner;
         my ( $access, $refresh, $ttl ) = issue_token($partner);
         log_event( 'INFO', 'oauth', 'access token issued', partner => $partner );
+        # Material event: an AI assistant just authenticated this partner over
+        # OAuth (the "connected" moment the operator wants to see).
+        audit_log( $partner, 'connect', 'oauth', $ENV{REMOTE_ADDR} // '', 'ok', 'mcp' );
         respond_json( 200, {
             access_token  => $access, token_type => 'Bearer',
             expires_in    => $ttl,    refresh_token => $refresh, scope => 'mcp' } );

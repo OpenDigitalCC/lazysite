@@ -427,15 +427,41 @@ elsif ( $action eq 'artifact-manifest' ) { $result = action_artifact_manifest( \
 elsif ( $action eq 'artifact-validate' ) { $result = action_artifact_validate( \%params ) }
 else  { $result = { ok => 0, error => "Unknown action: $action" } }
 
-# SM072 audit trail: record state-changing (POST) requests to a
-# manager-readable log - who did what, TO WHAT (SM078), when, from where, and
-# the outcome. The target is the path for content/ACL/theme/layout ops, or the
-# config key for config-set.
-if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' && $action ne 'csrf-token' ) {
-    my $target = $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' );
-    audit_log( $auth_user, $action, $target, $ENV{REMOTE_ADDR} // '',
-        ( ref $result eq 'HASH' && $result->{ok} ) ? 'ok' : 'fail',
-        $token_auth ? 'api' : 'ui' );
+# Audit trail: record MATERIAL actions only - state changes and security grants
+# (who did what, TO WHAT, when, from where, outcome). Reads/browsing are NOT
+# audited; the access log and the stats plugin cover those, and the audit must
+# not overlap with them. Read-ish POSTs (the UI POSTs everything) are skipped.
+if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
+    my %skip = map { $_ => 1 } qw(
+        csrf-token list read principals whoami audit version acl-get cache-list
+        cache-invalidate nav-read theme-list themes-list-all themes-for-layout
+        layouts-available layouts-releases layouts-repo-get layouts-release-contents
+        handler-list plugin-list plugin-read form-targets-read artifact-manifest
+        artifact-validate lock unlock renew-lock preview preview-clear preview-grant );
+
+    my ( $aud_action, $aud_target ) =
+        ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
+
+    # action=users carries its sub-action in the POST body; audit only the
+    # material ones (add / remove / settings-set / token / ...), not the reads.
+    if ( $action eq 'users' ) {
+        my $b   = eval { decode_json($body) };
+        my $sub = ( ref $b eq 'HASH' ) ? ( $b->{action} // '' ) : '';
+        my %uskip = map { $_ => 1 } qw(
+            list groups settings-get credential-status partner-caps
+            verify-credential totp-code onboarding );
+        if ( $sub eq '' || $uskip{$sub} ) { $aud_action = undef }
+        else {
+            $aud_action = "user-$sub";
+            $aud_target = ( ref $b eq 'HASH' ? $b->{username} : undef ) // '';
+        }
+    }
+
+    if ( defined $aud_action && !$skip{$aud_action} ) {
+        audit_log( $auth_user, $aud_action, $aud_target, $ENV{REMOTE_ADDR} // '',
+            ( ref $result eq 'HASH' && $result->{ok} ) ? 'ok' : 'fail',
+            $token_auth ? 'api' : 'ui' );
+    }
 }
 
 respond($result);
