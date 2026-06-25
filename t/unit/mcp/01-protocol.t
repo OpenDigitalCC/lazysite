@@ -81,6 +81,11 @@ my %names = map { $_->{name} => $_ } @{ $r->{result}{tools} };
 ok( $names{whoami} && $names{list_files} && $names{write_file} && $names{activate_theme},
     'tools/list advertises the maintenance tools' );
 ok( $names{write_file}{inputSchema}{required}, 'a tool carries a JSON-Schema inputSchema' );
+ok( $names{whoami}{annotations}{readOnlyHint}, 'whoami is annotated read-only' );
+ok( !$names{write_file}{annotations}{readOnlyHint} && $names{write_file}{annotations}{openWorldHint},
+    'write_file: not read-only, open-world (publishes to the site)' );
+ok( $names{delete_file}{annotations}{destructiveHint}, 'delete_file is annotated destructive' );
+ok( $names{write_file}{outputSchema}, 'tools carry an output schema (ChatGPT validates results)' );
 
 ( $st, $r ) = mcp( { jsonrpc => '2.0', id => 3, method => 'ping' } );
 is_deeply( $r->{result}, {}, 'ping: empty result' );

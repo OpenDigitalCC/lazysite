@@ -256,13 +256,36 @@ my %TOOLS = (
     },
 );
 
+# MCP tool annotation hints [readOnly, destructive, openWorld]. Required by
+# ChatGPT (drives its per-call approval + read/write gating) and good practice
+# for every client. openWorld = the action publishes to / changes the live site.
+my %ANNOTATE = (
+    whoami          => [ 1, 0, 0 ],
+    list_files      => [ 1, 0, 0 ],
+    read_file       => [ 1, 0, 0 ],
+    write_file      => [ 0, 0, 1 ],
+    move_file       => [ 0, 0, 1 ],
+    delete_file     => [ 0, 1, 1 ],
+    set_permissions => [ 0, 0, 0 ],
+    activate_theme  => [ 0, 0, 1 ],
+    activate_layout => [ 0, 0, 1 ],
+);
+
 sub tool_list {
     my @list;
     for my $name ( sort keys %TOOLS ) {
+        my $a = $ANNOTATE{$name} || [ 0, 0, 1 ];
         push @list, {
-            name        => $name,
-            description => $TOOLS{$name}{description},
-            inputSchema => $TOOLS{$name}{inputSchema},
+            name         => $name,
+            description  => $TOOLS{$name}{description},
+            inputSchema  => $TOOLS{$name}{inputSchema},
+            outputSchema => { type => 'object' },
+            annotations  => {
+                title           => $name,
+                readOnlyHint    => $a->[0] ? JSON::PP::true : JSON::PP::false,
+                destructiveHint => $a->[1] ? JSON::PP::true : JSON::PP::false,
+                openWorldHint   => $a->[2] ? JSON::PP::true : JSON::PP::false,
+            },
         };
     }
     return \@list;
