@@ -81,6 +81,10 @@ In progress (2026-06-25).
   downloads them; `lazysite/backups/` is infrastructure and never served.
 - **Moved out - git versioning** is now its own opt-in plugin, [[SM085]]; its
   initial commit can serve as the backup when enabled.
+- **TODO - restore.** Backups can be listed, created and downloaded, but there is
+  no in-manager **restore** (re-extract a snapshot over the docroot). Add a
+  guarded "Restore this snapshot" action (confirm + take a fresh pre-restore
+  backup first; never touch `lazysite/`). Raised 2026-06-25.
 
 SM084 is now complete: non-destructive install + content backups. Inline page-by-
 page migration works on top (existing HTML/SSI served until a `.md` replaces it).
