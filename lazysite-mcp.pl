@@ -32,7 +32,7 @@ use Lazysite::Util qw(log_event);
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::OAuth ();
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
-    action_move action_acl_set action_acl_remove);
+    action_move action_acl_get action_acl_set action_acl_remove);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
     action_cache_invalidate _read_active_layout_and_theme);
 
@@ -83,13 +83,21 @@ sub send_401 {
     my ($id) = @_;
     my $host = $ENV{HTTP_HOST} // $ENV{SERVER_NAME} // '';
     my $meta = "https://$host/.well-known/oauth-protected-resource";
+    # Disambiguate the cause: no credential reached us (connector not yet signed
+    # in / authorisation incomplete) vs a credential that didn't verify (expired
+    # or revoked - reconnect). Points the agent + operator at the right fix.
+    my $had_cred = ( $ENV{HTTP_AUTHORIZATION} || $ENV{REDIRECT_HTTP_AUTHORIZATION} ) ? 1 : 0;
+    my $msg = $had_cred
+        ? 'Credential did not verify (expired or revoked) - reconnect the connector.'
+        : 'Connector sign-in incomplete - finish authorising the connector before calling tools (this is not a missing-header you can fix in the prompt).';
     binmode STDOUT, ':utf8';
     print "Status: 401 Unauthorized\r\n";
     print "WWW-Authenticate: Bearer resource_metadata=\"$meta\"\r\n";
     print "Content-Type: application/json\r\n";
     print "MCP-Protocol-Version: $PROTOCOL\r\n\r\n";
     print encode_json( { jsonrpc => '2.0', id => $id,
-        error => { code => -32001, message => 'Unauthorized' } } );
+        error => { code => -32001, message => $msg,
+            data => { reason => ( $had_cred ? 'credential-invalid' : 'sign-in-incomplete' ) } } } );
     exit 0;
 }
 
@@ -179,8 +187,11 @@ my %TOOLS = (
         run => sub {
             my ( $args, $user, $caps ) = @_;
             my ( $layout, $theme ) = _read_active_layout_and_theme();
+            # Echo the full tool list so an agent sees every available tool in one
+            # call (the connector loads tools a few at a time, which can hide some).
             return { ok => 1, user => $user, capabilities => $caps,
-                active_layout => $layout, active_theme => $theme };
+                active_layout => $layout, active_theme => $theme,
+                tools => _tool_names() };
         },
     },
     list_files => {
@@ -243,6 +254,27 @@ my %TOOLS = (
             $s->{replacements} = $count if ref $s eq 'HASH' && $s->{ok};
             return $s;
         },
+    },
+    copy_file => {
+        description => 'Copy a text file to a new path - templating a new page from an existing one. The destination starts with a fresh ACL.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => { from => { type => 'string' }, to => { type => 'string' } },
+            required => [ 'from', 'to' ], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $a, $user ) = @_;
+            my $r = action_read( $a->{from}, $user );
+            return $r unless ref $r eq 'HASH' && $r->{ok};
+            return action_save( $a->{to}, $user, $r->{content}, undef );
+        },
+    },
+    get_permissions => {
+        description => 'Read the access-control list for a path (owner + per-user / @group read & write grants). Call this before set_permissions to see the current state.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => { path => { type => 'string' } },
+            required => ['path'], additionalProperties => JSON::PP::false },
+        run => sub { action_acl_get( $_[0]->{path}, $_[1] ) },
     },
     move_file => {
         description => 'Rename or move a file (carries its .brief and re-keys its ACL).',
@@ -712,6 +744,8 @@ my %ANNOTATE = (
     bind_form          => [ 0, 0, 1 ],
     write_file      => [ 0, 0, 1 ],
     replace_text    => [ 0, 0, 1 ],
+    copy_file       => [ 0, 0, 1 ],
+    get_permissions => [ 1, 0, 0 ],
     move_file       => [ 0, 0, 1 ],
     delete_file     => [ 0, 1, 1 ],
     set_permissions => [ 0, 0, 0 ],
@@ -719,6 +753,8 @@ my %ANNOTATE = (
     activate_layout => [ 0, 0, 1 ],
     invalidate_cache => [ 0, 0, 0 ],
 );
+
+sub _tool_names { return [ sort keys %TOOLS ] }
 
 sub tool_list {
     my @list;
@@ -799,7 +835,7 @@ elsif ( $method eq 'tools/call' ) {
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
     my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1 );
+        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the

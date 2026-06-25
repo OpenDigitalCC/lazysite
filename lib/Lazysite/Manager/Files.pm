@@ -243,9 +243,14 @@ sub action_save {
     log_event('INFO', $action, 'file saved', path => $rel_path, user => $auth_user);
 
     _invalidate_registries();
+    # A nav change shows on every page - clear all caches, and tell the caller.
+    my $nav_change = $rel_path =~ m{(?:^|/)nav\.conf$} ? 1 : 0;
+    _invalidate_all_html() if $nav_change;
 
     my @st = stat($full);
-    return { ok => 1, path => $rel_path, mtime => $st[9] // 0, created => $existed ? 0 : 1 };
+    return { ok => 1, path => $rel_path, mtime => $st[9] // 0,
+        created => $existed ? 0 : 1,
+        ( $nav_change ? ( cache_rebuilt => 'all-pages' ) : () ) };
 }
 
 # SM087: a content create/delete/move changes the page set (or a page's lastmod),
@@ -262,6 +267,25 @@ sub _invalidate_registries {
     for my $t (@tt) {
         ( my $out = $t ) =~ s/\.tt$//;
         unlink "$DOCROOT/$out" if -f "$DOCROOT/$out";
+    }
+    return;
+}
+
+# SM087: a site-wide config change (nav.conf) appears on every rendered page, so
+# the per-page cache clear isn't enough - drop every generated .html so all pages
+# re-render with the new nav on the next request.
+sub _invalidate_all_html {
+    my @stack = ($DOCROOT);
+    while (@stack) {
+        my $dir = pop @stack;
+        opendir my $dh, $dir or next;
+        for my $e ( readdir $dh ) {
+            next if $e =~ /^\./;
+            my $full = "$dir/$e";
+            if ( -d $full ) { push @stack, $full unless $e =~ /^(?:lazysite|lazysite-assets)$/; next }
+            unlink $full if $e =~ /\.html$/;
+        }
+        closedir $dh;
     }
     return;
 }

@@ -53,4 +53,8 @@ in the loop.
 
 ## Status
 
-form but could not wire its delivery. Complements the page-aware API ([[SM087]]).
+**Done (2026-06-25)** - option 1 (bind-to-existing). `list_form_handlers` +
+`bind_form(form, handler)` MCP tools: the connector references an existing
+operator-vetted handler by id and never sets a destination or credential. The
+operator-approval queue (option 2) remains a possible follow-on. Complements the
+page-aware API ([[SM087]]).

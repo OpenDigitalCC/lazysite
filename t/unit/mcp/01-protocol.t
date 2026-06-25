@@ -106,6 +106,7 @@ like( $raw,
     qr{WWW-Authenticate:\s*Bearer\s+resource_metadata="[^"]+/\.well-known/oauth-protected-resource"},
     '401 carries the protected-resource metadata pointer' );
 is( $r->{error}{code}, -32001, 'body is a JSON-RPC unauthorized error' );
+is( $r->{error}{data}{reason}, 'sign-in-incomplete', '401 distinguishes sign-in-incomplete (no credential reached the server)' );
 
 ( $st, $r ) = call( 'list_files', { path => '/content' }, $bearer_lim );
 ok( !$r->{error}, 'authenticated tools/call succeeds' );
@@ -204,6 +205,15 @@ is( $r->{error}{code}, -32002, 'insufficient capability is rejected (needs manag
 ( $st, $r ) = call( 'whoami', {}, $bearer_full );
 ok( $r->{result}{structuredContent}{capabilities}{manage_themes},
     'whoami reflects the full grant' );
+ok( ( grep { $_ eq 'write_file' } @{ $r->{result}{structuredContent}{tools} || [] } ),
+    'whoami echoes the full tool manifest (one-call discovery)' );
+
+# --- copy_file + get_permissions ---
+call( 'copy_file', { from => '/content/about.md', to => '/content/about-copy.md' }, $bearer_lim );
+( $st, $r ) = call( 'read_file', { path => '/content/about-copy.md' }, $bearer_lim );
+like( $r->{result}{structuredContent}{content}, qr/About Us/, 'copy_file duplicated the content to a new path' );
+( $st, $r ) = call( 'get_permissions', { path => '/content/about.md' }, $bearer_lim );
+ok( !$r->{result}{isError} && $r->{result}{structuredContent}{ok}, 'get_permissions returns the ACL state' );
 
 # --- error taxonomy ---
 ( $st, $r ) = call( 'no_such_tool', {}, $bearer_full );
