@@ -18,6 +18,24 @@ Keying
 
 ## Unreleased
 
+## 0.4.10 - Overlay onto an existing site + content backups (SM084) (2026-06-25)
+
+Fix - non-destructive install (overlay onto a live HTML/SSI site)
+: lazysite can now be installed over an existing static site without losing the
+  homepage. The installer deletes `index.html` ONLY when `index.md` already
+  existed (so it was the cache rendered from it); a freshly-seeded `index.md` or
+  a static-site overlay leaves an existing `index.html` untouched, and `deploy.sh`
+  no longer deletes it. Existing `.html`/`.shtml`/SSI pages keep serving until a
+  `.md` replaces them - migrate page by page.
+
+Feature - docroot content backups
+: Tarball snapshots of the site content (excluding the `lazysite/` infra, so no
+  secrets) under `lazysite/backups/`, which is never served. A one-time
+  pre-install snapshot is taken the first time lazysite is installed over existing
+  content, so a migration is always recoverable. A new manager **Backups** page
+  lists snapshots, takes manual ones on demand, and downloads them (manager-only;
+  strict name validation on download).
+
 ## 0.4.9 - Material audit trail + connector robustness (2026-06-25)
 
 Change - the audit trail records MATERIAL events only
