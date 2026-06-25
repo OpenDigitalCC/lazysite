@@ -37,7 +37,7 @@ sub respond_json {
     my ( $code, $obj ) = @_;
     my %reason = ( 200 => 'OK', 201 => 'Created', 400 => 'Bad Request',
         401 => 'Unauthorized', 404 => 'Not Found', 501 => 'Not Implemented' );
-    binmode STDOUT, ':utf8';
+    binmode STDOUT;    # encode_json emits UTF-8 bytes; do not re-encode
     print "Status: $code " . ( $reason{$code} // 'Status' ) . "\r\n";
     print "Content-Type: application/json; charset=utf-8\r\nCache-Control: no-store\r\n\r\n";
     print encode_json($obj);

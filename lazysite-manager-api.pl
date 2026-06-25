@@ -298,7 +298,7 @@ if ( $token_auth ) {
     # so the client can back off per the documented retry contract.
     my $rl = _rate_ok($auth_user);
     unless ( $rl->{ok} ) {
-        binmode( STDOUT, ':utf8' );
+        binmode( STDOUT );    # encode_json emits UTF-8 bytes; do not re-encode
         print "Status: 429 Too Many Requests\r\n";
         print "Retry-After: $rl->{retry_after}\r\n";
         print "Content-Type: application/json; charset=utf-8\r\n\r\n";
@@ -568,7 +568,7 @@ sub action_preview_grant {
     log_event( 'INFO', 'preview-grant', 'preview granted',
         layout => $layout, theme => $theme, user => $auth_user );
 
-    binmode( STDOUT, ':utf8' );
+    binmode( STDOUT );    # encode_json emits UTF-8 bytes; do not re-encode
     print "Status: 200 OK\r\n";
     print "Set-Cookie: $PREVIEW_COOKIE=$value; HttpOnly; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure\r\n";
     # Non-HttpOnly UI marker so the manager can show/hide "Stop preview".
@@ -581,7 +581,7 @@ sub action_preview_grant {
 sub action_preview_clear {
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
     log_event( 'INFO', 'preview-clear', 'preview cleared', user => $auth_user );
-    binmode( STDOUT, ':utf8' );
+    binmode( STDOUT );    # encode_json emits UTF-8 bytes; do not re-encode
     print "Status: 200 OK\r\n";
     print "Set-Cookie: $PREVIEW_COOKIE=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
     print "Set-Cookie: ${PREVIEW_COOKIE}_active=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";

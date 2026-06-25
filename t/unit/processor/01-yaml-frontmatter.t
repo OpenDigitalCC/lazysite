@@ -103,4 +103,10 @@ load_processor($docroot);
     unlike( $meta->{form}, qr{/}, 'form name loses slash' );
 }
 
+{
+    my ($m) = main::parse_yaml_front_matter(qq(---\ntitle: "Quoted Title"\nsub: 'Single'\n---\nx\n));
+    is( $m->{title}, "Quoted Title", "double-quoted scalar: surrounding quotes stripped" );
+    is( $m->{sub}, "Single", "single-quoted scalar: surrounding quotes stripped" );
+}
+
 done_testing();

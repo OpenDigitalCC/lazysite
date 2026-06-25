@@ -14,7 +14,11 @@ this task is to reconcile the rest, not duplicate. Sources:
 
 ## Status
 
-Queued - not yet done. Observed 2026-06-24.
+**Done (2026-06-24, re-validated 2026-06-25).** Both the code work (the
+activation asset mirror, pinned by `t/unit/lib/10-theme-mirror.t`) and the
+documentation reconciliation are complete (see the DONE sections below); the
+"Open documentation work" list was folded into the briefings during that pass.
+Future partner reports refresh this from `lazysite-sites/reports/`.
 
 ## Already addressed (verify, don't redo)
 

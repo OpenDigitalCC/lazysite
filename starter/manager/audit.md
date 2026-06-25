@@ -35,6 +35,7 @@ query_params:
   .audit-table th, .audit-table td { text-align:left; padding:0.3rem 0.5rem; border-bottom:1px solid #eee; }
   .audit-table th { color:#666; font-weight:600; }
   .audit-fail { color:#c33; }
+  .audit-info { color:#c33; text-decoration:none; cursor:pointer; font-size:0.95rem; }
   .audit-detail { color:#c33; font-size:0.8rem; opacity:0.85; }
 </style>
 
@@ -112,8 +113,11 @@ function loadAudit() {
       var cls = e.status === 'fail' ? ' class="audit-fail"' : '';
       var statusCell = aesc(e.status);
       if (e.status === 'fail' && e.detail) {
-        statusCell = '<span title="' + aesc(e.detail) + '">' + aesc(e.status) +
-          ' &#9432;</span> <span class="audit-detail">' + aesc(e.detail) + '</span>';
+        // The reason is a click-to-reveal popup on the (i), not always inline.
+        statusCell = aesc(e.status) +
+          ' <a href="#" class="audit-info" title="' + aesc(e.detail) +
+          '" onclick="var d=this.nextElementSibling;d.style.display=(d.style.display===\'none\'?\'inline\':\'none\');return false;">&#9432;</a>' +
+          '<span class="audit-detail" style="display:none"> ' + aesc(e.detail) + '</span>';
       }
       h += '<tr' + cls + '><td>' + aesc(e.ts) + '</td><td>' + auditUserLink(e.user) +
         '</td><td>' + aesc(e.origin || '') +

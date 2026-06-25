@@ -85,7 +85,9 @@ sub write_file_checked {
 # Emit a JSON response (200).
 sub respond {
     my ($data) = @_;
-    binmode( STDOUT, ':utf8' );
+    # encode_json already emits UTF-8 bytes; print raw (a :utf8 layer would
+    # double-encode non-ASCII content into mojibake).
+    binmode( STDOUT );
     print "Status: 200 OK\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json($data);

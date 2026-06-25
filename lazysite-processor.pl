@@ -1341,7 +1341,13 @@ sub parse_yaml_front_matter {
             next if $1 eq 'tags' && ref $meta{tags} eq 'ARRAY';
             next if $1 eq 'auth_groups' && ref $meta{auth_groups} eq 'ARRAY';
             # Strip TT directives from all scalar values including title and subtitle
-            $meta{$1} = strip_tt_directives($2);
+            my ( $k, $v ) = ( $1, strip_tt_directives($2) );
+            # YAML quoting: a matched pair of surrounding quotes is syntax, not
+            # content - strip one level so `title: "Welcome"` yields Welcome (not
+            # a literal "Welcome" that a template then double-quotes).
+            $v =~ s/\s+\z//;
+            $v =~ s/\A"(.*)"\z/$1/s or $v =~ s/\A'(.*)'\z/$1/s;
+            $meta{$k} = $v;
         }
 
         # Sanitise auth value

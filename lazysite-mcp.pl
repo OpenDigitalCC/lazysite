@@ -57,7 +57,9 @@ my %AUTH_INFO = ( method => 'none', expires_at => undef );
 sub send_json {
     my ($obj) = @_;
     my $body = encode_json($obj);
-    binmode STDOUT, ':utf8';
+    # encode_json already emits UTF-8 bytes; print them raw. A :utf8 layer here
+    # would re-encode them (so a literal +/- becomes mojibake on read/preview).
+    binmode STDOUT;
     print "Status: 200 OK\r\n";
     print "Content-Type: application/json\r\n";
     print "MCP-Protocol-Version: $PROTOCOL\r\n";
@@ -95,7 +97,7 @@ sub send_401 {
     my $msg = $had_cred
         ? 'Credential did not verify (expired or revoked) - reconnect the connector.'
         : 'Connector sign-in incomplete - finish authorising the connector before calling tools (this is not a missing-header you can fix in the prompt).';
-    binmode STDOUT, ':utf8';
+    binmode STDOUT;    # encode_json emits UTF-8 bytes; do not re-encode
     print "Status: 401 Unauthorized\r\n";
     print "WWW-Authenticate: Bearer resource_metadata=\"$meta\"\r\n";
     print "Content-Type: application/json\r\n";
@@ -241,7 +243,20 @@ my %TOOLS = (
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' }, content => { type => 'string' } },
             required => [ 'path', 'content' ], additionalProperties => JSON::PP::false },
-        run => sub { action_save( $_[0]->{path}, $_[1], $_[0]->{content}, undef ) },
+        run => sub {
+            my ( $a, $user ) = @_;
+            my $r = action_save( $a->{path}, $user, $a->{content}, undef );
+            # Validate-on-write: surface front-matter / form / public-data issues
+            # in the write result so the agent sees them without a second call.
+            if ( ref $r eq 'HASH' && $r->{ok} ) {
+                my $v = _validate_page( undef, $a->{content}, $user );
+                if ( ref $v eq 'HASH' ) {
+                    $r->{warnings} = $v->{warnings} if $v->{warnings} && @{ $v->{warnings} };
+                    $r->{issues}   = $v->{issues}   if $v->{issues}   && @{ $v->{issues} };
+                }
+            }
+            return $r;
+        },
     },
     replace_text => {
         description => 'Edit a file by replacing exact text - safer than rewriting the whole file for a small change to a page with HTML / front matter / scripts. Replaces every occurrence of "old" with "new"; errors if "old" is not present. read_file first to copy the exact text (including whitespace).',

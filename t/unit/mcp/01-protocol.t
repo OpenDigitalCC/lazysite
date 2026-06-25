@@ -119,6 +119,13 @@ ok( ( grep { $_->{name} eq 'page.md' } @{ $sc->{entries} } ), 'list_files return
 ok( !$r->{result}{isError}, 'write_file succeeds' );
 ok( -f "$d/content/new.md", 'write_file created the file on disk' );
 
+# --- non-ASCII round-trips (no double-encode mojibake) ---
+( $st, $r ) = call( 'write_file', { path => '/content/utf8.md', content => "price \x{a3}5, flexible \x{b1}1 day - caf\x{e9}\n" }, $bearer_lim );
+ok( !$r->{result}{isError}, 'write_file with non-ASCII succeeds' );
+( $st, $r ) = call( 'read_file', { path => '/content/utf8.md' }, $bearer_lim );
+is( $r->{result}{structuredContent}{content}, "price \x{a3}5, flexible \x{b1}1 day - caf\x{e9}\n",
+    'non-ASCII (pound/plus-minus/accent) round-trips intact - no mojibake' );
+
 # --- replace_text: exact patch edit (no whole-file overwrite) ---
 ( $st, $r ) = call( 'replace_text', { path => '/content/new.md', old => 'fresh', new => 'updated' }, $bearer_lim );
 ok( !$r->{result}{isError}, 'replace_text succeeds' );
