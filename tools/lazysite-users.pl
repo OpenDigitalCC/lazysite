@@ -1590,8 +1590,10 @@ list_files to see the site's layout before changing anything. A page is a
 Markdown file served at its own path - about.md serves at /about, docs/help.md
 at /docs/help; pages usually sit at the site root, not under a content/ folder,
 so check list_files rather than assuming a path. read_file before you edit,
-write_file to add or change a page, then fetch the rendered URL to confirm. Make
-one change at a time.
+write_file to add or change a page, then confirm the change with read_file again
+through the connector - do NOT verify by fetching the rendered web page (that is
+a separate slow request that can stall; the published page re-renders for
+visitors automatically). Make one change at a time.
 PROMPT
 }
 
