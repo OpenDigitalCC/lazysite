@@ -174,7 +174,7 @@ function accessBadge(f) {
   var hasGroup = false;
   for (var i = 0; i < listed.length; i++) { if (/^@/.test(listed[i])) { hasGroup = true; break; } }
   var g = hasGroup ? ' <span class="mg-rwflag-g" title="a @group is granted access">g</span>' : '';
-  return owner + ' ' + r + w + g;
+  return owner + g + ' ' + r + w;
 }
 
 function lockGlyph(f) {
@@ -351,8 +351,8 @@ function togglePerms(el) {
   var allCards = document.querySelectorAll('.mg-perms-row');
   for (var i = 0; i < allCards.length; i++) allCards[i].style.display = 'none';
   var allChev = document.querySelectorAll('.mg-chev');
-  for (var j = 0; j < allChev.length; j++) allChev[j].innerHTML = '&#9662;';
-  if (willOpen) { card.style.display = ''; el.innerHTML = '&#9652;'; }
+  for (var j = 0; j < allChev.length; j++) { allChev[j].innerHTML = '&#9662;'; allChev[j].classList.remove('mg-chev-open'); }
+  if (willOpen) { card.style.display = ''; el.innerHTML = '&#9652;'; el.classList.add('mg-chev-open'); }
 }
 
 function savePerms(btn) {

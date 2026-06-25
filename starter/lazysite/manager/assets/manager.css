@@ -584,9 +584,22 @@
 }
 .mg-chev:hover { color: var(--mg-accent); }
 
+/* Users page: explains the two access domains sharing one account set. */
+.mg-domain-note {
+    margin: 0.5rem; padding: 0.7em 1em; font-size: 0.88em; line-height: 1.5;
+    background: var(--mg-bg-alt, #f6f6f6);
+    border-left: 3px solid var(--mg-accent); border-radius: 4px;
+}
+/* The expander turns accent-blue while its row is open, so the open file is
+   easy to spot. */
+.mg-chev-open, .mg-chev-open:hover { color: var(--mg-accent); }
+
+/* The open editor is bracketed top and bottom by an accent rule, visually
+   tying the expanded details to the file row above it. */
 .mg-perms-row .mg-perms-cell {
     padding: 0;
     background: var(--mg-bg-alt, #f6f6f6);
+    border-top: 2px solid var(--mg-accent);
     border-bottom: 2px solid var(--mg-accent);
 }
 .mg-perms-card { padding: 1em 1.2em 1.1em; max-width: 56em; }

@@ -6,6 +6,15 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
+<div class="mg-domain-note">
+<b>Two access domains, one set of accounts.</b> The users and groups below are
+shared by both: <b>file management</b> &mdash; internal access through the manager
+UI, the control API and AI connectors, governed by each account's capabilities
+and per-file rights; and <b>site access</b> &mdash; external visitor / member
+login on the published site. The same username or <code>@group</code> is the same
+identity in both domains; only <em>where</em> it is granted differs.
+</div>
+
 <div class="mg-card">
 <div class="mg-card-header">
 <span class="mg-card-title">Users</span>
