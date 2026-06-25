@@ -18,6 +18,33 @@ Keying
 
 ## Unreleased
 
+## 0.4.11 - Form field types + connector editing tools (SM087) (2026-06-25)
+
+Feature - more form field types
+: The form syntax gains `tel` (with a default validation pattern), `date`, `time`,
+  `number` (with `min:`/`max:` value bounds), `url`, and `password`, plus
+  `pattern:REGEX` for custom validation and a `placeholder:` rule. Values that
+  need spaces are quoted: `placeholder:"Your full name"`.
+
+Feature - safer, higher-level connector tools (from live ChatGPT use)
+: New MCP tools make AI-driven editing safer and page-aware:
+  `replace_text` (patch a file by exact text instead of rewriting it - errors if
+  the text is absent), `search_files` (content grep), `page_status` (is an edit
+  rendered/live + public URL), `read_page` / `list_pages` (page-level view with
+  parsed front matter), `validate_page` (front-matter / form-rule checks + a
+  **public-data warning** for Wi-Fi passwords / addresses / phone numbers), and
+  `audit_site` (broken links, orphans, missing titles, stale HTML, duplicate
+  content blocks). Error responses now carry a machine-readable `kind`.
+
+Fix - generated indexes refresh on change
+: A content delete/save/move now refreshes the generated `sitemap.xml`,
+  `llms.txt` and feeds, so a deleted page no longer lingers in them (they
+  previously only refreshed on a 4-hour TTL).
+
+Change - audit log pagination
+: The audit page shows 50 material events per page with Prev/Next; the reader
+  takes `page`/`per_page`.
+
 ## 0.4.10 - Overlay onto an existing site + content backups (SM084) (2026-06-25)
 
 Fix - non-destructive install (overlay onto a live HTML/SSI site)
