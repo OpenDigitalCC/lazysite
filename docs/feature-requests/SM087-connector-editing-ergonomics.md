@@ -65,6 +65,35 @@ validation + audit_site) is the bulk of the day-to-day safety. Tier 3 changesets
 ride on [[SM085]]; screenshots are a separate, heavier track. Together these turn
 the connector from "filesystem with auth" into a safe content-management surface.
 
+## Claude.ai assessment (2026-06-25, separate live session)
+
+A grounded Claude.ai review of the *deployed* connector mapped to status:
+
+- **Tool manifest / discovery** (their #1) - **DONE**: whoami echoes `tools: [...]`.
+- **Write-time validation/lint** (#2) - `validate_page` done; auto-run on write is
+  the follow-on.
+- **Authenticated render/preview** (#3) - **TODO (high value)**: a `preview_page`
+  that returns the rendered HTML (bypassing cache) so verification stays
+  in-channel; it surfaced two real bugs. `page_status` partly covers "is it live".
+- **Partial-edit** (#4) - **DONE**: `replace_text`.
+- **401 disambiguation** (#5) - **DONE**: sign-in-incomplete vs credential-invalid
+  + `error.data.reason`.
+- **copy_file** - **DONE**. **get_permissions** (read ACL) - **DONE**.
+- **Config-write cache invalidation** - **DONE**: a nav.conf save clears all
+  caches + flags `cache_rebuilt`. (Follow-on: config-set / lazysite.conf too.)
+- **search_files** - **DONE** (earlier this cycle).
+- **ACL model discoverability** - partly: `get_permissions` reads state; a richer
+  describe/schema is a follow-on.
+
+Two processor bugs the agent met through the connector (capture - fix in the
+processor, expose via `preview_page`/`validate_page`):
+- `:::`-fenced divs don't run block-level Markdown on their content (a heading
+  inside a box leaks literal `##`).
+- `select:` options truncate at the first space - mitigated by quoting
+  (`select:"Dog friendly,No dogs"`, shipped 0.4.11); the unquoted case still bites.
+
 ## Status
 
-Queued. Raised 2026-06-25 from live ChatGPT use. Item 1 (replace_text) shipped.
+Raised 2026-06-25 (ChatGPT + Claude.ai live use). Most of Tier 1/2 + the Claude.ai
+quick wins shipped. Remaining high-value: `preview_page`, validate-on-write, the
+fenced-div processor fix, and the page-API verbs (create/delete/rename).
