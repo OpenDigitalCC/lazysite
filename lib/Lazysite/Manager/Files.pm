@@ -241,8 +241,28 @@ sub action_save {
 
     log_event('INFO', $action, 'file saved', path => $rel_path, user => $auth_user);
 
+    _invalidate_registries();
+
     my @st = stat($full);
     return { ok => 1, path => $rel_path, mtime => $st[9] // 0, created => $existed ? 0 : 1 };
+}
+
+# SM087: a content create/delete/move changes the page set (or a page's lastmod),
+# so the generated registries (sitemap.xml, llms.txt, feed.*) are now stale.
+# Removing the generated outputs makes the processor regenerate them fresh on the
+# next request (update_registries rebuilds a missing output) - the cross-process
+# refresh that fixes "deleted page still in sitemap/llms".
+sub _invalidate_registries {
+    my $rdir = "$DOCROOT/lazysite/templates/registries";
+    return unless -d $rdir;
+    opendir my $dh, $rdir or return;
+    my @tt = grep { /\.tt$/ } readdir $dh;
+    closedir $dh;
+    for my $t (@tt) {
+        ( my $out = $t ) =~ s/\.tt$//;
+        unlink "$DOCROOT/$out" if -f "$DOCROOT/$out";
+    }
+    return;
 }
 
 sub action_delete {
@@ -286,6 +306,7 @@ sub action_delete {
     unlink $cache if -f $cache;
 
     log_event('INFO', $action, 'file deleted', path => $rel_path, user => $auth_user);
+    _invalidate_registries();
 
     return { ok => 1, path => $rel_path };
 }
@@ -373,6 +394,7 @@ sub action_move {
     unlink $lock_file if -f $lock_file;
     log_event( 'INFO', $action, 'file moved',
         from => $src_rel, to => $dst_rel, user => $auth_user );
+    _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $d->{rel} };
 }
 

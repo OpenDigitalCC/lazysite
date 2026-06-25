@@ -15,17 +15,15 @@ generated-index refresh and rollback.**
 
 ## Tier 1 - safer primitives (quick wins)
 
-1. **Patch editing** (was the #1 ask) - replace exact text instead of rewriting a
-   whole file. **DONE**: `replace_text(path, old, new)` MCP tool (errors if `old`
-   absent; reports replacement count). Follow-ons: `insert_after_heading`,
-   `replace_between(start, end)`, `apply_unified_diff`.
-2. **Content search / grep** (#6): `search_files(query)` / `grep(pattern, path)` /
-   `find_links_to(path)` - walk text content, return path + line snippets. Caps +
-   excludes binary/generated.
-3. **Generated-index refresh** (#3): deleting/renaming a page leaves `sitemap.xml`,
-   `llms.txt`, `feed.atom`, search index stale. Investigate WHEN these regenerate;
-   add explicit `rebuild_sitemap` / `rebuild_llms` / `rebuild_feed` /
-   `rebuild_search_index`, and warn when deleting a page still referenced by them.
+1. **Patch editing** (was the #1 ask) - **DONE**: `replace_text(path, old, new)`
+   MCP tool (errors if `old` absent; reports replacement count). Follow-ons:
+   `insert_after_heading`, `replace_between(start, end)`, `apply_unified_diff`.
+2. **Content search / grep** (#6) - **DONE**: `search_files(query, path)` MCP tool
+   (file/match-capped, snippets). Follow-ons: `find_links_to(path)`.
+3. **Generated-index refresh** (#3) - **DONE**: a content delete/save/move now
+   invalidates the generated registries (sitemap.xml, llms.txt, feed.*) so the
+   processor rebuilds them fresh on the next request - no more stale references to
+   a deleted page. (The registries previously only refreshed on a 4h TTL.)
 4. **Cache / publish status** (#9): per-page last-rendered time, cache state,
    whether sitemap/llms/feed are stale, the public URL, and a "source saved but
    render not refreshed" flag.
