@@ -18,6 +18,27 @@ Keying
 
 ## Unreleased
 
+## 0.4.13 - Fenced-div Markdown fix + connector review follow-ups (2026-06-25)
+
+Fix - block Markdown inside ::: boxes
+: A heading or list inside a `:::` fenced div leaked literal Markdown (`## Heading`)
+  because Text::MultiMarkdown treats `<div>` content as verbatim. The box body is
+  now rendered (block + inline); a top-level `<style>` block is also no longer
+  paragraph-wrapped. Found via the live Claude.ai connector review.
+
+Feature - auth lifetime in whoami
+: `whoami` returns an `auth` block - `{ method: oauth|bearer, expires_at }` - so an
+  agent sees how its session is authenticated and when it lapses. For OAuth this is
+  the access-token expiry (previously opaque; `token_expires_at` only reflected the
+  static credential).
+
+Change - audit target links to the editor
+: A file target in the audit log opens in the manager editor (covers `.md`,
+  `.conf`, `.brief` and other editable files), not only public pages.
+
+Docs - new feature-request candidates filed: SM089 (3D-rendered layout) and SM090
+  (social syndication / POSSE).
+
 ## 0.4.12 - Connector polish, in-channel preview, form binding (2026-06-25)
 
 Feature - more connector tools (from live Claude.ai / ChatGPT use)
