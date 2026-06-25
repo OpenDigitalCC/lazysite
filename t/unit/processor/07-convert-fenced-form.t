@@ -78,6 +78,16 @@ load_processor($docroot);
     like( $out, qr/pattern="\[0-9 /,              'pattern with a space (quoted)' );
 }
 
+# --- multi-word select options (select: takes the rest of the line) ---
+{
+    my $out = main::convert_fenced_form(
+        "::: form\ndog | Dog | required select:No,Yes - one small to medium-sized dog\nsubmit | Go\n:::\n",
+        { form => 'q' } );
+    like( $out, qr/<option value="No">/, 'first select option intact' );
+    like( $out, qr/<option value="Yes - one small to medium-sized dog">/,
+        'multi-word select option renders whole (no truncation, no quotes needed)' );
+}
+
 # --- textarea rule renders <textarea> ---
 {
     my $out = main::convert_fenced_form(

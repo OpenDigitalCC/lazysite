@@ -652,7 +652,10 @@ sub _validate_page {
             next unless length $line;
             my ( $name, undef, $rules ) = split /\s*\|\s*/, $line, 3;
             next if !defined $name || $name eq 'submit' || !defined $rules;
-            for my $tok ( split /\s+/, $rules ) {
+            # select: takes the rest of the line (its options are not rules and may
+            # contain spaces) - drop it before checking the remaining rule tokens.
+            ( my $check = $rules ) =~ s/\bselect:.*$//s;
+            for my $tok ( split /\s+/, $check ) {
                 next if $FORM_FLAGS{$tok} || $tok =~ /^[a-z]+:/;    # known flag or key:value
                 next if $tok !~ /^[a-z]+$/;                          # only flag plain words
                 push @issues, { kind => 'invalid-form-rule',

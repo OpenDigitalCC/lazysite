@@ -178,6 +178,10 @@ ok( ( grep { $_->{kind} eq 'public-phone' } @$vw ),      'validate_page warns on
     "---\ntitle: T\n---\n::: form\nname | Name | requierd\nsubmit | Go\n:::\n" }, $bearer_lim );
 ok( ( grep { $_->{kind} eq 'invalid-form-rule' } @{ $r->{result}{structuredContent}{issues} || [] } ),
     'validate_page flags an unknown form rule (typo)' );
+( $st, $r ) = call( 'validate_page', { content =>
+    "---\ntitle: T\n---\n::: form\ndog | Dog | required select:No,Yes - one small to medium dog\nsubmit | Go\n:::\n" }, $bearer_lim );
+ok( !( grep { $_->{kind} eq 'invalid-form-rule' } @{ $r->{result}{structuredContent}{issues} || [] } ),
+    'validate_page does not flag the words inside a multi-word select option' );
 
 # --- audit_site: broken link + duplicate block + missing title ---
 my $shared = "This exact testimonial paragraph is shared across two pages and is plenty long.";

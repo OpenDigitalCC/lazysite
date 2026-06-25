@@ -1528,8 +1528,12 @@ sub _render_form {
         while ( length $rs ) {
             $rs =~ s/^\s+//;
             last unless length $rs;
-            if    ( $rs =~ s/^([A-Za-z]+:)"([^"]*)"// ) { push @rule_tokens, "$1$2"; }
-            elsif ( $rs =~ s/^(\S+)// )                 { push @rule_tokens, $1; }
+            # select: takes the REST of the line - its comma-separated options may
+            # contain spaces, so put select: last among a field's rules. (Quotes
+            # around the list or an option are tolerated and stripped on render.)
+            if    ( $rs =~ s/^(select:.*)\z//s )        { push @rule_tokens, $1; }
+            elsif ( $rs =~ s/^([A-Za-z]+:)"([^"]*)"// )  { push @rule_tokens, "$1$2"; }
+            elsif ( $rs =~ s/^(\S+)// )                  { push @rule_tokens, $1; }
             else  { last; }
         }
         for my $r ( @rule_tokens ) {
@@ -1566,6 +1570,9 @@ sub _render_form {
             $field_html .= qq(      <option value="">-- Select --</option>\n);
             for my $opt ( @{ $rules{select} } ) {
                 $opt =~ s/^\s+|\s+$//g;
+                $opt =~ s/^"+//; $opt =~ s/"+$//;    # tolerate a quoted option list / option
+                $opt =~ s/^\s+|\s+$//g;
+                next unless length $opt;
                 $field_html .= qq(      <option value="$opt">$opt</option>\n);
             }
             $field_html .= qq(    </select>\n);
