@@ -38,6 +38,9 @@ use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
 
 our $VERSION = '0.1';
 my $PROTOCOL = '2025-11-25';
+# Cap a single read_file response so a huge file can't produce a slow/oversized
+# reply that trips the client's per-call timeout. Normal pages are a few KB.
+my $MAX_READ_BYTES = 512 * 1024;
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // '';
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
@@ -194,7 +197,19 @@ my %TOOLS = (
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
             required => ['path'], additionalProperties => JSON::PP::false },
-        run => sub { action_read( $_[0]->{path}, $_[1] ) },
+        run => sub {
+            my $out = action_read( $_[0]->{path}, $_[1] );
+            # Guard against an oversized response (slow transfer / client
+            # timeout). Refuse rather than truncate - a truncated read that gets
+            # written back would destroy content.
+            if ( ref $out eq 'HASH' && $out->{ok} && defined $out->{content}
+                 && length( $out->{content} ) > $MAX_READ_BYTES ) {
+                return { ok => 0, too_large => 1, path => $_[0]->{path},
+                    error => 'File too large to read through the connector ('
+                        . length( $out->{content} ) . ' bytes); edit it over WebDAV instead.' };
+            }
+            return $out;
+        },
     },
     write_file => {
         description => 'Create or overwrite a text file with the given content.',
