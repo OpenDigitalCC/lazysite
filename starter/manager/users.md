@@ -272,8 +272,8 @@ function renderUserRow(row) {
 
   // --- AI partner onboarding (publishing accounts only) ---
   if (webdav) {
-    var ob = '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showConnector(\'' + ue + '\')">Set up Claude.ai</button>' +
-      '<span class="mg-muted">OAuth connector setup (add by URL, enter a connect code at sign-in) &mdash; easiest, for ongoing tweaks via the web app</span></div>' +
+    var ob = '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showConnector(\'' + ue + '\')">Connect an AI assistant</button>' +
+      '<span class="mg-muted">OAuth connector for Claude.ai / ChatGPT / any MCP web app &mdash; <a href="/docs/ai-connector-setup" target="_blank">guide</a></span></div>' +
       '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showOnboarding(\'' + ue + '\')">Generate agent brief</button>' +
       '<span class="mg-muted">pairing-key + API/WebDAV brief &mdash; for Claude Code or a script (deliver the key out of band)</span></div>' +
       '<div id="onb-' + ue + '" style="display:none"></div>';
@@ -410,10 +410,10 @@ function closeOnboarding(user) {
   if (box) { box.style.display = 'none'; box.innerHTML = ''; box._text = ''; }
 }
 
-// SM076: two-step Claude.ai connector setup. Step 1 is a styled instruction
-// card (add the connector, then enter the connect code at Claude.ai's OAuth
-// prompt). We poll until the connection authenticates, then reveal Step 2 - the
-// no-secret task prompt to paste to Claude.
+// SM076: two-step, client-neutral connector setup. Step 1 is a styled
+// instruction card (add the connector in any MCP web app, then enter the connect
+// code at the OAuth prompt). We poll until the connection authenticates, then
+// reveal Step 2 - the no-secret task prompt to paste to the assistant.
 function showConnector(user) {
   var box = document.getElementById('onb-' + user);
   apiCall({ action: 'onboarding-web', username: user })
@@ -426,16 +426,17 @@ function showConnector(user) {
       box.style.display = '';
       box.innerHTML =
         '<div class="mg-onb-card">' +
-        '<div class="mg-onb-head"><strong>Step 1 &mdash; connect Claude.ai (do this once)</strong>' +
+        '<div class="mg-onb-head"><strong>Step 1 &mdash; connect your AI assistant (do this once)</strong>' +
         '<button class="mg-btn mg-btn-sm" onclick="closeOnboarding(\'' + ue + '\')">Close</button></div>' +
         '<ol class="mg-onb-list">' +
-        '<li>In Claude.ai, open <b>Settings</b> (click your username) &rarr; the <b>Connectors</b> section under <i>Customize</i> &rarr; <b>Add custom connector</b>.</li>' +
-        '<li>Enter these, leave <b>Advanced settings</b> blank, then press <b>Add</b>:' +
+        '<li>In your AI app, add a custom MCP connector with this URL:' +
         '<div class="mg-code-box"><div>Name&ensp;<code>' + dom + '</code></div>' +
-        '<div>URL&ensp;<code>' + url + '</code></div></div></li>' +
-        '<li>Within <b>15 minutes</b>, open a <b>new chat</b>, turn on the &ldquo;' + dom + '&rdquo; connector, and tell Claude: ' +
-        '<i>&ldquo;Use the ' + dom + ' connector &mdash; run whoami.&rdquo;</i></li>' +
-        '<li>Claude.ai shows a pop-up asking for a one-time authorisation token. Paste this code into it:' +
+        '<div>URL&ensp;<code>' + url + '</code></div></div>' +
+        '<span class="mg-muted"><b>Claude.ai:</b> Settings &rarr; Connectors &rarr; Add custom connector. ' +
+        '<b>ChatGPT:</b> Settings &rarr; Apps &rarr; Developer mode &rarr; create. ' +
+        '<a href="/docs/ai-connector-setup" target="_blank">full guide</a></span></li>' +
+        '<li>Open a <b>new chat</b>, enable the &ldquo;' + dom + '&rdquo; connector, and ask the assistant to <b>run whoami</b>.</li>' +
+        '<li>When it asks you to sign in, paste this one-time connect code:' +
         '<div class="mg-code-box mg-code-token"><code id="cc-' + ue + '">' + code + '</code>' +
         '<button class="mg-btn mg-btn-sm" onclick="copyConnectCode(\'' + ue + '\')">Copy</button></div>' +
         '<span class="mg-muted">Single-use, expires in 15&nbsp;min. If it expires before you use it, ' +
