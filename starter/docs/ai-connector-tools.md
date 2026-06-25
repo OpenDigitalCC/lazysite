@@ -70,7 +70,7 @@ machine-readable `kind`:
 
 ## Tools
 
-22 tools. **Reads** are not audited; **writes** are recorded in the audit log as
+27 tools. **Reads** are not audited; **writes** are recorded in the audit log as
 material events and may trigger the AI client's per-call approval. All file tools
 need `manage_content` unless noted.
 
@@ -127,11 +127,27 @@ list_form_handlers
 : The configured form delivery handlers (id, type, name). No destinations or
   credentials are returned.
 
+read_nav
+: The site navigation as a structured list (items + children) plus the raw
+  nav.conf. Read before set_nav.
+
 ### Writing and editing (writes - audited)
 
 write_file `{ path, content }`
-: Create or overwrite a text file. Returns `created` (1 new / 0 overwrite). Audited
-  as `create` or `edit`.
+: Create or overwrite a text file. Returns `created` (1 new / 0 overwrite) and runs
+  `validate_page` on the content, returning any `warnings`/`issues`. Audited as
+  `create` or `edit`.
+
+create_page `{ slug, title, subtitle, body, register }`
+: Create a new page from front-matter fields + body; errors if it already exists.
+
+delete_page `{ slug }`
+: Delete a page and its `.brief`, and report `still_referenced_in` (nav, other
+  pages) for cleanup; generated indexes refresh automatically.
+
+rename_page `{ old, new, update_links }`
+: Rename / move a page (carries `.brief` + ACL); with `update_links`, rewrites
+  internal links to the old path across pages (nav.conf is not rewritten).
 
 replace_text `{ path, old, new }`
 : Replace exact text without rewriting the whole file - safer for a small change.
@@ -153,6 +169,11 @@ set_permissions `{ path, read, write }`
 bind_form `{ form, handler }`
 : Wire a form to delivery by referencing an existing handler from
   `list_form_handlers`. The connector never sets a destination or credential.
+
+set_nav `{ items }`
+: Replace the site navigation - `items` is an ordered list of `{ label, url }`
+  (a `children` list becomes a sub-menu; an item with no url is a section header).
+  Writes nav.conf and rebuilds the cache.
 
 ### Site operations
 

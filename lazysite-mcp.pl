@@ -388,6 +388,20 @@ my %TOOLS = (
             additionalProperties => JSON::PP::false },
         run => sub { _validate_page( $_[0]->{path}, $_[0]->{content}, $_[1] ) },
     },
+    read_nav => {
+        description => 'Read the site navigation as a structured list (top-level items with optional children) plus the raw nav.conf. Read this before set_nav to modify it.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run         => sub { _read_nav() },
+    },
+    set_nav => {
+        description => 'Replace the site navigation. items is an ordered list of { label, url } (a child list under "children" becomes an indented sub-menu; an item with no url is a section header). Writes lazysite/nav.conf and rebuilds the cache (nav is on every page).',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object',
+            properties => { items => { type => 'array', items => { type => 'object' } } },
+            required => ['items'], additionalProperties => JSON::PP::false },
+        run => sub { _set_nav( $_[0], $_[1] ) },
+    },
     create_page => {
         description => 'Create a new page from front-matter fields (title, subtitle, register list) + Markdown body. Errors if the page already exists (use write_file to overwrite). Higher-level than assembling front matter by hand.',
         cap         => 'manage_content',
@@ -842,6 +856,46 @@ sub _bind_form {
     return { ok => 1, form => $form, handler => $handler, path => "/lazysite/forms/$form.conf" };
 }
 
+# --- SM087: navigation (read_nav / set_nav) -------------------------------
+# nav.conf format: "Label | /url" per line; an indented line is a child; a line
+# with no "| url" is a section header. Default location lazysite/nav.conf.
+sub _read_nav {
+    my $f = "$LAZYSITE_DIR/nav.conf";
+    return { ok => 1, items => [], raw => '' } unless -f $f;
+    open my $fh, '<', $f or return { ok => 0, error => 'cannot read nav.conf' };
+    local $/; my $raw = <$fh>; close $fh;
+    my @items;
+    for my $line ( split /\n/, $raw ) {
+        next if $line =~ /^\s*#/ || $line !~ /\S/;
+        my $child = $line =~ /^\s+\S/ ? 1 : 0;
+        $line =~ s/^\s+//; $line =~ s/\s+$//;
+        my ( $label, $url ) = split /\s*\|\s*/, $line, 2;
+        my $item = { label => $label, ( defined $url && length $url ? ( url => $url ) : () ) };
+        if ( $child && @items ) { push @{ $items[-1]{children} ||= [] }, $item }
+        else                    { push @items, $item }
+    }
+    return { ok => 1, items => \@items, raw => $raw };
+}
+
+sub _set_nav {
+    my ( $a, $user ) = @_;
+    return { ok => 0, error => 'items array required' } unless ref $a->{items} eq 'ARRAY';
+    my $out = "# lazysite navigation\n# Format: Label | /url  (indent a line for a child)\n\n";
+    my $line = sub {
+        my ( $it, $indent ) = @_;
+        return '' unless ref $it eq 'HASH' && defined $it->{label} && length $it->{label};
+        ( my $l = $it->{label} ) =~ s/[|\r\n]+/ /g;
+        my $u = defined $it->{url} ? $it->{url} : '';
+        $u =~ s/[\r\n]+//g;
+        return $indent . ( length $u ? "$l | $u" : $l ) . "\n";
+    };
+    for my $it ( @{ $a->{items} } ) {
+        $out .= $line->( $it, '' );
+        $out .= $line->( $_, '  ' ) for @{ ref $it->{children} eq 'ARRAY' ? $it->{children} : [] };
+    }
+    return action_save( '/lazysite/nav.conf', $user, $out, undef );
+}
+
 # --- SM087: page-aware verbs (create / delete / rename) -------------------
 sub _yaml_scalar {
     my ($v) = @_;
@@ -932,6 +986,8 @@ my %ANNOTATE = (
     replace_text    => [ 0, 0, 1 ],
     copy_file       => [ 0, 0, 1 ],
     create_page     => [ 0, 0, 1 ],
+    read_nav        => [ 1, 0, 0 ],
+    set_nav         => [ 0, 0, 1 ],
     delete_page     => [ 0, 1, 1 ],
     rename_page     => [ 0, 0, 1 ],
     get_permissions => [ 1, 0, 0 ],
@@ -1024,7 +1080,7 @@ elsif ( $method eq 'tools/call' ) {
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
     my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1 );
+        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1, read_nav => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the

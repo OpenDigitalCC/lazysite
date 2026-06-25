@@ -33,10 +33,11 @@ generated-index refresh and rollback.**
 
 ## Tier 2 - higher-level + validation
 
-6. **Page-aware API** (#7) - **DONE**: `read_page`, `list_pages`, `create_page`,
-   `delete_page` (deletes the .brief + reports remaining references),
-   `rename_page` (with `update_links` rewriting internal links across pages).
-   Remaining: `set_nav` (nav.conf is not rewritten by `rename_page`).
+6. **Page-aware API** (#7) - **DONE (complete)**: `read_page`, `list_pages`,
+   `create_page`, `delete_page` (deletes the .brief + reports remaining
+   references), `rename_page` (with `update_links` across pages), and
+   `read_nav` / `set_nav` (structured navigation, written via action_save so it
+   audits + rebuilds the cache).
 7. **Validate before save** (#8) - **DONE**: `validate_page(path|content)`, also
    auto-run by `write_file` (warnings/issues returned in the write result) -
    unterminated front matter, missing title, invalid/typo'd form rules, and the

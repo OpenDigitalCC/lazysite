@@ -185,6 +185,18 @@ like( $r->{result}{structuredContent}{content}, qr{/renamed}, 'rename_page updat
 ( $st, $r ) = call( 'delete_page', { slug => 'renamed' }, $bearer_lim );
 ok( $r->{result}{structuredContent}{ok} && !( -f "$d/renamed.md" ), 'delete_page removes the page' );
 
+# --- nav: set_nav + read_nav round-trip ---
+( $st, $r ) = call( 'set_nav', { items => [
+    { label => 'Home', url => '/' },
+    { label => 'Info', children => [ { label => 'About', url => '/about' } ] },
+] }, $bearer_lim );
+ok( $r->{result}{structuredContent}{ok}, 'set_nav succeeds' ) or diag( encode_json($r) );
+( $st, $r ) = call( 'read_nav', {}, $bearer_lim );
+my $nav = $r->{result}{structuredContent}{items} || [];
+ok( ( grep { $_->{label} eq 'Home' && ( $_->{url} // '' ) eq '/' } @$nav ), 'read_nav: top-level item' );
+ok( ( grep { $_->{label} eq 'Info' && $_->{children} && $_->{children}[0]{label} eq 'About' } @$nav ),
+    'read_nav: section with a child' );
+
 # --- preview_page: in-channel server-side render ---
 ( $st, $r ) = call( 'preview_page', { path => '/content/about' }, $bearer_lim );
 ok( !$r->{result}{isError} && $r->{result}{structuredContent}{ok}, 'preview_page renders' );
