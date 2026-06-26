@@ -46,6 +46,24 @@ no-pollution seeding
 Writes nothing to the docroot in either case - the index and nav are generated
 per request, honouring the no-cache, read-only-browse spirit.
 
+## Security: auto-index is dev-only, production never lists
+
+A directory listing is a disclosure risk, so auto-index is confined to the local
+dev server and is **off by default** (opt-in `--auto-index`). A full install never
+lists a directory:
+
+- the **processor** returns `404` for a directory with no `index.md` - it has no
+  listing code, and `t/unit/processor/23-no-directory-listing.t` asserts it stays
+  that way (404, and the response never contains the directory's filenames);
+- the **Apache** config ships `Options -Indexes` (the Hestia vhosts and the
+  generic install doc), and `FallbackResource` only routes *non-existent* paths to
+  the processor - so a real directory with no `index.html` returns `403`, never a
+  listing.
+
+The dev server may show a generated index because it is explicitly a local
+development tool; the production request path (processor + Apache) must not, and is
+tested to confirm it.
+
 ## Non-goals (for this cut)
 
 - Persisting a generated `index.md` / `nav.conf` to disk (deliberately not done -
