@@ -18,6 +18,23 @@ Keying
 
 ## Unreleased
 
+## 0.4.29 - Manager UI: switches, toasts, modal dialogs (SM109 phase 2a) (2026-06-26)
+
+Feature - toggle switches
+: capability and plugin on/off toggles render as switches instead of bare checkboxes
+  (pure CSS), so state reads at a glance - the Claude/ChatGPT settings idiom.
+
+Feature - toast notifications
+: a global toast replaces the warning bar and per-page status line; `mgShowWarning`
+  and the pages' `showStatus` route to it, so feedback is consistent with no
+  call-site churn.
+
+Feature - styled confirm/prompt modal
+: a promise-based `mgConfirm` / `mgPrompt` modal replaces the browser-native
+  `confirm()` / `prompt()` (the strongest "unpolished" tell). All six Users-page
+  dialogs use it, with danger styling on destructive actions. The remaining pages'
+  dialogs (files/nav/themes/plugins/cache/edit) convert in phase 2b.
+
 ## 0.4.28 - Manager UI reskin, phase 1 (2026-06-26)
 
 Feature - manager UI visual refresh (SM109 phase 1)
