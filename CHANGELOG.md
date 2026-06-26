@@ -18,6 +18,20 @@ Keying
 
 ## Unreleased
 
+## 0.4.25 - One Connect flow; sub-user count badge (2026-06-26)
+
+Feature - one "Connect an AI assistant" flow per account (SM100)
+: the three parallel connector-credential controls (standalone Token, Connect an AI
+  assistant, Generate agent brief) are replaced by a single Connect section - pick the
+  client (Claude.ai/ChatGPT web, Claude Desktop, or Claude Code/script) and get the one
+  credential that works, with the reason shown inline. No more choosing the wrong one.
+  The Credentials section is now interactive-login only (password / setup link / 2FA),
+  for human accounts.
+
+Change - sub-user count in the heading
+: a parent account shows "(+N)" when it has sub-users. The Add-user parent default is
+  reworded to "(top-level account - no parent; managed by you)".
+
 ## 0.4.24 - Users-page UX; fleet health summary (2026-06-26)
 
 Feature - Users page reads as the hierarchy and roles it is
