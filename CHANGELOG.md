@@ -18,6 +18,17 @@ Keying
 
 ## Unreleased
 
+## 0.4.28 - Manager UI reskin, phase 1 (2026-06-26)
+
+Feature - manager UI visual refresh (SM109 phase 1)
+: a stylesheet-only reskin of the manager (no app-logic change). A new token set in
+  manager.css - warmer neutral surfaces, a single indigo accent off the Bootstrap
+  blue, desaturated status colours, softer radii, a real elevation scale, a focus
+  ring, and a disciplined 15px type scale - reskins every page at once because they
+  all consume the `--mg-*` variables. Cards gain soft elevation; primary buttons are
+  now solid and applied one-per-view (Add user / Add group / Config Save). Phases
+  2+ (switches, toasts, confirm modals, side-nav, dark mode) are tracked in SM109.
+
 ## 0.4.27 - Nav for token partners; feedback endpoint; do-not-retry (2026-06-26)
 
 Fix - WebDAV/control-API partners can manage the navigation
