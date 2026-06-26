@@ -63,7 +63,7 @@ identity in both domains; only <em>where</em> it is granted differs.
 <summary>+ Add group</summary>
 <div class="mg-card-body mg-new-group-row">
 <input type="text" id="new-group-name" placeholder="new group name">
-<input type="text" id="new-group-member" placeholder="first member">
+<select id="new-group-member" class="mg-inp"><option value="">first member&hellip;</option></select>
 <button class="mg-btn mg-btn-outline" onclick="createGroup()">Add group</button>
 </div>
 </details>
@@ -141,6 +141,7 @@ function loadUsers() {
                      .map(function(r) { return r.user; }).sort();
     populateAddUserGroups();
     populateAddUserParents();
+    populateNewGroupMember();
   }).catch(function(e) { showStatus('Failed to load users: ' + e.message, true); });
 }
 
@@ -718,6 +719,17 @@ function populateAddUserGroups() {
 }
 
 // Fill the "Create under" parent dropdown from accounts that can own sub-users.
+// Fill the "first member" of a new group from existing users (a group is defined
+// by its membership, so the first member must be an existing account).
+function populateNewGroupMember() {
+  var sel = document.getElementById('new-group-member');
+  if (!sel) return;
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">first member&hellip;</option>' +
+    allUsers.map(function(u) { return '<option value="' + escHtml(u) + '">' + escHtml(u) + '</option>'; }).join('');
+  sel.value = cur;
+}
+
 function populateAddUserParents() {
   var sel = document.getElementById('new-parent');
   if (!sel) return;
