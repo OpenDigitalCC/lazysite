@@ -18,6 +18,29 @@ Keying
 
 ## Unreleased
 
+## 0.4.27 - Nav for token partners; feedback endpoint; do-not-retry (2026-06-26)
+
+Fix - WebDAV/control-API partners can manage the navigation
+: `nav-read` / `nav-save` are now token-client control-API actions gated by
+  `manage_nav` (which inherits `manage_content` then `webdav`). Capabilities are read
+  live per request, so a grant applies immediately - no new pairing key. The
+  control-API `whoami` now also reports the effective content/nav/forms grants, and
+  the agent brief gained a "Managing the navigation" section (use nav-save, not a
+  WebDAV PUT to `lazysite/`, not MCP) with a stale claim removed.
+
+Feature - agent feedback endpoint (SM102)
+: a `submit_feedback` MCP tool writes an identity-stamped report (user/method/ip/
+  site/version/capabilities stamped server-side; agent supplies summary/good/bad/
+  rating/context) to `lazysite/feedback/`, audited as `feedback`.
+
+Feature - permanent tool failures tell the agent not to retry (SM101)
+: MCP tool errors carry `retryable: false` for permanent kinds (permission, blocked,
+  bad path, exists, ...) with an imperative hint; only transient kinds are retryable.
+
+Fix - doctor no longer flags www-data runtime files
+: locks / cache / generated html / audit.log are legitimately owned by the www-data
+  CGI; only a truly foreign owner (root, another user) is now a fault.
+
 ## 0.4.26 - Fix AI-account Credentials; nav/forms capabilities; editable parent (2026-06-26)
 
 Fix - AI account no longer shows "Credentials: undefined" (regression from 0.4.25)
