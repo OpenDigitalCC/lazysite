@@ -18,6 +18,24 @@ Keying
 
 ## Unreleased
 
+## 0.4.26 - Fix AI-account Credentials; nav/forms capabilities; editable parent (2026-06-26)
+
+Fix - AI account no longer shows "Credentials: undefined" (regression from 0.4.25)
+: the Credentials section was emitted outside its `if (ui)` guard, so an AI/backend
+  account rendered an undefined section. It is now shown only for human accounts.
+
+Feature - navigation and forms are their own capabilities (SM105/SM106)
+: `manage_nav` gates nav editing and `manage_forms` gates form binding, each
+  inheriting from `manage_content` (which inherits the WebDAV grant) unless set
+  explicitly - so existing content editors keep nav/forms, and either can be granted
+  on its own (e.g. a navigation/chrome editor without page-content write). Both appear
+  as toggles in Publishing access.
+
+Feature - the account hierarchy is editable (SM104)
+: the Parent/Move control is shown for every account, so a top-level account can be
+  placed under another (it sets managed_by); a sub-user heading shows whose account it
+  is under.
+
 ## 0.4.25 - One Connect flow; sub-user count badge (2026-06-26)
 
 Feature - one "Connect an AI assistant" flow per account (SM100)
