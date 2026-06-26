@@ -348,7 +348,7 @@ function renderPluginRegistry(plugins) {
       html += '<span class="mg-badge enabled" title="Always on - wired in the web server config, managed via its own page">core</span>';
     } else {
       var checked = p._enabled ? ' checked' : '';
-      html += '<input type="checkbox"' + checked + ' onchange="togglePlugin(this,\'' + esc(p._script) + '\',\'' + esc(p.name) + '\')">';
+      html += '<input type="checkbox" class="mg-toggle"' + checked + ' onchange="togglePlugin(this,\'' + esc(p._script) + '\',\'' + esc(p.name) + '\')">';
     }
     html += '<span class="mg-plugin-row-name">' + esc(p.name) + '</span>';
     html += '<span class="mg-plugin-row-desc">' + esc(p.description || '') + '</span>';

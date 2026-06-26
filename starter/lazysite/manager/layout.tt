@@ -33,6 +33,67 @@
     if (bar) bar.style.display = 'none';
   };
 
+  // SM109 phase 2: toast notifications + a styled confirm/prompt modal, replacing
+  // the warning bar and the native confirm()/prompt(). mgShowWarning and the pages'
+  // showStatus route to a toast, so existing feedback call sites need no change.
+  window.mgToast = function(msg, kind) {
+    var host = document.getElementById('mg-toasts');
+    if (!host) { host = document.createElement('div'); host.id = 'mg-toasts'; document.body.appendChild(host); }
+    var t = document.createElement('div');
+    t.className = 'mg-toast' + (kind ? ' mg-toast-' + kind : '');
+    t.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    t.textContent = msg || '';
+    host.appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add('mg-toast-in'); });
+    var ttl = (kind === 'error') ? 6000 : 3500;
+    setTimeout(function(){
+      t.classList.remove('mg-toast-in');
+      setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 250);
+    }, ttl);
+  };
+  window.mgShowWarning  = function(msg, isError){ window.mgToast(msg, isError ? 'error' : 'success'); };
+  window.mgClearWarning = function(){};
+  window.showStatus     = function(msg, isError){ window.mgToast(msg, isError ? 'error' : 'success'); };
+
+  // Promise-based modal: resolves true/false (confirm) or string/null (prompt).
+  function mgModal(opts) {
+    return new Promise(function(resolve){
+      var ov = document.createElement('div'); ov.className = 'mg-modal-overlay';
+      var box = document.createElement('div'); box.className = 'mg-modal';
+      var okClass = opts.danger ? ' mg-btn-danger' : ' mg-btn-primary';
+      box.innerHTML =
+        '<div class="mg-modal-msg"></div>' +
+        (opts.prompt ? '<input class="mg-inp mg-modal-input" type="text">' : '') +
+        '<div class="mg-modal-actions">' +
+          '<button class="mg-btn mg-btn-outline mg-modal-cancel"></button>' +
+          '<button class="mg-btn' + okClass + ' mg-modal-ok"></button>' +
+        '</div>';
+      box.querySelector('.mg-modal-msg').textContent = opts.msg || '';
+      box.querySelector('.mg-modal-cancel').textContent = opts.cancel || 'Cancel';
+      box.querySelector('.mg-modal-ok').textContent = opts.ok || 'OK';
+      ov.appendChild(box); document.body.appendChild(ov);
+      var input = box.querySelector('.mg-modal-input');
+      if (input) { input.value = (opts.value != null ? opts.value : ''); setTimeout(function(){ input.focus(); input.select(); }, 30); }
+      requestAnimationFrame(function(){ ov.classList.add('mg-modal-in'); });
+      function onKey(e){
+        if (e.key === 'Escape') close(opts.prompt ? null : false);
+        else if (e.key === 'Enter') close(opts.prompt ? (input ? input.value : '') : true);
+      }
+      function close(val){
+        document.removeEventListener('keydown', onKey);
+        ov.classList.remove('mg-modal-in');
+        setTimeout(function(){ if (ov.parentNode) ov.parentNode.removeChild(ov); }, 200);
+        resolve(val);
+      }
+      document.addEventListener('keydown', onKey);
+      box.querySelector('.mg-modal-ok').onclick = function(){ close(opts.prompt ? (input ? input.value : '') : true); };
+      box.querySelector('.mg-modal-cancel').onclick = function(){ close(opts.prompt ? null : false); };
+      ov.addEventListener('click', function(e){ if (e.target === ov) close(opts.prompt ? null : false); });
+    });
+  }
+  window.mgConfirm = function(msg, opts){ opts = opts || {}; return mgModal({ msg: msg, ok: opts.ok || 'Confirm', danger: opts.danger }); };
+  window.mgPrompt  = function(msg, value){ return mgModal({ msg: msg, prompt: true, value: value, ok: 'OK' }); };
+
   (function(){
     var MGR_API = '/cgi-bin/lazysite-manager-api.pl';
     var tokenPromise = fetch(MGR_API + '?action=csrf-token', { credentials: 'same-origin' })

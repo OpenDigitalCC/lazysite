@@ -88,19 +88,12 @@ var allUsers  = [];   // [username]
 var parentList = [];  // [username] - accounts that can own sub-users (create_sub_users)
 var MANAGER_GROUPS = [];  // SM094: site manager groups; members are operators
 
+// SM109 phase 2: route all status to the global toast.
 function showStatus(msg, isError) {
-  var el = document.getElementById('status');
-  if (isError) {
-    if (typeof mgShowWarning === 'function') mgShowWarning(msg, true);
-    if (el) { el.textContent = ''; el.className = 'mg-status'; }
-    return;
-  }
-  if (typeof mgClearWarning === 'function') mgClearWarning();
-  if (!el) return;
-  if (!msg) { el.textContent = ''; el.className = 'mg-status'; return; }
-  el.className = 'mg-status mg-status-success';
-  el.textContent = msg;
-  setTimeout(function() { showStatus(''); }, 3000);
+  if (!msg) return;
+  if (typeof mgToast === 'function') { mgToast(msg, isError ? 'error' : 'success'); return; }
+  var el = document.getElementById('status');   // fallback if the global is absent
+  if (el) { el.textContent = msg; el.className = 'mg-status' + (isError ? ' mg-status-error' : ' mg-status-success'); }
 }
 
 function escHtml(s) {
@@ -496,8 +489,9 @@ function connectAs(user, client) {
 }
 
 function generateCredential(user) {
-  if (!confirm('Generate a new credential for "' + user + '"? Any existing password or credential for this account will stop working.')) return;
-  apiCall({ action: 'token', username: user })
+  mgConfirm('Generate a new credential for "' + user + '"? Any existing password or credential for this account will stop working.', { ok: 'Generate' }).then(function(__ok) {
+    if (!__ok) return;
+    apiCall({ action: 'token', username: user })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
       var panel = document.getElementById('cred-' + user);
@@ -510,6 +504,7 @@ function generateCredential(user) {
       showStatus('Credential generated for "' + user + '".');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 function copyCred(user) {
@@ -646,15 +641,19 @@ function downloadOnb(user) {
 }
 
 function toggleDisabled(user, disabled) {
-  if (!disabled && !confirm('Disable "' + user + '"? They will be unable to authenticate anywhere until re-enabled.')) return;
   var act = disabled ? 'account-enable' : 'account-disable';
-  apiCall({ action: act, username: user })
+  var go = function() {
+    apiCall({ action: act, username: user })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
       showStatus((disabled ? 'Enabled' : 'Disabled') + ' "' + user + '".');
       loadUsers();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  };
+  if (disabled) { go(); return; }
+  mgConfirm('Disable "' + user + '"? They will be unable to authenticate anywhere until re-enabled.', { danger: true, ok: 'Disable' })
+    .then(function(__ok) { if (__ok) go(); });
 }
 
 function reassignUser(user) {
@@ -671,14 +670,16 @@ function reassignUser(user) {
 }
 
 function deleteUser(user) {
-  if (!confirm('Delete user "' + user + '"? This cannot be undone.')) return;
-  apiCall({ action: 'remove', username: user })
+  mgConfirm('Delete user "' + user + '"? This cannot be undone.', { danger: true, ok: 'Delete' }).then(function(__ok) {
+    if (!__ok) return;
+    apiCall({ action: 'remove', username: user })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
       showStatus('User "' + user + '" removed.');
       loadUsers();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 // Save the free-text annotation (comment) for an account.
@@ -787,13 +788,15 @@ function enable2fa(user) {
 
 function disable2fa(user) {
   var msg = document.getElementById('mfamsg-' + user);
-  if (!confirm('Disable two-factor for "' + user + '"?')) return;
-  apiCall({ action: 'mfa-disable', username: user })
+  mgConfirm('Disable two-factor for "' + user + '"?', { danger: true, ok: 'Disable' }).then(function(__ok) {
+    if (!__ok) return;
+    apiCall({ action: 'mfa-disable', username: user })
     .then(function(d) {
       if (msg) { msg.textContent = d.ok ? 'Disabled.' : d.error; msg.className = 'mg-inline-msg ' + (d.ok ? 'mg-ok' : 'mg-err'); }
       loadUsers();
     })
     .catch(function(e) {});
+  });
 }
 
 // Fill the Add-user group multi-select from the loaded groups.
@@ -907,12 +910,14 @@ function createGroup() {
 
 function deleteGroup(group) {
   var members = Array.isArray(allGroups[group]) ? allGroups[group] : [];
-  if (!confirm('Delete group "' + group + '"?' + (members.length ? ' Removes ' + members.length + ' member(s).' : ''))) return;
-  if (!members.length) { showStatus('Group "' + group + '" already empty.'); loadUsers(); return; }
-  var chain = Promise.resolve();
-  members.slice().forEach(function(m) { chain = chain.then(function() { return apiCall({ action: 'group-remove', username: m, group: group }); }); });
-  chain.then(function() { showStatus('Group "' + group + '" deleted.'); loadUsers(); })
-       .catch(function(e) { showStatus('Error: ' + e.message, true); loadUsers(); });
+  mgConfirm('Delete group "' + group + '"?' + (members.length ? ' Removes ' + members.length + ' member(s).' : ''), { danger: true, ok: 'Delete' }).then(function(__ok) {
+    if (!__ok) return;
+    if (!members.length) { showStatus('Group "' + group + '" already empty.'); loadUsers(); return; }
+    var chain = Promise.resolve();
+    members.slice().forEach(function(m) { chain = chain.then(function() { return apiCall({ action: 'group-remove', username: m, group: group }); }); });
+    chain.then(function() { showStatus('Group "' + group + '" deleted.'); loadUsers(); })
+         .catch(function(e) { showStatus('Error: ' + e.message, true); loadUsers(); });
+  });
 }
 
 function copyText(id) {
@@ -921,8 +926,9 @@ function copyText(id) {
 }
 
 function rotateAuthSecret() {
-  if (!confirm('This will sign every user (including you) out immediately. Every cookie currently in circulation will stop working. Proceed?')) return;
-  fetch(API + '?action=rotate-auth-secret', { method: 'POST' })
+  mgConfirm('This will sign every user (including you) out immediately. Every cookie currently in circulation will stop working. Proceed?', { danger: true, ok: 'Sign everyone out' }).then(function(__ok) {
+    if (!__ok) return;
+    fetch(API + '?action=rotate-auth-secret', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Rotation failed', true); return; }
@@ -930,6 +936,7 @@ function rotateAuthSecret() {
       setTimeout(function() { location.href = '/login'; }, 1200);
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 loadUsers();

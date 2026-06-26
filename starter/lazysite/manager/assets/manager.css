@@ -1255,3 +1255,118 @@
     font-size: 0.8rem;
     font-style: italic;
 }
+
+/* ============================================================
+   SM109 phase 2 - switches, toasts, confirm/prompt modal
+   ============================================================ */
+
+/* Capability + plugin on/off checkboxes render as toggle switches */
+.mg-chk input[type="checkbox"],
+input.mg-toggle {
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    width: 2rem;
+    height: 1.15rem;
+    margin: 0;
+    border: none;
+    border-radius: var(--mg-radius-pill);
+    background: var(--mg-border);
+    cursor: pointer;
+    flex: none;
+    vertical-align: middle;
+    transition: background 0.15s;
+}
+.mg-chk input[type="checkbox"]::after,
+input.mg-toggle::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: calc(1.15rem - 4px);
+    height: calc(1.15rem - 4px);
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: var(--mg-shadow-sm);
+    transition: transform 0.15s;
+}
+.mg-chk input[type="checkbox"]:checked,
+input.mg-toggle:checked { background: var(--mg-accent); }
+.mg-chk input[type="checkbox"]:checked::after,
+input.mg-toggle:checked::after { transform: translateX(calc(2rem - 1.15rem)); }
+.mg-chk input[type="checkbox"]:focus-visible,
+input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring); }
+
+/* Toasts */
+#mg-toasts {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: min(24rem, calc(100vw - 2rem));
+}
+.mg-toast {
+    background: var(--mg-text);
+    color: #fff;
+    padding: 0.65rem 0.9rem;
+    border-radius: var(--mg-radius);
+    box-shadow: var(--mg-shadow-lg);
+    font-size: var(--mg-text-sm);
+    line-height: 1.4;
+    opacity: 0;
+    transform: translateY(0.5rem);
+    transition: opacity 0.2s, transform 0.2s;
+}
+.mg-toast-in { opacity: 1; transform: translateY(0); }
+.mg-toast-success { background: var(--mg-success); }
+.mg-toast-error   { background: var(--mg-danger); }
+
+/* Confirm / prompt modal */
+.mg-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(28,25,23,0.4);
+    opacity: 0;
+    transition: opacity 0.18s;
+}
+.mg-modal-overlay.mg-modal-in { opacity: 1; }
+.mg-modal {
+    background: var(--mg-surface);
+    border-radius: var(--mg-radius-lg);
+    box-shadow: var(--mg-shadow-lg);
+    padding: 1.25rem;
+    width: min(26rem, calc(100vw - 2rem));
+    transform: translateY(0.5rem) scale(0.98);
+    transition: transform 0.18s;
+}
+.mg-modal-in .mg-modal { transform: translateY(0) scale(1); }
+.mg-modal-msg {
+    font-size: var(--mg-font-size);
+    color: var(--mg-text);
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+.mg-modal-input {
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.4rem 0.6rem;
+    font: inherit;
+    border: 1px solid var(--mg-border);
+    border-radius: var(--mg-radius);
+    background: var(--mg-surface);
+    color: var(--mg-text);
+}
+.mg-modal-input:focus { outline: none; border-color: var(--mg-accent); box-shadow: var(--mg-focus-ring); }
+.mg-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1.1rem;
+}
