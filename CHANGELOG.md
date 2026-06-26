@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.4.18 - One-command manager bootstrap (2026-06-26)
+
 Feature - one-command manager bootstrap (SM093)
 : `lazysite-users.pl setup-manager [PASSWORD]` does the whole first-run manager
   setup in one idempotent command: create the `manager` account, set (or generate
