@@ -188,8 +188,9 @@ function escHtml(s) {
 }
 
 function activateTheme(name) {
-  if (!confirm('Activate "' + name + '"? All cached pages will be cleared.')) return;
-  fetch(API + '?action=theme-activate&path=' + encodeURIComponent(name), { method: 'POST' })
+  mgConfirm('Activate "' + name + '"? All cached pages will be cleared.', { ok: 'Activate' }).then(function(__ok) {
+    if (!__ok) return;
+    fetch(API + '?action=theme-activate&path=' + encodeURIComponent(name), { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
@@ -197,6 +198,7 @@ function activateTheme(name) {
       loadThemes();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 function previewTheme(name, layout) {
@@ -225,8 +227,9 @@ function clearPreview() {
 }
 
 function deactivateTheme() {
-  if (!confirm('Deactivate theme and use the built-in fallback?')) return;
-  fetch(API + '?action=theme-activate&path=', { method: 'POST' })
+  mgConfirm('Deactivate theme and use the built-in fallback?', { ok: 'Deactivate' }).then(function(__ok) {
+    if (!__ok) return;
+    fetch(API + '?action=theme-activate&path=', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
@@ -234,11 +237,13 @@ function deactivateTheme() {
       loadThemes();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 function deleteTheme(name) {
-  if (!confirm('Delete theme "' + name + '"? This cannot be undone.')) return;
-  fetch(API + '?action=theme-delete&path=' + encodeURIComponent(name), { method: 'POST' })
+  mgConfirm('Delete theme "' + name + '"? This cannot be undone.', { danger: true, ok: 'Delete' }).then(function(__ok) {
+    if (!__ok) return;
+    fetch(API + '?action=theme-delete&path=' + encodeURIComponent(name), { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
@@ -246,12 +251,13 @@ function deleteTheme(name) {
       loadThemes();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 function renameTheme(name) {
-  var newName = prompt('New name for theme "' + name + '":', name);
-  if (!newName || newName === name) return;
-  fetch(API + '?action=theme-rename&path=' + encodeURIComponent(name), {
+  mgPrompt('New name for theme "' + name + '":', name).then(function(newName) {
+    if (!newName || newName === name) return;
+    fetch(API + '?action=theme-rename&path=' + encodeURIComponent(name), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ new_name: newName })
@@ -263,6 +269,7 @@ function renameTheme(name) {
       loadThemes();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 function uploadTheme() {
@@ -469,7 +476,9 @@ function toggleReleaseContents(tag, contentsId) {
 
 function installRelease(tag) {
   if (!tag) { showStatus('Missing tag.', true); return; }
-  if (!confirm('Install themes from release "' + tag + '"?')) return;
+  mgConfirm('Install themes from release "' + tag + '"?', { ok: 'Install' }).then(function(__ok) { if (__ok) installRelease_go(tag); });
+}
+function installRelease_go(tag) {
   showStatus('');
   var prev = document.getElementById('release-list').innerHTML;
   document.getElementById('release-list').innerHTML = '<div class="mg-file-item"><span class="mg-file-name">Installing ' + escHtml(tag) + '...</span></div>';

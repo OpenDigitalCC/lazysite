@@ -284,14 +284,16 @@ function acquireLock() {
 
 // Clear a stale lock and re-acquire it. The server refuses a live WebDAV lock.
 function takeOverLock() {
-  if (!confirm('Take over this file? Any unsaved edits in the other session may be lost.')) return;
-  fetch(API + '?action=unlock&path=' + encodeURIComponent(filePath), { method: 'POST' })
+  mgConfirm('Take over this file? Any unsaved edits in the other session may be lost.', { danger: true, ok: 'Take over' }).then(function(__ok) {
+    if (!__ok) return;
+    fetch(API + '?action=unlock&path=' + encodeURIComponent(filePath), { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.ok) { acquireLock(); }
-      else { alert(d.error || 'Could not clear the lock (it may be a live WebDAV lock).'); }
+      else { mgToast(d.error || 'Could not clear the lock (it may be a live WebDAV lock).', 'error'); }
     })
     .catch(function() {});
+  });
 }
 
 // --- Load ---

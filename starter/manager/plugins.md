@@ -206,7 +206,10 @@ function saveConfig(e, pluginId, script) {
 }
 
 function runAction(plugin, action) {
-  if (action.confirm && !confirm(action.confirm)) return;
+  if (action.confirm) { mgConfirm(action.confirm).then(function(__ok){ if (__ok) runAction_go(plugin, action); }); return; }
+  runAction_go(plugin, action);
+}
+function runAction_go(plugin, action) {
   var status = document.getElementById('status-' + plugin.id);
   status.textContent = 'Running...';
   fetch(API + '?action=plugin-action&plugin=' + encodeURIComponent(plugin.id), {
@@ -780,8 +783,9 @@ function cancelHandlerEdit(id) {
 // --- Handler delete and refresh ---
 
 function deleteHandler(handlerId) {
-  if (!confirm('Delete handler "' + handlerId + '"?')) return;
-  fetch(API + '?action=handler-delete', {
+  mgConfirm('Delete handler "' + handlerId + '"?', { danger: true, ok: 'Delete' }).then(function(__ok) {
+    if (!__ok) return;
+    fetch(API + '?action=handler-delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: handlerId })
@@ -790,6 +794,7 @@ function deleteHandler(handlerId) {
   .then(function(res) {
     if (res.ok) { mgClearWarning(); loadHandlers(); }
     else { mgShowWarning(res.error || 'Delete failed', true); }
+  });
   });
 }
 

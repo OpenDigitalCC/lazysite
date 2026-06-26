@@ -402,9 +402,9 @@ function moveFile(btn) {
   var card = btn.closest('tr');
   var row  = card.previousElementSibling;
   var path = row.getAttribute('data-path');
-  var dest = prompt('New path for this file:', path);
-  if (!dest || dest === path) return;
-  fetch(API + '?action=move&path=' + encodeURIComponent(path) + '&to=' + encodeURIComponent(dest), { method: 'POST' })
+  mgPrompt('New path for this file:', path).then(function(dest) {
+    if (!dest || dest === path) return;
+    fetch(API + '?action=move&path=' + encodeURIComponent(path) + '&to=' + encodeURIComponent(dest), { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Move failed', true); return; }
@@ -412,6 +412,7 @@ function moveFile(btn) {
       loadDir(currentDir);
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 function addBrief(btn) {
@@ -493,10 +494,10 @@ function formatSize(bytes) {
 }
 
 function newFile() {
-  var name = prompt('File name (e.g. page.md):');
-  if (!name) return;
-  var path = joinPath(currentDir, name);
-  fetch(API + '?action=save&path=' + encodeURIComponent(path), {
+  mgPrompt('File name (e.g. page.md):', '').then(function(name) {
+    if (!name) return;
+    var path = joinPath(currentDir, name);
+    fetch(API + '?action=save&path=' + encodeURIComponent(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content: '---\ntitle: New Page\n---\n\nNew page content.\n', mtime: null })
@@ -508,13 +509,14 @@ function newFile() {
       loadDir(currentDir);
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 function newFolder() {
-  var name = prompt('Folder name:');
-  if (!name) return;
-  var path = joinPath(currentDir, name).replace(/\/+$/, '');
-  fetch(API + '?action=mkdir&path=' + encodeURIComponent(path), { method: 'POST' })
+  mgPrompt('Folder name:', '').then(function(name) {
+    if (!name) return;
+    var path = joinPath(currentDir, name).replace(/\/+$/, '');
+    fetch(API + '?action=mkdir&path=' + encodeURIComponent(path), { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
@@ -522,6 +524,7 @@ function newFolder() {
       loadDir(currentDir);
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 function deleteSelected() {
@@ -531,7 +534,8 @@ function deleteSelected() {
   var paths = [];
   for (var i = 0; i < checks.length; i++) paths.push(checks[i].value);
   var msg = 'Delete ' + paths.length + ' item' + (paths.length === 1 ? '' : 's') + '?\n\n' + paths.join('\n');
-  if (!confirm(msg)) return;
+  mgConfirm(msg, { danger: true, ok: 'Delete' }).then(function(__ok) {
+  if (!__ok) return;
   var errors = [];
   if (typeof mgShowWarning === 'function') mgShowWarning('Deleting ' + paths.length + ' item(s)...', false);
   function step(i) {
@@ -551,6 +555,7 @@ function deleteSelected() {
       .catch(function(e) { errors.push(paths[i] + ': ' + e.message); step(i + 1); });
   }
   step(0);
+  });
 }
 
 function triggerUpload() { document.getElementById('upload-input').click(); }
@@ -589,7 +594,8 @@ function uploadFiles(files) {
 
 function handleSkipped(skipped, dir, files) {
   var msg = 'These files already exist:\n\n' + skipped.join('\n') + '\n\nOverwrite?';
-  if (!confirm(msg)) { showStatus('Upload cancelled for ' + skipped.length + ' file(s).'); loadDir(dir); return; }
+  mgConfirm(msg, { ok: 'Overwrite' }).then(function(__ok) {
+  if (!__ok) { showStatus('Upload cancelled for ' + skipped.length + ' file(s).'); loadDir(dir); return; }
   var skipSet = {};
   for (var i = 0; i < skipped.length; i++) skipSet[skipped[i]] = true;
   var toRetry = [];
@@ -601,6 +607,7 @@ function handleSkipped(skipped, dir, files) {
     .then(function(r) { return r.json(); })
     .then(function() { if (typeof mgClearWarning === 'function') mgClearWarning(); loadDir(dir); })
     .catch(function(e) { showStatus('Overwrite error: ' + e.message, true); });
+  });
 }
 
 function zipSelected() {

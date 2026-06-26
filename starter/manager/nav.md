@@ -172,13 +172,15 @@ function addItem() {
 
 function editItem(idx) {
   var item = navItems[idx];
-  var newLabel = prompt('Label:', item.label);
-  if (newLabel === null) return;
-  var newUrl = prompt('URL (blank = group heading):', item.url || '');
-  if (newUrl === null) return;
-  item.label = newLabel;
-  item.url = newUrl;
-  renderNav();
+  mgPrompt('Label:', item.label).then(function(newLabel) {
+    if (newLabel === null) return;
+    mgPrompt('URL (blank = group heading):', item.url || '').then(function(newUrl) {
+      if (newUrl === null) return;
+      item.label = newLabel;
+      item.url = newUrl;
+      renderNav();
+    });
+  });
 }
 
 function indentItem(idx) {
@@ -199,15 +201,17 @@ function outdentItem(idx) {
 
 function deleteItem(idx) {
   var item = navItems[idx];
-  if (!confirm('Remove "' + item.label + '"?')) return;
-  // If it's a parent, also remove its children
-  var count = 1;
-  if (item.indent === 0) {
-    while (idx + count < navItems.length && navItems[idx + count].indent > 0) count++;
-  }
-  navItems.splice(idx, count);
-  renderNav();
-  updateParentSelect();
+  mgConfirm('Remove "' + item.label + '"?', { danger: true, ok: 'Remove' }).then(function(__ok) {
+    if (!__ok) return;
+    // If it's a parent, also remove its children
+    var count = 1;
+    if (item.indent === 0) {
+      while (idx + count < navItems.length && navItems[idx + count].indent > 0) count++;
+    }
+    navItems.splice(idx, count);
+    renderNav();
+    updateParentSelect();
+  });
 }
 
 function saveNav() {

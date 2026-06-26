@@ -106,8 +106,9 @@ function invalidate(path) {
 }
 
 function clearAll() {
-  if (!confirm('Clear all cached files? Pages will be re-rendered on next request.')) return;
-  fetch(API + '?action=cache-invalidate&path=*', { method: 'POST' })
+  mgConfirm('Clear all cached files? Pages will be re-rendered on next request.', { ok: 'Clear' }).then(function(__ok) {
+    if (!__ok) return;
+    fetch(API + '?action=cache-invalidate&path=*', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
@@ -115,6 +116,7 @@ function clearAll() {
       loadCache();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 loadCache();
