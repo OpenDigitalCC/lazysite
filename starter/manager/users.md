@@ -154,11 +154,29 @@ function groupsForUser(user) {
   return out;
 }
 
-// One <details> accordion row per user.
+// One <details> accordion row per user, with sub-users nested under their parent
+// (managed_by/created_by) so the tree expands as the hierarchy it is.
 function renderUsers(rows) {
   var list = document.getElementById('user-list');
   if (!rows.length) { list.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No users</div>'; return; }
-  list.innerHTML = rows.map(renderUserRow).join('');
+  var byUser = {};
+  rows.forEach(function(r) { byUser[r.user] = r; });
+  var kids = {}, roots = [];
+  rows.forEach(function(r) {
+    var s = r.settings || {};
+    var parent = s.managed_by || s.created_by || '';
+    if (parent && byUser[parent] && parent !== r.user) {
+      (kids[parent] = kids[parent] || []).push(r);
+    } else {
+      roots.push(r);
+    }
+  });
+  function byName(a, b) { return a.user.localeCompare(b.user); }
+  function node(row) {
+    var ch = (kids[row.user] || []).sort(byName);
+    return renderUserRow(row, ch.map(node).join(''));
+  }
+  list.innerHTML = roots.sort(byName).map(node).join('');
   focusUserFromUrl();
 }
 
@@ -170,7 +188,10 @@ function focusUserFromUrl() {
   var u = decodeURIComponent(m[1].replace(/\+/g, ' '));
   var sel = (window.CSS && CSS.escape) ? CSS.escape(u) : u.replace(/"/g, '\\"');
   var el = document.querySelector('#user-list details[data-user="' + sel + '"]');
-  if (el) { el.open = true; el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  if (!el) return;
+  // open the target and every ancestor <details>, so a nested sub-user is visible
+  for (var p = el; p; p = p.parentElement) { if (p.tagName === 'DETAILS') p.open = true; }
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 function cap(user, key, on, label) {
@@ -183,7 +204,7 @@ function sec(title, inner) {
   return '<div class="mg-box"><div class="mg-sec">' + title + '</div>' + inner + '</div>';
 }
 
-function renderUserRow(row) {
+function renderUserRow(row, kidsHtml) {
   var u = row.user, s = row.settings || {}, ue = escHtml(u);
   var webdav   = !!s.webdav;
   var ui       = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
@@ -332,6 +353,12 @@ function renderUserRow(row) {
       '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Reassign</button></div>';
   }
   h += sec('Account', ac);
+
+  // Sub-users nest INSIDE the parent's body, so collapsing the parent collapses
+  // them too - the account tree expands as the hierarchy it is.
+  if (kidsHtml) {
+    h += sec('Sub-users', '<div class="mg-subusers" style="border-left:2px solid var(--mg-border,#e2e2e2);padding-left:0.6rem;display:flex;flex-direction:column;gap:0.4rem">' + kidsHtml + '</div>');
+  }
 
   h += '</div></details>';
   return h;

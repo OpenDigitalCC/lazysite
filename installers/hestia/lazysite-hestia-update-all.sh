@@ -87,7 +87,30 @@ done
 
 echo
 echo "Updated $ok/$n site(s) to $NEWVER."
-if [ "${#FAILED[@]}" -gt 0 ]; then
-    printf 'FAILED: %s\n' "${FAILED[@]}"
-    exit 1
+[ "${#FAILED[@]}" -gt 0 ] && printf 'FAILED to upgrade: %s\n' "${FAILED[@]}"
+
+# --- consolidated health summary: warnings + failures grouped by site --------
+# Re-run the doctor read-only per site so the operator sees what (if anything) is
+# still outstanding in one place, without scrolling each site's block.
+CHK="$STAGE/tools/lazysite-check.pl"
+if [ -f "$CHK" ]; then
+    echo
+    echo "==> health summary (warnings + failures by site)"
+    dirty=0
+    for i in "${!DOMAINS[@]}"; do
+        d="${DOMAINS[$i]}"; u="${USERS[$i]}"
+        doc="/home/$u/web/$d/public_html"
+        [ -d "$doc" ] || continue
+        issues="$(perl "$CHK" --docroot "$doc" --cgibin "/home/$u/web/$d/cgi-bin" 2>/dev/null \
+                  | grep -E '\[ (warn|FAIL) \]')"
+        if [ -n "$issues" ]; then
+            dirty=$(( dirty + 1 ))
+            echo "  $d:"
+            echo "$issues" | sed 's/^[[:space:]]*/    /'
+        fi
+    done
+    [ "$dirty" = 0 ] && echo "  all sites clean - no warnings or failures."
 fi
+
+[ "${#FAILED[@]}" -gt 0 ] && exit 1
+exit 0
