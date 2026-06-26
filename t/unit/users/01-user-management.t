@@ -108,4 +108,35 @@ sub run_cli {
     like( $out, qr/not found/i, 'passwd on missing user reports error' );
 }
 
+# --- setup-manager: one-command first-run bootstrap ---
+{
+    open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
+    print {$cf} "site_name: Test\n"; close $cf;
+
+    my $out = run_cli('setup-manager');
+    like( $out, qr/Manager ready/,            'setup-manager reports ready' );
+    like( $out, qr/Password:\s*[0-9a-f]{24}/, 'generates a strong password' );
+
+    open my $u, '<', "$docroot/lazysite/auth/users" or die $!;
+    my $users = do { local $/; <$u> }; close $u;
+    like( $users, qr/^manager:sha256iter:/m, 'manager account created with a password' );
+
+    open my $g, '<', "$docroot/lazysite/auth/groups" or die $!;
+    my $groups = do { local $/; <$g> }; close $g;
+    like( $groups, qr/^lazysite-admins:.*\bmanager\b/m, 'manager added to the admin group' );
+
+    open my $c, '<', "$docroot/lazysite/lazysite.conf" or die $!;
+    my $conf = do { local $/; <$c> }; close $c;
+    like( $conf, qr/^manager:\s*enabled/m,             'conf enables the manager' );
+    like( $conf, qr/^manager_groups:\s*lazysite-admins/m, 'conf names the admin group' );
+
+    # idempotent + explicit password
+    my $out2 = run_cli( 'setup-manager', 'chosenpass' );
+    like( $out2, qr/Password:\s*chosenpass/, 'honours an explicit password' );
+    open my $c2, '<', "$docroot/lazysite/lazysite.conf" or die $!;
+    my $conf2 = do { local $/; <$c2> }; close $c2;
+    my $count = () = $conf2 =~ /^manager_groups:/mg;
+    is( $count, 1, 'conf keys not duplicated on re-run' );
+}
+
 done_testing();

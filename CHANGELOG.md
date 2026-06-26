@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+Feature - one-command manager bootstrap (SM093)
+: `lazysite-users.pl setup-manager [PASSWORD]` does the whole first-run manager
+  setup in one idempotent command: create the `manager` account, set (or generate
+  and print) its password, create the admin group with the user in it, and ensure
+  `manager: enabled` + `manager_groups` in `lazysite.conf`. The Hestia deploy
+  (`lazysite-hestia-deploy.sh`) now runs it automatically on a fresh install, so a
+  brand-new site is manager-ready from the single deploy command - no follow-up
+  password/group/conf steps.
+
 Fix - dev server cleans up on Ctrl-C / kill (SM091)
 : the dev server now traps SIGINT/SIGTERM and exits cleanly so its END block runs,
   removing the temporary browse cache (`/tmp/lazysite-browse-<pid>`) and the error

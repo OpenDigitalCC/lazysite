@@ -338,6 +338,7 @@ elsif ( $cmd eq 'list' )         { cmd_list() }
 elsif ( $cmd eq 'group-add' )    { cmd_group_add(@args) }
 elsif ( $cmd eq 'group-remove' ) { cmd_group_remove(@args) }
 elsif ( $cmd eq 'groups' )       { cmd_groups() }
+elsif ( $cmd eq 'setup-manager' ){ cmd_setup_manager(@args) }
 elsif ( $cmd eq 'settings' )     { cmd_settings(@args) }
 elsif ( $cmd eq 'set' )          { cmd_set_cli(@args) }
 elsif ( $cmd eq 'token' )        { cmd_token(@args) }
@@ -493,6 +494,71 @@ sub cmd_group_add {
     }
     write_groups(%groups);
     print "User '$user' added to group '$group'.\n" unless $API_MODE;
+}
+
+# Append "key: value" to lazysite.conf unless the key is already present
+# (idempotent; never overrides an operator's existing value).
+sub _ensure_conf_key {
+    my ( $key, $value ) = @_;
+    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    if ( -f $conf && open my $fh, '<', $conf ) {
+        while (<$fh>) { if (/^\Q$key\E\s*:/) { close $fh; return 0 } }
+        close $fh;
+    }
+    open my $out, '>>', $conf or die "Cannot write $conf: $!\n";
+    print {$out} "$key: $value\n";
+    close $out;
+    return 1;
+}
+
+# One-command manager bootstrap: ensure the manager account exists with a
+# password, the admin group exists with that user in it, and lazysite.conf
+# enables the manager + names the group. Idempotent. Generates and prints a
+# strong password if none is given. This is the whole "getting started" step.
+#   setup-manager [PASSWORD] [--user NAME] [--group NAME]
+sub cmd_setup_manager {
+    my @a = @_;
+    my ( $pass, $user, $group );
+    while (@a) {
+        my $x = shift @a;
+        if    ( $x eq '--user'  ) { $user  = shift @a }
+        elsif ( $x eq '--group' ) { $group = shift @a }
+        elsif ( !defined $pass )  { $pass  = $x }
+    }
+    $user = 'manager' unless defined $user && length $user;
+
+    # Honour an existing manager_groups (join its first group); else default.
+    my $existing = read_conf_value('manager_groups');
+    if ( defined $existing && length $existing ) {
+        ($group) = split /[,\s]+/, $existing;
+    }
+    $group = 'lazysite-admins' unless defined $group && length $group;
+
+    my $generated = 0;
+    unless ( defined $pass && length $pass ) {
+        $pass      = generate_random_hex(12);   # 24 hex chars
+        $generated = 1;
+    }
+
+    my %users = read_users();
+    if   ( exists $users{$user} ) { cmd_passwd( $user, $pass ) }
+    else                          { cmd_add( $user, $pass ) }
+    cmd_group_add( $user, $group );
+    _ensure_conf_key( 'manager',        'enabled' );
+    _ensure_conf_key( 'manager_groups', $group );
+
+    unless ($API_MODE) {
+        my $url = read_conf_value('site_url') // '';
+        $url =~ s{/+$}{};
+        print "\nManager ready.\n";
+        print "  URL:      " . ( $url ? "$url/manager/" : "/manager/" ) . "\n";
+        print "  Username: $user\n";
+        print "  Password: $pass"
+            . ( $generated ? "   (generated - save this now)" : "" ) . "\n";
+        print "  Group:    $group\n\n";
+    }
+    return { ok => 1, user => $user, group => $group,
+        password => ( $generated ? $pass : undef ) };
 }
 
 sub cmd_group_remove {
@@ -1829,6 +1895,9 @@ Commands:
   group-add USERNAME GROUP    Add user to a group
   group-remove USERNAME GROUP Remove user from a group
   groups                      List all groups and members
+  setup-manager [PASSWORD]    One-command first-run: create the manager account
+                              (+ admin group + lazysite.conf), set/generate its
+                              password. Idempotent. [--user NAME] [--group NAME]
   settings USERNAME           Show a user's access-mechanism settings
   set USERNAME KEY VALUE      Set a boolean (on/off): webdav, ui,
                               create_sub_users, delegate_sub_user_creation,

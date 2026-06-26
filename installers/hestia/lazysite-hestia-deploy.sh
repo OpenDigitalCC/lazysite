@@ -53,7 +53,9 @@ if [ -f "$DOC/index.html" ] && [ -f "$DOC/index.md" ]; then
   echo "index.html is NOT your content, remove it:  rm -f $DOC/index.html"
 fi
 if ! grep -q '^manager_groups:' "$DOC/lazysite/lazysite.conf" 2>/dev/null; then
-  echo "First-time setup (new install):"
-  echo "  printf 'manager_groups: lazysite-admins\\nwebdav_enabled: yes\\n' >> $DOC/lazysite/lazysite.conf"
-  echo "  sudo -u $U perl $DOM/tools/lazysite-users.pl --docroot $DOC passwd manager 'STRONG-PASS'"
+  # First-run: bootstrap the manager in one step (account + admin group +
+  # lazysite.conf + a generated password, printed below). Runs as the domain
+  # user so the auth store and conf are written with the right ownership.
+  echo "==> first-run manager setup"
+  sudo -u "$U" perl "$DOM/tools/lazysite-users.pl" --docroot "$DOC" setup-manager
 fi
