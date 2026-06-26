@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+## 0.4.31 - Manager UI: no more native dialogs (SM109 phase 2b) (2026-06-26)
+
+Feature - the remaining native dialogs become the styled modal
+: the last 17 `confirm()` / `prompt()` / `alert()` call sites across files, nav,
+  themes, plugins, cache and edit now use the promise-based `mgConfirm` / `mgPrompt`
+  modal (with danger styling on destructive actions). No browser-native dialog
+  remains anywhere in the manager - rename, delete, activate, upload-overwrite, clear
+  cache and take-over-lock are all styled and consistent.
+
 ## 0.4.30 - Manager UI: shared style system (SM109 phase 3) (2026-06-26)
 
 Feature - per-page styles consolidated onto the shared system
