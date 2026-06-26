@@ -18,13 +18,17 @@ Keying
 
 ## Unreleased
 
+## 0.4.17 - Dev-server auto-index: browse any tree (2026-06-26)
+
 Feature - dev-server auto-index, browse any tree (SM091)
-: `tools/lazysite-server.pl --auto-index` turns the dev server into a zero-install
-  Markdown browser for any folder: it generates a directory index (sub-folders and
-  pages as links, labels from front-matter `title`, `README` linked as overview)
-  for any directory lacking an `index.md`, and injects a breadcrumb nav into every
-  rendered page. It writes nothing into the tree - seeding is suppressed and the
-  processor's compile/layout cache is relocated off the docroot.
+: `tools/lazysite-server.pl --docroot <tree> --auto-index` turns the dev server
+  into a zero-install Markdown browser for any folder (no cache, no theme, no index
+  files): it generates a directory index (sub-folders and pages as links, labels
+  from front-matter `title`, `README` linked as overview) for any directory lacking
+  an `index.md`, and injects a breadcrumb nav into every rendered page. It writes
+  nothing into the tree - seeding is suppressed and the processor's compile/layout
+  cache is relocated off the docroot. Documented in the README quick-start, the
+  dev-server doc, and `--help`.
 
 Change - no scaffolding seeded into a non-lazysite docroot
 : the dev server now only seeds auth/forms/conf scaffolding into a real lazysite
@@ -32,6 +36,13 @@ Change - no scaffolding seeded into a non-lazysite docroot
   arbitrary tree it leaves it untouched. New `--no-seed` forces seeding off
   anywhere. New processor env `LAZYSITE_CACHE_DIR` relocates the cache base
   (inert unless set, so production and tests are unchanged).
+
+Security - production never lists a directory (unchanged, now tested)
+: auto-index is dev-server-only and off by default. The full-install request path
+  still never reveals a file list - the processor returns 404 for a directory with
+  no `index.md`, and the Apache config ships `Options -Indexes`. Locked by
+  `t/unit/processor/23-no-directory-listing.t` (404 + no filename leak) so it
+  cannot regress.
 
 ## 0.4.16 - UTF-8 corruption fully fixed + set_nav (2026-06-25)
 
