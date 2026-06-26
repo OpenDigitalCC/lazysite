@@ -22,6 +22,7 @@ BEGIN {
     }
 }
 use Lazysite::Util qw(log_event const_eq);
+use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential qw(generate_random_hex hash_password verify_password);
 $Lazysite::Util::COMPONENT = 'auth';
 
@@ -58,6 +59,16 @@ my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
+$Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
+
+# Record a material authentication event in the audit trail (login/logout, claim,
+# token exchange/rotate), in addition to the application log. Origin defaults to
+# 'ui' (interactive browser); credential-API flows pass 'api'.
+sub _audit_auth {
+    my ( $user, $act, $status, $detail, $origin ) = @_;
+    audit_log( $user, $act, '', $ENV{REMOTE_ADDR} // '', $status,
+        $origin // 'ui', $detail // '' );
+}
 my $COOKIE_NAME  = 'lazysite_auth';
 my $COOKIE_MAX   = 86400;    # 24 hours
 
@@ -117,6 +128,7 @@ sub handle_login {
     # H-3: per-IP rate limit before checking credentials (fail-closed on ok).
     unless ( check_login_rate($ip) ) {
         log_event('WARN', $username, 'login rate limit exceeded', ip => $ip);
+        _audit_auth( $username, 'login', 'fail', 'rate-limited' );
         sleep $LOGIN_DELAY;
         redirect("$auth_redirect?error=rate");
         return;
@@ -124,6 +136,7 @@ sub handle_login {
 
     unless ( length $username ) {
         log_event('WARN', $username, 'login failed', ip => $ip);
+        _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
         sleep $LOGIN_DELAY;
         redirect("$auth_redirect?error=1");
         return;
@@ -134,6 +147,7 @@ sub handle_login {
 
     unless ( defined $expected ) {
         log_event('WARN', $username, 'login failed', ip => $ip);
+        _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
         sleep $LOGIN_DELAY;
         redirect("$auth_redirect?error=1");
         return;
@@ -144,10 +158,12 @@ sub handle_login {
         my $addr = $ENV{REMOTE_ADDR} // '';
         unless ( $addr eq '127.0.0.1' || $addr eq '::1' ) {
             log_event('WARN', $username, 'no-password login refused (not localhost)', ip => $addr);
+            _audit_auth( $username, 'login', 'fail', 'no-password-remote' );
             reject_no_password();
             return;
         }
         log_event('INFO', $username, 'no-password login (localhost)', ip => $addr);
+        _audit_auth( $username, 'login', 'ok', 'no-password' );
     }
     else {
         # H-2: verify_password handles both legacy (unsalted) and new
@@ -155,6 +171,7 @@ sub handle_login {
         # successful login.
         unless ( length $password && verify_password($password, $expected) ) {
             log_event('WARN', $username, 'login failed', ip => $ip);
+            _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
             sleep $LOGIN_DELAY;
             redirect("$auth_redirect?error=1");
             return;
@@ -179,6 +196,7 @@ sub handle_login {
     # it leaks nothing to a password guesser.
     if ( account_disabled($username) ) {
         log_event('WARN', $username, 'login refused: account disabled', ip => $ip);
+        _audit_auth( $username, 'login', 'fail', 'account-disabled' );
         redirect("$auth_redirect?error=1");
         return;
     }
@@ -187,6 +205,7 @@ sub handle_login {
     # session (a human password has no expiry, so this never affects them).
     if ( token_expired($username) ) {
         log_event('WARN', $username, 'login refused: credential expired', ip => $ip);
+        _audit_auth( $username, 'login', 'fail', 'credential-expired' );
         redirect("$auth_redirect?error=1");
         return;
     }
@@ -194,12 +213,14 @@ sub handle_login {
     # SM072: account-level expiry (time-boxed access)
     if ( account_expired($username) ) {
         log_event('WARN', $username, 'login refused: account expired', ip => $ip);
+        _audit_auth( $username, 'login', 'fail', 'account-expired' );
         redirect("$auth_redirect?error=1");
         return;
     }
 
     unless ( ui_enabled($username) ) {
         log_event('WARN', $username, 'interactive login disabled for account', ip => $ip);
+        _audit_auth( $username, 'login', 'fail', 'ui-disabled' );
         reject_ui_disabled();
         return;
     }
@@ -213,6 +234,7 @@ sub handle_login {
         my $v = users_tool_api({ action => 'mfa-verify', username => $username, code => $code });
         unless ( ref $v eq 'HASH' && $v->{ok} ) {
             log_event('WARN', $username, 'login refused: 2FA required or invalid', ip => $ip);
+            _audit_auth( $username, 'login', 'fail', 'mfa' );
             sleep $LOGIN_DELAY;
             redirect("$auth_redirect?error=mfa");
             return;
@@ -232,6 +254,7 @@ sub handle_login {
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
 
     log_event('INFO', $username, 'login success', ip => $ENV{REMOTE_ADDR} // '');
+    _audit_auth( $username, 'login', 'ok', '' );
 
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
@@ -243,6 +266,7 @@ sub handle_login {
 sub handle_logout {
     my $user = $ENV{HTTP_X_REMOTE_USER} // '';
     log_event('INFO', $user, 'logout', ip => $ENV{REMOTE_ADDR} // '');
+    _audit_auth( $user, 'logout', 'ok', '' );
 
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
 
@@ -288,11 +312,13 @@ sub handle_claim {
     unless ( ref $r eq 'HASH' && $r->{ok} ) {
         sleep $LOGIN_DELAY;
         log_event('WARN', $username, 'claim redeem failed', ip => $ip);
+        _audit_auth( $username, 'claim-redeem', 'fail', '' );
         redirect("/claim?u=$username&error=1");
         return;
     }
 
     log_event('INFO', $username, 'claim redeemed', ip => $ip);
+    _audit_auth( $username, 'claim-redeem', 'ok', '' );
     if ( $r->{token} ) {
         claim_token_page( $username, $r->{token} );   # machine: show token once
     }
@@ -395,6 +421,7 @@ sub handle_exchange {
         return;
     }
     log_event('INFO', $username, 'access token issued (HTTP exchange)', ip => $ip);
+    _audit_auth( $username, 'token-exchange', 'ok', '', 'api' );
     json_response( { ok => 1, token => $r->{token}, expires_at => $r->{expires_at} }, 200 );
     return;
 }
@@ -435,6 +462,7 @@ sub handle_rotate {
         return;
     }
     log_event('INFO', $u, 'access token rotated (HTTP)', ip => $ip);
+    _audit_auth( $u, 'token-rotate', 'ok', '', 'api' );
     json_response( { ok => 1, token => $r->{token}, expires_at => $r->{expires_at} }, 200 );
     return;
 }
