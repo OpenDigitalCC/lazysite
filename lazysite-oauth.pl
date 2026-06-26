@@ -24,7 +24,8 @@ BEGIN {
 use Lazysite::Util qw(log_event);
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::OAuth
-    qw(register_client get_client mint_code redeem_code issue_token refresh_access);
+    qw(register_client get_client mint_code redeem_code issue_token refresh_access
+       validate_token);
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT} // '';
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
@@ -156,6 +157,8 @@ if ( $action eq 'register' ) {
     my $total = scalar keys %{ Lazysite::Auth::OAuth::load_store()->{clients} };
     log_event( 'INFO', 'oauth', 'client registered',
         client_id => $client_id, redirect => $uris[0], total_clients => $total );
+    audit_log( '', 'oauth-register', $client_id, $ENV{REMOTE_ADDR} // '', 'ok', 'mcp',
+        $req->{client_name} // '' );
     respond_json( 201, {
         client_id                  => $client_id,
         client_id_issued_at        => time(),
@@ -196,11 +199,16 @@ elsif ( $action eq 'authorize' ) {
     # POST: redeem the connect code -> partner, then mint the auth code.
     my $r = users_api( { action => 'redeem-connect-code', code => $p{connect_code} } );
     unless ( $r->{ok} ) {
+        audit_log( '', 'oauth-authorize', $p{client_id} // '', $ENV{REMOTE_ADDR} // '',
+            'fail', 'mcp', 'invalid-connect-code' );
         $p{client_name} = $client->{client_name};
         consent_page( \%p, 'That connect code is not valid (check it, or ask your operator for a fresh one).' );
     }
     my $code = mint_code( $p{client_id}, $r->{username}, $p{code_challenge}, $redirect_uri );
     log_event( 'INFO', 'oauth', 'authorization code issued', partner => $r->{username} );
+    # Material: the human approved this client to act as the partner (consent).
+    audit_log( $r->{username}, 'oauth-authorize', $p{client_id} // '',
+        $ENV{REMOTE_ADDR} // '', 'ok', 'mcp' );
     my $sep = ( index( $redirect_uri, '?' ) >= 0 ) ? '&' : '?';
     redirect( $redirect_uri . $sep . 'code=' . url_enc($code) . '&state=' . url_enc( $p{state} ) );
 }
@@ -222,6 +230,9 @@ elsif ( $action eq 'token' ) {
     elsif ( $grant eq 'refresh_token' ) {
         my ( $access, $refresh, $ttl ) = refresh_access( $p{refresh_token} );
         respond_json( 400, { error => 'invalid_grant' } ) unless defined $access;
+        # Material: the connector renewed its access token (the "still active" beat).
+        audit_log( validate_token($access) // '', 'oauth-refresh', '',
+            $ENV{REMOTE_ADDR} // '', 'ok', 'mcp' );
         respond_json( 200, {
             access_token  => $access, token_type => 'Bearer',
             expires_in    => $ttl,    refresh_token => $refresh, scope => 'mcp' } );

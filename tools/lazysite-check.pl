@@ -199,6 +199,7 @@ for my $rel (qw(
 for my $rel (qw(
     lazysite/nav.conf lazysite/lazysite.conf
     lazysite/auth/users lazysite/auth/groups lazysite/auth/acls.json
+    lazysite/logs/audit.log
 )) {
     my $path = "$DOC/$rel";
     next unless -f $path;
