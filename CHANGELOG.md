@@ -18,6 +18,22 @@ Keying
 
 ## Unreleased
 
+## 0.4.22 - Audit the connector lifecycle; audit.log writability (2026-06-26)
+
+Feature - full OAuth/connector lifecycle in the audit trail
+: previously only the access-token issue was audited. Now a Claude.ai / ChatGPT
+  connector's whole connection shows: `oauth-register` (client registered),
+  `oauth-authorize` (connect code redeemed / consent, incl. the failed case),
+  `connect` (token issued), and `oauth-refresh` (token renewed - the "still active"
+  beat). Tool *writes* were already audited; *reads* remain unaudited by design.
+
+Fix - doctor checks audit.log is writable
+: a `lazysite/logs/audit.log` that is not group-writable by the www-data CGI makes
+  every audit append silently fail - so *nothing* appears in the audit log. This is
+  the real cause behind "the connector/login isn't audited" on a site whose
+  permissions were not fully applied. `lazysite-check` now flags it and `--fix`
+  repairs it.
+
 ## 0.4.21 - Audit logins; .url editable; doctor checks writable config (2026-06-26)
 
 Feature - login/logout recorded in the audit trail
