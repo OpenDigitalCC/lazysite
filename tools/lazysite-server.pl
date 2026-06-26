@@ -71,6 +71,11 @@ my $LOG_COMPONENT = 'dev-server';
 # return EPIPE which the regular IO error path handles.
 $SIG{PIPE} = 'IGNORE';
 
+# SM091: exit cleanly on Ctrl-C / kill so the END block runs (removing the
+# temporary browse cache and the error file). A signal otherwise terminates the
+# process without running END, leaving /tmp/lazysite-browse-<pid> behind.
+$SIG{INT} = $SIG{TERM} = sub { exit 0 };
+
 # --- Defaults ---
 
 my $SCRIPT_DIR = dirname( abs_path($0) );

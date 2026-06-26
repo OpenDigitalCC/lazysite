@@ -18,6 +18,12 @@ Keying
 
 ## Unreleased
 
+Fix - dev server cleans up on Ctrl-C / kill (SM091)
+: the dev server now traps SIGINT/SIGTERM and exits cleanly so its END block runs,
+  removing the temporary browse cache (`/tmp/lazysite-browse-<pid>`) and the error
+  file. Previously a signal terminated the process without running END, leaving the
+  cache directory behind.
+
 ## 0.4.17 - Dev-server auto-index: browse any tree (2026-06-26)
 
 Feature - dev-server auto-index, browse any tree (SM091)
