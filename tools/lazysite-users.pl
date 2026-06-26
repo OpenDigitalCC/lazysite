@@ -1352,19 +1352,53 @@ sub _onboarding_brief {
     push @caps, 'manage themes'             if $s->{manage_themes};
     push @caps, 'manage layouts'            if $s->{manage_layouts};
     push @caps, 'set allowlisted site config' if $s->{manage_config};
+    # nav/forms/content inherit: manage_content inherits webdav, and nav/forms
+    # inherit content - report the EFFECTIVE grants so the partner knows nav is theirs.
+    my $eff_content = defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav};
+    my $can_nav     = defined $s->{manage_nav}     ? $s->{manage_nav}     : $eff_content;
+    push @caps, 'manage the site navigation (control API: nav-read / nav-save)' if $can_nav;
     my $caps = join "\n", map { "- $_" } @caps;
     my $scope = ( defined $s->{dav_scope} && length $s->{dav_scope} )
         ? $s->{dav_scope} : 'whole docroot (minus denied paths)';
 
-    # Machine-readable capability tokens + allow scope for the parseable block.
-    # Machine-readable capability tokens - the snake_case names whoami
-    # returns (nav editing is part of manage_config; there is no edit-nav).
+    # Machine-readable capability tokens - the snake_case names whoami returns.
+    # nav editing is gated by manage_nav (SM105), which inherits manage_content
+    # (which inherits webdav); forms by manage_forms, likewise.
     my @mcaps;
     push @mcaps, 'webdav'         if $s->{webdav};
+    push @mcaps, 'manage_content' if $eff_content;
+    push @mcaps, 'manage_nav'     if $can_nav;
+    push @mcaps, 'manage_forms'   if ( defined $s->{manage_forms} ? $s->{manage_forms} : $eff_content );
     push @mcaps, 'manage_themes'  if $s->{manage_themes};
     push @mcaps, 'manage_layouts' if $s->{manage_layouts};
     push @mcaps, 'manage_config'  if $s->{manage_config};
     my $mcaps_yaml = join "\n", map { "  - $_" } @mcaps;
+
+    # Nav-management section (control API), shown when the partner can edit nav.
+    my $nav_section = $can_nav ? <<"NAV" : '';
+
+## Managing the navigation
+
+The navigation is not a WebDAV file: do not PUT `/dav/lazysite/nav.conf` (everything
+under `lazysite/` is internal and returns 403), and do not use an MCP connector for
+this account. Manage it through the **control API** with your token (HTTP Basic auth,
+username `$name`, password the token). It is gated by `manage_nav`, which you have if
+you can edit content - you do not need a new pairing key or any extra grant.
+
+    Read the current nav:
+    POST $base/cgi-bin/lazysite-manager-api.pl?action=nav-read
+    -> { "ok": true, "items": [ { "label": "Home", "url": "/" }, ... ] }
+
+    Replace the whole nav (read it first if you are editing):
+    POST $base/cgi-bin/lazysite-manager-api.pl?action=nav-save
+    Content-Type: application/json
+    body: { "items": [ { "label": "Home", "url": "/" },
+                       { "label": "Guides", "children": [ { "label": "Start", "url": "/start" } ] } ] }
+    -> { "ok": true }
+
+An item with no `url` is a section heading; `children` make a sub-menu. nav-save
+replaces the entire navigation in one call.
+NAV
     my $allow = ( defined $s->{dav_scope} && length $s->{dav_scope} )
         ? $s->{dav_scope} : '/';
 
@@ -1419,7 +1453,7 @@ Rotate before expiry (an expired token returns HTTP 401) by presenting your
 current token as Basic auth, no body:
 
     POST $base/cgi-bin/lazysite-auth.pl?action=rotate
-
+$nav_section
 ## Machine-readable
 
 Parse your identity, scope, and endpoints from this block - do not infer them
@@ -1472,10 +1506,11 @@ All publishing and management docs live on this site - fetch them over HTTP:
 
 ## Notes
 
-- Token exchange and rotation are available over HTTP now (above), and the
-  navigation (lazysite/nav.conf) is editable over WebDAV with manage_config.
-- Config and theme/layout *activation* over the control API arrive with the
-  control-API release; until then your operator performs those.
+- Token exchange and rotation are available over HTTP now (above). The navigation
+  is edited over the **control API** (`nav-read` / `nav-save`, see above), gated by
+  `manage_nav` - NOT by a WebDAV PUT to `lazysite/nav.conf`, which is refused.
+- Theme/layout *activation* over the control API is available to a partner with the
+  matching capability; `lazysite/` paths are internal and not writable over WebDAV.
 BRIEF
 }
 

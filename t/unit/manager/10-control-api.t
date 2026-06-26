@@ -94,6 +94,19 @@ my $na = mapi( $d, QUERY_STRING => 'action=read&path=/index.md',
 ok( !$na->{ok} && $na->{error} =~ /not available to token/i,
     'non-allowlisted action refused for token clients' );
 
+# --- SM105: nav-read/nav-save are token actions gated by manage_nav ----------
+# manage_nav inherits manage_content which inherits webdav, so a webdav partner
+# can manage the nav over the control API (no MCP / raw-WebDAV needed).
+open my $nv, '>', "$d/lazysite/nav.conf" or die $!; print $nv "Home | /\n"; close $nv;
+uapi( $d, { action => 'settings-set', username => 'partner', key => 'webdav', value => 'on' } );
+my $nr = mapi( $d, QUERY_STRING => 'action=nav-read',
+    HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+ok( $nr->{ok}, 'nav-read available to a token client with manage_nav (inherited from webdav)' );
+my $nn = mapi( $d, QUERY_STRING => 'action=nav-read',
+    HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
+ok( !$nn->{ok} && $nn->{error} =~ /capability/i,
+    'nav-read denied to a token without manage_nav' );
+
 # --- CSRF exemption: token POST needs no CSRF token ----------------------
 my $pa = mapi( $d, REQUEST_METHOD => 'POST',
     QUERY_STRING => 'action=theme-activate&path=live',

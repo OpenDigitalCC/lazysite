@@ -71,6 +71,10 @@ my $exp_gid = defined $opt{group} ? ( ( getgrnam $opt{group} )[2] // -1 )
             : ( ( getgrnam 'www-data' )[2] // $ds[5] );
 my $exp_user = ( getpwuid $exp_uid )[0] // $exp_uid;
 my $exp_grp  = ( getgrgid $exp_gid )[0] // $exp_gid;
+# The CGI (www-data) legitimately OWNS the files it creates at runtime - locks,
+# cache entries, generated html, audit.log - so www-data ownership is valid, not a
+# fault. Only a TRULY foreign owner (root, another user) breaks CGI access.
+my $cgi_uid = ( getpwnam 'www-data' )[2];
 
 # --- result collection -------------------------------------------------------
 my ( @results, @chmod_fixes, $chown_needed );
@@ -89,7 +93,10 @@ sub mode_of    { ( stat $_[0] )[2] & 07777 }
         { no_chdir => 1, wanted => sub {
             my @s = lstat $File::Find::name or return;
             return if -l _;
-            if ( $s[4] != $exp_uid ) {
+            # ispadmin owns the code/content; www-data owns the files it creates at
+            # runtime (locks/cache/generated/audit) - both are fine. Flag only a
+            # truly foreign owner the CGI cannot access.
+            if ( $s[4] != $exp_uid && ( !defined $cgi_uid || $s[4] != $cgi_uid ) ) {
                 $total++;
                 push @bad, $File::Find::name if @bad < 8;
             }
@@ -98,13 +105,13 @@ sub mode_of    { ( stat $_[0] )[2] & 07777 }
         my $sample = join( ', ', map { s{^\Q$DOC/\E}{}r } @bad );
         $sample .= ", …" if $total > @bad;
         report( 'FAIL',
-            "$total path(s) under lazysite/ not owned by $exp_user "
-          . "(owner mismatch breaks the www-data CGI): $sample",
+            "$total path(s) under lazysite/ owned by neither $exp_user nor www-data "
+          . "(a foreign owner the CGI cannot access): $sample",
             "chown -R $exp_user:$exp_grp '$LZ'" );
         $chown_needed = 1;
     }
     else {
-        report( 'OK', "lazysite/ tree owned by $exp_user" );
+        report( 'OK', "lazysite/ tree owned by $exp_user (or the www-data CGI)" );
     }
 }
 
@@ -160,7 +167,6 @@ for my $rel ( sort keys %want_dir ) {
 # --- 4. secrets: not world-accessible AND readable by the CGI ----------------
 # (the common live-500: .secret is 0600 owned by a non-www-data user, so a
 #  cookie/secret verification by the www-data CGI dies before headers)
-my $cgi_uid = ( getpwnam 'www-data' )[2];
 for my $rel (qw(
     lazysite/auth/.secret lazysite/forms/.secret lazysite/manager/.csrf-secret
     lazysite/auth/oauth.json lazysite/auth/user-settings.json

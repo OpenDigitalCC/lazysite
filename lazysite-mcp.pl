@@ -409,6 +409,19 @@ my %TOOLS = (
             required => ['items'], additionalProperties => JSON::PP::false },
         run => sub { _set_nav( $_[0], $_[1] ) },
     },
+    submit_feedback => {
+        description => 'Submit a brief feedback report on your experience building this site through the connector - what worked, what got in the way, anything confusing or missing. You are encouraged to use this whenever something helps or hinders: it is how the operators improve the tools. Provide the content; your identity and context are recorded automatically. Returns the saved report id.',
+        inputSchema => { type => 'object',
+            properties => {
+                summary => { type => 'string',  description => 'one-line summary (required)' },
+                good    => { type => 'string',  description => 'what worked well' },
+                bad     => { type => 'string',  description => 'what got in the way or was missing' },
+                rating  => { type => 'integer', description => 'optional overall rating, 1 (poor) to 5 (great)' },
+                context => { type => 'string',  description => 'what you were doing when this applied' },
+            },
+            required => ['summary'], additionalProperties => JSON::PP::false },
+        run => sub { _submit_feedback( $_[0], $_[1], $_[2] ) },
+    },
     create_page => {
         description => 'Create a new page from front-matter fields (title, subtitle, register list) + Markdown body. Errors if the page already exists (use write_file to overwrite). Higher-level than assembling front matter by hand.',
         cap         => 'manage_content',
@@ -905,6 +918,56 @@ sub _set_nav {
     return action_save( '/lazysite/nav.conf', $user, $out, undef );
 }
 
+# --- SM102: agent/connector feedback ------------------------------------------
+# The agent supplies the content (summary/good/bad/rating/context); the server
+# stamps the identity + context (user, method, ip, site, version, capabilities) so
+# the report's provenance is trustworthy. Saved under lazysite/feedback/ (internal,
+# never web-served like the rest of lazysite/).
+sub _submit_feedback {
+    my ( $a, $user, $caps ) = @_;
+    ( my $summary = defined $a->{summary} ? $a->{summary} : '' ) =~ s/\A\s+|\s+\z//g;
+    return { ok => 0, kind => 'invalid', error => 'summary is required' }
+        unless length $summary;
+
+    my $dir = "$LAZYSITE_DIR/feedback";
+    unless ( -d $dir ) {
+        mkdir $dir or return { ok => 0, error => "cannot create feedback dir: $!" };
+    }
+
+    my @t   = gmtime;
+    my $iso = sprintf '%04d-%02d-%02dT%02d:%02d:%02dZ',
+        $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1], $t[0];
+    my $stamp = sprintf '%04d%02d%02d-%02d%02d%02d',
+        $t[5] + 1900, $t[4] + 1, $t[3], $t[2], $t[1], $t[0];
+    ( my $safe = defined $user ? $user : 'anon' ) =~ s/[^A-Za-z0-9_.-]/_/g;
+    my $id = "$stamp-$safe";
+
+    my @caplist = sort grep { $caps->{$_} }
+        qw(webdav manage_content manage_nav manage_forms
+           manage_themes manage_layouts manage_config create_sub_users);
+
+    my $report = {
+        ts           => $iso,
+        user         => $user,
+        method       => ( $AUTH_INFO{method} // 'mcp' ),
+        ip           => ( $ENV{REMOTE_ADDR} // '' ),
+        site         => ( $ENV{HTTP_HOST}   // '' ),
+        version      => $VERSION,
+        capabilities => \@caplist,
+        rating       => ( defined $a->{rating} ? $a->{rating} + 0 : undef ),
+        summary      => $summary,
+        good         => ( defined $a->{good}    ? $a->{good}    : '' ),
+        bad          => ( defined $a->{bad}     ? $a->{bad}     : '' ),
+        context      => ( defined $a->{context} ? $a->{context} : '' ),
+    };
+
+    open my $fh, '>', "$dir/$id.json"
+        or return { ok => 0, error => "cannot save feedback: $!" };
+    print {$fh} encode_json($report);
+    close $fh;
+    return { ok => 1, id => $id, message => 'Thanks - your feedback was logged for the operators.' };
+}
+
 # --- SM087: page-aware verbs (create / delete / rename) -------------------
 sub _yaml_scalar {
     my ($v) = @_;
@@ -997,6 +1060,7 @@ my %ANNOTATE = (
     create_page     => [ 0, 0, 1 ],
     read_nav        => [ 1, 0, 0 ],
     set_nav         => [ 0, 0, 1 ],
+    submit_feedback => [ 0, 0, 0 ],   # writes a report, but changes nothing on the live site
     delete_page     => [ 0, 1, 1 ],
     rename_page     => [ 0, 0, 1 ],
     get_permissions => [ 1, 0, 0 ],
@@ -1106,6 +1170,7 @@ elsif ( $method eq 'tools/call' ) {
           : $name eq 'delete_page'  ? 'delete'
           : $name eq 'rename_page'  ? 'move'
           : $name eq 'move_file'    ? 'move'
+          : $name eq 'submit_feedback' ? 'feedback'
           :                           $name;
         my $aok = ref $out eq 'HASH' && $out->{ok};
         my $detail = $aok ? ''

@@ -278,6 +278,11 @@ if ( $token_auth ) {
         'layout-activate'   => sub { $_[0]->{manage_layouts} },
         'preview-grant'     => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'config-set'        => sub { $_[0]->{manage_config} },
+        # SM105: navigation is a token-client action gated by manage_nav (which
+        # inherits manage_content / webdav), so a WebDAV/API partner can read and
+        # write the site nav without the MCP connector or raw WebDAV to lazysite/.
+        'nav-read'          => sub { $_[0]->{manage_nav} },
+        'nav-save'          => sub { $_[0]->{manage_nav} },
         'whoami'            => sub { 1 },   # any authenticated token may introspect its own grant
         # SM074: a publishing partner manages ACLs on the content it owns.
         'acl-get'           => sub { $_[0]->{webdav} },
@@ -941,6 +946,14 @@ sub action_whoami {
             manage_themes    => $bool->( $s->{manage_themes} ),
             manage_layouts   => $bool->( $s->{manage_layouts} ),
             manage_config    => $bool->( $s->{manage_config} ),
+            # SM105/SM106: report the EFFECTIVE (inherited) content/nav/forms grants -
+            # manage_content inherits webdav, and nav/forms inherit content - so a
+            # partner sees the capabilities that actually apply, not just explicit ones.
+            manage_content   => $bool->( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} ),
+            manage_nav       => $bool->( defined $s->{manage_nav}   ? $s->{manage_nav}
+                                       : ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} ) ),
+            manage_forms     => $bool->( defined $s->{manage_forms} ? $s->{manage_forms}
+                                       : ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} ) ),
             create_sub_users => $bool->( $s->{create_sub_users} ),
         },
         groups => \@groups,

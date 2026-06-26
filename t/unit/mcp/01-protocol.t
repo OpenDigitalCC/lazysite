@@ -278,4 +278,13 @@ is( $r->{error}{code}, -32602, 'unknown tool -> invalid params' );
 ( $st, $r ) = mcp( { jsonrpc => '2.0', id => 9, method => 'no/such/method' } );
 is( $r->{error}{code}, -32601, 'unknown method -> method not found' );
 
+# --- SM102: submit_feedback writes a stamped report and requires a summary ---
+( $st, $r ) = call( 'submit_feedback',
+    { summary => 'good run', good => 'fast', bad => 'forms tricky', rating => 4 }, $bearer_lim );
+ok( $r->{result}{structuredContent}{ok}, 'submit_feedback succeeds' ) or diag( encode_json($r) );
+like( $r->{result}{structuredContent}{id}, qr/^\d{8}-\d{6}-claudelim\z/, 'feedback id is stamped with the user' );
+ok( -f "$d/lazysite/feedback/$r->{result}{structuredContent}{id}.json", 'feedback report written under lazysite/feedback/' );
+( $st, $r ) = call( 'submit_feedback', { good => 'no summary given' }, $bearer_lim );
+ok( !$r->{result}{structuredContent}{ok}, 'submit_feedback requires a summary' );
+
 done_testing();
