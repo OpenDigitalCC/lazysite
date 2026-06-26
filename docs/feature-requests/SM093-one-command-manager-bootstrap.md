@@ -39,6 +39,17 @@ by the absence of `manager_groups` in the conf), running as the domain user afte
 the deploy's chown, so the auth store and conf are written with the right
 ownership. The single deploy command now fully bootstraps the manager.
 
+## Companion: lazysite-check (install/permissions doctor)
+
+`tools/lazysite-check.pl --docroot DOC [--fix]` is the verification counterpart:
+it confirms the install is in the state this bootstrap assumes - the `lazysite/`
+tree is owned by the domain user (not root), the CGI-writable dirs are
+group-writable + setgid, secrets are not world-accessible, the cgi-bin scripts and
+config are present, and the manager is bootstrapped - reporting OK/WARN/FAIL with a
+fix hint, and repairing the chmod/chown issues with `--fix`. The Hestia deploy runs
+it as a final step, so the root-owned-tree trap that motivated this work is now
+caught (and fixable) at deploy time.
+
 ## Notes / follow-ons
 
 - The underlying "tree owned by root" trap is avoided by using the deploy wrapper

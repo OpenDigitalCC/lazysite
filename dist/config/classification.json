@@ -30,6 +30,11 @@
       "bucket": "code"
     },
     {
+      "pattern": "^tools/lazysite-check\\.pl$",
+      "install_to": "{DOCROOT}/../tools/lazysite-check.pl",
+      "bucket": "code"
+    },
+    {
       "_comment": "SM079: shared Lazysite::* modules. Installed beside tools/ and plugins/ at DOCROOT/../lib; the modular scripts add it to @INC via a relative use-lib bootstrap. The processor does not depend on it.",
       "pattern": "^lib/(Lazysite/.+\\.pm)$",
       "install_to": "{DOCROOT}/../lib/$1",

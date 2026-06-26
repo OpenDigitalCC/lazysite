@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+Feature - install/permissions doctor (SM093)
+: `lazysite-check.pl --docroot DOC` verifies an install is healthy: nothing under
+  `lazysite/` is foreign-owned (the root-owned-tree trap that breaks the www-data
+  CGI), the dirs the CGI must write (cache/logs/locks/auth/forms/assets) are
+  group-writable + setgid, secrets are not world-accessible, the cgi-bin scripts
+  and config are present, and the manager is bootstrapped. Reports OK/WARN/FAIL
+  per check with a remediation hint and a non-zero exit on failure; `--fix` applies
+  the chmod (and, as root, chown) repairs. The Hestia deploy runs it as a final
+  verification step.
+
 ## 0.4.18 - One-command manager bootstrap (2026-06-26)
 
 Feature - one-command manager bootstrap (SM093)

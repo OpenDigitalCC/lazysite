@@ -59,3 +59,7 @@ if ! grep -q '^manager_groups:' "$DOC/lazysite/lazysite.conf" 2>/dev/null; then
   echo "==> first-run manager setup"
   sudo -u "$U" perl "$DOM/tools/lazysite-users.pl" --docroot "$DOC" setup-manager
 fi
+
+echo "==> verifying install (permissions + health)"
+sudo -u "$U" perl "$DOM/tools/lazysite-check.pl" --docroot "$DOC" --cgibin "$CGI" || \
+  echo "  (some checks failed above - re-run with --fix as root to repair)"
