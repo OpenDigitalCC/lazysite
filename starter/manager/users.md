@@ -181,7 +181,7 @@ function renderUsers(rows) {
   function byName(a, b) { return a.user.localeCompare(b.user); }
   function node(row) {
     var ch = (kids[row.user] || []).sort(byName);
-    return renderUserRow(row, ch.map(node).join(''));
+    return renderUserRow(row, ch.map(node).join(''), ch.length);
   }
   list.innerHTML = roots.sort(byName).map(node).join('');
   focusUserFromUrl();
@@ -211,7 +211,7 @@ function sec(title, inner) {
   return '<div class="mg-box"><div class="mg-sec">' + title + '</div>' + inner + '</div>';
 }
 
-function renderUserRow(row, kidsHtml) {
+function renderUserRow(row, kidsHtml, subCount) {
   var u = row.user, s = row.settings || {}, ue = escHtml(u);
   var webdav   = !!s.webdav;
   var ui       = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
@@ -235,8 +235,11 @@ function renderUserRow(row, kidsHtml) {
       : ' &middot; <span class="mg-acc-note">expires ' + expiryDate(s.expires_at) + '</span>';
   }
 
+  var subBadge = (subCount > 0)
+    ? ' <span class="mg-subcount" title="' + subCount + ' sub-user' + (subCount > 1 ? 's' : '') + '">(+' + subCount + ')</span>'
+    : '';
   var h = '<details class="mg-acc" data-user="' + ue + '"><summary>' +
-    '<span class="mg-acc-name">' + ue + '</span>' + note +
+    '<span class="mg-acc-name">' + ue + '</span>' + subBadge + note +
     '<span class="mg-acc-tags">' + typeTag + status + by + expTag + '</span></summary>' +
     '<div class="mg-acc-body">';
 
@@ -922,6 +925,7 @@ loadUsers();
 .mg-acc[open] > summary::before { content:'\25BE'; }
 .mg-acc > summary:hover { background:var(--mg-bg-muted,#f7f7f7); }
 .mg-acc-name { font-weight:600; }
+.mg-subcount { color:var(--mg-text-light,#888); font-weight:400; font-size:0.85rem; }
 .mg-acc-tags { color:var(--mg-text-muted,#888); font-size:0.85rem; margin-left:auto; }
 .mg-acc-body { padding:0.5rem 0.75rem 0.9rem 1.75rem; background:var(--mg-bg-muted,#fbfbfb); }
 
