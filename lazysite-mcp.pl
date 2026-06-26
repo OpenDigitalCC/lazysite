@@ -363,13 +363,13 @@ my %TOOLS = (
     },
     list_form_handlers => {
         description => 'List the configured form delivery handlers (id, type, name) - what a form can be bound to. Destinations and credentials are operator-only and never returned.',
-        cap         => 'manage_content',
+        cap         => 'manage_forms',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run         => sub { _list_form_handlers() },
     },
     bind_form => {
         description => 'Wire a form to delivery by referencing an existing handler (from list_form_handlers). A :::form only delivers once bound. You choose an operator-vetted handler by id; you never set a destination or credential (those stay operator-only). Writes lazysite/forms/<form>.conf.',
-        cap         => 'manage_content',
+        cap         => 'manage_forms',
         inputSchema => { type => 'object',
             properties => {
                 form    => { type => 'string', description => 'the form name (the _form / front-matter form key)' },
@@ -403,7 +403,7 @@ my %TOOLS = (
     },
     set_nav => {
         description => 'Replace the site navigation. items is an ordered list of { label, url } (a child list under "children" becomes an indented sub-menu; an item with no url is a section header). Writes lazysite/nav.conf and rebuilds the cache (nav is on every page).',
-        cap         => 'manage_content',
+        cap         => 'manage_nav',
         inputSchema => { type => 'object',
             properties => { items => { type => 'array', items => { type => 'object' } } },
             required => ['items'], additionalProperties => JSON::PP::false },

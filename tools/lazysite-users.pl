@@ -621,6 +621,18 @@ sub effective_settings {
         manage_content => ( defined $s->{manage_content}
             ? ( $s->{manage_content} ? JSON::PP::true() : JSON::PP::false() )
             : ( $s->{webdav}         ? JSON::PP::true() : JSON::PP::false() ) ),
+        # SM105/SM106: nav and forms are their own capabilities, each defaulting to
+        # inherit the effective manage_content grant (which itself inherits webdav),
+        # so any account that can edit content keeps editing nav/forms unless an
+        # explicit manage_nav / manage_forms overrides it.
+        manage_nav => ( defined $s->{manage_nav}
+            ? ( $s->{manage_nav} ? JSON::PP::true() : JSON::PP::false() )
+            : ( ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} )
+                ? JSON::PP::true() : JSON::PP::false() ) ),
+        manage_forms => ( defined $s->{manage_forms}
+            ? ( $s->{manage_forms} ? JSON::PP::true() : JSON::PP::false() )
+            : ( ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} )
+                ? JSON::PP::true() : JSON::PP::false() ) ),
         # SM071 Phase 2: access-token expiry (null = no expiry, e.g. a
         # human password or an operator-minted permanent credential).
         token_expires_at => $s->{token_expires_at},
@@ -680,7 +692,8 @@ sub cmd_set {
     # creation and changed only by account-create / account-reassign.
     my %bool_key = map { $_ => 1 }
         qw(webdav ui create_sub_users delegate_sub_user_creation
-           manage_content manage_themes manage_layouts manage_config);
+           manage_content manage_nav manage_forms
+           manage_themes manage_layouts manage_config);
 
     if ( $bool_key{$key} ) {
         my $bool = parse_onoff($value);

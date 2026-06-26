@@ -39,6 +39,7 @@ my $r = eval { decode_json($in) } || {};
 my $u = $r->{username} // '';
 my %caps = $u =~ /full/ ? (webdav=>1, manage_content=>1, manage_themes=>1, manage_layouts=>1, manage_config=>1)
                         : (webdav=>1, manage_content=>1);
+$caps{manage_nav} = $caps{manage_forms} = 1 if $caps{manage_content};   # SM105/SM106: inherit from content
 print encode_json({ ok => 1, settings => \%caps });
 STUB
 close $sf;

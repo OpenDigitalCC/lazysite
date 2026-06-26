@@ -179,11 +179,12 @@ function renderUsers(rows) {
     }
   });
   function byName(a, b) { return a.user.localeCompare(b.user); }
-  function node(row) {
+  function node(row, parentName) {
     var ch = (kids[row.user] || []).sort(byName);
-    return renderUserRow(row, ch.map(node).join(''), ch.length);
+    var kidsHtml = ch.map(function(c) { return node(c, row.user); }).join('');
+    return renderUserRow(row, kidsHtml, ch.length, parentName);
   }
-  list.innerHTML = roots.sort(byName).map(node).join('');
+  list.innerHTML = roots.sort(byName).map(function(r) { return node(r, ''); }).join('');
   focusUserFromUrl();
 }
 
@@ -211,7 +212,7 @@ function sec(title, inner) {
   return '<div class="mg-box"><div class="mg-sec">' + title + '</div>' + inner + '</div>';
 }
 
-function renderUserRow(row, kidsHtml, subCount) {
+function renderUserRow(row, kidsHtml, subCount, parentName) {
   var u = row.user, s = row.settings || {}, ue = escHtml(u);
   var webdav   = !!s.webdav;
   var ui       = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
@@ -238,8 +239,12 @@ function renderUserRow(row, kidsHtml, subCount) {
   var subBadge = (subCount > 0)
     ? ' <span class="mg-subcount" title="' + subCount + ' sub-user' + (subCount > 1 ? 's' : '') + '">(+' + subCount + ')</span>'
     : '';
+  // SM104: a sub-user shows whose account it is under; a top-level account shows nothing.
+  var parentTag = parentName
+    ? ' <span class="mg-subcount" title="sub-user of ' + escHtml(parentName) + '">&#8627; ' + escHtml(parentName) + '</span>'
+    : '';
   var h = '<details class="mg-acc" data-user="' + ue + '"><summary>' +
-    '<span class="mg-acc-name">' + ue + '</span>' + subBadge + note +
+    '<span class="mg-acc-name">' + ue + '</span>' + subBadge + parentTag + note +
     '<span class="mg-acc-tags">' + typeTag + status + by + expTag + '</span></summary>' +
     '<div class="mg-acc-body">';
 
@@ -284,6 +289,8 @@ function renderUserRow(row, kidsHtml, subCount) {
     pub = '<div class="mg-checks">' +
       cap(ue, 'webdav', webdav, 'WebDAV') +
       cap(ue, 'manage_content', !!s.manage_content, 'Manage content (pages)') +
+      cap(ue, 'manage_nav', !!s.manage_nav, 'Manage navigation') +
+      cap(ue, 'manage_forms', !!s.manage_forms, 'Manage forms') +
       cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes') +
       cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts') +
       cap(ue, 'manage_config', !!s.manage_config, 'Manage config') +
@@ -325,8 +332,8 @@ function renderUserRow(row, kidsHtml, subCount) {
         : '<button class="mg-btn mg-btn-sm" onclick="enable2fa(\'' + ue + '\')">Enable 2FA</button>') +
       '<span class="mg-inline-msg" id="mfamsg-' + ue + '"></span></div>';
     cred += '<div class="mg-cred-reveal" id="mfa-' + ue + '" style="display:none"></div>';
+    h += sec('Credentials', cred);
   }
-  h += sec('Credentials', cred);
 
   // --- WebDAV (publishing accounts only) ---
   if (webdav) {
@@ -375,16 +382,18 @@ function renderUserRow(row, kidsHtml, subCount) {
     '<input type="text" class="mg-inp" id="rename-' + ue + '" placeholder="new username">' +
     '<button class="mg-btn mg-btn-sm" onclick="renameUser(\'' + ue + '\')">Rename</button>' +
     '<span class="mg-inline-msg" id="renmsg-' + ue + '"></span></div>';
-  // Owner + reassign only for sub-users (accounts with a recorded parent).
-  if (s.created_by) {
-    var owner = s.managed_by || s.created_by;
-    var ropts = '<option value="">reassign to&hellip;</option>' +
+  // Parent: any account can be placed under another (sets managed_by), so the
+  // hierarchy is editable after creation, not fixed - this is how you move a user
+  // below another (SM104).
+  {
+    var owner = s.managed_by || s.created_by || '(top-level - no parent)';
+    var ropts = '<option value="">move under&hellip;</option>' +
       allUsers.filter(function(x) { return x !== u; })
         .map(function(x) { return '<option value="' + escHtml(x) + '">' + escHtml(x) + '</option>'; }).join('');
-    ac += '<div class="mg-line"><span class="mg-line-lbl">Owner</span>' +
+    ac += '<div class="mg-line"><span class="mg-line-lbl">Parent</span>' +
       '<code class="mg-code">' + escHtml(owner) + '</code>' +
       '<select class="mg-inp" id="reassign-' + ue + '">' + ropts + '</select>' +
-      '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Reassign</button></div>';
+      '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Move</button></div>';
   }
   h += sec('Account', ac);
 
