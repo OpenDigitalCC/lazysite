@@ -78,10 +78,19 @@ my $PORT       = 8080;
 my $DOCROOT    = abs_path("$SCRIPT_DIR/../starter");
 my $PROCESSOR  = abs_path("$SCRIPT_DIR/../lazysite-processor.pl");
 my $nocache    = 1;
+my $auto_index = 0;    # SM091: generate index + breadcrumb nav for an arbitrary tree
+my $seed       = 1;    # seed scaffolding into a lazysite docroot (off for browsing)
 my $ERR_FILE   = "/tmp/lazysite-server-$$.err";
 my $LOG_FILE   = '';
+my $BROWSE_CACHE = '';    # SM091: off-docroot cache base, set in --auto-index mode
 
-END { unlink $ERR_FILE if -f $ERR_FILE }
+END {
+    unlink $ERR_FILE if -f $ERR_FILE;
+    if ( $BROWSE_CACHE && -d $BROWSE_CACHE ) {
+        require File::Path;
+        File::Path::remove_tree($BROWSE_CACHE);
+    }
+}
 
 # --- Parse arguments ---
 
@@ -92,7 +101,9 @@ while ( @ARGV ) {
     if    ( $arg eq '--port' )      { $PORT      = shift @ARGV; }
     elsif ( $arg eq '--docroot' )   { $DOCROOT   = abs_path( shift @ARGV ); }
     elsif ( $arg eq '--processor' ) { $PROCESSOR = abs_path( shift @ARGV ); }
-    elsif ( $arg eq '--cache' )     { $nocache   = 0; }
+    elsif ( $arg eq '--cache' )      { $nocache    = 0; }
+    elsif ( $arg eq '--auto-index' ) { $auto_index = 1; }
+    elsif ( $arg eq '--no-seed' )    { $seed       = 0; }
     elsif ( $arg eq '--debug' )     { $ENV{LAZYSITE_LOG_LEVEL} = 'DEBUG'; }
     elsif ( $arg eq '--log' )       { $LOG_FILE  = shift @ARGV; }
     elsif ( $arg eq '--help' )      { $show_help = 1; }
@@ -113,6 +124,9 @@ Options:
   --docroot   PATH    Document root (default: ../starter)
   --processor PATH    Processor path (default: ../lazysite-processor.pl)
   --cache             Respect cache files (default: always regenerate)
+  --auto-index        Generate a directory index + breadcrumb nav for any tree
+                      that has no index.md (writes nothing to the docroot)
+  --no-seed           Never seed lazysite scaffolding into the docroot
   --debug             Enable DEBUG level logging
   --log       FILE    Write log lines to file in addition to terminal
   --help              Show this help
@@ -126,6 +140,15 @@ No arguments needed to browse the starter site:
 To serve your own site:
 
   perl tools/lazysite-server.pl --docroot /path/to/your/public_html
+
+To browse any tree of Markdown (no install, no cache, no theme, no index
+files, nothing written back) - e.g. a docs/ folder or notes corpus:
+
+  perl tools/lazysite-server.pl --docroot /path/to/tree --auto-index
+
+Scaffolding is only ever seeded into a real lazysite docroot (one with a
+lazysite/ dir or lazysite.conf.example); an arbitrary tree is left untouched.
+--auto-index implies a read-only browse and never seeds.
 HELP
     exit 0;
 }
@@ -161,10 +184,24 @@ my %MIME = (
     pdf   => 'application/pdf',
 );
 
+# --- Seed scaffolding (only into a real lazysite docroot) ---
+
+# SM091: seed auth/forms/conf scaffolding ONLY when the docroot is actually a
+# lazysite site (it has a lazysite/ dir or a lazysite.conf.example). Pointed at an
+# arbitrary tree - or in --auto-index browse mode, or with --no-seed - the server
+# writes nothing into the docroot.
+my $is_lazysite_docroot = ( -d "$DOCROOT/lazysite" )
+    || ( -f "$DOCROOT/lazysite.conf.example" );
+my $do_seed = $seed && !$auto_index && $is_lazysite_docroot;
+
+# In browse mode, keep the processor's compile/layout cache off the docroot so
+# rendering a page writes nothing into the tree being browsed.
+$BROWSE_CACHE = "/tmp/lazysite-browse-$$" if $auto_index;
+
 # --- Seed auth files from examples if needed ---
 
 my $auth_dir = "$DOCROOT/lazysite/auth";
-{
+if ($do_seed) {
     require File::Path;
     File::Path::make_path($auth_dir) unless -d $auth_dir;
     for my $base (qw(users groups)) {
@@ -182,7 +219,7 @@ my $auth_dir = "$DOCROOT/lazysite/auth";
 
 my $conf_target = "$DOCROOT/lazysite/lazysite.conf";
 my $conf_source = "$DOCROOT/lazysite.conf.example";
-if ( ! -f $conf_target && -f $conf_source ) {
+if ( $do_seed && ! -f $conf_target && -f $conf_source ) {
     require File::Copy;
     require File::Path;
     File::Path::make_path( "$DOCROOT/lazysite" );
@@ -194,7 +231,7 @@ if ( ! -f $conf_target && -f $conf_source ) {
 {
     my $src = "$DOCROOT/lazysite/manager/assets/manager.css";
     my $dst = "$DOCROOT/manager/assets/manager.css";
-    if ( -f $src ) {
+    if ( $do_seed && -f $src ) {
         require File::Path;
         require File::Copy;
         File::Path::make_path("$DOCROOT/manager/assets") unless -d "$DOCROOT/manager/assets";
@@ -203,7 +240,7 @@ if ( ! -f $conf_target && -f $conf_source ) {
 }
 
 # Seed form config from .example files if missing
-{
+if ($do_seed) {
     my $forms_dir = "$DOCROOT/lazysite/forms";
     require File::Path;
     File::Path::make_path($forms_dir) unless -d $forms_dir;
@@ -220,7 +257,7 @@ if ( ! -f $conf_target && -f $conf_source ) {
 
 my $nav_target = "$DOCROOT/lazysite/nav.conf";
 my $nav_source = "$DOCROOT/nav.conf.example";
-if ( ! -f $nav_target && -f $nav_source ) {
+if ( $do_seed && ! -f $nav_target && -f $nav_source ) {
     require File::Copy;
     File::Copy::copy( $nav_source, $nav_target );
     print "  seeded: lazysite/nav.conf\n";
@@ -258,6 +295,8 @@ print "  processor: $PROCESSOR\n";
 print "  docroot:   $DOCROOT\n";
 print "  url:       http://localhost:$PORT/\n";
 print "  cache:     $cache_label\n";
+print "  auto-index: " . ($auto_index ? "on (generated index + breadcrumb nav)" : "off") . "\n";
+print "  seeding:   " . ($do_seed ? "on" : "off (docroot left untouched)") . "\n";
 print "  manager:   " . ($manager_enabled ? "enabled" : "disabled") . "\n";
 print "  log level: " . ($ENV{LAZYSITE_LOG_LEVEL} // 'INFO') . "\n";
 print "  log format: " . ($ENV{LAZYSITE_LOG_FORMAT} // 'text') . "\n";
@@ -334,6 +373,18 @@ sub handle_request {
         return;
     }
 
+    # SM091: --auto-index. A GET for a directory with no index.md (and no
+    # same-named <dir>.md) gets a generated listing instead of a 404, so an
+    # arbitrary tree of Markdown is browsable. Nothing is written to the docroot.
+    if ( $auto_index && $method eq 'GET' ) {
+        ( my $dpath = $uri ) =~ s{/+$}{};
+        my $dir_fs = length $dpath ? "$DOCROOT$dpath" : $DOCROOT;
+        if ( -d $dir_fs && ! -f "$dir_fs/index.md" && ! -f "$dir_fs.md" ) {
+            serve_auto_index( $client, $dir_fs, $uri, $t0 );
+            return;
+        }
+    }
+
     # Determine which script to run
     my $auth_script  = abs_path("$SCRIPT_DIR/../lazysite-auth.pl");
     my $manager_api  = abs_path("$SCRIPT_DIR/../lazysite-manager-api.pl");
@@ -397,6 +448,7 @@ sub handle_request {
         REMOTE_ADDR      => $client->peerhost || '127.0.0.1',
         LAZYSITE_NOCACHE    => $nocache,
         LAZYSITE_PROCESSOR  => $target,  # real CGI target (auth wrapper execs this)
+        ( $BROWSE_CACHE ? ( LAZYSITE_CACHE_DIR => "$BROWSE_CACHE/cache" ) : () ),
         ( $ENV{LAZYSITE_LOG_LEVEL}  ? ( LAZYSITE_LOG_LEVEL  => $ENV{LAZYSITE_LOG_LEVEL}  ) : () ),
         ( $ENV{LAZYSITE_LOG_FORMAT} ? ( LAZYSITE_LOG_FORMAT => $ENV{LAZYSITE_LOG_FORMAT} ) : () ),
     );
@@ -492,6 +544,15 @@ sub handle_request {
     # so length() gives byte count even if some future change taints
     # $output with the flag.
     my $body = $output;
+
+    # SM091: --auto-index also injects a breadcrumb nav at the top of each
+    # rendered page, so any note links back up to its folder and the root
+    # without a nav.conf and without writing anything.
+    if ( $auto_index && $content_type =~ /html/i && $body =~ /<body[^>]*>/i ) {
+        my $crumb = breadcrumb_html($uri);
+        $body =~ s{(<body[^>]*>)}{$1\n$crumb}i;
+    }
+
     my $length = do { use bytes; length($body) };
 
     # Content-Type from the CGI may declare its own charset (most
@@ -551,6 +612,154 @@ sub serve_static {
 
     my $ms = $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0;
     log_event('INFO', $uri, 'request', method => $method, status => '200 OK', ms => $ms, static => 1);
+}
+
+# --- SM091: auto-index (generated directory listing + breadcrumb nav) ---
+
+sub _auto_esc {
+    my ($s) = @_;
+    $s = '' unless defined $s;
+    $s =~ s/&/&amp;/g;
+    $s =~ s/</&lt;/g;
+    $s =~ s/>/&gt;/g;
+    $s =~ s/"/&quot;/g;
+    return $s;
+}
+
+# Friendly label for a note: its front-matter title, else the slug.
+sub _auto_title {
+    my ($file) = @_;
+    open my $fh, '<', $file or return undef;
+    my ( $n, $title ) = ( 0, undef );
+    while ( my $l = <$fh> ) {
+        last if $n++ > 10 || ( $n > 1 && $l =~ /^---\s*$/ );
+        if ( $l =~ /^title:\s*"?(.*?)"?\s*$/ ) { $title = $1; last }
+    }
+    close $fh;
+    return ( defined $title && length $title ) ? $title : undef;
+}
+
+# index / area / page trail, links to each ancestor directory's index.
+sub breadcrumb_html {
+    my ($uri) = @_;
+    ( my $p = $uri ) =~ s{/+$}{};
+    $p =~ s{^/+}{};
+    my @parts = length $p ? split m{/}, $p : ();
+    my $crumb = '<nav class="ls-crumb"><a href="/">&#127968; index</a>';
+    my $acc   = '';
+    for my $i ( 0 .. $#parts ) {
+        $acc .= '/' . $parts[$i];
+        ( my $label = $parts[$i] ) =~ s/\.md$//;
+        if ( $i == $#parts ) {
+            $crumb .= ' &rsaquo; <span class="here">' . _auto_esc($label) . '</span>';
+        }
+        else {
+            $crumb .= ' &rsaquo; <a href="' . _auto_esc($acc) . '/">'
+                . _auto_esc($label) . '</a>';
+        }
+    }
+    return $crumb . '</nav>';
+}
+
+# HTML for a directory index. Reads the filesystem only; returns undef if the
+# directory cannot be opened. Pure enough to unit-test.
+sub render_auto_index {
+    my ( $dir_fs, $uri ) = @_;
+    opendir my $dh, $dir_fs or return undef;
+    my ( @dirs, @notes, $has_readme );
+    for my $e ( sort readdir $dh ) {
+        next if $e =~ /^\./;
+        next if $e eq 'lazysite' || $e eq 'manager';
+        if    ( -d "$dir_fs/$e" )                    { push @dirs, $e }
+        elsif ( $e =~ /\.md$/ && $e ne 'index.md' )  {
+            if ( $e eq 'README.md' ) { $has_readme = 1 }
+            else                     { push @notes, $e }
+        }
+    }
+    closedir $dh;
+
+    ( my $base = $uri ) =~ s{/+$}{};          # '' at root, '/auth' otherwise
+    my $name = ( $base =~ m{([^/]+)$} ) ? $1 : 'index';
+
+    my $h = breadcrumb_html($uri);
+    $h .= '<h1>' . _auto_esc($name) . "</h1>\n";
+    $h .= qq{<p class="ls-note">Generated index - no <code>index.md</code> here }
+        . qq{(lazysite dev server, <code>--auto-index</code>).</p>\n};
+    if ($has_readme) {
+        $h .= qq{<p class="ls-overview"><a href="$base/README">}
+            . qq{&#128196; Overview (README)</a></p>\n};
+    }
+    if (@dirs) {
+        $h .= "<h2>Folders</h2>\n<ul class=\"ls-list\">\n";
+        $h .= qq{  <li><a href="$base/$_/">&#128193; } . _auto_esc($_) . "/</a></li>\n"
+            for @dirs;
+        $h .= "</ul>\n";
+    }
+    if (@notes) {
+        $h .= "<h2>Pages</h2>\n<ul class=\"ls-list\">\n";
+        for my $note (@notes) {
+            ( my $slug = $note ) =~ s/\.md$//;
+            my $label = _auto_title("$dir_fs/$note") // $slug;
+            $h .= qq{  <li><a href="$base/$slug">} . _auto_esc($label) . '</a> '
+                . '<span class="ls-fn">' . _auto_esc($note) . "</span></li>\n";
+        }
+        $h .= "</ul>\n";
+    }
+    $h .= "<p><em>empty directory</em></p>\n" unless @dirs || @notes || $has_readme;
+
+    return _auto_page( $name, $h );
+}
+
+sub _auto_page {
+    my ( $title, $inner ) = @_;
+    my $t = _auto_esc($title);
+    return <<"HTML";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>$t - index</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto;
+         padding: 0 1rem; color: #333; line-height: 1.5; }
+  h1 { margin: 0.2rem 0 0.6rem; } h2 { margin-top: 1.4rem; color: #555; }
+  a { color: #0066cc; text-decoration: none; } a:hover { text-decoration: underline; }
+  .ls-crumb { font-size: 0.85rem; padding: 0.4rem 0; border-bottom: 1px solid #eee;
+              margin-bottom: 1rem; color: #888; }
+  .ls-crumb .here { color: #333; font-weight: 600; }
+  .ls-note { color: #888; font-size: 0.85rem; }
+  .ls-overview { font-size: 1.05rem; }
+  .ls-list { list-style: none; padding-left: 0; }
+  .ls-list li { padding: 0.2rem 0; }
+  .ls-fn { color: #aaa; font-size: 0.8rem; font-family: monospace; margin-left: 0.4rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+$inner</body>
+</html>
+HTML
+}
+
+sub serve_auto_index {
+    my ( $client, $dir_fs, $uri, $t0 ) = @_;
+    my $html = render_auto_index( $dir_fs, $uri );
+    unless ( defined $html ) {
+        print $client "HTTP/1.0 500 Internal Server Error\r\n";
+        print $client "Content-Type: text/plain\r\nConnection: close\r\n\r\n";
+        print $client "cannot read directory\n";
+        return;
+    }
+    my $length = do { use bytes; length($html) };
+    print $client "HTTP/1.0 200 OK\r\n";
+    print $client "Content-Type: text/html; charset=utf-8\r\n";
+    print $client "Cache-Control: no-cache, must-revalidate\r\n";
+    print $client "Content-Length: $length\r\n";
+    print $client "Connection: close\r\n\r\n";
+    print $client $html;
+    my $ms = $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0;
+    log_event( 'INFO', $uri, 'auto-index', status => '200 OK', ms => $ms );
 }
 
 # --- Logging ---

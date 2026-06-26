@@ -63,6 +63,19 @@ Operations
 
 Open http://localhost:8080/ to browse the starter site.
 
+### Browse any folder of Markdown
+
+The dev server can present any tree of Markdown - a `docs/` folder, a notes
+corpus - with no install, no cache, no theme and no index files, writing nothing
+into the tree:
+
+    perl tools/lazysite-server.pl --docroot /path/to/tree --auto-index
+
+`--auto-index` generates a directory index (folders and pages, with labels from
+each note's front-matter `title`) plus a breadcrumb nav for any directory lacking
+an `index.md`. Scaffolding is only ever seeded into a real lazysite docroot; an
+arbitrary tree is left untouched (force seeding off anywhere with `--no-seed`).
+
 ## Installation
 
     sudo bash install.sh --docroot /path/to/public_html \

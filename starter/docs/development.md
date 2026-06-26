@@ -18,6 +18,9 @@ Options:
     --docroot PATH    Document root (default: ../starter)
     --processor PATH  Processor path (default: ../lazysite-processor.pl)
     --cache           Respect cache files (default: always regenerate)
+    --auto-index      Generate an index + breadcrumb nav for a tree with no
+                      index.md (writes nothing to the docroot)
+    --no-seed         Never seed scaffolding into the docroot
     --help            Show help
 
 With no arguments, the server serves the `starter/` directory on port 8080.
@@ -28,6 +31,28 @@ To serve your own site:
 The server always regenerates pages by default (equivalent to
 `LAZYSITE_NOCACHE=1`) so edits are visible immediately without deleting
 cache files.
+
+### Browse an arbitrary tree of Markdown
+
+The dev server doubles as a zero-install Markdown browser: point it at any tree
+and add `--auto-index`.
+
+    perl tools/lazysite-server.pl --docroot /path/to/tree --auto-index
+
+In this mode it:
+
+- generates a directory index (sub-folders and pages as links, page labels from
+  each note's front-matter `title`, the directory's `README` linked as an
+  overview) for any directory that has no `index.md`;
+- injects a breadcrumb nav (`index / area / page`) at the top of every rendered
+  page, so notes link back up without a `nav.conf`;
+- writes nothing into the tree - scaffolding seeding is suppressed, and the
+  processor's compile/layout cache is relocated to a temporary directory
+  (via `LAZYSITE_CACHE_DIR`) instead of `{docroot}/lazysite/cache`.
+
+Scaffolding (auth/forms/conf seed files) is otherwise only ever written into a
+real lazysite docroot - one that already has a `lazysite/` directory or a
+`lazysite.conf.example`. Use `--no-seed` to force it off even there.
 
 ## LAZYSITE_NOCACHE
 

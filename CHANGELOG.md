@@ -18,6 +18,21 @@ Keying
 
 ## Unreleased
 
+Feature - dev-server auto-index, browse any tree (SM091)
+: `tools/lazysite-server.pl --auto-index` turns the dev server into a zero-install
+  Markdown browser for any folder: it generates a directory index (sub-folders and
+  pages as links, labels from front-matter `title`, `README` linked as overview)
+  for any directory lacking an `index.md`, and injects a breadcrumb nav into every
+  rendered page. It writes nothing into the tree - seeding is suppressed and the
+  processor's compile/layout cache is relocated off the docroot.
+
+Change - no scaffolding seeded into a non-lazysite docroot
+: the dev server now only seeds auth/forms/conf scaffolding into a real lazysite
+  docroot (one with a `lazysite/` dir or `lazysite.conf.example`); pointed at an
+  arbitrary tree it leaves it untouched. New `--no-seed` forces seeding off
+  anywhere. New processor env `LAZYSITE_CACHE_DIR` relocates the cache base
+  (inert unless set, so production and tests are unchanged).
+
 ## 0.4.16 - UTF-8 corruption fully fixed + set_nav (2026-06-25)
 
 Fix - non-ASCII corruption through the connector (the real root cause)

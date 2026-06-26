@@ -115,9 +115,14 @@ my $REGISTRY_DIR  = "$LAZYSITE_DIR/templates/registries";
 my $MANAGER_LAYOUT = "$LAZYSITE_DIR/manager/layout.tt";
 my $REMOTE_TTL       = 3600;  # seconds before remote content is refetched (default 1 hour)
 my $REGISTRY_TTL     = 14400; # seconds before registries are regenerated (default 4 hours)
-my $LAYOUT_CACHE_DIR = "$LAZYSITE_DIR/cache/layouts";
-my $CT_CACHE_DIR     = "$LAZYSITE_DIR/cache/ct";
-my $TT_COMPILE_DIR   = "$LAZYSITE_DIR/cache/tt";   # P-4 TT on-disk compile cache
+# SM091: the cache base normally lives under the docroot, but a read-only
+# browse (the dev server's --auto-index) can relocate it off the docroot via
+# LAZYSITE_CACHE_DIR so pointing the processor at an arbitrary tree writes
+# nothing into it. Unset (production / tests) keeps the original location.
+my $CACHE_BASE       = $ENV{LAZYSITE_CACHE_DIR} || "$LAZYSITE_DIR/cache";
+my $LAYOUT_CACHE_DIR = "$CACHE_BASE/layouts";
+my $CT_CACHE_DIR     = "$CACHE_BASE/ct";
+my $TT_COMPILE_DIR   = "$CACHE_BASE/tt";   # P-4 TT on-disk compile cache
 my %AUTH_CONTEXT;    # populated by main() auth check, read by render_content()
 
 # Built-in fallback template - used when no layout.tt is found
