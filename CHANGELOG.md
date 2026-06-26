@@ -18,6 +18,26 @@ Keying
 
 ## Unreleased
 
+## 0.4.24 - Users-page UX; fleet health summary (2026-06-26)
+
+Feature - Users page reads as the hierarchy and roles it is
+: sub-users nest under their parent account (collapse with it); capability toggles
+  are hidden for manager-group (operator) accounts - overridden by the role - and the
+  capability section is relabelled "Publishing access (WebDAV / control API / AI
+  connector)"; interactive-login credentials (password / setup link / 2FA) are hidden
+  for AI/backend accounts, leaving the token they actually use; the Add-group first
+  member is a dropdown of existing accounts.
+
+Feature - fleet updater health summary
+: `lazysite-hestia-update-all.sh` prints a consolidated list of the doctor's warnings
+  and failures grouped by site at the end of a run, so outstanding items are visible
+  in one place instead of buried in each site's block.
+
+Change - agent brief steers off a co-discovered MCP
+: the WebDAV/API onboarding brief now tells an implementation agent to use only that
+  path and not a separately-detected MCP connector for the same account (a real
+  Claude Code confusion).
+
 ## 0.4.23 - Audit static-bearer connect; deploy chowns all install targets (2026-06-26)
 
 Feature - audit a connector connecting with a static bearer
