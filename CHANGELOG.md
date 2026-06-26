@@ -18,6 +18,23 @@ Keying
 
 ## Unreleased
 
+## 0.4.32 - Manager UI: side-nav, command palette, dark mode (SM109 phases 4-6) (2026-06-26)
+
+Feature - grouped left sidebar
+: the nine-item top nav becomes a grouped left sidebar (Content / Access / System) in
+  a flex shell; the header keeps the brand + tools and gains a palette trigger. The
+  active link is tinted with the accent; the sidebar wraps on narrow screens.
+
+Feature - command palette
+: Ctrl/Cmd-K opens a palette to jump to any manager page or run a command (view site,
+  toggle dark mode, sign out) - type to filter, arrow keys + Enter, Escape to close.
+
+Feature - dark mode
+: a `[data-theme="dark"]` token block reskins the whole manager (every component
+  inherits the reassigned vars). A header toggle flips and persists the choice; the
+  theme is set before first paint from the saved choice or the OS preference, so no
+  flash. Completes the SM109 manager-UI modernization.
+
 ## 0.4.31 - Manager UI: no more native dialogs (SM109 phase 2b) (2026-06-26)
 
 Feature - the remaining native dialogs become the styled modal
