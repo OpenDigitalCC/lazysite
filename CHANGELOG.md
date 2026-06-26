@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.4.19 - Install/permissions doctor (2026-06-26)
+
 Feature - install/permissions doctor (SM093)
 : `lazysite-check.pl --docroot DOC` verifies an install is healthy: nothing under
   `lazysite/` is foreign-owned (the root-owned-tree trap that breaks the www-data
