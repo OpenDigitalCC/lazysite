@@ -48,7 +48,7 @@ identity in both domains; only <em>where</em> it is granted differs.
 </div>
 <div class="mg-form-row">
 <label></label>
-<button class="mg-btn mg-btn-outline" onclick="addUser()">Add user</button>
+<button class="mg-btn mg-btn-primary" onclick="addUser()">Add user</button>
 </div>
 </div>
 </details>
@@ -64,7 +64,7 @@ identity in both domains; only <em>where</em> it is granted differs.
 <div class="mg-card-body mg-new-group-row">
 <input type="text" id="new-group-name" placeholder="new group name">
 <select id="new-group-member" class="mg-inp"><option value="">first member&hellip;</option></select>
-<button class="mg-btn mg-btn-outline" onclick="createGroup()">Add group</button>
+<button class="mg-btn mg-btn-primary" onclick="createGroup()">Add group</button>
 </div>
 </details>
 </div>

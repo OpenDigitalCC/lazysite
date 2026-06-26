@@ -234,7 +234,7 @@ function renderSiteForm(values) {
     }
     html += '</div>';
   });
-  html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-outline">Save</button></div>';
+  html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button></div>';
   html += '</form>';
   return html;
 }
