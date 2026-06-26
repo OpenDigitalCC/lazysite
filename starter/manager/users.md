@@ -305,16 +305,11 @@ function renderUserRow(row, kidsHtml, subCount) {
   grp += '</div>';
   h += sec('Groups', grp);
 
-  // --- Credentials ---
-  // The token is for any account that connects (Claude Code / Desktop / a script).
-  // The interactive-login credentials (password / setup link / 2FA) are shown only
-  // for human accounts - an AI / backend account does not use them (SM094).
-  var cred = '<div class="mg-line"><span class="mg-line-lbl">Token</span>' +
-    '<button class="mg-btn mg-btn-sm" onclick="generateCredential(\'' + ue + '\')">Generate credential</button>' +
-    '<span class="mg-help" title="Mints a strong machine credential (lzs_), shown once, revoked by regenerating. For Claude Code / Desktop / a script: the WebDAV / API password, or the bearer username:token. NOT for Claude.ai or ChatGPT web - those are OAuth-only and have no token field; use Connect an AI assistant below. The account also needs the right capability (e.g. Manage content) to actually edit.">&#9432;</span> <span class="mg-muted">for Claude Code / Desktop / scripts</span></div>';
-  cred += '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>';
+  // --- Credentials (interactive login - human accounts only) ---
+  // The connector credential (token) now lives in "Connect an AI assistant" below,
+  // as one of the client choices (SM100), so it is not duplicated here.
   if (ui) {
-    cred += '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
+    var cred = '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
       '<input type="password" class="mg-inp" id="pw-' + ue + '" placeholder="new password">' +
       '<button class="mg-btn mg-btn-sm" onclick="savePassword(\'' + ue + '\')">Save</button>' +
       '<span class="mg-inline-msg" id="pwmsg-' + ue + '"></span></div>';
@@ -349,14 +344,20 @@ function renderUserRow(row, kidsHtml, subCount) {
     h += sec('WebDAV', wd);
   }
 
-  // --- AI partner onboarding (publishing accounts only) ---
-  if (webdav) {
-    var ob = '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showConnector(\'' + ue + '\')">Connect an AI assistant</button>' +
-      '<span class="mg-muted">OAuth connector for Claude.ai / ChatGPT / any MCP web app &mdash; <a href="/docs/ai-connector-setup" target="_blank">guide</a></span></div>' +
-      '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="showOnboarding(\'' + ue + '\')">Generate agent brief</button>' +
-      '<span class="mg-muted">pairing-key + API/WebDAV brief &mdash; for Claude Code or a script (deliver the key out of band)</span></div>' +
+  // --- Connect an AI assistant (SM100: one flow - pick the client, get the one
+  // credential that works; no three parallel controls to choose wrong between) ---
+  if (webdav || !ui) {
+    var conn =
+      '<p class="mg-muted" style="margin:0 0 0.4rem">Pick how this account connects &mdash; we issue the one credential that works for it.</p>' +
+      '<div class="mg-connect-pick">' +
+        '<button class="mg-btn mg-btn-sm" onclick="connectAs(\'' + ue + '\',\'web\')">Claude.ai / ChatGPT (web)</button>' +
+        '<button class="mg-btn mg-btn-sm" onclick="connectAs(\'' + ue + '\',\'desktop\')">Claude Desktop (connector)</button>' +
+        '<button class="mg-btn mg-btn-sm" onclick="connectAs(\'' + ue + '\',\'code\')">Claude Code / script</button>' +
+      '</div>' +
+      '<div class="mg-connect-hint mg-muted" id="connhint-' + ue + '"></div>' +
+      '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>' +
       '<div id="onb-' + ue + '" style="display:none"></div>';
-    h += sec('AI partner onboarding', ob);
+    h += sec('Connect an AI assistant', conn);
   }
 
   // --- Account ---
@@ -465,6 +466,24 @@ function savePassword(user) {
       say('Password updated.', true);
     })
     .catch(function(e) { say('Error: ' + e.message, false); });
+}
+
+// SM100: one connect entry point. Route the chosen client to the credential that
+// works for it (web -> OAuth connect code, desktop -> token, code/script ->
+// pairing brief) and show the reason inline, so there is no wrong-credential
+// dead-end. Each branch calls the existing, unchanged flow.
+function connectAs(user, client) {
+  var hint = document.getElementById('connhint-' + user);
+  if (client === 'web') {
+    if (hint) hint.textContent = 'Claude.ai and ChatGPT are OAuth-only (no token field). You get a one-time connect code to paste at the sign-in prompt.';
+    showConnector(user);
+  } else if (client === 'desktop') {
+    if (hint) hint.textContent = 'Claude Desktop connectors take a token. This generates one (username:token) for the connector settings.';
+    generateCredential(user);
+  } else {
+    if (hint) hint.textContent = 'Claude Code and scripts connect over WebDAV/API (not MCP). This generates a single-use pairing brief to hand to the agent.';
+    showOnboarding(user);
+  }
 }
 
 function generateCredential(user) {
@@ -794,7 +813,7 @@ function populateAddUserParents() {
   var sel = document.getElementById('new-parent');
   if (!sel) return;
   var cur = sel.value;
-  sel.innerHTML = '<option value="">(top level - under you, the manager)</option>' +
+  sel.innerHTML = '<option value="">(top-level account - no parent; managed by you)</option>' +
     parentList.map(function(p) { return '<option value="' + escHtml(p) + '">under ' + escHtml(p) + '</option>'; }).join('');
   sel.value = cur;
 }
@@ -926,6 +945,8 @@ loadUsers();
 .mg-acc > summary:hover { background:var(--mg-bg-muted,#f7f7f7); }
 .mg-acc-name { font-weight:600; }
 .mg-subcount { color:var(--mg-text-light,#888); font-weight:400; font-size:0.85rem; }
+.mg-connect-pick { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.3rem; }
+.mg-connect-hint { font-size:0.85rem; margin:0.2rem 0; min-height:1em; }
 .mg-acc-tags { color:var(--mg-text-muted,#888); font-size:0.85rem; margin-left:auto; }
 .mg-acc-body { padding:0.5rem 0.75rem 0.9rem 1.75rem; background:var(--mg-bg-muted,#fbfbfb); }
 
