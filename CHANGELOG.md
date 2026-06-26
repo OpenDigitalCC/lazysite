@@ -18,6 +18,17 @@ Keying
 
 ## Unreleased
 
+## 0.4.30 - Manager UI: shared style system (SM109 phase 3) (2026-06-26)
+
+Feature - per-page styles consolidated onto the shared system
+: the manager pages reinvented components in inline `<style>` blocks; these are now
+  in manager.css, token-driven and de-duplicated. users.md's ~57-line component
+  block (.mg-acc / .mg-box / .mg-line / .mg-tag / .mg-chk / .mg-inp / .mg-cred-*),
+  audit.md's .audit-table, and config.md's .mg-plugin-row are shared. Hard-coded
+  colours (#c33 / #666 / #eee / #e5e5e5) are gone, and the token bug Phase 1 exposed
+  (white surfaces used --mg-bg, now #fafafa) is fixed to --mg-surface. edit.md, which
+  reuses these classes, now picks up the consistent styling for free.
+
 ## 0.4.29 - Manager UI: switches, toasts, modal dialogs (SM109 phase 2a) (2026-06-26)
 
 Feature - toggle switches
