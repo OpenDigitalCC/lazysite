@@ -39,7 +39,10 @@ for my $s (qw(lazysite-processor.pl lazysite-auth.pl lazysite-manager-api.pl)) {
     chmod 0755, "$cgi/$s";
 }
 
-sub run { qx($^X $script --docroot $doc --cgibin $cgi @_ 2>&1) }
+# The test's files are owned by the test user's group (not www-data), so pass
+# --group explicitly; otherwise the group check would (correctly) flag them.
+my $gname = getgrgid( ( stat $doc )[5] ) // ( stat $doc )[5];
+sub run { qx($^X $script --docroot $doc --cgibin $cgi --group $gname @_ 2>&1) }
 
 # --- detection ---
 {

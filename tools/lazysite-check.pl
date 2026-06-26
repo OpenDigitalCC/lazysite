@@ -64,7 +64,11 @@ unless ( -d $LZ ) {
 # --- expected owner / group (default: derived from the docroot itself) -------
 my @ds = stat $DOC;
 my $exp_uid = defined $opt{owner} ? ( ( getpwnam $opt{owner} )[2] // -1 ) : $ds[4];
-my $exp_gid = defined $opt{group} ? ( ( getgrnam $opt{group} )[2] // -1 ) : $ds[5];
+# Expected GROUP defaults to the CGI's group (www-data), NOT the docroot's group:
+# the no-suexec CGI runs as www-data and must keep group access to the tree.
+# Falling back to the docroot group only if there is no www-data group.
+my $exp_gid = defined $opt{group} ? ( ( getgrnam $opt{group} )[2] // -1 )
+            : ( ( getgrnam 'www-data' )[2] // $ds[5] );
 my $exp_user = ( getpwuid $exp_uid )[0] // $exp_uid;
 my $exp_grp  = ( getgrgid $exp_gid )[0] // $exp_gid;
 
@@ -145,10 +149,11 @@ for my $rel ( sort keys %want_dir ) {
     next unless -d $path;
     my $gid = ( stat $path )[5];
     if ( $gid != $exp_gid ) {
-        report( 'WARN',
+        report( 'FAIL',
             "$rel group is " . group_name($path) . ", expected $exp_grp "
-          . "(the group the CGI runs as)",
-            "chgrp -R $exp_grp '$path'" );
+          . "(the group the CGI runs as) - the CGI cannot access it",
+            "chown -R $exp_user:$exp_grp '$LZ'" );
+        $chown_needed = 1;
     }
 }
 
