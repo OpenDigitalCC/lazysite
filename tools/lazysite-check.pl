@@ -193,6 +193,33 @@ for my $rel (qw(
     }
 }
 
+# --- 4b. config/auth files the CGI overwrites in place must be group-writable -
+# (the manager saves nav.conf / lazysite.conf / the user store + ACLs through the
+#  www-data CGI; if they are not group-writable by www-data, the save fails)
+for my $rel (qw(
+    lazysite/nav.conf lazysite/lazysite.conf
+    lazysite/auth/users lazysite/auth/groups lazysite/auth/acls.json
+)) {
+    my $path = "$DOC/$rel";
+    next unless -f $path;
+    my @s    = stat $path;
+    my $mode = $s[2] & 07777;
+    my $cgi_writable =
+         ( defined $cgi_uid && $s[4] == $cgi_uid && ( $mode & 0200 ) )   # www-data owner, owner-write
+      || ( $s[5] == $exp_gid && ( $mode & 0020 ) );                      # www-data group, group-write
+    unless ($cgi_writable) {
+        report( 'FAIL',
+            sprintf( "%s (%04o, %s:%s) is not writable by the CGI (%s) - the manager cannot save it",
+                $rel, $mode, owner_name($path), group_name($path), $exp_grp ),
+            sprintf( "chown %s:%s '%s' && chmod g+w '%s'", $exp_user, $exp_grp, $path, $path ) );
+        push @chmod_fixes, [ ( $mode | 0020 ), $path ];   # add group-write, keep the rest
+        $chown_needed = 1;
+    }
+    else {
+        report( 'OK', "$rel writable by the CGI" );
+    }
+}
+
 # --- 5. the user store must not be world-writable ----------------------------
 for my $rel (qw(lazysite/auth/users lazysite/auth/groups)) {
     my $path = "$DOC/$rel";

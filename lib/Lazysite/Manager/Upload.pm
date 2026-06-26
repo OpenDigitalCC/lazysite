@@ -54,7 +54,7 @@ our %CONTENT_TYPE_MAP = (
 );
 
 our %TEXT_EXTENSIONS = map { $_ => 1 } qw(
-    md txt html htm css js json jsonl xml
+    md url txt html htm css js json jsonl xml
     yaml yml csv tsv conf ini log pl pm
     sh bash env example brief
 );
