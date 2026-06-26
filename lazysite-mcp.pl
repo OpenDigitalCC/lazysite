@@ -46,6 +46,8 @@ my $DOCROOT      = $ENV{DOCUMENT_ROOT} // '';
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
+# Set early so verify_bearer (which runs before setup_context) can audit a connect.
+$Lazysite::Audit::LAZYSITE_DIR       = $LAZYSITE_DIR;
 
 # How the current request authenticated, for whoami to surface the real session
 # lifetime (an OAuth access token expires ~hourly even when the partner's static
@@ -148,6 +150,11 @@ sub verify_bearer {
         my $v = _users_api( { action => 'verify-credential',
             username => $user, secret => $secret, touch => 1 } );
         return () unless $v && $v->{ok};
+        # Audit the connector's first authentication with this credential (the
+        # static-bearer "connected" moment - Claude Code / Desktop / a script).
+        # Once per issuance, so it does not flood on every tool call.
+        audit_log( $user, 'connect', 'bearer', $ENV{REMOTE_ADDR} // '', 'ok', 'mcp' )
+            if $v->{first_use};
         %AUTH_INFO = ( method => 'bearer',
             expires_at => ( $v->{settings} ? $v->{settings}{token_expires_at} : undef ) );
         return ( $user, $v->{settings} || {} );

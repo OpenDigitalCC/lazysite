@@ -31,12 +31,15 @@ CGI="$DOM/cgi-bin"
 echo "==> applying lazysite-app web template"
 "$HESTIA/bin/v-change-web-domain-tpl" "$U" "$DOMAIN" lazysite-app yes
 
-# A previous install.pl run directly as root can leave the docroot / cgi-bin owned
-# by root, which the user-run install.pl below then cannot overwrite ("Permission
+# A previous install.pl run directly as root can leave the install targets owned by
+# root, which the user-run install.pl below then cannot overwrite ("Permission
 # denied", failed upgrade). This script runs as root, so make the domain user own
-# what install.pl must write BEFORE running it.
+# everything install.pl writes BEFORE running it: the docroot, the cgi-bin, and the
+# sibling lib/ plugins/ tools/ trees (DOCROOT/../{lib,plugins,tools}).
 echo "==> normalising ownership to $U:www-data (so the user-run install can write)"
-chown -R "$U":www-data "$DOC" "$CGI" 2>/dev/null || true
+for tgt in "$DOC" "$CGI" "$DOM/lib" "$DOM/plugins" "$DOM/tools"; do
+  [ -e "$tgt" ] && chown -R "$U":www-data "$tgt" 2>/dev/null || true
+done
 
 echo "==> install.pl (as $U)"
 sudo -u "$U" bash "$STAGE/install.sh" --docroot "$DOC" --cgibin "$CGI"
