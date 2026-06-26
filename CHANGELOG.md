@@ -18,6 +18,20 @@ Keying
 
 ## Unreleased
 
+## 0.4.23 - Audit static-bearer connect; deploy chowns all install targets (2026-06-26)
+
+Feature - audit a connector connecting with a static bearer
+: Claude Code / Desktop / scripts authenticate with the static `lzs_` bearer, whose
+  verify path audited nothing - so an active connector showed its writes but never
+  its connection. The MCP now audits a `connect` (origin mcp) on the FIRST use of a
+  credential since issuance, recording the connection once without flooding.
+
+Fix - deploy normalises ownership of every install target
+: the deploy chowned the docroot + cgi-bin but not the sibling `lib/` `plugins/`
+  `tools/` trees install.pl also writes, so a site whose `lib/` was left root-owned
+  still failed the upgrade ("Failed to copy lib/Lazysite/Audit.pm: Permission
+  denied"). It now chowns all install targets first.
+
 ## 0.4.22 - Audit the connector lifecycle; audit.log writability (2026-06-26)
 
 Feature - full OAuth/connector lifecycle in the audit trail
