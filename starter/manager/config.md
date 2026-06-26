@@ -389,22 +389,4 @@ function togglePlugin(input, script, name) {
 loadPluginRegistry();
 </script>
 
-<style>
-.mg-config-section { margin-bottom: 2rem; }
-.mg-config-help { color: var(--mg-text-muted); font-size: 0.875rem; margin: 0.25rem 0 1rem; }
-.mg-plugin-registry { display: flex; flex-direction: column; gap: 0.25rem; }
-.mg-plugin-row {
-  display: grid;
-  grid-template-columns: auto 14rem 1fr auto;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--mg-border, #e5e5e5);
-  border-radius: 4px;
-  cursor: pointer;
-}
-.mg-plugin-row:hover { background: var(--mg-bg-hover, #fafafa); }
-.mg-plugin-row-name { font-weight: 500; }
-.mg-plugin-row-desc { color: var(--mg-text-muted); font-size: 0.875rem; }
-.mg-plugin-row-path { font-family: var(--mg-mono, monospace); font-size: 0.75rem; color: var(--mg-text-light); }
-</style>
+<!-- config styles consolidated into manager.css (SM109 phase 3) -->

@@ -30,15 +30,7 @@ query_params:
 </div>
 </div>
 
-<style>
-  .audit-table { width:100%; border-collapse:collapse; font-size:0.85rem; }
-  .audit-table th, .audit-table td { text-align:left; padding:0.3rem 0.5rem; border-bottom:1px solid #eee; }
-  .audit-table th { color:#666; font-weight:600; }
-  .audit-fail { color:#c33; }
-  .audit-info { color:#c33; text-decoration:none; cursor:pointer; font-size:0.95rem; }
-  .audit-detail { color:#c33; font-size:0.8rem; opacity:0.85; }
-</style>
-
+<!-- audit-table styles consolidated into manager.css (SM109 phase 3) -->
 <script>
 function aesc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
 
