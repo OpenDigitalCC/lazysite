@@ -31,6 +31,13 @@ CGI="$DOM/cgi-bin"
 echo "==> applying lazysite-app web template"
 "$HESTIA/bin/v-change-web-domain-tpl" "$U" "$DOMAIN" lazysite-app yes
 
+# A previous install.pl run directly as root can leave the docroot / cgi-bin owned
+# by root, which the user-run install.pl below then cannot overwrite ("Permission
+# denied", failed upgrade). This script runs as root, so make the domain user own
+# what install.pl must write BEFORE running it.
+echo "==> normalising ownership to $U:www-data (so the user-run install can write)"
+chown -R "$U":www-data "$DOC" "$CGI" 2>/dev/null || true
+
 echo "==> install.pl (as $U)"
 sudo -u "$U" bash "$STAGE/install.sh" --docroot "$DOC" --cgibin "$CGI"
 
@@ -40,6 +47,12 @@ find "$DOC" -type d -exec chmod 2775 {} \;
 find "$DOC" -type f -exec chmod 664  {} \;
 [ -d "$DOC/lazysite/auth" ]  && chmod 2770 "$DOC/lazysite/auth"
 [ -d "$DOC/lazysite/forms" ] && chmod 2770 "$DOC/lazysite/forms"
+# Secrets must not be world-readable (the blanket 664 above would expose them);
+# 660 keeps them readable by the www-data group only.
+for sec in auth/.secret forms/.secret manager/.csrf-secret \
+           auth/oauth.json auth/user-settings.json; do
+  [ -f "$DOC/lazysite/$sec" ] && chmod 660 "$DOC/lazysite/$sec"
+done
 
 # index.html is handled by the template hook (install-hestia.sh): it clears only
 # an index.html that was rendered from a PRE-EXISTING index.md - never real
@@ -60,6 +73,9 @@ if ! grep -q '^manager_groups:' "$DOC/lazysite/lazysite.conf" 2>/dev/null; then
   sudo -u "$U" perl "$DOM/tools/lazysite-users.pl" --docroot "$DOC" setup-manager
 fi
 
-echo "==> verifying install (permissions + health)"
-sudo -u "$U" perl "$DOM/tools/lazysite-check.pl" --docroot "$DOC" --cgibin "$CGI" || \
-  echo "  (some checks failed above - re-run with --fix as root to repair)"
+echo "==> verifying install (permissions + health, auto-repair)"
+# Run as root with --fix so it can repair both modes and ownership if anything is
+# still off (the user asked: when run as root, the deploy should work the ownership
+# out itself).
+perl "$DOM/tools/lazysite-check.pl" --docroot "$DOC" --cgibin "$CGI" --fix || \
+  echo "  (some checks could not be auto-repaired - see above)"

@@ -73,4 +73,14 @@ sub run { qx($^X $script --docroot $doc --cgibin $cgi --group $gname @_ 2>&1) }
     like( $out, qr/manager_groups not set/, 'warns when the manager is unconfigured' );
 }
 
+# --- a 0600 (owner-only) secret is flagged as unreadable by the www-data CGI ---
+# (the live-500 cause: a secret owned by a non-www-data user with no group read)
+{
+    chmod 0600, "$doc/lazysite/auth/.secret";
+    my $out = run();
+    like( $out, qr/not readable by the CGI/,
+        'flags an owner-only secret the CGI cannot read' );
+    isnt( $? >> 8, 0, 'non-zero exit for an unreadable secret' );
+}
+
 done_testing();

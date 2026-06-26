@@ -157,22 +157,39 @@ for my $rel ( sort keys %want_dir ) {
     }
 }
 
-# --- 4. secrets must not be world-accessible ---------------------------------
+# --- 4. secrets: not world-accessible AND readable by the CGI ----------------
+# (the common live-500: .secret is 0600 owned by a non-www-data user, so a
+#  cookie/secret verification by the www-data CGI dies before headers)
+my $cgi_uid = ( getpwnam 'www-data' )[2];
 for my $rel (qw(
     lazysite/auth/.secret lazysite/forms/.secret lazysite/manager/.csrf-secret
     lazysite/auth/oauth.json lazysite/auth/user-settings.json
 )) {
     my $path = "$DOC/$rel";
     next unless -f $path;
-    my $mode = mode_of($path);
+    my @s    = stat $path;
+    my $mode = $s[2] & 07777;
+    my $cgi_can_read =
+         ( defined $cgi_uid && $s[4] == $cgi_uid && ( $mode & 0400 ) )   # owned by www-data, owner-read
+      || ( $s[5] == $exp_gid && ( $mode & 0040 ) )                       # group www-data, group-read
+      || ( $mode & 0004 );                                              # world-read
     if ( $mode & 0007 ) {
         report( 'FAIL',
             sprintf( "%s is world-accessible (%04o) - a secret must not be", $rel, $mode ),
             sprintf( "chmod 0660 '%s'", $path ) );
         push @chmod_fixes, [ 0660, $path ];
     }
+    elsif ( !$cgi_can_read ) {
+        report( 'FAIL',
+            sprintf( "%s (%04o, %s:%s) is not readable by the CGI (%s) - "
+                   . "cookie/secret verification dies before headers (a 500)",
+                $rel, $mode, owner_name($path), group_name($path), $exp_grp ),
+            sprintf( "chown %s:%s '%s' && chmod 0660 '%s'", $exp_user, $exp_grp, $path, $path ) );
+        push @chmod_fixes, [ 0660, $path ];
+        $chown_needed = 1;
+    }
     else {
-        report( 'OK', "$rel not world-accessible" );
+        report( 'OK', "$rel readable by the CGI, not world-accessible" );
     }
 }
 
