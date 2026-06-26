@@ -18,6 +18,28 @@ Keying
 
 ## Unreleased
 
+## 0.4.20 - Deploy ownership + secret-perm hardening (2026-06-26)
+
+Fix - deploy normalises ownership when run as root (SM093)
+: the Hestia deploy ran `install.pl` as the domain user, which failed with
+  "Permission denied" if the docroot/cgi-bin had been left owned by root (from an
+  earlier `install.pl` run directly as root) - the upgrade aborted. The deploy now
+  chowns the docroot + cgi-bin to `<user>:www-data` **before** running install.pl,
+  so the user-run install can always overwrite.
+
+Fix - secrets are no longer world-readable after deploy (SM093)
+: the deploy's blanket `chmod 664` left `auth/.secret`, `forms/.secret`,
+  `oauth.json` and `user-settings.json` world-readable. It now tightens those to
+  `660`, and the final verify step runs `lazysite-check --fix` (as root) to
+  auto-repair anything still off.
+
+Fix - lazysite-check flags secrets the CGI cannot read (SM093)
+: a secret that is not world-accessible but is also not readable by the www-data
+  CGI (e.g. `0600` owned by a non-www-data user) is now a FAIL - that is the exact
+  cause of an "End of script output before headers" 500 once a session cookie is
+  present. The doctor also defaults the expected group to `www-data` (not the
+  docroot's group), so `--fix` can never strip the CGI's group access.
+
 ## 0.4.19 - Install/permissions doctor (2026-06-26)
 
 Feature - install/permissions doctor (SM093)
