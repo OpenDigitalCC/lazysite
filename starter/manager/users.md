@@ -86,6 +86,7 @@ var DAV_BASE = location.origin + '/dav';
 var allGroups = {};   // {group: [members]}
 var allUsers  = [];   // [username]
 var parentList = [];  // [username] - accounts that can own sub-users (create_sub_users)
+var MANAGER_GROUPS = [];  // SM094: site manager groups; members are operators
 
 function showStatus(msg, isError) {
   var el = document.getElementById('status');
@@ -131,9 +132,15 @@ function loadUsers() {
           .catch(function() { return { user: u, settings: {} }; });
       }));
     });
-  Promise.all([up, gp]).then(function(res) {
+  var wp = fetch(API + '?action=whoami', { method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) { return (d && d.ok && d.manager_groups) ? d.manager_groups : []; })
+    .catch(function() { return []; });
+  Promise.all([up, gp, wp]).then(function(res) {
     var rows = res[0] || [];
     allGroups = res[1] || {};
+    MANAGER_GROUPS = res[2] || [];
     allUsers = rows.map(function(r) { return r.user; });
     renderUsers(rows);
     renderGroups();
@@ -246,6 +253,13 @@ function renderUserRow(row, kidsHtml) {
     '<span class="mg-inline-msg" id="emailmsg-' + ue + '"></span></div>';
   h += sec('Notes', nb);
 
+  // Is this account an operator (member of a manager group)? Operators have full
+  // manager access and bypass the per-account capabilities, so we hide the toggles
+  // for them and show a note instead (SM094).
+  var mineGroups = groupsForUser(u);
+  var opGroups   = mineGroups.filter(function(g) { return MANAGER_GROUPS.indexOf(g) !== -1; });
+  var isOperator = opGroups.length > 0;
+
   // --- Access ---
   // Type is a Human/AI switch (the `ui` setting), matching the Add-user
   // form, rather than a lone "Interactive login" checkbox.
@@ -254,16 +268,27 @@ function renderUserRow(row, kidsHtml) {
     '<option value="human"' + (ui ? ' selected' : '') + '>Human (interactive login)</option>' +
     '<option value="ai"' + (ui ? '' : ' selected') + '>AI / backend (token)</option>' +
     '</select></div>';
-  acc += '<div class="mg-checks">';
-  acc += cap(ue, 'webdav', webdav, 'WebDAV');
-  acc += cap(ue, 'manage_content', !!s.manage_content, 'Manage content (pages)');
-  acc += cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes');
-  acc += cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts');
-  acc += cap(ue, 'manage_config', !!s.manage_config, 'Manage config');
-  acc += cap(ue, 'create_sub_users', !!s.create_sub_users, 'Create sub-users');
-  acc += cap(ue, 'delegate_sub_user_creation', !!s.delegate_sub_user_creation, 'Delegate sub-users');
-  acc += '</div>';
   h += sec('Access', acc);
+
+  // --- Publishing access (the capability toggles) ---
+  // These gate only the partner surfaces (WebDAV / control API / AI connector).
+  var pub;
+  if (isOperator) {
+    pub = '<p class="mg-muted">Administrator via group <b>' + opGroups.map(escHtml).join(', ') +
+      '</b> &mdash; full access. The per-account capabilities below are overridden by the ' +
+      'manager role; they would only apply to this account\'s token / WebDAV / connector use.</p>';
+  } else {
+    pub = '<div class="mg-checks">' +
+      cap(ue, 'webdav', webdav, 'WebDAV') +
+      cap(ue, 'manage_content', !!s.manage_content, 'Manage content (pages)') +
+      cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes') +
+      cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts') +
+      cap(ue, 'manage_config', !!s.manage_config, 'Manage config') +
+      cap(ue, 'create_sub_users', !!s.create_sub_users, 'Create sub-users') +
+      cap(ue, 'delegate_sub_user_creation', !!s.delegate_sub_user_creation, 'Delegate sub-users') +
+      '</div>';
+  }
+  h += sec('Publishing access (WebDAV / control API / AI connector)', pub);
 
   // --- Groups ---
   var mine = groupsForUser(u);
@@ -278,26 +303,31 @@ function renderUserRow(row, kidsHtml) {
   h += sec('Groups', grp);
 
   // --- Credentials ---
-  var cred = '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
-    '<input type="password" class="mg-inp" id="pw-' + ue + '" placeholder="new password">' +
-    '<button class="mg-btn mg-btn-sm" onclick="savePassword(\'' + ue + '\')">Save</button>' +
-    '<span class="mg-inline-msg" id="pwmsg-' + ue + '"></span></div>';
-  cred += '<div class="mg-line"><span class="mg-line-lbl">Token</span>' +
+  // The token is for any account that connects (Claude Code / Desktop / a script).
+  // The interactive-login credentials (password / setup link / 2FA) are shown only
+  // for human accounts - an AI / backend account does not use them (SM094).
+  var cred = '<div class="mg-line"><span class="mg-line-lbl">Token</span>' +
     '<button class="mg-btn mg-btn-sm" onclick="generateCredential(\'' + ue + '\')">Generate credential</button>' +
     '<span class="mg-help" title="Mints a strong machine credential (lzs_), shown once, revoked by regenerating. For Claude Code / Desktop / a script: the WebDAV / API password, or the bearer username:token. NOT for Claude.ai or ChatGPT web - those are OAuth-only and have no token field; use Connect an AI assistant below. The account also needs the right capability (e.g. Manage content) to actually edit.">&#9432;</span> <span class="mg-muted">for Claude Code / Desktop / scripts</span></div>';
   cred += '<div class="mg-cred-reveal" id="cred-' + ue + '" style="display:none"></div>';
-  cred += '<div class="mg-line"><span class="mg-line-lbl">Setup link</span>' +
-    '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',false)">Generate setup link</button>' +
-    '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',true)">Reset credential</button>' +
-    (s.claim_pending ? ' <span class="mg-muted">(link outstanding)</span>' : '') +
-    '<span class="mg-help" title="A one-time link the user opens to set their OWN password (or mint their own token) - you never see it. Reset credential revokes the current one first. Single-use, expires in 24h.">&#9432;</span></div>';
-  cred += '<div class="mg-cred-reveal" id="setup-' + ue + '" style="display:none"></div>';
-  cred += '<div class="mg-line"><span class="mg-line-lbl">Two-factor</span>' +
-    (s.mfa_enrolled
-      ? '<span class="mg-tag mg-tag-on">enabled</span> <button class="mg-btn mg-btn-sm" onclick="disable2fa(\'' + ue + '\')">Disable</button>'
-      : '<button class="mg-btn mg-btn-sm" onclick="enable2fa(\'' + ue + '\')">Enable 2FA</button>') +
-    '<span class="mg-inline-msg" id="mfamsg-' + ue + '"></span></div>';
-  cred += '<div class="mg-cred-reveal" id="mfa-' + ue + '" style="display:none"></div>';
+  if (ui) {
+    cred += '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
+      '<input type="password" class="mg-inp" id="pw-' + ue + '" placeholder="new password">' +
+      '<button class="mg-btn mg-btn-sm" onclick="savePassword(\'' + ue + '\')">Save</button>' +
+      '<span class="mg-inline-msg" id="pwmsg-' + ue + '"></span></div>';
+    cred += '<div class="mg-line"><span class="mg-line-lbl">Setup link</span>' +
+      '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',false)">Generate setup link</button>' +
+      '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',true)">Reset credential</button>' +
+      (s.claim_pending ? ' <span class="mg-muted">(link outstanding)</span>' : '') +
+      '<span class="mg-help" title="A one-time link the user opens to set their OWN password (or mint their own token) - you never see it. Reset credential revokes the current one first. Single-use, expires in 24h.">&#9432;</span></div>';
+    cred += '<div class="mg-cred-reveal" id="setup-' + ue + '" style="display:none"></div>';
+    cred += '<div class="mg-line"><span class="mg-line-lbl">Two-factor</span>' +
+      (s.mfa_enrolled
+        ? '<span class="mg-tag mg-tag-on">enabled</span> <button class="mg-btn mg-btn-sm" onclick="disable2fa(\'' + ue + '\')">Disable</button>'
+        : '<button class="mg-btn mg-btn-sm" onclick="enable2fa(\'' + ue + '\')">Enable 2FA</button>') +
+      '<span class="mg-inline-msg" id="mfamsg-' + ue + '"></span></div>';
+    cred += '<div class="mg-cred-reveal" id="mfa-' + ue + '" style="display:none"></div>';
+  }
   h += sec('Credentials', cred);
 
   // --- WebDAV (publishing accounts only) ---

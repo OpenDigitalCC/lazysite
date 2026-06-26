@@ -932,6 +932,9 @@ sub action_whoami {
     return {
         ok      => 1,
         partner => $user,
+        # SM094: the site's manager groups, so the Users UI can tell which accounts
+        # are operators (full access) vs partners gated by the capability toggles.
+        manager_groups => [ grep { length } split /[,\s]+/, ( $manager_groups_conf // '' ) ],
         capabilities => {
             webdav           => $bool->( $s->{webdav} ),
             ui               => $bool->( !( exists $s->{ui} && !$s->{ui} ) ),

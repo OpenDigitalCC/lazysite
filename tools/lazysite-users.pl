@@ -1383,6 +1383,11 @@ $caps
 
 ## Getting connected
 
+This account connects over the **WebDAV / control API** described below. If your
+client has also auto-detected an **MCP connector** for this site, do **not** use it
+for this account - use only this WebDAV/API path. Mixing the two confuses the agent
+and produces conflicting, failing attempts; pick one path per account.
+
 Exchange this one-time pairing key for an access token over HTTP:
 
     pairing key: $key
