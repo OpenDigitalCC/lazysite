@@ -18,6 +18,30 @@ Keying
 
 ## Unreleased
 
+## 0.4.21 - Audit logins; .url editable; doctor checks writable config (2026-06-26)
+
+Feature - login/logout recorded in the audit trail
+: the auth wrapper now writes audit events for every material authentication action -
+  login success and login failure (with a reason: invalid-credentials, rate-limited,
+  account-disabled, credential-expired, account-expired, ui-disabled, mfa,
+  no-password-remote), logout, claim-redeem, and token exchange/rotate. Previously
+  these went only to the application log, so a login did not appear in the manager
+  Audit viewer.
+
+Fix - .url files are editable
+: `.url` files (a single remote-content URL) were treated as binary and the manager
+  editor refused them. They now open as text.
+
+Fix - doctor flags config files the CGI cannot write
+: `lazysite-check` now checks that the files the manager overwrites in place -
+  `nav.conf`, `lazysite.conf`, `auth/users`, `auth/groups`, `auth/acls.json` - are
+  group-writable by the www-data CGI (the cause of "nav cannot be written" /
+  "lazysite.conf required chmod g+w" after a deploy whose permission pass did not
+  run). `--fix` adds group-write.
+
+Change - groups "first member" is a dropdown
+: the Add-group first-member field is now a dropdown of existing accounts.
+
 ## 0.4.20 - Deploy ownership + secret-perm hardening (2026-06-26)
 
 Fix - deploy normalises ownership when run as root (SM093)
