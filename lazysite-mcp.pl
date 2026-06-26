@@ -1076,7 +1076,9 @@ elsif ( $method eq 'tools/call' ) {
     send_401($id) unless defined $user;
 
     if ( defined $tool->{cap} && !$caps->{ $tool->{cap} } ) {
-        rpc_error( $id, -32002, "Insufficient capability for $name (needs $tool->{cap})" );
+        # SM101: a missing capability is permanent - tell the agent to stop, not retry.
+        rpc_error( $id, -32002, "Insufficient capability for $name (needs $tool->{cap}). "
+            . "Do not retry; ask the operator to grant '$tool->{cap}'." );
     }
 
     setup_context($user);
@@ -1110,6 +1112,18 @@ elsif ( $method eq 'tools/call' ) {
             : ( ref $out eq 'HASH' ? ( $out->{kind} || $out->{error} || '' ) : '' );
         audit_log( $user, $act, $target, $ENV{REMOTE_ADDR} // '',
             ( $aok ? 'ok' : 'fail' ), 'mcp', $detail );
+    }
+
+    # SM101: tell the agent whether a retry could ever succeed, so it backs off on a
+    # permanent refusal (permission, blocked, bad path, already-exists, ...) instead
+    # of hammering. Only a small set of kinds is genuinely transient.
+    if ( ref $out eq 'HASH' && !$out->{ok} ) {
+        my %TRANSIENT = ( 'lock-held' => 1, 'locked' => 1, 'rate-limited' => 1, 'busy' => 1 );
+        my $retry = $TRANSIENT{ $out->{kind} // '' } ? 1 : 0;
+        $out->{retryable} = $retry ? JSON::PP::true : JSON::PP::false;
+        $out->{hint} = 'Do not retry - this will not succeed unless the request changes '
+            . 'or the operator grants access.'
+            if !$retry && !defined $out->{hint};
     }
 
     my $is_err = ( ref $out eq 'HASH' && $out->{ok} ) ? JSON::PP::false : JSON::PP::true;
