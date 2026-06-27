@@ -12,6 +12,19 @@ query_params:
 <style>
 .mg-main { padding:0; max-width:none; }
 .mg-main h1 { display:none; }
+/* Critical editor layout, inlined so the editor is usable even if the external
+   manager.css is stale or fails to load (it is copied to /manager/assets/ at
+   install time; a missing copy would otherwise collapse the panes to zero - the
+   "page ends at extra, no edit box" symptom). */
+#editor-root.mg-editor-root { position: fixed; inset: 48px 0 0 0; display: flex;
+  flex-direction: column; background: var(--mg-bg, #fff); z-index: 40; }
+#ed-main.mg-editor-main { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+#ed-editor-pane.mg-editor-pane { display: flex; flex-direction: column; min-width: 0; }
+#ed-content-section { flex: 1 1 auto; min-height: 50vh; }
+#ed-content-cm.mg-cm-content { flex: 1 1 auto; min-height: 50vh; }
+#ed-content-cm .CodeMirror, #content-fallback { height: 100%; min-height: 50vh; }
+#ed-preview-pane.mg-preview-pane { display: flex; flex-direction: column; min-width: 0; }
+#ed-preview-frame { flex: 1 1 auto; min-height: 50vh; width: 100%; border: 0; }
 #ed-save-btn.dirty { background:var(--mg-accent); color:var(--mg-accent-text); border-color:var(--mg-accent); font-weight:600; }
 #ed-filepath a { color:var(--mg-accent); text-decoration:none; }
 #ed-filepath a:hover { text-decoration:underline; }
