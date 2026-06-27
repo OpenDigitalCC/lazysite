@@ -18,6 +18,23 @@ Keying
 
 ## Unreleased
 
+## 0.4.36 - WCAG contrast pass; setup-manager URL; README first-run (2026-06-27)
+
+Fix - colour contrast brought to WCAG (light and dark)
+: audited the main text tokens against WCAG and fixed the one real failure -
+  `--mg-text-light` was 2.5:1 in light / ~3:1 in dark (the "feint, hard to read"
+  text); now 4.7:1 / 5.0:1 (AA). The dark editor syntax palette is brighter - every
+  token clears AAA except the dimmed comment/markers (AA). A standard is documented in
+  docs/reference/manager-colour-contrast.md.
+
+Fix - setup-manager prints a usable URL
+: it showed the literal `${REQUEST_SCHEME}://${SERVER_NAME}` on the CLI (those resolve
+  only in the CGI env); now expanded where possible, else a relative `/manager/`.
+
+Docs - README first-run section
+: go to `/manager` directly (some hosts seed an index.html that shadows the homepage),
+  and get the first password with `setup-manager`.
+
 ## 0.4.35 - Dark editor palette; manager-groups picker (2026-06-27)
 
 Feature - readable dark editor colours (SM116)
