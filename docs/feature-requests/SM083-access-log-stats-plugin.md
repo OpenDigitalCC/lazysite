@@ -38,6 +38,6 @@ A plugin (the plugin system already exists - `plugins/`, the control-API
 
 ## Status
 
-Queued. Depends on nothing already shipped; complements the audit trail (which is
+**SHIPPED in v0.4.42.** plugins/stats.pl (combined-log parser: hits, unique visitors, top pages/referrers, status codes, per-day, bot filtering + IP anonymisation, window) + a manager Stats dashboard (starter/manager/stats.md) + nav/palette entry. Opt-in (enable the plugin). Incremental offset caching and GeoIP remain future work. Depends on nothing already shipped; complements the audit trail (which is
 now material-events-only). Good first real consumer of the plugin API beyond the
 bundled examples.

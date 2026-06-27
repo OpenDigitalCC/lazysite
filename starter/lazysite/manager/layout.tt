@@ -122,6 +122,7 @@
     { label: 'Cache',      url: '/manager/cache' },
     { label: 'Backups',    url: '/manager/backups' },
     { label: 'Audit',      url: '/manager/audit' },
+    { label: 'Stats',      url: '/manager/stats' },
     { label: 'View site',  url: '/' },
     { label: 'Toggle dark mode', action: 'theme' },
     { label: 'Sign out',   url: '/cgi-bin/lazysite-auth.pl?action=logout' }
@@ -238,6 +239,7 @@
       <a href="/manager/cache" [% IF request_uri.match('^/manager/cache') %]class="active" aria-current="page"[% END %]>Cache</a>
       <a href="/manager/backups" [% IF request_uri.match('^/manager/backups') %]class="active" aria-current="page"[% END %]>Backups</a>
       <a href="/manager/audit" [% IF request_uri.match('^/manager/audit') %]class="active" aria-current="page"[% END %]>Audit</a>
+      <a href="/manager/stats" [% IF request_uri.match('^/manager/stats') %]class="active" aria-current="page"[% END %]>Stats</a>
     </nav>
   </aside>
   <main class="mg-main">
