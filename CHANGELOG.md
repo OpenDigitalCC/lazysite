@@ -18,6 +18,23 @@ Keying
 
 ## Unreleased
 
+## 0.4.47 - Audit search/targets + plugin discovery + page split (2026-06-27)
+
+Fix - audit targets
+: nav-save and plugin-enable/disable now name what they touched (nav, the plugin) instead
+  of a bare /.
+
+Feature - audit date-range search
+: the Audit page gains From / To date filters.
+
+Fix - plugins discovered dynamically
+: a new plugins/*.pl (e.g. Visitor Stats) now appears in the manager without editing a
+  hard-coded list.
+
+Change - Plugin Manager vs Plugin Config
+: plugin enable/disable moves to its own Plugin Manager page (/manager/plugins); the
+  per-plugin settings UI is the Plugin Config page (/manager/plugin-config).
+
 ## 0.4.46 - scan: custom front-matter passthrough (SM125) (2026-06-27)
 
 Feature - self-describing scan: cards
