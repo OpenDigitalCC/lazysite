@@ -368,7 +368,7 @@ my %TOOLS = (
         run         => sub { _list_form_handlers() },
     },
     bind_form => {
-        description => 'Wire a form to delivery by referencing an existing handler (from list_form_handlers). A :::form only delivers once bound. You choose an operator-vetted handler by id; you never set a destination or credential (those stay operator-only). Writes lazysite/forms/<form>.conf.',
+        description => 'Wire a form to delivery. FULL FLOW to build a working form natively (do not just copy an existing page): (1) in the page Markdown add front matter "form: NAME" and a :::form block - each field is a "field_name | Label | rules" line; rules include required, email, textarea, select:A,B,C, max:N; end with "submit | Button label". Example: ":::form\\nname | Your name | required max:200\\nemail | Email | required email\\nmessage | Message | required textarea\\nsubmit | Send\\n:::". See /docs/forms for the full reference. (2) call list_form_handlers to see the operator-vetted delivery handlers. (3) call bind_form(form: NAME, handler: ID). A :::form renders but does NOT deliver until bound. You never set a destination or credential (operator-only). Writes lazysite/forms/<form>.conf.',
         cap         => 'manage_forms',
         inputSchema => { type => 'object',
             properties => {

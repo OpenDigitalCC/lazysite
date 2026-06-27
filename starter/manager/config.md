@@ -186,7 +186,7 @@ function onLayoutChange(select) {
 }
 
 function renderSiteForm(values) {
-  var html = '<form id="site-form" onsubmit="saveSiteSettings(event)">';
+  var html = '<form id="site-form" onsubmit="saveSiteSettings(event)" oninput="markSiteDirty()" onchange="markSiteDirty()">';
   SITE_SCHEMA.forEach(function(f) {
     if (f.group) html += '<h3 class="mg-config-group">' + esc(f.group) + '</h3>';
     var v = values[f.key] !== undefined ? values[f.key] : (f.default || '');
@@ -272,7 +272,8 @@ function renderSiteForm(values) {
     }
     html += '</div>';
   });
-  html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button></div>';
+  html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'
+       +  ' <span id="site-dirty" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div>';
   html += '</form>';
   return html;
 }
@@ -291,6 +292,23 @@ function applyShowWhen(container) {
     f.style.display = show ? 'flex' : 'none';
   }
 }
+
+// SM118: the settings form is the one place that needs an explicit Save, so flag
+// unsaved changes (and warn on leaving). Programmatic population doesn't fire these.
+var siteDirty = false;
+function markSiteDirty() {
+  siteDirty = true;
+  var n = document.getElementById('site-dirty');
+  if (n) n.style.display = '';
+}
+function clearSiteDirty() {
+  siteDirty = false;
+  var n = document.getElementById('site-dirty');
+  if (n) n.style.display = 'none';
+}
+window.addEventListener('beforeunload', function(e) {
+  if (siteDirty) { e.preventDefault(); e.returnValue = ''; }
+});
 
 // SM114: aggregate the checked group boxes into the hidden comma-separated value.
 function updateGroupsField(key) {
@@ -333,6 +351,7 @@ function saveSiteSettings_go(values) {
   .then(function(data) {
     if (data.ok) {
       mgClearWarning();
+      clearSiteDirty();
       status.className = 'mg-status mg-status-success';
       status.textContent = 'Saved.';
       setTimeout(function() { status.textContent = ''; status.className = 'mg-status'; }, 3000);

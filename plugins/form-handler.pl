@@ -95,6 +95,7 @@ eval {
     }
 
     log_event( 'INFO', $name, 'form received', ip => $ENV{REMOTE_ADDR} // 'unknown' );
+    _audit_submission( $name, $auth_user, $ENV{REMOTE_ADDR} // '' );
     respond_ok('Thank you - your message has been sent.');
 };
 if ($@) {
@@ -192,6 +193,22 @@ sub dispatch {
     else {
         log_event( 'WARN', $form->{_form} // '-', 'unknown handler type', type => $type );
     }
+}
+
+# SM115: record a submission in the audit trail. The submitter is the public, so the
+# user is usually blank; written directly in Lazysite::Audit's pipe format (origin
+# "form"), since the handler does not load the lib.
+sub _audit_submission {
+    my ( $form, $user, $ip ) = @_;
+    my $logdir = "$DOCROOT/lazysite/logs";
+    return unless -d $logdir;
+    $_ = defined $_ ? "$_" : '' for ( $form, $user, $ip );
+    s/[|\r\n]+/ /g for ( $form, $user, $ip );
+    my $ts = strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
+    open my $fh, '>>', "$logdir/audit.log" or return;
+    print {$fh} "$ts | $user | submit | $form | $ip | ok | form\n";
+    close $fh;
+    return;
 }
 
 sub dispatch_file {

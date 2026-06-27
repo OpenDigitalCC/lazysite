@@ -1699,3 +1699,6 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
 }
 .mg-config-group:first-child { margin-top: 0; }
 .mg-bc-root { font-size: 1.05em; }
+
+/* SM118: unsaved-changes reminder on the settings form */
+.mg-dirty-note { color: var(--mg-warning); font-size: var(--mg-text-sm); font-weight: 600; }

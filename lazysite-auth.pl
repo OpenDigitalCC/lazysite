@@ -259,6 +259,10 @@ sub handle_login {
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
     print "Set-Cookie: $COOKIE_NAME=$cookie; HttpOnly; SameSite=Lax; Path=/; Max-Age=$COOKIE_MAX$secure\r\n";
+    # SM099: a non-HttpOnly display-only marker so client JS can show the right
+    # sign-in/out control without trusting cached HTML. Carries no authority - the
+    # HttpOnly cookie above remains the gate.
+    print "Set-Cookie: lzs_session=1; SameSite=Lax; Path=/; Max-Age=$COOKIE_MAX$secure\r\n";
     print "Location: $next\r\n\r\n";
     return;
 }
@@ -273,6 +277,7 @@ sub handle_logout {
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
     print "Set-Cookie: $COOKIE_NAME=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
+    print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";   # SM099 marker
     print "Location: /logout\r\n\r\n";
 }
 

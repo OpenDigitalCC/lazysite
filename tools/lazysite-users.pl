@@ -1493,6 +1493,7 @@ docs:
   - $base/docs/ai-briefing-authoring
   - $base/docs/ai-briefing-configuration
   - $base/docs/ai-briefing-layouts
+  - $base/docs/forms
   - $base/llms.txt
 ```
 
@@ -1505,6 +1506,8 @@ All publishing and management docs live on this site - fetch them over HTTP:
     $base/docs/ai-briefing-authoring
     $base/docs/ai-briefing-configuration
     $base/docs/ai-briefing-layouts
+- Building a form (the :::form syntax, field rules, and binding to delivery):
+    $base/docs/forms
 - Reference (front matter keys, config keys, env allowlist, file layout):
     $base/docs/reference
 - Every page, machine-readable (discover the rest from here):
