@@ -89,6 +89,23 @@ backups accumulate at `{docroot}/lazysite/backups/`. Use
 
 HestiaCP users: see `installers/hestia/`. Docker: see `installers/docker/`.
 
+### First sign-in
+
+Open the admin at **`https://your-site/manager`** - go straight there rather than the
+homepage. Some hosts (HestiaCP among them) seed a default `index.html`, which the web
+server serves ahead of your lazysite homepage; `/manager` always works regardless. If
+your homepage shows that placeholder, remove the stray file:
+`rm -f /path/to/public_html/index.html`.
+
+Get the manager password with `setup-manager`, which creates the `manager` account,
+puts it in the admin group, enables the manager in `lazysite.conf`, and prints a
+generated password if you don't supply one:
+
+    perl tools/lazysite-users.pl --docroot /path/to/public_html setup-manager
+
+(The HestiaCP deploy runs this for you on a fresh install and prints the password in
+its output.) Pass a password as a final argument to set your own.
+
 Full installation details in
 [starter/docs/install.md](starter/docs/install.md).
 

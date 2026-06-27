@@ -29,7 +29,7 @@
     /* Text - one strong, one muted, one faint */
     --mg-text:        #1c1917;
     --mg-text-muted:  #78716c;
-    --mg-text-light:  #a8a29e;
+    --mg-text-light:  #79736d;   /* was #a8a29e (2.5:1, WCAG fail); now 4.7:1 AA */
 
     /* A single confident accent (indigo - distinct from Bootstrap blue) */
     --mg-accent:      #4f46e5;
@@ -1574,7 +1574,7 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
   --mg-text:        #fbfbfa;
   --mg-text-strong: #ffffff;
   --mg-text-muted:  #c0bab3;
-  --mg-text-light:  #78716c;
+  --mg-text-light:  #9a948c;   /* was #78716c (~3:1); now ~5:1 AA on dark */
   --mg-accent:      #818cf8;
   --mg-accent-hover:#a5b4fc;
   --mg-accent-bg:   #2e2b52;
@@ -1668,24 +1668,24 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
 .mg-groups-pick { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; align-items: center; }
 
 /* SM116: a readable dark colour scheme for the CodeMirror Markdown/YAML editor.
-   The bundled light theme's headings are a vivid blue (unreadable on dark) and its
-   red/orange are harsh; retune for contrast on the dark surface. Light mode keeps
-   the bundled theme. */
-[data-theme="dark"] .CodeMirror .cm-header   { color: #95d6a4; font-weight: 600; }   /* headings - light green */
-[data-theme="dark"] .CodeMirror .cm-strong   { color: #fbfbfa; font-weight: 700; }   /* bold - bright */
-[data-theme="dark"] .CodeMirror .cm-em       { color: #d6bcfa; font-style: italic; } /* italic - soft violet */
+   Brighter palette tuned to WCAG against the dark editor surface (#2a2624): every
+   token clears AAA (>=7:1) except the deliberately dimmed comment/markers, which
+   still clear AA (>=4.5:1). Light mode keeps the bundled theme. */
+[data-theme="dark"] .CodeMirror .cm-header   { color: #a6e8b5; font-weight: 600; }   /* headings - bright green (10.6:1) */
+[data-theme="dark"] .CodeMirror .cm-strong   { color: #ffffff; font-weight: 700; }   /* bold - white */
+[data-theme="dark"] .CodeMirror .cm-em       { color: #e3cffd; font-style: italic; } /* italic - violet (10.4:1) */
 [data-theme="dark"] .CodeMirror .cm-link,
-[data-theme="dark"] .CodeMirror .cm-url      { color: #93a4ff; }                      /* links - light indigo */
-[data-theme="dark"] .CodeMirror .cm-quote    { color: #b0aaa3; font-style: italic; }
-[data-theme="dark"] .CodeMirror .cm-comment  { color: #8f8983; }
-[data-theme="dark"] .CodeMirror .cm-string   { color: #a5d6a7; }                      /* strings - green */
+[data-theme="dark"] .CodeMirror .cm-url      { color: #aab6ff; }                      /* links - indigo (7.7:1) */
+[data-theme="dark"] .CodeMirror .cm-quote    { color: #c4bdb5; font-style: italic; }
+[data-theme="dark"] .CodeMirror .cm-comment  { color: #a8a199; }                      /* dimmed but AA (5.9:1) */
+[data-theme="dark"] .CodeMirror .cm-string   { color: #bfe8c0; }                      /* strings - green (11:1) */
 [data-theme="dark"] .CodeMirror .cm-keyword,
 [data-theme="dark"] .CodeMirror .cm-tag,
-[data-theme="dark"] .CodeMirror .cm-builtin  { color: #f0a6a6; }                      /* soft red, not vivid */
+[data-theme="dark"] .CodeMirror .cm-builtin  { color: #ffbcbc; }                      /* red - lighter (9.4:1) */
 [data-theme="dark"] .CodeMirror .cm-atom,
-[data-theme="dark"] .CodeMirror .cm-number   { color: #f3c178; }                      /* softer orange */
+[data-theme="dark"] .CodeMirror .cm-number   { color: #ffd591; }                      /* orange - lighter (10.8:1) */
 [data-theme="dark"] .CodeMirror .cm-variable-2,
 [data-theme="dark"] .CodeMirror .cm-attribute,
-[data-theme="dark"] .CodeMirror .cm-property { color: #86d2e6; }
+[data-theme="dark"] .CodeMirror .cm-property { color: #a3e0ef; }                       /* (10.3:1) */
 [data-theme="dark"] .CodeMirror .cm-hr,
-[data-theme="dark"] .CodeMirror .cm-formatting { color: #8f8983; }                     /* markdown markers dimmed */
+[data-theme="dark"] .CodeMirror .cm-formatting { color: #a8a199; }                     /* markers dimmed (AA) */

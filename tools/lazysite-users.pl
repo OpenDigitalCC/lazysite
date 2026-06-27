@@ -549,9 +549,15 @@ sub cmd_setup_manager {
 
     unless ($API_MODE) {
         my $url = read_conf_value('site_url') // '';
+        # site_url often holds ${REQUEST_SCHEME}://${SERVER_NAME}, which only the CGI
+        # env resolves. Expand what we can; if no real host results (run on the CLI),
+        # show a relative path rather than the literal placeholders.
+        $url =~ s/\$\{REQUEST_SCHEME\}/$ENV{REQUEST_SCHEME} || 'https'/ge;
+        $url =~ s/\$\{SERVER_NAME\}/$ENV{SERVER_NAME} || $ENV{HTTP_HOST} || ''/ge;
         $url =~ s{/+$}{};
+        my $manager_url = ( $url =~ m{^\w+://[^/\s]+} ) ? "$url/manager/" : "/manager/";
         print "\nManager ready.\n";
-        print "  URL:      " . ( $url ? "$url/manager/" : "/manager/" ) . "\n";
+        print "  URL:      $manager_url\n";
         print "  Username: $user\n";
         print "  Password: $pass"
             . ( $generated ? "   (generated - save this now)" : "" ) . "\n";
