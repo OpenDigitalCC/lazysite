@@ -2527,6 +2527,7 @@ sub render_content {
         %PREVIEW_CONTEXT,   # SM071: preview override wins over site layout/theme
         page_title        => $meta->{title}            || '',
         page_subtitle     => $meta->{subtitle}         || '',
+        page_author       => $meta->{author}           || '',
         page_modified     => $meta->{page_modified}    || '',
         page_modified_iso => $meta->{page_modified_iso} || '',
         request_uri       => $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '',
@@ -2888,10 +2889,55 @@ sub render_template {
                 };
         };
 
+    # SM112: identify the generator (+ optional author/description) in the head,
+    # regardless of which layout rendered the page.
+    $output = _inject_meta( $output, $vars );
+
     # Inject admin bar after <body> - outside the theme
     $output = _inject_admin_bar( $output, $vars );
 
     return $output;
+}
+
+# SM112: read the installed release version once (from the install state).
+my $LAZYSITE_VERSION;
+sub _lazysite_version {
+    return $LAZYSITE_VERSION if defined $LAZYSITE_VERSION;
+    $LAZYSITE_VERSION = '';
+    my $path = "$DOCROOT/lazysite/.install-state.json";
+    if ( open my $fh, '<', $path ) {
+        local $/; my $j = <$fh>; close $fh;
+        my $d = eval { decode_json($j) };
+        $LAZYSITE_VERSION = $d->{version} if $d && $d->{version};
+    }
+    return $LAZYSITE_VERSION;
+}
+
+# Inject <meta name="generator"> (+ author/description when available) just after
+# the opening <head>. Opt out with meta_generator: false in lazysite.conf.
+sub _inject_meta {
+    my ( $html, $vars ) = @_;
+    return $html unless $html =~ /<head[^>]*>/i;
+    my $off = lc( $vars->{meta_generator} // '' );
+    return $html if $off eq 'false' || $off eq 'off' || $off eq '0';
+
+    my $esc = sub {
+        my $s = shift // '';
+        $s =~ s/&/&amp;/g; $s =~ s/</&lt;/g; $s =~ s/>/&gt;/g; $s =~ s/"/&quot;/g;
+        return $s;
+    };
+    my $ver = _lazysite_version();
+    my @m = ( '<meta name="generator" content="' . $esc->( 'lazysite' . ( $ver ? " $ver" : '' ) ) . '">' );
+    if ( length( $vars->{page_author} // '' ) ) {
+        push @m, '<meta name="author" content="' . $esc->( $vars->{page_author} ) . '">';
+    }
+    # Only add description if the layout did not already emit one.
+    if ( length( $vars->{page_subtitle} // '' ) && $html !~ /<meta\s+name=["']description["']/i ) {
+        push @m, '<meta name="description" content="' . $esc->( $vars->{page_subtitle} ) . '">';
+    }
+    my $block = "\n    " . join( "\n    ", @m );
+    $html =~ s/(<head[^>]*>)/$1$block/i;
+    return $html;
 }
 
 sub _inject_admin_bar {

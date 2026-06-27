@@ -383,7 +383,7 @@ function esc(s) {
 
 function buildBreadcrumb(path) {
   var parts = String(path || '').replace(/^\/+/, '').split('/').filter(Boolean);
-  var crumbs = ['<a href="/manager/files">/</a>'];
+  var crumbs = ['<a href="/manager/files" class="mg-bc-root" title="Files root">&#128193;</a>'];
   var cumulative = '';
   for (var i = 0; i < parts.length - 1; i++) {
     cumulative += '/' + parts[i];

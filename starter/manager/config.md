@@ -47,18 +47,18 @@ var SITE_SCHEMA = [
     default: '', depends_on: 'layout' },
   { key: 'nav_file',       label: 'Navigation file',       type: 'text',
     default: 'lazysite/nav.conf' },
-  { key: 'search_default', label: 'Pages searchable by default', type: 'select',
-    options: ['true', 'false'], default: 'true' },
-  { key: 'manager',        label: 'Manager',               type: 'select',
-    options: ['disabled', 'enabled'], default: 'disabled' },
+  { key: 'search_default', label: 'Pages searchable by default', type: 'toggle',
+    on: 'true', off: 'false', default: 'true' },
+  { key: 'manager',        label: 'Manager',               type: 'toggle',
+    on: 'enabled', off: 'disabled', default: 'disabled' },
   { key: 'manager_path',   label: 'Manager URL path',      type: 'text',
     default: '/manager',
     show_when: { key: 'manager', value: ['enabled'] } },
   { key: 'manager_groups', label: 'Manager access groups', type: 'text',
     default: '',
     show_when: { key: 'manager', value: ['enabled'] } },
-  { key: 'webdav_enabled', label: 'WebDAV publishing', type: 'select',
-    options: ['disabled', 'enabled'], default: 'disabled' },
+  { key: 'webdav_enabled', label: 'WebDAV publishing', type: 'toggle',
+    on: 'enabled', off: 'disabled', default: 'disabled' },
 ];
 
 // SM044: populated by parallel fetch of layouts-available at load time.
@@ -181,7 +181,15 @@ function renderSiteForm(values) {
     var da = sw ? ' data-show-key="'+sw.key+'" data-show-val="'+sw.value.join(',')+'"' : '';
     html += '<div class="mg-form-row mg-config-field"'+da+'>';
     html += '<label>' + esc(f.label) + '</label>';
-    if (f.type === 'select') {
+    if (f.type === 'toggle') {
+      // SM114: a boolean rendered as a switch. A hidden input carries the on/off
+      // string so the existing form serialisation (el.value) round-trips it.
+      var onVal = f.on || 'enabled', offVal = f.off || 'disabled';
+      var isOn = (String(v) === onVal);
+      html += '<input type="hidden" name="'+f.key+'" id="cfg-'+esc(f.key)+'" value="'+esc(isOn?onVal:offVal)+'">';
+      html += '<label class="mg-chk"><input type="checkbox" class="mg-toggle"'+(isOn?' checked':'')
+           +  ' onchange="var h=document.getElementById(\'cfg-'+esc(f.key)+'\'); h.value=this.checked?\''+onVal+'\':\''+offVal+'\'; applyShowWhen(this.form);"></label>';
+    } else if (f.type === 'select') {
       html += '<select name="'+f.key+'" onchange="applyShowWhen(this.form)">';
       (f.options||[]).forEach(function(o) { html += '<option'+(v===o?' selected':'')+'>'+o+'</option>'; });
       html += '</select>';
@@ -257,13 +265,23 @@ function applyShowWhen(container) {
 function saveSiteSettings(e) {
   e.preventDefault();
   var form = e.target;
-  var status = document.getElementById('site-status');
   var values = {};
   for (var i = 0; i < form.elements.length; i++) {
     var el = form.elements[i];
     if (!el.name) continue;
     values[el.name] = el.value;
   }
+  // SM114: disabling the manager locks the UI for everyone - confirm first.
+  if (values.manager === 'disabled') {
+    mgConfirm('Disabling the manager locks the manager UI for everyone, including you. Continue?',
+      { danger: true, ok: 'Disable manager' }).then(function(ok) { if (ok) saveSiteSettings_go(values); });
+    return;
+  }
+  saveSiteSettings_go(values);
+}
+
+function saveSiteSettings_go(values) {
+  var status = document.getElementById('site-status');
   status.className = 'mg-status';
   status.textContent = 'Saving...';
   fetch(API + '?action=plugin-save&plugin=' + encodeURIComponent(SITE_PLUGIN_ID), {

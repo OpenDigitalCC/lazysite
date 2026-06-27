@@ -1566,12 +1566,14 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
 /* Dark mode - reassign tokens; every component inherits */
 [data-theme="dark"] {
   --mg-bg:          #1c1917;
-  --mg-surface:     #292524;
+  --mg-surface:     #2a2624;
   --mg-surface-alt: #211d1b;
-  --mg-border:      #3a3531;
+  --mg-border:      #44403c;
   --mg-border-light:#332e2a;
-  --mg-text:        #f5f5f4;
-  --mg-text-muted:  #a8a29e;
+  /* Brighter text for stronger contrast on dark (was #f5f5f4 / #a8a29e). */
+  --mg-text:        #fbfbfa;
+  --mg-text-strong: #ffffff;
+  --mg-text-muted:  #c0bab3;
   --mg-text-light:  #78716c;
   --mg-accent:      #818cf8;
   --mg-accent-hover:#a5b4fc;
@@ -1635,3 +1637,29 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
 
 /* Onboarding code box (was a hard-coded white) */
 .mg-code-box { background: var(--mg-surface); }
+
+/* SM111: sortable file columns + pager */
+.mg-file-table th.mg-sortable { cursor: pointer; user-select: none; }
+.mg-file-table th.mg-sortable:hover { color: var(--mg-text); }
+.mg-sort-ind { color: var(--mg-accent); font-size: 0.75em; }
+.mg-pager {
+  display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem;
+  padding: 0.5rem 0.2rem; font-size: var(--mg-text-sm);
+}
+.mg-pager:empty { display: none; }
+.mg-pager-info { color: var(--mg-text-muted); }
+
+/* SM114: baseline for any form control (incl. unstyled ones like the theme browse)
+   so they invert with the theme. Colours/border only - keeps each field's sizing. */
+.mg-main select,
+.mg-main input[type="text"], .mg-main input[type="search"], .mg-main input[type="number"],
+.mg-main input[type="url"], .mg-main input[type="email"], .mg-main input[type="password"],
+.mg-main input[type="date"], .mg-main input:not([type]) {
+  background: var(--mg-surface);
+  color: var(--mg-text);
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mg-radius);
+}
+.mg-main select:focus, .mg-main input:focus {
+  outline: none; border-color: var(--mg-accent); box-shadow: var(--mg-focus-ring);
+}

@@ -33,9 +33,9 @@ search: false
 <table class="mg-file-table">
 <thead>
 <tr>
-<th class="mg-col-name">Name</th>
-<th class="mg-col-access">Access</th>
-<th class="mg-col-mod">Modified</th>
+<th class="mg-col-name mg-sortable" onclick="setSort('name')">Name <span class="mg-sort-ind" data-col="name"></span></th>
+<th class="mg-col-access mg-sortable" onclick="setSort('access')">Access <span class="mg-sort-ind" data-col="access"></span></th>
+<th class="mg-col-mod mg-sortable" onclick="setSort('mod')">Modified <span class="mg-sort-ind" data-col="mod"></span></th>
 <th class="mg-col-check"><input type="checkbox" id="select-all" title="Select all files and empty folders" onchange="toggleSelectAll(this)"></th>
 <th class="mg-col-exp"></th>
 </tr>
@@ -44,6 +44,7 @@ search: false
 <tr><td colspan="5">Loading...</td></tr>
 </tbody>
 </table>
+<div id="file-pager" class="mg-pager"></div>
 
 </div>
 
@@ -287,65 +288,134 @@ function permsCard(f) {
 
 // SM077: clean row (icon + name on the left; Access / Modified / select /
 // expander on the right). Advanced functions live in the expand card.
+// SM111: data-driven render so sort + filter + pagination compose.
+var currentFiles = [];
+var fileSort = { col: 'name', dir: 1 };
+var filePage = 0;
+var FILE_PAGE_SIZE = 50;
+
 function renderFiles(files) {
+  currentFiles = files || [];
+  filePage = 0;
+  populateTypeFilter(currentFiles);
+  paintFiles();
+}
+
+// Unrestricted (0) sorts before restricted (1).
+function accessRank(f) {
+  return ((f.read && f.read.length) || (f.write && f.write.length)) ? 1 : 0;
+}
+
+function filteredSortedFiles() {
+  var q = (document.getElementById('file-filter').value || '').toLowerCase();
+  var type = (document.getElementById('type-filter') || {}).value || '';
+  var list = currentFiles.filter(function(f) {
+    if ((f.name || '').toLowerCase().indexOf(q) < 0) return false;
+    if (type === '__dir')       return f.type === 'dir';
+    if (type === '__generated') return !!f.generated;
+    if (type)                   return (f.ext || '') === type;
+    return true;
+  });
+  var col = fileSort.col, dir = fileSort.dir;
+  list.sort(function(a, b) {
+    if (a.type === 'dir' && b.type !== 'dir') return -1;   // dirs always first
+    if (a.type !== 'dir' && b.type === 'dir') return 1;
+    var c;
+    if (col === 'mod')         c = (a.mtime || 0) - (b.mtime || 0);
+    else if (col === 'access') c = accessRank(a) - accessRank(b);
+    else                       c = a.name.localeCompare(b.name);
+    if (c !== 0) return c * dir;
+    return a.name.localeCompare(b.name);                   // stable name tiebreak
+  });
+  return list;
+}
+
+function paintFiles() {
   var tbody = document.getElementById('file-rows');
-  if (!files.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--mg-text-light)">Empty directory</td></tr>';
+  var list = filteredSortedFiles();
+  updateSortIndicators();
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--mg-text-light)">No matching files</td></tr>';
+    renderPager(0, 0);
+    updateSelection();
     return;
   }
-  files.sort(function(a, b) {
-    if (a.type === 'dir' && b.type !== 'dir') return -1;
-    if (a.type !== 'dir' && b.type === 'dir') return 1;
-    return a.name.localeCompare(b.name);
-  });
+  var pages = Math.max(1, Math.ceil(list.length / FILE_PAGE_SIZE));
+  if (filePage >= pages) filePage = pages - 1;
+  if (filePage < 0) filePage = 0;
+  var start = filePage * FILE_PAGE_SIZE;
+  var pageItems = list.slice(start, start + FILE_PAGE_SIZE);
   var html = '';
-  for (var i = 0; i < files.length; i++) {
-    var f = files[i];
-    var isDir = f.type === 'dir';
-    var icon = isDir ? '&#128193;' : '&#128196;';
-    html += '<tr data-name="' + escHtml(f.name) + '"'
-          + ' data-path="' + escHtml(f.path || '') + '"'
-          + ' data-ext="' + escHtml(f.ext || '') + '"'
-          + ' data-kind="' + (isDir ? 'dir' : 'file') + '"'
-          + ' data-generated="' + (f.generated ? '1' : '0') + '">';
-
-    // NAME (left): icon + name only.
-    var name;
-    if (isDir) {
-      name = '<a href="#" onclick="loadDir(\'' + escHtml(f.path) + '/\'); return false;">' + escHtml(f.name) + '/</a>';
-    } else {
-      name = isEditable(f.name)
-        ? '<a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a>'
-        : escHtml(f.name);
-      if (f.is_brief) name += ' <span class="mg-brief-tag" title="Authoring brief (private, never served)">brief</span>';
-    }
-    html += '<td class="mg-file-name"><span class="mg-file-icon">' + icon + '</span> ' + name + '</td>';
-
-    // ACCESS / MODIFIED.
-    html += '<td class="mg-col-access">' + (isDir ? '' : accessBadge(f)) + '</td>';
-    html += '<td class="mg-col-mod">' + modifiedCell(f) + '</td>';
-
-    // SELECT (files + empty dirs).
-    if (f.type === 'file' || (isDir && f.empty)) {
-      html += '<td class="mg-col-check"><input type="checkbox" class="mg-file-select" data-kind="' + (isDir ? 'dir' : 'file') + '" value="' + escHtml(f.path) + '" onchange="updateSelection()"></td>';
-    } else {
-      html += '<td class="mg-col-check"></td>';
-    }
-
-    // EXPANDER (files): lock glyph + chevron.
-    if (isDir) {
-      html += '<td class="mg-col-exp"></td>';
-    } else {
-      html += '<td class="mg-col-exp">' + lockGlyph(f)
-            + '<a href="#" class="mg-chev" onclick="togglePerms(this); return false;" title="File settings &amp; permissions">&#9662;</a></td>';
-    }
-    html += '</tr>';
-
-    if (!isDir) html += permsCard(f);
-  }
+  for (var i = 0; i < pageItems.length; i++) html += rowHtml(pageItems[i]);
   tbody.innerHTML = html;
-  populateTypeFilter(files);
+  renderPager(list.length, pages);
+  updateSelection();
 }
+
+function rowHtml(f) {
+  var isDir = f.type === 'dir';
+  var icon = isDir ? '&#128193;' : '&#128196;';
+  var html = '<tr data-name="' + escHtml(f.name) + '"'
+        + ' data-path="' + escHtml(f.path || '') + '"'
+        + ' data-ext="' + escHtml(f.ext || '') + '"'
+        + ' data-kind="' + (isDir ? 'dir' : 'file') + '"'
+        + ' data-generated="' + (f.generated ? '1' : '0') + '">';
+  var name;
+  if (isDir) {
+    name = '<a href="#" onclick="loadDir(\'' + escHtml(f.path) + '/\'); return false;">' + escHtml(f.name) + '/</a>';
+  } else {
+    name = isEditable(f.name)
+      ? '<a href="/manager/edit?path=' + encodeURIComponent(f.path) + '">' + escHtml(f.name) + '</a>'
+      : escHtml(f.name);
+    if (f.is_brief) name += ' <span class="mg-brief-tag" title="Authoring brief (private, never served)">brief</span>';
+  }
+  html += '<td class="mg-file-name"><span class="mg-file-icon">' + icon + '</span> ' + name + '</td>';
+  html += '<td class="mg-col-access">' + (isDir ? '' : accessBadge(f)) + '</td>';
+  html += '<td class="mg-col-mod">' + modifiedCell(f) + '</td>';
+  if (f.type === 'file' || (isDir && f.empty)) {
+    html += '<td class="mg-col-check"><input type="checkbox" class="mg-file-select" data-kind="' + (isDir ? 'dir' : 'file') + '" value="' + escHtml(f.path) + '" onchange="updateSelection()"></td>';
+  } else {
+    html += '<td class="mg-col-check"></td>';
+  }
+  if (isDir) {
+    html += '<td class="mg-col-exp"></td>';
+  } else {
+    html += '<td class="mg-col-exp">' + lockGlyph(f)
+          + '<a href="#" class="mg-chev" onclick="togglePerms(this); return false;" title="File settings &amp; permissions">&#9662;</a></td>';
+  }
+  html += '</tr>';
+  if (!isDir) html += permsCard(f);
+  return html;
+}
+
+function setSort(col) {
+  if (fileSort.col === col) fileSort.dir = -fileSort.dir;
+  else { fileSort.col = col; fileSort.dir = 1; }
+  filePage = 0;
+  paintFiles();
+}
+
+function updateSortIndicators() {
+  var inds = document.querySelectorAll('.mg-sort-ind');
+  for (var i = 0; i < inds.length; i++) {
+    var col = inds[i].getAttribute('data-col');
+    inds[i].innerHTML = (col === fileSort.col) ? (fileSort.dir > 0 ? '&#9650;' : '&#9660;') : '';
+  }
+}
+
+function renderPager(total, pages) {
+  var el = document.getElementById('file-pager');
+  if (!el) return;
+  if (pages <= 1) { el.innerHTML = ''; return; }
+  var start = filePage * FILE_PAGE_SIZE + 1;
+  var end = Math.min(total, (filePage + 1) * FILE_PAGE_SIZE);
+  el.innerHTML =
+    '<button class="mg-btn mg-btn-sm" ' + (filePage <= 0 ? 'disabled' : '') + ' onclick="gotoPage(' + (filePage - 1) + ')">&#8592; Prev</button>' +
+    '<span class="mg-pager-info">' + start + '&ndash;' + end + ' of ' + total + '</span>' +
+    '<button class="mg-btn mg-btn-sm" ' + (filePage >= pages - 1 ? 'disabled' : '') + ' onclick="gotoPage(' + (filePage + 1) + ')">Next &#8594;</button>';
+}
+
+function gotoPage(n) { filePage = n; paintFiles(); window.scrollTo(0, 0); }
 
 // Expand/collapse the config card; only one open at a time.
 function togglePerms(el) {
@@ -466,25 +536,10 @@ function isoDate() { return new Date().toISOString().slice(0, 10); }
 
 // Combined text + type filter. Operates on file/dir rows (those carry
 // data-name); config cards are kept collapsed so they never orphan.
+// SM111: filter is now data-driven (re-render the filtered+sorted+paged list).
 function applyFilters() {
-  var q = (document.getElementById('file-filter').value || '').toLowerCase();
-  var type = (document.getElementById('type-filter') || {}).value || '';
-  var cards = document.querySelectorAll('.mg-perms-row');
-  for (var c = 0; c < cards.length; c++) cards[c].style.display = 'none';
-  var chev = document.querySelectorAll('.mg-chev');
-  for (var v = 0; v < chev.length; v++) chev[v].innerHTML = '&#9662;';
-  var rows = document.querySelectorAll('.mg-file-table tbody tr[data-name]');
-  for (var i = 0; i < rows.length; i++) {
-    var row = rows[i];
-    var name = (row.getAttribute('data-name') || '').toLowerCase();
-    var okText = name.indexOf(q) >= 0;
-    var okType = true;
-    if (type === '__dir')            okType = row.getAttribute('data-kind') === 'dir';
-    else if (type === '__generated') okType = row.getAttribute('data-generated') === '1';
-    else if (type)                   okType = (row.getAttribute('data-ext') || '') === type;
-    row.style.display = (okText && okType) ? '' : 'none';
-  }
-  updateSelection();
+  filePage = 0;
+  paintFiles();
 }
 
 function formatSize(bytes) {
