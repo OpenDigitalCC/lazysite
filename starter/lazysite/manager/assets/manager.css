@@ -20,6 +20,11 @@
     --mg-surface-alt: #f5f5f4;
     --mg-border:      #e7e5e4;
     --mg-border-light:#f0efed;
+    /* Back-compat aliases for legacy names used (with hard-coded fallbacks) in
+       page styles - mapping them to real tokens makes those styles invert too. */
+    --mg-bg-alt:      var(--mg-surface-alt);
+    --mg-bg-muted:    var(--mg-surface-alt);
+    --mg-bg-hover:    var(--mg-surface-alt);
 
     /* Text - one strong, one muted, one faint */
     --mg-text:        #1c1917;
@@ -598,8 +603,8 @@
     font-weight: 700; font-family: monospace;
     border-radius: 2px; margin-left: 0.1em;
 }
-.mg-rwflag-ok { color: #1a7f37; }            /* open within scope */
-.mg-rwflag-no { color: #c33; }               /* restricted to owner/list */
+.mg-rwflag-ok { color: var(--mg-success); }            /* open within scope */
+.mg-rwflag-no { color: var(--mg-danger); }               /* restricted to owner/list */
 .mg-rwflag-g  { color: var(--mg-accent); font-weight: 700; font-family: monospace; }
 
 .mg-modlink { color: var(--mg-text-light); text-decoration: none; }
@@ -666,12 +671,12 @@
     font-family: monospace; font-weight: 700; font-size: 0.85em; line-height: 1;
     background: #eee; color: #999;
 }
-.mg-chip-right.on { background: #1a7f37; border-color: #1a7f37; color: #fff; }
+.mg-chip-right.on { background: var(--mg-success); border-color: var(--mg-success); color: #fff; }
 .mg-chip-x {
     border: none; background: none; cursor: pointer;
     color: var(--mg-text-light); font-size: 1.1em; line-height: 1; padding: 0 0.2em;
 }
-.mg-chip-x:hover { color: #c33; }
+.mg-chip-x:hover { color: var(--mg-danger); }
 .mg-rights-add { margin-top: 0.6em; }
 .mg-rights-pick { font-size: 0.85em; min-width: 16em; }
 
@@ -687,7 +692,7 @@
     border-radius: 4px; padding: 0.8em 1em; margin-top: 0.5em;
     background: var(--mg-bg-alt, #f6f6f6);
 }
-.mg-onb-card-go { border-left-color: #1a7f37; }
+.mg-onb-card-go { border-left-color: var(--mg-success); }
 .mg-onb-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5em; }
 .mg-onb-list { margin: 0.3em 0 0.3em 1.1em; padding: 0; font-size: 0.9em; line-height: 1.5; }
 .mg-onb-list li { margin-bottom: 0.55em; }
@@ -699,7 +704,7 @@
 .mg-code-token { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.6em; }
 .mg-code-token code { font-size: 1.05em; font-weight: 700; color: var(--mg-accent); }
 .mg-onb-wait { margin-top: 0.6em; font-size: 0.85em; color: var(--mg-text-light); }
-.mg-onb-ok { color: #1a7f37; font-weight: 600; }
+.mg-onb-ok { color: var(--mg-success); font-weight: 600; }
 
 .mg-file-table .mg-file-dl a {
     font-size: 1.15em;
@@ -1464,9 +1469,7 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--mg-border);
   border-radius: var(--mg-radius);
-  cursor: pointer;
 }
-.mg-plugin-row:hover { background: var(--mg-surface-alt); }
 .mg-plugin-row-name { font-weight: 500; }
 .mg-plugin-row-desc { color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
 .mg-plugin-row-path { font-family: var(--mg-mono); font-size: 0.75rem; color: var(--mg-text-light); }
@@ -1585,3 +1588,50 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
   --mg-header-muted:#a8a29e;
 }
 [data-theme="dark"] .mg-toast { background: var(--mg-surface-alt); color: var(--mg-text); border: 1px solid var(--mg-border); }
+
+/* ============================================================
+   SM109 phase 6b - dark-mode contrast + readability fixes
+   ============================================================ */
+
+/* Content links: tokenised so they read in light AND dark, including
+   visited/clicked (audit links, the domain-note pane, misc inline links). */
+.mg-main a, .mg-domain-note a { color: var(--mg-accent); }
+.mg-main a:visited, .mg-domain-note a:visited { color: var(--mg-accent); }
+.mg-main a:hover, .mg-domain-note a:hover { color: var(--mg-accent-hover); text-decoration: underline; }
+
+/* Sidebar: group titles stronger than the items beneath them. */
+.mg-nav-group { color: var(--mg-text); font-weight: 700; }
+.mg-sidebar .mg-nav a { color: var(--mg-text-muted); }
+
+/* Ghost/tertiary buttons (download, add brief, row actions) were too feint.
+   Variants re-affirmed so they keep their own colour. */
+.mg-btn { color: var(--mg-text); }
+.mg-btn-primary { color: var(--mg-accent-text); }
+.mg-btn-danger  { color: var(--mg-danger); }
+
+/* r/w access flags: bolder so they read in both modes. */
+.mg-rwflag, .mg-rwflag-ok, .mg-rwflag-no, .mg-rwflag-g { font-weight: 700; }
+
+/* Permission chips: tokenised surfaces (were #fff / #eee / #999). */
+.mg-chip { background: var(--mg-surface); }
+.mg-chip-right { background: var(--mg-surface-alt); color: var(--mg-text-muted); }
+.mg-chip-right.on { color: var(--mg-accent-text); }
+
+/* Tokenise the last hard-coded values so they invert. */
+.mg-badge-success { color: var(--mg-success); }
+.mg-editor-saved { color: var(--mg-success); }
+.mg-fm-section summary:hover { background: var(--mg-surface-alt); }
+.mg-foot { color: var(--mg-text-light); }
+
+/* The file editor uses CodeMirror, whose bundled theme is light. Give it a dark
+   variant so the "extra" and content editors invert with the rest of the manager. */
+[data-theme="dark"] .CodeMirror { background: var(--mg-surface); color: var(--mg-text); }
+[data-theme="dark"] .CodeMirror-gutters { background: var(--mg-surface-alt); border-right-color: var(--mg-border); }
+[data-theme="dark"] .CodeMirror-linenumber { color: var(--mg-text-light); }
+[data-theme="dark"] .CodeMirror-cursor { border-left: 1px solid var(--mg-text); }
+[data-theme="dark"] .CodeMirror-selected { background: var(--mg-accent-bg) !important; }
+[data-theme="dark"] .CodeMirror-activeline-background { background: var(--mg-surface-alt); }
+[data-theme="dark"] .mg-cm-yaml, [data-theme="dark"] .mg-cm-content { background: var(--mg-surface); }
+
+/* Onboarding code box (was a hard-coded white) */
+.mg-code-box { background: var(--mg-surface); }

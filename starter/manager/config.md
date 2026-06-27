@@ -341,7 +341,7 @@ function renderPluginRegistry(plugins) {
   }
   var html = '<div class="mg-plugin-registry">';
   plugins.forEach(function(p) {
-    html += '<label class="mg-plugin-row" data-script="' + esc(p._script) + '">';
+    html += '<div class="mg-plugin-row" data-script="' + esc(p._script) + '">';
     if (p.core) {
       // Core plugins (e.g. Built-in Auth) are wired in the web-server config,
       // not toggled here - show an "always on" marker instead of a checkbox.
@@ -353,7 +353,7 @@ function renderPluginRegistry(plugins) {
     html += '<span class="mg-plugin-row-name">' + esc(p.name) + '</span>';
     html += '<span class="mg-plugin-row-desc">' + esc(p.description || '') + '</span>';
     html += '<span class="mg-plugin-row-path">' + esc(p._script) + '</span>';
-    html += '</label>';
+    html += '</div>';
   });
   html += '</div>';
   container.innerHTML = html;
