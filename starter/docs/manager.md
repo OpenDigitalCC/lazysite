@@ -136,6 +136,22 @@ as `tools/lazysite-users.pl`:
 - Invalidate a single cached page
 - Clear all cache at once (useful after theme changes)
 
+### Audit
+
+`/manager/audit`. The material-action trail (logins, edits, deletes,
+config/theme changes, denied attempts) with who/what/when/where and the
+outcome. Filter by user, target, or a From/To date range; each row records
+the action's target (the page, the plugin, `nav`, etc.). Browsing analytics
+live separately in Visitor Stats, not here.
+
+### Visitor Stats
+
+`/manager/stats`. A read-only dashboard of on-site visitor statistics from the
+web-server access log - hits, unique visitors, top pages and referrers, status
+codes and per-day counts over a configurable window, with bot filtering and IP
+anonymisation. It is provided by the opt-in **Visitor Stats** plugin: enable it
+on Plugin Manager, then set its access-log path on Plugin Config.
+
 ## Admin bar on site pages
 
 When the manager is enabled, the processor injects an admin bar on

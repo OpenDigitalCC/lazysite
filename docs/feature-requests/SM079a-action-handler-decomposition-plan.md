@@ -130,3 +130,13 @@ Remaining polish (optional): `Manager::Themes` is 1414 lines - a cohesive
 theming subsystem, but could be split into Themes / Layouts / Artifact later.
 Re-run `tools/coverage.sh` to capture the new per-module coverage (the logic is
 now in-process-testable) and raise the floor toward 75%.
+
+## Close-out (2026-06-27)
+
+**SHIPPED.** Verified in the tree: 15 `Lazysite::*` modules (Manager::{Common, Files,
+Plugins, Upload, Themes, Layouts, Artifact, Backups} + Audit, Util, Auth::{Acl,
+Credential, OAuth, Session, Settings}); lazysite-manager-api.pl is a ~1500-line
+front-controller (gate + dispatch + auth glue + the small site handlers the plan keeps
+inline); lazysite-processor.pl has zero `Lazysite::` imports (Principle 1 - standalone).
+The optional Themes/Layouts/Artifact split was also done. Remaining (truly optional):
+re-run tools/coverage.sh to capture per-module coverage.
