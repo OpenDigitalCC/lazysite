@@ -299,11 +299,18 @@ function takeOverLock() {
 
 // --- Load ---
 function loadFile() {
-  if (!filePath) return;
-  // Build the editor first so the edit box always renders, even if a later
-  // setup step (breadcrumb, download wiring) hiccups - otherwise the fixed
-  // editor overlay could cover the page with no visible edit box.
+  // Build the editor unconditionally and FIRST, so the edit box always renders -
+  // even when no file path arrived (empty query.path) or a later setup step
+  // hiccups. Previously an empty path returned here before initEditors(), leaving
+  // the full-screen overlay covering the page with no visible edit box.
   initEditors();
+  if (!filePath) {
+    if (contentCm) contentCm.setValue(
+      '# No file selected\n\nOpen a file from the Files page to edit it.\n');
+    var nb = document.getElementById('ed-save-btn'); if (nb) nb.disabled = true;
+    var nf = document.getElementById('ed-fm-section'); if (nf) nf.style.display = 'none';
+    return;
+  }
   document.getElementById('ed-filepath').innerHTML = buildBreadcrumb(filePath);
   var viewPath = filePath.replace(/\.md$/, '').replace(/\/index$/, '/');
   if (viewPath.charAt(0) !== '/') viewPath = '/' + viewPath;
