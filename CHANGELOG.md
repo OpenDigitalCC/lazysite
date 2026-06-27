@@ -18,6 +18,17 @@ Keying
 
 ## Unreleased
 
+## 0.4.48 - Deploy hang fix; SSI overlay support (2026-06-27)
+
+Fix - permissions sweep no longer hangs
+: the Hestia deploy pruned the regenerable compiled-template cache and batches its chmod
+  pass, so a large site is set in seconds, not a multi-minute apparent hang.
+
+Fix - lazysite-app overlays static SSI sites
+: the template enables Server-Side Includes (Options +Includes + AddOutputFilter
+  INCLUDES .shtml, needs a2enmod include) and serves an existing index.shtml homepage,
+  so overlaying lazysite on a static SSI site no longer shows lazysite over every page.
+
 ## 0.4.47 - Audit search/targets + plugin discovery + page split (2026-06-27)
 
 Fix - audit targets
