@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.56 - Fix blank manager editor (auth-sync injection) (2026-06-27)
+
+Fix - editor no longer blank
+: the client-side auth-sync script is now injected before the document's real
+  closing </body>, not a literal </body> inside a JS string (the editor's iframe
+  srcdoc). The previous first-match splice closed the editor's own inline script
+  early ("SyntaxError: literal not terminated"), so CodeMirror never mounted.
+
 ## 0.4.55 - Deploy reloads nginx for fresh static assets (2026-06-27)
 
 Fix - nginx serves refreshed assets after upgrade
