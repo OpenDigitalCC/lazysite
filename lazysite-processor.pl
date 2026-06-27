@@ -2806,7 +2806,13 @@ sub render_template {
         # an empty hash so [% theme.config.foo %] renders empty rather
         # than trying to index into the raw conf string.
         $vars->{layout_name} = $layout_key;
-        my $info = resolve_theme( $layout_key, $vars->{theme} );
+        # SM120: a page may pin a theme via front matter (theme:), preview-only and
+        # sanitised the same way as layout:; falls back to the active/site theme.
+        # resolve_theme still gates on layout compatibility, so an incompatible pin
+        # renders as no theme rather than breaking.
+        my $page_theme = ( defined $meta->{theme} && $meta->{theme} =~ /^[A-Za-z0-9_-]+$/ )
+            ? $meta->{theme} : $vars->{theme};
+        my $info = resolve_theme( $layout_key, $page_theme );
         if ( $info->{is_active} ) {
             $vars->{theme_name}   = $info->{theme_name};
             $vars->{theme}        = $info->{theme_data};

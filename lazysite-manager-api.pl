@@ -278,6 +278,13 @@ if ( $token_auth ) {
         'layout-activate'   => sub { $_[0]->{manage_layouts} },
         'preview-grant'     => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'config-set'        => sub { $_[0]->{manage_config} },
+        'config-read'       => sub { $_[0]->{manage_config} },   # SM122: read a safe subset
+        # SM123: a theme/layout manager may list what is installed (was previously
+        # unavailable to token clients, so they activated each in turn to discover).
+        'theme-list'        => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
+        'themes-for-layout' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
+        'themes-list-all'   => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
+        'layouts-available' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         # SM105: navigation is a token-client action gated by manage_nav (which
         # inherits manage_content / webdav), so a WebDAV/API partner can read and
         # write the site nav without the MCP connector or raw WebDAV to lazysite/.
@@ -340,6 +347,7 @@ elsif ( $action eq 'renew-lock' )       { $result = renew_lock( $path, $auth_use
 elsif ( $action eq 'preview' )          { $result = action_preview($path) }
 elsif ( $action eq 'cache-list' )       { $result = action_cache_list() }
 elsif ( $action eq 'cache-invalidate' ) { $result = action_cache_invalidate($path) }
+elsif ( $action eq 'config-read' )      { $result = action_config_read() }
 elsif ( $action eq 'config-set' )       {
     my $req = eval { decode_json($body) } // {};
     $result = action_config_set(
@@ -452,7 +460,7 @@ else  { $result = { ok => 0, error => "Unknown action: $action" } }
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
         csrf-token list read principals whoami audit version acl-get cache-list
-        cache-invalidate nav-read theme-list themes-list-all themes-for-layout
+        cache-invalidate nav-read config-read theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
@@ -864,12 +872,39 @@ sub action_preview {
 # theme-activate/layout-activate). Gated on manage_config by %need.
 # (Defined inside the sub: the dispatch runs above this point in the file,
 # so a file-level `my` initialised here would still be empty at call time.)
+# SM122: a manage_config token may read a safe subset of the site config to
+# self-diagnose (active layout/theme, whether WebDAV is on) instead of inferring
+# from HTTP codes. No secrets - just the operator-visible site settings.
+sub action_config_read {
+    my %out = map { $_ => '' }
+        qw(site_name site_url layout theme nav_file webdav_enabled manager
+           search_default manager_groups manager_path);
+    if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
+        while ( my $line = <$fh> ) {
+            next unless $line =~ /^(\w+)\s*:\s*(.*?)\s*$/;
+            $out{$1} = $2 if exists $out{$1};
+        }
+        close $fh;
+    }
+    return { ok => 1, config => \%out };
+}
+
 sub action_config_set {
     my ( $key, $value ) = @_;
-    my %allow = map { $_ => 1 } qw(site_name site_url search_default);
+    # SM122: a small, injection-safe subset settable via the API (with manage_config).
+    my %allow = map { $_ => 1 }
+        qw(site_name site_url search_default webdav_enabled layout theme nav_file);
     $key = '' unless defined $key;
     return { ok => 0, error => "Config key '$key' is not settable via the API" }
         unless $allow{$key};
+    # SM122: validate the enum/name-shaped keys.
+    if ( $key eq 'webdav_enabled' && defined $value && $value !~ /^(enabled|disabled)$/ ) {
+        return { ok => 0, error => "webdav_enabled must be 'enabled' or 'disabled'" };
+    }
+    if ( ( $key eq 'layout' || $key eq 'theme' ) && defined $value && length $value
+         && $value !~ /^[A-Za-z0-9_-]+$/ ) {
+        return { ok => 0, error => "$key must be a simple name" };
+    }
     return { ok => 0, error => "A value is required" }
         unless defined $value && length $value;
     return { ok => 0, error => "Value must be a single line" }

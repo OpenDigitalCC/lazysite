@@ -342,6 +342,7 @@ elsif ( $cmd eq 'setup-manager' ){ cmd_setup_manager(@args) }
 elsif ( $cmd eq 'settings' )     { cmd_settings(@args) }
 elsif ( $cmd eq 'set' )          { cmd_set_cli(@args) }
 elsif ( $cmd eq 'token' )        { cmd_token(@args) }
+elsif ( $cmd eq 'brief' )        { cmd_brief_cli(@args) }
 elsif ( $cmd eq 'account-create' )   { cmd_account_create_cli(@args) }
 elsif ( $cmd eq 'account-disable' )  { cmd_account_disable_cli(@args) }
 elsif ( $cmd eq 'account-enable' )   { cmd_account_enable_cli(@args) }
@@ -1434,6 +1435,13 @@ that has appeared in any transcript should be treated as spent - regenerate it.
 $caps
 - Content scope: $scope
 
+These govern your **token** (partner) access over WebDAV / the control API / the MCP
+connector. They are independent of any manager-group / "operator" status the account
+may also hold - operator status only bypasses capabilities on the browser-cookie
+manager UI, never on this token path. If `whoami` shows a capability you need is off
+(e.g. manage_themes for a theming task), ask the operator to grant it on this account;
+it applies on your next request, with no new token.
+
 ## Getting connected
 
 This account connects over the **WebDAV / control API** described below. If your
@@ -1725,6 +1733,19 @@ through the connector - do NOT verify by fetching the rendered web page (that is
 a separate slow request that can stall; the published page re-renders for
 visitors automatically). Make one change at a time.
 PROMPT
+}
+
+# CLI: print the agent onboarding brief for a partner (mints a fresh single-use
+# pairing key each call, like the manager UI). SM124.
+sub cmd_brief_cli {
+    my ($user) = @_;
+    die "Usage: brief USERNAME\n" unless defined $user && length $user;
+    my $r = cmd_onboarding($user);
+    die "Could not generate a brief for '$user'"
+        . ( ref $r eq 'HASH' && $r->{error} ? ": $r->{error}" : '' ) . "\n"
+        unless ref $r eq 'HASH' && defined $r->{onboarding};
+    print $r->{onboarding};
+    return;
 }
 
 sub cmd_onboarding {

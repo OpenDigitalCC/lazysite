@@ -34,7 +34,7 @@ use Lazysite::Auth::OAuth ();
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
     action_move action_acl_get action_acl_set action_acl_remove);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
-    action_cache_invalidate _read_active_layout_and_theme);
+    action_cache_invalidate _read_active_layout_and_theme action_themes_list_all);
 
 our $VERSION = '0.1';
 my $PROTOCOL = '2025-11-25';
@@ -340,6 +340,12 @@ my %TOOLS = (
         run => sub {
             action_acl_set( $_[0]->{path}, $_[1], $_[0]->{read}, $_[0]->{write}, undef );
         },
+    },
+    list_themes => {
+        description => 'List the themes installed across all layouts (with which is active), so you can discover what is available without activating each in turn.',
+        cap         => 'manage_themes',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run         => sub { action_themes_list_all() },
     },
     activate_theme => {
         description => 'Activate a theme for the current layout (clears the HTML cache).',
@@ -1067,6 +1073,7 @@ my %ANNOTATE = (
     move_file       => [ 0, 0, 1 ],
     delete_file     => [ 0, 1, 1 ],
     set_permissions => [ 0, 0, 0 ],
+    list_themes     => [ 1, 0, 0 ],
     activate_theme  => [ 0, 0, 1 ],
     activate_layout => [ 0, 0, 1 ],
     invalidate_cache => [ 0, 0, 0 ],
@@ -1163,7 +1170,7 @@ elsif ( $method eq 'tools/call' ) {
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
     my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1, read_nav => 1 );
+        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the
