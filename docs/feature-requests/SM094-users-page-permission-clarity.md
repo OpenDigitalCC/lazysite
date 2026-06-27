@@ -53,6 +53,9 @@ inert.
 
 ## Status
 
+**SHIPPED in v0.4.26.** (see CHANGELOG)
+
+
 Raised 2026-06-26. Items 1-4 are bounded Users-page (`starter/manager/users.md`)
 changes plus a one-line `action_whoami` addition for item 1. The broader "attach
 capabilities to groups" is its own item, [[SM095]].

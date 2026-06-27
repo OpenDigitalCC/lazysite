@@ -30,5 +30,8 @@ flat unsorted list.
 
 ## Status
 
+**SHIPPED in v0.4.34.** (see CHANGELOG)
+
+
 Queued. Bounded, client-side in `files.md` (sort comparator + a slice + page control;
 header click handlers and a sort indicator).

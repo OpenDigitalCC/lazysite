@@ -120,7 +120,7 @@ function loadDir(dir) {
 
 function buildBreadcrumb(dirPath, linkFn) {
   var parts = dirPath.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
-  var items = [linkFn('/', 'Site root')];
+  var items = [linkFn('/', '<span class="mg-bc-root" title="Site root">&#128193;</span>')];
   var accumulated = '';
   for (var i = 0; i < parts.length; i++) {
     accumulated += '/' + parts[i];
@@ -280,6 +280,7 @@ function permsCard(f) {
     +     '<a class="mg-btn" href="' + API + '?action=file-download&path=' + encodeURIComponent(f.path) + '" download="' + escHtml(f.name) + '">&#11015; Download</a> '
     +     briefButton(f) + ' '
     +     '<button class="mg-btn" onclick="moveFile(this)">&#8644; Move&hellip;</button>'
+    +     '<button class="mg-btn mg-btn-danger" onclick="deleteOneFile(this)">&#128465; Delete</button>'
     +     '<button class="mg-btn mg-btn-primary mg-perms-save" onclick="savePerms(this)">Save permissions</button>'
     +   '</div>'
     + '</div>'
@@ -488,6 +489,26 @@ function addBrief(btn) {
   var card = btn.closest('tr');
   var row  = card.previousElementSibling;
   createBrief(row.getAttribute('data-path'));
+}
+
+// Delete a single file from its expand card (path read from the row, no escaping).
+function deleteOneFile(btn) {
+  var card = btn.closest('tr');
+  var row  = card.previousElementSibling;
+  var path = row && row.getAttribute('data-path');
+  var name = (row && row.getAttribute('data-name')) || path;
+  if (!path) return;
+  mgConfirm('Delete "' + name + '"? This cannot be undone.', { danger: true, ok: 'Delete' }).then(function(ok) {
+    if (!ok) return;
+    fetch(API + '?action=delete&path=' + encodeURIComponent(path), { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.ok) { showStatus(d.error || 'Delete failed', true); return; }
+        showStatus('Deleted ' + name + '.');
+        loadDir(currentDir);
+      })
+      .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 function populateTypeFilter(files) {

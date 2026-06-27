@@ -37,5 +37,8 @@ the field should offer them.
 
 ## Status
 
+**SHIPPED in v0.4.35.** (see CHANGELOG)
+
+
 Queued. Bounded: a new `groups` field type in the config-page renderer plus a fetch of
 the group list; backend storage format unchanged.

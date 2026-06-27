@@ -28,7 +28,7 @@ var sitePluginScript = null;
 // Keep them in sync until SM042 unifies them.
 var SITE_SCHEMA = [
   { key: 'site_name',      label: 'Site name',             type: 'text',   required: true,
-    default: 'My Site' },
+    default: 'My Site', group: 'Identity' },
   { key: 'site_url',       label: 'Site URL',              type: 'text',
     default: '${REQUEST_SCHEME}://${SERVER_NAME}' },
   // Layouts repo first: layout + theme are installed FROM it, so it's the
@@ -36,7 +36,7 @@ var SITE_SCHEMA = [
   // standard pack so the release browser works with no setup.
   { key: 'layouts_repo',   label: 'Layouts repo',          type: 'readonly_with_link',
     default: 'OpenDigitalCC/lazysite-layouts', link_href: '/manager/themes',
-    link_label: 'Edit on Themes' },
+    link_label: 'Edit on Themes', group: 'Appearance' },
   // SM044: layout + theme are dynamically-populated dropdowns.
   // Options come from ?action=layouts-available and
   // ?action=themes-for-layout. The layout change event re-fetches
@@ -48,9 +48,9 @@ var SITE_SCHEMA = [
   { key: 'nav_file',       label: 'Navigation file',       type: 'text',
     default: 'lazysite/nav.conf' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'toggle',
-    on: 'true', off: 'false', default: 'true' },
+    on: 'true', off: 'false', default: 'true', group: 'Content' },
   { key: 'manager',        label: 'Manager',               type: 'toggle',
-    on: 'enabled', off: 'disabled', default: 'disabled' },
+    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Access' },
   { key: 'manager_path',   label: 'Manager URL path',      type: 'text',
     default: '/manager',
     show_when: { key: 'manager', value: ['enabled'] } },
@@ -188,6 +188,7 @@ function onLayoutChange(select) {
 function renderSiteForm(values) {
   var html = '<form id="site-form" onsubmit="saveSiteSettings(event)">';
   SITE_SCHEMA.forEach(function(f) {
+    if (f.group) html += '<h3 class="mg-config-group">' + esc(f.group) + '</h3>';
     var v = values[f.key] !== undefined ? values[f.key] : (f.default || '');
     var sw = f.show_when;
     var da = sw ? ' data-show-key="'+sw.key+'" data-show-val="'+sw.value.join(',')+'"' : '';

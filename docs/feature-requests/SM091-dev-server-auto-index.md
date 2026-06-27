@@ -81,6 +81,9 @@ and the off-docroot cache relocation).
 
 ## Status
 
+**SHIPPED in v0.4.17.** (see CHANGELOG)
+
+
 Implemented 2026-06-26. `--auto-index` in `tools/lazysite-server.pl`; seeding
 guarded; README + `docs/dev-server.md` + `--help` updated. Dev-server smoke-tested
 (generated root + sub-directory index, breadcrumb on a note, no files written to

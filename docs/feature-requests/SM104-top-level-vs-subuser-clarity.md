@@ -39,6 +39,9 @@ distinction shown plainly.
 
 ## Status
 
+**SHIPPED in v0.4.26.** (see CHANGELOG)
+
+
 Queued (item 1 shipped with SM100). Items 2-4 are bounded `users.md` rendering +
 a small Add-user parent-option change; item 3/4 decide whether "top-level" should
 visually live under a manager root or stay flat - a quick design call.

@@ -144,6 +144,25 @@ exit cmd_install( \%opt );
 # ---------- install / upgrade command ----------
 # =========================================================
 
+# SM117: record the install / upgrade in the audit trail. Written directly (the
+# installer does not load the lib) in the same pipe format Lazysite::Audit uses;
+# origin "install", user "system", target the version (or "from -> to").
+sub audit_install_event {
+    my ( $docroot, $mode, $from, $to ) = @_;
+    my $logdir = "$docroot/lazysite/logs";
+    return unless -d $logdir;
+    my $act = $mode eq 'fresh'   ? 'installed'
+            : $mode eq 'upgrade' ? 'upgraded'
+            :                      'reinstalled';
+    my $target = ( $mode eq 'upgrade' && defined $from ) ? "$from -> $to" : $to;
+    $target =~ s/[|\r\n]+/ /g;
+    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
+    open my $fh, '>>', "$logdir/audit.log" or return;
+    print {$fh} "$ts | system | $act | $target |  | ok | install\n";
+    close $fh;
+    return;
+}
+
 sub cmd_install {
     my ($o) = @_;
 
@@ -204,6 +223,10 @@ sub cmd_install {
 
     # ---- write new state ----
     write_state( $state_path, $manifest->{version}, $state_files );
+
+    # ---- audit the deploy (SM117) ----
+    audit_install_event( $o->{docroot}, $mode,
+        ( defined $state ? $state->{version} : undef ), $manifest->{version} );
 
     # ---- retention ----
     if ( $mode ne 'fresh' ) {

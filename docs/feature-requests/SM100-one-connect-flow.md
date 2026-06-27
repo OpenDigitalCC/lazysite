@@ -56,6 +56,9 @@ dead-ends.
 
 ## Status
 
+**SHIPPED in v0.4.25.** (see CHANGELOG)
+
+
 Queued. Bounded UI change in `starter/manager/users.md` over the existing
 `onboarding-web` / `token` / `onboarding` actions - no new server action; it just
 routes to the right existing one based on the chosen client.

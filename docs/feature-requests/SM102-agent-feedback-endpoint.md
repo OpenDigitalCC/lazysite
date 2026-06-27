@@ -73,6 +73,9 @@ capabilities) - so the report's provenance is trustworthy.
 
 ## Status
 
+**SHIPPED in v0.4.27.** (see CHANGELOG)
+
+
 Queued. Bounded: one audited write action reusing the existing auth/identity plumbing
 (the server already knows user/method/client/caps from verify_bearer / the OAuth
 token), a JSON write to a new deny-listed folder, and an MCP tool + doc line. The

@@ -29,5 +29,8 @@ already; this is the token colours.
 
 ## Status
 
+**SHIPPED in v0.4.36.** (see CHANGELOG)
+
+
 Queued. Bounded CSS (a dark CodeMirror token palette under [data-theme=dark]); no JS.
 Follows the structural dark-editor support already shipped.

@@ -1689,3 +1689,13 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
 [data-theme="dark"] .CodeMirror .cm-property { color: #a3e0ef; }                       /* (10.3:1) */
 [data-theme="dark"] .CodeMirror .cm-hr,
 [data-theme="dark"] .CodeMirror .cm-formatting { color: #a8a199; }                     /* markers dimmed (AA) */
+
+/* SM114: site-settings group headers + unified breadcrumb root icon */
+.mg-config-group {
+  font-size: var(--mg-text-sm); text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--mg-text-muted); font-weight: 700;
+  margin: 1.4rem 0 0.5rem; padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--mg-border);
+}
+.mg-config-group:first-child { margin-top: 0; }
+.mg-bc-root { font-size: 1.05em; }

@@ -60,6 +60,9 @@ caught (and fixable) at deploy time.
 
 ## Status
 
+**SHIPPED in v0.4.20.** (see CHANGELOG)
+
+
 Implemented 2026-06-26. `setup-manager` in `lazysite-users.pl`; wired into the
 Hestia deploy; pinned by `t/unit/users/01-user-management.t` (create + group + conf
 keys + generated password + idempotent re-run).

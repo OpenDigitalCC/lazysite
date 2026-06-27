@@ -39,6 +39,9 @@ forces an all-or-nothing grant.
 
 ## Status
 
+**SHIPPED in v0.4.26.** (see CHANGELOG)
+
+
 Queued. Bounded: a new capability key with content-inheriting default, one `cap`
 change in the MCP, the partner gate for nav.conf, and a toggle in `users.md`. Pairs
 with [[SM095]] (group-based capabilities) - `manage_nav` would be group-assignable

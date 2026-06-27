@@ -47,6 +47,9 @@ operator.
 
 ## Status
 
+**SHIPPED in v0.4.27.** (see CHANGELOG)
+
+
 Queued. Bounded: a `retryable` flag + sharper messages on the existing error `kind`
 taxonomy in `lazysite-mcp.pl`, plus a note in the connector tools doc and the
 "active artifact is read-only" rule in `whoami`.

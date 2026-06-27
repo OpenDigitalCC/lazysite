@@ -30,5 +30,8 @@ Raised 2026-06-27. A generator tag is conventional and useful (analytics, proven
 
 ## Status
 
+**SHIPPED in v0.4.34.** (see CHANGELOG)
+
+
 Queued. Small: add the meta to the layout head emission in the processor / base
 layout, reading the version and front matter already in hand.

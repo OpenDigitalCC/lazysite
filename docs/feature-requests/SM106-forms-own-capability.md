@@ -45,6 +45,9 @@ together: one "inherit from manage_content unless explicitly set" mechanism serv
 
 ## Status
 
+**SHIPPED in v0.4.26.** (see CHANGELOG)
+
+
 Queued. Bounded: a new capability key with content-inheriting default, `cap` changes
 on the form tools, the partner gate for `forms/`/`handlers.conf`, and a toggle in
 `users.md`.

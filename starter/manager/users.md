@@ -272,25 +272,29 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   h += sec('Access', acc);
 
   // --- Publishing access (the capability toggles) ---
-  // These gate only the partner surfaces (WebDAV / control API / AI connector).
-  var pub;
+  // These gate the partner surfaces (WebDAV / control API / AI connector). They are
+  // ALWAYS shown and settable: operator (manager-group) status only bypasses the
+  // cookie/UI path - an operator account that ALSO connects with a token is still
+  // gated by these flags, so they must be settable for it too (the case that bit us:
+  // a manager-group account whose connector could not manage themes/layouts).
+  var pub = '';
   if (isOperator) {
-    pub = '<p class="mg-muted">Administrator via group <b>' + opGroups.map(escHtml).join(', ') +
-      '</b> &mdash; full access. The per-account capabilities below are overridden by the ' +
-      'manager role; they would only apply to this account\'s token / WebDAV / connector use.</p>';
-  } else {
-    pub = '<div class="mg-checks">' +
-      cap(ue, 'webdav', webdav, 'WebDAV') +
-      cap(ue, 'manage_content', !!s.manage_content, 'Manage content (pages)') +
-      cap(ue, 'manage_nav', !!s.manage_nav, 'Manage navigation') +
-      cap(ue, 'manage_forms', !!s.manage_forms, 'Manage forms') +
-      cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes') +
-      cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts') +
-      cap(ue, 'manage_config', !!s.manage_config, 'Manage config') +
-      cap(ue, 'create_sub_users', !!s.create_sub_users, 'Create sub-users') +
-      cap(ue, 'delegate_sub_user_creation', !!s.delegate_sub_user_creation, 'Delegate sub-users') +
-      '</div>';
+    pub += '<p class="mg-muted">In <b>' + opGroups.map(escHtml).join(', ') +
+      '</b> (operator): full access in the Manager UI via login. The capabilities below ' +
+      'additionally govern this account\'s <b>token / WebDAV / connector</b> use &mdash; set ' +
+      'them if it also connects as a partner (operator status does not lift them on that path).</p>';
   }
+  pub += '<div class="mg-checks">' +
+    cap(ue, 'webdav', webdav, 'WebDAV') +
+    cap(ue, 'manage_content', !!s.manage_content, 'Manage content (pages)') +
+    cap(ue, 'manage_nav', !!s.manage_nav, 'Manage navigation') +
+    cap(ue, 'manage_forms', !!s.manage_forms, 'Manage forms') +
+    cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes') +
+    cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts') +
+    cap(ue, 'manage_config', !!s.manage_config, 'Manage config') +
+    cap(ue, 'create_sub_users', !!s.create_sub_users, 'Create sub-users') +
+    cap(ue, 'delegate_sub_user_creation', !!s.delegate_sub_user_creation, 'Delegate sub-users') +
+    '</div>';
   h += sec('Publishing access (WebDAV / control API / AI connector)', pub);
 
   // --- Groups ---
