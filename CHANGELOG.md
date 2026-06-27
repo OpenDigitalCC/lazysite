@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.54 - Cache-buster on manager assets (2026-06-27)
+
+Feature - versioned manager assets
+: the manager.css and CodeMirror asset URLs carry ?v=<version>, so a release forces
+  browsers and CDNs to fetch the new files instead of a stale cached copy (the cause of
+  a deployed editor staying blank while the files on disk were already current).
+
 ## 0.4.53 - Manager CSS refreshes on upgrade (editor fix) (2026-06-27)
 
 Fix - stale manager.css
