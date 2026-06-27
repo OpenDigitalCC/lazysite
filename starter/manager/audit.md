@@ -15,10 +15,9 @@ query_params:
 
 <div class="mg-line">
   <label for="audit-user">User</label>
-  <input type="text" id="audit-user" class="mg-inp" placeholder="(all)" style="max-width:10rem">
+  <select id="audit-user" class="mg-inp" style="max-width:12rem" onchange="filterAudit()"><option value="">(all users)</option></select>
   <label for="audit-target-f">Target</label>
-  <input type="text" id="audit-target-f" class="mg-inp" placeholder="(all)" style="max-width:14rem">
-  <button class="mg-btn mg-btn-sm" onclick="filterAudit()">Filter</button>
+  <select id="audit-target-f" class="mg-inp" style="max-width:18rem" onchange="filterAudit()"><option value="">(all targets)</option></select>
   <button class="mg-btn mg-btn-sm" onclick="clearAuditFilter()">Clear</button>
   <button class="mg-btn mg-btn-sm" onclick="loadAudit()">Refresh</button>
 </div>
@@ -38,15 +37,49 @@ var auditTarget = '';   // SM077: when set, show one file's history
 var auditPage = 1;      // pagination (50 rows/page)
 
 function filterAudit() {
-  auditPage = 1;
-  var t = document.getElementById('audit-target-f');
-  if (t) auditTarget = t.value.trim();
+  auditPage = 1;   // the selects are read in loadAudit
   loadAudit();
 }
 function clearAuditFilter() {
   document.getElementById('audit-user').value = '';
-  var t = document.getElementById('audit-target-f'); if (t) t.value = '';
+  document.getElementById('audit-target-f').value = '';
   auditTarget = ''; auditPage = 1; loadAudit();
+}
+
+// SM119: fill a filter <select> from the distinct values in the log, keeping the
+// current selection. Empty value -> a "(none)" option (the __none sentinel filters
+// to blank-valued entries server-side).
+function fillAuditSelect(id, values, label) {
+  var sel = document.getElementById(id);
+  if (!sel) return;
+  var cur = sel.value;
+  var hasBlank = false, real = [];
+  (values || []).forEach(function (v) { if (v === '' || v == null) hasBlank = true; else real.push(v); });
+  var opts = '<option value="">(all ' + label + 's)</option>';
+  if (hasBlank) opts += '<option value="__none">(none)</option>';
+  real.forEach(function (v) {
+    var a = aesc(v).replace(/"/g, '&quot;');
+    opts += '<option value="' + a + '">' + aesc(v) + '</option>';
+  });
+  // Keep a deep-linked / current value selectable even before its facet arrives.
+  if (cur && cur !== '__none' && real.indexOf(cur) === -1) {
+    opts += '<option value="' + aesc(cur).replace(/"/g, '&quot;') + '">' + aesc(cur) + '</option>';
+  }
+  sel.innerHTML = opts;
+  sel.value = cur;
+}
+function populateAuditFilters(d) {
+  fillAuditSelect('audit-user', d.users, 'user');
+  fillAuditSelect('audit-target-f', d.targets, 'target');
+}
+// Deep-link: ensure a value exists as an option, then select it (before facets load).
+function setAuditSelect(id, v) {
+  var sel = document.getElementById(id);
+  if (!sel || !v) return;
+  var found = false;
+  for (var i = 0; i < sel.options.length; i++) { if (sel.options[i].value === v) { found = true; break; } }
+  if (!found) { var o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); }
+  sel.value = v;
 }
 function goAuditPage(n) { auditPage = n; loadAudit(); }
 
@@ -82,19 +115,22 @@ function paginationHtml(d) {
 }
 
 function loadAudit() {
-  var u = document.getElementById('audit-user').value.trim();
+  var u = document.getElementById('audit-user').value;
+  var t = document.getElementById('audit-target-f').value;
+  auditTarget = t;   // kept for the scope note
   var url = '/cgi-bin/lazysite-manager-api.pl?action=audit'
           + '&page=' + auditPage + '&per_page=50'
           + (u ? ('&user=' + encodeURIComponent(u)) : '')
-          + (auditTarget ? ('&target=' + encodeURIComponent(auditTarget)) : '');
+          + (t ? ('&target=' + encodeURIComponent(t)) : '');
   fetch(url).then(function (r) { return r.json(); }).then(function (d) {
     var el = document.getElementById('audit-table');
     if (!d.ok) { el.textContent = d.error || 'Failed to load.'; return; }
+    populateAuditFilters(d);
     var note = document.getElementById('audit-scope');
     if (note) {
       note.innerHTML = auditTarget
         ? 'History for <code>' + aesc(auditTarget) + '</code> '
-          + '<a href="#" onclick="auditTarget=\'\';auditPage=1;this.parentNode.innerHTML=\'\';loadAudit();return false;">(show all)</a>'
+          + '<a href="#" onclick="document.getElementById(\'audit-target-f\').value=\'\';auditPage=1;loadAudit();return false;">(show all)</a>'
         : '';
     }
     if (!d.entries.length) { el.textContent = 'No audit entries yet.'; return; }
@@ -124,9 +160,9 @@ function loadAudit() {
 
 (function () {
   var mu = location.search.match(/[?&]user=([^&]+)/);
-  if (mu) { document.getElementById('audit-user').value = decodeURIComponent(mu[1]); }
+  if (mu) { setAuditSelect('audit-user', decodeURIComponent(mu[1])); }
   var mt = location.search.match(/[?&]target=([^&]+)/);
-  if (mt) { auditTarget = decodeURIComponent(mt[1]); var tf = document.getElementById('audit-target-f'); if (tf) tf.value = auditTarget; }
+  if (mt) { auditTarget = decodeURIComponent(mt[1]); setAuditSelect('audit-target-f', auditTarget); }
   loadAudit();
 })();
 </script>

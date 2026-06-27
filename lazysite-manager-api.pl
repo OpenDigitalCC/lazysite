@@ -997,6 +997,7 @@ sub action_audit {
     my $want   = $opt{user};
     my $want_t = $opt{target};    # SM077: filter to one file's history
     my @entries;
+    my ( %fusers, %ftargets );    # SM119: distinct values for the filter dropdowns
     for my $line ( reverse @lines ) {
         chomp $line;
         my @f = split / \| /, $line;
@@ -1007,8 +1008,15 @@ sub action_audit {
         elsif ( @f == 7 ) { ( $ts, $u, $act, $target, $ip, $status, $origin ) = @f[ 0 .. 6 ]; $detail = '' }
         elsif ( @f == 6 ) { ( $ts, $u, $act, $target, $ip, $status ) = @f[ 0 .. 5 ]; $origin = ''; $detail = '' }
         else              { ( $ts, $u, $act, $ip, $status ) = @f[ 0 .. 4 ]; $target = ''; $origin = ''; $detail = '' }
-        next if defined $want   && length $want   && ( $u      // '' ) ne $want;
-        next if defined $want_t && length $want_t && ( $target // '' ) ne $want_t;
+        $fusers{ defined $u ? $u : '' }       = 1;   # facets from all scanned lines
+        $ftargets{ defined $target ? $target : '' } = 1;
+        # SM119: a "__none" filter matches blank-valued entries; else exact match.
+        if ( defined $want && length $want ) {
+            next if $want eq '__none' ? length( $u // '' ) : ( $u // '' ) ne $want;
+        }
+        if ( defined $want_t && length $want_t ) {
+            next if $want_t eq '__none' ? length( $target // '' ) : ( $target // '' ) ne $want_t;
+        }
         push @entries, { ts => $ts, user => $u, action => $act,
             target => $target, ip => $ip, status => $status, origin => $origin, detail => $detail };
         last if @entries >= 5000;    # bound the scan; paginate within
@@ -1029,7 +1037,9 @@ sub action_audit {
     my @slice = $total ? @entries[ $start .. $end ] : ();
 
     return { ok => 1, entries => \@slice,
-        total => $total, page => $page, per_page => $per, pages => $pages };
+        total => $total, page => $page, per_page => $per, pages => $pages,
+        users   => [ sort keys %fusers ],     # SM119: filter dropdown options
+        targets => [ sort keys %ftargets ] };
 }
 
 # SM072: the running version, read from the install state .install-state.json.

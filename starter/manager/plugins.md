@@ -346,7 +346,7 @@ function loadChildConfigs(plugin) {
         cardHtml += '<div class="mg-form-entry-header">';
         cardHtml += '<span class="mg-form-name">' + esc(formName) + '</span>';
         cardHtml += '<button class="mg-btn mg-btn-sm" onclick="toggleFormTargets(\'' + esc(formName) + '\')">Edit targets</button>';
-        cardHtml += '<a href="/manager/edit?path=/' + encodeURIComponent(dir + '/' + f.name) + '" style="font-size:11px;color:#07c;">Edit raw</a>';
+        cardHtml += '<a href="/manager/edit?path=/' + encodeURIComponent(dir + '/' + f.name) + '" style="font-size:11px;color:var(--mg-accent);">Edit raw</a>';
         cardHtml += '</div>';
         cardHtml += '<div id="form-targets-' + formName + '" style="display:none"></div>';
         cardHtml += '</div>';

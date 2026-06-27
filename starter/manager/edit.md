@@ -335,8 +335,41 @@ function loadFile() {
     return;
   }
 
+  // SM115: append-only data (form submissions, .jsonl) opens read-only - editing the
+  // whole file would clobber records appended concurrently. Edit anyway is explicit.
+  if (isAppendOnlyData(filePath)) {
+    readOnly = true;
+    showDataNotice();
+    loadContent();
+    return;
+  }
+
   acquireLock();
   loadContent();
+}
+
+function isAppendOnlyData(p) {
+  return /\/forms\/submissions\//.test(p) || /\.jsonl$/i.test(p);
+}
+
+function showDataNotice() {
+  var el = document.getElementById('ed-cache-notice');
+  if (el) {
+    el.innerHTML = 'Append-only data (form submissions). Read-only to protect records '
+      + 'being written concurrently. '
+      + '<a href="#" onclick="enableDataEdit();return false;">Edit anyway</a>';
+    el.style.display = '';
+  }
+}
+
+function enableDataEdit() {
+  readOnly = false;
+  if (contentCm) contentCm.setOption('readOnly', false);
+  if (yamlCm)    yamlCm.setOption('readOnly', false);
+  var btn = document.getElementById('ed-save-btn');
+  if (btn) { btn.disabled = false; btn.style.display = ''; }
+  var el = document.getElementById('ed-cache-notice');
+  if (el) el.style.display = 'none';
 }
 
 function checkHtmlCacheThenLoad() {
