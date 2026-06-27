@@ -109,6 +109,22 @@ its output.) Pass a password as a final argument to set your own.
 Full installation details in
 [starter/docs/install.md](starter/docs/install.md).
 
+### Connect an AI partner
+
+To let an AI assistant manage the site over the connector (MCP), WebDAV, or the control
+API, create a partner account, grant it the capabilities it needs, then print its
+onboarding brief:
+
+    perl tools/lazysite-users.pl --docroot /path/to/public_html add my-agent
+    perl tools/lazysite-users.pl --docroot /path/to/public_html set my-agent manage_content on
+    perl tools/lazysite-users.pl --docroot /path/to/public_html brief my-agent
+
+`brief` prints a ready-to-hand-over onboarding document - the connection details, the
+partner's capabilities, and a fresh single-use pairing key the agent redeems for an
+access token. (The same brief is offered in the manager UI under Users.) Grant only the
+capabilities the task needs - e.g. `manage_themes` for a theme designer, `manage_content`
+for a publisher.
+
 ## Documentation
 
 Browse locally via the dev server, or read the Markdown directly:

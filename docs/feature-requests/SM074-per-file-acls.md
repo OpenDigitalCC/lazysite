@@ -114,3 +114,13 @@ tone: medium
 - WebDAV ancestry override - `[DEFER]`; the manager is the override surface.
 - PROPFIND child-listing filtering - `[DEFER]`.
 - A graphical permissions panel - `[DEFER]`; the `acl-*` actions for v1.
+
+## Status (reconciled, 2026-06-27)
+
+**SHIPPED.** Implemented as lib/Lazysite/Auth/Acl.pm (central acls.json store, owner +
+read/write allowlists, @group entries, operator bypass, opt-in fail-open-to-scope) with
+action_acl_get/set/remove (Manager::Files) - owner is recorded as the claiming user, and
+only the owner or an operator may change/remove it. Enforced at both the WebDAV
+(lazysite-dav.pl) and manager layers, and exposed to the connector via set_permissions /
+get_permissions. Pinned by t/.../04-acl.t, 12-acl.t, 15-acl.t. The store lives in the
+write-denied lazysite/auth/, never as content sidecars.
