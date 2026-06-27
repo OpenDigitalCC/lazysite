@@ -6,15 +6,21 @@
 #
 # It discovers lazysite sites by their own marker file
 # (public_html/lazysite/.install-state.json) and runs the normal per-site
-# deploy (template apply + install.pl + perms) for each - i.e. the code,
-# starter content and permissions are updated everywhere from one release.
+# deploy (install.pl + perms) for each - i.e. the code, starter content and
+# permissions are updated everywhere from one release. Because every discovered
+# site already has the install marker, the per-site deploy treats each as an
+# UPGRADE and leaves the Hestia web template assignment untouched (it does not
+# re-run v-change-web-domain-tpl), so a domain whose template was deliberately
+# changed is not silently reverted to lazysite-app.
 #
 #   --list        discover and report only; make no changes.
-#   --templates   ALSO refresh the shared lazysite-app Hestia web template from
-#                 STAGE before deploying, so vhost changes (e.g. a new
-#                 FilesMatch) propagate. Off by default because it rewrites the
-#                 shared template for every site - run it when a release notes a
-#                 vhost change, having confirmed your sites use lazysite-app.
+#   --templates   ALSO refresh the shared lazysite-app Hestia web template FILES
+#                 from STAGE before deploying, so a later vhost change (e.g. the
+#                 SSI options) is staged. This only updates the shared template
+#                 files; existing domains keep their generated vhost until they
+#                 are rebuilt - run `v-rebuild-web-domain USER DOMAIN` (or deploy
+#                 with LAZYSITE_APPLY_TEMPLATE=1) on the domains you want to pick
+#                 up the change, having confirmed they use lazysite-app.
 #   STAGE_DIR     the unpacked release (default: this script's release root).
 #
 # A per-site failure is reported and the run continues; the exit status is

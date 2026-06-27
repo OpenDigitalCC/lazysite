@@ -3,9 +3,12 @@
 #
 # One-command lazysite install/upgrade for a HestiaCP domain. RUN AS ROOT.
 # It folds the whole INSTALL-RUNBOOK into a single invocation:
-#   1. apply the lazysite-app web template (its rebuild hook, as root,
-#      creates the plugins/ and tools/ children of the 0551-locked domain
-#      root and sets the base www-data docroot perms);
+#   1. on FIRST-TIME setup only, apply the lazysite-app web template (its
+#      rebuild hook, as root, creates the plugins/ and tools/ children of the
+#      0551-locked domain root and sets the base www-data docroot perms). An
+#      upgrade leaves the Hestia web template untouched - it only refreshes
+#      code/content/perms - so a deliberately-changed template is preserved.
+#      Force a re-apply with LAZYSITE_APPLY_TEMPLATE=1.
 #   2. run install.pl as the domain user to deploy/upgrade the code;
 #   3. set the directory layout + permissions a www-data CGI needs (the
 #      reason a plain `install.pl` as the domain user can't do it alone -
@@ -28,8 +31,19 @@ DOC="$DOM/public_html"
 CGI="$DOM/cgi-bin"
 [ -d "$DOC" ] || { echo "$0: no docroot at $DOC" >&2; exit 1; }
 
-echo "==> applying lazysite-app web template"
-"$HESTIA/bin/v-change-web-domain-tpl" "$U" "$DOMAIN" lazysite-app yes
+# Apply the web template on FIRST-TIME setup only. An upgrade (the site already
+# has a lazysite install marker) must NOT touch the Hestia web template - that
+# would change Hestia state, force a vhost rebuild, and re-assert lazysite-app on
+# a domain whose template was deliberately changed (e.g. reverted to keep an
+# original static/SSI/PHP site working). Set LAZYSITE_APPLY_TEMPLATE=1 to force.
+STATE_FILE="$DOC/lazysite/.install-state.json"
+if [ -n "${LAZYSITE_APPLY_TEMPLATE:-}" ] || [ ! -f "$STATE_FILE" ]; then
+  echo "==> applying lazysite-app web template (first-time setup)"
+  "$HESTIA/bin/v-change-web-domain-tpl" "$U" "$DOMAIN" lazysite-app yes
+else
+  echo "==> existing lazysite install - leaving the Hestia web template unchanged"
+  echo "    (set LAZYSITE_APPLY_TEMPLATE=1 to re-apply lazysite-app + rebuild the vhost)"
+fi
 
 # A previous install.pl run directly as root can leave the install targets owned by
 # root, which the user-run install.pl below then cannot overwrite ("Permission
