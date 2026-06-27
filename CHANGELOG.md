@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+## 0.4.41 - WebDAV route health check (SM121) (2026-06-27)
+
+Feature - WebDAV /dav/ health check
+: `lazysite-check --check-dav URL` probes `URL/dav/` unauthenticated and reports OK
+  (401 - routed), FAIL (404 - the web server/proxy is not forwarding /dav/ to Apache;
+  a route/provisioning problem, not auth), or WARN. The 404-vs-401 distinction is the
+  fast way to tell a missing route from an auth/scope issue. The Hestia runbook
+  documents the requirement and the fix.
+
 ## 0.4.40 - Per-page theme override; config + theme self-service; brief CLI (2026-06-27)
 
 Feature - per-page theme: override (SM120)
