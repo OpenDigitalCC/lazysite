@@ -18,6 +18,17 @@ Keying
 
 ## Unreleased
 
+## 0.4.43 - Path-aware MCP gating; nav URL autocomplete (2026-06-27)
+
+Feature - finer connector capability by path (SM082)
+: the MCP file tools are path-aware like WebDAV - a theme/layout path is authorised by
+  manage_themes/manage_layouts, content by manage_content - so a theme-only partner can
+  edit theme files but not content pages.
+
+Feature - nav URL autocomplete (SM097)
+: the navigation editor suggests the site's existing page URLs (a new pages action +
+  a datalist); free text stays allowed for external links and anchors.
+
 ## 0.4.42 - Visitor-stats plugin + dashboard (SM083) (2026-06-27)
 
 Feature - visitor statistics from the access log (SM083)
