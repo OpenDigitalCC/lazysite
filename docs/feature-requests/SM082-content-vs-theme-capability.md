@@ -52,3 +52,7 @@ content tools gate on `manage_content`, and `lazysite-dav.pl` refuses the conten
 namespace - so neither the connector nor raw WebDAV can bypass it. Pinned by
 `12-onboarding.t` (default/override) and `dav-publish.t` (a theme-only partner is
 refused a content PUT + read). Full suite 1557.
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.43.** Path-aware MCP file gating (theme-only partner edits theme/layout files, refused content writes); MCP test pins it.

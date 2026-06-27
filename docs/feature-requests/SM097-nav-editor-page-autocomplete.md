@@ -33,3 +33,7 @@ should complete from that set.
 
 Queued. Small: a datalist populated from the existing page list in
 `starter/manager/nav.md`.
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.43.** Nav URL field backed by a datalist of the site page URLs (new manager-api `pages` action).
