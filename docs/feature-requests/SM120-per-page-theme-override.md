@@ -35,3 +35,7 @@ highest-leverage fix.
 
 Queued. Small and self-contained per the report; mirrors the existing layout-override
 path in the processor.
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.40.**

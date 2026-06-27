@@ -47,3 +47,7 @@ Make the auth-dependent header control **client-side**:
 
 Queued. Bounded: a placeholder in the layout(s) + a small script + a marker cookie
 set/cleared in `lazysite-auth.pl` at login/logout.
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.38.**

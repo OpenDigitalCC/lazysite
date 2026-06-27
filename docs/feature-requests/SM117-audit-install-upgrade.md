@@ -33,3 +33,7 @@ which is exactly the context an operator wants when reading the log after a chan
 
 Queued. Small: one audit_log call at the install/upgrade summary point, with the
 version already in hand; mind the logs-dir-exists ordering on a fresh install.
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.37.**

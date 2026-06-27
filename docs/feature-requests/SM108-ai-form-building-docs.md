@@ -44,3 +44,7 @@ new mechanism.
 
 Queued. Bounded: author the form guide, wire the form tools' descriptions + whoami to
 point at it, and ship a canonical worked example.
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.38.**

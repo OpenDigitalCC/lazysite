@@ -30,3 +30,7 @@ Asset-mirror lifecycle
 
 Queued. Two small items: expose the theme list to connectors + fix the whoami `themes`
 field; document (or eager-populate) the asset mirror.
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.40.**

@@ -25,3 +25,7 @@ self-diagnose." Rated **Medium**; reading state is the bigger win.
 
 Queued. Bounded: a token-readable config-read allowlist + an expanded config-set
 allowlist in the control API.
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.40.**

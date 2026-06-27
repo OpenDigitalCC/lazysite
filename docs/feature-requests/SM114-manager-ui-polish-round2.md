@@ -45,3 +45,7 @@ Breadcrumb root as a file icon
 Queued. Each item is small and local (config.md for the settings ones; files.md /
 edit.md for the breadcrumb). The booleans-as-toggles and grouping are the most
 visible; the disable-manager warning is a safety item worth doing with them.
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.37.**

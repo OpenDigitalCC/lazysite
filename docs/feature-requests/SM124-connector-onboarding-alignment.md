@@ -27,3 +27,7 @@ Idempotent MKCOL (Low)
 
 Queued. Docs + small fixes: brief machine-block = whoami; grant-matches-task guidance;
 a docs note on the two access planes; WebDAV MKCOL idempotency status code.
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.40.**

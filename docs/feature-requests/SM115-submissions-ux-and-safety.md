@@ -40,3 +40,7 @@ public).
 Queued. Three threads: a UI link (small), the read-only-with-edit + conflict-guard
 safety (the important one - data integrity), and a form-submission audit event. Pairs
 with [[SM113]] (submission-change notifications) and [[SM078]] (audit targets).
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.39.**

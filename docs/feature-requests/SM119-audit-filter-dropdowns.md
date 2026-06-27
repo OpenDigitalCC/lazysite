@@ -28,3 +28,7 @@ So an operator picks from what is really there instead of guessing exact strings
 
 Queued. Bounded `audit.md` change - build the option lists from the loaded entries and
 swap the text inputs for selects.
+
+## Status (reconciled)
+
+**SHIPPED in v0.4.39.**
