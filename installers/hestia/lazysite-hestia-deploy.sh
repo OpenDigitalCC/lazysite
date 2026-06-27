@@ -45,9 +45,18 @@ echo "==> install.pl (as $U)"
 sudo -u "$U" bash "$STAGE/install.sh" --docroot "$DOC" --cgibin "$CGI"
 
 echo "==> permissions (CGI runs as www-data)"
-chown -R "$U":www-data "$DOC"
-find "$DOC" -type d -exec chmod 2775 {} \;
-find "$DOC" -type f -exec chmod 664  {} \;
+# The compiled-template cache (lazysite/cache/tt) is regenerated on demand and
+# mirrors absolute paths in deeply-nested directories; on a long-running site it
+# is by far the slowest part of the sweep below. Drop it first so the permission
+# pass stays fast (the next render rebuilds it with the right ownership).
+rm -rf "$DOC/lazysite/cache/tt" 2>/dev/null || true
+# -RP: recurse without following symlinks (the cgi-bin links live outside $DOC,
+# but be explicit). Batched -exec (chmod once per many paths, not once per file)
+# - a per-file sweep over a large docroot takes many minutes and looks like a hang.
+chown -RP "$U":www-data "$DOC"
+find "$DOC" -type d -exec chmod 2775 {} +
+find "$DOC" -type f -exec chmod 664  {} +
+echo "    permissions set"
 [ -d "$DOC/lazysite/auth" ]  && chmod 2770 "$DOC/lazysite/auth"
 [ -d "$DOC/lazysite/forms" ] && chmod 2770 "$DOC/lazysite/forms"
 # Secrets must not be world-readable (the blanket 664 above would expose them);
