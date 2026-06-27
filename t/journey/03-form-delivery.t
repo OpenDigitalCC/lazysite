@@ -20,6 +20,7 @@ my $docroot = tempdir( CLEANUP => 1 );
 
 mkdir "$docroot/lazysite";
 mkdir "$docroot/lazysite/forms";
+mkdir "$docroot/lazysite/logs";   # SM113/SM115: audit + notice producers write here
 open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: J3\n";
 close $cf;
@@ -131,6 +132,18 @@ sleep 4;
     is( $rec->{message}, 'Hello world',     'message field recorded' );
     is( $rec->{_form},   'contact',          'form name tagged' );
     ok( $rec->{_submitted} =~ /^\d{4}-\d{2}-\d{2}T/, 'timestamp recorded' );
+}
+
+# --- 3b. SM113: the submission raised an operator notification ---
+{
+    my $nf = "$docroot/lazysite/logs/notices.jsonl";
+    ok( -f $nf, 'notices.jsonl created by the submission' );
+    open my $fh, '<', $nf or die $!;
+    my $n = decode_json( scalar <$fh> );
+    close $fh;
+    is( $n->{type},   'submission', 'notice type is submission' );
+    is( $n->{target}, 'contact',    'notice targets the form' );
+    ok( $n->{ts} && $n->{ts} =~ /^\d+$/, 'notice carries an epoch ts' );
 }
 
 # --- 4. Replay the same _ts/_tk pair (would pass age check again,

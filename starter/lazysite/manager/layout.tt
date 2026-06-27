@@ -192,6 +192,40 @@
       });
     };
   })();
+
+  // SM113: operator notifications (poll-based). Badge shows the unread count;
+  // opening the panel marks everything seen. Both endpoints are GET (CSRF-exempt;
+  // the seen-marker is a harmless per-operator write).
+  (function () {
+    if (!document.getElementById('mg-notif')) return;
+    var API = '/cgi-bin/lazysite-manager-api.pl';
+    function nesc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
+    function nago(ts){ var s=Math.floor(Date.now()/1000-(ts||0)); if(s<60)return'just now'; if(s<3600)return Math.floor(s/60)+'m ago'; if(s<86400)return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'; }
+    var notices = [];
+    function setBadge(n){ var b=document.getElementById('mg-notif-badge'); if(!b)return; if(n>0){b.textContent=n>99?'99+':n; b.hidden=false;} else {b.hidden=true;} }
+    function load(){
+      fetch(API + '?action=notices').then(function(r){return r.json();}).then(function(d){
+        if (!d || !d.ok) return; notices = d.notices || []; setBadge(d.unread || 0);
+      }).catch(function(){});
+    }
+    window.mgToggleNotif = function(){
+      var panel = document.getElementById('mg-notif-panel'); if (!panel) return;
+      if (!panel.hidden) { panel.hidden = true; return; }
+      panel.innerHTML = notices.length ? notices.map(function(n){
+        var inner = '<div class="mg-notif-msg">' + nesc(n.message||'') + '</div>'
+                  + '<div class="mg-notif-time">' + nesc(nago(n.ts)) + '</div>';
+        return n.url ? '<a class="mg-notif-item" href="'+nesc(n.url)+'">'+inner+'</a>'
+                     : '<div class="mg-notif-item">'+inner+'</div>';
+      }).join('') : '<div class="mg-notif-empty">No notifications.</div>';
+      panel.hidden = false;
+      fetch(API + '?action=notices-seen').then(function(){ setBadge(0); }).catch(function(){});
+    };
+    document.addEventListener('click', function(e){
+      var wrap=document.getElementById('mg-notif'), panel=document.getElementById('mg-notif-panel');
+      if (wrap && panel && !panel.hidden && !wrap.contains(e.target)) panel.hidden = true;
+    });
+    load();
+  })();
   </script>
 </head>
 <body class="mg-body">
@@ -205,6 +239,10 @@
     <div class="mg-header-tools">
       <button type="button" class="mg-theme-toggle" onclick="mgToggleTheme()" title="Toggle light / dark" aria-label="Toggle light / dark">&#9681;</button>
       [% IF authenticated %]
+      <div class="mg-notif" id="mg-notif">
+        <button type="button" class="mg-notif-btn" onclick="mgToggleNotif()" title="Notifications" aria-label="Notifications">&#128276;<span class="mg-notif-badge" id="mg-notif-badge" hidden>0</span></button>
+        <div class="mg-notif-panel" id="mg-notif-panel" hidden></div>
+      </div>
       <span class="mg-user">[% auth_name || auth_user %]</span>
       [% IF no_password %]
       <span class="mg-no-password-warn">

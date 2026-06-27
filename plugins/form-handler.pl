@@ -96,6 +96,7 @@ eval {
 
     log_event( 'INFO', $name, 'form received', ip => $ENV{REMOTE_ADDR} // 'unknown' );
     _audit_submission( $name, $auth_user, $ENV{REMOTE_ADDR} // '' );
+    _notify_submission($name);   # SM113: operator notification badge
     respond_ok('Thank you - your message has been sent.');
 };
 if ($@) {
@@ -207,6 +208,26 @@ sub _audit_submission {
     my $ts = strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
     open my $fh, '>>', "$logdir/audit.log" or return;
     print {$fh} "$ts | $user | submit | $form | $ip | ok | form\n";
+    close $fh;
+    return;
+}
+
+# SM113: raise an operator notification for a new submission. Append-only store
+# the manager reads for its unread badge. Best-effort (never blocks delivery).
+sub _notify_submission {
+    my ($form) = @_;
+    my $logdir = "$DOCROOT/lazysite/logs";
+    return unless -d $logdir;
+    ( my $f = defined $form ? "$form" : '' ) =~ s/[\r\n]+/ /g;
+    my $line = encode_json({
+        ts      => time(),
+        type    => 'submission',
+        message => "New form submission: $f",
+        target  => $f,
+        url     => '/manager/plugins',
+    });
+    open my $fh, '>>', "$logdir/notices.jsonl" or return;
+    print {$fh} "$line\n";
     close $fh;
     return;
 }

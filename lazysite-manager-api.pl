@@ -403,6 +403,8 @@ elsif ( $action eq 'plugin-action' )    {
 }
 elsif ( $action eq 'nav-read' )         { $result = action_nav_read() }
 elsif ( $action eq 'pages' )            { $result = action_pages() }
+elsif ( $action eq 'notices' )          { $result = action_notices() }
+elsif ( $action eq 'notices-seen' )     { $result = action_notices_seen() }
 elsif ( $action eq 'nav-save' )         {
     my $req = eval { decode_json($body) } // {};
     $result = action_nav_save( $req->{items} // [] );
@@ -880,6 +882,52 @@ sub action_preview {
 # SM097: the public-page URL list, for the nav editor's autocomplete. Walks the
 # docroot for .md/.url pages and maps each to its clean URL (about.md -> /about,
 # index.md -> /, foo/index.md -> /foo/), skipping internal trees.
+# SM113: operator notifications. A small append-only store (logs/notices.jsonl)
+# that producers (the first is form submissions) append to, plus a per-operator
+# last-seen marker (logs/notices-seen.json) so the manager can show an unread
+# count. Operator-only (not in the token %need set); poll-based for v1.
+sub _notices_path      { return "$LAZYSITE_DIR/logs/notices.jsonl" }
+sub _notices_seen_path { return "$LAZYSITE_DIR/logs/notices-seen.json" }
+
+sub action_notices {
+    my @notices;
+    if ( open my $fh, '<', _notices_path() ) {
+        my @lines = <$fh>;
+        close $fh;
+        @lines = @lines[ -100 .. -1 ] if @lines > 100;   # bound: most recent 100
+        for my $l ( reverse @lines ) {                    # newest first
+            chomp $l;
+            my $n = eval { decode_json($l) };
+            push @notices, $n if ref $n eq 'HASH';
+        }
+    }
+    my $seen = 0;
+    if ( open my $sf, '<', _notices_seen_path() ) {
+        local $/;
+        my $h = eval { decode_json( <$sf> ) };
+        close $sf;
+        $seen = $h->{$auth_user} if ref $h eq 'HASH' && $h->{$auth_user};
+    }
+    my $unread = grep { ( $_->{ts} // 0 ) > $seen } @notices;
+    return { ok => 1, notices => \@notices, unread => $unread, last_seen => $seen };
+}
+
+sub action_notices_seen {
+    my %h;
+    if ( open my $sf, '<', _notices_seen_path() ) {
+        local $/;
+        my $x = eval { decode_json( <$sf> ) };
+        close $sf;
+        %h = %{$x} if ref $x eq 'HASH';
+    }
+    $h{$auth_user} = time();
+    if ( open my $wf, '>', _notices_seen_path() ) {
+        print {$wf} encode_json( \%h );
+        close $wf;
+    }
+    return { ok => 1, unread => 0 };
+}
+
 sub action_pages {
     my @urls;
     my $walk;

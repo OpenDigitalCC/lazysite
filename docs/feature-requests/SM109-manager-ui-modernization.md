@@ -421,3 +421,14 @@ The first two phases alone - a token retheme and a toast-plus-modal-plus-switch
 component set - will move the manager most of the way from "competent tool" to
 "slick product", and neither touches application logic. Everything after that is
 refinement that compounds on a system already pointing the right way.
+
+## Status (reconciled, 2026-06-27)
+
+**Substantially SHIPPED across v0.4.25-0.4.43.** Phase 1 (token retheme: --mg-* palette,
+type scale, radii, focus ring), Phase 2 (shared components: .mg-switch, mgToast,
+mgConfirm, mgPrompt; native confirm()/prompt() retired), Phase 4 (grouped sidebar, Ctrl-K
+command palette, page headers) and Phase 6 (dark token block + header toggle) are
+delivered. Phase 3 is largely done (only edit.md keeps an editor-specific <style> block);
+Phase 5 page-interaction polish landed incrementally via SM094/104/107/111/114/118.
+Residual: a sweep of one-off inline style= attributes and deeper per-page empty/loading
+states remain as ongoing refinement, not a discrete feature.

@@ -1718,3 +1718,22 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
 .mg-bar-val { width: 4rem; flex: none; text-align: right; color: var(--mg-text-muted); }
 .mg-stat-cols { display: flex; flex-wrap: wrap; gap: 1.5rem; }
 .mg-stat-col { flex: 1; min-width: 16rem; }
+
+/* SM113: operator notifications (header bell + dropdown) */
+.mg-notif { position: relative; display: inline-flex; }
+.mg-notif-btn { background: none; border: none; cursor: pointer; font-size: 1.1rem;
+  color: var(--mg-text-light); position: relative; padding: 0.25rem; line-height: 1; }
+.mg-notif-btn:hover { color: var(--mg-text); }
+.mg-notif-badge { position: absolute; top: -2px; right: -2px; background: var(--mg-danger, #c0392b);
+  color: #fff; font-size: 0.6rem; font-weight: 700; min-width: 1rem; height: 1rem; line-height: 1rem;
+  text-align: center; border-radius: 1rem; padding: 0 0.2rem; }
+.mg-notif-panel { position: absolute; top: 130%; right: 0; width: 18rem; max-height: 24rem;
+  overflow-y: auto; background: var(--mg-surface); border: 1px solid var(--mg-border);
+  border-radius: var(--mg-radius); box-shadow: 0 4px 16px rgba(0,0,0,0.15); z-index: 60; }
+.mg-notif-item { display: block; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--mg-border);
+  color: var(--mg-text); text-decoration: none; }
+.mg-notif-item:last-child { border-bottom: none; }
+.mg-notif-item:hover { background: var(--mg-surface-alt); }
+.mg-notif-msg { font-size: var(--mg-text-sm); }
+.mg-notif-time { font-size: 0.7rem; color: var(--mg-text-muted); margin-top: 0.15rem; }
+.mg-notif-empty { padding: 1rem; text-align: center; color: var(--mg-text-muted); font-size: var(--mg-text-sm); }

@@ -45,3 +45,16 @@ submission case is the first producer; the system is the reusable part.
 Queued - design. Phase 1 could be just the submission badge (compare submission mtime
 to a per-operator marker, shown when the plugin enables it); the general notification
 store + plugin hook is the larger piece to scope with [[SM103]].
+
+## Status (2026-06-27)
+
+**v1 SHIPPED in v0.4.44.** An append-only notices store (logs/notices.jsonl) with a
+per-operator last-seen marker (logs/notices-seen.json); manager-api `notices` (list +
+unread count) and `notices-seen` (mark read), operator-only and GET (CSRF-exempt
+harmless write). The form-handler is the first producer - a submission raises a
+`submission` notice. The manager header shows a bell with an unread badge and a dropdown
+list (poll-based). Pinned by an assertion in t/journey/03-form-delivery.t.
+
+Future (per the doc): a documented plugin-facing API to raise notices (other producers:
+failed build, expiring credential, audit anomaly); per-plugin opt-in; SSE push (ties to
+SM103) instead of polling; site-wide vs per-operator unread semantics.
