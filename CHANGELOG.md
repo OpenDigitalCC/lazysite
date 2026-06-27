@@ -18,6 +18,18 @@ Keying
 
 ## Unreleased
 
+## 0.4.39 - Audit filter dropdowns; read-only data files (2026-06-27)
+
+Feature - audit filters are value dropdowns (SM119)
+: the Audit page User and Target filters are dropdowns of the values actually present
+  in the log (with "(all)" and a "(none)" option for blank-valued entries), instead of
+  free text.
+
+Feature - the editor opens append-only data read-only (SM115)
+: form submissions and .jsonl files open read-only by default with an explicit "Edit
+  anyway", so editing the whole file cannot clobber records appended concurrently
+  (over and above the existing mtime conflict guard).
+
 ## 0.4.38 - Form-build flow, client-side auth control, submission + denied audit (2026-06-27)
 
 Feature - agents can build a form natively (SM108)
