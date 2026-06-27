@@ -488,6 +488,13 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         }
     }
 
+    # Plugin actions log '/' as their path; name the plugin instead (from the
+    # plugin param, else the body's script basename) so the audit says WHICH one.
+    if ( $action =~ /^plugin-/ ) {
+        my $plugin = _audit_plugin_target( \%params, $body );
+        $aud_target = $plugin if length $plugin;
+    }
+
     # Meaningful file events: a save is a create (new file) or an edit.
     if ( $action eq 'save' && ref $result eq 'HASH' ) {
         $aud_action = $result->{created} ? 'create' : 'edit';
@@ -926,6 +933,18 @@ sub action_notices_seen {
         close $wf;
     }
     return { ok => 1, unread => 0 };
+}
+
+# Derive a plugin's name for the audit target: the plugin param if present,
+# else the body's script basename (form-handler.pl -> form-handler). Returns ''
+# when neither is available.
+sub _audit_plugin_target {
+    my ( $params, $body ) = @_;
+    my $plugin = $params->{plugin} // '';
+    return $plugin if length $plugin;
+    my $b = eval { decode_json( $body // '' ) };
+    my $script = ( ref $b eq 'HASH' ? $b->{script} : undef ) // '';
+    return $script =~ m{([^/]+?)(?:\.pl)?$} ? $1 : '';
 }
 
 sub action_pages {

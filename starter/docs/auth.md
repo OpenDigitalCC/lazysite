@@ -143,6 +143,68 @@ The HMAC secret lives at `lazysite/auth/.secret` (chmod 0600).
 The dev server auto-detects built-in auth when `lazysite/auth/users`
 exists and uses the auth wrapper automatically.
 
+## Self-service credentials and two-factor
+
+The operator creates an account and sets its parameters; the **user provisions
+their own secret**. The operator never sets or handles a password. One primitive
+underlies every flow: a single-use, short-lived, hashed **claim token**.
+
+### Setup links (the user sets their own password)
+
+On the Users page, an account card has **Generate setup link** next to *Generate
+credential*. It mints a claim and shows a one-time URL (`…/claim?u=<user>&c=<code>`)
+to hand over by any channel. The user opens it and the `/claim` page presents a
+**set-a-password** form (interactive account) or a **mint-and-reveal-token** action
+(machine account). The claim is consumed on success and expires after 24 h.
+
+- **Reset credential** mints a fresh claim *and revokes the current credential*, so
+  the account cannot authenticate until the new claim is redeemed - the forced
+  reset for a lost or compromised secret. A plain setup link is additive (the old
+  credential keeps working until redeemed).
+- Disabled accounts and token-only (`ui` off) accounts cannot redeem a
+  set-password claim.
+
+### Forgot password (email, when SMTP is configured)
+
+Where the SMTP plugin is configured and the account has an `email`, `/login` shows
+a **Forgot password?** link → `/forgot` takes a username or email and mails a
+set-password claim. The response is identical whether or not an account matched -
+it never reveals whether an account or email exists. The reset email is recorded
+in the audit trail (action `forgot`) against the matched account.
+
+### Two-factor (TOTP)
+
+An interactive account can enrol TOTP two-factor (RFC 6238). Enrolment shows a
+shared secret + an `otpauth://` URI (QR) and issues one-time **recovery codes**;
+after enrolment, login requires a valid 6-digit code (or a recovery code) before
+the cookie is issued. Two-factor applies to interactive (password → cookie) login
+only - token / WebDAV / connector auth is unchanged, since the token is already
+the strong factor there.
+
+    # enrol from the CLI (or via the Users page card action)
+    perl tools/lazysite-users.pl --docroot /path/to/public_html mfa-enroll alice
+
+The shared secret lives in `user-settings.json` under the same `0640`/`2770`
+protection as other credentials (the auth dir is off the web and group-restricted;
+no at-rest encryption - an accepted tradeoff for self-hosting).
+
+### Account expiry
+
+An account may carry `expires_at` (an epoch); after it, **all** authentication for
+that account fails - time-boxed access for a contractor or a temporary partner.
+Distinct from token expiry.
+
+### Security model
+
+- Claims, connect codes, and recovery codes are 256-bit random, **hashed at rest**,
+  **single-use**, short-TTL, and rate-limited per IP and per account.
+- **Generic responses** everywhere - `/forgot`, `/claim`, and the partner exchange
+  never reveal whether an account, email, or claim is valid beyond success/failure.
+- **HTTPS only**; plaintext is refused (as for `/dav`).
+- Material events are audited: `claim-redeem`, `forgot`, `token-exchange`,
+  `token-rotate`, `user-claim-create`, `user-mfa-enroll`, and the OAuth events
+  (`oauth-register`, `oauth-authorize`, `oauth-refresh`, `connect`).
+
 ## Protecting pages
 
 ### Per-page auth

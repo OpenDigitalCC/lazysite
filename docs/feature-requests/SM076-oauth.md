@@ -107,6 +107,12 @@ short-lived; redirect_uri exact-match against the registered set; all stored
 secrets hashed (sha256 of high-entropy randoms); the store is 0600 in the
 write-denied `lazysite/auth/` tree; expired records GC'd on write.
 
-## Note (2026-06-27)
 
-The practical goal - usable from claude.ai web - is met today via the static bearer (`partner-id:lzs_token`), confirmed working with the live `tbbtf-explore` connector. Full OAuth 2.1 (dynamic client registration + authorize/token endpoints) remains a future enhancement for friction-free pairing, not a blocker.
+## Note (2026-06-27, corrected)
+
+OAuth 2.1 **is built and live**, not future: lazysite-oauth.pl (register/authorize/token),
+Lazysite::Auth::OAuth (store + PKCE), and the MCP 401 `WWW-Authenticate` challenge are all
+in the tree, with tests at t/unit/oauth/01-discovery.t and 02-flow.t. Claude.ai web uses
+the OAuth flow (connect code, no token paste); Claude Code / Desktop keep the static
+bearer. An earlier note here that called OAuth "future" was mistaken - it referred to the
+static-bearer fallback, which is the developer path, not the absence of OAuth.

@@ -313,3 +313,23 @@ Offline publish bundle [new feature, separate]
   releasing the credential. It reuses the same single-use claim primitive (the
   approval mints/redeems the claim), so nothing here precludes it. Recorded for
   a later cycle; not in batches 1-4.
+
+## Close-out audit (2026-06-27)
+
+**SHIPPED - all four batches built, tested, and audited** (the "draft, no implementation"
+status above is stale). Verified against the tree on 2026-06-27.
+
+- Batch 1 - claim primitive + `/claim` page + setup-link/reset card actions: lazysite-auth.pl
+  `action=claim`, starter/claim.md, users-tool `claim-create`. Tests t/unit/auth/05-claim.t,
+  t/unit/users/13-claims.t.
+- Batch 2 - email delivery: `/forgot` + `_send_setup_email`, gated on SMTP; starter/login.md
+  "Forgot password?" + starter/forgot.md. Test t/unit/auth/08-forgot.t.
+- Batch 3 - partner pairing-key HTTP exchange: `action=token-exchange` + rotation.
+- Batch 4 - TOTP MFA: enrolment (users-tool `mfa-enroll`), login second factor
+  (lazysite-auth.pl), recovery codes. Tests t/unit/auth/07-mfa-login.t, t/unit/users/14-totp.t.
+
+Data model (`email`, `claim_*`, `mfa_required`, `totp_secret`, `recovery_hashes`,
+`expires_at`) is live. Audit covers claim-redeem, forgot, token-exchange/rotate,
+user-claim-create, user-mfa-enroll. Documented in starter/docs/auth.md (Self-service
+credentials and two-factor). Deferred (by design): WebAuthn/passkeys, session
+invalidation on credential change.

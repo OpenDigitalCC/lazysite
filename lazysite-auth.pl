@@ -509,6 +509,9 @@ sub _forgot_dispatch {
     my $host   = $ENV{HTTP_HOST} // '';
     _send_setup_email( $email, $user, "$scheme://$host/claim?u=$user&c=$r->{claim}" );
     log_event( 'INFO', $user, 'forgot-password claim emailed', ip => $ip );
+    # SM072: a real reset link was issued - a material auth event. (The HTTP
+    # response stays generic; only the internal audit trail records the match.)
+    _audit_auth( $user, 'forgot', 'ok', 'reset link emailed', 'ui' );
     return;
 }
 

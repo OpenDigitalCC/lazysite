@@ -46,6 +46,15 @@ my $entries = main::action_audit()->{entries};
 my ($ui)  = grep { $_->{action} eq 'save' } @$entries;
 my ($api) = grep { $_->{action} eq 'theme-activate' } @$entries;
 is( $ui->{target}, 'content/about.md', 'SM078: target recorded' );
+
+# --- plugin actions name the plugin, not '/' ---
+is( main::_audit_plugin_target( { plugin => 'stats' }, undef ),
+    'stats', 'plugin param used as audit target' );
+is( main::_audit_plugin_target( {}, '{"script":"/x/plugins/form-handler.pl"}' ),
+    'form-handler', 'plugin target derived from body script basename' );
+is( main::_audit_plugin_target( {}, '{"script":"form-smtp"}' ),
+    'form-smtp', 'plugin target from a bare script name' );
+is( main::_audit_plugin_target( {}, undef ), '', 'no plugin info -> empty target' );
 is( $ui->{origin}, 'ui',  'SM077: cookie action recorded as origin=ui' );
 is( $api->{origin}, 'api', 'SM077: token action recorded as origin=api' );
 
