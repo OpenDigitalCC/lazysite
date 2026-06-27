@@ -128,3 +128,13 @@ don't rewrite) so behaviour cannot drift, with the full suite as the guard.
 - **Bounded duplication** in the processor - accepted, by design (Principle 3).
 - This is a multi-commit refactor; it touches every script. The mitigation is
   the verbatim-move discipline and the 1276-test suite as a ratchet.
+
+## Status (reconciled, 2026-06-27)
+
+**Largely executed.** The proposal was carried out: the major handler groups are
+extracted to lib/Lazysite/Manager/* (Common, Files, Themes, Layouts, Plugins, Backups,
+Artifact, Upload) plus lib/Lazysite/{Audit,Util,Auth/*}, and these are reused by the MCP
+server and the control API (the "SM079 refactor payoff"). The processor keeps its
+standalone single-file path (Principle 1). Remaining inline in lazysite-manager-api.pl:
+the smaller config / audit / nav / pages / notices / acl / whoami actions - a tidy-up,
+not a blocker. Treat as substantially delivered; close when the residual actions move.
