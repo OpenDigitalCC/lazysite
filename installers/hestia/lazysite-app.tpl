@@ -36,7 +36,7 @@
     CustomLog /var/log/%web_system%/domains/%domain%.log combined
     ErrorLog /var/log/%web_system%/domains/%domain%.error.log
     IncludeOptional %home%/%user%/conf/web/%domain%/apache2.forcessl.conf*
-    DirectoryIndex index.html index.htm
+    DirectoryIndex index.html index.htm index.shtml
     # Cookie auth: route unmatched URLs through the auth wrapper, which
     # validates the cookie, sets X-Remote-*, then execs the processor.
     FallbackResource /cgi-bin/lazysite-auth.pl
@@ -54,7 +54,13 @@
     </Directory>
     <Directory %docroot%>
         AllowOverride All
-        Options -Indexes +ExecCGI
+        Options -Indexes +ExecCGI +Includes
+        # Server-Side Includes for an overlaid static (.shtml) site - mod_include.
+        # Harmless for markdown-only sites (no .shtml present); an existing
+        # index.shtml is served via DirectoryIndex so lazysite's markdown
+        # fallback never shadows the original homepage.
+        AddType text/html .shtml
+        AddOutputFilter INCLUDES .shtml
     </Directory>
     SetEnvIf Authorization .+ HTTP_AUTHORIZATION=$0
     IncludeOptional %home%/%user%/conf/web/%domain%/%web_system%.conf_*

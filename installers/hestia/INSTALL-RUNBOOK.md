@@ -116,9 +116,12 @@ does (and the fallback if you're not using it).
      (creates plugins/tools in the locked domain root, sets
      `<owner>:www-data` + setgid `2775` across the docroot, `2770` on
      `lazysite/auth`; does NOT deploy code), `chmod 755`.
-2. `a2enmod headers` (the `RequestHeader unset` lines need mod_headers,
-   else `configtest` fails with `Invalid command 'RequestHeader'`),
-   then restart apache2.
+2. `a2enmod headers rewrite` (the `RequestHeader unset` lines need
+   mod_headers, else `configtest` fails with `Invalid command
+   'RequestHeader'`; the cgi-bin auth rewrite needs mod_rewrite). For
+   overlaying an SSI (`.shtml`) static site, also `a2enmod include` so the
+   template's `AddOutputFilter INCLUDES`/`Options +Includes` take effect;
+   without it `.shtml` is served as raw HTML. Restart apache2 afterwards.
 3. Apply: `v-change-web-domain-tpl <user> <domain> lazysite-app yes`.
    The root hook runs and fixes the locked-dir + perms.
 4. Install (as `ispadmin`, absolute paths — do not rely on shell vars
@@ -371,3 +374,27 @@ To fix a 404: confirm the domain uses the apache2 backend (so the
 `ScriptAlias /dav` template applies), and that the nginx proxy template
 forwards `/dav/` (and `/cgi-bin/`) to Apache rather than serving them as static.
 Reload the web server after changes.
+
+## Overlaying lazysite on an existing static site (SSI)
+
+`lazysite-app` is an overlay: existing files are served directly and only
+non-existent paths fall through to the markdown processor
+(`FallbackResource`). So a static site keeps working **as long as its
+homepage and pages are reachable through this vhost**:
+
+- The homepage must be one of `DirectoryIndex index.html index.htm
+  index.shtml`. If the original homepage is `index.shtml` it is served (and
+  SSI-processed) and lazysite never renders its placeholder over it. If it is
+  something else (e.g. a PHP front controller), `/` falls through to lazysite -
+  `lazysite-app` has **no PHP handler**, so do not overlay PHP/dynamic sites
+  with it (revert such a domain to its original template).
+- SSI (`.shtml`) needs `a2enmod include` (see step 2); the template enables
+  `Options +Includes` and `AddOutputFilter INCLUDES .shtml`.
+- If a domain was overlaid before this fix and lazysite already rendered its
+  placeholder to `index.html`, remove that one file so the real `index.shtml`
+  wins again: `rm <docroot>/index.html` (and `rm <docroot>/index.md` if the
+  lazysite starter homepage is unwanted).
+
+To take a domain back off lazysite entirely, switch its web template back
+(`v-change-web-domain-tpl <user> <domain> default` then rebuild); the lazysite
+files left in the docroot are inert without the template.

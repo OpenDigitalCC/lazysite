@@ -88,3 +88,14 @@ In progress (2026-06-25).
 
 SM084 is now complete: non-destructive install + content backups. Inline page-by-
 page migration works on top (existing HTML/SSI served until a `.md` replaces it).
+
+## Progress (2026-06-27): SSI overlay support
+
+The lazysite-app Apache template now overlays an existing **static SSI** site
+non-destructively: `DirectoryIndex` includes `index.shtml`, and the docroot enables
+`Options +Includes` + `AddOutputFilter INCLUDES .shtml` (needs `a2enmod include`). An
+existing `index.shtml` homepage is served (and SSI-processed) so lazysite's markdown
+fallback never shadows it; markdown/missing paths still fall through to the processor.
+PHP/dynamic overlay remains out of scope for this template (no PHP handler) - the broader
+non-destructive-overlay design is still the full SM084. Runbook documents the overlay
+flow and the "remove a previously-rendered index.html" remediation.
