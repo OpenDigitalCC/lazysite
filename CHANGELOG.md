@@ -18,6 +18,12 @@ Keying
 
 ## Unreleased
 
+## 0.4.50 - Editor always shows the edit box (2026-06-27)
+
+Fix - editor no longer blank
+: loadFile() builds the editor unconditionally and first, so the edit box always
+  renders; with no file selected it shows a placeholder instead of a blank overlay.
+
 ## 0.4.49 - Editor robustness + back button; stats log auto-detect (2026-06-27)
 
 Fix - editor always shows the edit box
