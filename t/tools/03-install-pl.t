@@ -379,18 +379,22 @@ subtest '--dry-run does not modify filesystem' => sub {
         'no starter content installed' );
 };
 
-# --- 11. Derived manager CSS is not tracked in state ---
+# --- 11. Manager CSS ships (manifest-tracked) to the web-served path ---
 
-subtest 'manager CSS duplicate not in .install-state.json' => sub {
+subtest 'manager CSS installs to the web-served manager/assets path' => sub {
     my ($docroot, $cgibin) = fresh_docroot();
     run_install( '--docroot', $docroot, '--cgibin', $cgibin );
 
-    my $css_dup = "$docroot/manager/assets/manager.css";
-    ok( -f $css_dup, 'manager CSS duplicate exists on disk' );
+    my $css = "$docroot/manager/assets/manager.css";
+    ok( -f $css, 'manager.css is at the web-served /manager/assets/ path' );
 
+    # It is now shipped straight there by the manifest (code bucket), so an
+    # upgrade always refreshes it. The old /lazysite/ copy is not installed and
+    # any orphan from a prior install is cleaned up.
     my $state = load_state($docroot);
-    ok( !exists $state->{files}{$css_dup},
-        'duplicate is NOT tracked in state (derived path)' );
+    ok( exists $state->{files}{$css}, 'manager.css is manifest-tracked in state' );
+    ok( !-f "$docroot/lazysite/manager/assets/manager.css",
+        'no stale copy left under the Apache-denied /lazysite/ tree' );
 };
 
 # --- 12. cgi-bin plugin endpoints link/install ---

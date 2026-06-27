@@ -487,24 +487,20 @@ sub post_install_steps {
         }
     }
 
-    # --- manager CSS duplicate ---
+    # --- manager CSS: now manifest-tracked ---
     #
-    # D013: manager source moved out of themes/ to lazysite/manager/.
-    # The manager UI expects the CSS web-accessible at
-    # manager/assets/manager.css. The manifest ships the source copy;
-    # this step mirrors it to the web-accessible path.
-    #
-    # Derived path: NOT tracked in .install-state.json. It is
-    # rebuilt from the installed source on every install/upgrade,
-    # so tracking it would cause the next run to falsely flag it
-    # as "in stored but not in manifest" and mark it for removal.
-    my $css_src = "$docroot/lazysite/manager/assets/manager.css";
-    my $css_dst = "$docroot/manager/assets/manager.css";
-    if ( -f $css_src ) {
-        make_path( dirname($css_dst) );
-        File::Copy::copy( $css_src, $css_dst )
-            or die "Could not install $css_dst: $!\n";
-        chmod 0644, $css_dst;
+    # The manager CSS/assets are shipped straight to the web-served
+    # manager/assets/ by the manifest (classification rule
+    # ^starter/lazysite/manager/assets/), code bucket, so an upgrade always
+    # refreshes them. The old approach copied them here from
+    # lazysite/manager/assets/ on every run; that copy could go stale (a
+    # pre-SM109 manager.css lingered on upgrade), so it was removed. Clean up
+    # the now-orphaned source copy if a previous install left one.
+    {
+        my $orphan = "$docroot/lazysite/manager/assets/manager.css";
+        unlink $orphan if -f $orphan;
+        my $od = "$docroot/lazysite/manager/assets";
+        rmdir $od if -d $od;   # only succeeds if empty
     }
 
     # --- auth users/groups: seed from .example on fresh install ---

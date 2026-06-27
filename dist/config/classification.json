@@ -51,7 +51,13 @@
       "bucket": "code"
     },
     {
-      "_comment": "D013: manager UI template + CSS assets live outside both layouts/ and themes/. Manager is internal plumbing, not a themeable layout.",
+      "_comment": "Manager CSS/assets must be web-served at /manager/assets/ (the /lazysite/ tree is Apache-denied). Ship them straight there via the manifest - code bucket, so an upgrade always refreshes them - instead of the old install.pl copy hack, which left a stale manager.css on upgrade. This rule precedes the general lazysite/manager rule (first match wins).",
+      "pattern": "^starter/lazysite/manager/assets/(.+)$",
+      "install_to": "{DOCROOT}/manager/assets/$1",
+      "bucket": "code"
+    },
+    {
+      "_comment": "D013: manager UI template lives outside both layouts/ and themes/. Manager is internal plumbing, not a themeable layout. (assets/ handled by the rule above.)",
       "pattern": "^starter/lazysite/manager/(.+)$",
       "install_to": "{DOCROOT}/lazysite/manager/$1",
       "bucket": "code"
