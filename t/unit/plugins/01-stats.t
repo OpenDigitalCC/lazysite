@@ -48,6 +48,47 @@ is( $s2->{unique_visitors}, 3, 'raw IPs when anonymise off' );
 
 my $miss = scan("access_log: $d/nope.log\n");
 ok( !$miss->{ok}, 'unreadable log -> ok:0 with a message' );
-like( $miss->{error}, qr/readable|configured/i, 'helpful error' );
+like( $miss->{error}, qr/readable|found|configured/i, 'helpful error' );
+
+# --- domain-qualified auto-detect: pick this site's log, not a decoy ---
+{
+    my $r = tempdir( CLEANUP => 1 );
+    my $doc = "$r/web/demo.example.com/public_html";
+    mkdir "$r/web"; mkdir "$r/web/demo.example.com";
+    mkdir $doc; mkdir "$doc/lazysite"; mkdir "$r/web/demo.example.com/logs";
+    open my $cf, '>', "$doc/lazysite/lazysite.conf" or die $!;
+    print $cf "site_url: https://demo.example.com\n";
+    close $cf;
+    for my $name ( 'demo.example.com.log', 'othersite.org.log' ) {
+        open my $lf, '>', "$r/web/demo.example.com/logs/$name" or die $!;
+        my $ip = $name =~ /^demo/ ? '1.1.1.1' : '9.9.9.9';
+        print $lf qq{$ip - - [$now] "GET /p HTTP/1.1" 200 10 "-" "Mozilla/5.0"\n};
+        close $lf;
+    }
+    open my $sc, '>', "$doc/lazysite/stats.conf" or die $!;   # no access_log -> auto-detect
+    print $sc "window_days: 30\n";
+    close $sc;
+    my $got = decode_json( qx($^X $PLUGIN --scan --docroot '$doc') );
+    ok( $got->{ok}, 'auto-detect scan ok' ) or diag( $got->{error} );
+    like( $got->{log}, qr/demo\.example\.com\.log$/, 'picked the domain-qualified log' );
+    unlike( $got->{log}, qr/othersite/, 'did not pick another site\x27s log' );
+    open my $rd, '<', "$doc/lazysite/stats.conf" or die $!;
+    my $conf = do { local $/; <$rd> };
+    close $rd;
+    like( $conf, qr/access_log:.*demo\.example\.com\.log/, 'autoconfig persisted the path' );
+}
+
+# --- not found -> needs_config, so the page asks ---
+{
+    my $r2 = tempdir( CLEANUP => 1 );
+    my $doc2 = "$r2/web/none.example/public_html";
+    mkdir "$r2/web"; mkdir "$r2/web/none.example"; mkdir $doc2; mkdir "$doc2/lazysite";
+    open my $cf2, '>', "$doc2/lazysite/lazysite.conf" or die $!;
+    print $cf2 "site_url: https://none.example\n";
+    close $cf2;
+    open my $sc2, '>', "$doc2/lazysite/stats.conf" or die $!; close $sc2;
+    my $none = decode_json( qx($^X $PLUGIN --scan --docroot '$doc2') );
+    ok( !$none->{ok} && $none->{needs_config}, 'no log found -> needs_config (ask the operator)' );
+}
 
 done_testing;

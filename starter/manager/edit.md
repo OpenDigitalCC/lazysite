@@ -26,6 +26,7 @@ query_params:
 </style>
 
 <div class="mg-editor-toolbar">
+<a href="/manager/files" class="mg-btn mg-btn-sm mg-editor-back" title="Back to Files (Esc)">&#8592; Files</a>
 <span id="ed-filepath" class="mg-editor-path">[% query.path | html %]</span>
 <span id="ed-lock-dot" class="mg-lock-dot" title=""></span>
 <span id="ed-lock-label" style="font-size:0.8rem;color:var(--mg-text-muted);"></span>
@@ -299,6 +300,10 @@ function takeOverLock() {
 // --- Load ---
 function loadFile() {
   if (!filePath) return;
+  // Build the editor first so the edit box always renders, even if a later
+  // setup step (breadcrumb, download wiring) hiccups - otherwise the fixed
+  // editor overlay could cover the page with no visible edit box.
+  initEditors();
   document.getElementById('ed-filepath').innerHTML = buildBreadcrumb(filePath);
   var viewPath = filePath.replace(/\.md$/, '').replace(/\/index$/, '/');
   if (viewPath.charAt(0) !== '/') viewPath = '/' + viewPath;
@@ -319,8 +324,6 @@ function loadFile() {
     document.getElementById('ed-divider').style.display = 'none';
     document.getElementById('ed-editor-pane').style.width = '100%';
   }
-
-  initEditors();
 
   if (isNew) {
     yamlCm.setValue('');
@@ -728,5 +731,11 @@ document.addEventListener('keydown', function(e) {
 });
 
 // --- Boot ---
+// Esc returns to Files (the sidebar is hidden behind the full-screen editor),
+// but only when there is nothing unsaved - a dirty editor stays put.
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && !isDirty) { location.href = '/manager/files'; }
+});
+
 loadFile();
 </script>
