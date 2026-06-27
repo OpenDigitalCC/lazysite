@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.44 - Operator notifications (SM113) (2026-06-27)
+
+Feature - operator notifications (SM113)
+: the manager header gains a notification bell with an unread badge and a dropdown.
+  A small append-only store (logs/notices.jsonl) plus a per-operator last-seen marker
+  backs it; the form-handler is the first producer (a new submission raises a notice).
+  Poll-based for v1; a plugin-facing API and SSE push are noted for later.
+
 ## 0.4.43 - Path-aware MCP gating; nav URL autocomplete (2026-06-27)
 
 Feature - finer connector capability by path (SM082)
