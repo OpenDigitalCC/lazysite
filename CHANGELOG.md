@@ -18,6 +18,29 @@ Keying
 
 ## Unreleased
 
+## 0.4.38 - Form-build flow, client-side auth control, submission + denied audit (2026-06-27)
+
+Feature - agents can build a form natively (SM108)
+: the bind_form tool description now spells out the full flow (front-matter form: NAME
+  + a :::form block with field rules, then list_form_handlers, then bind_form) with an
+  inline example, and the brief lists /docs/forms.
+
+Feature - client-side sign-in/out control (SM099)
+: the site auth control is now resolved client-side from a non-HttpOnly lzs_session
+  marker cookie, so a shared cached page never shows the wrong state. Any layout opts
+  in with data-ls-auth-in / data-ls-auth-out.
+
+Feature - form submissions are audited (SM115)
+: a submission writes a `submit` audit event (origin form, user blank for the public).
+  Concurrent-edit loss is already prevented by the editor mtime guard.
+
+Fix - capability-denied attempts are audited
+: a denied MCP tool / control-API action now writes a `fail` audit event before
+  refusing (it was silent before - why blocked theme activity seemed unlogged).
+
+Change - settings form flags unsaved changes (SM118)
+: the Config form shows a reminder and warns on leaving while dirty, cleared on save.
+
 ## 0.4.37 - Fix hidden capability toggles for operators; audit deploys; settings groups (2026-06-27)
 
 Fix - capability toggles are shown for operator accounts (SM094)
