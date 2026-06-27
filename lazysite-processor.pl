@@ -2574,6 +2574,7 @@ sub render_content {
         },
         query             => $query,
         params            => $query,
+        lazysite_version  => _lazysite_version(),   # asset cache-buster (?v=)
         editor            => $editor_flag,
         year              => sprintf( '%04d', (localtime)[5] + 1900 ),
         search_enabled    => ( -f "$DOCROOT/search-results.md" || -f "$DOCROOT/search-results.url" ) ? 1 : 0,

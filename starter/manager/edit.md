@@ -8,7 +8,7 @@ query_params:
 ---
 
 <div id="editor-root" class="mg-editor-root">
-<link rel="stylesheet" href="/manager/assets/cm/codemirror.min.css">
+<link rel="stylesheet" href="/manager/assets/cm/codemirror.min.css?v=[% lazysite_version %]">
 <style>
 .mg-main { padding:0; max-width:none; }
 .mg-main h1 { display:none; }
@@ -90,18 +90,18 @@ query_params:
 
 </div>
 
-<script src="/manager/assets/cm/codemirror.min.js"></script>
-<script src="/manager/assets/cm/overlay.min.js"></script>
-<script src="/manager/assets/cm/xml.min.js"></script>
-<script src="/manager/assets/cm/markdown.min.js"></script>
-<script src="/manager/assets/cm/yaml.min.js"></script>
-<script src="/manager/assets/cm/htmlmixed.min.js"></script>
-<script src="/manager/assets/cm/css.min.js"></script>
-<script src="/manager/assets/cm/javascript.min.js"></script>
-<script src="/manager/assets/cm/perl.min.js"></script>
-<script src="/manager/assets/cm/shell.min.js"></script>
-<script src="/manager/assets/cm/matchbrackets.min.js"></script>
-<script src="/manager/assets/cm/closebrackets.min.js"></script>
+<script src="/manager/assets/cm/codemirror.min.js?v=[% lazysite_version %]"></script>
+<script src="/manager/assets/cm/overlay.min.js?v=[% lazysite_version %]"></script>
+<script src="/manager/assets/cm/xml.min.js?v=[% lazysite_version %]"></script>
+<script src="/manager/assets/cm/markdown.min.js?v=[% lazysite_version %]"></script>
+<script src="/manager/assets/cm/yaml.min.js?v=[% lazysite_version %]"></script>
+<script src="/manager/assets/cm/htmlmixed.min.js?v=[% lazysite_version %]"></script>
+<script src="/manager/assets/cm/css.min.js?v=[% lazysite_version %]"></script>
+<script src="/manager/assets/cm/javascript.min.js?v=[% lazysite_version %]"></script>
+<script src="/manager/assets/cm/perl.min.js?v=[% lazysite_version %]"></script>
+<script src="/manager/assets/cm/shell.min.js?v=[% lazysite_version %]"></script>
+<script src="/manager/assets/cm/matchbrackets.min.js?v=[% lazysite_version %]"></script>
+<script src="/manager/assets/cm/closebrackets.min.js?v=[% lazysite_version %]"></script>
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';

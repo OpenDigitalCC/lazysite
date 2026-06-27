@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>[% page_title %][% IF site_name %] - [% site_name %][% END %]</title>
-  <link rel="stylesheet" href="/manager/assets/manager.css">
+  <link rel="stylesheet" href="/manager/assets/manager.css?v=[% lazysite_version %]">
   <script>
   // SM109 phase 6: set the theme before first paint (no flash). Saved choice wins,
   // else follow the OS preference.
