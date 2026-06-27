@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+## 0.4.46 - scan: custom front-matter passthrough (SM125) (2026-06-27)
+
+Feature - self-describing scan: cards
+: scanned page objects now expose any custom front-matter key ([% t.kind %],
+  [% t.accent %], [% t.demo %]) alongside the built-ins, with surrounding quotes
+  stripped; sort=<custom-key> works and is numeric-aware (sort=order: 2 before 10);
+  recursive ** globs are documented. Registry/gallery cards no longer smuggle data
+  through tags and filenames.
+
 ## 0.4.45 - Auth audit completeness + self-service/OAuth docs (2026-06-27)
 
 Verified - self-service credentials / TOTP MFA (SM072) and OAuth 2.1 (SM076)
