@@ -80,6 +80,17 @@ for sec in auth/.secret forms/.secret manager/.csrf-secret \
   [ -f "$DOC/lazysite/$sec" ] && chmod 660 "$DOC/lazysite/$sec"
 done
 
+# nginx serves the static manager assets (manager.css, cm/*) directly and caches
+# the open file handle + size (open_file_cache). After an upgrade refreshes those
+# files, a stale cache entry serves a truncated stylesheet/JS - the manager (the
+# editor worst) renders unstyled until nginx re-reads them. Reload nginx so it
+# picks up the new files immediately.
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl reload nginx 2>/dev/null \
+    || systemctl reload-or-restart nginx 2>/dev/null \
+    || echo "  (could not reload nginx automatically - run: systemctl restart nginx)"
+fi
+
 # index.html is handled by the template hook (install-hestia.sh): it clears only
 # an index.html that was rendered from a PRE-EXISTING index.md - never real
 # content - so lazysite can overlay an existing static site safely. We do NOT
