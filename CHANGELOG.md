@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+## 0.4.49 - Editor robustness + back button; stats log auto-detect (2026-06-27)
+
+Fix - editor always shows the edit box
+: the editor builds first so a later setup hiccup cannot leave the full-screen overlay
+  empty; a "<- Files" back link and Esc-to-exit make the menu reachable again.
+
+Fix - Visitor Stats finds this site's access log
+: auto-detect checks common locations but only matches a log qualified by the site's
+  domain (never another site's), uses + persists it (autoconfig), or asks if none found.
+
 ## 0.4.48 - Deploy hang fix; SSI overlay support (2026-06-27)
 
 Fix - permissions sweep no longer hangs
