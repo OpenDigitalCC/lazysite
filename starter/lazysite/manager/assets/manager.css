@@ -1737,3 +1737,7 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
 .mg-notif-msg { font-size: var(--mg-text-sm); }
 .mg-notif-time { font-size: 0.7rem; color: var(--mg-text-muted); margin-top: 0.15rem; }
 .mg-notif-empty { padding: 1rem; text-align: center; color: var(--mg-text-muted); font-size: var(--mg-text-sm); }
+
+/* Plugin Manager: per-row Configure link (SM - plugin page split) */
+.mg-plugin-row-config { margin-left: auto; font-size: var(--mg-text-sm); color: var(--mg-accent); text-decoration: none; }
+.mg-plugin-row-config:hover { text-decoration: underline; }

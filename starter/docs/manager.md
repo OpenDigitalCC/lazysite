@@ -52,9 +52,11 @@ plugin registry.
 - **Site settings** - `site_name`, `site_url`, default theme,
   navigation file path, `search_default`, manager state, manager path,
   and manager groups. Saves to `lazysite/lazysite.conf`.
-- **Plugins** - lists all discovered CGI scripts and tools that support
-  `--describe`. Tick to enable, untick to disable. Per-plugin
-  configuration lives on the Plugins page.
+- **Plugin Manager** (`/manager/plugins`) - lists all discovered plugins
+  (every `plugins/*.pl` that answers `--describe`); tick to enable, untick
+  to disable.
+- **Plugin Config** (`/manager/plugin-config`) - the per-plugin configuration
+  UI for the plugins that are enabled.
 
 ### Files
 
@@ -87,11 +89,13 @@ editor is open.
 
 Saves back to `lazysite/nav.conf` as YAML.
 
-### Plugins
+### Plugin Manager and Plugin Config
 
-`/manager/plugins`. Per-plugin configuration UI.
+Plugins are split across two pages: **Plugin Manager** (`/manager/plugins`)
+enables and disables them, and **Plugin Config** (`/manager/plugin-config`)
+configures the enabled ones.
 
-Each enabled plugin appears with a form generated from its
+On Plugin Config, each enabled plugin appears with a form generated from its
 `config_schema`. Save writes the plugin's config file (e.g.
 `lazysite/forms/smtp.conf` for the SMTP plugin).
 

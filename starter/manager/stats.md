@@ -38,8 +38,8 @@ function loadStats() {
     if (!p) { body.innerHTML = 'The Visitor Stats plugin is not installed.'; return; }
     if (!p._enabled) {
       body.innerHTML = 'Enable the <b>Visitor Stats</b> plugin on the '
-        + '<a href="/manager/config">Configuration</a> page, then set its access-log path on the '
-        + '<a href="/manager/plugins">Plugins</a> page.';
+        + '<a href="/manager/plugins">Plugin Manager</a> page, then set its access-log path on the '
+        + '<a href="/manager/plugin-config">Plugin Config</a> page.';
       return;
     }
     statsScript = p._script;
@@ -55,7 +55,7 @@ function renderStats(d) {
   var body = document.getElementById('stats-body');
   if (!d || !d.ok) {
     body.innerHTML = '<p class="mg-muted">' + sesc((d && d.error) || 'No stats available.') + '</p>'
-      + '<p class="mg-muted">Configure the access-log path on the <a href="/manager/plugins">Plugins</a> page.</p>';
+      + '<p class="mg-muted">Configure the access-log path on the <a href="/manager/plugin-config">Plugin Config</a> page.</p>';
     return;
   }
   var h = '';

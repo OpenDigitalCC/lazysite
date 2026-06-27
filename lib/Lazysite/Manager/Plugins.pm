@@ -80,17 +80,18 @@ sub action_plugin_list {
     # drives its form from the processor's descriptor rather than
     # duplicating the schema. payment-demo has no --describe
     # support so it's not listed here.
-    my @CANDIDATES = (
-        'lazysite-processor.pl',
-        'lazysite-auth.pl',
-        'plugins/form-handler.pl',
-        'plugins/form-smtp.pl',
-        'plugins/log.pl',
-        'plugins/audit.pl',
-    );
-
     my $base = Cwd::realpath("$DOCROOT/..");
     my @plugins;
+
+    # The two core scripts publish config schemas; the rest are discovered
+    # dynamically from plugins/*.pl, so a new plugin appears without editing this
+    # list (each candidate is validated by --describe below, so a non-plugin .pl
+    # is dropped). SM083: stats.pl was invisible under the old hard-coded list.
+    my @CANDIDATES = ( 'lazysite-processor.pl', 'lazysite-auth.pl' );
+    if ( defined $base && opendir my $pd, "$base/plugins" ) {
+        push @CANDIDATES, map { "plugins/$_" } sort grep { /\.pl\z/ } readdir $pd;
+        closedir $pd;
+    }
 
     for my $rel ( @CANDIDATES ) {
         my $full = "$base/$rel";

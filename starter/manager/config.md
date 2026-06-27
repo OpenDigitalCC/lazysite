@@ -10,11 +10,7 @@ search: false
 <div id="site-status" class="mg-status"></div>
 </section>
 
-<section class="mg-config-section">
-<h2>Plugins</h2>
-<p class="mg-config-help">Enable or disable discovered plugins. Configure enabled plugins on the <a href="/manager/plugins">Plugins</a> page.</p>
-<div id="plugin-registry">Loading...</div>
-</section>
+<p class="mg-config-help">Manage plugins on the <a href="/manager/plugins">Plugin Manager</a> page (enable/disable) and the <a href="/manager/plugin-config">Plugin Config</a> page (settings).</p>
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
@@ -370,25 +366,20 @@ function saveSiteSettings_go(values) {
 
 // --- Plugin registry ---
 
-function loadPluginRegistry() {
+// Discover the site-config plugin (the processor, id 'lazysite') to drive the
+// settings form. Plugin enable/disable lives on the Plugin Manager page now.
+function loadSiteConfig() {
   fetch(API + '?action=plugin-list')
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      var regContainer = document.getElementById('plugin-registry');
       var siteContainer = document.getElementById('site-settings');
       if (!data.ok) {
-        mgShowWarning(data.error || 'Failed to load plugins', true);
-        regContainer.textContent = '';
+        mgShowWarning(data.error || 'Failed to load configuration', true);
         siteContainer.textContent = '';
         return;
       }
       mgClearWarning();
       var plugins = data.plugins || [];
-
-      // SM028: discover the site-config plugin's script path here so the
-      // settings form uses the same source as the registry. Filter the
-      // core processor out of the togglable registry below — it's the
-      // host, not an optional plugin.
       var core;
       for (var i = 0; i < plugins.length; i++) {
         if (plugins[i].id === SITE_PLUGIN_ID) { core = plugins[i]; break; }
@@ -400,71 +391,14 @@ function loadPluginRegistry() {
         siteContainer.textContent = '';
         mgShowWarning('Site configuration plugin not discovered.', true);
       }
-
-      var toRender = plugins.filter(function(p) { return p.id !== SITE_PLUGIN_ID; });
-      renderPluginRegistry(toRender);
     })
     .catch(function(e) {
       mgShowWarning('Error: ' + e.message, true);
-      document.getElementById('plugin-registry').textContent = '';
       document.getElementById('site-settings').textContent = '';
     });
 }
 
-function renderPluginRegistry(plugins) {
-  var container = document.getElementById('plugin-registry');
-  if (!plugins.length) {
-    container.innerHTML = '<p class="mg-empty">No plugins discovered.</p>';
-    return;
-  }
-  var html = '<div class="mg-plugin-registry">';
-  plugins.forEach(function(p) {
-    html += '<div class="mg-plugin-row" data-script="' + esc(p._script) + '">';
-    if (p.core) {
-      // Core plugins (e.g. Built-in Auth) are wired in the web-server config,
-      // not toggled here - show an "always on" marker instead of a checkbox.
-      html += '<span class="mg-badge enabled" title="Always on - wired in the web server config, managed via its own page">core</span>';
-    } else {
-      var checked = p._enabled ? ' checked' : '';
-      html += '<input type="checkbox" class="mg-toggle"' + checked + ' onchange="togglePlugin(this,\'' + esc(p._script) + '\',\'' + esc(p.name) + '\')">';
-    }
-    html += '<span class="mg-plugin-row-name">' + esc(p.name) + '</span>';
-    html += '<span class="mg-plugin-row-desc">' + esc(p.description || '') + '</span>';
-    html += '<span class="mg-plugin-row-path">' + esc(p._script) + '</span>';
-    html += '</div>';
-  });
-  html += '</div>';
-  container.innerHTML = html;
-}
-
-function togglePlugin(input, script, name) {
-  var action = input.checked ? 'plugin-enable' : 'plugin-disable';
-  input.disabled = true;
-  fetch(API + '?action=' + action, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ script: script })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    input.disabled = false;
-    if (!data.ok) {
-      input.checked = !input.checked;
-      mgShowWarning(
-        'Failed to ' + (input.checked ? 'enable' : 'disable') + ' ' + name
-          + ': ' + (data.error || 'unknown'),
-        true);
-    } else {
-      mgClearWarning();
-    }
-  })
-  .catch(function(e) {
-    input.disabled = false;
-    input.checked = !input.checked;
-    mgShowWarning('Error: ' + e.message, true);
-  });
-}
-
-loadPluginRegistry();
+loadSiteConfig();
 </script>
 
 <!-- config styles consolidated into manager.css (SM109 phase 3) -->
