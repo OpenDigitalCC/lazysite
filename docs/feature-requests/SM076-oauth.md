@@ -106,3 +106,7 @@ Security: PKCE S256 mandatory; auth codes + connect codes single-use and
 short-lived; redirect_uri exact-match against the registered set; all stored
 secrets hashed (sha256 of high-entropy randoms); the store is 0600 in the
 write-denied `lazysite/auth/` tree; expired records GC'd on write.
+
+## Note (2026-06-27)
+
+The practical goal - usable from claude.ai web - is met today via the static bearer (`partner-id:lzs_token`), confirmed working with the live `tbbtf-explore` connector. Full OAuth 2.1 (dynamic client registration + authorize/token endpoints) remains a future enhancement for friction-free pairing, not a blocker.

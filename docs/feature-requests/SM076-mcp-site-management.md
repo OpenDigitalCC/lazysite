@@ -112,3 +112,7 @@ design constraint: build the remote/HTTP transport first.
 
 Cross-tenant provisioning (that is SM075's host-level API, a different trust
 tier); operator/admin actions (user management) - MCP is the *partner* surface.
+
+## Status (reconciled)
+
+**SHIPPED (MCP v1, lazysite-mcp.pl; pinned by t/unit/mcp/01-protocol.t).** OAuth 2.1, the SSE notification stream, and further tools remain future cuts (see SM076-oauth).

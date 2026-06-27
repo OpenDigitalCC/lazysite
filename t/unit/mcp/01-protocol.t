@@ -37,8 +37,9 @@ use strict; use warnings; use JSON::PP qw(encode_json decode_json);
 my $in = do { local $/; <STDIN> };
 my $r = eval { decode_json($in) } || {};
 my $u = $r->{username} // '';
-my %caps = $u =~ /full/ ? (webdav=>1, manage_content=>1, manage_themes=>1, manage_layouts=>1, manage_config=>1)
-                        : (webdav=>1, manage_content=>1);
+my %caps = $u =~ /full/  ? (webdav=>1, manage_content=>1, manage_themes=>1, manage_layouts=>1, manage_config=>1)
+         : $u =~ /theme/ ? (manage_themes=>1, manage_layouts=>1)   # SM082: theme-only partner, no content
+         :                 (webdav=>1, manage_content=>1);
 $caps{manage_nav} = $caps{manage_forms} = 1 if $caps{manage_content};   # SM105/SM106: inherit from content
 print encode_json({ ok => 1, settings => \%caps });
 STUB
@@ -119,6 +120,17 @@ ok( ( grep { $_->{name} eq 'page.md' } @{ $sc->{entries} } ), 'list_files return
 ( $st, $r ) = call( 'write_file', { path => '/content/new.md', content => "fresh\n" }, $bearer_lim );
 ok( !$r->{result}{isError}, 'write_file succeeds' );
 ok( -f "$d/content/new.md", 'write_file created the file on disk' );
+
+# --- SM082: path-aware gating - a theme-only partner (no manage_content) ---
+# (action_save needs the parent dir to exist - WebDAV uses MKCOL; mirror that here.)
+File::Path::make_path("$d/lazysite/layouts/demo");
+my $bearer_theme = 'Bearer claudetheme:lzs_tok';
+( $st, $r ) = call( 'write_file', { path => 'lazysite/layouts/demo/theme.css', content => "body{}\n" }, $bearer_theme );
+ok( !$r->{error} && !$r->{result}{isError}, 'theme-only partner may write a theme/layout file' );
+ok( -f "$d/lazysite/layouts/demo/theme.css", 'theme file written to disk' );
+( $st, $r ) = call( 'write_file', { path => '/content/blocked.md', content => "x\n" }, $bearer_theme );
+is( $r->{error}{code}, -32002, 'theme-only partner is refused a content write (-32002)' );
+ok( !-f "$d/content/blocked.md", 'the refused content file was not written' );
 
 # --- non-ASCII round-trips (no double-encode mojibake) ---
 ( $st, $r ) = call( 'write_file', { path => '/content/utf8.md', content => "price \x{a3}5, flexible \x{b1}1 day - caf\x{e9}\n" }, $bearer_lim );

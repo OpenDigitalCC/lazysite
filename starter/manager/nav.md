@@ -8,7 +8,8 @@ search: false
 
 <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
 <input type="text" id="add-label" placeholder="Label" class="mg-file-filter" style="flex:none;width:160px;">
-<input type="text" id="add-url" placeholder="/url (blank = group heading)" class="mg-file-filter" style="flex:none;width:220px;">
+<input type="text" id="add-url" placeholder="/url (blank = group heading)" class="mg-file-filter" style="flex:none;width:220px;" list="page-urls">
+<datalist id="page-urls"></datalist>
 <select id="add-parent" style="padding:4px;font-size:13px;">
 <option value="">Top level</option>
 </select>
@@ -241,5 +242,19 @@ function saveNav() {
   .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
+// SM097: back the URL field with a datalist of the site's existing page URLs so
+// the operator picks a real target. Free text stays allowed (external/anchors).
+function loadPageUrls() {
+  fetch(API + '?action=pages').then(function (r) { return r.json(); }).then(function (d) {
+    if (!d || !d.ok || !d.urls) return;
+    var dl = document.getElementById('page-urls');
+    if (!dl) return;
+    dl.innerHTML = d.urls.map(function (u) {
+      return '<option value="' + esc(u) + '"></option>';
+    }).join('');
+  }).catch(function () {});
+}
+
 loadNav();
+loadPageUrls();
 </script>

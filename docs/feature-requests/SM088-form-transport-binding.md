@@ -58,3 +58,7 @@ in the loop.
 operator-vetted handler by id and never sets a destination or credential. The
 operator-approval queue (option 2) remains a possible follow-on. Complements the
 page-aware API ([[SM087]]).
+
+## Status (reconciled)
+
+**SHIPPED (bind_form + list_form_handlers in the MCP; enhanced in v0.4.38).**

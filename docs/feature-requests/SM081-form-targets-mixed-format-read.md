@@ -47,3 +47,7 @@ Low - most forms use one format. But a partner that wires both a stored copy and
 an email handler (a plausible enquiry-form setup) would find the stored-copy
 target vanish from the manager UI on reload, while still being honoured at
 submit time (the dispatcher reads the conf directly). The mismatch is confusing.
+
+## Status (reconciled)
+
+**SHIPPED (2026-06-24, single-pass form-targets read; pinned by t/unit/lib/07-plugins-handlers.t).**

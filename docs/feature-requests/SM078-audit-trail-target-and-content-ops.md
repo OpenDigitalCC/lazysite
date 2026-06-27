@@ -66,3 +66,7 @@ which is the question an audit is for.
   secret files out of content operations.
 - This is the audit counterpart to the `log_event` application log; the two
   should agree on the target string.
+
+## Status (reconciled)
+
+**SHIPPED (2026-06-24, audit target column; pinned by t/unit/manager/19-audit-target.t).**

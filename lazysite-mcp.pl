@@ -218,7 +218,7 @@ my %TOOLS = (
     },
     list_files => {
         description => 'List files and folders under a site-relative directory path (default "/").',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string', description => 'Directory path, e.g. /content' } },
             additionalProperties => JSON::PP::false },
@@ -226,7 +226,7 @@ my %TOOLS = (
     },
     read_file => {
         description => 'Read the contents of a text file by site-relative path.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
             required => ['path'], additionalProperties => JSON::PP::false },
@@ -246,7 +246,7 @@ my %TOOLS = (
     },
     write_file => {
         description => 'Create or overwrite a text file with the given content.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' }, content => { type => 'string' } },
             required => [ 'path', 'content' ], additionalProperties => JSON::PP::false },
@@ -267,7 +267,7 @@ my %TOOLS = (
     },
     replace_text => {
         description => 'Edit a file by replacing exact text - safer than rewriting the whole file for a small change to a page with HTML / front matter / scripts. Replaces every occurrence of "old" with "new"; errors if "old" is not present. read_file first to copy the exact text (including whitespace).',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
                 path => { type => 'string' },
@@ -292,7 +292,7 @@ my %TOOLS = (
     },
     copy_file => {
         description => 'Copy a text file to a new path - templating a new page from an existing one. The destination starts with a fresh ACL.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { from => { type => 'string' }, to => { type => 'string' } },
             required => [ 'from', 'to' ], additionalProperties => JSON::PP::false },
@@ -305,7 +305,7 @@ my %TOOLS = (
     },
     get_permissions => {
         description => 'Read the access-control list for a path (owner + per-user / @group read & write grants). Call this before set_permissions to see the current state.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
             required => ['path'], additionalProperties => JSON::PP::false },
@@ -313,7 +313,7 @@ my %TOOLS = (
     },
     move_file => {
         description => 'Rename or move a file (carries its .brief and re-keys its ACL).',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { from => { type => 'string' }, to => { type => 'string' } },
             required => [ 'from', 'to' ], additionalProperties => JSON::PP::false },
@@ -321,7 +321,7 @@ my %TOOLS = (
     },
     delete_file => {
         description => 'Delete a file by site-relative path.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
             required => ['path'], additionalProperties => JSON::PP::false },
@@ -329,7 +329,7 @@ my %TOOLS = (
     },
     set_permissions => {
         description => 'Set the per-file ACL: owner plus read/write lists (users or @groups).',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
                 path  => { type => 'string' },
@@ -386,13 +386,13 @@ my %TOOLS = (
     },
     audit_site => {
         description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), and duplicate content blocks (the same paragraph on multiple pages, e.g. repeated reviews). Returns lists per category.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run         => sub { _audit_site() },
     },
     validate_page => {
         description => 'Check page content before saving: malformed/unterminated front matter, missing title, invalid form-field rules, and a PUBLIC-DATA warning (Wi-Fi passwords, postcodes/addresses, phone numbers) so private operational details are not published by accident. Pass content to check a draft, or path to check a saved file.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
                 path    => { type => 'string', description => 'page to validate' },
@@ -403,7 +403,7 @@ my %TOOLS = (
     },
     read_nav => {
         description => 'Read the site navigation as a structured list (top-level items with optional children) plus the raw nav.conf. Read this before set_nav to modify it.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run         => sub { _read_nav() },
     },
@@ -430,7 +430,7 @@ my %TOOLS = (
     },
     create_page => {
         description => 'Create a new page from front-matter fields (title, subtitle, register list) + Markdown body. Errors if the page already exists (use write_file to overwrite). Higher-level than assembling front matter by hand.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
                 slug     => { type => 'string', description => 'page path, e.g. things-to-do' },
@@ -444,7 +444,7 @@ my %TOOLS = (
     },
     delete_page => {
         description => 'Delete a page and its .brief, and report where its slug is still referenced (nav, other pages) so you can clean up. Generated indexes (sitemap/llms/feeds) refresh automatically.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { slug => { type => 'string' } },
             required => ['slug'], additionalProperties => JSON::PP::false },
@@ -452,7 +452,7 @@ my %TOOLS = (
     },
     rename_page => {
         description => 'Rename / move a page (carries its .brief + ACL). With update_links:true, rewrites internal links to the old path across pages (best-effort - verify with preview_page; nav.conf is not rewritten).',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
                 old => { type => 'string' }, new => { type => 'string' },
@@ -463,13 +463,13 @@ my %TOOLS = (
     },
     list_pages => {
         description => 'List the site pages with their title, public URL, and which registries (sitemap/llms/feed) each is in. A page-level view rather than a raw file list.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run         => sub { _list_pages() },
     },
     read_page => {
         description => 'Read a page as structured data: parsed front matter, the Markdown body, whether it has an authoring brief, and its public URL. Higher-level than read_file for editing a page.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string', description => 'page path, e.g. /enquire.md' } },
             required => ['path'], additionalProperties => JSON::PP::false },
@@ -477,7 +477,7 @@ my %TOOLS = (
     },
     preview_page => {
         description => 'Render a page server-side (fresh, bypassing the cache) and return its HTML, so you can verify layout / nav / form output in-channel - no web fetch needed. Renders the public view; a protected page shows the auth gate.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string', description => 'page path, e.g. /enquire' } },
             required => ['path'], additionalProperties => JSON::PP::false },
@@ -485,7 +485,7 @@ my %TOOLS = (
     },
     page_status => {
         description => 'Publish status for a page: whether the source exists, when it was last modified, whether the public HTML render is pending (cache dropped after an edit - it re-renders on the next visit), and the public URL. Use after an edit to confirm it will reach visitors.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string', description => 'page path, e.g. /enquire.md' } },
             required => ['path'], additionalProperties => JSON::PP::false },
@@ -493,7 +493,7 @@ my %TOOLS = (
     },
     search_files => {
         description => 'Search the site text files for a string (case-insensitive). Returns matching files with line numbers and snippets - use to find pages mentioning a term, links to a path, or duplicated text. Excludes the lazysite/ infrastructure and binary/asset files.',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
                 query => { type => 'string', description => 'text to search for' },
@@ -504,7 +504,7 @@ my %TOOLS = (
     },
     invalidate_cache => {
         description => 'Drop the cached HTML for a page so it re-renders on the next request. A normal write already clears the saved page; use this to force a refresh or to rebuild pages that embed another (pass "*" to clear every page).',
-        cap         => 'manage_content',
+        cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string', description => 'Page path (e.g. /enquire), or "*" for all pages' } },
             required => ['path'], additionalProperties => JSON::PP::false },
@@ -1146,16 +1146,31 @@ elsif ( $method eq 'tools/call' ) {
     my ( $user, $caps ) = verify_bearer();
     send_401($id) unless defined $user;
 
-    if ( defined $tool->{cap} && !$caps->{ $tool->{cap} } ) {
-        # Audit the denied attempt (a material security event - it was invisible
-        # before, which is why "theme activity" seemed unlogged while the connector
-        # lacked manage_themes).
+    # Compute the capability this call requires. File tools are path-aware (SM082):
+    # a theme/layout path (lazysite/layouts/**) is authorised by manage_themes /
+    # manage_layouts - matching WebDAV's path-aware gate - so a theme-only partner
+    # can edit theme files but not content; everything else keeps the tool's cap.
+    my ( $cap_ok, $need ) = ( 1, '' );
+    if ( defined $tool->{cap} ) {
+        $need   = $tool->{cap};
+        $cap_ok = $caps->{ $tool->{cap} } ? 1 : 0;
+        if ( $tool->{path_aware} ) {
+            my $a = $params->{arguments} || {};
+            my $p = $a->{path} // $a->{to} // $a->{from} // '';
+            if ( $p =~ m{^/?lazysite/layouts/} ) {
+                $need   = 'manage_themes or manage_layouts';
+                $cap_ok = ( $caps->{manage_themes} || $caps->{manage_layouts} ) ? 1 : 0;
+            }
+        }
+    }
+    unless ($cap_ok) {
+        # Audit the denied attempt (a material security event - invisible before).
         my $a = $params->{arguments} || {};
-        audit_log( $user, $name, ( $a->{path} // $a->{theme} // $a->{layout} // '' ),
-            $ENV{REMOTE_ADDR} // '', 'fail', 'mcp', "denied: needs $tool->{cap}" );
+        audit_log( $user, $name, ( $a->{path} // $a->{theme} // $a->{layout} // $a->{to} // '' ),
+            $ENV{REMOTE_ADDR} // '', 'fail', 'mcp', "denied: needs $need" );
         # SM101: a missing capability is permanent - tell the agent to stop, not retry.
-        rpc_error( $id, -32002, "Insufficient capability for $name (needs $tool->{cap}). "
-            . "Do not retry; ask the operator to grant '$tool->{cap}'." );
+        rpc_error( $id, -32002, "Insufficient capability for $name (needs $need). "
+            . "Do not retry; ask the operator to grant it." );
     }
 
     setup_context($user);

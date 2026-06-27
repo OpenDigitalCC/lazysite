@@ -279,6 +279,7 @@ if ( $token_auth ) {
         'preview-grant'     => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'config-set'        => sub { $_[0]->{manage_config} },
         'config-read'       => sub { $_[0]->{manage_config} },   # SM122: read a safe subset
+        'pages'             => sub { $_[0]->{manage_nav} },       # SM097: page-URL list for the nav editor
         # SM123: a theme/layout manager may list what is installed (was previously
         # unavailable to token clients, so they activated each in turn to discover).
         'theme-list'        => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
@@ -401,6 +402,7 @@ elsif ( $action eq 'plugin-action' )    {
     $result = action_plugin_action( $params{plugin}, $req->{script}, $req->{action_id} );
 }
 elsif ( $action eq 'nav-read' )         { $result = action_nav_read() }
+elsif ( $action eq 'pages' )            { $result = action_pages() }
 elsif ( $action eq 'nav-save' )         {
     my $req = eval { decode_json($body) } // {};
     $result = action_nav_save( $req->{items} // [] );
@@ -460,7 +462,7 @@ else  { $result = { ok => 0, error => "Unknown action: $action" } }
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
         csrf-token list read principals whoami audit version acl-get cache-list
-        cache-invalidate nav-read config-read theme-list themes-list-all themes-for-layout
+        cache-invalidate nav-read config-read pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
@@ -875,6 +877,38 @@ sub action_preview {
 # SM122: a manage_config token may read a safe subset of the site config to
 # self-diagnose (active layout/theme, whether WebDAV is on) instead of inferring
 # from HTTP codes. No secrets - just the operator-visible site settings.
+# SM097: the public-page URL list, for the nav editor's autocomplete. Walks the
+# docroot for .md/.url pages and maps each to its clean URL (about.md -> /about,
+# index.md -> /, foo/index.md -> /foo/), skipping internal trees.
+sub action_pages {
+    my @urls;
+    my $walk;
+    $walk = sub {
+        my ( $dir, $pref ) = @_;
+        opendir my $dh, $dir or return;
+        for my $e ( sort readdir $dh ) {
+            next if $e =~ /^\./;
+            my $rel  = $pref eq '' ? $e : "$pref/$e";
+            my $full = "$dir/$e";
+            if ( -d $full ) {
+                next if $rel =~ m{^(?:lazysite|cgi-bin|manager|assets|\.well-known)(?:/|$)};
+                $walk->( $full, $rel );
+            }
+            elsif ( $e =~ /\.(?:md|url)$/ ) {
+                ( my $u = $rel ) =~ s/\.(?:md|url)$//;
+                $u =~ s{(^|/)index$}{$1};   # index -> the dir itself
+                $u = "/$u";
+                push @urls, $u;
+            }
+        }
+        closedir $dh;
+    };
+    $walk->( $DOCROOT, '' );
+    my %seen;
+    @urls = grep { !$seen{$_}++ } @urls;
+    return { ok => 1, urls => [ sort @urls ] };
+}
+
 sub action_config_read {
     my %out = map { $_ => '' }
         qw(site_name site_url layout theme nav_file webdav_enabled manager
