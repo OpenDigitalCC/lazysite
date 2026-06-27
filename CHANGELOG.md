@@ -18,6 +18,27 @@ Keying
 
 ## Unreleased
 
+## 0.4.34 - Files sortable+paginated; generator meta; config toggles; dark polish (2026-06-27)
+
+Feature - file manager sortable columns + pagination (SM111)
+: Name / Access / Modified headers sort on click (with a direction indicator), and
+  directories with many entries paginate at 50 per page. Filter, sort and paging now
+  compose (the list is rendered data-driven instead of hiding DOM rows).
+
+Feature - generator meta on generated pages (SM112)
+: every rendered page gets `<meta name="generator" content="lazysite X.Y.Z">` (plus
+  author/description from front matter when present), injected into the head so it
+  works with any layout. Opt out with `meta_generator: false`.
+
+Change - config booleans are switches; disabling the manager warns (SM114)
+: Manager / WebDAV publishing / searchable-by-default render as switches rather than
+  dropdowns, and saving with the manager set to disabled now confirms first. The
+  editor breadcrumb root is a files icon instead of "/".
+
+Fix - dark-mode polish
+: brighter text in dark mode for contrast, and a baseline so every form control
+  (including unstyled ones like the theme browse) inverts with the theme.
+
 ## 0.4.33 - Dark-mode contrast fixes; plugin toggle safety (2026-06-27)
 
 Fix - dark-mode readability (live review of 0.4.32)
