@@ -295,6 +295,9 @@ if ( $token_auth ) {
         exit 0;
     }
     unless ( $check->( \%token_caps ) ) {
+        # Audit the denied attempt (was invisible before).
+        audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
+            'fail', 'api', 'denied: capability' );
         respond({ ok => 0, error => "Insufficient capability for $action" });
         exit 0;
     }

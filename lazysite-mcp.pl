@@ -1140,6 +1140,12 @@ elsif ( $method eq 'tools/call' ) {
     send_401($id) unless defined $user;
 
     if ( defined $tool->{cap} && !$caps->{ $tool->{cap} } ) {
+        # Audit the denied attempt (a material security event - it was invisible
+        # before, which is why "theme activity" seemed unlogged while the connector
+        # lacked manage_themes).
+        my $a = $params->{arguments} || {};
+        audit_log( $user, $name, ( $a->{path} // $a->{theme} // $a->{layout} // '' ),
+            $ENV{REMOTE_ADDR} // '', 'fail', 'mcp', "denied: needs $tool->{cap}" );
         # SM101: a missing capability is permanent - tell the agent to stop, not retry.
         rpc_error( $id, -32002, "Insufficient capability for $name (needs $tool->{cap}). "
             . "Do not retry; ask the operator to grant '$tool->{cap}'." );
