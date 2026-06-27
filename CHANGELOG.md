@@ -18,6 +18,24 @@ Keying
 
 ## Unreleased
 
+## 0.4.37 - Fix hidden capability toggles for operators; audit deploys; settings groups (2026-06-27)
+
+Fix - capability toggles are shown for operator accounts (SM094)
+: hiding the per-account capability toggles for manager-group (operator) accounts was
+  wrong - operator status only bypasses the cookie/UI path, so an operator account
+  that also connects with a token is still gated by these flags on the WebDAV /
+  control-API / MCP path. They are now always settable (with a note that they govern
+  the token/connector path), so a manager-group connector can be granted
+  manage_themes/manage_layouts.
+
+Feature - deploys are audited (SM117)
+: install.pl records an `installed` / `upgraded` (from -> to) event in the audit trail.
+
+Feature - a delete button on the file expand card; settings groups (SM114)
+: the per-file card gains a Delete button (single-file delete with confirm); site
+  settings are grouped under Identity / Appearance / Content / Access headers, and the
+  Files breadcrumb root is the same folder icon as the editor.
+
 ## 0.4.36 - WCAG contrast pass; setup-manager URL; README first-run (2026-06-27)
 
 Fix - colour contrast brought to WCAG (light and dark)
