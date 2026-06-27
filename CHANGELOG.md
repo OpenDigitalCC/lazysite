@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.51 - Editor survives a stale manager.css (2026-06-27)
+
+Fix - editor no longer collapses to nothing
+: the critical editor layout (fixed overlay + sized panes) is now inlined in the edit
+  page, so the editor stays usable even if the external manager.css copy is stale,
+  missing, or unreadable - the cause of "the page ends at extra, no edit box".
+
 ## 0.4.50 - Editor always shows the edit box (2026-06-27)
 
 Fix - editor no longer blank
