@@ -2157,6 +2157,19 @@ sub peek_search_default {
     return 1;
 }
 
+# Normalise a passed-through front-matter scalar for scan results: trim, strip a
+# single layer of matching surrounding quotes (so accent: "#7C5CFF" yields #7C5CFF
+# rather than the literal quotes), and strip TT markers as defence in depth.
+sub _scan_scalar {
+    my ($v) = @_;
+    return $v if ref $v;
+    $v //= '';
+    $v =~ s/^\s+|\s+$//g;
+    $v =~ s/^(['"])(.*)\1$/$2/;
+    $v =~ s/\[%|%\]//g;
+    return $v;
+}
+
 sub resolve_scan {
     my ($pattern) = @_;
 
@@ -2172,8 +2185,9 @@ sub resolve_scan {
     if ( $pattern =~ s/\s+sort=(\w+)(?:\s+(asc|desc))?//i ) {
         $sort_field = lc($1);
         $sort_dir   = lc($2) if defined $2;
-        $sort_field = 'filename'
-            unless $sort_field =~ /^(date|title|filename)$/;
+        # date/title/filename are the built-ins; any other identifier sorts on the
+        # matching (passed-through) custom front-matter key, e.g. sort=order.
+        $sort_field = 'filename' unless $sort_field =~ /^\w+$/;
     }
 
     # Pattern must be docroot-relative starting with /
@@ -2281,7 +2295,24 @@ sub resolve_scan {
             $searchable = $search_default;
         }
 
+        # Pass through custom (non-computed, non-control) front-matter keys so a
+        # scanned/registry card is self-describing - [% p.accent %], [% p.kind %],
+        # [% p.demo %], [% p.order %] - instead of smuggling data through tags.
+        # Computed fields below take precedence; control/internal keys are excluded;
+        # surrounding quotes and TT markers are stripped from scalar values.
+        my %reserved = map { $_ => 1 } qw(
+            url title subtitle date tags excerpt searchable path
+            layout theme auth register search );
+        my %custom;
+        for my $k ( keys %$meta ) {
+            next if $reserved{$k} || $k =~ /^(?:tt_|_)/;
+            my $v = $meta->{$k};
+            if    ( ref $v eq 'ARRAY' ) { $custom{$k} = [ map { _scan_scalar($_) } @$v ] }
+            elsif ( !ref $v )           { $custom{$k} = _scan_scalar($v) }
+        }
+
         push @pages, {
+            %custom,
             url        => $url,
             title      => $meta->{title}    || '',
             subtitle   => $meta->{subtitle} || '',
@@ -2332,15 +2363,20 @@ sub resolve_scan {
         } @pages;
     }
 
-    # Sort pages
+    # Sort pages. date/title/filename are built-ins; any other field sorts on the
+    # custom key (numeric-aware, so sort=order gives 2 before 10).
     my @sorted = sort {
-        my $va = $sort_field eq 'date'     ? $a->{date}
-               : $sort_field eq 'title'    ? lc($a->{title})
-               :                             $a->{path};
-        my $vb = $sort_field eq 'date'     ? $b->{date}
-               : $sort_field eq 'title'    ? lc($b->{title})
-               :                             $b->{path};
-        $sort_dir eq 'desc' ? $vb cmp $va : $va cmp $vb;
+        my ( $va, $vb );
+        if    ( $sort_field eq 'date' )     { ( $va, $vb ) = ( $a->{date}, $b->{date} ) }
+        elsif ( $sort_field eq 'title' )    { ( $va, $vb ) = ( lc( $a->{title} ), lc( $b->{title} ) ) }
+        elsif ( $sort_field eq 'filename' ) { ( $va, $vb ) = ( $a->{path}, $b->{path} ) }
+        else {
+            $va = ( defined $a->{$sort_field} && !ref $a->{$sort_field} ) ? $a->{$sort_field} : '';
+            $vb = ( defined $b->{$sort_field} && !ref $b->{$sort_field} ) ? $b->{$sort_field} : '';
+        }
+        my $cmp = ( $va =~ /^-?\d+(?:\.\d+)?$/ && $vb =~ /^-?\d+(?:\.\d+)?$/ )
+            ? ( $va <=> $vb ) : ( lc($va) cmp lc($vb) );
+        $sort_dir eq 'desc' ? -$cmp : $cmp;
     } @pages;
 
     return \@sorted;

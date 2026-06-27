@@ -80,6 +80,10 @@ plugins:
 - Environment variable: `key: ${REQUEST_SCHEME}://${SERVER_NAME}`
 - Remote URL fetch: `key: url:https://example.com/VERSION`
 - Directory scan: `key: scan:/blog/*.md sort=date desc`
+  - Recursive: `scan:/gallery/**/*.md`. Each result exposes the built-in fields
+    (url/title/subtitle/date/tags/path) **plus any custom front-matter key**
+    (`[% p.kind %]`, `[% p.accent %]`), quotes stripped. `sort=<custom-key>`
+    works and is numeric-aware (so `sort=order` gives 2 before 10).
 
 All keys that are not reserved become TT variables in views and page
 content.

@@ -29,7 +29,38 @@ for my $f ( keys %posts ) {
     close $fh;
 }
 
+# Gallery registry cards with custom front-matter keys (passthrough + sort).
+make_path("$docroot/gallery");
+my %cards = (
+    'nova.md'  => "---\ntitle: NOVA\nkind: Statement\ndemo: /nova\naccent: \"#7C5CFF\"\norder: 10\n---\nx\n",
+    'basic.md' => "---\ntitle: BASIC\nkind: Basic\ndemo: /basic\naccent: \"#1166ee\"\norder: 2\n---\ny\n",
+);
+for my $f ( keys %cards ) {
+    open my $fh, '>', "$docroot/gallery/$f" or die $!;
+    print $fh $cards{$f};
+    close $fh;
+}
+
 load_processor($docroot);
+
+# --- custom front-matter keys pass through (self-describing cards) ---
+{
+    my $pages = main::resolve_scan('/gallery/*.md');
+    my ($nova) = grep { $_->{title} eq 'NOVA' } @$pages;
+    ok( $nova, 'gallery card found' );
+    is( $nova->{kind},   'Statement', 'custom key kind passed through' );
+    is( $nova->{demo},   '/nova',     'custom key demo passed through' );
+    is( $nova->{accent}, '#7C5CFF',   'quoted hex value has its quotes stripped' );
+}
+
+# --- sort=order is numeric (2 before 10), not lexical ---
+{
+    my $pages = main::resolve_scan('/gallery/*.md sort=order');
+    is_deeply( [ map { $_->{title} } @$pages ], [ 'BASIC', 'NOVA' ],
+        'sort on a custom key is numeric-aware (order 2 before 10)' );
+    my $desc = main::resolve_scan('/gallery/*.md sort=order desc');
+    is( $desc->[0]{title}, 'NOVA', 'sort=order desc reverses' );
+}
 
 # --- basic scan returns all .md files ---
 {

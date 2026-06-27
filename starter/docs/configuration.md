@@ -287,29 +287,50 @@ In a page body:
 
 - Pattern must start with `/` (docroot-relative path)
 - Only `*.md` files are matched
-- One level of directory only - no recursive scanning
+- Recursive scanning with `**`: `scan:/gallery/**/*.md` walks subdirectories
 - Maximum 200 files per scan
 - Each result is realpath-checked - rejected if outside docroot
 
 ### Page object fields
 
-Each item in the returned array has:
+Each item in the returned array carries these built-in fields:
 
 - `url` - extensionless URI, e.g. `/blog/first-post`
 - `title` - from front matter `title:`
 - `subtitle` - from front matter `subtitle:` (may be empty)
 - `date` - from front matter `date:`, falls back to file mtime
+- `tags` - arrayref from front matter `tags:`
+- `excerpt` / `searchable` - body excerpt and the page's search flag
 - `path` - absolute filesystem path (useful for debugging)
+
+**Custom keys pass through.** Any other (non-control) front-matter key is exposed
+on the page object under the same name, so a registry card can be
+self-describing:
+
+    # /gallery/nova.md
+    title: NOVA
+    kind: Statement
+    demo: /nova
+    accent: "#7C5CFF"
+    order: 2
+
+    [% FOREACH t IN gallery %][% t.kind %] - [% t.demo %] - [% t.accent %][% END %]
+
+Surrounding quotes are stripped (so `accent: "#7C5CFF"` yields `#7C5CFF` - quote a
+value that starts with `#`, since a bare `# …` is a YAML comment), and TT markers
+are stripped for safety. Control keys (`layout`, `theme`, `auth`, `register`,
+`search`, `tt_*`) are not passed through.
 
 ### Sort order
 
 Default sort is by filename. Use the `sort=` modifier to sort by field:
 
     blog_pages: scan:/blog/*.md sort=date desc
-    news_pages: scan:/news/*.md sort=title asc
+    gallery:    scan:/gallery/**/*.md sort=order asc
 
-Sort fields: `date`, `title`, `filename`. Direction: `asc` or `desc`.
-Default direction is `asc`.
+Built-in sort fields are `date`, `title`, `filename`; **any custom key also
+sorts** (e.g. `sort=order`), and numeric values compare numerically (2 before
+10), not lexically. Direction: `asc` or `desc` (default `asc`).
 
 For reverse-chronological blog posts, use `sort=date desc`. Date-prefix
 filenames (`2026-03-20-post-title.md`) also sort chronologically by
