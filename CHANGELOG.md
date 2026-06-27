@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+## 0.4.42 - Visitor-stats plugin + dashboard (SM083) (2026-06-27)
+
+Feature - visitor statistics from the access log (SM083)
+: a read-only, opt-in plugin (Visitor Stats) parses the web server access log into
+  on-site analytics - hits, unique visitors, top pages, referrers, status codes and
+  per-day counts over a configurable window, with bot filtering and IP anonymisation.
+  A new manager Stats page renders the dashboard (tiles, a per-day bar chart, top
+  tables). It complements the audit trail, which records material actions only.
+
 ## 0.4.41 - WebDAV route health check (SM121) (2026-06-27)
 
 Feature - WebDAV /dav/ health check
