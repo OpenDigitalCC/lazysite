@@ -2958,7 +2958,13 @@ sub _inject_auth_sync {
         . 'i=document.querySelectorAll("[data-ls-auth-in]"),k;'
         . 'for(k=0;k<o.length;k++)o[k].style.display=on?"":"none";'
         . 'for(k=0;k<i.length;k++)i[k].style.display=on?"none":"";})();</script>';
-    $html =~ s{</body>}{$script</body>}i;
+    # Inject before the LAST </body>, not the first: a page can legitimately
+    # carry a literal "</body>" inside a JS string (e.g. the editor builds an
+    # iframe srcdoc: frame.srcdoc = '...</body></html>'). Splicing a
+    # <script>...</script> in there closes the page's own inline <script> early
+    # - "SyntaxError: literal not terminated" - and kills the whole script. The
+    # negative lookahead anchors the match to the document's real closing tag.
+    $html =~ s{</body>(?![\s\S]*</body>)}{$script</body>}i;
     return $html;
 }
 
