@@ -18,6 +18,26 @@ Keying
 
 ## Unreleased
 
+## 0.4.40 - Per-page theme override; config + theme self-service; brief CLI (2026-06-27)
+
+Feature - per-page theme: override (SM120)
+: a page can pin a theme in front matter (`theme:`), preview-only and sanitised like
+  `layout:`, falling back to the active theme. A theme explorer or single-page theme
+  preview is now a one-line change, not a bespoke layout.
+
+Feature - config self-service for tokens (SM122)
+: a `config-read` action lets a manage_config token read a safe subset (layout, theme,
+  webdav_enabled, ...) to self-diagnose, and `config-set` accepts an injection-checked
+  safe subset (webdav_enabled, layout, theme, nav_file).
+
+Feature - theme discovery (SM123)
+: token clients can list installed themes/layouts, and a new MCP `list_themes` tool
+  returns the themes installed across all layouts - no more activating each to discover.
+
+Feature - brief CLI + access-plane note (SM124)
+: `lazysite-users.pl brief USERNAME` prints the agent onboarding brief, and the brief
+  now states that token capabilities are independent of manager-group/operator status.
+
 ## 0.4.39 - Audit filter dropdowns; read-only data files (2026-06-27)
 
 Feature - audit filters are value dropdowns (SM119)
