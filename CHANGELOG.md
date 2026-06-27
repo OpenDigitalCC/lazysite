@@ -18,6 +18,22 @@ Keying
 
 ## Unreleased
 
+## 0.4.35 - Dark editor palette; manager-groups picker (2026-06-27)
+
+Feature - readable dark editor colours (SM116)
+: the CodeMirror Markdown/YAML editor gets a dark colour scheme - headings in a light
+  green (were a vivid blue, unreadable on dark), bright bold, accent links, and
+  softened red/orange tokens. Light mode keeps the bundled theme.
+
+Feature - Manager access groups is a picker (SM114)
+: the field is now checkboxes of existing groups (a hidden input carries the
+  comma-separated value the backend expects) rather than free text, with a
+  "create one on Users" note when none exist.
+
+Change - sorting a file column keeps your page
+: clicking a column header re-sorts in place and stays on the current page instead of
+  jumping back to page 1.
+
 ## 0.4.34 - Files sortable+paginated; generator meta; config toggles; dark polish (2026-06-27)
 
 Feature - file manager sortable columns + pagination (SM111)
