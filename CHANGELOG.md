@@ -18,6 +18,22 @@ Keying
 
 ## Unreleased
 
+## 0.4.33 - Dark-mode contrast fixes; plugin toggle safety (2026-06-27)
+
+Fix - dark-mode readability (live review of 0.4.32)
+: most "doesn't invert" reports traced to page styles using `var(--mg-bg-alt, #f6f6f6)`
+  with no such token defined - aliasing the legacy names to real tokens repairs the
+  Users instruction pane, Backups panel, file-row expand box, onboarding cards and
+  chips in dark mode. Links are now tokenised (were browser blue/purple, unreadable on
+  dark, esp. visited); sidebar group titles are stronger than their items; ghost
+  buttons (download / add brief) are no longer feint; r/w flags are bolder; chips,
+  badge/editor greens, the footer and the code box are tokenised; and the CodeMirror
+  editors ("extra" + content) get a dark variant.
+
+Fix - plugins toggle no longer flips by accident
+: the plugin row was a `<label>`, so a click anywhere toggled enable/disable. It is
+  now a `<div>` - only the switch toggles.
+
 ## 0.4.32 - Manager UI: side-nav, command palette, dark mode (SM109 phases 4-6) (2026-06-26)
 
 Feature - grouped left sidebar
