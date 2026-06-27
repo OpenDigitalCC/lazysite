@@ -660,3 +660,33 @@ Documentation deliverables
     is honoured by the test clients.
 11. Each phase ends green with a five-dimension non-functional close-out and a
     lazysite-layouts alignment review recorded before hand-off.
+
+## Close-out audit (2026-06-27)
+
+**SHIPPED in full across v0.4.x.** All three phases are implemented in the tree and the
+eleven acceptance criteria are met; the two `[DEFER]` items remain deliberately unbuilt.
+Verified against the code on 2026-06-27.
+
+```datatable
+columns: AC | Met by | Evidence
+widths: 1cm | X | 7.5cm
+bold: 1
+tone: medium
+---
+1 | Yes | Preview render override (lazysite-processor.pl PREVIEW_CONTEXT + no-store), edit-inactive over DAV/control API, activate with auto-snapshot (Manager::Themes action_theme_activate + _backup snapshot). t/.../06-preview.t, 11-activate-backup.t.
+2 | Yes | Back-out is activate on a backup; live is never written file-by-file (the pointer flips). 20-backups.t.
+3 | Yes | lazysite-dav.pl authorise_layout: active theme/layout read-only, inactive writable per manage_themes/manage_layouts, rest of lazysite/ denied; dav_scope confines content only. 08-layout-authz.t.
+4 | Yes | activate validates, is conditional on the base manifest (409 drift), takes an artifact lock (423), invalidates cache; lzs:sha256 manifest (Digest::SHA, action_artifact_manifest/validate).
+5 | Yes | Layouts share the lifecycle; compatible-pair check + layout.tt-compiles gate (Manager::Themes ~314/363); manage_layouts independently grantable. 12-layout-activate.t.
+6 | Yes | action_config_set allowlist (extended safely in SM122); security-sensitive keys refused.
+7 | Yes | created_by/created_at/managed_by on every account; create_sub_users + delegate_sub_user_creation gate creation and its passing-on (tools/lazysite-users.pl).
+8 | Yes | account-disable/enable with cascade, account-reassign within sub-tree (managed_by), ancestry authorisation; disabled accounts fail auth (lazysite-auth.pl account_disabled). reassign leaves created_by intact.
+9 | Yes | Token lifecycle model A: expires_at, single-use pairing-key exchange, rotation; partner-create + downloadable onboarding brief (now also `brief` CLI, SM124). 06-token-lifecycle.t.
+10 | Yes | 409 / 423 / 429 / 503 carry Retry-After; per-token rate bucket; documented backoff (SM101 do-not-retry).
+11 | Yes | Each phase shipped green with the five-dimension close-out; lazysite-layouts alignment handled (theme-mirror, layouts-browser).
+```
+
+Deferred (by design, not regressions): rich layout-metadata / manifest schema beyond the
+`layouts[]` gate, and multi-draft merge/diff tooling. These remain future cycles.
+
+Net: SM071 is delivered. No outstanding implementation work; close.
