@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.55 - Deploy reloads nginx for fresh static assets (2026-06-27)
+
+Fix - nginx serves refreshed assets after upgrade
+: the deploy reloads nginx after updating files, so its open_file_cache picks up the
+  new manager.css / CodeMirror assets immediately (a stale cache had been serving a
+  truncated stylesheet, leaving the editor unstyled). Pairs with the 0.4.54 cache-buster.
+
 ## 0.4.54 - Cache-buster on manager assets (2026-06-27)
 
 Feature - versioned manager assets
