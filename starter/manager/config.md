@@ -54,7 +54,7 @@ var SITE_SCHEMA = [
   { key: 'manager_path',   label: 'Manager URL path',      type: 'text',
     default: '/manager',
     show_when: { key: 'manager', value: ['enabled'] } },
-  { key: 'manager_groups', label: 'Manager access groups', type: 'text',
+  { key: 'manager_groups', label: 'Manager access groups', type: 'groups',
     default: '',
     show_when: { key: 'manager', value: ['enabled'] } },
   { key: 'webdav_enabled', label: 'WebDAV publishing', type: 'toggle',
@@ -64,6 +64,8 @@ var SITE_SCHEMA = [
 // SM044: populated by parallel fetch of layouts-available at load time.
 // Null means "not yet loaded"; [] means "loaded, but none installed".
 var availableLayouts = null;
+// SM114: existing groups, for the Manager access groups picker.
+var availableGroups = null;
 
 function esc(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -84,10 +86,17 @@ function loadSiteSettings() {
   var layoutsPromise = fetch(API + '?action=layouts-available')
     .then(function(r) { return r.json(); });
 
-  Promise.all([readPromise, layoutsPromise])
+  // SM114: existing groups for the Manager access groups picker.
+  var groupsPromise = fetch(API + '?action=users', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'groups' })
+    }).then(function(r) { return r.json(); }).catch(function() { return {}; });
+
+  Promise.all([readPromise, layoutsPromise, groupsPromise])
     .then(function(results) {
       var data = results[0];
       var layoutsResp = results[1];
+      var groupsResp = results[2];
       var container = document.getElementById('site-settings');
       if (!data.ok) {
         mgShowWarning(data.error || 'Failed to load site settings', true);
@@ -98,6 +107,9 @@ function loadSiteSettings() {
 
       availableLayouts = (layoutsResp && layoutsResp.ok && layoutsResp.layouts)
         ? layoutsResp.layouts
+        : [];
+      availableGroups = (groupsResp && groupsResp.ok && groupsResp.groups)
+        ? Object.keys(groupsResp.groups).sort()
         : [];
 
       var values = data.values || {};
@@ -189,6 +201,23 @@ function renderSiteForm(values) {
       html += '<input type="hidden" name="'+f.key+'" id="cfg-'+esc(f.key)+'" value="'+esc(isOn?onVal:offVal)+'">';
       html += '<label class="mg-chk"><input type="checkbox" class="mg-toggle"'+(isOn?' checked':'')
            +  ' onchange="var h=document.getElementById(\'cfg-'+esc(f.key)+'\'); h.value=this.checked?\''+onVal+'\':\''+offVal+'\'; applyShowWhen(this.form);"></label>';
+    } else if (f.type === 'groups') {
+      // SM114: pick from existing groups; a hidden input carries the
+      // comma-separated string the backend expects.
+      var picked = String(v || '').split(/[,\s]+/).filter(Boolean);
+      var groups = availableGroups || [];
+      html += '<input type="hidden" name="'+f.key+'" id="cfg-'+esc(f.key)+'" value="'+esc(v||'')+'">';
+      html += '<div class="mg-groups-pick" id="grp-'+esc(f.key)+'">';
+      if (!groups.length) {
+        html += '<span class="mg-muted">No groups yet &mdash; create one on the <a href="/manager/users">Users</a> page.</span>';
+      } else {
+        groups.forEach(function(g) {
+          var on = picked.indexOf(g) !== -1;
+          html += '<label class="mg-chk"><input type="checkbox" value="'+esc(g)+'"'+(on?' checked':'')
+               +  ' onchange="updateGroupsField(\''+esc(f.key)+'\')"> @'+esc(g)+'</label>';
+        });
+      }
+      html += '</div>';
     } else if (f.type === 'select') {
       html += '<select name="'+f.key+'" onchange="applyShowWhen(this.form)">';
       (f.options||[]).forEach(function(o) { html += '<option'+(v===o?' selected':'')+'>'+o+'</option>'; });
@@ -260,6 +289,17 @@ function applyShowWhen(container) {
     var show = vals.indexOf(cur) !== -1;
     f.style.display = show ? 'flex' : 'none';
   }
+}
+
+// SM114: aggregate the checked group boxes into the hidden comma-separated value.
+function updateGroupsField(key) {
+  var box = document.getElementById('grp-' + key);
+  var hidden = document.getElementById('cfg-' + key);
+  if (!box || !hidden) return;
+  var checked = [];
+  var boxes = box.querySelectorAll('input[type="checkbox"]');
+  for (var i = 0; i < boxes.length; i++) { if (boxes[i].checked) checked.push(boxes[i].value); }
+  hidden.value = checked.join(', ');
 }
 
 function saveSiteSettings(e) {

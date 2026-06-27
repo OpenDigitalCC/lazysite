@@ -391,8 +391,7 @@ function rowHtml(f) {
 function setSort(col) {
   if (fileSort.col === col) fileSort.dir = -fileSort.dir;
   else { fileSort.col = col; fileSort.dir = 1; }
-  filePage = 0;
-  paintFiles();
+  paintFiles();   // re-sort in place; stay on the current page
 }
 
 function updateSortIndicators() {

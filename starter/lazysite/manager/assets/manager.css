@@ -1663,3 +1663,29 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
 .mg-main select:focus, .mg-main input:focus {
   outline: none; border-color: var(--mg-accent); box-shadow: var(--mg-focus-ring);
 }
+
+/* SM114: Manager access groups picker */
+.mg-groups-pick { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; align-items: center; }
+
+/* SM116: a readable dark colour scheme for the CodeMirror Markdown/YAML editor.
+   The bundled light theme's headings are a vivid blue (unreadable on dark) and its
+   red/orange are harsh; retune for contrast on the dark surface. Light mode keeps
+   the bundled theme. */
+[data-theme="dark"] .CodeMirror .cm-header   { color: #95d6a4; font-weight: 600; }   /* headings - light green */
+[data-theme="dark"] .CodeMirror .cm-strong   { color: #fbfbfa; font-weight: 700; }   /* bold - bright */
+[data-theme="dark"] .CodeMirror .cm-em       { color: #d6bcfa; font-style: italic; } /* italic - soft violet */
+[data-theme="dark"] .CodeMirror .cm-link,
+[data-theme="dark"] .CodeMirror .cm-url      { color: #93a4ff; }                      /* links - light indigo */
+[data-theme="dark"] .CodeMirror .cm-quote    { color: #b0aaa3; font-style: italic; }
+[data-theme="dark"] .CodeMirror .cm-comment  { color: #8f8983; }
+[data-theme="dark"] .CodeMirror .cm-string   { color: #a5d6a7; }                      /* strings - green */
+[data-theme="dark"] .CodeMirror .cm-keyword,
+[data-theme="dark"] .CodeMirror .cm-tag,
+[data-theme="dark"] .CodeMirror .cm-builtin  { color: #f0a6a6; }                      /* soft red, not vivid */
+[data-theme="dark"] .CodeMirror .cm-atom,
+[data-theme="dark"] .CodeMirror .cm-number   { color: #f3c178; }                      /* softer orange */
+[data-theme="dark"] .CodeMirror .cm-variable-2,
+[data-theme="dark"] .CodeMirror .cm-attribute,
+[data-theme="dark"] .CodeMirror .cm-property { color: #86d2e6; }
+[data-theme="dark"] .CodeMirror .cm-hr,
+[data-theme="dark"] .CodeMirror .cm-formatting { color: #8f8983; }                     /* markdown markers dimmed */
