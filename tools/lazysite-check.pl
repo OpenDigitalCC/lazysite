@@ -18,7 +18,7 @@ use Cwd qw(abs_path);
 use File::Find ();
 
 my %opt = ( docroot => undef, cgibin => undef, owner => undef,
-            group => undef, fix => 0 );
+            group => undef, fix => 0, check_dav => undef );
 while ( @ARGV ) {
     my $a = shift @ARGV;
     if    ( $a eq '--docroot' ) { $opt{docroot} = shift @ARGV }
@@ -26,6 +26,7 @@ while ( @ARGV ) {
     elsif ( $a eq '--owner' )   { $opt{owner}   = shift @ARGV }
     elsif ( $a eq '--group' )   { $opt{group}   = shift @ARGV }
     elsif ( $a eq '--fix' )     { $opt{fix}     = 1 }
+    elsif ( $a eq '--check-dav' ) { $opt{check_dav} = shift @ARGV }
     elsif ( $a eq '--help' )    { usage(); exit 0 }
     else { print STDERR "lazysite-check: unknown option: $a\n"; exit 2 }
 }
@@ -41,6 +42,8 @@ Usage: perl tools/lazysite-check.pl --docroot PATH [options]
   --owner USER     expected owner (default: the owner of the docroot)
   --group GROUP    expected group (default: the group of the docroot)
   --fix            apply the safe fixes (chmod always; chown only as root)
+  --check-dav URL  probe URL/dav/ unauthenticated; expect 401 (route wired), not
+                   404 (route missing - the web server / proxy does not forward /dav/)
   --help           this help
 
 Exit status is non-zero if any check FAILs.
@@ -300,6 +303,36 @@ else {
         elsif ( !$have_pw )  { report( 'WARN', "manager user has no password (localhost-only)",
                                        "perl tools/lazysite-users.pl --docroot '$DOC' setup-manager" ) }
         else                 { report( 'OK', "manager bootstrapped (group + user + password)" ) }
+    }
+}
+
+# --- 8. WebDAV route health (SM121, opt-in) ----------------------------------
+# A wired /dav/ challenges with 401 even unauthenticated; a missing route 404s.
+# 404-vs-401 is the fastest way to tell "web server / proxy doesn't forward /dav/"
+# (provisioning) from an auth/scope problem.
+if ( defined $opt{check_dav} ) {
+    my $u = $opt{check_dav};
+    $u =~ s{/+$}{};
+    if ( $u !~ m{^https?://\S+$} ) {
+        report( 'WARN', "--check-dav needs an http(s):// URL; skipping the WebDAV probe" );
+    }
+    else {
+        my $code = '';
+        # list-form open: no shell, so the URL can't inject. -k tolerates a fresh cert.
+        if ( open my $ph, '-|', 'curl', '-sS', '-k', '-o', '/dev/null',
+             '-w', '%{http_code}', '--max-time', '8', "$u/dav/" ) {
+            local $/; $code = <$ph> // ''; close $ph;
+        }
+        $code =~ s/\D//g;
+        if    ( $code eq '401' ) { report( 'OK', "WebDAV /dav/ is routed (401 challenge at $u/dav/)" ) }
+        elsif ( $code eq '404' ) {
+            report( 'FAIL',
+                "WebDAV /dav/ returns 404 at $u/dav/ - the web server / proxy is not forwarding "
+              . "/dav/ to lazysite-dav.pl (route missing, not an auth problem)",
+                "wire /dav/ -> cgi-bin/lazysite-dav.pl in the vhost (and the nginx proxy if used), then reload" );
+        }
+        elsif ( $code eq '' ) { report( 'WARN', "WebDAV /dav/ probe got no response (curl missing or host unreachable)" ) }
+        else                  { report( 'WARN', "WebDAV /dav/ returned $code at $u/dav/ (expected 401)" ) }
     }
 }
 

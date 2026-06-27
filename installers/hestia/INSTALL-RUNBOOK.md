@@ -338,3 +338,36 @@ name, so vanilla clients never pay the hashing cost.
   `403.md`.
 - Consider shipping the `lazysite-app` Hestia template (php-fpm backend)
   + this runbook in `installers/hestia/`.
+
+## WebDAV route (/dav/) - provisioning and health check (SM121)
+
+The Apache vhost template wires WebDAV with `ScriptAlias /dav` ->
+`cgi-bin/lazysite-dav.pl`, and `lazysite-dav.pl` does its own Basic auth and
+honours `webdav_enabled` in `lazysite.conf`. So once the apache2 backend is in
+place, `/dav/` should answer with **401** even unauthenticated (an auth
+challenge), never **404**.
+
+If `/dav/` returns a **404 even unauthenticated**, the web server / nginx proxy
+is not forwarding `/dav/` to Apache - a route/provisioning problem, not auth.
+This has been seen when the proxy (nginx in front of apache2) serves `/dav/` as
+a static path instead of proxying it, or when the domain was created
+nginx-only (no apache2 backend - lazysite requires `WEB_SYSTEM=apache2`).
+
+**Health check** (the fast 404-vs-401 diagnostic):
+
+```bash
+perl tools/lazysite-check.pl --docroot "$DOC" --check-dav "https://your-domain"
+# OK   -> WebDAV /dav/ is routed (401 challenge)
+# FAIL -> 404: the proxy/web-server is not forwarding /dav/ (wire it + reload)
+```
+
+or by hand:
+
+```bash
+curl -sS -k -o /dev/null -w '%{http_code}\n' https://your-domain/dav/   # want 401
+```
+
+To fix a 404: confirm the domain uses the apache2 backend (so the
+`ScriptAlias /dav` template applies), and that the nginx proxy template
+forwards `/dav/` (and `/cgi-bin/`) to Apache rather than serving them as static.
+Reload the web server after changes.

@@ -22,4 +22,6 @@ should return **401, not 404** - the fastest way to tell "route missing" from
 
 ## Status
 
+**Partially SHIPPED in v0.4.41**: the doctor gains `--check-dav URL` (the 401-vs-404 health check) and the runbook documents the route requirement. Auto-wiring the proxy is environment-specific (the Apache template already wires /dav; a 404 is the nginx/proxy layer, now diagnosable).
+
 Queued. Spans the Hestia/web-server template + a doctor probe. High value - recurring.
