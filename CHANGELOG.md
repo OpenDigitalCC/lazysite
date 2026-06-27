@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.52 - Upgrades leave the Hestia template untouched (2026-06-27)
+
+Fix - upgrade no longer changes Hestia template state
+: the per-site deploy applies the lazysite-app web template on first-time setup only
+  (no install marker); an upgrade refreshes code/content/perms and leaves the domain's
+  web template assignment alone, so a deliberately-changed template is not reverted.
+  Force a re-apply with LAZYSITE_APPLY_TEMPLATE=1.
+
 ## 0.4.51 - Editor survives a stale manager.css (2026-06-27)
 
 Fix - editor no longer collapses to nothing
