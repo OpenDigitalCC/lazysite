@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.53 - Manager CSS refreshes on upgrade (editor fix) (2026-06-27)
+
+Fix - stale manager.css
+: the manager stylesheet is now shipped to the web-served /manager/assets/ directly by
+  the manifest (code bucket), so every upgrade refreshes it. A deployed site had been
+  serving a pre-SM109 manager.css - which left the editor (and the rest of the manager)
+  unstyled. The old install.pl copy-to-assets step that could go stale is removed.
+
 ## 0.4.52 - Upgrades leave the Hestia template untouched (2026-06-27)
 
 Fix - upgrade no longer changes Hestia template state
