@@ -18,6 +18,18 @@ Keying
 
 ## Unreleased
 
+## 0.4.45 - Auth audit completeness + self-service/OAuth docs (2026-06-27)
+
+Verified - self-service credentials / TOTP MFA (SM072) and OAuth 2.1 (SM076)
+: both confirmed fully built, tested, and audited; stale doc statuses corrected.
+
+Fix - audit names the plugin
+: plugin-enable/disable/save now record WHICH plugin (was '/'); /forgot records a
+  `forgot` event when a reset link is emailed.
+
+Docs - self-service credentials and two-factor
+: starter/docs/auth.md documents setup links, reset, forgot-password, TOTP, and expiry.
+
 ## 0.4.44 - Operator notifications (SM113) (2026-06-27)
 
 Feature - operator notifications (SM113)
