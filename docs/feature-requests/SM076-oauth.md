@@ -116,3 +116,7 @@ in the tree, with tests at t/unit/oauth/01-discovery.t and 02-flow.t. Claude.ai 
 the OAuth flow (connect code, no token paste); Claude Code / Desktop keep the static
 bearer. An earlier note here that called OAuth "future" was mistaken - it referred to the
 static-bearer fallback, which is the developer path, not the absence of OAuth.
+
+## Status: SHIPPED
+
+Complete (2026-06-24) - lazysite-oauth.pl + Lazysite::Auth::OAuth, all five stages, tests at t/unit/oauth/. Verified live this session.

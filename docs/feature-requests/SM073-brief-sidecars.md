@@ -106,3 +106,7 @@ tone: medium
 - Hard enrolment gate (reject a content PUT without a brief) - `[DEFER]`; v1 is encouraged-and-visible.
 - Structured/validated brief schema - `[DEFER]`; the format is a documented convention, parsed leniently.
 - Per-file ACLs keyed off the brief - tracked separately (the roadmap "per-page ownership + per-file ACLs" item); the sidecar model here is a natural carrier for it later.
+
+## Status (reconciled)
+
+**SHIPPED.** Per-file .brief sidecars: authored beside any file (`<file>.brief`), surfaced in the Files page (is_brief / brief view in Manager::Files), denied at the origin so they never serve publicly. Pinned by t/integration/05-brief-sidecar.t.
