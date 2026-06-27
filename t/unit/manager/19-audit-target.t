@@ -55,6 +55,25 @@ is( main::_audit_plugin_target( {}, '{"script":"/x/plugins/form-handler.pl"}' ),
 is( main::_audit_plugin_target( {}, '{"script":"form-smtp"}' ),
     'form-smtp', 'plugin target from a bare script name' );
 is( main::_audit_plugin_target( {}, undef ), '', 'no plugin info -> empty target' );
+is( main::_audit_implicit_target('nav-save'), 'nav', 'nav-save audit target is nav, not /' );
+is( main::_audit_implicit_target('save'),     '',    'actions with a real path have no implicit target' );
+
+# --- date-range filter (start/end) on the audit page ---
+{
+    open my $lh, '>>', "$d/lazysite/logs/audit.log" or die $!;
+    print $lh "2026-01-05T10:00:00Z | dave | save | content/jan.md | 1.1.1.1 | ok | ui\n";
+    print $lh "2026-06-15T10:00:00Z | dave | save | content/jun.md | 1.1.1.1 | ok | ui\n";
+    print $lh "2026-12-20T10:00:00Z | dave | save | content/dec.md | 1.1.1.1 | ok | ui\n";
+    close $lh;
+    my $jun = main::action_audit( start => '2026-06-01', end => '2026-06-30' )->{entries};
+    my @t = sort map { $_->{target} } grep { $_->{user} eq 'dave' } @$jun;
+    is_deeply( \@t, ['content/jun.md'], 'date range returns only entries within [start,end]' );
+    my $from = main::action_audit( start => '2026-06-01' )->{entries};
+    ok( ( grep { $_->{target} eq 'content/dec.md' } @$from ),
+        'open-ended start includes later entries' );
+    ok( !( grep { ( $_->{target} // '' ) eq 'content/jan.md' } @$from ),
+        'start excludes earlier entries' );
+}
 is( $ui->{origin}, 'ui',  'SM077: cookie action recorded as origin=ui' );
 is( $api->{origin}, 'api', 'SM077: token action recorded as origin=api' );
 

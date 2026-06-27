@@ -18,6 +18,10 @@ query_params:
   <select id="audit-user" class="mg-inp" style="max-width:12rem" onchange="filterAudit()"><option value="">(all users)</option></select>
   <label for="audit-target-f">Target</label>
   <select id="audit-target-f" class="mg-inp" style="max-width:18rem" onchange="filterAudit()"><option value="">(all targets)</option></select>
+  <label for="audit-from">From</label>
+  <input type="date" id="audit-from" class="mg-inp" style="max-width:10rem" onchange="filterAudit()">
+  <label for="audit-to">To</label>
+  <input type="date" id="audit-to" class="mg-inp" style="max-width:10rem" onchange="filterAudit()">
   <button class="mg-btn mg-btn-sm" onclick="clearAuditFilter()">Clear</button>
   <button class="mg-btn mg-btn-sm" onclick="loadAudit()">Refresh</button>
 </div>
@@ -43,6 +47,8 @@ function filterAudit() {
 function clearAuditFilter() {
   document.getElementById('audit-user').value = '';
   document.getElementById('audit-target-f').value = '';
+  document.getElementById('audit-from').value = '';
+  document.getElementById('audit-to').value = '';
   auditTarget = ''; auditPage = 1; loadAudit();
 }
 
@@ -117,11 +123,15 @@ function paginationHtml(d) {
 function loadAudit() {
   var u = document.getElementById('audit-user').value;
   var t = document.getElementById('audit-target-f').value;
+  var from = document.getElementById('audit-from').value;
+  var to   = document.getElementById('audit-to').value;
   auditTarget = t;   // kept for the scope note
   var url = '/cgi-bin/lazysite-manager-api.pl?action=audit'
           + '&page=' + auditPage + '&per_page=50'
           + (u ? ('&user=' + encodeURIComponent(u)) : '')
-          + (t ? ('&target=' + encodeURIComponent(t)) : '');
+          + (t ? ('&target=' + encodeURIComponent(t)) : '')
+          + (from ? ('&start=' + encodeURIComponent(from)) : '')
+          + (to ? ('&end=' + encodeURIComponent(to)) : '');
   fetch(url).then(function (r) { return r.json(); }).then(function (d) {
     var el = document.getElementById('audit-table');
     if (!d.ok) { el.textContent = d.error || 'Failed to load.'; return; }

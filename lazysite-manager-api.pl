@@ -412,7 +412,7 @@ elsif ( $action eq 'nav-save' )         {
 elsif ( $action eq 'handler-list' )     { $result = action_handler_list() }
 elsif ( $action eq 'version' )          { $result = action_version() }
 elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
-elsif ( $action eq 'audit' )            { $result = action_audit( user => $params{user}, target => $params{target}, page => $params{page}, per_page => $params{per_page} ) }
+elsif ( $action eq 'audit' )            { $result = action_audit( user => $params{user}, target => $params{target}, start => $params{start}, end => $params{end}, page => $params{page}, per_page => $params{per_page} ) }
 elsif ( $action eq 'handler-save' )     {
     my $req = eval { decode_json($body) } // {};
     $result = action_handler_save($req);
@@ -493,6 +493,13 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     if ( $action =~ /^plugin-/ ) {
         my $plugin = _audit_plugin_target( \%params, $body );
         $aud_target = $plugin if length $plugin;
+    }
+
+    # Actions with no path/key but a well-known target (nav-save edits the site
+    # navigation) - record that instead of a bare '/'.
+    my $imp = _audit_implicit_target($action);
+    if ( length $imp && ( !length $aud_target || $aud_target eq '/' ) ) {
+        $aud_target = $imp;
     }
 
     # Meaningful file events: a save is a create (new file) or an edit.
@@ -938,6 +945,14 @@ sub action_notices_seen {
 # Derive a plugin's name for the audit target: the plugin param if present,
 # else the body's script basename (form-handler.pl -> form-handler). Returns ''
 # when neither is available.
+# Well-known audit target for an action that carries no path/key of its own
+# (nav-save edits the site navigation). '' = no implicit target.
+sub _audit_implicit_target {
+    my ($action) = @_;
+    my %implicit = ( 'nav-save' => 'nav' );
+    return $implicit{ $action // '' } // '';
+}
+
 sub _audit_plugin_target {
     my ( $params, $body ) = @_;
     my $plugin = $params->{plugin} // '';
@@ -1132,6 +1147,17 @@ sub action_audit {
     close $fh;
     my $want   = $opt{user};
     my $want_t = $opt{target};    # SM077: filter to one file's history
+    # Date-range filter: timestamps are ISO (2026-06-27T14:47:24Z) so they sort
+    # lexically. A bare date widens to the whole day (start -> 00:00, end -> 23:59).
+    my ( $start, $end ) = ( $opt{start}, $opt{end} );
+    for my $b ( [ \$start, 'T00:00:00Z' ], [ \$end, 'T23:59:59Z' ] ) {
+        my ( $ref, $pad ) = @$b;
+        if ( defined $$ref && length $$ref ) {
+            $$ref =~ s/[^0-9T:Z+-].*\z//;             # keep ISO-ish chars only
+            $$ref .= $pad if $$ref =~ /\A\d{4}-\d\d-\d\d\z/;
+        }
+        else { $$ref = undef }
+    }
     my @entries;
     my ( %fusers, %ftargets );    # SM119: distinct values for the filter dropdowns
     for my $line ( reverse @lines ) {
@@ -1153,6 +1179,8 @@ sub action_audit {
         if ( defined $want_t && length $want_t ) {
             next if $want_t eq '__none' ? length( $target // '' ) : ( $target // '' ) ne $want_t;
         }
+        next if defined $start && ( $ts // '' ) lt $start;
+        next if defined $end   && ( $ts // '' ) gt $end;
         push @entries, { ts => $ts, user => $u, action => $act,
             target => $target, ip => $ip, status => $status, origin => $origin, detail => $detail };
         last if @entries >= 5000;    # bound the scan; paginate within
