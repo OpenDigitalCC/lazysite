@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.64 - Content components phase 1 (2026-06-28)
+
+Feature - layout-local components + markdown filter
+: the layout template engine now resolves [% INCLUDE 'components/NAME.tt' %]
+  against the active layout directory and exposes a `markdown` filter, so layouts
+  can frame Markdown in reusable partials. Foundation for authoring expressive
+  pages as plain Markdown.
+
 ## 0.4.63 - Fix: stats nav hidden while enabled (2026-06-28)
 
 Fix - Visitor statistics nav gate
