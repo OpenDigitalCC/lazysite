@@ -80,15 +80,19 @@ for sec in auth/.secret forms/.secret manager/.csrf-secret \
   [ -f "$DOC/lazysite/$sec" ] && chmod 660 "$DOC/lazysite/$sec"
 done
 
-# nginx serves the static manager assets (manager.css, cm/*) directly and caches
-# the open file handle + size (open_file_cache). After an upgrade refreshes those
-# files, a stale cache entry serves a truncated stylesheet/JS - the manager (the
-# editor worst) renders unstyled until nginx re-reads them. Reload nginx so it
-# picks up the new files immediately.
-if command -v systemctl >/dev/null 2>&1; then
+# Optional: reload nginx after an upgrade. nginx serves the static manager assets
+# (manager.css, cm/*) directly and, IF open_file_cache is enabled, can briefly
+# serve a stale size for a just-rewritten file until the cache entry expires
+# (open_file_cache_valid, default 60s). open_file_cache is off by default in
+# nginx and self-heals when on, so this is opt-in, not the norm - the ?v=<version>
+# cache-buster on the asset URLs already handles the browser side. Enable with
+# LAZYSITE_RELOAD_NGINX=1 only if your nginx has open_file_cache on and you don't
+# want to wait out its validity window.
+if [ -n "${LAZYSITE_RELOAD_NGINX:-}" ] && command -v systemctl >/dev/null 2>&1; then
+  echo "==> reloading nginx (LAZYSITE_RELOAD_NGINX set)"
   systemctl reload nginx 2>/dev/null \
     || systemctl reload-or-restart nginx 2>/dev/null \
-    || echo "  (could not reload nginx automatically - run: systemctl restart nginx)"
+    || echo "  (could not reload nginx automatically - run: systemctl reload nginx)"
 fi
 
 # index.html is handled by the template hook (install-hestia.sh): it clears only
