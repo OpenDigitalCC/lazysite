@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+## 0.4.62 - Visitor statistics: traffic classifier + privacy (2026-06-28)
+
+Feature - classified visitor statistics
+: the stats plugin now separates real people from AI assistants, bots, probe
+  noise and the logged-in operator (log-only heuristics), splits referrers into
+  external/internal/direct, links top pages, hides the nav item when the plugin
+  is disabled, stops exposing the log file path, and offers an operator-only raw
+  log download.
+
 ## 0.4.61 - Manager UI consistency (titles, naming, audit UX) (2026-06-28)
 
 Change - consistent manager pages
