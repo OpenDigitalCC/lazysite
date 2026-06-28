@@ -54,31 +54,11 @@ identity in both domains; only <em>where</em> it is granted differs.
 </details>
 </div>
 
-<div class="mg-card">
-<div class="mg-card-header">
-<span class="mg-card-title">Groups</span>
-</div>
-<div id="groups-info" class="mg-acc-list">Loading...</div>
-<details class="mg-add-card" style="margin:0.5rem;">
-<summary>+ Add group</summary>
-<div class="mg-card-body mg-new-group-row">
-<input type="text" id="new-group-name" placeholder="new group name">
-<select id="new-group-member" class="mg-inp"><option value="">first member&hellip;</option></select>
-<button class="mg-btn mg-btn-primary" onclick="createGroup()">Add group</button>
-</div>
-</details>
-</div>
-
-<details class="mg-add-card mg-danger-card">
-<summary>Sessions</summary>
-<div class="mg-card-body">
-<p class="mg-card-subtitle" style="margin:0 0 0.5rem">
-Rotate the session-signing secret. Invalidates every signed cookie currently
-in circulation, including your own &mdash; everyone must sign in again.
+<p class="mg-card-subtitle" style="margin:0.25rem 0.5rem;">
+Manage <a href="/manager/groups">Groups</a> and <a href="/manager/sessions">Sessions</a>
+on their own pages (under Access in the menu). You can still assign a user to
+groups from each user's card below.
 </p>
-<button class="mg-btn mg-btn-danger" onclick="rotateAuthSecret()">Log out all users</button>
-</div>
-</details>
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
@@ -136,12 +116,10 @@ function loadUsers() {
     MANAGER_GROUPS = res[2] || [];
     allUsers = rows.map(function(r) { return r.user; });
     renderUsers(rows);
-    renderGroups();
     parentList = rows.filter(function(r) { return r.settings && r.settings.create_sub_users; })
                      .map(function(r) { return r.user; }).sort();
     populateAddUserGroups();
     populateAddUserParents();
-    populateNewGroupMember();
   }).catch(function(e) { showStatus('Failed to load users: ' + e.message, true); });
 }
 
@@ -814,17 +792,6 @@ function populateAddUserGroups() {
 }
 
 // Fill the "Create under" parent dropdown from accounts that can own sub-users.
-// Fill the "first member" of a new group from existing users (a group is defined
-// by its membership, so the first member must be an existing account).
-function populateNewGroupMember() {
-  var sel = document.getElementById('new-group-member');
-  if (!sel) return;
-  var cur = sel.value;
-  sel.innerHTML = '<option value="">first member&hellip;</option>' +
-    allUsers.map(function(u) { return '<option value="' + escHtml(u) + '">' + escHtml(u) + '</option>'; }).join('');
-  sel.value = cur;
-}
-
 function populateAddUserParents() {
   var sel = document.getElementById('new-parent');
   if (!sel) return;
@@ -871,76 +838,9 @@ function addUser() {
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
-// --- Groups section: one accordion per group, members as checkboxes ---
-
-function renderGroups() {
-  var el = document.getElementById('groups-info');
-  var keys = Object.keys(allGroups).sort();
-  if (!keys.length) { el.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No groups defined.</div>'; return; }
-  el.innerHTML = keys.map(function(g) {
-    var members = Array.isArray(allGroups[g]) ? allGroups[g] : [];
-    var ge = escHtml(g);
-    var h = '<details class="mg-acc"><summary><span class="mg-acc-name">' + ge + '</span>' +
-            '<span class="mg-acc-tags">' + members.length + ' member' + (members.length === 1 ? '' : 's') + '</span></summary>';
-    h += '<div class="mg-acc-body"><div class="mg-sec">Members</div><div class="mg-checks">';
-    var roster = allUsers.length ? allUsers : members;
-    h += roster.map(function(u) {
-      var on = members.indexOf(u) !== -1;
-      return '<label class="mg-chk"><input type="checkbox"' + (on ? ' checked' : '') +
-        ' onchange="toggleGroup(\'' + escHtml(u) + '\',\'' + ge + '\',this)"> ' + escHtml(u) + '</label>';
-    }).join('');
-    h += '</div><div class="mg-line"><button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteGroup(\'' + ge + '\')">Delete group</button></div>';
-    h += '</div></details>';
-    return h;
-  }).join('');
-}
-
-function createGroup() {
-  var ni = document.getElementById('new-group-name');
-  var mi = document.getElementById('new-group-member');
-  var group = (ni.value || '').trim();
-  var member = (mi.value || '').trim();
-  if (!group) { showStatus('Group name required.', true); return; }
-  if (!member) { showStatus('A first member is required (groups are defined by membership).', true); return; }
-  apiCall({ action: 'group-add', username: member, group: group })
-    .then(function(d) {
-      if (!d.ok) { showStatus(d.error, true); return; }
-      showStatus('Group "' + group + '" created with member "' + member + '".');
-      ni.value = ''; mi.value = '';
-      loadUsers();
-    })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
-}
-
-function deleteGroup(group) {
-  var members = Array.isArray(allGroups[group]) ? allGroups[group] : [];
-  mgConfirm('Delete group "' + group + '"?' + (members.length ? ' Removes ' + members.length + ' member(s).' : ''), { danger: true, ok: 'Delete' }).then(function(__ok) {
-    if (!__ok) return;
-    if (!members.length) { showStatus('Group "' + group + '" already empty.'); loadUsers(); return; }
-    var chain = Promise.resolve();
-    members.slice().forEach(function(m) { chain = chain.then(function() { return apiCall({ action: 'group-remove', username: m, group: group }); }); });
-    chain.then(function() { showStatus('Group "' + group + '" deleted.'); loadUsers(); })
-         .catch(function(e) { showStatus('Error: ' + e.message, true); loadUsers(); });
-  });
-}
-
 function copyText(id) {
   var el = document.getElementById(id);
   if (el && navigator.clipboard) navigator.clipboard.writeText(el.textContent).then(function() { showStatus('Copied.'); });
-}
-
-function rotateAuthSecret() {
-  mgConfirm('This will sign every user (including you) out immediately. Every cookie currently in circulation will stop working. Proceed?', { danger: true, ok: 'Sign everyone out' }).then(function(__ok) {
-    if (!__ok) return;
-    fetch(API + '?action=rotate-auth-secret', { method: 'POST' })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (!d.ok) { showStatus(d.error || 'Rotation failed', true); return; }
-      if (typeof mgShowWarning === 'function') mgShowWarning(d.message || 'All sessions invalidated.', false);
-      setTimeout(function() { location.href = '/login'; }, 1200);
-    })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
-  });
 }
 
 loadUsers();

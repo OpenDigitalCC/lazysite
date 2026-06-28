@@ -127,13 +127,27 @@ and the MCP connector (`layout-install` / `layout-delete` / `layouts-manifest`;
 
 ### Users
 
-`/manager/users`. User and group management using the same data files
-as `tools/lazysite-users.pl`:
+`/manager/users`. User accounts (the same data files as
+`tools/lazysite-users.pl`):
 
 - Add, remove, and rename users
 - Set or clear passwords
-- Add users to groups and remove them
-- View all groups and members
+- Assign each user to groups from its card
+- Per-account capabilities, sub-users, credentials, and onboarding
+
+### Groups
+
+`/manager/groups` (under **Access** in the menu). View, create, and delete
+groups, and tick membership per group. A group is defined by its membership, so
+creating one needs a first member. (Per-user assignment is also available on the
+Users page.)
+
+### Sessions
+
+`/manager/sessions` (under **Access**). Sessions are signed cookies, not
+server-side records, so there is no per-session list yet (planned). The page lets
+you invalidate **all** sessions at once by rotating the signing secret - every
+cookie, including yours, stops working and everyone signs in again.
 
 ### Cache
 
