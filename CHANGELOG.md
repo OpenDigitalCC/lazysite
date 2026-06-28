@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.69 - Groups/Sessions pages, nested components, stats errors (2026-06-28)
+
+Change - manager + components + stats
+: Groups and Sessions move to their own pages under Access; content components
+  gain nested components and includes-inside-components (and a flow-style YAML
+  parser fix); the Appearance catalogue stops showing Install on installed items
+  (offers Update); the stats plugin can surface recent server errors.
+
 ## 0.4.68 - Documentation sweep (2026-06-28)
 
 Docs - bring the shipped docs current
