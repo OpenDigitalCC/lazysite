@@ -20,9 +20,18 @@ query_params:
   flex-direction: column; background: var(--mg-bg, #fff); z-index: 40; }
 #ed-main.mg-editor-main { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 #ed-editor-pane.mg-editor-pane { display: flex; flex-direction: column; min-width: 0; }
-#ed-content-section { flex: 1 1 auto; min-height: 50vh; }
-#ed-content-cm.mg-cm-content { flex: 1 1 auto; min-height: 50vh; }
-#ed-content-cm .CodeMirror, #content-fallback { height: 100%; min-height: 50vh; }
+.mg-stack-section { display: flex; flex-direction: column; min-height: 0; }
+#ed-meta-section { flex: 0 0 24vh; min-height: 48px; }
+#ed-content-section { flex: 1 1 auto; min-height: 20vh; }
+.mg-stack-header { display: flex; align-items: baseline; gap: 0.4rem; padding: 0.25rem 0.5rem;
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--mg-text-muted, #6b7280); background: var(--mg-surface-alt, #f3f4f6); }
+.mg-stack-header .mg-stack-hint { text-transform: none; letter-spacing: 0; opacity: 0.7; font-size: 0.7rem; }
+#ed-yaml-cm.mg-cm-yaml, #ed-content-cm.mg-cm-content { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+#ed-meta-section .CodeMirror, #yaml-fallback { height: 100%; min-height: 0; }
+#ed-content-cm .CodeMirror, #content-fallback { height: 100%; min-height: 0; }
+#ed-vsplit.mg-vsplit { flex: 0 0 6px; cursor: row-resize; background: var(--mg-border, #d1d5db); }
+#ed-vsplit.mg-vsplit:hover { background: var(--mg-text-light, #9ca3af); }
 #ed-preview-pane.mg-preview-pane { display: flex; flex-direction: column; min-width: 0; }
 #ed-preview-frame { flex: 1 1 auto; min-height: 50vh; width: 100%; border: 0; }
 #ed-save-btn.dirty { background:var(--mg-accent); color:var(--mg-accent-text); border-color:var(--mg-accent); font-weight:600; }
@@ -63,16 +72,23 @@ query_params:
 <div id="ed-main" class="mg-editor-main">
 <div id="ed-editor-pane" class="mg-editor-pane">
 <details id="ed-fm-section" class="mg-fm-section" open>
-<summary>Front Matter</summary>
+<summary>Front matter fields</summary>
 <div class="mg-fm-fields">
 <div class="mg-form-row"><label style="width:60px;">title</label><input type="text" id="fm-title" oninput="syncFmField('title',this.value)"></div>
 <div class="mg-form-row"><label style="width:60px;">subtitle</label><input type="text" id="fm-subtitle" oninput="syncFmField('subtitle',this.value)"></div>
 <div class="mg-form-row"><label style="width:60px;">auth</label><select id="fm-auth" onchange="syncFmField('auth',this.value)"><option value="">--</option><option value="none">none</option><option value="optional">optional</option><option value="required">required</option></select></div>
 <div class="mg-form-row"><label style="width:60px;">search</label><select id="fm-search" onchange="syncFmField('search',this.value)"><option value="">default</option><option value="true">true</option><option value="false">false</option></select></div>
-<div class="mg-form-row" style="align-items:flex-start;"><label style="width:60px;">extra</label><div id="ed-yaml-cm" class="mg-cm-yaml"></div></div>
 </div>
 </details>
-<div id="ed-content-section" style="flex:1;display:flex;flex-direction:column;"><div id="ed-content-cm" class="mg-cm-content"></div></div>
+<div id="ed-meta-section" class="mg-stack-section">
+<div class="mg-stack-header">Metadata<span class="mg-stack-hint">YAML front matter</span></div>
+<div id="ed-yaml-cm" class="mg-cm-yaml"></div>
+</div>
+<div id="ed-vsplit" class="mg-vsplit" title="Drag to resize Metadata / Content"></div>
+<div id="ed-content-section" class="mg-stack-section">
+<div class="mg-stack-header">Content<span class="mg-stack-hint">Markdown</span></div>
+<div id="ed-content-cm" class="mg-cm-content"></div>
+</div>
 </div>
 <div id="ed-divider" class="mg-editor-divider" title="Drag to resize"></div>
 <div id="ed-preview-pane" class="mg-preview-pane">
@@ -721,6 +737,37 @@ function refreshPreview() {
     var rect = main.getBoundingClientRect();
     var pct = ((e.clientX - rect.left) / rect.width) * 100;
     pane.style.width = Math.max(20, Math.min(80, pct)) + '%';
+  });
+  document.addEventListener('mouseup', function() {
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+})();
+
+// --- Metadata / Content vertical splitter ---
+// Drag to resize the Metadata (YAML) editor against the Content editor, so a
+// YAML-heavy page can make Metadata the main surface and a prose page can shrink
+// it. CodeMirror needs a refresh after its container resizes.
+(function() {
+  var vs   = document.getElementById('ed-vsplit');
+  var pane = document.getElementById('ed-editor-pane');
+  var meta = document.getElementById('ed-meta-section');
+  if (!vs || !pane || !meta) return;
+  var dragging = false;
+  vs.addEventListener('mousedown', function() {
+    dragging = true;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var top  = meta.getBoundingClientRect().top;
+    var rect = pane.getBoundingClientRect();
+    var px = Math.max(40, Math.min(rect.bottom - top - 80, e.clientY - top));
+    meta.style.flex = '0 0 ' + px + 'px';
+    if (yamlCm && yamlCm.refresh) yamlCm.refresh();
+    if (contentCm && contentCm.refresh) contentCm.refresh();
   });
   document.addEventListener('mouseup', function() {
     dragging = false;
