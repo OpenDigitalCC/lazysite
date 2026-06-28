@@ -9,15 +9,33 @@ from the CHANGELOG (shipped releases) and corroborating code, not the per-doc
 text.
 
 
-## uncategorised
+## Ideas - not yet scoped
 
-- separate plugins from core code base, so that they can be added separately or uploaded.
-- plugins wanted: calendar booking, live chat (xmpp bot)
-- e-commerce via odoo for all products, prices, sales - basket makes s/o, uses existing odoo ecommerce api
-- passkey auth extension to author plugin
-- database plugin, support jsonfile, sqlite, dBi database, MV form to dB plugin. Add schema selection, such as session, profile, basket, log, comments and other commonly used. Plus arbitrary. Values in TT and stored with TT. Enabling user to create dynamic content. 
-- ai filter plugin,  send data, send Instruction, used for form review and anything else. Settings - select vendor, dev key.
-- search - add to auto index, manual index, log failed searches to file
+Discrete items expanded from the raw wishlist; each needs its own scoping doc
+before work starts.
+
+- **Plugin packaging / separation** - split plugins from the core tree so they
+  can be added, removed, or uploaded independently. A plugin becomes a
+  self-describing unit installed/uploaded like a theme, rather than living in the
+  core checkout.
+- **Calendar-booking plugin** - bookable time slots with availability, producing
+  a booking record (ties to the forms + notifications stack).
+- **Live-chat plugin (XMPP bot)** - an on-site chat widget backed by an XMPP bot
+  (reuses the existing XMPP integration).
+- **E-commerce via Odoo** - products, prices, and sales sourced from Odoo's
+  e-commerce API; an on-site basket creates a sales order through that API. No
+  local product/price store - Odoo is the source of truth.
+- **Passkey auth extension** - WebAuthn / passkey login delivered as an auth
+  plugin.
+- **Database plugin** - pluggable storage (JSON file / SQLite / DBI) with a
+  "form -> DB" write path. Named schemas (session, profile, basket, log,
+  comments, + arbitrary); values readable and writable in TT, enabling
+  author-built dynamic content.
+- **AI-filter plugin** - send data plus an instruction to an AI vendor
+  (selectable vendor + dev key in settings) for form review, moderation, and
+  other transform tasks.
+- **Search improvements** - feed both the auto-index and a manual index; log
+  failed searches to a file for review.
 
 
 ## Done
@@ -86,15 +104,26 @@ text.
   the visible tip of a streaming audit-trail layer.
 - **SM110** Domain aliases - an additional host serving the same site with its
   own theme / nav / name.
+- **Sessions page - active-session details** - the new Sessions page exposes only
+  "log out everyone" (rotate the auth secret). List active sessions with detail
+  (who / where / when / last seen) so individual sessions are visible and ideally
+  revocable.
+- **Visitor statistics - performance + visualisations** - the stats scan is
+  synchronous and re-reads the whole log each load. Make it faster (cache the
+  computed result, or stream/async so the tiles populate as data arrives) and add
+  visualisations (charts for the per-day trend, the class breakdown, referrers).
 
 ## Candidates - research / future
 
 - **SM075** Wildcard multi-tenant hosting.
 - **SM086** Pandoc-wrapper construct renderers (datatable, charts, `:::` boxes,
   citations) - one source → branded PDF + web.
-- **SM089** 3D-rendered site layout (leverages the D013 layout/theme split).
 - **SM090** Social syndication / POSSE (ActivityPub + AT Proto, Slice 1).
-- **SM092** Gopher and Gemini services.
+- **SM092** Gopher and Gemini services - stays here: a protocol *transport* over
+  the shared content core (like WebDAV / MCP), not a visual layout.
+
+*(SM089 3D-rendered layout moved to `lazysite-layouts` - it is a layout/theme
+category. Proposal now at `lazysite-layouts/docs/proposals/3d-layout.md`.)*
 
 ## Notes
 
