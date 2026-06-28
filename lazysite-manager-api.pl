@@ -44,6 +44,7 @@ use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action
     action_artifact_manifest action_artifact_validate);
 use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
     action_layouts_release_contents action_layouts_available action_themes_for_layout
+    action_layout_delete action_layouts_manifest action_layout_install
     action_layouts_repo_get action_layouts_repo_set);
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download);
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -286,6 +287,7 @@ if ( $token_auth ) {
         'themes-for-layout' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'themes-list-all'   => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'layouts-available' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
+        'layouts-manifest'  => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         # SM105: navigation is a token-client action gated by manage_nav (which
         # inherits manage_content / webdav), so a WebDAV/API partner can read and
         # write the site nav without the MCP connector or raw WebDAV to lazysite/.
@@ -360,6 +362,7 @@ elsif ( $action eq 'themes-list-all' )  { $result = action_themes_list_all() }
 elsif ( $action eq 'theme-activate' )   { $result = action_theme_activate($path, \%params) }
 elsif ( $action eq 'layout-activate' )  { $result = action_layout_activate($path, \%params) }
 elsif ( $action eq 'theme-delete' )     { $result = action_theme_delete($path) }
+elsif ( $action eq 'layout-delete' )    { $result = action_layout_delete($path) }
 elsif ( $action eq 'theme-rename' )     {
     my $req = eval { decode_json($body) } // {};
     $result = action_theme_rename( $path, $req->{new_name} );
@@ -367,6 +370,8 @@ elsif ( $action eq 'theme-rename' )     {
 elsif ( $action eq 'theme-upload' )     { $result = action_theme_upload( $body, $params{filename} ) }
 elsif ( $action eq 'layouts-releases' ) { $result = action_layouts_releases() }
 elsif ( $action eq 'layouts-install' )  { $result = action_layouts_install($body) }
+elsif ( $action eq 'layouts-manifest' ) { $result = action_layouts_manifest() }
+elsif ( $action eq 'layout-install' )   { $result = action_layout_install($body) }
 elsif ( $action eq 'layouts-release-contents' ) {
     $result = action_layouts_release_contents( $params{tag} );
 }

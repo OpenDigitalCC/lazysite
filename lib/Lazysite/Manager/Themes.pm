@@ -30,6 +30,7 @@ our @EXPORT_OK = qw(
     action_theme_upload action_cache_list action_cache_invalidate
     _read_active_layout_and_theme _install_theme_from_dir
     action_artifact_manifest action_artifact_validate
+    _snapshot_artifact _prune_backups _mirror_theme_assets
 );
 
 our $DOCROOT;
