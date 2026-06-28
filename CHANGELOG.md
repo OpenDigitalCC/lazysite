@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.68 - Documentation sweep (2026-06-28)
+
+Docs - bring the shipped docs current
+: Appearance rename and per-layout install/delete, Visitor statistics classifier,
+  and content components are now documented in the authoring guides, manager doc,
+  layout-authoring guide and backlog. No code change since 0.4.67.
+
 ## 0.4.67 - Content components deployable via install_layout (2026-06-28)
 
 Fix - install the layout components subtree
