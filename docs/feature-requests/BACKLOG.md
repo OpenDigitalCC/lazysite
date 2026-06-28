@@ -8,6 +8,18 @@ One-line status for every feature request. Updated 2026-06-28. Status derived
 from the CHANGELOG (shipped releases) and corroborating code, not the per-doc
 text.
 
+
+## uncategorised
+
+- separate plugins from core code base, so that they can be added separately or uploaded.
+- plugins wanted: calendar booking, live chat (xmpp bot)
+- e-commerce via odoo for all products, prices, sales - basket makes s/o, uses existing odoo ecommerce api
+- passkey auth extension to author plugin
+- database plugin, support jsonfile, sqlite, dBi database, MV form to dB plugin. Add schema selection, such as session, profile, basket, log, comments and other commonly used. Plus arbitrary. Values in TT and stored with TT. Enabling user to create dynamic content. 
+- ai filter plugin,  send data, send Instruction, used for form review and anything else. Settings - select vendor, dev key.
+- search - add to auto index, manual index, log failed searches to file
+
+
 ## Done
 
 - **SM070** WebDAV publishing endpoint + per-user ACLs.

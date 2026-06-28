@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.66 - Data-driven sections (content components phase 3) (2026-06-28)
+
+Feature - front-matter sections:
+: a page can describe itself as a list of sections in front matter; the layout
+  dispatches each to its component. Completes content components - authors compose
+  expressive pages as Markdown plus a little structured data, with all HTML in
+  layout-owned components.
+
 ## 0.4.65 - Fenced content components (2026-06-28)
 
 Feature - author components from Markdown
