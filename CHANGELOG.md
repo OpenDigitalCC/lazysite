@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.67 - Content components deployable via install_layout (2026-06-28)
+
+Fix - install the layout components subtree
+: layout-install now copies a layout components/ subtree to the site (it had
+  skipped subdirectories), so fenced and sections content components reach a site
+  through the catalogue. Pairs with the layouts repo bundling components/ into the
+  layout zip.
+
 ## 0.4.66 - Data-driven sections (content components phase 3) (2026-06-28)
 
 Feature - front-matter sections:
