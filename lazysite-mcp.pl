@@ -35,6 +35,8 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_move action_acl_get action_acl_set action_acl_remove);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
     action_cache_invalidate _read_active_layout_and_theme action_themes_list_all);
+use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
+    action_layout_delete action_layouts_available);
 
 our $VERSION = '0.1';
 my $PROTOCOL = '2025-11-25';
@@ -182,6 +184,10 @@ sub setup_context {
     $Lazysite::Manager::Themes::LAZYSITE_DIR   = $LAZYSITE_DIR;
     $Lazysite::Manager::Themes::auth_user      = $user;
     $Lazysite::Manager::Themes::action         = 'mcp';
+    $Lazysite::Manager::Layouts::DOCROOT       = $DOCROOT;
+    $Lazysite::Manager::Layouts::LAZYSITE_DIR  = $LAZYSITE_DIR;
+    $Lazysite::Manager::Layouts::auth_user     = $user;
+    $Lazysite::Manager::Layouts::action        = 'mcp';
     $Lazysite::Manager::Common::DOCROOT        = $DOCROOT;
     $Lazysite::Manager::Common::action         = 'mcp';
     $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
@@ -366,6 +372,40 @@ my %TOOLS = (
             $p->{theme} = $_[0]->{theme} if defined $_[0]->{theme};
             action_layout_activate( $_[0]->{layout}, $p );
         },
+    },
+    list_layout_catalogue => {
+        description => 'List the layouts available in the configured layouts repo (its manifest.json): each layout, its version, default theme, and its themes - annotated with what is already installed. Discover what install_layout can pull, without downloading anything.',
+        cap         => 'manage_layouts',
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run         => sub { action_layouts_manifest() },
+    },
+    install_layout => {
+        description => 'Install a layout and its theme(s) from the repo on demand, then activate it. By default installs the layout default_theme; pass theme for a specific one, or all:true for every theme. Mirrors assets and clears the cache. Use list_layout_catalogue first to see names.',
+        cap         => 'manage_layouts',
+        inputSchema => { type => 'object',
+            properties => {
+                layout   => { type => 'string',  description => 'layout name from list_layout_catalogue' },
+                theme    => { type => 'string',  description => 'optional specific theme; default is the layout default_theme' },
+                all      => { type => 'boolean', description => 'install every theme for the layout' },
+                activate => { type => 'boolean', description => 'activate after install (default true)' },
+            },
+            required => ['layout'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            my %req = ( layout => $a->{layout} );
+            $req{theme}    = $a->{theme}    if defined $a->{theme};
+            $req{all}      = $a->{all}      if defined $a->{all};
+            $req{activate} = $a->{activate} if defined $a->{activate};
+            action_layout_install( encode_json( \%req ) );
+        },
+    },
+    delete_layout => {
+        description => 'Delete an installed layout AND its themes. Refuses the active layout; a recovery snapshot is kept and the web asset mirror is cleared.',
+        cap         => 'manage_layouts',
+        inputSchema => { type => 'object',
+            properties => { layout => { type => 'string' } },
+            required => ['layout'], additionalProperties => JSON::PP::false },
+        run => sub { action_layout_delete( $_[0]->{layout} ) },
     },
     list_form_handlers => {
         description => 'List the configured form delivery handlers (id, type, name) - what a form can be bound to. Destinations and credentials are operator-only and never returned.',
@@ -1076,6 +1116,9 @@ my %ANNOTATE = (
     list_themes     => [ 1, 0, 0 ],
     activate_theme  => [ 0, 0, 1 ],
     activate_layout => [ 0, 0, 1 ],
+    list_layout_catalogue => [ 1, 0, 0 ],
+    install_layout  => [ 0, 0, 1 ],
+    delete_layout   => [ 0, 1, 1 ],
     invalidate_cache => [ 0, 0, 0 ],
 );
 

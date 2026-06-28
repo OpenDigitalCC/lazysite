@@ -288,6 +288,9 @@ if ( $token_auth ) {
         'themes-list-all'   => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'layouts-available' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'layouts-manifest'  => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
+        # SM: a layouts manager may install/remove layouts on demand from the repo.
+        'layout-install'    => sub { $_[0]->{manage_layouts} },
+        'layout-delete'     => sub { $_[0]->{manage_layouts} },
         # SM105: navigation is a token-client action gated by manage_nav (which
         # inherits manage_content / webdav), so a WebDAV/API partner can read and
         # write the site nav without the MCP connector or raw WebDAV to lazysite/.
