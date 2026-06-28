@@ -149,7 +149,7 @@ as `tools/lazysite-users.pl`:
 config/theme changes, denied attempts) with who/what/when/where and the
 outcome. Filter by user, target, or a From/To date range; each row records
 the action's target (the page, the plugin, `nav`, etc.). Browsing analytics
-live separately in Visitor Stats, not here.
+live separately in Visitor statistics, not here.
 
 ### Visitor statistics
 
