@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+## 0.4.58 - Appearance page + per-layout install/delete (2026-06-28)
+
+Feature - manage layouts as well as themes
+: the manager Themes page becomes Appearance. Install a single layout and its
+  theme(s) on demand from the layouts repo manifest; delete a layout (with its
+  themes, when not active); the active layout/theme switcher moves here. Cross-
+  layout theme preview now loads the right CSS. (lazysite-layouts ships the
+  matching manifest.json + per-layout packaging.)
+
 ## 0.4.57 - nginx reload on deploy is now opt-in (2026-06-28)
 
 Change - deploy no longer reloads nginx by default
