@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.72 - Manager-aware login landing (2026-06-28)
+
+Change - login
+: a recognised manager who logs in without a specific next lands in the manager
+  UI instead of the public home page (an explicit next is still honoured;
+  non-managers are unaffected).
+
 ## 0.4.71 - Gate password-reset link on SMTP (2026-06-28)
 
 Fix - login page
