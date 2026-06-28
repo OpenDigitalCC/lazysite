@@ -1079,6 +1079,15 @@ sub process_md {
     }
     my $page;
 
+    # D035: resolve the active layout's directory so fenced components
+    # (::: name -> components/name.tt) can be found. Page override wins, else the
+    # site default. Local layouts only (remote/URL layouts skip this for now).
+    my $cmp_layout = ( defined $meta->{layout} && length $meta->{layout} )
+        ? $meta->{layout}
+        : do { my %sv = resolve_site_vars(); $sv{layout} };
+    my $layout_dir = ( defined $cmp_layout && length $cmp_layout
+            && $cmp_layout !~ m{://} ) ? "$LAYOUT_DIR/$cmp_layout" : undef;
+
     # api: true - body is pure TT, no Markdown pipeline, no layout
     if ( $meta->{api} && $meta->{api} =~ /^true$/i ) {
         my ( $processed_body ) = render_content( $meta, $body, $query );
@@ -1088,7 +1097,8 @@ sub process_md {
     # raw: true - Markdown pipeline runs, no layout
     elsif ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
         my $converted_form  = convert_fenced_form($body, $meta);
-        my $converted       = convert_fenced_divs($converted_form);
+        my $converted_comp  = convert_fenced_components($converted_form, $layout_dir);
+        my $converted       = convert_fenced_divs($converted_comp);
         my $converted_inc   = convert_fenced_include($converted, $md_path, $meta);
         my $converted2      = convert_fenced_code($converted_inc);
         my $converted3      = convert_oembed($converted2);
@@ -1099,7 +1109,8 @@ sub process_md {
     # Normal mode - full pipeline with layout
     else {
         my $converted_form  = convert_fenced_form($body, $meta);
-        my $converted       = convert_fenced_divs($converted_form);
+        my $converted_comp  = convert_fenced_components($converted_form, $layout_dir);
+        my $converted       = convert_fenced_divs($converted_comp);
         my $converted_inc   = convert_fenced_include($converted, $md_path, $meta);
         my $converted2      = convert_fenced_code($converted_inc);
         my $converted3      = convert_oembed($converted2);
@@ -1709,6 +1720,116 @@ sub convert_fenced_divs {
     }gsmxe;
 
     return $text;
+}
+
+# --- Content components (D035 Phase 2) ------------------------------------
+# A ::: <name> fence whose <name> matches components/<name>.tt under the active
+# layout is rendered THROUGH that component: the inner Markdown becomes
+# `content`, key="value" pairs on the opening line become `attrs`, and direct
+# child ::: <slot> fences become `slots.<slot>`. Fence names with no matching
+# component pass through untouched to convert_fenced_divs. Balanced (nesting-
+# aware), and byte-preserving for everything that is not a component block.
+sub _component_exists {
+    my ( $layout_dir, $name ) = @_;
+    return 0 unless defined $name && $name =~ /\A[\w-]+\z/;
+    return ( -f "$layout_dir/components/$name.tt" ) ? 1 : 0;
+}
+
+sub _md_fragment {
+    my ($text) = @_;
+    return '' unless defined $text && $text =~ /\S/;
+    my $html = convert_md($text);
+    $html =~ s/\A\s+//;
+    $html =~ s/\s+\z//;
+    return $html;
+}
+
+sub convert_fenced_components {
+    my ( $text, $layout_dir ) = @_;
+    return $text unless defined $layout_dir && -d "$layout_dir/components";
+    return $text unless $text =~ /^:::[ \t]+[\w-]+/m;   # fast bail
+
+    my @lines = split /\n/, $text, -1;
+    my @out;
+    my $i = 0;
+    while ( $i <= $#lines ) {
+        my $l = $lines[$i];
+        if ( $l =~ /^:::[ \t]+([\w-]+)[ \t]*(.*?)[ \t]*$/
+            && _component_exists( $layout_dir, $1 ) )
+        {
+            my ( $name, $attr ) = ( $1, $2 );
+            my @inner;
+            my $depth = 1;
+            my $j     = $i + 1;
+            while ( $j <= $#lines && $depth > 0 ) {
+                my $x = $lines[$j];
+                if    ( $x =~ /^:::[ \t]+\S/ ) { $depth++; push @inner, $x }
+                elsif ( $x =~ /^:::[ \t]*$/ )  { $depth--; push @inner, $x if $depth > 0 }
+                else                           { push @inner, $x }
+                $j++;
+            }
+            if ( $depth != 0 ) { push @out, $l; $i++; next; }   # unbalanced: leave as-is
+            push @out, _render_component( $layout_dir, $name, $attr, join( "\n", @inner ) );
+            $i = $j;
+        }
+        else { push @out, $l; $i++; }
+    }
+    return join "\n", @out;
+}
+
+sub _render_component {
+    my ( $layout_dir, $name, $attr_str, $inner ) = @_;
+
+    my %attrs;
+    while ( $attr_str =~ /([\w-]+)\s*=\s*"([^"]*)"/g ) { $attrs{$1} = $2 }
+    while ( $attr_str =~ /([\w-]+)\s*=\s*'([^']*)'/g ) { $attrs{$1} //= $2 }
+
+    # Direct-child ::: <slot> fences -> named slots; everything else -> content.
+    my ( %slots, @content_lines );
+    my @il = split /\n/, $inner, -1;
+    my $i  = 0;
+    while ( $i <= $#il ) {
+        my $l = $il[$i];
+        if ( $l =~ /^:::[ \t]+([\w-]+)[ \t]*.*$/ ) {
+            my $slot = $1;
+            my @sb;
+            my $depth = 1;
+            my $j     = $i + 1;
+            while ( $j <= $#il && $depth > 0 ) {
+                my $x = $il[$j];
+                if    ( $x =~ /^:::[ \t]+\S/ ) { $depth++; push @sb, $x }
+                elsif ( $x =~ /^:::[ \t]*$/ )  { $depth--; push @sb, $x if $depth > 0 }
+                else                           { push @sb, $x }
+                $j++;
+            }
+            if ( $depth == 0 ) {
+                $slots{$slot} = _md_fragment( join "\n", @sb );
+                $i = $j;
+                next;
+            }
+        }
+        push @content_lines, $l;
+        $i++;
+    }
+
+    my $content = _md_fragment( join "\n", @content_lines );
+
+    my $tt = Template->new(
+        ABSOLUTE     => 1,
+        EVAL_PERL    => 0,
+        INCLUDE_PATH => $layout_dir,
+        FILTERS      => { markdown => \&_markdown_filter },
+    );
+    my $rendered = '';
+    $tt->process( "components/$name.tt",
+        { content => $content, attrs => \%attrs, slots => \%slots }, \$rendered )
+        or do {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'component render failed',
+            component => $name, error => $tt->error() );
+        return "<!-- component '$name' failed to render -->";
+        };
+    $rendered =~ s/\s+\z//;
+    return $rendered;
 }
 
 # --- Include ---
