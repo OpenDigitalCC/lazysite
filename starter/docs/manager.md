@@ -172,8 +172,10 @@ lazysite uses no cookies or JS, it classifies traffic by log-only heuristics int
 real people, the logged-in operator, AI assistants, bots and probe noise (each
 reported separately), splits referrers into external / internal / direct, links
 top pages to the live page, and shows per-day counts over a configurable window,
-with optional IP anonymisation. It never exposes the log file's path, and offers
-an operator-only raw-log download. Provided by the opt-in **Visitor Statistics**
+with optional IP anonymisation. If an error log is configured (or auto-detected),
+it also shows the most recent server errors. It never exposes any log file's path,
+and offers an operator-only raw access-log download. Provided by the opt-in
+**Visitor Statistics**
 plugin: the nav item appears only when the plugin is enabled - enable it on Plugin
 Manager, then set its access-log path on Plugin Config.
 

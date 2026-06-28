@@ -69,6 +69,8 @@ if ( $arg{describe} ) {
         config_schema => [
             { key => 'access_log',   label => 'Access log path', type => 'text', default => '',
               note => 'Combined-format access log. Blank = auto-detect (on Hestia, ../logs/<domain>.log). The CGI user must be able to read it.' },
+            { key => 'error_log',    label => 'Error log path', type => 'text', default => '',
+              note => 'Optional web-server error log for this site (blank = auto-detect alongside the access log). Surfaces the most recent server errors / probes. The CGI user must be able to read it.' },
             { key => 'window_days',  label => 'Window (days)',           type => 'text',    default => '30' },
             { key => 'top_n',        label => 'Top N (pages / referrers)', type => 'text',  default => '15' },
             { key => 'anonymise_ip', label => 'Anonymise visitor IPs',   type => 'boolean', default => 'true' },
@@ -152,6 +154,47 @@ sub find_log {
         return $c if -r $c;
     }
     return '';
+}
+
+# Optional error log for this site, mirroring find_log. '' if not found.
+sub find_error_log {
+    my ($cfg) = @_;
+    return $cfg->{error_log} if defined $cfg->{error_log} && length $cfg->{error_log};
+    my $domain = _site_domain();
+    return '' unless length $domain;
+    for my $c (
+        "$DOCROOT/../logs/$domain.error.log",
+        "$DOCROOT/../logs/${domain}-error.log",
+        "/var/log/apache2/domains/$domain.error.log",
+        "/var/log/nginx/domains/$domain.error.log",
+        "/var/log/nginx/${domain}.error.log",
+        "/var/log/httpd/${domain}-error_log",
+        )
+    {
+        return $c if -r $c;
+    }
+    return '';
+}
+
+# Read the last $n lines of $path cheaply (only the trailing 64 KB), so a large
+# error log doesn't cost a full read. Format-agnostic - no time windowing.
+sub _tail_lines {
+    my ( $path, $n ) = @_;
+    open my $fh, '<', $path or return ();
+    my $size  = -s $fh;
+    my $chunk = 65536;
+    if ( defined $size && $size > $chunk ) {
+        seek $fh, $size - $chunk, 0;
+        scalar <$fh>;    # drop the partial first line
+    }
+    my @buf;
+    while ( my $l = <$fh> ) {
+        chomp $l;
+        push @buf, $l;
+        shift @buf if @buf > $n;
+    }
+    close $fh;
+    return @buf;
 }
 
 # Autoconfig: persist a freshly auto-detected log path to stats.conf so the
@@ -288,6 +331,18 @@ sub scan_stats {
     }
     close $fh;
 
+    # Optional error-log surface: the most recent lines (path never exposed).
+    my $elog = find_error_log($cfg);
+    my %errors = ( available => JSON::PP::false );
+    if ( length $elog && -r $elog ) {
+        my @recent = _tail_lines( $elog, 40 );
+        %errors = (
+            available => JSON::PP::true,
+            recent    => \@recent,
+            count     => scalar @recent,
+        );
+    }
+
     my $top = sub {
         my ($h) = @_;
         my @k = sort { $h->{$b} <=> $h->{$a} || $a cmp $b } keys %$h;
@@ -311,6 +366,7 @@ sub scan_stats {
         anonymised      => ( $anon ? JSON::PP::true : JSON::PP::false ),
         log_configured  => JSON::PP::true,                 # never the disk path
         log_download    => ( $offer_dl ? JSON::PP::true : JSON::PP::false ),
+        errors          => \%errors,
         classes         => \%classes,
         hits            => $hits,                          # human only
         unique_visitors => scalar keys %ips,               # human only

@@ -73,15 +73,23 @@ is an empty string. Layouts should guard theme references:
 
 ### Installing a layout
 
-Layouts are not installed via the manager UI at 0.3.0; the
-theme-browser stays theme-only. Install a layout manually:
+Install from the catalogue on **Appearance** (`/manager/appearance`):
+"Browse the repo" lists the layouts in the configured `layouts_repo`
+(its `manifest.json`); installing one pulls the layout plus its
+default theme (or a chosen / all themes), mirrors assets, and
+activates it. An already-installed layout offers **Update** (re-pull a
+changed version, keeping its themes); a non-active layout can be
+**deleted** (with its themes). A layout's `components/` subtree (see
+"Content components" in the layout-authoring guide) is bundled and
+installed too.
 
-    mkdir -p public_html/lazysite/layouts/default
-    cp layout.tt   public_html/lazysite/layouts/default/
-    cp layout.json public_html/lazysite/layouts/default/
+The same operations are available to partners over the control API
+and the MCP connector (`layout-install` / `layout-delete` /
+`layouts-manifest`; `install_layout(update:true)` to redeploy).
 
-Then add `layout: default` to `lazysite.conf` and install a
-compatible theme on `/manager/appearance`.
+To install by hand instead, drop `layout.tt` + `layout.json` (and any
+`components/`) under `public_html/lazysite/layouts/<name>/` and set
+`layout: <name>` in `lazysite.conf`.
 
 ### Layout name sanitisation
 

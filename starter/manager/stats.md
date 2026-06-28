@@ -111,6 +111,19 @@ function renderStats(d) {
     h += '</div>';
   }
 
+  // Recent server errors (optional, from the error log).
+  if (d.errors && d.errors.available) {
+    h += '<div class="mg-sec">Recent server errors</div>';
+    var rec = d.errors.recent || [];
+    if (!rec.length) {
+      h += '<p class="mg-muted">No recent errors.</p>';
+    } else {
+      h += '<pre style="white-space:pre-wrap;font-size:0.78rem;color:var(--mg-text);'
+         + 'background:var(--mg-surface-alt);padding:0.5rem 0.6rem;border-radius:4px;'
+         + 'max-height:14rem;overflow:auto;margin:0;">' + rec.map(sesc).join('\n') + '</pre>';
+    }
+  }
+
   // Source - the disk path is never shown; offer a download instead.
   h += '<p class="mg-muted" style="margin-top:1rem">' + fmtNum(d.scanned_lines)
      + ' log lines scanned' + (d.capped ? ' (capped)' : '') + '.';

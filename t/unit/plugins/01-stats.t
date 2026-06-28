@@ -47,6 +47,19 @@ is( $s2->{classes}{human}{hits}, 3, 'human headline excludes the bot' );
 is( $s2->{classes}{bot}{hits},   1, 'the Googlebot row is classed as a bot' );
 is( $s2->{unique_visitors}, 2, 'raw human IPs when anonymise off (bot not counted)' );
 
+# --- optional error-log surface: recent lines, path never exposed ---
+open my $el, '>', "$d/error.log" or die $!;
+print $el "[Wed] error one\n[Wed] error two\n";
+close $el;
+my $se = scan("access_log: $d/access.log\nerror_log: $d/error.log\n");
+ok( $se->{errors} && $se->{errors}{available}, 'error log surfaced when set' );
+is( scalar @{ $se->{errors}{recent} }, 2, 'recent error lines tailed' );
+like( $se->{errors}{recent}[1], qr/error two/, 'last error line present' );
+ok( !exists $se->{error_log}, 'error-log disk path not exposed' );
+
+my $sne = scan("access_log: $d/access.log\nerror_log: $d/none.log\n");
+ok( !$sne->{errors}{available}, 'no error surface when the error log is missing' );
+
 my $miss = scan("access_log: $d/nope.log\n");
 ok( !$miss->{ok}, 'unreadable log -> ok:0 with a message' );
 like( $miss->{error}, qr/readable|found|configured/i, 'helpful error' );
