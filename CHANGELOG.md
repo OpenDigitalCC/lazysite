@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.60 - Redeploy a changed layout (install update flag) (2026-06-28)
+
+Feature - update an installed layout
+: layout-install / the MCP install_layout tool accept update:true to overwrite an
+  already-installed layout that has changed (snapshots the old, keeps its themes),
+  so a layout fix can be pushed to a live site. A plain install still refuses to
+  overwrite a differing layout.
+
 ## 0.4.59 - Layout management over API + MCP (2026-06-28)
 
 Feature - programmatic layout management
