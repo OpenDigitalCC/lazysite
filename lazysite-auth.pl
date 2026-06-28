@@ -256,6 +256,16 @@ sub handle_login {
     log_event('INFO', $username, 'login success', ip => $ENV{REMOTE_ADDR} // '');
     _audit_auth( $username, 'login', 'ok', '' );
 
+    # Manager-aware landing: a recognised manager who did not come from a specific
+    # page (next defaulted to home) lands in the manager UI instead of the public
+    # home, so they always have a way in. Only when the manager UI is enabled.
+    if ( $next eq '/'
+        && ( read_conf_key('manager') // '' ) eq 'enabled'
+        && _login_is_manager($groups_str) )
+    {
+        $next = '/manager/';
+    }
+
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
     print "Set-Cookie: $COOKIE_NAME=$cookie; HttpOnly; SameSite=Lax; Path=/; Max-Age=$COOKIE_MAX$secure\r\n";
@@ -874,6 +884,19 @@ sub read_conf_key {
     }
     close $fh;
     return '';
+}
+
+# Does a user with these (comma-separated) groups have manager access? Mirrors
+# the processor's _is_manager: an unset manager_groups means any authenticated
+# user is a manager; otherwise membership of one of the listed groups (case-
+# insensitive) is required.
+sub _login_is_manager {
+    my ($groups_str) = @_;
+    my $mg = read_conf_key('manager_groups') // '';
+    $mg =~ s/^\s+|\s+$//g;
+    return 1 unless length $mg;
+    my %ug = map { lc $_ => 1 } grep { length } split /\s*,\s*/, ( $groups_str // '' );
+    return ( grep { $ug{ lc $_ } } grep { length } split /\s*,\s*/, $mg ) ? 1 : 0;
 }
 
 # --- Utilities ---
