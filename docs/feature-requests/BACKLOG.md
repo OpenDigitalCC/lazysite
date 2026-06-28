@@ -108,6 +108,15 @@ before work starts.
   "log out everyone" (rotate the auth secret). List active sessions with detail
   (who / where / when / last seen) so individual sessions are visible and ideally
   revocable.
+- **theme_assets fallback on no active theme** - when a layout is previewed or
+  set per-page with no compatible active theme, `theme_assets`/`theme_css` are
+  empty and the page renders unstyled. Fall `theme_assets` back to the layout's
+  `default_theme` mirror (if installed) so preview looks right without every
+  layout needing its own `[% ELSE %]` fallback link.
+- **Remote-layout content components** - `install_layout` + fenced/sections
+  components are local-layout only; remote (URL) layouts fetch just `layout.tt`,
+  so their `components/` are not fetched or resolved. Bundle + resolve components
+  for remote layouts if remote layouts get more use.
 - **Visitor statistics - performance + visualisations** - the stats scan is
   synchronous and re-reads the whole log each load. Make it faster (cache the
   computed result, or stream/async so the tiles populate as data arrives) and add

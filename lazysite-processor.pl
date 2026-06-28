@@ -1097,7 +1097,7 @@ sub process_md {
     # raw: true - Markdown pipeline runs, no layout
     elsif ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
         my $converted_form  = convert_fenced_form($body, $meta);
-        my $converted_comp  = convert_fenced_components($converted_form, $layout_dir);
+        my $converted_comp  = convert_fenced_components($converted_form, $layout_dir, $md_path, $meta);
         my $converted       = convert_fenced_divs($converted_comp);
         my $converted_inc   = convert_fenced_include($converted, $md_path, $meta);
         my $converted2      = convert_fenced_code($converted_inc);
@@ -1109,7 +1109,7 @@ sub process_md {
     # Normal mode - full pipeline with layout
     else {
         my $converted_form  = convert_fenced_form($body, $meta);
-        my $converted_comp  = convert_fenced_components($converted_form, $layout_dir);
+        my $converted_comp  = convert_fenced_components($converted_form, $layout_dir, $md_path, $meta);
         my $converted       = convert_fenced_divs($converted_comp);
         my $converted_inc   = convert_fenced_include($converted, $md_path, $meta);
         my $converted2      = convert_fenced_code($converted_inc);
@@ -1312,7 +1312,8 @@ sub _yaml_scalar {
 
 sub _yaml_split_flow {
     my ($s) = @_;
-    my ( @parts, $cur, $depth, $q ) = ( (), '', 0, '' );
+    my @parts;
+    my ( $cur, $depth, $q ) = ( '', 0, '' );
     for my $ch ( split //, $s ) {
         if ($q) { $cur .= $ch; $q = '' if $ch eq $q; next }
         if ( $ch eq '"' || $ch eq "'" ) { $q = $ch; $cur .= $ch; next }
@@ -1863,16 +1864,22 @@ sub _component_exists {
 }
 
 sub _md_fragment {
-    my ($text) = @_;
+    my ( $text, $layout_dir, $md_path, $meta ) = @_;
     return '' unless defined $text && $text =~ /\S/;
-    my $html = convert_md($text);
+    $text .= "\n" unless $text =~ /\n\z/;    # fence closers need a trailing newline
+    # Run the inner through the same fence passes as the page body, so a component
+    # can contain nested components, fenced divs and includes - then Markdown.
+    my $t = convert_fenced_components( $text, $layout_dir, $md_path, $meta );
+    $t = convert_fenced_divs($t);
+    $t = convert_fenced_include( $t, $md_path, $meta ) if defined $md_path;
+    my $html = convert_md($t);
     $html =~ s/\A\s+//;
     $html =~ s/\s+\z//;
     return $html;
 }
 
 sub convert_fenced_components {
-    my ( $text, $layout_dir ) = @_;
+    my ( $text, $layout_dir, $md_path, $meta ) = @_;
     return $text unless defined $layout_dir && -d "$layout_dir/components";
     return $text unless $text =~ /^:::[ \t]+[\w-]+/m;   # fast bail
 
@@ -1896,7 +1903,8 @@ sub convert_fenced_components {
                 $j++;
             }
             if ( $depth != 0 ) { push @out, $l; $i++; next; }   # unbalanced: leave as-is
-            push @out, _render_component( $layout_dir, $name, $attr, join( "\n", @inner ) );
+            push @out, _render_component( $layout_dir, $name, $attr,
+                join( "\n", @inner ), $md_path, $meta );
             $i = $j;
         }
         else { push @out, $l; $i++; }
@@ -1905,20 +1913,22 @@ sub convert_fenced_components {
 }
 
 sub _render_component {
-    my ( $layout_dir, $name, $attr_str, $inner ) = @_;
+    my ( $layout_dir, $name, $attr_str, $inner, $md_path, $meta ) = @_;
 
     my %attrs;
     while ( $attr_str =~ /([\w-]+)\s*=\s*"([^"]*)"/g ) { $attrs{$1} = $2 }
     while ( $attr_str =~ /([\w-]+)\s*=\s*'([^']*)'/g ) { $attrs{$1} //= $2 }
 
-    # Direct-child ::: <slot> fences -> named slots; everything else -> content.
+    # Direct-child ::: <slot> fences whose name is NOT itself a component become
+    # named slots; a child fence that IS a component (or any other content) goes
+    # to content, where _md_fragment renders it (nested components).
     my ( %slots, @content_lines );
     my @il = split /\n/, $inner, -1;
     my $i  = 0;
     while ( $i <= $#il ) {
         my $l = $il[$i];
         if ( $l =~ /^:::[ \t]+([\w-]+)[ \t]*.*$/ ) {
-            my $slot = $1;
+            my $fence = $1;
             my @sb;
             my $depth = 1;
             my $j     = $i + 1;
@@ -1930,7 +1940,18 @@ sub _render_component {
                 $j++;
             }
             if ( $depth == 0 ) {
-                $slots{$slot} = _md_fragment( join "\n", @sb );
+                # A child fence that is itself a component, or a reserved built-in
+                # (include/oembed/form), belongs to content so the pipeline renders
+                # it; any other name is a named slot.
+                if ( _component_exists( $layout_dir, $fence )
+                    || $fence =~ /\A(?:include|oembed|form)\z/ )
+                {
+                    push @content_lines, $l, @sb, ':::';
+                }
+                else {
+                    $slots{$fence} =
+                        _md_fragment( join( "\n", @sb ), $layout_dir, $md_path, $meta );
+                }
                 $i = $j;
                 next;
             }
@@ -1939,7 +1960,8 @@ sub _render_component {
         $i++;
     }
 
-    my $content = _md_fragment( join "\n", @content_lines );
+    my $content =
+        _md_fragment( join( "\n", @content_lines ), $layout_dir, $md_path, $meta );
 
     my $tt = Template->new(
         ABSOLUTE     => 1,

@@ -49,9 +49,19 @@ print $hf <<'TT';
 TT
 close $hf;
 
+# A second component, used nested inside the hero's content.
+open my $pf, '>', "$cdir/panel.tt" or die $!;
+print $pf qq{<aside class="panel">[% content %]</aside>\n};
+close $pf;
+
 open my $conf, '>', "$docroot/lazysite/lazysite.conf" or die $!;
 print $conf "site_name: Test\nlayout: nova\n";
 close $conf;
+
+# An includable snippet (to prove ::: include works inside a component).
+open my $inc, '>', "$docroot/snippet.md" or die $!;
+print $inc "---\ntitle: Snip\n---\nIncluded **bit**.\n";
+close $inc;
 
 open my $idx, '>', "$docroot/index.md" or die $!;
 print $idx "---\ntitle: Home\n---\nBody copy.\n";
@@ -98,5 +108,32 @@ like( $out, qr{A site that's <em>alive</em>}, 'P2: inner Markdown rendered as co
 like( $out, qr{<div class="cta">.*href="#start".*Go now}s, 'P2: nested actions slot rendered' );
 like( $out, qr{Tail paragraph\.}, 'P2: text after the component still renders' );
 unlike( $out, qr{^:::}m, 'P2: no raw ::: fences leak into output' );
+
+# Nested component (a component inside another's content) + an include inside a
+# component body.
+open my $np, '>', "$docroot/nested.md" or die $!;
+print $np <<'MD';
+---
+title: Nested
+---
+::: hero
+# Top
+
+::: panel
+Inner panel text.
+:::
+
+::: include
+/snippet.md
+:::
+:::
+MD
+close $np;
+
+my $n = run_processor( $docroot, '/nested' );
+like( $n, qr{<section class="hero">}, 'nested: outer hero rendered' );
+like( $n, qr{<aside class="panel">.*Inner panel text\..*</aside>}s,
+    'nested: a component inside a component renders' );
+like( $n, qr{Included <strong>bit</strong>}, 'include works inside a component body' );
 
 done_testing;

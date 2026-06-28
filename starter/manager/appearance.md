@@ -388,7 +388,11 @@ function renderCatalogue(layouts) {
     if (L.installed) html += '<span class="mg-badge mg-badge-success">installed</span>';
     html += '<div class="mg-file-actions">';
     html += '<button class="mg-btn mg-btn-sm" onclick="toggleCat(\'' + cid + '\')">Themes</button>';
-    html += '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="installLayout(\'' + escHtml(L.name) + '\',\'\')">Install</button>';
+    if (L.installed) {
+      html += '<button class="mg-btn mg-btn-sm" onclick="installLayout(\'' + escHtml(L.name) + '\',\'\',true)">Update</button>';
+    } else {
+      html += '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="installLayout(\'' + escHtml(L.name) + '\',\'\')">Install</button>';
+    }
     html += '</div></div>';
     // Per-theme rows (install a specific theme into the layout).
     html += '<div id="' + cid + '" hidden style="margin:0 0 0.5rem 1rem;">';
@@ -397,9 +401,14 @@ function renderCatalogue(layouts) {
       var t = ths[j];
       html += '<div class="mg-file-item"><span class="mg-file-name">' + escHtml(t.name) + '</span>';
       if (t.name === L.default_theme) html += '<span class="mg-file-meta">default</span>';
-      if (t.installed) html += '<span class="mg-badge mg-badge-success">installed</span>';
-      html += '<div class="mg-file-actions"><button class="mg-btn mg-btn-sm" onclick="installLayout(\''
-        + escHtml(L.name) + '\',\'' + escHtml(t.name) + '\')">Install</button></div></div>';
+      html += '<div class="mg-file-actions">';
+      if (t.installed) {
+        html += '<span class="mg-badge mg-badge-success">installed</span>';
+      } else {
+        html += '<button class="mg-btn mg-btn-sm" onclick="installLayout(\''
+          + escHtml(L.name) + '\',\'' + escHtml(t.name) + '\')">Install</button>';
+      }
+      html += '</div></div>';
     }
     html += '</div>';
   }
@@ -408,14 +417,15 @@ function renderCatalogue(layouts) {
 
 function toggleCat(id) { var el = document.getElementById(id); if (el) el.hidden = !el.hidden; }
 
-function installLayout(layout, theme) {
+function installLayout(layout, theme, update) {
   var label = 'layout "' + layout + '"' + (theme ? ' / theme "' + theme + '"' : ' (default theme)');
-  mgConfirm('Install ' + label + ' and activate it?', { ok: 'Install' }).then(function(ok) {
+  var verb = update ? 'Update' : 'Install';
+  mgConfirm(verb + ' ' + label + ' and activate it?', { ok: verb }).then(function(ok) {
     if (!ok) return;
-    showStatus('Installing ' + label + '...');
+    showStatus(verb + 'ing ' + label + '...');
     fetch(API + '?action=layout-install', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ layout: layout, theme: theme })
+      body: JSON.stringify({ layout: layout, theme: theme, update: update ? true : false })
     }).then(function(r){ return r.json(); }).then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Install failed.', true); return; }
       var n = (d.themes_installed || []).length;

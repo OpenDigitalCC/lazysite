@@ -84,4 +84,20 @@ like( $out, qr{<h3>No framework</h3><p>Native CSS and a little JS\.</p>},
 like( $out, qr{<h3>Instant</h3><p>No build, no database\.</p>}, 'feature-grid item 2' );
 like( $out, qr{Body text\.}, 'Markdown body still renders below the sections' );
 
+# Flow-style YAML must parse too (regression: a slurp bug made a 2-item flow
+# list report 5 items). feature-grid items here are an inline flow sequence.
+open my $fp, '>', "$docroot/flow.md" or die $!;
+print $fp <<'MD';
+---
+title: Flow
+sections:
+  - feature-grid:
+      items: [{title: One, body: First}, {title: Two, body: Second}]
+---
+MD
+close $fp;
+my $fout = run_processor( $docroot, '/flow' );
+like( $fout, qr{<h3>One</h3><p>First</p>}, 'flow-style: item 1 parsed' );
+like( $fout, qr{<h3>Two</h3><p>Second</p>}, 'flow-style: item 2 parsed (not 5)' );
+
 done_testing;
