@@ -862,6 +862,7 @@ sub action_layout_install {
     my $theme = $req->{theme};
     $theme =~ s/[^A-Za-z0-9_-]//g if defined $theme;
     my $all      = $req->{all}      ? 1 : 0;
+    my $update   = $req->{update}   ? 1 : 0;
     my $activate = exists $req->{activate} ? ( $req->{activate} ? 1 : 0 ) : 1;
     return { ok => 0, error => 'layout required' } unless length $layout;
 
@@ -895,7 +896,8 @@ sub action_layout_install {
         _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => "Layout download/extract failed: $ldir" };
     }
-    my $lr = _install_layout_from_dir( $ldir, $layout, 'layout-install', $auth_user );
+    my $lr = _install_layout_from_dir( $ldir, $layout, 'layout-install',
+        $auth_user, $update );
     unless ( $lr->{ok} ) {
         _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0, error => "Layout install failed: $lr->{error}" };
@@ -952,7 +954,7 @@ sub action_layout_install {
 }
 
 sub _install_layout_from_dir {
-    my ( $layout_source, $layout_name, $action_label, $user ) = @_;
+    my ( $layout_source, $layout_name, $action_label, $user, $force ) = @_;
 
     return { ok => 0, error => 'missing layout.tt in release' }
         unless -f "$layout_source/layout.tt";
@@ -995,9 +997,28 @@ sub _install_layout_from_dir {
             }
         }
         if (@differs) {
-            return { ok => 0,
-                error => 'already installed and differs; refusing to overwrite ('
-                       . join( ', ', @differs ) . ')' };
+            unless ($force) {
+                return { ok => 0,
+                    error => 'already installed and differs; refusing to overwrite ('
+                           . join( ', ', @differs ) . '). Re-install with update to '
+                           . 'overwrite.' };
+            }
+            # update: snapshot the existing layout (recoverable), then overwrite
+            # the layout files. themes/ is left untouched.
+            _snapshot_artifact( "$DOCROOT/lazysite/layouts", $layout_name );
+            _prune_backups( "$DOCROOT/lazysite/layouts", $layout_name );
+            for my $f (@rel_files) {
+                my $rc = system( 'cp', "$layout_source/$f", "$target_dir/$f" );
+                if ( $rc != 0 ) {
+                    log_event( 'ERROR', $action_label, 'cp layout (update) failed',
+                        file => $f, layout => $layout_name, rc => ( $rc >> 8 ) );
+                    return { ok => 0,
+                        error => "Update failed (cp $f to layout $layout_name)" };
+                }
+            }
+            log_event( 'INFO', $action_label, 'layout updated',
+                name => $layout_name, files => join( ',', @differs ), user => $user );
+            return { ok => 1, action => 'updated' };
         }
         return { ok => 1, action => 'already_installed' };
     }

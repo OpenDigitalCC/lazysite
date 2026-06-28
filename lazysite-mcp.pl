@@ -387,6 +387,7 @@ my %TOOLS = (
                 layout   => { type => 'string',  description => 'layout name from list_layout_catalogue' },
                 theme    => { type => 'string',  description => 'optional specific theme; default is the layout default_theme' },
                 all      => { type => 'boolean', description => 'install every theme for the layout' },
+                update   => { type => 'boolean', description => 'overwrite an already-installed layout (e.g. to push a layout fix); the old one is snapshotted, its themes/ kept' },
                 activate => { type => 'boolean', description => 'activate after install (default true)' },
             },
             required => ['layout'], additionalProperties => JSON::PP::false },
@@ -395,6 +396,7 @@ my %TOOLS = (
             my %req = ( layout => $a->{layout} );
             $req{theme}    = $a->{theme}    if defined $a->{theme};
             $req{all}      = $a->{all}      if defined $a->{all};
+            $req{update}   = $a->{update}   if defined $a->{update};
             $req{activate} = $a->{activate} if defined $a->{activate};
             action_layout_install( encode_json( \%req ) );
         },
