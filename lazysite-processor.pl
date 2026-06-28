@@ -1294,6 +1294,124 @@ sub is_fresh {
     return ( stat($html_path) )[9] >= ( stat($md_path) )[9];
 }
 
+# --- D035 Phase 3: minimal nested-YAML for front-matter `sections:` -----------
+# A self-contained indentation parser for the subset `sections:` needs: a top
+# sequence of single-key maps, nested maps, nested sequences, inline flow maps
+# {k: v, ...} / seqs [a, b], and quoted/bareword scalars. Only runs for pages
+# that declare `sections:`; everything else is untouched. Not a general YAML.
+sub _yaml_scalar {
+    my ($s) = @_;
+    return undef unless defined $s;
+    $s =~ s/^\s+//;
+    $s =~ s/\s+$//;
+    return undef if $s eq '' || $s eq '~' || lc $s eq 'null';
+    return $1 if $s =~ /^"(.*)"$/s;
+    return $1 if $s =~ /^'(.*)'$/s;
+    return $s;
+}
+
+sub _yaml_split_flow {
+    my ($s) = @_;
+    my ( @parts, $cur, $depth, $q ) = ( (), '', 0, '' );
+    for my $ch ( split //, $s ) {
+        if ($q) { $cur .= $ch; $q = '' if $ch eq $q; next }
+        if ( $ch eq '"' || $ch eq "'" ) { $q = $ch; $cur .= $ch; next }
+        if ( $ch eq '{' || $ch eq '[' ) { $depth++; $cur .= $ch; next }
+        if ( $ch eq '}' || $ch eq ']' ) { $depth--; $cur .= $ch; next }
+        if ( $ch eq ',' && $depth == 0 ) { push @parts, $cur; $cur = ''; next }
+        $cur .= $ch;
+    }
+    push @parts, $cur if $cur =~ /\S/;
+    return @parts;
+}
+
+sub _yaml_value {
+    my ($s) = @_;
+    return undef unless defined $s;
+    $s =~ s/^\s+//;
+    $s =~ s/\s+$//;
+    if ( $s =~ /^\{(.*)\}$/s ) {
+        my %h;
+        for my $pair ( _yaml_split_flow($1) ) {
+            next unless $pair =~ /^\s*(.+?)\s*:\s*(.*)$/s;
+            $h{ _yaml_scalar($1) } = _yaml_value($2);
+        }
+        return \%h;
+    }
+    if ( $s =~ /^\[(.*)\]$/s ) {
+        return [ map { _yaml_value($_) } _yaml_split_flow($1) ];
+    }
+    return _yaml_scalar($s);
+}
+
+# Recursive block parser over [indent, text] tokens.
+sub _yaml_block {
+    my ( $toks, $i, $ind ) = @_;
+    return undef if $$i > $#$toks || $toks->[$$i][0] < $ind;
+    my $first = $toks->[$$i][1];
+
+    if ( $first =~ /^-(?:\s|$)/ ) {    # sequence
+        my @seq;
+        while ( $$i <= $#$toks
+            && $toks->[$$i][0] == $ind
+            && $toks->[$$i][1] =~ /^-(?:\s|$)/ )
+        {
+            ( my $rest = $toks->[$$i][1] ) =~ s/^-\s*//;
+            my @sub;
+            push @sub, [ $ind + 2, $rest ] if length $rest;
+            $$i++;
+            while ( $$i <= $#$toks && $toks->[$$i][0] > $ind ) {
+                push @sub, $toks->[$$i];
+                $$i++;
+            }
+            my $j = 0;
+            push @seq, _yaml_block( \@sub, \$j, $ind + 2 );
+        }
+        return \@seq;
+    }
+
+    if ( $first !~ /^[\[{]/ && $first =~ /^(.+?)\s*:\s*(.*)$/ ) {    # mapping
+        my %map;
+        while ( $$i <= $#$toks && $toks->[$$i][0] == $ind ) {
+            my $line = $toks->[$$i][1];
+            last if $line =~ /^-(?:\s|$)/;
+            last unless $line =~ /^(.+?)\s*:\s*(.*)$/;
+            my ( $k, $v ) = ( _yaml_scalar($1), $2 );
+            $$i++;
+            if ( defined $v && $v =~ /\S/ ) {
+                $map{$k} = _yaml_value($v);
+            }
+            elsif ( $$i <= $#$toks && $toks->[$$i][0] > $ind ) {
+                $map{$k} = _yaml_block( $toks, $i, $toks->[$$i][0] );
+            }
+            else { $map{$k} = undef }
+        }
+        return \%map;
+    }
+
+    my $v = _yaml_value($first);    # bare scalar / flow
+    $$i++;
+    return $v;
+}
+
+sub _parse_sections {
+    my ($block) = @_;
+    my @toks;
+    for my $line ( split /\n/, $block ) {
+        next if $line !~ /\S/;
+        next if $line =~ /^\s*#/;
+        my ($lead) = $line =~ /^(\s*)/;
+        ( my $expanded = $lead ) =~ s/\t/    /g;
+        ( my $text = $line ) =~ s/^\s+//;
+        $text =~ s/\s+$//;
+        push @toks, [ length $expanded, $text ];
+    }
+    return [] unless @toks;
+    my $i    = 0;
+    my $data = _yaml_block( \@toks, \$i, $toks[0][0] );
+    return ref $data eq 'ARRAY' ? $data : [];
+}
+
 sub parse_yaml_front_matter {
     my ($text) = @_;
     my %meta;
@@ -1353,11 +1471,20 @@ sub parse_yaml_front_matter {
             $meta{query_params} = \@params;
         }
 
+        # D035 Phase 3: parse the nested `sections:` block (data-driven pages).
+        # Captures indented/blank lines after `sections:` up to the next
+        # column-0 key, then hands them to the minimal nested-YAML parser.
+        if ( $yaml =~ /^sections\s*:[ \t]*\n((?:[ \t]+\S[^\n]*\n?|[ \t]*\n)*)/m ) {
+            my $parsed = _parse_sections($1);
+            $meta{sections} = $parsed if @$parsed;
+        }
+
         # Parse scalar key: value pairs (skip tt_page_var, register, query_params blocks)
         while ( $yaml =~ /^(\w+)\s*:\s*([^\n]+)$/mg ) {
             next if $1 eq 'tt_page_var';
             next if $1 eq 'register';
             next if $1 eq 'query_params';
+            next if $1 eq 'sections';    # nested block; parsed above (and \s* here would eat its first line)
             next if $1 eq 'tags' && ref $meta{tags} eq 'ARRAY';
             next if $1 eq 'auth_groups' && ref $meta{auth_groups} eq 'ARRAY';
             # Strip TT directives from all scalar values including title and subtitle
@@ -2717,6 +2844,7 @@ sub render_content {
         params            => $query,
         lazysite_version  => _lazysite_version(),   # asset cache-buster (?v=)
         enabled_plugins   => _enabled_plugins(),    # conditional manager nav
+        sections          => $meta->{sections} || [],  # D035 Phase 3: data-driven pages
         editor            => $editor_flag,
         year              => sprintf( '%04d', (localtime)[5] + 1900 ),
         search_enabled    => ( -f "$DOCROOT/search-results.md" || -f "$DOCROOT/search-results.url" ) ? 1 : 0,
