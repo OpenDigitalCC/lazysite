@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.61 - Manager UI consistency (titles, naming, audit UX) (2026-06-28)
+
+Change - consistent manager pages
+: every manager page now shows its title the same way (rendered once by the
+  layout from front-matter), nav labels and page titles match (Site settings,
+  Visitor statistics, Audit log, Cache, Users), and the audit failure reason
+  expands on its own row with the date filter on its own line.
+
 ## 0.4.60 - Redeploy a changed layout (install update flag) (2026-06-28)
 
 Feature - update an installed layout
