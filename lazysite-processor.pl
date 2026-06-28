@@ -2866,6 +2866,7 @@ sub render_content {
         params            => $query,
         lazysite_version  => _lazysite_version(),   # asset cache-buster (?v=)
         enabled_plugins   => _enabled_plugins(),    # conditional manager nav
+        smtp_configured   => ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) ? 1 : 0,  # gate emailed reset
         sections          => $meta->{sections} || [],  # D035 Phase 3: data-driven pages
         editor            => $editor_flag,
         year              => sprintf( '%04d', (localtime)[5] + 1900 ),

@@ -118,7 +118,7 @@ query_params:
   </div>
 </form>
 
-<p style="margin-top:0.5rem;font-size:0.9rem;"><a href="/forgot">Forgot password?</a></p>
+[% IF smtp_configured %]<p style="margin-top:0.5rem;font-size:0.9rem;"><a href="/forgot">Forgot password?</a></p>[% END %]
 
 <p class="demo-creds">Username: <code>manager</code><br>Password: (none required on localhost)</p>
 
