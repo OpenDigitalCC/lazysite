@@ -44,7 +44,7 @@ identity in both domains; only <em>where</em> it is granted differs.
 </div>
 <div class="mg-form-row">
 <label>Create under</label>
-<select id="new-parent"><option value="">(top level - under you, the manager)</option></select>
+<select id="new-parent"><option value="">Managed by you</option></select>
 </div>
 <div class="mg-form-row">
 <label></label>
@@ -67,6 +67,7 @@ var allGroups = {};   // {group: [members]}
 var allUsers  = [];   // [username]
 var parentList = [];  // [username] - accounts that can own sub-users (create_sub_users)
 var MANAGER_GROUPS = [];  // SM094: site manager groups; members are operators
+var ME = '';          // the current operator's username (from whoami) - a valid owner
 
 // SM109 phase 2: route all status to the global toast.
 function showStatus(msg, isError) {
@@ -108,7 +109,7 @@ function loadUsers() {
   var wp = fetch(API + '?action=whoami', { method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' }, body: '{}' })
     .then(function(r) { return r.json(); })
-    .then(function(d) { return (d && d.ok && d.manager_groups) ? d.manager_groups : []; })
+    .then(function(d) { if (d && d.ok && d.partner) ME = d.partner; return (d && d.ok && d.manager_groups) ? d.manager_groups : []; })
     .catch(function() { return []; });
   Promise.all([up, gp, wp]).then(function(res) {
     var rows = res[0] || [];
@@ -796,9 +797,18 @@ function populateAddUserParents() {
   var sel = document.getElementById('new-parent');
   if (!sel) return;
   var cur = sel.value;
-  sel.innerHTML = '<option value="">(top-level account - no parent; managed by you)</option>' +
-    parentList.map(function(p) { return '<option value="' + escHtml(p) + '">under ' + escHtml(p) + '</option>'; }).join('');
-  sel.value = cur;
+  // "Managed by you" (the operator) is the default and creates the account owned
+  // by you - the same place "Reassign" moves a user "under the manager". A
+  // top-level account has no owner. Other listed accounts can also own sub-users.
+  var opts = '';
+  if (ME) opts += '<option value="' + escHtml(ME) + '">Managed by you (' + escHtml(ME) + ')</option>';
+  opts += '<option value="">Top-level (standalone, no owner)</option>';
+  opts += parentList.filter(function(p) { return p !== ME; })
+    .map(function(p) { return '<option value="' + escHtml(p) + '">under ' + escHtml(p) + '</option>'; }).join('');
+  sel.innerHTML = opts;
+  // Default to "Managed by you" on first populate (cur is '' before any choice,
+  // which would otherwise select Top-level).
+  sel.value = ( cur || (ME ? ME : '') );
 }
 
 function addUser() {
