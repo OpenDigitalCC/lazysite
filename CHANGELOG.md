@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.71 - Gate password-reset link on SMTP (2026-06-28)
+
+Fix - login page
+: the "Forgot password?" link now shows only when SMTP is configured
+  (lazysite/forms/smtp.conf), since the emailed reset cannot be delivered
+  otherwise.
+
 ## 0.4.70 - Metadata editor + users owner fix (2026-06-28)
 
 Change - editor + users
