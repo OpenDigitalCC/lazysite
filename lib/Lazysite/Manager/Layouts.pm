@@ -961,19 +961,24 @@ sub _install_layout_from_dir {
 
     my $target_dir = "$DOCROOT/lazysite/layouts/$layout_name";
 
-    # Collect the release's layout files (layout.tt + layout.json).
-    # layout.json is optional; copy if present.
+    # Collect the release's layout files: the root files (layout.tt, optional
+    # layout.json) and the optional components/ subtree (D035 content
+    # components). themes/ is handled separately by the theme walker. Component
+    # files are carried as relative paths (components/<...>) so the compare and
+    # copy logic below treats them like any other file.
     my @rel_files;
     opendir my $sh, $layout_source
         or return { ok => 0, error => 'Cannot read layout source dir' };
     for my $f ( sort readdir $sh ) {
         next if $f =~ /^\./;
-        my $src = "$layout_source/$f";
-        # Only copy regular files at the layout root (layout.tt,
-        # layout.json). The themes/ subtree is handled by the walker.
         next if $f eq 'themes';
-        next unless -f $src;
-        push @rel_files, $f;
+        my $src = "$layout_source/$f";
+        if ( -f $src ) {
+            push @rel_files, $f;
+        }
+        elsif ( -d $src && $f eq 'components' ) {
+            push @rel_files, map { "components/$_" } _list_files_rel($src);
+        }
     }
     closedir $sh;
 
@@ -1008,6 +1013,7 @@ sub _install_layout_from_dir {
             _snapshot_artifact( "$DOCROOT/lazysite/layouts", $layout_name );
             _prune_backups( "$DOCROOT/lazysite/layouts", $layout_name );
             for my $f (@rel_files) {
+                make_path( dirname("$target_dir/$f") );
                 my $rc = system( 'cp', "$layout_source/$f", "$target_dir/$f" );
                 if ( $rc != 0 ) {
                     log_event( 'ERROR', $action_label, 'cp layout (update) failed',
@@ -1026,6 +1032,7 @@ sub _install_layout_from_dir {
     # New install.
     make_path($target_dir);
     for my $f (@rel_files) {
+        make_path( dirname("$target_dir/$f") );
         my $rc = system( 'cp', "$layout_source/$f", "$target_dir/$f" );
         if ( $rc != 0 ) {
             log_event( 'ERROR', $action_label, 'cp layout failed',
@@ -1040,6 +1047,23 @@ sub _install_layout_from_dir {
         user => $user );
 
     return { ok => 1, action => 'installed' };
+}
+
+# Recursively list regular files under $base as paths relative to $base.
+sub _list_files_rel {
+    my ( $base, $prefix ) = @_;
+    $prefix //= '';
+    my @out;
+    opendir my $dh, $base or return @out;
+    for my $e ( sort readdir $dh ) {
+        next if $e =~ /^\./;
+        my $full = "$base/$e";
+        my $rel = length $prefix ? "$prefix/$e" : $e;
+        if    ( -f $full ) { push @out, $rel }
+        elsif ( -d $full ) { push @out, _list_files_rel( $full, $rel ) }
+    }
+    closedir $dh;
+    return @out;
 }
 
 sub _slurp_bytes {
