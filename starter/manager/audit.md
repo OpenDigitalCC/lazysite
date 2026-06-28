@@ -10,7 +10,6 @@ query_params:
 <div id="status" class="mg-status"></div>
 
 <div class="mg-card">
-<div class="mg-card-header"><span class="mg-card-title">Audit log</span></div>
 <div class="mg-card-body">
 
 <div class="mg-line">
@@ -18,6 +17,9 @@ query_params:
   <select id="audit-user" class="mg-inp" style="max-width:12rem" onchange="filterAudit()"><option value="">(all users)</option></select>
   <label for="audit-target-f">Target</label>
   <select id="audit-target-f" class="mg-inp" style="max-width:18rem" onchange="filterAudit()"><option value="">(all targets)</option></select>
+</div>
+<!-- Date range on its own line so From/To never split across a wrap. -->
+<div class="mg-line">
   <label for="audit-from">From</label>
   <input type="date" id="audit-from" class="mg-inp" style="max-width:10rem" onchange="filterAudit()">
   <label for="audit-to">To</label>
@@ -147,21 +149,26 @@ function loadAudit() {
     var h = '<table class="audit-table"><thead><tr>' +
       '<th>When (UTC)</th><th>User</th><th>Source</th><th>Action</th><th>Target</th><th>From</th><th>Status</th>' +
       '</tr></thead><tbody>';
-    d.entries.forEach(function (e) {
+    d.entries.forEach(function (e, i) {
       var cls = e.status === 'fail' ? ' class="audit-fail"' : '';
       var statusCell = aesc(e.status);
+      var detailRow = '';
       if (e.status === 'fail' && e.detail) {
-        // The reason is a click-to-reveal popup on the (i), not always inline.
+        // Click the (i) to expand the reason on its own full-width row below,
+        // rather than cramming it into the narrow Status cell.
+        var did = 'audit-d-' + i;
         statusCell = aesc(e.status) +
-          ' <a href="#" class="audit-info" title="' + aesc(e.detail) +
-          '" onclick="var d=this.nextElementSibling;d.style.display=(d.style.display===\'none\'?\'inline\':\'none\');return false;">&#9432;</a>' +
-          '<span class="audit-detail" style="display:none"> ' + aesc(e.detail) + '</span>';
+          ' <a href="#" class="audit-info" title="Show reason" ' +
+          'onclick="var r=document.getElementById(\'' + did +
+          '\');r.hidden=!r.hidden;return false;">&#9432;</a>';
+        detailRow = '<tr id="' + did + '" class="audit-detail-row" hidden>' +
+          '<td colspan="7"><strong>Reason:</strong> ' + aesc(e.detail) + '</td></tr>';
       }
       h += '<tr' + cls + '><td>' + aesc(e.ts) + '</td><td>' + auditUserLink(e.user) +
         '</td><td>' + aesc(e.origin || '') +
         '</td><td>' + aesc(e.action) + '</td><td>' + auditTargetLink(e) +
         '</td><td>' + aesc(e.ip) +
-        '</td><td>' + statusCell + '</td></tr>';
+        '</td><td>' + statusCell + '</td></tr>' + detailRow;
     });
     h += '</tbody></table>';
     el.innerHTML = h + paginationHtml(d);

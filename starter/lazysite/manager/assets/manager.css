@@ -1453,9 +1453,17 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
 .audit-table th, .audit-table td { text-align:left; padding:0.35rem 0.5rem; border-bottom:1px solid var(--mg-border); }
 .audit-table th { color:var(--mg-text-muted); font-weight:600; }
 .audit-table tr:hover td { background:var(--mg-surface-alt); }
+/* Consistent page heading rendered by the manager layout from front-matter
+   title (so pages don't each hand-roll - or omit - their own title). */
+.mg-page-title { font-size:1.35rem; font-weight:600; line-height:1.2;
+  margin:0 0 1rem; color:var(--mg-text); }
 .audit-fail { color:var(--mg-danger); }
 .audit-info { color:var(--mg-danger); text-decoration:none; cursor:pointer; font-size:0.95rem; }
 .audit-detail { color:var(--mg-danger); font-size:var(--mg-text-sm); opacity:0.85; }
+/* Failure reason expands on its own full-width row below the entry (was a cramped
+   inline span in the narrow Status cell). */
+.audit-detail-row td { background:var(--mg-surface-alt); color:var(--mg-text);
+  white-space:normal; padding:0.45rem 0.6rem; font-size:var(--mg-text-sm); }
 
 /* Config page (consolidated from config.md) */
 .mg-config-section { margin-bottom: 2rem; }

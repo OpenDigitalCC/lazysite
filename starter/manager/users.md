@@ -1,5 +1,5 @@
 ---
-title: User Management
+title: Users
 auth: manager
 search: false
 query_params:
@@ -19,7 +19,7 @@ identity in both domains; only <em>where</em> it is granted differs.
 
 <div class="mg-card">
 <div class="mg-card-header">
-<span class="mg-card-title">Users</span>
+<span class="mg-card-title">User accounts</span>
 </div>
 <div id="user-list" class="mg-acc-list">
 <div class="mg-empty" style="padding:0.75rem;">Loading...</div>

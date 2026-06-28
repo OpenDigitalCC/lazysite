@@ -1,5 +1,5 @@
 ---
-title: Cache Manager
+title: Cache
 auth: manager
 search: false
 ---

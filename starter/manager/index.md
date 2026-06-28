@@ -1,5 +1,5 @@
 ---
-title: Configuration
+title: Site settings
 auth: manager
 search: false
 ---

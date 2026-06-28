@@ -1,11 +1,10 @@
 ---
-title: Configuration
+title: Site settings
 auth: manager
 search: false
 ---
 
 <section class="mg-config-section">
-<h2>Site settings</h2>
 <div id="site-settings">Loading...</div>
 <div id="site-status" class="mg-status"></div>
 </section>

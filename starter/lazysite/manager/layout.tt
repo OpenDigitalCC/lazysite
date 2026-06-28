@@ -113,7 +113,7 @@
 
   // SM109 phase 5: command palette (Ctrl/Cmd-K) - jump to a page or run a command.
   window.MG_DESTINATIONS = [
-    { label: 'Config',     url: '/manager' },
+    { label: 'Site settings', url: '/manager' },
     { label: 'Files',      url: '/manager/files' },
     { label: 'Navigation', url: '/manager/nav' },
     { label: 'Appearance', url: '/manager/appearance' },
@@ -122,8 +122,8 @@
     { label: 'Users',      url: '/manager/users' },
     { label: 'Cache',      url: '/manager/cache' },
     { label: 'Backups',    url: '/manager/backups' },
-    { label: 'Audit',      url: '/manager/audit' },
-    { label: 'Stats',      url: '/manager/stats' },
+    { label: 'Audit log',  url: '/manager/audit' },
+    { label: 'Visitor statistics', url: '/manager/stats' },
     { label: 'View site',  url: '/' },
     { label: 'Toggle dark mode', action: 'theme' },
     { label: 'Sign out',   url: '/cgi-bin/lazysite-auth.pl?action=logout' }
@@ -275,14 +275,17 @@
       <div class="mg-nav-group">Access</div>
       <a href="/manager/users" [% IF request_uri.match('^/manager/users') %]class="active" aria-current="page"[% END %]>Users</a>
       <div class="mg-nav-group">System</div>
-      <a href="/manager" [% IF request_uri == '/manager' || request_uri == '/manager/' || request_uri.match('^/manager/config') %]class="active" aria-current="page"[% END %]>Config</a>
+      <a href="/manager" [% IF request_uri == '/manager' || request_uri == '/manager/' || request_uri.match('^/manager/config') %]class="active" aria-current="page"[% END %]>Site settings</a>
       <a href="/manager/cache" [% IF request_uri.match('^/manager/cache') %]class="active" aria-current="page"[% END %]>Cache</a>
       <a href="/manager/backups" [% IF request_uri.match('^/manager/backups') %]class="active" aria-current="page"[% END %]>Backups</a>
-      <a href="/manager/audit" [% IF request_uri.match('^/manager/audit') %]class="active" aria-current="page"[% END %]>Audit</a>
-      <a href="/manager/stats" [% IF request_uri.match('^/manager/stats') %]class="active" aria-current="page"[% END %]>Stats</a>
+      <a href="/manager/audit" [% IF request_uri.match('^/manager/audit') %]class="active" aria-current="page"[% END %]>Audit log</a>
+      <a href="/manager/stats" [% IF request_uri.match('^/manager/stats') %]class="active" aria-current="page"[% END %]>Visitor statistics</a>
     </nav>
   </aside>
   <main class="mg-main">
+    [%# Consistent page heading for every manager page, driven by front-matter
+        title. Full-bleed pages (the editor) hide .mg-main h1 in their own CSS. %]
+    [% IF page_title %]<h1 class="mg-page-title">[% page_title %]</h1>[% END %]
     [% content %]
   </main>
 </div>

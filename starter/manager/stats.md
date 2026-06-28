@@ -1,5 +1,5 @@
 ---
-title: Visitor Stats
+title: Visitor statistics
 auth: manager
 search: false
 ---
@@ -8,7 +8,7 @@ search: false
 
 <div class="mg-card">
 <div class="mg-card-header">
-<span class="mg-card-title">Visitor statistics</span>
+<span class="mg-card-title">Summary</span>
 <button class="mg-btn mg-btn-sm" onclick="loadStats()">Refresh</button>
 </div>
 <div class="mg-card-body" id="stats-body">Loading&hellip;</div>
