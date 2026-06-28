@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.70 - Metadata editor + users owner fix (2026-06-28)
+
+Change - editor + users
+: the editor front-matter box becomes a first-class, resizable "Metadata" editor
+  stacked over Content (for YAML-heavy pages); adding a user now offers "Managed
+  by you" so it can be owned by the manager at creation instead of top-level then
+  reassign.
+
 ## 0.4.69 - Groups/Sessions pages, nested components, stats errors (2026-06-28)
 
 Change - manager + components + stats
