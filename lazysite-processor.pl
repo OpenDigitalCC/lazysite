@@ -2989,9 +2989,11 @@ sub _enabled_plugins {
         if (/^plugins\s*:\s*$/) { $in = 1; next }
         if ( $in && /^\s+-\s+(.+?)\s*$/ ) {
             my $e = $1;
-            $en{$e} = 1;
-            ( my $id = $e ) =~ s/\.(?:pl|cgi)$//;
-            $en{$id} = 1;
+            $en{$e} = 1;                  # raw entry, e.g. stats.pl
+            ( my $base = $e ) =~ s{.*/}{};        # basename (drop any path prefix)
+            $en{$base} = 1;
+            ( my $id = $base ) =~ s/\.[^.]+$//;   # extensionless id, e.g. stats
+            $en{$id} = 1 if length $id;
         }
         elsif ( $in && /^\S/ ) { $in = 0 }
     }
