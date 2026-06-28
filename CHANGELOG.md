@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.65 - Fenced content components (2026-06-28)
+
+Feature - author components from Markdown
+: a ::: name fence whose name matches a component in the active layout is rendered
+  through it - inner Markdown becomes content, key="value" become attrs, nested
+  ::: slot fences become named slots. Authors write Markdown; the layout supplies
+  the HTML scaffolding.
+
 ## 0.4.64 - Content components phase 1 (2026-06-28)
 
 Feature - layout-local components + markdown filter
