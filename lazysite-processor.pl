@@ -1891,6 +1891,22 @@ sub convert_md {
     return unwrap_block_html($html);
 }
 
+# Content components (D035): a TT filter that renders a value containing Markdown
+# to HTML, reusing the page Markdown pipeline. A single-paragraph result is
+# unwrapped so inline fields (e.g. heading="A site that's *alive*.") stay inline;
+# multi-block content keeps its block structure.
+sub _markdown_filter {
+    my ($text) = @_;
+    return '' unless defined $text && length $text;
+    my $html = convert_md("$text");
+    $html =~ s/\A\s+//;
+    $html =~ s/\s+\z//;
+    if ( $html =~ m{\A<p>(.*)</p>\z}s && index( $1, '<p>' ) < 0 ) {
+        $html = $1;    # inline: drop the single enclosing paragraph
+    }
+    return $html;
+}
+
 sub convert_dt_links {
     my ($html) = @_;
     # Convert unprocessed Markdown links inside <dt> tags.
@@ -2895,21 +2911,32 @@ sub render_template {
     # Determine if layout is remote (from cache dir) - sandbox it
     my $is_remote = $is_remote_layout;
 
+    # D035 content components: resolve [% INCLUDE 'components/NAME.tt' %] against
+    # the active layout's own directory, and expose a `markdown` filter so a
+    # component can render Markdown fields. Content authors never write TT;
+    # components ship inside the trusted layout package and EVAL_PERL stays off.
+    my $component_dir = ( defined $layout && length $layout && -e $layout )
+        ? dirname($layout) : undef;
+
     my $tt_layout = $is_remote
         ? Template->new(
-            ABSOLUTE    => 1,                # needed to read cache path
-            RELATIVE    => 0,
-            EVAL_PERL   => 0,                # no embedded Perl
-            ENCODING    => 'utf8',
-            COMPILE_DIR => $TT_COMPILE_DIR,  # P-4
-            COMPILE_EXT => '.ttc',           # P-4
+            ABSOLUTE     => 1,                # needed to read cache path
+            RELATIVE     => 0,
+            EVAL_PERL    => 0,                # no embedded Perl
+            ENCODING     => 'utf8',
+            INCLUDE_PATH => $component_dir,   # D035: layout-local components
+            FILTERS      => { markdown => \&_markdown_filter },
+            COMPILE_DIR  => $TT_COMPILE_DIR,  # P-4
+            COMPILE_EXT  => '.ttc',           # P-4
         )
         : Template->new(
-            ABSOLUTE    => 1,
-            ENCODING    => 'utf8',
-            EVAL_PERL   => 0,                # L-2
-            COMPILE_DIR => $TT_COMPILE_DIR,  # P-4
-            COMPILE_EXT => '.ttc',           # P-4
+            ABSOLUTE     => 1,
+            ENCODING     => 'utf8',
+            EVAL_PERL    => 0,                # L-2
+            INCLUDE_PATH => $component_dir,   # D035: layout-local components
+            FILTERS      => { markdown => \&_markdown_filter },
+            COMPILE_DIR  => $TT_COMPILE_DIR,  # P-4
+            COMPILE_EXT  => '.ttc',           # P-4
         );
 
     unless ( $tt_layout ) {
