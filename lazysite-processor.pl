@@ -50,17 +50,21 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
             # JS. Options come from manager-api endpoints
             # (layouts-available / themes-for-layout). The 'text' fallback
             # in renderSiteForm keeps these sensible on older UIs.
+            # The active layout/theme switcher lives on /manager/appearance;
+            # Config shows them read-only with a link there (was inline
+            # dropdowns here pre-Appearance).
             { key => 'layout', label => 'Active layout',
-              type => 'dropdown_layouts', default => '' },
+              type => 'readonly_with_link', default => '',
+              link_href => '/manager/appearance',
+              link_label => 'Manage on Appearance' },
             { key => 'theme',  label => 'Active theme',
-              type => 'dropdown_themes_for_active_layout', default => '',
-              depends_on => 'layout' },
-            # SM068: read-only display of layouts_repo on Config.
-            # Edit happens on /manager/themes via layouts-repo-set.
+              type => 'readonly_with_link', default => '',
+              link_href => '/manager/appearance',
+              link_label => 'Manage on Appearance' },
             { key => 'layouts_repo', label => 'Layouts repo',
               type => 'readonly_with_link', default => '',
-              link_href => '/manager/themes',
-              link_label => 'Edit on Themes' },
+              link_href => '/manager/appearance',
+              link_label => 'Edit on Appearance' },
             { key => 'nav_file', label => 'Navigation file', type => 'text',
               default => 'lazysite/nav.conf' },
             { key => 'search_default', label => 'Pages searchable by default', type => 'select',

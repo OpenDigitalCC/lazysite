@@ -116,7 +116,7 @@
     { label: 'Config',     url: '/manager' },
     { label: 'Files',      url: '/manager/files' },
     { label: 'Navigation', url: '/manager/nav' },
-    { label: 'Themes',     url: '/manager/themes' },
+    { label: 'Appearance', url: '/manager/appearance' },
     { label: 'Plugin Manager', url: '/manager/plugins' },
     { label: 'Plugin Config',  url: '/manager/plugin-config' },
     { label: 'Users',      url: '/manager/users' },
@@ -269,7 +269,7 @@
       <div class="mg-nav-group">Content</div>
       <a href="/manager/files" [% IF request_uri.match('^/manager/files') %]class="active" aria-current="page"[% END %]>Files</a>
       <a href="/manager/nav" [% IF request_uri.match('^/manager/nav') %]class="active" aria-current="page"[% END %]>Navigation</a>
-      <a href="/manager/themes" [% IF request_uri.match('^/manager/themes') %]class="active" aria-current="page"[% END %]>Themes</a>
+      <a href="/manager/appearance" [% IF request_uri.match('^/manager/(appearance|themes)') %]class="active" aria-current="page"[% END %]>Appearance</a>
       <a href="/manager/plugins" [% IF request_uri.match('^/manager/plugins$') %]class="active" aria-current="page"[% END %]>Plugin Manager</a>
       <a href="/manager/plugin-config" [% IF request_uri.match('^/manager/plugin-config') %]class="active" aria-current="page"[% END %]>Plugin Config</a>
       <div class="mg-nav-group">Access</div>

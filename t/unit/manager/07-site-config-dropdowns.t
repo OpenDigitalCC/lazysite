@@ -59,15 +59,19 @@ subtest 'processor --describe includes SM044 + SM068 fields' => sub {
 
     my ($layout_entry) = grep { $_->{key} eq 'layout' }
         @{ $desc->{config_schema} };
-    is( $layout_entry->{type}, 'dropdown_layouts',
-        'layout entry has dropdown_layouts type' );
+    # The active layout/theme switcher moved to /manager/appearance; Config
+    # now shows both read-only with a link there.
+    is( $layout_entry->{type}, 'readonly_with_link',
+        'layout entry is readonly_with_link (managed on Appearance)' );
+    is( $layout_entry->{link_href}, '/manager/appearance',
+        'layout entry links to Appearance' );
 
     my ($theme_entry) = grep { $_->{key} eq 'theme' }
         @{ $desc->{config_schema} };
-    is( $theme_entry->{type}, 'dropdown_themes_for_active_layout',
-        'theme entry has dropdown_themes_for_active_layout type' );
-    is( $theme_entry->{depends_on}, 'layout',
-        'theme entry depends_on layout' );
+    is( $theme_entry->{type}, 'readonly_with_link',
+        'theme entry is readonly_with_link (managed on Appearance)' );
+    is( $theme_entry->{link_href}, '/manager/appearance',
+        'theme entry links to Appearance' );
 
     # SM068: layouts_repo is now displayed on Config as a
     # read-only entry linking to /manager/themes.
@@ -76,8 +80,8 @@ subtest 'processor --describe includes SM044 + SM068 fields' => sub {
     ok( $lr_entry, 'layouts_repo now IN config_schema' );
     is( $lr_entry->{type}, 'readonly_with_link',
         'layouts_repo is readonly_with_link' );
-    is( $lr_entry->{link_href}, '/manager/themes',
-        'layouts_repo link points at /manager/themes' );
+    is( $lr_entry->{link_href}, '/manager/appearance',
+        'layouts_repo link points at /manager/appearance' );
     ok( $lr_entry->{link_label},
         'layouts_repo has a link_label for the UI button' );
 };
