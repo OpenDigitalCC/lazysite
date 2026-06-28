@@ -37,7 +37,7 @@ function loadStats() {
     var p = (d.plugins || []).filter(function (x) { return x.id === 'stats'; })[0];
     if (!p) { body.innerHTML = 'The Visitor Stats plugin is not installed.'; return; }
     if (!p._enabled) {
-      body.innerHTML = 'Enable the <b>Visitor Stats</b> plugin on the '
+      body.innerHTML = 'Enable the <b>Visitor Statistics</b> plugin on the '
         + '<a href="/manager/plugins">Plugin Manager</a> page, then set its access-log path on the '
         + '<a href="/manager/plugin-config">Plugin Config</a> page.';
       return;
@@ -59,13 +59,30 @@ function renderStats(d) {
     return;
   }
   var h = '';
-  // Summary tiles
+  // Headline = genuine human audience only.
   h += '<div class="mg-stat-tiles">'
-     + tile('Hits', fmtNum(d.hits))
+     + tile('People', fmtNum(d.hits))
      + tile('Unique visitors' + (d.anonymised ? ' *' : ''), fmtNum(d.unique_visitors))
      + tile('Data served', fmtBytes(d.bytes))
      + tile('Window', d.window_days + ' days')
      + '</div>';
+
+  // Traffic breakdown - separates people from AI / bots / noise / operator.
+  if (d.classes) {
+    var defs = [['human', 'People'], ['logged_in', 'Logged-in'], ['ai', 'AI assistants'],
+                ['bot', 'Bots'], ['noise', 'Noise / probes']];
+    h += '<div class="mg-sec">Who&rsquo;s calling</div><div class="mg-stat-tiles">';
+    defs.forEach(function (p) {
+      var c = d.classes[p[0]] || { hits: 0, visitors: 0 };
+      h += '<div class="mg-stat-tile"><div class="mg-stat-value">' + fmtNum(c.hits) + '</div>'
+         + '<div class="mg-stat-label">' + sesc(p[1])
+         + ' <span class="mg-muted">(' + fmtNum(c.visitors) + ' IP' + (c.visitors === 1 ? '' : 's') + ')</span>'
+         + '</div></div>';
+    });
+    h += '</div>';
+    h += '<p class="mg-muted">Classified from the log alone (user-agent + path) - an estimate, not '
+       + 'authenticated. &ldquo;Logged-in&rdquo; and &ldquo;AI&rdquo; are attributed per request, not per session.</p>';
+  }
   if (d.anonymised) h += '<p class="mg-muted">* visitor IPs are anonymised (last octet zeroed) before counting.</p>';
 
   // Per-day bar chart
@@ -82,8 +99,8 @@ function renderStats(d) {
   }
 
   h += '<div class="mg-stat-cols">';
-  h += topTable('Top pages', d.top_pages, 'Page');
-  h += topTable('Top referrers', d.top_referrers, 'Referrer');
+  h += pageTable('Top pages', d.top_pages);
+  h += refBlock(d.referrers);
   h += '</div>';
 
   // Status codes
@@ -94,8 +111,14 @@ function renderStats(d) {
     h += '</div>';
   }
 
-  h += '<p class="mg-muted" style="margin-top:1rem">Source: <code class="mg-code">' + sesc(d.log) + '</code> '
-     + '&middot; ' + fmtNum(d.scanned_lines) + ' lines scanned' + (d.capped ? ' (capped)' : '') + '.</p>';
+  // Source - the disk path is never shown; offer a download instead.
+  h += '<p class="mg-muted" style="margin-top:1rem">' + fmtNum(d.scanned_lines)
+     + ' log lines scanned' + (d.capped ? ' (capped)' : '') + '.';
+  if (d.log_download) {
+    h += ' <a class="mg-btn mg-btn-sm mg-btn-outline" href="' + API
+       + '?action=stats-log">Download access log</a>';
+  }
+  h += '</p>';
   body.innerHTML = h;
 }
 
@@ -103,11 +126,27 @@ function tile(label, value) {
   return '<div class="mg-stat-tile"><div class="mg-stat-value">' + sesc(value)
        + '</div><div class="mg-stat-label">' + sesc(label) + '</div></div>';
 }
-function topTable(title, rows, col) {
+function pageTable(title, rows) {
   var h = '<div class="mg-stat-col"><div class="mg-sec">' + sesc(title) + '</div>';
   if (!rows || !rows.length) { return h + '<p class="mg-muted">None.</p></div>'; }
-  h += '<table class="mg-table"><thead><tr><th>' + sesc(col) + '</th><th>Hits</th></tr></thead><tbody>';
+  h += '<table class="mg-table"><thead><tr><th>Page</th><th>Hits</th></tr></thead><tbody>';
   rows.forEach(function (r) {
+    h += '<tr><td style="word-break:break-all">'
+       + '<a href="' + encodeURI(r.key) + '" target="_blank" rel="noopener">' + sesc(r.key) + '</a>'
+       + '</td><td>' + fmtNum(r.count) + '</td></tr>';
+  });
+  return h + '</tbody></table></div>';
+}
+function refBlock(ref) {
+  ref = ref || { external: [], internal: 0, direct: 0 };
+  var h = '<div class="mg-stat-col"><div class="mg-sec">Referrers</div>';
+  h += '<div class="mg-checks" style="margin-bottom:.5rem">'
+     + '<span class="mg-tag mg-tag-auto">Direct: ' + fmtNum(ref.direct) + '</span>'
+     + '<span class="mg-tag mg-tag-auto">Internal: ' + fmtNum(ref.internal) + '</span></div>';
+  var ext = ref.external || [];
+  if (!ext.length) { return h + '<p class="mg-muted">No external referrers.</p></div>'; }
+  h += '<table class="mg-table"><thead><tr><th>External referrer</th><th>Hits</th></tr></thead><tbody>';
+  ext.forEach(function (r) {
     h += '<tr><td style="word-break:break-all">' + sesc(r.key) + '</td><td>' + fmtNum(r.count) + '</td></tr>';
   });
   return h + '</tbody></table></div>';

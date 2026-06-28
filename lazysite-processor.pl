@@ -2579,6 +2579,7 @@ sub render_content {
         query             => $query,
         params            => $query,
         lazysite_version  => _lazysite_version(),   # asset cache-buster (?v=)
+        enabled_plugins   => _enabled_plugins(),    # conditional manager nav
         editor            => $editor_flag,
         year              => sprintf( '%04d', (localtime)[5] + 1900 ),
         search_enabled    => ( -f "$DOCROOT/search-results.md" || -f "$DOCROOT/search-results.url" ) ? 1 : 0,
@@ -2974,6 +2975,30 @@ sub _inject_auth_sync {
 
 # SM112: read the installed release version once (from the install state).
 my $LAZYSITE_VERSION;
+# Enabled plugins from lazysite.conf's `plugins:` list, for conditional manager
+# nav (e.g. hide "Visitor statistics" when the stats plugin is disabled). Keyed
+# by both the raw entry (stats.pl) and its extensionless id (stats) so the layout
+# can write `enabled_plugins.stats`.
+sub _enabled_plugins {
+    my %en;
+    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    open my $fh, '<:utf8', $conf or return \%en;
+    my $in = 0;
+    while (<$fh>) {
+        chomp;
+        if (/^plugins\s*:\s*$/) { $in = 1; next }
+        if ( $in && /^\s+-\s+(.+?)\s*$/ ) {
+            my $e = $1;
+            $en{$e} = 1;
+            ( my $id = $e ) =~ s/\.(?:pl|cgi)$//;
+            $en{$id} = 1;
+        }
+        elsif ( $in && /^\S/ ) { $in = 0 }
+    }
+    close $fh;
+    return \%en;
+}
+
 sub _lazysite_version {
     return $LAZYSITE_VERSION if defined $LAZYSITE_VERSION;
     $LAZYSITE_VERSION = '';

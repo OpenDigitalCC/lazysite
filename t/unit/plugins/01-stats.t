@@ -40,11 +40,12 @@ is( $s->{top_pages}[0]{key}, '/a', 'top page is /a' );
 is( $s->{top_pages}[0]{count}, 2, '/a hit twice' );
 is( $s->{status}{200}, 2, 'two 200s (non-bot)' );
 is( $s->{status}{404}, 1, 'one 404' );
-is( scalar @{ $s->{top_referrers} }, 1, 'one external referrer' );
+is( scalar @{ $s->{referrers}{external} }, 1, 'one external referrer' );
 
-my $s2 = scan("access_log: $d/access.log\nexclude_bots: false\nanonymise_ip: false\n");
-is( $s2->{hits}, 4, 'bots included when disabled' );
-is( $s2->{unique_visitors}, 3, 'raw IPs when anonymise off' );
+my $s2 = scan("access_log: $d/access.log\nanonymise_ip: false\n");
+is( $s2->{classes}{human}{hits}, 3, 'human headline excludes the bot' );
+is( $s2->{classes}{bot}{hits},   1, 'the Googlebot row is classed as a bot' );
+is( $s2->{unique_visitors}, 2, 'raw human IPs when anonymise off (bot not counted)' );
 
 my $miss = scan("access_log: $d/nope.log\n");
 ok( !$miss->{ok}, 'unreadable log -> ok:0 with a message' );
@@ -70,12 +71,13 @@ like( $miss->{error}, qr/readable|found|configured/i, 'helpful error' );
     close $sc;
     my $got = decode_json( qx($^X $PLUGIN --scan --docroot '$doc') );
     ok( $got->{ok}, 'auto-detect scan ok' ) or diag( $got->{error} );
-    like( $got->{log}, qr/demo\.example\.com\.log$/, 'picked the domain-qualified log' );
-    unlike( $got->{log}, qr/othersite/, 'did not pick another site\x27s log' );
+    ok( $got->{log_configured}, 'log resolved (its disk path is never returned)' );
+    ok( !exists $got->{log}, 'disk path not exposed in the scan output (privacy)' );
     open my $rd, '<', "$doc/lazysite/stats.conf" or die $!;
     my $conf = do { local $/; <$rd> };
     close $rd;
-    like( $conf, qr/access_log:.*demo\.example\.com\.log/, 'autoconfig persisted the path' );
+    like( $conf, qr/access_log:.*demo\.example\.com\.log/, 'autoconfig persisted the domain-qualified path' );
+    unlike( $conf, qr/othersite/, 'did not pick another site\x27s log' );
 }
 
 # --- not found -> needs_config, so the page asks ---
