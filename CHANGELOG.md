@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.59 - Layout management over API + MCP (2026-06-28)
+
+Feature - programmatic layout management
+: the per-layout install/delete/catalogue actions are now available to token and
+  MCP connector clients (gated by manage_layouts), so an AI partner can browse the
+  repo, install a layout + its theme(s), and remove a layout - not just the
+  operator UI. New MCP tools: list_layout_catalogue, install_layout, delete_layout.
+
 ## 0.4.58 - Appearance page + per-layout install/delete (2026-06-28)
 
 Feature - manage layouts as well as themes
