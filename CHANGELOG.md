@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.63 - Fix: stats nav hidden while enabled (2026-06-28)
+
+Fix - Visitor statistics nav gate
+: the conditional nav item could stay hidden even with the stats plugin enabled;
+  enabled-plugin detection now resolves the plugin id from any lazysite.conf
+  entry form. Locked by a layout-render regression test.
+
 ## 0.4.62 - Visitor statistics: traffic classifier + privacy (2026-06-28)
 
 Feature - classified visitor statistics
