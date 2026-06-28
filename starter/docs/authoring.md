@@ -105,6 +105,35 @@ Classes available in the default layout:
 `examplebox`
 : Evidence or example highlight. Use for concrete cases.
 
+## Content components
+
+A `:::` block whose name matches a *component* shipped by the active layout is
+rendered through that component instead of becoming a plain div - so you write
+Markdown and the layout supplies the heavy HTML (hero scaffolding, panels, etc.).
+Which components exist depends on the layout; ask your layout/theme author.
+
+```
+::: hero eyebrow="Generative"
+# A site that's *alive*.
+
+The field behind these words is drawn live.
+
+::: actions
+[Get started](#start)
+:::
+:::
+```
+
+- The block's inner Markdown becomes the component's main content.
+- `key="value"` pairs on the opening line are passed as attributes.
+- A nested `::: <name>` block is a named *slot* (here, `actions`).
+
+If the layout has no component by that name, the block falls back to a plain
+`<div class="name">` (the behaviour above), so nothing breaks.
+
+For pages that are *all* structure, a layout may instead read a `sections:` list
+from front matter and compose the page from components - see your layout's docs.
+
 ## Remote pages
 
 A `.url` file contains a single URL. The processor fetches the Markdown from that URL, processes it through the full pipeline, and caches the result.

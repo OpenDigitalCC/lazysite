@@ -82,7 +82,7 @@ A remote URL in `layout:` is fetched and cached; see
 
 ### Via the manager
 
-On `/manager/themes`, click "Browse releases" to list published
+On `/manager/appearance`, click "Browse releases" to list published
 releases of the configured `layouts_repo`. Each release zipball
 may carry multiple themes; each installs once per layout it
 declares compatibility with.

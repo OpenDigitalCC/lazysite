@@ -81,7 +81,7 @@ theme-browser stays theme-only. Install a layout manually:
     cp layout.json public_html/lazysite/layouts/default/
 
 Then add `layout: default` to `lazysite.conf` and install a
-compatible theme on `/manager/themes`.
+compatible theme on `/manager/appearance`.
 
 ### Layout name sanitisation
 

@@ -127,7 +127,7 @@ assets dir. Nothing when no theme is active.
 
 ### Installing a theme
 
-**Via the manager UI.** On `/manager/themes`, click "Browse
+**Via the manager UI.** On `/manager/appearance`, click "Browse
 releases" to list published releases of the `layouts_repo`
 (configured in `lazysite.conf`). Install pulls every valid theme
 in a release in one operation.
@@ -153,13 +153,13 @@ Edit `lazysite.conf`:
 
     theme: odcc
 
-Or click **Activate** next to a theme on the manager Themes page
-(`/manager/themes`), which sets it site-wide and clears the page cache.
+Or click **Activate** next to a theme on the manager Appearance page
+(`/manager/appearance`), which sets it site-wide and clears the page cache.
 
 ### Previewing a theme
 
 Before activating a theme for all visitors, a manager can preview it for
-their own session only. On the manager Themes page, click **Preview**
+their own session only. On the manager Appearance page, click **Preview**
 next to any non-active theme - including themes built for a layout that
 is not currently active. The site opens in a new tab rendered against
 the previewed layout and theme; other visitors keep seeing the active

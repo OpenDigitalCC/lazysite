@@ -162,6 +162,26 @@ Common classes in the default theme:
 - `marginbox` - pull quote in the margin
 - `examplebox` - evidence or example highlight
 
+### Content components
+
+If the active layout ships a component by that name, a `:::` block is rendered
+through it (Markdown in, layout-supplied HTML out) rather than becoming a plain
+div - the way to get a hero/feature-grid/etc. without hand-writing HTML:
+
+    ::: hero eyebrow="Generative"
+    # A site that's *alive*.
+
+    ::: actions
+    [Get started](#start)
+    :::
+    :::
+
+The inner Markdown is the component's `content`; `key="value"` on the opening
+line are `attrs`; a nested `::: <name>` block is a named `slot`. A name with no
+matching component falls back to `<div class="name">`. Available components are
+layout-specific. For all-structure pages a layout may also read a front-matter
+`sections:` list and compose the page from components.
+
 ### oEmbed
 
     ::: oembed

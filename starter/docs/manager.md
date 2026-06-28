@@ -44,14 +44,15 @@ visitors are redirected to `/login`.
 
 ## Pages
 
-### Config
+### Site settings
 
-`/manager/` (or `/manager/config`). Edit site settings and review the
-plugin registry.
+`/manager/` (or `/manager/config`) - the **Site settings** item. Edit site
+identity and review the plugin registry.
 
-- **Site settings** - `site_name`, `site_url`, default theme,
-  navigation file path, `search_default`, manager state, manager path,
-  and manager groups. Saves to `lazysite/lazysite.conf`.
+- **Site settings** - `site_name`, `site_url`, navigation file path,
+  `search_default`, manager state, manager path, and manager groups. The active
+  layout and theme are shown read-only here with a link to **Appearance**, where
+  they are changed. Saves to `lazysite/lazysite.conf`.
 - **Plugin Manager** (`/manager/plugins`) - lists all discovered plugins
   (every `plugins/*.pl` that answers `--describe`); tick to enable, untick
   to disable.
@@ -102,21 +103,27 @@ On Plugin Config, each enabled plugin appears with a form generated from its
 Plugins that declare `actions` (e.g. Run audit) show action buttons
 that invoke the plugin and display the result.
 
-### Themes
+### Appearance
 
-`/manager/themes`. Install, activate, rename, and delete themes.
+`/manager/appearance` (formerly "Themes"; `/manager/themes` redirects here).
+Manage layouts and themes and switch the active pair.
 
-- View all installed themes with active status
-- Upload a theme zip (must contain `theme.json` at the root with a
-  non-empty `layouts[]` array naming installed layouts)
-- Activate a theme (writes `theme:` to `lazysite.conf`, clears the
-  HTML cache)
-- Rename or delete inactive themes (scoped to the active layout)
-- Browse published releases of `layouts_repo` and install themes
-  from a chosen release
+- **Active layout & theme** - the switcher (moved here from Config); activating
+  clears the HTML cache.
+- **Layouts repo** - the `layouts_repo` setting (and `layouts_ref` for the
+  branch the catalogue is read from).
+- **Browse the repo** - the repo's `manifest.json` catalogue: install a single
+  layout and its theme(s) on demand, with version info.
+- **Installed layouts & themes** - activate a layout; **delete a layout** (which
+  removes its themes too, behind a confirm, and only when it is not active);
+  per-theme activate / preview / rename / delete. Preview now works across
+  layouts.
+- **Upload a theme** zip (must contain `theme.json` at the root with a non-empty
+  `layouts[]` array naming installed layouts).
 
-Uploading a theme that would overwrite an existing directory prefixes
-the install path with today's date (e.g. `20260419-mytheme`).
+The same per-layout operations are available to partners over the control API
+and the MCP connector (`layout-install` / `layout-delete` / `layouts-manifest`;
+`install_layout(update:true)` redeploys a changed layout).
 
 ### Users
 
@@ -144,13 +151,17 @@ outcome. Filter by user, target, or a From/To date range; each row records
 the action's target (the page, the plugin, `nav`, etc.). Browsing analytics
 live separately in Visitor Stats, not here.
 
-### Visitor Stats
+### Visitor statistics
 
-`/manager/stats`. A read-only dashboard of on-site visitor statistics from the
-web-server access log - hits, unique visitors, top pages and referrers, status
-codes and per-day counts over a configurable window, with bot filtering and IP
-anonymisation. It is provided by the opt-in **Visitor Stats** plugin: enable it
-on Plugin Manager, then set its access-log path on Plugin Config.
+`/manager/stats`. A read-only dashboard from the web-server access log. Because
+lazysite uses no cookies or JS, it classifies traffic by log-only heuristics into
+real people, the logged-in operator, AI assistants, bots and probe noise (each
+reported separately), splits referrers into external / internal / direct, links
+top pages to the live page, and shows per-day counts over a configurable window,
+with optional IP anonymisation. It never exposes the log file's path, and offers
+an operator-only raw-log download. Provided by the opt-in **Visitor Statistics**
+plugin: the nav item appears only when the plugin is enabled - enable it on Plugin
+Manager, then set its access-log path on Plugin Config.
 
 ## Admin bar on site pages
 

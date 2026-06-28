@@ -34,7 +34,10 @@ text.
 - **SM080** Reconcile partner docs with field reports (+ activation asset mirror).
 - **SM081** Form targets: mixed handler/type read fixed (single-pass parse).
 - **SM082** Content vs theme/layout write capability (`manage_content`).
-- **SM083** Access-log stats plugin (domain-qualified auto-detect, autoconfig).
+- **SM083** Access-log stats plugin (domain-qualified auto-detect, autoconfig);
+  v2 (0.4.62) adds a traffic classifier (people / AI assistants / bots / noise /
+  logged-in operator), internal/external/direct referrer split, log-path privacy
+  + log download, and a nav item hidden when the plugin is disabled.
 - **SM084** Non-destructive overlay install + content backups *(restore: still open, below)*.
 - **SM087** Connector editing ergonomics - full tool set (patch edit, search, preview, validate, `set_nav`, copy, permissions, audit, manifest, error kinds, nav-cache).
 - **SM088** Form-to-transport binding (`list_form_handlers` / `bind_form`).
@@ -101,4 +104,12 @@ text.
 - 0.4.54-0.4.57 (not SM-tracked): `?v=<version>` asset cache-buster; blank-editor
   fix (auth-sync injected before the real `</body>`, with regression test); nginx
   reload on deploy made opt-in (`LAZYSITE_RELOAD_NGINX`).
+- 0.4.58-0.4.67 (not SM-tracked): **Appearance page** (manager "Themes" renamed;
+  active layout/theme switcher moved off Config; manager nav/title naming
+  standardised); **per-layout install/delete** from a manifest catalogue over the
+  UI, control API and MCP (`layout-install`/`layout-delete`/`layouts-manifest`,
+  `install_layout(update:true)`); **stats v2** (see SM083); **content components
+  (D035)** - layout-owned `components/*.tt` invoked from Markdown via fenced
+  `::: name` blocks or front-matter `sections:`, plus a `markdown` TT filter
+  (bundled into the layout zip and installed on a site).
 - New partner-build reports land in `lazysite-sites/reports/` and refresh SM080.
