@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.57 - nginx reload on deploy is now opt-in (2026-06-28)
+
+Change - deploy no longer reloads nginx by default
+: the post-upgrade nginx reload (0.4.55) is now gated behind LAZYSITE_RELOAD_NGINX=1.
+  It addressed an unconfirmed open_file_cache edge case; an unconditional root-level
+  reload on every deploy was unjustified. The ?v=<version> asset cache-buster is
+  unaffected and still applies.
+
 ## 0.4.56 - Fix blank manager editor (auth-sync injection) (2026-06-27)
 
 Fix - editor no longer blank
