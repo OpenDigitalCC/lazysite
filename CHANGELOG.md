@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.4.86 - Manager bar on the homepage (2026-06-29)
+
+Fix - admin bar on "/"
+: the Apache template served the cached index.html for "/" directly (DirectoryIndex),
+  bypassing the processor, so the manager bar never appeared on the homepage. The
+  lazysite-app template now routes a lazysite home through the processor. Existing
+  vhosts must be rebuilt to pick up the template change.
+
 ## 0.4.85 - Batch update reports channel-skipped sites (2026-06-29)
 
 Fix - update-all reporting
