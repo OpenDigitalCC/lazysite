@@ -743,7 +743,8 @@ sub try_serve_cache {
         log_event('DEBUG', $ENV{REDIRECT_URL} // '-', 'cache hit');
         my $ct  = read_ct($base);
         my $ttl = peek_ttl($md_path);
-        output_page( read_file($html_path), $ct, $ttl );
+        output_page( _inject_admin_bar_live( read_file($html_path), $md_path ),
+            $ct, $ttl );
         return 1;
     }
 
@@ -751,7 +752,8 @@ sub try_serve_cache {
     my $ttl = peek_ttl($md_path);
     if ( defined $ttl && is_fresh_ttl_val_stat( $html_stat, $ttl ) ) {
         my $ct = read_ct($base);
-        output_page( read_file($html_path), $ct, $ttl );
+        output_page( _inject_admin_bar_live( read_file($html_path), $md_path ),
+            $ct, $ttl );
         return 1;
     }
     return 0;
@@ -815,17 +817,12 @@ sub main {
     # already handled (forbidden, redirected, or bounced to login).
     return if handle_manager_path($uri);
 
-    # Bypass cache for authenticated managers so the injected admin
-    # bar doesn't get baked into HTML served to anonymous visitors.
-    {
-        my %sv = resolve_site_vars();
-        my $auth_user   = $ENV{HTTP_X_REMOTE_USER}   // '';
-        my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
-        if ( _is_manager( \%sv, $auth_user, $auth_groups ) ) {
-            # %ENV is localised at main() entry - writes are per-request.
-            $ENV{LAZYSITE_NOCACHE} = '1';
-        }
-    }
+    # NOTE: managers are NOT forced past the cache any more. The admin bar is no
+    # longer baked into the rendered (cached) HTML - it is injected per-request at
+    # output time (_inject_admin_bar_live) - so a manager can be served the same
+    # bar-free cached page as everyone else and still get their bar. This both
+    # restores cache benefit for managers and fixes the bar "not always showing"
+    # when a manager request happened to be served from cache.
 
     # Sanitise URI against path traversal
     my $base = sanitise_uri($uri);
@@ -1005,7 +1002,8 @@ sub main {
         my $ttl  = $protected ? undef : peek_ttl($md_path);
         write_ct( $base, $ct ) unless $protected;
         log_event('INFO', $uri, 'page rendered');
-        output_page( $page, $ct, $ttl, $protected );
+        # Admin bar added here (post-cache, per-viewer), not inside the cached page.
+        output_page( _inject_admin_bar_live( $page, $md_path ), $ct, $ttl, $protected );
         return;
     }
 
@@ -1019,7 +1017,7 @@ sub main {
         my $page = process_url( $url_path, $html_path, (stat($url_path))[9] );
         my $ct   = peek_content_type($url_path);
         write_ct( $base, $ct );
-        output_page( $page, $ct );
+        output_page( _inject_admin_bar_live( $page, $url_path ), $ct );
         return;
     }
 
@@ -2326,7 +2324,18 @@ sub resolve_json {
             "tt json source not found or outside docroot", src => $src );
         return '';
     }
-    my $raw = eval { read_file($real) };
+    # Read RAW bytes, not via read_file() (which opens :utf8 and returns a decoded
+    # wide-char string). decode_json expects UTF-8-encoded BYTES; handing it an
+    # already-decoded string makes it choke on any non-ASCII (em dashes, curly
+    # quotes, arrows) and return undef - i.e. the whole file silently resolves to
+    # empty. Raw bytes -> decode_json decodes the UTF-8 itself, correctly.
+    my $raw = eval {
+        open my $fh, '<:raw', $real or die "open failed: $!";
+        local $/;
+        my $bytes = <$fh>;
+        close $fh;
+        $bytes;
+    };
     return '' unless defined $raw;
     my $data = eval { decode_json($raw) };
     if ( $@ || !defined $data ) {
@@ -3218,7 +3227,8 @@ sub render_template {
                 return $processed_body;
             };
 
-        return _inject_admin_bar( $output, $vars );
+        # Admin bar injected per-request at output time, not cached (see note below).
+        return $output;
     }
 
     # Determine if layout is remote (from cache dir) - sandbox it
@@ -3286,8 +3296,11 @@ sub render_template {
     # marker cookie. Injected on every page so any layout can opt in with those attrs.
     $output = _inject_auth_sync($output);
 
-    # Inject admin bar after <body> - outside the theme
-    $output = _inject_admin_bar( $output, $vars );
+    # NOTE: the manager admin bar is deliberately NOT injected here. It is
+    # per-viewer (manager-only) and this output is written to the shared page
+    # cache - baking it in would leak it to anonymous visitors, or hide it from
+    # managers, depending on who filled the cache. It is injected per-request at
+    # output time instead (_inject_admin_bar_live), so the cached HTML is bar-free.
 
     return $output;
 }
@@ -3455,6 +3468,34 @@ sub _inject_admin_bar {
     $html =~ s/(<body[^>]*>)/$1$bar/i;
 
     return $html;
+}
+
+# Inject the manager admin bar at OUTPUT time, per-request, so it is never written
+# to the shared page cache - baking it in would leak it to anonymous visitors, or
+# hide it from a manager, depending on who filled the cache. Sources everything
+# from the live request: site config (manager on/off + manager_groups),
+# %AUTH_CONTEXT (the viewer), and the page's source path for the Edit link. No-op
+# on body-less / non-HTML output.
+sub _inject_admin_bar_live {
+    my ( $html, $md_path ) = @_;
+    return $html unless defined $html && $html =~ /<body/i;
+    my %sv = resolve_site_vars();
+    return $html unless ( $sv{manager} // '' ) eq 'enabled';
+
+    my $page_source = $md_path // '';
+    $page_source =~ s{^\Q$DOCROOT\E/}{};   # docroot-relative, for the Edit link
+
+    my $groups = $AUTH_CONTEXT{auth_groups} || [];
+    my $bar_vars = {
+        %sv,                                     # manager, manager_path, manager_groups
+        request_uri => $ENV{REDIRECT_URL} // '',
+        page_source => $page_source,
+        auth_user   => $AUTH_CONTEXT{auth_user} // '',
+        auth_name   => $AUTH_CONTEXT{auth_name} // '',
+        auth_groups =>
+            ( ref $groups eq 'ARRAY' ? join( ',', @$groups ) : ( $groups // '' ) ),
+    };
+    return _inject_admin_bar( $html, $bar_vars );
 }
 
 # --- Content type cache ---
