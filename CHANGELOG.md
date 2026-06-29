@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.78 - Revert build-stamped version (restore generator) (2026-06-29)
+
+Revert
+: 0.4.77's build-stamped [% lazysite_version %] only helped tarball installs and
+  blanked the generator version on branch deploys; reverted to the install-state
+  read. install --verify (0.4.76) remains the deploy-gap detector.
+
 ## 0.4.77 - Version reflects running code; login niceties (2026-06-29)
 
 Change - trustworthy version + login UX

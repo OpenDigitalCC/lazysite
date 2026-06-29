@@ -1,0 +1,85 @@
+{
+  "intro": "What lazysite does, grouped by what you are trying to achieve. Each capability links to its “how it works” reference for the mechanics.",
+  "categories": [
+    {
+      "name": "Authoring & content",
+      "blurb": "Write pages as plain text and let lazysite turn them into a site.",
+      "features": [
+        { "title": "Markdown, served instantly", "what": "Drop a .md file in the docroot and it is served as a fully rendered HTML page on first request, then cached. No build step, no pipeline.", "how_url": "", "how_label": "" },
+        { "title": "Template Toolkit variables", "what": "Pages can carry dynamic values — site config, page front matter, computed expressions, conditionals and loops — resolved at render time.", "how_url": "/docs/features/authoring/tt-variables", "how_label": "TT variables" },
+        { "title": "Reusable content includes", "what": "Inline shared Markdown partials, code files or remote fragments into a page so common content lives in one place.", "how_url": "/docs/features/authoring/includes", "how_label": "Includes" },
+        { "title": "Cached remote includes", "what": "Includes can fetch remote content and cache it for a set time, so external data appears inline without a fetch on every request.", "how_url": "/docs/features/authoring/include-ttl", "how_label": "Include TTL" },
+        { "title": "Pull in remote pages", "what": "A .url file makes lazysite fetch Markdown from a remote URL (such as a GitHub raw file) and render it through the same pipeline — so docs can live with the code.", "how_url": "/docs/features/authoring/remote-pages", "how_label": "Remote pages" },
+        { "title": "Rich layout blocks (fenced divs)", "what": "Wrap content in :::named blocks that become styled containers — callouts, columns, hero sections — without leaving Markdown.", "how_url": "/docs/features/authoring/fenced-divs", "how_label": "Fenced divs" },
+        { "title": "Embed media (oEmbed)", "what": "Paste a video or social URL and lazysite expands it into the proper embed automatically.", "how_url": "/docs/features/authoring/oembed", "how_label": "oEmbed" },
+        { "title": "List and scan pages", "what": "Generate indexes, galleries and menus by scanning a folder of pages and looping over them — with optional filtering by tag, date or path.", "how_url": "/docs/features/authoring/page-scan", "how_label": "Page scan" },
+        { "title": "Site search", "what": "A built-in search index and results page let visitors find content without an external service.", "how_url": "/docs/features/authoring/search", "how_label": "Search" },
+        { "title": "News feeds", "what": "Publish RSS and Atom feeds generated from your pages, kept in sync as content changes.", "how_url": "/docs/features/authoring/feeds", "how_label": "Feeds" },
+        { "title": "Sitemaps & registries", "what": "Auto-maintained sitemap.xml and llms.txt registries so search engines and AI agents can discover every page.", "how_url": "/docs/features/authoring/registries", "how_label": "Registries" },
+        { "title": "Dynamic pages from query parameters", "what": "Read URL query parameters in a page to vary its output — simple dynamic pages with no application code.", "how_url": "/docs/features/authoring/query-params", "how_label": "Query parameters" },
+        { "title": "JSON & API output", "what": "Serve a page as pure data with api mode, or as an unwrapped fragment with raw mode — the same content reused as an API.", "how_url": "/docs/features/authoring/api-mode", "how_label": "API mode" },
+        { "title": "Custom error pages", "what": "Author your own 404 (and other status) pages as ordinary Markdown.", "how_url": "/docs/features/authoring/404-page", "how_label": "404 page" }
+      ]
+    },
+    {
+      "name": "Design: layouts & themes",
+      "blurb": "Structure, style and content stay in separate layers that never touch.",
+      "features": [
+        { "title": "Layouts and themes", "what": "A layout.tt owns the HTML chrome; a theme on top supplies colours, fonts and assets; content stays in .md files. Swap any layer independently.", "how_url": "/docs/features/configuration/layouts", "how_label": "Layouts" },
+        { "title": "Design tokens", "what": "A theme declares its palette and type as tokens in theme.json, auto-emitted as CSS custom properties — re-skin a site by editing values, not stylesheets.", "how_url": "/docs/features/configuration/theme-json", "how_label": "theme.json" },
+        { "title": "Per-page layout override", "what": "Any single page can opt into a different layout from front matter — a landing page or print view without affecting the rest.", "how_url": "/docs/features/configuration/layout-override", "how_label": "Layout override" },
+        { "title": "Install & publish themes", "what": "Install layouts and themes from a catalogue, or publish your own — including pulling them from a remote source.", "how_url": "/docs/features/configuration/theme-publishing", "how_label": "Theme publishing" },
+        { "title": "Multiple views", "what": "Define alternate renderings of the same content for different audiences or formats.", "how_url": "/docs/features/configuration/views", "how_label": "Views" }
+      ]
+    },
+    {
+      "name": "Dynamic & interactive",
+      "blurb": "Forms, accounts and payments are built in — no plugins to bolt on.",
+      "features": [
+        { "title": "Forms with delivery", "what": "Define a form in Markdown and bind it to a delivery target (email or a handler) — contact, signup and feedback forms without code.", "how_url": "/docs/features/authoring/forms", "how_label": "Forms" },
+        { "title": "Authentication & access control", "what": "Protect pages or whole sections behind sign-in, with the right state revealed per visitor.", "how_url": "/docs/features/configuration/auth", "how_label": "Auth" },
+        { "title": "Payments (x402)", "what": "Gate content or downloads behind a payment using the x402 protocol, built into the core.", "how_url": "/docs/features/configuration/payment", "how_label": "Payment" },
+        { "title": "Navigation from a config file", "what": "The site menu is a plain nav.conf file read by the layout — edit the menu without touching templates.", "how_url": "/docs/features/configuration/nav-conf", "how_label": "nav.conf" },
+        { "title": "Web manager UI", "what": "A browser-based manager to edit content, themes, navigation and users without the command line.", "how_url": "/docs/features/configuration/manager", "how_label": "Manager" },
+        { "title": "WebDAV & AI publishing", "what": "Publish over WebDAV and a control API — the path an AI agent or script uses to manage a site with no GUI in the loop.", "how_url": "/docs/features/configuration/webdav", "how_label": "WebDAV" }
+      ]
+    },
+    {
+      "name": "Operate & maintain",
+      "blurb": "Files on disk, fast by default, and trivial to back up or move.",
+      "features": [
+        { "title": "No database", "what": "Files are the source of truth. Nothing to provision, dump or migrate — back up by copying the folder.", "how_url": "", "how_label": "" },
+        { "title": "Fast by default", "what": "Dynamic only on the first request; plain cached HTML is served after that, with fine-grained control over caching.", "how_url": "/docs/features/development/cache-management", "how_label": "Cache management" },
+        { "title": "Static export", "what": "Run in generation mode to produce a fully static site you can host anywhere — the same content, no server process.", "how_url": "/docs/features/development/build-static", "how_label": "Build static" },
+        { "title": "Local dev server", "what": "A built-in server renders any Markdown tree locally with live preview — no install needed to start.", "how_url": "/docs/features/development/dev-server", "how_label": "Dev server" },
+        { "title": "Link auditing", "what": "Scan the site for broken internal links before you publish.", "how_url": "/docs/features/development/link-audit", "how_label": "Link audit" },
+        { "title": "Configuration in one file", "what": "Site-wide settings live in a single lazysite.conf, with overrides where you need them.", "how_url": "/docs/features/configuration/lazysite-conf", "how_label": "lazysite.conf" },
+        { "title": "Version-control ready", "what": "Everything is a file, so the whole site — content, layout and theme — lives in a git repository.", "how_url": "", "how_label": "" }
+      ]
+    },
+    {
+      "name": "Access, permissions & governance",
+      "blurb": "Decide exactly who can do what, lock content down, and keep a record of every change.",
+      "features": [
+        { "title": "Fine-grained capabilities", "what": "Per-account grants control exactly what each user or token can do — edit content, manage themes or layouts, change config, create sub-users — checked once, server-side, across every surface.", "how_url": "/docs/auth", "how_label": "Auth" },
+        { "title": "Per-file access control", "what": "Map any path to an owner with read and write lists (users or groups). Access only ever narrows, the owner is always allowed, and the same check binds the manager, WebDAV and the AI connector.", "how_url": "", "how_label": "" },
+        { "title": "File locking", "what": "Lock a file so no one else can alter it. One lock store is shared across the manager and WebDAV, so a save anywhere respects a live lock.", "how_url": "", "how_label": "" },
+        { "title": "Account & token expiry", "what": "Accounts and machine tokens can carry an expiry, after which access fails closed — useful for time-boxed contributors and partners.", "how_url": "", "how_label": "" },
+        { "title": "Sub-users & delegation", "what": "A partner can mint scoped sub-accounts; onward delegation requires holding the capability itself, so nobody can grant more authority than they have.", "how_url": "", "how_label": "" },
+        { "title": "Audit trail", "what": "An append-only log records who changed what, to what, when, from where, and the outcome — material changes only, never browsing.", "how_url": "", "how_label": "" },
+        { "title": "Two-factor authentication", "what": "Optional TOTP second factor with recovery codes, self-contained with no external dependency.", "how_url": "/docs/auth", "how_label": "Auth" },
+        { "title": "Protected internals", "what": "Scripts, secrets and credential files can never be read or written through the content tools — a hard deny-list, enforced on reads as well as writes.", "how_url": "", "how_label": "" }
+      ]
+    },
+    {
+      "name": "AI & automation",
+      "blurb": "Built for a human/AI partnership — agents publish through the same rules a person does.",
+      "features": [
+        { "title": "AI publishing over WebDAV & API", "what": "An agent or script edits content over WebDAV and a JSON control API — no GUI in the loop — bound by exactly the same capabilities and ACLs as any human author.", "how_url": "/docs/features/configuration/webdav", "how_label": "WebDAV" },
+        { "title": "MCP AI connector", "what": "A built-in connector speaks the Model Context Protocol, so assistants such as Claude can manage a site through first-class tools.", "how_url": "/docs/ai-connector-tools", "how_label": "AI connector" },
+        { "title": "OAuth for AI partners", "what": "Web-based AI connectors authenticate via a minimal OAuth 2.1 server with PKCE — the person proves they may act as a partner, and no secret is ever typed into the third party.", "how_url": "", "how_label": "" },
+        { "title": "One enforced core", "what": "Every door — browser, API, WebDAV, MCP — translates to the same shared handlers, so a lock, an ACL or a capability holds identically whoever knocks.", "how_url": "", "how_label": "" }
+      ]
+    }
+  ]
+}
