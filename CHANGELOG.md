@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.77 - Version reflects running code; login niceties (2026-06-29)
+
+Change - trustworthy version + login UX
+: [% lazysite_version %] now reports the running code's own stamped version (not
+  the install-state side-car), so a stale deploy shows its real version. Login
+  page tells an already-signed-in visitor and drops the demo credentials.
+
 ## 0.4.76 - install --verify: deploy-gap detector (2026-06-29)
 
 Feature - trust the reported version
