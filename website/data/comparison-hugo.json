@@ -3,56 +3,56 @@
     {
       "key": "lazysite",
       "name": "lazysite",
-      "tagline": "Markdown files served and cached on the fly by a small CGI script.",
-      "best_for": "Sites that mix content with dynamic behaviour - forms, sign-in, paid pages - and that you would rather edit live, or have an AI manage, than rebuild and redeploy."
+      "tagline": "Markdown files served and cached on the fly by a small CGI script - no build, no database.",
+      "best_for": "Content-led and documentation sites, AI-assisted publishing, and anyone who wants a fast, low-maintenance site they fully own - with dynamic features and paid pages when they are needed."
     },
     {
       "key": "hugo",
       "name": "Hugo",
       "tagline": "A very fast static-site generator that compiles Markdown to static files with Go templates.",
-      "best_for": "Large, purely static sites maintained by developers who want a build pipeline, version-controlled deploys and a big theme ecosystem, and do not need server-side dynamic features."
+      "best_for": "Large, purely static sites maintained by developers who want a build pipeline, version-controlled deploys and a big theme ecosystem."
     }
   ],
   "rows": [
     {
       "label": "Content format",
-      "lazysite": "Markdown, rendered and cached on request",
+      "lazysite": "Plain Markdown files you own",
       "hugo": "Markdown, compiled to static files"
     },
     {
       "label": "Build step",
-      "lazysite": "None - renders on first request, caches the result",
-      "hugo": "Yes - rebuild the site on every change"
+      "lazysite": "None - renders on request, caches the result",
+      "hugo": "Yes - rebuild the whole site on every change"
+    },
+    {
+      "label": "Database",
+      "lazysite": "None - files only",
+      "hugo": "None - files only"
     },
     {
       "label": "Dynamic content",
-      "lazysite": "Server-side: templating, remote data, query parameters, conditionals",
-      "hugo": "Static only - dynamic needs external JavaScript services"
+      "lazysite": "Server-side templating, remote data, query parameters",
+      "hugo": "Static only - needs external JavaScript services"
     },
     {
-      "label": "Forms, auth, payments",
-      "lazysite": "Built in",
+      "label": "Built-in forms, auth & payments",
+      "lazysite": "All built in (forms, sign-in, x402 pay-per-read)",
       "hugo": "External services only"
     },
     {
-      "label": "Live editing",
-      "lazysite": "Edit a file over WebDAV or the manager and it is live",
-      "hugo": "Edit, rebuild, then redeploy"
-    },
-    {
       "label": "AI-first management",
-      "lazysite": "An agent edits live over WebDAV or MCP",
-      "hugo": "An agent edits source, then a build and deploy must run"
+      "lazysite": "Built for it - agents edit over WebDAV, an API or MCP",
+      "hugo": "Edit the source, then build and deploy"
     },
     {
-      "label": "Templating",
-      "lazysite": "Template Toolkit, with a separate theme layer",
-      "hugo": "Go templates"
+      "label": "Themes & customisation",
+      "lazysite": "Layout plus theme tokens - one file to re-skin",
+      "hugo": "Large theme ecosystem (Go templates)"
     },
     {
-      "label": "Themes",
-      "lazysite": "A growing library; one file to re-skin",
-      "hugo": "A large theme ecosystem (Go templates)"
+      "label": "Memberships & paid content",
+      "lazysite": "Pay-per-read (x402) and per-user access",
+      "hugo": "External services only"
     },
     {
       "label": "Hosting",
@@ -65,9 +65,29 @@
       "hugo": "Pre-built static files"
     },
     {
-      "label": "Learning curve",
-      "lazysite": "Markdown, with optional templating",
-      "hugo": "Markdown, plus Go templates and configuration"
+      "label": "Backup",
+      "lazysite": "Copy the files - nothing else to dump",
+      "hugo": "Copy the source files - nothing else"
+    },
+    {
+      "label": "Migration & portability",
+      "lazysite": "Move the folder anywhere - plain files",
+      "hugo": "Move the source folder - plain files"
+    },
+    {
+      "label": "Maintenance & security surface",
+      "lazysite": "Small - static files, no database, a compact codebase",
+      "hugo": "Minimal at runtime - static output"
+    },
+    {
+      "label": "Editing experience",
+      "lazysite": "Markdown files, a simple manager, or an AI agent",
+      "hugo": "Markdown files plus a build step"
+    },
+    {
+      "label": "Cost",
+      "lazysite": "Free, with minimal hosting",
+      "hugo": "Free; cheap static hosting"
     }
   ]
 }

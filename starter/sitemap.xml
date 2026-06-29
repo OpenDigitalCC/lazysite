@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <url>
+    <loc>http://localhost/contact</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/lazysite-demo</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/ai-briefing-authoring</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/ai-briefing-configuration</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/ai-briefing-development</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/ai-briefing-layouts</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/ai-briefing-publishing</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/api</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/auth-upgrade</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/auth</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/authoring</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/configuration</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/development</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/features</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/forms-helpers</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/forms-smtp</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/forms</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/frontmatter</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/install</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/layouts</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/manager</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/payment</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/reference</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/remote-content</loc>
+  </url>
+
+  <url>
+    <loc>http://localhost/docs/troubleshooting</loc>
+  </url>
+
+</urlset>

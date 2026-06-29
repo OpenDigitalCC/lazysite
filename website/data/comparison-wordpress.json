@@ -3,96 +3,91 @@
     {
       "key": "lazysite",
       "name": "lazysite",
-      "tagline": "Markdown files turned into pages by a small CGI script  -  no build step, no database.",
-      "best_for": "Content-led and documentation sites, and AI-assisted or programmatic publishing. Strongest where you want a fast, low-maintenance site you fully own, or where an agent or script manages the content rather than a person clicking around an admin panel."
+      "tagline": "Markdown files served and cached on the fly by a small CGI script - no build, no database.",
+      "best_for": "Content-led and documentation sites, AI-assisted publishing, and anyone who wants a fast, low-maintenance site they fully own - with dynamic features and paid pages when they are needed."
     },
     {
       "key": "wordpress",
       "name": "WordPress",
-      "tagline": "A mature PHP CMS with a database, a full admin UI and a vast plugin and theme ecosystem.",
-      "best_for": "Sites that need a polished point-and-click admin for non-technical editors, off-the-shelf plugins (e-commerce, membership, SEO suites), and a large pool of developers and agencies. The pragmatic default when you would rather install a feature than build it."
+      "tagline": "A mature PHP CMS with a database, a full admin UI and a vast plugin ecosystem.",
+      "best_for": "Sites that need a point-and-click admin for non-technical editors, off-the-shelf plugins (e-commerce, membership, SEO), and a large pool of developers and agencies."
     }
   ],
   "rows": [
     {
       "label": "Content format",
-      "lazysite": "Plain Markdown files you own and can move anywhere",
-      "wordpress": "Rich content stored in a database, edited in the block editor"
-    },
-    {
-      "label": "AI-first content management",
-      "lazysite": "Built for it  -  an agent edits Markdown over WebDAV / a control API; no GUI required",
-      "wordpress": "Possible via the REST API or plugins, but designed around the human admin UI"
-    },
-    {
-      "label": "Footprint",
-      "lazysite": "One CGI script plus Perl modules from your distro  -  runs on almost any web server",
-      "wordpress": "PHP plus a MySQL/MariaDB database  -  a heavier LAMP-style stack"
-    },
-    {
-      "label": "Database",
-      "lazysite": "None  -  files only",
-      "wordpress": "Required (MySQL / MariaDB)"
+      "lazysite": "Plain Markdown files you own",
+      "wordpress": "Rich content in a database (block editor)"
     },
     {
       "label": "Build step",
-      "lazysite": "None  -  pages render on request and the HTML is cached",
-      "wordpress": "None  -  pages are generated dynamically by PHP"
+      "lazysite": "None - renders on request, caches the result",
+      "wordpress": "None - generated dynamically by PHP"
     },
     {
-      "label": "Hosting",
-      "lazysite": "Any CGI-capable host  -  or just runs on your own PC; cheap and static-like",
-      "wordpress": "A managed WordPress host or a LAMP server with a database"
+      "label": "Database",
+      "lazysite": "None - files only",
+      "wordpress": "Required (MySQL / MariaDB)"
     },
     {
-      "label": "Backup",
-      "lazysite": "Copy the files  -  it is flat files, nothing else to dump",
-      "wordpress": "Database plus files  -  needs a backup plugin or routine"
+      "label": "Dynamic content",
+      "lazysite": "Server-side templating, remote data, query parameters",
+      "wordpress": "Yes - PHP and plugins"
     },
     {
-      "label": "Migration",
-      "lazysite": "Move the folder anywhere  -  plain files, no database to port",
-      "wordpress": "Export and import the database and media, often with a migration plugin and URL rewrites"
-    },
-    {
-      "label": "Themes available",
-      "lazysite": "A growing library (20+) installable from a catalogue",
-      "wordpress": "Thousands, free and paid"
-    },
-    {
-      "label": "Creating a new theme",
-      "lazysite": "A structural layout plus CSS tokens  -  one file to re-skin, and an AI can author one",
-      "wordpress": "PHP templates and the block / theme.json system  -  more to learn"
-    },
-    {
-      "label": "Built-in dynamic features",
-      "lazysite": "Forms, authentication, x402 payments and content components ship in the core",
+      "label": "Built-in forms, auth & payments",
+      "lazysite": "All built in (forms, sign-in, x402 pay-per-read)",
       "wordpress": "Added through plugins"
     },
     {
-      "label": "Plugin ecosystem",
-      "lazysite": "Small and curated; the built-ins cover most common needs",
-      "wordpress": "Vast (tens of thousands of plugins)"
+      "label": "AI-first management",
+      "lazysite": "Built for it - agents edit over WebDAV, an API or MCP",
+      "wordpress": "Possible via the REST API or plugins"
     },
     {
-      "label": "Maintenance & security surface",
-      "lazysite": "Small  -  static files, no database, a compact codebase",
-      "wordpress": "Larger  -  database, PHP and plugins all need updates; a frequent attack target"
+      "label": "Themes & customisation",
+      "lazysite": "Layout plus theme tokens - one file to re-skin",
+      "wordpress": "Thousands of themes; PHP and block templates"
+    },
+    {
+      "label": "Memberships & paid content",
+      "lazysite": "Pay-per-read (x402) and per-user access",
+      "wordpress": "Via membership or e-commerce plugins"
+    },
+    {
+      "label": "Hosting",
+      "lazysite": "Any CGI host, or its own built-in server",
+      "wordpress": "A managed WordPress host or a LAMP server"
     },
     {
       "label": "Performance",
-      "lazysite": "Serves cached static HTML  -  fast by default",
-      "wordpress": "Dynamic; usually needs caching plugins or a CDN to match"
+      "lazysite": "Cached static HTML after the first hit",
+      "wordpress": "Dynamic; usually needs caching plugins or a CDN"
     },
     {
-      "label": "Non-technical editing",
-      "lazysite": "Markdown or a simple manager  -  less hand-holding",
-      "wordpress": "A polished WYSIWYG admin  -  its single biggest strength"
+      "label": "Backup",
+      "lazysite": "Copy the files - nothing else to dump",
+      "wordpress": "Database plus files - usually a plugin"
+    },
+    {
+      "label": "Migration & portability",
+      "lazysite": "Move the folder anywhere - plain files",
+      "wordpress": "Export/import the database and media; migration plugins"
+    },
+    {
+      "label": "Maintenance & security surface",
+      "lazysite": "Small - static files, no database, a compact codebase",
+      "wordpress": "Large - database, PHP and plugins; a frequent target"
+    },
+    {
+      "label": "Editing experience",
+      "lazysite": "Markdown files, a simple manager, or an AI agent",
+      "wordpress": "A polished WYSIWYG admin"
     },
     {
       "label": "Cost",
       "lazysite": "Free, with minimal hosting",
-      "wordpress": "Free core, but hosting and premium plugins/themes add up"
+      "wordpress": "Free core, but hosting and premium add-ons add up"
     }
   ]
 }

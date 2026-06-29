@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.85 - Batch update reports channel-skipped sites (2026-06-29)
+
+Fix - update-all reporting
+: the batch updater now reports stable sites that skipped an edge release as
+  "skipped" (not "updated") and prints a final per-site version + channel summary.
+  update_channel is also settable via the control API.
+
 ## 0.4.84 - Stable default for new sites; SMTP form attachments (2026-06-29)
 
 Change - new-site default

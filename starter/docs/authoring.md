@@ -35,15 +35,17 @@ docs/install.md   ->  /docs/install
 
 Always link with extensionless URLs - `/about`, not `/about.html`.
 
-## Edit a page
+## Ways to edit
 
-Change the file and save - that is the whole workflow. Edit it however suits you:
+Change a file and save - that is the whole workflow. Pick whichever way in suits you:
 
+- **The manager** - a menu-driven browser interface, the easiest way for people. See [Configure with the manager](/docs/manager).
 - **On disk** - any text editor, then your normal git flow.
-- **Over WebDAV** - mount the site and edit files directly. This is also how an AI agent or a script publishes.
-- **In the manager** - the built-in browser editor.
+- **WebDAV** - mount the site and edit files directly.
+- **The control API** - publish programmatically from a script or another system. See [API and raw mode](/docs/api).
+- **The AI connector (MCP)** - let an assistant such as Claude publish through first-class tools. See [AI connector](/docs/ai-connector-setup).
 
-A saved edit re-renders on the next request. There is nothing to rebuild and nothing to deploy.
+A saved edit re-renders on the next request - nothing to rebuild, nothing to deploy. Those are the ways *in*; *what* you write is the same whichever you choose.
 
 ## Write the content
 
