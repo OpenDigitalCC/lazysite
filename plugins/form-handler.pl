@@ -68,6 +68,10 @@ my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $FORMS_DIR    = "$LAZYSITE_DIR/forms";
 
+# Hard ceiling on a POST body, so a hostile upload can't exhaust memory before the
+# per-form size limits are even checked. Generous; real limits are per-form.
+my $MAX_POST_BYTES = 64 * 1024 * 1024;
+
 # --- Main ---
 
 eval {
@@ -90,6 +94,13 @@ eval {
     check_timestamp( $form{_ts} // '', $form{_tk} // '', load_form_secret() );
     check_rate_limit( $ENV{REMOTE_ADDR} // '0.0.0.0' );
 
+    # Binary uploads: reject up front (before any handler runs) if the form does
+    # not accept files, or a file breaks the form's size / type / count limits.
+    if ( my $files = $form{_files} ) {
+        reject_user('This form does not accept file uploads.') unless $conf->{upload};
+        validate_uploads( $files, $conf->{upload} );
+    }
+
     for my $target ( @{ $conf->{targets} } ) {
         dispatch( $target, \%form, \%handlers );
     }
@@ -104,7 +115,10 @@ if ($@) {
     $err =~ s/\s+$//;
     my $fname = '';
     log_event( 'ERROR', $fname, 'processing failed', error => $err, ip => $ENV{REMOTE_ADDR} // 'unknown' );
-    respond_error('An error occurred - please try again.');
+    # USER: messages (e.g. upload too large / wrong type) are safe to show the
+    # submitter; everything else gets a generic message.
+    if ( $err =~ /^USER:(.*)/s ) { respond_error($1); }
+    else { respond_error('An error occurred - please try again.'); }
 }
 
 # --- Config ---
@@ -161,7 +175,29 @@ sub load_form_conf {
     }
 
     reject("No targets configured for form '$name'") unless @targets;
-    return { targets => \@targets };
+
+    # Optional binary-upload constraints. Present any of these keys to enable file
+    # uploads on the form; absent = the form accepts no files.
+    #   upload_max_kb:    <int>           max size of EACH file, KiB
+    #   upload_max_files: <int>           max number of files per submission
+    #   upload_accept:    jpg, png, pdf   allowed extensions (also matched loosely
+    #                                     against the part's Content-Type)
+    my $upload;
+    if ( $text =~ /^\s*upload_(?:max_kb|max_files|accept)\s*:/m ) {
+        my ($kb)    = $text =~ /^\s*upload_max_kb\s*:\s*(\d+)/m;
+        my ($maxn)  = $text =~ /^\s*upload_max_files\s*:\s*(\d+)/m;
+        my ($acc)   = $text =~ /^\s*upload_accept\s*:\s*(.+?)\s*$/m;
+        my @accept  = grep { length }
+                      map { my $x = lc $_; $x =~ s/^\s+|\s+$//g; $x =~ s/^\.//; $x }
+                      split /[,\s|]+/, ( $acc // '' );
+        $upload = {
+            max_kb    => ( $kb   ? $kb   + 0 : 5120 ),     # 5 MiB default
+            max_files => ( $maxn ? $maxn + 0 : 5 ),
+            accept    => \@accept,                          # empty = any type
+        };
+    }
+
+    return { targets => \@targets, upload => $upload };
 }
 
 # --- Dispatch ---
@@ -251,6 +287,18 @@ sub dispatch_file {
     $record{_ip}        = $ENV{REMOTE_ADDR} // 'unknown';
     $record{_form}      = $form_name;
 
+    # Binary uploads: store the files in a per-submission subdir next to the
+    # <form>.jsonl, and record the (sanitised) filenames + their dir in the record.
+    if ( $form->{_files} && @{ $form->{_files} } ) {
+        my $id = strftime( '%Y%m%dT%H%M%S', localtime )
+               . '-' . sprintf( '%04x', int( rand 65536 ) );
+        my ( $saved, $rel ) = save_uploads( $form->{_files}, $dir, $form_name, $id );
+        if (@$saved) {
+            $record{_files}     = $saved;
+            $record{_files_dir} = $rel;
+        }
+    }
+
     my $log_path = "$dir/$form_name.jsonl";
     open( my $fh, '>>:utf8', $log_path ) or do {
         log_event( 'ERROR', $form->{_form} // '-', 'file write failed', path => $log_path, error => $! );
@@ -260,6 +308,57 @@ sub dispatch_file {
     print $fh encode_json( \%record ) . "\n";
     flock( $fh, LOCK_UN );
     close $fh;
+}
+
+# Enforce the form's upload constraints; reject() (die) on the first violation.
+sub validate_uploads {
+    my ( $files, $cfg ) = @_;
+    reject_user("Too many files (max $cfg->{max_files}).")
+        if @$files > $cfg->{max_files};
+    my %ok = map { $_ => 1 } @{ $cfg->{accept} };
+    for my $f (@$files) {
+        my $kb = int( ( length( $f->{data} ) + 1023 ) / 1024 );
+        reject_user("File '$f->{filename}' is too large (max $cfg->{max_kb} KiB).")
+            if $kb > $cfg->{max_kb};
+        next unless keys %ok;
+        my ($ext) = lc( $f->{filename} ) =~ /\.([a-z0-9]+)$/;
+        reject_user( "File type not allowed: $f->{filename} (accepted: "
+                . join( ', ', @{ $cfg->{accept} } ) . ').' )
+            unless $ext && $ok{$ext};
+    }
+    return;
+}
+
+# Path-safe: strip any directory component (traversal) and keep a conservative
+# whitelist of characters. Returns a bare, safe basename.
+sub _safe_filename {
+    my ($n) = @_;
+    $n =~ s{.*[\\/]}{};
+    $n =~ s/[^A-Za-z0-9._-]/_/g;
+    $n =~ s/^\.+//;
+    $n = 'file' unless length $n;
+    return substr( $n, 0, 100 );
+}
+
+# Write the uploaded files into <dir>/<form>.files/<id>/. Returns (\@saved_names,
+# $relative_subdir).
+sub save_uploads {
+    my ( $files, $dir, $form_name, $id ) = @_;
+    my $rel  = "$form_name.files/$id";
+    my $fdir = "$dir/$rel";
+    make_path($fdir) unless -d $fdir;
+    my @saved;
+    my $i = 0;
+    for my $f (@$files) {
+        $i++;
+        my $safe = _safe_filename( $f->{filename} );
+        $safe = "$i-$safe" if -e "$fdir/$safe";   # keep both if names collide
+        open my $w, '>:raw', "$fdir/$safe" or next;
+        print {$w} $f->{data};
+        close $w;
+        push @saved, $safe;
+    }
+    return ( \@saved, $rel );
 }
 
 sub dispatch_smtp {
@@ -351,20 +450,41 @@ sub parse_post {
     my $type = $ENV{CONTENT_TYPE}   || '';
     my $data = '';
 
+    reject('Upload too large') if $len > $MAX_POST_BYTES;
+
+    binmode STDIN;                       # binary-safe: file parts carry raw bytes
     if ( $len > 0 ) { read( STDIN, $data, $len ); }
     else            { local $/; $data = <STDIN> // ''; }
 
     my %form;
+    my @files;
     if ( $type =~ m{multipart/form-data.*boundary=(.+)}i ) {
         my $boundary = $1;
-        $boundary =~ s/^\s+|\s+$//g;
+        $boundary =~ s/^\s+//;
+        $boundary =~ s/["\s]+$//;
         for my $part ( split /--\Q$boundary\E/, $data ) {
-            next unless $part =~ /name="([^"]+)"/;
+            # part = optional CRLF, headers, blank line, body, trailing CRLF
+            next unless $part =~ /\A\r?\n?(.*?)\r?\n\r?\n(.*)\z/s;
+            my ( $head, $body ) = ( $1, $2 );
+            next unless $head =~ /name="([^"]*)"/i;
             my $name = $1;
-            $part =~ s/\A.*?\r?\n\r?\n//s;
-            $part =~ s/\r?\n\z//;
-            $form{$name} = sanitise_header( $part, 10000 );
+            $body =~ s/\r?\n\z//;        # drop the CRLF that precedes the next boundary
+            if ( $head =~ /filename="([^"]*)"/i ) {
+                my $filename = $1;
+                next unless length $filename;    # an empty file input - skip
+                my ($ctype) = $head =~ /Content-Type:\s*([^\r\n]+)/i;
+                push @files, {
+                    field    => $name,
+                    filename => $filename,
+                    type     => ( $ctype // 'application/octet-stream' ),
+                    data     => $body,
+                };
+            }
+            else {
+                $form{$name} = sanitise_header( $body, 10000 );
+            }
         }
+        $form{_files} = \@files if @files;
     }
     else {
         for my $pair ( split /&/, $data ) {
@@ -448,6 +568,9 @@ sub respond_error {
 }
 
 sub reject { die "$_[0]\n"; }
+
+# Like reject(), but the message IS shown to the submitter (upload limits etc.).
+sub reject_user { die "USER:$_[0]\n"; }
 
 # --- Utilities ---
 

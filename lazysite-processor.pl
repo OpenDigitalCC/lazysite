@@ -1700,6 +1700,9 @@ sub _render_form {
             elsif ( $r eq 'email' )      { $rules{type} = 'email'; }
             elsif ( $r =~ /^(tel|date|time|number|url|password)$/ ) { $rules{type} = $1; }
             elsif ( $r eq 'textarea' )   { $rules{textarea} = 1; }
+            elsif ( $r eq 'file' )       { $rules{file} = 1; }
+            elsif ( $r eq 'multiple' )   { $rules{multiple} = 1; }
+            elsif ( $r =~ /^accept:(.+)/ )  { $rules{accept} = $1; }
             elsif ( $r =~ /^select:(.+)/ ) { $rules{select} = [ split /,/, $1 ]; }
             elsif ( $r =~ /^max:(\d+)/ ) { $rules{max} = $1; }
             elsif ( $r =~ /^min:(\d+)/ ) { $rules{min} = $1; }
@@ -1719,7 +1722,18 @@ sub _render_form {
             ? ' <span class="required">*</span>' : '';
 
         my $field_html;
-        if ( $rules{textarea} ) {
+        if ( $rules{file} ) {
+            my $acc = '';
+            if ( defined $rules{accept} ) {
+                ( my $a = $rules{accept} ) =~ s/&/&amp;/g;
+                $a =~ s/"/&quot;/g;
+                $acc = qq( accept="$a");
+            }
+            my $mult = $rules{multiple} ? ' multiple' : '';
+            $field_html = qq(    <input type="file" name="$name" id="$name")
+                        . $acc . $mult . qq($req_attr>\n);
+        }
+        elsif ( $rules{textarea} ) {
             $field_html = qq(    <textarea name="$name" id="$name")
                         . qq( maxlength="$max"$ph_attr$req_attr></textarea>\n);
         }
@@ -1766,9 +1780,14 @@ sub _render_form {
 
     my $fields_html = join( '', @fields );
 
+    # A form with a file input must POST as multipart/form-data, or the browser
+    # sends only the filename, not the bytes.
+    my $enctype = $fields_html =~ /type="file"/
+        ? qq(\n      enctype="multipart/form-data") : '';
+
     return <<"END_FORM";
 <form method="POST"
-      action="/cgi-bin/form-handler.pl"
+      action="/cgi-bin/form-handler.pl"$enctype
       class="lazysite-form"
       data-form="$form_name">
   <input type="hidden" name="_form" value="$form_name">

@@ -161,13 +161,29 @@ Custom HTTP header names (for external proxy):
 
 Three config files work together:
 
-`lazysite/forms/FORMNAME.conf` - per-form dispatch list:
+`lazysite/forms/FORMNAME.conf` - per-form dispatch list (and optional upload
+limits):
 
 ```yaml
 targets:
   - handler: email-delivery
-  - handler: local-storage
+  - handler: local-storage     # a "file" handler is required to store uploads
+# Binary uploads (images, PDFs, ...). Presence of any upload_* key enables files
+# on this form; absence = the form accepts no files at all.
+upload_max_files: 3            # max files per submission (default 5)
+upload_max_kb: 5120            # max size of EACH file in KiB (default 5120)
+upload_accept: png, jpg, pdf   # allowed extensions (default: any)
 ```
+
+**How binary uploads work.** Author a file field in the page with the `file` rule
+(`photo | Photo | file accept:image/* required`, `multiple` for several); the form
+auto-switches to `multipart/form-data`. On submit, the handler parses the files
+binary-safe, enforces the `upload_*` limits (rejecting with a specific message),
+and the `file` handler stores them in a per-submission subdir **next to** the
+`FORMNAME.jsonl` - `FORMNAME.files/<id>/<name>` - recording `_files` (the sanitised
+names) and `_files_dir` in the submission JSON. Filenames are reduced to a safe
+basename, so a path like `../../x` cannot escape the submission directory. The
+JSON never contains the file bytes, only the names.
 
 `lazysite/forms/handlers.conf` - named handlers:
 

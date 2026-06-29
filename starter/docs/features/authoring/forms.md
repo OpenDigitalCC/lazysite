@@ -47,6 +47,11 @@ The name must be alphanumeric with hyphens and underscores. Without
 - `placeholder:TEXT` - greyed-out hint text inside the field
 - `max:N` - maxlength for text inputs (default 1000); the max **value** for `number`
 - `min:N` - the min **value** for `number`
+- `file` - renders a file picker (`<input type="file">`) for **binary uploads**
+  (images, PDFs, ...). Add `multiple` to allow several files in one field, and
+  `accept:LIST` to hint the browser's picker (`accept:image/*` or
+  `accept:.png,.pdf`). The form automatically switches to
+  `enctype="multipart/form-data"` when it contains a file field.
 
 Rules are whitespace-separated. A value that needs **spaces** (a placeholder, or a
 pattern with a literal space) is quoted: `placeholder:"Your full name"` or
@@ -65,6 +70,38 @@ Create `lazysite/forms/FORMNAME.conf`:
 
 Target types: `smtp` (email via helper), `api` with `format: json`
 (webhook), `api` with `format: slack` (Slack notification).
+
+### File uploads
+
+A form accepts binary uploads only when its `.conf` declares upload limits (so a
+form never accepts files by accident). Add any of these keys to
+`lazysite/forms/FORMNAME.conf`:
+
+    targets:
+      - handler: jsonl          # a "file" target is required to STORE the files
+    upload_max_files: 3         # max files per submission (default 5)
+    upload_max_kb: 5120         # max size of EACH file, KiB (default 5120 = 5 MiB)
+    upload_accept: png, jpg, pdf  # allowed extensions (default: any)
+
+A submission that breaks a limit is rejected before any handler runs, with a
+specific message to the visitor ("File 'x.png' is too large...", "File type not
+allowed...", "Too many files...").
+
+Uploaded files are stored by the **file** (`jsonl`) target, in a per-submission
+subdirectory **next to** the `FORMNAME.jsonl`:
+
+    lazysite/forms/submissions/FORMNAME.jsonl
+    lazysite/forms/submissions/FORMNAME.files/<submission-id>/photo.png
+
+The submission record names the files (it never stores the bytes inline):
+
+    { "name": "Ada", "_files": ["photo.png"],
+      "_files_dir": "FORMNAME.files/20260629T101500-1a2b", ... }
+
+Filenames are sanitised to a safe basename (any path component is stripped, so a
+crafted `../../etc/passwd` cannot escape the submission directory). A form with a
+file field but no `file` target validates uploads but does not keep them - add a
+`file` target to store them.
 
 ### Example
 
