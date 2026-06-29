@@ -7,6 +7,11 @@ site_url: ${REQUEST_SCHEME}://${SERVER_NAME}
 manager: enabled
 manager_path: /manager
 
+# Update channel: which lazysite upgrades this site accepts. New sites default to
+# 'stable' (non-stable/edge upgrades are skipped and logged). Set 'all' for a
+# test / cutting-edge site that should take every release.
+update_channel: stable
+
 # WebDAV publishing endpoint (/dav). Off by default - the dav handler
 # returns 404 for every method until this is enabled. Toggle it on the
 # manager Config page, or set it here. Per-account access is still gated by

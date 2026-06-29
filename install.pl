@@ -656,6 +656,9 @@ sub post_install_steps {
                   . "# See https://lazysite.io/docs for reference\n\n"
                   . "site_name: $o->{domain}\n"
                   . "site_url: \${REQUEST_SCHEME}://$o->{domain}\n"
+                  # New sites default to the stable update channel (edge upgrades
+                  # are skipped). Change to 'all' for a test / cutting-edge site.
+                  . "update_channel: stable\n"
                 );
                 info("  wrote:     lazysite/lazysite.conf (from --domain)");
             }
