@@ -4,68 +4,16 @@ subtitle: An honest look at what lazysite and other systems are each best suited
 register:
   - sitemap.xml
   - llms.txt
-sections:
-  - prose:
-      md: "lazysite and other publishing systems often solve overlapping problems in very different ways. This is not a contest — each tool is the right choice for different needs. The notes below describe, factually, what each is best suited for, with a feature table to help you judge whether lazysite fits your situation. We start with **WordPress**, the most common point of comparison; the table is a single master that we expand by adding a system (a column) or a feature (a row)."
-  - comparison:
-      systems:
-        - key: lazysite
-          name: lazysite
-          tagline: Markdown files turned into pages by a small CGI script — no build step, no database.
-          best_for: Content-led and documentation sites, and AI-assisted or programmatic publishing. Strongest where you want a fast, low-maintenance site you fully own, or where an agent or script manages the content rather than a person clicking around an admin panel.
-        - key: wordpress
-          name: WordPress
-          tagline: A mature PHP CMS with a database, a full admin UI and a vast plugin and theme ecosystem.
-          best_for: Sites that need a polished point-and-click admin for non-technical editors, off-the-shelf plugins (e-commerce, membership, SEO suites), and a large pool of developers and agencies. The pragmatic default when you would rather install a feature than build it.
-      features:
-        - label: Content format
-          lazysite: Plain Markdown files you own and can move anywhere
-          wordpress: Rich content stored in a database, edited in the block editor
-        - label: AI-first content management
-          lazysite: Built for it — an agent edits Markdown over WebDAV / a control API; no GUI required
-          wordpress: Possible via the REST API or plugins, but designed around the human admin UI
-        - label: Footprint
-          lazysite: One CGI script plus Perl modules from your distro — runs on almost any web server
-          wordpress: PHP plus a MySQL/MariaDB database — a heavier LAMP-style stack
-        - label: Database
-          lazysite: None — files only
-          wordpress: Required (MySQL / MariaDB)
-        - label: Build step
-          lazysite: None — pages render on request and the HTML is cached
-          wordpress: None — pages are generated dynamically by PHP
-        - label: Hosting
-          lazysite: Any CGI-capable host — or just runs on your own PC; cheap and static-like
-          wordpress: A managed WordPress host or a LAMP server with a database
-        - label: Backup
-          lazysite: Copy the files — it is flat files, nothing else to dump
-          wordpress: Database plus files — needs a backup plugin or routine
-        - label: Migration
-          lazysite: Move the folder anywhere — plain files, no database to port
-          wordpress: Export and import the database and media, often with a migration plugin and URL rewrites
-        - label: Themes available
-          lazysite: A growing library (20+) installable from a catalogue
-          wordpress: Thousands, free and paid
-        - label: Creating a new theme
-          lazysite: A structural layout plus CSS tokens — one file to re-skin, and an AI can author one
-          wordpress: PHP templates and the block / theme.json system — more to learn
-        - label: Built-in dynamic features
-          lazysite: Forms, authentication, x402 payments and content components ship in the core
-          wordpress: Added through plugins
-        - label: Plugin ecosystem
-          lazysite: Small and curated; the built-ins cover most common needs
-          wordpress: Vast (tens of thousands of plugins)
-        - label: Maintenance & security surface
-          lazysite: Small — static files, no database, a compact codebase
-          wordpress: Larger — database, PHP and plugins all need updates; a frequent attack target
-        - label: Performance
-          lazysite: Serves cached static HTML — fast by default
-          wordpress: Dynamic; usually needs caching plugins or a CDN to match
-        - label: Non-technical editing
-          lazysite: Markdown or a simple manager — less hand-holding
-          wordpress: A polished WYSIWYG admin — its single biggest strength
-        - label: Cost
-          lazysite: Free, with minimal hosting
-          wordpress: Free core, but hosting and premium plugins/themes add up
-  - prose:
-      md: "**If you are on WordPress and any of these ring true — you publish mostly text, you want a smaller and safer stack, you would rather own plain files, or you want an AI agent to manage the content — lazysite may suit you better.** If you depend on a particular plugin, sell through a mature store, or need a non-technical team editing in a familiar admin, WordPress remains the stronger fit. [Try the demo](/lazysite-demo) or read the [motivation](/motivation)."
+tt_page_var:
+  comp: json:/data/comparison.json
 ---
+
+lazysite and other publishing systems often solve overlapping problems in very different ways. This is not a contest - each tool is the right choice for different needs. The notes below describe, factually, what each is best suited for, with a feature table to help you judge whether lazysite fits your situation. We start with **WordPress**, the most common point of comparison; the table is a single master that we expand by adding a system (a column) or a feature (a row).
+
+<style>.cmp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin:1.6rem 0 2rem}.cmp-card{border:1px solid var(--theme-colours-border,#e3e3e3);border-radius:10px;padding:18px 20px;background:rgba(0,0,0,.02)}.cmp-card h3{margin:0 0 6px;font-size:1.15rem}.cmp-card .cmp-tag{margin:0 0 10px;font-size:.92rem;opacity:.72}.cmp-card .cmp-best{margin:0;font-size:.95rem;line-height:1.5}.cmp-table{width:100%;border-collapse:collapse;margin:1rem 0 1.4rem;font-size:.93rem}.cmp-table th,.cmp-table td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--theme-colours-border,#e3e3e3)}.cmp-table thead th{font-weight:700;border-bottom:2px solid var(--theme-colours-border,#cfcfcf)}.cmp-table tbody th{font-weight:600;width:28%}.cmp-table tbody tr:nth-child(odd){background:rgba(0,0,0,.025)}@media(max-width:640px){.cmp-table{font-size:.85rem}.cmp-table th,.cmp-table td{padding:8px}}</style>
+
+<div class="cmp-cards">[% FOREACH s IN comp.systems %]<div class="cmp-card"><h3>[% s.name %]</h3><p class="cmp-tag">[% s.tagline %]</p><p class="cmp-best"><strong>Best suited for:</strong> [% s.best_for %]</p></div>[% END %]</div>
+
+<table class="cmp-table"><thead><tr><th>Feature</th>[% FOREACH s IN comp.systems %]<th>[% s.name %]</th>[% END %]</tr></thead><tbody>[% FOREACH r IN comp.rows %]<tr><th>[% r.label %]</th>[% FOREACH s IN comp.systems %][% k = s.key %]<td>[% r.$k %]</td>[% END %]</tr>[% END %]</tbody></table>
+
+**If you are on WordPress and any of these ring true - you publish mostly text, you want a smaller and safer stack, you would rather own plain files, or you want an AI agent to manage the content - lazysite may suit you better.** If you depend on a particular plugin, sell through a mature store, or need a non-technical team editing in a familiar admin, WordPress remains the stronger fit. [Try the demo](/lazysite-demo) or read the [motivation](/motivation).

@@ -18,6 +18,17 @@ Keying
 
 ## Unreleased
 
+## 0.4.79 - Admin bar out of cache; json: UTF-8 fix (2026-06-29)
+
+Fix - admin bar vs cache
+: the manager admin bar is injected per-request at output time, never baked into
+  the shared page cache (so it can't leak to anonymous visitors or vanish for a
+  manager served from cache); managers use the page cache again.
+
+Fix - json: non-ASCII
+: a json: source containing non-ASCII (em dashes, curly quotes) no longer resolves
+  to empty - the file is read as raw bytes so decode_json handles the UTF-8.
+
 ## 0.4.78 - Revert build-stamped version (restore generator) (2026-06-29)
 
 Revert

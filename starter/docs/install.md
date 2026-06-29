@@ -17,9 +17,10 @@ For the full motivation behind lazysite, see [Motivation](https://lazysite.io/mo
 
 ## Web server support
 
-lazysite uses standard CGI and error handler mechanisms available in most
-web servers.
+lazysite runs on its own built-in server, or on any standard web server via
+CGI and error-handler mechanisms.
 
+- Built-in server - `perl tools/lazysite-server.pl` runs the full processor on a non-privileged port with no configuration; ideal for development, previews, and small internal or home use
 - Apache 2.4 - supported, HestiaCP installer provided
 - Apache without HestiaCP - configure `FallbackResource` manually
 - Nginx - use `error_page 403 404` to point to the CGI script
