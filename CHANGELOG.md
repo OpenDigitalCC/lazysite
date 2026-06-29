@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.76 - install --verify: deploy-gap detector (2026-06-29)
+
+Feature - trust the reported version
+: install.pl --verify checks the installed code files against the release manifest
+  (sha256), so a partial deploy that leaves stale code is caught instead of
+  reporting the new version with old code. Install + the Hestia deploy run it.
+
 ## 0.4.75 - Cache-safe sign in/out for themes (2026-06-29)
 
 Feature - [% auth_control %]
