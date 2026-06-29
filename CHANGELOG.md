@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.83 - Form binary uploads (2026-06-29)
+
+Feature - file uploads on forms
+: forms accept binary uploads (images, PDFs) via a `file` field; per-form limits
+  (count, size, accepted types) in FORMNAME.conf; files stored in a per-submission
+  subdir next to the .jsonl with names recorded in the submission JSON.
+
 ## 0.4.82 - Update channel (stable vs edge) (2026-06-29)
 
 Feature - per-site update channel

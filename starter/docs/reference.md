@@ -8,84 +8,8 @@ register:
 
 ## Front matter keys
 
-All keys are optional unless noted.
-
-`title`
-: Page title. Used in the `<title>` tag and page header. Required for
-  most pages.
-
-`subtitle`
-: Short description shown below the title.
-
-`ttl`
-: Cache TTL in seconds. The page regenerates after this interval rather
-  than on `.md` file edit. Example: `ttl: 300`
-
-`register`
-: List of registry files this page should appear in. Values match
-  template filenames under `lazysite/templates/registries/` without
-  the `.tt` extension. Common values: `sitemap.xml`, `llms.txt`,
-  `feed.rss`, `feed.atom`.
-
-`tt_page_var`
-: Page-scoped Template Toolkit variables. Supports `url:`, `scan:`,
-  `${ENV}`, and literal values. Page variables override site variables
-  of the same name.
-
-`raw`
-: Set `raw: true` to output the converted content body without the view
-  template wrapper. TT variables still resolve. Useful for content
-  fragments, AJAX partials, or API-style endpoints.
-
-`api`
-: Set `api: true` to serve the rendered content as an API endpoint.
-  Default content type: `application/json; charset=utf-8`. Combine with
-  `tt_page_var` (especially `scan:`) and `query_params` for dynamic JSON.
-
-`content_type`
-: Custom `Content-type` header. Used with `raw: true` or `api: true`.
-  Example: `content_type: text/html; charset=utf-8`
-
-`date`
-: Publication date in `YYYY-MM-DD` format. Used in feed entries. Falls
-  back to file mtime if not set.
-
-`layout`
-: Named layout for this page, overriding the site-wide `layout:` key.
-  The processor resolves it to `lazysite/layouts/NAME/layout.tt`. May
-  also be a remote URL (see
-  [remote layouts](/docs/features/configuration/remote-layouts)).
-
-`auth`
-: Authentication requirement. Values: `required`, `optional`, `none`
-  (default). See [Authentication](/docs/auth).
-
-`auth_groups`
-: List of group names. User must be authenticated AND in at least one
-  listed group to view the page.
-
-`payment`
-: Payment requirement for the x402 payment flow. See [Payment](/docs/payment).
-
-`query_params`
-: List of accepted URL query parameter names. Declared parameters are
-  available as `[% query.param_name %]`. Requests with matching parameters
-  bypass the cache.
-
-`tags`
-: Tags for page scan results. YAML list, comma-separated, or single value.
-
-`search`
-: Set `search: true` or `search: false` to control whether the page
-  appears in the search index. Defaults to the site-wide `search_default`
-  setting.
-
-`form`
-: Enables form processing for the page and names the form. Name must be
-  alphanumeric with hyphens and underscores. A matching
-  `lazysite/forms/NAME.conf` must exist. See [Forms](/docs/forms).
-
-See [Authoring](/docs/authoring) for full usage details and examples.
+Front matter is the YAML metadata block at the top of each page. Its keys
+are documented, with examples, in [Front matter](/docs/frontmatter).
 
 ## lazysite.conf keys
 
