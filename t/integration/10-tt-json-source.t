@@ -46,4 +46,20 @@ like( $out, qr{ROW:Beta=2;},  'json: looped row 2' );
 like( $out, qr{MISS:done},    'missing json: source degrades to empty - page still renders' );
 unlike( $out, qr{MISS:X},     'missing json: source yields no rows' );
 
+# Non-ASCII content must decode (read raw bytes, not :utf8 - else decode_json
+# chokes and the whole file silently resolves to empty).
+open my $u, '>:raw', "$docroot/data/utf8.json" or die $!;
+# Double-quoted so the \xNN escapes become real UTF-8 bytes on disk.
+print $u "{\"rows\":[{\"label\":"
+       . "\"Fast \xE2\x80\x94 really \xE2\x80\x9Cgood\xE2\x80\x9D \xE2\x86\x92 yes\"}]}";
+close $u;
+open my $p2, '>', "$docroot/u8.md" or die $!;
+print $p2 "---\ntitle: U8\nraw: true\ntt_page_var:\n  data: json:/data/utf8.json\n---\n"
+        . "[% FOREACH r IN data.rows %]U8:[% r.label %]:rows=[% data.rows.size %][% END %]\n";
+close $p2;
+my $u8 = run_processor( $docroot, '/u8' );
+utf8::decode($u8);    # subprocess returns UTF-8 bytes; compare as characters
+like( $u8, qr{U8:Fast \x{2014} really \x{201C}good\x{201D} \x{2192} yes:rows=1},
+    'json: decodes non-ASCII (em dash, curly quotes, arrow) instead of resolving empty' );
+
 done_testing;
