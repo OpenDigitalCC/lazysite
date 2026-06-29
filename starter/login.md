@@ -96,12 +96,17 @@ query_params:
 [% END %]
 
 [% IF query.next %]
-<p class="login-context">
+<p class="login-context" data-ls-auth-in>
   <span class="login-context-url">[% query.next | html %]</span> requires you to sign in.
 </p>
 [% END %]
 
-<form method="POST" action="/cgi-bin/lazysite-auth.pl?action=login" class="login-form">
+<div class="login-context" data-ls-auth-out style="display:none">
+  <p><strong>You are already signed in.</strong></p>
+  <p><a href="/">Go to the site</a> &middot; <a href="/cgi-bin/lazysite-auth.pl?action=logout">Sign out</a></p>
+</div>
+
+<form method="POST" action="/cgi-bin/lazysite-auth.pl?action=login" class="login-form" data-ls-auth-in>
   <input type="hidden" name="next" value="[% query.next | html %]">
 
   <label for="username">Username</label>
@@ -118,8 +123,4 @@ query_params:
   </div>
 </form>
 
-[% IF smtp_configured %]<p style="margin-top:0.5rem;font-size:0.9rem;"><a href="/forgot">Forgot password?</a></p>[% END %]
-
-<p class="demo-creds">Username: <code>manager</code><br>Password: (none required on localhost)</p>
-
-Try the [members area](/members) to see auth in action.
+[% IF smtp_configured %]<p data-ls-auth-in style="margin-top:0.5rem;font-size:0.9rem;"><a href="/forgot">Forgot password?</a></p>[% END %]
