@@ -505,7 +505,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     # Plugin actions log '/' as their path; name the plugin instead (from the
     # plugin param, else the body's script basename) so the audit says WHICH one.
     if ( $action =~ /^plugin-/ ) {
-        my $plugin = _audit_plugin_target( \%params, $body );
+        my $plugin = _audit_plugin_target( \%params, $body, $action );
         $aud_target = $plugin if length $plugin;
     }
 
@@ -968,12 +968,28 @@ sub _audit_implicit_target {
 }
 
 sub _audit_plugin_target {
-    my ( $params, $body ) = @_;
+    my ( $params, $body, $action ) = @_;
     my $plugin = $params->{plugin} // '';
-    return $plugin if length $plugin;
-    my $b = eval { decode_json( $body // '' ) };
-    my $script = ( ref $b eq 'HASH' ? $b->{script} : undef ) // '';
-    return $script =~ m{([^/]+?)(?:\.pl)?$} ? $1 : '';
+    unless ( length $plugin ) {
+        my $b = eval { decode_json( $body // '' ) };
+        my $script = ( ref $b eq 'HASH' ? $b->{script} : undef ) // '';
+        $plugin = $script =~ m{([^/]+?)(?:\.pl)?$} ? $1 : '';
+    }
+
+    # plugin-save: name the setting(s) changed so the audit says WHICH config key
+    # was edited (e.g. "lazysite (site_name)"), not just the plugin. Keys only -
+    # values may be secrets; capped so a whole-form save isn't a giant target.
+    if ( defined $action && $action eq 'plugin-save' && length $plugin ) {
+        my $b = eval { decode_json( $body // '' ) };
+        my $vals = ( ref $b eq 'HASH' ? $b->{values} : undef );
+        if ( ref $vals eq 'HASH' && keys %$vals ) {
+            my @keys = sort keys %$vals;
+            my $list = @keys > 6 ? ( scalar(@keys) . ' settings' )
+                                 : join( ', ', @keys );
+            $plugin .= " ($list)";
+        }
+    }
+    return $plugin;
 }
 
 sub action_pages {
