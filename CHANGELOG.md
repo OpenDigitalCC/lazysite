@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.73 - json: page-var source (data-driven pages from JSON) (2026-06-29)
+
+Feature - load a JSON file as TT data
+: tt_page_var gains a json: source - json:/path.json decodes a docroot JSON file
+  into a data structure the page body can loop ([% FOREACH %]). The documented
+  [% USE JSON %] path needed an unbundled CPAN plugin; json: is the built-in way.
+
 ## 0.4.72 - Manager-aware login landing (2026-06-28)
 
 Change - login
