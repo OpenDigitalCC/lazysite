@@ -80,20 +80,23 @@ if [ "$DO_TPL" = 1 ] && [ -d "$TPLDIR" ]; then
 fi
 
 # --- deploy each -------------------------------------------------------------
-ok=0; FAILED=()
+# Per-site exit: 0 = updated, 4 = skipped by the site's update channel (stable
+# site, edge release), anything else = failed.
+ok=0; SKIPPED=(); FAILED=()
 for i in "${!DOMAINS[@]}"; do
     d="${DOMAINS[$i]}"; u="${USERS[$i]}"
     echo; echo "################ $d (user $u) ################"
-    if bash "$DEPLOY" "$u" "$d" "$STAGE"; then
-        ok=$(( ok + 1 ))
-    else
-        FAILED+=( "$d" )
+    bash "$DEPLOY" "$u" "$d" "$STAGE"; rc=$?
+    if   [ "$rc" = 0 ]; then ok=$(( ok + 1 ))
+    elif [ "$rc" = 4 ]; then SKIPPED+=( "$d" )
+    else                     FAILED+=( "$d" )
     fi
 done
 
 echo
-echo "Updated $ok/$n site(s) to $NEWVER."
-[ "${#FAILED[@]}" -gt 0 ] && printf 'FAILED to upgrade: %s\n' "${FAILED[@]}"
+echo "Updated $ok/$n site(s) to $NEWVER.  Skipped ${#SKIPPED[@]} (stable channel).  Failed ${#FAILED[@]}."
+[ "${#SKIPPED[@]}" -gt 0 ] && printf 'SKIPPED (stable site, edge release not installed): %s\n' "${SKIPPED[*]}"
+[ "${#FAILED[@]}" -gt 0 ]  && printf 'FAILED to upgrade: %s\n' "${FAILED[*]}"
 
 # --- consolidated health summary: warnings + failures grouped by site --------
 # Re-run the doctor read-only per site so the operator sees what (if anything) is
@@ -117,6 +120,25 @@ if [ -f "$CHK" ]; then
     done
     [ "$dirty" = 0 ] && echo "  all sites clean - no warnings or failures."
 fi
+
+# --- final summary: every site, the version it is on NOW, and its channel ------
+chan_of() {   # update_channel from a lazysite.conf, default 'all'
+    perl -ne 'if(/^\s*update_channel\s*:\s*(\S+)/){print lc $1; exit}' "$1" 2>/dev/null
+}
+in_list() { local x="$1"; shift; for e in "$@"; do [ "$e" = "$x" ] && return 0; done; return 1; }
+
+echo
+echo "==> site versions (staged release: $NEWVER)"
+for i in "${!DOMAINS[@]}"; do
+    d="${DOMAINS[$i]}"; u="${USERS[$i]}"
+    base="/home/$u/web/$d/public_html/lazysite"
+    now="$(ver_of "$base/.install-state.json")"
+    ch="$(chan_of "$base/lazysite.conf")"; [ -z "$ch" ] && ch="all"
+    status="updated"
+    in_list "$d" "${SKIPPED[@]}" && status="SKIPPED (stable)"
+    in_list "$d" "${FAILED[@]}"  && status="FAILED"
+    printf '  %-44s %-9s channel=%-7s %s\n' "$d" "$now" "$ch" "$status"
+done
 
 [ "${#FAILED[@]}" -gt 0 ] && exit 1
 exit 0

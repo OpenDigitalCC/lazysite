@@ -1039,13 +1039,17 @@ sub action_config_set {
     my ( $key, $value ) = @_;
     # SM122: a small, injection-safe subset settable via the API (with manage_config).
     my %allow = map { $_ => 1 }
-        qw(site_name site_url search_default webdav_enabled layout theme nav_file);
+        qw(site_name site_url search_default webdav_enabled layout theme nav_file
+           update_channel);
     $key = '' unless defined $key;
     return { ok => 0, error => "Config key '$key' is not settable via the API" }
         unless $allow{$key};
     # SM122: validate the enum/name-shaped keys.
     if ( $key eq 'webdav_enabled' && defined $value && $value !~ /^(enabled|disabled)$/ ) {
         return { ok => 0, error => "webdav_enabled must be 'enabled' or 'disabled'" };
+    }
+    if ( $key eq 'update_channel' && defined $value && $value !~ /^(all|stable)$/ ) {
+        return { ok => 0, error => "update_channel must be 'all' or 'stable'" };
     }
     if ( ( $key eq 'layout' || $key eq 'theme' ) && defined $value && length $value
          && $value !~ /^[A-Za-z0-9_-]+$/ ) {

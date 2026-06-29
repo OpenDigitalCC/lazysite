@@ -67,7 +67,7 @@ set -e
 if [ "$IRC" = 3 ]; then
   echo "==> upgrade SKIPPED: this site is on the 'stable' update channel and this"
   echo "    release is an 'edge' build. Nothing changed (logged in the site audit)."
-  exit 0
+  exit 4          # distinct code so the batch updater can report skips separately
 elif [ "$IRC" != 0 ]; then
   echo "ERROR: install failed (exit $IRC)" >&2
   exit "$IRC"
