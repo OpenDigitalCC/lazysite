@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+## 0.4.81 - Security: search-index + visitor-stats hardening (2026-06-29)
+
+Security - search index
+: the public /search-index no longer leaks absolute server paths (now docroot-
+  relative) or inline <style>/<script> content in excerpts.
+
+Security - visitor stats log path
+: the access/error log path is owner-set (LAZYSITE_ACCESS_LOG env) or auto-detected
+  only; a site manager can no longer point the reader at an arbitrary file.
+
 ## 0.4.80 - Fix manager-page corruption; link-audit restyle (2026-06-29)
 
 Fix - manager UI corruption (regression)
