@@ -21,6 +21,7 @@ my %opt = (
     out     => undef,
     check   => 0,
     config  => undef,
+    channel => undef,
     help    => 0,
 );
 Getopt::Long::GetOptions(
@@ -29,6 +30,7 @@ Getopt::Long::GetOptions(
     'out=s'     => \$opt{out},
     'check'     => \$opt{check},
     'config=s'  => \$opt{config},
+    'channel=s' => \$opt{channel},
     'help'      => \$opt{help},
 ) or die usage();
 print usage() and exit 0 if $opt{help};
@@ -38,6 +40,12 @@ $opt{config}  //= "$REPO_ROOT/dist/config/classification.json";
 $opt{staged}  //= $REPO_ROOT;
 $opt{out}     //= "$REPO_ROOT/release-manifest.json";
 $opt{version} //= read_version_file();
+# Release channel: 'stable' (certified, cut with --channel stable / release.sh
+# --final) or 'edge' (everything else, the default). A site set to the stable
+# update channel refuses to install an 'edge' build.
+$opt{channel} //= 'edge';
+die "build-manifest: --channel must be 'stable' or 'edge'\n"
+    unless $opt{channel} eq 'stable' || $opt{channel} eq 'edge';
 
 if ( $opt{check} ) {
     exit check_manifest();
@@ -249,6 +257,7 @@ sub generate_manifest {
         schema_version   => '1',
         version          => $opt{version},
         min_upgrade_from => $opt{version},
+        channel          => $opt{channel},
         generated        => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         files            => \@manifest_files,
         runtime_paths    => $cfg->{runtime_paths},

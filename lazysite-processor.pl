@@ -39,7 +39,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
         # must stay in sync until SM042 unifies them.
         config_keys => [qw(site_name site_url layout theme layouts_repo
                            nav_file search_default webdav_enabled
-                           manager manager_path manager_groups)],
+                           manager manager_path manager_groups update_channel)],
         config_schema => [
             { key => 'site_name', label => 'Site name', type => 'text',
               default => 'My Site', required => JSON::PP::true() },
@@ -79,6 +79,12 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
               show_when => { key => 'manager', value => ['enabled'] } },
             { key => 'webdav_enabled', label => 'WebDAV publishing', type => 'select',
               options => ['disabled', 'enabled'], default => 'disabled' },
+            { key => 'update_channel', label => 'Update channel', type => 'select',
+              options => ['all', 'stable'], default => 'all',
+              note => 'Which lazysite upgrades this site accepts. "all" installs '
+                    . 'every release (default); "stable" refuses non-stable (edge) '
+                    . 'upgrades - a deploy of an edge build is skipped and logged in '
+                    . 'the audit trail. Use "stable" for customer sites.' },
         ],
         actions => [],
     });

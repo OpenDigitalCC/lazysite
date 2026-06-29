@@ -157,6 +157,35 @@ exit cmd_install( \%opt );
 # SM117: record the install / upgrade in the audit trail. Written directly (the
 # installer does not load the lib) in the same pipe format Lazysite::Audit uses;
 # origin "install", user "system", target the version (or "from -> to").
+# The site's update channel preference, read from lazysite.conf. 'stable' = only
+# install stable releases; anything else (default) = 'all' (today's behaviour).
+sub read_update_channel {
+    my ($docroot) = @_;
+    my $conf = "$docroot/lazysite/lazysite.conf";
+    open my $fh, '<', $conf or return 'all';
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^\s*update_channel\s*:\s*(\S+)/;
+        close $fh;
+        return lc($1) eq 'stable' ? 'stable' : 'all';
+    }
+    close $fh;
+    return 'all';
+}
+
+# Record an upgrade that was skipped by the channel policy (origin = install).
+sub audit_channel_skip {
+    my ( $docroot, $from, $to, $rel_channel ) = @_;
+    my $logdir = "$docroot/lazysite/logs";
+    return unless -d $logdir;
+    my $target = "$from -> $to (release channel: $rel_channel; site is stable-only)";
+    $target =~ s/[|\r\n]+/ /g;
+    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
+    open my $fh, '>>', "$logdir/audit.log" or return;
+    print {$fh} "$ts | system | upgrade-skipped | $target |  | ok | install\n";
+    close $fh;
+    return;
+}
+
 sub audit_install_event {
     my ( $docroot, $mode, $from, $to ) = @_;
     my $logdir = "$docroot/lazysite/logs";
@@ -199,6 +228,23 @@ sub cmd_install {
     if ( $mode ne 'fresh' ) {
         info("  from:    $state->{version}");
         info("  to:      $manifest->{version}");
+    }
+
+    # Upgrade channel policy: a site set to the 'stable' update channel refuses a
+    # non-stable (edge) UPGRADE - this is how a not-yet-certified build is kept off
+    # stable customer sites. Fresh installs and reinstalls are the operator's
+    # explicit choice and are never gated. The skip is a clean no-op (exit 3, not
+    # an error) and is recorded in the site's audit log.
+    if ( $mode eq 'upgrade' ) {
+        my $site_channel    = read_update_channel( $o->{docroot} );  # 'stable'|'all'
+        my $release_channel = $manifest->{channel} || 'edge';
+        if ( $site_channel eq 'stable' && $release_channel ne 'stable' ) {
+            info( "Upgrade SKIPPED: this site is on the 'stable' update channel and "
+                . "$manifest->{version} is an '$release_channel' build. No changes made." );
+            audit_channel_skip( $o->{docroot},
+                $state->{version}, $manifest->{version}, $release_channel );
+            return 3;
+        }
     }
 
     my %subs = placeholders( $o->{docroot}, $o->{cgibin} );

@@ -54,6 +54,9 @@ var SITE_SCHEMA = [
     show_when: { key: 'manager', value: ['enabled'] } },
   { key: 'webdav_enabled', label: 'WebDAV publishing', type: 'toggle',
     on: 'enabled', off: 'disabled', default: 'disabled' },
+  { key: 'update_channel', label: 'Update channel', type: 'select',
+    options: ['all', 'stable'], default: 'all',
+    note: 'Which lazysite upgrades this site accepts. "all" installs every release; "stable" refuses non-stable (edge) upgrades (the deploy is skipped and logged in the audit trail). Use "stable" for customer sites.' },
 ];
 
 // SM044: populated by parallel fetch of layouts-available at load time.

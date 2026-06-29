@@ -507,6 +507,49 @@ subtest '--verify: detects a stale/altered code file (deploy-gap detector)' => s
     like( $vout2, qr/lazysite-processor\.pl/, 'names the offending file' );
 };
 
+subtest 'upgrade channel: a stable site refuses an edge build' => sub {
+    my ( $doc, $cgi ) = fresh_docroot();
+    my ($irc) = run_install( '--docroot', $doc, '--cgibin', $cgi );
+    is( $irc, 0, 'fresh install ok' );
+
+    make_path("$doc/lazysite/logs");
+    open my $cf, '>>', "$doc/lazysite/lazysite.conf" or die $!;
+    print $cf "update_channel: stable\n";
+    close $cf;
+
+    # Make the install-state look older so the next run is an UPGRADE, not a
+    # reinstall. The repo manifest is an 'edge' build (build-manifest default).
+    my $sp = "$doc/lazysite/.install-state.json";
+    {
+        open my $f, '<', $sp or die $!;
+        local $/; my $j = <$f>; close $f;
+        $j =~ s/"version"\s*:\s*"[^"]*"/"version":"0.0.1"/;
+        open my $w, '>', $sp or die $!; print {$w} $j; close $w;
+    }
+
+    my ( $rc2, $out2 ) = run_install( '--docroot', $doc, '--cgibin', $cgi );
+    is( $rc2, 3, 'edge upgrade on a stable-channel site exits 3 (skipped)' );
+    like( $out2, qr/SKIPPED/i, 'reports the skip' );
+    my $audit = '';
+    if ( open my $a, '<', "$doc/lazysite/logs/audit.log" ) {
+        local $/; $audit = <$a>; close $a;
+    }
+    like( $audit, qr/upgrade-skipped/, 'skip recorded in the audit log' );
+
+    # Control: an 'all' site (the default) is NOT gated - the upgrade proceeds.
+    open my $cf2, '>', "$doc/lazysite/lazysite.conf" or die $!;
+    print $cf2 "update_channel: all\n";
+    close $cf2;
+    {
+        open my $f, '<', $sp or die $!;
+        local $/; my $j = <$f>; close $f;
+        $j =~ s/"version"\s*:\s*"[^"]*"/"version":"0.0.1"/;
+        open my $w, '>', $sp or die $!; print {$w} $j; close $w;
+    }
+    my ($rc3) = run_install( '--docroot', $doc, '--cgibin', $cgi );
+    is( $rc3, 0, 'an all-channel site upgrades normally (exit 0)' );
+};
+
 done_testing();
 
 # --- helpers ---

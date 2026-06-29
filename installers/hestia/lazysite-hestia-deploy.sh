@@ -56,7 +56,22 @@ for tgt in "$DOC" "$CGI" "$DOM/lib" "$DOM/plugins" "$DOM/tools"; do
 done
 
 echo "==> install.pl (as $U)"
+set +e
 sudo -u "$U" bash "$STAGE/install.sh" --docroot "$DOC" --cgibin "$CGI"
+IRC=$?
+set -e
+# Exit 3 = the install was skipped by the site's update-channel policy (this site
+# is 'stable' and the build is 'edge'). That is a deliberate no-op, not a failure:
+# report it and stop here (no files changed, so the verify below would wrongly
+# flag a mismatch against the new manifest).
+if [ "$IRC" = 3 ]; then
+  echo "==> upgrade SKIPPED: this site is on the 'stable' update channel and this"
+  echo "    release is an 'edge' build. Nothing changed (logged in the site audit)."
+  exit 0
+elif [ "$IRC" != 0 ]; then
+  echo "ERROR: install failed (exit $IRC)" >&2
+  exit "$IRC"
+fi
 
 # Verify the installed code actually matches the release before trusting the
 # stamped version: catches a partial/stale deploy (the "version reports X but the

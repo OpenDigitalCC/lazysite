@@ -38,6 +38,7 @@ STAGE=/tmp/lazysite-release-$$
 VERSION=""
 NOTES_FILE=""
 COMMIT_REF="origin/main"
+CHANNEL="edge"          # --final marks the release 'stable' (else 'edge')
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -48,6 +49,10 @@ while [ $# -gt 0 ]; do
         --commit)
             COMMIT_REF="$2"
             shift 2
+            ;;
+        --final|--stable)
+            CHANNEL="stable"
+            shift
             ;;
         -h|--help)
             sed -n '2,22p' "$0" | sed 's/^# \?//'
@@ -197,11 +202,12 @@ fi
 # clone has none. Build it from the staged tree before the SBOM gate
 # (which reads it) and the tarball (which ships it).
 
-echo "==> build-manifest.pl"
+echo "==> build-manifest.pl (channel: $CHANNEL)"
 if ! perl "$STAGE/tools/build-manifest.pl" \
         --staged  "$STAGE" \
         --out     "$STAGE/release-manifest.json" \
-        --version "$VERSION" ; then
+        --version "$VERSION" \
+        --channel "$CHANNEL" ; then
     echo "release.sh: manifest build failed; not releasing." >&2
     echo "release.sh: staging dir retained: $STAGE" >&2
     exit 1
