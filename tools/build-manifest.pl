@@ -34,12 +34,6 @@ Getopt::Long::GetOptions(
 print usage() and exit 0 if $opt{help};
 
 my $REPO_ROOT = find_repo_root();
-# Capture whether --staged was given EXPLICITLY, before defaulting it. The release
-# runs the staged copy of this script, so its $REPO_ROOT == the staged dir; a
-# "staged ne REPO_ROOT" test can never distinguish them. Only an explicit --staged
-# (the release) stamps the processor; an on-demand repo manifest (tests/dev) must
-# not touch the repo checkout.
-my $STAGED_EXPLICIT = defined $opt{staged};
 $opt{config}  //= "$REPO_ROOT/dist/config/classification.json";
 $opt{staged}  //= $REPO_ROOT;
 $opt{out}     //= "$REPO_ROOT/release-manifest.json";
@@ -52,23 +46,6 @@ if ( $opt{check} ) {
 }
 
 # -------- helpers --------
-
-# Replace the __LAZYSITE_VERSION__ placeholder in a staged processor with the
-# release version. Idempotent; a no-op if the placeholder is absent.
-sub stamp_processor_version {
-    my ( $dir, $version ) = @_;
-    my $proc = "$dir/lazysite-processor.pl";
-    return unless -f $proc;
-    open my $fh, '<', $proc or return;
-    local $/;
-    my $src = <$fh>;
-    close $fh;
-    return unless $src =~ s/__LAZYSITE_VERSION__/$version/g;
-    open my $w, '>', $proc or return;
-    print {$w} $src;
-    close $w;
-    return;
-}
 
 sub usage {
     return <<'USAGE';
@@ -201,14 +178,6 @@ sub apply_install_to {
 }
 
 sub generate_manifest {
-    # Stamp the release version into the STAGED processor (never the repo
-    # checkout), so the shipped .pl reports its own version and the manifest hash
-    # below reflects the stamped file. Gated on a real staged tree so an on-demand
-    # repo-root manifest (tests, dev) leaves the __LAZYSITE_VERSION__ placeholder.
-    if ( $STAGED_EXPLICIT && defined $opt{version} && length $opt{version} ) {
-        stamp_processor_version( $opt{staged}, $opt{version} );
-    }
-
     my $cfg   = load_config( $opt{config} );
     my $files = scan_files( $opt{staged} );
 

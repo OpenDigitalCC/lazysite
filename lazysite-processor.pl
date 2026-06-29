@@ -3313,13 +3313,8 @@ sub _inject_auth_sync {
     return $html;
 }
 
-# SM112: the running code's version. The build stamps the __LAZYSITE_VERSION__
-# placeholder below with the release version in the shipped tarball, so a page's
-# [% lazysite_version %] reflects THIS running .pl - not the .install-state.json
-# side-car. A partial deploy that left stale code then shows the stale version
-# (the gap is self-evident) instead of the state file's newer number.
+# SM112: read the installed release version once (from the install state).
 my $LAZYSITE_VERSION;
-my $LAZYSITE_BUILD_VERSION = '__LAZYSITE_VERSION__';
 # Enabled plugins from lazysite.conf's `plugins:` list, for conditional manager
 # nav (e.g. hide "Visitor statistics" when the stats plugin is disabled). Keyed
 # by both the raw entry (stats.pl) and its extensionless id (stats) so the layout
@@ -3348,12 +3343,6 @@ sub _enabled_plugins {
 
 sub _lazysite_version {
     return $LAZYSITE_VERSION if defined $LAZYSITE_VERSION;
-    # A stamped release reports its OWN embedded version - it cannot drift from the
-    # running code. Unstamped (dev checkout, placeholder intact) falls back to the
-    # install-state side-car.
-    if ( $LAZYSITE_BUILD_VERSION !~ /\A__/ ) {
-        return $LAZYSITE_VERSION = $LAZYSITE_BUILD_VERSION;
-    }
     $LAZYSITE_VERSION = '';
     my $path = "$DOCROOT/lazysite/.install-state.json";
     if ( open my $fh, '<', $path ) {
