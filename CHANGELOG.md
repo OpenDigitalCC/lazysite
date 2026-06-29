@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.82 - Update channel (stable vs edge) (2026-06-29)
+
+Feature - per-site update channel
+: a site can be set to the "stable" update channel (Manager -> Site settings) to
+  refuse non-stable (edge) upgrades; the deploy is skipped and logged. Releases are
+  cut stable with release.sh --final. Keeps the existing operator deploy process.
+
 ## 0.4.81 - Security: search-index + visitor-stats hardening (2026-06-29)
 
 Security - search index

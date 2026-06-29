@@ -60,12 +60,6 @@
           "how_label": "Search"
         },
         {
-          "title": "News feeds",
-          "what": "Publish RSS and Atom feeds generated from your pages, kept in sync as content changes.",
-          "how_url": "/docs/features/authoring/feeds",
-          "how_label": "Feeds"
-        },
-        {
           "title": "Sitemaps & registries",
           "what": "Auto-maintained sitemap.xml and llms.txt registries so search engines and AI agents can discover every page.",
           "how_url": "/docs/features/authoring/registries",
@@ -166,6 +160,36 @@
           "what": "Publish over WebDAV and a control API  -  the path an AI agent or script uses to manage a site with no GUI in the loop.",
           "how_url": "/docs/features/configuration/webdav",
           "how_label": "WebDAV"
+        }
+      ]
+    },
+    {
+      "name": "Advanced data & templating",
+      "blurb": "Power-user features for data-driven pages and feeds - no plugins, no build.",
+      "features": [
+        {
+          "title": "JSON data files",
+          "what": "Point json:/data/file.json at a local JSON file and it is decoded into a real data structure you can loop over in the page - FOREACH, nested loops, indexed access and .size. The comparison and feature tables on this very site are built this way.",
+          "how_url": "",
+          "how_label": ""
+        },
+        {
+          "title": "Template Toolkit helpers",
+          "what": "The full Template Toolkit is available in pages and layouts: string, list and hash methods (split, join, replace, sort, first, last, size, match and more), computed expressions, and FILTERs such as markdown - real data shaping with no plugin.",
+          "how_url": "/docs/features/authoring/tt-variables",
+          "how_label": "TT variables"
+        },
+        {
+          "title": "RSS & Atom feeds",
+          "what": "Register feed.rss and feed.atom in a page's front matter and lazysite emits both, generated from a scan of your pages and kept in sync as content changes - readers and aggregators subscribe directly.",
+          "how_url": "/docs/features/authoring/feeds",
+          "how_label": "Feeds"
+        },
+        {
+          "title": "Remote data & JSON",
+          "what": "Pull a live value from a remote URL with url: (a version badge, an API field), or inline remote Markdown and feeds with includes - external data rendered through the same pipeline and cached for a chosen time.",
+          "how_url": "/docs/features/authoring/remote-pages",
+          "how_label": "Remote pages"
         }
       ]
     },
