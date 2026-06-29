@@ -193,6 +193,16 @@ sub run_scan {
     });
 }
 
+sub _h {
+    my $s = shift;
+    $s = '' unless defined $s;
+    $s =~ s/&/&amp;/g;
+    $s =~ s/</&lt;/g;
+    $s =~ s/>/&gt;/g;
+    $s =~ s/"/&quot;/g;
+    return $s;
+}
+
 sub write_audit_report {
     my ( $path, $results ) = @_;
 
@@ -218,58 +228,67 @@ sub write_audit_report {
     $md .= qq(<span class="mg-card-title">Link Audit Report</span>\n);
     $md .= qq(<span class="mg-card-subtitle">$now</span>\n);
     $md .= qq(</div>\n);
-    $md .= qq(<div class="mg-card-body" markdown="1">\n\n);
+    # Pure HTML body (no markdown="1") so the mg-table markup below renders
+    # verbatim and matches the Stats / Users pages.
+    $md .= qq(<div class="mg-card-body">\n\n);
 
-    $md .= "## Summary\n\nAudit completed: $now\n\n";
+    # Summary tiles - same shape as the stats page (mg-stat-tiles).
+    my $b_label = 'Broken link'    . ( $b_count == 1 ? '' : 's' );
+    my $o_label = 'Orphaned page'  . ( $o_count == 1 ? '' : 's' );
+    $md .= qq(<div class="mg-stat-tiles">\n);
+    $md .= qq(  <div class="mg-stat-tile"><div class="mg-stat-value">$b_count</div>)
+         . qq(<div class="mg-stat-label">$b_label</div></div>\n);
+    $md .= qq(  <div class="mg-stat-tile"><div class="mg-stat-value">$o_count</div>)
+         . qq(<div class="mg-stat-label">$o_label</div></div>\n);
+    $md .= qq(</div>\n\n);
 
     if ( $b_count == 0 && $o_count == 0 ) {
-        $md .= "::: widebox\nNo broken links or orphaned pages found.\n:::\n";
-    }
-    else {
-        $md .= "- $b_count broken link(s) found\n";
-        $md .= "- $o_count orphaned page(s) found\n";
+        $md .= qq(<p class="mg-empty">&#10003; No broken links or orphaned pages found.</p>\n);
     }
 
     if ( $b_count > 0 ) {
-        $md .= "\n## Broken internal links\n\n";
-        $md .= "| Page | Broken link | Edit |\n";
-        $md .= "| ---- | ----------- | ---- |\n";
+        $md .= qq(<div class="mg-sec">Broken internal links</div>\n);
+        $md .= qq(<table class="mg-table">\n)
+             . qq(<thead><tr><th>Page</th><th>Broken link</th><th></th></tr></thead>\n<tbody>\n);
         for my $item ( @$broken ) {
             my $page_md = $item->{source};
             $page_md =~ s{^/}{};
             $page_md .= '.md' unless $page_md =~ /\.\w+$/;
             my $edit_url = "/manager/edit?path=" . uri_encode("/$page_md");
 
-            # Display text keeps the file path (with .md) so the table
-            # reads like what the author sees in the editor; the link
-            # target is the live URL (no .md, /index → /).
+            # Display text keeps the file path (with .md) so the table reads like
+            # what the author sees in the editor; the link target is the live URL.
             my $page_url = $item->{source};
             $page_url = "/$page_url" unless $page_url =~ m{^/};
             $page_url =~ s/\.md$//;
             $page_url =~ s{/index$}{/};
             $page_url = '/' if $page_url eq '';
 
-            $md .= "| [$page_md]($page_url) | /$item->{target} | [Edit]($edit_url) |\n";
+            $md .= qq(<tr><td><a href=") . _h($page_url) . qq(">) . _h($page_md) . qq(</a></td>)
+                 . qq(<td><code>/) . _h( $item->{target} ) . qq(</code></td>)
+                 . qq(<td><a class="mg-btn mg-btn-sm" href=") . _h($edit_url) . qq(">Edit</a></td></tr>\n);
         }
+        $md .= qq(</tbody>\n</table>\n\n);
     }
 
     if ( $o_count > 0 ) {
-        $md .= "\n## Orphaned pages\n\n";
-        $md .= "Pages that exist but are not linked from any other page.\n\n";
-        $md .= "| Page | Edit |\n";
-        $md .= "| ---- | ---- |\n";
+        $md .= qq(<div class="mg-sec">Orphaned pages</div>\n);
+        $md .= qq(<p class="mg-hint">Pages that exist but are not linked from any other page.</p>\n);
+        $md .= qq(<table class="mg-table">\n)
+             . qq(<thead><tr><th>Page</th><th></th></tr></thead>\n<tbody>\n);
         for my $page ( @$orphaned ) {
             my $page_md = $page;
             $page_md .= '.md' unless $page_md =~ /\.\w+$/;
             my $edit_url = "/manager/edit?path=" . uri_encode("/$page_md");
-            # Orphaned $page is already the URL form (canonical); link it
-            # to itself so the reader can jump to the page directly.
-            $md .= "| [/$page](/$page) | [Edit]($edit_url) |\n";
+            # Orphaned $page is already the URL form (canonical); link it to itself.
+            $md .= qq(<tr><td><a href="/) . _h($page) . qq(">/) . _h($page) . qq(</a></td>)
+                 . qq(<td><a class="mg-btn mg-btn-sm" href=") . _h($edit_url) . qq(">Edit</a></td></tr>\n);
         }
+        $md .= qq(</tbody>\n</table>\n\n);
     }
 
     # Close mg-card-body and mg-card
-    $md .= qq(\n</div>\n</div>\n);
+    $md .= qq(</div>\n</div>\n);
 
     open my $fh, '>:utf8', $path or die "Cannot write report: $!\n";
     print $fh $md;
