@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+## 0.4.80 - Fix manager-page corruption; link-audit restyle (2026-06-29)
+
+Fix - manager UI corruption (regression)
+: the admin bar (0.4.79) was injected into manager pages - behind the auth wrapper
+  REDIRECT_URL is unset - and into a <body> in the head comment, corrupting the
+  page. Resolve the path via REQUEST_URI too, and anchor the bar after </head>.
+
+Style - link audit report
+: the orphaned/broken-link report uses the modern mg-table / stat-tile styling.
+
 ## 0.4.79 - Admin bar out of cache; json: UTF-8 fix (2026-06-29)
 
 Fix - admin bar vs cache

@@ -1,0 +1,20 @@
+{
+  "intro": "Honest, factual comparisons of lazysite with other ways to build a site - what each is best suited for, side by side. Pick the one closest to what you use today.",
+  "comparisons": [
+    {
+      "subject": "WordPress",
+      "what": "The default CMS - a database, an admin UI and a vast plugin ecosystem.",
+      "url": "/comparison/wordpress"
+    },
+    {
+      "subject": "Hugo",
+      "what": "A fast static-site generator with a build step and Go templates.",
+      "url": "/comparison/hugo"
+    },
+    {
+      "subject": "Ghost",
+      "what": "A modern publishing platform with memberships and newsletters.",
+      "url": "/comparison/ghost"
+    }
+  ]
+}

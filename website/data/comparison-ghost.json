@@ -1,0 +1,68 @@
+{
+  "systems": [
+    {
+      "key": "lazysite",
+      "name": "lazysite",
+      "tagline": "A file-based engine - drop in Markdown, no database, with optional paid pages.",
+      "best_for": "Owners who want their content as plain files, low maintenance and low cost, optional pay-per-read, and the freedom to let an AI manage it."
+    },
+    {
+      "key": "ghost",
+      "name": "Ghost",
+      "tagline": "A modern publishing platform built around posts, paid memberships and email newsletters.",
+      "best_for": "Professional writers and publishers who want memberships, subscriptions and newsletters out of the box and a polished editor, and are happy to run or pay for a Node and database stack."
+    }
+  ],
+  "rows": [
+    {
+      "label": "Footprint",
+      "lazysite": "One CGI script plus Perl modules",
+      "ghost": "A Node.js application with a database"
+    },
+    {
+      "label": "Database",
+      "lazysite": "None - files only",
+      "ghost": "Required (MySQL, or SQLite for small installs)"
+    },
+    {
+      "label": "Focus",
+      "lazysite": "General sites, docs and content, with optional paid pages",
+      "ghost": "Professional publishing: posts, newsletters and memberships"
+    },
+    {
+      "label": "Memberships & paid content",
+      "lazysite": "Pay-per-read (x402) and per-user access, built in",
+      "ghost": "Built-in memberships and subscriptions via Stripe"
+    },
+    {
+      "label": "Email newsletters",
+      "lazysite": "Not built in",
+      "ghost": "Built in - send posts as newsletters"
+    },
+    {
+      "label": "Editor",
+      "lazysite": "Plain Markdown files",
+      "ghost": "A polished web editor"
+    },
+    {
+      "label": "AI-first management",
+      "lazysite": "An agent publishes over WebDAV, a control API or MCP",
+      "ghost": "A content API exists, but the product centres on its editor"
+    },
+    {
+      "label": "Hosting",
+      "lazysite": "Any CGI host, or its own built-in server; very cheap",
+      "ghost": "A Node host you manage, or paid Ghost(Pro)"
+    },
+    {
+      "label": "Themes",
+      "lazysite": "Layout plus theme tokens; one file to re-skin",
+      "ghost": "Handlebars themes with a marketplace"
+    },
+    {
+      "label": "Maintenance",
+      "lazysite": "Static files, no database, a small codebase",
+      "ghost": "Node runtime, a database and updates to keep current"
+    }
+  ]
+}
