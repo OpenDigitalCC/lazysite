@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+## 0.4.84 - Stable default for new sites; SMTP form attachments (2026-06-29)
+
+Change - new-site default
+: a fresh install seeds update_channel: stable, so new sites are protected from
+  edge upgrades by default (existing sites without the key stay "all").
+
+Feature - SMTP form attachments
+: the email form handler can attach uploaded files (attach_files, default off) and
+  lists them with sizes below the message.
+
 ## 0.4.83 - Form binary uploads (2026-06-29)
 
 Feature - file uploads on forms
