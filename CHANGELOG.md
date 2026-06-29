@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.5.0 - Stable consolidation release (2026-06-29)
+
+Stable milestone
+: first release cut on the STABLE channel. Consolidates everything since 0.4.78 -
+  the manager-bar/cache fixes (incl. the homepage bar), json: UTF-8 fix, search-
+  index + visitor-stats hardening, the update channel, form binary uploads + SMTP
+  attachments. Stable-channel sites will install this (edge releases were skipped).
+
 ## 0.4.86 - Manager bar on the homepage (2026-06-29)
 
 Fix - admin bar on "/"
