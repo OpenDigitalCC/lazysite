@@ -2900,6 +2900,14 @@ sub render_content {
         lazysite_version  => _lazysite_version(),   # asset cache-buster (?v=)
         enabled_plugins   => _enabled_plugins(),    # conditional manager nav
         smtp_configured   => ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) ? 1 : 0,  # gate emailed reset
+        # SM099: a cache-safe sign in / out control. BOTH links ship hidden; the
+        # injected auth-sync script reveals the right one from the lzs_session
+        # cookie. Themes drop [% auth_control %] into their header instead of a
+        # server-side [% IF authenticated %], which bakes the wrong state into the
+        # cached HTML (the "shows Sign in while logged in" bug).
+        auth_control      =>
+              '<a href="/login" data-ls-auth-in class="ls-auth ls-auth-in" style="display:none">Sign in</a>'
+            . '<a href="/cgi-bin/lazysite-auth.pl?action=logout" data-ls-auth-out class="ls-auth ls-auth-out" style="display:none">Sign out</a>',
         sections          => $meta->{sections} || [],  # D035 Phase 3: data-driven pages
         editor            => $editor_flag,
         year              => sprintf( '%04d', (localtime)[5] + 1900 ),
