@@ -128,9 +128,11 @@ fi
 echo
 echo "Deployed lazysite to $DOMAIN."
 if [ -f "$DOC/index.html" ] && [ -f "$DOC/index.md" ]; then
-  echo "Note: an index.html is present alongside index.md and will be served"
-  echo "first (DirectoryIndex). If the homepage shows a placeholder, and that"
-  echo "index.html is NOT your content, remove it:  rm -f $DOC/index.html"
+  echo "Note: the homepage ('/') must route through the processor so the manager"
+  echo "bar shows on it. The current lazysite web template does this (index.html"
+  echo "is no longer a DirectoryIndex). If '/' shows no manager bar while other"
+  echo "pages do, this vhost is on an OLDER template - re-apply it:"
+  echo "    v-rebuild-web-domain $U $DOMAIN"
 fi
 if ! grep -q '^manager_groups:' "$DOC/lazysite/lazysite.conf" 2>/dev/null; then
   # First-run: bootstrap the manager in one step (account + admin group +

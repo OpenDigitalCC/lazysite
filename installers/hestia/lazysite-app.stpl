@@ -35,7 +35,17 @@
     CustomLog /var/log/%web_system%/domains/%domain%.bytes bytes
     CustomLog /var/log/%web_system%/domains/%domain%.log combined
     ErrorLog /var/log/%web_system%/domains/%domain%.error.log
-    DirectoryIndex index.html index.htm index.shtml
+    # index.html is deliberately NOT a DirectoryIndex: it is lazysite's own page
+    # cache for the homepage, and serving it directly would bypass the processor
+    # (and the auth wrapper), so the per-request manager admin bar would never
+    # appear on "/". With it removed, a lazysite markdown home (index.md) falls
+    # through to FallbackResource -> the processor, which serves the cache AND
+    # injects the bar. A purely static index.html home (no index.md) is still
+    # served directly by the rewrite below.
+    DirectoryIndex index.htm index.shtml
+    RewriteCond %{DOCUMENT_ROOT}/index.md   !-f
+    RewriteCond %{DOCUMENT_ROOT}/index.html -f
+    RewriteRule ^/$ /index.html [L]
     # Cookie auth: route unmatched URLs through the auth wrapper, which
     # validates the cookie, sets X-Remote-*, then execs the processor.
     FallbackResource /cgi-bin/lazysite-auth.pl
