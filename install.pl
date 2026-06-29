@@ -108,6 +108,7 @@ Getopt::Long::GetOptions(
     'backup=s'      => \$opt{backup},
     'list-backups'  => \$opt{list_backups},
     'dry-run'       => \$opt{dry_run},
+    'verify'        => \$opt{verify},
 ) or usage(1);
 
 usage(0) if $opt{help};
@@ -128,6 +129,15 @@ if ( $opt{list_backups} ) {
 if ( $opt{restore} ) {
     die "--restore requires --docroot\n" unless $opt{docroot};
     exit cmd_restore( \%opt );
+}
+
+# --verify: is the INSTALLED code actually this version? (the deploy-gap detector)
+if ( $opt{verify} ) {
+    die "--verify requires --docroot and --cgibin\n"
+        unless $opt{docroot} && $opt{cgibin};
+    $opt{docroot} = abs_path( $opt{docroot} ) // $opt{docroot};
+    $opt{cgibin}  = abs_path( $opt{cgibin} )  // $opt{cgibin};
+    exit cmd_verify( \%opt );
 }
 
 # Install / upgrade path.
@@ -221,6 +231,20 @@ sub cmd_install {
     # ---- imperative post-steps ----
     post_install_steps( $o, $manifest, \%subs, $state_files, $mode, $plan_stats );
 
+    # ---- integrity check ----
+    # The code we just installed must match the manifest, so the version we are
+    # about to stamp truthfully reflects the RUNNING code (a partial deploy would
+    # otherwise report the new version with stale code).
+    my @verr = verify_code_files( $manifest, \%subs );
+    if (@verr) {
+        push @$warnings, "INTEGRITY: " . scalar(@verr)
+            . " code file(s) do NOT match the manifest after install - the"
+            . " reported version may not reflect the running code: "
+            . join( '; ', @verr );
+        info( "WARNING: post-install verification found "
+            . scalar(@verr) . " code-file mismatch(es) - run --verify" );
+    }
+
     # ---- write new state ----
     write_state( $state_path, $manifest->{version}, $state_files );
 
@@ -245,6 +269,46 @@ sub cmd_install {
 # =========================================================
 # ---------- plan computation ----------
 # =========================================================
+
+# Verify every code-bucket file is present at its install_to destination with the
+# manifest's sha256 - i.e. the running code really IS this manifest's version.
+# Returns a list of human-readable mismatches (empty = all good). Only code files
+# (content/config are operator-editable and legitimately differ).
+sub verify_code_files {
+    my ( $manifest, $subs ) = @_;
+    my @bad;
+    for my $entry ( @{ $manifest->{files} } ) {
+        next unless defined $entry->{install_to};
+        next unless ( $entry->{bucket} // '' ) eq 'code';
+        my $dest = resolve_placeholders( $entry->{install_to}, $subs );
+        if ( !-f $dest ) { push @bad, "$dest (missing)"; next }
+        my $disk = sha256_of($dest);
+        push @bad, "$dest (disk=$disk manifest=$entry->{sha256})"
+            if $disk ne ( $entry->{sha256} // '' );
+    }
+    return @bad;
+}
+
+# --verify: check the installed code against the shipped manifest. Exit 0 if the
+# running code matches this version, 1 (with the mismatches) if it does not - so
+# a deploy that left a stale .pl behind is caught instead of silently reporting
+# the new version.
+sub cmd_verify {
+    my ($o) = @_;
+    my $manifest = load_manifest("$STAGE_DIR/release-manifest.json");
+    my %subs     = placeholders( $o->{docroot}, $o->{cgibin} );
+    my @bad      = verify_code_files( $manifest, \%subs );
+    if (@bad) {
+        print STDERR "VERIFY FAILED for $manifest->{version}: "
+            . scalar(@bad) . " code file(s) do not match the manifest -\n";
+        print STDERR "  $_\n" for @bad;
+        print STDERR "The installed code is NOT $manifest->{version} "
+            . "(incomplete deploy). Re-run the install.\n";
+        return 1;
+    }
+    print "VERIFY OK: installed code matches the manifest for $manifest->{version}.\n";
+    return 0;
+}
 
 sub compute_plan {
     my ( $manifest, $state, $subs ) = @_;

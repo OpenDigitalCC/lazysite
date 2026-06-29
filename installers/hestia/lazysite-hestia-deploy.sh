@@ -58,6 +58,17 @@ done
 echo "==> install.pl (as $U)"
 sudo -u "$U" bash "$STAGE/install.sh" --docroot "$DOC" --cgibin "$CGI"
 
+# Verify the installed code actually matches the release before trusting the
+# stamped version: catches a partial/stale deploy (the "version reports X but the
+# running code is Y" gap) instead of letting it pass silently.
+echo "==> verifying installed code matches the release manifest"
+if ! sudo -u "$U" bash "$STAGE/install.sh" --verify --docroot "$DOC" --cgibin "$CGI"; then
+  echo "ERROR: post-deploy verification FAILED - installed code does not match the" >&2
+  echo "       release, so the reported version would not reflect the running code." >&2
+  echo "       Check permissions / a stale cgi-bin copy, then re-run the deploy." >&2
+  exit 1
+fi
+
 echo "==> permissions (CGI runs as www-data)"
 # The compiled-template cache (lazysite/cache/tt) is regenerated on demand and
 # mirrors absolute paths in deeply-nested directories; on a long-running site it

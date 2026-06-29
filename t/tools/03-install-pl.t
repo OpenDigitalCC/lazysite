@@ -484,6 +484,29 @@ subtest 'unwritable content file does not abort the install' => sub {
     }
 };
 
+subtest '--verify: detects a stale/altered code file (deploy-gap detector)' => sub {
+    my ( $doc, $cgi ) = fresh_docroot();
+    my ($irc) = run_install( '--docroot', $doc, '--cgibin', $cgi );
+    is( $irc, 0, 'fresh install succeeds' );
+
+    my ( $vrc, $vout ) =
+        run_install( '--verify', '--docroot', $doc, '--cgibin', $cgi );
+    is( $vrc, 0, 'verify passes on a clean install' ) or diag $vout;
+    like( $vout, qr/VERIFY OK/, 'reports OK' );
+
+    my $proc = "$cgi/lazysite-processor.pl";
+    ok( -f $proc, 'processor installed to cgi-bin' );
+    open my $a, '>>', $proc or die $!;
+    print $a "\n# tampered\n";
+    close $a;
+
+    my ( $vrc2, $vout2 ) =
+        run_install( '--verify', '--docroot', $doc, '--cgibin', $cgi );
+    isnt( $vrc2, 0, 'verify FAILS when a code file no longer matches the manifest' );
+    like( $vout2, qr/VERIFY FAILED/, 'reports the failure' );
+    like( $vout2, qr/lazysite-processor\.pl/, 'names the offending file' );
+};
+
 done_testing();
 
 # --- helpers ---
