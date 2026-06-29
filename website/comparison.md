@@ -6,7 +6,7 @@ register:
   - llms.txt
 sections:
   - prose:
-      md: "lazysite and other publishing systems often solve overlapping problems in very different ways. This is not a contest — each tool is the right choice for different needs. The notes below describe, factually, what each is best suited for, with a feature table to help you judge whether lazysite fits your situation. We start with **WordPress**, the most common point of comparison; the table is a single master that we expand as new comparisons (Hugo, others) are added."
+      md: "lazysite and other publishing systems often solve overlapping problems in very different ways. This is not a contest — each tool is the right choice for different needs. The notes below describe, factually, what each is best suited for, with a feature table to help you judge whether lazysite fits your situation. We start with **WordPress**, the most common point of comparison; the table is a single master that we expand by adding a system (a column) or a feature (a row)."
   - comparison:
       systems:
         - key: lazysite
@@ -34,8 +34,14 @@ sections:
           lazysite: None — pages render on request and the HTML is cached
           wordpress: None — pages are generated dynamically by PHP
         - label: Hosting
-          lazysite: Any CGI-capable host; cheap and static-like
+          lazysite: Any CGI-capable host — or just runs on your own PC; cheap and static-like
           wordpress: A managed WordPress host or a LAMP server with a database
+        - label: Backup
+          lazysite: Copy the files — it is flat files, nothing else to dump
+          wordpress: Database plus files — needs a backup plugin or routine
+        - label: Migration
+          lazysite: Move the folder anywhere — plain files, no database to port
+          wordpress: Export and import the database and media, often with a migration plugin and URL rewrites
         - label: Themes available
           lazysite: A growing library (20+) installable from a catalogue
           wordpress: Thousands, free and paid

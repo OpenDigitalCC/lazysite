@@ -36,7 +36,7 @@ Drop a `.md` file in your docroot and it is served as a fully rendered HTML page
 Write content in Markdown. Design the site in a `layout.tt` template file, with a separate theme layer for colours and fonts. The three never touch each other.
 
 ::: widebox
-This site is its own demonstration. The pages are `.url` files - lazysite fetches the Markdown from the [GitHub repository][github] and renders it on first request.
+This site is its own demonstration. The pages are `.url` files - lazysite fetches the Markdown from the [GitHub repository](https://github.com/OpenDigitalCC/lazysite) and renders it on first request.
 :::
 
 ## Where to go
@@ -74,14 +74,12 @@ Navigation from a config file
 : `nav.conf` defines the site navigation as a plain text file. The layout template reads it as a structured variable and renders the menu. Editing the menu does not require touching the template.
 
 Layouts and themes
-: `layout.tt` controls the HTML chrome; a theme on top adds colours, fonts, and assets. Install both from [lazysite-layouts][layouts] or write your own. Themes declare compatibility per layout, with design tokens auto-emitted as CSS custom properties. lazysite includes a built-in fallback so it works without any configuration files.
+: `layout.tt` controls the HTML chrome; a theme on top adds colours, fonts, and assets. Install both from [lazysite-layouts](https://github.com/OpenDigitalCC/lazysite-layouts) or write your own. Themes declare compatibility per layout, with design tokens auto-emitted as CSS custom properties. lazysite includes a built-in fallback so it works without any configuration files.
 
 Content is portable
 : Plain `.md` files work with any Markdown processor. Switching tools does not mean rewriting content.
 
 ## Licence
 
-MIT. Source on [GitHub][github].
+MIT. Source on [GitHub](https://github.com/OpenDigitalCC/lazysite).
 
-[github]: https://github.com/OpenDigitalCC/lazysite
-[layouts]: https://github.com/OpenDigitalCC/lazysite-layouts

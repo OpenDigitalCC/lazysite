@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.4.75 - Cache-safe sign in/out for themes (2026-06-29)
+
+Feature - [% auth_control %]
+: themes get a ready-made, cache-safe Sign in/Sign out control (both links
+  hidden, revealed client-side from the lzs_session cookie), fixing themes that
+  showed "Sign in" while logged in by using a server-side [% IF authenticated %].
+
 ## 0.4.74 - Audit names the changed setting on plugin-save (2026-06-29)
 
 Fix - audit detail

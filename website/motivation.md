@@ -34,7 +34,7 @@ Portability
 
 Several capabilities were not in the original plan but followed naturally from the architecture.
 
-Remote sources via `.url` files came from the need to pull documentation directly from a GitHub repository rather than duplicating it. The documentation lives with the code; the site always shows the current version. This site uses exactly that mechanism - the page content is in the [lazysite repository][github] and served here via `.url` files.
+Remote sources via `.url` files came from the need to pull documentation directly from a GitHub repository rather than duplicating it. The documentation lives with the code; the site always shows the current version. This site uses exactly that mechanism - the page content is in the [lazysite repository](https://github.com/OpenDigitalCC/lazysite) and served here via `.url` files.
 
 Template Toolkit variables fetched from remote URLs - version numbers from a `VERSION` file, release metadata from a GitHub API endpoint - baked into the cached page at render time rather than fetched client-side.
 
@@ -68,4 +68,3 @@ Jekyll
 WordPress
 : Full CMS with database, admin UI, and vast plugin ecosystem. Better for non-technical authors, multi-user publishing, e-commerce, or any site needing dynamic content beyond what static caching provides.
 
-[github]: https://github.com/OpenDigitalCC/lazysite
