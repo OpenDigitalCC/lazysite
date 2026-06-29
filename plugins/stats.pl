@@ -67,10 +67,11 @@ if ( $arg{describe} ) {
         version     => '2.0',
         config_file => 'lazysite/stats.conf',
         config_schema => [
-            { key => 'access_log',   label => 'Access log path', type => 'text', default => '',
-              note => 'Combined-format access log. Blank = auto-detect (on Hestia, ../logs/<domain>.log). The CGI user must be able to read it.' },
-            { key => 'error_log',    label => 'Error log path', type => 'text', default => '',
-              note => 'Optional web-server error log for this site (blank = auto-detect alongside the access log). Surfaces the most recent server errors / probes. The CGI user must be able to read it.' },
+            # NOTE: the access/error log PATHS are deliberately NOT configurable
+            # here. They are auto-detected, or set by the server owner at install
+            # time via the LAZYSITE_ACCESS_LOG / LAZYSITE_ERROR_LOG environment
+            # variables (web-server config). A site manager must never be able to
+            # point the reader at an arbitrary file (e.g. /etc/passwd).
             { key => 'window_days',  label => 'Window (days)',           type => 'text',    default => '30' },
             { key => 'top_n',        label => 'Top N (pages / referrers)', type => 'text',  default => '15' },
             { key => 'anonymise_ip', label => 'Anonymise visitor IPs',   type => 'boolean', default => 'true' },
@@ -135,7 +136,11 @@ sub _site_domain {
 # match wins; '' means "not found" (the page then asks the operator to set it).
 sub find_log {
     my ($cfg) = @_;
-    return $cfg->{access_log} if defined $cfg->{access_log} && length $cfg->{access_log};
+    # Server-owner override set at install time in the web-server environment
+    # (Apache SetEnv / FastCGI config). NOT manager-editable - the site manager
+    # must never be able to point the log reader at an arbitrary file.
+    return $ENV{LAZYSITE_ACCESS_LOG}
+        if defined $ENV{LAZYSITE_ACCESS_LOG} && length $ENV{LAZYSITE_ACCESS_LOG};
 
     my $domain = _site_domain();
     return '' unless length $domain;
@@ -159,7 +164,9 @@ sub find_log {
 # Optional error log for this site, mirroring find_log. '' if not found.
 sub find_error_log {
     my ($cfg) = @_;
-    return $cfg->{error_log} if defined $cfg->{error_log} && length $cfg->{error_log};
+    # Owner-set, install-time only (see find_log) - never manager-editable.
+    return $ENV{LAZYSITE_ERROR_LOG}
+        if defined $ENV{LAZYSITE_ERROR_LOG} && length $ENV{LAZYSITE_ERROR_LOG};
     my $domain = _site_domain();
     return '' unless length $domain;
     for my $c (
@@ -195,22 +202,6 @@ sub _tail_lines {
     }
     close $fh;
     return @buf;
-}
-
-# Autoconfig: persist a freshly auto-detected log path to stats.conf so the
-# Plugin Config page shows it and later scans skip the candidate search.
-sub _save_access_log {
-    my ($path) = @_;
-    my $f = "$DOCROOT/lazysite/stats.conf";
-    my @lines;
-    if ( open my $fh, '<', $f ) { @lines = <$fh>; close $fh; }
-    my $found = 0;
-    for my $l (@lines) {
-        if ( $l =~ /^\s*access_log\s*:/ ) { $l = "access_log: $path\n"; $found = 1; }
-    }
-    push @lines, "access_log: $path\n" unless $found;
-    if ( open my $wf, '>', $f ) { print {$wf} @lines; close $wf; }
-    return;
 }
 
 sub _is_browser {
@@ -259,17 +250,16 @@ sub _split_csv {
 
 sub scan_stats {
     my $cfg = read_conf();
-    my $detected = !( defined $cfg->{access_log} && length $cfg->{access_log} );
     my $log = find_log($cfg);
     return { ok => 0, needs_config => JSON::PP::true,
-        error => 'No access log found for this site automatically. Set the access-log path '
-               . 'in the plugin config (on Hestia it is usually ../logs/<domain>.log).' }
+        error => 'No access log found for this site. The log path is auto-detected, '
+               . 'or set by the server owner at install time (LAZYSITE_ACCESS_LOG); '
+               . 'a site manager cannot configure it. Ask the server owner to set it up.' }
         unless length $log;
     return { ok => 0, needs_config => JSON::PP::true,
-        error => 'Access log is not readable. The CGI user (www-data) may lack permission; '
-               . 'check the path on the Plugin Config page.' }
+        error => 'The access log was found but the site cannot read it (the CGI user '
+               . 'lacks permission). Ask the server owner to grant read access.' }
         unless -r $log;
-    _save_access_log($log) if $detected;   # autoconfig: remember what we found
 
     my $window = ( $cfg->{window_days}  || 30 ) + 0;  $window = 30 if $window < 1;
     my $top_n  = ( $cfg->{top_n}        || 15 ) + 0;  $top_n  = 15 if $top_n < 1;

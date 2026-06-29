@@ -25,14 +25,18 @@ print $lg qq{1.2.3.4 - - [$now] "GET /x HTTP/1.1" 404 50 "-" "Mozilla/5.0"\n};
 close $lg;
 
 sub scan {
-    my ($conf) = @_;
+    my ( $conf, %opt ) = @_;
     open my $cf, '>', "$d/lazysite/stats.conf" or die $!;
     print $cf $conf;
     close $cf;
+    # The log path is an owner-set env var now, never manager config.
+    local $ENV{LAZYSITE_ACCESS_LOG} = $opt{access_log} // '';
+    local $ENV{LAZYSITE_ERROR_LOG}  = $opt{error_log}  // '';
     return decode_json( qx($^X $PLUGIN --scan --docroot '$d') );
 }
 
-my $s = scan("access_log: $d/access.log\nwindow_days: 30\nanonymise_ip: true\nexclude_bots: true\n");
+my $s = scan( "window_days: 30\nanonymise_ip: true\nexclude_bots: true\n",
+    access_log => "$d/access.log" );
 ok( $s->{ok}, 'scan ok' ) or diag( $s->{error} );
 is( $s->{hits}, 3, 'bot row excluded (3 of 4)' );
 is( $s->{unique_visitors}, 1, 'anonymised IPs collapse to one' );
@@ -42,7 +46,7 @@ is( $s->{status}{200}, 2, 'two 200s (non-bot)' );
 is( $s->{status}{404}, 1, 'one 404' );
 is( scalar @{ $s->{referrers}{external} }, 1, 'one external referrer' );
 
-my $s2 = scan("access_log: $d/access.log\nanonymise_ip: false\n");
+my $s2 = scan( "anonymise_ip: false\n", access_log => "$d/access.log" );
 is( $s2->{classes}{human}{hits}, 3, 'human headline excludes the bot' );
 is( $s2->{classes}{bot}{hits},   1, 'the Googlebot row is classed as a bot' );
 is( $s2->{unique_visitors}, 2, 'raw human IPs when anonymise off (bot not counted)' );
@@ -51,16 +55,16 @@ is( $s2->{unique_visitors}, 2, 'raw human IPs when anonymise off (bot not counte
 open my $el, '>', "$d/error.log" or die $!;
 print $el "[Wed] error one\n[Wed] error two\n";
 close $el;
-my $se = scan("access_log: $d/access.log\nerror_log: $d/error.log\n");
+my $se = scan( "", access_log => "$d/access.log", error_log => "$d/error.log" );
 ok( $se->{errors} && $se->{errors}{available}, 'error log surfaced when set' );
 is( scalar @{ $se->{errors}{recent} }, 2, 'recent error lines tailed' );
 like( $se->{errors}{recent}[1], qr/error two/, 'last error line present' );
 ok( !exists $se->{error_log}, 'error-log disk path not exposed' );
 
-my $sne = scan("access_log: $d/access.log\nerror_log: $d/none.log\n");
+my $sne = scan( "", access_log => "$d/access.log", error_log => "$d/none.log" );
 ok( !$sne->{errors}{available}, 'no error surface when the error log is missing' );
 
-my $miss = scan("access_log: $d/nope.log\n");
+my $miss = scan( "", access_log => "$d/nope.log" );
 ok( !$miss->{ok}, 'unreadable log -> ok:0 with a message' );
 like( $miss->{error}, qr/readable|found|configured/i, 'helpful error' );
 
@@ -73,24 +77,26 @@ like( $miss->{error}, qr/readable|found|configured/i, 'helpful error' );
     open my $cf, '>', "$doc/lazysite/lazysite.conf" or die $!;
     print $cf "site_url: https://demo.example.com\n";
     close $cf;
+    # Distinct page per log so we can tell which one auto-detect picked.
     for my $name ( 'demo.example.com.log', 'othersite.org.log' ) {
         open my $lf, '>', "$r/web/demo.example.com/logs/$name" or die $!;
-        my $ip = $name =~ /^demo/ ? '1.1.1.1' : '9.9.9.9';
-        print $lf qq{$ip - - [$now] "GET /p HTTP/1.1" 200 10 "-" "Mozilla/5.0"\n};
+        my $page = $name =~ /^demo/ ? '/demopage' : '/otherpage';
+        print $lf qq{1.1.1.1 - - [$now] "GET $page HTTP/1.1" 200 10 "-" "Mozilla/5.0"\n};
         close $lf;
     }
-    open my $sc, '>', "$doc/lazysite/stats.conf" or die $!;   # no access_log -> auto-detect
-    print $sc "window_days: 30\n";
+    # A malicious manager-set access_log must be IGNORED (no arbitrary file read);
+    # the path is owner/auto only.
+    open my $sc, '>', "$doc/lazysite/stats.conf" or die $!;
+    print $sc "window_days: 30\naccess_log: /etc/passwd\n";
     close $sc;
     my $got = decode_json( qx($^X $PLUGIN --scan --docroot '$doc') );
-    ok( $got->{ok}, 'auto-detect scan ok' ) or diag( $got->{error} );
+    ok( $got->{ok}, 'auto-detect scan ok (manager access_log ignored)' ) or diag( $got->{error} );
     ok( $got->{log_configured}, 'log resolved (its disk path is never returned)' );
     ok( !exists $got->{log}, 'disk path not exposed in the scan output (privacy)' );
-    open my $rd, '<', "$doc/lazysite/stats.conf" or die $!;
-    my $conf = do { local $/; <$rd> };
-    close $rd;
-    like( $conf, qr/access_log:.*demo\.example\.com\.log/, 'autoconfig persisted the domain-qualified path' );
-    unlike( $conf, qr/othersite/, 'did not pick another site\x27s log' );
+    is( $got->{top_pages}[0]{key}, '/demopage',
+        'auto-detect picked this site\x27s domain-qualified log, not the decoy' );
+    ok( !( grep { ($_->{key}//'') eq '/otherpage' } @{ $got->{top_pages} } ),
+        'did not read another site\x27s log' );
 }
 
 # --- not found -> needs_config, so the page asks ---

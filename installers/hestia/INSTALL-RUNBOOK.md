@@ -81,6 +81,12 @@ the passthrough. This rule belongs in BOTH `lazysite-app.tpl` and
   as www-data.
 - `nginx.conf` already sets `client_max_body_size 1024m;` globally — do
   NOT add another in conf.d (duplicate directive = nginx won't start).
+- Visitor-stats log paths are **owner-controlled, not manager-editable**.
+  The stats plugin auto-detects the domain log under `../logs/<domain>.log`;
+  if it can't, set `LAZYSITE_ACCESS_LOG` (and optionally
+  `LAZYSITE_ERROR_LOG`) in the web-server environment (Apache `SetEnv` in
+  the vhost / template) at install time. A site manager can no longer set a
+  log path from the UI (that would be arbitrary file read, e.g. `/etc/passwd`).
 
 ## One-command deploy (recommended)
 

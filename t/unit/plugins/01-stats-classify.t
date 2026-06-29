@@ -42,10 +42,12 @@ print $lf "$_\n" for @lines;
 close $lf;
 
 open my $cf, '>', "$doc/lazysite/stats.conf" or die $!;
-print $cf "access_log: $logf\n";
 print $cf "window_days: 36500\n";       # so the fixed fixture date is always in-window
 print $cf "anonymise_ip: false\n";      # test exact unique-visitor counts
 close $cf;
+
+# The log path is now an owner-set env var, not manager config.
+$ENV{LAZYSITE_ACCESS_LOG} = $logf;
 
 open my $lc, '>', "$doc/lazysite/lazysite.conf" or die $!;
 print $lc "site_url: https://mysite.test\n";
