@@ -18,6 +18,12 @@ Keying
 
 ## Unreleased
 
+## 0.4.74 - Audit names the changed setting on plugin-save (2026-06-29)
+
+Fix - audit detail
+: a config save now records which setting changed (e.g. "lazysite (site_name)")
+  instead of just the plugin name; keys only, capped for whole-form saves.
+
 ## 0.4.73 - json: page-var source (data-driven pages from JSON) (2026-06-29)
 
 Feature - load a JSON file as TT data
