@@ -2609,6 +2609,12 @@ sub resolve_scan {
         my $excerpt = '';
         if ( $raw =~ /^---\n.*?\n---\n(.+)/s ) {
             $excerpt = $1;
+            # Drop <style>/<script> blocks and HTML comments so their CSS/JS/markup
+            # never leaks into the public search excerpt (a page often opens with an
+            # inline <style> block).
+            $excerpt =~ s{<style\b[^>]*>.*?</style>}{ }gis;
+            $excerpt =~ s{<script\b[^>]*>.*?</script>}{ }gis;
+            $excerpt =~ s{<!--.*?-->}{ }gs;
             $excerpt =~ s/^\s+|\s+$//g;
             $excerpt = substr($excerpt, 0, 500) if length($excerpt) > 500;
         }
@@ -2652,7 +2658,10 @@ sub resolve_scan {
             tags       => \@tags,
             excerpt    => $excerpt,
             searchable => $searchable,
-            path       => $path,
+            # Docroot-relative, never the absolute server path: this object is
+            # published in the public /search-index JSON and exposed to templates
+            # as [% p.path %]. Leaking /home/<user>/web/... was an info disclosure.
+            path       => ( $path =~ s{^\Q$DOCROOT\E}{}r ),
         };
     }
 
