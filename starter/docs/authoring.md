@@ -199,7 +199,13 @@ Environment variable
 : `key: ${ENV_VAR}`  -  interpolated from the CGI environment. Multiple vars and mixed text are supported: `${REQUEST_SCHEME}://${SERVER_NAME}`
 
 Remote URL
-: `key: url:https://...`  -  fetched, trimmed, and cached with the page TTL. Env var interpolation works inside `url:` values too.
+: `key: url:https://...`  -  fetched, trimmed, and cached with the page TTL. Env var interpolation works inside `url:` values too. Returns the response as **text**.
+
+Local JSON file
+: `key: json:/data/file.json`  -  a JSON file under the docroot, decoded into a **data structure** you can loop in the page body: `[% FOREACH row IN key.rows %]…[% END %]`. Built in, no plugin required. A missing, invalid, or out-of-tree source resolves to empty so loops/ifs degrade quietly.
+
+Page list
+: `key: scan:/dir`  -  the published pages under a directory (each with `title`, `url`, front-matter fields), for index/gallery loops.
 
 Useful CGI environment variables: `${SERVER_NAME}`, `${REQUEST_SCHEME}`, `${SERVER_PORT}`, `${HTTPS}`, `${REDIRECT_URL}`.
 
@@ -207,17 +213,27 @@ Useful CGI environment variables: `${SERVER_NAME}`, `${REQUEST_SCHEME}`, `${SERV
 
 ## Advanced Template Toolkit
 
-A `url:` variable that returns JSON can be decoded and looped over, with the result baked into the cached page at render time:
+To build a table or matrix from a JSON data file, use a `json:` page variable - it
+hands the body a real data structure, baked into the cached page at render time:
 
 ```
-[% USE JSON( pretty => 0 ) %]
-[% releases = JSON.deserialize(releases_json) %]
-[% FOREACH item IN releases %]
-<a href="[% item.url %]">[% item.name %]</a>
+---
+tt_page_var:
+  data: json:/data/comparison.json
+---
+[% FOREACH row IN data.rows %]
+| [% row.name %] | [% row.value %] |
 [% END %]
 ```
 
-The `USE JSON` directive and variable assignments made in the page body are local to that pass and not available in `view.tt`. For data needed in both, set it as a site-wide variable in `lazysite.conf`.
+This is built in (no plugin needed) and is the recommended way to drive a
+data-driven page from a JSON file. The decoded structure is available in the page
+body and the layout for this page.
+
+(`[% USE JSON %]` / `JSON.deserialize(...)` to decode a `url:`-fetched JSON *string*
+only works if the optional `Template::Plugin::JSON` module is installed -
+`libtemplate-plugin-json-perl` on Debian; it is not bundled. Prefer `json:` for
+local data.)
 
 TT variables in Markdown link URLs do not resolve reliably  -  the Markdown parser processes the URL before TT runs. Use HTML `<a>` tags when the href contains a TT variable:
 

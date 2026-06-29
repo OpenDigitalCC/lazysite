@@ -2309,6 +2309,34 @@ sub interpolate_env {
     return $val;
 }
 
+# tt_page_var `json:` source - load a LOCAL JSON file (docroot-relative or a full
+# docroot path) and expose the DECODED data structure (hash/array) to the page so
+# the body can [% FOREACH row IN data.rows %]. Docroot-contained only; returns ''
+# (a falsey scalar, so FOREACH/IF degrade quietly) on missing / invalid / out-of-
+# tree, with a WARN. No remote fetch - use a local data file.
+sub resolve_json {
+    my ($src) = @_;
+    my $path =
+          index( $src, $DOCROOT ) == 0 ? $src
+        : $src =~ m{^/}                ? $DOCROOT . $src
+        :                                "$DOCROOT/$src";
+    my $real = realpath($path);
+    if ( !defined $real || index( $real, $DOCROOT ) != 0 || !-f $real ) {
+        log_event( "WARN", $ENV{REDIRECT_URL} // "-",
+            "tt json source not found or outside docroot", src => $src );
+        return '';
+    }
+    my $raw = eval { read_file($real) };
+    return '' unless defined $raw;
+    my $data = eval { decode_json($raw) };
+    if ( $@ || !defined $data ) {
+        log_event( "WARN", $ENV{REDIRECT_URL} // "-",
+            "tt json source parse failed", src => $src, error => "$@" );
+        return '';
+    }
+    return $data;
+}
+
 sub resolve_tt_vars {
     my ($defs) = @_;
     my %vars;
@@ -2319,6 +2347,11 @@ sub resolve_tt_vars {
         if ( $val =~ s/^scan:// ) {
             $val =~ s/^\s+|\s+$//g;
             $vars{$key} = resolve_scan($val);
+        }
+        elsif ( $val =~ s/^json://i ) {
+            $val = interpolate_env($val);
+            $val =~ s/^\s+|\s+$//g;
+            $vars{$key} = resolve_json($val);
         }
         elsif ( $val =~ s/^url:// ) {
             $val = interpolate_env($val);

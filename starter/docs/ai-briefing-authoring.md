@@ -63,7 +63,8 @@ header, and footer.
   Falls back to file mtime if not set.
 
 `tt_page_var`
-: Page-scoped Template Toolkit variables. Supports `url:`, `scan:`, and
+: Page-scoped Template Toolkit variables. Supports `url:` (remote text),
+  `scan:` (page list), `json:` (local JSON file -> decoded data structure), and
   `${ENV}` prefixes. Page variables override site variables.
 
 ```yaml
@@ -71,7 +72,12 @@ tt_page_var:
   hero_image: /img/landing.jpg
   latest_release: url:https://raw.githubusercontent.com/example/repo/main/VERSION
   blog_posts: scan:/blog/*.md sort=date desc
+  matrix: json:/data/comparison.json   # then [% FOREACH r IN matrix.rows %]…[% END %]
 ```
+
+To build a data-driven table/matrix from a JSON file, use `json:` - it gives the
+body a real data structure to loop. (`[% USE JSON %]` needs the optional
+Template::Plugin::JSON module, which is not bundled; prefer `json:`.)
 
 `raw`
 : `raw: true` outputs the converted body without the view wrapper.

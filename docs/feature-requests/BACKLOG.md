@@ -104,6 +104,12 @@ before work starts.
   the visible tip of a streaming audit-trail layer.
 - **SM110** Domain aliases - an additional host serving the same site with its
   own theme / nav / name.
+- **Managers should be able to create sub-users** - a manager (in a
+  `manager_groups` group) can be refused sub-user creation with "Creator 'X' lacks
+  create_sub_users permission" until `create_sub_users` is granted to them
+  separately. Manager-group membership should imply (or the create-sub-user path
+  should bypass the check for) operators - granting it by hand is an easy-to-miss
+  gotcha.
 - **Sessions page - active-session details** - the new Sessions page exposes only
   "log out everyone" (rotate the auth secret). List active sessions with detail
   (who / where / when / last seen) so individual sessions are visible and ideally
