@@ -114,4 +114,25 @@ subtest 'admin bar not injected on /manager pages' => sub {
         'no admin bar on /manager/* paths' );
 };
 
+# --- a <body> in a HEAD comment/script must not capture the bar ---
+
+subtest 'admin bar not spliced into a <body> inside the head' => sub {
+    local $ENV{HTTP_X_REMOTE_USER}   = 'alice';
+    local $ENV{HTTP_X_REMOTE_GROUPS} = 'admins';
+    my $vars = {
+        manager => 'enabled', manager_path => '/manager', manager_groups => 'admins',
+        request_uri => '/about', page_source => 'about.md', auth_user => 'alice',
+    };
+    # The manager CSRF wrapper carries a literal "<body>" in a head comment; the bar
+    # contains <script>...</script>, so splicing it there would corrupt the page.
+    my $html = '<html><head><script>' . "\n"
+             . '// reached <body> before the parser' . "\n"
+             . '</script></head><body class="real">X</body></html>';
+    my $out = main::_inject_admin_bar( $html, $vars );
+    my ($head) = $out =~ m{<head>(.*?)</head>}s;
+    unlike( $head, qr{ls-admin-bar}, 'bar NOT injected inside <head>' );
+    like( $out, qr{<body class="real"><div id="ls-admin-bar"},
+        'bar follows the real <body>, after </head>' );
+};
+
 done_testing();

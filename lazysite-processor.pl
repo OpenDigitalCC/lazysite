@@ -3465,7 +3465,18 @@ sub _inject_admin_bar {
           . 'var sp=document.getElementById("ls-admin-spacer");'
           . 'if(ab)ab.style.display="none";if(sp)sp.style.display="none";}</script>';
 
-    $html =~ s/(<body[^>]*>)/$1$bar/i;
+    # Anchor to the FIRST <body> after </head>, not the first <body> anywhere: a
+    # page can carry a literal "<body>" inside a head comment or script string
+    # (e.g. the manager CSRF wrapper's explanatory comment). Splicing the bar -
+    # which itself contains <script>...</script> - into a head <script> closes that
+    # script early and corrupts the whole page. Fall back to a bare <body> only if
+    # there is no </head> (fragment), where there is no head to be confused by.
+    if ( $html =~ m{</head\s*>}i ) {
+        $html =~ s{(</head\s*>[\s\S]*?<body[^>]*>)}{$1$bar}i;
+    }
+    else {
+        $html =~ s/(<body[^>]*>)/$1$bar/i;
+    }
 
     return $html;
 }
@@ -3488,7 +3499,12 @@ sub _inject_admin_bar_live {
     my $groups = $AUTH_CONTEXT{auth_groups} || [];
     my $bar_vars = {
         %sv,                                     # manager, manager_path, manager_groups
-        request_uri => $ENV{REDIRECT_URL} // '',
+        # Behind the auth wrapper (every /manager/* page) REDIRECT_URL is unset and
+        # the real path is in REQUEST_URI - same resolution as the request_uri TT
+        # var and get_layout_path. Using REDIRECT_URL alone left request_uri empty,
+        # so the "skip on manager pages" guard never fired and the bar was injected
+        # into the manager page (and into a <body> in its head comment).
+        request_uri => ( $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '' ),
         page_source => $page_source,
         auth_user   => $AUTH_CONTEXT{auth_user} // '',
         auth_name   => $AUTH_CONTEXT{auth_name} // '',
