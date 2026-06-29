@@ -196,6 +196,7 @@ handlers:
     from: webforms@example.com
     to: admin@example.com
     subject_prefix: "[Contact] "
+    attach_files: false        # true = attach uploads + list them under the message
 
   - id: local-storage
     type: file

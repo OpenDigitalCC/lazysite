@@ -30,6 +30,8 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                     { key => 'from',           label => 'From address',   type => 'email',   required => JSON::PP::true, default => 'webforms@example.com' },
                     { key => 'to',             label => 'To address',     type => 'email',   required => JSON::PP::true, default => 'admin@example.com' },
                     { key => 'subject_prefix', label => 'Subject prefix', type => 'text',    default => '[Contact] ' },
+                    { key => 'attach_files',   label => 'Attach uploaded files', type => 'boolean', default => 'false',
+                      note => 'When on, files uploaded with the form are attached to the email and listed (name + size) below the message. Off by default. Mind your mail server\'s attachment size limits.' },
                 ],
                 note => 'SMTP connection settings (host, port, TLS) are configured under the Email (SMTP) group header.',
             },
@@ -377,6 +379,22 @@ sub dispatch_smtp {
     }
 
     my %payload = ( config => $config, form => \%fields );
+
+    # When the SMTP handler is set to attach uploads, hand the files (base64) to
+    # form-smtp.pl so it can attach them and list them under the message.
+    my $attach = defined $config->{attach_files}
+        && lc("$config->{attach_files}") =~ /^(?:1|true|yes|on|enabled)$/;
+    if ( $attach && $form->{_files} && @{ $form->{_files} } ) {
+        require MIME::Base64;
+        $payload{files} = [ map {
+            {   filename => $_->{filename},
+                type     => $_->{type},
+                size     => length( $_->{data} // '' ),
+                data     => MIME::Base64::encode_base64( $_->{data} // '' ),
+            }
+        } @{ $form->{_files} } ];
+    }
+
     my $json = encode_json( \%payload );
 
     require IPC::Open2;

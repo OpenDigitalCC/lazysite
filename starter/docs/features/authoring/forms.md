@@ -103,6 +103,12 @@ crafted `../../etc/passwd` cannot escape the submission directory). A form with 
 file field but no `file` target validates uploads but does not keep them - add a
 `file` target to store them.
 
+**Emailing uploads.** The SMTP (email) handler has an **Attach uploaded files**
+option (`attach_files`, off by default). When on, the uploaded files are attached
+to the notification email and listed (name + size) below the message. Leave it off
+to keep emails small and just store the files; mind your mail server's attachment
+size limits when enabling it.
+
 ### Example
 
     ---

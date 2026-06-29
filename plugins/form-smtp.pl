@@ -72,7 +72,20 @@ if ( grep { $_ eq '--pipe' } @ARGV ) {
         $config->{to}             //= 'root@localhost';
         $config->{subject_prefix} //= '[Contact] ';
 
-        send_email( $config, $form );
+        # Uploaded files (base64) arrive only when the handler has attach_files on.
+        my $files;
+        if ( ref $data->{files} eq 'ARRAY' && @{ $data->{files} } ) {
+            require MIME::Base64;
+            $files = [ map {
+                {   filename => $_->{filename},
+                    type     => $_->{type},
+                    size     => $_->{size},
+                    data     => MIME::Base64::decode_base64( $_->{data} // '' ),
+                }
+            } @{ $data->{files} } ];
+        }
+
+        send_email( $config, $form, $files );
         log_event('INFO', $config->{to} // '-', 'email sent', method => $config->{method} // 'sendmail', from => $config->{from} // '-');
         print encode_json( { ok => 1 } );
     };
@@ -166,8 +179,42 @@ sub load_smtp_conf {
 
 # --- Email ---
 
+sub _truthy { my $v = shift; defined $v && lc("$v") =~ /^(?:1|true|yes|on|enabled)$/ }
+
+sub _human_size {
+    my $n = shift // 0;
+    return "$n B"                              if $n < 1024;
+    return sprintf( '%.1f KB', $n / 1024 )     if $n < 1024 * 1024;
+    return sprintf( '%.1f MB', $n / 1048576 );
+}
+
+# Wrap the text body + uploaded files into a multipart/mixed message. Returns
+# ($mime_body, $content_type).
+sub _wrap_multipart {
+    my ( $text_body, $files ) = @_;
+    require MIME::Base64;
+    my $boundary = 'lzs_' . time() . '_' . int( rand 1_000_000 );
+    my $m = "--$boundary\r\n"
+          . "Content-Type: text/plain; charset=utf-8\r\n\r\n"
+          . $text_body . "\r\n";
+    for my $f (@$files) {
+        ( my $fn = $f->{filename} // 'file' ) =~ s/["\r\n]//g;
+        ( my $ct = $f->{type} // 'application/octet-stream' ) =~ s/[;"\r\n].*//s;
+        $m .= "--$boundary\r\n"
+            . "Content-Type: $ct; name=\"$fn\"\r\n"
+            . "Content-Transfer-Encoding: base64\r\n"
+            . "Content-Disposition: attachment; filename=\"$fn\"\r\n\r\n"
+            . MIME::Base64::encode_base64( $f->{data} // '' )
+            . "\r\n";
+    }
+    $m .= "--$boundary--\r\n";
+    return ( $m, qq(multipart/mixed; boundary="$boundary") );
+}
+
 sub send_email {
-    my ( $conf, $form ) = @_;
+    my ( $conf, $form, $files ) = @_;
+
+    my $attach = _truthy( $conf->{attach_files} ) && $files && @$files;
 
     # Build body from non-internal fields
     my @lines = ("Form submission");
@@ -179,6 +226,18 @@ sub send_email {
         $v =~ s/[\r\n]+/\n             /g;
         push @lines, sprintf( "%-12s %s", "$k:", $v );
     }
+
+    # List the uploaded files (name + size) below the message when attaching.
+    if ($attach) {
+        push @lines, "";
+        push @lines, "Files uploaded:";
+        for my $f (@$files) {
+            push @lines, sprintf( '  %-32s %s',
+                ( $f->{filename} // 'file' ),
+                _human_size( $f->{size} // length( $f->{data} // '' ) ) );
+        }
+    }
+
     push @lines, "";
     push @lines, "-" x 40;
     push @lines, "Submitted: " . strftime( '%A, %d %B %Y at %H:%M:%S %Z', localtime );
@@ -199,13 +258,16 @@ sub send_email {
     my $from = sanitise_email( $conf->{from} );
     my $to   = sanitise_email( $conf->{to} );
 
+    my $ctype;
+    ( $body, $ctype ) = _wrap_multipart( $body, $files ) if $attach;
+
     my $method = $conf->{method};
 
     if ( $method eq 'sendmail' ) {
-        send_via_sendmail( $conf->{sendmail_path}, $from, $to, $subject, $body );
+        send_via_sendmail( $conf->{sendmail_path}, $from, $to, $subject, $body, $ctype );
     }
     elsif ( $method eq 'smtp' ) {
-        send_via_smtp( $conf, $from, $to, $subject, $body );
+        send_via_smtp( $conf, $from, $to, $subject, $body, $ctype );
     }
     else {
         die "Unknown SMTP method: $method\n";
@@ -213,7 +275,8 @@ sub send_email {
 }
 
 sub send_via_sendmail {
-    my ( $sendmail, $from, $to, $subject, $body ) = @_;
+    my ( $sendmail, $from, $to, $subject, $body, $ctype ) = @_;
+    $ctype ||= 'text/plain; charset=utf-8';
 
     die "sendmail not found at $sendmail\n" unless -x $sendmail;
 
@@ -222,7 +285,7 @@ sub send_via_sendmail {
     print $fh "From: $from\n";
     print $fh "To: $to\n";
     print $fh "Subject: $subject\n";
-    print $fh "Content-Type: text/plain; charset=utf-8\n";
+    print $fh "Content-Type: $ctype\n";
     print $fh "MIME-Version: 1.0\n";
     print $fh "\n";
     print $fh $body;
@@ -230,7 +293,7 @@ sub send_via_sendmail {
 }
 
 sub send_via_smtp {
-    my ( $conf, $from, $to, $subject, $body ) = @_;
+    my ( $conf, $from, $to, $subject, $body, $ctype ) = @_;
 
     require Net::SMTP;
 
@@ -278,7 +341,7 @@ sub send_via_smtp {
     $smtp->datasend("From: $from\n");
     $smtp->datasend("To: $to\n");
     $smtp->datasend("Subject: $subject\n");
-    $smtp->datasend("Content-Type: text/plain; charset=utf-8\n");
+    $smtp->datasend( "Content-Type: " . ( $ctype || 'text/plain; charset=utf-8' ) . "\n" );
     $smtp->datasend("MIME-Version: 1.0\n");
     $smtp->datasend("\n");
     $smtp->datasend($body);
