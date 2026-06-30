@@ -149,6 +149,16 @@ sub api {
     ok( !@{ $g->{granted_by}{ui} || [] }, 'mcp-ai does not grant the ui channel' );
 }
 
+# A group carries a free-text description (round-trips via the view).
+{
+    my $d = docroot();
+    is( api( $d, { action => 'group-settings-set', group => 'content-editors',
+            key => 'description', value => 'Edits site content' } )->{ok},
+        1, 'set group description' );
+    is( api( $d, { action => 'group-settings-get' } )->{groups}{'content-editors'}{description},
+        'Edits site content', 'description round-trips in the group view' );
+}
+
 # SM095 (c0): the sub-user creation gate reads the central resolver, so a creator
 # whose create_sub_users comes from a GROUP may create a sub-user.
 {

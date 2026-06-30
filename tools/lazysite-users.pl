@@ -2128,10 +2128,11 @@ sub _group_settings_view {
         my $cfg = $gs->{$g} || {};
         my %caps = map { $_ => ( $cfg->{$_} ? JSON::PP::true() : JSON::PP::false() ) } @CAP_KEYS;
         $view{$g} = {
-            label   => ( defined $cfg->{label} ? $cfg->{label} : $g ),
-            manager => ( $cfg->{manager} ? JSON::PP::true() : JSON::PP::false() ),
-            caps    => \%caps,
-            members => ( $members{$g} || [] ),
+            label       => ( defined $cfg->{label} ? $cfg->{label} : $g ),
+            description => ( defined $cfg->{description} ? $cfg->{description} : '' ),
+            manager     => ( $cfg->{manager} ? JSON::PP::true() : JSON::PP::false() ),
+            caps        => \%caps,
+            members     => ( $members{$g} || [] ),
         };
     }
     return \%view;
@@ -2141,6 +2142,21 @@ sub cmd_group_settings_set {
     my ( $group, $key, $value ) = @_;
     return { ok => 0, error => 'group required' } unless defined $group && length $group;
     return { ok => 0, error => 'invalid group name' } unless $group =~ /^[A-Za-z0-9_-]+$/;
+
+    # Free-text settings (label, description) are stored verbatim (single line).
+    if ( defined $key && ( $key eq 'description' || $key eq 'label' ) ) {
+        my $gs = read_group_settings();
+        $gs->{$group} ||= { label => $group };
+        my $v = defined $value ? $value : '';
+        $v =~ s/[\r\n]+/ /g;
+        $v = substr( $v, 0, 500 ) if length $v > 500;
+        if ( length $v ) { $gs->{$group}{$key} = $v }
+        else             { delete $gs->{$group}{$key} }
+        write_group_settings($gs);
+        log_event( 'INFO', $group, "group $key set" );
+        return { ok => 1 };
+    }
+
     my %ok_key = map { $_ => 1 } ( @CAP_KEYS, 'manager' );
     return { ok => 0, error => "unknown group setting: " . ( $key // '' ) }
         unless defined $key && $ok_key{$key};

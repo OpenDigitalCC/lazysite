@@ -108,6 +108,9 @@ function renderGroups() {
             nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies') + ' &middot; ' +
             members.length + ' member' + (members.length === 1 ? '' : 's') + '</span></summary>';
     h += '<div class="mg-acc-body">';
+    h += '<div class="mg-line"><label style="min-width:5.5rem">Description</label>'
+       + '<input type="text" class="mg-inp" style="flex:1" value="' + escHtml(info.description || '') + '" '
+       + 'onchange="setDescription(\'' + ge + '\', this.value)" placeholder="what this role is for"></div>';
 
     var row = function(c) {
       return '<label class="mg-chk"><input type="checkbox"' + (caps[c[0]] ? ' checked' : '') +
@@ -140,6 +143,16 @@ function renderGroups() {
     h += '</div></details>';
     return h;
   }).join('');
+}
+
+function setDescription(group, value) {
+  apiCall({ action: 'group-settings-set', group: group, key: 'description', value: value })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
+      if (allGroups[group]) allGroups[group].description = value;
+      showStatus('Description saved.');
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function toggleSetting(group, key, el) {

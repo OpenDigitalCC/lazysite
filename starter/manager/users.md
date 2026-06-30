@@ -273,6 +273,12 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
     '<span class="mg-acc-tags">' + typeTag + status + by + expTag + '</span></summary>' +
     '<div class="mg-acc-body">';
 
+  // Sub-users at the TOP of the owning account's card - nested inside the parent's
+  // body so collapsing the parent collapses them too.
+  if (kidsHtml) {
+    h += sec('Sub-users', '<div class="mg-subusers" style="border-left:2px solid var(--mg-border,#e2e2e2);padding-left:0.6rem;display:flex;flex-direction:column;gap:0.4rem">' + kidsHtml + '</div>');
+  }
+
   // --- Notes ---
   var nb = '<div class="mg-line"><span class="mg-line-lbl">Note</span>' +
     '<input type="text" class="mg-inp mg-inp-wide" id="note-' + ue + '" value="' + escHtml(comment) +
@@ -421,12 +427,6 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
       '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Move</button></div>';
   }
   h += sec('Account', ac);
-
-  // Sub-users nest INSIDE the parent's body, so collapsing the parent collapses
-  // them too - the account tree expands as the hierarchy it is.
-  if (kidsHtml) {
-    h += sec('Sub-users', '<div class="mg-subusers" style="border-left:2px solid var(--mg-border,#e2e2e2);padding-left:0.6rem;display:flex;flex-direction:column;gap:0.4rem">' + kidsHtml + '</div>');
-  }
 
   h += '</div></details>';
   return h;

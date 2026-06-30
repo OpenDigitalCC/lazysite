@@ -522,7 +522,14 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         if ( $sub eq '' || $uskip{$sub} ) { $aud_action = undef }
         else {
             $aud_action = "user-$sub";
-            $aud_target = ( ref $b eq 'HASH' ? $b->{username} : undef ) // '';
+            # Group changes (capabilities, membership) record the group as the
+            # target - "user@group" for membership, the group alone for settings.
+            if ( ref $b eq 'HASH' && $b->{group} ) {
+                $aud_target = $b->{username} ? "$b->{username}\@$b->{group}" : $b->{group};
+            }
+            else {
+                $aud_target = ( ref $b eq 'HASH' ? $b->{username} : undef ) // '';
+            }
         }
     }
 
