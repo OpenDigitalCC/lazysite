@@ -154,6 +154,13 @@ unless ( -d $AUTH_DIR ) {
 
 my $USERS_FILE    = "$AUTH_DIR/users";
 my $GROUPS_FILE   = "$AUTH_DIR/groups";
+my $GROUP_SETTINGS_FILE = "$AUTH_DIR/groups-settings.json";
+
+# SM095: the capability bools that can be carried by a group. Account-shaped
+# settings (ui, dav_scope, email, expiry, mfa, provenance) stay per-user.
+our @CAP_KEYS = qw(webdav manage_content manage_nav manage_forms
+    manage_themes manage_layouts manage_config analytics
+    create_sub_users delegate_sub_user_creation);
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
 
 # --- API mode ---
@@ -652,8 +659,16 @@ sub effective_settings {
     my $s   = $all->{$user} || {};
     my $scope = $s->{dav_scope};
     $scope = undef unless defined $scope && length $scope;
+    # SM095: capability bools are the UNION of the account's groups' grants and
+    # (Phase 1) any legacy per-user grant. $gc->{X} contributes from group roles.
+    my $gc = _user_caps($user);
+    my @mygroups = do {
+        my %g = read_groups();
+        sort grep { grep { $_ eq $user } @{ $g{$_} || [] } } keys %g;
+    };
     return {
-        webdav    => $s->{webdav} ? JSON::PP::true() : JSON::PP::false(),
+        groups    => \@mygroups,
+        webdav    => ( $s->{webdav} || $gc->{webdav} ) ? JSON::PP::true() : JSON::PP::false(),
         ui        => ( exists $s->{ui} && !$s->{ui} ) ? JSON::PP::false() : JSON::PP::true(),
         dav_scope => $scope,
         # SM071 Phase 2: sub-user provenance and delegation. created_by /
@@ -663,35 +678,34 @@ sub effective_settings {
         created_by => $s->{created_by},
         created_at => $s->{created_at},
         managed_by => ( defined $s->{managed_by} ? $s->{managed_by} : $s->{created_by} ),
-        create_sub_users           => $s->{create_sub_users}           ? JSON::PP::true() : JSON::PP::false(),
-        delegate_sub_user_creation => $s->{delegate_sub_user_creation} ? JSON::PP::true() : JSON::PP::false(),
+        create_sub_users           => ( $s->{create_sub_users}           || $gc->{create_sub_users} )           ? JSON::PP::true() : JSON::PP::false(),
+        delegate_sub_user_creation => ( $s->{delegate_sub_user_creation} || $gc->{delegate_sub_user_creation} ) ? JSON::PP::true() : JSON::PP::false(),
         disabled                   => $s->{disabled}                   ? JSON::PP::true() : JSON::PP::false(),
         # SM071 Phase 2: theme/layout/config management capabilities.
-        manage_themes  => $s->{manage_themes}  ? JSON::PP::true() : JSON::PP::false(),
-        manage_layouts => $s->{manage_layouts} ? JSON::PP::true() : JSON::PP::false(),
-        manage_config  => $s->{manage_config}  ? JSON::PP::true() : JSON::PP::false(),
+        manage_themes  => ( $s->{manage_themes}  || $gc->{manage_themes} )  ? JSON::PP::true() : JSON::PP::false(),
+        manage_layouts => ( $s->{manage_layouts} || $gc->{manage_layouts} ) ? JSON::PP::true() : JSON::PP::false(),
+        manage_config  => ( $s->{manage_config}  || $gc->{manage_config} )  ? JSON::PP::true() : JSON::PP::false(),
         # Read access to log analysis: the sanitised visitor-stats export and the
         # audit trail. Off by default - it exposes (aggregated, IP-anonymised, path-
         # stripped) log data, so it is an explicit grant.
-        analytics      => $s->{analytics}      ? JSON::PP::true() : JSON::PP::false(),
+        analytics      => ( $s->{analytics}      || $gc->{analytics} )      ? JSON::PP::true() : JSON::PP::false(),
         # SM082: content (page) read/write. Defaults to the webdav grant when
         # unset, so existing partners are unchanged; set it off explicitly for a
-        # theme-only partner that cannot touch content.
-        manage_content => ( defined $s->{manage_content}
-            ? ( $s->{manage_content} ? JSON::PP::true() : JSON::PP::false() )
-            : ( $s->{webdav}         ? JSON::PP::true() : JSON::PP::false() ) ),
+        # theme-only partner that cannot touch content. Group grants union on top.
+        manage_content => ( ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} )
+            || $gc->{manage_content} ) ? JSON::PP::true() : JSON::PP::false(),
         # SM105/SM106: nav and forms are their own capabilities, each defaulting to
         # inherit the effective manage_content grant (which itself inherits webdav),
         # so any account that can edit content keeps editing nav/forms unless an
-        # explicit manage_nav / manage_forms overrides it.
-        manage_nav => ( defined $s->{manage_nav}
-            ? ( $s->{manage_nav} ? JSON::PP::true() : JSON::PP::false() )
-            : ( ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} )
-                ? JSON::PP::true() : JSON::PP::false() ) ),
-        manage_forms => ( defined $s->{manage_forms}
-            ? ( $s->{manage_forms} ? JSON::PP::true() : JSON::PP::false() )
-            : ( ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} )
-                ? JSON::PP::true() : JSON::PP::false() ) ),
+        # explicit manage_nav / manage_forms overrides it. Group grants union on top.
+        manage_nav => ( ( defined $s->{manage_nav}
+                ? $s->{manage_nav}
+                : ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} ) )
+            || $gc->{manage_nav} ) ? JSON::PP::true() : JSON::PP::false(),
+        manage_forms => ( ( defined $s->{manage_forms}
+                ? $s->{manage_forms}
+                : ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} ) )
+            || $gc->{manage_forms} ) ? JSON::PP::true() : JSON::PP::false(),
         # SM071 Phase 2: access-token expiry (null = no expiry, e.g. a
         # human password or an operator-minted permanent credential).
         token_expires_at => $s->{token_expires_at},
@@ -1936,17 +1950,9 @@ sub is_last_manager_ui {
 }
 
 sub read_manager_groups {
-    my $conf = "$DOCROOT/lazysite/lazysite.conf";
-    return () unless -f $conf;
-    open my $fh, '<', $conf or return ();
-    my $line;
-    while (<$fh>) {
-        if (/^manager_groups\s*:\s*(.+)/) { $line = $1; last }
-    }
-    close $fh;
-    return () unless defined $line;
-    $line =~ s/^\s+|\s+$//g;
-    return grep { length } split /[,\s]+/, $line;
+    # SM095: manager status now comes from groups flagged manager in group-settings,
+    # unioned with the legacy lazysite.conf manager_groups (the seed/fallback).
+    return manager_groups_effective();
 }
 
 # --- File I/O ---
@@ -1980,6 +1986,95 @@ sub write_users {
     # group). Owner-write-only locks www-data out of a file the CLI wrote -
     # the auth dir is 02770 so there is no world access regardless.
     chmod 0660, $USERS_FILE;
+}
+
+# SM095: per-group capabilities + manager flag. JSON keyed by group name:
+#   { "<group>": { "label":..., "manager":1, "webdav":1, "manage_content":1, ... } }
+# An account's effective capabilities are the UNION across its groups. Phase 1
+# also unions any legacy per-user grant, so nothing breaks on upgrade.
+
+sub _default_group_seed {
+    return {
+        'content-manager'    => { label => 'Content manager',    manage_content => 1, manage_nav => 1, manage_forms => 1 },
+        'appearance-manager' => { label => 'Appearance manager', manage_themes => 1, manage_layouts => 1, manage_nav => 1 },
+        'ai-site-manager'    => { label => 'AI site manager',     webdav => 1, manage_content => 1, manage_layouts => 1,
+                                  manage_themes => 1, manage_forms => 1, manage_nav => 1, analytics => 1 },
+        'user-manager'       => { label => 'User manager',        create_sub_users => 1, delegate_sub_user_creation => 1 },
+    };
+}
+
+# Raw manager_groups from lazysite.conf - the seed/fallback source. Kept separate
+# from the effective lookup so the seeder never recurses through itself.
+sub _conf_manager_groups {
+    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    return () unless -f $conf;
+    open my $fh, '<', $conf or return ();
+    my $line = '';
+    while (<$fh>) { if (/^manager_groups\s*:\s*(.+)/) { $line = $1; last } }
+    close $fh;
+    $line =~ s/^\s+|\s+$//g;
+    return grep { length } map { s/^\s+|\s+$//gr } split /[,\s]+/, $line;
+}
+
+sub read_group_settings {
+    if ( -f $GROUP_SETTINGS_FILE ) {
+        open my $fh, '<:utf8', $GROUP_SETTINGS_FILE or return {};
+        local $/;
+        my $j = <$fh>;
+        close $fh;
+        my $d = eval { JSON::PP::decode_json($j) };
+        return $d if ref $d eq 'HASH';
+        warn "groups-settings.json unparseable; using empty\n";
+        return {};
+    }
+    # First run: seed the default role groups + flag the existing manager_groups
+    # (e.g. lazysite-admins) as manager groups with full capabilities, so the
+    # operator keeps manager + partner access and configures everyone else from
+    # there. No legacy per-user grants are carried in (clean cut, no hidden debt).
+    my $seed = _default_group_seed();
+    for my $g ( _conf_manager_groups() ) {
+        $seed->{$g}{manager} = 1;
+        $seed->{$g}{label} //= $g;
+        $seed->{$g}{$_} = 1 for @CAP_KEYS;
+    }
+    write_group_settings($seed);
+    return $seed;
+}
+
+sub write_group_settings {
+    my ($ref) = @_;
+    my $tmp = "$GROUP_SETTINGS_FILE.$$";
+    open my $fh, '>:utf8', $tmp or return 0;
+    flock( $fh, LOCK_EX );
+    print {$fh} JSON::PP::encode_json($ref);
+    close $fh;
+    rename $tmp, $GROUP_SETTINGS_FILE;
+    chmod 0660, $GROUP_SETTINGS_FILE;
+    return 1;
+}
+
+# Union of capability bools across every group $user belongs to.
+sub _user_caps {
+    my ($user) = @_;
+    my %groups = read_groups();
+    my $gs     = read_group_settings();
+    my %caps;
+    for my $g ( keys %groups ) {
+        next unless grep { $_ eq $user } @{ $groups{$g} || [] };
+        my $cfg = $gs->{$g} or next;
+        for my $k (@CAP_KEYS) { $caps{$k} = 1 if $cfg->{$k} }
+    }
+    return \%caps;
+}
+
+# Manager groups: those flagged in group-settings, unioned with the legacy
+# lazysite.conf manager_groups (Phase 1 keeps both working).
+sub manager_groups_effective {
+    my $gs = read_group_settings();
+    my %mg = map { $_ => 1 } _conf_manager_groups();
+    for my $g ( keys %$gs ) { $mg{$g} = 1 if $gs->{$g}{manager} }
+    my @list = sort keys %mg;
+    return @list;
 }
 
 sub read_groups {
