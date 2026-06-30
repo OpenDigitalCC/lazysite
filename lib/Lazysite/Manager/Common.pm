@@ -203,6 +203,14 @@ sub upload_limits {
 
 sub is_blocked_config {
     my ( $rel_path, $check_extensions ) = @_;
+
+    # Form SUBMISSIONS are append-only data the manager is meant to view and prune
+    # (the editor opens them read-only). They live under lazysite/forms/submissions,
+    # which is otherwise swallowed by the lazysite/forms block that protects the
+    # form CONFIGS (smtp.conf etc. hold secrets). Exempt the submissions subtree so
+    # the file editor / submissions viewer can read them.
+    return 0 if $rel_path =~ m{^lazysite/forms/submissions(?:/|$)};
+
     my $limits = upload_limits();
 
     for my $prefix ( @{ $limits->{blocked_paths} } ) {

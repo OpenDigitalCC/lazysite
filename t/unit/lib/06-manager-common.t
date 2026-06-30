@@ -47,6 +47,12 @@ ok( !$ok2 && $err2, 'write into a missing dir fails with an error' );
     ok( is_blocked_config('lazysite/auth/x'), 'lazysite/auth prefix blocked by config' );
     ok( is_blocked_config('cgi-bin/y'),       'cgi-bin prefix blocked' );
     ok( !is_blocked_config('content/page.md'), 'normal content not config-blocked' );
+    # Form CONFIGS stay blocked, but the SUBMISSIONS subtree (append-only data the
+    # manager views) is exempt so the file editor can read it.
+    ok( is_blocked_config('lazysite/forms/smtp.conf'),
+        'form config (smtp.conf) still blocked' );
+    ok( !is_blocked_config('lazysite/forms/submissions/contact.jsonl'),
+        'form submissions readable (not config-blocked)' );
     ok( is_blocked_upload_target('evil.pl'),  'pl extension blocked for upload targets' );
     ok( !is_blocked_config('evil.pl'),        'extension only checked when requested' );
 }
