@@ -10,17 +10,22 @@ query_params:
 ---
 
 <style>
+  /* Single-column stack (label above input). Deliberately NOT a 2-column grid:
+     the page is Markdown, which wraps the form's fields in <p>, so a grid that
+     relies on label/input being separate grid items mis-aligns (password ends up
+     beside the 2FA field). A block stack is immune to that wrapping. */
   .login-form {
-    max-width: min(480px, 100%);
+    max-width: min(360px, 100%);
     margin: 1rem 0;
-    display: grid;
-    grid-template-columns: 7rem 1fr;
-    gap: 0.6rem 0.75rem;
-    align-items: center;
   }
-  .login-form label { text-align: right; }
+  .login-form label {
+    display: block;
+    font-weight: 600;
+    margin: 0.7rem 0 0.2rem;
+  }
   .login-form input[type="text"],
   .login-form input[type="password"] {
+    display: block;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
@@ -40,7 +45,7 @@ query_params:
     box-sizing: border-box;
   }
   .login-form input:focus { outline: 2px solid #0056b3; outline-offset: 0; }
-  .login-form .login-submit { grid-column: 2; }
+  .login-form .login-submit { margin-top: 1rem; }
   .login-form button {
     padding: 0.45rem 1.25rem;
     font: inherit;
@@ -108,16 +113,12 @@ query_params:
 
 <form method="POST" action="/cgi-bin/lazysite-auth.pl?action=login" class="login-form" data-ls-auth-in>
   <input type="hidden" name="next" value="[% query.next | html %]">
-
   <label for="username">Username</label>
   <input type="text" name="username" id="username" required autocomplete="username">
-
   <label for="password">Password</label>
   <input type="password" name="password" id="password" autocomplete="current-password">
-
   <label for="code">2FA code</label>
   <input type="text" name="code" id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="if 2FA is enabled">
-
   <div class="login-submit">
     <button type="submit">Sign in</button>
   </div>
