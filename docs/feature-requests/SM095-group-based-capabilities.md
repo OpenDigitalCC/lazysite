@@ -82,6 +82,25 @@ panel or modal on the Users page.
   (lazysite-admins seeded with everything; operators assign the rest); rewire the
   test suite to grant via groups.
 
+  **Scope discovered (attempted 2026-06-30, reverted):** the clean cut is bigger
+  than a test rewire. Multiple surfaces still read capabilities DIRECTLY from
+  `read_settings()->{$user}` rather than through `caps_for` - phase (a) routed
+  only the DAV endpoint. The remaining direct readers found:
+  - `cmd_account_create` sub-user gate (`create_sub_users` / `delegate_...`,
+    users tool ~l.885).
+  - The onboarding / partner brief generators (users tool ~l.1438, ~l.1794) that
+    list a partner's caps from `$s->{...}`.
+  - Likely the partner-create default-capability assignment.
+
+  So (c) = (1) route EVERY cap reader through `caps_for` (a small but careful
+  sweep); (2) redesign partner/sub-user onboarding so a new partner gets caps by
+  GROUP assignment, not per-user defaults (the "partner has webdav by default"
+  behaviour goes away); (3) drop the webdav->content / content->nav,forms
+  inheritance (groups are explicit); (4) deep test rewiring (the broad churn:
+  ~33 files - DAV cluster was already done and is mechanical; the manager/users
+  cluster needs per-test thought for the whoami-groups assertions, the removed
+  inheritance, and the new partner model). A focused session, not a tail-end push.
+
 ## Migration (clean cut, no hidden debt)
 
 On upgrade, `lazysite-admins` is seeded with ALL capabilities so the operator
