@@ -127,7 +127,7 @@
       "features": [
         {
           "title": "Customisable forms, built in",
-          "what": "Build a contact, signup or feedback form right in Markdown with the :::form syntax - it works out of the box, validates input, and delivers to email or a handler. Fully customisable, and no third-party service or code required.",
+          "what": "Build a contact, signup or feedback form right in Markdown with the :::form syntax - it works out of the box, validates input, accepts file and image attachments, and delivers to email or a handler. Fully customisable, and no third-party service or code required.",
           "how_url": "/docs/features/authoring/forms",
           "how_label": "Forms"
         },
@@ -206,6 +206,12 @@
         {
           "title": "Tiny footprint, low cost",
           "what": "One small CGI script plus a few Perl modules - no database, no application server, no build pipeline. The minimal infrastructure runs on almost anything and costs very little to host.",
+          "how_url": "",
+          "how_label": ""
+        },
+        {
+          "title": "Self-contained, no external services",
+          "what": "The engine runs entirely on your own server - just Perl and a web server - with no embedded AI and no dependency on any third-party or cloud service to operate. Nothing phones home, and nothing breaks when an outside API changes its terms or disappears. AI publishing is optional and uses an assistant you choose and control, not a service baked in.",
           "how_url": "",
           "how_label": ""
         },

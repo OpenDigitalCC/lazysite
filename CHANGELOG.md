@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.5.6 - AI visitor-log analysis (Phase 1) (2026-06-30)
+
+Feature - AI visitor analytics
+: new analytics capability + cached, incremental visitor-stats export (aggregates
+  + sanitised event stream; no raw log, paths or IPs) + analyse_visitors MCP tool
+  + /docs/ai-briefing-stats. The AI can analyse visitor trends on the operator's
+  direction without ever seeing the raw access log.
+
 ## 0.5.5 - STABLE: fix skipped-site corruption + submissions viewing (2026-06-30)
 
 Stable release

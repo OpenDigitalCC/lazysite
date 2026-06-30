@@ -1,0 +1,12 @@
+{
+  "items": [
+    { "title": "Students & junior developers", "body": "A professional portfolio in minutes - free, fast, and yours - to land an internship or showcase coursework. No build tooling to learn first." },
+    { "title": "Engineers & sysadmins", "body": "A personal blog or project documentation with no database to run and no CMS to patch. It is just a CGI script and a tree of Markdown." },
+    { "title": "Content automators", "body": "Generating Markdown from scripts or an LLM? lazysite is the drop-in renderer - write files, they are served, with feeds and an <code>llms.txt</code> for free." },
+    { "title": "Marketers & site designers", "body": "Using AI for rapid site development: spin up a site, restyle it from a gallery of themes, and iterate in minutes instead of sprints." },
+    { "title": "Publishers", "body": "Get content out the door quickly - and keep some of it private behind pay-per-read, so writing can earn as it is read." },
+    { "title": "Teams, intranets & small groups", "body": "An internal knowledge base, a team intranet, or shared information for a club, group or household - private by default, with per-user access and nothing to administer." },
+    { "title": "Community websites", "body": "For a club, association, neighbourhood or user group: a shared site that is cheap to run and easy for volunteers to keep current. Hand contributors scoped, revocable access - or let an AI agent maintain it - with no database or hosting bills to worry about." },
+    { "title": "Catalogue & directory sites", "body": "Build a product catalogue, directory or listing from internal JSON data files - lazysite reads them and renders the pages, with no database server to run. (The comparison and feature tables on this very site work exactly that way.)" }
+  ]
+}

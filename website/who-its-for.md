@@ -1,6 +1,8 @@
 ---
 title: Who lazysite is for
 subtitle: From a one-file portfolio to an AI-published content business — and built for the human/AI partnership in between.
+tt_page_var:
+  aud: json:/data/audiences.json
 register:
   - sitemap.xml
   - llms.txt
@@ -12,7 +14,7 @@ lazysite suits anyone who wants a fast, file-based site without the weight of a 
 
 ## Who it's for
 
-<div class="aud-grid"><div class="aud-card"><h3>Students &amp; junior developers</h3><p>A professional portfolio in minutes — free, fast, and yours — to land an internship or showcase coursework. No build tooling to learn first.</p></div><div class="aud-card"><h3>Engineers &amp; sysadmins</h3><p>A personal blog or project documentation with no database to run and no CMS to patch. It is just a CGI script and a tree of Markdown.</p></div><div class="aud-card"><h3>Content automators</h3><p>Generating Markdown from scripts or an LLM? lazysite is the drop-in renderer — write files, they are served, with feeds and an <code>llms.txt</code> for free.</p></div><div class="aud-card"><h3>Marketers &amp; site designers</h3><p>Using AI for rapid site development: spin up a site, restyle it from a gallery of themes, and iterate in minutes instead of sprints.</p></div><div class="aud-card"><h3>Publishers</h3><p>Get content out the door quickly — and keep some of it private behind pay-per-read, so writing can earn as it is read.</p></div><div class="aud-card"><h3>Teams, intranets &amp; small groups</h3><p>An internal knowledge base, a team intranet, or shared information for a club, group or household — private by default, with per-user access and nothing to administer.</p></div></div>
+<div class="aud-grid">[% FOREACH a IN aud.items %]<div class="aud-card"><h3>[% a.title %]</h3><p>[% a.body %]</p></div>[% END %]</div>
 
 ## What you can do with it
 
@@ -41,4 +43,4 @@ Fine-grained controls let you decide exactly who — human or AI — can do what
 <li><strong>An audit trail</strong> — an append-only record of who changed what, when, from where, and the outcome.</li>
 </ul>
 
-See the [full feature list](/features), [how lazysite compares](/comparison), or [try the demo](/lazysite-demo).
+See the [full feature list](/features), [how lazysite compares](/comparison), or read [about lazysite](/about).
