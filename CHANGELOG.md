@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.5.5 - STABLE: fix skipped-site corruption + submissions viewing (2026-06-30)
+
+Stable release
+: repairs sites that were channel-skipped and left half-configured (manager 500s)
+  - they upgrade and run the full deploy permission pass. The deploy now runs a
+  --channel-check FIRST, so a skip touches nothing. Includes the submissions-
+  readable fix (0.5.4) and the form delivery/blank-submit guards (0.5.2/0.5.3).
+
 ## 0.5.4 - Manager can view form submissions (2026-06-30)
 
 Fix - submissions unreadable in the manager
