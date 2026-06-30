@@ -180,4 +180,20 @@ my $aud_denied = mapi( $d, QUERY_STRING => 'action=audit',
     HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
 ok( !$aud_denied->{ok}, 'audit denied for a client without the analytics capability' );
 
+# SM095: analytics (visitor stats) is available over the CONTROL API too, gated on
+# the analytics capability - so an API-channel agent gets it, not only MCP.
+my $av_denied = mapi( $d, QUERY_STRING => 'action=analyse_visitors',
+    HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
+ok( !$av_denied->{ok}, 'analyse_visitors denied without analytics' );
+
+uapi( $d, { action => 'settings-set', username => 'partner', key => 'analytics', value => 'on' } );
+my $alog = "$d/access.log";
+open my $lg, '>', $alog or die $!;
+print {$lg} '1.2.3.4 - - [01/Jan/2026:00:00:00 +0000] "GET /x HTTP/1.1" 200 1 "-" "curl/8"' . "\n";
+close $lg;
+my $av = mapi( $d, QUERY_STRING => 'action=analyse_visitors',
+    HTTP_AUTHORIZATION => basic( 'partner', $tok ), LAZYSITE_ACCESS_LOG => $alog );
+ok( $av->{ok}, 'analyse_visitors works for a client with analytics' ) or diag explain $av;
+ok( exists $av->{traffic_classes}, 'returns the sanitised stats export shape' );
+
 done_testing();

@@ -299,6 +299,9 @@ if ( $token_auth ) {
         'nav-read'          => sub { $_[0]->{manage_nav} },
         'nav-save'          => sub { $_[0]->{manage_nav} },
         'whoami'            => sub { 1 },   # any authenticated token may introspect its own grant
+        # Visitor-log analysis over the control API (token clients), same grant as
+        # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
+        'analyse_visitors'  => sub { $_[0]->{analytics} },
         # The audit trail is gated on the analytics capability (same grant as the
         # visitor-stats export) for token clients and managers alike.
         'audit'             => sub { $_[0]->{analytics} },
@@ -425,6 +428,7 @@ elsif ( $action eq 'nav-save' )         {
 }
 elsif ( $action eq 'handler-list' )     { $result = action_handler_list() }
 elsif ( $action eq 'version' )          { $result = action_version() }
+elsif ( $action eq 'analyse_visitors' ) { $result = action_analyse_visitors( $params{window} ) }
 elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
 elsif ( $action eq 'audit' )            {
     # Strict gate: the audit trail requires the 'analytics' capability. Token
@@ -497,7 +501,7 @@ else  { $result = { ok => 0, error => "Unknown action: $action" } }
 # not overlap with them. Read-ish POSTs (the UI POSTs everything) are skipped.
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
-        csrf-token list read principals whoami audit version acl-get cache-list
+        csrf-token list read principals whoami audit version acl-get cache-list analyse_visitors
         cache-invalidate nav-read config-read pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
@@ -1315,6 +1319,37 @@ sub action_audit {
 }
 
 # SM072: the running version, read from the install state .install-state.json.
+sub _stats_tool_path {
+    for my $c (
+        $ENV{LAZYSITE_STATS_TOOL},
+        dirname($0) . "/../plugins/stats.pl",
+        dirname($0) . "/plugins/stats.pl",
+        "$DOCROOT/../plugins/stats.pl",
+    ) {
+        return $c if defined $c && -f $c;
+    }
+    return undef;
+}
+
+# SM095: visitor-log analysis over the control API (gated on `analytics`, like the
+# MCP analyse_visitors tool). Returns the stats plugin's sanitised, cached export -
+# aggregates + a capped event stream; never the raw log, a path, or a visitor IP.
+sub action_analyse_visitors {
+    my ($window) = @_;
+    my $tool = _stats_tool_path()
+        or return { ok => 0, error => 'Visitor stats plugin not found' };
+    $window = ( defined $window && $window =~ /^\d+$/ ) ? $window : 30;
+    my ( $out, $in );
+    my $pid = eval {
+        open2( $out, $in, $^X, $tool, '--export', '--docroot', $DOCROOT, '--window', $window );
+    } or return { ok => 0, error => 'Cannot run the stats plugin' };
+    close $in;
+    my $resp = do { local $/; <$out> };
+    close $out;
+    waitpid $pid, 0;
+    return eval { decode_json( $resp // '{}' ) } || { ok => 0, error => 'No stats output' };
+}
+
 sub action_version {
     my $path = "$DOCROOT/lazysite/.install-state.json";
     return { ok => 1, version => undef } unless -f $path;

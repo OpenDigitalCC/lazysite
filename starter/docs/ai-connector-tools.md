@@ -52,10 +52,12 @@ A partner's grant (visible in `whoami.capabilities`) gates the tools:
 - `manage_layouts` - activate layouts.
 - `webdav` - the WebDAV transport / file-API mechanism flag.
 - `manage_config` - site configuration (control API, not exposed as MCP tools).
-- `analytics` - read the visitor-log analysis (`analyse_visitors`) and the audit
-  trail. Off by default; an explicit grant, since it exposes (aggregated,
-  IP-anonymised, path-free) log data. The audit trail itself is the in-page Audit
-  view plus the control-API `audit` action - it is not an MCP tool.
+- `analytics` - read the visitor-log analysis and the audit trail. Off by default;
+  an explicit grant, since it exposes (aggregated, IP-anonymised, path-free) log
+  data. Visitor analysis is available both as the MCP `analyse_visitors` tool AND
+  as the control-API `analyse_visitors` action (`?action=analyse_visitors&window=N`),
+  so an API-channel client gets it too. The audit trail is the in-page Audit view
+  plus the control-API `audit` action.
 
 Per-file ACLs (owner + read/write lists, with `@groups`) bind a token client
 exactly as over WebDAV - a tool call is refused if the partner lacks access to the
