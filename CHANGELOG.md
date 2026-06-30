@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.11 - Grant analytics from the UI + docs (2026-06-30)
+
+Fix - analytics permission UX
+: the Analytics capability is now a toggle on the Users page (was CLI-only), whoami
+  advertises it, the audit denial points to the UI, and the AI/MCP docs cover the
+  analyse_visitors tool + the capability.
+
 ## 0.5.10 - One layout/theme switcher (2026-06-30)
 
 Feature - single appearance control
