@@ -18,6 +18,12 @@ Keying
 
 ## Unreleased
 
+## 0.5.3 - Reject contentless form submissions (2026-06-30)
+
+Fix - empty form submission
+: a submission with every field blank and no file now errors instead of saving a
+  contentless record behind a "thank you".
+
 ## 0.5.2 - Forms fail loudly when nothing accepts the submission (2026-06-30)
 
 Fix - no false form success
