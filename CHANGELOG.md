@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.7 - AI visitor-log analysis Phase 2: audit (2026-06-30)
+
+Feature - audit analytics
+: the audit trail is now gated on the analytics capability (managers must be
+  granted it) and read through an append-only cache (only newly-appended lines are
+  parsed, not the whole log each load).
+
 ## 0.5.6 - AI visitor-log analysis (Phase 1) (2026-06-30)
 
 Feature - AI visitor analytics
