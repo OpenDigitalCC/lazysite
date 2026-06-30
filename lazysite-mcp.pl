@@ -138,6 +138,37 @@ sub _users_api {
     return eval { decode_json( $resp // '{}' ) };
 }
 
+sub _stats_tool {
+    for my $c ( $ENV{LAZYSITE_STATS_TOOL},
+        dirname( Cwd::abs_path(__FILE__) ) . "/plugins/stats.pl",
+        dirname( Cwd::abs_path(__FILE__) ) . "/../plugins/stats.pl",
+        "$DOCROOT/../plugins/stats.pl" ) {
+        return $c if defined $c && -f $c;
+    }
+    return undef;
+}
+
+# Run the visitor-stats AI export (cached, incremental). Returns the SANITISED
+# JSON the agent reasons over - aggregates + a capped event stream, never the raw
+# log, log path, filesystem path, or visitor IP.
+sub _stats_export {
+    my ($window) = @_;
+    my $tool = _stats_tool()
+        or return { ok => 0, error => 'stats plugin not found' };
+    $window = ( defined $window && $window =~ /^\d+$/ ) ? $window : 30;
+    my ( $out, $in );
+    my $pid = eval {
+        open2( $out, $in, $^X, $tool, '--export',
+            '--docroot', $DOCROOT, '--window', $window );
+    } or return { ok => 0, error => 'could not run the stats plugin' };
+    close $in;
+    my $resp = do { local $/; <$out> };
+    close $out;
+    waitpid $pid, 0;
+    return eval { decode_json( $resp // '{}' ) }
+        || { ok => 0, error => 'stats export produced no JSON' };
+}
+
 # Resolve the Authorization bearer to ($partner, \%caps), or () on failure.
 # Two shapes: the static "<partner>:<lzs_ token>" (Claude Code / Desktop), or an
 # opaque OAuth access token (Claude.ai web, SM076). Some Apache setups expose
@@ -431,6 +462,16 @@ my %TOOLS = (
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run         => sub { _audit_site() },
+    },
+    analyse_visitors => {
+        description => 'Visitor-log analysis for trend reporting (read-only). Returns a SANITISED JSON: per-day totals, a people/AI-assistant/bot/noise traffic breakdown, top pages, referrers, status codes, and a capped recent event stream - never the raw log, any filesystem path, or a visitor IP (IPs are anonymised; events carry only a network-level visitor token). Aggregated from the web-server access log via an incremental cache. Read the site briefing /docs/ai-briefing-stats to interpret the fields and the traffic taxonomy, then answer the operator\'s question (trends, rising/falling pages, AI-crawler share, 404 spikes). Heuristic and not authenticated.',
+        cap         => 'analytics',
+        inputSchema => { type => 'object',
+            properties => {
+                window => { type => 'integer', description => 'Days to report over (1-365, default 30).' },
+            },
+            additionalProperties => JSON::PP::false },
+        run => sub { _stats_export( $_[0]->{window} ) },
     },
     validate_page => {
         description => 'Check page content before saving: malformed/unterminated front matter, missing title, invalid form-field rules, and a PUBLIC-DATA warning (Wi-Fi passwords, postcodes/addresses, phone numbers) so private operational details are not published by accident. Pass content to check a draft, or path to check a saved file.',
@@ -1230,7 +1271,7 @@ elsif ( $method eq 'tools/call' ) {
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
     my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1 );
+        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, analyse_visitors => 1 );
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the

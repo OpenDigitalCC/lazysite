@@ -670,6 +670,10 @@ sub effective_settings {
         manage_themes  => $s->{manage_themes}  ? JSON::PP::true() : JSON::PP::false(),
         manage_layouts => $s->{manage_layouts} ? JSON::PP::true() : JSON::PP::false(),
         manage_config  => $s->{manage_config}  ? JSON::PP::true() : JSON::PP::false(),
+        # Read access to log analysis: the sanitised visitor-stats export and the
+        # audit trail. Off by default - it exposes (aggregated, IP-anonymised, path-
+        # stripped) log data, so it is an explicit grant.
+        analytics      => $s->{analytics}      ? JSON::PP::true() : JSON::PP::false(),
         # SM082: content (page) read/write. Defaults to the webdav grant when
         # unset, so existing partners are unchanged; set it off explicitly for a
         # theme-only partner that cannot touch content.
@@ -748,7 +752,7 @@ sub cmd_set {
     my %bool_key = map { $_ => 1 }
         qw(webdav ui create_sub_users delegate_sub_user_creation
            manage_content manage_nav manage_forms
-           manage_themes manage_layouts manage_config);
+           manage_themes manage_layouts manage_config analytics);
 
     if ( $bool_key{$key} ) {
         my $bool = parse_onoff($value);

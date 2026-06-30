@@ -24,6 +24,8 @@ while (@ARGV) {
     my $a = shift @ARGV;
     if    ( $a eq '--describe' )    { $arg{describe}    = 1 }
     elsif ( $a eq '--scan' )        { $arg{scan}        = 1 }
+    elsif ( $a eq '--export' )      { $arg{export}      = 1 }
+    elsif ( $a eq '--window' )      { $arg{window}      = shift @ARGV }
     elsif ( $a eq '--resolve-log' ) { $arg{resolve_log} = 1 }
     elsif ( $a eq '--docroot' )     { $arg{docroot}     = shift @ARGV }
 }
@@ -55,6 +57,11 @@ my $AI_RE = qr{
   | PerplexityBot | Google-Extended | CCBot | Bytespider | Amazonbot
   | cohere-ai | Diffbot | Applebot-Extended | YouBot | meta-externalagent
 }xi;
+
+# Month-name map for log-date parsing. Declared up here (like the regexes above)
+# so it is assigned BEFORE the dispatch below ever calls export_stats().
+my @MONTHS_X = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+my %MON_X = map { $MONTHS_X[$_] => $_ } 0 .. 11;
 
 if ( $arg{describe} ) {
     print encode_json({
@@ -91,6 +98,11 @@ if ( $arg{resolve_log} ) {
     print encode_json({ ok => ( length $log ? JSON::PP::true : JSON::PP::false ),
                         configured => ( length $log ? JSON::PP::true : JSON::PP::false ),
                         path => $log });   # server-internal only; never shown to the page
+    exit 0;
+}
+
+if ( $arg{export} ) {
+    print encode_json( export_stats( $arg{window} ) );
     exit 0;
 }
 
@@ -369,5 +381,221 @@ sub scan_stats {
         },
         status          => { map { ( $_ => $status{$_} ) } keys %status },
         per_day         => [ map { { day => $_, count => $byday{$_} } } sort keys %byday ],
+    };
+}
+
+# --- AI export: cached, incremental visitor-log analysis -------------------
+# Produces a SANITISED JSON the AI reasons over: aggregates + a capped event
+# stream. NEVER the raw log, the log path, any filesystem path, or a visitor IP.
+# An incremental cache (per-day buckets + a processed byte-offset) means each call
+# parses only the NEW log lines, not the whole file.
+
+# Parse one combined-format log line -> hashref, or undef.
+sub _parse_line {
+    my ($line) = @_;
+    return undef
+        unless $line =~ m{^(\S+) \S+ \S+ \[([^\]]+)\] "\S+ (\S+) [^"]*" (\d{3}) (\S+) "([^"]*)" "([^"]*)"};
+    my ( $ip, $date, $path, $st, $bs, $ref, $ua ) = ( $1, $2, $3, $4, $5, $6, $7 );
+    return undef
+        unless $date =~ m{^(\d+)/(\w+)/(\d+):(\d+):(\d+):(\d+)} && exists $MON_X{$2};
+    my ( $d, $mo, $y, $H, $Mi, $S ) = ( $1, $2, $3, $4, $5, $6 );
+    my $epoch = eval { POSIX::mktime( $S, $Mi, $H, $d, $MON_X{$mo}, $y - 1900 ) };
+    return undef unless defined $epoch;
+    return {
+        ip     => $ip,
+        epoch  => $epoch,
+        day    => sprintf( '%04d-%02d-%02d', $y, $MON_X{$mo} + 1, $d ),
+        path   => $path,
+        status => $st + 0,
+        ref    => $ref,
+        ua     => $ua,
+    };
+}
+
+sub _anon_ip {
+    my ($ip) = @_;
+    $ip =~ s/\.\d+$/.0/;    # zero the last IPv4 octet (no-op for a non-dotted addr)
+    return $ip;
+}
+
+# A short, non-reversible token for grouping events by visitor at NETWORK level
+# (the address is already truncated to its /24 before hashing).
+sub _visitor_token {
+    require Digest::SHA;
+    return substr( Digest::SHA::sha256_hex( $_[0] ), 0, 12 );
+}
+
+sub _day_str { return POSIX::strftime( '%Y-%m-%d', localtime( $_[0] ) ) }
+
+sub _cache_path { return "$DOCROOT/lazysite/cache/stats-export.json" }
+
+sub _load_export_cache {
+    open my $fh, '<', _cache_path() or return undef;
+    local $/;
+    my $j = <$fh>;
+    close $fh;
+    my $c = eval { JSON::PP::decode_json($j) };
+    return ( ref $c eq 'HASH' && ( $c->{v} // 0 ) == 1 ) ? $c : undef;
+}
+
+sub _save_export_cache {
+    my ($c) = @_;
+    my $dir = "$DOCROOT/lazysite/cache";
+    return unless -d $dir;
+    my $tmp = _cache_path() . ".$$";
+    open my $fh, '>', $tmp or return;
+    print {$fh} encode_json($c);
+    close $fh;
+    rename $tmp, _cache_path();
+    return;
+}
+
+sub export_stats {
+    my ($window) = @_;
+    $window = ( $window || 30 ) + 0;
+    $window = 30  if $window < 1;
+    $window = 365 if $window > 365;
+
+    my $cfg = read_conf();
+    my $log = find_log($cfg);
+    return {
+        ok           => 0,
+        needs_config => JSON::PP::true,
+        error        => 'No access log is configured for this site.',
+    } unless length $log && -r $log;
+
+    my @st = stat($log);
+    my ( $inode, $size ) = ( $st[1], $st[7] );
+
+    my $cache = _load_export_cache() || {};
+    # Rotation / truncation: a different inode, or the file is now smaller than our
+    # offset, means the offset is untrustworthy - reprocess from the start.
+    if ( ( $cache->{inode} // -1 ) != $inode || ( $cache->{offset} // 0 ) > $size ) {
+        $cache = { v => 1, inode => $inode, offset => 0, days => {}, events => [] };
+    }
+    $cache->{v}     = 1;
+    $cache->{inode} = $inode;
+    $cache->{days}   ||= {};
+    $cache->{events} ||= [];
+
+    my $extra_ai    = _split_csv( $cfg->{ai_user_agents} );
+    my $extra_noise = _split_csv( $cfg->{noise_paths} );
+    my $site_host   = _site_domain();
+    my $EVENT_CAP   = 5000;
+    my $IP_CAP      = 50000;
+
+    my $offset = $cache->{offset} // 0;
+    if ( $size > $offset && open my $fh, '<', $log ) {
+        seek $fh, $offset, 0;
+        my $pos = $offset;
+        while ( my $line = <$fh> ) {
+            last unless $line =~ /\n\z/;   # incomplete final line: process next time
+            $pos += length $line;          # advance only past COMPLETE lines
+            my $p = _parse_line($line) or next;
+            my $class = classify( $p->{path}, $p->{ua}, $extra_ai, $extra_noise );
+            my $b = $cache->{days}{ $p->{day} } ||= {
+                cls => {}, ips => {}, hits => 0, pages => {}, status => {},
+                ref_ext => {}, ref_internal => 0, ref_direct => 0,
+            };
+            $b->{cls}{$class}++;
+            my $ipk = _anon_ip( $p->{ip} );
+            $b->{ips}{$ipk} = 1 if keys %{ $b->{ips} } < $IP_CAP;
+
+            if ( $class eq 'human' ) {
+                $b->{hits}++;
+                $b->{status}{ $p->{status} }++;
+                $b->{pages}{ $p->{path} }++
+                    if $p->{status} < 400
+                    && $p->{path} !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
+                my $ref = $p->{ref};
+                if ( !length $ref || $ref eq '-' ) { $b->{ref_direct}++ }
+                elsif ( $ref =~ m{^\S+?://([^/\s]+)} ) {
+                    ( my $rh = $1 ) =~ s/^www\.//i;
+                    if ( length $site_host
+                        && ( lc $rh eq lc $site_host || $rh =~ /\Q$site_host\E$/i ) )
+                    {
+                        $b->{ref_internal}++;
+                    }
+                    else { $b->{ref_ext}{$rh}++ }
+                }
+            }
+
+            push @{ $cache->{events} }, {
+                t       => $p->{epoch},
+                class   => $class,
+                path    => $p->{path},
+                status  => $p->{status},
+                visitor => _visitor_token($ipk),
+            };
+            shift @{ $cache->{events} } while @{ $cache->{events} } > $EVENT_CAP;
+        }
+        close $fh;
+        $cache->{offset} = $size;
+    }
+
+    my $keep_from = _day_str( time() - 400 * 86400 );
+    delete $cache->{days}{$_} for grep { $_ lt $keep_from } keys %{ $cache->{days} };
+    _save_export_cache($cache);
+
+    # --- assemble the window view from the day-buckets ---
+    my $from_day  = _day_str( time() - ( $window - 1 ) * 86400 );
+    my $cutoff_ep = time() - $window * 86400;
+    my ( %cls, %uips, %pages, %status, %ref_ext, @by_day );
+    my ( $hits, $ref_internal, $ref_direct ) = ( 0, 0, 0 );
+
+    for my $day ( sort keys %{ $cache->{days} } ) {
+        next if $day lt $from_day;
+        my $b = $cache->{days}{$day};
+        $cls{$_}     += $b->{cls}{$_}     for keys %{ $b->{cls} };
+        $uips{$_} = 1                     for keys %{ $b->{ips} };
+        $pages{$_}   += $b->{pages}{$_}   for keys %{ $b->{pages} };
+        $status{$_}  += $b->{status}{$_}  for keys %{ $b->{status} };
+        $ref_ext{$_} += $b->{ref_ext}{$_} for keys %{ $b->{ref_ext} };
+        $hits         += $b->{hits}         // 0;
+        $ref_internal += $b->{ref_internal} // 0;
+        $ref_direct   += $b->{ref_direct}   // 0;
+        push @by_day, {
+            date  => $day,
+            human => ( $b->{cls}{human} // 0 ),
+            ai    => ( $b->{cls}{ai}    // 0 ),
+            bot   => ( $b->{cls}{bot}   // 0 ),
+            noise => ( $b->{cls}{noise} // 0 ),
+        };
+    }
+
+    my $total_cls = 0;
+    $total_cls += $_ for values %cls;
+    my %class_out;
+    for my $c (qw(human ai bot noise)) {
+        my $v = $cls{$c} // 0;
+        $class_out{$c} = {
+            visits => $v,
+            share  => ( $total_cls ? sprintf( '%.3f', $v / $total_cls ) + 0 : 0 ),
+        };
+    }
+
+    my $top = sub {
+        my ( $h, $n ) = @_;
+        my @k = sort { $h->{$b} <=> $h->{$a} || $a cmp $b } keys %$h;
+        @k = @k[ 0 .. $n - 1 ] if @k > $n;
+        return [ map { { key => $_, count => $h->{$_} } } @k ];
+    };
+    my $top_n = ( $cfg->{top_n} || 15 ) + 0;
+    my @events = grep { ( $_->{t} // 0 ) >= $cutoff_ep } @{ $cache->{events} };
+
+    return {
+        ok              => JSON::PP::true,
+        schema_version  => '1',
+        generated       => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
+        window          => { days => $window, from => $from_day, to => _day_str( time() ) },
+        totals          => { human_visits => $hits, unique_visitors => scalar keys %uips, pageviews => $hits },
+        traffic_classes => \%class_out,
+        by_day          => \@by_day,
+        top_pages       => $top->( \%pages, $top_n ),
+        referrers       => { direct => $ref_direct, internal => $ref_internal, external => $top->( \%ref_ext, $top_n ) },
+        status_codes    => { map { ( $_ => $status{$_} ) } keys %status },
+        events          => \@events,
+        events_capped   => ( @{ $cache->{events} } >= $EVENT_CAP ? JSON::PP::true : JSON::PP::false ),
+        notes           => 'Aggregated, IP-anonymised, no filesystem paths. Log-only heuristics; not authenticated.',
     };
 }

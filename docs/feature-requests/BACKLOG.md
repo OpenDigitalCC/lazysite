@@ -134,10 +134,17 @@ before work starts.
   components are local-layout only; remote (URL) layouts fetch just `layout.tt`,
   so their `components/` are not fetched or resolved. Bundle + resolve components
   for remote layouts if remote layouts get more use.
-- **Visitor statistics - performance + visualisations** - the stats scan is
-  synchronous and re-reads the whole log each load. Make it faster (cache the
-  computed result, or stream/async so the tiles populate as data arrives) and add
-  visualisations (charts for the per-day trend, the class breakdown, referrers).
+- **Visitor statistics - performance + visualisations** - the in-page stats scan
+  is still synchronous and re-reads the whole log each load (the *AI export* path
+  now has an incremental per-day-bucket cache - reuse it for the page). Remaining:
+  point the manager Stats page at the cache, and add visualisations (charts for
+  the per-day trend, the class breakdown, referrers).
+
+- **AI visitor-analytics - Phase 2 (audit)** - expose the audit trail as the same
+  sanitised JSON (`analyse_audit`?), gated on the same `analytics` capability, and
+  point the in-page Audit view at it with the same append-only cache. Phase 1
+  (visitor stats export + `analytics` capability + `analyse_visitors` MCP tool +
+  `/docs/ai-briefing-stats`, cached/incremental) shipped 0.5.6.
 
 ## Candidates - research / future
 

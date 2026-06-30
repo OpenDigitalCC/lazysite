@@ -78,6 +78,12 @@ sub api {
     is( $r->{settings}{dav_scope}, '/content', 'scope round-trips' );
     ok( $r->{settings}{ui}, 'ui still defaults on (untouched)' );
 
+    # analytics capability (visitor stats + audit): off by default, settable on.
+    ok( !$r->{settings}{analytics}, 'analytics defaults off' );
+    cli( $d, 'set', 'deploy', 'analytics', 'on' );
+    my $r2 = api( $d, { action => 'settings-get', username => 'deploy' } );
+    ok( $r2->{settings}{analytics}, 'analytics now on after set' );
+
     # file is valid JSON keyed by username
     open my $fh, '<', "$d/lazysite/auth/user-settings.json" or die;
     my $data = decode_json( do { local $/; <$fh> } );
