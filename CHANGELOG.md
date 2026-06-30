@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.13 - Group-based capabilities, Phase 2: Groups page (2026-06-30)
+
+Feature - SM095 Groups UI
+: the Groups page now edits per-group capabilities + a manager-group switch, and
+  manages membership member-first (who is in, type-to-add, remove) instead of an
+  all-users checkbox list.
+
 ## 0.5.12 - Group-based capabilities, Phase 1 (2026-06-30)
 
 Feature - SM095 group capabilities (backend)
