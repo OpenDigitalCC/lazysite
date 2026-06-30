@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.18 - Fix Users page failing to list (null username) (2026-06-30)
+
+Fix - users page
+: the batched users-detail load could return a null username (a clobbered map
+  $_), crashing the Users page with a localeCompare error. Capture the name first
+  and harden the front end.
+
 ## 0.5.17 - Route all capability checks through the resolver (2026-06-30)
 
 Refactor - SM095 (c0)
