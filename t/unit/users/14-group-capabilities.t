@@ -47,36 +47,36 @@ sub caps {
 {
     my $d = docroot();
     cli( $d, 'add', 'ada', 'pw' );
-    cli( $d, 'group-add', 'ada', 'content-manager' );
+    cli( $d, 'group-add', 'ada', 'content-editors' );
     my $s = caps( $d, 'ada' );
-    ok( $s->{manage_content}, 'content-manager grants manage_content' );
-    ok( $s->{manage_nav},     'content-manager grants manage_nav' );
-    ok( $s->{manage_forms},   'content-manager grants manage_forms' );
-    ok( !$s->{manage_themes}, 'content-manager does NOT grant manage_themes' );
-    ok( !$s->{analytics},     'content-manager does NOT grant analytics' );
-    is_deeply( $s->{groups}, ['content-manager'], 'effective settings lists the membership' );
+    ok( $s->{manage_content}, 'content-editors grants manage_content' );
+    ok( $s->{manage_nav},     'content-editors grants manage_nav' );
+    ok( $s->{manage_forms},   'content-editors grants manage_forms' );
+    ok( !$s->{manage_themes}, 'content-editors does NOT grant manage_themes' );
+    ok( !$s->{analytics},     'content-editors does NOT grant analytics' );
+    is_deeply( $s->{groups}, ['content-editors'], 'effective settings lists the membership' );
 }
 
 # Multiple groups COMPOUND (union of capabilities).
 {
     my $d = docroot();
     cli( $d, 'add', 'mix', 'pw' );
-    cli( $d, 'group-add', 'mix', 'content-manager' );
-    cli( $d, 'group-add', 'mix', 'appearance-manager' );
+    cli( $d, 'group-add', 'mix', 'content-editors' );
+    cli( $d, 'group-add', 'mix', 'design-team' );
     my $s = caps( $d, 'mix' );
-    ok( $s->{manage_content}, 'union: content from content-manager' );
-    ok( $s->{manage_themes},  'union: themes from appearance-manager' );
-    ok( $s->{manage_layouts}, 'union: layouts from appearance-manager' );
+    ok( $s->{manage_content}, 'union: content from content-editors' );
+    ok( $s->{manage_themes},  'union: themes from design-team' );
+    ok( $s->{manage_layouts}, 'union: layouts from design-team' );
 }
 
-# The seeded ai-site-manager group carries the analytics capability.
+# The seeded agent-ai group carries the analytics capability.
 {
     my $d = docroot();
     cli( $d, 'add', 'bot', 'pw' );
-    cli( $d, 'group-add', 'bot', 'ai-site-manager' );
+    cli( $d, 'group-add', 'bot', 'agent-ai' );
     my $s = caps( $d, 'bot' );
-    ok( $s->{analytics}, 'ai-site-manager grants analytics' );
-    ok( $s->{webdav},    'ai-site-manager grants webdav' );
+    ok( $s->{analytics}, 'agent-ai grants analytics' );
+    ok( $s->{webdav},    'agent-ai grants webdav' );
 }
 
 # lazysite-admins is seeded as a MANAGER group with full capabilities (so the
@@ -94,7 +94,7 @@ sub caps {
     my $gs = decode_json( do { local $/; <$gf> } );
     close $gf;
     ok( $gs->{'lazysite-admins'}{manager}, 'lazysite-admins flagged as a manager group' );
-    ok( exists $gs->{'user-manager'}, 'default role groups were seeded' );
+    ok( exists $gs->{'user-managers'}, 'default role groups were seeded' );
 }
 
 sub api {
@@ -111,9 +111,9 @@ sub api {
 {
     my $d = docroot();
     cli( $d, 'add', 'u', 'pw' );
-    cli( $d, 'group-add', 'u', 'content-manager' );
-    is( api( $d, { action => 'group-settings-set', group => 'content-manager', key => 'analytics', value => 'on' } )->{ok},
-        1, 'set analytics on content-manager' );
+    cli( $d, 'group-add', 'u', 'content-editors' );
+    is( api( $d, { action => 'group-settings-set', group => 'content-editors', key => 'analytics', value => 'on' } )->{ok},
+        1, 'set analytics on content-editors' );
     ok( caps( $d, 'u' )->{analytics}, 'member inherits the newly-granted capability' );
 
     is( api( $d, { action => 'group-create', group => 'editors' } )->{ok}, 1, 'create a group' );
@@ -125,6 +125,28 @@ sub api {
     ok( !$bad->{ok}, 'cannot delete the only manager group (lockout guard)' );
     my $bad2 = api( $d, { action => 'group-settings-set', group => 'lazysite-admins', key => 'manager', value => 'off' } );
     ok( !$bad2->{ok}, 'cannot clear manager from the only manager group' );
+}
+
+# Phase (b): new channel caps (ui/api/mcp) + manage_users; the permissions grid.
+{
+    my $d = docroot();
+    cli( $d, 'add', 'um', 'pw' );
+    cli( $d, 'group-add', 'um', 'user-managers' );
+    my $s = caps( $d, 'um' );
+    ok( $s->{manage_users}, 'user-managers grants manage_users' );
+    ok( $s->{ui},           'user-managers grants the ui channel' );
+    ok( !$s->{webdav},      'user-managers does NOT grant webdav' );
+
+    cli( $d, 'add', 'mc', 'pw' );
+    cli( $d, 'group-add', 'mc', 'mcp-ai' );
+    my $g = api( $d, { action => 'permissions-grid', username => 'mc' } );
+    ok( $g->{ok}, 'permissions-grid ok' );
+    is_deeply( $g->{channels}, [qw(ui webdav api mcp)], 'grid lists the four channels' );
+    ok( ( grep { $_ eq 'mcp-ai' } @{ $g->{granted_by}{mcp} || [] } ),
+        'mcp channel granted by mcp-ai' );
+    ok( ( grep { $_ eq 'mcp-ai' } @{ $g->{granted_by}{manage_content} || [] } ),
+        'content action granted by mcp-ai' );
+    ok( !@{ $g->{granted_by}{ui} || [] }, 'mcp-ai does not grant the ui channel' );
 }
 
 # Phase 1 is non-breaking: a legacy per-user grant still resolves on.

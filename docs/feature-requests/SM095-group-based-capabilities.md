@@ -1,45 +1,94 @@
 ---
-title: "SM095 - group-based capabilities (attach permissions to groups)"
-subtitle: "Grant partner capabilities to a group; members inherit"
+title: "SM095 - group-based capabilities (permissions overhaul)"
+subtitle: "One central resolver; explicit channel x action capabilities on groups"
 brand: plain
 ---
 
 ::: widebox
-Today the partner capabilities (WebDAV, manage content/themes/layouts/config,
-sub-users) live on each **account**. The operator domain is already group-based
-(`manager_groups` membership = operator). This item extends the *partner* domain the
-same way: assign a capability to a **group**, and members inherit it - so partner
-access can be managed by role instead of per-account.
+Permissions move entirely onto **groups**. There is no special "manager" status
+and no super-admin: an account's rights are the **union** of the capabilities of
+the groups it belongs to, resolved in ONE place that every surface (manager UI,
+control API, MCP, WebDAV) consults. Capabilities are explicit and total - a grant
+means the same thing on every channel.
 :::
 
-## Why
+## The model
 
-Raised alongside SM094: with many partner accounts sharing a role (e.g. several
-"theme designer" connectors), per-account toggles are tedious and drift. Group-based
-capabilities let an operator define a role once.
+Two kinds of capability, both stored on the group; you need **both** to act.
 
-## Shape (sketch)
+**Channel capabilities - WHERE you may operate** (each its own grant):
 
-- A group may carry a set of capabilities (stored alongside the group, e.g. in
-  `user-settings.json` under a `@group` key, or a new `groups-settings.json`).
-- **Effective capability** of an account = its own grants ∪ the grants of every
-  group it belongs to. Resolved in one place (`effective_settings` in the users
-  tool) so every surface (manager-api `%need`, WebDAV `manage_*_for`, MCP `cap`)
-  sees the union with no per-surface change.
-- The manager Users/Groups UI gains per-group capability toggles; the per-account
-  toggles remain (account grants on top of group grants).
+- `ui` - sign in to the Manager UI
+- `webdav` - use the WebDAV transport
+- `api` - use the control API (token / REST)
+- `mcp` - use the MCP connector
 
-## Open questions
+**Action capabilities - WHAT you may do** (channel-agnostic):
 
-- Storage location + format for group capabilities.
-- Whether `ui` / interactive-login and `dav_scope` are group-assignable (probably
-  not - those are account-shaped).
-- Audit: a capability change on a group is a material event (who, which group, which
-  capability).
-- Interaction with operator bypass: operator (manager-group) status already grants
-  everything in the manager domain; group capabilities matter for the partner domain.
+- `manage_content`, `manage_nav`, `manage_forms`
+- `manage_themes`, `manage_layouts`
+- `manage_config` (incl. plugin enable/disable)
+- `manage_users` (users + groups + sessions)
+- `analytics` (visitor stats + audit)
+- `create_sub_users` / `delegate_sub_user_creation` (the limited sub-tree
+  delegation feature - kept distinct from `manage_users`)
+
+**Rule:** an action over a channel is allowed iff the account's groups grant
+`action` AND `channel`. e.g. publish a page over WebDAV needs `manage_content` AND
+`webdav`; edit it in the Manager UI needs `manage_content` AND `ui`.
+
+No `manager` flag, no `administrator` super-cap (it would become the dumping
+ground for every "permission issue"). "Admin" is simply a group that holds every
+capability. `manager_groups` in lazysite.conf is retired.
+
+## Default groups (seeded)
+
+| Group | Channels | Actions |
+|-------|----------|---------|
+| lazysite-admins | ui, webdav, api, mcp | all + sub-user delegation |
+| content-editors | ui, webdav | content, nav, forms |
+| design-team | ui, webdav | themes, layouts |
+| agent-ai | webdav, api | content, nav, forms, themes, layouts, analytics |
+| mcp-ai | mcp | content, nav, forms, themes, layouts, analytics |
+| user-managers | ui | manage_users + sub-user delegation |
+
+All editable on the Groups page; operators retune as needed.
+
+## The central resolver
+
+`Lazysite::Auth::Settings::caps_for($user)` returns `{ cap => 0|1 }` - the union
+across the account's groups. Every surface consults it: the manager API `%need`,
+the MCP `cap` check, the processor's UI page gating, and `lazysite-dav.pl` (which
+used to read per-user settings on its own path - the gap that broke an earlier
+clean-cut attempt). One implementation, one source of truth.
+
+## Permission viewer
+
+A read-only **channel x capability grid** for an account: channels across the top,
+capabilities down the side, each granted cell tooltipped with the group(s) that
+grant it. Shows derived rights; does not edit. Gated on `manage_users`. Collapsed
+panel or modal on the Users page.
+
+## Phasing
+
+- **(a) DONE (0.5.14).** Central resolver `caps_for`; DAV + the users tool routed
+  through it. Behaviour unchanged.
+- **(b)** Add the channel caps (`ui`/`api`/`mcp`) + `manage_users` to the model;
+  seed the six default groups; surface them on the Groups page; build the
+  permission viewer. Additive / non-breaking (no new gate enforced yet).
+- **(c) Clean cut.** Enforce channel + action gates from groups only; drop per-user
+  capability honouring; remove the per-user toggles from the Users page (replaced
+  by group membership + the viewer); retire `manager_groups`; migrate
+  (lazysite-admins seeded with everything; operators assign the rest); rewire the
+  test suite to grant via groups.
+
+## Migration (clean cut, no hidden debt)
+
+On upgrade, `lazysite-admins` is seeded with ALL capabilities so the operator
+keeps full access and configures everyone else from the Groups page. Per-user
+grants stop being honoured at phase (c). Acceptable for the ~14 live sites (manual
+fix-up); would need an auto-migration at tens of sites.
 
 ## Status
 
-Queued - design. Raised 2026-06-26. The enabler is that all surfaces already read
-one `effective_settings`; this changes how that is computed, not the call sites.
+(a) shipped 0.5.14. (b) + (c) in progress, same session.

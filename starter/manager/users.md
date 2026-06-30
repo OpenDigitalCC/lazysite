@@ -124,6 +124,55 @@ function loadUsers() {
   }).catch(function(e) { showStatus('Failed to load users: ' + e.message, true); });
 }
 
+var PERM_LABELS = {
+  ui: 'Manager UI', webdav: 'WebDAV', api: 'API', mcp: 'MCP',
+  manage_content: 'Content', manage_nav: 'Navigation', manage_forms: 'Forms',
+  manage_themes: 'Themes', manage_layouts: 'Layouts', manage_config: 'Config + plugins',
+  manage_users: 'Users & groups', analytics: 'Analytics',
+  create_sub_users: 'Create sub-users', delegate_sub_user_creation: 'Delegate sub-users'
+};
+
+// Lazy-load the read-only channel x capability grid for a user when its panel opens.
+function loadPermGrid(user, det) {
+  if (!det || !det.open) return;
+  var box = document.getElementById('permgrid-' + user);
+  if (!box || box.getAttribute('data-loaded')) return;
+  box.setAttribute('data-loaded', '1');
+  apiCall({ action: 'permissions-grid', username: user }).then(function(d) {
+    if (!d.ok) { box.textContent = d.error || 'Failed to load.'; box.removeAttribute('data-loaded'); return; }
+    box.innerHTML = renderPermGrid(d);
+  }).catch(function(e) { box.textContent = 'Error: ' + e.message; box.removeAttribute('data-loaded'); });
+}
+
+function renderPermGrid(d) {
+  var chans = d.channels || [], acts = d.actions || [], gb = d.granted_by || {};
+  var lbl = function(k) { return PERM_LABELS[k] || k; };
+  var by  = function(cap) { return (gb[cap] && gb[cap].length) ? gb[cap] : null; };
+  if (!d.groups || !d.groups.length) return '<p class="mg-empty">In no groups, so no capabilities.</p>';
+  var h = '<table class="audit-table" style="font-size:12px"><thead><tr><th>Capability \\ Channel</th>';
+  chans.forEach(function(c) {
+    h += '<th title="' + (by(c) ? 'granted by: ' + by(c).join(', ') : 'not granted') + '">' + escHtml(lbl(c)) + '</th>';
+  });
+  h += '</tr></thead><tbody>';
+  acts.forEach(function(a) {
+    h += '<tr><td title="' + (by(a) ? 'granted by: ' + by(a).join(', ') : 'not granted') + '">' + escHtml(lbl(a)) + '</td>';
+    chans.forEach(function(c) {
+      var ok = by(a) && by(c);
+      var tip = '';
+      if (by(a)) tip += lbl(a) + ' via ' + by(a).join(', ');
+      if (by(c)) tip += (tip ? '; ' : '') + lbl(c) + ' via ' + by(c).join(', ');
+      h += '<td style="text-align:center;color:' + (ok ? '#1a7f37' : '#ccc') + '" title="'
+        + escHtml(tip || 'not granted') + '">' + (ok ? '✓' : '·') + '</td>';
+    });
+    h += '</tr>';
+  });
+  h += '</tbody></table>';
+  h += '<p class="mg-muted" style="font-size:11px;margin-top:0.3rem">&#10003; = has the action AND the channel; '
+    + 'hover a cell or header for the granting group(s). Groups: ' + d.groups.map(escHtml).join(', ')
+    + '. (Manager-UI login still uses the per-account toggle until the clean cut.)</p>';
+  return h;
+}
+
 function groupsForUser(user) {
   var out = [];
   Object.keys(allGroups).forEach(function(g) {
@@ -288,6 +337,12 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   }).join('') : '<span class="mg-empty">No groups yet.</span>';
   grp += '</div>';
   h += sec('Groups', grp);
+
+  // --- Permissions viewer (read-only; derived from group membership) ---
+  var pv = '<details ontoggle="loadPermGrid(\'' + ue + '\', this)">'
+    + '<summary style="cursor:pointer">Show the channel &times; capability grid</summary>'
+    + '<div id="permgrid-' + ue + '" style="margin-top:0.4rem">&hellip;</div></details>';
+  h += sec('Permissions (derived)', pv);
 
   // --- Credentials (interactive login - human accounts only) ---
   // The connector credential (token) now lives in "Connect an AI assistant" below,

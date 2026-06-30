@@ -209,6 +209,9 @@ if ( $API_MODE ) {
         elsif ( $action eq 'group-settings-get' ) {
             $result = { ok => 1, groups => _group_settings_view() };
         }
+        elsif ( $action eq 'permissions-grid' ) {
+            $result = cmd_permissions_grid( $req->{username} );
+        }
         elsif ( $action eq 'group-settings-set' ) {
             $result = cmd_group_settings_set( $req->{group}, $req->{key}, $req->{value} );
         }
@@ -698,6 +701,10 @@ sub effective_settings {
         manage_content => $caps->{manage_content} ? JSON::PP::true() : JSON::PP::false(),
         manage_nav     => $caps->{manage_nav}     ? JSON::PP::true() : JSON::PP::false(),
         manage_forms   => $caps->{manage_forms}   ? JSON::PP::true() : JSON::PP::false(),
+        # SM095: channel capabilities (api/mcp) + user administration. Group-only.
+        api            => $caps->{api}            ? JSON::PP::true() : JSON::PP::false(),
+        mcp            => $caps->{mcp}            ? JSON::PP::true() : JSON::PP::false(),
+        manage_users   => $caps->{manage_users}   ? JSON::PP::true() : JSON::PP::false(),
         # SM071 Phase 2: access-token expiry (null = no expiry, e.g. a
         # human password or an operator-minted permanent credential).
         token_expires_at => $s->{token_expires_at},
@@ -1987,11 +1994,18 @@ sub write_users {
 
 sub _default_group_seed {
     return {
-        'content-manager'    => { label => 'Content manager',    manage_content => 1, manage_nav => 1, manage_forms => 1 },
-        'appearance-manager' => { label => 'Appearance manager', manage_themes => 1, manage_layouts => 1, manage_nav => 1 },
-        'ai-site-manager'    => { label => 'AI site manager',     webdav => 1, manage_content => 1, manage_layouts => 1,
-                                  manage_themes => 1, manage_forms => 1, manage_nav => 1, analytics => 1 },
-        'user-manager'       => { label => 'User manager',        create_sub_users => 1, delegate_sub_user_creation => 1 },
+        'content-editors' => { label => 'Content editors',
+            ui => 1, webdav => 1, manage_content => 1, manage_nav => 1, manage_forms => 1 },
+        'design-team'     => { label => 'Layouts & themes',
+            ui => 1, webdav => 1, manage_themes => 1, manage_layouts => 1 },
+        'agent-ai'        => { label => 'Agent AI',
+            webdav => 1, api => 1, manage_content => 1, manage_nav => 1, manage_forms => 1,
+            manage_themes => 1, manage_layouts => 1, analytics => 1 },
+        'mcp-ai'          => { label => 'MCP AI',
+            mcp => 1, manage_content => 1, manage_nav => 1, manage_forms => 1,
+            manage_themes => 1, manage_layouts => 1, analytics => 1 },
+        'user-managers'   => { label => 'User managers',
+            ui => 1, manage_users => 1, create_sub_users => 1, delegate_sub_user_creation => 1 },
     };
 }
 
@@ -2038,6 +2052,36 @@ sub manager_groups_effective {
     for my $g ( keys %$gs ) { $mg{$g} = 1 if $gs->{$g}{manager} }
     my @list = sort keys %mg;
     return @list;
+}
+
+# SM095 permission viewer: the channel x action grid for one account, with the
+# group(s) that grant each capability (read-only; for the Users page). Derived
+# rights only - it never sets anything.
+sub cmd_permissions_grid {
+    my ($user) = @_;
+    return { ok => 0, error => 'username required' } unless defined $user && length $user;
+    _ensure_groups_seeded();
+    my $gs = Lazysite::Auth::Settings::read_group_settings();
+    my %membership = read_groups();
+    my @mygroups = sort grep { grep { $_ eq $user } @{ $membership{$_} || [] } } keys %membership;
+
+    my %granted_by;    # cap => [ groups granting it ]
+    for my $g (@mygroups) {
+        my $cfg = $gs->{$g} or next;
+        for my $k ( @CAP_KEYS, 'manager' ) {
+            push @{ $granted_by{$k} }, $g if $cfg->{$k};
+        }
+    }
+    return {
+        ok         => 1,
+        user       => $user,
+        groups     => \@mygroups,
+        channels   => [qw(ui webdav api mcp)],
+        actions    => [qw(manage_content manage_nav manage_forms manage_themes
+            manage_layouts manage_config manage_users analytics
+            create_sub_users delegate_sub_user_creation)],
+        granted_by => \%granted_by,
+    };
 }
 
 # Unified Groups view for the manager UI: every group (from group-settings OR the

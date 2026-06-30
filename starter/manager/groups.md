@@ -33,18 +33,26 @@ var allGroups = {};   // {group: {label, manager, caps:{}, members:[]}}
 var allUsers  = [];   // [username]
 
 // The capability bools a group can carry (must match @CAP_KEYS in the users tool).
-var CAPS = [
-  ['webdav', 'WebDAV'],
-  ['manage_content', 'Manage content (pages)'],
-  ['manage_nav', 'Manage navigation'],
-  ['manage_forms', 'Manage forms'],
-  ['manage_themes', 'Manage themes'],
-  ['manage_layouts', 'Manage layouts'],
-  ['manage_config', 'Manage config'],
-  ['analytics', 'Analytics (visitor stats + audit)'],
+// Channels = WHERE you may operate; Actions = WHAT you may do. You need both.
+var CHANNELS = [
+  ['ui', 'Manager UI'],
+  ['webdav', 'WebDAV transport'],
+  ['api', 'Control API'],
+  ['mcp', 'MCP connector']
+];
+var ACTIONS = [
+  ['manage_content', 'Content (pages)'],
+  ['manage_nav', 'Navigation'],
+  ['manage_forms', 'Forms'],
+  ['manage_themes', 'Themes'],
+  ['manage_layouts', 'Layouts'],
+  ['manage_config', 'Site config (+ plugins)'],
+  ['manage_users', 'Users & groups'],
+  ['analytics', 'Analytics (stats + audit)'],
   ['create_sub_users', 'Create sub-users'],
   ['delegate_sub_user_creation', 'Delegate sub-users']
 ];
+var CAPS = CHANNELS.concat(ACTIONS);   // for counting
 
 function showStatus(msg, isError) {
   if (!msg) return;
@@ -101,13 +109,18 @@ function renderGroups() {
             members.length + ' member' + (members.length === 1 ? '' : 's') + '</span></summary>';
     h += '<div class="mg-acc-body">';
 
-    h += '<div class="mg-sec">Capabilities</div><div class="mg-checks">';
-    h += '<label class="mg-chk"><input type="checkbox"' + (info.manager ? ' checked' : '') +
-         ' onchange="toggleSetting(\'' + ge + '\',\'manager\',this)"> <b>Manager group</b> (full UI access)</label>';
-    h += CAPS.map(function(c) {
+    var row = function(c) {
       return '<label class="mg-chk"><input type="checkbox"' + (caps[c[0]] ? ' checked' : '') +
         ' onchange="toggleSetting(\'' + ge + '\',\'' + c[0] + '\',this)"> ' + escHtml(c[1]) + '</label>';
-    }).join('');
+    };
+    h += '<div class="mg-sec">Channels <span style="font-weight:400;color:#888">— where members may operate</span></div>';
+    h += '<div class="mg-checks">' + CHANNELS.map(row).join('') + '</div>';
+    h += '<div class="mg-sec">Actions <span style="font-weight:400;color:#888">— what they may do</span></div>';
+    h += '<div class="mg-checks">' + ACTIONS.map(row).join('') + '</div>';
+    h += '<div class="mg-sec">Manager (transitional)</div><div class="mg-checks">';
+    h += '<label class="mg-chk"><input type="checkbox"' + (info.manager ? ' checked' : '') +
+         ' onchange="toggleSetting(\'' + ge + '\',\'manager\',this)"> <b>Manager group</b> '
+         + '<span style="color:#888">(full Manager-UI access; being replaced by explicit capabilities)</span></label>';
     h += '</div>';
 
     h += '<div class="mg-sec">Members</div>';

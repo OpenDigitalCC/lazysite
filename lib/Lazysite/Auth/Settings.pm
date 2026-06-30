@@ -15,11 +15,14 @@ our @EXPORT_OK = qw(read_settings write_settings _consume_lock
 
 our $AUTH_DIR;    # "$DOCROOT/lazysite/auth", set by the script
 
-# SM095: the capability bools a group (or, transitionally, an account) can carry.
-# Action capabilities only; the seeded set is extended with channel caps (ui,
-# webdav, api, mcp) and manage_users by the refactor.
-our @CAP_KEYS = qw(webdav manage_content manage_nav manage_forms
-    manage_themes manage_layouts manage_config analytics
+# SM095: the capability bools a group can carry. Channel caps (where you may
+# operate) + action caps (what you may do). `ui` (Manager-UI login) converges from
+# the per-account flag onto this list in the clean-cut phase.
+our @CAP_KEYS = qw(
+    ui webdav api mcp
+    manage_content manage_nav manage_forms
+    manage_themes manage_layouts manage_config
+    manage_users analytics
     create_sub_users delegate_sub_user_creation);
 
 sub _settings_file       { "$AUTH_DIR/user-settings.json" }
@@ -98,6 +101,14 @@ sub caps_for {
     for my $k (qw(webdav manage_themes manage_layouts manage_config analytics
         create_sub_users delegate_sub_user_creation)) {
         $c{$k} = ( $s->{$k} || $gc->{$k} ) ? 1 : 0;
+    }
+    # New capabilities (channels ui/api/mcp; manage_users) are group-only - they
+    # never had a per-user form, so there is no legacy grant to union. NB: the
+    # interactive-login GATE still reads the per-account `ui` flag until the clean
+    # cut; this `ui` cap is the future channel grant (shown in the Groups page /
+    # permission viewer), enforced for login at phase (c).
+    for my $k (qw(ui api mcp manage_users)) {
+        $c{$k} = $gc->{$k} ? 1 : 0;
     }
     my $content = ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} )
         || $gc->{manage_content};
