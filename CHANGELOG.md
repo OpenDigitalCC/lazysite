@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.16 - Users page: all groups, faster load, grid headers (2026-06-30)
+
+Fix - users page
+: the group list now shows every group (incl. seeded roles with no members);
+  accounts + settings load in one batched call (was one subprocess per user); the
+  permission-grid channel headers are centred.
+
 ## 0.5.15 - Channel capabilities + permission viewer (2026-06-30)
 
 Feature - SM095 channel model + viewer

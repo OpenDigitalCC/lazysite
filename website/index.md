@@ -2,7 +2,9 @@
 title: lazysite
 subtitle: Markdown-driven static pages for any CGI-capable web server. No build step, no database, no CMS.
 tt_page_var:
-  hero: /assets/hero-themes-w.gif
+  hero_video: /assets/hero-themes-2.mp4
+  hero_webm: /assets/hero-themes-2.webm
+  hero_poster: /assets/hero-themes-2-poster.jpg
 register:
   - sitemap.xml
   - llms.txt
