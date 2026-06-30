@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.8 - Layout switch + backup proliferation fixes (2026-06-30)
+
+Fix - layout/theme management
+: a layout switch falls back to the new layout default theme instead of refusing
+  when the live theme is not declared for it; backup snapshots no longer chain
+  (-backup-...-backup-...); deleting a backup no longer spawns a replacement.
+
 ## 0.5.7 - AI visitor-log analysis Phase 2: audit (2026-06-30)
 
 Feature - audit analytics
