@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.12 - Group-based capabilities, Phase 1 (2026-06-30)
+
+Feature - SM095 group capabilities (backend)
+: capabilities can be carried by a group; members inherit the union. Seeds four
+  role groups + flags manager_groups (lazysite-admins) as a full-capability manager
+  group. Non-breaking - legacy per-user grants still apply this phase.
+
 ## 0.5.11 - Grant analytics from the UI + docs (2026-06-30)
 
 Fix - analytics permission UX
