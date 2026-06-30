@@ -116,7 +116,7 @@ function loadUsers() {
     .then(function(d) { if (d && d.ok && d.partner) ME = d.partner; return (d && d.ok && d.manager_groups) ? d.manager_groups : []; })
     .catch(function() { return []; });
   Promise.all([up, gp, wp]).then(function(res) {
-    var rows = res[0] || [];
+    var rows = (res[0] || []).filter(function(r) { return r && r.user != null; });
     allGroups = res[1] || {};
     MANAGER_GROUPS = res[2] || [];
     allUsers = rows.map(function(r) { return r.user; });
@@ -203,7 +203,7 @@ function renderUsers(rows) {
       roots.push(r);
     }
   });
-  function byName(a, b) { return a.user.localeCompare(b.user); }
+  function byName(a, b) { return String(a.user || '').localeCompare(String(b.user || '')); }
   function node(row, parentName) {
     var ch = (kids[row.user] || []).sort(byName);
     var kidsHtml = ch.map(function(c) { return node(c, row.user); }).join('');

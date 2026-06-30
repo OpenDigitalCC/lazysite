@@ -199,8 +199,12 @@ if ( $API_MODE ) {
             # per-user settings-get subprocess (N Perl startups) the manager UI did.
             my %users = read_users();
             _ensure_groups_seeded();
-            $result = { ok => 1, users =>
-                [ map { { user => $_, settings => effective_settings($_) } } sort keys %users ] };
+            # Capture the username in $u FIRST: effective_settings reads files with
+            # while(<$fh>), which clobbers the map's $_ - so building the hash inline
+            # from $_ could yield a null user. +{...} forces a hashref.
+            $result = { ok => 1, users => [
+                map { my $u = $_; +{ user => $u, settings => effective_settings($u) } }
+                grep { defined && length } sort keys %users ] };
         }
         elsif ( $action eq 'group-add' ) {
             cmd_group_add( $req->{username}, $req->{group} );

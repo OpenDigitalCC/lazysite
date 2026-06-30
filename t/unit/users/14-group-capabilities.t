@@ -160,6 +160,19 @@ sub api {
     ok( $r->{ok}, 'group-granted create_sub_users allows account-create' ) or diag explain $r;
 }
 
+# users-detail returns every account with a real username (regression: the map's
+# $_ must be captured before effective_settings reads files with while(<$fh>)).
+{
+    my $d = docroot();
+    cli( $d, 'add', 'alice', 'pw' );
+    cli( $d, 'add', 'bob',   'pw' );
+    cli( $d, 'group-add', 'alice', 'content-editors' );
+    my $r = api( $d, { action => 'users-detail' } );
+    is( scalar @{ $r->{users} }, 2, 'users-detail returns all accounts' );
+    ok( !( grep { !defined $_->{user} || !length $_->{user} } @{ $r->{users} } ),
+        'every users-detail row has a real username' );
+}
+
 # Phase 1 is non-breaking: a legacy per-user grant still resolves on.
 {
     my $d = docroot();
