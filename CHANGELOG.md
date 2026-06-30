@@ -18,6 +18,12 @@ Keying
 
 ## Unreleased
 
+## 0.5.21 - Group descriptions, audited group changes, sub-user ordering (2026-06-30)
+
+Feature - groups polish
+: groups gain a description field; group capability/membership changes are audited
+  with the group as the target; sub-users render at the top of the owning card.
+
 ## 0.5.20 - Clean cut: capabilities from groups only (2026-06-30)
 
 Feature - SM095 (c1)
