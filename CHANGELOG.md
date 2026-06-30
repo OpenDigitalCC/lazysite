@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+## 0.5.22 - Retire the manager group: Manager-UI is the `ui` capability (2026-06-30)
+
+Feature - SM095 (c2)
+: Manager-UI access and operator status are now explicit capabilities resolved
+  through groups, not a special "manager" group. A group's `ui` channel capability
+  grants Manager-UI access (processor gate + login landing); the manage_users
+  action is the unrestricted account-management operator bypass. manager_groups
+  stays as a non-breaking fallback so no site is locked out. The Groups page drops
+  the transitional "Manager group" toggle.
+
 ## 0.5.21 - Group descriptions, audited group changes, sub-user ordering (2026-06-30)
 
 Feature - groups polish
