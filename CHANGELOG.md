@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.5.20 - Clean cut: capabilities from groups only (2026-06-30)
+
+Feature - SM095 (c1)
+: capabilities resolve from group membership ONLY - per-account grants are no
+  longer honoured or settable. Partner/sub-user creation grants via a role group;
+  whoami reports the full capability set; the Users page capability toggles are
+  replaced by a read-only summary + the Groups page.
+
 ## 0.5.19 - Analytics over the control API (2026-06-30)
 
 Feature - analytics on the API channel
