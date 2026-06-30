@@ -13,7 +13,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
@@ -58,6 +58,11 @@ users_api( $d, { action => 'add', username => 'mgr',   password => 'pw' } );
 users_api( $d, { action => 'add', username => 'plain', password => 'pw' } );
 users_api( $d, { action => 'group-add', username => 'mgr', group => 'admin' } );
 
+# SM095 (c2): a user whose group carries the `ui` channel capability lands in
+# the manager even though that group is NOT a manager_group.
+users_api( $d, { action => 'add', username => 'capui', password => 'pw' } );
+grant_caps( $d, 'capui', 'ui' );
+
 my %base = ( DOCUMENT_ROOT => $d, REMOTE_ADDR => '127.0.0.1', HTTPS => '' );
 sub login {
     my ( $user, $next ) = @_;
@@ -75,5 +80,8 @@ unlike( $plain, qr{Location:\s*/manager/}, 'non-manager does NOT land in the man
 
 like( login( 'mgr', '/about' ), qr{Location:\s*/about},
     'an explicit next is honoured for a manager' );
+
+like( login( 'capui', '/' ), qr{Location:\s*/manager/},
+    'a user with the ui capability (no manager group) lands in the manager' );
 
 done_testing;

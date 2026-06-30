@@ -440,9 +440,27 @@ sub check_auth {
     };
 }
 
+# SM095: does any of these groups carry capability $cap (from groups-settings.json)?
+sub _groups_grant_cap {
+    my ( $cap, @groups ) = @_;
+    return 0 unless @groups;
+    my $f = "$DOCROOT/lazysite/auth/groups-settings.json";
+    return 0 unless -f $f;
+    require JSON::PP;
+    open my $fh, '<', $f or return 0;
+    local $/;
+    my $gs = eval { JSON::PP::decode_json( <$fh> ) } || {};
+    close $fh;
+    for my $g (@groups) { return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap} }
+    return 0;
+}
+
 sub _is_manager {
     my ( $site_vars, $auth_user, $auth_groups ) = @_;
     return 0 unless $auth_user;
+    # SM095: Manager-UI access is the `ui` channel capability, granted via a group.
+    # manager_groups is kept below as a non-breaking fallback.
+    return 1 if _groups_grant_cap( 'ui', split /\s*,\s*/, ( $auth_groups // '' ) );
     my $manager_groups = $site_vars->{manager_groups} // '';
     $manager_groups =~ s/^\s+|\s+$//g;
     if ( !length $manager_groups ) {

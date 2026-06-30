@@ -173,7 +173,7 @@ function renderPermGrid(d) {
   h += '</tbody></table>';
   h += '<p class="mg-muted" style="font-size:11px;margin-top:0.3rem">&#10003; = has the action AND the channel; '
     + 'hover a cell or header for the granting group(s). Groups: ' + d.groups.map(escHtml).join(', ')
-    + '. (Manager-UI login still uses the per-account toggle until the clean cut.)</p>';
+    + '. Manager-UI access is the <b>Manager UI</b> channel capability, granted through a group.</p>';
   return h;
 }
 
@@ -291,13 +291,6 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
     '<button class="mg-btn mg-btn-sm" onclick="saveEmail(\'' + ue + '\')">Save</button>' +
     '<span class="mg-inline-msg" id="emailmsg-' + ue + '"></span></div>';
   h += sec('Notes', nb);
-
-  // Is this account an operator (member of a manager group)? Operators have full
-  // manager access and bypass the per-account capabilities, so we hide the toggles
-  // for them and show a note instead (SM094).
-  var mineGroups = groupsForUser(u);
-  var opGroups   = mineGroups.filter(function(g) { return MANAGER_GROUPS.indexOf(g) !== -1; });
-  var isOperator = opGroups.length > 0;
 
   // --- Access ---
   // Type is a Human/AI switch (the `ui` setting), matching the Add-user

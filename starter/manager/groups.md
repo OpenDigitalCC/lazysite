@@ -8,10 +8,11 @@ search: false
 
 <div class="mg-domain-note">
 A <b>group</b> (<code>@name</code>) is a role: its <b>capabilities</b> (content,
-themes, analytics, &hellip;) and <b>manager</b> status are assigned here, and every
-member inherits the <b>union</b> of their groups' permissions. Add a user to a
-group below or from the <a href="/manager/users">Users</a> page. A group flagged
-<b>Manager group</b> grants full Manager-UI access to its members.
+themes, analytics, &hellip;) are assigned here, and every member inherits the
+<b>union</b> of their groups' permissions. Add a user to a group below or from
+the <a href="/manager/users">Users</a> page. Access to this Manager UI is the
+<b>Manager UI</b> channel capability; full user administration is the
+<b>Users &amp; groups</b> action.
 </div>
 
 <div class="mg-card">
@@ -120,11 +121,6 @@ function renderGroups() {
     h += '<div class="mg-checks">' + CHANNELS.map(row).join('') + '</div>';
     h += '<div class="mg-sec">Actions <span style="font-weight:400;color:#888">— what they may do</span></div>';
     h += '<div class="mg-checks">' + ACTIONS.map(row).join('') + '</div>';
-    h += '<div class="mg-sec">Manager (transitional)</div><div class="mg-checks">';
-    h += '<label class="mg-chk"><input type="checkbox"' + (info.manager ? ' checked' : '') +
-         ' onchange="toggleSetting(\'' + ge + '\',\'manager\',this)"> <b>Manager group</b> '
-         + '<span style="color:#888">(full Manager-UI access; being replaced by explicit capabilities)</span></label>';
-    h += '</div>';
 
     h += '<div class="mg-sec">Members</div>';
     if (!members.length) {

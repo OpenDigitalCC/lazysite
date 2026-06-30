@@ -79,6 +79,15 @@ my $op = manage( $d, 'admin', 'managers', { action => 'claim-create', username =
 ok( $op->{ok}, 'operator may generate a setup link for an account it did not create' );
 like( $op->{claim} // '', qr/^lzc_/, 'a claim token was minted' );
 
+# SM095 (c2): operator status is the manage_users capability, not just manager-
+# group membership. 'umadmin' is in NO manager group but carries manage_users via
+# a group (role-umadmin), so it may manage an account it did not create.
+uapi( $d, { action => 'add', username => 'umadmin', password => 'x' } );
+grant_caps( $d, 'umadmin', 'manage_users' );
+my $cap = manage( $d, 'umadmin', 'role-umadmin', { action => 'claim-create', username => 'sw' } );
+ok( $cap->{ok}, 'a manage_users-capable account (no manager group) is an operator' );
+like( $cap->{claim} // '', qr/^lzc_/, 'claim token minted for the cap-based operator' );
+
 # Delegated sub-manager outside sw's tree is refused.
 my $no = manage( $d, 'other', 'authors', { action => 'claim-create', username => 'sw' } );
 ok( !$no->{ok}, 'a non-operator outside the sub-tree is refused' );

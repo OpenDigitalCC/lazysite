@@ -94,14 +94,30 @@ sub _acl_allows {
 # unsecured site (no manager_groups) treats cookie clients as operators; the
 # 'local' user is always operator; else manager-group membership decides. The
 # token path never consults the client-influenceable X-Remote-Groups.
+# SM095: does any of these groups carry capability $cap (from groups-settings.json)?
+sub _groups_grant_cap {
+    my ( $cap, @groups ) = @_;
+    return 0 unless @groups;
+    my $f = "$DOCROOT/lazysite/auth/groups-settings.json";
+    return 0 unless -f $f;
+    open my $fh, '<', $f or return 0;
+    local $/;
+    my $gs = eval { JSON::PP::decode_json( <$fh> ) } || {};
+    close $fh;
+    for my $g (@groups) { return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap} }
+    return 0;
+}
+
 sub _is_operator {
     return 0 if $token_auth;
     return 1 unless length $manager_groups_conf;       # unsecured / dev
     return 1 if ( $auth_user // '' ) eq 'local';
+    my @ug = grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+    # SM095: unrestricted account management is the manage_users capability;
+    # manager_groups remains a non-breaking fallback.
+    return 1 if _groups_grant_cap( 'manage_users', @ug );
     my %mg = map { $_ => 1 } grep { length } split /[,\s]+/, $manager_groups_conf;
-    for my $g ( grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' ) ) {
-        return 1 if $mg{$g};
-    }
+    for my $g (@ug) { return 1 if $mg{$g} }
     return 0;
 }
 
