@@ -30,6 +30,11 @@
       "ghost": "Required (MySQL, or SQLite for small installs)"
     },
     {
+      "label": "Footprint",
+      "lazysite": "Tiny - one CGI script plus Perl modules from your distro",
+      "ghost": "Heavy - a Node.js application plus a database"
+    },
+    {
       "label": "Dynamic content",
       "lazysite": "Server-side templating, remote data, query parameters",
       "ghost": "Yes, within its publishing model"

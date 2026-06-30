@@ -30,6 +30,11 @@
       "hugo": "None - files only"
     },
     {
+      "label": "Footprint",
+      "lazysite": "Tiny - one CGI script plus Perl modules from your distro",
+      "hugo": "Small - a single Go binary; static output"
+    },
+    {
       "label": "Dynamic content",
       "lazysite": "Server-side templating, remote data, query parameters",
       "hugo": "Static only - needs external JavaScript services"

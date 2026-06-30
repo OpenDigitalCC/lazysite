@@ -204,6 +204,12 @@
           "how_label": ""
         },
         {
+          "title": "Tiny footprint, low cost",
+          "what": "One small CGI script plus a few Perl modules - no database, no application server, no build pipeline. The minimal infrastructure runs on almost anything and costs very little to host.",
+          "how_url": "",
+          "how_label": ""
+        },
+        {
           "title": "Fast by default",
           "what": "Dynamic only on the first request; plain cached HTML is served after that, with fine-grained control over caching.",
           "how_url": "/docs/features/development/cache-management",

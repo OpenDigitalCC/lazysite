@@ -1,20 +1,410 @@
 {
-  "intro": "Honest, factual comparisons of lazysite with other ways to build a site - what each is best suited for, side by side. Pick the one closest to what you use today.",
-  "comparisons": [
+  "intro": "Tick the tools you want to compare lazysite against - one or several at once. lazysite is always the first column. Hover any value for its source.",
+  "lazysite_key": "lazysite",
+  "groups": [
+    "Architecture",
+    "Capabilities",
+    "Design & experience",
+    "Hosting & operations"
+  ],
+  "systems": [
     {
-      "subject": "WordPress",
-      "what": "The default CMS - a database, an admin UI and a vast plugin ecosystem.",
-      "url": "/comparison/wordpress"
+      "key": "lazysite",
+      "name": "lazysite",
+      "tagline": "Markdown files served and cached on the fly by a small CGI script - no build, no database.",
+      "best_for": "Content-led and documentation sites, AI-assisted publishing, and anyone who wants a fast, low-maintenance site they fully own - with dynamic features and paid pages when they are needed.",
+      "source": "https://lazysite.io/features"
     },
     {
-      "subject": "Hugo",
-      "what": "A fast static-site generator with a build step and Go templates.",
-      "url": "/comparison/hugo"
+      "key": "wordpress",
+      "name": "WordPress",
+      "tagline": "A mature PHP CMS with a database, a full admin UI and a vast plugin ecosystem.",
+      "best_for": "Sites that need a point-and-click admin for non-technical editors, off-the-shelf plugins (e-commerce, membership, SEO), and a large pool of developers and agencies.",
+      "source": "https://wordpress.org"
     },
     {
-      "subject": "Ghost",
-      "what": "A modern publishing platform with memberships and newsletters.",
-      "url": "/comparison/ghost"
+      "key": "hugo",
+      "name": "Hugo",
+      "tagline": "A very fast static-site generator that compiles Markdown to static files with Go templates.",
+      "best_for": "Large, purely static sites maintained by developers who want a build pipeline, version-controlled deploys and a big theme ecosystem.",
+      "source": "https://gohugo.io"
+    },
+    {
+      "key": "ghost",
+      "name": "Ghost",
+      "tagline": "A modern publishing platform built around posts, paid memberships and email newsletters.",
+      "best_for": "Professional publishers who want memberships, subscriptions and newsletters out of the box, on a Node and database stack.",
+      "source": "https://ghost.org"
+    }
+  ],
+  "items": [
+    {
+      "label": "Content format",
+      "group": "Architecture",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Plain Markdown files you own",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Rich content in a database (block editor)",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Markdown, compiled to static files",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "Rich posts in a database (web editor)",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Build step",
+      "group": "Architecture",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "None - renders on request, caches the result",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "None - generated dynamically by PHP",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Yes - rebuild the whole site on every change",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "None - a dynamic Node application",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Database",
+      "group": "Architecture",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "None - files only",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Required (MySQL / MariaDB)",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "None - files only",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "Required (MySQL, or SQLite for small installs)",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Footprint",
+      "group": "Architecture",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Tiny - one CGI script plus Perl modules from your distro",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Heavy - PHP plus a MySQL/MariaDB database",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Small - a single Go binary; static output",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "Heavy - a Node.js application plus a database",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Dynamic content",
+      "group": "Capabilities",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Server-side templating, remote data, query parameters",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Yes - PHP and plugins",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Static only - needs external JavaScript services",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "Yes, within its publishing model",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Built-in forms, auth & payments",
+      "group": "Capabilities",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "All built in (forms, sign-in, x402 pay-per-read)",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Added through plugins",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "External services only",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "Memberships built in; forms via integrations",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "AI-first management",
+      "group": "Capabilities",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Built for it - agents edit over WebDAV, an API or MCP",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Possible via the REST API or plugins",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Edit the source, then build and deploy",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "A content API exists; the product centres on its editor",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Memberships & paid content",
+      "group": "Capabilities",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Pay-per-read (x402) and per-user access",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Via membership or e-commerce plugins",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "External services only",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "Built-in memberships and subscriptions (Stripe)",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Themes & customisation",
+      "group": "Design & experience",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Layout plus theme tokens - one file to re-skin",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Thousands of themes; PHP and block templates",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Large theme ecosystem (Go templates)",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "Handlebars themes with a marketplace",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Editing experience",
+      "group": "Design & experience",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Markdown files, a simple manager, or an AI agent",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "A polished WYSIWYG admin",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Markdown files plus a build step",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "A polished web editor",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Hosting",
+      "group": "Hosting & operations",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Any CGI host, or its own built-in server",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "A managed WordPress host or a LAMP server",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Any static host or CDN",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "A Node host you manage, or paid Ghost(Pro)",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Performance",
+      "group": "Hosting & operations",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Cached static HTML after the first hit",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Dynamic; usually needs caching plugins or a CDN",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Pre-built static files",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "Dynamic; caching or a CDN recommended",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Backup",
+      "group": "Hosting & operations",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Copy the files - nothing else to dump",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Database plus files - usually a plugin",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Copy the source files - nothing else",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "Database plus files; export tools",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Migration & portability",
+      "group": "Hosting & operations",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Move the folder anywhere - plain files",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Export/import the database and media; migration plugins",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Move the source folder - plain files",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "Export and import via Ghost's tools",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Maintenance & security surface",
+      "group": "Hosting & operations",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Small - static files, no database, a compact codebase",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Large - database, PHP and plugins; a frequent target",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Minimal at runtime - static output",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "A Node runtime and database to keep updated",
+          "source": "https://ghost.org"
+        }
+      }
+    },
+    {
+      "label": "Cost",
+      "group": "Hosting & operations",
+      "source": "https://lazysite.io/features",
+      "values": {
+        "lazysite": {
+          "text": "Free, with minimal hosting",
+          "source": "https://lazysite.io/features"
+        },
+        "wordpress": {
+          "text": "Free core, but hosting and premium add-ons add up",
+          "source": "https://wordpress.org"
+        },
+        "hugo": {
+          "text": "Free; cheap static hosting",
+          "source": "https://gohugo.io"
+        },
+        "ghost": {
+          "text": "Free to self-host (you run it), or paid Ghost(Pro)",
+          "source": "https://ghost.org"
+        }
+      }
     }
   ]
 }

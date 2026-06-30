@@ -30,6 +30,11 @@
       "wordpress": "Required (MySQL / MariaDB)"
     },
     {
+      "label": "Footprint",
+      "lazysite": "Tiny - one CGI script plus Perl modules from your distro",
+      "wordpress": "Heavy - PHP plus a MySQL/MariaDB database"
+    },
+    {
       "label": "Dynamic content",
       "lazysite": "Server-side templating, remote data, query parameters",
       "wordpress": "Yes - PHP and plugins"

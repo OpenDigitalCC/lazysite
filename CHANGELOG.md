@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.1 - New-site fixes: login layout, self-service link, webdav gate, logout audit (2026-06-30)
+
+Fixes
+: login form stacks correctly (password was beside 2FA); setup-manager --link
+  prints a self-service password URL; per-user WebDAV errors when WebDAV is off
+  site-wide; an unauthenticated /logout no longer writes audit noise.
+
 ## 0.5.0 - Stable consolidation release (2026-06-29)
 
 Stable milestone
