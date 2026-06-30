@@ -507,6 +507,9 @@ sub cmd_list {
 sub cmd_group_add {
     my ( $user, $group ) = @_;
     die "Username and group required\n" unless $user && $group;
+    # Ensure the default role groups (and their capabilities) exist, so adding a
+    # user to e.g. user-managers actually confers that group's caps via caps_for.
+    _ensure_groups_seeded();
 
     my %users = read_users();
     # exists, not truthiness: a token-only account (empty hash) can still
@@ -886,7 +889,9 @@ sub cmd_account_create {
     die "Creator '$creator' not found\n" unless exists $users{$creator};
 
     my $all = read_settings();
-    my $cs  = $all->{$creator} || {};
+    # SM095 (c0): the creator's capabilities come from the ONE resolver (group +,
+    # transitionally, per-user), not a direct settings read.
+    my $cs = caps_for($creator);
     die "Creator '$creator' lacks create_sub_users permission\n"
         unless $cs->{create_sub_users};
     if ( $opt{create_subs} ) {
@@ -1762,7 +1767,7 @@ sub cmd_onboarding_web {
         domain           => $domain,         # the connector name (one per site)
         connector_url    => "$base/cgi-bin/lazysite-mcp.pl",
         connector_setup  => _connector_setup_text( $user, $cc->{code}, $domain, $base ),
-        assistant_prompt => _assistant_prompt( $user, $domain, $base, $s ),
+        assistant_prompt => _assistant_prompt( $user, $domain, $base, effective_settings($user) ),
     };
 }
 
@@ -1845,7 +1850,7 @@ sub cmd_onboarding {
     return {
         username    => $user,
         pairing_key => $key,
-        onboarding  => _onboarding_brief( $user, $key, $all->{$user} || {} ),
+        onboarding  => _onboarding_brief( $user, $key, effective_settings($user) ),
     };
 }
 
@@ -1873,7 +1878,7 @@ sub cmd_partner_create {
     write_settings($all);
     log_event( 'INFO', $name, 'partner created', created_by => $opt{created_by} );
 
-    my $brief = _onboarding_brief( $name, $key, $all->{$name} );
+    my $brief = _onboarding_brief( $name, $key, effective_settings($name) );
     print $brief unless $API_MODE;
     return { username => $name, pairing_key => $key, onboarding => $brief };
 }

@@ -149,6 +149,17 @@ sub api {
     ok( !@{ $g->{granted_by}{ui} || [] }, 'mcp-ai does not grant the ui channel' );
 }
 
+# SM095 (c0): the sub-user creation gate reads the central resolver, so a creator
+# whose create_sub_users comes from a GROUP may create a sub-user.
+{
+    my $d = docroot();
+    cli( $d, 'add', 'boss', 'pw' );
+    cli( $d, 'group-add', 'boss', 'user-managers' );    # grants create_sub_users
+    my $r = api( $d,
+        { action => 'account-create', username => 'kid', password => 'x', created_by => 'boss' } );
+    ok( $r->{ok}, 'group-granted create_sub_users allows account-create' ) or diag explain $r;
+}
+
 # Phase 1 is non-breaking: a legacy per-user grant still resolves on.
 {
     my $d = docroot();
