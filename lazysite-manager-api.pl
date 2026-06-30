@@ -45,6 +45,7 @@ use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action
 use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
     action_layouts_release_contents action_layouts_available action_themes_for_layout
     action_layout_delete action_layouts_manifest action_layout_install
+    action_artifact_backups_delete
     action_layouts_repo_get action_layouts_repo_set);
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download);
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -291,6 +292,7 @@ if ( $token_auth ) {
         # SM: a layouts manager may install/remove layouts on demand from the repo.
         'layout-install'    => sub { $_[0]->{manage_layouts} },
         'layout-delete'     => sub { $_[0]->{manage_layouts} },
+        'artifact-backups-delete' => sub { $_[0]->{manage_layouts} || $_[0]->{manage_themes} },
         # SM105: navigation is a token-client action gated by manage_nav (which
         # inherits manage_content / webdav), so a WebDAV/API partner can read and
         # write the site nav without the MCP connector or raw WebDAV to lazysite/.
@@ -369,6 +371,7 @@ elsif ( $action eq 'theme-activate' )   { $result = action_theme_activate($path,
 elsif ( $action eq 'layout-activate' )  { $result = action_layout_activate($path, \%params) }
 elsif ( $action eq 'theme-delete' )     { $result = action_theme_delete($path) }
 elsif ( $action eq 'layout-delete' )    { $result = action_layout_delete($path) }
+elsif ( $action eq 'artifact-backups-delete' ) { $result = action_artifact_backups_delete($path) }
 elsif ( $action eq 'theme-rename' )     {
     my $req = eval { decode_json($body) } // {};
     $result = action_theme_rename( $path, $req->{new_name} );

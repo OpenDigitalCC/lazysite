@@ -88,4 +88,26 @@ subtest 'missing layout' => sub {
     like( $r->{error}, qr/not found/i, 'error mentions not found' );
 };
 
+subtest 'artifact-backups-delete purges layout + theme backups, spares the active layout' => sub {
+    make_path("$docroot/lazysite/layouts/old-backup-20260101T000000Z/themes/x");
+    make_path("$docroot/lazysite/layouts/default/themes/default-backup-20260101T000000Z");
+    my $r = main::action_artifact_backups_delete('');
+    ok( $r->{ok}, 'purge ok' );
+    ok( $r->{deleted} >= 2, 'removed both backups' ) or diag explain $r;
+    ok( !-d "$docroot/lazysite/layouts/old-backup-20260101T000000Z", 'backup layout removed' );
+    ok( !-d "$docroot/lazysite/layouts/default/themes/default-backup-20260101T000000Z", 'theme backup removed' );
+    ok(  -d "$docroot/lazysite/layouts/default", 'active layout preserved' );
+};
+
+subtest 'artifact-backups-delete by path: one backup; rejects a non-backup path' => sub {
+    make_path("$docroot/lazysite/layouts/default/themes/default-backup-20260202T000000Z");
+    my $bad = main::action_artifact_backups_delete('lazysite/layouts/default');
+    ok( !$bad->{ok}, 'a non-backup path is refused' );
+    ok( -d "$docroot/lazysite/layouts/default", 'real layout untouched' );
+    my $one = main::action_artifact_backups_delete(
+        'lazysite/layouts/default/themes/default-backup-20260202T000000Z' );
+    ok( $one->{ok} && $one->{deleted} == 1, 'a single named backup is deleted' );
+    ok( !-d "$docroot/lazysite/layouts/default/themes/default-backup-20260202T000000Z", 'it is gone' );
+};
+
 done_testing;

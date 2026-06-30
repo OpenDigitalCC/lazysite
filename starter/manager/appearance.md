@@ -195,6 +195,7 @@ function renderInstalled(layouts, byLayout) {
     layouts = [ACTIVE_LAYOUT].concat(layouts.filter(function(l){ return l !== ACTIVE_LAYOUT; }));
   }
   var html = '';
+  var allBackups = [];   // {layout, name, path} - collapsed into one panel below
   for (var g = 0; g < layouts.length; g++) {
     var L = layouts[g], isActiveL = (L === ACTIVE_LAYOUT);
     html += '<div class="mg-handler-group" style="margin:0.5rem;">';
@@ -211,7 +212,16 @@ function renderInstalled(layouts, byLayout) {
     }
     html += '</div></div>';
 
-    var themes = (byLayout[L] || []).slice().sort();
+    var allThemes = (byLayout[L] || []).slice().sort();
+    var themes = [];
+    for (var bi = 0; bi < allThemes.length; bi++) {
+      if (isBackupName(allThemes[bi])) {
+        allBackups.push({ layout: L, name: allThemes[bi],
+          path: 'lazysite/layouts/' + L + '/themes/' + allThemes[bi] });
+      } else {
+        themes.push(allThemes[bi]);
+      }
+    }
     if (!themes.length) {
       html += '<div class="mg-handler-item"><span class="mg-empty">No themes for this layout.</span></div>';
     }
@@ -236,7 +246,55 @@ function renderInstalled(layouts, byLayout) {
     }
     html += '</div>';
   }
+  html += renderBackupsPanel(allBackups);
   box.innerHTML = html;
+}
+
+function isBackupName(n) { return /-backup-\d{8}T\d{6}Z/.test(n); }
+
+// All old theme/layout snapshots folded into ONE collapsed panel: a count, a
+// batch "delete all", and per-item delete. Keeps the installed list clean.
+function renderBackupsPanel(backups) {
+  if (!backups.length) return '';
+  var h = '<details class="mg-handler-group" style="margin:0.5rem;">';
+  h += '<summary style="cursor:pointer;padding:0.5rem;font-weight:600;">'
+     + 'Backups (' + backups.length + ') – old theme/layout snapshots</summary>';
+  h += '<div style="padding:0.3rem 0.6rem;">';
+  h += '<div style="font-size:0.8rem;color:#888;margin:0 0 0.4rem;">Snapshots kept when a '
+     + 'layout or theme is switched or deleted. Safe to remove; the active layout is never touched.</div>';
+  h += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="purgeAllBackups()">Delete all backups</button>';
+  for (var i = 0; i < backups.length; i++) {
+    var b = backups[i];
+    h += '<div class="mg-handler-item"><div class="mg-handler-item-header">';
+    h += '<span class="mg-handler-name">' + escHtml(b.layout) + ' / ' + escHtml(b.name) + '</span>';
+    h += '<span style="flex:1;"></span><div class="mg-handler-item-actions">';
+    h += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteBackup(\'' + escHtml(b.path) + '\')">Delete</button>';
+    h += '</div></div></div>';
+  }
+  h += '</div></details>';
+  return h;
+}
+
+function deleteBackup(path) {
+  fetch(API + '?action=artifact-backups-delete&path=' + encodeURIComponent(path), { method: 'POST' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.ok) { showStatus('Backup deleted.'); loadAll(); }
+      else { showStatus(d.error || 'Delete failed.', true); }
+    });
+}
+
+function purgeAllBackups() {
+  mgConfirm('Delete ALL layout/theme backups? This removes every snapshot on disk '
+    + '(the active layout and theme are never touched).', { ok: 'Delete all' }).then(function(ok) {
+    if (!ok) return;
+    fetch(API + '?action=artifact-backups-delete', { method: 'POST' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d.ok) { showStatus('Removed ' + d.deleted + ' backup(s).'); loadAll(); }
+        else { showStatus(d.error || 'Delete failed.', true); }
+      });
+  });
 }
 
 function activateLayout(name) {

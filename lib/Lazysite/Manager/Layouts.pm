@@ -23,7 +23,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(
     action_layouts_releases action_layouts_install action_layouts_release_contents
     action_layouts_available action_themes_for_layout action_layout_delete
-    action_layouts_manifest action_layout_install
+    action_layouts_manifest action_layout_install action_artifact_backups_delete
     action_layouts_repo_get action_layouts_repo_set);
 
 our $DOCROOT;
@@ -645,6 +645,45 @@ sub action_layout_delete {
         deleted        => $layout_name,
         themes_removed => \@themes,
     };
+}
+
+# Delete layout/theme BACKUP snapshots. With a path: that one backup (validated to
+# be a -backup-<ts> directory inside layouts/). Without (or '*'): purge them all -
+# both top-level layout backups and per-layout theme backups. Never touches the
+# active layout. Frees the operator from the backup clutter the lists accumulate.
+sub action_artifact_backups_delete {
+    my ($rel) = @_;
+    my $layouts_dir = "$DOCROOT/lazysite/layouts";
+    return { ok => 0, error => 'No layouts directory' } unless -d $layouts_dir;
+    my $root = realpath($layouts_dir);
+    my ( $active_layout, undef ) = _read_active_layout_and_theme();
+    my $active_real = ( length $active_layout ) ? realpath("$layouts_dir/$active_layout") : '';
+
+    my @targets;
+    if ( defined $rel && length $rel && $rel ne '*' ) {
+        $rel =~ s{^/+}{};
+        return { ok => 0, error => 'Not a backup path' }
+            unless $rel =~ m{^lazysite/layouts/[^/]+(?:/themes/[^/]+)?$}
+                && $rel =~ /-backup-\d{8}T\d{6}Z\z/;
+        my $real = realpath("$DOCROOT/$rel");
+        return { ok => 0, error => 'Invalid path' }
+            unless $real && index( $real, "$root/" ) == 0 && -d $real;
+        push @targets, $real;
+    }
+    else {
+        for my $g ( glob("$layouts_dir/*-backup-*"), glob("$layouts_dir/*/themes/*-backup-*") ) {
+            push @targets, $g if -d $g && $g =~ /-backup-\d{8}T\d{6}Z\z/;
+        }
+    }
+
+    my ( $deleted, $skipped ) = ( 0, 0 );
+    for my $t (@targets) {
+        if ( length $active_real && $t eq $active_real ) { $skipped++; next }  # never the active layout
+        $deleted++ if system( 'rm', '-rf', $t ) == 0;
+    }
+    log_event( 'INFO', 'artifact-backups-delete', 'removed layout/theme backups',
+        count => $deleted, skipped => $skipped, user => $auth_user );
+    return { ok => 1, deleted => $deleted, skipped => $skipped };
 }
 
 sub action_layouts_repo_get {
