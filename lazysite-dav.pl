@@ -39,7 +39,7 @@ use Lazysite::Util qw(log_event const_eq);
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Acl qw(_acl_allows);
 use Lazysite::Auth::Credential qw(verify_password);
-use Lazysite::Auth::Settings qw(read_settings);
+use Lazysite::Auth::Settings qw(read_settings caps_for);
 $Lazysite::Util::COMPONENT = 'dav';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT};
@@ -1069,35 +1069,13 @@ sub authorise_layout {
     return undef;
 }
 
-sub manage_themes_for {
-    my ($user) = @_;
-    my $s = read_settings()->{$user};
-    return ( ref $s eq 'HASH' && $s->{manage_themes} ) ? 1 : 0;
-}
-
-sub manage_layouts_for {
-    my ($user) = @_;
-    my $s = read_settings()->{$user};
-    return ( ref $s eq 'HASH' && $s->{manage_layouts} ) ? 1 : 0;
-}
-
-sub manage_config_for {
-    my ($user) = @_;
-    my $s = read_settings()->{$user};
-    return ( ref $s eq 'HASH' && $s->{manage_config} ) ? 1 : 0;
-}
-
-# SM082: may this user read/write the content namespace? Defaults to the webdav
-# grant when manage_content is unset (back-compat); set off for a theme-only
-# partner.
-sub manage_content_for {
-    my ($user) = @_;
-    my $s = read_settings()->{$user};
-    return 0 unless ref $s eq 'HASH';
-    return defined $s->{manage_content}
-        ? ( $s->{manage_content} ? 1 : 0 )
-        : ( $s->{webdav}         ? 1 : 0 );
-}
+# SM095: all capability checks go through the one central resolver (caps_for),
+# the same one the manager UI / control API / MCP consult - so a group grant
+# applies identically over WebDAV.
+sub manage_themes_for  { return caps_for( $_[0] )->{manage_themes}  ? 1 : 0 }
+sub manage_layouts_for { return caps_for( $_[0] )->{manage_layouts} ? 1 : 0 }
+sub manage_config_for  { return caps_for( $_[0] )->{manage_config}  ? 1 : 0 }
+sub manage_content_for { return caps_for( $_[0] )->{manage_content} ? 1 : 0 }
 
 sub is_blocked {
     my ( $rel, $conf ) = @_;
@@ -1208,9 +1186,7 @@ sub load_users {
 
 
 sub webdav_enabled_for {
-    my ($user) = @_;
-    my $s = read_settings()->{$user};
-    return ( ref $s eq 'HASH' && $s->{webdav} ) ? 1 : 0;
+    return caps_for( $_[0] )->{webdav} ? 1 : 0;
 }
 
 # SM071 Phase 3 (P3.6): per-token volume token-bucket, shared with the
