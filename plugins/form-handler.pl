@@ -103,8 +103,19 @@ eval {
         validate_uploads( $files, $conf->{upload} );
     }
 
+    my $delivered = 0;
     for my $target ( @{ $conf->{targets} } ) {
-        dispatch( $target, \%form, \%handlers );
+        $delivered += ( dispatch( $target, \%form, \%handlers ) ? 1 : 0 );
+    }
+
+    # If NOTHING actually accepted the submission - every target disabled, unknown,
+    # or failed (e.g. the form handler / its delivery plugin is turned off) - the
+    # submission was NOT saved. Fail loudly instead of showing a false "thank you".
+    unless ($delivered) {
+        log_event( 'ERROR', $name, 'form not delivered - no active target',
+            ip => $ENV{REMOTE_ADDR} // 'unknown' );
+        reject_user( 'This form is not accepting submissions right now '
+            . '(no active delivery target). Please contact the site owner.' );
     }
 
     log_event( 'INFO', $name, 'form received', ip => $ENV{REMOTE_ADDR} // 'unknown' );
@@ -212,12 +223,12 @@ sub dispatch {
         my $id = $target->{handler};
         unless ( $handlers_ref->{$id} ) {
             log_event( 'WARN', $form->{_form} // '-', 'unknown handler', handler => $id );
-            return;
+            return 0;
         }
         %h_config = %{ $handlers_ref->{$id} };
 
         if ( lc( $h_config{enabled} // 'true' ) eq 'false' ) {
-            return;
+            return 0;          # handler disabled - did NOT deliver
         }
     }
     else {
@@ -226,11 +237,12 @@ sub dispatch {
 
     my $type = $h_config{type} // '';
 
-    if    ( $type eq 'file' )    { dispatch_file( \%h_config, $form ) }
-    elsif ( $type eq 'smtp' )    { dispatch_smtp( \%h_config, $form ) }
-    elsif ( $type eq 'webhook' || $type eq 'api' ) { dispatch_webhook( \%h_config, $form ) }
+    if    ( $type eq 'file' )    { return dispatch_file( \%h_config, $form ) }
+    elsif ( $type eq 'smtp' )    { return dispatch_smtp( \%h_config, $form ) }
+    elsif ( $type eq 'webhook' || $type eq 'api' ) { return dispatch_webhook( \%h_config, $form ) }
     else {
         log_event( 'WARN', $form->{_form} // '-', 'unknown handler type', type => $type );
+        return 0;
     }
 }
 
@@ -304,12 +316,13 @@ sub dispatch_file {
     my $log_path = "$dir/$form_name.jsonl";
     open( my $fh, '>>:utf8', $log_path ) or do {
         log_event( 'ERROR', $form->{_form} // '-', 'file write failed', path => $log_path, error => $! );
-        return;
+        return 0;
     };
     flock( $fh, LOCK_EX );
     print $fh encode_json( \%record ) . "\n";
     flock( $fh, LOCK_UN );
     close $fh;
+    return 1;
 }
 
 # Enforce the form's upload constraints; reject() (die) on the first violation.
@@ -411,6 +424,7 @@ sub dispatch_smtp {
         log_event( 'WARN', $form->{_form} // '-', 'smtp dispatch failed',
             error => ( $r->{error} // 'no output' ) );
     }
+    return $r->{ok} ? 1 : 0;
 }
 
 sub dispatch_webhook {
@@ -442,6 +456,7 @@ sub dispatch_webhook {
         log_event( 'WARN', $form->{_form} // '-', 'webhook failed',
             url => $url, status => $res->status_line );
     }
+    return $res->is_success ? 1 : 0;
 }
 
 sub find_script {
