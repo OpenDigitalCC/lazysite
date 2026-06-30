@@ -61,7 +61,7 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 # manager_groups makes the confinement real: a named cookie user is a
 # delegated sub-manager (confined to its tree) unless it is in this group.
 # Without it, _is_operator treats any user as an unrestricted operator.
-print $cf "layout: base\ntheme: live\nmanager_groups: admins\n";
+print $cf "layout: base\ntheme: live\nmanager_groups: admins\nwebdav_enabled: enabled\n";
 close $cf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf "$secret\n"; close $sf;
 open my $tj, '>', "$d/lazysite/layouts/base/themes/live/theme.json" or die $!;

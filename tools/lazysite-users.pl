@@ -517,14 +517,35 @@ sub _ensure_conf_key {
 # enables the manager + names the group. Idempotent. Generates and prints a
 # strong password if none is given. This is the whole "getting started" step.
 #   setup-manager [PASSWORD] [--user NAME] [--group NAME]
+sub _urlenc {
+    my $s = defined $_[0] ? "$_[0]" : '';
+    $s =~ s/([^A-Za-z0-9_.~-])/sprintf('%%%02X', ord $1)/ge;
+    return $s;
+}
+
+# Build the single-use self-service URL ("/claim?u=...&c=...") a user opens to set
+# their own password. Uses the configured site_url for an absolute link when one
+# can be resolved (run via the CGI), else a relative path the operator prefixes
+# with the site's address.
+sub _claim_url {
+    my ( $user, $claim ) = @_;
+    my $url = read_conf_value('site_url') // '';
+    $url =~ s/\$\{REQUEST_SCHEME\}/$ENV{REQUEST_SCHEME} || 'https'/ge;
+    $url =~ s/\$\{SERVER_NAME\}/$ENV{SERVER_NAME} || $ENV{HTTP_HOST} || ''/ge;
+    $url =~ s{/+$}{};
+    my $base = ( $url =~ m{^\w+://[^/\s]+} ) ? $url : '';
+    return "$base/claim?u=" . _urlenc($user) . '&c=' . _urlenc($claim);
+}
+
 sub cmd_setup_manager {
     my @a = @_;
-    my ( $pass, $user, $group );
+    my ( $pass, $user, $group, $link );
     while (@a) {
         my $x = shift @a;
-        if    ( $x eq '--user'  ) { $user  = shift @a }
-        elsif ( $x eq '--group' ) { $group = shift @a }
-        elsif ( !defined $pass )  { $pass  = $x }
+        if    ( $x eq '--user'  )            { $user  = shift @a }
+        elsif ( $x eq '--group' )            { $group = shift @a }
+        elsif ( $x eq '--link' || $x eq '--self-service' ) { $link = 1 }
+        elsif ( !defined $pass )             { $pass  = $x }
     }
     $user = 'manager' unless defined $user && length $user;
 
@@ -534,6 +555,33 @@ sub cmd_setup_manager {
         ($group) = split /[,\s]+/, $existing;
     }
     $group = 'lazysite-admins' unless defined $group && length $group;
+
+    # --link: create the account but issue a single-use self-service claim instead
+    # of a password, so the new manager sets their own (no password to hand over).
+    if ($link) {
+        my %users = read_users();
+        cmd_add( $user, generate_random_hex(12) ) unless exists $users{$user};
+        cmd_group_add( $user, $group );
+        _ensure_conf_key( 'manager',        'enabled' );
+        _ensure_conf_key( 'manager_groups', $group );
+        $users{$user} = '';                       # revoke any credential
+        write_users(%users);
+        my $all = read_settings();
+        $all->{$user} ||= {};
+        my $claim     = _issue_claim( $all, $user, 'set-password' );
+        write_settings($all);
+        my $claim_url = _claim_url( $user, $claim );
+        unless ($API_MODE) {
+            print "\nManager account created (no password set).\n";
+            print "Send this single-use self-service link (expires in "
+                . int( $CLAIM_TTL / 3600 ) . "h) to '$user' to set their own password:\n";
+            print "  $claim_url\n";
+            print "  Username: $user\n";
+            print "  Group:    $group\n\n";
+        }
+        return { ok => 1, user => $user, group => $group,
+            claim => $claim, claim_url => $claim_url };
+    }
 
     my $generated = 0;
     unless ( defined $pass && length $pass ) {
@@ -704,6 +752,14 @@ sub cmd_set {
 
     if ( $bool_key{$key} ) {
         my $bool = parse_onoff($value);
+        # Per-user WebDAV can only be granted when WebDAV is enabled site-wide;
+        # otherwise the grant is a dead switch (the /dav endpoint 404s for everyone).
+        if ( $key eq 'webdav' && $bool ) {
+            my $g = lc( read_conf_value('webdav_enabled') // '' );
+            die "WebDAV is not enabled site-wide - enable it in Site settings "
+                . "(webdav_enabled) before granting it per user\n"
+                unless $g =~ /^(?:enabled|yes|true|on)$/;
+        }
         if ( $key eq 'ui' && !$bool && !$opt{force} ) {
             die "would disable last manager-capable UI account\n"
                 if is_last_manager_ui( $user, $all );
@@ -1231,7 +1287,11 @@ sub cmd_claim_redeem {
 sub cmd_claim_create_cli {
     my @pos; my $revoke = 0;
     for (@_) { if ( $_ eq '--reset' ) { $revoke = 1 } else { push @pos, $_ } }
-    cmd_claim_create( $pos[0], revoke => $revoke );
+    my $r = cmd_claim_create( $pos[0], revoke => $revoke );
+    if ( ref $r eq 'HASH' && $r->{claim} ) {
+        print "Self-service link (single use; send this to the user):\n  "
+            . _claim_url( $pos[0], $r->{claim} ) . "\n";
+    }
 }
 
 sub cmd_claim_redeem_cli {

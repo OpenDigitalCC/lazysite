@@ -19,6 +19,10 @@ sub fresh_docroot {
     my $d = tempdir( CLEANUP => 1 );
     mkdir "$d/lazysite";
     mkdir "$d/lazysite/auth";
+    # Per-user webdav now requires WebDAV enabled site-wide.
+    open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
+    print $cf "webdav_enabled: enabled\n";
+    close $cf;
     return $d;
 }
 

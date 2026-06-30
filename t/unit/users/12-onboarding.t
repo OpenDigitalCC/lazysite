@@ -17,7 +17,7 @@ sub fresh {
     my $d = tempdir( CLEANUP => 1 );
     mkdir "$d/lazysite"; mkdir "$d/lazysite/auth";
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print $cf "site_url: https://example.test\n";
+    print $cf "site_url: https://example.test\nwebdav_enabled: enabled\n";
     close $cf;
     return $d;
 }
