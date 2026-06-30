@@ -12,6 +12,28 @@ Around that core sits a full publishing stack: layouts and themes, content inclu
 
 The guiding idea is **one enforced core, many thin doors**: every way in - the browser, WebDAV, the API, an AI connector - runs through the same checks, so a lock, a permission, or an audit entry holds identically whoever knocks.
 
+## Why is it lazy?
+
+Is it hard to install?
+: Not at all - you don't even have to install it. Download or clone the repo, install a handful of modules from your distribution, and start the built-in server. It serves the sample content, or yours, straight away.
+
+Really - how do I install it?
+: For a permanent setup, run the install script. It configures lazysite with Apache, or the web server of your choice - it is just a CGI script.
+
+What about content?
+: It ships with basic content you can simply edit. It is Markdown - plain text. Add your own.
+
+And layouts and themes?
+: The lazysite-layouts repo has ready-made layouts and themes you can install. The quickest way to try one is to run the local server and copy a layout or theme into the starter site.
+
+Can I build a static site and host it elsewhere?
+: Yes - it runs in generation mode. lazysite is both dynamic and static: you create content and it builds the pages on the fly, or exports them as a fully static site.
+
+Most static builders do only that - what about more advanced sites?
+: A full templating system is built in: dynamic and remote content, news feeds, sitemaps, reading remote JSON data, looping over content, conditional display, and more.
+
+So - no commitment while you find your feet, minimal infrastructure to test themes, and just text. What could be easier?
+
 ## Why it exists
 
 lazysite grew out of a wish for something between hand-written HTML and a heavyweight CMS - fast, file-based, and yours. Read the [motivation](/motivation) for the full story and the design decisions behind it.

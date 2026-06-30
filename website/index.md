@@ -6,80 +6,25 @@ register:
   - llms.txt
 ---
 
+**lazysite turns a folder of Markdown files into a fast, modern website** - with no build step, no database, and no CMS to maintain. It is tiny, cheap to host, and built so that you - or an AI agent working alongside you - can publish in seconds and own every file.
 
-## Why is it lazy?
+<style>.hl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin:1.4rem 0 2rem}.hl{border:1px solid var(--theme-colours-border,#e3e3e3);border-radius:10px;padding:16px 18px;background:rgba(0,0,0,.015)}.hl h3{margin:0 0 6px;font-size:1.05rem}.hl p{margin:0;font-size:.92rem;line-height:1.5}.hl a{font-weight:600;text-decoration:none}.foryou{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin:1.2rem 0 2rem}.foryou>div{border:1px solid var(--theme-colours-border,#e3e3e3);border-radius:10px;padding:14px 20px}.foryou .yes{background:rgba(22,163,74,.06)}.foryou strong{font-size:.95rem}.foryou ul{margin:.5rem 0 0;padding-left:1.1rem}.foryou li{margin:.3rem 0;font-size:.92rem}.foryou p{font-size:.88rem;margin:.6rem 0 0;opacity:.85}</style>
 
-Is it hard to install?
-: No need to even install it. just download or clone the repo, install a handful of modules available on common Linux distributions, and fire up the server - it just works from it's local lightweight service and will serve the sample content or yours.
+## What makes it different
 
-Really, how to install?
-: If you want a more permenant installation, run the install script. This sets Lazysite up with Apache or your webserver of choice - it's just a CGI script.
+<div class="hl-grid"><div class="hl"><h3>Just files</h3><p>Your whole site is Markdown plus a couple of config files - own it, move it, keep it in git. Nothing is locked inside a database.</p></div><div class="hl"><h3>No build, no database</h3><p>Drop a <code>.md</code> file in and it is live; plain cached HTML is served after that. Fast by default, with nothing to rebuild or migrate.</p></div><div class="hl"><h3>Tiny and low-cost</h3><p>One small CGI script and a few Perl modules. It runs on almost anything - even your own PC - and costs very little to host.</p></div><div class="hl"><h3>Dynamic when you need it</h3><p>Templating, remote data, JSON, feeds, forms, sign-in and pay-per-read are <a href="/features">built in</a> - no plugins to bolt on.</p></div><div class="hl"><h3>Built for AI</h3><p>An assistant publishes through exactly the same rules you do. Grant a scoped account, watch the audit log, revoke any time. <a href="/docs/onboard-ai-agent">Onboard an AI agent &rarr;</a></p></div><div class="hl"><h3>Design, separately</h3><p>A layout owns the HTML; a theme supplies colours and fonts as tokens. <a href="https://themes.explore.lazysite.io">Browse 20+ themes &rarr;</a></p></div></div>
 
-What about content?
-: It comes with some basic content that you can just edit. It's markdown, so simple text. Add your own.
+## Is lazysite for you?
 
-And layouts and themes?
-: The lazysite-layouts repo has some basic layouts and themes - you can clone these and install. The quickest way to test is to run the local server, and just copy the layout or theme in to the starter site.
+<div class="foryou"><div class="yes"><strong>A great fit if you...</strong><ul><li>publish content, documentation or a portfolio and want it fast and fully yours</li><li>want an AI agent to draft and publish for you</li><li>are a marketer or designer moving quickly, or a small team or club sharing information</li><li>would rather own plain files than run a database</li></ul></div><div class="no"><strong>Maybe look elsewhere if you...</strong><ul><li>depend on a particular plugin or a mature e-commerce store</li><li>have a non-technical team that needs a polished click-and-drag admin</li></ul><p>In that case, <a href="/comparison">compare</a> lazysite with WordPress, Hugo or Ghost first, or read <a href="/who-its-for">who it is for</a>.</p></div></div>
 
-Can I build a static site and run elsewhere?
-: Yes, it runs in generation mode. In fsact, lazysite is a dynamic and static system - create your content and it creates the pages on the fly. 
+## Explore
 
-Most static builders do just that - what about more advanced sites?
-: There is a powerful templating system built in, allowing pages to have dynamic content (even remote content), export news feeds, sitemaps, read in remote dynamic data and json files, loop through content, conditionally display.
+- **[What lazysite does](/features)** - every capability, grouped by what you are trying to achieve.
+- **[How it compares](/comparison)** - side by side with WordPress, Hugo and Ghost, with sources.
+- **[Onboard an AI agent](/docs/onboard-ai-agent)** - give an assistant a scoped, revocable account.
+- **[Theme gallery](https://themes.explore.lazysite.io)** - twenty-plus ready-to-install designs.
+- **[Get started](/docs/authoring)** and **[install](/docs/install)** - write your first page in minutes.
+- **[About lazysite](/about)** - the idea behind it, and who makes it.
 
-So - no-commitment whilst you become familair, simple minimal infrastructure to test themes, just text - what could be easier?
-
-## What it is
-
-Drop a `.md` file in your docroot and it is served as a fully rendered HTML page. The first request generates the HTML and caches it alongside the source file. Every subsequent request is a plain static file - no process, no overhead.
-
-Write content in Markdown. Design the site in a `layout.tt` template file, with a separate theme layer for colours and fonts. The three never touch each other.
-
-::: widebox
-This site is its own demonstration. The pages are `.url` files - lazysite fetches the Markdown from the [GitHub repository](https://github.com/OpenDigitalCC/lazysite) and renders it on first request.
-:::
-
-## Where to go
-
-[Readme](/README)
-: Installation, requirements, configuration, troubleshooting, and technical internals. Start here if you are setting up lazysite on a server.
-
-[Authoring](/authoring)
-: Writing pages - front matter, Markdown, Template Toolkit variables, fenced divs, remote sources, and cache management. Start here if you are building or maintaining a site.
-
-## Key features
-
-No build step
-: Write a `.md` file, save it, it is live. Delete the cached `.html` to republish after edits. That is the entire workflow.
-
-No database
-: Files are the source of truth. Nothing to back up separately, nothing to migrate.
-
-Fast by default
-: Dynamic only on the first request. Plain cached HTML is served after that - no interpreter, no overhead.
-
-Design and content separated
-: The `layout.tt` template owns the structural HTML; a separate theme supplies colours, fonts, and assets. Content authors work only in `.md` files. None of the three touch each other.
-
-Version control ready
-: Everything is a file. The entire site lives in a git repository.
-
-Remote sources
-: `.url` files pull Markdown from a remote URL - a GitHub raw file, for example - and render it through the same pipeline. Documentation lives with the code; the site always shows the current version.
-
-Content includes
-: `:::include` inlines local or remote content - Markdown partials, code files, remote feeds - directly into a page at render time.
-
-Navigation from a config file
-: `nav.conf` defines the site navigation as a plain text file. The layout template reads it as a structured variable and renders the menu. Editing the menu does not require touching the template.
-
-Layouts and themes
-: `layout.tt` controls the HTML chrome; a theme on top adds colours, fonts, and assets. Install both from [lazysite-layouts](https://github.com/OpenDigitalCC/lazysite-layouts) or write your own. Themes declare compatibility per layout, with design tokens auto-emitted as CSS custom properties. lazysite includes a built-in fallback so it works without any configuration files.
-
-Content is portable
-: Plain `.md` files work with any Markdown processor. Switching tools does not mean rewriting content.
-
-## Licence
-
-MIT. Source on [GitHub](https://github.com/OpenDigitalCC/lazysite).
-
+MIT licensed. Source on [GitHub](https://github.com/OpenDigitalCC/lazysite).

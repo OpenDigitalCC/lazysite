@@ -1,5 +1,5 @@
 {
-  "intro": "Tick the tools you want to compare lazysite against - one or several at once. lazysite is always the first column. Hover any value for its source.",
+  "intro": "Select the platform to compare lazysite with - one or several at once.",
   "lazysite_key": "lazysite",
   "groups": [
     "Architecture",
@@ -41,11 +41,11 @@
     {
       "label": "Content format",
       "group": "Architecture",
-      "source": "https://lazysite.io/features",
+      "source": "https://lazysite.io/docs/authoring",
       "values": {
         "lazysite": {
           "text": "Plain Markdown files you own",
-          "source": "https://lazysite.io/features"
+          "source": "https://lazysite.io/docs/authoring"
         },
         "wordpress": {
           "text": "Rich content in a database (block editor)",
@@ -110,11 +110,11 @@
     {
       "label": "Footprint",
       "group": "Architecture",
-      "source": "https://lazysite.io/features",
+      "source": "https://lazysite.io/docs/install",
       "values": {
         "lazysite": {
           "text": "Tiny - one CGI script plus Perl modules from your distro",
-          "source": "https://lazysite.io/features"
+          "source": "https://lazysite.io/docs/install"
         },
         "wordpress": {
           "text": "Heavy - PHP plus a MySQL/MariaDB database",
@@ -133,11 +133,11 @@
     {
       "label": "Dynamic content",
       "group": "Capabilities",
-      "source": "https://lazysite.io/features",
+      "source": "https://lazysite.io/docs/features/authoring/tt-variables",
       "values": {
         "lazysite": {
           "text": "Server-side templating, remote data, query parameters",
-          "source": "https://lazysite.io/features"
+          "source": "https://lazysite.io/docs/features/authoring/tt-variables"
         },
         "wordpress": {
           "text": "Yes - PHP and plugins",
@@ -156,11 +156,11 @@
     {
       "label": "Built-in forms, auth & payments",
       "group": "Capabilities",
-      "source": "https://lazysite.io/features",
+      "source": "https://lazysite.io/docs/features/authoring/forms",
       "values": {
         "lazysite": {
           "text": "All built in (forms, sign-in, x402 pay-per-read)",
-          "source": "https://lazysite.io/features"
+          "source": "https://lazysite.io/docs/features/authoring/forms"
         },
         "wordpress": {
           "text": "Added through plugins",
@@ -179,11 +179,11 @@
     {
       "label": "AI-first management",
       "group": "Capabilities",
-      "source": "https://lazysite.io/features",
+      "source": "https://lazysite.io/docs/onboard-ai-agent",
       "values": {
         "lazysite": {
           "text": "Built for it - agents edit over WebDAV, an API or MCP",
-          "source": "https://lazysite.io/features"
+          "source": "https://lazysite.io/docs/onboard-ai-agent"
         },
         "wordpress": {
           "text": "Possible via the REST API or plugins",
@@ -202,11 +202,11 @@
     {
       "label": "Memberships & paid content",
       "group": "Capabilities",
-      "source": "https://lazysite.io/features",
+      "source": "https://lazysite.io/docs/features/configuration/payment",
       "values": {
         "lazysite": {
           "text": "Pay-per-read (x402) and per-user access",
-          "source": "https://lazysite.io/features"
+          "source": "https://lazysite.io/docs/features/configuration/payment"
         },
         "wordpress": {
           "text": "Via membership or e-commerce plugins",
@@ -225,11 +225,11 @@
     {
       "label": "Themes & customisation",
       "group": "Design & experience",
-      "source": "https://lazysite.io/features",
+      "source": "https://lazysite.io/docs/features/configuration/themes",
       "values": {
         "lazysite": {
           "text": "Layout plus theme tokens - one file to re-skin",
-          "source": "https://lazysite.io/features"
+          "source": "https://lazysite.io/docs/features/configuration/themes"
         },
         "wordpress": {
           "text": "Thousands of themes; PHP and block templates",
@@ -248,11 +248,11 @@
     {
       "label": "Editing experience",
       "group": "Design & experience",
-      "source": "https://lazysite.io/features",
+      "source": "https://lazysite.io/docs/authoring",
       "values": {
         "lazysite": {
           "text": "Markdown files, a simple manager, or an AI agent",
-          "source": "https://lazysite.io/features"
+          "source": "https://lazysite.io/docs/authoring"
         },
         "wordpress": {
           "text": "A polished WYSIWYG admin",
@@ -271,11 +271,11 @@
     {
       "label": "Hosting",
       "group": "Hosting & operations",
-      "source": "https://lazysite.io/features",
+      "source": "https://lazysite.io/docs/install",
       "values": {
         "lazysite": {
           "text": "Any CGI host, or its own built-in server",
-          "source": "https://lazysite.io/features"
+          "source": "https://lazysite.io/docs/install"
         },
         "wordpress": {
           "text": "A managed WordPress host or a LAMP server",
@@ -294,11 +294,11 @@
     {
       "label": "Performance",
       "group": "Hosting & operations",
-      "source": "https://lazysite.io/features",
+      "source": "https://lazysite.io/docs/features/development/cache-management",
       "values": {
         "lazysite": {
           "text": "Cached static HTML after the first hit",
-          "source": "https://lazysite.io/features"
+          "source": "https://lazysite.io/docs/features/development/cache-management"
         },
         "wordpress": {
           "text": "Dynamic; usually needs caching plugins or a CDN",

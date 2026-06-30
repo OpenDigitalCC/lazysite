@@ -18,6 +18,12 @@ Keying
 
 ## Unreleased
 
+## 0.5.2 - Forms fail loudly when nothing accepts the submission (2026-06-30)
+
+Fix - no false form success
+: a form submission now errors (and logs) when every delivery target is disabled,
+  unknown, or fails, instead of showing a "thank you" while saving nothing.
+
 ## 0.5.1 - New-site fixes: login layout, self-service link, webdav gate, logout audit (2026-06-30)
 
 Fixes
