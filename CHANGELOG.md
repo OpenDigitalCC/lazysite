@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.15 - Channel capabilities + permission viewer (2026-06-30)
+
+Feature - SM095 channel model + viewer
+: added channel capabilities (ui/api/mcp) and manage_users; reseeded six role
+  groups; the Groups page splits Channels from Actions; each user card gains a
+  read-only channel x capability grid showing which group grants what. Additive.
+
 ## 0.5.14 - Central capability resolver (2026-06-30)
 
 Refactor - one permission resolver
