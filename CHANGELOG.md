@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.14 - Central capability resolver (2026-06-30)
+
+Refactor - one permission resolver
+: capabilities now resolve through a single function (Auth::Settings::caps_for)
+  that the manager UI, control API, MCP AND the WebDAV endpoint all consult, so a
+  group grant applies identically across every channel. Behaviour unchanged.
+
 ## 0.5.13 - Group-based capabilities, Phase 2: Groups page (2026-06-30)
 
 Feature - SM095 Groups UI
