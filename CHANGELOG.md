@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.4 - Manager can view form submissions (2026-06-30)
+
+Fix - submissions unreadable in the manager
+: form submissions (lazysite/forms/submissions/*.jsonl) were blocked by the
+  lazysite/forms config block, so the file editor showed them empty even though the
+  records were saved. The submissions subtree is now readable; form configs stay blocked.
+
 ## 0.5.3 - Reject contentless form submissions (2026-06-30)
 
 Fix - empty form submission
