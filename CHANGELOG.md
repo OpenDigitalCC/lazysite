@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.10 - One layout/theme switcher (2026-06-30)
+
+Feature - single appearance control
+: the active layout/theme is now switched in ONE place (Appearance > Installed
+  layouts & themes); the redundant Settings dropdowns and the Appearance select
+  widget were removed.
+
 ## 0.5.9 - Backups collapse panel + batch delete (2026-06-30)
 
 Feature - appearance backups
