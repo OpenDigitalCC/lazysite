@@ -103,6 +103,19 @@ eval {
         validate_uploads( $files, $conf->{upload} );
     }
 
+    # Reject a contentless submission - every visible field blank and no file
+    # uploaded. HTML5 `required` stops this in a browser, so it is almost always an
+    # automated/blank POST; saving a "thank you" + an empty record is worse than an
+    # honest error.
+    my $has_content = ( $form{_files} && @{ $form{_files} } ) ? 1 : 0;
+    unless ($has_content) {
+        for my $k ( keys %form ) {
+            next if $k =~ /^_/;
+            if ( defined $form{$k} && $form{$k} =~ /\S/ ) { $has_content = 1; last }
+        }
+    }
+    reject_user('Please fill in the form before submitting.') unless $has_content;
+
     my $delivered = 0;
     for my $target ( @{ $conf->{targets} } ) {
         $delivered += ( dispatch( $target, \%form, \%handlers ) ? 1 : 0 );

@@ -31,9 +31,11 @@ sub write_handlers {
 
 my $IP = 0;
 sub post {
+    my ($fields) = @_;
+    $fields = '&name=Ada&message=Hi' unless defined $fields;
     my $ts = time() - 10;
     my $tk = hmac_sha256_hex( $ts, $SECRET );
-    my $body = "_form=contact&_ts=$ts&_tk=$tk&_hp=&name=Ada&message=Hi";
+    my $body = "_form=contact&_ts=$ts&_tk=$tk&_hp=$fields";
     my $bf = "$d/.body";
     open my $w, '>:raw', $bf or die $!; print {$w} $body; close $w;
     local $ENV{DOCUMENT_ROOT}  = $d;
@@ -69,5 +71,19 @@ ok( !$off->{ok}, 'disabled handler: submission reported FAILURE (no false succes
 like( $off->{error}, qr/not accepting|delivery target|contact the site owner/i,
     'disabled handler: a clear error is returned' );
 is( record_count(), $before, 'disabled handler: nothing is saved' );
+
+# 3) An all-empty submission (blank fields, no file) errors and saves nothing,
+#    instead of a false "thank you" + an empty record.
+write_handlers('true');
+my $base = record_count();
+my $empty = post('&name=&email=&message=');
+ok( !$empty->{ok}, 'all-empty submission reports failure' );
+like( $empty->{error}, qr/fill in the form/i, 'a "fill in the form" error is returned' );
+is( record_count(), $base, 'all-empty submission saves no record' );
+
+# (control) a populated submission still works with the handler enabled
+my $good = post('&name=Grace&message=Hi');
+ok( $good->{ok}, 'populated submission still accepted' );
+is( record_count(), $base + 1, 'populated submission is saved' );
 
 done_testing;
