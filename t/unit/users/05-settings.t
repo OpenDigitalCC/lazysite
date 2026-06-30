@@ -10,7 +10,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $root   = repo_root();
 my $script = "$root/tools/lazysite-users.pl";
@@ -70,7 +70,7 @@ sub api {
 {
     my $d = fresh_docroot();
     cli( $d, 'add', 'deploy', 'pw' );
-    cli( $d, 'set', 'deploy', 'webdav', 'on' );
+    grant_caps( $d, 'deploy', 'webdav' );
     cli( $d, 'set', 'deploy', 'dav_scope', '/content' );
 
     my $r = api( $d, { action => 'settings-get', username => 'deploy' } );
@@ -80,7 +80,7 @@ sub api {
 
     # analytics capability (visitor stats + audit): off by default, settable on.
     ok( !$r->{settings}{analytics}, 'analytics defaults off' );
-    cli( $d, 'set', 'deploy', 'analytics', 'on' );
+    grant_caps( $d, 'deploy', 'analytics' );
     my $r2 = api( $d, { action => 'settings-get', username => 'deploy' } );
     ok( $r2->{settings}{analytics}, 'analytics now on after set' );
 
@@ -136,17 +136,19 @@ sub api {
 {
     my $d = fresh_docroot();
     cli( $d, 'add', 'gone', 'pw' );
-    cli( $d, 'set', 'gone', 'webdav', 'on' );
+    grant_caps( $d, 'gone', 'webdav' );
     cli( $d, 'add', 'stay', 'pw' );
-    cli( $d, 'set', 'stay', 'webdav', 'on' );
+    grant_caps( $d, 'stay', 'webdav' );
 
     cli( $d, 'remove', 'gone' );
 
-    open my $fh, '<', "$d/lazysite/auth/user-settings.json" or die;
-    my $data = decode_json( do { local $/; <$fh> } );
+    # Capabilities live on groups now, so removal must drop the user from group
+    # membership (where their access lived).
+    open my $fh, '<', "$d/lazysite/auth/groups" or die;
+    my $groups = do { local $/; <$fh> };
     close $fh;
-    ok( !exists $data->{gone}, 'removed user dropped from settings' );
-    ok( exists $data->{stay},  'other users settings preserved' );
+    unlike( $groups, qr/\bgone\b/, 'removed user dropped from all groups' );
+    like( $groups, qr/\bstay\b/, 'other users group membership preserved' );
 }
 
 # --- last-manager-UI guard --------------------------------------------

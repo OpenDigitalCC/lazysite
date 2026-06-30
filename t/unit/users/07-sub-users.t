@@ -10,7 +10,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $root   = repo_root();
 my $script = "$root/tools/lazysite-users.pl";
@@ -67,7 +67,7 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
     isnt( $denied->{code}, 0, 'account-create denied without create_sub_users' );
     like( $denied->{err}, qr/create_sub_users/, 'error names the missing permission' );
 
-    cli( $d, 'set', 'boss', 'create_sub_users', 'on' );
+    grant_caps( $d, 'boss', 'create_sub_users' );
     my $ok = cli( $d, 'account-create', 'worker', 'pw', '--by', 'boss' );
     is( $ok->{code}, 0, 'account-create succeeds once granted' );
 
@@ -82,13 +82,13 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 {
     my $d = fresh_docroot();
     cli( $d, 'add', 'boss', 'pw' );
-    cli( $d, 'set', 'boss', 'create_sub_users', 'on' );
+    grant_caps( $d, 'boss', 'create_sub_users' );
 
     my $denied = cli( $d, 'account-create', 'w', 'pw', '--by', 'boss', '--create-subs' );
     isnt( $denied->{code}, 0, '--create-subs denied without delegate' );
     like( $denied->{err}, qr/delegate_sub_user_creation/, 'error names delegate permission' );
 
-    cli( $d, 'set', 'boss', 'delegate_sub_user_creation', 'on' );
+    grant_caps( $d, 'boss', 'delegate_sub_user_creation' );
     my $ok = cli( $d, 'account-create', 'w', 'pw', '--by', 'boss', '--create-subs' );
     is( $ok->{code}, 0, '--create-subs succeeds once delegated' );
     ok( settings( $d, 'w' )->{create_sub_users}, 'delegated child can create sub-users' );
@@ -98,7 +98,7 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 {
     my $d = fresh_docroot();
     cli( $d, 'add', 'boss', 'pw' );
-    cli( $d, 'set', 'boss', 'create_sub_users', 'on' );
+    grant_caps( $d, 'boss', 'create_sub_users' );
     cli( $d, 'account-create', 'worker', 'pw', '--by', 'boss' );
 
     my $nocreator = cli( $d, 'account-create', 'x', 'pw', '--by', 'ghost' );
@@ -115,8 +115,8 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 {
     my $d = fresh_docroot();
     cli( $d, 'add', 'boss', 'pw' );
-    cli( $d, 'set', 'boss', 'create_sub_users', 'on' );
-    cli( $d, 'set', 'boss', 'delegate_sub_user_creation', 'on' );
+    grant_caps( $d, 'boss', 'create_sub_users' );
+    grant_caps( $d, 'boss', 'delegate_sub_user_creation' );
 
     my $r = api( $d, { action => 'account-create', username => 'api_worker',
         password => 'pw', created_by => 'boss', create_sub_users => 1 } );
@@ -130,8 +130,8 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 {
     my $d = fresh_docroot();
     cli( $d, 'add', 'mgr', 'pw' );
-    cli( $d, 'set', 'mgr', 'create_sub_users', 'on' );
-    cli( $d, 'set', 'mgr', 'delegate_sub_user_creation', 'on' );
+    grant_caps( $d, 'mgr', 'create_sub_users' );
+    grant_caps( $d, 'mgr', 'delegate_sub_user_creation' );
 
     my $r1 = api( $d, { action => 'account-create', username => 'child', password => 'pw',
                         created_by => 'mgr', actor => 'mgr', create_sub_users => 1 } );
@@ -143,7 +143,7 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
     is( settings( $d, 'gkid' )->{created_by}, 'child', 'owned by the chosen parent' );
 
     cli( $d, 'add', 'other', 'pw' );
-    cli( $d, 'set', 'other', 'create_sub_users', 'on' );
+    grant_caps( $d, 'other', 'create_sub_users' );
     my $r3 = api( $d, { action => 'account-create', username => 'nope', password => 'pw',
                         created_by => 'child', actor => 'other' } );
     ok( !$r3->{ok}, 'an unrelated actor cannot create under child' );
@@ -184,7 +184,7 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 {
     my $d = fresh_docroot();
     cli( $d, 'add', 'boss', 'pw' );
-    cli( $d, 'set', 'boss', 'create_sub_users', 'on' );
+    grant_caps( $d, 'boss', 'create_sub_users' );
     my $r = api( $d, { action => 'account-create', username => 'bot', password => '',
                        created_by => 'boss', actor => 'boss' } );
     ok( $r->{ok}, 'account-create with no password succeeds' );

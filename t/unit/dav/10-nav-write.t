@@ -6,7 +6,7 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(run_dav setup_dav_site dav_users_tool);
+use TestHelper qw(run_dav setup_dav_site dav_users_tool grant_caps revoke_caps);
 
 my $s    = setup_dav_site( conf => "webdav_enabled: true\n" );
 my $doc  = $s->{docroot};
@@ -19,7 +19,7 @@ my $auth = $s->{auth};
     is( $r->{code}, 403, 'nav.conf write denied without manage_config' );
 }
 
-dav_users_tool( $doc, 'set', 'deploy', 'manage_config', 'on' );
+grant_caps( $doc, 'deploy', 'manage_config' );
 
 # --- with manage_config: write and read nav.conf ----------------------
 {

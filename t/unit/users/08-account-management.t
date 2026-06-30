@@ -11,7 +11,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root run_dav setup_dav_site dav_users_tool);
+use TestHelper qw(repo_root run_dav setup_dav_site dav_users_tool grant_caps);
 
 my $root   = repo_root();
 my $script = "$root/tools/lazysite-users.pl";
@@ -53,8 +53,7 @@ sub settings { return api( $_[0], { action => 'settings-get', username => $_[1] 
 sub build_tree {
     my $d = fresh_docroot();
     cli( $d, 'add', 'root', 'pw' );
-    cli( $d, 'set', 'root', 'create_sub_users', 'on' );
-    cli( $d, 'set', 'root', 'delegate_sub_user_creation', 'on' );
+    grant_caps( $d, 'root', 'create_sub_users', 'delegate_sub_user_creation' );
     cli( $d, 'account-create', 'a', 'pw', '--by', 'root', '--create-subs' );
     cli( $d, 'account-create', 'b', 'pw', '--by', 'a' );
     cli( $d, 'account-create', 'c', 'pw', '--by', 'a' );

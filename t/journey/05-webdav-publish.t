@@ -15,7 +15,7 @@ use JSON::PP qw(encode_json decode_json);
 use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root run_dav run_processor setup_minimal_site dav_users_tool);
+use TestHelper qw(repo_root run_dav run_processor setup_minimal_site dav_users_tool grant_caps revoke_caps);
 
 my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
@@ -41,7 +41,7 @@ sub basic { 'Basic ' . encode_base64( "deploy:$_[0]", '' ) }
 
 # --- provision a publishing account -----------------------------------
 dav_users_tool( $docroot, 'add', 'deploy', 'initial-pw' );
-dav_users_tool( $docroot, 'set', 'deploy', 'webdav', 'on' );
+grant_caps( $docroot, 'deploy', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
 dav_users_tool( $docroot, 'set', 'deploy', 'dav_scope', '/content' );
 make_path("$docroot/content");
 
@@ -109,11 +109,11 @@ like( $tok1, qr/^lzs_/, 'generated a credential' );
 
 # --- disabling webdav refuses all writes ------------------------------
 {
-    dav_users_tool( $docroot, 'set', 'deploy', 'webdav', 'off' );
+    revoke_caps( $docroot, 'deploy', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
     my $r = run_dav( $docroot, 'PUT', '/content/page.md',
         body => "x", HTTP_AUTHORIZATION => basic($tok1) );
     is( $r->{code}, 403, 'webdav disabled => writes refused' );
-    dav_users_tool( $docroot, 'set', 'deploy', 'webdav', 'on' );
+    grant_caps( $docroot, 'deploy', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
 }
 
 # --- regenerating the credential invalidates the previous one ---------

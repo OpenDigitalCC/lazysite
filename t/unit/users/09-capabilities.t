@@ -11,7 +11,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $script = repo_root() . "/tools/lazysite-users.pl";
 
@@ -45,8 +45,8 @@ ok( !$s->{manage_themes},  'manage_themes defaults off' );
 ok( !$s->{manage_layouts}, 'manage_layouts defaults off' );
 ok( !$s->{manage_config},  'manage_config defaults off' );
 
-cli( $d, 'set', 'u', 'manage_themes',  'on' );
-cli( $d, 'set', 'u', 'manage_layouts', 'on' );
+grant_caps( $d, 'u', 'manage_themes' );
+grant_caps( $d, 'u', 'manage_layouts' );
 $s = settings( $d, 'u' );
 ok( $s->{manage_themes},  'manage_themes set on' );
 ok( $s->{manage_layouts}, 'manage_layouts set on' );

@@ -9,7 +9,7 @@ use File::Path qw(make_path);
 use MIME::Base64 qw(encode_base64);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root run_dav run_processor setup_minimal_site dav_users_tool);
+use TestHelper qw(repo_root run_dav run_processor setup_minimal_site dav_users_tool grant_caps revoke_caps);
 
 my $docroot = tempdir( CLEANUP => 1 );
 setup_minimal_site($docroot);
@@ -20,7 +20,7 @@ open my $cf, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
 print $cf "webdav_enabled: true\n";
 close $cf;
 dav_users_tool( $docroot, 'add', 'deploy', 'secret' );
-dav_users_tool( $docroot, 'set', 'deploy', 'webdav', 'on' );
+grant_caps( $docroot, 'deploy', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
 my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
 
 # --- PUT publishes a page ---------------------------------------------
@@ -79,11 +79,12 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
 # --- SM077: @group ACLs are enforced over WebDAV (shared Auth::Acl) -----
 {
     dav_users_tool( $docroot, 'add', 'eve', 'pw' );
-    dav_users_tool( $docroot, 'set', 'eve', 'webdav', 'on' );
+    grant_caps( $docroot, 'eve', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
     dav_users_tool( $docroot, 'add', 'mallory', 'pw' );
-    dav_users_tool( $docroot, 'set', 'mallory', 'webdav', 'on' );
+    grant_caps( $docroot, 'mallory', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
 
-    open my $gf, '>', "$docroot/lazysite/auth/groups" or die $!;
+    # Append (do not clobber the role-* groups grant_caps created for eve/mallory).
+    open my $gf, '>>', "$docroot/lazysite/auth/groups" or die $!;
     print {$gf} "editors: eve\n";    # eve is a member; mallory is not
     close $gf;
     open my $af, '>', "$docroot/lazysite/auth/acls.json" or die $!;
@@ -111,8 +112,8 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
 # --- SM082: a theme-only partner (manage_content off) is refused content ------
 {
     dav_users_tool( $docroot, 'add', 'themer', 'pw' );
-    dav_users_tool( $docroot, 'set', 'themer', 'webdav', 'on' );
-    dav_users_tool( $docroot, 'set', 'themer', 'manage_content', 'off' );
+    grant_caps( $docroot, 'themer', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
+    revoke_caps( $docroot, 'themer', 'manage_content' );
     my $auth_t = 'Basic ' . encode_base64( 'themer:pw', '' );
     my $put = run_dav( $docroot, 'PUT', '/themer-page.md', body => "x\n", HTTP_AUTHORIZATION => $auth_t );
     is( $put->{code}, 403, 'manage_content=off partner is refused a content PUT' );

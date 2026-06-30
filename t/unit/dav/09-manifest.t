@@ -8,13 +8,13 @@ use File::Path qw(make_path);
 use Digest::SHA qw(sha256_hex);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(run_dav setup_dav_site dav_users_tool);
+use TestHelper qw(run_dav setup_dav_site dav_users_tool grant_caps revoke_caps);
 
 my $s    = setup_dav_site(
     conf => "webdav_enabled: true\nlayout: base\ntheme: live\n" );
 my $doc  = $s->{docroot};
 my $auth = $s->{auth};
-dav_users_tool( $doc, 'set', 'deploy', 'manage_themes', 'on' );
+grant_caps( $doc, 'deploy', 'manage_themes' );
 
 make_path("$doc/lazysite/layouts/base/themes/live");
 my $body = "body { color: rebeccapurple; }\n";

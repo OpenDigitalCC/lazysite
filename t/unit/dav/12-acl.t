@@ -9,12 +9,12 @@ use Test::More;
 use MIME::Base64 qw(encode_base64);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(setup_dav_site run_dav dav_users_tool);
+use TestHelper qw(setup_dav_site run_dav dav_users_tool grant_caps revoke_caps);
 
 my $s     = setup_dav_site();        # user 'deploy' = our "alice"
 my $alice = $s->{auth};
 dav_users_tool( $s->{docroot}, 'add', 'bob', 'pw' );
-dav_users_tool( $s->{docroot}, 'set', 'bob', 'webdav', 'on' );
+grant_caps( $s->{docroot}, 'bob', 'webdav', 'manage_content' );
 my $bob = 'Basic ' . encode_base64( 'bob:pw', '' );
 
 sub set_acls {

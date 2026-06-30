@@ -162,7 +162,7 @@ sub setup_other_user {
     my ($s) = @_;
     require TestHelper;
     TestHelper::dav_users_tool( $s->{docroot}, 'add', 'other', 'pw2' );
-    TestHelper::dav_users_tool( $s->{docroot}, 'set', 'other', 'webdav', 'on' );
+    TestHelper::grant_caps( $s->{docroot}, 'other', 'webdav', 'manage_content' );
     require MIME::Base64;
     $s->{other_auth} = 'Basic ' . MIME::Base64::encode_base64( 'other:pw2', '' );
 }

@@ -39,9 +39,10 @@ my $c2 = caps_for('ada');
 ok( $c2->{manage_content} && $c2->{manage_themes} && $c2->{manage_layouts},
     'multiple groups compound (union of capabilities)' );
 
-# Transition: a legacy per-user grant still resolves on (no group).
+# Clean cut: a legacy per-user grant is NOT honoured - capabilities come from
+# groups only.
 w( "$auth/user-settings.json", encode_json( { bob => { analytics => 1 } } ) );
-ok( caps_for('bob')->{analytics}, 'a legacy per-user grant still resolves (transition)' );
+ok( !caps_for('bob')->{analytics}, 'a per-user grant is ignored (groups-only)' );
 
 # An ungranted account has nothing.
 my $none = caps_for('nobody');

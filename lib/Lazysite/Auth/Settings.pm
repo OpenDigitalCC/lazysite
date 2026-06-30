@@ -90,33 +90,14 @@ sub _group_caps {
 
 # THE central capability resolver - every surface (manager UI, control API, MCP,
 # and the WebDAV endpoint) consults this and only this. Returns { cap => 0|1 }.
-# Transitionally it unions group grants with any legacy per-user grant (and keeps
-# the manage_content->webdav / nav,forms->content back-compat defaults) so the
-# move to one resolver changes WHERE caps come from, not WHAT they are.
+# SM095 clean cut: capabilities come from the account's GROUPS only - the union
+# across them, each capability explicit (no per-user grants, no inheritance). The
+# interactive-login gate still reads the per-account `ui` flag until phase (c2)
+# wires it to the `ui` capability here.
 sub caps_for {
     my ($user) = @_;
-    my $s  = read_settings()->{$user} || {};
     my $gc = _group_caps($user);
-    my %c;
-    for my $k (qw(webdav manage_themes manage_layouts manage_config analytics
-        create_sub_users delegate_sub_user_creation)) {
-        $c{$k} = ( $s->{$k} || $gc->{$k} ) ? 1 : 0;
-    }
-    # New capabilities (channels ui/api/mcp; manage_users) are group-only - they
-    # never had a per-user form, so there is no legacy grant to union. NB: the
-    # interactive-login GATE still reads the per-account `ui` flag until the clean
-    # cut; this `ui` cap is the future channel grant (shown in the Groups page /
-    # permission viewer), enforced for login at phase (c).
-    for my $k (qw(ui api mcp manage_users)) {
-        $c{$k} = $gc->{$k} ? 1 : 0;
-    }
-    my $content = ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} )
-        || $gc->{manage_content};
-    $c{manage_content} = $content ? 1 : 0;
-    $c{manage_nav} = ( ( defined $s->{manage_nav} ? $s->{manage_nav} : $content )
-        || $gc->{manage_nav} ) ? 1 : 0;
-    $c{manage_forms} = ( ( defined $s->{manage_forms} ? $s->{manage_forms} : $content )
-        || $gc->{manage_forms} ) ? 1 : 0;
+    my %c = map { $_ => ( $gc->{$_} ? 1 : 0 ) } @CAP_KEYS;
     return \%c;
 }
 

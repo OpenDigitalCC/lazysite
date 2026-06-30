@@ -773,14 +773,13 @@ sub cmd_set {
     my $all = read_settings();
     $all->{$user} ||= {};
 
-    # SM071 Phase 2: create_sub_users / delegate_sub_user_creation join
-    # the boolean settings. Provenance keys (created_by / created_at /
-    # managed_by) are deliberately NOT settable here - they are stamped at
-    # creation and changed only by account-create / account-reassign.
-    my %bool_key = map { $_ => 1 }
-        qw(webdav ui create_sub_users delegate_sub_user_creation
-           manage_content manage_nav manage_forms
-           manage_themes manage_layouts manage_config analytics);
+    # SM095 clean cut: capabilities are assigned to GROUPS now, not accounts. The
+    # only account-shaped boolean left is `ui` (interactive-login allowed).
+    if ( $key ne 'ui' && grep { $_ eq $key } @CAP_KEYS ) {
+        die "Capabilities are assigned to GROUPS now, not accounts. Add the user "
+          . "to a group, or: group-set <group> $key on\n";
+    }
+    my %bool_key = ( ui => 1 );
 
     if ( $bool_key{$key} ) {
         my $bool = parse_onoff($value);
@@ -920,8 +919,10 @@ sub cmd_account_create {
     $all->{$user}{created_by} = $creator;
     $all->{$user}{managed_by} = $creator;
     $all->{$user}{created_at} = time();
-    $all->{$user}{create_sub_users} = JSON::PP::true() if $opt{create_subs};
     write_settings($all);
+    # Delegated sub-user creation: the new account's create_sub_users lives on its
+    # role group (capabilities are group-only now).
+    _grant_account_caps( $user, 'create_sub_users' ) if $opt{create_subs};
 
     log_event( 'INFO', $user, 'sub-user created', created_by => $creator );
     print "Sub-user '$user' created (parent '$creator').\n" unless $API_MODE;
@@ -1858,6 +1859,16 @@ sub cmd_onboarding {
     };
 }
 
+# SM095: grant capabilities to ONE account by putting it in its own role group
+# (role-<account>) carrying those caps. The single way new accounts get caps now.
+sub _grant_account_caps {
+    my ( $account, @caps ) = @_;
+    return unless @caps;
+    cmd_group_add( $account, "role-$account" );
+    for my $c (@caps) { cmd_group_settings_set( "role-$account", $c, 'on' ); }
+    return;
+}
+
 sub cmd_partner_create {
     my ( $name, %opt ) = @_;
     die "Partner name required\n" unless defined $name && length $name;
@@ -1868,12 +1879,17 @@ sub cmd_partner_create {
     cmd_account_create( $name, $locked,
         created_by => $opt{created_by}, create_subs => $opt{create_subs} );
 
+    # SM095: a partner's capabilities live on its own role group (role-<name>), not
+    # per-account. Default a connector role: the channels it uses + content
+    # publishing + themes; layouts/config opt-in.
+    my @caps = qw(webdav api mcp manage_content manage_nav manage_forms);
+    push @caps, 'manage_themes'  unless defined $opt{themes} && !$opt{themes};
+    push @caps, 'manage_layouts' if $opt{layouts};
+    push @caps, 'manage_config'  if $opt{config};
+    _grant_account_caps( $name, @caps );
+
+    # dav_scope is account-shaped (not a capability) - it stays per-account.
     my $all = read_settings();
-    $all->{$name}{webdav}         = JSON::PP::true();
-    $all->{$name}{manage_themes}  = JSON::PP::true()
-        unless defined $opt{themes} && !$opt{themes};
-    $all->{$name}{manage_layouts} = JSON::PP::true() if $opt{layouts};
-    $all->{$name}{manage_config}  = JSON::PP::true() if $opt{config};
     if ( defined $opt{scope} && length $opt{scope} ) {
         my $sc = normalise_scope( $opt{scope} );
         $all->{$name}{dav_scope} = $sc if defined $sc;

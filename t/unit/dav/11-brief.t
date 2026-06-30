@@ -9,7 +9,7 @@ use Test::More;
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(setup_dav_site run_dav dav_users_tool);
+use TestHelper qw(setup_dav_site run_dav dav_users_tool grant_caps revoke_caps);
 
 # --- a .brief writes and reads back in the content scope ---------------
 {
@@ -36,7 +36,7 @@ use TestHelper qw(setup_dav_site run_dav dav_users_tool);
 # --- a .brief is writable under a (non-active) theme, with manage_themes ---
 {
     my $s = setup_dav_site();
-    dav_users_tool( $s->{docroot}, 'set', $s->{user}, 'manage_themes', 'on' );
+    grant_caps( $s->{docroot}, $s->{user}, 'manage_themes' );
     make_path("$s->{docroot}/lazysite/layouts/draft/themes/dark");
     my $a = $s->{auth};
 

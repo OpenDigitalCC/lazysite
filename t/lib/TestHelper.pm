@@ -14,7 +14,75 @@ our @EXPORT_OK = qw(
     setup_test_site setup_minimal_site setup_auth_site setup_search_site
     run_processor run_script run_dav
     setup_dav_site dav_users_tool
+    grant_caps revoke_caps
 );
+
+# SM095: capabilities live on GROUPS now, not on accounts. Grant some to a user by
+# putting them in a per-user role group carrying those caps; revoke by clearing
+# them. Writes the auth files DIRECTLY (no users-tool subprocess) - the suite makes
+# thousands of these, and forking the tool each time exhausts resources.
+sub grant_caps {
+    my ( $docroot, $user, @caps ) = @_;
+    my $group = "role-$user";
+    _gc_add_member( $docroot, $group, $user );
+    _gc_set_caps( $docroot, $group, { map { $_ => 1 } @caps } );
+    return $group;
+}
+
+sub revoke_caps {
+    my ( $docroot, $user, @caps ) = @_;
+    _gc_set_caps( $docroot, "role-$user", { map { $_ => 0 } @caps } );
+    return;
+}
+
+sub _gc_groups_file { "$_[0]/lazysite/auth/groups" }
+sub _gc_gs_file     { "$_[0]/lazysite/auth/groups-settings.json" }
+
+sub _gc_read_groups {
+    my ($docroot) = @_;
+    my %g;
+    open my $fh, '<', _gc_groups_file($docroot) or return %g;
+    while (<$fh>) {
+        chomp; s/^\s+|\s+$//g; next if /^#/ || !length;
+        my ( $grp, $mem ) = split /:\s*/, $_, 2;
+        next unless defined $mem;
+        $g{$grp} = [ map { s/^\s+|\s+$//gr } split /,/, $mem ];
+    }
+    close $fh;
+    return %g;
+}
+
+sub _gc_add_member {
+    my ( $docroot, $group, $user ) = @_;
+    my %g = _gc_read_groups($docroot);
+    $g{$group} ||= [];
+    push @{ $g{$group} }, $user unless grep { $_ eq $user } @{ $g{$group} };
+    open my $w, '>', _gc_groups_file($docroot) or die "groups: $!";
+    for my $grp ( sort keys %g ) {
+        print {$w} "$grp: " . join( ', ', @{ $g{$grp} } ) . "\n" if @{ $g{$grp} };
+    }
+    close $w;
+}
+
+sub _gc_set_caps {
+    my ( $docroot, $group, $caps ) = @_;
+    require JSON::PP;
+    my $f  = _gc_gs_file($docroot);
+    my $gs = {};
+    if ( open my $fh, '<', $f ) {
+        local $/;
+        $gs = eval { JSON::PP::decode_json( <$fh> ) } || {};
+        close $fh;
+    }
+    $gs->{$group} ||= { label => $group };
+    for my $k ( keys %$caps ) {
+        if ( $caps->{$k} ) { $gs->{$group}{$k} = 1 }
+        else               { delete $gs->{$group}{$k} }
+    }
+    open my $w, '>', $f or die "groups-settings: $!";
+    print {$w} JSON::PP::encode_json($gs);
+    close $w;
+}
 
 sub repo_root {
     my $bin = $FindBin::Bin;
@@ -340,7 +408,14 @@ sub setup_dav_site {
     my $pass = defined $o{password} ? $o{password} : 'secret';
     unless ( $o{no_user} ) {
         dav_users_tool( $d, 'add', $user, $pass );
-        dav_users_tool( $d, 'set', $user, 'webdav', ( $o{webdav} // 'on' ) );
+        # SM095: webdav is a group capability now. Default a content-publishing
+        # role (webdav + content/nav/forms - the old webdav->content inheritance);
+        # pass caps => [...] for a different set, or webdav => 'off' for none.
+        if ( ( $o{webdav} // 'on' ) ne 'off' ) {
+            my @caps = $o{caps} ? @{ $o{caps} }
+                : qw(webdav manage_content manage_nav manage_forms);
+            grant_caps( $d, $user, @caps );
+        }
         dav_users_tool( $d, 'set', $user, 'dav_scope', $o{scope} )
             if defined $o{scope};
     }

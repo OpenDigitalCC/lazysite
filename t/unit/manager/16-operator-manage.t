@@ -15,7 +15,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $root   = repo_root();
 my $utool  = "$root/tools/lazysite-users.pl";
@@ -69,10 +69,10 @@ open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close
 
 # CLI setup (unrestricted): boss owns sw; 'other' is an unrelated sub-manager.
 uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
-uapi( $d, { action => 'settings-set', username => 'boss', key => 'create_sub_users', value => 'on' } );
+grant_caps( $d, "boss", "create_sub_users" );
 uapi( $d, { action => 'account-create', username => 'sw', password => '', created_by => 'boss' } );
 uapi( $d, { action => 'add', username => 'other', password => 'x' } );
-uapi( $d, { action => 'settings-set', username => 'other', key => 'create_sub_users', value => 'on' } );
+grant_caps( $d, "other", "create_sub_users" );
 
 # Operator 'admin' (manager group) - did NOT create sw, but must manage it.
 my $op = manage( $d, 'admin', 'managers', { action => 'claim-create', username => 'sw' } );

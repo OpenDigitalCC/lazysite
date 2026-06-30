@@ -173,13 +173,15 @@ sub api {
         'every users-detail row has a real username' );
 }
 
-# Phase 1 is non-breaking: a legacy per-user grant still resolves on.
+# Clean cut: capabilities cannot be set per-account any more, and a stray per-user
+# grant is not honoured.
 {
     my $d = docroot();
     cli( $d, 'add', 'legacy', 'pw' );
-    cli( $d, 'set', 'legacy', 'analytics', 'on' );    # per-user grant, no group
-    my $s = caps( $d, 'legacy' );
-    ok( $s->{analytics}, 'a legacy per-user grant still applies (union)' );
+    my $r = cli( $d, 'set', 'legacy', 'analytics', 'on' );    # rejected: caps are group-only
+    isnt( $r->{code}, 0, 'setting a capability per-account is refused' );
+    like( $r->{err}, qr/GROUPS/i, 'error points the operator to groups' );
+    ok( !caps( $d, 'legacy' )->{analytics}, 'no per-account capability resolves' );
 }
 
 done_testing;

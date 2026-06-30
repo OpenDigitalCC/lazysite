@@ -11,7 +11,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $script = repo_root() . "/tools/lazysite-users.pl";
 
@@ -43,8 +43,8 @@ sub settings { api( $_[0], { action => 'settings-get', username => $_[1] } )->{s
 
 my $d = fresh_docroot();
 cli( $d, 'add', 'boss', 'pw' );
-cli( $d, 'set', 'boss', 'create_sub_users', 'on' );
-cli( $d, 'set', 'boss', 'delegate_sub_user_creation', 'on' );
+grant_caps( $d, 'boss', 'create_sub_users' );
+grant_caps( $d, 'boss', 'delegate_sub_user_creation' );
 
 # --- default partner: webdav + manage_themes, brief, pairing key ------
 my $r = api( $d, { action => 'partner-create', username => 'designer', created_by => 'boss' } );

@@ -1152,20 +1152,21 @@ sub action_whoami {
         # SM094: the site's manager groups, so the Users UI can tell which accounts
         # are operators (full access) vs partners gated by the capability toggles.
         manager_groups => [ grep { length } split /[,\s]+/, ( $manager_groups_conf // '' ) ],
+        # $s is the EFFECTIVE settings (from settings-get -> the resolver), so report
+        # every capability straight from it - channels and actions alike.
         capabilities => {
-            webdav           => $bool->( $s->{webdav} ),
             ui               => $bool->( !( exists $s->{ui} && !$s->{ui} ) ),
+            webdav           => $bool->( $s->{webdav} ),
+            api              => $bool->( $s->{api} ),
+            mcp              => $bool->( $s->{mcp} ),
+            manage_content   => $bool->( $s->{manage_content} ),
+            manage_nav       => $bool->( $s->{manage_nav} ),
+            manage_forms     => $bool->( $s->{manage_forms} ),
             manage_themes    => $bool->( $s->{manage_themes} ),
             manage_layouts   => $bool->( $s->{manage_layouts} ),
             manage_config    => $bool->( $s->{manage_config} ),
-            # SM105/SM106: report the EFFECTIVE (inherited) content/nav/forms grants -
-            # manage_content inherits webdav, and nav/forms inherit content - so a
-            # partner sees the capabilities that actually apply, not just explicit ones.
-            manage_content   => $bool->( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} ),
-            manage_nav       => $bool->( defined $s->{manage_nav}   ? $s->{manage_nav}
-                                       : ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} ) ),
-            manage_forms     => $bool->( defined $s->{manage_forms} ? $s->{manage_forms}
-                                       : ( defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav} ) ),
+            manage_users     => $bool->( $s->{manage_users} ),
+            analytics        => $bool->( $s->{analytics} ),
             create_sub_users => $bool->( $s->{create_sub_users} ),
         },
         groups => \@groups,

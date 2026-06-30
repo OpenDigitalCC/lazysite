@@ -17,7 +17,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $root  = repo_root();
 my $utool = "$root/tools/lazysite-users.pl";
@@ -61,7 +61,7 @@ open my $af, '>', "$d/lazysite/auth/acls.json" or die $!;
 print $af '{"content/x.md":{"owner":"alice","write":["alice"]}}'; close $af;
 
 uapi( $d, { action => 'add', username => 'bob', password => 'x' } );
-uapi( $d, { action => 'settings-set', username => 'bob', key => 'webdav', value => 'on' } );
+grant_caps( $d, 'bob', 'webdav' );
 my $btok = uapi( $d, { action => 'token', username => 'bob' } )->{token};
 ok( $btok && $btok =~ /^lzs_/, 'bob has a webdav token' );
 

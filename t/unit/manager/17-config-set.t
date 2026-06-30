@@ -13,7 +13,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $root  = repo_root();
 my $utool = "$root/tools/lazysite-users.pl";
@@ -53,7 +53,7 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: My Site\n"; close $cf;
 
 uapi( $d, { action => 'add', username => 'p', password => 'x' } );
-uapi( $d, { action => 'settings-set', username => 'p', key => 'manage_config', value => 'on' } );
+grant_caps( $d, 'p', 'manage_config' );
 my $tok = uapi( $d, { action => 'token', username => 'p' } )->{token};
 ok( $tok && $tok =~ /^lzs_/, 'minted a manage_config token' );
 

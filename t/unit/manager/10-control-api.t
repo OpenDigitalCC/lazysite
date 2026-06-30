@@ -15,7 +15,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $root  = repo_root();
 my $utool = "$root/tools/lazysite-users.pl";
@@ -69,7 +69,7 @@ print $tj '{"name":"live","layouts":["base"]}'; close $tj;
 
 # partner: token credential + manage_themes
 uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
-uapi( $d, { action => 'settings-set', username => 'partner', key => 'manage_themes', value => 'on' } );
+grant_caps( $d, 'partner', 'manage_themes' );
 my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
 ok( $tok && $tok =~ /^lzs_/, 'minted partner token' );
 
@@ -98,10 +98,10 @@ ok( !$na->{ok} && $na->{error} =~ /not available to token/i,
 # manage_nav inherits manage_content which inherits webdav, so a webdav partner
 # can manage the nav over the control API (no MCP / raw-WebDAV needed).
 open my $nv, '>', "$d/lazysite/nav.conf" or die $!; print $nv "Home | /\n"; close $nv;
-uapi( $d, { action => 'settings-set', username => 'partner', key => 'webdav', value => 'on' } );
+grant_caps( $d, 'partner', 'webdav', 'manage_nav' );
 my $nr = mapi( $d, QUERY_STRING => 'action=nav-read',
     HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
-ok( $nr->{ok}, 'nav-read available to a token client with manage_nav (inherited from webdav)' );
+ok( $nr->{ok}, 'nav-read available to a token client with manage_nav' );
 my $nn = mapi( $d, QUERY_STRING => 'action=nav-read',
     HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
 ok( !$nn->{ok} && $nn->{error} =~ /capability/i,
@@ -126,9 +126,9 @@ ok( !$bad->{ok} && $bad->{error} =~ /invalid credentials/i, 'invalid token rejec
 
 # --- actor injection: a manager may only manage its own sub-tree ---------
 uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
-uapi( $d, { action => 'settings-set', username => 'boss', key => 'create_sub_users', value => 'on' } );
+grant_caps( $d, 'boss', 'create_sub_users' );
 # The audit trail now requires the analytics capability (strict gate).
-uapi( $d, { action => 'settings-set', username => 'boss', key => 'analytics', value => 'on' } );
+grant_caps( $d, 'boss', 'analytics' );
 uapi( $d, { action => 'account-create', username => 'child', password => 'x', created_by => 'boss' } );
 uapi( $d, { action => 'add', username => 'other', password => 'x' } );
 
@@ -147,7 +147,7 @@ my $deny = mapi( $d, REQUEST_METHOD => 'POST',
 ok( !$deny->{ok}, 'manager may not disable an account outside its sub-tree' );
 
 # --- SM072: whoami introspection of the caller's own grant --------------
-uapi( $d, { action => 'settings-set', username => 'partner', key => 'webdav', value => 'on' } );
+grant_caps( $d, 'partner', 'webdav' );
 uapi( $d, { action => 'group-add', username => 'partner', group => 'editors' } );
 my $who = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
@@ -155,7 +155,7 @@ ok( $who->{ok}, 'whoami ok for a token client' );
 is( $who->{partner}, 'partner', 'whoami returns the caller id' );
 ok( $who->{capabilities}{manage_themes},  'whoami reports manage_themes on' );
 ok( !$who->{capabilities}{manage_layouts}, 'whoami reports manage_layouts off' );
-is_deeply( $who->{groups}, ['editors'], 'whoami lists the caller groups' );
+ok( ( grep { $_ eq 'editors' } @{ $who->{groups} } ), 'whoami lists the caller groups (editors)' );
 ok( ref $who->{plugins} eq 'ARRAY', 'whoami lists plugins' );
 ok( exists $who->{layouts}{active_layout}, 'whoami reports the active layout' );
 ok( ref $who->{site_capabilities} eq 'ARRAY', 'whoami reports site capabilities from enabled plugins' );
@@ -186,7 +186,7 @@ my $av_denied = mapi( $d, QUERY_STRING => 'action=analyse_visitors',
     HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
 ok( !$av_denied->{ok}, 'analyse_visitors denied without analytics' );
 
-uapi( $d, { action => 'settings-set', username => 'partner', key => 'analytics', value => 'on' } );
+grant_caps( $d, 'partner', 'analytics' );
 my $alog = "$d/access.log";
 open my $lg, '>', $alog or die $!;
 print {$lg} '1.2.3.4 - - [01/Jan/2026:00:00:00 +0000] "GET /x HTTP/1.1" 200 1 "-" "curl/8"' . "\n";

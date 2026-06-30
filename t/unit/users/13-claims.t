@@ -11,7 +11,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $root   = repo_root();
 my $script = "$root/tools/lazysite-users.pl";
@@ -133,7 +133,7 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
 {
     my $d = fresh_docroot();
     cli( $d, 'add', 'mgr', 'pw' );
-    cli( $d, 'set', 'mgr', 'create_sub_users', 'on' );
+    grant_caps( $d, 'mgr', 'create_sub_users' );
     api( $d, { action => 'account-create', username => 'kid', password => 'pw',
                created_by => 'mgr', actor => 'mgr' } );
     cli( $d, 'add', 'stranger', 'pw' );
@@ -167,7 +167,7 @@ sub setfile  { "$_[0]/lazysite/auth/user-settings.json" }
 {
     my $d = fresh_docroot();
     cli( $d, 'add', 'alice', 'pw' );
-    cli( $d, 'set', 'alice', 'create_sub_users', 'on' );
+    grant_caps( $d, 'alice', 'create_sub_users' );
     cli( $d, 'group-add', 'alice', 'editors' );
     api( $d, { action => 'account-create', username => 'kid', password => 'pw',
                created_by => 'alice', actor => 'alice' } );

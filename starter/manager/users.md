@@ -303,32 +303,21 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
     '</select></div>';
   h += sec('Access', acc);
 
-  // --- Publishing access (the capability toggles) ---
-  // These gate the partner surfaces (WebDAV / control API / AI connector). They are
-  // ALWAYS shown and settable: operator (manager-group) status only bypasses the
-  // cookie/UI path - an operator account that ALSO connects with a token is still
-  // gated by these flags, so they must be settable for it too (the case that bit us:
-  // a manager-group account whose connector could not manage themes/layouts).
-  var pub = '';
-  if (isOperator) {
-    pub += '<p class="mg-muted">In <b>' + opGroups.map(escHtml).join(', ') +
-      '</b> (operator): full access in the Manager UI via login. The capabilities below ' +
-      'additionally govern this account\'s <b>token / WebDAV / connector</b> use &mdash; set ' +
-      'them if it also connects as a partner (operator status does not lift them on that path).</p>';
-  }
-  pub += '<div class="mg-checks">' +
-    cap(ue, 'webdav', webdav, 'WebDAV') +
-    cap(ue, 'manage_content', !!s.manage_content, 'Manage content (pages)') +
-    cap(ue, 'manage_nav', !!s.manage_nav, 'Manage navigation') +
-    cap(ue, 'manage_forms', !!s.manage_forms, 'Manage forms') +
-    cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes') +
-    cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts') +
-    cap(ue, 'manage_config', !!s.manage_config, 'Manage config') +
-    cap(ue, 'analytics', !!s.analytics, 'Analytics (visitor stats + audit)') +
-    cap(ue, 'create_sub_users', !!s.create_sub_users, 'Create sub-users') +
-    cap(ue, 'delegate_sub_user_creation', !!s.delegate_sub_user_creation, 'Delegate sub-users') +
-    '</div>';
-  h += sec('Publishing access (WebDAV / control API / AI connector)', pub);
+  // --- Capabilities (read-only; managed via GROUPS now, SM095) ---
+  // Per-account capability toggles are gone: capabilities come from group
+  // membership. Show the effective set read-only + point to the Groups page.
+  var CAP_ORDER = ['ui','webdav','api','mcp','manage_content','manage_nav','manage_forms',
+    'manage_themes','manage_layouts','manage_config','manage_users','analytics',
+    'create_sub_users','delegate_sub_user_creation'];
+  var capsOn = CAP_ORDER.filter(function(k){ return s[k]; })
+    .map(function(k){ return PERM_LABELS[k] || k; });
+  var pub = '<p class="mg-muted">Capabilities come from <b>group membership</b> (below) &mdash; '
+    + 'edit them on the <a href="/manager/groups">Groups</a> page. Open '
+    + '<i>Permissions (derived)</i> for the channel &times; capability grid.</p>'
+    + '<div class="mg-checks">' + ( capsOn.length
+        ? capsOn.map(function(c){ return '<span class="mg-chip">' + escHtml(c) + '</span>'; }).join('')
+        : '<span class="mg-empty">No capabilities (in no group that grants any).</span>' ) + '</div>';
+  h += sec('Capabilities (from groups)', pub);
 
   // --- Groups ---
   var mine = groupsForUser(u);

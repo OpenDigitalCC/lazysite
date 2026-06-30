@@ -12,7 +12,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $root = repo_root();
 my $utool = "$root/tools/lazysite-users.pl";
@@ -49,7 +49,7 @@ open my $cf, '>', "$d/lazysite/lazysite.conf"; print $cf "layout: base\ntheme: l
 open my $tj, '>', "$d/lazysite/layouts/base/themes/live/theme.json";
 print $tj '{"name":"live","layouts":["base"]}'; close $tj;
 uapi( $d, { action => 'add', username => 'p', password => 'x' } );
-uapi( $d, { action => 'settings-set', username => 'p', key => 'manage_themes', value => 'on' } );
+grant_caps( $d, 'p', 'manage_themes' );
 my $tok = uapi( $d, { action => 'token', username => 'p' } )->{token};
 my $auth = 'Basic ' . encode_base64( "p:$tok", '' );
 

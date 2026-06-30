@@ -13,7 +13,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps);
 
 my $root  = repo_root();
 my $utool = "$root/tools/lazysite-users.pl";
@@ -63,7 +63,7 @@ sub _theme {
 }
 
 uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
-uapi( $d, { action => 'settings-set', username => 'partner', key => 'manage_themes', value => 'on' } );
+grant_caps( $d, 'partner', 'manage_themes' );
 my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
 my $auth = basic( 'partner', $tok );
 

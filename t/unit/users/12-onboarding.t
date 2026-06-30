@@ -9,7 +9,7 @@ use JSON::PP qw(encode_json decode_json);
 use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root grant_caps revoke_caps);
 
 my $script = repo_root() . "/tools/lazysite-users.pl";
 
@@ -32,8 +32,8 @@ sub uapi {
 
 my $d = fresh();
 uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
-uapi( $d, { action => 'settings-set', username => 'partner', key => 'webdav', value => 'on' } );
-uapi( $d, { action => 'settings-set', username => 'partner', key => 'manage_themes', value => 'on' } );
+grant_caps( $d, 'partner', 'webdav', 'manage_content', 'manage_themes' );
+grant_caps( $d, 'partner', 'manage_themes' );
 
 my $r = uapi( $d, { action => 'onboarding', username => 'partner' } );
 ok( $r->{ok}, 'onboarding ok for existing user' );
@@ -92,13 +92,14 @@ ok( !uapi( $d, { action => 'redeem-connect-code', code => $cc->{code} } )->{ok},
 ok( !uapi( $d, { action => 'onboarding-web', username => 'ghost' } )->{ok},
     'onboarding-web rejects an unknown user' );
 
-# SM082: manage_content defaults to the webdav grant; turning it off makes a
-# theme-only partner without touching webdav / theme caps.
+# SM095: capabilities are explicit per group (no webdav->content inheritance).
 my $eff = uapi( $d, { action => 'settings-get', username => 'partner' } )->{settings};
-ok( $eff->{webdav} && $eff->{manage_content}, 'manage_content defaults on for a webdav partner' );
-uapi( $d, { action => 'settings-set', username => 'partner', key => 'manage_content', value => 'off' } );
+ok( $eff->{webdav} && $eff->{manage_content} && $eff->{manage_themes},
+    'partner has its granted capabilities (webdav + content + themes)' );
+# Revoking manage_content from its role group makes a theme-only partner.
+revoke_caps( $d, 'partner', 'manage_content' );
 my $eff2 = uapi( $d, { action => 'settings-get', username => 'partner' } )->{settings};
-ok( !$eff2->{manage_content}, 'manage_content can be turned off' );
+ok( !$eff2->{manage_content}, 'manage_content can be revoked' );
 ok( $eff2->{webdav} && $eff2->{manage_themes}, 'webdav + theme caps unaffected (theme-only partner)' );
 
 done_testing();
