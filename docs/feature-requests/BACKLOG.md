@@ -90,6 +90,17 @@ before work starts.
 
 ## Open - actionable
 
+- **Bad-URL auto-blocker plugin (default on)** - a plugin that recognises the
+  steady stream of vulnerability-scanner probes (`/wp-login.php`, `/.env`,
+  `/config.env`, `/actuator/health`, `/server-status`, `/.git/`, `*.php` on a
+  markdown site, etc. - all already classed as "noise" by the stats classifier)
+  and auto-blocks the source IP after N hits in a window. Maintains the bad-URL
+  pattern list (built-in + operator additions), records every block (IP, pattern,
+  count, time) for review, and exposes a small manager panel (current blocks +
+  unblock). Enabled by default. Reuse the stats noise-path heuristics as the seed
+  list. (Prompted by scanner traffic hitting a fresh site within minutes of going
+  live.)
+
 - **SM085** Git backend / changesets *(design)* - `begin → diff → commit →
   rollback` on a git-versioned docroot. Biggest remaining lever; adds the
   rollback safety net. Headline ask from both AI-partner reviews.

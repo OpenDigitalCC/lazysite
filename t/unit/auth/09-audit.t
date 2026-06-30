@@ -65,11 +65,14 @@ users_api( $d, { action => 'add', username => 'human', password => 'pw' } );
 
 my %base = ( DOCUMENT_ROOT => $d, REMOTE_ADDR => '127.0.0.1', HTTPS => '' );
 
-# --- successful login is audited ---
-run_auth( { %base, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=login' },
+# --- successful login is audited (capture the session cookie) ---
+my $login_out = run_auth(
+    { %base, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=login' },
     "username=human&password=pw&next=/" );
 like( audit_log_text($d), qr/\|\s*human\s*\|\s*login\s*\|.*\|\s*ok\s*\|/,
     'successful login writes an audit "login … ok" entry' );
+my ($session) = $login_out =~ /Set-Cookie:\s*lazysite_auth=([^;]+)/i;
+ok( $session, 'login issued a session cookie' );
 
 # --- failed login is audited with a reason ---
 run_auth( { %base, REMOTE_ADDR => '10.9.9.9', REQUEST_METHOD => 'POST',
@@ -79,10 +82,16 @@ like( audit_log_text($d),
     qr/\|\s*human\s*\|\s*login\s*\|.*\|\s*fail\s*\|.*invalid-credentials/,
     'failed login writes an audit "login … fail … invalid-credentials" entry' );
 
-# --- logout is audited ---
+# --- an unauthenticated logout (e.g. a scanner) writes NO audit noise ---
+my $pre = audit_log_text($d);
+run_auth( { %base, REMOTE_ADDR => '45.88.138.44',
+        REQUEST_METHOD => 'GET', QUERY_STRING => 'action=logout' } );    # no cookie
+is( audit_log_text($d), $pre, 'unauthenticated logout writes no audit entry' );
+
+# --- logout of a VALID session is audited, with the real username ---
 run_auth( { %base, REQUEST_METHOD => 'GET', QUERY_STRING => 'action=logout',
-        HTTP_X_REMOTE_USER => 'human' } );
+        HTTP_COOKIE => "lazysite_auth=$session" } );
 like( audit_log_text($d), qr/\|\s*human\s*\|\s*logout\s*\|.*\|\s*ok\s*\|/,
-    'logout writes an audit "logout … ok" entry' );
+    'logout of a valid session writes an audit "logout … ok" entry' );
 
 done_testing();

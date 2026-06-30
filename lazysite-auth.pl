@@ -277,10 +277,32 @@ sub handle_login {
     return;
 }
 
+# The user of a VALID session cookie, or '' if there is no valid session. auth.pl
+# handles ?action=logout directly (not behind the wrapper), so HTTP_X_REMOTE_USER
+# is not set here - validate the cookie ourselves.
+sub _session_user {
+    my $cookie = read_cookie($COOKIE_NAME);
+    return '' unless $cookie;
+    my ( $payload, $sig ) = $cookie =~ /^(.+):([a-f0-9]{64})$/;
+    return '' unless $payload && $sig;
+    $payload = uri_decode_simple($payload);
+    my $secret = load_auth_secret();
+    return '' unless const_eq( $sig, hmac_sha256_hex( $payload, $secret ) );
+    my ( $user, $ts ) = split /:/, $payload, 3;
+    return '' unless defined $ts && $ts =~ /^\d+$/ && ( time() - $ts ) < $COOKIE_MAX;
+    return $user // '';
+}
+
 sub handle_logout {
-    my $user = $ENV{HTTP_X_REMOTE_USER} // '';
-    log_event('INFO', $user, 'logout', ip => $ENV{REMOTE_ADDR} // '');
-    _audit_auth( $user, 'logout', 'ok', '' );
+    my $user = _session_user();
+    # Only audit a real logout (a valid session). An unauthenticated hit on
+    # ?action=logout - common from vulnerability scanners - must write no audit
+    # noise; and a genuine logout now records the actual username (not the empty
+    # HTTP_X_REMOTE_USER it used to read on this direct call).
+    if ( length $user ) {
+        log_event('INFO', $user, 'logout', ip => $ENV{REMOTE_ADDR} // '');
+        _audit_auth( $user, 'logout', 'ok', '' );
+    }
 
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
 
