@@ -127,6 +127,8 @@ ok( !$bad->{ok} && $bad->{error} =~ /invalid credentials/i, 'invalid token rejec
 # --- actor injection: a manager may only manage its own sub-tree ---------
 uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
 uapi( $d, { action => 'settings-set', username => 'boss', key => 'create_sub_users', value => 'on' } );
+# The audit trail now requires the analytics capability (strict gate).
+uapi( $d, { action => 'settings-set', username => 'boss', key => 'analytics', value => 'on' } );
 uapi( $d, { action => 'account-create', username => 'child', password => 'x', created_by => 'boss' } );
 uapi( $d, { action => 'add', username => 'other', password => 'x' } );
 
@@ -171,5 +173,11 @@ ok( ( grep { ( $_->{action} // '' ) =~ /theme-activate|account-disable|users/ } 
     'audit captured a known POST action with who/what' );
 my $auf = mapi( $d, QUERY_STRING => 'action=audit&user=boss', HTTP_X_REMOTE_USER => 'boss' );
 ok( !( grep { ( $_->{user} // '' ) ne 'boss' } @{ $auf->{entries} } ), 'per-user filter returns only that user' );
+
+# Strict gate: a token client WITHOUT the analytics capability is refused the
+# audit trail (nocap holds no capabilities).
+my $aud_denied = mapi( $d, QUERY_STRING => 'action=audit',
+    HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
+ok( !$aud_denied->{ok}, 'audit denied for a client without the analytics capability' );
 
 done_testing();

@@ -297,6 +297,9 @@ if ( $token_auth ) {
         'nav-read'          => sub { $_[0]->{manage_nav} },
         'nav-save'          => sub { $_[0]->{manage_nav} },
         'whoami'            => sub { 1 },   # any authenticated token may introspect its own grant
+        # The audit trail is gated on the analytics capability (same grant as the
+        # visitor-stats export) for token clients and managers alike.
+        'audit'             => sub { $_[0]->{analytics} },
         # SM074: a publishing partner manages ACLs on the content it owns.
         'acl-get'           => sub { $_[0]->{webdav} },
         'acl-set'           => sub { $_[0]->{webdav} },
@@ -420,7 +423,20 @@ elsif ( $action eq 'nav-save' )         {
 elsif ( $action eq 'handler-list' )     { $result = action_handler_list() }
 elsif ( $action eq 'version' )          { $result = action_version() }
 elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
-elsif ( $action eq 'audit' )            { $result = action_audit( user => $params{user}, target => $params{target}, start => $params{start}, end => $params{end}, page => $params{page}, per_page => $params{per_page} ) }
+elsif ( $action eq 'audit' )            {
+    # Strict gate: the audit trail requires the 'analytics' capability. Token
+    # clients are already gated by %need above; a cookie (manager) request is
+    # checked here against the user's own grant.
+    if ( !$token_auth && !_user_analytics($auth_user) ) {
+        audit_log( $auth_user, 'audit', '', $ENV{REMOTE_ADDR} // '', 'fail', 'ui', 'denied: needs analytics' );
+        $result = { ok => 0, kind => 'forbidden',
+            error => "The audit trail requires the 'analytics' permission. "
+                   . "Ask the operator to grant it: lazysite-users.pl set <user> analytics on" };
+    }
+    else {
+        $result = action_audit( user => $params{user}, target => $params{target}, start => $params{start}, end => $params{end}, page => $params{page}, per_page => $params{per_page} );
+    }
+}
 elsif ( $action eq 'handler-save' )     {
     my $req = eval { decode_json($body) } // {};
     $result = action_handler_save($req);
@@ -1172,13 +1188,77 @@ sub action_whoami {
 # action.
 
 # SM072: read the audit trail (newest first), optionally filtered by user.
+sub _user_analytics {
+    my ($user) = @_;
+    return 0 unless defined $user && length $user;
+    my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
+    return $s->{analytics} ? 1 : 0;
+}
+
+sub _audit_parse_line {
+    my ($line) = @_;
+    chomp $line;
+    my @f = split / \| /, $line;
+    # Column growth over releases: 5 = ts|user|action|ip|status (pre-SM078);
+    # 6 adds target (SM078); 7 appends origin (SM077, ui/api); 8 adds detail.
+    my ( $ts, $u, $act, $target, $ip, $status, $origin, $detail );
+    if    ( @f >= 8 ) { ( $ts, $u, $act, $target, $ip, $status, $origin, $detail ) = @f[ 0 .. 7 ] }
+    elsif ( @f == 7 ) { ( $ts, $u, $act, $target, $ip, $status, $origin ) = @f[ 0 .. 6 ]; $detail = '' }
+    elsif ( @f == 6 ) { ( $ts, $u, $act, $target, $ip, $status ) = @f[ 0 .. 5 ]; $origin = ''; $detail = '' }
+    else              { ( $ts, $u, $act, $ip, $status ) = @f[ 0 .. 4 ]; $target = ''; $origin = ''; $detail = '' }
+    return { ts => $ts, user => $u, action => $act, target => $target,
+        ip => $ip, status => $status, origin => $origin, detail => $detail };
+}
+
+# Append-only cache: parse only the audit lines appended since last call, keeping
+# the most recent CAP entries (chronological order). Rotation/truncation-aware.
+sub _audit_cached_entries {
+    my $file = "$LAZYSITE_DIR/logs/audit.log";
+    return [] unless -f $file;
+    my $CAP        = 5000;
+    my $cache_dir  = "$LAZYSITE_DIR/cache";
+    my $cache_file = "$cache_dir/audit-cache.json";
+    my @st = stat($file);
+    my ( $inode, $size ) = ( $st[1], $st[7] );
+
+    my $cache;
+    if ( open my $cf, '<', $cache_file ) {
+        local $/; $cache = eval { decode_json( <$cf> ) }; close $cf;
+    }
+    if ( !$cache || ref $cache ne 'HASH'
+        || ( $cache->{inode} // -1 ) != $inode
+        || ( $cache->{offset} // 0 ) > $size ) {
+        $cache = { inode => $inode, offset => 0, entries => [] };
+    }
+    $cache->{entries} ||= [];
+
+    my $offset = $cache->{offset} // 0;
+    if ( $size > $offset && open my $fh, '<', $file ) {
+        seek $fh, $offset, 0;
+        my $pos = $offset;
+        while ( my $line = <$fh> ) {
+            last unless $line =~ /\n\z/;      # incomplete final line: next time
+            $pos += length $line;
+            push @{ $cache->{entries} }, _audit_parse_line($line);
+        }
+        close $fh;
+        my $over = @{ $cache->{entries} } - $CAP;
+        splice @{ $cache->{entries} }, 0, $over if $over > 0;
+        $cache->{offset} = $pos;
+        $cache->{inode}  = $inode;
+        if ( -d $cache_dir || mkdir($cache_dir) ) {
+            if ( open my $w, '>', "$cache_file.$$" ) {
+                print {$w} encode_json($cache); close $w;
+                rename "$cache_file.$$", $cache_file;
+            }
+        }
+    }
+    return $cache->{entries};
+}
+
 sub action_audit {
     my (%opt) = @_;
-    my $file = "$LAZYSITE_DIR/logs/audit.log";
-    return { ok => 1, entries => [] } unless -f $file;
-    open my $fh, '<', $file or return { ok => 1, entries => [] };
-    my @lines = <$fh>;
-    close $fh;
+    my $cached = _audit_cached_entries();
     my $want   = $opt{user};
     my $want_t = $opt{target};    # SM077: filter to one file's history
     # Date-range filter: timestamps are ISO (2026-06-27T14:47:24Z) so they sort
@@ -1194,17 +1274,9 @@ sub action_audit {
     }
     my @entries;
     my ( %fusers, %ftargets );    # SM119: distinct values for the filter dropdowns
-    for my $line ( reverse @lines ) {
-        chomp $line;
-        my @f = split / \| /, $line;
-        # Column growth over releases: 5 = ts|user|action|ip|status (pre-SM078);
-        # 6 adds target (SM078); 7 appends origin (SM077, ui/api). Parse by count.
-        my ( $ts, $u, $act, $target, $ip, $status, $origin, $detail );
-        if    ( @f >= 8 ) { ( $ts, $u, $act, $target, $ip, $status, $origin, $detail ) = @f[ 0 .. 7 ] }
-        elsif ( @f == 7 ) { ( $ts, $u, $act, $target, $ip, $status, $origin ) = @f[ 0 .. 6 ]; $detail = '' }
-        elsif ( @f == 6 ) { ( $ts, $u, $act, $target, $ip, $status ) = @f[ 0 .. 5 ]; $origin = ''; $detail = '' }
-        else              { ( $ts, $u, $act, $ip, $status ) = @f[ 0 .. 4 ]; $target = ''; $origin = ''; $detail = '' }
-        $fusers{ defined $u ? $u : '' }       = 1;   # facets from all scanned lines
+    for my $e ( reverse @$cached ) {    # newest first
+        my ( $ts, $u, $target ) = ( $e->{ts}, $e->{user}, $e->{target} );
+        $fusers{ defined $u ? $u : '' }             = 1;   # facets from all entries
         $ftargets{ defined $target ? $target : '' } = 1;
         # SM119: a "__none" filter matches blank-valued entries; else exact match.
         if ( defined $want && length $want ) {
@@ -1215,9 +1287,7 @@ sub action_audit {
         }
         next if defined $start && ( $ts // '' ) lt $start;
         next if defined $end   && ( $ts // '' ) gt $end;
-        push @entries, { ts => $ts, user => $u, action => $act,
-            target => $target, ip => $ip, status => $status, origin => $origin, detail => $detail };
-        last if @entries >= 5000;    # bound the scan; paginate within
+        push @entries, $e;
     }
 
     # Paginate (newest first); default 50 rows per page.
@@ -1229,10 +1299,10 @@ sub action_audit {
     my $page  = $opt{page} || 1;
     $page = 1      if $page < 1;
     $page = $pages if $page > $pages;
-    my $start = ( $page - 1 ) * $per;
-    my $end   = $start + $per - 1;
-    $end = $#entries if $end > $#entries;
-    my @slice = $total ? @entries[ $start .. $end ] : ();
+    my $pg_start = ( $page - 1 ) * $per;
+    my $pg_end   = $pg_start + $per - 1;
+    $pg_end = $#entries if $pg_end > $#entries;
+    my @slice = $total ? @entries[ $pg_start .. $pg_end ] : ();
 
     return { ok => 1, entries => \@slice,
         total => $total, page => $page, per_page => $per, pages => $pages,
