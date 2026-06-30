@@ -84,11 +84,13 @@ my $ab = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=layout-acti
     HTTP_AUTHORIZATION => $auth );
 ok( !$ab->{ok} && $ab->{error} =~ /compile|invalid/i, 'activate refuses uncompilable layout' );
 
-# --- incompatible pair: current theme not declared for new layout ----
-my $inc = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=layout-activate&path=alt',
+# --- EXPLICITLY-named incompatible theme is still refused -------------
+# (baseonly declares only 'base', not 'alt'). Naming it stays a hard error.
+my $inc = mapi( $d, REQUEST_METHOD => 'POST',
+    QUERY_STRING => 'action=layout-activate&path=alt&theme=baseonly',
     HTTP_AUTHORIZATION => $auth );
-ok( !$inc->{ok} && $inc->{incompatible}, 'incompatible (layout, theme) pair refused' );
-is( ( active() )[0], 'base', 'layout unchanged after incompatible activate' );
+ok( !$inc->{ok} && $inc->{incompatible}, 'explicitly-named incompatible theme refused' );
+is( ( active() )[0], 'base', 'layout unchanged after refused activate' );
 
 # --- the activation cache-clear must spare author .html partials -----
 # (SM072 report: activation deleted author include-partials, gutting pages).
@@ -110,5 +112,18 @@ is( $L, 'alt',    'layout flipped to alt' );
 is( $T, 'shared', 'theme switched to the compatible one' );
 my @lbk = glob("$d/lazysite/layouts/base-backup-*");
 ok( @lbk >= 1, 'outgoing layout snapshotted' );
+
+# --- no-theme switch falls back to the new layout's default theme ----
+# Reset to base/baseonly, then switch to alt WITHOUT a theme: the live 'baseonly'
+# is not declared for 'alt', so it must fall back to alt's compatible default
+# ('shared') instead of refusing the switch.
+mapi( $d, REQUEST_METHOD => 'POST',
+    QUERY_STRING => 'action=layout-activate&path=base&theme=baseonly', HTTP_AUTHORIZATION => $auth );
+my $fb = mapi( $d, REQUEST_METHOD => 'POST',
+    QUERY_STRING => 'action=layout-activate&path=alt', HTTP_AUTHORIZATION => $auth );
+ok( $fb->{ok}, 'no-theme layout switch falls back (not refused)' );
+my ( $fl, $ft ) = active();
+is( $fl, 'alt',    'fallback switch landed on the new layout' );
+is( $ft, 'shared', 'fallback picked the new layout default-compatible theme' );
 
 done_testing();

@@ -252,11 +252,19 @@ sub _validate_theme_dir {
     return { valid => ( @err ? 0 : 1 ), errors => \@err };
 }
 
+# Strip a trailing -backup-<ts> so a backup OF a backup groups under the original
+# base name instead of chaining (foo-backup-T1-backup-T2-backup-T3...).
+sub _backup_base {
+    ( my $base = $_[0] ) =~ s/-backup-\d{8}T\d{6}Z\z//;
+    return $base;
+}
+
 sub _snapshot_artifact {
     my ( $parent, $name ) = @_;
     my $src = "$parent/$name";
     return unless -d $src;
-    my $dst = "$parent/$name-backup-" . strftime( '%Y%m%dT%H%M%SZ', gmtime );
+    my $base = _backup_base($name);
+    my $dst  = "$parent/$base-backup-" . strftime( '%Y%m%dT%H%M%SZ', gmtime );
     return if -e $dst;
     system( 'cp', '-r', $src, $dst );
 }
@@ -265,8 +273,9 @@ sub _prune_backups {
     my ( $parent, $name ) = @_;
     my $keep = _backup_retention();
     return if $keep <= 0;   # 0 (or negative) = keep all
+    my $base = _backup_base($name);
     opendir my $dh, $parent or return;
-    my @backups = sort grep { /^\Q$name\E-backup-/ && -d "$parent/$_" } readdir $dh;
+    my @backups = sort grep { /^\Q$base\E-backup-/ && -d "$parent/$_" } readdir $dh;
     closedir $dh;
     while ( @backups > $keep ) {
         my $old = shift @backups;
@@ -281,6 +290,31 @@ sub _backup_retention {
         close $fh;
     }
     return $n;
+}
+
+# The theme a layout should use when none is carried over: its declared
+# default_theme if that declares the layout, else the first installed theme that
+# declares it, else '' (the layout renders with no theme override).
+sub _default_theme_for_layout {
+    my ($layout) = @_;
+    my $ldir = "$LAZYSITE_DIR/layouts/$layout";
+    if ( open my $jf, '<:utf8', "$ldir/layout.json" ) {
+        my $raw = do { local $/; <$jf> };
+        close $jf;
+        my $meta = eval { decode_json($raw) };
+        my $dt = ( ref $meta eq 'HASH' ) ? ( $meta->{default_theme} // '' ) : '';
+        return $dt if length $dt && _theme_declares_layout( $layout, $dt );
+    }
+    if ( opendir my $dh, "$ldir/themes" ) {
+        for my $name ( sort readdir $dh ) {
+            next if $name =~ /^\./ || $name =~ /-backup-\d/;
+            next unless $name =~ /^[A-Za-z0-9_-]+$/;
+            next unless -f "$ldir/themes/$name/theme.json";
+            if ( _theme_declares_layout( $layout, $name ) ) { closedir $dh; return $name }
+        }
+        closedir $dh;
+    }
+    return '';
 }
 
 sub action_layout_activate {
@@ -310,11 +344,19 @@ sub action_layout_activate {
         return { ok => 0, error => "Layout invalid: " . join( '; ', @{ $v->{errors} } ) }
             unless $v->{valid};
 
-        # Compatible (layout, theme) pair.
+        # Compatible (layout, theme) pair. The live theme name is carried over by
+        # default; if it isn't declared for the NEW layout, only refuse when the
+        # caller explicitly named it - otherwise fall back to the new layout's own
+        # default theme so the switch still succeeds (was: a hard error that made a
+        # layout unselectable unless it happened to have a same-named theme).
         if ( length $theme && !_theme_declares_layout( $layout_name, $theme ) ) {
-            return { ok => 0, incompatible => 1,
-                error => "Theme '$theme' is not declared for layout '$layout_name'"
-                       . " - name a compatible theme to switch to" };
+            if ($theme_specified) {
+                return { ok => 0, incompatible => 1,
+                    error => "Theme '$theme' is not declared for layout '$layout_name'"
+                           . " - name a compatible theme to switch to" };
+            }
+            $theme = _default_theme_for_layout($layout_name);
+            $theme_specified = 1 if length $theme;
         }
 
         if ( defined $params->{base} && length $params->{base} ) {

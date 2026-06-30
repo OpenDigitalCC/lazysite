@@ -613,9 +613,13 @@ sub action_layout_delete {
     }
 
     # Snapshot before removal, same retention as activate-time backups, so a
-    # delete is recoverable from layouts/<LAYOUT>-backup-<ts>.
-    _snapshot_artifact( $layouts_dir, $layout_name );
-    _prune_backups( $layouts_dir, $layout_name );
+    # delete is recoverable from layouts/<LAYOUT>-backup-<ts>. But do NOT snapshot
+    # when deleting a backup itself - otherwise cleaning up a backup just spawns a
+    # replacement and the list never shrinks.
+    unless ( $layout_name =~ /-backup-\d/ ) {
+        _snapshot_artifact( $layouts_dir, $layout_name );
+        _prune_backups( $layouts_dir, $layout_name );
+    }
 
     my $rc = system( 'rm', '-rf', $layout_dir );
     if ( $rc != 0 ) {

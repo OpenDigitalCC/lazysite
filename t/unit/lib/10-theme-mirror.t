@@ -50,4 +50,13 @@ ok( $r->{ok}, 'layout + theme activated' ) or diag( $r->{error} );
 ok( -f $mirror, 'SM080: asset mirror built at /lazysite-assets/base/sky/ on activation' );
 is( slurp($mirror), 'body{color:teal}', 'mirrored CSS content is correct' );
 
+# Chained-backup-suffix guard: snapshotting an already-backup-named artifact must
+# group under the BASE name, not chain foo-backup-T1-backup-T2-backup-T3...
+make_path("$d/lazysite/layouts/base-backup-20260101T000000Z/themes/sky");
+Lazysite::Manager::Themes::_snapshot_artifact( "$d/lazysite/layouts", 'base-backup-20260101T000000Z' );
+my @chained = glob("$d/lazysite/layouts/*-backup-*-backup-*");
+is( scalar @chained, 0, 'no chained -backup-...-backup- directory created' );
+my @grouped = glob("$d/lazysite/layouts/base-backup-*");
+ok( scalar @grouped >= 2, 'a backup of a backup groups under the base name' );
+
 done_testing();
