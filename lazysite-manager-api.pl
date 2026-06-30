@@ -433,8 +433,9 @@ elsif ( $action eq 'audit' )            {
     if ( !$token_auth && !_user_analytics($auth_user) ) {
         audit_log( $auth_user, 'audit', '', $ENV{REMOTE_ADDR} // '', 'fail', 'ui', 'denied: needs analytics' );
         $result = { ok => 0, kind => 'forbidden',
-            error => "The audit trail requires the 'analytics' permission. "
-                   . "Ask the operator to grant it: lazysite-users.pl set <user> analytics on" };
+            error => "The audit trail requires the 'Analytics' permission. An operator "
+                   . "can grant it on the Users page: open the account, tick "
+                   . "'Analytics (visitor stats + audit)', and save." };
     }
     else {
         $result = action_audit( user => $params{user}, target => $params{target}, start => $params{start}, end => $params{end}, page => $params{page}, per_page => $params{per_page} );

@@ -51,6 +51,7 @@ Once connected, just ask. Depending on the permissions you granted, your AI can:
 - **Create or edit content** - "draft a page about X and publish it".
 - **Change the appearance** - "install the *clarity* theme" (a theme).
 - **Change the structure** - "switch to a layout with a sidebar" (a layout).
+- **Analyse visitor trends** - "how is traffic trending; which pages are growing; is AI-assistant traffic rising" (needs the *analytics* permission; the AI only ever sees aggregated, IP-anonymised figures, never the raw log).
 
 ## 5. Time-box it (optional)
 

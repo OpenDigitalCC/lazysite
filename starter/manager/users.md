@@ -271,6 +271,7 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
     cap(ue, 'manage_themes', !!s.manage_themes, 'Manage themes') +
     cap(ue, 'manage_layouts', !!s.manage_layouts, 'Manage layouts') +
     cap(ue, 'manage_config', !!s.manage_config, 'Manage config') +
+    cap(ue, 'analytics', !!s.analytics, 'Analytics (visitor stats + audit)') +
     cap(ue, 'create_sub_users', !!s.create_sub_users, 'Create sub-users') +
     cap(ue, 'delegate_sub_user_creation', !!s.delegate_sub_user_creation, 'Delegate sub-users') +
     '</div>';

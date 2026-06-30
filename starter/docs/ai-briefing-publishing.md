@@ -16,7 +16,9 @@ behaviour.
 For content rules (front matter, Markdown, URLs) see
 [AI briefing - content authoring](/docs/ai-briefing-authoring). For layouts and
 themes see [AI briefing - layouts](/docs/ai-briefing-layouts). For configuration
-see [AI briefing - configuration](/docs/ai-briefing-configuration). For keys,
+see [AI briefing - configuration](/docs/ai-briefing-configuration). For analysing
+visitor traffic (with the `analytics` permission) see
+[AI briefing - visitor analytics](/docs/ai-briefing-stats). For keys,
 variables, and file locations see [Reference](/docs/reference).
 
 ## How onboarding works

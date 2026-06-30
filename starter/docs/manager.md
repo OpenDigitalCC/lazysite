@@ -163,7 +163,10 @@ cookie, including yours, stops working and everyone signs in again.
 config/theme changes, denied attempts) with who/what/when/where and the
 outcome. Filter by user, target, or a From/To date range; each row records
 the action's target (the page, the plugin, `nav`, etc.). Browsing analytics
-live separately in Visitor statistics, not here.
+live separately in Visitor statistics, not here. Viewing the audit trail
+requires the **Analytics** permission (grant it per account on the Users page,
+or `lazysite-users.pl set <user> analytics on`); it is read through an
+append-only cache, so only newly-appended lines are parsed on each load.
 
 ### Visitor statistics
 
@@ -177,7 +180,11 @@ it also shows the most recent server errors. It never exposes any log file's pat
 and offers an operator-only raw access-log download. Provided by the opt-in
 **Visitor Statistics**
 plugin: the nav item appears only when the plugin is enabled - enable it on Plugin
-Manager, then set its access-log path on Plugin Config.
+Manager, then set its access-log path on Plugin Config. An AI connector granted
+the **Analytics** permission can analyse the same data for trends via the
+`analyse_visitors` tool, getting only the aggregated, IP-anonymised figures (see
+[AI connector tools](/docs/ai-connector-tools) and
+[AI briefing - visitor analytics](/docs/ai-briefing-stats)).
 
 ## Admin bar on site pages
 

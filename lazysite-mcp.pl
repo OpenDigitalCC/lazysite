@@ -1033,7 +1033,7 @@ sub _submit_feedback {
 
     my @caplist = sort grep { $caps->{$_} }
         qw(webdav manage_content manage_nav manage_forms
-           manage_themes manage_layouts manage_config create_sub_users);
+           manage_themes manage_layouts manage_config create_sub_users analytics);
 
     my $report = {
         ts           => $iso,

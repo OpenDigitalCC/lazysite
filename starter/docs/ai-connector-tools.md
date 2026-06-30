@@ -52,6 +52,10 @@ A partner's grant (visible in `whoami.capabilities`) gates the tools:
 - `manage_layouts` - activate layouts.
 - `webdav` - the WebDAV transport / file-API mechanism flag.
 - `manage_config` - site configuration (control API, not exposed as MCP tools).
+- `analytics` - read the visitor-log analysis (`analyse_visitors`) and the audit
+  trail. Off by default; an explicit grant, since it exposes (aggregated,
+  IP-anonymised, path-free) log data. The audit trail itself is the in-page Audit
+  view plus the control-API `audit` action - it is not an MCP tool.
 
 Per-file ACLs (owner + read/write lists, with `@groups`) bind a token client
 exactly as over WebDAV - a tool call is refused if the partner lacks access to the
@@ -70,7 +74,7 @@ machine-readable `kind`:
 
 ## Tools
 
-27 tools. **Reads** are not audited; **writes** are recorded in the audit log as
+28 tools. **Reads** are not audited; **writes** are recorded in the audit log as
 material events and may trigger the AI client's per-call approval. All file tools
 need `manage_content` unless noted.
 
@@ -119,6 +123,14 @@ validate_page `{ path | content }`
 audit_site
 : Whole-site audit: broken internal links, orphan pages, missing titles, stale
   generated HTML, duplicate content blocks.
+
+analyse_visitors `{ window }`
+: Sanitised visitor-log analysis for trend reporting (needs the `analytics`
+  capability). Returns per-day totals, a people/AI-assistant/bot/noise breakdown,
+  top pages, referrers, status codes, and a capped recent event stream over the
+  last `window` days (1-365, default 30). Never the raw log, any filesystem path,
+  or a visitor IP. Read `/docs/ai-briefing-stats` for how to interpret it and what
+  may/may not be reported.
 
 get_permissions `{ path }`
 : The ACL for a path (owner + read/write grants) - call before `set_permissions`.
