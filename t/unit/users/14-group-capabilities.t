@@ -97,6 +97,36 @@ sub caps {
     ok( exists $gs->{'user-manager'}, 'default role groups were seeded' );
 }
 
+sub api {
+    my ( $d, $payload ) = @_;
+    my ( $o, $i );
+    my $pid = open2( $o, $i, $^X, $script, '--api', '--docroot', $d );
+    print $i encode_json($payload);
+    close $i;
+    my $out = do { local $/; <$o> }; close $o; waitpid $pid, 0;
+    return eval { decode_json($out) } || {};
+}
+
+# Phase 2 backend: edit a group's capabilities; create and delete groups.
+{
+    my $d = docroot();
+    cli( $d, 'add', 'u', 'pw' );
+    cli( $d, 'group-add', 'u', 'content-manager' );
+    is( api( $d, { action => 'group-settings-set', group => 'content-manager', key => 'analytics', value => 'on' } )->{ok},
+        1, 'set analytics on content-manager' );
+    ok( caps( $d, 'u' )->{analytics}, 'member inherits the newly-granted capability' );
+
+    is( api( $d, { action => 'group-create', group => 'editors' } )->{ok}, 1, 'create a group' );
+    ok( exists api( $d, { action => 'group-settings-get' } )->{groups}{editors},
+        'created group shows in the unified view' );
+    is( api( $d, { action => 'group-delete', group => 'editors' } )->{ok}, 1, 'delete a group' );
+
+    my $bad = api( $d, { action => 'group-delete', group => 'lazysite-admins' } );
+    ok( !$bad->{ok}, 'cannot delete the only manager group (lockout guard)' );
+    my $bad2 = api( $d, { action => 'group-settings-set', group => 'lazysite-admins', key => 'manager', value => 'off' } );
+    ok( !$bad2->{ok}, 'cannot clear manager from the only manager group' );
+}
+
 # Phase 1 is non-breaking: a legacy per-user grant still resolves on.
 {
     my $d = docroot();

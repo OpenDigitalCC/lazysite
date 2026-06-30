@@ -513,7 +513,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         my $b   = eval { decode_json($body) };
         my $sub = ( ref $b eq 'HASH' ) ? ( $b->{action} // '' ) : '';
         my %uskip = map { $_ => 1 } qw(
-            list groups settings-get credential-status partner-caps
+            list groups group-settings-get settings-get credential-status partner-caps
             verify-credential totp-code onboarding );
         if ( $sub eq '' || $uskip{$sub} ) { $aud_action = undef }
         else {

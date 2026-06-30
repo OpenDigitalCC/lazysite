@@ -211,6 +211,18 @@ if ( $API_MODE ) {
             my %groups = read_groups();
             $result = { ok => 1, groups => \%groups };
         }
+        elsif ( $action eq 'group-settings-get' ) {
+            $result = { ok => 1, groups => _group_settings_view() };
+        }
+        elsif ( $action eq 'group-settings-set' ) {
+            $result = cmd_group_settings_set( $req->{group}, $req->{key}, $req->{value} );
+        }
+        elsif ( $action eq 'group-create' ) {
+            $result = cmd_group_create( $req->{group} );
+        }
+        elsif ( $action eq 'group-delete' ) {
+            $result = cmd_group_delete( $req->{group} );
+        }
         elsif ( $action eq 'settings-get' ) {
             my %users = read_users();
             die "User '" . ( $req->{username} // '' ) . "' not found\n"
@@ -2075,6 +2087,81 @@ sub manager_groups_effective {
     for my $g ( keys %$gs ) { $mg{$g} = 1 if $gs->{$g}{manager} }
     my @list = sort keys %mg;
     return @list;
+}
+
+# Unified Groups view for the manager UI: every group (from group-settings OR the
+# membership file), with its capabilities, manager flag, label, and members.
+sub _group_settings_view {
+    my $gs = read_group_settings();
+    my %members = read_groups();
+    my %all = map { $_ => 1 } ( keys %$gs, keys %members );
+    my %view;
+    for my $g ( keys %all ) {
+        my $cfg = $gs->{$g} || {};
+        my %caps = map { $_ => ( $cfg->{$_} ? JSON::PP::true() : JSON::PP::false() ) } @CAP_KEYS;
+        $view{$g} = {
+            label   => ( defined $cfg->{label} ? $cfg->{label} : $g ),
+            manager => ( $cfg->{manager} ? JSON::PP::true() : JSON::PP::false() ),
+            caps    => \%caps,
+            members => ( $members{$g} || [] ),
+        };
+    }
+    return \%view;
+}
+
+sub cmd_group_settings_set {
+    my ( $group, $key, $value ) = @_;
+    return { ok => 0, error => 'group required' } unless defined $group && length $group;
+    return { ok => 0, error => 'invalid group name' } unless $group =~ /^[A-Za-z0-9_-]+$/;
+    my %ok_key = map { $_ => 1 } ( @CAP_KEYS, 'manager' );
+    return { ok => 0, error => "unknown group setting: " . ( $key // '' ) }
+        unless defined $key && $ok_key{$key};
+    my $on = ( defined $value && $value =~ /^(?:on|1|true|yes)$/i ) ? 1 : 0;
+    my $gs = read_group_settings();
+
+    # Lockout guard: never clear the manager flag from the last manager group.
+    if ( $key eq 'manager' && !$on ) {
+        my @mgr = grep { $gs->{$_}{manager} } keys %$gs;
+        return { ok => 0, error => 'Refusing to remove the only manager group' }
+            if @mgr <= 1 && $gs->{$group} && $gs->{$group}{manager};
+    }
+
+    $gs->{$group} ||= { label => $group };
+    if ($on) { $gs->{$group}{$key} = 1 }
+    else     { delete $gs->{$group}{$key} }
+    write_group_settings($gs);
+    log_event( 'INFO', $group, 'group setting changed', key => $key, value => $on );
+    return { ok => 1 };
+}
+
+sub cmd_group_create {
+    my ($group) = @_;
+    return { ok => 0, error => 'group required' } unless defined $group && length $group;
+    return { ok => 0, error => 'invalid group name (letters, digits, _ or -)' }
+        unless $group =~ /^[A-Za-z0-9_-]+$/;
+    my $gs = read_group_settings();
+    my %members = read_groups();
+    return { ok => 0, error => "group '$group' already exists" }
+        if $gs->{$group} || $members{$group};
+    $gs->{$group} = { label => $group };
+    write_group_settings($gs);
+    log_event( 'INFO', $group, 'group created' );
+    return { ok => 1 };
+}
+
+sub cmd_group_delete {
+    my ($group) = @_;
+    return { ok => 0, error => 'group required' } unless defined $group && length $group;
+    my $gs = read_group_settings();
+    if ( $gs->{$group} && $gs->{$group}{manager} ) {
+        my @mgr = grep { $gs->{$_}{manager} } keys %$gs;
+        return { ok => 0, error => 'Refusing to delete the only manager group' } if @mgr <= 1;
+    }
+    my %members = read_groups();
+    if ( exists $members{$group} ) { delete $members{$group}; write_groups(%members); }
+    if ( exists $gs->{$group} )    { delete $gs->{$group};    write_group_settings($gs); }
+    log_event( 'INFO', $group, 'group deleted' );
+    return { ok => 1 };
 }
 
 sub read_groups {

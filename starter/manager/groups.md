@@ -7,11 +7,11 @@ search: false
 <div id="status" class="mg-status"></div>
 
 <div class="mg-domain-note">
-A <b>group</b> (<code>@name</code>) is a set of accounts, shared by both access
-domains - <b>file management</b> (manager UI / control API / connectors) and
-<b>site access</b> (visitor / member login). A group is defined by its membership,
-so it needs at least one member. Assign a specific user to groups from the
-<a href="/manager/users">Users</a> page, or tick members here.
+A <b>group</b> (<code>@name</code>) is a role: its <b>capabilities</b> (content,
+themes, analytics, &hellip;) and <b>manager</b> status are assigned here, and every
+member inherits the <b>union</b> of their groups' permissions. Add a user to a
+group below or from the <a href="/manager/users">Users</a> page. A group flagged
+<b>Manager group</b> grants full Manager-UI access to its members.
 </div>
 
 <div class="mg-card">
@@ -21,16 +21,30 @@ so it needs at least one member. Assign a specific user to groups from the
 <summary>+ Add group</summary>
 <div class="mg-card-body mg-new-group-row">
 <input type="text" id="new-group-name" placeholder="new group name">
-<select id="new-group-member" class="mg-inp"><option value="">first member&hellip;</option></select>
 <button class="mg-btn mg-btn-primary" onclick="createGroup()">Add group</button>
 </div>
 </details>
 </div>
+<datalist id="all-users-list"></datalist>
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
-var allGroups = {};   // {group: [members]}
+var allGroups = {};   // {group: {label, manager, caps:{}, members:[]}}
 var allUsers  = [];   // [username]
+
+// The capability bools a group can carry (must match @CAP_KEYS in the users tool).
+var CAPS = [
+  ['webdav', 'WebDAV'],
+  ['manage_content', 'Manage content (pages)'],
+  ['manage_nav', 'Manage navigation'],
+  ['manage_forms', 'Manage forms'],
+  ['manage_themes', 'Manage themes'],
+  ['manage_layouts', 'Manage layouts'],
+  ['manage_config', 'Manage config'],
+  ['analytics', 'Analytics (visitor stats + audit)'],
+  ['create_sub_users', 'Create sub-users'],
+  ['delegate_sub_user_creation', 'Delegate sub-users']
+];
 
 function showStatus(msg, isError) {
   if (!msg) return;
@@ -54,7 +68,7 @@ function apiCall(body) {
 }
 
 function loadGroups() {
-  var gp = apiCall({ action: 'groups' })
+  var gp = apiCall({ action: 'group-settings-get' })
     .then(function(d) { return (d.ok && d.groups) ? d.groups : {}; })
     .catch(function() { return {}; });
   var up = apiCall({ action: 'list' })
@@ -63,84 +77,121 @@ function loadGroups() {
   Promise.all([gp, up]).then(function(res) {
     allGroups = res[0] || {};
     allUsers  = res[1] || [];
+    var dl = document.getElementById('all-users-list');
+    if (dl) dl.innerHTML = allUsers.map(function(u){ return '<option value="' + escHtml(u) + '">'; }).join('');
     renderGroups();
-    populateNewGroupMember();
   }).catch(function(e) { showStatus('Failed to load groups: ' + e.message, true); });
 }
 
-// One accordion per group; members as checkboxes (tick to add/remove).
+// One accordion per group: capability toggles + manager switch, then a
+// member-centric roster (who's in, type-to-add, remove) - not an all-users list.
 function renderGroups() {
   var el = document.getElementById('groups-info');
   var keys = Object.keys(allGroups).sort();
   if (!keys.length) { el.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No groups defined.</div>'; return; }
   el.innerHTML = keys.map(function(g) {
-    var members = Array.isArray(allGroups[g]) ? allGroups[g] : [];
+    var info = allGroups[g] || {};
+    var members = Array.isArray(info.members) ? info.members : [];
+    var caps = info.caps || {};
     var ge = escHtml(g);
+    var nOn = CAPS.filter(function(c){ return caps[c[0]]; }).length;
     var h = '<details class="mg-acc"><summary><span class="mg-acc-name">' + ge + '</span>' +
-            '<span class="mg-acc-tags">' + members.length + ' member' + (members.length === 1 ? '' : 's') + '</span></summary>';
-    h += '<div class="mg-acc-body"><div class="mg-sec">Members</div><div class="mg-checks">';
-    var roster = allUsers.length ? allUsers : members;
-    h += roster.map(function(u) {
-      var on = members.indexOf(u) !== -1;
-      return '<label class="mg-chk"><input type="checkbox"' + (on ? ' checked' : '') +
-        ' onchange="toggleGroup(\'' + escHtml(u) + '\',\'' + ge + '\',this)"> ' + escHtml(u) + '</label>';
+            '<span class="mg-acc-tags">' + (info.manager ? '<span class="mg-badge mg-badge-success">manager</span> ' : '') +
+            nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies') + ' &middot; ' +
+            members.length + ' member' + (members.length === 1 ? '' : 's') + '</span></summary>';
+    h += '<div class="mg-acc-body">';
+
+    h += '<div class="mg-sec">Capabilities</div><div class="mg-checks">';
+    h += '<label class="mg-chk"><input type="checkbox"' + (info.manager ? ' checked' : '') +
+         ' onchange="toggleSetting(\'' + ge + '\',\'manager\',this)"> <b>Manager group</b> (full UI access)</label>';
+    h += CAPS.map(function(c) {
+      return '<label class="mg-chk"><input type="checkbox"' + (caps[c[0]] ? ' checked' : '') +
+        ' onchange="toggleSetting(\'' + ge + '\',\'' + c[0] + '\',this)"> ' + escHtml(c[1]) + '</label>';
     }).join('');
-    h += '</div><div class="mg-line"><button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteGroup(\'' + ge + '\')">Delete group</button></div>';
+    h += '</div>';
+
+    h += '<div class="mg-sec">Members</div>';
+    if (!members.length) {
+      h += '<div class="mg-empty" style="padding:0.3rem 0;">No members yet.</div>';
+    } else {
+      h += '<div class="mg-checks">' + members.map(function(m) {
+        return '<span class="mg-chip">' + escHtml(m) +
+          ' <a href="#" onclick="removeMember(\'' + escHtml(m) + '\',\'' + ge + '\');return false;" title="Remove">&times;</a></span>';
+      }).join('') + '</div>';
+    }
+    h += '<div class="mg-line"><input list="all-users-list" id="add-' + ge + '" class="mg-inp" placeholder="add a user&hellip;" style="max-width:14rem">' +
+         ' <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="addMember(\'' + ge + '\')">Add</button>' +
+         '<span style="flex:1;"></span>' +
+         '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteGroup(\'' + ge + '\')">Delete group</button></div>';
+
     h += '</div></details>';
     return h;
   }).join('');
 }
 
-function toggleGroup(user, group, el) {
-  var checked = el.checked;
-  var act = checked ? 'group-add' : 'group-remove';
-  apiCall({ action: act, username: user, group: group })
+function toggleSetting(group, key, el) {
+  var on = el.checked;
+  apiCall({ action: 'group-settings-set', group: group, key: key, value: on ? 'on' : 'off' })
     .then(function(d) {
-      if (!d.ok) { el.checked = !checked; showStatus(d.error, true); return; }
-      var m = Array.isArray(allGroups[group]) ? allGroups[group] : (allGroups[group] = []);
-      var idx = m.indexOf(user);
-      if (checked && idx === -1) m.push(user);
-      if (!checked && idx !== -1) m.splice(idx, 1);
-      showStatus((checked ? 'Added ' : 'Removed ') + user + (checked ? ' to ' : ' from ') + group + '.');
+      if (!d.ok) { el.checked = !on; showStatus(d.error || 'Failed.', true); return; }
+      if (allGroups[group]) {
+        if (key === 'manager') { allGroups[group].manager = on; }
+        else { allGroups[group].caps = allGroups[group].caps || {}; allGroups[group].caps[key] = on; }
+      }
+      showStatus(group + ': ' + key + ' ' + (on ? 'on' : 'off') + '.');
+      renderGroups();
     })
-    .catch(function(e) { el.checked = !checked; showStatus('Error: ' + e.message, true); });
+    .catch(function(e) { el.checked = !on; showStatus('Error: ' + e.message, true); });
 }
 
-function populateNewGroupMember() {
-  var sel = document.getElementById('new-group-member');
-  if (!sel) return;
-  var cur = sel.value;
-  sel.innerHTML = '<option value="">first member&hellip;</option>' +
-    allUsers.map(function(u) { return '<option value="' + escHtml(u) + '">' + escHtml(u) + '</option>'; }).join('');
-  sel.value = cur;
+function addMember(group) {
+  var inp = document.getElementById('add-' + group);
+  var user = (inp && inp.value || '').trim();
+  if (!user) { showStatus('Type a username to add.', true); return; }
+  apiCall({ action: 'group-add', username: user, group: group })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
+      showStatus('Added ' + user + ' to ' + group + '.');
+      loadGroups();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+function removeMember(user, group) {
+  apiCall({ action: 'group-remove', username: user, group: group })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
+      showStatus('Removed ' + user + ' from ' + group + '.');
+      loadGroups();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function createGroup() {
   var ni = document.getElementById('new-group-name');
-  var mi = document.getElementById('new-group-member');
   var group = (ni.value || '').trim();
-  var member = (mi.value || '').trim();
   if (!group) { showStatus('Group name required.', true); return; }
-  if (!member) { showStatus('A first member is required (groups are defined by membership).', true); return; }
-  apiCall({ action: 'group-add', username: member, group: group })
+  apiCall({ action: 'group-create', group: group })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
-      showStatus('Group "' + group + '" created with member "' + member + '".');
-      ni.value = ''; mi.value = '';
+      showStatus('Group "' + group + '" created.');
+      ni.value = '';
       loadGroups();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function deleteGroup(group) {
-  var members = Array.isArray(allGroups[group]) ? allGroups[group] : [];
-  mgConfirm('Delete group "' + group + '"?' + (members.length ? ' Removes ' + members.length + ' member(s).' : ''), { danger: true, ok: 'Delete' }).then(function(__ok) {
+  mgConfirm('Delete group "' + group + '"? Members lose the permissions it grants.',
+    { danger: true, ok: 'Delete' }).then(function(__ok) {
     if (!__ok) return;
-    if (!members.length) { showStatus('Group "' + group + '" already empty.'); loadGroups(); return; }
-    var chain = Promise.resolve();
-    members.slice().forEach(function(m) { chain = chain.then(function() { return apiCall({ action: 'group-remove', username: m, group: group }); }); });
-    chain.then(function() { showStatus('Group "' + group + '" deleted.'); loadGroups(); })
-         .catch(function(e) { showStatus('Error: ' + e.message, true); loadGroups(); });
+    apiCall({ action: 'group-delete', group: group })
+      .then(function(d) {
+        if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
+        showStatus('Group "' + group + '" deleted.');
+        loadGroups();
+      })
+      .catch(function(e) { showStatus('Error: ' + e.message, true); });
   });
 }
 
