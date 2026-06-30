@@ -194,6 +194,14 @@ if ( $API_MODE ) {
             my %users = read_users();
             $result = { ok => 1, users => [ sort keys %users ] };
         }
+        elsif ( $action eq 'users-detail' ) {
+            # All accounts + their effective settings in ONE process - avoids the
+            # per-user settings-get subprocess (N Perl startups) the manager UI did.
+            my %users = read_users();
+            _ensure_groups_seeded();
+            $result = { ok => 1, users =>
+                [ map { { user => $_, settings => effective_settings($_) } } sort keys %users ] };
+        }
         elsif ( $action eq 'group-add' ) {
             cmd_group_add( $req->{username}, $req->{group} );
             $result = { ok => 1, message => "User added to group" };

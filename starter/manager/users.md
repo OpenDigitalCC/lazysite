@@ -93,19 +93,23 @@ function apiCall(body) {
 
 // Load users + their settings + groups, then render both sections.
 function loadUsers() {
-  var gp = apiCall({ action: 'groups' })
-    .then(function(d) { return (d.ok && d.groups) ? d.groups : {}; })
+  // All groups (incl. seeded role groups with no members yet), as {group: members}.
+  var gp = apiCall({ action: 'group-settings-get' })
+    .then(function(d) {
+      var g = {};
+      if (d.ok && d.groups) Object.keys(d.groups).forEach(function(name) {
+        g[name] = (d.groups[name] && d.groups[name].members) || [];
+      });
+      return g;
+    })
     .catch(function() { return {}; });
-  var up = apiCall({ action: 'list' })
+  // One batched call for every account + its settings (no per-user subprocess).
+  var up = apiCall({ action: 'users-detail' })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return []; }
-      var users = d.users || [];
-      return Promise.all(users.map(function(u) {
-        return apiCall({ action: 'settings-get', username: u })
-          .then(function(s) { return { user: u, settings: (s.ok ? s.settings : {}) }; })
-          .catch(function() { return { user: u, settings: {} }; });
-      }));
-    });
+      return d.users || [];
+    })
+    .catch(function() { return []; });
   var wp = fetch(API + '?action=whoami', { method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' }, body: '{}' })
     .then(function(r) { return r.json(); })
@@ -151,7 +155,7 @@ function renderPermGrid(d) {
   if (!d.groups || !d.groups.length) return '<p class="mg-empty">In no groups, so no capabilities.</p>';
   var h = '<table class="audit-table" style="font-size:12px"><thead><tr><th>Capability \\ Channel</th>';
   chans.forEach(function(c) {
-    h += '<th title="' + (by(c) ? 'granted by: ' + by(c).join(', ') : 'not granted') + '">' + escHtml(lbl(c)) + '</th>';
+    h += '<th style="text-align:center" title="' + (by(c) ? 'granted by: ' + by(c).join(', ') : 'not granted') + '">' + escHtml(lbl(c)) + '</th>';
   });
   h += '</tr></thead><tbody>';
   acts.forEach(function(a) {
