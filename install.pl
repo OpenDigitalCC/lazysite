@@ -109,6 +109,7 @@ Getopt::Long::GetOptions(
     'list-backups'  => \$opt{list_backups},
     'dry-run'       => \$opt{dry_run},
     'verify'        => \$opt{verify},
+    'channel-check' => \$opt{channel_check},
 ) or usage(1);
 
 usage(0) if $opt{help};
@@ -129,6 +130,22 @@ if ( $opt{list_backups} ) {
 if ( $opt{restore} ) {
     die "--restore requires --docroot\n" unless $opt{docroot};
     exit cmd_restore( \%opt );
+}
+
+# --channel-check: would this upgrade be SKIPPED by the site's update channel?
+# Exit 3 if yes (so the deploy can bail BEFORE touching the site), 0 otherwise.
+# Reads only lazysite.conf + the manifest - no file changes, no ownership needed.
+if ( $opt{channel_check} ) {
+    die "--channel-check requires --docroot\n" unless $opt{docroot};
+    my $manifest = load_manifest("$STAGE_DIR/release-manifest.json");
+    my $state    = load_state( state_path( $opt{docroot} ) );
+    # Only an upgrade (existing install at a different version) is gated.
+    if ( $state && ( $state->{version} // '' ) ne ( $manifest->{version} // '' ) ) {
+        my $site = read_update_channel( $opt{docroot} );
+        my $rel  = $manifest->{channel} || 'edge';
+        exit 3 if $site eq 'stable' && $rel ne 'stable';
+    }
+    exit 0;
 }
 
 # --verify: is the INSTALLED code actually this version? (the deploy-gap detector)

@@ -31,6 +31,21 @@ DOC="$DOM/public_html"
 CGI="$DOM/cgi-bin"
 [ -d "$DOC" ] || { echo "$0: no docroot at $DOC" >&2; exit 1; }
 
+# Update-channel pre-check, BEFORE we touch anything. If this site is on the
+# 'stable' channel and the build is 'edge', the upgrade will be skipped - so bail
+# now, before applying the template or normalising ownership. A skip MUST be a true
+# no-op: doing the pre-install chown but then exiting on the skip (before the
+# corrective permission pass) left skipped sites half-configured and 500ing.
+# Read-only (lazysite.conf + manifest); run as root so it can always read them.
+set +e
+bash "$STAGE/install.sh" --channel-check --docroot "$DOC"
+CC=$?
+set -e
+if [ "$CC" = 3 ]; then
+  echo "==> upgrade SKIPPED: stable channel, edge build. Nothing touched."
+  exit 4
+fi
+
 # Apply the web template on FIRST-TIME setup only. An upgrade (the site already
 # has a lazysite install marker) must NOT touch the Hestia web template - that
 # would change Hestia state, force a vhost rebuild, and re-assert lazysite-app on

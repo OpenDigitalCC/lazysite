@@ -527,6 +527,11 @@ subtest 'upgrade channel: a stable site refuses an edge build' => sub {
         open my $w, '>', $sp or die $!; print {$w} $j; close $w;
     }
 
+    # --channel-check predicts the skip WITHOUT touching the site (so the deploy
+    # can bail before any chown/perm changes).
+    my ($cc) = run_install( '--channel-check', '--docroot', $doc );
+    is( $cc, 3, '--channel-check exits 3 for a stable site + edge build' );
+
     my ( $rc2, $out2 ) = run_install( '--docroot', $doc, '--cgibin', $cgi );
     is( $rc2, 3, 'edge upgrade on a stable-channel site exits 3 (skipped)' );
     like( $out2, qr/SKIPPED/i, 'reports the skip' );
