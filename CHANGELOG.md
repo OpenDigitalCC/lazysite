@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.19 - Analytics over the control API (2026-06-30)
+
+Feature - analytics on the API channel
+: visitor analysis (analyse_visitors) is now a control-API action as well as an
+  MCP tool, gated on the analytics capability - so an API/WebDAV-partner agent can
+  read the sanitised visitor stats, not only an MCP connector.
+
 ## 0.5.18 - Fix Users page failing to list (null username) (2026-06-30)
 
 Fix - users page
