@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.17 - Route all capability checks through the resolver (2026-06-30)
+
+Refactor - SM095 (c0)
+: the sub-user gate and the onboarding briefs now consult the central resolver
+  (caps_for/effective_settings) instead of reading per-account settings, so group
+  grants apply to them. Non-breaking; sets up the groups-only clean cut.
+
 ## 0.5.16 - Users page: all groups, faster load, grid headers (2026-06-30)
 
 Fix - users page
