@@ -32,14 +32,10 @@ var SITE_SCHEMA = [
   { key: 'layouts_repo',   label: 'Layouts repo',          type: 'readonly_with_link',
     default: 'OpenDigitalCC/lazysite-layouts', link_href: '/manager/themes',
     link_label: 'Edit on Themes', group: 'Appearance' },
-  // SM044: layout + theme are dynamically-populated dropdowns.
-  // Options come from ?action=layouts-available and
-  // ?action=themes-for-layout. The layout change event re-fetches
-  // the theme options (depends_on: 'layout').
-  { key: 'layout',         label: 'Active layout',         type: 'dropdown_layouts',
-    default: '' },
-  { key: 'theme',          label: 'Active theme',          type: 'dropdown_themes_for_active_layout',
-    default: '', depends_on: 'layout' },
+  // Active layout + theme are NOT edited here any more: switching them lives in
+  // ONE place, the Appearance page (Installed layouts & themes), where activation
+  // also clears the page cache and mirrors theme assets. (The layouts_repo link
+  // above goes there.)
   { key: 'nav_file',       label: 'Navigation file',       type: 'text',
     default: 'lazysite/nav.conf' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'toggle',

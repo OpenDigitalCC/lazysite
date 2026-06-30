@@ -22,27 +22,6 @@ query_params:
 </div>
 
 <div class="mg-card">
-<div class="mg-card-header">
-<span class="mg-card-title">Active layout &amp; theme</span>
-<button id="lzs-stop-preview" class="mg-btn mg-btn-outline mg-btn-sm" onclick="clearPreview()" style="display:none">Stop preview</button>
-</div>
-<div class="mg-card-body">
-<p class="mg-card-subtitle" style="margin:0 0 8px 0;">The layout is the page structure; the theme is its colours and fonts. Activating sets the site default for all visitors and clears the page cache.</p>
-<div class="mg-form-row">
-<label for="sw-layout">Layout</label>
-<select id="sw-layout" onchange="onSwitchLayout()" style="flex:1;"></select>
-</div>
-<div class="mg-form-row">
-<label for="sw-theme">Theme</label>
-<select id="sw-theme" style="flex:1;"></select>
-</div>
-<div style="display:flex;gap:0.5rem;justify-content:flex-end;">
-<button class="mg-btn mg-btn-primary" onclick="activateSelection()">Activate</button>
-</div>
-</div>
-</div>
-
-<div class="mg-card">
 <div class="mg-card-header"><span class="mg-card-title">Upload a theme</span></div>
 <div class="mg-card-body">
 <p class="mg-card-subtitle" style="margin:0 0 8px 0;">A .zip with <code>theme.json</code> at its root and an <code>assets/</code> subtree. Installs under the active layout. (Layouts install from the catalogue below.)</p>
@@ -65,7 +44,9 @@ query_params:
 </div>
 
 <div class="mg-card">
-<div class="mg-card-header"><span class="mg-card-title">Installed layouts &amp; themes</span></div>
+<div class="mg-card-header"><span class="mg-card-title">Installed layouts &amp; themes</span>
+<button id="lzs-stop-preview" class="mg-btn mg-btn-outline mg-btn-sm" onclick="clearPreview()" style="display:none">Stop preview</button></div>
+<p class="mg-card-subtitle" style="margin:0 0 8px 0.5rem;">The layout is the page structure; the theme is its colours and fonts. Activating one sets the site default for all visitors and clears the page cache. This is the single place to switch layout or theme.</p>
 <div id="installed">
 <div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>
 </div>
@@ -118,70 +99,11 @@ function loadAll() {
     for (var k in byLayout) { if (layouts.indexOf(k) < 0) layouts.push(k); }
     layouts.sort();
 
-    renderSwitcher(layouts, byLayout);
     renderInstalled(layouts, byLayout);
   }).catch(function(e) { showStatus('Failed to load: ' + e.message, true); });
 }
 
-// --- Active layout & theme switcher ---
-function renderSwitcher(layouts, byLayout) {
-  var ls = document.getElementById('sw-layout');
-  ls.innerHTML = '';
-  if (!layouts.length) {
-    ls.innerHTML = '<option value="">(no layouts installed)</option>';
-    document.getElementById('sw-theme').innerHTML = '';
-    return;
-  }
-  for (var i = 0; i < layouts.length; i++) {
-    var sel = layouts[i] === ACTIVE_LAYOUT ? ' selected' : '';
-    ls.innerHTML += '<option value="' + escHtml(layouts[i]) + '"' + sel + '>'
-      + escHtml(layouts[i]) + (layouts[i] === ACTIVE_LAYOUT ? ' (active)' : '') + '</option>';
-  }
-  fillThemeSelect(ls.value, byLayout);
-}
-
-function fillThemeSelect(layout, byLayout) {
-  var ts = document.getElementById('sw-theme');
-  var themes = (byLayout && byLayout[layout]) || [];
-  ts.innerHTML = '';
-  if (!themes.length) { ts.innerHTML = '<option value="">(no themes)</option>'; return; }
-  for (var i = 0; i < themes.length; i++) {
-    var sel = ( layout === ACTIVE_LAYOUT && themes[i] === ACTIVE_THEME ) ? ' selected' : '';
-    ts.innerHTML += '<option value="' + escHtml(themes[i]) + '"' + sel + '>'
-      + escHtml(themes[i]) + '</option>';
-  }
-}
-
-// Switching the layout dropdown refreshes the theme list for that layout.
-function onSwitchLayout() {
-  var layout = document.getElementById('sw-layout').value;
-  fetch(API + '?action=themes-for-layout&layout=' + encodeURIComponent(layout))
-    .then(function(r){ return r.json(); })
-    .then(function(d) {
-      var by = {}; by[layout] = (d && d.themes) || [];
-      fillThemeSelect(layout, by);
-    });
-}
-
-function activateSelection() {
-  var layout = document.getElementById('sw-layout').value;
-  var theme  = document.getElementById('sw-theme').value;
-  if (!layout) { showStatus('No layout selected.', true); return; }
-  mgConfirm('Activate layout "' + layout + '"' + (theme ? ' with theme "' + theme + '"' : '')
-    + '? All cached pages will be cleared.', { ok: 'Activate' }).then(function(ok) {
-    if (!ok) return;
-    fetch(API + '?action=layout-activate&path=' + encodeURIComponent(layout), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme: theme })
-    }).then(function(r){ return r.json(); }).then(function(d) {
-      if (!d.ok) { showStatus(d.error, true); return; }
-      showStatus('Activated layout "' + layout + '"' + (theme ? ' / theme "' + theme + '"' : '') + '.');
-      loadAll();
-    }).catch(function(e){ showStatus('Error: ' + e.message, true); });
-  });
-}
-
-// --- Installed layouts & themes (full management) ---
+// --- Installed layouts & themes (the single switch + management control) ---
 function renderInstalled(layouts, byLayout) {
   var box = document.getElementById('installed');
   if (!layouts.length) {
