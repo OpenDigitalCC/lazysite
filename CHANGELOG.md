@@ -18,6 +18,12 @@ Keying
 
 ## Unreleased
 
+## 0.5.9 - Backups collapse panel + batch delete (2026-06-30)
+
+Feature - appearance backups
+: layout/theme backup snapshots fold into one collapsed "Backups (N)" panel with
+  per-item delete and a "delete all"; the installed list shows only real artifacts.
+
 ## 0.5.8 - Layout switch + backup proliferation fixes (2026-06-30)
 
 Fix - layout/theme management
