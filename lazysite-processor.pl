@@ -3523,20 +3523,23 @@ sub _inject_admin_bar {
     # Nothing to show? Skip the bar entirely.
     return $html unless length $manager_tools || length $variant_switcher;
 
+    # In normal flow (NOT position:fixed) so the bar never overlaps a theme's own
+    # fixed/sticky header: it sits above the page and scrolls away with it. A fixed
+    # bar collided with sticky theme headers at top:0 (both want the viewport top),
+    # and there is no engine-only way to offset an arbitrary theme's sticky header -
+    # so the bar yields the top instead. No spacer needed: an in-flow bar occupies
+    # its own height.
     my $bar = '<div id="ls-admin-bar" style="'
-        . 'position:fixed;top:0;left:0;right:0;z-index:99999;'
         . 'background:#1a1a1a;color:#aaa;font:12px system-ui,sans-serif;'
         . 'padding:2px 12px;display:flex;align-items:center;gap:10px;'
         . '">';
     $bar .= $manager_tools;
     $bar .= $variant_switcher;
     $bar .= '</div>';
-    $bar .= '<div id="ls-admin-spacer" style="height:22px;"></div>';
 
-    # Hide in iframes
+    # Hide in iframes (e.g. the editor's srcdoc preview)
     $bar .= '<script>if(window!==window.top){var ab=document.getElementById("ls-admin-bar");'
-          . 'var sp=document.getElementById("ls-admin-spacer");'
-          . 'if(ab)ab.style.display="none";if(sp)sp.style.display="none";}</script>';
+          . 'if(ab)ab.style.display="none";}</script>';
 
     # Anchor to the FIRST <body> after </head>, not the first <body> anywhere: a
     # page can carry a literal "<body>" inside a head comment or script string

@@ -49,6 +49,28 @@ subtest 'non-manager visitor: no admin bar at all' => sub {
         'no theme switcher for non-manager' );
 };
 
+# --- Named authenticated NON-manager member: no bar. The bar is a manager-UI
+# feature; a logged-in member with no Manager-UI access (not in manager_groups,
+# no `ui` cap) must not see it. Distinct from the anonymous case above, which
+# short-circuits on an empty auth_user. ---
+
+subtest 'authenticated non-manager member: no admin bar' => sub {
+    local $ENV{HTTP_X_REMOTE_USER}   = 'bob';
+    local $ENV{HTTP_X_REMOTE_GROUPS} = 'members';
+    my $vars = {
+        manager        => 'enabled',
+        manager_path   => '/manager',
+        manager_groups => 'admins',       # bob is in 'members', not 'admins'
+        request_uri    => '/about',
+        page_source    => '/about.md',
+        auth_user      => 'bob',
+        auth_name      => 'Bob',
+    };
+    my $out = main::_inject_admin_bar( html_with_body(), $vars );
+    unlike( $out, qr{id="ls-admin-bar"},
+        'a logged-in member with no Manager-UI access sees no admin bar' );
+};
+
 # --- Manager viewing a public page: bar present, switcher absent ---
 
 subtest 'manager visitor: bar emitted, theme switcher removed' => sub {
