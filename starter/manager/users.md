@@ -126,7 +126,7 @@ var PERM_LABELS = {
   ui: 'Manager UI', webdav: 'WebDAV', api: 'API', mcp: 'MCP',
   manage_content: 'Content', manage_nav: 'Navigation', manage_forms: 'Forms',
   manage_themes: 'Themes', manage_layouts: 'Layouts', manage_config: 'Config + plugins',
-  manage_users: 'Users & groups', analytics: 'Analytics',
+  manage_users: 'Users & groups', analytics: 'Analytics', audit: 'Audit trail',
   create_sub_users: 'Create sub-users', delegate_sub_user_creation: 'Delegate sub-users'
 };
 

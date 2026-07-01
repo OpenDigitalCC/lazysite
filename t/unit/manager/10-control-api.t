@@ -127,8 +127,9 @@ ok( !$bad->{ok} && $bad->{error} =~ /invalid credentials/i, 'invalid token rejec
 # --- actor injection: a manager may only manage its own sub-tree ---------
 uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
 grant_caps( $d, 'boss', 'create_sub_users' );
-# The audit trail now requires the analytics capability (strict gate).
-grant_caps( $d, 'boss', 'analytics' );
+# The audit trail requires its own 'audit' capability (strict gate), separate
+# from visitor analytics.
+grant_caps( $d, 'boss', 'audit' );
 uapi( $d, { action => 'account-create', username => 'child', password => 'x', created_by => 'boss' } );
 uapi( $d, { action => 'add', username => 'other', password => 'x' } );
 
@@ -174,11 +175,19 @@ ok( ( grep { ( $_->{action} // '' ) =~ /theme-activate|account-disable|users/ } 
 my $auf = mapi( $d, QUERY_STRING => 'action=audit&user=boss', HTTP_X_REMOTE_USER => 'boss' );
 ok( !( grep { ( $_->{user} // '' ) ne 'boss' } @{ $auf->{entries} } ), 'per-user filter returns only that user' );
 
-# Strict gate: a token client WITHOUT the analytics capability is refused the
-# audit trail (nocap holds no capabilities).
+# Strict gate: a token client WITHOUT the audit capability is refused the audit
+# trail (nocap holds no capabilities).
 my $aud_denied = mapi( $d, QUERY_STRING => 'action=audit',
     HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
-ok( !$aud_denied->{ok}, 'audit denied for a client without the analytics capability' );
+ok( !$aud_denied->{ok}, 'audit denied for a client without the audit capability' );
+
+# Separation: analytics and audit are independent. 'partner' has analytics (for
+# analyse_visitors below) but NOT audit, so it is refused the audit trail.
+grant_caps( $d, 'partner', 'analytics' );
+my $aud_no_audit = mapi( $d, QUERY_STRING => 'action=audit',
+    HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+ok( !$aud_no_audit->{ok},
+    'analytics does NOT grant the audit trail (capabilities are separate)' );
 
 # SM095: analytics (visitor stats) is available over the CONTROL API too, gated on
 # the analytics capability - so an API-channel agent gets it, not only MCP.

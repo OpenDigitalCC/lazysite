@@ -302,9 +302,8 @@ if ( $token_auth ) {
         # Visitor-log analysis over the control API (token clients), same grant as
         # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
         'analyse_visitors'  => sub { $_[0]->{analytics} },
-        # The audit trail is gated on the analytics capability (same grant as the
-        # visitor-stats export) for token clients and managers alike.
-        'audit'             => sub { $_[0]->{analytics} },
+        # The audit trail is its own capability, separate from visitor analytics.
+        'audit'             => sub { $_[0]->{audit} },
         # SM074: a publishing partner manages ACLs on the content it owns.
         'acl-get'           => sub { $_[0]->{webdav} },
         'acl-set'           => sub { $_[0]->{webdav} },
@@ -431,15 +430,15 @@ elsif ( $action eq 'version' )          { $result = action_version() }
 elsif ( $action eq 'analyse_visitors' ) { $result = action_analyse_visitors( $params{window} ) }
 elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
 elsif ( $action eq 'audit' )            {
-    # Strict gate: the audit trail requires the 'analytics' capability. Token
-    # clients are already gated by %need above; a cookie (manager) request is
-    # checked here against the user's own grant.
-    if ( !$token_auth && !_user_analytics($auth_user) ) {
-        audit_log( $auth_user, 'audit', '', $ENV{REMOTE_ADDR} // '', 'fail', 'ui', 'denied: needs analytics' );
+    # Strict gate: the audit trail requires the 'audit' capability (separate from
+    # visitor analytics). Token clients are already gated by %need above; a cookie
+    # (manager) request is checked here against the user's own grant.
+    if ( !$token_auth && !_user_audit($auth_user) ) {
+        audit_log( $auth_user, 'audit', '', $ENV{REMOTE_ADDR} // '', 'fail', 'ui', 'denied: needs audit' );
         $result = { ok => 0, kind => 'forbidden',
-            error => "The audit trail requires the 'Analytics' permission. An operator "
-                   . "can grant it on the Users page: open the account, tick "
-                   . "'Analytics (visitor stats + audit)', and save." };
+            error => "The audit trail requires the 'Audit trail' permission. An operator "
+                   . "can grant it on the Groups page: give a group the 'Audit trail' "
+                   . "action, and add the user to it." };
     }
     else {
         $result = action_audit( user => $params{user}, target => $params{target}, start => $params{start}, end => $params{end}, page => $params{page}, per_page => $params{per_page} );
@@ -1174,6 +1173,7 @@ sub action_whoami {
             manage_config    => $bool->( $s->{manage_config} ),
             manage_users     => $bool->( $s->{manage_users} ),
             analytics        => $bool->( $s->{analytics} ),
+            audit            => $bool->( $s->{audit} ),
             create_sub_users => $bool->( $s->{create_sub_users} ),
         },
         groups => \@groups,
@@ -1209,6 +1209,14 @@ sub _user_analytics {
     return 0 unless defined $user && length $user;
     my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
     return $s->{analytics} ? 1 : 0;
+}
+
+# SM: the audit trail is its own capability now, separate from visitor analytics.
+sub _user_audit {
+    my ($user) = @_;
+    return 0 unless defined $user && length $user;
+    my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
+    return $s->{audit} ? 1 : 0;
 }
 
 sub _audit_parse_line {

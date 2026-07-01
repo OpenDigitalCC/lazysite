@@ -49,7 +49,8 @@ var ACTIONS = [
   ['manage_layouts', 'Layouts'],
   ['manage_config', 'Site config (+ plugins)'],
   ['manage_users', 'Users & groups'],
-  ['analytics', 'Analytics (stats + audit)'],
+  ['analytics', 'Analytics (visitor stats)'],
+  ['audit', 'Audit trail'],
   ['create_sub_users', 'Create sub-users'],
   ['delegate_sub_user_creation', 'Delegate sub-users']
 ];

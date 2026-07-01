@@ -730,6 +730,7 @@ sub effective_settings {
         manage_layouts => $caps->{manage_layouts} ? JSON::PP::true() : JSON::PP::false(),
         manage_config  => $caps->{manage_config}  ? JSON::PP::true() : JSON::PP::false(),
         analytics      => $caps->{analytics}      ? JSON::PP::true() : JSON::PP::false(),
+        audit          => $caps->{audit}          ? JSON::PP::true() : JSON::PP::false(),
         manage_content => $caps->{manage_content} ? JSON::PP::true() : JSON::PP::false(),
         manage_nav     => $caps->{manage_nav}     ? JSON::PP::true() : JSON::PP::false(),
         manage_forms   => $caps->{manage_forms}   ? JSON::PP::true() : JSON::PP::false(),
@@ -2130,7 +2131,7 @@ sub cmd_permissions_grid {
         groups     => \@mygroups,
         channels   => [qw(ui webdav api mcp)],
         actions    => [qw(manage_content manage_nav manage_forms manage_themes
-            manage_layouts manage_config manage_users analytics
+            manage_layouts manage_config manage_users analytics audit
             create_sub_users delegate_sub_user_creation)],
         granted_by => \%granted_by,
     };

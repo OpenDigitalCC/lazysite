@@ -229,4 +229,16 @@ sub api {
         'users-page account carries group-resolved capabilities' );
 }
 
+# The audit trail is its own capability, independent of visitor analytics.
+{
+    my $d = docroot();
+    cli( $d, 'add', 'seer', 'pw' );
+    is( api( $d, { action => 'group-settings-set', group => 'content-editors', key => 'audit', value => 'on' } )->{ok},
+        1, 'audit is a settable group capability' );
+    cli( $d, 'group-add', 'seer', 'content-editors' );
+    my $s = caps( $d, 'seer' );
+    ok( $s->{audit},      'member inherits the audit capability from the group' );
+    ok( !$s->{analytics}, 'audit does NOT imply analytics (separate capabilities)' );
+}
+
 done_testing;

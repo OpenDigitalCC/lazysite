@@ -28,7 +28,8 @@ register:
   "scope": {
     "webdav": "content, assets, layout/theme files under lazysite/layouts/, and lazysite/nav.conf (the last with manage_config)",
     "control_api": "config keys, theme/layout activation, HTML-cache clear (manage_config / manage_themes / manage_layouts)",
-    "analytics": "read-only visitor-log analysis via the analyse_visitors MCP tool, plus the audit trail - sanitised + IP-anonymised, never the raw log or a path. Off by default; explicit grant. Raw logs under lazysite/logs/ stay denied.",
+    "analytics": "read-only visitor-log analysis via the analyse_visitors MCP tool - sanitised + IP-anonymised, never the raw log or a path. Off by default; explicit grant. Raw logs under lazysite/logs/ stay denied.",
+    "audit": "read the audit trail (in-page Audit view + control-API audit action). A separate capability from analytics; off by default.",
     "deny": ["/cgi-bin/", "/manager/", "/lazysite/auth/", "/lazysite/forms/smtp.conf", "/lazysite/forms/handlers.conf", "/lazysite/forms/submissions/", "/lazysite/cache/", "/lazysite/logs/", "/lazysite/manager/", "/lazysite/templates/", "/lazysite/lazysite.conf", "*.pl"]
   },
   "docs": [

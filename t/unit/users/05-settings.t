@@ -78,7 +78,8 @@ sub api {
     is( $r->{settings}{dav_scope}, '/content', 'scope round-trips' );
     ok( $r->{settings}{ui}, 'ui still defaults on (untouched)' );
 
-    # analytics capability (visitor stats + audit): off by default, settable on.
+    # analytics capability (visitor stats; audit is a separate cap now): off by
+    # default, settable on.
     ok( !$r->{settings}{analytics}, 'analytics defaults off' );
     grant_caps( $d, 'deploy', 'analytics' );
     my $r2 = api( $d, { action => 'settings-get', username => 'deploy' } );
