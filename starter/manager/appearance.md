@@ -178,6 +178,9 @@ function isBackupName(n) { return /-backup-\d{8}T\d{6}Z/.test(n); }
 // batch "delete all", and per-item delete. Keeps the installed list clean.
 function renderBackupsPanel(backups) {
   if (!backups.length) return '';
+  // Newest first: the name carries a sortable -backup-YYYYMMDDTHHMMSSZ stamp.
+  var stamp = function(b) { var m = /-backup-(\d{8}T\d{6}Z)/.exec(b.name); return m ? m[1] : ''; };
+  backups = backups.slice().sort(function(a, b) { return stamp(b).localeCompare(stamp(a)); });
   var h = '<details class="mg-handler-group" style="margin:0.5rem;">';
   h += '<summary style="cursor:pointer;padding:0.5rem;font-weight:600;">'
      + 'Backups (' + backups.length + ') – old theme/layout snapshots</summary>';
