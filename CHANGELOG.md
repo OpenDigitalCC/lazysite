@@ -18,6 +18,29 @@ Keying
 
 ## Unreleased
 
+## 0.5.23 - Live permissions grid, honest analytics, the building-sites briefing (2026-07-01)
+
+Feature - permissions viewer
+: the Users-page derived grid re-fetches on every open and gains a Recheck button;
+  a new `lazysite-users.pl permissions USERNAME` CLI prints the channel x
+  capability grid (from groups) for debugging access from the shell; the add-user
+  group picker shows what each group is for. Plus retirement tidy-up of dead
+  manager-group code left from c2.
+
+Feature - analytics classifier
+: headless/automation user-agents (HeadlessChrome, selenium, puppeteer, playwright,
+  ...) and the self-identifying `lazysite-agent/<id>` (legacy `claude-code-agent`)
+  opt-out marker are classified as bot, not human; infrastructure fetches (favicon,
+  robots, sitemap, llms.txt, /.well-known/, feeds) count as noise. The `human`
+  figure stops folding in the operator's own tooling.
+
+Docs - AI agent pack
+: a new "building sites" briefing (/docs/ai-briefing-building-sites) teaches the
+  content/layout/theme separation and names raw mode (`api: true` / `raw: true`) as
+  the root cause of monolith pages. Wired into the partner manifest, the MCP
+  initialize instructions, the WebDAV onboarding brief, and the sibling briefings,
+  so MCP and WebDAV agents both receive it.
+
 ## 0.5.22 - Retire the manager group: Manager-UI is the `ui` capability (2026-06-30)
 
 Feature - SM095 (c2)
