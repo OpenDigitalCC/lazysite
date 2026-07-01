@@ -32,4 +32,22 @@ is( main::unwrap_block_html('<p><section class="x">hi</section></p>'),
 like( main::convert_md("Just a paragraph.\n"), qr{<p>Just a paragraph\.</p>},
     'normal paragraphs are still <p>-wrapped' );
 
+# <style>/<script> content is NOT Markdown-processed: CSS/JS emphasis would mangle
+# it. The `*/ ... /*` between two CSS comments used to pair into <em>...</em> and
+# swallow the rules in between - the login-page styling regression.
+{
+    my $css = "<style>\n"
+        . "/* note one */\n.login-form { color: #111; }\n"
+        . "/* note two */\n.login-form button { color: #222; }\n"
+        . "</style>\n";
+    my $out = main::convert_md($css);
+    unlike( $out, qr/<em>/, 'no <em> injected into a <style> block' );
+    like(   $out, qr/\.login-form \{ color: #111; \}/, 'CSS rule after a comment survives intact' );
+    like(   $out, qr/\.login-form button \{ color: #222; \}/, 'later CSS rule survives' );
+
+    my $js = "<script>\nvar a = 2 * 3 * 4;\n</script>\n";
+    unlike( main::convert_md($js), qr/<em>/, 'no <em> injected into a <script> block' );
+    like( main::convert_md($js), qr/2 \* 3 \* 4/, 'JS multiplication survives (not emphasis)' );
+}
+
 done_testing();

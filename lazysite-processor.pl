@@ -2181,22 +2181,25 @@ sub unwrap_block_html {
 sub convert_md {
     my ($body) = @_;
 
-    # Protect <script> blocks from Markdown processing
-    my @scripts;
-    $body =~ s{(<script[^>]*>)(.*?)(</script>)}{
-        my $placeholder = "SCRIPTBLOCK_" . scalar(@scripts) . "_END";
-        push @scripts, "$1$2$3";
+    # Protect <script> AND <style> blocks from Markdown processing. CSS/JS is not
+    # Markdown: emphasis would mangle it - e.g. the `*/ ... /*` between two CSS
+    # comments pairs into <em>...</em>, swallowing the rules in between (the login
+    # page's inline styles regressed exactly this way).
+    my @rawblocks;
+    $body =~ s{(<(script|style)\b[^>]*>)(.*?)(</\2>)}{
+        my $placeholder = "RAWBLOCK_" . scalar(@rawblocks) . "_END";
+        push @rawblocks, "$1$3$4";
         $placeholder
-    }gse;
+    }gsei;
 
     my $md = Text::MultiMarkdown->new(
         use_fenced_code_blocks => 1,
     );
     my $html = $md->markdown($body);
 
-    # Restore <script> blocks
-    for my $i ( 0 .. $#scripts ) {
-        $html =~ s/(?:<p>)?SCRIPTBLOCK_${i}_END(?:<\/p>)?/$scripts[$i]/;
+    # Restore the protected blocks
+    for my $i ( 0 .. $#rawblocks ) {
+        $html =~ s/(?:<p>)?RAWBLOCK_${i}_END(?:<\/p>)?/$rawblocks[$i]/;
     }
 
     return unwrap_block_html($html);
