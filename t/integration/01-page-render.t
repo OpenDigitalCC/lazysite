@@ -66,4 +66,25 @@ setup_test_site($docroot);
     like( $out, qr/Status: 200 OK/, '/ serves index' );
 }
 
+# --- SM133: static-HTML fallback for migrations ---
+# A legacy static <base>.html with no .md/.url source is served (not 404), and a
+# .md source wins over it the moment it lands.
+{
+    open my $fh, '>', "$docroot/legacy-page.html" or die $!;
+    print $fh "<html><body><h1>Legacy static page</h1></body></html>\n";
+    close $fh;
+    my $out = run_processor( $docroot, '/legacy-page' );
+    like( $out, qr/Status: 200 OK/,     'legacy .html (no .md) is served, not 404' );
+    like( $out, qr/Legacy static page/, 'legacy static content served verbatim' );
+
+    open my $mf, '>', "$docroot/legacy-page.md" or die $!;
+    print $mf "---\ntitle: Migrated\n---\n\nNow in markdown.\n";
+    close $mf;
+    my $t = time + 5;                       # fresh md, clearly newer than the legacy html
+    utime $t, $t, "$docroot/legacy-page.md";
+    my $out2 = run_processor( $docroot, '/legacy-page' );
+    like(   $out2, qr/Now in markdown/,     'a .md source wins over the legacy .html' );
+    unlike( $out2, qr/Legacy static page/,  'legacy static no longer served once migrated' );
+}
+
 done_testing();

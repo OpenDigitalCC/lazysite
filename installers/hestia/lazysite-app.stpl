@@ -46,6 +46,20 @@
     RewriteCond %{DOCUMENT_ROOT}/index.md   !-f
     RewriteCond %{DOCUMENT_ROOT}/index.html -f
     RewriteRule ^/$ /index.html [L]
+    # SM133: migration fallback for clean URLs. A path with no Markdown source but
+    # a static sibling is served directly - .shtml preferred so Apache expands SSI
+    # includes (mod_include), else .html - keeping a legacy pre-lazysite page intact
+    # until it is converted to Markdown. Generalises the homepage rule above and is
+    # self-limiting: it fires only when the static sibling exists and no .md does,
+    # so system paths (which have neither) are untouched, and a .md source shadows
+    # it the moment it lands. The processor has an equivalent verbatim fallback for
+    # non-Apache fronts; this rule is what preserves SSI on a live site.
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.md    !-f
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.shtml -f
+    RewriteRule ^/([^.]+)$ /$1.shtml [L]
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.md   !-f
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.html -f
+    RewriteRule ^/([^.]+)$ /$1.html [L]
     # Cookie auth: route unmatched URLs through the auth wrapper, which
     # validates the cookie, sets X-Remote-*, then execs the processor.
     FallbackResource /cgi-bin/lazysite-auth.pl

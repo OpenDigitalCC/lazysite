@@ -1045,6 +1045,24 @@ sub main {
         return;
     }
 
+    # SM133: static-HTML fallback for migrations. With no .md/.url source but a
+    # sibling static <base>.html present, serve it verbatim (a legacy page from a
+    # pre-lazysite site) rather than 404ing. Auto-detected - no setting. A .md
+    # always wins (handled above), so a page flips to lazysite the moment its
+    # Markdown lands; a final cache-invalidate then clears any stale render.
+    # NOTE: verbatim serve does NOT process Apache SSI - for SSI sites the vhost
+    # rewrite (lazysite-app.tpl) maps the clean URL to the .html so Apache expands
+    # includes; this branch is the portable net (dev server / non-Apache fronts).
+    if ( @html_stat && -f $html_path ) {
+        my $real = realpath($html_path);
+        if ( defined $real && index( $real, $DOCROOT ) == 0 ) {
+            my $ct = read_ct($base) || 'text/html; charset=utf-8';
+            log_event( 'INFO', $uri, 'static-html fallback (no .md source)' );
+            output_page( read_file($html_path), $ct );
+            return;
+        }
+    }
+
     # No source found - serve 404 page
     not_found($uri);
 }
