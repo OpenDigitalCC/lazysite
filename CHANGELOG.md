@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+## 0.5.26 - Migration: show legacy static HTML until Markdown lands (2026-07-01)
+
+Feature - SM133 static-HTML migration fallback
+: enabling lazysite on an existing static site no longer 404s the old pages. A
+  clean URL with no Markdown source but a sibling static `<base>.html` is served
+  (processor: verbatim; Hestia vhost: via a rewrite that prefers `.shtml` so
+  Apache expands SSI). A `.md` always wins, so each page flips to lazysite the
+  moment its Markdown lands. Auto-detected, no setting.
+
 ## 0.5.25 - Login page styling fix; audit is its own capability (2026-07-01)
 
 Fix - login page styling
