@@ -44,11 +44,28 @@ my $NOISE_RE = qr{
 }xi;
 
 # Known crawlers + generic automation clients (not AI assistants - those first).
+# `headless` catches Chrome's --headless=new (UA token HeadlessChrome); the named
+# headless-driver tokens catch tools that do NOT carry it.
 my $BOT_RE = qr{
     bot | crawl | spider | slurp | bingpreview | facebookexternalhit
   | headless | uptime | monitor | pingdom | curl | wget | python-requests
   | go-http | libwww | httpclient | scrapy | java/ | okhttp | axios
+  | phantomjs | selenium | puppeteer | playwright | cypress | lighthouse | node-fetch
   | nuclei | nikto | masscan | zgrab | censys | nmap
+}xi;
+
+# Self-identifying lazysite tooling: an operator's / partner's own agent doing
+# screenshots, QA sweeps or previews - NOT a visitor. The documented opt-out
+# convention: set the browser/fetch UA to include `lazysite-agent/<partner-id>`
+# (or the legacy `claude-code-agent`) and this traffic is kept out of `human`.
+my $AGENT_RE = qr{ lazysite-agent | claude-code-agent }xi;
+
+# Infrastructure / crawler fetches that are not a person browsing pages. Counting
+# these as `human` inflates the audience (favicon rides along with every real
+# visit; robots/sitemap/feed are readers and crawlers). Classified as noise.
+my $INFRA_RE = qr{
+    ^/(?: favicon\.ico | robots\.txt | sitemap(?:_index)?\.xml | llms\.txt
+        | \.well-known/ | feed(?:\.xml|/|$) | rss(?:\.xml|/|$) | atom\.xml )
 }xi;
 
 # AI assistants / model fetchers + the lazysite automation surface.
@@ -226,10 +243,15 @@ sub classify {
     my ( $path, $ua, $extra_ai, $extra_noise ) = @_;
 
     return 'noise' if $path =~ $NOISE_RE;
+    return 'noise' if $path =~ $INFRA_RE;                # favicon/robots/sitemap/feed
     return 'noise' if $path =~ m{\.php(?:[?/]|$)}i;      # PHP-less site: any .php is a probe
     if ($extra_noise) {
         for my $p (@$extra_noise) { return 'noise' if length $p && index( $path, $p ) == 0 }
     }
+
+    # Self-identifying lazysite tooling (screenshots/QA/previews) is automation,
+    # never a human visitor - honour the opt-out UA convention before anything else.
+    return 'bot' if $ua =~ $AGENT_RE;
 
     my $is_auto_ep = $path =~ m{^/cgi-bin/lazysite-(?:mcp|manager-api|dav)\.pl}i;
     my $is_mgr     = $path =~ m{^/manager(?:/|$)}i
