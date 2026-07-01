@@ -18,6 +18,22 @@ Keying
 
 ## Unreleased
 
+## 0.5.25 - Login page styling fix; audit is its own capability (2026-07-01)
+
+Fix - login page styling
+: `convert_md` protected `<script>` but not `<style>`, so inline CSS went through
+  the Markdown emphasis pass - `*/ ... /*` between two CSS comments paired into
+  `<em>` tags and swallowed the rules between them. The login page's form styles
+  regressed exactly this way. `<style>` is now protected alongside `<script>`, so
+  CSS/JS is never Markdown-processed. Affects any page with a multi-line `<style>`.
+
+Feature - audit is a separate capability
+: the audit trail was gated on the `analytics` capability; it is now its own
+  `audit` capability, granted independently of visitor analytics. Seeded to the
+  admins group on NEW sites. EXISTING sites are untouched - grant `audit` to
+  whoever should see the trail (on the Groups page; the operator needs
+  `manage_users` to do it, not `audit`, so no lock-out).
+
 ## 0.5.24 - Faster Users page, one capabilities view, safe "move under" (2026-07-01)
 
 Performance - Users page
