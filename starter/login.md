@@ -30,13 +30,15 @@ query_params:
     max-width: 100%;
     box-sizing: border-box;
     padding: 0.4rem 0.55rem;
-    border: 1px solid #ccc;
+    border: 1px solid var(--theme-colours-border, #ccc);
     border-radius: 3px;
+    background: var(--theme-colours-surface, #fff);
+    color: var(--theme-colours-text, inherit);
     font: inherit;
   }
   .login-context {
-    background: #f0f4ff;
-    border-left: 3px solid #0066cc;
+    background: var(--theme-colours-surface, #f0f4ff);
+    border-left: 3px solid var(--theme-colours-accent, #0066cc);
     padding: 0.5rem 0.75rem;
     border-radius: 3px;
     font-size: 0.9rem;
@@ -44,18 +46,19 @@ query_params:
     max-width: min(480px, 100%);
     box-sizing: border-box;
   }
-  .login-form input:focus { outline: 2px solid #0056b3; outline-offset: 0; }
+  .login-form input:focus { outline: 2px solid var(--theme-colours-accent, #0056b3); outline-offset: 0; }
   .login-form .login-submit { margin-top: 1rem; }
   .login-form button {
     padding: 0.45rem 1.25rem;
     font: inherit;
     cursor: pointer;
-    border: 1px solid #0056b3;
-    background: #0056b3;
-    color: #fff;
+    border: 1px solid var(--theme-colours-accent, #0056b3);
+    background: var(--theme-colours-accent, #0056b3);
+    color: var(--theme-colours-on-accent, #fff);
     border-radius: 3px;
   }
-  .login-form button:hover { background: #003d80; border-color: #003d80; }
+  /* brightness shift adapts to any accent, no second hardcoded colour needed */
+  .login-form button:hover { filter: brightness(0.92); }
   .auth-error {
     color: #b00;
     background: #fee;
@@ -68,7 +71,7 @@ query_params:
   }
   .demo-creds code {
     font-family: ui-monospace, Menlo, Consolas, monospace;
-    background: #f0f0f0;
+    background: var(--theme-colours-surface, #f0f0f0);
     padding: 0.1em 0.4em;
     border-radius: 3px;
   }
@@ -79,7 +82,7 @@ query_params:
      but isn't caught. */
   .login-context-url {
     font-family: ui-monospace, Menlo, Consolas, monospace;
-    background: #f0f0f0;
+    background: var(--theme-colours-surface, #f0f0f0);
     padding: 0.1em 0.35em;
     border-radius: 3px;
     word-break: break-all;
