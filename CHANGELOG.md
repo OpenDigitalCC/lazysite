@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+## 0.5.31 - Retire the Config-page "Manager access groups" field (2026-07-01)
+
+Feature - SM095 tidy-up
+: the "Manager access groups" (`manager_groups`) picker is removed from the Config
+  page. Manager-UI access is the `ui` channel capability granted through a group
+  (Groups page); only lazysite-admins needs it and it already has `ui`. The
+  `manager_groups` value stays a backend-only fallback in lazysite.conf - config
+  saves preserve it and the engine still honours it - it is just no longer edited
+  in the UI.
+
 ## 0.5.30 - Stats caption tidy; backlog reorganised (2026-07-01)
 
 Chore
