@@ -18,6 +18,12 @@ Keying
 
 ## Unreleased
 
+## 0.5.34 - Appearance backups listed newest-first (2026-07-01)
+
+Chore
+: the layout/theme backups panel on the Appearance page now lists snapshots
+  newest-first (by their timestamp), instead of layout-then-alphabetical order.
+
 ## 0.5.33 - Fix: upgrade could overwrite an untracked homepage with boilerplate (2026-07-01)
 
 Fix - upgrade data-loss
