@@ -13,7 +13,9 @@ lazysite site - the layout template (`layout.tt`) and its
 themes. For content, see
 [AI briefing - authoring](/docs/ai-briefing-authoring). For
 configuration, see
-[AI briefing - configuration](/docs/ai-briefing-configuration).
+[AI briefing - configuration](/docs/ai-briefing-configuration). For the
+content/layout/theme separation this all rests on, see
+[AI briefing - building sites](/docs/ai-briefing-building-sites).
 
 ## Terminology (D013)
 

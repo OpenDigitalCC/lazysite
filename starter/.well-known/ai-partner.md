@@ -32,6 +32,7 @@ register:
     "deny": ["/cgi-bin/", "/manager/", "/lazysite/auth/", "/lazysite/forms/smtp.conf", "/lazysite/forms/handlers.conf", "/lazysite/forms/submissions/", "/lazysite/cache/", "/lazysite/logs/", "/lazysite/manager/", "/lazysite/templates/", "/lazysite/lazysite.conf", "*.pl"]
   },
   "docs": [
+    "[% site_url %]/docs/ai-briefing-building-sites",
     "[% site_url %]/docs/ai-briefing-publishing",
     "[% site_url %]/docs/reference",
     "[% site_url %]/docs/ai-briefing-authoring",

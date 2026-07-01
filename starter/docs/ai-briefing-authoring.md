@@ -12,7 +12,10 @@ This document briefs an AI assistant helping a user author content on
 a lazysite site. It covers the page format, front matter, Markdown
 extensions, and URL conventions. For view/theme authoring, see
 [AI briefing - layouts](/docs/ai-briefing-layouts). For configuration, see
-[AI briefing - configuration](/docs/ai-briefing-configuration).
+[AI briefing - configuration](/docs/ai-briefing-configuration). For how a page
+fits the content/layout/theme model - and why ordinary pages must not use raw
+mode - read [AI briefing - building sites](/docs/ai-briefing-building-sites)
+first.
 
 ## Page format
 

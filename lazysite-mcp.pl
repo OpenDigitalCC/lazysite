@@ -1215,6 +1215,16 @@ if ( $method eq 'initialize' ) {
         protocolVersion => $PROTOCOL,
         capabilities    => { tools => { listChanged => JSON::PP::false } },
         serverInfo      => { name => 'lazysite-mcp', version => $VERSION },
+        instructions    =>
+              'You are connected to a lazysite site as a maintenance agent. Before '
+            . 'creating or restructuring pages, read the site briefing '
+            . '/docs/ai-briefing-building-sites: keep content (Markdown), layout and '
+            . 'theme separate, and never put ordinary pages in raw mode (api:true / '
+            . 'raw:true) or hand-author HTML into /lazysite-assets/. For content rules '
+            . 'see /docs/ai-briefing-authoring; for layouts and themes '
+            . '/docs/ai-briefing-layouts. When you screenshot or QA the live site, set '
+            . 'your User-Agent to lazysite-agent/<partner-id> so your hits stay out of '
+            . 'the visitor analytics.',
     } );
 }
 elsif ( $method eq 'ping' ) {
