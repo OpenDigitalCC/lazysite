@@ -3529,7 +3529,12 @@ sub _inject_admin_bar {
     # and there is no engine-only way to offset an arbitrary theme's sticky header -
     # so the bar yields the top instead. No spacer needed: an in-flow bar occupies
     # its own height.
+    #   position:relative + a max z-index gives the bar its OWN stacking context on
+    # top, without leaving the flow. A plain static bar paints BELOW a theme's
+    # positioned header (sticky/z-index), which then covers the bar's links and eats
+    # the clicks; relative+z-index keeps the bar clickable while it scrolls normally.
     my $bar = '<div id="ls-admin-bar" style="'
+        . 'position:relative;z-index:2147483647;'
         . 'background:#1a1a1a;color:#aaa;font:12px system-ui,sans-serif;'
         . 'padding:2px 12px;display:flex;align-items:center;gap:10px;'
         . '">';

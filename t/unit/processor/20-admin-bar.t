@@ -108,6 +108,12 @@ subtest 'manager visitor: bar emitted, theme switcher removed' => sub {
     like( $out, qr{href="/manager/"},  'Manage link present' );
     like( $out, qr{Sign out},          'Sign out link present' );
 
+    # In-flow (scrolls away) but with its OWN stacking context on top, so a theme's
+    # positioned sticky/fixed header cannot paint over the bar and eat its clicks.
+    like(   $out, qr{id="ls-admin-bar"[^>]*position:relative}, 'bar is in normal flow (position:relative)' );
+    like(   $out, qr{id="ls-admin-bar"[^>]*z-index:\d},        'bar has a z-index (stacking context) so links stay clickable' );
+    unlike( $out, qr{id="ls-admin-bar"[^>]*position:fixed},    'bar is not position:fixed (scrolls with the page)' );
+
     # SM069 primary assertions: no switcher element, no inline JS
     # POSTing to theme-activate from a live page.
     unlike( $out, qr{id="ls-theme-sel"},
