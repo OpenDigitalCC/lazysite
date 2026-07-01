@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+## 0.5.29 - Synthesised error surface; raw log download removed (2026-07-01)
+
+Security/privacy - Visitor Stats
+: the "Recent server errors" panel showed the last 40 RAW error-log lines (client
+  IPs, referer URLs, file paths, script names). It is now synthesised - each recent
+  error is reduced to its Apache code/module with a friendly label and a count; no
+  raw lines, addresses or paths are surfaced. The raw access-log download is removed
+  entirely (the stats-log action, the offer_log_download config, and the download
+  link), so the underlying logs are no longer downloadable through the manager.
+
 ## 0.5.28 - Manager bar no longer overlaps themed headers (2026-07-01)
 
 Fix - manager admin bar
