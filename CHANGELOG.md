@@ -18,6 +18,19 @@ Keying
 
 ## Unreleased
 
+## 0.5.33 - Fix: upgrade could overwrite an untracked homepage with boilerplate (2026-07-01)
+
+Fix - upgrade data-loss
+: the installer overwrote a seed file (e.g. `index.md`) that existed on disk but
+  was not tracked in `.install-state.json` - planning it as a fresh install and
+  copying the shipped boilerplate over the operator's content. The edited-vs-shipped
+  guard only covered already-tracked files, so a homepage authored via the manager /
+  WebDAV, seeded by a different install path, or written before it became
+  manifest-tracked had no protection. Now an untracked seed file that already exists
+  on disk is preserved (adopted into state), never clobbered; only an absent
+  destination or a code file is written. Regression test added. Preview any upgrade
+  with `install.pl --dry-run` to see the install/overwrite/preserve plan.
+
 ## 0.5.32 - Fix manager-bar links unclickable over themed headers (2026-07-01)
 
 Fix - manager admin bar
