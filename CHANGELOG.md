@@ -18,6 +18,17 @@ Keying
 
 ## Unreleased
 
+## 0.5.28 - Manager bar no longer overlaps themed headers (2026-07-01)
+
+Fix - manager admin bar
+: the bar was `position:fixed` at the top and collided with a theme's own
+  sticky/fixed header (e.g. the explorer theme) - on scroll the header slid under
+  it. It now sits in normal document flow at the top of the page and scrolls away
+  with it, so it never overlaps any theme, with no per-theme cooperation. Trade-off:
+  it is no longer always on screen (scroll to the top for Edit / Manage / Sign out).
+  Gating is unchanged and confirmed: anonymous visitors and logged-in members with
+  no Manager-UI access see no bar (now covered by a regression test).
+
 ## 0.5.27 - Theme-adaptive login form (2026-07-01)
 
 Fix - login styling on custom themes
