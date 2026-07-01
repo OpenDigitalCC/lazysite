@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Test::More;
-use JSON::PP qw(decode_json);
+use JSON::PP qw(decode_json encode_json);
 use File::Temp qw(tempdir);
 use POSIX qw(strftime);
 
@@ -51,15 +51,24 @@ is( $s2->{classes}{human}{hits}, 3, 'human headline excludes the bot' );
 is( $s2->{classes}{bot}{hits},   1, 'the Googlebot row is classed as a bot' );
 is( $s2->{unique_visitors}, 2, 'raw human IPs when anonymise off (bot not counted)' );
 
-# --- optional error-log surface: recent lines, path never exposed ---
+# --- error-log surface: SYNTHESISED categories only, never raw lines / IPs / paths ---
 open my $el, '>', "$d/error.log" or die $!;
-print $el "[Wed] error one\n[Wed] error two\n";
+print $el "[Sun Jun 28 00:47:58 2026] [proxy_fcgi:error] [pid 1:tid 2] [client 187.84.69.202:0] AH01071: Got error 'Primary script unknown'\n";
+print $el "[Sun Jun 28 00:48:00 2026] [proxy_fcgi:error] [pid 1:tid 3] [client 10.0.0.1:0] AH01071: Got error 'Primary script unknown'\n";
+print $el "[Sun Jun 28 02:00:00 2026] [core:error] [pid 1] AH00574: End of script output before headers: lazysite-auth.pl, referer: https://example.org/manager/config\n";
 close $el;
 my $se = scan( "", access_log => "$d/access.log", error_log => "$d/error.log" );
 ok( $se->{errors} && $se->{errors}{available}, 'error log surfaced when set' );
-is( scalar @{ $se->{errors}{recent} }, 2, 'recent error lines tailed' );
-like( $se->{errors}{recent}[1], qr/error two/, 'last error line present' );
+ok( !exists $se->{errors}{recent}, 'raw recent error lines are NOT exposed' );
+my %by = map { $_->{code} => $_ } @{ $se->{errors}{categories} || [] };
+is( $by{AH01071}{count}, 2, 'scanner-probe errors counted' );
+is( $by{AH00574}{count}, 1, 'no-headers CGI errors counted' );
+like( $by{AH01071}{label}, qr/scanner|probe/i, 'friendly label, not the raw message' );
+my $blob = encode_json( $se->{errors} );
+unlike( $blob, qr/187\.84\.69\.202|10\.0\.0\.1/, 'no client IPs in the synthesis' );
+unlike( $blob, qr/lazysite-auth\.pl|example\.org|referer/, 'no script names / referers / paths' );
 ok( !exists $se->{error_log}, 'error-log disk path not exposed' );
+ok( !exists $se->{log_download}, 'log_download flag removed (no raw download)' );
 
 my $sne = scan( "", access_log => "$d/access.log", error_log => "$d/none.log" );
 ok( !$sne->{errors}{available}, 'no error surface when the error log is missing' );

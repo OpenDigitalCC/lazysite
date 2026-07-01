@@ -476,12 +476,6 @@ elsif ( $action eq 'file-zip-download' ) {
     action_file_zip_download();
     exit 0;
 }
-elsif ( $action eq 'stats-log' ) {
-    # Operator-only raw access-log download (cookie auth; deliberately absent from
-    # the token %need map, so a partner/MCP client can't pull the log).
-    _stats_log_download();
-    exit 0;
-}
 elsif ( $action eq 'preview-grant' ) {
     action_preview_grant( \%params );
     exit 0;
@@ -1682,42 +1676,4 @@ sub action_nav_save {
 
 
 # --- Logging ---
-
-# Stream the configured access log to the operator as a download. The disk path
-# lives in the stats plugin config (read here server-side, never sent to the
-# page); gated by offer_log_download. Cookie-operator only (see dispatch note).
-sub _stats_log_download {
-    my $docroot = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '.';
-    my %c;
-    if ( open my $fh, '<', "$docroot/lazysite/stats.conf" ) {
-        while (<$fh>) { $c{$1} = $2 if /^(\w+)\s*:\s*(.*?)\s*$/ }
-        close $fh;
-    }
-    my $offer = !( defined $c{offer_log_download} && lc( $c{offer_log_download} ) eq 'false' );
-    my $path  = $c{access_log} // '';
-    if ( !$offer ) {
-        print "Status: 403\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n";
-        print "Log download is disabled in the Visitor Statistics plugin config.\n";
-        return;
-    }
-    if ( !length $path || !-r $path ) {
-        print "Status: 404\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n";
-        print "Access log is not available. Set a readable access-log path on the Plugin Config page.\n";
-        return;
-    }
-    open my $lf, '<', $path or do {
-        print "Status: 500\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n";
-        print "Cannot open the access log.\n";
-        return;
-    };
-    binmode $lf;
-    print "Content-Type: text/plain; charset=utf-8\r\n";
-    print "Content-Disposition: attachment; filename=\"access.log\"\r\n\r\n";
-    binmode STDOUT;
-    my $buf;
-    print $buf while read( $lf, $buf, 65536 );
-    close $lf;
-    return;
-}
-
 

@@ -111,27 +111,27 @@ function renderStats(d) {
     h += '</div>';
   }
 
-  // Recent server errors (optional, from the error log).
+  // Recent server errors - synthesised categories + counts only (no raw lines,
+  // addresses or paths).
   if (d.errors && d.errors.available) {
     h += '<div class="mg-sec">Recent server errors</div>';
-    var rec = d.errors.recent || [];
-    if (!rec.length) {
+    var cats = d.errors.categories || [];
+    if (!cats.length) {
       h += '<p class="mg-muted">No recent errors.</p>';
     } else {
-      h += '<pre style="white-space:pre-wrap;font-size:0.78rem;color:var(--mg-text);'
-         + 'background:var(--mg-surface-alt);padding:0.5rem 0.6rem;border-radius:4px;'
-         + 'max-height:14rem;overflow:auto;margin:0;">' + rec.map(sesc).join('\n') + '</pre>';
+      h += '<div class="mg-checks">';
+      cats.forEach(function (c) {
+        h += '<span class="mg-tag mg-tag-auto">' + sesc(c.label) + ': ' + fmtNum(c.count) + '</span>';
+      });
+      h += '</div>';
+      h += '<p class="mg-muted" style="font-size:0.8rem">Categorised from the recent error log'
+         + ' - counts only, no addresses or paths.</p>';
     }
   }
 
-  // Source - the disk path is never shown; offer a download instead.
+  // Source - the disk path is never shown, and the raw log is never downloadable.
   h += '<p class="mg-muted" style="margin-top:1rem">' + fmtNum(d.scanned_lines)
-     + ' log lines scanned' + (d.capped ? ' (capped)' : '') + '.';
-  if (d.log_download) {
-    h += ' <a class="mg-btn mg-btn-sm mg-btn-outline" href="' + API
-       + '?action=stats-log">Download access log</a>';
-  }
-  h += '</p>';
+     + ' log lines scanned' + (d.capped ? ' (capped)' : '') + '.</p>';
   body.innerHTML = h;
 }
 

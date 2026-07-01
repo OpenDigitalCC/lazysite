@@ -80,6 +80,18 @@ my $AI_RE = qr{
 my @MONTHS_X = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 my %MON_X = map { $MONTHS_X[$_] => $_ } 0 .. 11;
 
+# Known Apache error codes -> a friendly, data-free category label (used by
+# _classify_error). Declared up here so it is assigned before the dispatch below
+# ever calls export_stats(). Anything not listed falls back to "Server error
+# (<code|module>)"; the raw message is NEVER surfaced (it carries client IPs,
+# referer URLs and file paths).
+my %ERR_LABELS = (
+    AH01071 => 'Probe for a non-existent script (scanner noise)',
+    AH01630 => 'Request denied by server configuration',
+    AH00574 => 'CGI script produced no headers (script error)',
+    AH01276 => 'Directory listing forbidden',
+);
+
 if ( $arg{describe} ) {
     print encode_json({
         id          => 'stats',
@@ -88,7 +100,7 @@ if ( $arg{describe} ) {
                      . '(read-only). Classifies traffic into people, AI assistants, '
                      . 'bots and noise - all log-only heuristics, not authenticated. '
                      . 'Complements the audit trail, which records material actions.',
-        version     => '2.0',
+        version     => '2.1',
         config_file => 'lazysite/stats.conf',
         config_schema => [
             # NOTE: the access/error log PATHS are deliberately NOT configurable
@@ -103,7 +115,6 @@ if ( $arg{describe} ) {
               note => 'Comma-separated UA substrings to also count as AI assistants, on top of the built-ins (GPTBot, ClaudeBot, anthropic, ...).' },
             { key => 'noise_paths', label => 'Extra noise paths', type => 'text', default => '',
               note => 'Comma-separated path prefixes to treat as probe/scanner noise, on top of the built-ins (/wp-login.php, /.env, *.php, ...).' },
-            { key => 'offer_log_download', label => 'Offer raw log download', type => 'boolean', default => 'true' },
         ],
         actions => [ { id => 'refresh', label => 'Refresh stats' } ],
     });
@@ -233,6 +244,18 @@ sub _tail_lines {
     return @buf;
 }
 
+# Reduce one raw error-log line to a { key, label } bucket - the AH#### code (or,
+# lacking one, the [module:level] tag). No IPs, paths, referers or timestamps.
+sub _classify_error {
+    my ($line) = @_;
+    my ($code)   = $line =~ /\b(AH\d{4,})\b/;
+    my ($module) = $line =~ /\[([a-z_]+):[a-z]+\]/;
+    return { key => $code,   label => $ERR_LABELS{$code} } if $code && $ERR_LABELS{$code};
+    return { key => $code,   label => "Server error ($code)" }   if $code;
+    return { key => $module, label => "Server error ($module)" } if $module;
+    return { key => 'other', label => 'Uncategorised server error' };
+}
+
 sub _is_browser {
     my ($ua) = @_;
     return $ua =~ /Mozilla|Chrome|Safari|Firefox|Edge|Opera|Gecko/i ? 1 : 0;
@@ -300,8 +323,6 @@ sub scan_stats {
     my $anon   = !( defined $cfg->{anonymise_ip} && lc( $cfg->{anonymise_ip} ) eq 'false' );
     my $extra_ai    = _split_csv( $cfg->{ai_user_agents} );
     my $extra_noise = _split_csv( $cfg->{noise_paths} );
-    my $offer_dl    = !( defined $cfg->{offer_log_download}
-                         && lc( $cfg->{offer_log_download} ) eq 'false' );
     my $site_host   = _site_domain();
     my $cutoff = time() - $window * 86400;
 
@@ -355,15 +376,25 @@ sub scan_stats {
     }
     close $fh;
 
-    # Optional error-log surface: the most recent lines (path never exposed).
+    # Optional error-log surface: a SYNTHESISED summary only - error categories +
+    # counts from the recent tail, never the raw lines (which carry client IPs,
+    # referer URLs and file paths).
     my $elog = find_error_log($cfg);
     my %errors = ( available => JSON::PP::false );
     if ( length $elog && -r $elog ) {
-        my @recent = _tail_lines( $elog, 40 );
+        my @recent = _tail_lines( $elog, 1000 );    # bounded to the trailing 64 KB
+        my %cat;
+        for my $ln (@recent) {
+            my $c = _classify_error($ln);
+            $cat{ $c->{key} } //= { code => $c->{key}, label => $c->{label}, count => 0 };
+            $cat{ $c->{key} }{count}++;
+        }
+        my @cats = sort { $b->{count} <=> $a->{count} || $a->{code} cmp $b->{code} }
+            values %cat;
         %errors = (
-            available => JSON::PP::true,
-            recent    => \@recent,
-            count     => scalar @recent,
+            available  => JSON::PP::true,
+            sampled    => scalar @recent,
+            categories => \@cats,
         );
     }
 
@@ -389,7 +420,6 @@ sub scan_stats {
         capped          => ( $scanned > $CAP ? JSON::PP::true : JSON::PP::false ),
         anonymised      => ( $anon ? JSON::PP::true : JSON::PP::false ),
         log_configured  => JSON::PP::true,                 # never the disk path
-        log_download    => ( $offer_dl ? JSON::PP::true : JSON::PP::false ),
         errors          => \%errors,
         classes         => \%classes,
         hits            => $hits,                          # human only
