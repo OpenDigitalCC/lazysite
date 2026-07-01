@@ -182,10 +182,11 @@ category. Proposal now at `lazysite-layouts/docs/proposals/3d-layout.md`.)*
 - **Managers-create-sub-users gotcha** (was "Open"): resolved by SM095's explicit
   model - `create_sub_users` is a per-group capability, granted deliberately, not
   implied by manager membership. The Users/Groups UI makes it visible.
-- The `manager_groups` config field ("Manager access groups" on the Config page)
-  is now only the pre-SM095 fallback for Manager-UI access; the primary mechanism
-  is the `ui` channel capability on a group. Candidate for removal from the UI
-  (pending a decision on whether to keep the fallback editable or retire it).
+- The `manager_groups` config field was removed from the Config page (0.5.31):
+  Manager-UI access is the `ui` channel capability on a group, and only
+  `lazysite-admins` (which already has `ui`) needs it across sites. `manager_groups`
+  remains a backend-only fallback in `lazysite.conf` (preserved on config save;
+  set it there if ever needed) - it is just no longer edited in the UI.
 - Every issue from the live Claude.ai / ChatGPT connector reviews (UTF-8,
   front-matter quotes, multi-word `select:`, fenced-div Markdown, tool discovery,
   in-channel verify, etc.) is closed as of 0.4.16.
