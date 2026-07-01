@@ -18,6 +18,20 @@ Keying
 
 ## Unreleased
 
+## 0.5.24 - Faster Users page, one capabilities view, safe "move under" (2026-07-01)
+
+Performance - Users page
+: the page loads in ONE request now (a users-page endpoint returning accounts +
+  resolved caps + the group view + the operator identity), replacing three
+  separate CGI calls. On a plain-CGI host that removes several Perl cold starts
+  (whoami alone spawned two extra subprocesses) - the fix for slow load even with
+  one user.
+
+Feature - Users page
+: the duplicate capability chip list is gone; the channel x capability grid is the
+  single read-only "Capabilities" view. The "Move under" dropdown no longer lists a
+  user's own sub-tree (or itself), which would form a cycle the server rejects.
+
 ## 0.5.23 - Live permissions grid, honest analytics, the building-sites briefing (2026-07-01)
 
 Feature - permissions viewer
