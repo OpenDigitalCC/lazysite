@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.5.30 - Stats caption tidy; backlog reorganised (2026-07-01)
+
+Chore
+: remove the redundant caption under the synthesised error panel on the stats
+  page; reorganise the feature-request backlog (integrate new notes, de-duplicate,
+  refresh shipped status).
+
 ## 0.5.29 - Synthesised error surface; raw log download removed (2026-07-01)
 
 Security/privacy - Visitor Stats
