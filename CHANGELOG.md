@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+## 0.5.27 - Theme-adaptive login form (2026-07-01)
+
+Fix - login styling on custom themes
+: the login form drove its colours from fixed values, so it looked out of place on
+  a polished custom theme. It now takes its accent, border and surface colours from
+  the standard theme tokens (with the old values as fallbacks), adopting whatever
+  theme is active and unchanged on the no-theme fallback layout.
+
 ## 0.5.26 - Migration: show legacy static HTML until Markdown lands (2026-07-01)
 
 Feature - SM133 static-HTML migration fallback
