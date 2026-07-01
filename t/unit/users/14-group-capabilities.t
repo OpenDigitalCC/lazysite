@@ -194,4 +194,24 @@ sub api {
     ok( !caps( $d, 'legacy' )->{analytics}, 'no per-account capability resolves' );
 }
 
+# CLI permissions grid: human-readable channel x capability view resolved from
+# groups only, for debugging user access from the shell.
+{
+    my $d = docroot();
+    cli( $d, 'add', 'dbg', 'pw' );
+    cli( $d, 'group-add', 'dbg', 'agent-ai' );
+    my $r = cli( $d, 'permissions', 'dbg' );
+    is( $r->{code}, 0, 'permissions command exits 0' );
+    like( $r->{out}, qr/Permissions for 'dbg'/, 'names the user' );
+    like( $r->{out}, qr/Groups:\s*agent-ai/,    'lists the group' );
+    like( $r->{out}, qr/webdav\s+Y/,            'agent-ai grants the webdav channel' );
+    like( $r->{out}, qr/manage_config\s+\./,    'agent-ai does NOT grant manage_config' );
+
+    my $none = cli( $d, 'permissions', 'ghost' );    # no such membership
+    like( $none->{out}, qr/no capabilities/i, 'a user in no groups is reported plainly' );
+
+    my $bad = cli( $d, 'permissions' );              # missing username
+    isnt( $bad->{code}, 0, 'permissions with no username is a usage error' );
+}
+
 done_testing;

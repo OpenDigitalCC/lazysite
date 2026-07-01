@@ -92,7 +92,7 @@ function loadGroups() {
   }).catch(function(e) { showStatus('Failed to load groups: ' + e.message, true); });
 }
 
-// One accordion per group: capability toggles + manager switch, then a
+// One accordion per group: channel + action capability toggles, then a
 // member-centric roster (who's in, type-to-add, remove) - not an all-users list.
 function renderGroups() {
   var el = document.getElementById('groups-info');

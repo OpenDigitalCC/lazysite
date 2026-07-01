@@ -65,8 +65,8 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 var DAV_BASE = location.origin + '/dav';
 var allGroups = {};   // {group: [members]}
 var allUsers  = [];   // [username]
+var groupLabels = {}; // {group: description-or-label} - for the add-user picker
 var parentList = [];  // [username] - accounts that can own sub-users (create_sub_users)
-var MANAGER_GROUPS = [];  // SM094: site manager groups; members are operators
 var ME = '';          // the current operator's username (from whoami) - a valid owner
 
 // SM109 phase 2: route all status to the global toast.
@@ -98,7 +98,12 @@ function loadUsers() {
     .then(function(d) {
       var g = {};
       if (d.ok && d.groups) Object.keys(d.groups).forEach(function(name) {
-        g[name] = (d.groups[name] && d.groups[name].members) || [];
+        var info = d.groups[name] || {};
+        g[name] = info.members || [];
+        // What the group is for, for the add-user picker: prefer a description,
+        // else a label that differs from the bare name.
+        groupLabels[name] = info.description
+          || (info.label && info.label !== name ? info.label : '');
       });
       return g;
     })
@@ -113,12 +118,11 @@ function loadUsers() {
   var wp = fetch(API + '?action=whoami', { method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' }, body: '{}' })
     .then(function(r) { return r.json(); })
-    .then(function(d) { if (d && d.ok && d.partner) ME = d.partner; return (d && d.ok && d.manager_groups) ? d.manager_groups : []; })
-    .catch(function() { return []; });
+    .then(function(d) { if (d && d.ok && d.partner) ME = d.partner; return null; })
+    .catch(function() { return null; });
   Promise.all([up, gp, wp]).then(function(res) {
     var rows = (res[0] || []).filter(function(r) { return r && r.user != null; });
     allGroups = res[1] || {};
-    MANAGER_GROUPS = res[2] || [];
     allUsers = rows.map(function(r) { return r.user; });
     renderUsers(rows);
     parentList = rows.filter(function(r) { return r.settings && r.settings.create_sub_users; })
@@ -136,24 +140,29 @@ var PERM_LABELS = {
   create_sub_users: 'Create sub-users', delegate_sub_user_creation: 'Delegate sub-users'
 };
 
-// Lazy-load the read-only channel x capability grid for a user when its panel opens.
+// (Re)load the read-only channel x capability grid for a user. Fetches fresh
+// every time the panel opens - so changes made on the Groups page show up
+// without a full reload - and on demand via the Recheck button. `det` is the
+// <details> element from ontoggle (absent when called from Recheck).
 function loadPermGrid(user, det) {
-  if (!det || !det.open) return;
+  if (det && !det.open) return;   // ontoggle also fires on close
   var box = document.getElementById('permgrid-' + user);
-  if (!box || box.getAttribute('data-loaded')) return;
-  box.setAttribute('data-loaded', '1');
+  if (!box) return;
+  box.innerHTML = '<span class="mg-muted">Checking&hellip;</span>';
   apiCall({ action: 'permissions-grid', username: user }).then(function(d) {
-    if (!d.ok) { box.textContent = d.error || 'Failed to load.'; box.removeAttribute('data-loaded'); return; }
-    box.innerHTML = renderPermGrid(d);
-  }).catch(function(e) { box.textContent = 'Error: ' + e.message; box.removeAttribute('data-loaded'); });
+    if (!d.ok) { box.textContent = d.error || 'Failed to load.'; return; }
+    box.innerHTML = renderPermGrid(d, user);
+  }).catch(function(e) { box.textContent = 'Error: ' + e.message; });
 }
 
-function renderPermGrid(d) {
+function renderPermGrid(d, user) {
   var chans = d.channels || [], acts = d.actions || [], gb = d.granted_by || {};
   var lbl = function(k) { return PERM_LABELS[k] || k; };
   var by  = function(cap) { return (gb[cap] && gb[cap].length) ? gb[cap] : null; };
-  if (!d.groups || !d.groups.length) return '<p class="mg-empty">In no groups, so no capabilities.</p>';
-  var h = '<table class="audit-table" style="font-size:12px"><thead><tr><th>Capability \\ Channel</th>';
+  var recheck = '<button class="mg-btn mg-btn-sm" style="margin-bottom:0.4rem" '
+    + 'onclick="loadPermGrid(\'' + escHtml(user) + '\')">Recheck</button>';
+  if (!d.groups || !d.groups.length) return recheck + '<p class="mg-empty">In no groups, so no capabilities.</p>';
+  var h = recheck + '<table class="audit-table" style="font-size:12px"><thead><tr><th>Capability \\ Channel</th>';
   chans.forEach(function(c) {
     h += '<th style="text-align:center" title="' + (by(c) ? 'granted by: ' + by(c).join(', ') : 'not granted') + '">' + escHtml(lbl(c)) + '</th>';
   });
@@ -830,7 +839,10 @@ function populateAddUserGroups() {
   if (!sel) return;
   var keys = Object.keys(allGroups).sort();
   sel.innerHTML = keys.length
-    ? keys.map(function(g) { return '<option value="' + escHtml(g) + '">' + escHtml(g) + '</option>'; }).join('')
+    ? keys.map(function(g) {
+        var hint = groupLabels[g] ? ' — ' + groupLabels[g] : '';
+        return '<option value="' + escHtml(g) + '">' + escHtml(g + hint) + '</option>';
+      }).join('')
     : '<option value="" disabled>no groups yet</option>';
 }
 

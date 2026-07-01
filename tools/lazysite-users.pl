@@ -384,6 +384,7 @@ elsif ( $cmd eq 'claim-redeem' )   { cmd_claim_redeem_cli(@args) }
 elsif ( $cmd eq 'mfa-enroll' )     { cmd_mfa_enroll(@args) }
 elsif ( $cmd eq 'mfa-disable' )    { cmd_mfa_disable(@args) }
 elsif ( $cmd eq 'partner-create' ) { cmd_partner_create_cli(@args) }
+elsif ( $cmd eq 'permissions' )    { cmd_permissions_cli(@args) }
 else {
     print STDERR "Unknown command: $cmd\n\n" if $cmd;
     usage();
@@ -686,8 +687,8 @@ sub effective_settings {
     $scope = undef unless defined $scope && length $scope;
     # SM095: capability bools come from the ONE resolver (caps_for) - the same one
     # the manager API, MCP, and the WebDAV endpoint consult, so a grant resolves
-    # identically everywhere. caps_for unions group grants with any legacy per-user
-    # grant during the transition.
+    # identically everywhere. Since the clean cut (0.5.20) caps_for is group-only:
+    # per-account capability grants are no longer honoured.
     _ensure_groups_seeded();
     my $caps = caps_for($user);
     my @mygroups = do {
@@ -1591,6 +1592,7 @@ scope:
          "/lazysite/manager/", "/lazysite/templates/",
          "/lazysite/lazysite.conf", "*.pl"]
 docs:
+  - $base/docs/ai-briefing-building-sites
   - $base/docs/ai-briefing-publishing
   - $base/docs/reference
   - $base/docs/ai-briefing-authoring
@@ -1605,6 +1607,7 @@ docs:
 All publishing and management docs live on this site - fetch them over HTTP:
 
 - Agent briefings (start here):
+    $base/docs/ai-briefing-building-sites
     $base/docs/ai-briefing-publishing
     $base/docs/ai-briefing-authoring
     $base/docs/ai-briefing-configuration
@@ -2117,6 +2120,60 @@ sub cmd_permissions_grid {
     };
 }
 
+# CLI: print a human-readable channel x capability grid for a user, resolved
+# from group membership only (no legacy per-account review). For debugging "why
+# can/can't this user do X" from the shell.
+sub cmd_permissions_cli {
+    my ($user) = @_;
+    unless ( defined $user && length $user ) {
+        print {*STDERR} "usage: lazysite-users.pl permissions USERNAME\n";
+        exit 2;
+    }
+    my $g = cmd_permissions_grid($user);
+    unless ( $g->{ok} ) {
+        print {*STDERR} 'error: ' . ( $g->{error} // 'failed' ) . "\n";
+        exit 1;
+    }
+    my @chans = @{ $g->{channels} };
+    my @acts  = @{ $g->{actions} };
+    my $gb    = $g->{granted_by};
+    my $has   = sub { ( $gb->{ $_[0] } && @{ $gb->{ $_[0] } } ) ? 1 : 0 };
+    my $src   = sub { $has->( $_[0] ) ? join( ',', @{ $gb->{ $_[0] } } ) : '' };
+
+    print "Permissions for '$user'\n";
+    print 'Groups: '
+        . ( @{ $g->{groups} } ? join( ', ', @{ $g->{groups} } ) : '(none)' ) . "\n\n";
+    unless ( @{ $g->{groups} } ) {
+        print "In no groups, so no capabilities.\n";
+        return;
+    }
+
+    print "Channels (where you may operate):\n";
+    for my $c (@chans) {
+        printf "  %-28s %s%s\n", $c, ( $has->($c) ? 'Y' : '.' ),
+            ( $has->($c) ? '   <- ' . $src->($c) : q{} );
+    }
+    print "\nActions (what you may do):\n";
+    for my $a (@acts) {
+        printf "  %-28s %s%s\n", $a, ( $has->($a) ? 'Y' : '.' ),
+            ( $has->($a) ? '   <- ' . $src->($a) : q{} );
+    }
+
+    # Effective grid: an action is usable only WITH a channel to do it through.
+    print "\nEffective (Y = has the action AND the channel):\n";
+    printf '  %-28s', q{};
+    printf ' %-7s', $_ for @chans;
+    print "\n";
+    for my $a (@acts) {
+        printf '  %-28s', $a;
+        for my $c (@chans) {
+            printf ' %-7s', ( ( $has->($a) && $has->($c) ) ? 'Y' : '.' );
+        }
+        print "\n";
+    }
+    return;
+}
+
 # Unified Groups view for the manager UI: every group (from group-settings OR the
 # membership file), with its capabilities, manager flag, label, and members.
 sub _group_settings_view {
@@ -2270,6 +2327,8 @@ Commands:
   group-add USERNAME GROUP    Add user to a group
   group-remove USERNAME GROUP Remove user from a group
   groups                      List all groups and members
+  permissions USERNAME        Print the channel x capability grid for a user
+                              (resolved from groups; debug user access issues)
   setup-manager [PASSWORD]    One-command first-run: create the manager account
                               (+ admin group + lazysite.conf), set/generate its
                               password. Idempotent. [--user NAME] [--group NAME]
