@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+## 0.5.32 - Fix manager-bar links unclickable over themed headers (2026-07-01)
+
+Fix - manager admin bar
+: after moving the bar into normal flow (0.5.28) it lost its stacking context, so
+  a theme's positioned header (sticky/fixed with a z-index, e.g. the explorer
+  theme) painted over the bar where they meet and swallowed its clicks - the Manage
+  / Edit / Sign out links stopped working. The bar now carries `position:relative`
+  plus a max z-index: still in normal flow (scrolls away, no overlap), but with its
+  own stacking context on top so its links stay clickable.
+
 ## 0.5.31 - Retire the Config-page "Manager access groups" field (2026-07-01)
 
 Feature - SM095 tidy-up
