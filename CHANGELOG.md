@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+## 0.5.35 - Content provenance stamp + "is it ours?" checker (2026-07-01)
+
+Feature - content provenance
+: shipped seed pages now carry a `provenance: lazysite-starter` front-matter stamp,
+  so lazysite content can be told apart from operator content without relying on the
+  install-state file. `lazysite-check.pl` gains a content-provenance report that
+  classifies each `.md` page as lazysite-unmodified, lazysite-customised (stamped but
+  edited), or operator-authored - the "is this likely ours?" audit behind the
+  upgrade-safety work. The installer's 0.5.33 preservation behaviour is unchanged.
+
 ## 0.5.34 - Appearance backups listed newest-first (2026-07-01)
 
 Chore
