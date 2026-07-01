@@ -4,7 +4,7 @@ subtitle: "Status at a glance; see each SMxxx doc for detail"
 brand: plain
 ---
 
-One-line status for every feature request. Updated 2026-06-28. Status derived
+One-line status for every feature request. Updated 2026-07-01. Status derived
 from the CHANGELOG (shipped releases) and corroborating code, not the per-doc
 text.
 
@@ -15,13 +15,24 @@ Discrete items expanded from the raw wishlist; each needs its own scoping doc
 before work starts.
 
 - **Plugin packaging / separation** - split plugins from the core tree so they
-  can be added, removed, or uploaded independently. A plugin becomes a
+  can be added, removed, or uploaded independently: a plugin becomes a
   self-describing unit installed/uploaded like a theme, rather than living in the
-  core checkout.
-- **Calendar-booking plugin** - bookable time slots with availability, producing
-  a booking record (ties to the forms + notifications stack).
+  core checkout. Includes documenting the plugin interface so new plugins are
+  simple to implement.
+- **Status page** - collect monitoring data into JSON files, render it on screen,
+  and derive a current-status view (meta information) from it.
+- **Form-fill notifications over XMPP** - notify about form submissions (and
+  similar events) through an XMPP bot (the same integration Claude Code uses),
+  wired to the notification system; per-user / per-system, with the user choosing
+  the target. Extends the SM113 notification stack.
 - **Live-chat plugin (XMPP bot)** - an on-site chat widget backed by an XMPP bot
   (reuses the existing XMPP integration).
+- **Calendar-booking plugin** - bookable time slots with availability, producing
+  a booking record (ties to the forms + notifications stack).
+- **Image optimiser (Files)** - a file-manager tool to resize images or apply
+  other transforms (ImageMagick or similar backend).
+- **Group-of-groups inheritance** - a group can inherit another group's
+  capabilities, with recursion protection.
 - **E-commerce via Odoo** - products, prices, and sales sourced from Odoo's
   e-commerce API; an on-site basket creates a sales order through that API. No
   local product/price store - Odoo is the source of truth.
@@ -36,6 +47,61 @@ before work starts.
   other transform tasks.
 - **Search improvements** - feed both the auto-index and a manual index; log
   failed searches to a file for review.
+
+
+## Open - actionable
+
+- **Bad-URL auto-blocker plugin (default on)** - a plugin that recognises the
+  steady stream of vulnerability-scanner probes (`/wp-login.php`, `/.env`,
+  `/config.env`, `/actuator/health`, `/server-status`, `/.git/`, `*.php` on a
+  markdown site, etc. - all already classed as "noise" by the stats classifier)
+  and auto-blocks the source IP after N hits in a window. Maintains the bad-URL
+  pattern list (built-in + operator additions), records every block (IP, pattern,
+  count, time) for review, and exposes a small manager panel (current blocks +
+  unblock). Enabled by default. Reuse the stats noise-path heuristics as the seed
+  list. (Prompted by scanner traffic hitting a fresh site within minutes of going
+  live.)
+- **SM085** Git backend / changesets *(design)* - `begin -> diff -> commit ->
+  rollback` on a git-versioned docroot. Biggest remaining lever; adds the
+  rollback safety net. Headline ask from both AI-partner reviews.
+- **SM084 restore** - in-manager "restore this snapshot" (list/create/download
+  exist; restore does not).
+- **SM096** "Migrate to local" - one click to fetch a `.url` page's body and
+  take local ownership as `.md`.
+- **SM098** Multi-page / wizard forms (Next / Back, per-step validation).
+- **SM103** Recent-change markers - "changed recently" dots on nav/users/files;
+  the visible tip of a streaming audit-trail layer.
+- **SM110** Domain aliases - an additional host serving the same site with its
+  own theme / nav / name.
+- **Sessions page - list + control active sessions** - the Sessions page exposes
+  only "log out everyone" (rotate the auth secret). List active sessions of all
+  types with detail (who / where / when / last seen), a per-session log-out
+  button, and a disable-account action, each linking to the user and to the audit
+  log. Individual sessions should be visible and ideally revocable.
+- **Manager log-out control** - a Sign out control in the manager UI shell (the
+  admin bar carries one, but the manager chrome itself should too).
+- **Audit timestamps in local time** - show audit times in the detected local
+  timezone, falling back to UTC.
+- **Files: duplicate a page** - a "duplicate" action on the files list.
+- **theme_assets fallback on no active theme** - when a layout is previewed or
+  set per-page with no compatible active theme, `theme_assets`/`theme_css` are
+  empty and the page renders unstyled. Fall `theme_assets` back to the layout's
+  `default_theme` mirror (if installed) so preview looks right without every
+  layout needing its own `[% ELSE %]` fallback link.
+- **Remote-layout content components** - `install_layout` + fenced/sections
+  components are local-layout only; remote (URL) layouts fetch just `layout.tt`,
+  so their `components/` are not fetched or resolved. Bundle + resolve components
+  for remote layouts if remote layouts get more use.
+- **Visitor statistics - performance + visualisations** - the in-page stats scan
+  is still synchronous and re-reads the whole log each load (the *AI export* path
+  now has an incremental per-day-bucket cache - reuse it for the page). Remaining:
+  point the manager Stats page at the cache, and add visualisations (charts for
+  the per-day trend, the class breakdown, referrers).
+- **AI audit export - point the in-page view at a cache** - the audit trail is
+  already exposed as sanitised JSON via the control-API `audit` action (gated on
+  its own `audit` capability since 0.5.25). Remaining: give it the same
+  append-only incremental cache the visitor-stats export uses, and point the
+  in-page Audit view at it.
 
 
 ## Done
@@ -54,14 +120,22 @@ before work starts.
 - **SM082** Content vs theme/layout write capability (`manage_content`).
 - **SM083** Access-log stats plugin (domain-qualified auto-detect, autoconfig);
   v2 (0.4.62) adds a traffic classifier (people / AI assistants / bots / noise /
-  logged-in operator), internal/external/direct referrer split, log-path privacy
-  + log download, and a nav item hidden when the plugin is disabled.
-- **SM084** Non-destructive overlay install + content backups *(restore: still open, below)*.
+  logged-in operator), internal/external/direct referrer split, and log-path
+  privacy. Later hardened: headless/agent UA detection + self-identify marker
+  (0.5.23); the error surface is synthesised and the raw log download removed
+  (0.5.29).
+- **SM084** Non-destructive overlay install + content backups *(restore: still open, above)*.
 - **SM087** Connector editing ergonomics - full tool set (patch edit, search, preview, validate, `set_nav`, copy, permissions, audit, manifest, error kinds, nav-cache).
 - **SM088** Form-to-transport binding (`list_form_handlers` / `bind_form`).
 - **SM091** Dev-server auto-index (`tools/lazysite-server.pl --auto-index`).
 - **SM093** One-command manager bootstrap.
 - **SM094** Users-page permission clarity.
+- **SM095** Group-based capabilities - a channel × action model resolved through
+  one central resolver that every surface consults (manager UI / control API /
+  MCP / WebDAV). Manager-UI access and operator status became the `ui` /
+  `manage_users` capabilities (manager_groups retired to a non-breaking fallback);
+  capabilities incl. `create_sub_users` are explicit per-group grants; audit split
+  into its own `audit` capability. Shipped 0.5.15-0.5.25.
 - **SM097** Nav-editor page autocomplete.
 - **SM099** Client-side auth button (`data-ls-auth-*` sync before `</body>`).
 - **SM100** One-connect flow (connector onboarding).
@@ -87,64 +161,9 @@ before work starts.
 - **SM123** Theme discovery.
 - **SM124** Connector onboarding alignment.
 - **SM125** Scan front-matter passthrough.
-
-## Open - actionable
-
-- **Bad-URL auto-blocker plugin (default on)** - a plugin that recognises the
-  steady stream of vulnerability-scanner probes (`/wp-login.php`, `/.env`,
-  `/config.env`, `/actuator/health`, `/server-status`, `/.git/`, `*.php` on a
-  markdown site, etc. - all already classed as "noise" by the stats classifier)
-  and auto-blocks the source IP after N hits in a window. Maintains the bad-URL
-  pattern list (built-in + operator additions), records every block (IP, pattern,
-  count, time) for review, and exposes a small manager panel (current blocks +
-  unblock). Enabled by default. Reuse the stats noise-path heuristics as the seed
-  list. (Prompted by scanner traffic hitting a fresh site within minutes of going
-  live.)
-
-- **SM085** Git backend / changesets *(design)* - `begin → diff → commit →
-  rollback` on a git-versioned docroot. Biggest remaining lever; adds the
-  rollback safety net. Headline ask from both AI-partner reviews.
-- **SM084 restore** - in-manager "restore this snapshot" (list/create/download
-  exist; restore does not).
-- **SM095** Group-based partner capabilities - extend the operator domain's
-  group model to the partner (WebDAV / content / theme / sub-user) capabilities.
-- **SM096** "Migrate to local" - one click to fetch a `.url` page's body and
-  take local ownership as `.md`.
-- **SM098** Multi-page / wizard forms (Next / Back, per-step validation).
-- **SM103** Recent-change markers - "changed recently" dots on nav/users/files;
-  the visible tip of a streaming audit-trail layer.
-- **SM110** Domain aliases - an additional host serving the same site with its
-  own theme / nav / name.
-- **Managers should be able to create sub-users** - a manager (in a
-  `manager_groups` group) can be refused sub-user creation with "Creator 'X' lacks
-  create_sub_users permission" until `create_sub_users` is granted to them
-  separately. Manager-group membership should imply (or the create-sub-user path
-  should bypass the check for) operators - granting it by hand is an easy-to-miss
-  gotcha.
-- **Sessions page - active-session details** - the new Sessions page exposes only
-  "log out everyone" (rotate the auth secret). List active sessions with detail
-  (who / where / when / last seen) so individual sessions are visible and ideally
-  revocable.
-- **theme_assets fallback on no active theme** - when a layout is previewed or
-  set per-page with no compatible active theme, `theme_assets`/`theme_css` are
-  empty and the page renders unstyled. Fall `theme_assets` back to the layout's
-  `default_theme` mirror (if installed) so preview looks right without every
-  layout needing its own `[% ELSE %]` fallback link.
-- **Remote-layout content components** - `install_layout` + fenced/sections
-  components are local-layout only; remote (URL) layouts fetch just `layout.tt`,
-  so their `components/` are not fetched or resolved. Bundle + resolve components
-  for remote layouts if remote layouts get more use.
-- **Visitor statistics - performance + visualisations** - the in-page stats scan
-  is still synchronous and re-reads the whole log each load (the *AI export* path
-  now has an incremental per-day-bucket cache - reuse it for the page). Remaining:
-  point the manager Stats page at the cache, and add visualisations (charts for
-  the per-day trend, the class breakdown, referrers).
-
-- **AI visitor-analytics - Phase 2 (audit)** - expose the audit trail as the same
-  sanitised JSON (`analyse_audit`?), gated on the same `analytics` capability, and
-  point the in-page Audit view at it with the same append-only cache. Phase 1
-  (visitor stats export + `analytics` capability + `analyse_visitors` MCP tool +
-  `/docs/ai-briefing-stats`, cached/incremental) shipped 0.5.6.
+- **SM133** Static-HTML migration fallback - a clean URL with no Markdown source
+  but a static sibling is served (processor verbatim; Hestia vhost prefers `.shtml`
+  so SSI still expands), until the page is converted to Markdown (0.5.26).
 
 ## Candidates - research / future
 
@@ -160,6 +179,13 @@ category. Proposal now at `lazysite-layouts/docs/proposals/3d-layout.md`.)*
 
 ## Notes
 
+- **Managers-create-sub-users gotcha** (was "Open"): resolved by SM095's explicit
+  model - `create_sub_users` is a per-group capability, granted deliberately, not
+  implied by manager membership. The Users/Groups UI makes it visible.
+- The `manager_groups` config field ("Manager access groups" on the Config page)
+  is now only the pre-SM095 fallback for Manager-UI access; the primary mechanism
+  is the `ui` channel capability on a group. Candidate for removal from the UI
+  (pending a decision on whether to keep the fallback editable or retire it).
 - Every issue from the live Claude.ai / ChatGPT connector reviews (UTF-8,
   front-matter quotes, multi-word `select:`, fenced-div Markdown, tool discovery,
   in-channel verify, etc.) is closed as of 0.4.16.
@@ -174,4 +200,6 @@ category. Proposal now at `lazysite-layouts/docs/proposals/3d-layout.md`.)*
   (D035)** - layout-owned `components/*.tt` invoked from Markdown via fenced
   `::: name` blocks or front-matter `sections:`, plus a `markdown` TT filter
   (bundled into the layout zip and installed on a site).
+- 0.5.26-0.5.28 (not SM-tracked): the manager admin bar sits in normal flow (no
+  longer overlaps a theme's sticky header); the login form is theme-token adaptive.
 - New partner-build reports land in `lazysite-sites/reports/` and refresh SM080.

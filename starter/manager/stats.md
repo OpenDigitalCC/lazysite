@@ -124,8 +124,6 @@ function renderStats(d) {
         h += '<span class="mg-tag mg-tag-auto">' + sesc(c.label) + ': ' + fmtNum(c.count) + '</span>';
       });
       h += '</div>';
-      h += '<p class="mg-muted" style="font-size:0.8rem">Categorised from the recent error log'
-         + ' - counts only, no addresses or paths.</p>';
     }
   }
 
