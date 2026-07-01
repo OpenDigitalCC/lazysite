@@ -555,6 +555,43 @@ subtest 'upgrade channel: a stable site refuses an edge build' => sub {
     is( $rc3, 0, 'an all-channel site upgrades normally (exit 0)' );
 };
 
+# --- homepage-replacement incident regression ---
+# A seed file that EXISTS on disk but is NOT tracked in the install state (e.g.
+# authored via the manager / WebDAV, seeded by a different install path, or written
+# before it became manifest-tracked) must be PRESERVED on upgrade - never clobbered
+# with the shipped boilerplate. Before the fix, an untracked dest was planned as a
+# fresh 'install' and overwrote the operator's homepage.
+subtest 'untracked pre-existing seed file preserved (not clobbered) on upgrade' => sub {
+    my ( $docroot, $cgibin ) = fresh_docroot();
+    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+
+    my $index = "$docroot/index.md";
+    open my $fh, '>', $index or die $!;
+    print $fh "# the operator homepage\n"; close $fh;
+    my $mine = sha_file($index);
+
+    # Drop index.md from the tracked state so the upgrade sees it as untracked,
+    # while it is still present on disk (the incident condition).
+    my $state = load_state($docroot);
+    delete $state->{files}{$index};
+    open my $sfh, '>:raw', "$docroot/lazysite/.install-state.json" or die $!;
+    print $sfh JSON::PP->new->canonical(1)->pretty(1)->encode($state);
+    close $sfh;
+
+    my ( $rc, $out ) = run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( $rc, 0, 'upgrade exit 0' ) or diag $out;
+    is( sha_file($index), $mine,
+        'untracked-but-present homepage preserved (not overwritten with boilerplate)' );
+    like( slurp($index), qr/the operator homepage/, 'homepage content is the operator content' );
+
+    my $state2 = load_state($docroot);
+    ok( exists $state2->{files}{$index}, 'homepage adopted into state for future upgrades' );
+
+    # And it stays preserved on the next upgrade too.
+    run_install( '--docroot', $docroot, '--cgibin', $cgibin );
+    is( sha_file($index), $mine, 'homepage STILL preserved on a subsequent upgrade' );
+};
+
 done_testing();
 
 # --- helpers ---

@@ -389,6 +389,25 @@ sub compute_plan {
         $manifest_installs{$dest} = 1;
 
         if ( !exists $stored_files->{$dest} ) {
+            # Not tracked in prior state. If the destination already EXISTS on disk
+            # and this is an operator-editable (non-code) file, treat it as
+            # pre-existing operator content and PRESERVE it - never clobber a
+            # homepage/page created or edited outside the installer's state tracking
+            # (e.g. seeded by a different install path, authored via the manager /
+            # WebDAV, or written before this file became manifest-tracked). Only
+            # write when the destination is absent, or it is a code file (which must
+            # match the shipped version). Preserve records the shipped sha as the
+            # baseline, so it stays edited-vs-shipped and preserved on later upgrades.
+            if ( -e $dest && ( $entry->{bucket} // '' ) ne 'code' ) {
+                push @plan, {
+                    action => 'preserve',
+                    dest   => $dest,
+                    bucket => $entry->{bucket},
+                    sha256 => $entry->{sha256},
+                    path   => $entry->{path},
+                };
+                next;
+            }
             push @plan, {
                 action => 'install',
                 source => $source,
