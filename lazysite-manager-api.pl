@@ -517,7 +517,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         my $b   = eval { decode_json($body) };
         my $sub = ( ref $b eq 'HASH' ) ? ( $b->{action} // '' ) : '';
         my %uskip = map { $_ => 1 } qw(
-            list users-detail groups group-settings-get permissions-grid settings-get credential-status partner-caps
+            list users-detail users-page groups group-settings-get permissions-grid settings-get credential-status partner-caps
             verify-credential totp-code onboarding );
         if ( $sub eq '' || $uskip{$sub} ) { $aud_action = undef }
         else {
@@ -1441,7 +1441,14 @@ sub action_users {
     close $child_out;
     waitpid $pid, 0;
 
-    return eval { decode_json( $output // '{}' ) } // { ok => 0, error => "Invalid response" };
+    my $result = eval { decode_json( $output // '{}' ) } // { ok => 0, error => "Invalid response" };
+    # The combined Users-page call folds in the current operator's identity so the
+    # browser needs no separate whoami round-trip (its shape carries users+groups).
+    if ( ref $result eq 'HASH' && $result->{ok}
+         && exists $result->{users} && exists $result->{groups} ) {
+        $result->{me} = $auth_user;
+    }
+    return $result;
 }
 
 # Rotate the per-installation HMAC secret in lazysite/auth/.secret.

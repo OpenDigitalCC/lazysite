@@ -67,6 +67,7 @@ var allGroups = {};   // {group: [members]}
 var allUsers  = [];   // [username]
 var groupLabels = {}; // {group: description-or-label} - for the add-user picker
 var parentList = [];  // [username] - accounts that can own sub-users (create_sub_users)
+var parentOf = {};    // {username: parent} - the managed_by/created_by hierarchy
 var ME = '';          // the current operator's username (from whoami) - a valid owner
 
 // SM109 phase 2: route all status to the global toast.
@@ -91,39 +92,28 @@ function apiCall(body) {
   }).then(function(r) { return r.json(); });
 }
 
-// Load users + their settings + groups, then render both sections.
+// Load users + their settings + groups in ONE request (users-page), then render.
+// Was three separate CGI calls (users-detail + group-settings-get + whoami) -
+// each a Perl cold start on a plain-CGI host; folding them cuts page-load latency.
 function loadUsers() {
-  // All groups (incl. seeded role groups with no members yet), as {group: members}.
-  var gp = apiCall({ action: 'group-settings-get' })
-    .then(function(d) {
-      var g = {};
-      if (d.ok && d.groups) Object.keys(d.groups).forEach(function(name) {
-        var info = d.groups[name] || {};
-        g[name] = info.members || [];
-        // What the group is for, for the add-user picker: prefer a description,
-        // else a label that differs from the bare name.
-        groupLabels[name] = info.description
-          || (info.label && info.label !== name ? info.label : '');
-      });
-      return g;
-    })
-    .catch(function() { return {}; });
-  // One batched call for every account + its settings (no per-user subprocess).
-  var up = apiCall({ action: 'users-detail' })
-    .then(function(d) {
-      if (!d.ok) { showStatus(d.error, true); return []; }
-      return d.users || [];
-    })
-    .catch(function() { return []; });
-  var wp = fetch(API + '?action=whoami', { method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' }, body: '{}' })
-    .then(function(r) { return r.json(); })
-    .then(function(d) { if (d && d.ok && d.partner) ME = d.partner; return null; })
-    .catch(function() { return null; });
-  Promise.all([up, gp, wp]).then(function(res) {
-    var rows = (res[0] || []).filter(function(r) { return r && r.user != null; });
-    allGroups = res[1] || {};
+  apiCall({ action: 'users-page' }).then(function(d) {
+    if (!d.ok) { showStatus(d.error || 'Failed to load users.', true); return; }
+    if (d.partner || d.me) ME = d.partner || d.me;
+    // Groups: {group: members}, plus the add-user picker's purpose labels.
+    var g = {};
+    if (d.groups) Object.keys(d.groups).forEach(function(name) {
+      var info = d.groups[name] || {};
+      g[name] = info.members || [];
+      groupLabels[name] = info.description
+        || (info.label && info.label !== name ? info.label : '');
+    });
+    var rows = (d.users || []).filter(function(r) { return r && r.user != null; });
+    allGroups = g;
     allUsers = rows.map(function(r) { return r.user; });
+    parentOf = {};
+    rows.forEach(function(r) {
+      parentOf[r.user] = (r.settings && (r.settings.managed_by || r.settings.created_by)) || '';
+    });
     renderUsers(rows);
     parentList = rows.filter(function(r) { return r.settings && r.settings.create_sub_users; })
                      .map(function(r) { return r.user; }).sort();
@@ -184,6 +174,25 @@ function renderPermGrid(d, user) {
     + 'hover a cell or header for the granting group(s). Groups: ' + d.groups.map(escHtml).join(', ')
     + '. Manager-UI access is the <b>Manager UI</b> channel capability, granted through a group.</p>';
   return h;
+}
+
+// Every account below `u` in the managed_by hierarchy. Used to keep a user's
+// own sub-tree (and itself) out of its "move under" targets - moving a parent
+// under its own descendant would be a cycle (the server rejects it too).
+function descendantsOf(u) {
+  var kids = {};
+  allUsers.forEach(function(x) {
+    var p = parentOf[x] || '';
+    (kids[p] = kids[p] || []).push(x);
+  });
+  var out = {}, stack = (kids[u] || []).slice();
+  while (stack.length) {
+    var v = stack.pop();
+    if (out[v]) continue;
+    out[v] = true;
+    (kids[v] || []).forEach(function(w) { stack.push(w); });
+  }
+  return out;
 }
 
 function groupsForUser(user) {
@@ -311,22 +320,6 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
     '</select></div>';
   h += sec('Access', acc);
 
-  // --- Capabilities (read-only; managed via GROUPS now, SM095) ---
-  // Per-account capability toggles are gone: capabilities come from group
-  // membership. Show the effective set read-only + point to the Groups page.
-  var CAP_ORDER = ['ui','webdav','api','mcp','manage_content','manage_nav','manage_forms',
-    'manage_themes','manage_layouts','manage_config','manage_users','analytics',
-    'create_sub_users','delegate_sub_user_creation'];
-  var capsOn = CAP_ORDER.filter(function(k){ return s[k]; })
-    .map(function(k){ return PERM_LABELS[k] || k; });
-  var pub = '<p class="mg-muted">Capabilities come from <b>group membership</b> (below) &mdash; '
-    + 'edit them on the <a href="/manager/groups">Groups</a> page. Open '
-    + '<i>Permissions (derived)</i> for the channel &times; capability grid.</p>'
-    + '<div class="mg-checks">' + ( capsOn.length
-        ? capsOn.map(function(c){ return '<span class="mg-chip">' + escHtml(c) + '</span>'; }).join('')
-        : '<span class="mg-empty">No capabilities (in no group that grants any).</span>' ) + '</div>';
-  h += sec('Capabilities (from groups)', pub);
-
   // --- Groups ---
   var mine = groupsForUser(u);
   var gnames = Object.keys(allGroups).sort();
@@ -339,11 +332,16 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   grp += '</div>';
   h += sec('Groups', grp);
 
-  // --- Permissions viewer (read-only; derived from group membership) ---
-  var pv = '<details ontoggle="loadPermGrid(\'' + ue + '\', this)">'
+  // --- Capabilities (read-only; derived from group membership, SM095) ---
+  // The channel x capability grid IS the capability view now; capabilities are
+  // edited on the Groups page (this is read-only). Lazy-loaded on open.
+  var pv = '<p class="mg-muted" style="margin:0 0 0.3rem">Derived from '
+    + '<b>group membership</b> (below) &mdash; edit on the '
+    + '<a href="/manager/groups">Groups</a> page.</p>'
+    + '<details ontoggle="loadPermGrid(\'' + ue + '\', this)">'
     + '<summary style="cursor:pointer">Show the channel &times; capability grid</summary>'
     + '<div id="permgrid-' + ue + '" style="margin-top:0.4rem">&hellip;</div></details>';
-  h += sec('Permissions (derived)', pv);
+  h += sec('Capabilities', pv);
 
   // --- Credentials (interactive login - human accounts only) ---
   // The connector credential (token) now lives in "Connect an AI assistant" below,
@@ -420,8 +418,11 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   // below another (SM104).
   {
     var owner = s.managed_by || s.created_by || '(top-level - no parent)';
+    // Exclude the user itself and its whole sub-tree: those targets would form a
+    // cycle (and the server refuses them), so don't offer them.
+    var desc = descendantsOf(u);
     var ropts = '<option value="">move under&hellip;</option>' +
-      allUsers.filter(function(x) { return x !== u; })
+      allUsers.filter(function(x) { return x !== u && !desc[x]; })
         .map(function(x) { return '<option value="' + escHtml(x) + '">' + escHtml(x) + '</option>'; }).join('');
     ac += '<div class="mg-line"><span class="mg-line-lbl">Parent</span>' +
       '<code class="mg-code">' + escHtml(owner) + '</code>' +

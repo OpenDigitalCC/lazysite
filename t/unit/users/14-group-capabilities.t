@@ -214,4 +214,19 @@ sub api {
     isnt( $bad->{code}, 0, 'permissions with no username is a usage error' );
 }
 
+# users-page: ONE call returns accounts (+ resolved caps) and the group view
+# together, so the Users page makes a single request instead of three.
+{
+    my $d = docroot();
+    cli( $d, 'add', 'u1', 'pw' );
+    cli( $d, 'group-add', 'u1', 'content-editors' );
+    my $r = api( $d, { action => 'users-page' } );
+    ok( $r->{ok}, 'users-page ok' );
+    ok( ref $r->{users} eq 'ARRAY' && @{ $r->{users} }, 'users-page returns accounts' );
+    ok( ref $r->{groups} eq 'HASH' && $r->{groups}{'content-editors'},
+        'users-page returns the full group view' );
+    ok( ( grep { $_->{user} eq 'u1' && $_->{settings}{manage_content} } @{ $r->{users} } ),
+        'users-page account carries group-resolved capabilities' );
+}
+
 done_testing;

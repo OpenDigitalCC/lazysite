@@ -221,6 +221,22 @@ if ( $API_MODE ) {
         elsif ( $action eq 'group-settings-get' ) {
             $result = { ok => 1, groups => _group_settings_view() };
         }
+        elsif ( $action eq 'users-page' ) {
+            # ONE call for the Users page: every account (+ effective settings)
+            # AND the full group-settings view in a single process, so the
+            # browser makes one request instead of three (previously
+            # users-detail + group-settings-get + whoami, each a CGI cold start).
+            my %users = read_users();
+            _ensure_groups_seeded();
+            $result = {
+                ok    => 1,
+                users => [
+                    map { my $u = $_; +{ user => $u, settings => effective_settings($u) } }
+                    grep { defined && length } sort keys %users
+                ],
+                groups => _group_settings_view(),
+            };
+        }
         elsif ( $action eq 'permissions-grid' ) {
             $result = cmd_permissions_grid( $req->{username} );
         }
