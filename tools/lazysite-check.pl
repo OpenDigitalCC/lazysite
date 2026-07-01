@@ -336,6 +336,73 @@ if ( defined $opt{check_dav} ) {
     }
 }
 
+# --- 9. content provenance (is this content lazysite's or the operator's?) ---
+# lazysite stamps its shipped seed pages with `provenance: lazysite-starter` in the
+# front matter. This reports which .md content is ours (unmodified vs customised)
+# versus operator-authored - the "is this likely ours?" test behind the upgrade-
+# safety work. Informational (always OK); never a FAIL.
+{
+    require JSON::PP;
+    require Digest::SHA;
+    my %state;
+    if ( open my $sf, '<', "$LZ/.install-state.json" ) {
+        local $/;
+        my $j = eval { JSON::PP::decode_json( <$sf> ) };
+        close $sf;
+        %state = %{ $j->{files} }
+            if ref $j eq 'HASH' && ref $j->{files} eq 'HASH';
+    }
+    my $sha_file = sub {
+        my ($p) = @_;
+        open my $fh, '<:raw', $p or return '';
+        my $d = Digest::SHA->new(256);
+        $d->addfile($fh);
+        close $fh;
+        return 'sha256:' . $d->hexdigest;
+    };
+
+    my ( @operator, @customised );
+    my $unmodified = 0;
+    File::Find::find(
+        {   no_chdir => 1,
+            wanted   => sub {
+                my $p = $File::Find::name;
+                return unless $p =~ /\.md\z/ && -f $p;
+                # Skip lazysite internals + code-managed trees (always ours).
+                for my $skip (qw(lazysite manager docs .well-known)) {
+                    return if index( $p, "$DOC/$skip/" ) == 0;
+                }
+                open my $fh, '<', $p or return;
+                my $first = <$fh> // '';
+                my $head  = '';
+                if ( $first =~ /\A---\s*\R?\z/ ) {    # front matter opens
+                    while ( my $l = <$fh> ) { last if $l =~ /\A---\s*\R?\z/; $head .= $l }
+                }
+                close $fh;
+                ( my $rel = $p ) =~ s/\A\Q$DOC\E\/?//;
+                if ( $head !~ /^provenance\s*:\s*lazysite-starter\s*$/m ) {
+                    push @operator, $rel;
+                    return;
+                }
+                # Ours: unmodified vs customised, via the recorded install-state sha.
+                my $rec = $state{$p};
+                if ( defined $rec && $rec eq $sha_file->($p) ) { $unmodified++ }
+                else { push @customised, $rel }
+            },
+        },
+        $DOC,
+    );
+
+    report( 'OK', sprintf(
+        'content provenance: %d lazysite page(s) [%d unmodified, %d customised], %d operator-authored',
+        $unmodified + scalar @customised, $unmodified, scalar @customised, scalar @operator ) );
+    my $cap = sub { my @l = @_; @l > 10 ? ( @l[ 0 .. 9 ], '...' ) : @l };
+    report( 'OK', '  customised (edited from a lazysite page): ' . join( ', ', $cap->(@customised) ) )
+        if @customised;
+    report( 'OK', '  operator-authored (not ours, never touched by upgrades): ' . join( ', ', $cap->(@operator) ) )
+        if @operator;
+}
+
 # --- apply fixes -------------------------------------------------------------
 if ( $opt{fix} ) {
     for my $f (@chmod_fixes) {

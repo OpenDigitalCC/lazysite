@@ -1,4 +1,5 @@
 ---
+provenance: lazysite-starter
 title: Welcome
 subtitle: A new lazysite site
 register:

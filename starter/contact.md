@@ -1,4 +1,5 @@
 ---
+provenance: lazysite-starter
 title: Contact
 subtitle: Get in touch.
 form: contact

@@ -1,4 +1,5 @@
 ---
+provenance: lazysite-starter
 title: Search Index
 api: true
 content_type: application/json; charset=utf-8

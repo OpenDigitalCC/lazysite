@@ -1,4 +1,5 @@
 ---
+provenance: lazysite-starter
 title: Members Area
 subtitle: This page requires authentication.
 auth: required

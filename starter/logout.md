@@ -1,4 +1,5 @@
 ---
+provenance: lazysite-starter
 title: Signed out
 auth: none
 search: false

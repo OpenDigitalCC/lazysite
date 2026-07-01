@@ -1,4 +1,5 @@
 ---
+provenance: lazysite-starter
 title: Member Access Demo
 subtitle: Members get free access. Others pay.
 payment: required

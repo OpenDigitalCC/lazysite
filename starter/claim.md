@@ -1,4 +1,5 @@
 ---
+provenance: lazysite-starter
 title: Set your password
 auth: none
 search: false

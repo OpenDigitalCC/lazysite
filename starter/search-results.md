@@ -1,4 +1,5 @@
 ---
+provenance: lazysite-starter
 title: Search Results
 search: false
 query_params:

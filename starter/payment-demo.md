@@ -1,4 +1,5 @@
 ---
+provenance: lazysite-starter
 title: Premium Content
 subtitle: This page requires payment to access.
 payment: required

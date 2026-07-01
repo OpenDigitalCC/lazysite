@@ -83,4 +83,40 @@ sub run { qx($^X $script --docroot $doc --cgibin $cgi --group $gname @_ 2>&1) }
     isnt( $? >> 8, 0, 'non-zero exit for an unreadable secret' );
 }
 
+# --- content provenance report (SM: "is this content likely ours?") ---
+# shipped seed pages carry `provenance: lazysite-starter`; the doctor classifies
+# .md content as lazysite (unmodified / customised) vs operator-authored.
+{
+    # shipped seed pages keep the stamp
+    open my $ix, '<', "$root/starter/index.md" or die $!;
+    my $idx = do { local $/; <$ix> }; close $ix;
+    like( $idx, qr/^provenance:\s*lazysite-starter\s*$/m,
+        'shipped starter/index.md carries the provenance stamp' );
+
+    # unmodified stamped page, edited stamped page, operator page
+    open my $a, '>', "$doc/index.md" or die $!;
+    print {$a} "---\nprovenance: lazysite-starter\ntitle: Home\n---\n\nHi.\n"; close $a;
+    open my $b, '>', "$doc/about.md" or die $!;
+    print {$b} "---\nprovenance: lazysite-starter\ntitle: About\n---\n\nEDITED.\n"; close $b;
+    open my $c, '>', "$doc/mypage.md" or die $!;
+    print {$c} "---\ntitle: Mine\n---\n\nOperator content.\n"; close $c;
+
+    require Digest::SHA;
+    my $sha = sub {
+        open my $h, '<:raw', $_[0] or return '';
+        my $d = Digest::SHA->new(256); $d->addfile($h); return 'sha256:' . $d->hexdigest;
+    };
+    open my $st, '>', "$doc/lazysite/.install-state.json" or die $!;
+    print {$st} '{"files":{"' . "$doc/index.md" . '":"' . $sha->("$doc/index.md")
+        . '","' . "$doc/about.md" . '":"sha256:0000"}}';
+    close $st;
+
+    my $out = run();
+    like( $out,
+        qr/content provenance: 2 lazysite page\(s\) \[1 unmodified, 1 customised\], 1 operator-authored/,
+        'classifies content by provenance stamp + state sha' );
+    like( $out, qr/customised.*about\.md/,         'lists the customised lazysite page' );
+    like( $out, qr/operator-authored.*mypage\.md/, 'lists the operator-authored page' );
+}
+
 done_testing();
