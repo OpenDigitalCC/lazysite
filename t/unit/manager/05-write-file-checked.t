@@ -13,7 +13,7 @@ use File::Path qw(make_path);
 use JSON::PP qw(decode_json);
 use IPC::Open2;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root env_passthrough);
 
 my $root = repo_root();
 
@@ -80,6 +80,7 @@ SKIP: {
     sub csrf_for {
         my ($dr) = @_;
         local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
             DOCUMENT_ROOT      => $dr,
             REQUEST_METHOD     => 'GET',
             QUERY_STRING       => 'action=csrf-token',
@@ -95,6 +96,7 @@ SKIP: {
     my ( $cout, $cin );
     my $body = '{"content":"boom","mtime":null}';
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT      => $docroot,
         REQUEST_METHOD     => 'POST',
         QUERY_STRING       => 'action=save&path=/ro/blocked.md',

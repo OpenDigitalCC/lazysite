@@ -12,7 +12,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root env_passthrough);
 
 my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
@@ -35,6 +35,7 @@ sub claim {
     my (%o) = @_;
     my $body = "username=$o{username}&claim=$o{claim}&password=" . ( $o{password} // '' );
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT       => $o{docroot},
         REQUEST_METHOD      => 'POST',
         QUERY_STRING        => 'action=claim',

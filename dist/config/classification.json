@@ -132,6 +132,7 @@
     "^\\.release-prep\\.sh$",
     "^\\.rsyncignore$",
     "^dist/",
+    "^docs/adr/",
     "^docs/architecture/",
     "^docs/development\\.md$",
     "^docs/feature-requests/",

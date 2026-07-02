@@ -13,7 +13,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root env_passthrough);
 
 my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
@@ -32,6 +32,7 @@ sub forgot {
     my (%o) = @_;
     my $body = "identifier=$o{identifier}";
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT       => $o{docroot},
         REQUEST_METHOD      => 'POST',
         QUERY_STRING        => 'action=forgot',

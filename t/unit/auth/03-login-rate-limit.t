@@ -15,7 +15,7 @@ use DB_File;
 use Fcntl qw(:flock O_RDWR O_CREAT);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root env_passthrough);
 
 my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
@@ -39,6 +39,14 @@ my $ip           = '10.99.88.77';    # private, irrelevant; just a key
 
 sub seed_count {
     my ($count) = @_;
+    # De-flake (review D3 F3.7): the seeded count and the real request each
+    # compute int(time/WINDOW) independently. If the 300 s window rolls over
+    # between the two, the seed lands in the dead window and the boundary
+    # assertion fails (~sub-1% of runs). A failed login also sleeps a couple
+    # of seconds, so guard a margin: if we are within 8 s of the rollover,
+    # sleep past it before seeding.
+    my $into = time() % $LOGIN_WINDOW;
+    sleep( $LOGIN_WINDOW - $into + 1 ) if $into > $LOGIN_WINDOW - 8;
     my %db;
     tie %db, 'DB_File', $rate_db, O_CREAT | O_RDWR, 0o600
         or die "cannot tie db: $!";
@@ -60,6 +68,7 @@ sub login_once {
     my ($user, $pass) = @_;
     my $body = "username=$user&password=$pass&next=/";
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT  => $docroot,
         REQUEST_METHOD => 'POST',
         QUERY_STRING   => 'action=login',
@@ -107,6 +116,7 @@ sub login_once {
     seed_count( $LOGIN_MAX );      # saturate original IP
     my $body = "username=alice&password=wrong&next=/";
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT  => $docroot,
         REQUEST_METHOD => 'POST',
         QUERY_STRING   => 'action=login',

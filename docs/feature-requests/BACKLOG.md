@@ -59,6 +59,13 @@ before work starts.
   (SLO/RTO/RPO declaration, snapshot crons, logrotate, monitoring/alerting,
   debsecan + gitleaks installs, pentest gate + engagement, support period,
   signing/DoC/VEX/technical-file set).
+- **Subprocess-coverage measurement stability** - lazysite-manager-api.pl's
+  BRANCH coverage swings run-to-run under full-suite instrumentation (measured
+  72.5% and 56.6% on identical code, 2026-07-02; statements stable). Suspected:
+  the 2 s plugin `--describe` alarm flips code paths when instrumented children
+  run ~4x slower, plus possible per-run cover_db merge loss. Until stabilised,
+  the file carries a documented branch-floor override of 50 in
+  `dist/config/coverage-floor` - investigate, stabilise, ratchet back to 60.
 - **Bad-URL auto-blocker plugin (default on)** - a plugin that recognises the
   steady stream of vulnerability-scanner probes (`/wp-login.php`, `/.env`,
   `/config.env`, `/actuator/health`, `/server-status`, `/.git/`, `*.php` on a

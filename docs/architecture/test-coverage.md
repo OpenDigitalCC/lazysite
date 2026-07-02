@@ -7,7 +7,7 @@
 | Location | `t/` |
 | Runner | `prove -r t/` |
 | Framework | `Test::More` (core Perl, no extra dependencies) |
-| Total | 1034 tests across 75 files |
+| Total | 2048 tests across 141 files (2026-07-02) |
 
 The suite is pure core-Perl. If `perl` and `prove` are installed,
 the suite runs.
@@ -248,40 +248,55 @@ tools/coverage.sh            # run the suite under coverage, print the report
 tools/coverage.sh --check    # also enforce the declared floor (exit 1 if below)
 ```
 
-It is slow (every subprocess is instrumented), so it is a **signoff** tool run
-on demand, not part of `prove -r t/`. The declared floor lives in
-`dist/config/coverage-floor`; under the Commercial regime the target is **75%**
-statement coverage.
+It is slow (every subprocess is instrumented), so it is a **signoff** tool: it
+runs in the release gate (`tools/release.sh`) and on demand, not as part of
+`prove -r t/`. The declared floors live in `dist/config/coverage-floor`:
+**60% statements AND 60% branches** per gated CGI (the eight-dimension
+framework requires line and branch thresholds); under the Commercial regime
+the target is **75%** statements. `lazysite-manager-api.pl` carries a
+documented per-file branch-floor override (its branch measurement is noisy
+run-to-run under subprocess instrumentation - see the floor file).
+
+Tests that rebuild `%ENV` from scratch for a CGI child must splice in
+`TestHelper::env_passthrough()`, or the child never loads Devel::Cover and the
+CGI reports "not measured" - this was why `lazysite-auth.pl` (and the
+`Manager::Plugins`/`Upload` handlers) looked uncovered for weeks while being
+tested all along.
 
 ### Measured baseline
 
-Full suite, subprocess-instrumented (2026-06-24, after the SM079 modular
-refactor), statement / branch:
+Full suite, subprocess-instrumented (2026-07-02, after the eight-dimension
+review hardening), statement / branch:
 
 | Component | stmt | branch | note |
 |---|---:|---:|---|
-| `lazysite-dav.pl` | 93% | 72% | |
-| `install.pl` | 92% | 66% | |
-| `tools/lazysite-users.pl` | 92% | 71% | |
+| `lazysite-dav.pl` | 93% | 73% | |
 | `tools/lazysite-bundle-apply.pl` | 90% | 65% | |
-| `lazysite-processor.pl` | 81% | 69% | standalone, unchanged |
-| `lazysite-manager-api.pl` | 68% | **74%** | branch was 49% before the refactor |
+| `tools/lazysite-users.pl` | 89% | 70% | |
+| `lazysite-processor.pl` | 83% | 69% | standalone, unchanged |
+| `lazysite-auth.pl` | 82% | 61% | newly gated (env_passthrough fix) |
+| `lazysite-manager-api.pl` | 71% | 57-72% | branch noisy run-to-run; override in floor file |
 | `Lazysite::Util` | 100% | 92% | in-process unit-tested |
-| `Lazysite::Auth::Acl` | 100% | 80% | in-process |
+| `Lazysite::Auth::Acl` | 100% | 85% | in-process |
 | `Lazysite::Auth::Session` | 100% | 73% | in-process |
-| `Lazysite::Auth::Credential` | 98% | 67% | in-process |
-| `Lazysite::Auth::Settings` | 92% | 64% | in-process |
-| `Lazysite::Manager::Common` | 88% | 75% | in-process |
-| `Lazysite::Manager::Themes` | 79% | 57% | LOAD_ONLY-tested handlers |
-| `Lazysite::Manager::Files` | 75% | 50% | mixed |
-| `Lazysite::Manager::Upload` | 37% | 29% | *handlers subprocess-only* |
-| `Lazysite::Manager::Plugins` | 21% | 11% | *handlers subprocess-only* |
+| `Lazysite::Auth::Credential` | 100% | 72% | in-process |
+| `Lazysite::Audit` | 100% | 70% | in-process |
+| `Lazysite::Manager::Files` | 96% | 72% | |
+| `Lazysite::Auth::Settings` | 96% | 69% | in-process |
+| `plugins/stats.pl` | 94% | 68% | |
+| `Lazysite::Manager::Common` | 88% | 76% | in-process |
+| `Lazysite::Manager::Upload` | 82% | 69% | handlers now measured (was 37/29) |
+| `Lazysite::Manager::Themes` | 76% | 52% | |
+| `Lazysite::Manager::Layouts` | 75% | 54% | |
+| `Lazysite::Manager::Backups` | 70% | 56% | |
+| `Lazysite::Manager::Plugins` | 66% | 43% | handlers now measured (was 21/11) |
 
-The refactor's effect: thinning `manager-api.pl` to a dispatcher raised its
-**branch** coverage from 49% to 74%, and the extracted auth/util logic is now
-unit-tested in-process at 88-100% statements. The enforced regression floor is
-**60%** statements per cleanly-measured CGI (`dist/config/coverage-floor`),
-ratcheted upward as coverage improves.
+The old "under-measured modules" caveat is resolved: `Plugins`/`Upload` showed
+21%/37% because %ENV-rebuilding tests dropped `PERL5OPT`, so their subprocess
+children were never instrumented - a measurement artifact fixed by
+`env_passthrough()`, not a test gap. `install.pl` remains outside the gate
+(its tests exercise a tempdir-copied tree end to end). Floors are ratcheted
+upward as coverage improves, never down.
 
 **The under-measured modules are a test-style artifact, not a gap.**
 `Manager::Plugins` and `Manager::Upload`'s `action_*` handlers show ~0 because

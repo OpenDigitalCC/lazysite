@@ -13,7 +13,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root env_passthrough);
 
 my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
@@ -37,6 +37,7 @@ sub run_auth {
     my ( $action, $docroot, %env ) = @_;
     my $body = delete $env{_body} // '';
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT       => $docroot,
         REQUEST_METHOD      => 'POST',
         QUERY_STRING        => "action=$action",

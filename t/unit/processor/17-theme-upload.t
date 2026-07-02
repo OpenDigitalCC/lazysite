@@ -14,7 +14,7 @@ use IPC::Open2;
 use JSON::PP qw(decode_json encode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root env_passthrough);
 
 eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)) };
 if ( $@ ) {
@@ -57,6 +57,7 @@ sub api_post {
     my ( $action, $filename, $body, $token ) = @_;
     my ( $cout, $cin );
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT      => $docroot,
         REQUEST_METHOD     => 'POST',
         QUERY_STRING       => "action=$action"
@@ -80,6 +81,7 @@ sub api_post {
 
 sub csrf_token {
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT      => $docroot,
         REQUEST_METHOD     => 'GET',
         QUERY_STRING       => 'action=csrf-token',

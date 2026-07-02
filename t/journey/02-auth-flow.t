@@ -16,7 +16,7 @@ use Test::More;
 use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root env_passthrough);
 use IPC::Open2;
 use JSON::PP qw(encode_json decode_json);
 
@@ -66,6 +66,7 @@ my $cookie;
 {
     my $body = 'username=carol&password=secret&next=/protected';
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT   => $docroot,
         REQUEST_METHOD  => 'POST',
         QUERY_STRING    => 'action=login',
@@ -94,6 +95,7 @@ my $cookie;
 sub auth_get {
     my ($uri, $cookie_val) = @_;
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT      => $docroot,
         REDIRECT_URL       => $uri,
         REQUEST_METHOD     => 'GET',
@@ -126,6 +128,7 @@ sub auth_get {
 {
     # Get a CSRF token using the valid cookie
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT   => $docroot,
         REDIRECT_URL    => '/cgi-bin/lazysite-manager-api.pl',
         REQUEST_METHOD  => 'GET',

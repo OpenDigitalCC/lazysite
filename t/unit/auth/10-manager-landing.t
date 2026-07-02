@@ -13,7 +13,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root grant_caps);
+use TestHelper qw(repo_root grant_caps env_passthrough);
 
 my $root = repo_root();
 my $auth = "$root/lazysite-auth.pl";
@@ -34,7 +34,7 @@ sub users_api {
 sub run_auth {
     my ( $env, $body ) = @_;
     $body //= '';
-    local %ENV = ( %$env, CONTENT_LENGTH => length($body),
+    local %ENV = ( env_passthrough(), %$env, CONTENT_LENGTH => length($body),
         CONTENT_TYPE => 'application/x-www-form-urlencoded',
         LAZYSITE_USERS_TOOL => $utl );
     my ( $wtr, $rdr );

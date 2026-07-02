@@ -10,7 +10,7 @@ use IPC::Open2;
 use JSON::PP qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root env_passthrough);
 
 my $root    = repo_root();
 my $docroot = tempdir( CLEANUP => 1 );
@@ -28,6 +28,7 @@ write_conf("site_name: T\n");
 
 sub csrf_token {
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT      => $docroot,
         REQUEST_METHOD     => 'GET',
         QUERY_STRING       => 'action=csrf-token',
@@ -41,6 +42,7 @@ sub csrf_token {
 sub api_get {
     my ( $qs ) = @_;
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT      => $docroot,
         REQUEST_METHOD     => 'GET',
         QUERY_STRING       => $qs,
@@ -54,6 +56,7 @@ sub api_post_multipart {
     my ( $qs, $body, $token, $ctype ) = @_;
     my ( $cout, $cin );
     local %ENV = (
+        env_passthrough(),   # keep coverage instrumentation for the CGI child
         DOCUMENT_ROOT      => $docroot,
         REQUEST_METHOD     => 'POST',
         QUERY_STRING       => $qs,

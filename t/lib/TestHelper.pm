@@ -15,7 +15,20 @@ our @EXPORT_OK = qw(
     run_processor run_script run_dav
     setup_dav_site dav_users_tool
     grant_caps revoke_caps
+    env_passthrough
 );
+
+# Coverage passthrough (review D3): a test that rebuilds %ENV from scratch for
+# a CGI child drops PERL5OPT, so tools/coverage.sh's Devel::Cover
+# instrumentation never reaches the child and the CGI reports "not measured".
+# Splice this into the front of the rebuilt list:
+#   local %ENV = ( env_passthrough(), DOCUMENT_ROOT => ..., ... );
+# (The RHS is evaluated against the ORIGINAL %ENV before the assignment, so
+# this is safe inside the `local %ENV = (...)` idiom.) Empty outside coverage
+# runs, so normal prove behaviour is unchanged.
+sub env_passthrough {
+    return map { $_ => $ENV{$_} } grep { defined $ENV{$_} } qw(PERL5OPT PERL5LIB);
+}
 
 # SM095: capabilities live on GROUPS now, not on accounts. Grant some to a user by
 # putting them in a per-user role group carrying those caps; revoke by clearing
