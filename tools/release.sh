@@ -197,6 +197,30 @@ if ! prove -r "$STAGE/t/"; then
     exit 1
 fi
 
+# --- performance gate (eight-dimension review D4) ---
+# Committed baseline in dist/config/bench-baseline.json; fails on a gross
+# regression. Costs ~5 seconds, so it runs before the slow coverage gate.
+
+echo "==> bench.pl --check"
+if ! perl "$STAGE/tools/bench.pl" --check; then
+    echo "release.sh: benchmark regression; not releasing." >&2
+    echo "release.sh: staging dir retained: $STAGE" >&2
+    exit 1
+fi
+
+# --- coverage gate (eight-dimension review D3) ---
+# Instrumented re-run of the suite against the declared floors in
+# dist/config/coverage-floor. Slow (~10-15 minutes at release cadence);
+# converts the recorded coverage evidence from "stale until someone
+# remembers" into a per-release fact.
+
+echo "==> coverage.sh --check (instrumented run; ~10-15 minutes)"
+if ! bash "$STAGE/tools/coverage.sh" --check; then
+    echo "release.sh: coverage below the declared floor; not releasing." >&2
+    echo "release.sh: staging dir retained: $STAGE" >&2
+    exit 1
+fi
+
 # --- build the release manifest ---
 # release-manifest.json is generated, not tracked (SM065), so the fresh
 # clone has none. Build it from the staged tree before the SBOM gate
