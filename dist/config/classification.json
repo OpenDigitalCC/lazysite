@@ -132,6 +132,7 @@
     "^\\.release-prep\\.sh$",
     "^\\.rsyncignore$",
     "^dist/",
+    "^cover_db/",
     "^docs/adr/",
     "^docs/architecture/",
     "^docs/development\\.md$",
