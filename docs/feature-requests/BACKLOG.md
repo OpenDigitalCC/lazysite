@@ -66,11 +66,16 @@ before work starts.
   run ~4x slower, plus possible per-run cover_db merge loss. Until stabilised,
   the file carries a documented branch-floor override of 50 in
   `dist/config/coverage-floor` - investigate, stabilise, ratchet back to 60.
-- **Partner-agent onboarding & capability discoverability** *(cluster, prompted
-  by real partner-agent feedback 2026-07-02)* - a connecting agent currently has
-  to reverse-engineer what it is allowed to do and how; one agent spent a long
-  time discovering by trial and error that it installs themes over WebDAV,
-  because the push failed without telling it why. Four threads:
+- **SM126** Partner-agent onboarding & capability discoverability *(scoped -
+  see `SM126-agent-capability-discovery.md`; prompted by real partner-agent
+  feedback 2026-07-02)* - a connecting agent currently has to reverse-engineer
+  what it is allowed to do and how; one agent spent a long time discovering by
+  trial and error that it installs themes over WebDAV, because the push failed
+  without telling it why. The failure-message half is done (RI-002); the scoping
+  doc phases the rest (capability-map endpoint derived from `@CAP_KEYS`/`%need`/
+  `%TOOLS`, quickstarts, private-file boundary, host-OS dependency list) and
+  flags three ground-truth findings to fold in (whoami cap-list drift, hard-coded
+  grid arrays, api/mcp not gated at transport). Four threads:
     - **Host-OS dependency list** - publish an explicit, agent/operator-readable
       list of the host packages lazysite needs (Debian package names), derived
       from `dist/config/sbom-deps.json` (which already carries the data) and from
