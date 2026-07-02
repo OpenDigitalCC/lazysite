@@ -18,6 +18,30 @@ Keying
 
 ## Unreleased
 
+## 0.5.38 - Reported-issue fixes: dev-server cookies + WebDAV denial reasons (2026-07-02)
+
+Fix - dev server drops a repeated response header (RI-001)
+: the dev server parsed CGI response headers into a name-keyed hash, so a header
+  name that repeats collapsed to its last value. lazysite-auth.pl sends two
+  Set-Cookie headers on login and logout (the session cookie + the SM099 display
+  marker); the marker overwrote the real cookie, so dev-server login never
+  established a session and logout left one live. Production Apache/nginx were
+  never affected. `parse_cgi_headers` now returns an ordered [name, value] list
+  and every header is forwarded in CGI order (the old `sort keys` is gone);
+  extracted behind a modulino `caller` guard and covered by
+  `t/unit/tools/01-dev-server-headers.t`.
+
+Fix - WebDAV denials name their reason (RI-002)
+: `authorise`/`authorise_layout` returned a bare 403 with a generic "Forbidden"
+  body, so a partner refused for a missing capability, a wrong path, or the
+  active-theme/layout read-only rule had nothing to act on - the reported
+  theme-install trial-and-error. Each denial now records a reason, surfaced as
+  `Forbidden: <reason>` and a machine-parseable `X-Lazysite-Deny-Reason` header,
+  and logged. Authorisation is unchanged. Covered by
+  `t/unit/dav/22-deny-reason.t`. The wider discoverability asks (capability map,
+  quickstarts, private-file guardrail) are recorded in the feature-request
+  backlog.
+
 ## 0.5.37 - Eight-dimension review: application actions 6-9 (2026-07-02)
 
 Feature - fail-closed writes + failure-mode tests (review D5)
