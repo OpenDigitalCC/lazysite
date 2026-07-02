@@ -4,7 +4,7 @@ subtitle: "Status at a glance; see each SMxxx doc for detail"
 brand: plain
 ---
 
-One-line status for every feature request. Updated 2026-07-01. Status derived
+One-line status for every feature request. Updated 2026-07-02. Status derived
 from the CHANGELOG (shipped releases) and corroborating code, not the per-doc
 text.
 
@@ -66,6 +66,37 @@ before work starts.
   run ~4x slower, plus possible per-run cover_db merge loss. Until stabilised,
   the file carries a documented branch-floor override of 50 in
   `dist/config/coverage-floor` - investigate, stabilise, ratchet back to 60.
+- **Partner-agent onboarding & capability discoverability** *(cluster, prompted
+  by real partner-agent feedback 2026-07-02)* - a connecting agent currently has
+  to reverse-engineer what it is allowed to do and how; one agent spent a long
+  time discovering by trial and error that it installs themes over WebDAV,
+  because the push failed without telling it why. Four threads:
+    - **Host-OS dependency list** - publish an explicit, agent/operator-readable
+      list of the host packages lazysite needs (Debian package names), derived
+      from `dist/config/sbom-deps.json` (which already carries the data) and from
+      the dev server's own module-check apt hints, so "what must I install" is a
+      document, not a discovery exercise. Surface it in IMPLEMENTOR.md and,
+      ideally, via an API/CLI `dependencies` query.
+    - **Machine-parseable capability map** - the biggest ask. Expose the full
+      channel x action model (what each capability unlocks, which endpoint / MCP
+      tool / DAV path serves it, and what an account currently holds) as a
+      hierarchy an agent can fetch and traverse - e.g. a `capabilities`
+      introspection action / MCP tool returning the grant graph, plus a rendered
+      flowchart/hierarchy in the docs. Pair it with **actionable failure
+      messages**: when a WebDAV or API write is refused for a missing capability,
+      say which capability is needed and where it is granted, rather than a bare
+      403/failure (the theme-install trial-and-error was this gap).
+    - **Theme & layout quickstarts** - short, task-focused onboarding guides that
+      put an agent on the sanctioned path (WebDAV / API / MCP) fast: "install a
+      theme", "author a layout", "activate it" - each a copy-pasteable sequence,
+      not prose scattered across SECURITY/FEATURES/IMPLEMENTOR.
+    - **Sanctioned-surface guardrail** - steer agents away from editing the
+      processor or other engine files as workarounds and toward MCP/DAV/API. Make
+      the boundary legible: prefix private/engine files and folders with `_`
+      (an underscore convention that reads as "do not touch"), and document the
+      supported surface explicitly. Connects to the capability map + clear
+      failures above - agents hack around the engine when the sanctioned path
+      fails opaquely.
 - **Bad-URL auto-blocker plugin (default on)** - a plugin that recognises the
   steady stream of vulnerability-scanner probes (`/wp-login.php`, `/.env`,
   `/config.env`, `/actuator/health`, `/server-status`, `/.git/`, `*.php` on a
