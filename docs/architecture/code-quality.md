@@ -7,63 +7,61 @@
 - **Functional style throughout.** No object-oriented Perl. No
   `bless`, no Moose. Each sub takes arguments and returns values.
 - **`use strict; use warnings;`** in every script.
-- **No shared modules** between scripts. Each script in the repo is
-  self-contained and runs standalone.
-
-The self-contained-script policy is deliberate:
-
-- **Deployment simplicity.** Each script can be dropped into
-  `cgi-bin/` and works. No `@INC` path configuration, no
-  `lib/` directory to install.
-- **Independence.** A script can be copied out of the repo and used
-  on its own. This matters for operators who want to swap a handler
-  or run just the form handler.
-- **Trade-off.** Some code is duplicated - `log_event`, constant-time
-  comparison helpers, CSPRNG helpers, CSRF HMAC helpers. The
-  duplication is kept in sync by convention and audited in the
-  quality pass.
+- **Shared `lib/Lazysite/` module tree** (SM079 modular refactor): common
+  logic lives once in `Util`, `Audit`, `Auth::{Acl,Credential,OAuth,Session,
+  Settings}` and `Manager::{Artifact,Backups,Common,Files,Layouts,Plugins,
+  Themes,Upload}`; the CGIs import from it (`use lib` is wired by the
+  installer). The **one deliberate exception is the processor's render
+  path**, which stays module-free so the page-serving hot path runs with no
+  `@INC` dependency - its single duplicated helper is marked and recorded in
+  `docs/adr/0001-capability-resolution.md`.
 
 ## Script inventory
 
 ```
-lazysite-processor.pl       Core page processor and renderer
+lazysite-processor.pl       Core page processor and renderer (module-free render path)
 lazysite-auth.pl            Cookie authentication wrapper
-plugins/form-handler.pl    Form submission dispatcher
-plugins/form-smtp.pl       SMTP delivery handler
-lazysite-manager-api.pl     Manager web UI API
+lazysite-manager-api.pl     Manager web UI API + token control API
 lazysite-dav.pl             WebDAV (class 1+2) publishing endpoint
-plugins/payment-demo.pl    x402 payment demo handler
-plugins/log.pl             Plugin descriptor for logging
+lazysite-mcp.pl             MCP server (connector tools + OAuth)
+lazysite-oauth.pl           OAuth endpoints for the MCP connector
+plugins/form-handler.pl     Form submission dispatcher
+plugins/form-smtp.pl        SMTP delivery handler
+plugins/payment-demo.pl     x402 payment demo handler
+plugins/log.pl              Plugin descriptor for logging
+plugins/audit.pl            Link audit tool
+plugins/stats.pl            Visitor statistics plugin
 tools/lazysite-server.pl    Development HTTP server
-plugins/audit.pl     Link audit tool
 tools/lazysite-users.pl     User management CLI / JSON API
+tools/lazysite-check.pl     Install health / permissions doctor
+lib/Lazysite/**             The shared module tree (15 modules)
 ```
 
-`lazysite-dav.pl` (SM070) follows the self-contained policy and so
-duplicates, by convention: `log_event` / `_json_str`, `const_eq`,
-`verify_password`, a CSPRNG helper, a settings reader, the
-blocked-path check, the `.md`→`.html` cache invalidation, and the
-lock-record read/write. The lock-record format is shared with
-`lazysite-manager-api.pl` (both read JSON lock files and the legacy
-single-line form); that is a deliberate cross-script data contract,
-not accidental duplication.
+Cross-script data contracts (the lock-record format read by both the manager
+API and DAV; the auth files read through `Auth::Settings`) are deliberate and
+now live in the shared modules rather than being duplicated by convention.
 
 ## Perl::Critic policy
 
 Enforced by `t/lint/02-perlcritic.t` against the project profile
 `.perlcriticrc` at **severity 4** (the serious set), so the gate passes with
-zero violations; tightening to severity 3 is future work. The profile disables
-the policies below for documented reasons (deliberate project conventions); a
-genuine one-off (the dev-server module probe) carries an inline
+zero violations, plus `t/lint/05-perlcritic-security.t` (the security theme at
+severity 1, also zero) and the `t/lint/04-compile.t` compile sweep. Tightening
+the project gate to severity 3 is tracked work: the 2026-07-01 review measured
+the severity-3 delta at 1,518 violations, of which 1,197 (79 per cent) are
+`RequireExtendedFormatting` alone - deciding that one policy leaves ~321, about
+half mechanical (see the eight-dimension review, dimension 2). The profile
+disables the policies below for documented reasons (deliberate project
+conventions); a genuine one-off (the dev-server module probe) carries an inline
 `## no critic` so the policy stays active for production code. Intentional
-deviations:
+deviations (hit counts re-measured 2026-07-01):
 
 | Policy | Deviation | Reason |
 |---|---|---|
-| `RegularExpressions::RequireExtendedFormatting` (~485 hits) | `/x` not used on simple one-line patterns | `/x` adds clutter to short patterns with no clarity win. Used where patterns are genuinely multi-line (the `convert_fenced_*` family). |
-| `InputOutput::RequireEncodingWithUTF8Layer` (~90 hits) | `:utf8` used instead of `:encoding(UTF-8)` | `:utf8` is the looser mode. The strict variant would raise a decoding error on latin1 content, turning a legacy file into a 500 rather than rendering it with replacement chars. Looser mode chosen so operator-supplied content does not need to be re-encoded on upgrade. |
+| `RegularExpressions::RequireExtendedFormatting` (~1,200 hits) | `/x` not used on simple one-line patterns | `/x` adds clutter to short patterns with no clarity win. Used where patterns are genuinely multi-line (the `convert_fenced_*` family). |
+| `InputOutput::RequireEncodingWithUTF8Layer` (~90 hits) | `:utf8` used instead of `:encoding(UTF-8)` | `:utf8` is the looser mode. The strict variant would raise a decoding error on latin1 content, turning a legacy file into a 500 rather than rendering it with replacement chars. Looser mode chosen so operator-supplied content does not need to be re-encoded on upgrade. NOTE: JSON auth files are the exception - they are read as raw octets for `decode_json` (ADR 0001). |
 | `InputOutput::ProhibitInteractiveTest` in `tools/lazysite-server.pl` | `-t STDOUT` for TTY detection | Single line, single check. Adding `IO::Interactive` as a dependency for one call would be over-engineering. |
-| `Subroutines::RequireFinalReturn` (~119 hits) | Subs end on their last expression | Self-contained CGIs use the last-expression return throughout; the 119 sites agree on this shape. |
+| `Subroutines::RequireFinalReturn` (~127 hits) | Subs end on their last expression | The CGIs use the last-expression return throughout; the sites agree on this shape. |
 | `Subroutines::ProhibitExplicitReturnUndef` (~53 hits) | `return undef`, not bare `return` | **Decision:** keep `return undef`. It is the project idiom for "no value" as a *scalar*; none of these returns is consumed in list context (where `return undef` and `return` differ), so the list-context footgun the policy guards against does not apply. Rewriting 53 sites would be churn with no behavioural gain. |
 | `TestingAndDebugging::ProhibitNoWarnings` (2 hits) | Narrow `no warnings 'category'` | Used deliberately - `'once'` around a `DB_File` tie and `'uninitialized'` around a log join. A *bare* `no warnings` would still want review. |
 | `BuiltinFunctions::ProhibitStringyEval` in `tools/lazysite-server.pl` | `eval "require $mod"` for module probing | Inline `## no critic` (policy stays active elsewhere). `$mod` is from a hard-coded list; no injection surface; dev server only. |

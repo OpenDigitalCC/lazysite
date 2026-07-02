@@ -278,18 +278,40 @@ Authorization is two layers - coarse per-actor **capabilities** and fine per-obj
 
 ## Capabilities
 
-Per-user boolean grants in `user-settings.json`, gating actions across the manager
-API, WebDAV, and MCP. `whoami` reports the caller's effective grant.
+Channel x action grants carried by **groups** (`groups-settings.json`, edited on
+the manager Groups page); an account's rights are the union across its groups
+(SM095, see `docs/adr/0003`). There are no per-account grants and no
+inheritance - every grant is explicit. All four surfaces (manager UI, control
+API, MCP, WebDAV) resolve through the one resolver
+(`Lazysite::Auth::Settings::caps_for`); `whoami` reports the caller's full
+effective set.
+
+**Channels** (where you may operate):
 
 | Capability | Gates |
 |---|---|
-| `manage_content` | Content read/write across WebDAV + MCP (defaults to the `webdav` grant when unset; set off for a theme-only partner) |
+| `ui` | The manager UI: login landing, the `/manager` gate, operator pages |
+| `webdav` | The WebDAV publishing endpoint |
+| `api` | The token control API |
+| `mcp` | The MCP connector |
+
+**Actions** (what you may do - you need a channel AND the action):
+
+| Capability | Gates |
+|---|---|
+| `manage_content` | Content read/write (pages, assets) |
+| `manage_nav` | Navigation read/save |
+| `manage_forms` | Form configs and bindings |
 | `manage_themes` | Theme activation and authoring under `lazysite/layouts/**` |
 | `manage_layouts` | Layout activation and structure authoring |
-| `manage_config` | `config-set`; WebDAV editing of `nav.conf` and per-form dispatch configs |
-| `webdav` | WebDAV access overall; also gates a partner managing ACLs on owned content |
-| `ui` | Interactive browser login / manager / auth-protected pages (on by default) |
+| `manage_config` | `config-set`; site configuration + plugin registry |
+| `manage_users` | User/group administration; the unrestricted operator bypass |
+| `analytics` | Visitor-stats analysis (`analyse_visitors`) |
+| `audit` | The audit trail (its own capability, split from analytics) |
 | `create_sub_users` / `delegate_sub_user_creation` | Sub-account creation and onward delegation |
+
+The per-account `ui` flag in `user-settings.json` survives only as the
+human-vs-token account type (interactive login on/off), not as a capability.
 
 Each MCP tool and control-API action declares its required capability; a token
 client is confined to the control-API subset regardless of the cookie-manager
@@ -360,8 +382,9 @@ store, and the same audit log.
 ## The manager UI
 
 A set of ordinary lazysite pages under a dedicated manager theme, calling the
-control API over `fetch`. Access requires authentication and membership in a
-`manager_groups` group. The pages:
+control API over `fetch`. Access requires authentication plus the `ui`
+capability granted through a group (the legacy `manager_groups` config remains
+a backend-only fallback). The pages:
 
 - **Config** - schema-driven site settings (driven by the processor's own
   `--describe` descriptor), active layout/theme dropdowns, and a plugin registry
@@ -381,11 +404,15 @@ control API over `fetch`. Access requires authentication and membership in a
 - **Themes** - installed-themes panel (activate/deactivate/rename/delete),
   **preview** any theme in your session via a signed cookie, **upload** a theme zip,
   and **install from GitHub Releases** of the configured layouts repo.
-- **Users** - add/remove/rename, set/clear passwords, group membership, per-account
-  **capability toggles**, **2FA**, **Generate credential** (a one-shot `lzs_` token),
-  WebDAV scope, and the **AI partner onboarding** flows (connect code for the web
-  OAuth flow; pairing-key brief for Claude Code / scripts), plus account
-  disable/enable/reassign. Sub-user management is scoped to the actor's own subtree.
+- **Users** - add/remove/rename, set/clear passwords, group membership, a
+  read-only **capability grid** (channel x action, derived from groups; edited
+  on the Groups page), **2FA**, **Generate credential** (a one-shot `lzs_`
+  token), WebDAV scope, and the **AI partner onboarding** flows (connect code
+  for the web OAuth flow; pairing-key brief for Claude Code / scripts), plus
+  account disable/enable/reassign. Sub-user management is scoped to the
+  actor's own subtree.
+- **Groups** - the capability editor: each group carries its channel + action
+  grants and a description; members inherit the union.
 - **Cache** - list cached pages (with orphan badges), invalidate one or all.
 - **Audit** - the paginated, filterable audit viewer.
 - **Backups** - list/create/download tarball snapshots.
@@ -626,9 +653,11 @@ SBOM gate.
 - **Header trust model.** The central threat is auth/payment header spoofing; the
   defence is the two-signal trust gate plus edge stripping. Headers are the universal
   contract so built-in and proxy auth interoperate without trusting the client.
-- **Operator obligations (by design).** Strip client trust headers at the edge; set
-  `manager_groups` (empty = any authenticated user is a manager); set a password for
-  every non-localhost account (empty-password accounts work only from loopback); use
+- **Operator obligations (by design).** Strip client trust headers at the edge;
+  grant the `ui` capability only to groups that should reach the manager (with
+  neither a `ui` grant anywhere nor a legacy `manager_groups`, an unsecured/dev
+  site treats any authenticated user as a manager); set a password for every
+  non-localhost account (empty-password accounts work only from loopback); use
   HTTPS.
 - **Two auth domains.** Cookie operators bypass ACLs inside the manager; token/
   WebDAV/MCP partners never do - they are bound by per-file ownership.

@@ -2,8 +2,12 @@
 
 ## Supported versions
 
-The current release on the `main` branch is the supported version.
-Security fixes are applied to `main`.
+Security fixes are applied to `main` and ship in the next tagged release; the
+latest tagged release is the currently supported version. A formal
+support-period commitment (a CRA Article 13 requirement, expected five years
+from release) will be set at formal launch and recorded here and in
+`docs/POLICY.md` - until then this rolling-latest posture is the interim
+practice, not the committed policy.
 
 ## Reporting a vulnerability
 
@@ -40,10 +44,15 @@ Out of scope:
 - Browser-level vulnerabilities where lazysite's headers are the
   same as the wider web-server defaults.
 
+## Threat model and security model
+
+The structured threat model (STRIDE, with OWASP ASVS L1 control mapping) is at
+[docs/SECURITY.md](docs/SECURITY.md); the mechanism-level security narrative is
+at `docs/architecture/security.md`.
+
 ## Security considerations for operators
 
-The full security model is documented at
-`docs/architecture/security.md`. Key operational points:
+Key operational points (full detail in `docs/architecture/security.md`):
 
 - **Strip client-supplied auth headers at the web server edge.**
   Add `RequestHeader unset X-Remote-User`, `X-Remote-Groups`,

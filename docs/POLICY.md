@@ -8,11 +8,12 @@ Vulnerability handling and the security model are in
 
 lazysite is offered commercially (operator-deployed, and exposed to external AI
 publishing partners). This selects the **Commercial** posture of the
-seven-dimension framework: the EU **Cyber Resilience Act (Reg. 2024/1689)**
+eight-dimension framework: the EU **Cyber Resilience Act (Reg. (EU) 2024/2847)**
 Article 13 manufacturer duties apply, alongside OpenChain process policies and
 the documentation/quality floors below. (The heavier *Commercial-regulated*
-overlay - threat model + ISO 27001 Statement of Applicability + sector rules -
-is **not** selected.)
+overlay - ISO 27001 Statement of Applicability + sector rules - is **not**
+selected. A STRIDE/ASVS threat model is a plain Commercial requirement for a
+user-facing service, not part of that overlay: see `docs/SECURITY.md`.)
 
 ## Licensing and supply chain
 
@@ -30,7 +31,7 @@ is **not** selected.)
 |---|---|
 | SBOM, kept current | **in place** (strict gate) |
 | Coordinated vulnerability disclosure | **in place** (SECURITY.md) |
-| Quality + documentation floors (7-dimension) | **in place** (signoff; 75% coverage floor, five-audience docs, perf gate) |
+| Quality + documentation floors (8-dimension) | **partial** - the mechanical gates run per release (coverage floors, perf gate, SBOM, lint); the 2026-07-01 eight-dimension review found WARN on several dimensions and its follow-up actions are in progress (see `docs/review/2026-07-01-eight-dimension/`) |
 | Declaration of Conformity | **pending** |
 | Annex VII technical file | **pending** |
 | Support-period commitment | **pending - operator decision required** |

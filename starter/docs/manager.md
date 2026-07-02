@@ -22,24 +22,30 @@ Add to `lazysite/lazysite.conf`:
 ```yaml
 manager: enabled
 manager_path: /manager
-manager_groups: lazysite-admins
 ```
 
-The manager is disabled by default. `manager_groups` restricts access
-to members of the listed group(s). Multiple groups can be
-comma-separated.
+The manager is disabled by default. Access is the **`ui` capability**,
+granted through a group on the Groups page (the seeded `lazysite-admins`
+group carries it). Bootstrap in one command:
 
-At least one user must be in `manager_groups`. Create one with:
+```bash
+perl tools/lazysite-users.pl --docroot /path/to/public_html setup-manager
+```
+
+or add a user to the admin group:
 
 ```bash
 perl tools/lazysite-users.pl --docroot /path/to/public_html \
   group-add alice lazysite-admins
 ```
 
+(The legacy `manager_groups:` conf key still works as a backend fallback,
+but capabilities on groups are the mechanism of record.)
+
 ## Accessing the manager
 
 Navigate to `/manager` (or the configured `manager_path`). You must be
-authenticated and in a configured `manager_groups` group. Unauthenticated
+authenticated and in a group carrying the `ui` capability. Unauthenticated
 visitors are redirected to `/login`.
 
 ## Pages
@@ -133,7 +139,9 @@ and the MCP connector (`layout-install` / `layout-delete` / `layouts-manifest`;
 - Add, remove, and rename users
 - Set or clear passwords
 - Assign each user to groups from its card
-- Per-account capabilities, sub-users, credentials, and onboarding
+- A read-only capability grid (channel x action, derived from groups -
+  capabilities are edited on the Groups page), sub-users, credentials, and
+  onboarding
 
 ### Groups
 
@@ -176,8 +184,10 @@ real people, the logged-in operator, AI assistants, bots and probe noise (each
 reported separately), splits referrers into external / internal / direct, links
 top pages to the live page, and shows per-day counts over a configurable window,
 with optional IP anonymisation. If an error log is configured (or auto-detected),
-it also shows the most recent server errors. It never exposes any log file's path,
-and offers an operator-only raw access-log download. Provided by the opt-in
+it also shows a synthesised summary of recent server errors (categories and
+counts only - never raw lines, addresses or paths). It never exposes any log
+file's path, and the raw logs are not downloadable through the manager.
+Provided by the opt-in
 **Visitor Statistics**
 plugin: the nav item appears only when the plugin is enabled - enable it on Plugin
 Manager, then set its access-log path on Plugin Config. An AI connector granted
@@ -189,17 +199,17 @@ the **Analytics** permission can analyse the same data for trends via the
 ## Admin bar on site pages
 
 When the manager is enabled, the processor injects an admin bar on
-site pages (non-manager pages) for authenticated users in
-`manager_groups`. The bar shows:
+site pages (non-manager pages) for authenticated users with manager
+access (the `ui` capability). The bar shows:
 
 - Manage - link to `/manager/`
 - Edit - link to the editor for the current page
-- Theme switcher - dropdown if more than one theme is installed
 - Sign out
 - Warning when the user has no password set
 
-The admin bar is a compact fixed-position bar at the top of the page.
-Unauthenticated visitors and non-manager users do not see it.
+The admin bar sits in normal page flow at the top (it scrolls with the
+page, so it never overlaps a theme's own sticky header). Unauthenticated
+visitors and non-manager users do not see it.
 
 ## Installation
 
@@ -220,10 +230,11 @@ cp -r starter/lazysite/manager /path/to/public_html/lazysite/
 
 ## Security
 
-### Manager group enforcement
+### Manager access enforcement
 
 Access to `/manager` and all sub-pages is restricted to authenticated
-users in the configured `manager_groups`. Unauthenticated users are
+users whose groups carry the `ui` capability (legacy `manager_groups`
+membership also passes, as a fallback). Unauthenticated users are
 redirected to `/login`.
 
 ### Blocked paths

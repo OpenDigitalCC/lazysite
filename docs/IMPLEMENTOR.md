@@ -42,9 +42,15 @@ install and `a2enmod headers`.
 
 In `lazysite/lazysite.conf` (or the manager Config page):
 
-- `manager_groups:` - who may reach `/manager` (else `/manager` is open).
+- Manager access is the `ui` **capability on a group** (SM095): bootstrap with
+  `lazysite-users.pl setup-manager`, which creates the admin group + user; grant
+  `ui` to further groups on the manager Groups page. (The legacy
+  `manager_groups:` conf key still works as a backend fallback but is no longer
+  edited in the UI; with neither set, an unsecured/dev site treats any
+  authenticated user as a manager.)
 - `webdav_enabled: yes` - **off by default**; `/dav` returns 404 to every
-  method until set (by design). Per-account WebDAV is a separate user setting.
+  method until set (by design). The `webdav` capability is then granted
+  per-group like any other.
 - `site_name`, `layout`, `theme` - activate a theme globally.
 - Set the manager password: `lazysite-users.pl passwd manager '<pass>'`.
 

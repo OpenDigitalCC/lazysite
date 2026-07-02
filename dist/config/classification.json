@@ -139,7 +139,7 @@
     "^docs/feature-requests/",
     "^docs/reference/",
     "^docs/review/",
-    "^docs/(USER|DEVELOPER|IMPLEMENTOR|OPERATOR|POLICY|FEATURES)\\.md$",
+    "^docs/(USER|DEVELOPER|IMPLEMENTOR|OPERATOR|POLICY|FEATURES|SECURITY)\\.md$",
     "^docs/.*\\.pdf$",
     "^CHANGELOG\\.md$",
     "^reported-issues\\.md$",

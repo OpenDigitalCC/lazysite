@@ -73,8 +73,9 @@ works on staging and production.
 : URL path for the manager. Default: `/manager`.
 
 `manager_groups`
-: Comma-separated groups. Only users in these groups can access the
-  manager.
+: Legacy fallback (comma-separated groups). Manager access is now the `ui`
+  capability granted through a group on the Groups page; this key is only
+  consulted when no group grants `ui`, and it is no longer edited in the UI.
 
 `log_level`
 : `ERROR`, `WARN`, `INFO` (default), or `DEBUG`.
@@ -199,9 +200,11 @@ The path is relative to the docroot.
 Authentication is configured through three mechanisms:
 
 - User credentials in `lazysite/auth/users`
-- Group memberships in `lazysite/auth/groups`
+- Group memberships in `lazysite/auth/groups`; group capabilities (channel x
+  action, incl. manager access via `ui`) in `lazysite/auth/groups-settings.json`
 - Per-page `auth:` and `auth_groups:` front matter keys
-- Site-wide `auth_default:` and `manager_groups:` in `lazysite.conf`
+- Site-wide `auth_default:` in `lazysite.conf` (`manager_groups:` survives as a
+  legacy fallback only)
 
 See [Authentication](/docs/auth) for full details.
 

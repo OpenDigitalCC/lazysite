@@ -256,15 +256,17 @@ regardless of the site-wide default.
 
 ### Manager access
 
-The manager at `/manager` uses the same auth mechanism. The
-`manager_groups` setting in `lazysite.conf` lists the groups allowed
-into the manager:
+The manager at `/manager` uses the same auth mechanism. Access is the
+**`ui` capability**, granted through a group on the manager Groups page
+(the seeded `lazysite-admins` group carries it):
 
 ```yaml
 manager: enabled
 manager_path: /manager
-manager_groups: lazysite-admins
 ```
+
+The legacy `manager_groups:` conf key still passes as a fallback when no
+group grants `ui`, but capabilities on groups are the mechanism of record.
 
 ## TT variables
 

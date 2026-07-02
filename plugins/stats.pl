@@ -12,8 +12,9 @@
 #
 # Invoked by the manager plugin API: `--describe` returns the contract;
 # `--scan --docroot DIR` parses the log and prints the stats JSON;
-# `--resolve-log --docroot DIR` prints the resolved log path for the (operator-
-# only, server-internal) download endpoint - the path is never sent to the page.
+# `--resolve-log --docroot DIR` prints the resolved log path to the CLI for an
+# operator debugging log auto-detection - the path is never sent to any page,
+# and there is no raw-log download (removed 0.5.29).
 use strict;
 use warnings;
 use JSON::PP qw(encode_json);
