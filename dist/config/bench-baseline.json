@@ -1,10 +1,14 @@
 {
-   "_doc" : "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. The gate (--check) fails only on >tolerance x regression.",
+   "_doc" : "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. The gate (--check) fails on >tolerance x regression; a per-op override may live in tolerances{op}.",
+   "captured_at" : "2026-07-02T08:41:10Z",
+   "host" : "ai-dev",
    "iterations" : 20,
    "ops" : {
-      "render_ms" : 65.1,
-      "verify_password_ms" : 132.3,
+      "render_cache_hit_ms" : 60,
+      "render_miss_ms" : 83.6,
+      "verify_password_ms" : 120.8,
       "verify_token_ms" : 32.7
    },
-   "tolerance" : 3
+   "perl" : "v5.40.1",
+   "tolerance" : 2
 }

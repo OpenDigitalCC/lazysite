@@ -54,16 +54,20 @@ floor.
 
 | Op | What it times |
 |---|---|
-| `render_ms` | a processor render of a simple page (subprocess, incl. perl startup) |
+| `render_cache_hit_ms` | a processor request served from the page cache (subprocess, incl. perl startup) - the path most visitors hit |
+| `render_miss_ms` | a full render (cache deleted each iteration): markdown + TT pipeline + cache write |
 | `verify_token_ms` | a token credential verification (1 iteration - the partner hot path) |
 | `verify_password_ms` | a password verification (100k iterations - the deliberate slow path) |
 
-The committed baseline (`dist/config/bench-baseline.json`) is **host-relative**;
-re-capture it on your CI/deploy host with `tools/bench.pl --baseline`. The gate
-`tools/bench.pl --check` fails only on a **gross** regression (>3x the baseline),
-so it catches real slowdowns without flaking on host variance - run it at
-signoff, not in the unit suite. The token-vs-password gap (token ~4x faster) is
-the stable relative figure, and confirms why partners use `lzs_` tokens for DAV.
+The committed baseline (`dist/config/bench-baseline.json`) is **host-relative**
+and records its provenance (host, perl version, capture date); `--check` prints
+it and warns on a host mismatch. Re-capture on your CI/deploy host with
+`tools/bench.pl --baseline`. The gate `tools/bench.pl --check` fails on >2x the
+baseline (per-op overrides possible via a `tolerances` map in the JSON) -
+measured spread on a quiet host is ~3 per cent, so 2x still has ample headroom
+against host variance. It runs in the release gate (`tools/release.sh`), not
+the unit suite. The token-vs-password gap (token ~4x faster) is the stable
+relative figure, and confirms why partners use `lzs_` tokens for DAV.
 
 ### WebDAV endpoint (SM070)
 

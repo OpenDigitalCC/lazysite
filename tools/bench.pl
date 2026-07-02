@@ -1,10 +1,11 @@
 #!/usr/bin/perl
-# tools/bench.pl - lazysite performance benchmark + regression gate (WP-3 /
-# D3). Measures the hot paths - page render and credential verification - and
-# compares to a committed baseline. Numbers are HOST-RELATIVE: re-capture on
-# your CI/deploy host with --baseline. The gate (--check) fails only on a
-# GROSS regression (default 3x the baseline) so it catches real slowdowns
-# without flaking on host variance.
+# tools/bench.pl - lazysite performance benchmark + regression gate. Measures
+# the hot paths - cache-hit serve, full render (cache miss) and credential
+# verification - and compares to a committed baseline. Numbers are
+# HOST-RELATIVE: re-capture on your CI/deploy host with --baseline (the
+# baseline records host/perl/date provenance, and --check warns on a host
+# mismatch). The gate fails on >2x the baseline by default; a per-op override
+# may be set in the baseline's tolerances map.
 #
 #   perl tools/bench.pl            # run + print ms/op
 #   perl tools/bench.pl --baseline # write dist/config/bench-baseline.json
@@ -17,10 +18,12 @@ use File::Path qw(make_path);
 use JSON::PP qw(encode_json decode_json);
 use IPC::Open2;
 use FindBin;
+use Sys::Hostname qw(hostname);
+use POSIX qw(strftime);
 
 ( my $ROOT = $FindBin::Bin ) =~ s{/tools$}{};
 my $ITER      = 20;
-my $TOLERANCE = 3.0;
+my $TOLERANCE = 2.0;
 my $BASELINE  = "$ROOT/dist/config/bench-baseline.json";
 my $mode = ( grep { $_ eq '--baseline' } @ARGV ) ? 'baseline'
          : ( grep { $_ eq '--check' }    @ARGV ) ? 'check'
@@ -59,10 +62,20 @@ my $token = uapi( $d, { action => 'token', username => 'tokuser' } )->{token};
 die "bench setup failed (no token)\n" unless $token;
 
 # --- ops ---
+# Two render ops (eight-dimension review D4): the warm-up writes index.html,
+# so a plain re-request is a CACHE HIT and never exercises the markdown/TT
+# pipeline. render_miss_ms deletes the cache before each iteration to time the
+# real render; render_cache_hit_ms times the serve-from-cache path (the one
+# most visitors hit).
 local %ENV = %ENV;
 $ENV{DOCUMENT_ROOT} = $d; $ENV{REQUEST_METHOD} = 'GET'; $ENV{QUERY_STRING} = '';
 my %result = (
-    render_ms => bench( $ITER, sub {
+    render_cache_hit_ms => bench( $ITER, sub {
+        local $ENV{REDIRECT_URL} = '/index';
+        qx($^X \Q$proc\E 2>/dev/null);
+    } ),
+    render_miss_ms => bench( $ITER, sub {
+        unlink "$d/index.html";
         local $ENV{REDIRECT_URL} = '/index';
         qx($^X \Q$proc\E 2>/dev/null);
     } ),
@@ -79,9 +92,15 @@ printf "%-22s %8.1f ms\n", $_, $result{$_} for sort keys %result;
 if ( $mode eq 'baseline' ) {
     open my $b, '>', $BASELINE or die "$BASELINE: $!\n";
     print $b JSON::PP->new->canonical->pretty->encode( {
-        _doc => "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. The gate (--check) fails only on >tolerance x regression.",
+        _doc => "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. The gate (--check) fails on >tolerance x regression; a per-op override may live in tolerances{op}.",
         tolerance  => $TOLERANCE,
         iterations => $ITER,
+        # Provenance (review D4): a baseline is only meaningful on the host
+        # that captured it - record where/when so a cross-host comparison is
+        # visible instead of silent.
+        host        => hostname(),
+        perl        => "$^V",
+        captured_at => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         ops        => { map { $_ => 0 + sprintf( '%.1f', $result{$_} ) } keys %result },
     } );
     close $b;
@@ -90,15 +109,21 @@ if ( $mode eq 'baseline' ) {
 
 if ( $mode eq 'check' ) {
     die "no baseline ($BASELINE) - run --baseline first\n" unless -f $BASELINE;
-    open my $b, '<', $BASELINE or die "$BASELINE: $!\n";
+    open my $b, '<:raw', $BASELINE or die "$BASELINE: $!\n";
     my $base = decode_json( do { local $/; <$b> } ); close $b;
     my $tol = $base->{tolerance} || $TOLERANCE;
+    printf "baseline: captured %s on %s (perl %s)\n",
+        $base->{captured_at} // 'unknown-date', $base->{host} // 'unknown-host',
+        $base->{perl} // '?';
+    print "WARNING: baseline host differs from this host (" . hostname() . ") - numbers are host-relative\n"
+        if defined $base->{host} && $base->{host} ne hostname();
     my @fail;
     for my $op ( sort keys %result ) {
         my $b0 = $base->{ops}{$op} or next;
-        push @fail, sprintf( "%s: %.1f ms exceeds %.1fx baseline (%.1f ms)", $op, $result{$op}, $tol, $b0 )
-            if $result{$op} > $tol * $b0;
+        my $op_tol = $base->{tolerances}{$op} // $tol;
+        push @fail, sprintf( "%s: %.1f ms exceeds %.1fx baseline (%.1f ms)", $op, $result{$op}, $op_tol, $b0 )
+            if $result{$op} > $op_tol * $b0;
     }
     if (@fail) { print "PERF REGRESSION:\n", map { "  $_\n" } @fail; exit 1 }
-    print "perf: all ops within ${tol}x of baseline\n";
+    print "perf: all ops within tolerance of baseline\n";
 }
