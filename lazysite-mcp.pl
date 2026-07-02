@@ -1242,6 +1242,23 @@ elsif ( $method eq 'tools/call' ) {
     my ( $user, $caps ) = verify_bearer();
     send_401($id) unless defined $user;
 
+    # SM126: strict channel gate. An MCP session operates on the `mcp` channel and
+    # must hold the `mcp` capability, enforced ahead of the per-tool action cap so
+    # a credential without the channel is refused uniformly. (initialize and
+    # tools/list stay open for discovery; only tool invocation is gated.)
+    # Introspection tools (whoami, describe_capabilities) stay open to any
+    # authenticated session so a capless agent can self-diagnose and learn it
+    # lacks the channel, per the SM072 introspection contract.
+    my %introspection = ( 'whoami' => 1, 'describe_capabilities' => 1 );
+    unless ( $caps->{mcp} || $introspection{$name} ) {
+        my $a = $params->{arguments} || {};
+        audit_log( $user, $name, ( $a->{path} // '' ), $ENV{REMOTE_ADDR} // '',
+            'fail', 'mcp', 'denied: mcp channel capability' );
+        rpc_error( $id, -32002,
+            "The 'mcp' capability is required to use this connector. Ask the "
+          . "operator to grant the mcp capability to your account's group. Do not retry." );
+    }
+
     # Compute the capability this call requires. File tools are path-aware (SM082):
     # a theme/layout path (lazysite/layouts/**) is authorised by manage_themes /
     # manage_layouts - matching WebDAV's path-aware gate - so a theme-only partner

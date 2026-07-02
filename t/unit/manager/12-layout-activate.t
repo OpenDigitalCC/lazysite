@@ -61,7 +61,7 @@ _w( "layouts/alt/themes/shared/theme.json",    '{"name":"shared","layouts":["bas
 sub _w { my ( $rel, $c ) = @_; open my $f, '>', "$d/lazysite/$rel" or die $!; print $f $c; close $f; }
 
 uapi( $d, { action => 'add', username => 'p', password => 'x' } );
-grant_caps( $d, 'p', 'manage_layouts' );
+grant_caps( $d, 'p', 'manage_layouts', 'api' );   # SM126: token client holds the api channel cap
 grant_caps( $d, 'p', 'manage_themes' );
 my $tok  = uapi( $d, { action => 'token', username => 'p' } )->{token};
 my $auth = basic( 'p', $tok );

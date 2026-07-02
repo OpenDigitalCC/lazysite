@@ -61,7 +61,7 @@ open my $af, '>', "$d/lazysite/auth/acls.json" or die $!;
 print $af '{"content/x.md":{"owner":"alice","write":["alice"]}}'; close $af;
 
 uapi( $d, { action => 'add', username => 'bob', password => 'x' } );
-grant_caps( $d, 'bob', 'webdav' );
+grant_caps( $d, 'bob', 'webdav', 'api' );   # SM126: token client holds the api channel cap
 my $btok = uapi( $d, { action => 'token', username => 'bob' } )->{token};
 ok( $btok && $btok =~ /^lzs_/, 'bob has a webdav token' );
 

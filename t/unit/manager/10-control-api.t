@@ -69,7 +69,7 @@ print $tj '{"name":"live","layouts":["base"]}'; close $tj;
 
 # partner: token credential + manage_themes
 uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
-grant_caps( $d, 'partner', 'manage_themes' );
+grant_caps( $d, 'partner', 'manage_themes', 'api' );   # SM126: token client holds the api channel cap
 my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
 ok( $tok && $tok =~ /^lzs_/, 'minted partner token' );
 
@@ -126,7 +126,7 @@ ok( !$bad->{ok} && $bad->{error} =~ /invalid credentials/i, 'invalid token rejec
 
 # --- actor injection: a manager may only manage its own sub-tree ---------
 uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
-grant_caps( $d, 'boss', 'create_sub_users' );
+grant_caps( $d, 'boss', 'create_sub_users', 'api' );   # SM126: token client holds the api channel cap
 # The audit trail requires its own 'audit' capability (strict gate), separate
 # from visitor analytics.
 grant_caps( $d, 'boss', 'audit' );

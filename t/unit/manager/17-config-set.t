@@ -53,7 +53,7 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: My Site\n"; close $cf;
 
 uapi( $d, { action => 'add', username => 'p', password => 'x' } );
-grant_caps( $d, 'p', 'manage_config' );
+grant_caps( $d, 'p', 'manage_config', 'api' );   # SM126: token client holds the api channel cap
 my $tok = uapi( $d, { action => 'token', username => 'p' } )->{token};
 ok( $tok && $tok =~ /^lzs_/, 'minted a manage_config token' );
 

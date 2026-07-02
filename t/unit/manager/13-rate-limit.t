@@ -49,7 +49,7 @@ open my $cf, '>', "$d/lazysite/lazysite.conf"; print $cf "layout: base\ntheme: l
 open my $tj, '>', "$d/lazysite/layouts/base/themes/live/theme.json";
 print $tj '{"name":"live","layouts":["base"]}'; close $tj;
 uapi( $d, { action => 'add', username => 'p', password => 'x' } );
-grant_caps( $d, 'p', 'manage_themes' );
+grant_caps( $d, 'p', 'manage_themes', 'api' );   # SM126: token client holds the api channel cap
 my $tok = uapi( $d, { action => 'token', username => 'p' } )->{token};
 my $auth = 'Basic ' . encode_base64( "p:$tok", '' );
 

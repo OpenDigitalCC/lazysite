@@ -274,6 +274,23 @@ if ( $action eq 'csrf-token' ) {
 # and gated by capability. Cookie (manager) requests are unaffected and
 # keep their existing manager-group authorisation.
 if ( $token_auth ) {
+    # SM126: strict channel gate. A token client operates on the `api` channel and
+    # must hold the `api` capability, enforced ahead of the per-action check so a
+    # token without the channel is refused uniformly. The manager UI reaches the
+    # same endpoint over a cookie - that is the `ui` channel, gated at login, and
+    # is unaffected (this branch runs only for token auth). Introspection actions
+    # (whoami, describe-capabilities) stay open to any authenticated token - a
+    # capless agent must still be able to ask "what am I / what may I do" and learn
+    # it lacks the channel, per the SM072 introspection contract.
+    my %introspection = ( 'whoami' => 1, 'describe-capabilities' => 1 );
+    unless ( $token_caps{api} || $introspection{$action} ) {
+        audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
+            'fail', 'api', 'denied: api channel capability' );
+        respond({ ok => 0, error => "The 'api' capability is required to use the "
+            . "control API. Ask the operator to grant the api capability to your "
+            . "account's group." });
+        exit 0;
+    }
     my %need = (
         'artifact-manifest' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'artifact-validate' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },

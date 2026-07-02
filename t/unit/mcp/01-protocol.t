@@ -41,6 +41,7 @@ my %caps = $u =~ /full/  ? (webdav=>1, manage_content=>1, manage_themes=>1, mana
          : $u =~ /theme/ ? (manage_themes=>1, manage_layouts=>1)   # SM082: theme-only partner, no content
          :                 (webdav=>1, manage_content=>1);
 $caps{manage_nav} = $caps{manage_forms} = 1 if $caps{manage_content};   # SM105/SM106: inherit from content
+$caps{mcp} = 1 unless $u =~ /nomcp/;   # SM126: an MCP client holds the mcp channel cap (a 'nomcp' user is refused by the gate)
 print encode_json({ ok => 1, settings => \%caps });
 STUB
 close $sf;
