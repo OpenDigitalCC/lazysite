@@ -710,6 +710,12 @@ sub action_cache_invalidate {
                 my $rel = $File::Find::name;
                 $rel =~ s{^\Q$DOCROOT\E/?}{/};
                 return if $rel =~ m{^/lazysite/};
+                # SM133: a bare .html with NO .md sibling is legacy static
+                # content (served by the migration fallback), not a render
+                # cache - deleting it would destroy the page. Sweep only
+                # true caches.
+                ( my $src = $File::Find::name ) =~ s/\.html$/.md/;
+                return unless -f $src;
                 unlink $_;
                 $count++;
             },

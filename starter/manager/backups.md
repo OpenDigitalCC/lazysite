@@ -12,6 +12,9 @@ infrastructure), stored under <code>lazysite/backups/</code> and never served. A
 <b>pre-install</b> snapshot is taken automatically the first time lazysite is
 installed over an existing site, so a migration is always recoverable. Take a
 <b>manual</b> snapshot before any risky change, and download one to keep off-site.
+<b>Restore</b> writes a snapshot's files back over the site (files created since
+the snapshot are left in place), takes a <b>prerestore</b> safety snapshot first
+so the restore itself is reversible, and clears the affected page caches.
 </p>
 
 <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
@@ -81,9 +84,33 @@ function renderBackups(list) {
     html += '<span class="mg-badge ' + badge + '">' + escHtml(b.kind) + '</span>';
     html += '<span class="mg-file-meta">' + fmtSize(b.size) + ' &middot; ' + fmtDate(b.mtime) + '</span>';
     html += '<a class="mg-btn mg-btn-sm" href="' + API + '?action=backup-download&name=' + encodeURIComponent(b.name) + '">&#11015; Download</a>';
+    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="restoreBackup(\'' + escHtml(b.name) + '\', this)">Restore</button>';
     html += '</div>';
   }
   el.innerHTML = html;
+}
+
+function restoreBackup(name, btn) {
+  var msg = 'Restore "' + name + '"?\n\nIts files are written back over the site '
+          + '(newer files stay). A prerestore safety snapshot is taken first.';
+  var go = function(ok) {
+    if (!ok) return;
+    if (btn) btn.disabled = true;
+    showStatus('Restoring ' + name + '...');
+    fetch(API + '?action=backup-restore&name=' + encodeURIComponent(name),
+          { method: 'POST', credentials: 'same-origin' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (btn) btn.disabled = false;
+        if (!d.ok) { showStatus(d.error, true); return; }
+        showStatus('Restored ' + d.restored + ' (safety snapshot: ' + d.safety
+                 + ', ' + d.cache_cleared + ' cached page(s) cleared).');
+        loadBackups();
+      })
+      .catch(function(e) { if (btn) btn.disabled = false; showStatus('Error: ' + e.message, true); });
+  };
+  if (typeof mgConfirm === 'function') { mgConfirm(msg, { danger: true, ok: 'Restore' }).then(go); }
+  else { go(window.confirm(msg)); }
 }
 
 function createBackup(btn) {

@@ -47,7 +47,8 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
     action_layout_delete action_layouts_manifest action_layout_install
     action_artifact_backups_delete
     action_layouts_repo_get action_layouts_repo_set);
-use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download);
+use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
+    action_backup_restore);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
@@ -468,6 +469,7 @@ elsif ( $action eq 'file-download' ) {
 }
 elsif ( $action eq 'backup-list' )   { $result = action_backup_list() }
 elsif ( $action eq 'backup-create' ) { $result = action_backup_create() }
+elsif ( $action eq 'backup-restore' ) { $result = action_backup_restore( $params{name} ) }
 elsif ( $action eq 'backup-download' ) {
     action_backup_download( $params{name} );
     exit 0;

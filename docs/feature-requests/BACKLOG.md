@@ -79,8 +79,6 @@ before work starts.
 - **SM085** Git backend / changesets *(design)* - `begin -> diff -> commit ->
   rollback` on a git-versioned docroot. Biggest remaining lever; adds the
   rollback safety net. Headline ask from both AI-partner reviews.
-- **SM084 restore** - in-manager "restore this snapshot" (list/create/download
-  exist; restore does not).
 - **SM096** "Migrate to local" - one click to fetch a `.url` page's body and
   take local ownership as `.md`.
 - **SM098** Multi-page / wizard forms (Next / Back, per-step validation).
@@ -139,7 +137,9 @@ before work starts.
   privacy. Later hardened: headless/agent UA detection + self-identify marker
   (0.5.23); the error surface is synthesised and the raw log download removed
   (0.5.29).
-- **SM084** Non-destructive overlay install + content backups *(restore: still open, above)*.
+- **SM084** Non-destructive overlay install + content backups; in-manager
+  restore (overlay semantics, prerestore safety snapshot, cache clear) shipped
+  2026-07-02 with the eight-dimension follow-up.
 - **SM087** Connector editing ergonomics - full tool set (patch edit, search, preview, validate, `set_nav`, copy, permissions, audit, manifest, error kinds, nav-cache).
 - **SM088** Form-to-transport binding (`list_form_handlers` / `bind_form`).
 - **SM091** Dev-server auto-index (`tools/lazysite-server.pl --auto-index`).
