@@ -51,6 +51,14 @@ before work starts.
 
 ## Open - actionable
 
+- **Eight-dimension review follow-up (2026-07-01, v0.5.35)** - full review at
+  `docs/review/2026-07-01-eight-dimension/` (verdicts: D1-D4 + D7-D8 WARN,
+  D5 + D6 REFUSE). Application-side actions proceed in the current cycle;
+  **operational items are HELD for pre-launch** and documented with owners and
+  triggers in `docs/review/2026-07-01-eight-dimension/90-prelaunch-operational-holds.md`
+  (SLO/RTO/RPO declaration, snapshot crons, logrotate, monitoring/alerting,
+  debsecan + gitleaks installs, pentest gate + engagement, support period,
+  signing/DoC/VEX/technical-file set).
 - **Bad-URL auto-blocker plugin (default on)** - a plugin that recognises the
   steady stream of vulnerability-scanner probes (`/wp-login.php`, `/.env`,
   `/config.env`, `/actuator/health`, `/server-status`, `/.git/`, `*.php` on a
