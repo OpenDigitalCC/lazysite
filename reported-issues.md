@@ -15,9 +15,14 @@ Reported
   anywhere upstream; recorded here only.
 
 Status
-: **Validated** 2026-07-02 (code inspection + live reproduction at v0.5.36).
-  Fix deliberately deferred until the eight-dimension non-functional work
-  completes; then address.
+: **Fixed** 2026-07-02 (committed to `claude/appearance-layouts`, ships in the
+  next release). Validated 2026-07-02 (code inspection + live reproduction at
+  v0.5.36); fix deferred until the eight-dimension non-functional work
+  completed, then addressed. `parse_cgi_headers` now returns an ordered list of
+  [name, value] pairs and the emit loop forwards every one, so repeated headers
+  survive; regression test `t/unit/tools/01-dev-server-headers.t` covers the
+  two-cookie login and logout cases. The dev server also gained a modulino
+  `caller` guard so the pure parser is unit-testable without binding a port.
 
 Component
 : `tools/lazysite-server.pl` (dev server) - production Apache/nginx is NOT

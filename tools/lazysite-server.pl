@@ -158,6 +158,12 @@ HELP
     exit 0;
 }
 
+# Modulino guard: when loaded with require (a test wanting the pure helpers
+# such as parse_cgi_headers), stop here - before path validation, seeding, the
+# socket bind or the accept loop. Run directly as a script, caller() is false
+# and we proceed. The subs below are already compiled and callable either way.
+return 1 if caller;
+
 # --- Validate paths ---
 
 unless ( -d $DOCROOT ) {
@@ -324,6 +330,30 @@ while ( my $client = $server->accept() ) {
 }
 
 # --- Request handler ---
+
+# Parse a CGI response header block into ($status, $content_type, \@extra).
+# RI-001: @extra is an ordered list of [name, value] pairs, so a header
+# name that repeats (e.g. two Set-Cookie headers from lazysite-auth.pl -
+# the session cookie plus the SM099 display marker) is preserved rather
+# than collapsed to the last value by a name-keyed hash.
+sub parse_cgi_headers {
+    my ($header_block) = @_;
+    my $status       = '200 OK';
+    my $content_type = 'text/html; charset=utf-8';
+    my @extra;
+    for my $line ( split /\r?\n/, $header_block ) {
+        if ( $line =~ /^Status:\s*(.+)/i ) {
+            $status = $1;
+        }
+        elsif ( $line =~ /^Content-type:\s*(.+)/i ) {
+            $content_type = $1;
+        }
+        elsif ( $line =~ /^([^:]+):\s*(.+)/ ) {
+            push @extra, [ $1, $2 ];
+        }
+    }
+    return ( $status, $content_type, \@extra );
+}
 
 sub handle_request {
     my ($client) = @_;
@@ -517,24 +547,21 @@ sub handle_request {
         close $err;
     }
 
-    # Parse CGI response - split headers from body at blank line
+    # Parse CGI response - split headers from body at blank line.
+    # RI-001: keep the extra headers as an ordered LIST of [name, value]
+    # pairs, not a name-keyed hash. A CGI legitimately emits the same
+    # header name more than once - lazysite-auth.pl sends two Set-Cookie
+    # headers (the HttpOnly session cookie plus the SM099 display marker);
+    # a hash collapsed them to one, dropping the real auth cookie (and, on
+    # logout, dropping the cookie-clearing header). A real web server emits
+    # every repeat; so does the dev server now.
     my $status       = '200 OK';
     my $content_type = 'text/html; charset=utf-8';
-    my %extra_headers;
+    my @extra_headers;
 
     if ( $output =~ s/\A(.*?)\r?\n\r?\n//s ) {
-        my $header_block = $1;
-        for my $line ( split /\r?\n/, $header_block ) {
-            if ( $line =~ /^Status:\s*(.+)/i ) {
-                $status = $1;
-            }
-            elsif ( $line =~ /^Content-type:\s*(.+)/i ) {
-                $content_type = $1;
-            }
-            elsif ( $line =~ /^([^:]+):\s*(.+)/ ) {
-                $extra_headers{$1} = $2;
-            }
-        }
+        ( $status, $content_type, my $extra ) = parse_cgi_headers($1);
+        @extra_headers = @{$extra};
     }
 
     # Send HTTP response.
@@ -565,8 +592,8 @@ sub handle_request {
 
     print $client "HTTP/1.0 $status\r\n";
     print $client "Content-Type: $content_type\r\n";
-    for my $h ( sort keys %extra_headers ) {
-        print $client "$h: $extra_headers{$h}\r\n";
+    for my $h (@extra_headers) {
+        print $client "$h->[0]: $h->[1]\r\n";
     }
     print $client "Content-Length: $length\r\n";
     print $client "Connection: close\r\n";
