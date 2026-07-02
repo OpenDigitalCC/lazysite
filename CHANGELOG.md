@@ -18,6 +18,36 @@ Keying
 
 ## Unreleased
 
+## 0.5.37 - Eight-dimension review: application actions 6-9 (2026-07-02)
+
+Feature - fail-closed writes + failure-mode tests (review D5)
+: the processor cache write and the form-handler append now fail closed - on a
+  short write or a failed flush the tempfile is dropped and the event logged,
+  instead of a torn page being renamed into place. New `t/integration/13-write-
+  failure.t` injects disk-full (via `ulimit -f` + an `XFSZ`-ignoring harness, no
+  root needed) and concurrent-PUT races to prove the behaviour. A weekly
+  `logrotate` snippet ships under `installers/hestia/` (deployment held for
+  pre-launch, per the operational holds doc).
+
+Feature - in-manager backup restore (review D5, SM084)
+: the Appearance backups panel gains a Restore button; `action_backup_restore`
+  takes a safety snapshot first (aborting if it fails), overlays the archive
+  (matching `install.pl --restore` semantics), and clears only cached `.html`
+  that has a `.md` sibling - legacy static pages are preserved (SM133). 14-
+  assertion round-trip test added.
+
+Docs - decision records + currency sweep + threat model (review D6/D7/D8)
+: ADRs 0002-0006 record the uncommitted-tree release contract, the channel x
+  action capability model, install classification/provenance, the edge/stable
+  channels, and raw-mode-for-artifacts-only. The doc set is brought current with
+  the SM095 capability model (manager access is the `ui` capability on a group;
+  `manager_groups` demoted to a legacy fallback) across `starter/docs/` and the
+  developer guides, and the shared-module reality replaces the old "no shared
+  modules" text. New `docs/SECURITY.md` is a STRIDE threat model with OWASP ASVS
+  L1 control mapping (clearing half the D6 refusal); `docs/POLICY.md` corrects
+  the CRA citation to Reg. (EU) 2024/2847. `reported-issues.md` records RI-001
+  (dev server drops the second `Set-Cookie`; fix queued).
+
 ## 0.5.36 - Eight-dimension review: application actions 1-5 (2026-07-02)
 
 Refactor - capability resolution (review D1)
