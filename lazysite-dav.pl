@@ -43,6 +43,12 @@ use Lazysite::Auth::Settings qw(read_settings caps_for);
 $Lazysite::Util::COMPONENT = 'dav';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT};
+
+# RI-002: reason recorded by a denial (see _deny / authorise), read by the
+# dispatcher into the response so a refused partner knows what to fix. Declared
+# here so it is in scope at both the call site and the authorise() subs below.
+our $DENY_REASON;
+
 my $LAZYSITE_DIR = defined $DOCROOT ? "$DOCROOT/lazysite" : undef;
 $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Auth::Acl::DOCROOT  = $DOCROOT;
@@ -194,8 +200,16 @@ sub main {
     my $scope    = scope_for($user);
     my $is_write = ( $method =~ /^(?:PUT|DELETE|MKCOL|MOVE|COPY|LOCK)$/ );
     if ( my $code = authorise( $rel, $scope, $is_write, $conf, $user ) ) {
-        log_event( 'WARN', $user, 'dav path denied', path => $rel, status => $code );
-        return send_status( $code, body => "Forbidden\n" );
+        my $reason = $DENY_REASON;
+        log_event( 'WARN', $user, 'dav path denied',
+            path => $rel, status => $code,
+            ( defined $reason ? ( reason => $reason ) : () ) );
+        # RI-002: name the reason so a partner agent knows what to fix, rather
+        # than retrying blindly. Plain body for a human/curl; a stable
+        # X-Lazysite-Deny-Reason header for a machine client to parse.
+        my $body = defined $reason ? "Forbidden: $reason\n" : "Forbidden\n";
+        return send_status( $code, body => $body,
+            ( defined $reason ? ( headers => ["X-Lazysite-Deny-Reason: $reason"] ) : () ) );
     }
 
     # SM071 Phase 3 (P3.6): per-token volume throttle on writes (a deploy
@@ -960,16 +974,26 @@ sub acl_allows {
     return _acl_allows( $rel, $mode, $user ) ? 1 : 0;
 }
 
+# RI-002: record a human-readable reason alongside a denial so the WebDAV
+# response can tell a partner (typically an agent) WHY a write was refused -
+# which capability is missing, or which rule applies - instead of a bare 403.
+# A partner that gets "Forbidden" with no detail resorts to trial and error
+# (the reported theme-install pain). Set the reason just before returning the
+# code; the dispatcher reads $DENY_REASON into the body + X-Lazysite-Deny-Reason.
+sub _deny { $DENY_REASON = $_[1]; return $_[0]; }
+
 # Returns an HTTP error code if denied, or undef if allowed.
 sub authorise {
     my ( $rel, $scope, $is_write, $conf, $user ) = @_;
+    $DENY_REASON = undef;   # cleared here; set by _deny(), read by the caller
 
     # SM072: lazysite/nav.conf is agent-editable over WebDAV, gated by
     # manage_config. Nav is benign structure - no more powerful than the
     # content pages a webdav account can already publish - and carries no
     # privilege-escalation keys, unlike lazysite.conf which stays denied.
     if ( $rel eq 'lazysite/nav.conf' ) {
-        return manage_config_for($user) ? undef : 403;
+        return undef if manage_config_for($user);
+        return _deny( 403, 'editing lazysite/nav.conf requires the manage_config capability' );
     }
 
     # A per-form dispatch config (lazysite/forms/<name>.conf) is agent-editable
@@ -981,8 +1005,10 @@ sub authorise {
     # handlers, or read submissions.
     if ( $rel =~ m{^lazysite/forms/([A-Za-z0-9_-]+)\.conf$} ) {
         my $name = $1;
-        return 403 if $name eq 'smtp' || $name eq 'handlers';
-        return manage_config_for($user) ? undef : 403;
+        return _deny( 403, "lazysite/forms/$name.conf is protected (it holds credentials/handler definitions) and is not editable over WebDAV" )
+            if $name eq 'smtp' || $name eq 'handlers';
+        return undef if manage_config_for($user);
+        return _deny( 403, "editing lazysite/forms/$name.conf requires the manage_config capability" );
     }
 
     # SM071 Phase 3: the one carve-out from the whole-lazysite/ denial is
@@ -996,24 +1022,27 @@ sub authorise {
     # SM082: the content namespace requires the content capability (defaults to
     # the webdav grant). A theme-only partner (manage_content off) is refused -
     # they keep theme/layout access via the carve-out above.
-    return 403 unless manage_content_for($user);
+    return _deny( 403, 'publishing site content requires the manage_content capability' )
+        unless manage_content_for($user);
 
     # Content namespace: scope confinement + write blocklist (unchanged).
     if ( defined $scope && length $scope ) {
         ( my $s = $scope ) =~ s{^/+|/+$}{}g;
         if ( length $s ) {
-            return 403 unless $rel eq $s || index( $rel, "$s/" ) == 0;
+            return _deny( 403, "outside your assigned WebDAV scope ($s/)" )
+                unless $rel eq $s || index( $rel, "$s/" ) == 0;
         }
     }
 
     # Apply the blocklist on READS as well as writes - otherwise an unscoped
     # account could GET the source of cgi-bin/*.pl (the blocklist's own
     # cgi-bin / manager entries imply these are meant to be unreachable).
-    return 403 if is_blocked( $rel, $conf );
+    return _deny( 403, 'this path is on the server blocklist (protected file type or location)' )
+        if is_blocked( $rel, $conf );
 
     # SM074: per-file ACLs (content namespace; the lazysite/ subtree returned
     # earlier). Ownership + read/write lists come from the central store.
-    return 403
+    return _deny( 403, 'a per-file ACL denies you ' . ( $is_write ? 'write' : 'read' ) . ' access to this path' )
         unless acl_allows( $rel, ( $is_write ? 'write' : 'read' ), $user );
 
     return undef;
@@ -1028,28 +1057,33 @@ sub authorise_layout {
 
     my $can_themes  = manage_themes_for($user);
     my $can_layouts = manage_layouts_for($user);
-    return 403 unless $can_themes || $can_layouts;
+    return _deny( 403, 'theme/layout authoring over WebDAV requires the manage_themes or manage_layouts capability' )
+        unless $can_themes || $can_layouts;
 
     # Only the layouts subtree is reachable; the rest of lazysite/ is denied.
-    return 403 unless $rel eq 'lazysite/layouts'
-                   || $rel =~ m{^lazysite/layouts/};
+    return _deny( 403, 'only lazysite/layouts/ is writable over WebDAV; the rest of lazysite/ is protected. Install a theme under lazysite/layouts/<layout>/themes/<theme>/' )
+        unless $rel eq 'lazysite/layouts'
+            || $rel =~ m{^lazysite/layouts/};
 
     my $active_layout = $conf->{active_layout} // '';
     my $active_theme  = $conf->{active_theme}  // '';
 
     # The all-layouts container: read-only navigation with either capability.
-    return ( $is_write ? 403 : undef ) if $rel eq 'lazysite/layouts';
+    return _deny( 403, 'lazysite/layouts is a read-only container; write inside a specific layout (lazysite/layouts/<layout>/)' )
+        if $is_write && $rel eq 'lazysite/layouts';
+    return undef if $rel eq 'lazysite/layouts';
 
     my ( $layout, $rest ) = $rel =~ m{^lazysite/layouts/([^/]+)(?:/(.*))?$};
-    return 403 unless defined $layout;
+    return _deny( 403, 'malformed layouts path' ) unless defined $layout;
     $rest //= '';
 
     # A theme path: lazysite/layouts/<L>/themes/<T>/...
     if ( $rest =~ m{^themes/([^/]+)} ) {
         my $theme = $1;
-        return 403 unless $can_themes;
-        return 403 if $is_write
-                   && $layout eq $active_layout && $theme eq $active_theme;
+        return _deny( 403, 'installing or editing a theme requires the manage_themes capability' )
+            unless $can_themes;
+        return _deny( 403, "the active theme ($active_theme) is read-only over WebDAV; switch the active theme first, or edit a non-active one" )
+            if $is_write && $layout eq $active_layout && $theme eq $active_theme;
         return undef;
     }
 
@@ -1058,14 +1092,18 @@ sub authorise_layout {
     # and the layout must not be the active one.
     if ( $rest eq '' || $rest eq 'themes' ) {
         return undef unless $is_write;
-        return 403 unless $can_layouts;
-        return 403 if $layout eq $active_layout;
+        return _deny( 403, 'authoring layout structure requires the manage_layouts capability' )
+            unless $can_layouts;
+        return _deny( 403, "the active layout ($active_layout) is read-only over WebDAV; switch the active layout first" )
+            if $layout eq $active_layout;
         return undef;
     }
 
     # layout.tt and other layout-level assets.
-    return 403 unless $can_layouts;
-    return 403 if $is_write && $layout eq $active_layout;
+    return _deny( 403, 'editing layout files requires the manage_layouts capability' )
+        unless $can_layouts;
+    return _deny( 403, "the active layout ($active_layout) is read-only over WebDAV; switch the active layout first" )
+        if $is_write && $layout eq $active_layout;
     return undef;
 }
 

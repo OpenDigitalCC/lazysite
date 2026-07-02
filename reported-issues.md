@@ -60,3 +60,45 @@ Fix sketch
   drop the `sort keys` emission (header order should follow the CGI). A
   regression test can drive the parse/emit path with a two-Set-Cookie
   fixture; a journey test could cover dev-server login end to end.
+
+## RI-002 - WebDAV denials give no reason (partner agents retry blindly)
+
+Reported
+: 2026-07-02, by the operator relaying partner-agent experience: a connecting
+  agent spent a long time discovering by trial and error that it installs
+  themes over WebDAV, because the push failed without saying why.
+
+Status
+: **Fixed** 2026-07-02 (committed to `claude/appearance-layouts`, ships in the
+  next release). Validated the same day by code inspection and a live
+  reproduction with the DAV test harness.
+
+Component
+: `lazysite-dav.pl` - the authorisation layer (`authorise` / `authorise_layout`)
+  and the request dispatcher.
+
+Defect
+: `authorise`/`authorise_layout` returned a bare numeric `403` and the
+  dispatcher emitted a generic `Forbidden\n` body with no detail. A partner
+  refused for a missing capability (e.g. installing a theme without
+  `manage_themes`), for using the wrong path (theme files must live under
+  `lazysite/layouts/<layout>/themes/<theme>/`), or for touching the active
+  theme/layout (read-only over WebDAV) received the same opaque `Forbidden`
+  in every case - nothing to act on, so the only recourse was trial and error.
+
+Reproduction
+: with the DAV harness, a default content partner (`manage_content` but not
+  `manage_themes`) PUTs to `/lazysite/layouts/base/themes/mytheme/theme.css`;
+  the response was `403` with body `Forbidden` and no capability hint.
+  Reproduced 2026-07-02.
+
+Fix
+: a `_deny($code, $reason)` helper records a human-readable reason on the
+  package-scoped `$DENY_REASON`; each capability/path/active-pointer denial now
+  names what is missing. The dispatcher surfaces it as `Forbidden: <reason>` in
+  the body and a machine-parseable `X-Lazysite-Deny-Reason` header, and logs the
+  reason. Authorisation logic is unchanged - only the messaging. Regression test
+  `t/unit/dav/22-deny-reason.t` covers the theme-capability, content-capability
+  and active-theme cases plus the permitted-write (no-reason) path. The broader
+  discoverability asks (a machine-parseable capability map, quickstarts) are
+  recorded in `docs/feature-requests/BACKLOG.md`.
