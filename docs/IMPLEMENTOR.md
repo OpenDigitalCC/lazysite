@@ -63,3 +63,13 @@ Create an account, issue an `lzp_` pairing key, hand over the onboarding brief.
 The partner exchanges it for an `lzs_` token and publishes over `/dav` + the
 control API within its grant. The trust model, scope and deny-set are enforced
 server-side; see [SECURITY.md](../SECURITY.md) and the publishing briefing.
+
+A connecting agent should learn what it may do from the **capability map** rather
+than by trial and error: the MCP `describe_capabilities` tool (or the control-API
+`describe-capabilities` action) returns the channels, what each capability
+unlocks, task recipes, the engine-owned paths not to touch, and the account's own
+grant. The same model, for humans, is at
+[docs/reference/capability-map.md](reference/capability-map.md) with copy-pasteable
+[quickstarts](reference/quickstarts.md). Grant a partner the channel it uses
+(`api` for the control API, `mcp` for the connector, `webdav` for `/dav`) plus the
+action capabilities for its role - the standard onboarding does this.
