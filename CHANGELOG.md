@@ -18,6 +18,44 @@ Keying
 
 ## Unreleased
 
+## 0.5.36 - Eight-dimension review: application actions 1-5 (2026-07-02)
+
+Refactor - capability resolution (review D1)
+: one shared `groups_grant_cap` helper in Auth::Settings; the login landing and
+  the ACL operator bypass route through it (private copies deleted); the
+  processor keeps its module-free copy, recorded in `docs/adr/0001` (first ADR).
+  Encoding settled: JSON auth files are read as raw octets everywhere - the old
+  `:utf8`-layer read silently wiped the whole read on any non-ASCII content
+  (group description, user email). Regression test added.
+
+Feature - by-design gates (review D1/D3/D4/D6)
+: new lint gates `perl -c` (compile sweep) and security-themed perlcritic at
+  severity 1; `release.sh` now runs `bench.pl --check` and the instrumented
+  `coverage.sh --check` before the SBOM gate - a benchmark regression or a
+  coverage-floor breach is unshippable.
+
+Feature - coverage hardening (review D3)
+: branch floor (60%) alongside the statement floor; `lazysite-auth.pl` joins the
+  gate (82%/61%). Root cause of "not measured" CGIs fixed: %ENV-rebuilding tests
+  dropped PERL5OPT, so instrumentation never reached the child - new
+  `TestHelper::env_passthrough()` in all 12 sites, which also repaired the
+  Plugins.pm (21->66%) and Upload.pm (37->82%) under-measurement artifact.
+  manager-api's noisy branch measurement carries a documented per-file override
+  (backlog: stabilise, ratchet back). Login rate-limit test de-flaked (window
+  rollover). Baselines re-measured and recorded.
+
+Feature - benchmark honesty (review D4)
+: the render op measured only the CACHE-HIT path; split into
+  `render_cache_hit_ms` and `render_miss_ms` (real render: 84 ms vs 60 ms hit).
+  Baseline records host/perl/date provenance; `--check` warns on host mismatch;
+  tolerance tightened 3x -> 2x (measured spread ~3%) with per-op overrides.
+
+Fix - plugins (review D1)
+: `payment-demo.pl` answers `--describe` (uniform interface; it now appears in
+  the plugin list marked DEMO ONLY, and the discovery probe no longer burns a
+  full page render); its long-standing compile warning fixed. Dead
+  `_user_analytics` removed from the manager API.
+
 ## 0.5.35 - Content provenance stamp + "is it ours?" checker (2026-07-01)
 
 Feature - content provenance
