@@ -230,21 +230,36 @@ A | The capability-map builder + `describe_capabilities` (MCP + control-API), de
 B | The `tasks` block + human quickstarts from one source; static `capability-map.md` | Small-medium, builds on A
 C | `engine_owned` in the map + documented private-file boundary; decision on the `_` convention for new author files | Small
 D | Host-OS dependency artefact + `--dependencies` query | Small, independent of A-C
-E | Decision + follow-through on api/mcp transport gating; unify denial language across channels | Small code, needs a policy call first
+E | api/mcp transport gating (decided: enforce - folded into A) + unify denial language across channels | Small code, gating now in A
 ```
 
 Phases A and D are independent and could proceed in parallel; D is the cheapest
-standalone win. B and C depend on A's builder.
+standalone win. B and C depend on A's builder. **Current batch: D + A** (with the
+E gating decided and folded into A); B, C and the language-unification half of E
+follow.
+
+## Decisions (2026-07-02)
+
+- **api/mcp channel gating: gate at the transport (enforce).** The token (`api`)
+  path and the MCP server will check `caps_for($user)->{api}` / `->{mcp}` before
+  dispatch, matching the `ui`/`webdav` gates, so the capability map can advertise
+  all four channels as enforced. This is folded into Phase A (it supersedes the
+  Phase E "decision" half). Backward-compat caveat: existing partner accounts
+  must actually hold the channel cap, so enforcement ships with a migration step
+  (grant the channel cap to accounts that use it) - verified before rollout.
+- **Code quality (separate track, parked): adopt `RequireExtendedFormatting`
+  (`/x`) project-wide.** The direction is settled - add `/x` across the ~1,200
+  patterns, burn down the mechanical remainder, then raise the project Perl::Critic
+  gate to severity 3. Not in the Phase D+A batch; scheduled for a quiet window
+  (review action 18). Recorded here so the `.perlcriticrc` deviation note is
+  updated when that work runs, not before.
 
 ## Open questions
 
-- **api/mcp channel gating.** Do we gate these two channels at the transport (so
-  the map can advertise them as enforced), or formally document them as
-  action-gated only? This is a security-posture decision, not just a doc one -
-  it belongs with the eight-dimension D6 follow-up.
 - **Scope of `whoami`.** Absorb it into `describe_capabilities`, keep it as a thin
   alias, or leave both? One call is better for agents; two is more backward
-  compatible.
+  compatible. (Leaning: keep `whoami` as-is, add `describe_capabilities` beside
+  it, revisit once agents use the new call.)
 - **Static map exposure.** Should the unauthenticated `capability-map.md` list the
   full model to anonymous visitors? It reveals no secrets (the model is not
   sensitive), but it does advertise the API surface. Likely fine; worth a
