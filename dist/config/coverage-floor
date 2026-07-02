@@ -22,8 +22,8 @@
 #                                                    under the fake-repo copy path)
 #     tools/lazysite-bundle-apply.pl  90% / 65%
 #     tools/lazysite-users.pl         89% / 70%
-#     lazysite-manager-api.pl         71% / 57-72% <- branch NOISY run-to-run;
-#                                                     see the override below
+#     lazysite-manager-api.pl         71% / ~57%   <- branch settled ~57 across
+#                                                     0.5.36-0.5.39; see override
 #
 #   Modules (in-process + now-measured subprocess handlers):
 #     Util 100/92 · Auth::Acl 100/85 · Session 100/73 · Credential 100/72
@@ -38,12 +38,14 @@
 # the gate (its tests exercise a tempdir-copied tree end to end).
 floor=60
 branch_floor=60
-# manager-api's BRANCH measurement is noisy under subprocess instrumentation:
-# two same-code full runs (2026-07-02) measured 72.5% and 56.6% - the merged
-# contribution of instrumented children varies (suspected: the 2 s plugin
-# --describe alarm flips paths when instrumented children run slower, plus
-# per-run merge loss). Statements are stable (70.9-75.4). Override the branch
-# floor for this file only until the measurement is stabilised (backlog:
-# subprocess-coverage stability); ratchet back to 60 then. Never lower others.
-branch_floor[lazysite-manager-api.pl]=50
+# manager-api's BRANCH measurement swung run-to-run earlier (72.5% and 56.6% on
+# identical code, 2026-07-02) - suspected merge-timing of instrumented children.
+# Across the 0.5.36-0.5.39 runs it has since settled at ~57% (57.0, 57.3),
+# so the earlier swing looks resolved and the file's TRUE branch coverage is
+# ~57% - genuinely below the 60 floor, not merely mismeasured. Reaching 60 needs
+# targeted tests for its remaining dispatch branches, not just an override bump
+# (backlog: manager-api branch tests). Override ratcheted 50 -> 55 to reflect the
+# settled figure with a small margin; raise to 60 once the branch tests land.
+# Statements are stable (70.9-75.4). Never lower the others.
+branch_floor[lazysite-manager-api.pl]=55
 target=75

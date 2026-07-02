@@ -521,3 +521,80 @@ sub conf_value {
     $val =~ s/^\s+|\s+$//g;
     return $val;
 }
+
+__END__
+
+=head1 NAME
+
+lazysite-check - lazysite install health and permissions doctor
+
+=head1 SYNOPSIS
+
+  perl tools/lazysite-check.pl --docroot PATH [--fix] [options]
+  perl tools/lazysite-check.pl --dependencies
+
+=head1 DESCRIPTION
+
+Verifies that a lazysite docroot is set up so the (no-suexec, C<www-data>) CGI
+can read its configuration and write the things it must write - cache, logs,
+locks, secrets - that secrets are not world-exposed, and that the manager is
+bootstrapped. Each check reports C<OK>, C<WARN> or C<FAIL> with a remediation
+hint; the command exits non-zero if any check C<FAIL>s. With C<--fix> it applies
+the safe fixes (C<chmod> always; C<chown> only when run as root).
+
+The C<--dependencies> mode is a standalone host query - it needs no docroot and
+reports the non-core Perl modules lazysite needs (from
+F<dist/config/sbom-deps.json>), which are present, and the install line for any
+that are missing.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<--docroot> PATH
+
+The site's F<public_html> (required for the health checks).
+
+=item B<--cgibin> PATH
+
+The C<cgi-bin> directory. Default: F<< <docroot>/../cgi-bin >>.
+
+=item B<--owner> USER
+
+Expected owner. Default: the owner of the docroot.
+
+=item B<--group> GROUP
+
+Expected group. Default: C<www-data> (the CGI's group), else the docroot's group.
+
+=item B<--fix>
+
+Apply the safe fixes (C<chmod> always; C<chown> only when run as root).
+
+=item B<--check-dav> URL
+
+Probe C<< URL/dav/ >> unauthenticated; expect 401 (route wired), not 404 (the web
+server or proxy is not forwarding F</dav/>).
+
+=item B<--dependencies>
+
+Report the OS Perl packages lazysite needs (present vs missing) and the install
+line for whatever is absent. No docroot required; informational (exits 0).
+
+=item B<--help>
+
+Print the usage summary.
+
+=back
+
+=head1 EXIT STATUS
+
+Non-zero if any health check C<FAIL>s. The C<--dependencies> query is
+informational and exits 0.
+
+=head1 SEE ALSO
+
+L<lazysite-users.pl(1)>, L<install.pl(1)>. See also F<docs/OPERATOR.md> and
+F<docs/reference/host-dependencies.md>.
+
+=cut

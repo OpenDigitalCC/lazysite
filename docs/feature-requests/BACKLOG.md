@@ -59,13 +59,14 @@ before work starts.
   (SLO/RTO/RPO declaration, snapshot crons, logrotate, monitoring/alerting,
   debsecan + gitleaks installs, pentest gate + engagement, support period,
   signing/DoC/VEX/technical-file set).
-- **Subprocess-coverage measurement stability** - lazysite-manager-api.pl's
-  BRANCH coverage swings run-to-run under full-suite instrumentation (measured
-  72.5% and 56.6% on identical code, 2026-07-02; statements stable). Suspected:
-  the 2 s plugin `--describe` alarm flips code paths when instrumented children
-  run ~4x slower, plus possible per-run cover_db merge loss. Until stabilised,
-  the file carries a documented branch-floor override of 50 in
-  `dist/config/coverage-floor` - investigate, stabilise, ratchet back to 60.
+- **manager-api branch coverage to 60** - lazysite-manager-api.pl's BRANCH
+  coverage swung run-to-run earlier (72.5% and 56.6% on identical code,
+  2026-07-02) but has since settled at ~57% across the 0.5.36-0.5.39 runs, so the
+  swing looks resolved and the true figure is ~57% - genuinely below the 60 floor,
+  not just mismeasured. The override was ratcheted 50 -> 55 to reflect the settled
+  figure; reaching 60 needs targeted tests for the remaining dispatch branches in
+  the big `if/elsif` action chain (not just an override bump). Statements stable
+  (70.9-75.4).
 - **SM126** Partner-agent onboarding & capability discoverability *(scoped -
   see `SM126-agent-capability-discovery.md`; prompted by real partner-agent
   feedback 2026-07-02)* - a connecting agent currently has to reverse-engineer

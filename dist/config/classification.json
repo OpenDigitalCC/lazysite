@@ -139,7 +139,7 @@
     "^docs/feature-requests/",
     "^docs/reference/",
     "^docs/review/",
-    "^docs/(USER|DEVELOPER|IMPLEMENTOR|OPERATOR|POLICY|FEATURES|SECURITY)\\.md$",
+    "^docs/(USER|DEVELOPER|IMPLEMENTOR|OPERATOR|POLICY|FEATURES|SECURITY|ACCESSIBILITY)\\.md$",
     "^docs/.*\\.pdf$",
     "^CHANGELOG\\.md$",
     "^reported-issues\\.md$",
@@ -175,6 +175,8 @@
     "^tools/coverage\\.sh$",
     "^tools/gen-host-deps\\.pl$",
     "^tools/gen-capability-docs\\.pl$",
+    "^tools/gen-manpages\\.pl$",
+    "^man/",
     "^website/"
   ],
   "overrides": [],

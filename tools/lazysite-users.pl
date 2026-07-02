@@ -2389,3 +2389,81 @@ Options:
   --help                      Show this help
 USAGE
 }
+
+__END__
+
+=head1 NAME
+
+lazysite-users.pl - user, group and credential management for lazysite auth
+
+=head1 SYNOPSIS
+
+  perl tools/lazysite-users.pl --docroot PATH COMMAND [ARGS]
+  perl tools/lazysite-users.pl --api --docroot PATH < request.json
+
+=head1 DESCRIPTION
+
+The command-line (and JSON API) tool for lazysite's built-in authentication:
+accounts, group membership, per-group capabilities, and the credentials a
+publishing partner uses. Capabilities are carried by B<groups> (SM095); an
+account's effective rights are the union across its groups. The C<--api> mode
+reads one JSON request on STDIN and writes one JSON response - this is how the
+manager UI and control API drive user management.
+
+Run C<--help> for the complete, authoritative command list; it is the reference
+and is kept current with the code. The groups below summarise what the commands
+cover.
+
+=head1 COMMANDS
+
+=over 4
+
+=item Accounts
+
+C<add>, C<passwd>, C<remove>, C<list>, C<settings>, C<set> - create and manage
+accounts and the one account-shaped setting (C<ui>, interactive-login) plus
+C<dav_scope>.
+
+=item Groups and capabilities
+
+C<group-add>, C<group-remove>, C<groups>, C<permissions> - membership and the
+resolved channel x capability grid for a user.
+
+=item Bootstrap
+
+C<setup-manager> - one command to create the manager account, admin group and
+F<lazysite.conf> and set (or generate) a password. Idempotent.
+
+=item Credentials and partners
+
+C<token>, C<pairing-key>, C<token-exchange>, C<token-rotate>,
+C<partner-create>, C<account-create>, C<account-disable>, C<account-enable>,
+C<account-reassign> - issue and rotate credentials, provision an automated
+partner with an onboarding brief, and manage sub-account trees.
+
+=back
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<--docroot> PATH
+
+Path to the web document root (required).
+
+=item B<--api>
+
+Read one JSON request on STDIN and emit one JSON response (machine interface).
+
+=item B<--help>
+
+Print the full command reference.
+
+=back
+
+=head1 SEE ALSO
+
+L<lazysite-check.pl(1)>, L<install.pl(1)>. See also F<docs/reference/capability-map.md>
+and the C<describe-capabilities> control-API action for the capability model.
+
+=cut

@@ -1124,3 +1124,57 @@ Next steps:
 
 TEXT
 }
+
+__END__
+
+=head1 NAME
+
+install.pl - install or upgrade lazysite in place
+
+=head1 SYNOPSIS
+
+  install.pl --docroot PATH --cgibin PATH [--domain NAME] [--dry-run]
+
+=head1 DESCRIPTION
+
+Installs or upgrades lazysite in place from the shipped release manifest. On the
+first run it creates a fresh installation; on later runs it upgrades, overwriting
+project-owned code while preserving operator-edited content (pages, custom docs)
+per the manifest's C<code>/C<seed> classification. Per-file SHAs are recorded in
+F<lazysite/.install-state.json> so an edited seed file is never clobbered and an
+unwritable file is skipped non-fatally.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<--docroot> PATH
+
+Path to the web document root (required).
+
+=item B<--cgibin> PATH
+
+Path to the C<cgi-bin> directory (required).
+
+=item B<--domain> NAME
+
+Domain name for the C<site_url> in a newly-seeded F<lazysite.conf> (used only
+when seeding a fresh config).
+
+=item B<--dry-run>
+
+Compute and print the plan without making any filesystem change. Run this before
+an upgrade to see what would be written.
+
+=item B<--help>
+
+Print the usage summary.
+
+=back
+
+=head1 SEE ALSO
+
+L<lazysite-check.pl(1)>, L<lazysite-users.pl(1)>. See also
+F<installers/hestia/INSTALL-RUNBOOK.md> and F<docs/IMPLEMENTOR.md>.
+
+=cut
