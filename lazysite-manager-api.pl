@@ -25,6 +25,7 @@ BEGIN {
 }
 use Lazysite::Util qw(log_event const_eq);
 use Lazysite::Audit qw(audit_log);
+use Lazysite::Capabilities qw(describe capability_keys);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Auth::Session qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
@@ -317,6 +318,7 @@ if ( $token_auth ) {
         'nav-read'          => sub { $_[0]->{manage_nav} },
         'nav-save'          => sub { $_[0]->{manage_nav} },
         'whoami'            => sub { 1 },   # any authenticated token may introspect its own grant
+        'describe-capabilities' => sub { 1 },   # SM126: introspection - the capability map
         # Visitor-log analysis over the control API (token clients), same grant as
         # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
         'analyse_visitors'  => sub { $_[0]->{analytics} },
@@ -447,6 +449,7 @@ elsif ( $action eq 'handler-list' )     { $result = action_handler_list() }
 elsif ( $action eq 'version' )          { $result = action_version() }
 elsif ( $action eq 'analyse_visitors' ) { $result = action_analyse_visitors( $params{window} ) }
 elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
+elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
 elsif ( $action eq 'audit' )            {
     # Strict gate: the audit trail requires the 'audit' capability (separate from
     # visitor analytics). Token clients are already gated by %need above; a cookie
@@ -513,7 +516,7 @@ else  { $result = { ok => 0, error => "Unknown action: $action" } }
 # not overlap with them. Read-ish POSTs (the UI POSTs everything) are skipped.
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
-        csrf-token list read principals whoami audit version acl-get cache-list analyse_visitors
+        csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
         cache-invalidate nav-read config-read pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
@@ -1153,6 +1156,21 @@ sub site_capabilities {
 # groups, scope) and what the site offers (plugins with status, layouts and
 # themes with their active flags) - so an agent learns its real grant rather
 # than parsing the bootstrap prose. Allowed for any authenticated caller.
+# SM126: the capability map - the static model (channels, what each capability
+# unlocks, task recipes, engine-owned paths) plus this caller's own grant under
+# "holds". Introspection: allowed for any authenticated caller (token or cookie).
+sub action_describe_capabilities {
+    my ($user) = @_;
+    my $s = ( users_api({ action => 'settings-get', username => $user }) || {} )->{settings} || {};
+    my $allg = ( users_api({ action => 'groups' }) || {} )->{groups} || {};
+    my @groups = sort grep {
+        ref $allg->{$_} eq 'ARRAY' && ( grep { $_ eq $user } @{ $allg->{$_} } )
+    } keys %$allg;
+    my $map = describe( caps => $s, account => $user, groups => \@groups );
+    $map->{ok} = 1;
+    return $map;
+}
+
 sub action_whoami {
     my ($user) = @_;
     my $s = ( users_api({ action => 'settings-get', username => $user }) || {} )->{settings} || {};
@@ -1172,22 +1190,16 @@ sub action_whoami {
         # are operators (full access) vs partners gated by the capability toggles.
         manager_groups => [ grep { length } split /[,\s]+/, ( $manager_groups_conf // '' ) ],
         # $s is the EFFECTIVE settings (from settings-get -> the resolver), so report
-        # every capability straight from it - channels and actions alike.
+        # every capability straight from it. SM126: derived from @CAP_KEYS (via
+        # capability_keys) so a new capability appears here automatically - the old
+        # hand-list had drifted, omitting delegate_sub_user_creation. `ui` keeps its
+        # default-on semantics (true unless explicitly disabled).
         capabilities => {
-            ui               => $bool->( !( exists $s->{ui} && !$s->{ui} ) ),
-            webdav           => $bool->( $s->{webdav} ),
-            api              => $bool->( $s->{api} ),
-            mcp              => $bool->( $s->{mcp} ),
-            manage_content   => $bool->( $s->{manage_content} ),
-            manage_nav       => $bool->( $s->{manage_nav} ),
-            manage_forms     => $bool->( $s->{manage_forms} ),
-            manage_themes    => $bool->( $s->{manage_themes} ),
-            manage_layouts   => $bool->( $s->{manage_layouts} ),
-            manage_config    => $bool->( $s->{manage_config} ),
-            manage_users     => $bool->( $s->{manage_users} ),
-            analytics        => $bool->( $s->{analytics} ),
-            audit            => $bool->( $s->{audit} ),
-            create_sub_users => $bool->( $s->{create_sub_users} ),
+            map {
+                $_ => ( $_ eq 'ui'
+                        ? $bool->( !( exists $s->{ui} && !$s->{ui} ) )
+                        : $bool->( $s->{$_} ) )
+            } capability_keys()
         },
         groups => \@groups,
         scope  => {

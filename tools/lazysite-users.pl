@@ -2125,14 +2125,19 @@ sub cmd_permissions_grid {
             push @{ $granted_by{$k} }, $g if $cfg->{$k};
         }
     }
+    # SM126: derive the grid axes from @CAP_KEYS (the single source of truth) so a
+    # new capability appears automatically. Channels are the fixed where-you-operate
+    # set; actions are the rest. The hard-coded arrays here had to be kept in sync
+    # by hand and could drift.
+    my @channels = qw(ui webdav api mcp);
+    my %is_channel = map { $_ => 1 } @channels;
+    my @actions = grep { !$is_channel{$_} } @CAP_KEYS;
     return {
         ok         => 1,
         user       => $user,
         groups     => \@mygroups,
-        channels   => [qw(ui webdav api mcp)],
-        actions    => [qw(manage_content manage_nav manage_forms manage_themes
-            manage_layouts manage_config manage_users analytics audit
-            create_sub_users delegate_sub_user_creation)],
+        channels   => \@channels,
+        actions    => \@actions,
         granted_by => \%granted_by,
     };
 }

@@ -107,6 +107,28 @@ my $nn = mapi( $d, QUERY_STRING => 'action=nav-read',
 ok( !$nn->{ok} && $nn->{error} =~ /capability/i,
     'nav-read denied to a token without manage_nav' );
 
+# --- SM126: the api channel gate + introspection exemption -------------------
+# 'nocap' holds no caps (so no api channel). A real action is refused naming the
+# api capability, ahead of the per-action check...
+my $ag = mapi( $d, QUERY_STRING => 'action=theme-list',
+    HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
+ok( !$ag->{ok} && $ag->{error} =~ /api/i && $ag->{error} =~ /capabilit/i,
+    'token without api: a real action is denied naming the api capability' );
+
+# ...but introspection (whoami, describe-capabilities) stays open.
+my $wai = mapi( $d, QUERY_STRING => 'action=whoami',
+    HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
+ok( $wai->{ok}, 'token without api: whoami still allowed (introspection)' );
+
+my $dcap = mapi( $d, QUERY_STRING => 'action=describe-capabilities',
+    HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
+ok( $dcap->{ok}, 'token without api: describe-capabilities allowed (introspection)' );
+ok( $dcap->{channels}{api}{enforced}, 'map: api channel reports enforced' );
+ok( exists $dcap->{capabilities}{manage_themes}, 'map lists an action capability' );
+ok( @{ $dcap->{tasks} || [] } >= 3, 'map carries task recipes' );
+ok( exists $dcap->{holds}{capabilities}{delegate_sub_user_creation},
+    'holds carries the full @CAP_KEYS incl. delegate_sub_user_creation (drift fix)' );
+
 # --- CSRF exemption: token POST needs no CSRF token ----------------------
 my $pa = mapi( $d, REQUEST_METHOD => 'POST',
     QUERY_STRING => 'action=theme-activate&path=live',

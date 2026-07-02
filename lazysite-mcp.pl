@@ -30,6 +30,7 @@ BEGIN {
 }
 use Lazysite::Util qw(log_event);
 use Lazysite::Audit qw(audit_log);
+use Lazysite::Capabilities qw(describe);
 use Lazysite::Auth::OAuth ();
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
     action_move action_acl_get action_acl_set action_acl_remove);
@@ -251,6 +252,21 @@ my %TOOLS = (
                 # (OAuth tokens expire ~hourly and refresh transparently; a
                 # static/operator credential may be permanent = null).
                 auth => { method => $AUTH_INFO{method}, expires_at => $AUTH_INFO{expires_at} } };
+        },
+    },
+    describe_capabilities => {
+        description => 'Return the full capability map: the four channels (all '
+            . 'enforced), every capability and what it unlocks (which MCP tools, '
+            . 'control-API actions and WebDAV paths), task recipes for common jobs, '
+            . 'the engine-owned paths you must not write, and - under "holds" - what '
+            . 'THIS account currently has. Call this first to learn what you may do.',
+        cap         => undef,   # introspection: exempt from the mcp channel gate
+        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $args, $user, $caps ) = @_;
+            my $map = describe( caps => $caps, account => $user );
+            $map->{ok} = JSON::PP::true;
+            return $map;
         },
     },
     list_files => {
