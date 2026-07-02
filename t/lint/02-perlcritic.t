@@ -1,6 +1,6 @@
 #!/usr/bin/perl
-# WP-1 (D1 code quality): enforce the curated Perl::Critic profile
-# (.perlcriticrc) over the production scripts at severity 4. The deliberately
+# WP-1 (D1/D2 code quality): enforce the curated Perl::Critic profile
+# (.perlcriticrc) over the production scripts at severity 3. The deliberately
 # disabled policies are documented in the profile and in
 # docs/architecture/code-quality.md. Skips cleanly where perlcritic is not
 # installed - it is a host dev tool, not a runtime dependency.
@@ -23,7 +23,7 @@ ok( scalar @scripts, 'found production scripts to lint' );
 # means empty output.
 my $list = join ' ', map { "'$_'" } @scripts;
 my $out = `cd '$root' && perlcritic --profile '$root/.perlcriticrc' --quiet $list 2>&1`;
-is( $out, '', 'all production scripts pass the lazysite perlcritic profile (severity 4)' )
+is( $out, '', 'all production scripts pass the lazysite perlcritic profile (severity 3)' )
     or diag("perlcritic violations:\n$out");
 
 done_testing();

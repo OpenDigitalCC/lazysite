@@ -44,21 +44,33 @@ now live in the shared modules rather than being duplicated by convention.
 ## Perl::Critic policy
 
 Enforced by `t/lint/02-perlcritic.t` against the project profile
-`.perlcriticrc` at **severity 4** (the serious set), so the gate passes with
-zero violations, plus `t/lint/05-perlcritic-security.t` (the security theme at
-severity 1, also zero) and the `t/lint/04-compile.t` compile sweep. Tightening
-the project gate to severity 3 is tracked work: the 2026-07-01 review measured
-the severity-3 delta at 1,518 violations, of which 1,197 (79 per cent) are
-`RequireExtendedFormatting` alone - deciding that one policy leaves ~321, about
-half mechanical (see the eight-dimension review, dimension 2). The profile
-disables the policies below for documented reasons (deliberate project
-conventions); a genuine one-off (the dev-server module probe) carries an inline
-`## no critic` so the policy stays active for production code. Intentional
-deviations (hit counts re-measured 2026-07-01):
+`.perlcriticrc` at **severity 3**, so the gate passes with zero violations, plus
+`t/lint/05-perlcritic-security.t` (the security theme at severity 1, also zero),
+the `t/lint/04-compile.t` compile sweep, and `t/lint/06-tidy.t` (the
+changed-code-only perltidy gate). The severity-3 move (review D2, 2026-07-02)
+fixed the genuine findings it surfaced - unchecked `open`s folded into their `-f`
+guards, and unused capture groups made non-capturing; those policies stay
+**enabled**. The severity-3 delta had been dominated by
+`RequireExtendedFormatting` (1,204 short patterns); rather than `/x` them all
+(the clutter the house style rejects), the policy is enabled with a
+**60-character complexity threshold**, so only genuinely complex patterns (the
+access-log parser, the oembed/date/block patterns - now carrying `/x`) are
+required to use it. The remaining deviations below are deliberate project
+conventions or policies that over-fire on a safe idiom; a genuine one-off (the
+dev-server module probe) carries an inline `## no critic`. Intentional
+deviations:
 
 | Policy | Deviation | Reason |
 |---|---|---|
-| `RegularExpressions::RequireExtendedFormatting` (~1,200 hits) | `/x` not used on simple one-line patterns | `/x` adds clutter to short patterns with no clarity win. Used where patterns are genuinely multi-line (the `convert_fenced_*` family). |
+| `RegularExpressions::RequireExtendedFormatting` | `/x` required only on patterns >= 60 chars | `/x` adds clutter to short patterns with no clarity win; complex patterns carry it. A `minimum_regex_length_to_complain_about = 60` threshold encodes this. |
+| `RegularExpressions::ProhibitCaptureWithoutTest` | disabled | Over-fires on the `return $1 if $s =~ /.../` postfix-if idiom (the match IS the guard). |
+| `ErrorHandling::RequireCheckingReturnValueOfEval` / `RequireCarping` | disabled | Best-effort evals and return-value-as-check idioms; `die` goes to the log. |
+| `Subroutines::ProhibitUnusedPrivateSubroutines` | disabled | `_`-prefixed helpers are exported (`@EXPORT_OK`) and used cross-module; the policy sees only the declaring file. |
+| Complexity / dispatch (`ProhibitExcessComplexity`, `ProhibitExcessMainComplexity`, `ProhibitCascadingIfElse`) | disabled | `main()` and the manager-API dispatch are documented, tested if/elsif dispatchers. |
+| `Variables::ProhibitPackageVars` | disabled | Module interface / config package vars are a deliberate cross-script contract. |
+| `Variables::RequireInitializationForLocalVars` | disabled | `local $/;` (slurp idiom) is intentional. |
+| `InputOutput::ProhibitBacktickOperators` | disabled | `qx` captures a child's output in the tools/dev server by design. |
+| misc style (`ProhibitManyArgs`, `ProhibitReusedNames`, `ProhibitDeepNests`, `ProhibitComplexMappings`, `ProhibitVoidGrep`, `RequireSimpleSortBlock`, `ProhibitNegative…Unless`, `ProhibitAmbiguousNames`, `ProhibitConditionalUseStatements`, `ProhibitComplexRegexes`) | disabled | Deliberate local idioms; see the per-policy comment in `.perlcriticrc`. |
 | `InputOutput::RequireEncodingWithUTF8Layer` (~90 hits) | `:utf8` used instead of `:encoding(UTF-8)` | `:utf8` is the looser mode. The strict variant would raise a decoding error on latin1 content, turning a legacy file into a 500 rather than rendering it with replacement chars. Looser mode chosen so operator-supplied content does not need to be re-encoded on upgrade. NOTE: JSON auth files are the exception - they are read as raw octets for `decode_json` (ADR 0001). |
 | `InputOutput::ProhibitInteractiveTest` in `tools/lazysite-server.pl` | `-t STDOUT` for TTY detection | Single line, single check. Adding `IO::Interactive` as a dependency for one call would be over-engineering. |
 | `Subroutines::RequireFinalReturn` (~127 hits) | Subs end on their last expression | The CGIs use the last-expression return throughout; the sites agree on this shape. |
@@ -66,9 +78,11 @@ deviations (hit counts re-measured 2026-07-01):
 | `TestingAndDebugging::ProhibitNoWarnings` (2 hits) | Narrow `no warnings 'category'` | Used deliberately - `'once'` around a `DB_File` tie and `'uninitialized'` around a log join. A *bare* `no warnings` would still want review. |
 | `BuiltinFunctions::ProhibitStringyEval` in `tools/lazysite-server.pl` | `eval "require $mod"` for module probing | Inline `## no critic` (policy stays active elsewhere). `$mod` is from a hard-coded list; no injection surface; dev server only. |
 
-The profile passes at severity 4 with zero violations; the one real cleanup
-from the 2026 review (a comma-operator statement in `lazysite-auth.pl`) was
-fixed rather than excluded.
+The profile passes at severity 3 with zero violations. Formatting is a separate
+gate: `.perltidyrc` is calibrated to the hand-written house style (newlines
+frozen) and enforced changed-code-only by `tools/tidy-check.pl` /
+`t/lint/06-tidy.t`, so new and edited lines are tidy without reformatting the
+existing tree.
 
 ## Naming conventions
 

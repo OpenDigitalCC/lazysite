@@ -1093,10 +1093,10 @@ sub action_config_set {
     return { ok => 0, error => "Config key '$key' is not settable via the API" }
         unless $allow{$key};
     # SM122: validate the enum/name-shaped keys.
-    if ( $key eq 'webdav_enabled' && defined $value && $value !~ /^(enabled|disabled)$/ ) {
+    if ( $key eq 'webdav_enabled' && defined $value && $value !~ /^(?:enabled|disabled)$/ ) {
         return { ok => 0, error => "webdav_enabled must be 'enabled' or 'disabled'" };
     }
-    if ( $key eq 'update_channel' && defined $value && $value !~ /^(all|stable)$/ ) {
+    if ( $key eq 'update_channel' && defined $value && $value !~ /^(?:all|stable)$/ ) {
         return { ok => 0, error => "update_channel must be 'all' or 'stable'" };
     }
     if ( ( $key eq 'layout' || $key eq 'theme' ) && defined $value && length $value
@@ -1446,7 +1446,7 @@ sub action_users {
             return { ok => 0, error => "claim-redeem is not a manager action" }
                 if $act eq 'claim-redeem';
             if ( $auth_user ne 'local'
-                 && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|rename)$/ ) {
+                && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|rename)$/x ) {
                 $parsed->{actor} = $auth_user unless _is_operator();
                 $parsed->{created_by} //= $auth_user if $act eq 'account-create';
                 $request_body = encode_json($parsed);
@@ -1545,8 +1545,7 @@ sub _nav_conf_path {
     # Read nav_file from lazysite.conf, default to lazysite/nav.conf
     my $nav_file = 'lazysite/nav.conf';
     my $conf = "$DOCROOT/lazysite/lazysite.conf";
-    if ( -f $conf ) {
-        open my $fh, '<:utf8', $conf;
+    if ( -f $conf and open my $fh, '<:utf8', $conf ) {
         while (<$fh>) {
             if ( /^nav_file\s*:\s*(.+)/ ) {
                 $nav_file = $1;

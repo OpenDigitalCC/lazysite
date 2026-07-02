@@ -228,8 +228,7 @@ sub action_plugin_read {
 
     if ($config_file) {
         my $conf_path = "$DOCROOT/$config_file";
-        if ( -f $conf_path ) {
-            open my $fh, '<:utf8', $conf_path;
+        if ( -f $conf_path and open my $fh, '<:utf8', $conf_path ) {
             while (<$fh>) {
                 chomp;
                 s/^\s+|\s+$//g;
@@ -243,8 +242,7 @@ sub action_plugin_read {
     elsif ( $desc->{config_keys} ) {
         my %want = map { $_ => 1 } @{ $desc->{config_keys} };
         my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
-        if ( -f $conf_path ) {
-            open my $fh, '<:utf8', $conf_path;
+        if ( -f $conf_path and open my $fh, '<:utf8', $conf_path ) {
             while (<$fh>) {
                 chomp;
                 s/^\s+|\s+$//g;
@@ -285,8 +283,7 @@ sub action_plugin_save {
     if ($config_file) {
         my $conf_path = "$DOCROOT/$config_file";
         my $content   = '';
-        if ( -f $conf_path ) {
-            open my $fh, '<:utf8', $conf_path;
+        if ( -f $conf_path and open my $fh, '<:utf8', $conf_path ) {
             $content = do { local $/; <$fh> };
             close $fh;
         }
@@ -310,8 +307,7 @@ sub action_plugin_save {
         my %want = map { $_ => 1 } @{ $desc->{config_keys} };
         my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
         my $content   = '';
-        if ( -f $conf_path ) {
-            open my $fh, '<:utf8', $conf_path;
+        if ( -f $conf_path and open my $fh, '<:utf8', $conf_path ) {
             $content = do { local $/; <$fh> };
             close $fh;
         }

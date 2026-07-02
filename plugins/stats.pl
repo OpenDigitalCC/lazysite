@@ -338,7 +338,13 @@ sub scan_stats {
     my $CAP = 10_000_000;   # runaway guard; aggregates use bounded memory
     while ( my $line = <$fh> ) {
         last if ++$scanned > $CAP;
-        next unless $line =~ m{^(\S+) \S+ \S+ \[([^\]]+)\] "\S+ (\S+) [^"]*" (\d{3}) (\S+) "([^"]*)" "([^"]*)"};
+        next unless $line =~ m{
+            ^(\S+)\ \S+\ \S+          # remote host (1), ident, authuser
+            \ \[([^\]]+)\]            # [date] (2)
+            \ "\S+\ (\S+)\ [^"]*"     # "method  path(3)  protocol"
+            \ (\d{3})\ (\S+)          # status (4), bytes (5)
+            \ "([^"]*)"\ "([^"]*)"    # "referer(6)"  "user-agent(7)"
+        }x;
         my ( $ip, $date, $path, $st, $bs, $ref, $ua ) = ( $1, $2, $3, $4, $5, $6, $7 );
         next unless $date =~ m{^(\d+)/(\w+)/(\d+):(\d+):(\d+):(\d+)} && exists $mon{$2};
         my ( $d, $mo, $y, $H, $Mi, $S ) = ( $1, $2, $3, $4, $5, $6 );
@@ -447,7 +453,13 @@ sub scan_stats {
 sub _parse_line {
     my ($line) = @_;
     return undef
-        unless $line =~ m{^(\S+) \S+ \S+ \[([^\]]+)\] "\S+ (\S+) [^"]*" (\d{3}) (\S+) "([^"]*)" "([^"]*)"};
+        unless $line =~ m{
+            ^(\S+)\ \S+\ \S+          # remote host (1), ident, authuser
+            \ \[([^\]]+)\]            # [date] (2)
+            \ "\S+\ (\S+)\ [^"]*"     # "method  path(3)  protocol"
+            \ (\d{3})\ (\S+)          # status (4), bytes (5)
+            \ "([^"]*)"\ "([^"]*)"    # "referer(6)"  "user-agent(7)"
+        }x;
     my ( $ip, $date, $path, $st, $bs, $ref, $ua ) = ( $1, $2, $3, $4, $5, $6, $7 );
     return undef
         unless $date =~ m{^(\d+)/(\w+)/(\d+):(\d+):(\d+):(\d+)} && exists $MON_X{$2};

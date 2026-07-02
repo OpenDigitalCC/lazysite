@@ -27,7 +27,7 @@ sub parse_when {
     $v =~ s/^\s+|\s+$//g;
     return undef unless length $v;
     return $v + 0 if $v =~ /^\d{9,}$/;
-    if ( $v =~ /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/ ) {
+    if ( $v =~ /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/x ) {
         my ( $Y, $Mo, $D, $h, $mi, $s ) =
             ( $1, $2, $3, defined $4 ? $4 : 23, defined $5 ? $5 : 59, defined $6 ? $6 : 59 );
         require Time::Local;

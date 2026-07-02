@@ -35,7 +35,7 @@ sub is_prod {
     my ($f) = @_;
     return 0 unless $f =~ /\.p[lm]$/;
     return 0 if $f =~ m{^t/};
-    return 1 if $f =~ m{^(?:[^/]+\.pl|tools/[^/]+\.pl|plugins/[^/]+\.pl|lib/Lazysite/.+\.pm)$};
+    return 1 if $f =~ m{^(?:[^/]+\.pl|tools/[^/]+\.pl|plugins/[^/]+\.pl|lib/Lazysite/.+\.pm)$}x;
     return 0;
 }
 

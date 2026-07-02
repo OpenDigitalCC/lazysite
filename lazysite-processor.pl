@@ -2194,7 +2194,7 @@ sub convert_fenced_code {
 # block-level element. (Reported from an AI-partner site review, 2026-06.)
 sub unwrap_block_html {
     my ($html) = @_;
-    my $block = qr/(?:section|article|aside|nav|header|footer|figure|figcaption|main|div|details|summary|address|blockquote|form|fieldset|table|ul|ol|dl|hr|style)/i;
+    my $block = qr/(?:section|article|aside|nav|header|footer|figure|figcaption|main|div|details|summary|address|blockquote|form|fieldset|table|ul|ol|dl|hr|style)/ix;
     $html =~ s{<p>\s*(<$block\b)}{$1}g;
     $html =~ s{(</$block>)\s*</p>}{$1}g;
     return $html;
@@ -2341,8 +2341,8 @@ sub find_oembed_endpoint {
     my $page = fetch_url($url);
     return unless $page;
 
-    if ( $page =~ m{<link[^>]+type=["']application/json\+oembed["'][^>]+href=["']([^"']+)["']}i
-      || $page =~ m{<link[^>]+href=["']([^"']+)["'][^>]+type=["']application/json\+oembed["']}i )
+    if ( $page =~ m{<link[^>]+type=["']application/json\+oembed["'][^>]+href=["']([^"']+)["']}ix
+        || $page =~ m{<link[^>]+href=["']([^"']+)["'][^>]+type=["']application/json\+oembed["']}ix )
     {
         return $1;
     }
