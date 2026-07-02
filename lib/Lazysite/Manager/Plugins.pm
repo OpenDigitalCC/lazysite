@@ -78,8 +78,8 @@ sub action_plugin_list {
     # repo root (core) but expose --describe and are plugins in
     # the manager-UI sense — the site config page at config.md
     # drives its form from the processor's descriptor rather than
-    # duplicating the schema. payment-demo has no --describe
-    # support so it's not listed here.
+    # duplicating the schema. Every shipped plugin answers
+    # --describe (payment-demo included, marked demo:true).
     my $base = Cwd::realpath("$DOCROOT/..");
     my @plugins;
 

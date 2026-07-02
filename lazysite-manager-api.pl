@@ -1197,14 +1197,6 @@ sub action_whoami {
 # at the top. action_audit (the reader, below) stays here - it is a manager
 # action.
 
-# SM072: read the audit trail (newest first), optionally filtered by user.
-sub _user_analytics {
-    my ($user) = @_;
-    return 0 unless defined $user && length $user;
-    my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
-    return $s->{analytics} ? 1 : 0;
-}
-
 # SM: the audit trail is its own capability now, separate from visitor analytics.
 sub _user_audit {
     my ($user) = @_;

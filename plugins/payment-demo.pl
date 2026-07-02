@@ -10,6 +10,27 @@ use File::Path qw(make_path);
 
 my $LOG_COMPONENT = 'payment-demo';
 
+# Plugin interface uniformity: every shipped plugin answers --describe (the
+# manager's discovery probe). Handled BEFORE the DOCUMENT_ROOT check - the probe
+# runs without a CGI environment, and without this handler the probe used to
+# fall through to a full page render under CGI. Minimal contract: id is the
+# only required key; demo marks it as not-for-production.
+if ( grep { $_ eq '--describe' } @ARGV ) {
+    require JSON::PP;
+    print JSON::PP::encode_json({
+        id          => 'payment-demo',
+        name        => 'Payment Demo',
+        description => 'DEMO ONLY x402 payment simulator (signed cookie). Not for '
+                     . 'production - use an upstream payment proxy that sets '
+                     . 'X-Payment-Verified after on-chain validation.',
+        version     => '1.0',
+        demo        => JSON::PP::true(),
+        config_schema => [],
+        actions       => [],
+    });
+    exit 0;
+}
+
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
@@ -101,13 +122,16 @@ sub handle_request {
         }
     }
 
-    # Exec processor
+    # Exec processor. The block form of exec suppresses perl's
+    # "statement unlikely to be reached" compile-time warning while keeping
+    # the failure path (exec returns only on error).
     my $processor = $ENV{LAZYSITE_PROCESSOR}
         // "$DOCROOT/../cgi-bin/lazysite-processor.pl";
 
-    exec $^X, $processor;
-    log_event('ERROR', $uri, 'exec failed', error => $!);
-    die "exec failed: $!\n";
+    unless ( exec {$^X} $^X, $processor ) {
+        log_event('ERROR', $uri, 'exec failed', error => $!);
+        die "exec failed: $!\n";
+    }
 }
 
 # --- Utilities ---
