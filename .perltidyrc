@@ -1,0 +1,25 @@
+# lazysite perltidy profile (review D2).
+#
+# Calibrated to the existing hand-written house style rather than imposing
+# perltidy's defaults. Newlines and blank lines are FROZEN (-fnl/-fbl), so the
+# author's line breaks - one-line subs, multi-line qw() tables, deliberate
+# grouping - are preserved; perltidy only normalises spacing, indentation and
+# column alignment WITHIN the lines the author already chose.
+#
+# The tidy gate (tools/tidy-check.pl, t/lint/06-tidy.t) is CHANGED-CODE-ONLY: it
+# flags a line a commit added or edited that is not in this form. The existing
+# tree keeps its hand-formatting; this profile is the standard for new and
+# edited lines going forward. Run `perltidy -b <file>` (or tools/tidy-check.pl)
+# on code you touch before committing.
+
+-i=4        # 4-space indentation
+-ci=4       # 4-space continuation indent
+-l=90       # nominal max line length (-fnl keeps the author's breaks)
+-fnl        # freeze newlines - never add or remove a line break
+-fbl        # freeze blank lines - never add or remove a blank line
+-nbl        # opening brace stays on the same line (house style)
+-nsfs       # no space before the semicolon in a C-style for
+-nolq       # do not outdent long quoted strings
+-pt=1       # parens: space inside unless empty  ->  if ( $x ),  foo()
+-sbt=1      # square brackets: same
+-bt=1       # code braces: same

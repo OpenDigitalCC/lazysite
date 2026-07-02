@@ -31,8 +31,12 @@ Capabilities are per-account settings read **per request** (`webdav`,
 
 - **Self-contained CGIs**, core-Perl, no CPAN at runtime. New deps must be added
   to `dist/config/sbom-deps.json` or the strict SBOM gate fails the release.
-- **`.perlcriticrc`** (severity 4) is the enforced lint profile; `return undef`
-  is the project idiom (see code-quality.md).
+- **`.perlcriticrc`** is the enforced lint profile; `return undef` is the project
+  idiom (see code-quality.md).
+- **`.perltidyrc`** is the formatting profile, gated CHANGED-CODE-ONLY: the
+  existing hand-formatting stays, but code you add or edit must match it. Run
+  `perltidy -b <file>` on what you touch, or `tools/tidy-check.pl` to see which
+  lines the gate (`t/lint/06-tidy.t`) will flag.
 - **Conventional names** (view.tt, lazysite.conf, /manager, …) are settled -
   see code-quality.md.
 - **Engine-owned vs author files.** The engine owns `lazysite/auth`, `lazysite/cache`,

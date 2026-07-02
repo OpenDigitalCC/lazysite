@@ -10,9 +10,9 @@
 # non-empty pages.
 use strict;
 use warnings;
-use Cwd qw(abs_path);
+use Cwd            qw(abs_path);
 use File::Basename qw(dirname);
-use File::Path qw(make_path);
+use File::Path     qw(make_path);
 
 my $root   = dirname( dirname( abs_path($0) ) );
 my $outdir = shift @ARGV // "$root/man/man1";
