@@ -18,6 +18,33 @@ Keying
 
 ## Unreleased
 
+## 0.5.40 - Code-quality gates + documentation debt (2026-07-02)
+
+Feature - Perl::Critic severity 3 (review D2)
+: the gate (`t/lint/02-perlcritic.t`) now enforces severity 3 with zero
+  violations. The move fixed genuine findings - unchecked `open`s folded into
+  their `-f` guards, unused capture groups made non-capturing - which keep their
+  policies enabled. `RequireExtendedFormatting` is enabled with a 60-char
+  complexity threshold (only complex patterns need `/x`; the access-log parser
+  and a few others now carry a readable `/x` form). Remaining deviations are
+  documented house conventions in `.perlcriticrc`.
+
+Feature - perltidy tidy gate, changed-code-only (review D2)
+: `.perltidyrc` is calibrated to the hand-written house style (newlines frozen);
+  `tools/tidy-check.pl` / `t/lint/06-tidy.t` flag only lines a change touched
+  (since the last release) that are not tidy. New/edited code is tidy without
+  reformatting the legacy tree.
+
+Docs - accessibility + man pages (review D7)
+: `docs/ACCESSIBILITY.md` is a WCAG 2.1 AA self-assessment of the manager UI and
+  default theme, honest about verified vs untested. The CLI tools carry POD, so
+  `perldoc` works and `tools/gen-manpages.pl` renders man pages at release.
+
+Chore - coverage-floor honesty
+: the manager-api branch measurement has settled at ~57% across recent runs; the
+  per-file override reflects the true figure (reaching 60 needs targeted
+  dispatch-branch tests, backlogged).
+
 ## 0.5.39 - Agent capability discovery + strict api/mcp channel gating (2026-07-02)
 
 Feature - capability map (SM126 A/B)
