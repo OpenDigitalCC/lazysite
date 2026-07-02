@@ -13,7 +13,10 @@ this is the map. For running it afterwards see [OPERATOR.md](OPERATOR.md).
   bridge and is not the supported path.
 - **Perl** (5.x core). Optional: Template Toolkit (theming), Archive::Zip
   (layout install), DB_File (rate limiting). All declared in
-  `dist/config/sbom-deps.json`.
+  `dist/config/sbom-deps.json`; the packaged list (Debian names + purpose) is
+  at [docs/reference/host-dependencies.md](reference/host-dependencies.md), and
+  `lazysite-check.pl --dependencies` reports which are present on a given host
+  and the install line for anything missing.
 
 ## Install model
 

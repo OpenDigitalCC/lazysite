@@ -1,0 +1,63 @@
+---
+title: "lazysite - host dependencies"
+subtitle: "The OS packages a host needs, beyond core Perl"
+brand: plain
+standard-margins: true
+---
+
+**Generated file - do not edit by hand.** Produced from
+`dist/config/sbom-deps.json` by `tools/gen-host-deps.pl`; that JSON is the
+authoritative machine-readable list. To check a live host instead of reading
+this snapshot, run `lazysite-check.pl --dependencies`, which reports which of
+these are present and prints the install line for whatever is missing.
+
+## What you need
+
+lazysite runs on core Perl plus a small set of packaged Perl modules. The core
+modules ship with the `perl` package (Debian: `perl-modules-*`); only the
+non-core packages below must be installed explicitly. Package names are Debian;
+`sbom-deps.json` also carries the RHEL and Alpine equivalents.
+
+On Debian or Ubuntu, install them all with:
+
+```bash
+sudo apt-get install \
+    libarchive-zip-perl \
+    libio-socket-ssl-perl \
+    libtemplate-perl \
+    libtext-multimarkdown-perl \
+    liburi-perl \
+    libwww-perl
+```
+
+## Packages
+
+```datatable
+columns: Package | Perl module(s) | Enables
+widths: 5cm | 4.5cm | X
+bold: 1
+tone: medium
+text: 3
+---
+libarchive-zip-perl | Archive::Zip | theme upload (manager), zip download (manager)
+libio-socket-ssl-perl | IO::Socket::SSL | SMTP form delivery over STARTTLS
+libtemplate-perl | Template, Template::Parser | SM071 layout.tt compile validation in the control API (ships with Template); Template Toolkit page rendering (processor core)
+libtext-multimarkdown-perl | Text::MultiMarkdown | Markdown to HTML conversion (processor core)
+liburi-perl | URI | URL parsing in SSRF guard and remote-fetch path resolution
+libwww-perl | LWP::UserAgent | remote content fetch for :::include and url: variables, form webhook delivery
+```
+
+## Runtime environment
+
+perl
+: Perl runtime. Required version 5.10+. On Debian: 'perl'. On Alpine: 'perl'. On RHEL: 'perl'. Includes core modules listed above.
+
+Apache HTTP Server
+: CGI host. Operator-provided. Any CGI/1.1-capable server works; Apache is the reference platform. The dev server (tools/lazysite-server.pl) is evaluation-only.
+
+## Core modules
+
+The remaining modules lazysite uses (`Digest::SHA`, `File::*`, `POSIX`, `Cwd`,
+`Encode`, `JSON::PP`, `MIME::Base64`, `Socket`, `IO::Socket::INET`, and the
+rest) are core Perl - present wherever Perl is. The full list, with per-module
+purpose and licence, is in `dist/config/sbom-deps.json`.

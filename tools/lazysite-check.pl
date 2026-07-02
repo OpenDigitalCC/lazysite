@@ -18,7 +18,7 @@ use Cwd qw(abs_path);
 use File::Find ();
 
 my %opt = ( docroot => undef, cgibin => undef, owner => undef,
-            group => undef, fix => 0, check_dav => undef );
+            group => undef, fix => 0, check_dav => undef, dependencies => 0 );
 while ( @ARGV ) {
     my $a = shift @ARGV;
     if    ( $a eq '--docroot' ) { $opt{docroot} = shift @ARGV }
@@ -27,9 +27,16 @@ while ( @ARGV ) {
     elsif ( $a eq '--group' )   { $opt{group}   = shift @ARGV }
     elsif ( $a eq '--fix' )     { $opt{fix}     = 1 }
     elsif ( $a eq '--check-dav' ) { $opt{check_dav} = shift @ARGV }
+    elsif ( $a eq '--dependencies' ) { $opt{dependencies} = 1 }
     elsif ( $a eq '--help' )    { usage(); exit 0 }
     else { print STDERR "lazysite-check: unknown option: $a\n"; exit 2 }
 }
+
+# SM126 D: host-dependency query. A standalone check of the OS-level Perl
+# modules lazysite needs (from dist/config/sbom-deps.json) - no docroot needed,
+# so it runs before the docroot validation below. An operator (or an onboarding
+# agent) can ask "what must I install here" and get the missing-package line.
+run_dependency_check() if $opt{dependencies};   # exits
 
 sub usage {
     print <<'USAGE';
@@ -44,10 +51,73 @@ Usage: perl tools/lazysite-check.pl --docroot PATH [options]
   --fix            apply the safe fixes (chmod always; chown only as root)
   --check-dav URL  probe URL/dav/ unauthenticated; expect 401 (route wired), not
                    404 (route missing - the web server / proxy does not forward /dav/)
+  --dependencies   report the OS Perl packages lazysite needs (present vs missing)
+                   and the install line for whatever is absent; no docroot needed
   --help           this help
 
 Exit status is non-zero if any check FAILs.
 USAGE
+}
+
+# SM126 D: report required non-core Perl modules vs what is present on this host,
+# reading the authoritative list from dist/config/sbom-deps.json. Informational
+# (always exits 0); the doc docs/reference/host-dependencies.md is generated from
+# the same source by tools/gen-host-deps.pl.
+sub run_dependency_check {
+    require JSON::PP;
+    my $self = abs_path($0);
+    ( my $tools = $self ) =~ s{/[^/]*$}{};
+    ( my $root  = $tools ) =~ s{/[^/]*$}{};
+    my $deps_path = "$root/dist/config/sbom-deps.json";
+    unless ( -f $deps_path ) {
+        print STDERR "lazysite-check: dependency metadata not found at $deps_path\n"
+            . "  (run this from a lazysite source tree or release tarball)\n";
+        exit 2;
+    }
+    open my $fh, '<', $deps_path
+        or do { print STDERR "lazysite-check: cannot read $deps_path: $!\n"; exit 2 };
+    my $json = do { local $/; <$fh> };
+    close $fh;
+    my $data    = JSON::PP->new->decode($json);
+    my $modules = $data->{modules} || {};
+
+    print "lazysite host dependencies (from dist/config/sbom-deps.json)\n\n";
+    print "Non-core Perl modules:\n";
+    my ( $present, $total, %missing_pkg );
+    for my $mod ( sort keys %{$modules} ) {
+        my $m = $modules->{$mod};
+        next if $m->{core};
+        $total++;
+        ( my $file = $mod ) =~ s{::}{/}g;
+        # Probe a module named in the trusted local SBOM file; block-form require
+        # of a path string, no injection surface.
+        my $ok = eval { require "$file.pm"; 1 };  ## no critic (Modules::RequireBarewordIncludes)
+        if ($ok) {
+            $present++;
+            printf "  %-8s %-22s %s\n", 'OK', $mod, ( $m->{debian_pkg} // '' );
+        }
+        else {
+            my $pkg = $m->{debian_pkg} // '';
+            $missing_pkg{$pkg} = 1 if length $pkg;
+            printf "  %-8s %-22s %-26s (%s)\n", 'MISSING', $mod, $pkg,
+                ( $m->{used_by} // '' );
+        }
+    }
+
+    if ( my $env = $data->{environment} ) {
+        print "\nRuntime environment (operator-provided):\n";
+        printf "  %-20s %s\n", $_->{name} // '', $_->{description} // '' for @{$env};
+    }
+
+    print "\n$present of $total non-core modules present.\n";
+    if (%missing_pkg) {
+        print "Missing - on Debian/Ubuntu install with:\n\n";
+        print "  sudo apt-get install " . join( ' ', sort keys %missing_pkg ) . "\n";
+    }
+    else {
+        print "All required non-core modules are installed.\n";
+    }
+    exit 0;
 }
 
 my $DOC = $opt{docroot};

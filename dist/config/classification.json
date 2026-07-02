@@ -173,6 +173,7 @@
     "^tools/bump-version\\.pl$",
     "^tools/bench\\.pl$",
     "^tools/coverage\\.sh$",
+    "^tools/gen-host-deps\\.pl$",
     "^website/"
   ],
   "overrides": [],
