@@ -441,13 +441,17 @@ sub check_auth {
 }
 
 # SM095: does any of these groups carry capability $cap (from groups-settings.json)?
+# DELIBERATE local copy of Lazysite::Auth::Settings::groups_grant_cap - the
+# processor's render path is module-free by design, so it cannot import the
+# shared helper. Recorded in docs/adr/0001-capability-resolution.md; keep this
+# in sync with the shared implementation (raw-octets read + decode_json).
 sub _groups_grant_cap {
     my ( $cap, @groups ) = @_;
     return 0 unless @groups;
     my $f = "$DOCROOT/lazysite/auth/groups-settings.json";
     return 0 unless -f $f;
     require JSON::PP;
-    open my $fh, '<', $f or return 0;
+    open my $fh, '<:raw', $f or return 0;
     local $/;
     my $gs = eval { JSON::PP::decode_json( <$fh> ) } || {};
     close $fh;

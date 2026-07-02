@@ -24,6 +24,7 @@ BEGIN {
 use Lazysite::Util qw(log_event const_eq);
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential qw(generate_random_hex hash_password verify_password);
+use Lazysite::Auth::Settings qw(groups_grant_cap);
 $Lazysite::Util::COMPONENT = 'auth';
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
@@ -60,6 +61,7 @@ my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
 $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
+$Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
 
 # Record a material authentication event in the audit trail (login/logout, claim,
 # token exchange/rotate), in addition to the application log. Origin defaults to
@@ -916,28 +918,14 @@ sub _login_is_manager {
     my ($groups_str) = @_;
     my @ug = grep { length } split /\s*,\s*/, ( $groups_str // '' );
     # SM095 (c2): Manager-UI access is the `ui` channel capability, granted
-    # through a group. manager_groups remains a non-breaking fallback below.
-    return 1 if _login_groups_grant_cap( 'ui', @ug );
+    # through a group - resolved via the shared helper (ADR 0001), not a local
+    # copy. manager_groups remains a non-breaking fallback below.
+    return 1 if groups_grant_cap( 'ui', @ug );
     my $mg = read_conf_key('manager_groups') // '';
     $mg =~ s/^\s+|\s+$//g;
     return 1 unless length $mg;
     my %ug = map { lc $_ => 1 } @ug;
     return ( grep { $ug{ lc $_ } } grep { length } split /\s*,\s*/, $mg ) ? 1 : 0;
-}
-
-# SM095: does any of these groups carry capability $cap (from groups-settings.json)?
-sub _login_groups_grant_cap {
-    my ( $cap, @groups ) = @_;
-    return 0 unless @groups;
-    my $f = "$DOCROOT/lazysite/auth/groups-settings.json";
-    return 0 unless -f $f;
-    require JSON::PP;
-    open my $fh, '<', $f or return 0;
-    local $/;
-    my $gs = eval { JSON::PP::decode_json( <$fh> ) } || {};
-    close $fh;
-    for my $g (@groups) { return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap} }
-    return 0;
 }
 
 # --- Utilities ---

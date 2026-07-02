@@ -241,4 +241,24 @@ sub api {
     ok( !$s->{analytics}, 'audit does NOT imply analytics (separate capabilities)' );
 }
 
+# ADR 0001 regression: non-ASCII content in groups-settings.json must survive
+# the settings read. The old :utf8-layer read handed decode_json a character
+# string, which died on the first non-ASCII byte sequence and silently wiped
+# the WHOLE read to {} - so one accented group description erased every
+# group's capabilities on the canonical path.
+{
+    my $d = docroot();
+    cli( $d, 'add', 'ami', 'pw' );
+    cli( $d, 'group-add', 'ami', 'content-editors' );
+    my $desc = "\x{c9}quipe web \x{2013} contenu";    # Équipe web – contenu
+    is( api( $d, { action => 'group-settings-set', group => 'content-editors',
+            key => 'description', value => $desc } )->{ok},
+        1, 'non-ASCII description accepted' );
+    my $g = api( $d, { action => 'group-settings-get' } );
+    is( $g->{groups}{'content-editors'}{description}, $desc,
+        'non-ASCII description round-trips intact' );
+    ok( caps( $d, 'ami' )->{manage_content},
+        'capabilities still resolve with non-ASCII content in the file (no wiped read)' );
+}
+
 done_testing;

@@ -94,18 +94,15 @@ sub _acl_allows {
 # unsecured site (no manager_groups) treats cookie clients as operators; the
 # 'local' user is always operator; else manager-group membership decides. The
 # token path never consults the client-influenceable X-Remote-Groups.
-# SM095: does any of these groups carry capability $cap (from groups-settings.json)?
+# SM095: does any of these groups carry capability $cap? Routed through the
+# shared resolver helper (ADR 0001) - AUTH_DIR localised from this module's
+# request context so callers that only set Acl::DOCROOT keep working.
 sub _groups_grant_cap {
     my ( $cap, @groups ) = @_;
     return 0 unless @groups;
-    my $f = "$DOCROOT/lazysite/auth/groups-settings.json";
-    return 0 unless -f $f;
-    open my $fh, '<', $f or return 0;
-    local $/;
-    my $gs = eval { JSON::PP::decode_json( <$fh> ) } || {};
-    close $fh;
-    for my $g (@groups) { return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap} }
-    return 0;
+    require Lazysite::Auth::Settings;
+    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    return Lazysite::Auth::Settings::groups_grant_cap( $cap, @groups );
 }
 
 sub _is_operator {

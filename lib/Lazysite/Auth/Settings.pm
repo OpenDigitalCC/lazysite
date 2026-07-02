@@ -11,7 +11,7 @@ use Lazysite::Util qw(log_event);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
-    caps_for read_group_settings write_group_settings @CAP_KEYS);
+    caps_for groups_grant_cap read_group_settings write_group_settings @CAP_KEYS);
 
 our $AUTH_DIR;    # "$DOCROOT/lazysite/auth", set by the script
 
@@ -48,15 +48,36 @@ sub _groups_membership {
 
 # Per-group capabilities + manager flag (read-only here; the users tool owns
 # seeding + writes). { group => { manager=>1, <cap>=>1, ... } }.
+# ADR 0001: JSON files are read as RAW OCTETS and decoded with decode_json
+# (which expects UTF-8 bytes). Reading through a :utf8 layer first hands
+# decode_json a character string, which dies on any non-ASCII content (e.g. a
+# group description) and silently wiped the whole read to {}.
 sub read_group_settings {
     require JSON::PP;
     my $f = _group_settings_file();
     return {} unless -f $f;
-    open my $fh, '<:utf8', $f or return {};
+    open my $fh, '<:raw', $f or return {};
     my $raw = do { local $/; <$fh> };
     close $fh;
     my $d = eval { JSON::PP::decode_json( $raw // '{}' ) };
     return ( ref $d eq 'HASH' ) ? $d : {};
+}
+
+# THE shared "does any of these groups grant capability $cap?" check - the
+# request-context flavour of the resolver, used by the gates that already hold
+# the requester's group list (login landing, per-file ACL operator bypass).
+# Differs from caps_for, which resolves MEMBERSHIP from the groups file; here
+# the caller supplies the groups and only the capability lookup is shared.
+# ADR 0001 records this split and the one deliberate local copy (the
+# processor's module-free render path).
+sub groups_grant_cap {
+    my ( $cap, @groups ) = @_;
+    return 0 unless @groups;
+    my $gs = read_group_settings();
+    for my $g (@groups) {
+        return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap};
+    }
+    return 0;
 }
 
 sub write_group_settings {
@@ -107,7 +128,9 @@ sub read_settings {
     require JSON::PP;
     my $file = _settings_file();
     return {} unless -f $file;
-    open my $fh, '<:utf8', $file or do {
+    # Raw octets for decode_json - same convention as read_group_settings
+    # (ADR 0001); a non-ASCII email/comment used to kill the whole read.
+    open my $fh, '<:raw', $file or do {
         log_event( 'WARN', 'settings', 'cannot read user-settings.json', error => "$!" );
         return {};
     };
