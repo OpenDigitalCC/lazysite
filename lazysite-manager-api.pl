@@ -338,7 +338,9 @@ if ( $token_auth ) {
         # Audit the denied attempt (was invisible before).
         audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
             'fail', 'api', 'denied: capability' );
-        respond({ ok => 0, error => "Insufficient capability for $action" });
+        respond({ ok => 0, error => "Insufficient capability for $action. Call "
+            . "describe-capabilities to see what your account holds and what each "
+            . "capability unlocks." });
         exit 0;
     }
 

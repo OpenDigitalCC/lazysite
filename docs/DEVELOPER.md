@@ -35,6 +35,15 @@ Capabilities are per-account settings read **per request** (`webdav`,
   is the project idiom (see code-quality.md).
 - **Conventional names** (view.tt, lazysite.conf, /manager, …) are settled -
   see code-quality.md.
+- **Engine-owned vs author files.** The engine owns `lazysite/auth`, `lazysite/cache`,
+  `lazysite/manager`, `cgi-bin`, the `*.pl` scripts and the form-secret configs;
+  these are protected (the WebDAV blocklist and the whole-`lazysite/` denial refuse
+  writes to them) and enumerated for agents in the capability map's `engine_owned`
+  list. A partner should reach the site through the API / MCP / WebDAV surfaces,
+  never by editing the engine. For an author's own *private* content (drafts, notes
+  not meant to publish), the convention is an `_` prefix (e.g. `_drafts/`) as a
+  do-not-touch signal; it is a convention for new content, not a rename of the
+  existing tree and not an enforced mechanism.
 
 ## Tests
 

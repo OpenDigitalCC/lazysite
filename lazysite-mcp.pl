@@ -1299,7 +1299,8 @@ elsif ( $method eq 'tools/call' ) {
             $ENV{REMOTE_ADDR} // '', 'fail', 'mcp', "denied: needs $need" );
         # SM101: a missing capability is permanent - tell the agent to stop, not retry.
         rpc_error( $id, -32002, "Insufficient capability for $name (needs $need). "
-            . "Do not retry; ask the operator to grant it." );
+            . "Do not retry; ask the operator to grant it. Call describe_capabilities "
+            . "to see what your account currently holds and what each capability unlocks." );
     }
 
     setup_context($user);
