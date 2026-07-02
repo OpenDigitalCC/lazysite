@@ -1,0 +1,24 @@
+# lazysite log rotation (eight-dimension review D5: nothing shipped rotated
+# the site logs, a slow disk-full vector on hosts that have actually hit
+# ENOSPC). The audit reader is rotation-aware, so this is config only.
+#
+# DEPLOYMENT (operator, root; held for pre-launch per
+# docs/review/2026-07-01-eight-dimension/90-prelaunch-operational-holds.md):
+#   1. Adjust the glob below to the fleet's docroot layout.
+#   2. Install as /etc/logrotate.d/lazysite
+#   3. Verify: logrotate -d /etc/logrotate.d/lazysite
+#
+# copytruncate is deliberate: the CGIs hold no long-lived log handles (plain
+# CGI appends per request), but copytruncate also stays safe if a persistent
+# runner (D016 FastCGI) arrives later.
+
+/home/*/web/*/public_html/lazysite/logs/*.log /home/*/web/*/public_html/lazysite/logs/*.jsonl {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su root adm
+}

@@ -332,9 +332,16 @@ sub dispatch_file {
         return 0;
     };
     flock( $fh, LOCK_EX );
-    print $fh encode_json( \%record ) . "\n";
+    my $wrote = print $fh encode_json( \%record ) . "\n";
     flock( $fh, LOCK_UN );
-    close $fh;
+    # SM020 checked-write (review D5): a failed print surfaces at close (buffer
+    # flush). Without the check a disk-full submission was acknowledged as
+    # delivered while the record never landed - fail closed so the visitor is
+    # told delivery failed rather than thanked for a lost submission.
+    unless ( close($fh) && $wrote ) {
+        log_event( 'ERROR', $form->{_form} // '-', 'file write failed (flush)', path => $log_path, error => $! );
+        return 0;
+    }
     return 1;
 }
 

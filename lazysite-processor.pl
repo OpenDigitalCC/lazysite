@@ -3683,8 +3683,17 @@ sub write_html {
         log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot write cache tempfile', path => $tmp, error => $!);
         return;
     };
-    print $fh $page;
-    close $fh;
+    # SM020 checked-write pattern (review D5): a failed print surfaces as a
+    # failed close (buffer flush). Without this check, a disk-full mid-write
+    # renamed a TRUNCATED tempfile into place and the torn page was then
+    # served from cache. Fail closed: drop the tempfile, keep the old cache.
+    my $wrote = print {$fh} $page;
+    unless ( close($fh) && $wrote ) {
+        my $err = $!;
+        unlink $tmp;
+        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cache write failed, tempfile dropped', path => $tmp, error => $err);
+        return;
+    }
     unless ( rename $tmp, $html_path ) {
         my $err = $!;
         unlink $tmp;
