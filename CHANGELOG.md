@@ -18,6 +18,47 @@ Keying
 
 ## Unreleased
 
+## 0.5.39 - Agent capability discovery + strict api/mcp channel gating (2026-07-02)
+
+Feature - capability map (SM126 A/B)
+: a connecting agent can fetch the whole permission model in one call - the MCP
+  tool `describe_capabilities` or the control-API `describe-capabilities` action.
+  It returns the four channels (all enforced), each capability's title and what
+  it unlocks (MCP tools, control-API actions, WebDAV paths), task recipes for
+  common jobs, the engine-owned paths not to write, and the caller's own grant
+  under `holds`. Built by `Lazysite::Capabilities` from `@CAP_KEYS` (one source of
+  truth) and drift-checked against the live tool/action maps. Both endpoints are
+  introspection - open to any authenticated caller. The human-facing
+  `docs/reference/capability-map.md` and `quickstarts.md` are generated from the
+  same builder (golden-tested), and the engine-owned vs private-author-file
+  boundary (incl. the `_`-prefix convention) is documented for developers.
+
+Feature - unified denial next-step (SM126 E)
+: MCP `-32002` and control-API capability denials now point a refused agent at
+  `describe_capabilities`, so it can see its grant instead of retrying blindly
+  (the WebDAV denials already name the capability and where it is granted).
+
+Feature - host dependencies (SM126 D)
+: `tools/gen-host-deps.pl` generates `docs/reference/host-dependencies.md` (Debian
+  packages + purpose) from `dist/config/sbom-deps.json`, with a golden test that
+  fails on drift; `lazysite-check.pl --dependencies` reports present-vs-missing on
+  a host and the install line for anything absent.
+
+Security - strict api/mcp channel gating (SM126 A)
+: the `api` and `mcp` channel capabilities were modelled but not enforced at the
+  transport. A control-API token must now hold `api` and an MCP session `mcp`,
+  enforced ahead of the per-action check - matching the ui/webdav gates.
+  Introspection (whoami, describe-capabilities) stays open so a capless agent can
+  self-diagnose; the manager UI (cookie = ui channel) is unaffected. OPERATOR
+  ACTION: the standard onboarding and seed groups already grant these, so normal
+  partners are unaffected; verify hand-provisioned token/connector accounts hold
+  the channel cap.
+
+Fix - capability drift
+: the control-API `whoami` and the manager permissions grid now derive their
+  capability list from `@CAP_KEYS` instead of hand-maintained arrays - `whoami`
+  had dropped `delegate_sub_user_creation`.
+
 ## 0.5.38 - Reported-issue fixes: dev-server cookies + WebDAV denial reasons (2026-07-02)
 
 Fix - dev server drops a repeated response header (RI-001)
