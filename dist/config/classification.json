@@ -141,6 +141,7 @@
     "^docs/(USER|DEVELOPER|IMPLEMENTOR|OPERATOR|POLICY|FEATURES)\\.md$",
     "^docs/.*\\.pdf$",
     "^CHANGELOG\\.md$",
+    "^reported-issues\\.md$",
     "^\\.nonfunctional-report\\.md$",
     "^\\.commit-message\\.md$",
     "^CLAUDE\\.md$",
