@@ -39,6 +39,16 @@ query_params:
 <script>
 function aesc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
 
+// Audit timestamps are stored UTC (ISO ...Z). Show them in the viewer's local
+// timezone, with the original UTC value as a tooltip; fall back to the raw value
+// if the browser cannot parse it.
+function fmtAuditTs(ts) {
+  if (!ts) return '';
+  var d = new Date(ts);
+  if (isNaN(d.getTime())) return aesc(ts);
+  return '<span title="' + aesc(ts) + '">' + aesc(d.toLocaleString()) + '</span>';
+}
+
 var auditTarget = '';   // SM077: when set, show one file's history
 var auditPage = 1;      // pagination (50 rows/page)
 
@@ -147,7 +157,7 @@ function loadAudit() {
     }
     if (!d.entries.length) { el.textContent = 'No audit entries yet.'; return; }
     var h = '<table class="audit-table"><thead><tr>' +
-      '<th>When (UTC)</th><th>User</th><th>Source</th><th>Action</th><th>Target</th><th>From</th><th>Status</th>' +
+      '<th>When</th><th>User</th><th>Source</th><th>Action</th><th>Target</th><th>From</th><th>Status</th>' +
       '</tr></thead><tbody>';
     d.entries.forEach(function (e, i) {
       var cls = e.status === 'fail' ? ' class="audit-fail"' : '';
@@ -164,7 +174,7 @@ function loadAudit() {
         detailRow = '<tr id="' + did + '" class="audit-detail-row" hidden>' +
           '<td colspan="7"><strong>Reason:</strong> ' + aesc(e.detail) + '</td></tr>';
       }
-      h += '<tr' + cls + '><td>' + aesc(e.ts) + '</td><td>' + auditUserLink(e.user) +
+      h += '<tr' + cls + '><td>' + fmtAuditTs(e.ts) + '</td><td>' + auditUserLink(e.user) +
         '</td><td>' + aesc(e.origin || '') +
         '</td><td>' + aesc(e.action) + '</td><td>' + auditTargetLink(e) +
         '</td><td>' + aesc(e.ip) +
