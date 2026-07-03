@@ -541,6 +541,14 @@ subtest 'upgrade channel: a stable site refuses an edge build' => sub {
     }
     like( $audit, qr/upgrade-skipped/, 'skip recorded in the audit log' );
 
+    # --force overrides the channel policy: the edge upgrade proceeds.
+    my ( $rc3, $out3 ) = run_install( '--docroot', $doc, '--cgibin', $cgi, '--force' );
+    is( $rc3, 0, '--force upgrades a stable-channel site with an edge build' );
+    like( $out3, qr/--force|override/i, '--force reports the override' );
+    my $audit2 = '';
+    if ( open my $a2, '<', "$doc/lazysite/logs/audit.log" ) { local $/; $audit2 = <$a2>; close $a2; }
+    like( $audit2, qr/upgrade-forced/, 'forced override recorded in the audit log' );
+
     # Control: an 'all' site (the default) is NOT gated - the upgrade proceeds.
     open my $cf2, '>', "$doc/lazysite/lazysite.conf" or die $!;
     print $cf2 "update_channel: all\n";

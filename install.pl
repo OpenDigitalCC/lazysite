@@ -70,6 +70,9 @@ Optional:
                       (used only when seeding a new lazysite.conf)
   --dry-run           Compute the plan without executing any
                       filesystem changes. Useful before upgrade.
+  --force             Upgrade even if the site's update channel would skip this
+                      release (e.g. a 'stable' site taking an 'edge' build). The
+                      override is recorded in the audit log.
   --help              Show this help
 
 Maintenance modes:
@@ -110,6 +113,7 @@ Getopt::Long::GetOptions(
     'dry-run'       => \$opt{dry_run},
     'verify'        => \$opt{verify},
     'channel-check' => \$opt{channel_check},
+    'force'         => \$opt{force},
 ) or usage(1);
 
 usage(0) if $opt{help};
@@ -203,6 +207,20 @@ sub audit_channel_skip {
     return;
 }
 
+# Record an out-of-channel upgrade that --force pushed through (origin = install).
+sub audit_channel_forced {
+    my ( $docroot, $from, $to, $rel_channel ) = @_;
+    my $logdir = "$docroot/lazysite/logs";
+    return unless -d $logdir;
+    my $target = "$from -> $to (release channel: $rel_channel; site is stable-only; --force override)";
+    $target =~ s/[|\r\n]+/ /g;
+    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
+    open my $fh, '>>', "$logdir/audit.log" or return;
+    print {$fh} "$ts | system | upgrade-forced | $target |  | ok | install\n";
+    close $fh;
+    return;
+}
+
 sub audit_install_event {
     my ( $docroot, $mode, $from, $to ) = @_;
     my $logdir = "$docroot/lazysite/logs";
@@ -252,15 +270,28 @@ sub cmd_install {
     # stable customer sites. Fresh installs and reinstalls are the operator's
     # explicit choice and are never gated. The skip is a clean no-op (exit 3, not
     # an error) and is recorded in the site's audit log.
-    if ( $mode eq 'upgrade' ) {
+    if ( $mode eq 'upgrade' && !$o->{force} ) {
         my $site_channel    = read_update_channel( $o->{docroot} );  # 'stable'|'all'
         my $release_channel = $manifest->{channel} || 'edge';
         if ( $site_channel eq 'stable' && $release_channel ne 'stable' ) {
             info( "Upgrade SKIPPED: this site is on the 'stable' update channel and "
-                . "$manifest->{version} is an '$release_channel' build. No changes made." );
+                    . "$manifest->{version} is an '$release_channel' build. No changes made. "
+                    . "Use --force to install it anyway." );
             audit_channel_skip( $o->{docroot},
                 $state->{version}, $manifest->{version}, $release_channel );
             return 3;
+        }
+    }
+    elsif ( $mode eq 'upgrade' && $o->{force} ) {
+        # --force: install regardless of the site's update channel (a deliberate
+        # operator override for an out-of-channel build). Recorded in the audit log;
+        # the normal upgrade event is still logged when the install completes.
+        my $rel = $manifest->{channel} || 'edge';
+        if ( read_update_channel( $o->{docroot} ) eq 'stable' && $rel ne 'stable' ) {
+            info( "--force: installing '$rel' build $manifest->{version} over the "
+                    . "site's 'stable' channel policy (operator override)." );
+            audit_channel_forced( $o->{docroot},
+                $state->{version}, $manifest->{version}, $rel );
         }
     }
 
@@ -1165,6 +1196,12 @@ when seeding a fresh config).
 
 Compute and print the plan without making any filesystem change. Run this before
 an upgrade to see what would be written.
+
+=item B<--force>
+
+Upgrade even when the site's C<update_channel> would skip this release (for
+example a C<stable> site taking an C<edge> build). A deliberate operator override,
+recorded in the site's audit log as C<upgrade-forced>.
 
 =item B<--help>
 
