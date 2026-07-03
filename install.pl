@@ -73,6 +73,10 @@ Optional:
   --force             Upgrade even if the site's update channel would skip this
                       release (e.g. a 'stable' site taking an 'edge' build). The
                       override is recorded in the audit log.
+  --channel edge|stable
+                      Set the site's update channel (update_channel in
+                      lazysite.conf) and exit - no install. Loop over your
+                      docroots to set a whole fleet.
   --help              Show this help
 
 Maintenance modes:
@@ -113,6 +117,7 @@ Getopt::Long::GetOptions(
     'dry-run'       => \$opt{dry_run},
     'verify'        => \$opt{verify},
     'channel-check' => \$opt{channel_check},
+    'channel=s'     => \$opt{channel},
     'force'         => \$opt{force},
 ) or usage(1);
 
@@ -150,6 +155,16 @@ if ( $opt{channel_check} ) {
         exit 3 if $site eq 'stable' && $rel ne 'stable';
     }
     exit 0;
+}
+
+# --channel edge|stable: set the site's update_channel in lazysite.conf. A
+# standalone maintenance op (no install) - pins a deployment to a channel, or
+# moves it back, without hand-editing the conf. To set a whole fleet, loop it over
+# your docroots (lazysite has no central site registry - the host knows the sites):
+#   for d in /home/*/web/*/public_html; do install.pl --channel stable --docroot "$d"; done
+if ( defined $opt{channel} ) {
+    die "--channel requires --docroot\n" unless $opt{docroot};
+    exit cmd_set_channel( $opt{docroot}, $opt{channel} );
 }
 
 # --verify: is the INSTALLED code actually this version? (the deploy-gap detector)
@@ -203,6 +218,61 @@ sub audit_channel_skip {
     my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
     open my $fh, '>>', "$logdir/audit.log" or return;
     print {$fh} "$ts | system | upgrade-skipped | $target |  | ok | install\n";
+    close $fh;
+    return;
+}
+
+# --channel: set update_channel in the site's lazysite.conf (replace the line if
+# present, else append). Atomic via temp + rename. Standalone maintenance op.
+sub cmd_set_channel {
+    my ( $docroot, $value ) = @_;
+    $value = lc $value;
+    unless ( $value eq 'edge' || $value eq 'stable' ) {
+        warn "--channel must be 'edge' or 'stable' (got '$value')\n";
+        return 2;
+    }
+    my $conf = "$docroot/lazysite/lazysite.conf";
+    unless ( -f $conf ) {
+        warn "No lazysite.conf at $conf - is this a lazysite docroot?\n";
+        return 1;
+    }
+    open my $in, '<', $conf or do { warn "Cannot read $conf: $!\n"; return 1 };
+    my @lines = <$in>;
+    close $in;
+
+    my $found = 0;
+    for my $l (@lines) {
+        if ( $l =~ /^\s*update_channel\s*:/ ) {
+            $l     = "update_channel: $value\n";
+            $found = 1;
+            last;
+        }
+    }
+    push @lines, "update_channel: $value\n" unless $found;
+
+    my $tmp = "$conf.tmp.$$";
+    open my $out, '>', $tmp or do { warn "Cannot write $tmp: $!\n"; return 1 };
+    print {$out} @lines;
+    close $out;
+    unless ( rename $tmp, $conf ) {
+        warn "Cannot replace $conf: $!\n";
+        unlink $tmp;
+        return 1;
+    }
+
+    audit_channel_set( $docroot, $value );
+    info("Update channel set to '$value' for $docroot");
+    return 0;
+}
+
+# Record a channel change (origin = install).
+sub audit_channel_set {
+    my ( $docroot, $value ) = @_;
+    my $logdir = "$docroot/lazysite/logs";
+    return unless -d $logdir;
+    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
+    open my $fh, '>>', "$logdir/audit.log" or return;
+    print {$fh} "$ts | system | channel-set | update_channel: $value |  | ok | install\n";
     close $fh;
     return;
 }
@@ -1202,6 +1272,18 @@ an upgrade to see what would be written.
 Upgrade even when the site's C<update_channel> would skip this release (for
 example a C<stable> site taking an C<edge> build). A deliberate operator override,
 recorded in the site's audit log as C<upgrade-forced>.
+
+=item B<--channel> C<edge>|C<stable>
+
+Set the site's update channel (the C<update_channel:> key in C<lazysite.conf>) and
+exit - a standalone maintenance operation, no install. Use it to pin a deployment
+to C<stable> (customer rollout) or move it back to C<edge>, without hand-editing
+the conf. Recorded in the audit log as C<channel-set>. lazysite has no central
+registry of sites, so to set a whole fleet, loop this over your docroots:
+
+    for d in /home/*/web/*/public_html; do
+        install.pl --channel stable --docroot "$d"
+    done
 
 =item B<--help>
 

@@ -300,13 +300,14 @@ before work starts.
   cache (`_audit_cached_entries`: inode + byte-offset, cap 5000, in
   `lazysite/cache/audit-cache.json`) and the in-page Audit view already reads it
   via the control-API `audit` action. Backlog entry was stale.
-- **install.pl: set/override the update channel** - `install.pl` already *reads*
-  the site's `update_channel` (via `--channel-check`, ADR 0005) but cannot set
-  it. Add `--channel edge|stable` to write/override `update_channel:` in
-  `lazysite.conf` at install or upgrade time, so a deployment can be pinned to
-  stable (or moved back to edge) from the installer without hand-editing the
-  conf. Small: reuse `read_update_channel` + the seed/conf-write path; validate
-  the value; record the change. Pairs with the release-channel model.
+- **~~install.pl: set/override the update channel~~** *(done 2026-07-03)* -
+  `install.pl --channel edge|stable --docroot PATH` writes/replaces
+  `update_channel:` in `lazysite.conf` as a standalone maintenance op (no install),
+  validated, atomic (temp + rename), audited as `channel-set`. Pins a deployment to
+  stable (or back to edge) without hand-editing the conf. There is no central site
+  registry, so a fleet is a shell loop over docroots (documented in `--help`/POD
+  and the handler comment). A true built-in "set across all" would need site
+  discovery - a separate, larger feature.
 
 
 ## Done

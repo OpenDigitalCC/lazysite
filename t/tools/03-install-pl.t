@@ -563,6 +563,32 @@ subtest 'upgrade channel: a stable site refuses an edge build' => sub {
     is( $rc3, 0, 'an all-channel site upgrades normally (exit 0)' );
 };
 
+subtest '--channel sets the site update channel in lazysite.conf' => sub {
+    my ( $doc, $cgi ) = fresh_docroot();
+    my ($irc) = run_install( '--docroot', $doc, '--cgibin', $cgi );
+    is( $irc, 0, 'fresh install ok' );
+    make_path("$doc/lazysite/logs");
+
+    my ($rc) = run_install( '--channel', 'stable', '--docroot', $doc );
+    is( $rc, 0, '--channel stable exits 0' );
+    like( slurp("$doc/lazysite/lazysite.conf"), qr/^update_channel:\s*stable\s*$/m,
+        'update_channel: stable written' );
+
+    # Move back to edge - replaces the line, does not duplicate it.
+    my ($rc2) = run_install( '--channel', 'edge', '--docroot', $doc );
+    is( $rc2, 0, '--channel edge exits 0' );
+    my $conf = slurp("$doc/lazysite/lazysite.conf");
+    like( $conf, qr/^update_channel:\s*edge\s*$/m, 'update_channel: edge written' );
+    my @hits = ( $conf =~ /^update_channel:/mg );
+    is( scalar @hits, 1, 'the key is replaced, not duplicated' );
+
+    my ($rc3) = run_install( '--channel', 'bogus', '--docroot', $doc );
+    is( $rc3, 2, 'a bad --channel value exits 2 (no change)' );
+
+    like( slurp("$doc/lazysite/logs/audit.log"), qr/channel-set/,
+        'the channel change is recorded in the audit log' );
+};
+
 # --- homepage-replacement incident regression ---
 # A seed file that EXISTS on disk but is NOT tracked in the install state (e.g.
 # authored via the manager / WebDAV, seeded by a different install path, or written
