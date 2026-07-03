@@ -104,6 +104,25 @@ before work starts.
   other transform tasks.
 - **Search improvements** - feed both the auto-index and a manual index; log
   failed searches to a file for review.
+- **A/B (C…) testing for alternative content / themes** - serve variants of a
+  page (or the active theme/layout) to different visitors and measure which
+  performs better. Needs: a way to define variants (alternative `.md` bodies or
+  front-matter, or an alternative theme/layout), a deterministic assignment
+  (sticky per visitor - a cookie or a hash of the network-level visitor token so
+  a given visitor stays on one variant), an even/weighted split, and outcome
+  measurement wired to the existing visitor-stats plugin (per-variant page views,
+  and ideally a goal event). Open questions: variant definition (sidecar files vs
+  front-matter blocks vs a plugin), how it interacts with the HTML cache (variant
+  key must be part of the cache key), and whether goals are just page-reach or
+  need form/He conversion events. Content variants and theme/layout variants may
+  be two phases of one feature.
+- **Unified credential/grant revocation (incl. OAuth)** - "Reset credential"
+  revokes an account's static bearer without disabling it, and removing the
+  account from a group revokes a capability grant - both already work. Gap: an
+  active OAuth-connected MCP session holds its own access token (expires ~hourly,
+  refreshes), so revoking the static credential does not immediately kill an OAuth
+  connector. Add a single "Revoke all access" that also invalidates the account's
+  OAuth grants/refresh tokens, for a clean immediate cut-off.
 - **Upstream lazysite relationship (federation)** - a downstream lazysite
   instance holds an account/relationship *on an upstream lazysite* (the project's
   own hosted instance), established once and then reused as a two-way channel.

@@ -125,6 +125,20 @@ sub api {
     ok( !$bad->{ok}, 'cannot delete the only manager group (lockout guard)' );
     my $bad2 = api( $d, { action => 'group-settings-set', group => 'lazysite-admins', key => 'manager', value => 'off' } );
     ok( !$bad2->{ok}, 'cannot clear manager from the only manager group' );
+
+    # SM127: a group must not combine manager UI access (ui) with a remote channel.
+    api( $d, { action => 'group-create', group => 'remotes' } );
+    is( api( $d, { action => 'group-settings-set', group => 'remotes', key => 'api', value => 'on' } )->{ok},
+        1, 'grant api to a remote group' );
+    my $ux = api( $d, { action => 'group-settings-set', group => 'remotes', key => 'ui', value => 'on' } );
+    ok( !$ux->{ok} && $ux->{error} =~ /remote|separate/i,
+        'cannot add ui to a group that already grants api' );
+
+    api( $d, { action => 'group-create', group => 'humans' } );
+    api( $d, { action => 'group-settings-set', group => 'humans', key => 'ui', value => 'on' } );
+    my $ax = api( $d, { action => 'group-settings-set', group => 'humans', key => 'mcp', value => 'on' } );
+    ok( !$ax->{ok} && $ax->{error} =~ /manager|separate/i,
+        'cannot add a remote channel (mcp) to a group that grants ui' );
 }
 
 # Phase (b): new channel caps (ui/api/mcp) + manage_users; the permissions grid.

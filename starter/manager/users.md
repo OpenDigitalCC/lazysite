@@ -259,6 +259,8 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   var u = row.user, s = row.settings || {}, ue = escHtml(u);
   var webdav   = !!s.webdav;
   var ui       = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
+  var mcp      = !!s.mcp;
+  var api      = !!s.api;
   var disabled = !!s.disabled;
   var scope    = s.dav_scope || '';
   var status   = disabled ? '<span class="mg-tag mg-tag-off">disabled</span>'
@@ -384,7 +386,11 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
 
   // --- Connect an AI assistant (SM100: one flow - pick the client, get the one
   // credential that works; no three parallel controls to choose wrong between) ---
-  if (webdav || !ui) {
+  // SM127: only offered for accounts that actually hold a remote-agent channel
+  // (api/mcp). A manager/human account (ui, no api/mcp) is not connectable as an
+  // AI - and the transport gate would refuse it anyway - so the panel is hidden,
+  // removing the path by which a manager account was accidentally connected.
+  if (mcp || api) {
     var conn =
       '<p class="mg-muted" style="margin:0 0 0.4rem">Pick how this account connects &mdash; we issue the one credential that works for it.</p>' +
       '<div class="mg-connect-pick">' +

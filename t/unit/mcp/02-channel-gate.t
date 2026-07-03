@@ -27,6 +27,7 @@ my $r = eval { decode_json($in) } || {};
 my $u = $r->{username} // '';
 my %caps = (webdav=>1, manage_content=>1, manage_nav=>1, manage_forms=>1);
 $caps{mcp} = 1 unless $u =~ /nomcp/;
+$caps{manager_ui} = 1 if $u =~ /mgr/;   # SM127: a group-granted manager (ui) account
 print encode_json({ ok => 1, settings => \%caps });
 STUB
 close $sf;
@@ -56,6 +57,13 @@ sub sc { my $r = shift; $r && $r->{result} ? $r->{result}{structuredContent} : u
 
 my $nomcp = 'Bearer clientnomcp:lzs_tok';   # webdav+content, NO mcp channel
 my $ok    = 'Bearer clientok:lzs_tok';      # has mcp
+
+# --- SM127: a manager (ui) account is refused on mcp even WITH the mcp cap ---
+my $mgr = call( 'list_files', { path => '/' }, 'Bearer clientmgr:lzs_tok' );
+is( $mgr->{error}{code}, -32002, 'manager (ui) account refused on mcp' );
+like( $mgr->{error}{message}, qr/manager|interactive/i, 'denial explains the manager-remote rule' );
+my $mgrw = call( 'whoami', {}, 'Bearer clientmgr:lzs_tok' );
+ok( $mgrw->{error}, 'manager (ui) account refused even whoami on mcp' );
 
 # --- A session without the mcp cap is refused on a real tool ----------------
 my $r = call( 'list_files', { path => '/' }, $nomcp );

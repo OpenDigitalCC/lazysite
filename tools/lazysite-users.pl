@@ -715,6 +715,11 @@ sub effective_settings {
         groups    => \@mygroups,
         webdav    => $caps->{webdav} ? JSON::PP::true() : JSON::PP::false(),
         ui        => ( exists $s->{ui} && !$s->{ui} ) ? JSON::PP::false() : JSON::PP::true(),
+        # SM127: manager UI ACCESS - the `ui` capability GRANTED BY A GROUP (real
+        # manager access), distinct from the default-on `ui` flag above (which just
+        # means "interactive login is allowed"). The transport gates use this to
+        # refuse a manager account over api/mcp.
+        manager_ui => $caps->{ui} ? JSON::PP::true() : JSON::PP::false(),
         dav_scope => $scope,
         # SM071 Phase 2: sub-user provenance and delegation. created_by /
         # created_at are immutable; managed_by defaults to created_by and
@@ -2247,6 +2252,25 @@ sub cmd_group_settings_set {
         my @mgr = grep { $gs->{$_}{manager} } keys %$gs;
         return { ok => 0, error => 'Refusing to remove the only manager group' }
             if @mgr <= 1 && $gs->{$group} && $gs->{$group}{manager};
+    }
+
+    # SM127: manager/UI-remote separation. A single group must not combine manager
+    # UI access (`ui`) with a remote channel (`api`/`mcp`) - keep interactive and
+    # remote access in separate groups so manager access is never reachable
+    # remotely. (The transport gate is the hard enforcement for cross-group unions;
+    # this is the first-line guard against the obvious single-group mistake.)
+    if ($on) {
+        my $cur = $gs->{$group} || {};
+        if ( $key eq 'ui' && ( $cur->{api} || $cur->{mcp} ) ) {
+            return { ok => 0, error => 'This group grants a remote channel (api/mcp); '
+                    . 'it cannot also grant manager UI access (ui). Put interactive and '
+                    . 'remote access in separate groups.' };
+        }
+        if ( ( $key eq 'api' || $key eq 'mcp' ) && $cur->{ui} ) {
+            return { ok => 0, error => "This group grants manager UI access (ui); it "
+                    . "cannot also grant a remote channel ($key). Put interactive and "
+                    . "remote access in separate groups." };
+        }
     }
 
     $gs->{$group} ||= { label => $group };

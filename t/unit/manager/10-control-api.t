@@ -129,6 +129,20 @@ ok( @{ $dcap->{tasks} || [] } >= 3, 'map carries task recipes' );
 ok( exists $dcap->{holds}{capabilities}{delegate_sub_user_creation},
     'holds carries the full @CAP_KEYS incl. delegate_sub_user_creation (drift fix)' );
 
+# --- SM127: a manager (ui) account is refused on the api channel outright -----
+# Even with a token and the api cap, a ui account cannot be driven remotely.
+uapi( $d, { action => 'add', username => 'mgr', password => 'x' } );
+grant_caps( $d, 'mgr', 'ui', 'api', 'manage_content' );   # combined via direct write
+my $mtok = uapi( $d, { action => 'token', username => 'mgr' } )->{token};
+my $mg = mapi( $d, QUERY_STRING => 'action=theme-list',
+    HTTP_AUTHORIZATION => basic( 'mgr', $mtok ) );
+ok( !$mg->{ok} && $mg->{error} =~ /manager|interactive/i,
+    'a manager (ui) account is refused on the api channel' );
+# ...even introspection (the ui guard is absolute for manager accounts).
+my $mgw = mapi( $d, QUERY_STRING => 'action=whoami',
+    HTTP_AUTHORIZATION => basic( 'mgr', $mtok ) );
+ok( !$mgw->{ok}, 'a manager (ui) account is refused even whoami on api' );
+
 # --- CSRF exemption: token POST needs no CSRF token ----------------------
 my $pa = mapi( $d, REQUEST_METHOD => 'POST',
     QUERY_STRING => 'action=theme-activate&path=live',

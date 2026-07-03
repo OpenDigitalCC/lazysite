@@ -275,6 +275,22 @@ if ( $action eq 'csrf-token' ) {
 # and gated by capability. Cookie (manager) requests are unaffected and
 # keep their existing manager-group authorisation.
 if ( $token_auth ) {
+    # SM127: manager/UI-remote separation. An account with manager UI access
+    # (the `ui` capability) must NEVER be reachable over a remote channel - manager
+    # access is interactive-only, so a misissued or leaked token on a manager
+    # account cannot drive the site remotely (the reported accidental-grant vector).
+    # Enforced on the EFFECTIVE caps (the union across groups), so it also catches
+    # an account that gets `ui` from one group and a token from another. Refused
+    # outright, ahead of everything (even introspection), and audited.
+    if ( $token_caps{manager_ui} ) {
+        audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
+            'fail', 'api', 'denied: manager (ui) account on the api channel' );
+        respond( { ok => 0, error => "This account has manager UI access, which is "
+                    . "interactive-only: manager accounts cannot be used over the API or MCP. "
+                    . "Use a dedicated agent account (api/mcp capabilities, no ui) instead." } );
+        exit 0;
+    }
+
     # SM126: strict channel gate. A token client operates on the `api` channel and
     # must hold the `api` capability, enforced ahead of the per-action check so a
     # token without the channel is refused uniformly. The manager UI reaches the
@@ -376,7 +392,7 @@ elsif ( $action eq 'acl-set' )          {
 elsif ( $action eq 'acl-remove' )       { $result = action_acl_remove( $path, $auth_user ) }
 elsif ( $action eq 'mkdir' )            { $result = action_mkdir($path) }
 elsif ( $action eq 'move' )             { $result = action_move( $path, $params{to}, $auth_user ) }
-elsif ( $action eq 'copy' )             { $result = action_copy( $path, $params{to}, $auth_user ) }
+elsif ( $action eq 'copy' )   { $result = action_copy( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'lock' )             { $result = acquire_lock( $path, $auth_user ) }
 elsif ( $action eq 'unlock' )           { $result = release_lock( $path, $auth_user ) }
 elsif ( $action eq 'renew-lock' )       { $result = renew_lock( $path, $auth_user ) }

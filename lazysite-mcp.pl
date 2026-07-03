@@ -1258,6 +1258,21 @@ elsif ( $method eq 'tools/call' ) {
     my ( $user, $caps ) = verify_bearer();
     send_401($id) unless defined $user;
 
+    # SM127: manager/UI-remote separation. An account with manager UI access (the
+    # `ui` capability, resolved as the union across its groups) is interactive-only
+    # and must never be reachable over MCP - so a leaked/misissued connector on a
+    # manager account cannot drive the site remotely. Refused outright (even
+    # introspection) and audited.
+    if ( $caps->{manager_ui} ) {
+        my $a = $params->{arguments} || {};
+        audit_log( $user, $name, ( $a->{path} // '' ), $ENV{REMOTE_ADDR} // '',
+            'fail', 'mcp', 'denied: manager (ui) account on the mcp channel' );
+        rpc_error( $id, -32002,
+            "This account has manager UI access, which is interactive-only: manager "
+                . "accounts cannot be used over MCP. Use a dedicated agent account "
+                . "(mcp capability, no ui) instead. Do not retry." );
+    }
+
     # SM126: strict channel gate. An MCP session operates on the `mcp` channel and
     # must hold the `mcp` capability, enforced ahead of the per-tool action cap so
     # a credential without the channel is refused uniformly. (initialize and
