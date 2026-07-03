@@ -264,10 +264,15 @@ before work starts.
   falls back to the layout's declared `default_theme` mirror if it is installed
   (`_layout_default_theme` reads `layout.json`), so the page loads that theme's
   stylesheet instead of rendering unstyled - no per-layout `[% ELSE %]` needed.
-- **Remote-layout content components** - `install_layout` + fenced/sections
-  components are local-layout only; remote (URL) layouts fetch just `layout.tt`,
-  so their `components/` are not fetched or resolved. Bundle + resolve components
-  for remote layouts if remote layouts get more use.
+- **Remote-layout content components** *(DEFERRED 2026-07-03 - speculative)* -
+  `install_layout` + fenced/sections components are local-layout only; remote
+  (URL) layouts fetch just `layout.tt`, so their `components/` are not fetched or
+  resolved. Current behaviour degrades gracefully (a `:::name` in content rendered
+  with a remote layout falls through to a generic fenced div - no error). A real
+  fix needs a design fork (on-demand guarded fetch of `<base>/components/<name>.tt`
+  with per-component caching, vs a declared component bundle/manifest) and is a
+  sizeable, SSRF-touching build - disproportionate until remote layouts are
+  actually used with components. Revisit then.
 - **Visitor statistics - performance + visualisations** - the in-page stats scan
   is still synchronous and re-reads the whole log each load (the *AI export* path
   now has an incremental per-day-bucket cache - reuse it for the page). Remaining:
