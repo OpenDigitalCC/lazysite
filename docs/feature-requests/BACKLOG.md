@@ -274,15 +274,21 @@ before work starts.
   sizeable, SSRF-touching build - disproportionate until remote layouts are
   actually used with components. Revisit then.
 - **Visitor statistics - performance + visualisations** - the in-page stats scan
-  is still synchronous and re-reads the whole log each load (the *AI export* path
-  now has an incremental per-day-bucket cache - reuse it for the page). Remaining:
-  point the manager Stats page at the cache, and add visualisations (charts for
-  the per-day trend, the class breakdown, referrers).
-- **AI audit export - point the in-page view at a cache** - the audit trail is
-  already exposed as sanitised JSON via the control-API `audit` action (gated on
-  its own `audit` capability since 0.5.25). Remaining: give it the same
-  append-only incremental cache the visitor-stats export uses, and point the
-  in-page Audit view at it.
+  is still synchronous and re-reads the whole log each load. Visualisations are
+  now largely in place (the per-day trend bars, the referrer blocks, and a
+  proportional audience-split bar for the class breakdown, added 2026-07-03). The
+  remaining piece is PERFORMANCE: point the page at an incremental cache instead
+  of a full log re-read. Deferred as disproportionate for now - the existing AI
+  export cache only stores the sanitised per-day CLASS buckets, not the page's
+  richer per-request detail (top_pages, referrers, errors, status), so reuse would
+  need the cache expanded to carry that detail (or scan_stats given its own
+  inode+offset incremental cache). Worth it only once a site's log is large enough
+  for the full re-read to bite.
+- **~~AI audit export - point the in-page view at a cache~~** *(already done -
+  verified 2026-07-03)* - the audit trail already has an append-only incremental
+  cache (`_audit_cached_entries`: inode + byte-offset, cap 5000, in
+  `lazysite/cache/audit-cache.json`) and the in-page Audit view already reads it
+  via the control-API `audit` action. Backlog entry was stale.
 - **install.pl: set/override the update channel** - `install.pl` already *reads*
   the site's `update_channel` (via `--channel-check`, ADR 0005) but cannot set
   it. Add `--channel edge|stable` to write/override `update_channel:` in

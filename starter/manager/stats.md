@@ -80,6 +80,21 @@ function renderStats(d) {
          + '</div></div>';
     });
     h += '</div>';
+    // Proportional split bar - a visual quick-read of the audience mix.
+    var mix = [['human','#2e8b57'],['logged_in','#3a7bd5'],['ai','#8e44ad'],['bot','#d98a1f'],['noise','#b03a3a']];
+    var mixTotal = mix.reduce(function (s, p) { return s + ((d.classes[p[0]] || {}).hits || 0); }, 0);
+    if (mixTotal > 0) {
+      h += '<div class="mg-split-bar" style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin:0.4rem 0">';
+      mix.forEach(function (p) {
+        var hits = (d.classes[p[0]] || {}).hits || 0;
+        if (hits <= 0) return;
+        var pct = (hits / mixTotal * 100);
+        var lbl = (defs.filter(function (x) { return x[0] === p[0]; })[0] || [p[0], p[0]])[1];
+        h += '<span style="width:' + pct.toFixed(2) + '%;background:' + p[1] + '" '
+           + 'title="' + sesc(lbl) + ': ' + fmtNum(hits) + ' (' + pct.toFixed(1) + '%)"></span>';
+      });
+      h += '</div>';
+    }
     h += '<p class="mg-muted">Classified from the log alone (user-agent + path) - an estimate, not '
        + 'authenticated. &ldquo;Logged-in&rdquo; and &ldquo;AI&rdquo; are attributed per request, not per session.</p>';
   }
