@@ -18,6 +18,53 @@ Keying
 
 ## Unreleased
 
+## 0.5.41 - Manager security, content tools, settings clarity (2026-07-03)
+
+Security - bad-URL auto-blocker (SM128, default on)
+: `Lazysite::BadUrl` detects scanner probes (mirrors the stats noise set), counts
+  them per source IP in a rolling window, and blocks at a threshold - enforced in
+  the auth wrapper (a blocked IP gets 403). Configured via the `bad-url-blocker`
+  plugin; blocked-IP list + unblock on the Stats page (`bad-url-blocks` /
+  `bad-url-unblock`, gated on `manage_config`). Auto-blocks are audited. Covers
+  auth-wrapped sites.
+
+Security - manager accounts are interactive-only (SM127)
+: an account with group-granted manager UI access (`ui`) is refused on the api and
+  mcp transports; a group may not combine `ui` with `api`/`mcp`; the "Connect an AI
+  assistant" panel shows only for accounts holding a remote channel. Closes the
+  accidental "manager account connected as an agent" vector. `manager_ui` (the
+  group-granted ui) added to effective_settings to drive the gates.
+
+Feature - content tools
+: **Duplicate a page** - `action_copy` + a "Duplicate…" Files action (copy owned by
+  its creator). **Migrate to local** (SM096) - `action_migrate_to_local` fetches a
+  `.url` page's remote body via the new shared `Lazysite::Fetch` (the SSRF guard,
+  extracted from the processor; loaded lazily so the hot render path stays
+  module-free) and writes it as a local `.md`.
+
+Feature - theme_assets fallback
+: a previewed/per-page layout with no compatible active theme falls back to the
+  layout's declared `default_theme` mirror if installed, instead of unstyled.
+
+Feature - manager UI clarity
+: Site settings reorganised - "Enable the manager UI" toggle with a headless-CMS
+  note, WebDAV under "Services", the duplicate Appearance entry removed, per-field
+  notes now render. Audit timestamps shown in local time (UTC tooltip). Stats page
+  audience-split bar.
+
+Feature - install.pl channel controls
+: `--channel edge|stable` sets a site's `update_channel` (standalone, atomic,
+  audited `channel-set`); `--force` installs an out-of-channel build over the
+  policy (audited `upgrade-forced`). No central site registry, so a fleet is a
+  shell loop over docroots (documented).
+
+Test/chore
+: coverage for manager read actions (pages/config-read/principals/notices),
+  manager-api branch floor 55 -> 60; audit + capability-drift docs; a batch of
+  recorded feature requests (external auth, feedback cascade, onboarding endpoint,
+  backups consolidation, A/B testing) and design decisions (backward-compat
+  freeze, chunk-4 scoping).
+
 ## 0.5.40 - Code-quality gates + documentation debt (2026-07-02)
 
 Feature - Perl::Critic severity 3 (review D2)
