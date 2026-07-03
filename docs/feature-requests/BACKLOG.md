@@ -4,7 +4,7 @@ subtitle: "Status at a glance; see each SMxxx doc for detail"
 brand: plain
 ---
 
-One-line status for every feature request. Updated 2026-07-02. Status derived
+One-line status for every feature request. Updated 2026-07-03. Status derived
 from the CHANGELOG (shipped releases) and corroborating code, not the per-doc
 text.
 
@@ -38,6 +38,27 @@ before work starts.
   local product/price store - Odoo is the source of truth.
 - **Passkey auth extension** - WebAuthn / passkey login delivered as an auth
   plugin.
+- **External authentication integration** - authenticate against an external
+  identity provider instead of (or alongside) the built-in user store: LDAP /
+  Active Directory direct bind, and OAuth 2.0 / OIDC as a *consumer* (SSO login
+  where lazysite is the relying party). Two distinct paths, don't conflate them:
+    - **Proxy-based SSO is largely already supported.** Access managers that
+      front the site as a forward/auth proxy - LemonLDAP::NG, Authentik
+      (forward-auth), oauth2-proxy, Authelia - just need to set the trusted
+      `X-Remote-User` / `X-Remote-Groups` / `X-Remote-Email` headers that the
+      existing auth-proxy trust model already consumes (see the SECURITY threat
+      model: the edge must strip client-supplied copies). The work here is
+      mostly a documented recipe per product + mapping the IdP's group claim onto
+      lazysite groups (which carry the capabilities), not new engine code.
+    - **Direct integration is the new build** - an **auth plugin** (same shape as
+      the planned Passkey/WebAuthn extension) that lazysite calls itself: an LDAP
+      bind against a configured directory, and an OIDC login flow (authorization
+      code + PKCE) where lazysite is the client. Reuse the OAuth machinery that
+      already exists for the MCP connector *as a provider* (lazysite-oauth.pl),
+      but note the direction is reversed (consumer, not provider). Open
+      questions: local-account provisioning / just-in-time creation on first
+      external login, group/claim -> lazysite-group mapping, and whether external
+      identities can hold manager (`ui`) access or only content roles.
 - **Database plugin** - pluggable storage (JSON file / SQLite / DBI) with a
   "form -> DB" write path. Named schemas (session, profile, basket, log,
   comments, + arbitrary); values readable and writable in TT, enabling
