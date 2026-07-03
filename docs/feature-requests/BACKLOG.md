@@ -210,24 +210,19 @@ before work starts.
       supported surface explicitly. Connects to the capability map + clear
       failures above - agents hack around the engine when the sanctioned path
       fails opaquely.
-- **Bad-URL auto-blocker plugin (default on)** - a plugin that recognises the
-  steady stream of vulnerability-scanner probes (`/wp-login.php`, `/.env`,
-  `/config.env`, `/actuator/health`, `/server-status`, `/.git/`, `*.php` on a
-  markdown site, etc. - all already classed as "noise" by the stats classifier)
-  and auto-blocks the source IP after N hits in a window. Maintains the bad-URL
-  pattern list (built-in + operator additions), records every block (IP, pattern,
-  count, time) for review, and exposes a small manager panel (current blocks +
-  unblock). Enabled by default. Reuse the stats noise-path heuristics as the seed
-  list. (Prompted by scanner traffic hitting a fresh site within minutes of going
-  live.) *Design decision to settle first: the ENFORCEMENT point.* Blocking must
-  happen on EVERY request, but the processor's hot path is deliberately lean.
-  Options: (a) check a small cached blocklist early in the auth wrapper
-  (lazysite-auth.pl, already in the path for auth-wrapped sites, but not basic
-  sites); (b) check early in the processor main() (covers all sites, adds a
-  hot-path read); (c) generate a blocklist file the operator wires into the web
-  server / fail2ban (no lazysite hot-path cost, but not self-contained). Plus:
-  atomic hit-counting under concurrency, and never blocking a real visitor who
-  fat-fingers one bad URL. Substantial - scope before building.
+- **~~Bad-URL auto-blocker plugin (default on)~~** *(done 2026-07-03, SM128)* -
+  `Lazysite::BadUrl` detects scanner probes (`/wp-login.php`, `/.env`, `/.git/`,
+  `*.php` on a Markdown site, ...; mirrors the stats noise set), counts them per
+  source IP in a rolling window (atomic under flock), and blocks an IP after a
+  threshold. Enforcement chosen: **the auth wrapper** (option a) - a blocked IP is
+  refused (403) and a probe counts toward a block, before the auth dispatch. On by
+  default; the block-check is a bare `-f` when nothing is blocked. Configured via
+  the `bad-url-blocker` plugin (Plugin Config: enable, threshold, window, extra
+  paths); blocked IPs + unblock live on the Stats page (control-API `bad-url-blocks`
+  / `bad-url-unblock`, gated on `manage_config`); auto-blocks are audited.
+  *Known limitation:* enforcement is in the auth wrapper, so it protects
+  auth-wrapped sites (the managed-site case); a basic (no-auth) site is not
+  covered - a future option (b)/(c) enforcement would extend it.
 - **SM085** Git backend / changesets *(design)* - `begin -> diff -> commit ->
   rollback` on a git-versioned docroot. Biggest remaining lever; adds the
   rollback safety net. Headline ask from both AI-partner reviews.

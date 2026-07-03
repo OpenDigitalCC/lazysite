@@ -14,11 +14,25 @@ search: false
 <div class="mg-card-body" id="stats-body">Loading&hellip;</div>
 </div>
 
+<div class="mg-card">
+<div class="mg-card-header">
+<span class="mg-card-title">Blocked IPs (auto-blocker)</span>
+<button class="mg-btn mg-btn-sm" onclick="loadBlocked()">Refresh</button>
+</div>
+<div class="mg-card-body" id="blocked-body">Loading&hellip;</div>
+</div>
+
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var statsScript = null;
 
 function sesc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
+function showStatus(msg, isErr) {
+  var s = document.getElementById('status');
+  if (!s) return;
+  s.textContent = msg;
+  s.className = 'mg-status' + (isErr ? ' mg-status-error' : ' mg-status-ok');
+}
 
 function fmtBytes(b) {
   b = +b || 0;
@@ -178,5 +192,38 @@ function refBlock(ref) {
   return h + '</tbody></table></div>';
 }
 
+// SM128: the bad-URL auto-blocker's current blocks, with per-IP unblock.
+function loadBlocked() {
+  var el = document.getElementById('blocked-body');
+  fetch(API + '?action=bad-url-blocks').then(function (r) { return r.json(); }).then(function (d) {
+    if (!d || !d.ok) { el.innerHTML = '<p class="mg-muted">' + sesc((d && d.error) || 'Unavailable.') + '</p>'; return; }
+    var ips = Object.keys(d.blocks || {});
+    if (!ips.length) { el.innerHTML = '<p class="mg-muted">No IPs are currently blocked.</p>'; return; }
+    ips.sort(function (a, b) { return (d.blocks[b].since || 0) - (d.blocks[a].since || 0); });
+    var h = '<table class="mg-table"><thead><tr><th>IP</th><th>Probes</th><th>Since</th><th></th></tr></thead><tbody>';
+    ips.forEach(function (ip) {
+      var b = d.blocks[ip];
+      var since = b.since ? new Date(b.since * 1000).toLocaleString() : '';
+      h += '<tr><td><code>' + sesc(ip) + '</code></td><td>' + fmtNum(b.count)
+         + '</td><td>' + sesc(since) + '</td><td>'
+         + '<button class="mg-btn mg-btn-sm" onclick="unblockIp(\'' + sesc(ip).replace(/'/g, '') + '\')">Unblock</button>'
+         + '</td></tr>';
+    });
+    el.innerHTML = h + '</tbody></table>';
+  }).catch(function (e) { el.textContent = 'Error: ' + e.message; });
+}
+
+function unblockIp(ip) {
+  fetch(API + '?action=bad-url-unblock&ip=' + encodeURIComponent(ip), { method: 'POST' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok) { showStatus((d && d.error) || 'Unblock failed', true); return; }
+      showStatus('Unblocked ' + ip + '.');
+      loadBlocked();
+    })
+    .catch(function (e) { showStatus('Error: ' + e.message, true); });
+}
+
 loadStats();
+loadBlocked();
 </script>

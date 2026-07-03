@@ -71,6 +71,48 @@ sub _audit_auth {
     audit_log( $user, $act, '', $ENV{REMOTE_ADDR} // '', $status,
         $origin // 'ui', $detail // '' );
 }
+
+# SM128: the bad-URL auto-blocker enforcement. One pass over lazysite.conf for
+# the bad_url_* settings (enabled by default); a blocked IP is refused, and a
+# probe path counts toward a block. The module is loaded lazily and only when
+# enabled, so a site with the blocker off pays nothing.
+sub _bad_url_guard {
+    my ($path) = @_;
+    my %c;
+    if ( open my $fh, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
+        while (<$fh>) {
+            if (/^\s*(bad_url_\w+)\s*:\s*(.+?)\s*$/) { $c{$1} = $2 }
+        }
+        close $fh;
+    }
+    return if ( $c{bad_url_block} // 'enabled' ) eq 'disabled';
+    my $ip = $ENV{REMOTE_ADDR} // '';
+    return unless length $ip;
+
+    require Lazysite::BadUrl;
+    _bad_url_deny() if Lazysite::BadUrl::is_blocked( $DOCROOT, $ip );
+
+    my @extra = grep { length } map { s/^\s+|\s+$//gr } split /,/, ( $c{bad_url_extra} // '' );
+    return unless Lazysite::BadUrl::is_bad_url( $path, \@extra );
+
+    my $threshold = ( $c{bad_url_threshold} || 10 ) + 0;
+    my $window    = ( $c{bad_url_window}    || 3600 ) + 0;
+    if ( Lazysite::BadUrl::record_and_check( $DOCROOT, $ip, $path,
+            threshold => $threshold, window => $window ) ) {
+        _audit_auth( 'system', 'ip-auto-blocked', 'ok',
+            'path=' . substr( $path, 0, 120 ), 'auth' );
+        log_event( 'WARN', '-', 'IP auto-blocked (bad-url scanner)', ip => $ip );
+        _bad_url_deny();
+    }
+    return;
+}
+
+sub _bad_url_deny {
+    print "Status: 403 Forbidden\r\n";
+    print "Content-Type: text/plain; charset=utf-8\r\n\r\n";
+    print "403 Forbidden\n";
+    exit 0;
+}
 my $COOKIE_NAME  = 'lazysite_auth';
 my $COOKIE_MAX   = 86400;    # 24 hours
 
@@ -89,6 +131,11 @@ my $action  = '';
 # Capture the FULL action token (including hyphens) so a short action like
 # `rotate` does not shadow a longer one such as `rotate-auth-secret`.
 $action = $1 if $query =~ /action=([a-z][a-z-]*)/;
+
+# SM128: bad-URL auto-blocker. Refuse a blocked IP outright and count scanner
+# probes toward a block. Enabled by default; runs before the auth dispatch so it
+# covers every request through the wrapper (a blocked IP cannot even try to log in).
+_bad_url_guard($uri);
 
 if ( $action eq 'login' && $method eq 'POST' ) {
     handle_login();

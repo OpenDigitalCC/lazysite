@@ -80,4 +80,24 @@ my $nocap = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-s
 ok( !$nocap->{ok} && ( $nocap->{error} // '' ) =~ /capabilit/i,
     'config-set requires the manage_config capability' );
 
+# --- SM128: bad-url-blocks / bad-url-unblock over the control API ------------
+make_path("$d/lazysite/cache");
+open my $bf, '>', "$d/lazysite/cache/bad-url-blocked.json" or die $!;
+print $bf encode_json( { '203.0.113.9' => { since => time(), count => 12, path => '/.env' } } );
+close $bf;
+
+my $bl = mapi( $d, QUERY_STRING => 'action=bad-url-blocks', HTTP_AUTHORIZATION => basic( 'p', $tok ) );
+ok( $bl->{ok} && $bl->{blocks}{'203.0.113.9'}, 'bad-url-blocks lists the blocked IP (manage_config)' );
+
+my $ub = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=bad-url-unblock&ip=203.0.113.9',
+    HTTP_AUTHORIZATION => basic( 'p', $tok ) );
+ok( $ub->{ok} && $ub->{removed}, 'bad-url-unblock removes the IP' );
+
+my $bl2 = mapi( $d, QUERY_STRING => 'action=bad-url-blocks', HTTP_AUTHORIZATION => basic( 'p', $tok ) );
+ok( !$bl2->{blocks}{'203.0.113.9'}, 'the IP is gone after unblock' );
+
+my $bl_nc = mapi( $d, QUERY_STRING => 'action=bad-url-blocks', HTTP_AUTHORIZATION => basic( 'q', $tok2 ) );
+ok( !$bl_nc->{ok} && ( $bl_nc->{error} // '' ) =~ /capabilit/i,
+    'bad-url-blocks requires manage_config' );
+
 done_testing();

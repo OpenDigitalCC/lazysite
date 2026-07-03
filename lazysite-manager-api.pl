@@ -26,6 +26,7 @@ BEGIN {
 use Lazysite::Util qw(log_event const_eq);
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Capabilities qw(describe capability_keys);
+use Lazysite::BadUrl       qw(list_blocks unblock);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Auth::Session qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
@@ -317,6 +318,8 @@ if ( $token_auth ) {
         'preview-grant'     => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'config-set'        => sub { $_[0]->{manage_config} },
         'config-read'       => sub { $_[0]->{manage_config} },   # SM122: read a safe subset
+        'bad-url-blocks'    => sub { $_[0]->{manage_config} }, # SM128: blocked-IP list
+        'bad-url-unblock'   => sub { $_[0]->{manage_config} },
         'pages'             => sub { $_[0]->{manage_nav} },       # SM097: page-URL list for the nav editor
         # SM123: a theme/layout manager may list what is installed (was previously
         # unavailable to token clients, so they activated each in turn to discover).
@@ -407,6 +410,13 @@ elsif ( $action eq 'config-set' )       {
     $result = action_config_set(
         ( defined $req->{key}   ? $req->{key}   : $params{key} ),
         ( defined $req->{value} ? $req->{value} : $params{value} ) );
+}
+elsif ( $action eq 'bad-url-blocks' ) { $result = { ok => 1, blocks => list_blocks($DOCROOT) } }
+elsif ( $action eq 'bad-url-unblock' ) {
+    my $ip = defined $params{ip} ? $params{ip} : ( eval { decode_json($body) } || {} )->{ip};
+    my $removed = ( defined $ip && length $ip ) ? unblock( $DOCROOT, $ip ) : 0;
+    log_event( 'INFO', 'bad-url-unblock', 'IP unblocked', ip => ( $ip // '' ), user => $auth_user );
+    $result = { ok => 1, removed => ( $removed ? JSON::PP::true : JSON::PP::false ) };
 }
 elsif ( $action eq 'theme-list' )       { $result = action_theme_list() }
 elsif ( $action eq 'themes-list-all' )  { $result = action_themes_list_all() }
@@ -538,7 +548,7 @@ else  { $result = { ok => 0, error => "Unknown action: $action" } }
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
         csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
-        cache-invalidate nav-read config-read pages theme-list themes-list-all themes-for-layout
+        cache-invalidate nav-read config-read bad-url-blocks pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
