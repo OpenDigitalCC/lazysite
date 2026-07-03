@@ -11,7 +11,7 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Files
-    qw(action_list action_mkdir action_delete action_move action_acl_set action_acl_remove
+    qw(action_list action_mkdir action_delete action_move action_copy action_acl_set action_acl_remove
        acquire_lock renew_lock release_lock);
 use Lazysite::Manager::Common ();
 use Lazysite::Auth::Acl qw(load_acls);
@@ -120,6 +120,29 @@ ok( !action_move( 'content/renamed.md', 'lazysite/auth/users', 'alice' )->{ok},
     'move to a blocked path is refused' );
 ok( !action_move( 'content/missing.md', 'content/x.md', 'alice' )->{ok},
     'move of a missing source is refused' );
+
+# --- action_copy (duplicate: source kept, fresh owner, no cache copy) ---
+open my $cf, '>', "$d/content/src.md" or die $!;       print {$cf} 'dup me'; close $cf;
+open my $cb, '>', "$d/content/src.md.brief" or die $!; print {$cb} 'why';   close $cb;
+open my $ch, '>', "$d/content/src.html" or die $!;     print {$ch} '<cache>'; close $ch;
+action_acl_set( 'content/src.md', 'alice', ['bob'], ['alice'], 'alice' );
+my $cp = action_copy( 'content/src.md', 'content/dup.md', 'carol' );
+ok( $cp->{ok}, 'copy succeeds' );
+ok( -f "$d/content/src.md" && -f "$d/content/dup.md", 'source kept, duplicate created' );
+is( do { open my $f, '<', "$d/content/dup.md"; local $/; <$f> }, 'dup me',
+    'duplicate has the source content' );
+ok( -f "$d/content/dup.md.brief", '.brief sidecar copied' );
+ok( !-e "$d/content/dup.html", 'generated .html cache is NOT copied (re-renders)' );
+my $ca = load_acls();
+is( $ca->{'content/dup.md'}{owner}, 'carol', 'duplicate is owned by its creator, not the source owner' );
+ok( !$ca->{'content/dup.md'}{read}, 'duplicate does not inherit the source read list' );
+
+ok( !action_copy( 'content/src.md', 'content/dup.md', 'carol' )->{ok},
+    'copy onto an existing target is refused' );
+ok( !action_copy( 'content/src.md', 'lazysite/auth/users', 'carol' )->{ok},
+    'copy to a blocked path is refused' );
+ok( !action_copy( 'content/missing.md', 'content/y.md', 'carol' )->{ok},
+    'copy of a missing source is refused' );
 
 # --- action_list surfaces ACL read/write + lock state (SM077) ---
 open my $sh, '>', "$d/content/shared.md" or die $!; print {$sh} 'x'; close $sh;

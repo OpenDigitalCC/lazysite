@@ -280,6 +280,7 @@ function permsCard(f) {
     +     '<a class="mg-btn" href="' + API + '?action=file-download&path=' + encodeURIComponent(f.path) + '" download="' + escHtml(f.name) + '">&#11015; Download</a> '
     +     briefButton(f) + ' '
     +     '<button class="mg-btn" onclick="moveFile(this)">&#8644; Move&hellip;</button>'
+    +     '<button class="mg-btn" onclick="duplicateFile(this)">&#10697; Duplicate&hellip;</button>'
     +     '<button class="mg-btn mg-btn-danger" onclick="deleteOneFile(this)">&#128465; Delete</button>'
     +     '<button class="mg-btn mg-btn-primary mg-perms-save" onclick="savePerms(this)">Save permissions</button>'
     +   '</div>'
@@ -479,6 +480,25 @@ function moveFile(btn) {
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Move failed', true); return; }
       showStatus('Moved to ' + dest + '.');
+      loadDir(currentDir);
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
+}
+
+function duplicateFile(btn) {
+  var card = btn.closest('tr');
+  var row  = card.previousElementSibling;
+  var path = row.getAttribute('data-path');
+  // Suggest "<name>-copy.<ext>" as the default target.
+  var suggested = path.replace(/(\.[^./]+)?$/, function(ext) { return '-copy' + (ext || ''); });
+  mgPrompt('Duplicate to:', suggested).then(function(dest) {
+    if (!dest || dest === path) return;
+    fetch(API + '?action=copy&path=' + encodeURIComponent(path) + '&to=' + encodeURIComponent(dest), { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Duplicate failed', true); return; }
+      showStatus('Duplicated to ' + dest + '.');
       loadDir(currentDir);
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });

@@ -200,7 +200,9 @@ before work starts.
   admin bar carries one, but the manager chrome itself should too).
 - **Audit timestamps in local time** - show audit times in the detected local
   timezone, falling back to UTC.
-- **Files: duplicate a page** - a "duplicate" action on the files list.
+- **~~Files: duplicate a page~~** *(done 2026-07-03)* - a "Duplicate…" action on
+  the files list; `action_copy` copies the file + `.brief` (not the `.html`
+  cache), the duplicate is owned by its creator.
 - **theme_assets fallback on no active theme** - when a layout is previewed or
   set per-page with no compatible active theme, `theme_assets`/`theme_css` are
   empty and the page renders unstyled. Fall `theme_assets` back to the layout's

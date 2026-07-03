@@ -9,6 +9,7 @@ use warnings;
 use JSON::PP qw(encode_json decode_json);
 use File::Find;
 use File::Path qw(make_path);
+use File::Copy qw(copy);
 use File::Basename qw(dirname);
 use Cwd qw(realpath);
 use Fcntl qw(:flock);
@@ -22,7 +23,7 @@ use Lazysite::Manager::Upload qw(is_editable_text);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
-    action_list action_read action_save action_delete action_mkdir action_move
+    action_list action_read action_save action_delete action_mkdir action_move action_copy
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove
 );
@@ -418,6 +419,50 @@ sub action_move {
 
     unlink $lock_file if -f $lock_file;
     log_event( 'INFO', $action, 'file moved',
+        from => $src_rel, to => $dst_rel, user => $auth_user );
+    _invalidate_registries();
+    return { ok => 1, from => $s->{rel}, to => $d->{rel} };
+}
+
+# SM: duplicate a file. Like action_move but copies rather than renames, needs
+# only READ on the source, and the duplicate is a fresh file owned by whoever
+# made it. The generated .html cache is NOT copied - the copy re-renders on
+# first request; the .brief sidecar IS copied.
+sub action_copy {
+    my ( $src_rel, $dst_rel, $username ) = @_;
+    my $s = validate_path($src_rel);
+    return $s unless $s->{ok};
+    my $d = validate_path($dst_rel);
+    return $d unless $d->{ok};
+
+    for my $r ( $s->{rel}, $d->{rel} ) {
+        return { ok => 0, error => "Path is blocked", kind => 'blocked' }
+            if is_blocked_path($r) || is_blocked_config($r);
+    }
+
+    my ( $src_full, $dst_full ) = ( $s->{full}, $d->{full} );
+    return { ok => 0, error => "Source not found" }      unless -e $src_full;
+    return { ok => 0, error => "Source is a directory" } if -d $src_full;
+    return { ok => 0, error => "Target already exists" } if -e $dst_full;
+
+    # Per-file ACL: READ access on the source (operators bypass).
+    if ( my $deny = _acl_denied( $s->{rel}, 'read', $username ) ) { return $deny }
+
+    my $dst_dir = dirname($dst_full);
+    make_path($dst_dir) unless -d $dst_dir;
+    copy( $src_full, $dst_full )
+        or return { ok => 0, error => "Copy failed: $!" };
+    copy( "$src_full.brief", "$dst_full.brief" ) if -e "$src_full.brief";
+
+    # The duplicate is a fresh file owned by its creator (fresh ACL, no inherited
+    # read/write lists from the source).
+    if ( defined $username && length $username ) {
+        my $acls = load_acls();
+        $acls->{ _acl_norm( $d->{rel} ) } = { owner => $username };
+        save_acls($acls);
+    }
+
+    log_event( 'INFO', $action, 'file copied',
         from => $src_rel, to => $dst_rel, user => $auth_user );
     _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $d->{rel} };
