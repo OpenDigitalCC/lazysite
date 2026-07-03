@@ -128,14 +128,13 @@ before work starts.
   (SLO/RTO/RPO declaration, snapshot crons, logrotate, monitoring/alerting,
   debsecan + gitleaks installs, pentest gate + engagement, support period,
   signing/DoC/VEX/technical-file set).
-- **manager-api branch coverage to 60** - lazysite-manager-api.pl's BRANCH
-  coverage swung run-to-run earlier (72.5% and 56.6% on identical code,
-  2026-07-02) but has since settled at ~57% across the 0.5.36-0.5.39 runs, so the
-  swing looks resolved and the true figure is ~57% - genuinely below the 60 floor,
-  not just mismeasured. The override was ratcheted 50 -> 55 to reflect the settled
-  figure; reaching 60 needs targeted tests for the remaining dispatch branches in
-  the big `if/elsif` action chain (not just an override bump). Statements stable
-  (70.9-75.4).
+- **~~manager-api branch coverage to 60~~** *(done 2026-07-03)* -
+  `t/unit/manager/23-manager-read-actions.t` added coverage for five
+  previously-untested actions (pages, config-read, principals, notices,
+  notices-seen); the branch measurement rose to 80.7% and the floor override was
+  raised 55 -> 60 (the review target). Residual subprocess-merge variance remains
+  (backlog: subprocess-coverage stability); the override carries a dial-back note
+  if a gate ever flakes near 60.
 - **SM126** Partner-agent onboarding & capability discoverability *(scoped -
   see `SM126-agent-capability-discovery.md`; prompted by real partner-agent
   feedback 2026-07-02)* - a connecting agent currently has to reverse-engineer

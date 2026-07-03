@@ -38,14 +38,15 @@
 # the gate (its tests exercise a tempdir-copied tree end to end).
 floor=60
 branch_floor=60
-# manager-api's BRANCH measurement swung run-to-run earlier (72.5% and 56.6% on
-# identical code, 2026-07-02) - suspected merge-timing of instrumented children.
-# Across the 0.5.36-0.5.39 runs it has since settled at ~57% (57.0, 57.3),
-# so the earlier swing looks resolved and the file's TRUE branch coverage is
-# ~57% - genuinely below the 60 floor, not merely mismeasured. Reaching 60 needs
-# targeted tests for its remaining dispatch branches, not just an override bump
-# (backlog: manager-api branch tests). Override ratcheted 50 -> 55 to reflect the
-# settled figure with a small margin; raise to 60 once the branch tests land.
-# Statements are stable (70.9-75.4). Never lower the others.
-branch_floor[lazysite-manager-api.pl]=55
+# manager-api's BRANCH measurement swings run-to-run (56.6% - 80.7% observed on
+# near-identical code) - a merge-timing artifact of the instrumented subprocess
+# children, not a true coverage change. t/unit/manager/23-manager-read-actions.t
+# (2026-07-03) added real coverage for five previously-untested actions (pages,
+# config-read, principals, notices, notices-seen); the next run measured 84.6% /
+# 80.7%. Override raised to the review's 60 target (this run clears it with wide
+# margin). CAVEAT: the residual merge variance means a rare low run could dip
+# near 60; if a release gate ever flakes here, dial this back to 55 - the real
+# fix is the subprocess-coverage-stability work (backlog), not weaker tests.
+# Statements are stable (70.9-84.6). Never lower the others.
+branch_floor[lazysite-manager-api.pl]=60
 target=75
