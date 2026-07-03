@@ -223,8 +223,12 @@ before work starts.
 - **SM085** Git backend / changesets *(design)* - `begin -> diff -> commit ->
   rollback` on a git-versioned docroot. Biggest remaining lever; adds the
   rollback safety net. Headline ask from both AI-partner reviews.
-- **SM096** "Migrate to local" - one click to fetch a `.url` page's body and
-  take local ownership as `.md`.
+- **~~SM096 "Migrate to local"~~** *(done 2026-07-03)* - a "Migrate to local"
+  action on a `.url` page fetches the remote body (via the shared guarded
+  `Lazysite::Fetch`) and writes it as a sibling `.md`, dropping the `.url`. The
+  SSRF guard was extracted from the processor into `Lazysite::Fetch` (one copy,
+  shared; the processor loads it lazily on the fetch path so the hot render path
+  stays module-free, ADR 0001, and no longer loads Socket/URI at all).
 - **SM098** Multi-page / wizard forms (Next / Back, per-step validation).
 - **SM103** Recent-change markers - "changed recently" dots on nav/users/files;
   the visible tip of a streaming audit-trail layer.

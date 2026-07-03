@@ -34,7 +34,7 @@ plugins/stats.pl            Visitor statistics plugin
 tools/lazysite-server.pl    Development HTTP server
 tools/lazysite-users.pl     User management CLI / JSON API
 tools/lazysite-check.pl     Install health / permissions doctor
-lib/Lazysite/**             The shared module tree (16 modules)
+lib/Lazysite/**             The shared module tree (17 modules)
 ```
 
 Cross-script data contracts (the lock-record format read by both the manager

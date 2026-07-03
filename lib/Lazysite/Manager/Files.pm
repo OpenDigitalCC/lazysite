@@ -9,7 +9,7 @@ use warnings;
 use JSON::PP qw(encode_json decode_json);
 use File::Find;
 use File::Path qw(make_path);
-use File::Copy qw(copy);
+use File::Copy     qw(copy);
 use File::Basename qw(dirname);
 use Cwd qw(realpath);
 use Fcntl qw(:flock);
@@ -24,6 +24,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(
     action_list action_read action_save action_delete action_mkdir action_move action_copy
+    action_migrate_to_local
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove
 );
@@ -441,7 +442,7 @@ sub action_copy {
     }
 
     my ( $src_full, $dst_full ) = ( $s->{full}, $d->{full} );
-    return { ok => 0, error => "Source not found" }      unless -e $src_full;
+    return { ok => 0, error => "Source not found" } unless -e $src_full;
     return { ok => 0, error => "Source is a directory" } if -d $src_full;
     return { ok => 0, error => "Target already exists" } if -e $dst_full;
 
@@ -466,6 +467,64 @@ sub action_copy {
         from => $src_rel, to => $dst_rel, user => $auth_user );
     _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $d->{rel} };
+}
+
+# SM096: migrate a remote .url page to local ownership. Fetch the remote body
+# through the shared GUARDED fetch (Lazysite::Fetch - same SSRF guard the
+# processor uses), write it as a sibling .md, then drop the .url. The page becomes
+# local content (the .md wins over the .url in the processor anyway); the .brief
+# sidecar and the ACL entry are carried across and any cached render is cleared.
+sub action_migrate_to_local {
+    my ( $rel, $username ) = @_;
+    my $s = validate_path($rel);
+    return $s unless $s->{ok};
+    return { ok => 0, error => 'Not a .url page' } unless $s->{rel} =~ /\.url$/;
+    return { ok => 0, error => 'Path is blocked', kind => 'blocked' }
+        if is_blocked_path( $s->{rel} ) || is_blocked_config( $s->{rel} );
+
+    my $url_full = $s->{full};
+    return { ok => 0, error => 'Source not found' } unless -f $url_full;
+
+    ( my $md_rel  = $s->{rel} ) =~ s/\.url$/.md/;
+    ( my $md_full = $url_full ) =~ s/\.url$/.md/;
+    return { ok => 0, error => 'A .md already exists at this path' } if -e $md_full;
+
+    # Per-file ACL: write access on the target page (operators bypass).
+    if ( my $deny = _acl_denied( $s->{rel}, 'write', $username ) ) { return $deny }
+
+    open my $uf, '<', $url_full or return { ok => 0, error => 'Cannot read the .url file' };
+    my $url = do { local $/; <$uf> };
+    close $uf;
+    $url =~ s/^\s+|\s+$//g;
+    return { ok => 0, error => 'The .url file is empty' } unless length $url;
+
+    require Lazysite::Fetch;
+    my $body = Lazysite::Fetch::fetch_url($url);
+    return { ok => 0, error => "Could not fetch $url (unreachable, blocked by the "
+            . "SSRF guard, or a non-success response)" }
+        unless defined $body;
+
+    my ( $wok, $werr ) = write_file_checked( $md_full, $body );
+    return { ok => 0, error => "Could not write the local page: $werr" } unless $wok;
+
+    unlink $url_full;    # the page is now local; the .md serves it
+    rename( "$url_full.brief", "$md_full.brief" ) if -e "$url_full.brief";
+
+    # Re-key the ACL entry from the .url to the .md (ownership carries over).
+    my $acls = load_acls();
+    my ( $uk, $mk ) = ( _acl_norm( $s->{rel} ), _acl_norm($md_rel) );
+    if ( exists $acls->{$uk} ) {
+        $acls->{$mk} = delete $acls->{$uk};
+        save_acls($acls);
+    }
+
+    ( my $cache = $md_full ) =~ s/\.md$/.html/;
+    unlink $cache if -f $cache;
+
+    log_event( 'INFO', $action, 'migrated .url to local .md',
+        from => $s->{rel}, to => $md_rel, url => $url, user => $auth_user );
+    _invalidate_registries();
+    return { ok => 1, from => $s->{rel}, to => $md_rel, url => $url };
 }
 
 sub _read_lock_record {

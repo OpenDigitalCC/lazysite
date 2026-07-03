@@ -37,7 +37,8 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
     action_plugin_read action_plugin_save action_plugin_action action_handler_list
     action_handler_save action_handler_delete action_form_targets_read action_form_targets_save);
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
-    action_move action_copy acquire_lock release_lock renew_lock _get_lock_info
+    action_move action_copy action_migrate_to_local
+    acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove);
 use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action_theme_activate
     action_layout_activate action_theme_delete action_theme_rename action_theme_upload
@@ -392,7 +393,8 @@ elsif ( $action eq 'acl-set' )          {
 elsif ( $action eq 'acl-remove' )       { $result = action_acl_remove( $path, $auth_user ) }
 elsif ( $action eq 'mkdir' )            { $result = action_mkdir($path) }
 elsif ( $action eq 'move' )             { $result = action_move( $path, $params{to}, $auth_user ) }
-elsif ( $action eq 'copy' )   { $result = action_copy( $path, $params{to}, $auth_user ) }
+elsif ( $action eq 'copy' ) { $result = action_copy( $path, $params{to}, $auth_user ) }
+elsif ( $action eq 'migrate-to-local' ) { $result = action_migrate_to_local( $path, $auth_user ) }
 elsif ( $action eq 'lock' )             { $result = acquire_lock( $path, $auth_user ) }
 elsif ( $action eq 'unlock' )           { $result = release_lock( $path, $auth_user ) }
 elsif ( $action eq 'renew-lock' )       { $result = renew_lock( $path, $auth_user ) }

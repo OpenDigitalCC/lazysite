@@ -11,8 +11,8 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Files
-    qw(action_list action_mkdir action_delete action_move action_copy action_acl_set action_acl_remove
-       acquire_lock renew_lock release_lock);
+    qw(action_list action_mkdir action_delete action_move action_copy action_migrate_to_local
+       action_acl_set action_acl_remove acquire_lock renew_lock release_lock);
 use Lazysite::Manager::Common ();
 use Lazysite::Auth::Acl qw(load_acls);
 
@@ -143,6 +143,36 @@ ok( !action_copy( 'content/src.md', 'lazysite/auth/users', 'carol' )->{ok},
     'copy to a blocked path is refused' );
 ok( !action_copy( 'content/missing.md', 'content/y.md', 'carol' )->{ok},
     'copy of a missing source is refused' );
+
+# --- action_migrate_to_local (.url -> local .md via the guarded fetch) -------
+# Mock the shared fetch so there is no live-network dependency.
+require Lazysite::Fetch;
+{ no warnings qw(redefine once);
+  *Lazysite::Fetch::fetch_url = sub { "# Migrated\n\nremote body from $_[0]\n" }; }
+
+open my $uf, '>', "$d/content/remote.url"        or die $!; print {$uf} 'https://example.com/page'; close $uf;
+open my $ub, '>', "$d/content/remote.url.brief"  or die $!; print {$ub} 'why';                     close $ub;
+action_acl_set( 'content/remote.url', 'alice', ['bob'], ['alice'], 'alice' );
+
+my $mig = action_migrate_to_local( 'content/remote.url', 'alice' );
+ok( $mig->{ok}, 'migrate succeeds' );
+ok( -f "$d/content/remote.md" && !-e "$d/content/remote.url", '.md created, .url removed' );
+like( do { open my $f, '<', "$d/content/remote.md"; local $/; <$f> }, qr/remote body from/,
+    '.md holds the fetched content' );
+ok( -f "$d/content/remote.md.brief", '.brief sidecar carried over' );
+my $ma = load_acls();
+ok( exists $ma->{'content/remote.md'} && !exists $ma->{'content/remote.url'},
+    'ACL entry re-keyed from .url to .md (ownership carried)' );
+
+ok( !action_migrate_to_local( 'content/src.md', 'alice' )->{ok},
+    'migrate of a non-.url file is refused' );
+
+# A fetch failure must leave the .url intact and write no .md.
+{ no warnings qw(redefine once); *Lazysite::Fetch::fetch_url = sub { undef }; }
+open my $u2, '>', "$d/content/dead.url" or die $!; print {$u2} 'https://example.com/gone'; close $u2;
+my $fail = action_migrate_to_local( 'content/dead.url', 'alice' );
+ok( !$fail->{ok} && -f "$d/content/dead.url" && !-e "$d/content/dead.md",
+    'fetch failure leaves the .url intact and writes no .md' );
 
 # --- action_list surfaces ACL read/write + lock state (SM077) ---
 open my $sh, '>', "$d/content/shared.md" or die $!; print {$sh} 'x'; close $sh;

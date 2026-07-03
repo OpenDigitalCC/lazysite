@@ -7,8 +7,8 @@ this is the orientation.
 ## Architecture in one screen
 
 lazysite is a set of **Perl CGI scripts over a shared `lib/Lazysite/` module
-tree** (16 modules since the SM079 modular refactor: `Util`, `Audit`,
-`Auth::*`, `Manager::*`, `Capabilities`). The one deliberate exception is the **processor's
+tree** (17 modules since the SM079 modular refactor: `Util`, `Audit`,
+`Auth::*`, `Manager::*`, `Capabilities`, `Fetch`). The one deliberate exception is the **processor's
 render path**, which stays module-free so the page-serving hot path has no
 `@INC` dependency (see `docs/adr/0001-capability-resolution.md` and
 `docs/architecture/code-quality.md`). Core-Perl only, plus optional Template

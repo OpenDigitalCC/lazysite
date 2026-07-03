@@ -11,8 +11,8 @@ use File::Path qw(make_path);
 # fast.
 use Cwd qw(realpath);
 use Encode qw(decode);
-use Socket qw(inet_aton inet_ntoa);
-use URI;
+# Socket + URI moved to Lazysite::Fetch (SM096): they backed only the SSRF guard,
+# now on the lazily-loaded fetch path, so the hot render path no longer loads them.
 use JSON::PP qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
 use POSIX qw(strftime);
@@ -1239,63 +1239,23 @@ sub process_url {
     return $page;
 }
 
+# SM096: the guarded fetch + SSRF check now live in Lazysite::Fetch, shared with
+# the manager's migrate-to-local action so there is ONE SSRF guard to audit.
+# fetch_url is a cold, network-bound path (never the hot cache-hit render), so the
+# module is loaded lazily here on first use - the page-serving hot path stays
+# module-free (ADR 0001), exactly as LWP::UserAgent was already deferred.
 sub fetch_url {
     my ($url) = @_;
-
-    # Only allow http/https
-    return unless $url =~ m{\Ahttps?://};
-
-    # H-4: SSRF guard - reject private / loopback / link-local / multicast
-    # IP ranges before touching the wire.
-    unless ( is_safe_url($url) ) {
-        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'SSRF blocked',
-            url => substr( $url, 0, 100 ));
-        return;
+    unless ( $INC{'Lazysite/Fetch.pm'} ) {
+        require Cwd;
+        require File::Basename;
+        my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+        for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+            if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+        }
+        require Lazysite::Fetch;
     }
-
-    # P-1: load LWP::UserAgent only on first use.
-    require LWP::UserAgent;
-    my $ua = LWP::UserAgent->new(
-        timeout => 10,
-        agent   => 'lazysite/1.0',
-    );
-
-    my $response = $ua->get($url);
-
-    return unless $response->is_success;
-    return $response->decoded_content;
-}
-
-# H-4: reject URLs that resolve to RFC1918 / loopback / link-local /
-# multicast / CGNAT / IPv6-loopback / IPv6-link-local addresses. IPv4-only
-# resolution via inet_aton is a deliberate choice - IPv6 private-range
-# detection is more involved and we'd rather fail closed than parse
-# partial v6 addresses incorrectly.
-sub is_safe_url {
-    my ($url) = @_;
-    my $uri  = URI->new($url);
-    my $host = $uri->host // '';
-    return 0 unless length $host;
-
-    # Syntactic IPv6 rejection for literals (e.g. http://[::1]/)
-    return 0 if $host =~ /\A\[?::1\]?\z/;
-    return 0 if $host =~ /\A\[?fe[89ab][0-9a-f]/i;   # link-local v6
-    return 0 if $host =~ /\A\[?f[cd][0-9a-f]{2}:/i;  # unique-local v6
-
-    my $packed = inet_aton($host);
-    return 0 unless $packed;
-    my $ip = inet_ntoa($packed);
-
-    return 0 if $ip eq '0.0.0.0';
-    return 0 if $ip =~ /\A127\./;                       # loopback
-    return 0 if $ip =~ /\A10\./;                        # RFC1918
-    return 0 if $ip =~ /\A172\.(?:1[6-9]|2\d|3[01])\./; # RFC1918
-    return 0 if $ip =~ /\A192\.168\./;                  # RFC1918
-    return 0 if $ip =~ /\A169\.254\./;                  # link-local / metadata
-    return 0 if $ip =~ /\A(?:22[4-9]|23\d)\./;          # multicast
-    return 0 if $ip =~ /\A100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./; # CGNAT
-
-    return 1;
+    return Lazysite::Fetch::fetch_url($url);
 }
 
 sub peek_ttl {

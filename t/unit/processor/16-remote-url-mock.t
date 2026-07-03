@@ -13,18 +13,21 @@ use File::Temp qw(tempdir);
 use IO::Socket::INET;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../../../lib";   # repo lib/ for Lazysite::Fetch (SM096)
 use TestHelper qw(load_processor setup_minimal_site);
 
 my $docroot = tempdir( CLEANUP => 1 );
 setup_minimal_site($docroot);
 load_processor($docroot);
 
-# Disable the SSRF guard for these tests only. Tests run in their
-# own perl process (each .t file is a fresh interpreter), so this
-# redefine affects nothing outside this file.
+# Disable the SSRF guard for these tests only. SM096: it now lives in
+# Lazysite::Fetch (the processor's fetch_url delegates there), so load the module
+# and override it there. Tests run in their own perl process, so this redefine
+# affects nothing outside this file.
+require Lazysite::Fetch;
 {
     no warnings qw(redefine once);
-    *main::is_safe_url = sub { 1 };
+    *Lazysite::Fetch::is_safe_url = sub { 1 };
 }
 
 # --- Start a mock HTTP server on a random free port ---

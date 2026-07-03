@@ -281,6 +281,7 @@ function permsCard(f) {
     +     briefButton(f) + ' '
     +     '<button class="mg-btn" onclick="moveFile(this)">&#8644; Move&hellip;</button>'
     +     '<button class="mg-btn" onclick="duplicateFile(this)">&#10697; Duplicate&hellip;</button>'
+    +     ( /\.url$/.test(f.name) ? '<button class="mg-btn" onclick="migrateToLocal(this)">&#11015; Migrate to local</button>' : '' )
     +     '<button class="mg-btn mg-btn-danger" onclick="deleteOneFile(this)">&#128465; Delete</button>'
     +     '<button class="mg-btn mg-btn-primary mg-perms-save" onclick="savePerms(this)">Save permissions</button>'
     +   '</div>'
@@ -499,6 +500,25 @@ function duplicateFile(btn) {
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Duplicate failed', true); return; }
       showStatus('Duplicated to ' + dest + '.');
+      loadDir(currentDir);
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
+}
+
+// SM096: fetch a .url page's remote body and take local ownership as .md.
+function migrateToLocal(btn) {
+  var card = btn.closest('tr');
+  var row  = card.previousElementSibling;
+  var path = row.getAttribute('data-path');
+  var name = row.getAttribute('data-name') || path;
+  mgConfirm('Fetch "' + name + '" and save it as a local page? The remote content is downloaded once and the .url is replaced by a local .md you own.', { ok: 'Migrate' }).then(function(ok) {
+    if (!ok) return;
+    fetch(API + '?action=migrate-to-local&path=' + encodeURIComponent(path), { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Migrate failed', true); return; }
+      showStatus('Migrated to ' + d.to + '.');
       loadDir(currentDir);
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
