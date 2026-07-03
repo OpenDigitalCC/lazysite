@@ -26,32 +26,27 @@ var SITE_SCHEMA = [
     default: 'My Site', group: 'Identity' },
   { key: 'site_url',       label: 'Site URL',              type: 'text',
     default: '${REQUEST_SCHEME}://${SERVER_NAME}' },
-  // Layouts repo first: layout + theme are installed FROM it, so it's the
-  // prerequisite. Read-only here (edit on /manager/themes); defaults to the
-  // standard pack so the release browser works with no setup.
-  { key: 'layouts_repo',   label: 'Layouts repo',          type: 'readonly_with_link',
-    default: 'OpenDigitalCC/lazysite-layouts', link_href: '/manager/themes',
-    link_label: 'Edit on Themes', group: 'Appearance' },
-  // Active layout + theme are NOT edited here any more: switching them lives in
-  // ONE place, the Appearance page (Installed layouts & themes), where activation
-  // also clears the page cache and mirrors theme assets. (The layouts_repo link
-  // above goes there.)
+  // Layout, theme and the layouts repo are managed in ONE place - the Appearance
+  // page (Installed layouts & themes), where activation also clears the page cache
+  // and mirrors theme assets - so they are NOT duplicated here in settings.
   { key: 'nav_file',       label: 'Navigation file',       type: 'text',
-    default: 'lazysite/nav.conf' },
+    default: 'lazysite/nav.conf', group: 'Content' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'toggle',
-    on: 'true', off: 'false', default: 'true', group: 'Content' },
-  { key: 'manager',        label: 'Manager',               type: 'toggle',
-    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Access' },
-  { key: 'manager_path',   label: 'Manager URL path',      type: 'text',
-    default: '/manager',
-    show_when: { key: 'manager', value: ['enabled'] } },
+    on: 'true', off: 'false', default: 'true' },
   // SM095: Manager-UI access is the `ui` channel capability, granted through a
   // group on the Groups page. The old manager_groups list is no longer edited
   // here; it remains a backend-only (lazysite.conf) fallback.
+  { key: 'manager',        label: 'Enable the manager UI', type: 'toggle',
+    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Manager user interface',
+    note: 'The manager UI is the web interface you are using right now. Switch it OFF to run lazysite as a HEADLESS CMS: the /manager interface is disabled (including for you), but the site keeps serving pages and stays fully configurable over the control API, WebDAV, MCP and direct file access. To turn it back on, set "manager: enabled" in lazysite.conf.' },
+  { key: 'manager_path',   label: 'Manager URL path',      type: 'text',
+    default: '/manager',
+    show_when: { key: 'manager', value: ['enabled'] } },
   { key: 'webdav_enabled', label: 'WebDAV publishing', type: 'toggle',
-    on: 'enabled', off: 'disabled', default: 'disabled' },
+    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
+    note: 'The /dav publishing endpoint (files, themes, layouts) for partner tools and agents. Off by default; when off, /dav returns 404 to every request.' },
   { key: 'update_channel', label: 'Update channel', type: 'select',
-    options: ['all', 'stable'], default: 'all',
+    options: ['all', 'stable'], default: 'all', group: 'Updates',
     note: 'Which lazysite upgrades this site accepts. "all" installs every release; "stable" refuses non-stable (edge) upgrades (the deploy is skipped and logged in the audit trail). Use "stable" for customer sites.' },
 ];
 
@@ -235,6 +230,7 @@ function renderSiteForm(values) {
     } else {
       html += '<input type="text" name="'+f.key+'" value="'+esc(v)+'"'+(f.required?' required':'')+'>';
     }
+    if (f.note) html += '<div class="mg-config-help mg-field-note">' + esc(f.note) + '</div>';
     html += '</div>';
   });
   html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'

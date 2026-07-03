@@ -14,6 +14,26 @@ text.
 Discrete items expanded from the raw wishlist; each needs its own scoping doc
 before work starts.
 
+- **Backward-compatibility freeze (stability point)** *(project decision)* - pick
+  a version (e.g. 1.0) after which breaking changes require a documented migration
+  path, and drive all *intended* breaking changes in BEFORE that point so the
+  freeze starts clean. Breaking changes currently in flight or planned that should
+  land pre-freeze: the SM095 capability model (`manager_groups` -> `ui` capability,
+  channel gating), settings/label reorganisation, any auth-store or on-disk-format
+  changes, the backups consolidation, and the config-schema unification (SM042).
+  Deliverable of the decision: a compatibility policy (what "breaking" means, the
+  deprecation window, the migration-note contract) - a good ADR. Until then,
+  breaking changes are cheap; after it, they are expensive, so sequence
+  accordingly.
+- **WebDAV as a plugin (vs core Services)** - WebDAV publishing is currently a
+  core feature (now grouped under "Services" in Site settings). Consider whether
+  it belongs as an opt-in plugin instead - lazysite-dav.pl is already a separate
+  entry point gated by `webdav_enabled` + the `webdav` capability, so the move is
+  plausible. Trade-off: a plugin is cleaner separation and lets a headless/API-only
+  deployment drop the endpoint entirely, but WebDAV is deeply wired into the
+  capability model and the partner-onboarding flow, so "plugin" must not mean
+  second-class. Decide: keep as core-under-Services (done), or promote to a
+  first-class plugin with the same trust model.
 - **Plugin packaging / separation** - split plugins from the core tree so they
   can be added, removed, or uploaded independently: a plugin becomes a
   self-describing unit installed/uploaded like a theme, rather than living in the
@@ -203,6 +223,19 @@ before work starts.
 - **~~Files: duplicate a page~~** *(done 2026-07-03)* - a "Duplicate…" action on
   the files list; `action_copy` copies the file + `.brief` (not the `.html`
   cache), the duplicate is owned by its creator.
+- **Consolidate backups into one typed, permission-gated Backups tab** - today
+  there are separate backup mechanisms (the Appearance layout/theme snapshots and
+  the SM084 content/full backup+restore). Unify them into ONE Backups page with
+  backup *types* as sections, each gated by the matching capability, so there is
+  one consistent create / list / restore flow:
+    - **Content** backups - `manage_content`.
+    - **Themes & layouts** backups - `manage_themes` / `manage_layouts`.
+    - **Full / system** backup - the operator / manager (`manage_users` or `ui`).
+  Each section shows only if the caller holds its capability; restore reuses the
+  SM084 safety-snapshot-first + targeted-cache-clear machinery. Retire the
+  Appearance-page snapshot UI in favour of the themes/layouts section here (or
+  link to it), so backups live in one place. Net: one way to back up, consistent
+  and permission-scoped.
 - **theme_assets fallback on no active theme** - when a layout is previewed or
   set per-page with no compatible active theme, `theme_assets`/`theme_css` are
   empty and the page renders unstyled. Fall `theme_assets` back to the layout's
