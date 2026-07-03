@@ -21,8 +21,10 @@ minimum_regex_length_to_complain_about = 60
 
 # Postfix-if guards the capture ( return $1 if $s =~ /.../ ), which this policy
 # does not recognise as the required test - it over-fires on a safe idiom used
-# throughout. (Backlog: a one-off audit that no flagged site is genuinely
-# unguarded.)
+# throughout. Audited 2026-07-03: every flagged site uses the capture in the SAME
+# statement as its match, guarded by a postfix if/while or a ternary on the match
+# (auth/dav/mcp/processor/server + Plugins/Themes/form-handler) - none is
+# genuinely unguarded.
 [-RegularExpressions::ProhibitCaptureWithoutTest]
 
 # The access-log parser and a few HTML-probe patterns are irreducibly long;

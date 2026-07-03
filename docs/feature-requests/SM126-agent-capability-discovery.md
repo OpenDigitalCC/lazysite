@@ -254,12 +254,22 @@ follow.
   (review action 18). Recorded here so the `.perlcriticrc` deviation note is
   updated when that work runs, not before.
 
+## Decisions (continued)
+
+- **Scope of `whoami`: keep both, unchanged (2026-07-03).** `whoami` stays the
+  minimal, stable identity + own-grant introspection it has been since SM072
+  (existing MCP/control-API clients depend on its shape); `describe_capabilities`
+  is the richer map beside it and the recommended first call for a new agent.
+  Absorbing or aliasing `whoami` would churn a published contract for no real
+  gain - the two answer different questions (who am I / what may I do vs the whole
+  model). Revisit only if telemetry shows `whoami` has no remaining callers.
+
 ## Open questions
 
-- **Scope of `whoami`.** Absorb it into `describe_capabilities`, keep it as a thin
-  alias, or leave both? One call is better for agents; two is more backward
-  compatible. (Leaning: keep `whoami` as-is, add `describe_capabilities` beside
-  it, revisit once agents use the new call.)
+- **Static map exposure.** Should the unauthenticated `capability-map.md` list the
+  full model to anonymous visitors? It reveals no secrets (the model is not
+  sensitive), but it does advertise the API surface. Likely fine; worth a
+  conscious call.
 - **Static map exposure.** Should the unauthenticated `capability-map.md` list the
   full model to anonymous visitors? It reveals no secrets (the model is not
   sensitive), but it does advertise the API surface. Likely fine; worth a
