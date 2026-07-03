@@ -3082,6 +3082,20 @@ sub resolve_theme {
     };
 }
 
+# SM: the layout's declared default theme (from its layout.json), used as the
+# asset fallback when no compatible theme is active - so a preview/per-page layout
+# still resolves theme_assets to a sensible mirror instead of rendering unstyled.
+sub _layout_default_theme {
+    my ($layout) = @_;
+    return '' unless defined $layout && $layout =~ /^[A-Za-z0-9_-]+$/;
+    open my $jf, '<:utf8', "$LAYOUT_DIR/$layout/layout.json" or return '';
+    my $raw = do { local $/; <$jf> };
+    close $jf;
+    my $meta = eval { decode_json($raw) };
+    my $dt   = ( ref $meta eq 'HASH' ) ? ( $meta->{default_theme} // '' ) : '';
+    return ( $dt =~ /^[A-Za-z0-9_-]+$/ ) ? $dt : '';
+}
+
 # D013: generate a <style> block of CSS custom properties from a theme's
 # config object. Naming convention: --theme-GROUP-KEY. Only scalar
 # (non-ref) values are emitted — a theme author using a nested object
@@ -3239,6 +3253,14 @@ sub render_template {
         else {
             $vars->{theme}     = {};
             $vars->{theme_css} = '';
+            # SM: no compatible theme is active for this (previewed or per-page)
+            # layout. Fall theme_assets back to the layout's declared default_theme
+            # mirror if it is installed, so the page loads that theme's stylesheet
+            # instead of rendering unstyled - no per-layout [% ELSE %] link needed.
+            my $dt = _layout_default_theme($layout_key);
+            if ( length $dt && -d "$DOCROOT/lazysite-assets/$layout_key/$dt" ) {
+                $vars->{theme_assets} = "/lazysite-assets/$layout_key/$dt";
+            }
         }
     }
     else {

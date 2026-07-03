@@ -259,11 +259,11 @@ before work starts.
   Appearance-page snapshot UI in favour of the themes/layouts section here (or
   link to it), so backups live in one place. Net: one way to back up, consistent
   and permission-scoped.
-- **theme_assets fallback on no active theme** - when a layout is previewed or
-  set per-page with no compatible active theme, `theme_assets`/`theme_css` are
-  empty and the page renders unstyled. Fall `theme_assets` back to the layout's
-  `default_theme` mirror (if installed) so preview looks right without every
-  layout needing its own `[% ELSE %]` fallback link.
+- **~~theme_assets fallback on no active theme~~** *(done 2026-07-03)* - when a
+  previewed or per-page layout has no compatible active theme, `theme_assets` now
+  falls back to the layout's declared `default_theme` mirror if it is installed
+  (`_layout_default_theme` reads `layout.json`), so the page loads that theme's
+  stylesheet instead of rendering unstyled - no per-layout `[% ELSE %]` needed.
 - **Remote-layout content components** - `install_layout` + fenced/sections
   components are local-layout only; remote (URL) layouts fetch just `layout.tt`,
   so their `components/` are not fetched or resolved. Bundle + resolve components

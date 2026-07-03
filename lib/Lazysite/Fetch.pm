@@ -12,7 +12,7 @@ package Lazysite::Fetch;
 use strict;
 use warnings;
 use URI;
-use Socket qw(inet_aton inet_ntoa);
+use Socket         qw(inet_aton inet_ntoa);
 use Lazysite::Util qw(log_event);
 use Exporter 'import';
 our @EXPORT_OK = qw(fetch_url is_safe_url);
@@ -50,26 +50,26 @@ sub fetch_url {
 # involved and we'd rather fail closed than parse partial v6 addresses wrongly.
 sub is_safe_url {
     my ($url) = @_;
-    my $uri  = URI->new($url);
-    my $host = $uri->host // '';
+    my $uri   = URI->new($url);
+    my $host  = $uri->host // '';
     return 0 unless length $host;
 
     # Syntactic IPv6 rejection for literals (e.g. http://[::1]/)
     return 0 if $host =~ /\A\[?::1\]?\z/;
-    return 0 if $host =~ /\A\[?fe[89ab][0-9a-f]/i;    # link-local v6
-    return 0 if $host =~ /\A\[?f[cd][0-9a-f]{2}:/i;   # unique-local v6
+    return 0 if $host =~ /\A\[?fe[89ab][0-9a-f]/i;     # link-local v6
+    return 0 if $host =~ /\A\[?f[cd][0-9a-f]{2}:/i;    # unique-local v6
 
     my $packed = inet_aton($host);
     return 0 unless $packed;
     my $ip = inet_ntoa($packed);
 
     return 0 if $ip eq '0.0.0.0';
-    return 0 if $ip =~ /\A127\./;                        # loopback
-    return 0 if $ip =~ /\A10\./;                         # RFC1918
-    return 0 if $ip =~ /\A172\.(?:1[6-9]|2\d|3[01])\./;  # RFC1918
-    return 0 if $ip =~ /\A192\.168\./;                   # RFC1918
-    return 0 if $ip =~ /\A169\.254\./;                   # link-local / metadata
-    return 0 if $ip =~ /\A(?:22[4-9]|23\d)\./;           # multicast
+    return 0 if $ip =~ /\A127\./;                          # loopback
+    return 0 if $ip =~ /\A10\./;                           # RFC1918
+    return 0 if $ip =~ /\A172\.(?:1[6-9]|2\d|3[01])\./;    # RFC1918
+    return 0 if $ip =~ /\A192\.168\./;                     # RFC1918
+    return 0 if $ip =~ /\A169\.254\./;                     # link-local / metadata
+    return 0 if $ip =~ /\A(?:22[4-9]|23\d)\./;             # multicast
     return 0 if $ip =~ /\A100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;    # CGNAT
 
     return 1;

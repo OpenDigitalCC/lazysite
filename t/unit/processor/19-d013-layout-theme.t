@@ -23,10 +23,17 @@ open my $lfh, '>', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
 print $lfh "<!DOCTYPE html><html><head>"
          . "<title>[% page_title %]</title>"
          . "[% theme_css %]"
+         . '<meta name="theme-assets" content="[% theme_assets %]">'
          . "</head><body>"
          . "[% content %]"
          . "</body></html>";
 close $lfh;
+
+# A default_theme declaration so the theme_assets fallback (SM: no active theme)
+# has something to fall back to.
+open my $ljf, '>', "$docroot/lazysite/layouts/default/layout.json" or die $!;
+print $ljf encode_json({ default_theme => 'odcc' });
+close $ljf;
 
 # A theme installed under the default layout.
 my $theme_dir = "$docroot/lazysite/layouts/default/themes/odcc";
@@ -150,6 +157,35 @@ subtest 'incompatible theme renders layout without theme_css' => sub {
         'layout still renders' );
     unlike( $out, qr/--theme-colours-primary/,
         'no theme_css when theme is incompatible' );
+};
+
+# --- 8b. theme_assets falls back to the layout's default_theme mirror ---
+subtest 'theme_assets falls back to default_theme mirror when no theme active' => sub {
+    my $L = 'fallback-probe';
+    make_path("$docroot/lazysite/layouts/$L/themes/dtheme");
+    open my $l, '>', "$docroot/lazysite/layouts/$L/layout.tt" or die $!;
+    print $l '<html><head><meta name="ta" content="[% theme_assets %]"></head>'
+           . '<body>[% content %]</body></html>';
+    close $l;
+    open my $lj, '>', "$docroot/lazysite/layouts/$L/layout.json" or die $!;
+    print $lj encode_json({ default_theme => 'dtheme' }); close $lj;
+    open my $tj, '>', "$docroot/lazysite/layouts/$L/themes/dtheme/theme.json" or die $!;
+    print $tj encode_json({ name => 'dtheme', version => '1.0', layouts => [$L], config => {} });
+    close $tj;
+
+    # No active theme AND no mirror yet -> no fallback (theme_assets empty).
+    write_conf("site_name: Test\nlayout: $L\n");
+    clear_cache();
+    my $out1 = run_processor( $docroot, '/' );
+    unlike( $out1, qr{content="/lazysite-assets/\Q$L\E/dtheme"},
+        'no fallback when the default_theme mirror is not installed' );
+
+    # Install the mirror -> theme_assets falls back to it.
+    make_path("$docroot/lazysite-assets/$L/dtheme");
+    clear_cache();
+    my $out2 = run_processor( $docroot, '/' );
+    like( $out2, qr{content="/lazysite-assets/\Q$L\E/dtheme"},
+        'theme_assets falls back to the installed default_theme mirror' );
 };
 
 # --- 9. No layout configured: embedded fallback renders ---
