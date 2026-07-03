@@ -84,6 +84,38 @@ before work starts.
   other transform tasks.
 - **Search improvements** - feed both the auto-index and a manual index; log
   failed searches to a file for review.
+- **Upstream lazysite relationship (federation)** - a downstream lazysite
+  instance holds an account/relationship *on an upstream lazysite* (the project's
+  own hosted instance), established once and then reused as a two-way channel.
+  This is the substrate two features below share, so scope the relationship first:
+  identity + credential for the upstream link, what it is trusted to do, and how
+  it is revoked. Distinct from a partner/agent connecting to a site - here one
+  lazysite is a client of another.
+    - **Feedback cascade (connector -> site -> upstream).** Connectors already
+      submit feedback via the MCP `submit_feedback` tool, logged locally under
+      `lazysite/feedback/` (see `_submit_feedback`). Extend it into a cascade: a
+      manager reviews the accumulated local feedback, packages a selection, and
+      forwards it over the upstream relationship to lazysite's own feedback
+      endpoint - so feedback flows agent -> site -> project. Needs: a manager
+      review/curate UI over the feedback dir, a package/redact step (strip
+      site-private detail), and the upstream submit (requires the relationship
+      above). Default to manual submit, not automatic.
+    - **Onboarding request endpoint (approval-queue plugin, default OFF).**
+      Instead of an operator only *issuing* accounts, expose an **unauthenticated
+      request endpoint** where an agent or a downstream lazysite can *request*
+      onboarding; the request lands in a **queue** for a holder of the
+      user-management capability to approve or reject. A separate api/mcp endpoint
+      that serves ONLY onboarding requests (nothing else reachable pre-approval),
+      shipped as an **onboarding plugin switched on/off, default off**. At
+      approval the manager selects the **group** the new account joins (which
+      decides its capabilities, SM095) and, for a lazysite requester, establishes
+      the relationship above - after which the same channel can deliver **update
+      notices** downstream (reuse the notices store). Heavy on security and
+      controls: strong rate limiting + abuse protection on an anonymous endpoint,
+      captcha/proof-of-work or invite token option, request expiry, a hard cap on
+      the queue, no information leak about existing accounts, full audit of every
+      request/approve/reject, and a clear default-off posture. Relates to the
+      existing pairing-key onboarding (SM124) and multi-tenant work (SM075).
 
 
 ## Open - actionable
@@ -189,6 +221,13 @@ before work starts.
   its own `audit` capability since 0.5.25). Remaining: give it the same
   append-only incremental cache the visitor-stats export uses, and point the
   in-page Audit view at it.
+- **install.pl: set/override the update channel** - `install.pl` already *reads*
+  the site's `update_channel` (via `--channel-check`, ADR 0005) but cannot set
+  it. Add `--channel edge|stable` to write/override `update_channel:` in
+  `lazysite.conf` at install or upgrade time, so a deployment can be pinned to
+  stable (or moved back to edge) from the installer without hand-editing the
+  conf. Small: reuse `read_update_channel` + the seed/conf-write path; validate
+  the value; record the change. Pairs with the release-channel model.
 
 
 ## Done
