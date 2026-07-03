@@ -219,7 +219,15 @@ before work starts.
   count, time) for review, and exposes a small manager panel (current blocks +
   unblock). Enabled by default. Reuse the stats noise-path heuristics as the seed
   list. (Prompted by scanner traffic hitting a fresh site within minutes of going
-  live.)
+  live.) *Design decision to settle first: the ENFORCEMENT point.* Blocking must
+  happen on EVERY request, but the processor's hot path is deliberately lean.
+  Options: (a) check a small cached blocklist early in the auth wrapper
+  (lazysite-auth.pl, already in the path for auth-wrapped sites, but not basic
+  sites); (b) check early in the processor main() (covers all sites, adds a
+  hot-path read); (c) generate a blocklist file the operator wires into the web
+  server / fail2ban (no lazysite hot-path cost, but not self-contained). Plus:
+  atomic hit-counting under concurrency, and never blocking a real visitor who
+  fat-fingers one bad URL. Substantial - scope before building.
 - **SM085** Git backend / changesets *(design)* - `begin -> diff -> commit ->
   rollback` on a git-versioned docroot. Biggest remaining lever; adds the
   rollback safety net. Headline ask from both AI-partner reviews.
@@ -234,11 +242,19 @@ before work starts.
   the visible tip of a streaming audit-trail layer.
 - **SM110** Domain aliases - an additional host serving the same site with its
   own theme / nav / name.
-- **Sessions page - list + control active sessions** - the Sessions page exposes
-  only "log out everyone" (rotate the auth secret). List active sessions of all
-  types with detail (who / where / when / last seen), a per-session log-out
-  button, and a disable-account action, each linking to the user and to the audit
-  log. Individual sessions should be visible and ideally revocable.
+- **Sessions page - list + control active sessions** *(needs an architectural
+  decision - sessions are STATELESS by design)* - the Sessions page exposes only
+  "log out everyone" (rotate the auth secret) because sessions are signed cookies,
+  not server-side records (the page documents this). Listing/revoking individual
+  sessions (who / where / when / last seen, per-session log-out) fundamentally
+  requires a NEW server-side session store: track each issued session (user,
+  issued-at, last-seen, IP/UA) + a revocation list checked on each request. That
+  reverses the deliberate stateless model (state, scaling, a hot-path store read),
+  so it is a design decision, not an ad-hoc build - scope it (durable store choice,
+  the per-request revocation check, privacy of storing IP/UA) before implementing.
+  The account-level lever already exists: disable-account on the Users page. Token
+  credentials ARE individually revocable today (Reset credential); only cookie
+  sessions are stateless.
 - **Manager log-out control** - a Sign out control in the manager UI shell (the
   admin bar carries one, but the manager chrome itself should too).
 - **Audit timestamps in local time** - show audit times in the detected local
