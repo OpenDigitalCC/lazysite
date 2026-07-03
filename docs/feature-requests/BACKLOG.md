@@ -41,7 +41,19 @@ before work starts.
 - **External authentication integration** - authenticate against an external
   identity provider instead of (or alongside) the built-in user store: LDAP /
   Active Directory direct bind, and OAuth 2.0 / OIDC as a *consumer* (SSO login
-  where lazysite is the relying party). Two distinct paths, don't conflate them:
+  where lazysite is the relying party). The driver is customers who **already run
+  an auth server** and want their existing staff accounts used rather than
+  provisioning separate lazysite users. Covers **both audiences**:
+    - **Back-end / manager users** (operators, editors, admins) signing in to
+      `/manager` through the client's IdP - so a customer's IT staff manage the
+      site with their corporate SSO. This means an external identity CAN hold
+      manager access: the external group/claim maps onto a lazysite group, and
+      the group's capabilities (including `ui`) decide what they may do. Group
+      membership stays the authorisation source of truth (SM095); the IdP just
+      supplies identity + group claims.
+    - **Front-end users** - site visitors authenticating for auth-protected
+      content, mapped to content-only roles.
+  Two integration paths, don't conflate them:
     - **Proxy-based SSO is largely already supported.** Access managers that
       front the site as a forward/auth proxy - LemonLDAP::NG, Authentik
       (forward-auth), oauth2-proxy, Authelia - just need to set the trusted
@@ -50,6 +62,8 @@ before work starts.
       model: the edge must strip client-supplied copies). The work here is
       mostly a documented recipe per product + mapping the IdP's group claim onto
       lazysite groups (which carry the capabilities), not new engine code.
+      Confirm the manager (`ui`) path honours proxy-supplied identity, not just
+      the content path.
     - **Direct integration is the new build** - an **auth plugin** (same shape as
       the planned Passkey/WebAuthn extension) that lazysite calls itself: an LDAP
       bind against a configured directory, and an OIDC login flow (authorization
@@ -57,8 +71,10 @@ before work starts.
       already exists for the MCP connector *as a provider* (lazysite-oauth.pl),
       but note the direction is reversed (consumer, not provider). Open
       questions: local-account provisioning / just-in-time creation on first
-      external login, group/claim -> lazysite-group mapping, and whether external
-      identities can hold manager (`ui`) access or only content roles.
+      external login, external-group/claim -> lazysite-group mapping (the hinge
+      for both manager and content access), whether built-in and external users
+      coexist (mixed mode) or external replaces the local store, and account
+      lifecycle when the IdP disables a user.
 - **Database plugin** - pluggable storage (JSON file / SQLite / DBI) with a
   "form -> DB" write path. Named schemas (session, profile, basket, log,
   comments, + arbitrary); values readable and writable in TT, enabling
