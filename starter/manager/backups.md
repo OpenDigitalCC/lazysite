@@ -6,24 +6,59 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
-<p class="mg-domain-note">
-Tarball snapshots of the site content (everything except the <code>lazysite/</code>
+<div class="mg-card">
+<div class="mg-card-header"><span class="mg-card-title">Content backups</span>
+<button class="mg-btn mg-btn-sm" onclick="loadBackups()">Refresh</button></div>
+<div class="mg-card-body">
+<p class="mg-muted">
+Snapshots of the site <b>content</b> (everything except the <code>lazysite/</code>
 infrastructure), stored under <code>lazysite/backups/</code> and never served. A
 <b>pre-install</b> snapshot is taken automatically the first time lazysite is
-installed over an existing site, so a migration is always recoverable. Take a
-<b>manual</b> snapshot before any risky change, and download one to keep off-site.
-<b>Restore</b> writes a snapshot's files back over the site (files created since
-the snapshot are left in place), takes a <b>prerestore</b> safety snapshot first
-so the restore itself is reversible, and clears the affected page caches.
+installed over an existing site. <b>Restore</b> writes a snapshot's files back over
+the site (files created since are left in place), takes a <b>prerestore</b> safety
+snapshot first, and clears the affected page caches.
 </p>
-
-<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
-<button class="mg-btn" onclick="loadBackups()">Refresh</button>
-<button class="mg-btn mg-btn-primary" onclick="createBackup(this)">Create backup now</button>
+<div style="margin-bottom:12px;">
+<button class="mg-btn mg-btn-primary" onclick="createBackup(this)">Create content backup</button>
+</div>
+<div class="mg-file-list" id="content-list">
+<div class="mg-file-item"><span class="mg-file-name">Loading&hellip;</span></div>
+</div>
+</div>
 </div>
 
-<div class="mg-file-list" id="backup-list">
-<div class="mg-file-item"><span class="mg-file-name">Loading...</span></div>
+<div class="mg-card">
+<div class="mg-card-header"><span class="mg-card-title">Full-system backups</span></div>
+<div class="mg-card-body">
+<p class="mg-muted">
+A <b>complete</b> snapshot &mdash; content <i>plus</i> configuration, accounts and
+secrets, themes and layouts &mdash; for disaster recovery and for <b>migrating a
+site to another domain</b> (build on a temporary domain, then move content, config
+and accounts to the final one). Because it carries the auth secrets and its restore
+overwrites accounts and config, <b>restore is a system-user operation from the
+shell</b>, not a button here:
+</p>
+<pre class="mg-code" style="white-space:pre-wrap;">install.pl --restore-full &lt;file&gt; --docroot &lt;path&gt; --domain &lt;new-domain&gt;</pre>
+<p class="mg-muted">Download one to keep off-site. Anyone who can download a full
+backup effectively holds the site's secrets &mdash; treat it accordingly.</p>
+<div style="margin-bottom:12px;">
+<button class="mg-btn mg-btn-primary" onclick="createFullBackup(this)">Create full-system backup</button>
+</div>
+<div class="mg-file-list" id="full-list">
+<div class="mg-file-item"><span class="mg-file-name">Loading&hellip;</span></div>
+</div>
+</div>
+</div>
+
+<div class="mg-card">
+<div class="mg-card-header"><span class="mg-card-title">Themes &amp; layouts</span></div>
+<div class="mg-card-body">
+<p class="mg-muted">
+Theme and layout version snapshots are taken automatically when you activate or
+replace one, and are managed on the <a href="/manager/appearance">Appearance</a>
+page. A full-system backup above also includes the current themes and layouts.
+</p>
+</div>
 </div>
 
 <script>
@@ -64,13 +99,17 @@ function loadBackups() {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
-      renderBackups(d.backups || []);
+      var all = d.backups || [];
+      renderBackups(all.filter(function(b) { return b.scope !== 'full'; }), 'content-list', true);
+      renderBackups(all.filter(function(b) { return b.scope === 'full'; }), 'full-list', false);
     })
     .catch(function(e) { showStatus('Failed to load backups: ' + e.message, true); });
 }
 
-function renderBackups(list) {
-  var el = document.getElementById('backup-list');
+// restorable = content (in-app restore button); full backups download only.
+function renderBackups(list, elId, restorable) {
+  var el = document.getElementById(elId);
+  if (!el) return;
   if (!list.length) {
     el.innerHTML = '<div class="mg-file-item"><span class="mg-file-name mg-empty">No backups yet</span></div>';
     return;
@@ -84,7 +123,11 @@ function renderBackups(list) {
     html += '<span class="mg-badge ' + badge + '">' + escHtml(b.kind) + '</span>';
     html += '<span class="mg-file-meta">' + fmtSize(b.size) + ' &middot; ' + fmtDate(b.mtime) + '</span>';
     html += '<a class="mg-btn mg-btn-sm" href="' + API + '?action=backup-download&name=' + encodeURIComponent(b.name) + '">&#11015; Download</a>';
-    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="restoreBackup(\'' + escHtml(b.name) + '\', this)">Restore</button>';
+    if (restorable) {
+      html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="restoreBackup(\'' + escHtml(b.name) + '\', this)">Restore</button>';
+    } else {
+      html += '<span class="mg-file-meta">restore via CLI</span>';
+    }
     html += '</div>';
   }
   el.innerHTML = html;
@@ -113,15 +156,25 @@ function restoreBackup(name, btn) {
   else { go(window.confirm(msg)); }
 }
 
-function createBackup(btn) {
+function createBackup(btn) { _create(btn, '', 'Backup created: '); }
+
+function createFullBackup(btn) {
+  var msg = 'Create a full-system backup?\n\nIt includes configuration, accounts '
+          + 'and secrets. Keep the downloaded file secure.';
+  var go = function(ok) { if (ok) _create(btn, '&scope=full', 'Full-system backup created: '); };
+  if (typeof mgConfirm === 'function') { mgConfirm(msg, { ok: 'Create' }).then(go); }
+  else { go(window.confirm(msg)); }
+}
+
+function _create(btn, extra, okMsg) {
   if (btn) btn.disabled = true;
   showStatus('Creating backup...');
-  fetch(API + '?action=backup-create', { method: 'POST', credentials: 'same-origin' })
+  fetch(API + '?action=backup-create' + extra, { method: 'POST', credentials: 'same-origin' })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (btn) btn.disabled = false;
       if (!d.ok) { showStatus(d.error, true); return; }
-      showStatus('Backup created: ' + d.name);
+      showStatus(okMsg + d.name);
       loadBackups();
     })
     .catch(function(e) { if (btn) btn.disabled = false; showStatus('Error: ' + e.message, true); });

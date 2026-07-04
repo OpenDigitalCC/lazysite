@@ -271,19 +271,24 @@ before work starts.
 - **~~Files: duplicate a page~~** *(done 2026-07-03)* - a "Duplicate…" action on
   the files list; `action_copy` copies the file + `.brief` (not the `.html`
   cache), the duplicate is owned by its creator.
-- **Consolidate backups into one typed, permission-gated Backups tab** - today
-  there are separate backup mechanisms (the Appearance layout/theme snapshots and
-  the SM084 content/full backup+restore). Unify them into ONE Backups page with
-  backup *types* as sections, each gated by the matching capability, so there is
-  one consistent create / list / restore flow:
-    - **Content** backups - `manage_content`.
-    - **Themes & layouts** backups - `manage_themes` / `manage_layouts`.
-    - **Full / system** backup - the operator / manager (`manage_users` or `ui`).
-  Each section shows only if the caller holds its capability; restore reuses the
-  SM084 safety-snapshot-first + targeted-cache-clear machinery. Retire the
-  Appearance-page snapshot UI in favour of the themes/layouts section here (or
-  link to it), so backups live in one place. Net: one way to back up, consistent
-  and permission-scoped.
+- **~~Consolidate backups into one typed Backups tab~~** *(done 2026-07-04)* - the
+  Backups page is now one page with typed sections: **Content** (create / list /
+  restore in-app + download), **Full-system** (create / list / download; carries
+  config + accounts + secrets; restore is a system-user CLI op, not a button), and
+  a **Themes & layouts** pointer to the Appearance page (where those snapshots are
+  managed). A full-system backup enables cross-domain migration via
+  `install.pl --restore-full <file> --docroot X --domain Y` (temp -> final domain,
+  content + config + accounts intact). Content restore keeps the SM084
+  safety-snapshot-first + cache-clear machinery.
+    - *Follow-up (recorded):* **per-section server-side capability gating** (content
+      -> `manage_content`, full -> elevated). Explored and reverted: reliably
+      resolving a cookie/**trust-header** manager's caps for gating needs the
+      SSO/trust-group -> lazysite-group resolution that the external-auth work will
+      settle (`settings-get`/`caps_for` only see store-resident memberships, not
+      header groups). Backup actions stay manager-only (not token-reachable) and the
+      full-restore CLI boundary is enforced, so the sensitive operation is safe; the
+      finer per-section gate lands with external-auth.
+    - *Note:* content backups may later be superseded by the SM085 git backend.
 - **~~theme_assets fallback on no active theme~~** *(done 2026-07-03)* - when a
   previewed or per-page layout has no compatible active theme, `theme_assets` now
   falls back to the layout's declared `default_theme` mirror if it is installed
