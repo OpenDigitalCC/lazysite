@@ -252,8 +252,9 @@ before work starts.
   sessions are stateless.
 - **Manager log-out control** - a Sign out control in the manager UI shell (the
   admin bar carries one, but the manager chrome itself should too).
-- **Audit timestamps in local time** - show audit times in the detected local
-  timezone, falling back to UTC.
+- **~~Audit timestamps in local time~~** *(done 2026-07-03)* - the Audit page
+  renders each timestamp in the viewer's local timezone (`toLocaleString`) with the
+  original UTC as a tooltip; falls back to the raw value if unparseable.
 - **~~Files: duplicate a page~~** *(done 2026-07-03)* - a "Duplicate…" action on
   the files list; `action_copy` copies the file + `.brief` (not the `.html`
   cache), the duplicate is owned by its creator.
