@@ -18,6 +18,19 @@ Keying
 
 ## Unreleased
 
+## 0.6.0 - Stability milestone (2026-07-04)
+
+Milestone marker - no code changes from 0.5.41
+: this tag rolls the minor version to mark a mature, well-tested feature set and a
+  stability point reached following the eight-dimension review. The 0.5.x line has
+  settled: the groups-only capability model (channel x action), the manager UI, the
+  WebDAV / control-API / MCP partner surfaces, the security posture (STRIDE threat
+  model, manager/remote separation SM127, the bad-URL auto-blocker SM128), and the
+  release + install tooling are all in place and exercised. Same tree as 0.5.41;
+  all gates green (154 files, 2335 tests; perlcritic sev-3; security lint; compile;
+  tidy; bench; coverage; strict SBOM). Not a breaking release - the
+  backward-compatibility freeze stays a separate, tracked decision. Channel: edge.
+
 ## 0.5.41 - Manager security, content tools, settings clarity (2026-07-03)
 
 Security - bad-URL auto-blocker (SM128, default on)
