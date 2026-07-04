@@ -254,8 +254,10 @@ before work starts.
   The account-level lever already exists: disable-account on the Users page. Token
   credentials ARE individually revocable today (Reset credential); only cookie
   sessions are stateless.
-- **Manager log-out control** - a Sign out control in the manager UI shell (the
-  admin bar carries one, but the manager chrome itself should too).
+- **~~Manager log-out control~~** *(done - verified 2026-07-04)* - the manager
+  chrome header carries a `Sign out` link (`manager/layout.tt`, gated on
+  `authenticated`), and the command palette (Ctrl-K) has a "Sign out" entry. Was
+  delivered with the SM109 shell; the backlog entry was stale.
 - **~~Audit timestamps in local time~~** *(done 2026-07-03)* - the Audit page
   renders each timestamp in the viewer's local timezone (`toLocaleString`) with the
   original UTC as a tooltip; falls back to the raw value if unparseable.
