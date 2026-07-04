@@ -122,6 +122,29 @@ size limits when enabling it.
     submit  | Send message
     :::
 
+### Multi-step (wizard) forms
+
+Split a long form into steps with a `--- step ---` line. Add a title with
+`--- step: Title ---`. The visitor moves through the steps with Back / Next
+(each step is validated before advancing) and submits once at the end.
+
+    ::: form
+    name    | Your name     | required max:200
+    email   | Email address | required email
+    --- step: Your enquiry ---
+    subject | Subject       | required max:200
+    message | Your message  | required textarea max:5000
+    submit  | Send
+    :::
+
+Notes:
+
+- Delivery is unchanged - the whole form still posts once, with the same
+  security. The steps are a presentation over one submission.
+- Without JavaScript every step simply shows as a section and the form still
+  submits (progressive enhancement).
+- Steps are linear (no conditional skipping or save-and-resume yet).
+
 ### Notes
 
 - Security is automatic: honeypot, HMAC timestamp (3s-2h window),

@@ -133,4 +133,59 @@ load_processor($docroot);
     like(   $out, qr/data-form="$clean"/,      'sanitised form name used' );
 }
 
+# --- SM098: single-page form is NOT multi-step (backward compatible) ---
+{
+    my $out = main::convert_fenced_form(
+        "::: form\nname | Name | required\nsubmit | Send\n:::\n",
+        { form => 'contact' },
+    );
+    unlike( $out, qr/data-multistep/,      'no data-multistep on a single-step form' );
+    unlike( $out, qr/class="lsf-step"/,    'no step fieldsets on a single-step form' );
+    unlike( $out, qr/lsf-progress/,        'no progress indicator on a single-step form' );
+}
+
+# --- SM098: '--- step ---' delimiters produce a multi-step form ---
+{
+    my $out = main::convert_fenced_form(
+        "::: form\n"
+      . "name | Name | required\n"
+      . "--- step: Contact details ---\n"
+      . "email | Email | required email\n"
+      . "phone | Phone | tel\n"
+      . "--- step ---\n"
+      . "message | Message | textarea required\n"
+      . "submit | Send\n"
+      . ":::\n",
+        { form => 'apply' },
+    );
+    like( $out, qr/data-multistep="1"/,          'multi-step form marked with data-multistep' );
+    my @steps = ( $out =~ /class="lsf-step"/g );
+    is( scalar @steps, 3,                          'three step fieldsets rendered' );
+    like( $out, qr/<legend>Contact details<\/legend>/, 'titled step gets a legend' );
+    like( $out, qr/lsf-progress[^>]*>Step /,      'progress indicator present' );
+    like( $out, qr/class="lsf-back"/,              'Back button present' );
+    like( $out, qr/class="lsf-next"/,              'Next button present' );
+    like( $out, qr/of 3</,                          'progress shows the step count' );
+    # Progressive enhancement: every field is in the HTML (all steps present).
+    like( $out, qr/name="name"/,                    'step 1 field present' );
+    like( $out, qr/name="email"/,                   'step 2 field present' );
+    like( $out, qr/name="message"/,                 'step 3 field present' );
+    like( $out, qr/type="submit"/,                  'submit button present (final step)' );
+    like( $out, qr/lsf-js/,                          'step-navigation script wires the js class' );
+    like( $out, qr/reportValidity/,                 'per-step validation before advancing' );
+    # The single hidden token/honeypot machinery is unchanged.
+    like( $out, qr/name="_tk"/,                     'token field still present' );
+    like( $out, qr/name="_hp"/,                     'honeypot still present' );
+}
+
+# --- SM098: a leading delimiter does not create an empty first step ---
+{
+    my $out = main::convert_fenced_form(
+        "::: form\n--- step: One ---\na | A | required\n--- step: Two ---\nsubmit | Send\n:::\n",
+        { form => 'x' },
+    );
+    my @steps = ( $out =~ /class="lsf-step"/g );
+    is( scalar @steps, 2,   'leading delimiter does not spawn an empty first step' );
+}
+
 done_testing();

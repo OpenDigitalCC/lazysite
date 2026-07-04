@@ -39,5 +39,14 @@ steps than one long page.
 
 ## Status
 
-Queued. Bounded for the linear case: a renderer change in `_render_form` plus a
-small step-navigation script; no change to delivery.
+**Done (2026-07-04).** Linear multi-step forms ship. Author syntax: a
+`--- step ---` line (optionally titled, `--- step: Contact details ---`) inside a
+`::: form` splits the fields into steps. `_render_form` wraps each step in a
+`<fieldset class="lsf-step">` (titled steps get a `<legend>`), adds a progress
+indicator and Back/Next nav, and emits a step-navigation script that shows one
+step at a time and validates the visible step (native constraint API) before
+advancing. No delimiter = the classic single-page form (unchanged output).
+Delivery is untouched - the whole form still posts once to the handler with the
+same token/honeypot. Progressive enhancement: without JS every step shows and the
+form still submits. Conditional steps and save-and-resume remain out of scope
+(the open questions above).

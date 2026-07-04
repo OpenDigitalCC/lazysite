@@ -1656,8 +1656,15 @@ sub _render_form {
     my $secret = load_form_secret();
     my $tk     = hmac_sha256_hex( $ts, $secret );
 
-    my @fields;
+    # SM098: a '--- step ---' line (optionally '--- step: Title ---') splits the
+    # form into wizard steps. Fields accumulate into the current step; without any
+    # delimiter there is a single step = the classic single-page form (unchanged).
+    my @steps = ( { title => '', fields => [] } );
     for my $line ( split /\n/, $body ) {
+        if ( $line =~ /^\s*-{3,}\s*step\b\s*:?\s*(.*?)\s*-{3,}\s*$/i ) {
+            push @steps, { title => $1, fields => [] };
+            next;
+        }
         $line =~ s/^\s+|\s+$//g;
         next unless length $line;
 
@@ -1671,7 +1678,7 @@ sub _render_form {
         next unless length $name;
 
         if ( $name eq 'submit' ) {
-            push @fields, qq(  <div class="form-field form-submit">\n)
+            push @{ $steps[-1]{fields} }, qq(  <div class="form-field form-submit">\n)
                         . qq(    <button type="submit">$label</button>\n)
                         . qq(  </div>\n);
             next;
@@ -1772,24 +1779,56 @@ sub _render_form {
                         . $attrs . $ph_attr . qq($req_attr>\n);
         }
 
-        push @fields, qq(  <div class="form-field">\n)
+        push @{ $steps[-1]{fields} }, qq(  <div class="form-field">\n)
                      . qq(    <label for="$name">$label$req_mark</label>\n)
                      . $field_html
                      . qq(  </div>\n);
     }
 
-    my $fields_html = join( '', @fields );
+    # Drop steps that ended up with no fields (e.g. a leading delimiter).
+    @steps = grep { @{ $_->{fields} } } @steps;
+    @steps = ( { title => '', fields => [] } ) unless @steps;
+    my $multi = @steps > 1;
+
+    my $all_fields = join( '', map { @{ $_->{fields} } } @steps );
 
     # A form with a file input must POST as multipart/form-data, or the browser
     # sends only the filename, not the bytes.
-    my $enctype = $fields_html =~ /type="file"/
+    my $enctype = $all_fields =~ /type="file"/
         ? qq(\n      enctype="multipart/form-data") : '';
 
+    # SM098: assemble the fields region. Single step = flat (unchanged). Multi =
+    # one <fieldset> per step + progress + Back/Next nav; a script shows one step
+    # at a time and validates it before advancing. Without JS every step shows and
+    # the form still submits (progressive enhancement).
+    my ( $fields_html, $multistep_attr, $step_css, $extra_script ) = ( '', '', '', '' );
+    if ($multi) {
+        $multistep_attr = ' data-multistep="1"';
+        my $n = scalar @steps;
+        $fields_html = qq(  <div class="lsf-progress" aria-hidden="true">Step )
+            . qq(<span class="lsf-cur">1</span> of $n</div>\n);
+        for my $i ( 0 .. $#steps ) {
+            my $legend = length $steps[$i]{title}
+                ? qq(    <legend>$steps[$i]{title}</legend>\n) : '';
+            $fields_html .= qq(  <fieldset class="lsf-step" data-step="$i">\n)
+                . $legend . join( '', @{ $steps[$i]{fields} } ) . qq(  </fieldset>\n);
+        }
+        $fields_html .= qq(  <div class="lsf-nav">\n)
+            . qq(    <button type="button" class="lsf-back">Back</button>\n)
+            . qq(    <button type="button" class="lsf-next">Next</button>\n)
+            . qq(  </div>\n);
+        $step_css     = _form_step_css();
+        $extra_script = _form_step_script($form_name);
+    }
+    else {
+        $fields_html = join( '', @{ $steps[0]{fields} } );
+    }
+
     return <<"END_FORM";
-<form method="POST"
+$step_css<form method="POST"
       action="/cgi-bin/form-handler.pl"$enctype
       class="lazysite-form"
-      data-form="$form_name">
+      data-form="$form_name"$multistep_attr>
   <input type="hidden" name="_form" value="$form_name">
   <input type="hidden" name="_ts" value="$ts">
   <input type="hidden" name="_tk" value="$tk">
@@ -1801,7 +1840,7 @@ sub _render_form {
   </div>
 $fields_html  <div class="form-status" aria-live="polite"></div>
 </form>
-<script>
+$extra_script<script>
 (function() {
   var form = document.querySelector('.lazysite-form[data-form="$form_name"]');
   if (!form) return;
@@ -1836,6 +1875,60 @@ $fields_html  <div class="form-status" aria-live="polite"></div>
 })();
 </script>
 END_FORM
+}
+
+# SM098: inline CSS for a multi-step form. Without the JS-added `lsf-js` class,
+# every step shows and the nav is hidden (progressive enhancement); with it, only
+# the active step shows and the Back/Next nav appears.
+sub _form_step_css {
+    return <<'END_CSS';
+<style>
+.lazysite-form[data-multistep] .lsf-nav{display:none}
+.lazysite-form.lsf-js[data-multistep] .lsf-step:not(.lsf-active){display:none}
+.lazysite-form.lsf-js[data-multistep] .lsf-nav{display:flex;gap:.5rem;margin-top:1rem}
+.lazysite-form[data-multistep] .lsf-progress{font-size:.9em;opacity:.75;margin-bottom:.75rem}
+</style>
+END_CSS
+}
+
+# SM098: the step-navigation script for a multi-step form. Shows one step at a
+# time, validates the visible step (native constraint API) before advancing, and
+# keeps the Back/Next/submit affordances in sync. The final step exposes the
+# authored submit button; the existing submit handler posts the whole form once.
+sub _form_step_script {
+    my ($form_name) = @_;
+    return <<"END_STEP";
+<script>
+(function(){
+  var form = document.querySelector('.lazysite-form[data-form="$form_name"][data-multistep]');
+  if (!form) return;
+  form.classList.add('lsf-js');
+  var steps = Array.prototype.slice.call(form.querySelectorAll('.lsf-step'));
+  if (!steps.length) return;
+  var back = form.querySelector('.lsf-back');
+  var next = form.querySelector('.lsf-next');
+  var cur  = form.querySelector('.lsf-cur');
+  var i = 0;
+  function show(n){
+    i = Math.max(0, Math.min(steps.length - 1, n));
+    for (var k = 0; k < steps.length; k++){ steps[k].classList.toggle('lsf-active', k === i); }
+    if (cur)  cur.textContent = (i + 1);
+    if (back) back.style.display = (i === 0) ? 'none' : '';
+    if (next) next.style.display = (i === steps.length - 1) ? 'none' : '';
+  }
+  function stepValid(){
+    var els = steps[i].querySelectorAll('input, select, textarea');
+    for (var k = 0; k < els.length; k++){
+      if (!els[k].checkValidity()){ els[k].reportValidity(); return false; }
+    }
+    return true;
+  }
+  if (next) next.addEventListener('click', function(){ if (stepValid()) show(i + 1); });
+  if (back) back.addEventListener('click', function(){ show(i - 1); });
+  show(0);
+})();
+</script>
+END_STEP
 }
 
 sub convert_fenced_divs {

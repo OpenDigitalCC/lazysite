@@ -236,7 +236,7 @@ before work starts.
   SSRF guard was extracted from the processor into `Lazysite::Fetch` (one copy,
   shared; the processor loads it lazily on the fetch path so the hot render path
   stays module-free, ADR 0001, and no longer loads Socket/URI at all).
-- **SM098** Multi-page / wizard forms (Next / Back, per-step validation).
+- **~~SM098~~** *(done 2026-07-04)* Multi-page / wizard forms - `--- step ---` delimiters in a `::: form` render linear wizard steps (per-step validation, progressive enhancement); delivery unchanged.
 - **SM103** Recent-change markers - "changed recently" dots on nav/users/files;
   the visible tip of a streaming audit-trail layer.
 - **SM110** Domain aliases - an additional host serving the same site with its
