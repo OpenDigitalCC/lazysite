@@ -77,6 +77,9 @@ Optional:
                       Set the site's update channel (update_channel in
                       lazysite.conf) and exit - no install. Loop over your
                       docroots to set a whole fleet.
+  --restore-full FILE Restore a full-system backup (manager "full" backup) into
+                      --docroot, optionally rewriting the site domain with
+                      --domain NAME. The temp -> final domain migration path.
   --help              Show this help
 
 Maintenance modes:
@@ -117,8 +120,9 @@ Getopt::Long::GetOptions(
     'dry-run'       => \$opt{dry_run},
     'verify'        => \$opt{verify},
     'channel-check' => \$opt{channel_check},
-    'channel=s'     => \$opt{channel},
-    'force'         => \$opt{force},
+    'channel=s'      => \$opt{channel},
+    'restore-full=s' => \$opt{restore_full},
+    'force'          => \$opt{force},
 ) or usage(1);
 
 usage(0) if $opt{help};
@@ -165,6 +169,15 @@ if ( $opt{channel_check} ) {
 if ( defined $opt{channel} ) {
     die "--channel requires --docroot\n" unless $opt{docroot};
     exit cmd_set_channel( $opt{docroot}, $opt{channel} );
+}
+
+# --restore-full: restore a full-system backup (from the manager's "full" backup)
+# into a docroot, optionally rewriting the site domain - the temp-domain ->
+# final-domain migration path. A system-user operation: the tarball carries the
+# auth secrets, so this deliberately lives in the installer, not the manager UI.
+if ( defined $opt{restore_full} ) {
+    die "--restore-full requires --docroot\n" unless $opt{docroot};
+    exit cmd_restore_full( $opt{docroot}, $opt{restore_full}, $opt{domain} );
 }
 
 # --verify: is the INSTALLED code actually this version? (the deploy-gap detector)
@@ -273,6 +286,75 @@ sub audit_channel_set {
     my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
     open my $fh, '>>', "$logdir/audit.log" or return;
     print {$fh} "$ts | system | channel-set | update_channel: $value |  | ok | install\n";
+    close $fh;
+    return;
+}
+
+# --restore-full: extract a full-system backup into the docroot, optionally
+# rewriting the site domain, and clear render caches so pages re-render. This is
+# the temp -> final domain migration path (a system-user operation).
+sub cmd_restore_full {
+    my ( $docroot, $tarball, $domain ) = @_;
+    $tarball = abs_path($tarball) // $tarball;
+    die "Backup not found: $tarball\n" unless -f $tarball;
+    make_path($docroot)                unless -d $docroot;
+    $docroot = abs_path($docroot) // $docroot;
+
+    info("Restoring full-system backup into $docroot");
+    info("  from: $tarball");
+    my $rc = system( 'tar', 'xzf', $tarball, '-C', $docroot, '--no-same-owner' );
+    die "Restore extraction failed (tar rc=$rc)\n" if $rc != 0;
+
+    my $conf = "$docroot/lazysite/lazysite.conf";
+    die "Restored tree has no lazysite/lazysite.conf - not a full backup?\n"
+        unless -f $conf;
+
+    if ( defined $domain && length $domain ) {
+        _set_conf_key( $conf, 'domain', $domain )
+            or warn "Could not set domain in $conf\n";
+        info("Set site domain to: $domain");
+    }
+
+    # Drop generated HTML caches so pages re-render (new domain, fresh mtimes).
+    my $cache = "$docroot/lazysite/cache";
+    File::Path::remove_tree($cache) if -d $cache;
+
+    audit_full_restore( $docroot, $tarball, $domain );
+    info("Full restore complete. Check file ownership/permissions on the target host.");
+    return 0;
+}
+
+# Set (replace or append) one "key: value" line in a lazysite.conf. Atomic.
+sub _set_conf_key {
+    my ( $conf, $key, $value ) = @_;
+    return 0 unless -f $conf;
+    open my $in, '<', $conf or return 0;
+    my @lines = <$in>;
+    close $in;
+    my $found = 0;
+    for my $l (@lines) {
+        if ( $l =~ /^\s*\Q$key\E\s*:/ ) { $l = "$key: $value\n"; $found = 1; last }
+    }
+    push @lines, "$key: $value\n" unless $found;
+    my $tmp = "$conf.tmp.$$";
+    open my $out, '>', $tmp or return 0;
+    print {$out} @lines;
+    close $out;
+    return rename( $tmp, $conf ) ? 1 : do { unlink $tmp; 0 };
+}
+
+# Record a full-system restore (origin = install).
+sub audit_full_restore {
+    my ( $docroot, $tarball, $domain ) = @_;
+    my $logdir = "$docroot/lazysite/logs";
+    return unless -d $logdir;
+    ( my $base = $tarball ) =~ s{.*/}{};
+    my $target = "full restore from $base"
+        . ( ( defined $domain && length $domain ) ? " -> domain $domain" : '' );
+    $target =~ s/[|\r\n]+/ /g;
+    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
+    open my $fh, '>>', "$logdir/audit.log" or return;
+    print {$fh} "$ts | system | full-restore | $target |  | ok | install\n";
     close $fh;
     return;
 }
@@ -1284,6 +1366,19 @@ registry of sites, so to set a whole fleet, loop this over your docroots:
     for d in /home/*/web/*/public_html; do
         install.pl --channel stable --docroot "$d"
     done
+
+=item B<--restore-full> I<FILE>
+
+Restore a full-system backup (created by the manager's "full" backup) into
+C<--docroot>, and clear the render caches. Pass C<--domain> I<NAME> to rewrite the
+site's C<domain:> - the temp-domain to final-domain migration path (build a site on
+a temporary domain, then migrate it, content + config + accounts intact, to the
+final domain). A deliberate system-user operation: a full backup carries the auth
+secrets, so restore is not exposed in the manager UI. Recorded as C<full-restore>.
+Review file ownership/permissions on the target host afterwards.
+
+    install.pl --restore-full full-20260704T101500Z.tar.gz \
+        --docroot /home/site/public_html --domain www.example.com
 
 =item B<--help>
 

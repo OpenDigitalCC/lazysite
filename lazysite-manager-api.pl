@@ -519,7 +519,13 @@ elsif ( $action eq 'file-download' ) {
     exit 0;
 }
 elsif ( $action eq 'backup-list' )   { $result = action_backup_list() }
-elsif ( $action eq 'backup-create' ) { $result = action_backup_create() }
+elsif ( $action eq 'backup-create' ) {
+    # scope=full = a full-system snapshot (config + auth + content) for DR and
+    # cross-domain migration; otherwise a content-only snapshot. These are
+    # manager (cookie) actions - not in %need, so a token client cannot reach them.
+    $result = action_backup_create(
+        ( $params{scope} // '' ) eq 'full' ? 'full' : undef );
+}
 elsif ( $action eq 'backup-restore' ) { $result = action_backup_restore( $params{name} ) }
 elsif ( $action eq 'backup-download' ) {
     action_backup_download( $params{name} );

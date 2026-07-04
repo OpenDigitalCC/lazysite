@@ -589,6 +589,32 @@ subtest '--channel sets the site update channel in lazysite.conf' => sub {
         'the channel change is recorded in the audit log' );
 };
 
+subtest '--restore-full migrates a full backup to a new domain' => sub {
+    my $write = sub { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1]; close $fh };
+
+    my $src = tempdir( 'lazysite-full-src-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
+    make_path("$src/lazysite/auth");
+    make_path("$src/lazysite/logs");
+    $write->( "$src/lazysite/lazysite.conf", "site_name: X\ndomain: temp.example.com\n" );
+    $write->( "$src/lazysite/auth/.secret", "hmac-secret\n" );
+    $write->( "$src/index.md", "# Home\n" );
+    my $arch = tempdir( 'lazysite-full-arch-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
+    my $tb   = "$arch/full.tar.gz";   # outside $src so tar does not read its own output
+    system( 'tar', 'czf', $tb, '-C', $src, '.' ) == 0 or die "tar failed";
+
+    my $dst = tempdir( 'lazysite-full-dst-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
+    my ( $rc, $out ) = run_install(
+        '--restore-full', $tb, '--docroot', $dst, '--domain', 'www.final.com' );
+    is( $rc, 0, '--restore-full exits 0' );
+    like( slurp("$dst/lazysite/lazysite.conf"), qr/^domain:\s*www\.final\.com\s*$/m,
+        'site domain rewritten to the target (migration)' );
+    ok( -f "$dst/lazysite/auth/.secret", 'auth secret restored (full migration carries accounts)' );
+    ok( -f "$dst/index.md",              'content restored' );
+    like( slurp("$dst/lazysite/logs/audit.log"), qr/full-restore/,
+        'the full restore is recorded in the audit log' )
+        if -f "$dst/lazysite/logs/audit.log";
+};
+
 # --- homepage-replacement incident regression ---
 # A seed file that EXISTS on disk but is NOT tracked in the install state (e.g.
 # authored via the manager / WebDAV, seeded by a different install path, or written

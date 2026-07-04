@@ -31,9 +31,10 @@ sub action_backup_list {
         for my $f ( readdir $dh ) {
             next unless $f =~ /\.tar\.gz\z/ && -f "$dir/$f";
             my @st = stat "$dir/$f";
-            my ($kind) = $f =~ /\A(preinstall|prerestore|manual)-/;
+            my ($kind) = $f =~ /\A(preinstall|prerestore|manual|full)-/;
+            $kind //= 'manual';
             push @out, { name => $f, size => $st[7] // 0, mtime => $st[9] // 0,
-                kind => $kind // 'manual' };
+                kind => $kind, scope => ( $kind eq 'full' ? 'full' : 'content' ) };
         }
         closedir $dh;
     }
@@ -43,19 +44,32 @@ sub action_backup_list {
 
 sub action_backup_create {
     my ($kind) = @_;
-    $kind = 'manual' unless defined $kind && $kind =~ /\A(manual|prerestore)\z/;
+    $kind = 'manual' unless defined $kind && $kind =~ /\A(manual|prerestore|full)\z/;
     my $dir = _dir();
     make_path($dir) unless -d $dir;
     my $name = "$kind-" . strftime( '%Y%m%dT%H%M%SZ', gmtime ) . '.tar.gz';
     my $out  = "$dir/$name";
-    # Snapshot the served content; exclude the lazysite/ infra (which holds the
-    # backups themselves + auth secrets) and the generated assets dir.
-    my $rc = system( 'tar', 'czf', $out, '-C', $DOCROOT,
-        '--exclude=./lazysite', '--exclude=./lazysite-assets', '.' );
+
+    # 'full' = the whole site including the lazysite/ infra (config, auth,
+    # forms, nav, themes/layouts) - a portable snapshot for DR and for migrating a
+    # site to another domain (restored by a system user via install.pl --restore
+    # --domain; NOT self-service, because it carries the auth secrets). Only the
+    # backups dir (don't nest) and regenerable caches/mirror are excluded.
+    # Otherwise = content only, excluding the whole lazysite/ infra as before.
+    my @excludes =
+        $kind eq 'full'
+        ? ( '--exclude=./lazysite/backups', '--exclude=./lazysite/cache',
+        '--exclude=./lazysite-assets' )
+        : ( '--exclude=./lazysite', '--exclude=./lazysite-assets' );
+
+    my $rc = system( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.' );
     return { ok => 0, error => 'Backup failed' } if $rc != 0 || !-f $out;
-    log_event( 'INFO', 'backup-create', 'docroot snapshot', file => $name, user => $auth_user );
+    log_event( 'INFO', 'backup-create',
+        ( $kind eq 'full' ? 'full system snapshot' : 'docroot snapshot' ),
+        file => $name, user => $auth_user );
     my @st = stat $out;
-    return { ok => 1, name => $name, size => $st[7] // 0, mtime => $st[9] // 0 };
+    return { ok => 1, name => $name, size => $st[7] // 0, mtime => $st[9] // 0,
+        scope => ( $kind eq 'full' ? 'full' : 'content' ) };
 }
 
 # SM084 (the open half, eight-dimension review D5): restore a snapshot. OVERLAY
@@ -69,6 +83,15 @@ sub action_backup_restore {
     my ($name) = @_;
     $name = '' unless defined $name;
     return { ok => 0, error => 'Invalid backup name' } unless _valid_name($name);
+
+    # A full-system backup carries the auth secrets and overwrites config/accounts;
+    # restoring it (especially onto a different domain) is a deliberate system-user
+    # operation via install.pl --restore, not a self-service manager click.
+    return { ok => 0, error => 'A full-system backup is restored by a system user '
+            . 'with install.pl --restore (use --domain to migrate to another domain), '
+            . 'not from the manager. Download it and restore it from the shell.' }
+        if $name =~ /\Afull-/;
+
     my $full = _dir() . "/$name";
     return { ok => 0, error => 'Backup not found' } unless -f $full;
 

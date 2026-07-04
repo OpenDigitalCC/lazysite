@@ -8,7 +8,7 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
-use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download);
+use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download action_backup_restore);
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/logs");
@@ -44,6 +44,29 @@ ok( $l->{backups}[0]{size} > 0, 'size reported' );
 is( action_backup_download('../../etc/passwd')->{ok}, 0, 'rejects path traversal' );
 is( action_backup_download('etc/passwd')->{ok},       0, 'rejects a slashed name' );
 is( action_backup_download('nope.tar.gz')->{ok},      0, 'rejects a missing backup' );
+
+# --- full-system backup: includes the lazysite/ infra (auth) for migration/DR ---
+mkdir "$d/lazysite/auth";
+_put( "$d/lazysite/auth/.secret", "hmac-secret\n" );
+_put( "$d/lazysite/lazysite.conf", "domain: temp.example.com\n" );
+my $full = action_backup_create('full');
+ok( $full->{ok}, 'full backup-create ok' );
+like( $full->{name}, qr/^full-\d{8}T\d{6}Z\.tar\.gz$/, 'full snapshot name' );
+is( $full->{scope}, 'full', 'scope reported as full' );
+my @fm = `tar tzf "$d/lazysite/backups/$full->{name}" 2>/dev/null`;
+ok( ( grep { m{lazysite/auth/\.secret} } @fm ), 'full backup includes the auth secret (for migration)' );
+ok( ( grep { m{(^|/)index\.html} } @fm ),        'full backup includes content too' );
+ok( !( grep { m{lazysite/backups/} } @fm ),      'full backup does not nest the backups dir' );
+
+# --- list categorises the full backup ---
+my ($fl) = grep { $_->{kind} eq 'full' } @{ action_backup_list()->{backups} };
+ok( $fl,                     'full backup listed' );
+is( $fl->{scope}, 'full',    'listed full backup carries scope=full' );
+
+# --- a full backup is NOT restorable in-app (CLI-only) ---
+my $rf = action_backup_restore( $full->{name} );
+is( $rf->{ok}, 0, 'in-app restore refuses a full-system backup' );
+like( $rf->{error}, qr/install\.pl --restore/, 'restore error points to the CLI path' );
 
 done_testing();
 
