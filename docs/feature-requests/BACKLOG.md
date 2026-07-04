@@ -166,7 +166,11 @@ before work starts.
   triggers in `docs/review/2026-07-01-eight-dimension/90-prelaunch-operational-holds.md`
   (SLO/RTO/RPO declaration, snapshot crons, logrotate, monitoring/alerting,
   debsecan + gitleaks installs, pentest gate + engagement, support period,
-  signing/DoC/VEX/technical-file set).
+  signing/DoC/VEX/technical-file set). **Ownership (2026-07-04):** the operational
+  review is a HOSTING concern owned **per implementation** - each operator runs it
+  for their own deployment; the project ships the mechanism + a worked dev-server
+  exemplar (`tools/lazysite-server.pl`), not a one-time central sign-off. See the
+  Status section of the holds doc.
 - **~~manager-api branch coverage to 60~~** *(done 2026-07-03)* -
   `t/unit/manager/23-manager-read-actions.t` added coverage for five
   previously-untested actions (pages, config-read, principals, notices,

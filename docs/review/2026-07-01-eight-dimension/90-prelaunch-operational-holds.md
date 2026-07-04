@@ -11,6 +11,20 @@ application (dev) work, proceeding now, and the operational items below, which
 are **held** and will be addressed together before formal launch. Nothing here
 is forgotten; each item names its review dimension and what it needs.
 
+Ownership (2026-07-04): these operational holds are **hosting concerns, owned per
+implementation**. lazysite is deployed by many operators onto their own
+infrastructure, so the operational review (SLO/RTO declaration, scheduled
+snapshots, log rotation, monitoring/alerting, CVE vigilance, pen-test, support
+period, compliance artefacts) is **required for each deployment and is the
+responsibility of that deployment's implementor/operator** - it cannot be
+discharged once, centrally, by the project. What the project provides is the
+**mechanism** (the dev work: restore path, audit-review, `lazysite-check.pl`, the
+SBOM, the threat model) and a **worked example run against the dev server**
+(`tools/lazysite-server.pl`) demonstrating what each item looks like in practice -
+a reference an implementor follows for their own hosting, not a substitute for it.
+So each item below is "held" only in the sense that the project ships the exemplar
+and the tooling; the operational instance of it belongs to the operator.
+
 ## The holds
 
 1. **SLO / RTO / RPO / error-budget declaration** (D5 - the current refusal).
