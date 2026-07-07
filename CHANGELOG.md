@@ -18,18 +18,12 @@ Keying
 
 ## Unreleased
 
-Feature - show the visitor's IP (SM135)
-: a `[% client_ip %]` Template Toolkit variable (the `X-Forwarded-For` first hop
-  behind a proxy, else `REMOTE_ADDR`, sanitised to IP characters) and a
-  `nocache: true` front-matter flag that renders a page fresh on every request
-  (never cached). Together they let a page show each visitor their own IP - inline,
-  or via a small `nocache` JSON endpoint fetched by client-side script.
+## 0.6.1 - Content tools, backups, and change awareness (2026-07-07)
 
-Feature - recent-change markers (SM103, phase 1)
-: a `recent-changes` control-API action returns `{ target -> { ts, user, action } }`
-  for changes within a window (default 24h), aggregated latest-per-target from the
-  audit-log tail. The Files and Users pages show a small dot next to a
-  recently-changed row, with a when / who / what tooltip.
+Feature - multi-step (wizard) forms (SM098)
+: a `--- step ---` line (optionally titled) inside a `:::form` splits it into
+  wizard steps with Back / Next and per-step validation; the form still posts once
+  to the handler, and without JavaScript every step shows and it still submits.
 
 Feature - page alias redirects (SM134)
 : a page may declare `aliases:` in its front matter - old or alternate URLs it
@@ -38,6 +32,33 @@ Feature - page alias redirects (SM134)
   processor issues a `301` to the canonical page when a requested path is a known
   alias and nothing else matched. The redirect target is always the declaring
   page's own URL (not an open redirect); a real page always wins over an alias.
+
+Feature - full-system backups and cross-domain migration
+: alongside content backups, `action_backup_create('full')` captures the whole
+  site including the `lazysite/` infra (config, auth, forms, nav, themes/layouts).
+  A full backup carries the auth secrets, so in-app restore refuses it and
+  `install.pl --restore-full <file> --docroot X [--domain Y]` restores it from the
+  shell, optionally rewriting the site domain - the temp -> final domain migration
+  path. The Backups page is consolidated into typed sections (Content / Full-system
+  / Themes & layouts).
+
+Feature - show the visitor's IP (SM135)
+: a `[% client_ip %]` Template Toolkit variable (the `X-Forwarded-For` first hop
+  behind a proxy, else `REMOTE_ADDR`, sanitised) and a `nocache: true` front-matter
+  flag that renders a page fresh on every request. Together they show each visitor
+  their own IP - inline, or via a small `nocache` JSON endpoint fetched by script.
+
+Feature - recent-change markers (SM103, phase 1)
+: a `recent-changes` control-API action returns `{ target -> { ts, user, action } }`
+  for changes within a window (default 24h), aggregated latest-per-target from the
+  audit-log tail. The Files and Users pages show a small dot next to a
+  recently-changed row, with a when / who / what tooltip.
+
+Docs
+: an objective eight-dimension measures-and-achievements summary
+  (`docs/review/2026-07-01-eight-dimension/measures-and-achievements.md`); the
+  operational-review items recorded as per-implementation hosting responsibilities
+  with a dev-server exemplar.
 
 ## 0.6.0 - Stability milestone (2026-07-04)
 
