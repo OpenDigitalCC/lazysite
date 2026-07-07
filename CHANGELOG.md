@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+Feature - show the visitor's IP (SM135)
+: a `[% client_ip %]` Template Toolkit variable (the `X-Forwarded-For` first hop
+  behind a proxy, else `REMOTE_ADDR`, sanitised to IP characters) and a
+  `nocache: true` front-matter flag that renders a page fresh on every request
+  (never cached). Together they let a page show each visitor their own IP - inline,
+  or via a small `nocache` JSON endpoint fetched by client-side script.
+
 Feature - recent-change markers (SM103, phase 1)
 : a `recent-changes` control-API action returns `{ target -> { ts, user, action } }`
   for changes within a window (default 24h), aggregated latest-per-target from the

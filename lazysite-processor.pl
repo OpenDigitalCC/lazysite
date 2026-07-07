@@ -299,6 +299,7 @@ my %ENV_ALLOWLIST = map { $_ => 1 } qw(
             if    ( $line =~ /^auth\s*:\s*(\w+)/i )          { $m{auth} = lc $1 }
             elsif ( $line =~ /^ttl\s*:\s*(\d+)/ )            { $m{ttl} = $1 }
             elsif ( $line =~ /^api\s*:\s*true/i )            { $m{api} = 1 }
+            elsif ( $line =~ /^nocache\s*:\s*true/i ) { $m{nocache} = 1 }
             elsif ( $line =~ /^raw\s*:\s*true/i )            { $m{raw} = 1 }
             elsif ( $line =~ /^content_type\s*:\s*(.+)/ )    {
                 ( my $v = $1 ) =~ s/^\s+|\s+$//g;
@@ -993,6 +994,12 @@ sub main {
                 }
             }
         }
+    }
+
+    # nocache: true - render fresh on every request (dynamic per-request content
+    # such as the visitor's own IP); never served from or written to the cache.
+    if ( @md_stat && _peek_md($md_path)->{nocache} ) {
+        $ENV{LAZYSITE_NOCACHE} = '1';
     }
 
     # Fast path: serve from cache if eligible. Skip when NOCACHE,
@@ -3066,6 +3073,17 @@ sub render_content {
         page_modified     => $meta->{page_modified}    || '',
         page_modified_iso => $meta->{page_modified_iso} || '',
         request_uri       => $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '',
+        # The visitor's IP: the first hop of X-Forwarded-For (the original client
+        # behind a reverse proxy) if present, else the direct peer REMOTE_ADDR.
+        # Per-request, so only correct on a `nocache: true` page - a cached page
+        # would bake the first visitor's IP. Sanitised to IP characters only so a
+        # spoofed header cannot inject markup into the rendered output.
+        client_ip => do {
+            my ($first) = split /\s*,\s*/, ( $ENV{HTTP_X_FORWARDED_FOR} // '' );
+            my $ip = ( defined $first && length $first ) ? $first : ( $ENV{REMOTE_ADDR} // '' );
+            $ip =~ s/[^0-9A-Fa-f:.\[\]]//g;
+            $ip;
+        },
         page_source       => do {
             my $src = $meta->{_md_path} // '';
             $src =~ s{^\Q$DOCROOT\E}{};

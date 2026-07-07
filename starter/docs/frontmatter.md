@@ -64,6 +64,9 @@ Everything below the closing `---` is the page body. All keys are optional unles
 `ttl`
 : Cache lifetime in seconds - the page regenerates after this interval rather than only on edit. Useful for pages that pull remote data. Example: `ttl: 300`
 
+`nocache`
+: `nocache: true` renders the page fresh on every request - never served from or written to the cache. Use it for genuinely per-request content, such as showing the visitor their own IP with `[% client_ip %]`. See [Showing the visitor's IP](/docs/features/authoring/visitor-ip).
+
 `query_params`
 : Accepted URL query-parameter names, exposed as `[% query.name %]`. Requests with matching parameters bypass the cache. See [API and raw mode](/docs/api).
 
