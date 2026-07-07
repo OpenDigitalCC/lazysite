@@ -489,6 +489,14 @@ sub do_put {
     }
 
     invalidate_cache( $r->{abs} );
+    # SM134: keep the alias-redirect map current for content pages.
+    if ( $a{rel} =~ /\.md\z/ ) {
+        require Lazysite::Aliases;
+        my $body = '';
+        if ( open my $rf, '<:raw', $r->{abs} ) { local $/; $body = <$rf>; close $rf }
+        ( my $arel = $r->{abs} ) =~ s{^\Q$DOCROOT\E/?}{};
+        Lazysite::Aliases::index_page( $DOCROOT, $arel, $body );
+    }
     log_event( 'INFO', $a{user}, 'dav put',
         path => $a{rel}, bytes => $written,
         status => ( $exists ? 204 : 201 ) );
@@ -541,6 +549,12 @@ sub do_delete {
 
     remove_lock( $a{rel} );
     invalidate_cache( $r->{abs} );
+    # SM134: drop this page's alias-redirect entries.
+    if ( $a{rel} =~ /\.md\z/ ) {
+        require Lazysite::Aliases;
+        ( my $arel = $r->{abs} ) =~ s{^\Q$DOCROOT\E/?}{};
+        Lazysite::Aliases::deindex_page( $DOCROOT, $arel );
+    }
     log_event( 'INFO', $a{user}, 'dav delete', path => $a{rel}, status => 204 );
     send_status(204);
 }

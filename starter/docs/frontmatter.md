@@ -44,6 +44,18 @@ Everything below the closing `---` is the page body. All keys are optional unles
 `register`
 : Registry files this page should appear in - matching template names under `lazysite/templates/registries/` without the `.tt`. Common values: `sitemap.xml`, `llms.txt`, `feed.rss`, `feed.atom`.
 
+`aliases`
+: Old or alternate URLs this page should also answer to, as **redirects**. A YAML list of site-local paths (each starting with `/`). A request for an alias returns a `301 Moved Permanently` to the page's real URL - so links to a renamed or moved page keep working. The redirect always targets this page (an alias cannot point elsewhere). Example:
+
+    ---
+    title: Pricing
+    aliases:
+      - /old-pricing
+      - /plans
+    ---
+
+  A real page always wins over an alias, so an alias only takes effect when nothing else lives at that path. The alias list is kept up to date whenever the page is saved (manager or WebDAV) and cleared when it is deleted.
+
 ## Dynamic & data keys
 
 `tt_page_var`

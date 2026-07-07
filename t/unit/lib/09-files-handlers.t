@@ -11,8 +11,9 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Files
-    qw(action_list action_mkdir action_delete action_move action_copy action_migrate_to_local
+    qw(action_list action_save action_mkdir action_delete action_move action_copy action_migrate_to_local
        action_acl_set action_acl_remove acquire_lock renew_lock release_lock);
+use Lazysite::Aliases qw(lookup);
 use Lazysite::Manager::Common ();
 use Lazysite::Auth::Acl qw(load_acls);
 
@@ -185,5 +186,17 @@ is( $e->{owner}, 'alice',           'list surfaces owner' );
 is_deeply( $e->{read},  ['bob'],    'list surfaces the read list' );
 is_deeply( $e->{write}, ['alice'],  'list surfaces the write list' );
 ok( $e->{lock} && $e->{lock}{locked_by} eq 'alice', 'list surfaces the lock holder' );
+
+# --- SM134: saving/deleting a page maintains the alias-redirect map ---
+{
+    my $md = "---\ntitle: Pricing\naliases:\n  - /old-pricing\n---\n\nPrices.\n";
+    ok( action_save( 'content/pricing.md', 'alice', $md )->{ok}, 'page with aliases saved' );
+    is( lookup( $d, '/old-pricing' ), '/content/pricing',
+        'action_save indexed the alias (SM134 hook)' );
+
+    ok( action_delete('content/pricing.md')->{ok}, 'aliased page deleted' );
+    is( lookup( $d, '/old-pricing' ), undef,
+        'action_delete cleared the alias (SM134 hook)' );
+}
 
 done_testing();

@@ -237,6 +237,10 @@ sub action_save {
     if ( $full =~ /\.md$/ ) {
         ( my $cache = $full ) =~ s/\.md$/.html/;
         unlink $cache if -f $cache;
+        # SM134: keep the alias-redirect map current for this content page.
+        require Lazysite::Aliases;
+        ( my $arel = $full ) =~ s{^\Q$DOCROOT\E/?}{};
+        Lazysite::Aliases::index_page( $DOCROOT, $arel, $content );
     }
 
     # Release lock
@@ -331,6 +335,13 @@ sub action_delete {
 
     ( my $cache = $full ) =~ s/\.md$/.html/;
     unlink $cache if -f $cache;
+
+    # SM134: drop this page's alias-redirect entries.
+    if ( $full =~ /\.md$/ ) {
+        require Lazysite::Aliases;
+        ( my $arel = $full ) =~ s{^\Q$DOCROOT\E/?}{};
+        Lazysite::Aliases::deindex_page( $DOCROOT, $arel );
+    }
 
     log_event('INFO', $action, 'file deleted', path => $rel_path, user => $auth_user);
     _invalidate_registries();

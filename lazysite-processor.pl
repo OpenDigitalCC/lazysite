@@ -1067,8 +1067,45 @@ sub main {
         }
     }
 
+    # SM134: alias redirects. A page may declare `aliases:` (old/alternate URLs);
+    # those are maintained in lazysite/aliases.json. Only when nothing else matched,
+    # a requested path that is a known alias 301s to the canonical page. The target
+    # is always the declaring page's own URL, so this is not an open redirect.
+    if ( my $canon = _alias_lookup() ) {
+        log_event( 'INFO', $uri, 'alias redirect', to => $canon );
+        print "Status: 301 Moved Permanently\r\n";
+        print "Location: $canon\r\n";
+        print "Content-Type: text/html; charset=utf-8\r\n\r\n";
+        print qq(<!DOCTYPE html><html><body>Moved to )
+            . qq(<a href="$canon">$canon</a></body></html>\n);
+        return;
+    }
+
     # No source found - serve 404 page
     not_found($uri);
+}
+
+# Inline alias lookup for the 404 path: read lazysite/aliases.json and return the
+# canonical URL for the requested path, or undef. Kept inline (no module load on
+# the miss path); the map is written by Lazysite::Aliases on save/delete.
+sub _alias_lookup {
+    my $f = "$DOCROOT/lazysite/aliases.json";
+    return undef unless -f $f;
+    my $req = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '';
+    $req =~ s/\?.*\z//;                      # drop any query string
+    return undef unless length $req && $req =~ m{^/};
+    $req =~ s{/+\z}{} unless $req eq '/';    # normalise trailing slash
+    open my $fh, '<', $f or return undef;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $map = eval { decode_json( $raw // '{}' ) };
+    return undef unless ref $map eq 'HASH';
+    my $canon = $map->{$req};
+    # The target is our own canonical URL; still refuse anything not a clean
+    # site-local path (defence in depth against a hand-edited map).
+    return undef unless defined $canon && $canon =~ m{^/} && $canon !~ m{^//};
+    return undef if $canon =~ /[\0\r\n]/;
+    return $canon;
 }
 
 # --- Processing ---

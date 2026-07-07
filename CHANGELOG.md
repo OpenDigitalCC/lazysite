@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+Feature - page alias redirects (SM134)
+: a page may declare `aliases:` in its front matter - old or alternate URLs it
+  should also answer to. Those are maintained in `lazysite/aliases.json`
+  (`Lazysite::Aliases`, updated on save/delete from the manager and WebDAV) and the
+  processor issues a `301` to the canonical page when a requested path is a known
+  alias and nothing else matched. The redirect target is always the declaring
+  page's own URL (not an open redirect); a real page always wins over an alias.
+
 ## 0.6.0 - Stability milestone (2026-07-04)
 
 Milestone marker - no code changes from 0.5.41
