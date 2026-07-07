@@ -248,6 +248,11 @@ before work starts.
   the visible tip of a streaming audit-trail layer.
 - **SM110** Domain aliases - an additional host serving the same site with its
   own theme / nav / name.
+- **SM134 follow-ups** - page alias redirects shipped (0.6.1) with 301s and
+  index-on-save. Optional extensions: a per-alias redirect-type override (302
+  temporary vs the default 301 permanent); reindex the alias map on rename/copy/DAV
+  MOVE (today a moved or copied page re-indexes on its next save); and a manager
+  surface to list/inspect the current alias map.
 - **Sessions page - list + control active sessions** *(needs an architectural
   decision - sessions are STATELESS by design)* - the Sessions page exposes only
   "log out everyone" (rotate the auth secret) because sessions are signed cookies,
@@ -391,6 +396,10 @@ before work starts.
 - **SM133** Static-HTML migration fallback - a clean URL with no Markdown source
   but a static sibling is served (processor verbatim; Hestia vhost prefers `.shtml`
   so SSI still expands), until the page is converted to Markdown (0.5.26).
+- **SM134** Page alias redirects - a page's `aliases:` front matter (old/alternate
+  URLs) 301s to its canonical URL; map maintained in `lazysite/aliases.json` by
+  `Lazysite::Aliases` on manager/WebDAV save+delete; processor enforces on the 404
+  path only; target is always the page's own URL (not an open redirect) (0.6.1).
 
 ## Candidates - research / future
 
