@@ -46,5 +46,13 @@ notifying operators live when another user (or an agent) changes something.
 
 ## Status
 
-Queued. Phase 1 bounded (one read action + row decoration); phases 2-3 are a larger
-real-time programme (SSE, then WebRTC presence) to scope separately.
+**Phase 1 done (0.6.1).** A `recent-changes` control-API action returns
+`{ target -> { ts, user, action } }` for changes within a window (default 24h),
+aggregated latest-per-target from the audit-log tail (`_audit_cached_entries`), ok
+entries with a non-empty target only. The Files page and the Users page fetch it on
+load and show a small dot next to a recently-changed row, with a tooltip of when /
+who / what. The redirect target matching is exact: a file row's `path` is the audit
+target for its save, and a user row's name is the audit target for `user-*` events.
+
+Phases 2-3 (SSE live stream, then WebRTC presence) remain a larger real-time
+programme to scope separately.

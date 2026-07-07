@@ -18,6 +18,12 @@ Keying
 
 ## Unreleased
 
+Feature - recent-change markers (SM103, phase 1)
+: a `recent-changes` control-API action returns `{ target -> { ts, user, action } }`
+  for changes within a window (default 24h), aggregated latest-per-target from the
+  audit-log tail. The Files and Users pages show a small dot next to a
+  recently-changed row, with a when / who / what tooltip.
+
 Feature - page alias redirects (SM134)
 : a page may declare `aliases:` in its front matter - old or alternate URLs it
   should also answer to. Those are maintained in `lazysite/aliases.json`

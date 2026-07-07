@@ -496,6 +496,7 @@ elsif ( $action eq 'audit' )            {
         $result = action_audit( user => $params{user}, target => $params{target}, start => $params{start}, end => $params{end}, page => $params{page}, per_page => $params{per_page} );
     }
 }
+elsif ( $action eq 'recent-changes' ) { $result = action_recent_changes( $params{window} ) }
 elsif ( $action eq 'handler-save' )     {
     my $req = eval { decode_json($body) } // {};
     $result = action_handler_save($req);
@@ -554,7 +555,7 @@ else  { $result = { ok => 0, error => "Unknown action: $action" } }
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
         csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
-        cache-invalidate nav-read config-read bad-url-blocks pages theme-list themes-list-all themes-for-layout
+        cache-invalidate nav-read config-read bad-url-blocks recent-changes pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
@@ -1332,6 +1333,24 @@ sub _audit_cached_entries {
         }
     }
     return $cache->{entries};
+}
+
+sub action_recent_changes {
+    my ($window) = @_;
+    $window = ( defined $window && $window =~ /\A\d+\z/ ) ? $window : 86_400;    # 24h
+    my $entries = _audit_cached_entries();
+    # Audit timestamps are ISO (…Z), so a lexical cutoff is a time cutoff.
+    my $cutoff = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime( time() - $window ) );
+    my %recent;
+    for my $e ( @{$entries} ) {
+        next unless ( $e->{status} // '' ) eq 'ok';
+        next unless defined $e->{target} && length $e->{target} && $e->{target} ne '/';
+        next unless ( $e->{ts} // '' ) ge $cutoff;
+        # Entries are chronological, so the last write per target wins.
+        $recent{ $e->{target} } =
+            { ts => $e->{ts}, user => $e->{user}, action => $e->{action} };
+    }
+    return { ok => 1, window => $window, changes => \%recent };
 }
 
 sub action_audit {

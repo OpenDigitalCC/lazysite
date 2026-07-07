@@ -12,6 +12,7 @@ use IPC::Open3 qw(open3);
 use Symbol qw(gensym);
 use File::Path qw(make_path);
 use File::Temp qw(tempdir);
+use POSIX ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root grant_caps);
@@ -123,6 +124,36 @@ open my $p2, '>', "$d/blog/post.md"  or die $!; print $p2 "# Post\n";  close $p2
 
     my $r2 = op_get( $d, 'action=notices' );
     is( $r2->{unread}, 0, 'notices: unread is 0 after marking seen' );
+}
+
+# --- action_recent_changes (SM103) ------------------------------------------
+{
+    make_path("$d/lazysite/cache");
+    my $iso = sub { POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime( time() - $_[0] ) ) };
+    open my $al, '>', "$d/lazysite/logs/audit.log" or die $!;
+    my $row = sub { join( ' | ', @_ ) . "\n" };
+    # /blog/post: two recent edits; op's is later, so op should win per target.
+    print $al $row->( $iso->(60), 'alice', 'edit',     '/blog/post', '1.2.3.4', 'ok', 'ui', '' );
+    print $al $row->( $iso->(30), 'op',    'edit',     '/blog/post', '1.2.3.4', 'ok', 'ui', '' );
+    print $al $row->( $iso->(20), 'op',    'user-add', 'alice',      '1.2.3.4', 'ok', 'ui', '' );
+    # excluded cases:
+    print $al $row->( '2020-01-01T00:00:00Z', 'op', 'edit',   '/old-page', '1.2.3.4', 'ok',   'ui', '' );
+    print $al $row->( $iso->(10),             'op', 'delete', '/failed',   '1.2.3.4', 'fail', 'ui', 'x' );
+    print $al $row->( $iso->(5),              'op', 'login',  '',          '1.2.3.4', 'ok',   'ui', '' );
+    close $al;
+
+    my $r = op_get( $d, 'action=recent-changes' );
+    ok( $r->{ok}, 'recent-changes: ok' );
+    my $ch = $r->{changes} || {};
+    ok( $ch->{'/blog/post'}, 'recent-changes: a recent page change is present' );
+    is( $ch->{'/blog/post'}{user}, 'op', 'recent-changes: the latest writer wins per target' );
+    ok( $ch->{'alice'},        'recent-changes: a recent user change is present' );
+    ok( !$ch->{'/old-page'},   'recent-changes: an out-of-window change is excluded' );
+    ok( !$ch->{'/failed'},     'recent-changes: a failed action is excluded' );
+    ok( !exists $ch->{''},     'recent-changes: an empty target is excluded' );
+
+    my $r2 = op_get( $d, 'action=recent-changes&window=1' );
+    ok( !$r2->{changes}{'/blog/post'}, 'recent-changes: the window parameter narrows the result' );
 }
 
 done_testing();

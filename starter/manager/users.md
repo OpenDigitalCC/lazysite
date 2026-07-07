@@ -95,7 +95,24 @@ function apiCall(body) {
 // Load users + their settings + groups in ONE request (users-page), then render.
 // Was three separate CGI calls (users-detail + group-settings-get + whoami) -
 // each a Perl cold start on a plain-CGI host; folding them cuts page-load latency.
+// SM103: recent-change markers - a dot on an account changed within the window.
+var recentChanges = {};
+function recentDot(key) {
+  var c = recentChanges[key];
+  if (!c) return '';
+  var when = c.ts ? new Date(c.ts).toLocaleString() : '';
+  var title = 'Changed ' + when + (c.user ? ' by ' + c.user : '')
+            + (c.action ? ' (' + c.action + ')' : '');
+  return ' <span class="mg-recent-dot" title="' + escHtml(title) + '" aria-label="'
+       + escHtml(title) + '" style="display:inline-block;width:8px;height:8px;'
+       + 'border-radius:50%;background:var(--mg-accent,#3a7bd5);vertical-align:middle;"></span>';
+}
+
 function loadUsers() {
+  apiCall({ action: 'recent-changes' }).then(
+    function(rc) { recentChanges = (rc && rc.ok && rc.changes) || {}; },
+    function()   { recentChanges = {}; }
+  ).then(function() {
   apiCall({ action: 'users-page' }).then(function(d) {
     if (!d.ok) { showStatus(d.error || 'Failed to load users.', true); return; }
     if (d.partner || d.me) ME = d.partner || d.me;
@@ -120,6 +137,7 @@ function loadUsers() {
     populateAddUserGroups();
     populateAddUserParents();
   }).catch(function(e) { showStatus('Failed to load users: ' + e.message, true); });
+  });
 }
 
 var PERM_LABELS = {
@@ -289,7 +307,7 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
     ? ' <span class="mg-subcount" title="sub-user of ' + escHtml(parentName) + '">&#8627; ' + escHtml(parentName) + '</span>'
     : '';
   var h = '<details class="mg-acc" data-user="' + ue + '"><summary>' +
-    '<span class="mg-acc-name">' + ue + '</span>' + subBadge + parentTag + note +
+    '<span class="mg-acc-name">' + ue + '</span>' + recentDot(u) + subBadge + parentTag + note +
     '<span class="mg-acc-tags">' + typeTag + status + by + expTag + '</span></summary>' +
     '<div class="mg-acc-body">';
 

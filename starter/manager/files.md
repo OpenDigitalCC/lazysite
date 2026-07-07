@@ -108,14 +108,35 @@ function loadDir(dir) {
   updateBreadcrumb();
   var sa = document.getElementById('select-all');
   if (sa) { sa.checked = false; sa.indeterminate = false; }
-  fetch(API + '?action=list&path=' + encodeURIComponent(currentDir))
+  // SM103: recent-change markers - fetch what changed lately, then render.
+  fetch(API + '?action=recent-changes')
     .then(function(r) { return r.json(); })
-    .then(function(data) {
-      if (!data.ok) { showStatus(data.error, true); return; }
-      renderFiles(data.entries || []);
-      updateSelection();
+    .then(function(rc) { recentChanges = (rc && rc.ok && rc.changes) || {}; },
+          function() { recentChanges = {}; })
+    .then(function() {
+      return fetch(API + '?action=list&path=' + encodeURIComponent(currentDir))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.ok) { showStatus(data.error, true); return; }
+          renderFiles(data.entries || []);
+          updateSelection();
+        });
     })
     .catch(function(e) { showStatus('Failed to load directory: ' + e.message, true); });
+}
+
+// SM103: a small dot next to a row changed within the recent-changes window.
+var recentChanges = {};
+function recentDot(key) {
+  var c = recentChanges[key];
+  if (!c) return '';
+  var when = c.ts ? new Date(c.ts).toLocaleString() : '';
+  var title = 'Changed ' + when + (c.user ? ' by ' + c.user : '')
+            + (c.action ? ' (' + c.action + ')' : '');
+  return '<span class="mg-recent-dot" title="' + escHtml(title) + '" aria-label="'
+       + escHtml(title) + '" style="display:inline-block;width:8px;height:8px;'
+       + 'border-radius:50%;background:var(--mg-accent,#3a7bd5);margin-left:6px;'
+       + 'vertical-align:middle;"></span>';
 }
 
 function buildBreadcrumb(dirPath, linkFn) {
@@ -372,7 +393,7 @@ function rowHtml(f) {
       : escHtml(f.name);
     if (f.is_brief) name += ' <span class="mg-brief-tag" title="Authoring brief (private, never served)">brief</span>';
   }
-  html += '<td class="mg-file-name"><span class="mg-file-icon">' + icon + '</span> ' + name + '</td>';
+  html += '<td class="mg-file-name"><span class="mg-file-icon">' + icon + '</span> ' + name + recentDot(f.path) + '</td>';
   html += '<td class="mg-col-access">' + (isDir ? '' : accessBadge(f)) + '</td>';
   html += '<td class="mg-col-mod">' + modifiedCell(f) + '</td>';
   if (f.type === 'file' || (isDir && f.empty)) {

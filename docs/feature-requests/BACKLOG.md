@@ -244,8 +244,11 @@ before work starts.
   shared; the processor loads it lazily on the fetch path so the hot render path
   stays module-free, ADR 0001, and no longer loads Socket/URI at all).
 - **~~SM098~~** *(done 2026-07-04)* Multi-page / wizard forms - `--- step ---` delimiters in a `::: form` render linear wizard steps (per-step validation, progressive enhancement); delivery unchanged.
-- **SM103** Recent-change markers - "changed recently" dots on nav/users/files;
-  the visible tip of a streaming audit-trail layer.
+- **~~SM103~~ Recent-change markers** *(Phase 1 done 0.6.1)* - a `recent-changes`
+  action returns `{target -> {ts, user, action}}` from the audit-log tail (24h
+  window); the Files and Users pages show a dot on a recently-changed row with a
+  who/when/what tooltip. Phases 2-3 (SSE live stream, WebRTC presence) remain a
+  separate real-time programme.
 - **SM110** Domain aliases - an additional host serving the same site with its
   own theme / nav / name.
 - **SM134 follow-ups** - page alias redirects shipped (0.6.1) with 301s and
