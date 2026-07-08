@@ -618,7 +618,36 @@ function renderSmtpFields(d) {
   html += '</div>';
   html += '</div>';
 
+  // SM137: staged connection check (host/port/TLS/auth). Runs against the SAVED
+  // smtp.conf, so save first; the note says so.
+  html += '<div class="mg-form-row"><label>Connection</label><div>';
+  html += '<button type="button" class="mg-btn mg-btn-sm" onclick="validateSmtp(this)">Validate SMTP connection</button>';
+  html += ' <span class="mg-muted" style="font-size:0.8rem">checks the saved settings - save changes first</span>';
+  html += '<div class="smtp-validate-result" style="margin-top:4px;font-size:0.85rem"></div>';
+  html += '</div></div>';
+
   return html;
+}
+
+// SM137: run the form-smtp validate action and show the staged verdict inline.
+function validateSmtp(btn) {
+  var out = btn.parentNode.querySelector('.smtp-validate-result');
+  var p = (window._plugins || []).find(function(x) { return x.id === 'form-smtp'; });
+  if (!p) { if (out) out.textContent = 'The Form SMTP plugin is not available.'; return; }
+  btn.disabled = true;
+  if (out) { out.textContent = 'Checking host, port, TLS, auth…'; out.style.color = ''; }
+  fetch(API + '?action=plugin-action&plugin=form-smtp', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ script: p._script, action_id: 'validate' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    btn.disabled = false;
+    if (!out) return;
+    if (d && d.ok) { out.style.color = 'var(--mg-ok,#1a7f37)'; out.textContent = d.message || 'OK.'; }
+    else { out.style.color = 'var(--mg-danger,#b03a3a)'; out.textContent = (d && d.error) || 'Validation failed.'; }
+  })
+  .catch(function(e) { btn.disabled = false; if (out) { out.style.color = 'var(--mg-danger,#b03a3a)'; out.textContent = 'Error: ' + e.message; } });
 }
 
 function renderFileFields(d) {
