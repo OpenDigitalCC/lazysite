@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+## 0.6.4 - Fix: the SMTP Validate button placement (2026-07-08)
+
+Fix - the SMTP Validate button is reachable
+: the 0.6.3 Validate action rendered only on the form-smtp plugin card, which is
+  hidden whenever form-handler is enabled (any site using forms) - so the button
+  was effectively invisible. It now lives in the SMTP connection section of the
+  handler wizard / edit form on Plugin Config, with the staged verdict shown
+  inline. It checks the SAVED settings (save first, then validate).
+
 ## 0.6.3 - SMTP connection validation (2026-07-08)
 
 Feature - SMTP connection validation (SM137)
