@@ -116,6 +116,21 @@ chmod 600 lazysite/forms/.smtp-password
 Both `smtp.conf` and the password file live under `lazysite/forms/`,
 which is operator-only and denied to every publishing surface.
 
+## Validating the connection
+
+After saving, use **Validate SMTP connection** on the Plugin Config
+page. It runs a staged check against the saved settings and names the
+failing stage rather than a generic error:
+
+- **host** - the name does not resolve (DNS / typo)
+- **port** - nothing answers on that port (wrong port or a firewall)
+- **TLS** - the port answers but the TLS mode is wrong (STARTTLS vs
+  implicit TLS vs none)
+- **auth** - the server rejected the username/password (or none is set)
+
+It never sends an email - it connects, negotiates, authenticates, and
+quits.
+
 ## Email format
 
 The email body lists all form fields:

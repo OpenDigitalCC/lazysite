@@ -42,8 +42,23 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                 { key => 'password_file', label => 'Password file (alternative to the password field)', type => 'path',
               show_when => { key => 'auth', value => ['true','1'] } },
         ],
-        actions => [],
+            actions => [ { id => 'validate', label => 'Validate SMTP connection' } ],
     });
+    exit 0;
+}
+
+# --- Validate mode (the "Validate SMTP connection" button): staged connection
+# check against the SAVED smtp.conf, reporting WHICH stage fails - host (DNS),
+# port (TCP), TLS, or authentication - so a misconfiguration names itself.
+# Invoked by the manager's plugin-action as `--scan --docroot DIR`.
+
+if ( grep { $_ eq '--scan' } @ARGV ) {
+    my $docroot = '';
+    for my $i ( 0 .. $#ARGV ) {
+        $docroot = $ARGV[ $i + 1 ] // '' if $ARGV[$i] eq '--docroot';
+    }
+    $docroot ||= $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '.';
+    print encode_json( validate_smtp($docroot) );
     exit 0;
 }
 
@@ -63,7 +78,7 @@ if ( grep { $_ eq '--pipe' } @ARGV ) {
         if ($docroot) {
             my $smtp_conf = load_smtp_conf_from("$docroot/lazysite/forms/smtp.conf");
             # smtp.conf provides connection settings; handler config provides from/to/subject
-            for my $k (qw(method sendmail_path host port tls auth username password_file)) {
+            for my $k (qw(method sendmail_path host port tls auth username password password_file)) {
                 $config->{$k} //= $smtp_conf->{$k} if defined $smtp_conf->{$k};
             }
         }
@@ -324,20 +339,7 @@ sub send_via_smtp {
 
     if ($auth) {
         my $user = $conf->{username} // '';
-        # The password field (stored in the operator-only smtp.conf) is the simple
-        # path; password_file remains a fallback for those who prefer a file.
-        my $pass = ( defined $conf->{password} && length $conf->{password} )
-            ? $conf->{password} : '';
-        if ( !length $pass && $conf->{password_file} ) {
-            my $docroot = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '';
-            my $pf = $conf->{password_file};
-            $pf = "$docroot/$pf" if $docroot && $pf !~ m{^/};
-            if ( -f $pf ) {
-                open( my $pfh, '<', $pf ) or die "Cannot read password file: $!\n";
-                chomp( $pass = <$pfh> );
-                close($pfh);
-            }
-        }
+        my $pass = resolve_password($conf);
         $smtp->auth( $user, $pass ) or die "SMTP auth failed\n";
     }
 
@@ -402,4 +404,152 @@ sub _json_str {
     $s =~ s/\r/\\r/g;
     $s =~ s/\t/\\t/g;
     return $s;
+}
+
+# The SMTP password: the `password` key in the operator-only smtp.conf is the
+# simple path; `password_file` remains a fallback, used only when no password is
+# set. Shared by delivery (send_via_smtp) and the validate action.
+sub resolve_password {
+    my ($conf) = @_;
+    return $conf->{password}
+        if defined $conf->{password} && length $conf->{password};
+    my $pass = '';
+    if ( $conf->{password_file} ) {
+        my $docroot = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '';
+        my $pf      = $conf->{password_file};
+        $pf = "$docroot/$pf" if $docroot && $pf !~ m{^/};
+        if ( -f $pf ) {
+            open( my $pfh, '<', $pf ) or die "Cannot read password file: $!\n";
+            chomp( $pass = <$pfh> );
+            close($pfh);
+        }
+    }
+    return $pass;
+}
+
+# Staged validation of the saved smtp.conf: each stage names itself on failure
+# (host / port / TLS / auth), so "email doesn't work" becomes actionable. Never
+# sends a message - it stops after the last configured stage and QUITs.
+sub validate_smtp {
+    my ($docroot) = @_;
+    local $ENV{DOCUMENT_ROOT} = $docroot;
+
+    my $path = "$docroot/lazysite/forms/smtp.conf";
+    return { ok => 0, stage => 'config',
+        error => 'No smtp.conf found - save the SMTP settings first.' }
+        unless -f $path;
+    my $conf = load_smtp_conf_from($path);
+
+    my $method = $conf->{method} || 'sendmail';
+    if ( $method eq 'sendmail' ) {
+        my $sm = $conf->{sendmail_path} || '/usr/sbin/sendmail';
+        return { ok => 0, stage => 'sendmail',
+            error => "Sendmail issue: '$sm' not found or not executable. "
+                . 'Install a sendmail-compatible MTA or switch to method: smtp.' }
+            unless -x $sm;
+        return { ok => 1, stage => 'ok', checked => ['sendmail'],
+            message => "OK: $sm is present and executable." };
+    }
+
+    my $host = $conf->{host} || 'localhost';
+    my $port = $conf->{port} || 25;
+    my $tls  = $conf->{tls}  || '';
+    my $auth = $conf->{auth} && $conf->{auth} =~ /^true$/i;
+    my @checked;
+
+    my $result = eval {
+        local $SIG{ALRM} = sub { die "timed out\n" };
+        alarm 30;
+
+        # Stage 1 - host: does the name resolve? (IP literals skip DNS.)
+        unless ( $host =~ /^[\d.]+$/ || $host =~ /^\[?[0-9a-fA-F:]+\]?$/ ) {
+            my @addr = gethostbyname($host);
+            return { ok => 0, stage => 'host',
+                error => "Host issue: cannot resolve '$host'. Check the SMTP "
+                    . 'host name (DNS).' }
+                unless @addr;
+        }
+        push @checked, 'host';
+
+        # Stage 2 - port: plain TCP reach first, so a closed port / firewall is
+        # reported as a PORT problem, not mistaken for a TLS one.
+        require IO::Socket::INET;
+        my $probe = IO::Socket::INET->new(
+            PeerAddr => $host, PeerPort => $port, Timeout => 10 );
+        return { ok => 0, stage => 'port',
+            error => "Port issue: cannot connect to $host:$port. Check the port "
+                . '(25/465/587) and any firewall.' }
+            unless $probe;
+        close $probe;
+        push @checked, 'port';
+
+        # Stage 3 - the SMTP session itself (TLS-on-connect when tls: true).
+        require Net::SMTP;
+        my %opts = ( Host => $host, Port => $port, Timeout => 10 );
+        if ( $tls eq 'true' ) {
+            require IO::Socket::SSL;
+            $opts{SSL} = 1;
+        }
+        my $smtp = Net::SMTP->new(%opts);
+        unless ($smtp) {
+            return { ok => 0, stage => 'tls',
+                error => "TLS issue: $host:$port accepts connections but the "
+                    . 'TLS handshake failed. If the server expects STARTTLS '
+                    . '(usual on 587), set tls: starttls; implicit TLS is '
+                    . 'usually port 465.' }
+                if $tls eq 'true';
+            return { ok => 0, stage => 'port',
+                error => "Port issue: $host:$port accepted the connection but "
+                    . 'did not greet as an SMTP server. Is this the right port?' };
+        }
+        push @checked, 'connect';
+
+        if ( $tls eq 'starttls' ) {
+            unless ( $smtp->starttls() ) {
+                my $code = $smtp->code // '';
+                $smtp->quit;
+                return { ok => 0, stage => 'tls',
+                    error => "TLS issue: STARTTLS failed ($code). The server may "
+                        . 'not offer STARTTLS on this port - try tls: true on '
+                        . '465, or tls: false for a localhost relay.' };
+            }
+        }
+        push @checked, 'tls' if $tls;
+
+        # Stage 4 - authentication.
+        if ($auth) {
+            my $user = $conf->{username} // '';
+            my $pass = resolve_password($conf);
+            unless ( length $pass ) {
+                $smtp->quit;
+                return { ok => 0, stage => 'auth',
+                    error => 'Auth issue: no password is set. Enter one in the '
+                        . 'Password field (or configure password_file).' };
+            }
+            unless ( $smtp->auth( $user, $pass ) ) {
+                my $code = $smtp->code // '';
+                $smtp->quit;
+                return { ok => 0, stage => 'auth',
+                    error => "Auth issue: the server rejected the credentials "
+                        . "($code). Check the username and password; some "
+                        . 'servers require TLS before AUTH.' };
+            }
+            push @checked, 'auth';
+        }
+
+        my $banner = $smtp->banner // '';
+        $banner =~ s/[\r\n]+/ /g;
+        $smtp->quit;
+        return { ok => 1, stage => 'ok', checked => \@checked,
+            message => 'OK: ' . join( ' + ', @checked )
+                . " all succeeded against $host:$port"
+                . ( length $banner ? " ($banner)" : '' ) . '.' };
+    };
+    alarm 0;
+    return $result if ref $result eq 'HASH';
+    ( my $err = $@ || 'validation failed' ) =~ s/[\r\n]+/ /g;
+    my $next  = $checked[-1] // 'host';
+    my %after = ( host => 'port', port => 'connect', connect => 'tls', tls => 'auth' );
+    return { ok => 0, stage => ( $after{$next} // 'connect' ),
+        error => "Validation stopped after '$next': $err" };
 }

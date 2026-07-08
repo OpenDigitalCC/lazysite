@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+Feature - SMTP connection validation (SM137)
+: a **Validate SMTP connection** action on the Plugin Config page runs a staged
+  check against the saved `smtp.conf` and names the failing stage - host (DNS),
+  port (TCP reach), TLS (STARTTLS vs implicit vs none), or auth (rejected or
+  missing credentials) - instead of a generic failure. Never sends an email.
+  Also fixes the SM136 `password` key not being merged into delivery config on
+  the `--pipe` path (the typed SMTP password now actually reaches sending).
+
 ## 0.6.2 - Notifications: capability, XMPP delivery, human-event notices (2026-07-08)
 
 Feature - notifications capability + XMPP delivery + human-event notices (SM136)

@@ -224,7 +224,9 @@ function runAction_go(plugin, action) {
       return;
     }
     mgClearWarning();
-    status.textContent = 'Done.';
+    // A diagnostic action (e.g. SMTP validate) returns a human message - show it.
+    status.textContent = data.message || 'Done.';
+    if (data.message) mgShowWarning(data.message, false);
 
     // Link Audit: render the report inline in the audit-report card
     // rather than opening it in a new tab. Other plugins keep the
