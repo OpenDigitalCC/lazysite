@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+Fix - notify-xmpp config refinements
+: the recipient field is labelled **Recipient JID**; the sender nickname now
+  defaults to the site name (sanitised) instead of "lazysite", with an explicit
+  `nick:` still honoured; and the plugin-config form marks credential fields
+  `autocomplete=new-password` / text fields `autocomplete=off`, so the browser
+  no longer pair-autofills the Client JID + password with the operator's own
+  saved site login.
+
 ## 0.6.4 - Fix: the SMTP Validate button placement (2026-07-08)
 
 Fix - the SMTP Validate button is reachable

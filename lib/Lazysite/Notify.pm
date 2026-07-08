@@ -66,7 +66,26 @@ sub _xmpp_conf {
     close $fh;
     return undef unless length( $c{jid} // '' ) && length( $c{password} // '' )
         && length( $c{to} // '' );
+
+    # Default the sender nickname to the site name, sanitised to nick-safe
+    # characters - so the ping reads as "My-Site: New form submission ...".
+    unless ( length( $c{nick} // '' ) ) {
+        my $name = _site_name($docroot);
+        $name =~ s/[^A-Za-z0-9_-]+/-/g;
+        $name =~ s/^-+|-+$//g;
+        $c{nick} = length $name ? $name : 'lazysite';
+    }
     return \%c;
+}
+
+sub _site_name {
+    my ($docroot) = @_;
+    open my $fh, '<:utf8', "$docroot/lazysite/lazysite.conf" or return '';
+    while ( my $l = <$fh> ) {
+        if ( $l =~ /^site_name\s*:\s*(.+?)\s*$/ ) { close $fh; return $1 }
+    }
+    close $fh;
+    return '';
 }
 
 sub _plugin_enabled {

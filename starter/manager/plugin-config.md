@@ -141,12 +141,14 @@ function renderForm(plugin, values) {
     } else if (f.type === 'textarea') {
       html += '<textarea name="'+f.key+'" rows="4">'+esc(v)+'</textarea>';
     } else if (f.type === 'password') {
-      html += '<input type="password" name="'+f.key+'" placeholder="leave blank to keep">';
+      // autocomplete=new-password: stop the browser pair-autofilling these plugin
+      // credential fields with the operator's own saved site login.
+      html += '<input type="password" name="'+f.key+'" placeholder="leave blank to keep" autocomplete="new-password">';
     } else if (f.type === 'readonly') {
       html += '<span class="mg-readonly">'+esc(v)+'</span>';
     } else {
       var t = f.type==='email'?'email':f.type==='number'?'number':'text';
-      html += '<input type="'+t+'" name="'+f.key+'" value="'+esc(v)+'"'+(f.required?' required':'')+'>';
+      html += '<input type="'+t+'" name="'+f.key+'" value="'+esc(v)+'"'+(f.required?' required':'')+' autocomplete="off">';
     }
     html += '</div>';
   });

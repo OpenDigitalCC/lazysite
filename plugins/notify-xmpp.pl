@@ -41,10 +41,10 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                 },
                 {
                     key   => 'to',
-                    label => 'Send notifications to',
+                    label => 'Recipient JID',
                     type  => 'text',
-                    note  => 'The recipient: a person\'s JID (user@domain), or a '
-                        . 'group chat room\'s full JID (room@conference.domain).',
+                    note  => 'Where notifications go: a person\'s JID (user@domain), '
+                        . 'or a group chat room\'s full JID (room@conference.domain).',
                 },
                 {
                     key     => 'muc',
@@ -71,10 +71,10 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                     default => 'true',
                 },
                 {
-                    key     => 'nick',
-                    label   => 'Sender nickname / resource',
-                    type    => 'text',
-                    default => 'lazysite',
+                    key   => 'nick',
+                    label => 'Sender nickname / resource',
+                    type  => 'text',
+                    note  => 'Defaults to the site name (sanitised).',
                 },
             ],
         }

@@ -47,7 +47,7 @@ is( scalar @sent, 0, 'no XMPP send while the notify-xmpp plugin is disabled' );
 
 # --- enabled + configured -> the sender is called with the conf and message ---
 open $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "site_name: T\nplugins:\n  - notify-xmpp.pl\n";
+print $cf "site_name: My Test Site!\nplugins:\n  - notify-xmpp.pl\n";
 close $cf;
 open my $xc, '>', "$d/lazysite/notify-xmpp.conf" or die $!;
 print $xc "jid: sitebot\@example.com\npassword: s3cret\nto: ops\@example.com\n";
@@ -58,6 +58,15 @@ is( scalar @sent, 1, 'XMPP sender invoked once' );
 is( $sent[0][0]{to},  'ops@example.com',            'sender got the recipient' );
 is( $sent[0][0]{jid}, 'sitebot@example.com',        'sender got the client jid' );
 like( $sent[0][1], qr/Password reset requested/,    'sender got the message text' );
+is( $sent[0][0]{nick}, 'My-Test-Site',
+    'sender nick defaults to the sanitised site name' );
+
+# --- an explicit nick in the conf wins over the site-name default ---
+open $xc, '>', "$d/lazysite/notify-xmpp.conf" or die $!;
+print $xc "jid: sitebot\@example.com\npassword: s3cret\nto: ops\@example.com\nnick: opsbot\n";
+close $xc;
+notify( $d, { message => 'nick check' } );
+is( $sent[-1][0]{nick}, 'opsbot', 'an explicit nick is honoured' );
 
 # --- a failing sender never breaks notify (best-effort) ---
 {
@@ -67,7 +76,7 @@ like( $sent[0][1], qr/Password reset requested/,    'sender got the message text
 open $nf, '<', "$d/lazysite/logs/notices.jsonl" or die $!;
 @lines = <$nf>;
 close $nf;
-is( scalar @lines, 4, 'the notice was still appended to the bell store' );
+is( scalar @lines, 5, 'the notice was still appended to the bell store' );
 
 # --- incomplete conf (no recipient) -> no send attempted ---
 open $xc, '>', "$d/lazysite/notify-xmpp.conf" or die $!;
