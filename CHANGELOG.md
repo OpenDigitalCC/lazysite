@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.6.2 - Notifications: capability, XMPP delivery, human-event notices (2026-07-08)
+
 Feature - notifications capability + XMPP delivery + human-event notices (SM136)
 : a new `notifications` capability (seeded on the `user-managers` group) gates the
   manager bell - the notices actions refuse without it and the bell hides itself.
@@ -34,6 +36,12 @@ Feature - SMTP password field
   **password** field - typed once, stored in the operator-only `smtp.conf`, never
   shown back. `password_file:` remains as an alternative and is used only when no
   password is set.
+
+Docs
+: FEATURES.md brought current with the 0.5.x-0.6.1 lines (front-matter keys,
+  caching, manager UI, backups + migration, forms, installer flags, the security
+  model, the version timeline); OPERATOR.md and README refreshed to match;
+  host-dependencies and capability docs regenerated.
 
 ## 0.6.1 - Content tools, backups, and change awareness (2026-07-07)
 
