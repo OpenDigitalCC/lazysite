@@ -41,10 +41,12 @@ before work starts.
   simple to implement.
 - **Status page** - collect monitoring data into JSON files, render it on screen,
   and derive a current-status view (meta information) from it.
-- **Form-fill notifications over XMPP** - notify about form submissions (and
-  similar events) through an XMPP bot (the same integration Claude Code uses),
-  wired to the notification system; per-user / per-system, with the user choosing
-  the target. Extends the SM113 notification stack.
+- **~~Form-fill notifications over XMPP~~** *(core done 2026-07-08, SM136)* -
+  the notify-xmpp plugin delivers every operator notice (form submissions,
+  reset requests, agent feedback) over XMPP: one client config per site (like
+  SMTP), recipient an individual JID or a group-chat room; based on the
+  xmpp-lite connector. Remaining (future): per-user recipient choice and
+  per-event subscriptions.
 - **Live-chat plugin (XMPP bot)** - an on-site chat widget backed by an XMPP bot
   (reuses the existing XMPP integration).
 - **Calendar-booking plugin** - bookable time slots with availability, producing

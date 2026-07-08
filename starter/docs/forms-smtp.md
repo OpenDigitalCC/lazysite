@@ -72,7 +72,7 @@ port: 587
 tls: starttls
 auth: true
 username: webforms@example.com
-password_file: lazysite/forms/.smtp-password
+password: your-smtp-password
 ```
 
 For a local relay without TLS or auth:
@@ -99,15 +99,22 @@ auth: false
 ## Authentication
 
 Set `auth: true` to authenticate. The username comes from the
-`username:` key. The password is read from a separate file specified
-by `password_file:` (path relative to docroot):
+`username:` key. The simplest way to set the password is the
+**Password** field on the Plugin Config page (or a `password:` key in
+`smtp.conf`) - it is stored in the operator-only `smtp.conf` and never
+shown back in the manager.
+
+Alternatively, keep it out of the conf entirely with `password_file:`
+(a path relative to the docroot); the file wins only when no
+`password:` is set:
 
 ```bash
 echo "your-smtp-password" > lazysite/forms/.smtp-password
 chmod 600 lazysite/forms/.smtp-password
 ```
 
-The password is never stored in `smtp.conf`.
+Both `smtp.conf` and the password file live under `lazysite/forms/`,
+which is operator-only and denied to every publishing surface.
 
 ## Email format
 

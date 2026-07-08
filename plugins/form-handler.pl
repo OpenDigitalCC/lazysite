@@ -282,6 +282,30 @@ sub _notify_submission {
     my $logdir = "$DOCROOT/lazysite/logs";
     return unless -d $logdir;
     ( my $f = defined $form ? "$form" : '' ) =~ s/[\r\n]+/ /g;
+
+    # SM136: prefer the shared notify path (bell + optional XMPP delivery). This
+    # plugin ships without `use lib`, so locate the module tree the same way the
+    # processor's lazy-require does; on any failure fall through to the plain
+    # bell-store append below so a submission notice is never lost.
+    my $sent = eval {
+        unless ( $INC{'Lazysite/Notify.pm'} ) {
+            require Cwd;
+            require File::Basename;
+            my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+            for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+                if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+            }
+            require Lazysite::Notify;
+        }
+        Lazysite::Notify::notify( $DOCROOT, {
+                type    => 'submission',
+                message => "New form submission: $f",
+                target  => $f,
+                url     => '/manager/plugins',
+        } );
+    };
+    return if $sent;
+
     my $line = encode_json({
         ts      => time(),
         type    => 'submission',

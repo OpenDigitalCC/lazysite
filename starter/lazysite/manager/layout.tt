@@ -208,7 +208,15 @@
     function setBadge(n){ var b=document.getElementById('mg-notif-badge'); if(!b)return; if(n>0){b.textContent=n>99?'99+':n; b.hidden=false;} else {b.hidden=true;} }
     function load(){
       fetch(API + '?action=notices').then(function(r){return r.json();}).then(function(d){
-        if (!d || !d.ok) return; notices = d.notices || []; setBadge(d.unread || 0);
+        if (!d || !d.ok) {
+          // No 'notifications' capability: remove the bell entirely.
+          if (d && d.kind === 'forbidden') {
+            var w = document.getElementById('mg-notif');
+            if (w && w.parentNode) w.parentNode.removeChild(w);
+          }
+          return;
+        }
+        notices = d.notices || []; setBadge(d.unread || 0);
       }).catch(function(){});
     }
     window.mgToggleNotif = function(){

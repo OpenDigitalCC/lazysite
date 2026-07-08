@@ -36,7 +36,10 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
               show_when => { key => 'method', value => ['smtp'] } },
             { key => 'username', label => 'SMTP username', type => 'text',
               show_when => { key => 'auth', value => ['true','1'] } },
-            { key => 'password_file', label => 'Password file path', type => 'path',
+                { key => 'password', label => 'SMTP password', type => 'password',
+                    note => 'Stored in the operator-only smtp.conf; never shown again. Leave blank to keep the current one.',
+                    show_when => { key => 'auth', value => [ 'true', '1' ] } },
+                { key => 'password_file', label => 'Password file (alternative to the password field)', type => 'path',
               show_when => { key => 'auth', value => ['true','1'] } },
         ],
         actions => [],
@@ -321,8 +324,11 @@ sub send_via_smtp {
 
     if ($auth) {
         my $user = $conf->{username} // '';
-        my $pass = '';
-        if ( $conf->{password_file} ) {
+        # The password field (stored in the operator-only smtp.conf) is the simple
+        # path; password_file remains a fallback for those who prefer a file.
+        my $pass = ( defined $conf->{password} && length $conf->{password} )
+            ? $conf->{password} : '';
+        if ( !length $pass && $conf->{password_file} ) {
             my $docroot = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT} || '';
             my $pf = $conf->{password_file};
             $pf = "$docroot/$pf" if $docroot && $pf !~ m{^/};

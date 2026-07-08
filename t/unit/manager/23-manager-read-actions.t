@@ -68,7 +68,7 @@ close $cf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close $sf;
 
 uapi( $d, { action => 'add', username => 'op', password => 'x' } );
-grant_caps( $d, 'op', 'manage_content', 'manage_nav', 'manage_config' );
+grant_caps( $d, 'op', 'manage_content', 'manage_nav', 'manage_config', 'notifications' );
 uapi( $d, { action => 'group-add', username => 'op', group => 'managers' } );   # a stored group with a member
 uapi( $d, { action => 'add', username => 'alice', password => 'y' } );
 
@@ -124,6 +124,13 @@ open my $p2, '>', "$d/blog/post.md"  or die $!; print $p2 "# Post\n";  close $p2
 
     my $r2 = op_get( $d, 'action=notices' );
     is( $r2->{unread}, 0, 'notices: unread is 0 after marking seen' );
+
+    # SM136: the bell requires the notifications capability - a manager without
+    # it is refused (the UI then hides the bell).
+    my $no = mapi( $d, QUERY_STRING => 'action=notices',
+        HTTP_X_REMOTE_USER => 'alice', HTTP_X_REMOTE_GROUPS => 'managers' );
+    ok( !$no->{ok} && ( $no->{kind} // '' ) eq 'forbidden',
+        'notices: refused without the notifications capability' );
 }
 
 # --- action_recent_changes (SM103) ------------------------------------------

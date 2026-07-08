@@ -102,6 +102,10 @@ my %ACTION_INFO = (
         title   => 'Read the append-only audit trail.',
         unlocks => { api => [qw(audit)] },
     },
+    notifications => {
+        title => 'See operator notifications (the manager bell: new form submissions, requests awaiting a response).',
+        unlocks => { ui => ['the notifications bell + unread badge in the manager header'] },
+    },
     create_sub_users => {
         title   => 'Create sub-accounts under your own account.',
         unlocks => { ui => ['sub-user creation'] },

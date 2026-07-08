@@ -18,6 +18,23 @@ Keying
 
 ## Unreleased
 
+Feature - notifications capability + XMPP delivery + human-event notices (SM136)
+: a new `notifications` capability (seeded on the `user-managers` group) gates the
+  manager bell - the notices actions refuse without it and the bell hides itself.
+  A shared write path (`Lazysite::Notify`) appends to the bell store and, when the
+  new **notify-xmpp** plugin is enabled, also delivers each notice over XMPP - one
+  client config per site like SMTP (JID + password + recipient: an individual or a
+  group-chat room; based on the xmpp-lite connector, `Net::XMPP`, best-effort and
+  time-boxed). New human-awaiting-a-response notices: a password-reset request when
+  no SMTP is configured (previously a silent dead-end), and agent feedback
+  submissions - alongside the existing form-submission notices.
+
+Feature - SMTP password field
+: the SMTP delivery config (Plugin Config form and the handler wizard) now has a
+  **password** field - typed once, stored in the operator-only `smtp.conf`, never
+  shown back. `password_file:` remains as an alternative and is used only when no
+  password is set.
+
 ## 0.6.1 - Content tools, backups, and change awareness (2026-07-07)
 
 Feature - multi-step (wizard) forms (SM098)

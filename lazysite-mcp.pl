@@ -1070,6 +1070,19 @@ sub _submit_feedback {
         or return { ok => 0, error => "cannot save feedback: $!" };
     print {$fh} encode_json($report);
     close $fh;
+
+    # SM136: feedback is written to be read - tell the operators (bell + XMPP).
+    eval {
+        require Lazysite::Notify;
+        my $short = length($summary) > 120 ? substr( $summary, 0, 117 ) . '...' : $summary;
+        Lazysite::Notify::notify( $DOCROOT, {
+                type    => 'feedback',
+                message => "Agent feedback from '" . ( $user // 'anon' ) . "': $short",
+                target  => $id,
+        } );
+        1;
+    } or log_event( 'WARN', 'feedback', 'notify failed', error => "$@" );
+
     return { ok => 1, id => $id, message => 'Thanks - your feedback was logged for the operators.' };
 }
 

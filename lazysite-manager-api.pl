@@ -470,8 +470,19 @@ elsif ( $action eq 'plugin-action' )    {
 }
 elsif ( $action eq 'nav-read' )         { $result = action_nav_read() }
 elsif ( $action eq 'pages' )            { $result = action_pages() }
-elsif ( $action eq 'notices' )          { $result = action_notices() }
-elsif ( $action eq 'notices-seen' )     { $result = action_notices_seen() }
+elsif ( $action eq 'notices' || $action eq 'notices-seen' ) {
+    # Operator notifications require the 'notifications' capability (granted via
+    # a group; seeded on user-managers). Same cookie-side gate pattern as audit;
+    # the bell UI hides itself when this returns forbidden.
+    if ( !$token_auth && !_user_cap_notifications($auth_user) ) {
+        $result = { ok => 0, kind => 'forbidden',
+            error => "Notifications require the 'Notifications' permission. An "
+                . "operator can grant it on the Groups page." };
+    }
+    else {
+        $result = $action eq 'notices' ? action_notices() : action_notices_seen();
+    }
+}
 elsif ( $action eq 'nav-save' )         {
     my $req = eval { decode_json($body) } // {};
     $result = action_nav_save( $req->{items} // [] );
@@ -1272,6 +1283,14 @@ sub _user_audit {
     return 0 unless defined $user && length $user;
     my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
     return $s->{audit} ? 1 : 0;
+}
+
+# The notifications capability (the manager bell). Same resolution as _user_audit.
+sub _user_cap_notifications {
+    my ($user) = @_;
+    return 0 unless defined $user && length $user;
+    my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
+    return $s->{notifications} ? 1 : 0;
 }
 
 sub _audit_parse_line {

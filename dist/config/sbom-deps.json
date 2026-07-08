@@ -69,6 +69,11 @@
       "license": "Artistic-1.0-Perl",
       "used_by": "zip download tempfile, theme upload staging"
     },
+    "Getopt::Long": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "install.pl CLI argument parsing"
+    },
     "IO::Socket::INET": {
       "core": true,
       "license": "Artistic-1.0-Perl",
@@ -110,6 +115,14 @@
       "license": "Artistic-1.0-Perl",
       "used_by": "form-to-email delivery plugin"
     },
+    "Net::XMPP": {
+      "core": false,
+      "license": "LGPL-2.1-only",
+      "debian_pkg": "libnet-xmpp-perl",
+      "rhel_pkg": "perl-Net-XMPP",
+      "alpine_pkg": "perl-net-xmpp",
+      "used_by": "XMPP notification delivery (notify-xmpp plugin, optional; lazy-required only when enabled)"
+    },
     "POSIX": {
       "core": true,
       "license": "Artistic-1.0-Perl",
@@ -119,16 +132,6 @@
       "core": true,
       "license": "Artistic-1.0-Perl",
       "used_by": "SSRF guard: inet_aton / inet_ntoa for remote-fetch IP address checks"
-    },
-    "Time::HiRes": {
-      "core": true,
-      "license": "Artistic-1.0-Perl",
-      "used_by": "dev server request timing (optional; falls back when unavailable)"
-    },
-    "Time::Local": {
-      "core": true,
-      "license": "Artistic-1.0-Perl",
-      "used_by": "timelocal in lazysite-users.pl parse_when (account expiry dates)"
     },
     "Template": {
       "core": false,
@@ -155,6 +158,16 @@
       "used_by": "Markdown to HTML conversion (processor core)",
       "_note": "License confirmed from /usr/share/doc/libtext-multimarkdown-perl/copyright (Debian upstream packaging)."
     },
+    "Time::HiRes": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "dev server request timing (optional; falls back when unavailable)"
+    },
+    "Time::Local": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "timelocal in lazysite-users.pl parse_when (account expiry dates)"
+    },
     "URI": {
       "core": false,
       "license": "Artistic-1.0-Perl",
@@ -162,11 +175,6 @@
       "rhel_pkg": "perl-URI",
       "alpine_pkg": "perl-uri",
       "used_by": "URL parsing in SSRF guard and remote-fetch path resolution"
-    },
-    "Getopt::Long": {
-      "core": true,
-      "license": "Artistic-1.0-Perl",
-      "used_by": "install.pl CLI argument parsing"
     }
   },
   "environment": [

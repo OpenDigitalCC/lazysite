@@ -41,6 +41,7 @@ manage_config | Read and set safe site configuration. | webdav: lazysite/nav.con
 manage_users | Manage user accounts and group membership. | ui: the manager Users and Groups pages
 analytics | Read sanitised, IP-anonymised visitor analytics. | api: analyse_visitors; mcp: analyse_visitors
 audit | Read the append-only audit trail. | api: audit
+notifications | See operator notifications (the manager bell: new form submissions, requests awaiting a response). | ui: the notifications bell + unread badge in the manager header
 create_sub_users | Create sub-accounts under your own account. | ui: sub-user creation
 delegate_sub_user_creation | Grant sub-accounts the ability to create their own sub-users. | ui: onward delegation of sub-user creation
 ```

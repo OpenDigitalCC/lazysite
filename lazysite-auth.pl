@@ -576,7 +576,27 @@ sub handle_forgot {
 sub _forgot_dispatch {
     my ( $ident, $ip ) = @_;
     return unless length $ident;
-    return unless -f "$LAZYSITE_DIR/forms/smtp.conf";   # SMTP must be configured
+
+    # SM136: without SMTP the self-service email can't go out, so this request
+    # would otherwise dead-end silently while a person waits. Tell the operators
+    # (bell + XMPP if configured) so a human can respond. Real accounts only -
+    # an unknown identifier stays generic (no notice, no enumeration signal).
+    unless ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) {
+        my ($user) = _resolve_account($ident);
+        if ( $user && !account_disabled($user) ) {
+            require Lazysite::Notify;
+            Lazysite::Notify::notify( $DOCROOT, {
+                    type    => 'reset-request',
+                    message => "Password reset requested for '$user' - no SMTP is "
+                        . 'configured, so no email was sent. Issue them a setup link '
+                        . 'from the Users page.',
+                    target => $user,
+                    url    => "/manager/users?user=$user",
+            } );
+            _audit_auth( $user, 'forgot', 'ok', 'reset requested; no SMTP - operators notified', 'ui' );
+        }
+        return;
+    }
 
     my ( $user, $email ) = _resolve_account($ident);
     return unless $user && $email;

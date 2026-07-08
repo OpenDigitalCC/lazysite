@@ -736,6 +736,7 @@ sub effective_settings {
         manage_config  => $caps->{manage_config}  ? JSON::PP::true() : JSON::PP::false(),
         analytics      => $caps->{analytics}      ? JSON::PP::true() : JSON::PP::false(),
         audit          => $caps->{audit}          ? JSON::PP::true() : JSON::PP::false(),
+        notifications  => $caps->{notifications}  ? JSON::PP::true() : JSON::PP::false(),
         manage_content => $caps->{manage_content} ? JSON::PP::true() : JSON::PP::false(),
         manage_nav     => $caps->{manage_nav}     ? JSON::PP::true() : JSON::PP::false(),
         manage_forms   => $caps->{manage_forms}   ? JSON::PP::true() : JSON::PP::false(),
@@ -2063,7 +2064,8 @@ sub _default_group_seed {
             mcp => 1, manage_content => 1, manage_nav => 1, manage_forms => 1,
             manage_themes => 1, manage_layouts => 1, analytics => 1 },
         'user-managers'   => { label => 'User managers',
-            ui => 1, manage_users => 1, create_sub_users => 1, delegate_sub_user_creation => 1 },
+            ui               => 1, manage_users               => 1, notifications => 1,
+            create_sub_users => 1, delegate_sub_user_creation => 1 },
     };
 }
 

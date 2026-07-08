@@ -607,8 +607,12 @@ function renderSmtpFields(d) {
   html += '<input type="text" id="wiz-username" value="' + esc(sv.username || '') + '">';
   html += '</div>';
   html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
-  html += '<label>Password file</label>';
-  html += '<input type="text" id="wiz-password_file" value="' + esc(sv.password_file || 'lazysite/forms/.smtp-password') + '">';
+  html += '<label>Password</label>';
+  html += '<input type="password" id="wiz-password" placeholder="leave blank to keep current" autocomplete="new-password">';
+  html += '</div>';
+  html += '<div class="mg-form-row mg-config-field" data-show-key="wiz-auth" data-show-val="true,1">';
+  html += '<label>Password file (optional alternative)</label>';
+  html += '<input type="text" id="wiz-password_file" value="' + esc(sv.password_file || '') + '" placeholder="e.g. lazysite/forms/.smtp-password">';
   html += '</div>';
   html += '</div>';
 
@@ -684,6 +688,9 @@ function saveHandlerFromWizard(existingId, type, isEdit) {
         username: val('wiz-username'),
         password_file: val('wiz-password_file')
       };
+      // Password: only send when typed - plugin-save merges per key, so leaving
+      // it blank keeps the stored one (never echoed back).
+      if (val('wiz-password')) smtpConnData.password = val('wiz-password');
     }
   } else if (type === 'file') {
     handlerData.path = val('wiz-path');

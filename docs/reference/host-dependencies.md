@@ -24,6 +24,7 @@ On Debian or Ubuntu, install them all with:
 sudo apt-get install \
     libarchive-zip-perl \
     libio-socket-ssl-perl \
+    libnet-xmpp-perl \
     libtemplate-perl \
     libtext-multimarkdown-perl \
     liburi-perl \
@@ -41,6 +42,7 @@ text: 3
 ---
 libarchive-zip-perl | Archive::Zip | theme upload (manager), zip download (manager)
 libio-socket-ssl-perl | IO::Socket::SSL | SMTP form delivery over STARTTLS
+libnet-xmpp-perl | Net::XMPP | XMPP notification delivery (notify-xmpp plugin, optional; lazy-required only when enabled)
 libtemplate-perl | Template, Template::Parser | SM071 layout.tt compile validation in the control API (ships with Template); Template Toolkit page rendering (processor core)
 libtext-multimarkdown-perl | Text::MultiMarkdown | Markdown to HTML conversion (processor core)
 liburi-perl | URI | URL parsing in SSRF guard and remote-fetch path resolution
