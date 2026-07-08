@@ -40,6 +40,18 @@ sudo bash installers/hestia/lazysite-hestia-update-all.sh --templates  # also re
 a release notes a vhost change (e.g. a new `FilesMatch`). Upgrades preserve
 edited content (the seed/conffile model) and skip unwritable files non-fatally.
 
+**Update channel.** Each site has an `update_channel` (`edge` default, or
+`stable`); a `stable` site skips out-of-channel (edge) builds. Set or move it
+without hand-editing the conf, and loop over docroots for a whole fleet:
+
+```bash
+install.pl --channel stable --docroot <docroot>   # pin to stable (customer rollout)
+install.pl --channel edge   --docroot <docroot>   # back to edge
+```
+
+Force one specific out-of-channel upgrade through the policy with `--force`
+(audited as `upgrade-forced`).
+
 ## Logs and audit
 
 - Application logs: `lazysite/logs/`.
@@ -57,6 +69,9 @@ edited content (the seed/conffile model) and skip unwritable files non-fatally.
 - **Cache:** manager **Cache → Clear** (partial-safe - only generated HTML).
 - **Forms:** submissions land in `lazysite/forms/submissions/`; SMTP delivery
   needs `lazysite/forms/smtp.conf` (operator-only - it holds credentials).
+- **Scanner blocking:** the bad-URL auto-blocker (on by default) blocks a source
+  IP after repeated scanner-probe hits; review and unblock on the manager **Stats**
+  page, and tune the threshold/window on **Plugin Config**.
 
 ## Troubleshooting
 
@@ -72,3 +87,19 @@ edited content (the seed/conffile model) and skip unwritable files non-fatally.
 Back up the whole `<docroot>` tree; `lazysite/` carries all state (users,
 content provenance, ACLs, config). `install.pl` also writes a timestamped
 backup before each upgrade.
+
+The manager **Backups** page offers two typed kinds:
+
+- **Content** backups - a snapshot of the served content, restorable from the
+  page (a prerestore safety snapshot is taken first).
+- **Full-system** backups - the whole site including config, accounts and
+  themes/layouts. These carry the auth secrets, so they are download-only in the
+  manager and restored by a system user from the shell:
+
+  ```bash
+  install.pl --restore-full <file>.tar.gz --docroot <docroot> [--domain <new-domain>]
+  ```
+
+  `--domain` rewrites the site's domain on restore - the path for **migrating a
+  site to another domain** (build on a temporary domain, then move content, config
+  and accounts to the final one), as well as disaster recovery.

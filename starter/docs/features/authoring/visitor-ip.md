@@ -1,5 +1,6 @@
 ---
 title: Showing the visitor's IP
+subtitle: A live [% client_ip %] variable and the nocache flag, cache-safely.
 ---
 
 ## Showing the visitor's IP

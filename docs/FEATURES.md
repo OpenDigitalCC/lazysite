@@ -101,6 +101,8 @@ YAML semantics). Recognised keys:
 | `payment` + `payment_*` | x402 payment gating and its parameters |
 | `search` | Include in the search index (defaults to the site `search_default`) |
 | `form` | Names and enables a form on the page (must match `forms/NAME.conf`) |
+| `aliases` | YAML list of old/alternate site-local URLs the page also answers to (301 → canonical) |
+| `nocache` | `true` renders the page fresh on every request, never served from or written to cache |
 
 A single-pass memoised "peek" reads the front matter **once per request** (keyed by
 `path:mtime`) - historically the same file was opened five times.
@@ -166,7 +168,11 @@ in `lazysite.conf` can likewise be `url:` (fetched JSON usable via TT) or `scan:
 (directory scans). Allow-listed CGI environment variables interpolate into config
 (`${SERVER_NAME}` etc.; the untrusted `HTTP_HOST` is deliberately excluded). Query
 parameters declared by a page are exposed as `[% query.x %]` and make that response
-uncacheable.
+uncacheable. The visitor's own IP is available as `[% client_ip %]` - the first hop
+of `X-Forwarded-For` (the real client behind a reverse proxy) if present, else the
+direct peer `REMOTE_ADDR`, sanitised to IP characters; because it is per-request it
+is used on a `nocache: true` page (or a small `nocache` JSON endpoint fetched by
+client-side script so the display page stays cached) (SM135).
 
 ## Caching
 
@@ -178,6 +184,12 @@ preserves custom headers across cache hits, and Template Toolkit keeps an on-dis
 compiled-template cache. The whole cache base can be relocated off the docroot via
 `LAZYSITE_CACHE_DIR` (used by the dev server's browse mode so it writes nothing into
 a tree it is merely viewing). `LAZYSITE_NOCACHE=1` forces a one-off uncached render.
+
+Cache is bypassed for: `nocache: true` pages (rendered fresh every request, for
+genuinely per-request content such as `[% client_ip %]`), query-param requests,
+auth/payment-protected pages, and previews. **Alias redirects** are resolved on the
+no-source-found path only, so a cached real page always takes precedence over an
+alias (`aliases:`, SM134).
 
 ## Render-time security
 
@@ -414,11 +426,16 @@ a backend-only fallback). The pages:
 - **Groups** - the capability editor: each group carries its channel + action
   grants and a description; members inherit the union.
 - **Cache** - list cached pages (with orphan badges), invalidate one or all.
-- **Audit** - the paginated, filterable audit viewer.
-- **Backups** - list/create/download tarball snapshots.
+- **Audit** - the paginated, filterable audit viewer, timestamps in the viewer's
+  local timezone.
+- **Backups** - typed sections (Content / Full-system); create/download, with
+  content restore in-app and full-system restore via the CLI.
 
-When the manager is enabled, the processor injects a compact **admin bar** on site
-pages for managers (Manage, Edit-this-page, Sign out, a no-password warning).
+**Recent-change markers** (SM103): the Files and Users pages show a small dot on a
+row changed within the last day (a `recent-changes` action reads the audit-log
+tail), with a when / who / what tooltip. When the manager is enabled, the processor
+injects a compact **admin bar** on site pages for managers (Manage, Edit-this-page,
+Sign out, a no-password warning).
 
 ## The control API
 
@@ -443,7 +460,11 @@ HTML), `delete` (no recursive delete), `mkdir`, and `move` (which carries the
 `.brief` sidecar + generated `.html` and **re-keys the ACL**). A single lock store
 (`manager/locks/`) is shared with WebDAV - a manager save respects a live WebDAV
 lock and vice-versa - and theme/layout activation takes an artifact-level lock
-across validate→snapshot→flip.
+across validate→snapshot→flip. Two more (SM096): `copy` **duplicates** a page (and
+its `.brief`, the copy owned by its creator), and `migrate-to-local` turns a `.url`
+remote page into a local `.md` by fetching the body through the shared,
+SSRF-guarded `Lazysite::Fetch`. Saving or deleting a page also maintains its
+alias-redirect entries (`aliases:`, SM134).
 
 ## Themes and layouts management
 
@@ -480,6 +501,16 @@ content - the processor serves existing `.html`/`.shtml` directly and only rende
 `<page>.md` when present, so migration is page-by-page, and the one dangerous delete
 (a shadowing `index.html`) fires only when it was the regenerable cache of a
 pre-existing `index.md`.
+
+The Backups page is organised into typed sections: **Content** (create / list /
+in-app restore / download) and **Full-system**, plus a pointer to the Appearance
+page for theme/layout version snapshots. A **full-system** backup captures the whole
+site *including* the `lazysite/` infra (config, auth, forms, nav, themes/layouts) -
+only the backups dir and regenerable caches are excluded. Because it carries the
+auth secrets, in-app restore refuses a full backup; a system user restores it with
+`install.pl --restore-full <file> --docroot X [--domain Y]`, where `--domain`
+rewrites the site domain on restore - the **cross-domain migration** path (build on
+a temporary domain, then move content, config and accounts to the final one).
 
 ## Upload and download
 
@@ -560,6 +591,13 @@ submissions), or `webhook` (custom JSON or Slack-formatted). The forms docs cove
 field grammar, the webhook JSON contract, and SMTP setup. Credentials and
 destinations are operator-only and deny-listed from every publishing surface.
 
+**Multi-step (wizard) forms** (SM098): a `--- step ---` line (optionally titled,
+`--- step: Title ---`) inside a `:::form` splits it into wizard steps rendered as
+`<fieldset>`s with a Back/Next nav and per-step validation (the native constraint
+API before advancing). The form still posts **once** with the same token and
+honeypot - the steps are client-side presentation over one submission. Progressive
+enhancement: with no JavaScript every step shows and the form still submits.
+
 ---
 
 # Part IX - Installation, deployment, and operations
@@ -577,6 +615,12 @@ previews the plan with zero filesystem changes; `--restore` rolls back to a back
 and invalidates the cache; runtime state (auth, logs, locks) is never touched.
 Imperative post-steps create cgi-bin symlinks for plugin endpoints, mirror the
 manager CSS, and seed fresh installs.
+
+Further flags: `--channel edge|stable` sets a site's `update_channel` (a standalone,
+audited maintenance op); `--force` upgrades a `stable` site past its channel policy
+for a specific out-of-channel build (audited as `upgrade-forced`); and
+`--restore-full <file> [--domain NAME]` restores a full-system backup, optionally
+rewriting the site domain - the cross-domain migration path.
 
 ## Hestia deployment
 
@@ -672,6 +716,18 @@ SBOM gate.
   at once (the manager "log out all users" button).
 - **No directory listing in production**, ever (processor 404 + `Options -Indexes`),
   tested.
+- **Manager access is interactive-only** (SM127). An account holding the
+  group-granted `ui` capability is refused on the API and MCP transports, and a
+  group may not combine `ui` with a remote (`api`/`mcp`) channel - so a leaked or
+  misissued token on a manager account cannot drive the site remotely.
+- **Bad-URL auto-blocker** (SM128, on by default). `Lazysite::BadUrl` counts
+  scanner-probe hits (`wp-login.php`, `.env`, `.git`, `*.php` on a Markdown site, …)
+  per source IP in a rolling window and blocks at a threshold (default 10 / 3600s);
+  enforced in the auth wrapper (403), blocked IPs listed + unblockable on the Stats
+  page, auto-blocks audited.
+- **SSRF guard** (`Lazysite::Fetch`). Every outbound fetch (`.url` pages,
+  migrate-to-local, remote layouts) rejects loopback, RFC1918, link-local/metadata,
+  IPv6 loopback/link-local, multicast and CGNAT targets.
 
 ---
 
@@ -706,6 +762,19 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.6.1** (2026-07-07) - Multi-step (wizard) forms (SM098); full-system backup +
+  cross-domain migration (`install.pl --restore-full --domain`) + a consolidated
+  Backups page; page alias redirects (`aliases:`, SM134); recent-change markers on
+  the Files/Users pages (SM103); the visitor's IP as `[% client_ip %]` with a
+  `nocache:` flag (SM135).
+- **0.6.0** (2026-07-04) - Stability milestone following the eight-dimension
+  non-functional review; no code change from 0.5.41.
+- **0.5.0-0.5.41** (2026-05 - 2026-07) - The 0.5.x line: WebDAV theme/layout
+  authoring, group-based capabilities (SM095, channel × action), the MCP capability
+  map + quickstarts (SM126), the STRIDE threat model and ADRs, the perlcritic
+  severity-3 + perltidy gates, manager/remote separation (SM127), the bad-URL
+  auto-blocker (SM128), migrate-to-local (SM096), and install channel controls.
+  See `CHANGELOG.md` for the full per-release detail.
 - **0.4.17** (2026-06-26) - Dev-server `--auto-index`: browse any tree of Markdown
   with zero writes; production never lists a directory, now test-locked.
 - **0.4.16** (2026-06-25) - UTF-8 corruption fully fixed (the second encoding layer);

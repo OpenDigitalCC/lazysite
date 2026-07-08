@@ -15,6 +15,8 @@ Content
 - Page scan for blog/news index pages
 - Registry files: sitemap.xml, llms.txt, RSS, Atom
 - TTL-based cache and API/raw output modes
+- Page alias redirects (`aliases:` front matter → 301 to the canonical URL)
+- Per-request pages (`nocache:`) and the visitor's IP as `[% client_ip %]`
 
 Layouts and themes
 - Template Toolkit layout templates (`layout.tt`)
@@ -24,7 +26,9 @@ Layouts and themes
 
 Manager
 - Browser-based admin at `/manager`
-- Config, Files, Nav, Plugins, Themes, Users, and Cache pages
+- Config, Files, Nav, Plugins, Themes, Users, Cache, Audit, and Backups pages
+- Recent-change markers on the Files and Users pages
+- Typed backups (content + full-system) with cross-domain migration
 - Admin bar on site pages for manager users
 
 Authentication
@@ -40,6 +44,7 @@ Publishing
 
 Forms
 - Inline `:::form` blocks with field validation
+- Multi-step (wizard) forms with per-step validation (`--- step ---`)
 - Named dispatch handlers (SMTP, file storage, webhooks)
 - Honeypot, HMAC timestamp token, and rate limiting built in
 
