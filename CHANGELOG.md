@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.6.5 - manager_groups retired + fresh-install robustness (2026-07-09)
+
 Breaking - manager_groups retired (SM138)
 : manager access is granted by GROUPS only: the `ui` capability (manager UI) and
   `manage_users` (operator powers), managed on the Groups page. The legacy
@@ -29,40 +31,20 @@ Breaking - manager_groups retired (SM138)
   manager_groups and lazysite-check derive from group settings; the processor's
   config descriptor no longer lists the key. See UPGRADE.md.
 
-Fix - installs are permission- and capability-robust on their own
-: `install.pl` now sets `lazysite.conf` to 0664 and, when run as root (sudo),
-  aligns ownership of the `lazysite/` subtree + conf to the docroot's owner -
-  so the manager can write settings regardless of which deploy wrapper (if any)
-  ran a chown pass afterwards. And a conf-declared manager group with no
-  capability entry now SELF-HEALS on any settings read (not only on a
-  setup-manager re-run), closing the fresh-install trap for existing sites.
+Fix - fresh-install robustness (field reports)
+: `setup-manager` guarantees the admin group's capabilities and a conf-declared
+  manager group with no capability entry self-heals on any settings read (the
+  fresh-0.6.3 trap: the new manager could not add a user). `install.pl` sets
+  `lazysite.conf` to 0664 and, run as root, aligns `lazysite/` ownership to the
+  docroot owner ("Cannot write lazysite.conf: Permission denied").
 
-Fix - browser autofill on the Users page (field report)
-: the Rename box (and other bare text inputs near password fields) could be
-  autofilled by the browser with the operator's saved login. Users-page inputs
-  now carry `autocomplete=off` (text) / `autocomplete=new-password` (password).
-
-Fix - fresh-install admin group had no capabilities (field report, 0.6.3)
-: `setup-manager` seeded group settings during its group-add BEFORE writing
-  `manager_groups` to lazysite.conf, so the admin group got no capability entry
-  and the new manager could not add a user ("lacks create_sub_users"). setup-
-  manager now guarantees the admin group's capabilities (create-if-absent, so
-  RE-RUNNING it repairs an affected install), granting everything except the
-  remote api/mcp channels (SM127: manager groups are interactive-only); the
-  seeder's manager_groups branch aligned likewise.
-
-Fix - the notification bell is grey when quiet
-: the bell emoji rendered full-colour (bright yellow) at all times; it is now
-  greyscale when nothing is unread and returns to colour (with the count badge)
-  when notifications arrive.
-
-Fix - notify-xmpp config refinements
-: the recipient field is labelled **Recipient JID**; the sender nickname now
-  defaults to the site name (sanitised) instead of "lazysite", with an explicit
-  `nick:` still honoured; and the plugin-config form marks credential fields
-  `autocomplete=new-password` / text fields `autocomplete=off`, so the browser
-  no longer pair-autofills the Client JID + password with the operator's own
-  saved site login.
+Fix - manager UI field reports
+: browser autofill no longer fills the Users-page Rename/username inputs or
+  plugin credential fields with the operator's saved login
+  (`autocomplete=off`/`new-password`); the notification bell is greyscale when
+  nothing is unread, coloured with the unread badge; notify-xmpp's recipient
+  field is labelled "Recipient JID" and the sender nickname defaults to the
+  sanitised site name.
 
 ## 0.6.4 - Fix: the SMTP Validate button placement (2026-07-08)
 
