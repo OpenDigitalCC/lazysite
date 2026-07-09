@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+Fix - fresh-install admin group had no capabilities (field report, 0.6.3)
+: `setup-manager` seeded group settings during its group-add BEFORE writing
+  `manager_groups` to lazysite.conf, so the admin group got no capability entry
+  and the new manager could not add a user ("lacks create_sub_users"). setup-
+  manager now guarantees the admin group's capabilities (create-if-absent, so
+  RE-RUNNING it repairs an affected install), granting everything except the
+  remote api/mcp channels (SM127: manager groups are interactive-only); the
+  seeder's manager_groups branch aligned likewise.
+
 Fix - the notification bell is grey when quiet
 : the bell emoji rendered full-colour (bright yellow) at all times; it is now
   greyscale when nothing is unread and returns to colour (with the count badge)

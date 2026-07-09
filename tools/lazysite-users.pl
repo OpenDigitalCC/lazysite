@@ -586,6 +586,24 @@ sub _claim_url {
     return "$base/claim?u=" . _urlenc($user) . '&c=' . _urlenc($claim);
 }
 
+# The admin group must actually CONFER capabilities. The seeder only flags
+# manager_groups it can see in lazysite.conf, and setup-manager historically
+# wrote that key AFTER the first group write had already seeded - so on a fresh
+# install the admin group ended up with NO capability entry and the new manager
+# could not even add a user (caps_for = all zeros). Create-if-absent, so
+# re-running setup-manager repairs an affected install; an existing entry is
+# left alone (an operator may have tuned it). SM127: manager groups are
+# interactive-only, so everything EXCEPT the remote api/mcp channels.
+sub _ensure_manager_group_caps {
+    my ($group) = @_;
+    my $gs = read_group_settings();
+    return if ref $gs->{$group} eq 'HASH' && %{ $gs->{$group} };
+    my %caps = map { $_ => 1 } grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
+    $gs->{$group} = { label => $group, manager => 1, %caps };
+    write_group_settings($gs);
+    return;
+}
+
 sub cmd_setup_manager {
     my @a = @_;
     my ( $pass, $user, $group, $link );
@@ -613,6 +631,7 @@ sub cmd_setup_manager {
         cmd_group_add( $user, $group );
         _ensure_conf_key( 'manager',        'enabled' );
         _ensure_conf_key( 'manager_groups', $group );
+        _ensure_manager_group_caps($group);
         $users{$user} = '';                       # revoke any credential
         write_users(%users);
         my $all = read_settings();
@@ -644,6 +663,7 @@ sub cmd_setup_manager {
     cmd_group_add( $user, $group );
     _ensure_conf_key( 'manager',        'enabled' );
     _ensure_conf_key( 'manager_groups', $group );
+    _ensure_manager_group_caps($group);
 
     unless ($API_MODE) {
         my $url = read_conf_value('site_url') // '';
@@ -2091,7 +2111,8 @@ sub _ensure_groups_seeded {
     for my $g ( _conf_manager_groups() ) {
         $seed->{$g}{manager} = 1;
         $seed->{$g}{label} //= $g;
-        $seed->{$g}{$_} = 1 for @CAP_KEYS;
+        # SM127: manager groups are interactive-only - no remote api/mcp channels.
+        $seed->{$g}{$_} = 1 for grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
     }
     write_group_settings($seed);
     return;
