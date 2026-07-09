@@ -18,6 +18,28 @@ Keying
 
 ## Unreleased
 
+## 0.6.7 - Fix: TT compile cache can no longer break rendering (2026-07-09)
+
+Fix - layout renders survive an unwritable TT compile cache
+: the field incident behind the marriage-morris manager outage: dirs under
+  `lazysite/cache/tt` the CGI cannot write made Template Toolkit fail every
+  layout render (TT 2.x: fatal `.ttc` write error -> silent fallback chrome;
+  TT 3.x: dies in Provider -> 500). Rendering now retries once without the
+  on-disk compile cache; a manager-layout failure shows a loud `ls-layout-error`
+  banner naming the TT error (manager pages are auth-gated; public pages keep
+  the silent fallback). `lazysite-check` gains a cache/tt writability probe;
+  `--fix` removes the tree (a pure cache - it regenerates).
+
+Fix - Users page recent-changes call (audit noise)
+: users.md tunnelled `recent-changes` through `action=users`, which rejects it
+  ("Unknown action" audit failures); it now calls the top-level action like the
+  Files page, and the recent-change dots load.
+
+Fix - plugin-save audit names the keys that actually changed
+: a site-title edit logged "lazysite (8 settings)" because the UI posts the
+  whole form; the save now diffs against the existing conf and the audit
+  records just the changed keys (or "(no changes)").
+
 ## 0.6.6 - Fix: installer ownership repair scoped to root-owned files (2026-07-09)
 
 Fix - 0.6.5 upgrade regression
