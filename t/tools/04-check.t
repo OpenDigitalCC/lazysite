@@ -123,4 +123,21 @@ sub run { qx($^X $script --docroot $doc --cgibin $cgi --group $gname @_ 2>&1) }
     like( $out, qr/operator-authored.*mypage\.md/, 'lists the operator-authored page' );
 }
 
+# --- TT compile cache: unwritable dirs are flagged and --fix removes the tree ---
+# (field-hit 2026-07-09: root-era cache/tt dirs the CGI could not write took
+#  every page down to the fallback layout on TT 2.x, and to a 500 on TT 3.x)
+SKIP: {
+    skip 'root ignores directory modes', 3 if $> == 0;
+    make_path("$doc/lazysite/cache/tt/deep");
+    chmod 0555, "$doc/lazysite/cache/tt/deep";
+
+    my $out = run();
+    like( $out, qr{cache/tt has \d+ dir\(s\) the CGI .*? cannot.*?write}s,
+        'unwritable compile-cache dir detected' );
+    like( $out, qr{rm -rf .*cache/tt}, 'hint says to remove the cache tree' );
+
+    run('--fix');
+    ok( !-d "$doc/lazysite/cache/tt", '--fix removed the compile-cache tree' );
+}
+
 done_testing();

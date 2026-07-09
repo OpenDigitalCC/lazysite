@@ -237,6 +237,37 @@ for my $rel ( sort keys %want_dir ) {
     }
 }
 
+# --- 3b. TT compile cache: every dir must be writable by the CGI -------------
+# Template Toolkit 2.x treats a failed .ttc compile-cache write as a FATAL
+# render error, silently downgrading every page (manager included) to the
+# built-in fallback layout. Root-era or post-chown dirs under cache/tt are the
+# classic cause (0755 without group-write). The tree is a pure cache: the safe
+# fix is to remove it wholesale and let the CGI regrow it.
+my $tt_cache_bad = 0;
+if ( -d "$LZ/cache/tt" ) {
+    File::Find::find(
+        { no_chdir => 1, wanted => sub {
+                return unless -d $File::Find::name;
+                my @s    = stat _;
+                my $mode = $s[2] & 07777;
+                my $cgi_can_write =
+                    ( defined $cgi_uid && $s[4] == $cgi_uid && ( $mode & 0200 ) )
+                    || ( $s[5] == $exp_gid && ( $mode & 0020 ) )
+                    || ( $mode & 0002 );
+                $tt_cache_bad++ unless $cgi_can_write;
+        } }, "$LZ/cache/tt" );
+    if ($tt_cache_bad) {
+        report( 'FAIL',
+            "lazysite/cache/tt has $tt_cache_bad dir(s) the CGI ($exp_grp) cannot "
+                . "write - on Template Toolkit 2.x this silently downgrades every page "
+                . "to the built-in fallback layout",
+            "rm -rf '$LZ/cache/tt'  (a pure cache - it regenerates)" );
+    }
+    else {
+        report( 'OK', "lazysite/cache/tt writable by the CGI" );
+    }
+}
+
 # --- 4. secrets: not world-accessible AND readable by the CGI ----------------
 # (the common live-500: .secret is 0600 owned by a non-www-data user, so a
 #  cookie/secret verification by the www-data CGI dies before headers)
@@ -487,6 +518,13 @@ if ( defined $opt{check_dav} ) {
 
 # --- apply fixes -------------------------------------------------------------
 if ( $opt{fix} ) {
+    if ($tt_cache_bad) {
+        require File::Path;
+        my $err;
+        File::Path::remove_tree( "$LZ/cache/tt", { error => \$err } );
+        if ( $err && @{$err} ) { warn "could not remove $LZ/cache/tt\n" }
+        else { print "fixed: rm -rf $LZ/cache/tt (compile cache regenerates)\n" }
+    }
     for my $f (@chmod_fixes) {
         my ( $mode, $path ) = @$f;
         if ( chmod $mode, $path ) { printf "fixed: chmod %04o %s\n", $mode, $path }

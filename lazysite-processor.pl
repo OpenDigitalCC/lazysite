@@ -3049,6 +3049,36 @@ sub scan_pages {
     return @pages;
 }
 
+# A TT compile-cache problem must never break rendering. TT 2.x raises a
+# fatal file error when it cannot write a .ttc ("cache failed to write"),
+# and TT 3.x dies outright from Provider's mkdir - either way a stale or
+# unwritable cache/tt subtree took every page down (field-hit 2026-07-09).
+# Run process() under eval; on any failure retry once on a fresh instance
+# with the on-disk compile cache disabled. Returns (ok, error_text).
+sub _tt_render {
+    my ( $opts, $template, $vars, $out_ref ) = @_;
+    my %opts = %{$opts};
+    my $err  = 'cannot create TT instance';
+    for my $attempt ( 0, 1 ) {
+        delete @opts{qw(COMPILE_DIR COMPILE_EXT)} if $attempt;
+        # eval BOTH stages: TT 3.x Provider dies in new() pre-creating the
+        # compile-dir mirror of INCLUDE_PATH; TT 2.x fails later in process().
+        my $tt = eval { Template->new(%opts) };
+        unless ($tt) { $err = $@ ? "$@" : $err; next }
+        ${$out_ref} = '';
+        my $ok = eval { $tt->process( $template, $vars, $out_ref ) };
+        $err = $@ ? "$@" : ( $ok ? '' : $tt->error() . '' );
+        if ($ok) {
+            log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                'rendered without the TT compile cache', error => 'retry' )
+                if $attempt;
+            return ( 1, '' );
+        }
+        return ( 0, $err ) if $attempt;
+    }
+    return ( 0, $err );
+}
+
 sub render_content {
     my ( $meta, $html_body, $query ) = @_;
     $query //= {};
@@ -3056,7 +3086,10 @@ sub render_content {
     # Content pass uses ABSOLUTE => 0 - the content body is a string reference
     # and should never need file access. ABSOLUTE => 1 would allow TT to follow
     # absolute paths found in the content, which causes parse errors on CSS etc.
-    make_path($TT_COMPILE_DIR) unless -d $TT_COMPILE_DIR;
+    # (content is processed as a string ref, which TT never writes to the
+    # compile cache - so an unwritable cache/tt cannot fail this instance;
+    # only the make_path needs guarding.)
+    eval { make_path($TT_COMPILE_DIR) } unless -d $TT_COMPILE_DIR;
     my $tt = Template->new(
         ABSOLUTE    => 0,
         ENCODING    => 'utf8',
@@ -3459,50 +3492,58 @@ sub render_template {
     my $component_dir = ( defined $layout && length $layout && -e $layout )
         ? dirname($layout) : undef;
 
-    my $tt_layout = $is_remote
-        ? Template->new(
-            ABSOLUTE     => 1,                # needed to read cache path
-            RELATIVE     => 0,
-            EVAL_PERL    => 0,                # no embedded Perl
-            ENCODING     => 'utf8',
-            INCLUDE_PATH => $component_dir,   # D035: layout-local components
-            FILTERS      => { markdown => \&_markdown_filter },
-            COMPILE_DIR  => $TT_COMPILE_DIR,  # P-4
-            COMPILE_EXT  => '.ttc',           # P-4
-        )
-        : Template->new(
-            ABSOLUTE     => 1,
-            ENCODING     => 'utf8',
-            EVAL_PERL    => 0,                # L-2
-            INCLUDE_PATH => $component_dir,   # D035: layout-local components
-            FILTERS      => { markdown => \&_markdown_filter },
-            COMPILE_DIR  => $TT_COMPILE_DIR,  # P-4
-            COMPILE_EXT  => '.ttc',           # P-4
-        );
+    my %tt_opts = (
+        ABSOLUTE     => 1,                                 # needed to read cache path
+        ENCODING     => 'utf8',
+        EVAL_PERL    => 0,                                 # L-2: no embedded Perl
+        INCLUDE_PATH => $component_dir,                    # D035: layout-local components
+        FILTERS      => { markdown => \&_markdown_filter },
+        COMPILE_DIR  => $TT_COMPILE_DIR,                   # P-4
+        COMPILE_EXT  => '.ttc',                            # P-4
+    );
+    $tt_opts{RELATIVE} = 0 if $is_remote;                  # sandbox remote layouts
 
-    unless ( $tt_layout ) {
-        log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create TT instance');
-        return $processed_body;
-    }
+    # Try specified layout (with the compile-cache-immune helper - an
+    # unwritable cache/tt silently knocked every page down to the fallback
+    # layout on TT 2.x, and 500s outright on TT 3.x; field-hit 2026-07-09).
+    my ( $layout_ok, $layout_err ) =
+        _tt_render( \%tt_opts, $layout, $vars, \$output );
 
-    # Try specified layout
-    $tt_layout->process( $layout, $vars, \$output )
+    $layout_ok
         or do {
-            log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'layout error, using fallback', layout => $layout, error => $tt_layout->error());
-            $output = '';
+        log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'layout error, using fallback', layout => $layout, error => $layout_err );
+        $output = '';
 
-            # Try built-in fallback layout
-            my $tt_fallback = Template->new( ENCODING => 'utf8', EVAL_PERL => 0 )
-                or do {
-                    log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance');
-                    return $processed_body;
-                };
+        # Try built-in fallback layout
+        my $tt_fallback = Template->new( ENCODING => 'utf8', EVAL_PERL => 0 )
+            or do {
+            log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance' );
+            return $processed_body;
+            };
 
-            $tt_fallback->process( \$FALLBACK_LAYOUT, $vars, \$output )
-                or do {
-                    log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'fallback layout error', error => $tt_fallback->error());
-                    return $processed_body;
-                };
+        $tt_fallback->process( \$FALLBACK_LAYOUT, $vars, \$output )
+            or do {
+            log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'fallback layout error', error => $tt_fallback->error() );
+            return $processed_body;
+            };
+
+        # The manager is operator-facing and auth-gated: surface the
+        # failure loudly instead of silently degrading the admin UI to
+        # the fallback chrome (public pages keep the silent fallback -
+        # a template error must not leak to visitors).
+        if ( defined $layout && $layout eq $MANAGER_LAYOUT ) {
+            my $e = $layout_err;
+            $e =~ s/&/&amp;/g; $e =~ s/</&lt;/g; $e =~ s/>/&gt;/g; $e =~ s/"/&quot;/g;
+            my $banner =
+                '<div id="ls-layout-error" style="background:#b00020;'
+                . 'color:#fff;padding:10px 14px;font:14px/1.4 system-ui,sans-serif;">'
+                . '<strong>Manager layout failed to render</strong> - the built-in '
+                . 'fallback layout is in use. Error: ' . $e
+                . ' &mdash; run <code>tools/lazysite-check.pl --fix</code> '
+                . 'against this docroot.</div>';
+            $output =~ s/(<body[^>]*>)/$1$banner/i
+                or $output = $banner . $output;
+        }
         };
 
     # SM112: identify the generator (+ optional author/description) in the head,
