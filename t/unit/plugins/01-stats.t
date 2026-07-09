@@ -121,4 +121,29 @@ like( $miss->{error}, qr/readable|found|configured/i, 'helpful error' );
     ok( !$none->{ok} && $none->{needs_config}, 'no log found -> needs_config (ask the operator)' );
 }
 
+# A log that EXISTS but the CGI cannot read must say so - "no access log found"
+# sent an operator down the wrong path on a Hestia host where the domain log is
+# there but not readable by www-data (field report 2026-07-09).
+SKIP: {
+    skip 'root ignores file modes', 2 if $> == 0;
+    my $r3   = tempdir( CLEANUP => 1 );
+    my $doc3 = "$r3/web/locked.example/public_html";
+    mkdir "$r3/web"; mkdir "$r3/web/locked.example"; mkdir $doc3;
+    mkdir "$doc3/lazysite"; mkdir "$r3/web/locked.example/logs";
+    open my $cf3, '>', "$doc3/lazysite/lazysite.conf" or die $!;
+    print $cf3 "site_url: \${REQUEST_SCHEME}://\${SERVER_NAME}\n";  # templated -> domain from dir name
+    close $cf3;
+    open my $sc3, '>', "$doc3/lazysite/stats.conf" or die $!; close $sc3;
+    open my $lg3, '>', "$r3/web/locked.example/logs/locked.example.log" or die $!;
+    print $lg3 "x\n"; close $lg3;
+    chmod 0000, "$r3/web/locked.example/logs/locked.example.log";
+
+    my $locked = decode_json( qx($^X $PLUGIN --scan --docroot '$doc3') );
+    ok( !$locked->{ok} && $locked->{needs_config}, 'unreadable log -> needs_config' );
+    like( $locked->{error}, qr/exists .* not \s readable/x,
+        'error says the log EXISTS but is unreadable (not "no log found")' );
+
+    chmod 0644, "$r3/web/locked.example/logs/locked.example.log";  # let CLEANUP work
+}
+
 done_testing;

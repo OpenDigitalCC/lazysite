@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+Fix - visitor stats says when the log exists but is unreadable
+: on a panel host (Hestia) the domain log exists at an auto-detect candidate
+  path but www-data cannot read it; the page said "No access log found",
+  hiding the actionable fix. find_log now returns an existing-but-unreadable
+  candidate as a last resort so the page reports "exists but is not readable
+  by the web-server user" and points the owner at --resolve-log.
+
 ## 0.6.7 - Fix: TT compile cache can no longer break rendering (2026-07-09)
 
 Fix - layout renders survive an unwritable TT compile cache

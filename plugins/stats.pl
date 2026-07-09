@@ -186,6 +186,13 @@ sub find_log {
     my $domain = _site_domain();
     return '' unless length $domain;
 
+    # First READABLE candidate wins. A candidate that exists but is not
+    # readable is remembered and returned as a last resort, so the caller
+    # reports "found but the CGI cannot read it" (the actionable message)
+    # instead of "no access log found" - the usual state on a panel host
+    # (Hestia), where the domain logs exist but www-data cannot read them
+    # until the server owner grants access (field report 2026-07-09).
+    my $unreadable = '';
     for my $c (
         "$DOCROOT/../logs/$domain.log",            # Hestia domain log dir
         "$DOCROOT/../logs/$domain.access.log",
@@ -198,8 +205,9 @@ sub find_log {
         )
     {
         return $c if -r $c;
+        $unreadable = $c if !length $unreadable && -e $c;
     }
-    return '';
+    return $unreadable;
 }
 
 # Optional error log for this site, mirroring find_log. '' if not found.
@@ -315,8 +323,10 @@ sub scan_stats {
                . 'a site manager cannot configure it. Ask the server owner to set it up.' }
         unless length $log;
     return { ok => 0, needs_config => JSON::PP::true,
-        error => 'The access log was found but the site cannot read it (the CGI user '
-               . 'lacks permission). Ask the server owner to grant read access.' }
+        error => 'An access log exists for this site but is not readable by the '
+            . 'web-server user. Ask the server owner to grant read access; they '
+            . 'can see the detected path with '
+            . '"plugins/stats.pl --resolve-log --docroot <docroot>".' }
         unless -r $log;
 
     my $window = ( $cfg->{window_days}  || 30 ) + 0;  $window = 30 if $window < 1;
