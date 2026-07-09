@@ -109,7 +109,11 @@ function recentDot(key) {
 }
 
 function loadUsers() {
-  apiCall({ action: 'recent-changes' }).then(
+  // recent-changes is a TOP-LEVEL api action (as the Files page calls it) -
+  // not a users sub-action; tunnelling it through action=users made the
+  // sub-dispatcher reject it (field report: audit noise
+  // "user-recent-changes ... Unknown action: recent-changes").
+  fetch(API + '?action=recent-changes').then(function(r) { return r.json(); }).then(
     function(rc) { recentChanges = (rc && rc.ok && rc.changes) || {}; },
     function()   { recentChanges = {}; }
   ).then(function() {
