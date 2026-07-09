@@ -18,6 +18,11 @@ Keying
 
 ## Unreleased
 
+Fix - the notification bell is grey when quiet
+: the bell emoji rendered full-colour (bright yellow) at all times; it is now
+  greyscale when nothing is unread and returns to colour (with the count badge)
+  when notifications arrive.
+
 Fix - notify-xmpp config refinements
 : the recipient field is labelled **Recipient JID**; the sender nickname now
   defaults to the site name (sanitised) instead of "lazysite", with an explicit
