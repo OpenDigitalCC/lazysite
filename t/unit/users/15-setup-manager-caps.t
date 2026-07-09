@@ -81,4 +81,31 @@ close $gs;
 ok( $settings->{'lazysite-admins'}{create_sub_users},
     're-run repairs the missing admin-group capabilities' );
 
+# --- self-heal: a broken install repairs on ANY read (no setup-manager) -------
+my $d3 = tempdir( CLEANUP => 1 );
+make_path("$d3/lazysite/auth");
+open $cf, '>', "$d3/lazysite/lazysite.conf" or die $!;
+print {$cf} "site_name: Broken2\nmanager: enabled\nmanager_groups: lazysite-admins\n";
+close $cf;
+open my $bg2, '>', "$d3/lazysite/auth/groups-settings.json" or die $!;
+print {$bg2} '{"content-editors":{"label":"Content editors","ui":1}}';
+close $bg2;
+open my $gr2, '>', "$d3/lazysite/auth/groups" or die $!;
+print {$gr2} "lazysite-admins:manager\n";
+close $gr2;
+open my $uf2, '>', "$d3/lazysite/auth/users" or die $!;
+print {$uf2} "manager:sha256iter:1:x:y\n";
+close $uf2;
+
+run_cli( $d3, 'settings', 'manager' );    # any settings read triggers the healer
+open $gs, '<', "$d3/lazysite/auth/groups-settings.json" or die $!;
+$settings = decode_json( do { local $/; <$gs> } );
+close $gs;
+ok( $settings->{'lazysite-admins'}{create_sub_users},
+    'a plain read self-heals the missing manager-group entry' );
+ok( !$settings->{'lazysite-admins'}{api},
+    'the healed entry has no remote api channel (SM127)' );
+is_deeply( $settings->{'content-editors'}, { label => 'Content editors', ui => 1 },
+    'existing entries are untouched by the healer' );
+
 done_testing();

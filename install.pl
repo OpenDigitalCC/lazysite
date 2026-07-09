@@ -889,7 +889,11 @@ sub post_install_steps {
                     info("  seeded:    lazysite/lazysite.conf (from example)");
                 }
             }
-            chmod 0644, $conf if -f $conf;
+            # 0664, not 0644: the manager (config-set, plugin enable, channel
+            # changes) runs as the web-server user and must be able to write the
+            # conf. Group-writability only helps with the right group ownership -
+            # see align_ownership below for the root-run case.
+            chmod 0664, $conf if -f $conf;
         }
     }
 
@@ -902,6 +906,52 @@ sub post_install_steps {
             chmod $want, $laz;
         }
     }
+
+    # --- Robustness: ownership alignment when installing as root ---
+    # A sudo install writes root-owned files; deploy wrappers (Hestia) fix that
+    # with a blanket chown afterwards, but a direct `sudo install.sh` has no such
+    # pass - leaving lazysite.conf and the runtime dirs unwritable by the web
+    # server ("Cannot write lazysite.conf: Permission denied" the moment the
+    # manager saves a setting). Align what we manage to the DOCROOT's own
+    # owner/group, so the installer is correct on its own regardless of the
+    # calling wrapper.
+    align_ownership($docroot);
+}
+
+# Chown the lazysite-managed tree to the docroot's owner/group (root runs only;
+# a non-root install already writes as the right user). Scope: the lazysite/
+# subtree and lazysite.conf - the paths whose writability the manager depends on.
+sub align_ownership {
+    my ($docroot) = @_;
+    return unless $> == 0;    # only meaningful (and permitted) as root
+    my ( $uid, $gid ) = ( stat $docroot )[ 4, 5 ];
+    return unless defined $uid && defined $gid;
+    return if $uid == 0;      # a root-owned docroot gives us no better target
+
+    my @paths = ("$docroot/lazysite/lazysite.conf");
+    my @stack = ("$docroot/lazysite");
+    while ( my $dir = pop @stack ) {
+        next unless -d $dir;
+        push @paths, $dir;
+        opendir my $dh, $dir or next;
+        for my $e ( readdir $dh ) {
+            next if $e eq '.' || $e eq '..';
+            my $p = "$dir/$e";
+            if   ( -d $p && !-l $p ) { push @stack, $p }
+            else                     { push @paths, $p }
+        }
+        closedir $dh;
+    }
+    my $n = 0;
+    for my $p (@paths) {
+        next unless -e $p;
+        my ( $cu, $cg ) = ( stat _ )[ 4, 5 ];
+        next if $cu == $uid && $cg == $gid;
+        chown( $uid, $gid, $p ) and $n++;
+    }
+    info("  ownership: aligned $n path(s) under lazysite/ to the docroot owner")
+        if $n;
+    return;
 }
 
 # =========================================================

@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+Fix - installs are permission- and capability-robust on their own
+: `install.pl` now sets `lazysite.conf` to 0664 and, when run as root (sudo),
+  aligns ownership of the `lazysite/` subtree + conf to the docroot's owner -
+  so the manager can write settings regardless of which deploy wrapper (if any)
+  ran a chown pass afterwards. And a conf-declared manager group with no
+  capability entry now SELF-HEALS on any settings read (not only on a
+  setup-manager re-run), closing the fresh-install trap for existing sites.
+
 Fix - browser autofill on the Users page (field report)
 : the Rename box (and other bare text inputs near password fields) could be
   autofilled by the browser with the operator's saved login. Users-page inputs

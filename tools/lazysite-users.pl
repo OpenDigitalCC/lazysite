@@ -596,7 +596,8 @@ sub _claim_url {
 # interactive-only, so everything EXCEPT the remote api/mcp channels.
 sub _ensure_manager_group_caps {
     my ($group) = @_;
-    my $gs = read_group_settings();
+    # Module read directly - the seeding wrapper calls back into the healer.
+    my $gs = Lazysite::Auth::Settings::read_group_settings();
     return if ref $gs->{$group} eq 'HASH' && %{ $gs->{$group} };
     my %caps = map { $_ => 1 } grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
     $gs->{$group} = { label => $group, manager => 1, %caps };
@@ -2106,7 +2107,16 @@ sub _conf_manager_groups {
 # (e.g. lazysite-admins) as manager groups with full capabilities, so the
 # operator keeps manager + partner access and configures everyone else there.
 sub _ensure_groups_seeded {
-    return if -f $GROUP_SETTINGS_FILE;
+    if ( -f $GROUP_SETTINGS_FILE ) {
+        # Self-heal: a conf-declared manager group with NO capability entry
+        # confers nothing - the fresh-install trap where the seeder ran before
+        # manager_groups reached the conf. Create the missing entry on ANY read,
+        # so a broken install repairs itself; an existing entry (possibly
+        # operator-tuned) is never touched.
+        my @missing = grep { !_has_settings_entry($_) } _conf_manager_groups();
+        _ensure_manager_group_caps($_) for @missing;
+        return;
+    }
     my $seed = _default_group_seed();
     for my $g ( _conf_manager_groups() ) {
         $seed->{$g}{manager} = 1;
@@ -2116,6 +2126,12 @@ sub _ensure_groups_seeded {
     }
     write_group_settings($seed);
     return;
+}
+
+sub _has_settings_entry {
+    my ($group) = @_;
+    my $gs = Lazysite::Auth::Settings::read_group_settings();
+    return ref $gs->{$group} eq 'HASH' && %{ $gs->{$group} } ? 1 : 0;
 }
 
 # Seed-if-absent, then read via the shared module - the SINGLE source of truth
