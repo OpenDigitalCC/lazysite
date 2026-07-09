@@ -918,15 +918,24 @@ sub post_install_steps {
     align_ownership($docroot);
 }
 
-# Chown the lazysite-managed tree to the docroot's owner/group (root runs only;
-# a non-root install already writes as the right user). Scope: the lazysite/
-# subtree and lazysite.conf - the paths whose writability the manager depends on.
+# Repair ROOT-OWNED files under the lazysite tree (root runs only): a sudo
+# install writes as root, and without a wrapper chown pass those files are
+# unreadable/unwritable by the web-server CGI. Scope is deliberately narrow -
+# ONLY files currently owned by root are touched (the CGI legitimately owns its
+# runtime files as www-data, and the operator owns content; both are left
+# alone - a broader "align everything" pass in 0.6.5 stripped www-data's access
+# on a site whose docroot group was not www-data, 500ing the auth wrapper).
+# Owner becomes the docroot's owner; group becomes the WEB-SERVER group
+# (www-data when it exists, matching lazysite-check), so group-rw modes keep
+# working for the CGI.
 sub align_ownership {
     my ($docroot) = @_;
     return unless $> == 0;    # only meaningful (and permitted) as root
-    my ( $uid, $gid ) = ( stat $docroot )[ 4, 5 ];
-    return unless defined $uid && defined $gid;
+    my $uid = ( stat $docroot )[4];
+    return unless defined $uid;
     return if $uid == 0;      # a root-owned docroot gives us no better target
+    my $gid = ( getgrnam 'www-data' )[2];
+    $gid = ( stat $docroot )[5] unless defined $gid;
 
     my @paths = ("$docroot/lazysite/lazysite.conf");
     my @stack = ("$docroot/lazysite");
@@ -945,11 +954,11 @@ sub align_ownership {
     my $n = 0;
     for my $p (@paths) {
         next unless -e $p;
-        my ( $cu, $cg ) = ( stat _ )[ 4, 5 ];
-        next if $cu == $uid && $cg == $gid;
+        my $cu = ( stat _ )[4];
+        next unless defined $cu && $cu == 0;    # ONLY repair root-owned paths
         chown( $uid, $gid, $p ) and $n++;
     }
-    info("  ownership: aligned $n path(s) under lazysite/ to the docroot owner")
+    info("  ownership: repaired $n root-owned path(s) under lazysite/")
         if $n;
     return;
 }

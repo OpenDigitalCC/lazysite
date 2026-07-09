@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+Fix - installer ownership repair scoped to root-owned files (0.6.5 regression)
+: the 0.6.5 align-ownership pass chowned everything under `lazysite/` to the
+  docroot owner AND group, stripping the www-data CGI's access on a site whose
+  docroot group was not www-data - the auth wrapper then 500ed ("End of script
+  output before headers"). It now repairs ONLY root-owned paths (the sudo-install
+  case it was built for), sets the group to the web-server group (www-data when
+  present, matching lazysite-check), and never re-owns the CGI's runtime files
+  or operator content. Remediation for an affected site:
+  `sudo lazysite-check.pl --docroot <docroot> --fix`.
+
 ## 0.6.5 - manager_groups retired + fresh-install robustness (2026-07-09)
 
 Breaking - manager_groups retired (SM138)
