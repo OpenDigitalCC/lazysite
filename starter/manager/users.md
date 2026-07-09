@@ -36,7 +36,7 @@ identity in both domains; only <em>where</em> it is granted differs.
 </div>
 <div class="mg-form-row">
 <label>Username</label>
-<input type="text" id="new-username" placeholder="username">
+<input type="text" id="new-username" placeholder="username" autocomplete="off">
 </div>
 <div class="mg-form-row">
 <label>Groups</label>
@@ -319,7 +319,7 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
 
   // --- Notes ---
   var nb = '<div class="mg-line"><span class="mg-line-lbl">Note</span>' +
-    '<input type="text" class="mg-inp mg-inp-wide" id="note-' + ue + '" value="' + escHtml(comment) +
+    '<input type="text" class="mg-inp mg-inp-wide" autocomplete="off" id="note-' + ue + '" value="' + escHtml(comment) +
     '" placeholder="what this account is for (e.g. Claude dav publisher)">' +
     '<button class="mg-btn mg-btn-sm" onclick="saveComment(\'' + ue + '\')">Save</button>' +
     '<span class="mg-inline-msg" id="notemsg-' + ue + '"></span></div>';
@@ -368,7 +368,7 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   // as one of the client choices (SM100), so it is not duplicated here.
   if (ui) {
     var cred = '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
-      '<input type="password" class="mg-inp" id="pw-' + ue + '" placeholder="new password">' +
+      '<input type="password" class="mg-inp" id="pw-' + ue + '" placeholder="new password" autocomplete="new-password">' +
       '<button class="mg-btn mg-btn-sm" onclick="savePassword(\'' + ue + '\')">Save</button>' +
       '<span class="mg-inline-msg" id="pwmsg-' + ue + '"></span></div>';
     cred += '<div class="mg-line"><span class="mg-line-lbl">Setup link</span>' +
@@ -396,7 +396,7 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
     wd += '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
       '<span class="mg-muted">use a <strong>Generate credential</strong> token (above) &mdash; far faster than the account password</span></div>';
     wd += '<div class="mg-line"><span class="mg-line-lbl">Scope</span>' +
-      '<input type="text" class="mg-inp" id="scope-' + ue + '" value="' + escHtml(scope) + '" placeholder="/ (whole site)">' +
+      '<input type="text" class="mg-inp" id="scope-' + ue + '" value="' + escHtml(scope) + '" placeholder="/ (whole site)" autocomplete="off">' +
       '<button class="mg-btn mg-btn-sm" onclick="setUserScope(\'' + ue + '\')">Set</button>' +
       '<span class="mg-help" title="Limits this account\'s WebDAV writes to a path prefix under the docroot. Empty = whole site (minus denied paths).">&#9432;</span></div>';
     h += sec('WebDAV', wd);
@@ -434,7 +434,7 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
     '<button class="mg-btn mg-btn-sm" onclick="clearExpiry(\'' + ue + '\')">Clear</button>' +
     '<span class="mg-inline-msg" id="expmsg-' + ue + '"></span></div>';
   ac += '<div class="mg-line"><span class="mg-line-lbl">Rename</span>' +
-    '<input type="text" class="mg-inp" id="rename-' + ue + '" placeholder="new username">' +
+    '<input type="text" class="mg-inp" id="rename-' + ue + '" placeholder="new username" autocomplete="off">' +
     '<button class="mg-btn mg-btn-sm" onclick="renameUser(\'' + ue + '\')">Rename</button>' +
     '<span class="mg-inline-msg" id="renmsg-' + ue + '"></span></div>';
   // Parent: any account can be placed under another (sets managed_by), so the

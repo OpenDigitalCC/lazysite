@@ -18,6 +18,11 @@ Keying
 
 ## Unreleased
 
+Fix - browser autofill on the Users page (field report)
+: the Rename box (and other bare text inputs near password fields) could be
+  autofilled by the browser with the operator's saved login. Users-page inputs
+  now carry `autocomplete=off` (text) / `autocomplete=new-password` (password).
+
 Fix - fresh-install admin group had no capabilities (field report, 0.6.3)
 : `setup-manager` seeded group settings during its group-add BEFORE writing
   `manager_groups` to lazysite.conf, so the admin group got no capability entry
