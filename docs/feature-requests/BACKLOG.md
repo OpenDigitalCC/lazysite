@@ -48,6 +48,16 @@ before work starts.
   SMTP), recipient an individual JID or a group-chat room; based on the
   xmpp-lite connector. Remaining (future): per-user recipient choice and
   per-event subscriptions.
+- **SM139 Packaged distribution** *(design agreed 2026-07-09 - see
+  SM139-packaged-distribution.md)* - lazysite-common.deb (engine payload +
+  `lazysite` CLI) plus environment debs (apache/nginx/hestia), tarball/dev mode
+  unchanged. Provisioning and upgrades run AS THE SITE USER - no root writes
+  into site trees, ownership correct by construction (driver: the 0.6.5
+  upgrade round's ownership breakage across 17 production sites). Per-site
+  update_channel/update_policy, `lazysite upgrade --all`, security
+  force-upgrade; site registry in /etc/lazysite/sites.d/. Includes
+  lazysite-check hardening: re-run checks after --fix, manager-layout check,
+  evaluate access as www-data not root.
 - **Live-chat plugin (XMPP bot)** - an on-site chat widget backed by an XMPP bot
   (reuses the existing XMPP integration).
 - **Calendar-booking plugin** - bookable time slots with availability, producing
