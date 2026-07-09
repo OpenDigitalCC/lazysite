@@ -39,8 +39,8 @@ perl tools/lazysite-users.pl --docroot /path/to/public_html \
   group-add alice lazysite-admins
 ```
 
-(The legacy `manager_groups:` conf key still works as a backend fallback,
-but capabilities on groups are the mechanism of record.)
+(Capabilities on groups are the mechanism of record; the legacy
+`manager_groups:` conf key is retired and migrates itself away on upgrade.)
 
 ## Accessing the manager
 
@@ -233,8 +233,7 @@ cp -r starter/lazysite/manager /path/to/public_html/lazysite/
 ### Manager access enforcement
 
 Access to `/manager` and all sub-pages is restricted to authenticated
-users whose groups carry the `ui` capability (legacy `manager_groups`
-membership also passes, as a fallback). Unauthenticated users are
+users whose groups carry the `ui` capability. Unauthenticated users are
 redirected to `/login`.
 
 ### Blocked paths

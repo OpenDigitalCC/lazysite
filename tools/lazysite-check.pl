@@ -332,21 +332,33 @@ else {
 
 # --- 7. manager bootstrap (ties to setup-manager) ----------------------------
 {
-    my $mg = conf_value( $conf, 'manager_groups' );
+    # SM138: manager groups are those whose SETTINGS entry grants manager access
+    # (ui / manage_users / the manager flag); the conf manager_groups key is
+    # retired (a lingering line is inert and migrated away on first use).
+    my @groups;
+    if ( open my $gsf, '<', "$LZ/auth/groups-settings.json" ) {
+        require JSON::PP;
+        local $/;
+        my $gs = eval { JSON::PP::decode_json(<$gsf>) } || {};
+        close $gsf;
+        @groups = sort grep {
+            my $c = $gs->{$_};
+            ref $c eq 'HASH' && ( $c->{ui} || $c->{manage_users} || $c->{manager} );
+        } keys %{$gs};
+    }
     my $mgr_enabled = ( conf_value( $conf, 'manager' ) // '' ) =~ /enabled/i;
-    if ( !defined $mg || $mg eq '' ) {
+    if ( !@groups ) {
         report( 'WARN',
-            "manager_groups not set - the manager is unconfigured "
-          . "(or every authenticated user would be a manager)",
+            "no group grants manager access - the manager is unconfigured "
+                . "(every authenticated user would be a manager)",
             "perl tools/lazysite-users.pl --docroot '$DOC' setup-manager" );
     }
     elsif ( !$mgr_enabled ) {
-        report( 'WARN', "manager_groups set but 'manager: enabled' is not",
+        report( 'WARN', "a manager group exists but 'manager: enabled' is not set",
             "perl tools/lazysite-users.pl --docroot '$DOC' setup-manager" );
     }
     else {
         # is there a manager user with a password, in a manager group?
-        my @groups = split /[,\s]+/, $mg;
         my %is_mgr_group = map { $_ => 1 } @groups;
         my %members;
         if ( open my $gf, '<', "$LZ/auth/groups" ) {

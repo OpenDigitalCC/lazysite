@@ -265,8 +265,9 @@ manager: enabled
 manager_path: /manager
 ```
 
-The legacy `manager_groups:` conf key still passes as a fallback when no
-group grants `ui`, but capabilities on groups are the mechanism of record.
+Capabilities on groups are the mechanism of record. (The legacy
+`manager_groups:` conf key is retired: on upgrade any group it named receives
+its capabilities explicitly and the conf line is removed.)
 
 ## TT variables
 

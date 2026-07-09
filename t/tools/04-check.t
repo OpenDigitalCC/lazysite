@@ -21,7 +21,10 @@ make_path( "$doc/lazysite/auth", "$doc/lazysite/cache", $cgi );
 
 # a healthy-ish conf + a bootstrapped manager
 open my $cf, '>', "$doc/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: T\nmanager: enabled\nmanager_groups: lazysite-admins\n";
+print {$cf} "site_name: T\nmanager: enabled\n";
+open my $gsf, '>', "$doc/lazysite/auth/groups-settings.json" or die $!;
+print {$gsf} '{"lazysite-admins":{"label":"Admins","manager":1,"ui":1}}';
+close $gsf;
 close $cf;
 open my $gf, '>', "$doc/lazysite/auth/groups" or die $!;
 print {$gf} "lazysite-admins: manager\n"; close $gf;
@@ -68,9 +71,10 @@ sub run { qx($^X $script --docroot $doc --cgibin $cgi --group $gname @_ 2>&1) }
 # --- missing manager bootstrap is a WARN, not a FAIL ---
 {
     open my $c2, '>', "$doc/lazysite/lazysite.conf" or die $!;
-    print {$c2} "site_name: T\n"; close $c2;   # no manager_groups
+    print {$c2} "site_name: T\n"; close $c2;
+    unlink "$doc/lazysite/auth/groups-settings.json";    # no group grants manager
     my $out = run();
-    like( $out, qr/manager_groups not set/, 'warns when the manager is unconfigured' );
+    like( $out, qr/no group grants manager access/, 'warns when the manager is unconfigured' );
 }
 
 # --- a 0600 (owner-only) secret is flagged as unreadable by the www-data CGI ---

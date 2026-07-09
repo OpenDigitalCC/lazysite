@@ -108,4 +108,12 @@ ok( !$settings->{'lazysite-admins'}{api},
 is_deeply( $settings->{'content-editors'}, { label => 'Content editors', ui => 1 },
     'existing entries are untouched by the healer' );
 
+# SM138: the migration retires the conf key itself.
+open my $cc, '<', "$d3/lazysite/lazysite.conf" or die $!;
+my $conf_after = do { local $/; <$cc> };
+close $cc;
+unlike( $conf_after, qr/^manager_groups:/m,
+    'the retired manager_groups line is removed from lazysite.conf' );
+like( $conf_after, qr/^manager:\s*enabled/m, 'other conf keys survive the removal' );
+
 done_testing();

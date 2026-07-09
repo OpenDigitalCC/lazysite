@@ -1,5 +1,24 @@
 # Upgrade notes
 
+## manager_groups retired (SM138)
+
+The legacy `manager_groups:` key in `lazysite.conf` is retired. Manager access
+is granted by **groups**: any group carrying the `ui` capability (manager UI) or
+`manage_users` (operator powers), managed on the manager **Groups** page.
+
+**Migration is automatic.** On the first settings read after upgrade, any group
+the conf key named receives the full manager grant explicitly (every capability
+except the remote `api`/`mcp` channels - manager groups are interactive-only),
+and the `manager_groups:` line is removed from `lazysite.conf`. Effective access
+is unchanged: those groups had unrestricted operator access through the fallback
+already. No operator action is needed; a lingering line (e.g. an unwritable
+conf) is simply ignored.
+
+If **no** group grants manager access at all, the site is in the unsecured/dev
+mode where any authenticated user is a manager - run
+`lazysite-users.pl setup-manager` (or grant `ui` to a group) to secure it, as
+before.
+
 ## WebDAV publishing (SM070)
 
 A WebDAV endpoint (`/dav`) is available for headless, per-file

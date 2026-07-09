@@ -15,13 +15,17 @@ use TestHelper qw(load_processor setup_minimal_site);
 my $docroot = tempdir( CLEANUP => 1 );
 setup_minimal_site($docroot);
 
-# The admin bar checks lazysite.conf for manager: enabled + reads
-# manager_groups. Set both so _is_manager returns true for the
-# simulated auth in the manager-view tests below.
+# The admin bar checks lazysite.conf for manager: enabled; manager ACCESS is
+# the ui capability on a group (SM138) - grant it to 'admins' so _is_manager
+# returns true for the simulated auth in the manager-view tests below.
 open my $cf, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
 print $cf "manager: enabled\n";
-print $cf "manager_groups: admins\n";
 close $cf;
+use File::Path qw(make_path);
+make_path("$docroot/lazysite/auth");
+open my $gsf, '>', "$docroot/lazysite/auth/groups-settings.json" or die $!;
+print $gsf '{"admins":{"label":"Admins","ui":1}}';
+close $gsf;
 
 load_processor($docroot);
 

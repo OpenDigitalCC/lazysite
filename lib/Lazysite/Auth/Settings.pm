@@ -11,7 +11,8 @@ use Lazysite::Util qw(log_event);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
-    caps_for groups_grant_cap read_group_settings write_group_settings @CAP_KEYS);
+    caps_for groups_grant_cap site_grants_manager
+    read_group_settings write_group_settings @CAP_KEYS);
 
 our $AUTH_DIR;    # "$DOCROOT/lazysite/auth", set by the script
 
@@ -107,6 +108,21 @@ sub _group_caps {
         for my $k (@CAP_KEYS) { $caps{$k} = 1 if $cfg->{$k} }
     }
     return \%caps;
+}
+
+# SM138: is this site SECURED - does any group grant manager access (ui or
+# manage_users, or carries the manager flag)? When nothing does, the site is in
+# the unsecured/dev mode where any authenticated user is a manager (the fresh
+# checkout / dev-server experience). This replaces "is manager_groups set in
+# lazysite.conf" as the secured-site signal - the conf key is retired.
+sub site_grants_manager {
+    my $gs = read_group_settings();
+    for my $g ( keys %{$gs} ) {
+        my $cfg = $gs->{$g};
+        next unless ref $cfg eq 'HASH';
+        return 1 if $cfg->{ui} || $cfg->{manage_users} || $cfg->{manager};
+    }
+    return 0;
 }
 
 # THE central capability resolver - every surface (manager UI, control API, MCP,

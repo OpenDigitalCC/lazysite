@@ -18,8 +18,9 @@ before work starts.
   a version (e.g. 1.0) after which breaking changes require a documented migration
   path, and drive all *intended* breaking changes in BEFORE that point so the
   freeze starts clean. Breaking changes currently in flight or planned that should
-  land pre-freeze: the SM095 capability model (`manager_groups` -> `ui` capability,
-  channel gating), settings/label reorganisation, any auth-store or on-disk-format
+  land pre-freeze: ~~the SM095 capability model (`manager_groups` -> `ui`
+  capability, channel gating)~~ *(done - SM138 retired manager_groups with an
+  automatic migration, 0.6.5)*, settings/label reorganisation, any auth-store or on-disk-format
   changes, the backups consolidation, and the config-schema unification (SM042).
   Deliverable of the decision: a compatibility policy (what "breaking" means, the
   deprecation window, the migration-note contract) - a good ADR. Until then,

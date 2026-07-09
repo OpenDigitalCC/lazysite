@@ -28,7 +28,6 @@ $Lazysite::Manager::Common::DOCROOT  = $d;
 $Lazysite::Auth::Acl::DOCROOT             = $d;
 $Lazysite::Auth::Acl::auth_user           = 'alice';
 $Lazysite::Auth::Acl::token_auth          = 0;
-$Lazysite::Auth::Acl::manager_groups_conf = '';    # operator for the happy paths
 
 # --- mkdir (assert the rejection reason, not just falsiness) ---
 ok( action_mkdir('content/sub')->{ok}, 'mkdir creates a directory' );
@@ -57,9 +56,13 @@ is_deeply( load_acls()->{'content/secret.md'}, { owner => 'alice', write => ['al
 
 # --- NON-OPERATOR deny paths (H1: the security-relevant logic) ---
 {
-    local $Lazysite::Auth::Acl::manager_groups_conf = 'managers';
-    local $Lazysite::Auth::Acl::auth_user           = 'eve';   # not operator, not owner
-    local $Lazysite::Manager::Files::auth_user      = 'eve';
+    # SM138: secure the site (a group grants manager access), so eve - in no
+    # group - is not an operator. Replaces the retired manager_groups_conf var.
+    open my $gsf, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
+    print {$gsf} '{"managers":{"label":"Managers","ui":1,"manage_users":1}}';
+    close $gsf;
+    local $Lazysite::Auth::Acl::auth_user      = 'eve';   # not operator, not owner
+    local $Lazysite::Manager::Files::auth_user = 'eve';
     open my $sf, '>', "$d/content/secret.md" or die $!;
     print {$sf} 'secret'; close $sf;
 
@@ -74,6 +77,7 @@ is_deeply( load_acls()->{'content/secret.md'}, { owner => 'alice', write => ['al
 
     my $rm = action_acl_remove( 'content/secret.md', 'eve' );
     ok( !$rm->{ok}, 'non-owner cannot remove the ACL' );
+    unlink "$d/lazysite/auth/groups-settings.json";    # back to unsecured/operator
 }
 
 # back to operator: acl-remove works + clears the store

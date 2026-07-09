@@ -18,13 +18,13 @@ Add to `lazysite/lazysite.conf`:
 
     manager: enabled
     manager_path: /manager
-    manager_groups: lazysite-admins
 
 ### Configuration keys
 
 - `manager: enabled` - enable the manager (default: disabled)
 - `manager_path` - URL prefix for manager pages (default: `/manager`)
-- `manager_groups` - comma-separated groups that can access the manager
+- manager access itself is granted by groups: any group with the `ui`
+  capability (see the Groups page; `setup-manager` creates one)
 
 ### Features
 

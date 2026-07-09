@@ -73,9 +73,9 @@ works on staging and production.
 : URL path for the manager. Default: `/manager`.
 
 `manager_groups`
-: Legacy fallback (comma-separated groups). Manager access is now the `ui`
-  capability granted through a group on the Groups page; this key is only
-  consulted when no group grants `ui`, and it is no longer edited in the UI.
+: Retired. Manager access is the `ui` capability granted through a group on
+  the Groups page; on upgrade any group this key named receives its
+  capabilities explicitly and the line is removed.
 
 `log_level`
 : `ERROR`, `WARN`, `INFO` (default), or `DEBUG`.
@@ -121,7 +121,6 @@ log_level: INFO
 log_format: text
 manager: enabled
 manager_path: /manager
-manager_groups: lazysite-admins
 plugins:
   - lazysite-auth.pl
   - plugins/form-handler.pl
@@ -203,8 +202,7 @@ Authentication is configured through three mechanisms:
 - Group memberships in `lazysite/auth/groups`; group capabilities (channel x
   action, incl. manager access via `ui`) in `lazysite/auth/groups-settings.json`
 - Per-page `auth:` and `auth_groups:` front matter keys
-- Site-wide `auth_default:` in `lazysite.conf` (`manager_groups:` survives as a
-  legacy fallback only)
+- Site-wide `auth_default:` in `lazysite.conf`
 
 See [Authentication](/docs/auth) for full details.
 

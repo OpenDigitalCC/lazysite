@@ -70,8 +70,9 @@ Directory scan
 : URL path for the manager. Default: `/manager`.
 
 `manager_groups`
-: Comma-separated group names. Only users in one of these groups can
-  access the manager.
+: Retired. Manager access is the `ui` capability granted to a group (Groups
+  page); on upgrade any group this key named receives its capabilities and the
+  line is removed.
 
 `log_level`
 : One of `ERROR`, `WARN`, `INFO`, `DEBUG`. Default: `INFO`.
@@ -181,8 +182,8 @@ See [Configuration](/docs/configuration) for full details.
 : Array of group names the user belongs to.
 
 `editor`
-: `1` if the authenticated user is in `manager_groups` (i.e. has
-  manager access), `0` otherwise. Use in layouts to gate admin UI.
+: `1` if the authenticated user has manager access (a group grants the `ui`
+  capability), `0` otherwise. Use in layouts to gate admin UI.
 
 ### Variable precedence
 

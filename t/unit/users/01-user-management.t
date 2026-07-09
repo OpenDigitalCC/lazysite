@@ -127,15 +127,16 @@ sub run_cli {
 
     open my $c, '<', "$docroot/lazysite/lazysite.conf" or die $!;
     my $conf = do { local $/; <$c> }; close $c;
-    like( $conf, qr/^manager:\s*enabled/m,             'conf enables the manager' );
-    like( $conf, qr/^manager_groups:\s*lazysite-admins/m, 'conf names the admin group' );
+    like( $conf, qr/^manager:\s*enabled/m, 'conf enables the manager' );
+    unlike( $conf, qr/^manager_groups:/m,
+        'SM138: the retired manager_groups key is not written' );
 
     # idempotent + explicit password
     my $out2 = run_cli( 'setup-manager', 'chosenpass' );
     like( $out2, qr/Password:\s*chosenpass/, 'honours an explicit password' );
     open my $c2, '<', "$docroot/lazysite/lazysite.conf" or die $!;
     my $conf2 = do { local $/; <$c2> }; close $c2;
-    my $count = () = $conf2 =~ /^manager_groups:/mg;
+    my $count = () = $conf2 =~ /^manager:/mg;
     is( $count, 1, 'conf keys not duplicated on re-run' );
 }
 

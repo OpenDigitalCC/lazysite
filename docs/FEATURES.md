@@ -395,8 +395,8 @@ store, and the same audit log.
 
 A set of ordinary lazysite pages under a dedicated manager theme, calling the
 control API over `fetch`. Access requires authentication plus the `ui`
-capability granted through a group (the legacy `manager_groups` config remains
-a backend-only fallback). The pages:
+capability granted through a group (SM138: the legacy `manager_groups` conf key
+is retired - migrated groups received their capabilities explicitly). The pages:
 
 - **Config** - schema-driven site settings (driven by the processor's own
   `--describe` descriptor), active layout/theme dropdowns, and a plugin registry
@@ -698,9 +698,9 @@ SBOM gate.
   defence is the two-signal trust gate plus edge stripping. Headers are the universal
   contract so built-in and proxy auth interoperate without trusting the client.
 - **Operator obligations (by design).** Strip client trust headers at the edge;
-  grant the `ui` capability only to groups that should reach the manager (with
-  neither a `ui` grant anywhere nor a legacy `manager_groups`, an unsecured/dev
-  site treats any authenticated user as a manager); set a password for every
+  grant the `ui` capability only to groups that should reach the manager (when
+  NO group grants manager access at all, an unsecured/dev site treats any
+  authenticated user as a manager); set a password for every
   non-localhost account (empty-password accounts work only from loopback); use
   HTTPS.
 - **Two auth domains.** Cookie operators bypass ACLs inside the manager; token/

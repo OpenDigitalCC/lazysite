@@ -18,6 +18,17 @@ Keying
 
 ## Unreleased
 
+Breaking - manager_groups retired (SM138)
+: manager access is granted by GROUPS only: the `ui` capability (manager UI) and
+  `manage_users` (operator powers), managed on the Groups page. The legacy
+  `manager_groups:` conf key is retired with an AUTOMATIC migration: on the first
+  settings read, any group it named receives the full manager grant explicitly
+  (all capabilities except the remote api/mcp channels, SM127) and the conf line
+  is removed - effective access is unchanged. The unsecured/dev mode is now keyed
+  on "no group grants manager access" (was: "manager_groups unset"). whoami's
+  manager_groups and lazysite-check derive from group settings; the processor's
+  config descriptor no longer lists the key. See UPGRADE.md.
+
 Fix - installs are permission- and capability-robust on their own
 : `install.pl` now sets `lazysite.conf` to 0664 and, when run as root (sudo),
   aligns ownership of the `lazysite/` subtree + conf to the docroot's owner -

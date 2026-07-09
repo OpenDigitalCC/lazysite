@@ -58,11 +58,15 @@ my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth");
 make_path("$d/lazysite/layouts/base/themes/live");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-# manager_groups makes the confinement real: a named cookie user is a
-# delegated sub-manager (confined to its tree) unless it is in this group.
-# Without it, _is_operator treats any user as an unrestricted operator.
-print $cf "layout: base\ntheme: live\nmanager_groups: admins\nwebdav_enabled: enabled\n";
+# SM138: a group granting manager access makes the confinement real: a named
+# cookie user is a delegated sub-manager (confined to its tree) unless a group
+# grants it manage_users. With NO such group, _is_operator treats any user as
+# an unrestricted operator (unsecured/dev).
+print $cf "layout: base\ntheme: live\nwebdav_enabled: enabled\n";
 close $cf;
+open my $gsf, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
+print $gsf '{"admins":{"label":"Admins","ui":1,"manage_users":1}}';
+close $gsf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf "$secret\n"; close $sf;
 open my $tj, '>', "$d/lazysite/layouts/base/themes/live/theme.json" or die $!;
 print $tj '{"name":"live","layouts":["base"]}'; close $tj;

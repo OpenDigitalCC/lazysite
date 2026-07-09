@@ -66,7 +66,6 @@ log_level: INFO
 log_format: text
 manager: enabled
 manager_path: /manager
-manager_groups: lazysite-admins
 auth_default: none
 plugins:
   - cgi-bin/lazysite-auth.pl
@@ -283,8 +282,8 @@ Or use Manager > Cache > Clear all. For the full layout/theme model, see
    Apache `FallbackResource`.
 3. Add `auth: required` to any page that needs protection, or set
    `auth_default: required` site-wide.
-4. If the manager is enabled, set `manager_groups:` in `lazysite.conf`
-   to the group(s) allowed to administer the site.
+4. If the manager is enabled, make sure a group grants the `ui`
+   capability (setup-manager does this; further grants on the Groups page).
 
 ### Configuring a contact form
 
@@ -316,7 +315,6 @@ targets:
 ```yaml
 manager: enabled
 manager_path: /manager
-manager_groups: lazysite-admins
 ```
 
 2. Create the `lazysite-admins` group with at least one user:

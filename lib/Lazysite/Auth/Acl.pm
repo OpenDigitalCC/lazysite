@@ -18,11 +18,10 @@ our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_pat
 our $DOCROOT;    # set by the script
 
 # Manager auth-state, set per request by the dispatcher (the operator-bypass
-# decision). A token client is never an operator; otherwise the manager group
-# membership decides.
-our $auth_user           = '';
-our $token_auth          = 0;
-our $manager_groups_conf = '';
+# decision). A token client is never an operator; otherwise group-granted
+# capabilities decide (SM138: the conf manager_groups fallback is retired).
+our $auth_user  = '';
+our $token_auth = 0;
 
 # SM077: the requesting user's groups (for @group ACL entries), set per request
 # by the dispatcher from X-Remote-Groups. A token/WebDAV partner carries none,
@@ -107,14 +106,17 @@ sub _groups_grant_cap {
 
 sub _is_operator {
     return 0 if $token_auth;
-    return 1 unless length $manager_groups_conf;       # unsecured / dev
     return 1 if ( $auth_user // '' ) eq 'local';
     my @ug = grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
-    # SM095: unrestricted account management is the manage_users capability;
-    # manager_groups remains a non-breaking fallback.
+    # SM095/SM138: unrestricted account management is the manage_users
+    # capability, granted through a group. The legacy lazysite.conf
+    # manager_groups fallback is RETIRED - the migration granted those groups
+    # their capabilities explicitly. A site where no group grants manager access
+    # at all is unsecured/dev: any authenticated user is an operator.
     return 1 if _groups_grant_cap( 'manage_users', @ug );
-    my %mg = map { $_ => 1 } grep { length } split /[,\s]+/, $manager_groups_conf;
-    for my $g (@ug) { return 1 if $mg{$g} }
+    require Lazysite::Auth::Settings;
+    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    return 1 unless Lazysite::Auth::Settings::site_grants_manager();
     return 0;
 }
 

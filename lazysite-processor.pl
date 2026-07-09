@@ -39,7 +39,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
         # must stay in sync until SM042 unifies them.
         config_keys => [qw(site_name site_url layout theme layouts_repo
                            nav_file search_default webdav_enabled
-                           manager manager_path manager_groups update_channel)],
+                    manager manager_path update_channel) ],
         config_schema => [
             { key => 'site_name', label => 'Site name', type => 'text',
               default => 'My Site', required => JSON::PP::true() },
@@ -73,9 +73,6 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
               options => ['disabled', 'enabled'], default => 'disabled' },
             { key => 'manager_path', label => 'Manager URL path', type => 'text',
               default => '/manager',
-              show_when => { key => 'manager', value => ['enabled'] } },
-            { key => 'manager_groups', label => 'Manager access groups', type => 'text',
-              default => '',
               show_when => { key => 'manager', value => ['enabled'] } },
             { key => 'webdav_enabled', label => 'WebDAV publishing', type => 'select',
               options => ['disabled', 'enabled'], default => 'disabled' },
@@ -460,28 +457,42 @@ sub _groups_grant_cap {
     return 0;
 }
 
+# SM138: does ANY group grant manager access (ui / manage_users / the manager
+# flag)? When none does, the site is unsecured/dev and any authenticated user is
+# a manager. Local copy of the same decision Auth::Settings::site_grants_manager
+# makes - the render path stays module-free (ADR 0001).
+sub _site_grants_manager {
+    my $f = "$DOCROOT/lazysite/auth/groups-settings.json";
+    return 0 unless -f $f;
+    require JSON::PP;
+    open my $fh, '<:raw', $f or return 0;
+    local $/;
+    my $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
+    close $fh;
+    for my $g ( keys %{$gs} ) {
+        my $cfg = $gs->{$g};
+        next unless ref $cfg eq 'HASH';
+        return 1 if $cfg->{ui} || $cfg->{manage_users} || $cfg->{manager};
+    }
+    return 0;
+}
+
 sub _is_manager {
     my ( $site_vars, $auth_user, $auth_groups ) = @_;
     return 0 unless $auth_user;
-    # SM095: Manager-UI access is the `ui` channel capability, granted via a group.
-    # manager_groups is kept below as a non-breaking fallback.
+    # SM095: Manager-UI access is the `ui` channel capability, granted via a
+    # group. SM138: the lazysite.conf manager_groups fallback is retired (the
+    # migration granted those groups their capabilities explicitly).
     return 1 if _groups_grant_cap( 'ui', split /\s*,\s*/, ( $auth_groups // '' ) );
-    my $manager_groups = $site_vars->{manager_groups} // '';
-    $manager_groups =~ s/^\s+|\s+$//g;
-    if ( !length $manager_groups ) {
-        # L-3: config advisory, not an operational warning. Under CGI
-        # every request is a new process, so the "once per process"
-        # closure-state trick from the earlier revision just produced
-        # one WARN per hit. Log at DEBUG so noisy production logs don't
-        # carry it; the dev server surfaces it once at startup.
+    unless ( _site_grants_manager() ) {
+        # L-3: config advisory, not an operational warning (DEBUG - under CGI
+        # every request is a new process; the dev server surfaces it once).
         log_event('DEBUG', '-',
-            'manager_groups not set - any authenticated user has manager access',
-            suggestion => 'set manager_groups in lazysite.conf');
+            'no group grants manager access - any authenticated user has it',
+            suggestion => 'grant the ui capability to a group on the Groups page' );
         return 1;
     }
-    my %user_groups = map { lc($_) => 1 } split /\s*,\s*/, ( $auth_groups // '' );
-    return scalar grep { $user_groups{ lc($_) } }
-        split /\s*,\s*/, $manager_groups;
+    return 0;
 }
 
 sub serve_403 {

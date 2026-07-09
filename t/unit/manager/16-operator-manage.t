@@ -64,7 +64,11 @@ sub manage {
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "manager_groups: managers\n"; close $cf;
+print $cf "site_name: T\n"; close $cf;
+# SM138: a group granting manager access secures the site (conf key retired).
+open my $gsf, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
+print $gsf '{"managers":{"label":"Managers","ui":1,"manage_users":1}}';
+close $gsf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close $sf;
 
 # CLI setup (unrestricted): boss owns sw; 'other' is an unrelated sub-manager.

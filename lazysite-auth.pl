@@ -978,21 +978,15 @@ sub read_conf_key {
 }
 
 # Does a user with these (comma-separated) groups have manager access? Mirrors
-# the processor's _is_manager: an unset manager_groups means any authenticated
-# user is a manager; otherwise membership of one of the listed groups (case-
-# insensitive) is required.
+# the processor's _is_manager: the `ui` capability granted through a group
+# (SM095), else the unsecured/dev mode where NO group grants manager access and
+# any authenticated user has it. SM138: the conf manager_groups fallback is
+# retired (the migration granted those groups their capabilities explicitly).
 sub _login_is_manager {
     my ($groups_str) = @_;
     my @ug = grep { length } split /\s*,\s*/, ( $groups_str // '' );
-    # SM095 (c2): Manager-UI access is the `ui` channel capability, granted
-    # through a group - resolved via the shared helper (ADR 0001), not a local
-    # copy. manager_groups remains a non-breaking fallback below.
     return 1 if groups_grant_cap( 'ui', @ug );
-    my $mg = read_conf_key('manager_groups') // '';
-    $mg =~ s/^\s+|\s+$//g;
-    return 1 unless length $mg;
-    my %ug = map { lc $_ => 1 } @ug;
-    return ( grep { $ug{ lc $_ } } grep { length } split /\s*,\s*/, $mg ) ? 1 : 0;
+    return Lazysite::Auth::Settings::site_grants_manager() ? 0 : 1;
 }
 
 # --- Utilities ---

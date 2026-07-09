@@ -59,8 +59,13 @@ my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth");
 make_path("$d/content");
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "manager_groups: managers\n";
+print $cf "site_name: T\n";
 close $cf;
+# SM138: a group granting manager access secures the site (replaces the
+# retired conf manager_groups key); 'managers' members are operators.
+open my $gsf, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
+print $gsf '{"managers":{"label":"Managers","ui":1,"manage_users":1}}';
+close $gsf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!; print $sf $secret; close $sf;
 open my $xf, '>', "$d/content/x.md" or die $!; print $xf "orig\n"; close $xf;
 

@@ -27,6 +27,7 @@ use Lazysite::Util qw(log_event const_eq);
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Capabilities qw(describe capability_keys);
 use Lazysite::BadUrl       qw(list_blocks unblock);
+use Lazysite::Auth::Settings qw(site_grants_manager);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Auth::Session qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
@@ -67,6 +68,7 @@ my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 $Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
+$Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";   # SM138: site_grants_manager
 $Lazysite::Manager::Upload::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Manager::Themes::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Manager::Layouts::LAZYSITE_DIR = $LAZYSITE_DIR;
@@ -101,15 +103,11 @@ return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
 
 # --- Auth check ---
 
-# Read manager_groups from lazysite.conf to determine if auth is required
-my $manager_groups_conf = '';
-if ( open my $cfh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
-    while (<$cfh>) {
-        $manager_groups_conf = $1 if /^manager_groups\s*:\s*(.+)/;
-    }
-    close $cfh;
-}
-$manager_groups_conf =~ s/^\s+|\s+$//g;
+# SM138: is the site secured? A site where some group grants manager access
+# requires an authenticated user; one where none does is unsecured/dev (any
+# authenticated user is a manager, unauthenticated falls back to 'local').
+# Replaces the retired lazysite.conf manager_groups signal.
+my $site_secured = site_grants_manager();
 
 # SM071 Phase 3: control-API token front-path. A request authenticated by
 # Authorization: Basic <user>:<lzs_ token> carries no session cookie; it is
@@ -149,7 +147,7 @@ my %token_caps;
 # Cookie (manager) auth: the trusted X-Remote-User set by the auth wrapper.
 unless ( $token_auth ) {
     $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
-    if ( $manager_groups_conf && !$auth_user ) {
+    if ( $site_secured && !$auth_user ) {
         respond({ ok => 0, error => "Authentication required" });
         exit 0;
     }
@@ -185,7 +183,6 @@ $Lazysite::Manager::Layouts::auth_user = $auth_user;
 $Lazysite::Manager::Layouts::action    = $action;
 $Lazysite::Auth::Acl::auth_user            = $auth_user;
 $Lazysite::Auth::Acl::token_auth           = $token_auth;
-$Lazysite::Auth::Acl::manager_groups_conf  = $manager_groups_conf;
 # SM077: requester's groups for @group ACL entries (cookie users carry them in
 # X-Remote-Groups; token partners carry none, so a @group never matches them).
 @Lazysite::Auth::Acl::user_groups = grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
@@ -1119,7 +1116,7 @@ sub action_pages {
 sub action_config_read {
     my %out = map { $_ => '' }
         qw(site_name site_url layout theme nav_file webdav_enabled manager
-           search_default manager_groups manager_path);
+        search_default manager_path);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
             next unless $line =~ /^(\w+)\s*:\s*(.*?)\s*$/;
@@ -1237,7 +1234,9 @@ sub action_whoami {
         partner => $user,
         # SM094: the site's manager groups, so the Users UI can tell which accounts
         # are operators (full access) vs partners gated by the capability toggles.
-        manager_groups => [ grep { length } split /[,\s]+/, ( $manager_groups_conf // '' ) ],
+        # SM138: derived from group settings (ui / manage_users / the manager
+        # flag) - the conf manager_groups key is retired.
+        manager_groups => [ _manager_groups_from_settings() ],
         # $s is the EFFECTIVE settings (from settings-get -> the resolver), so report
         # every capability straight from it. SM126: derived from @CAP_KEYS (via
         # capability_keys) so a new capability appears here automatically - the old
@@ -1278,6 +1277,16 @@ sub action_whoami {
 # action.
 
 # SM: the audit trail is its own capability now, separate from visitor analytics.
+# SM138: the groups that confer manager access, read from group settings.
+sub _manager_groups_from_settings {
+    my $gs  = Lazysite::Auth::Settings::read_group_settings();
+    my @mgr = sort grep {
+        my $c = $gs->{$_};
+        ref $c eq 'HASH' && ( $c->{ui} || $c->{manage_users} || $c->{manager} );
+    } keys %{$gs};
+    return @mgr;
+}
+
 sub _user_audit {
     my ($user) = @_;
     return 0 unless defined $user && length $user;

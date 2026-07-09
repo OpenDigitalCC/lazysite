@@ -561,6 +561,27 @@ sub _ensure_conf_key {
     return 1;
 }
 
+# Remove one "key: value" line from lazysite.conf. Best-effort and atomic
+# (temp + rename); an unwritable conf is tolerated - the caller treats the
+# lingering line as inert.
+sub _remove_conf_key {
+    my ($key) = @_;
+    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    return 0 unless -f $conf;
+    open my $in, '<', $conf or return 0;
+    my @lines = <$in>;
+    close $in;
+    my @keep = grep { !/^\Q$key\E\s*:/ } @lines;
+    return 0 if @keep == @lines;
+    my $tmp = "$conf.tmp.$$";
+    open my $out, '>', $tmp or return 0;
+    print {$out} @keep;
+    close $out;
+    rename $tmp, $conf or do { unlink $tmp; return 0 };
+    log_event( 'INFO', 'migrate', 'retired conf key removed', key => $key );
+    return 1;
+}
+
 # One-command manager bootstrap: ensure the manager account exists with a
 # password, the admin group exists with that user in it, and lazysite.conf
 # enables the manager + names the group. Idempotent. Generates and prints a
@@ -617,10 +638,16 @@ sub cmd_setup_manager {
     }
     $user = 'manager' unless defined $user && length $user;
 
-    # Honour an existing manager_groups (join its first group); else default.
-    my $existing = read_conf_value('manager_groups');
-    if ( defined $existing && length $existing ) {
-        ($group) = split /[,\s]+/, $existing;
+    # Honour an existing manager group: one already flagged in group settings
+    # (SM138), else a legacy conf manager_groups value (pre-migration); default
+    # to lazysite-admins.
+    unless ( defined $group && length $group ) {
+        my $gs = Lazysite::Auth::Settings::read_group_settings();
+        ($group) = sort grep { ref $gs->{$_} eq 'HASH' && $gs->{$_}{manager} } keys %{$gs};
+    }
+    unless ( defined $group && length $group ) {
+        my $existing = read_conf_value('manager_groups');
+        ($group) = split /[,\s]+/, $existing if defined $existing && length $existing;
     }
     $group = 'lazysite-admins' unless defined $group && length $group;
 
@@ -631,7 +658,6 @@ sub cmd_setup_manager {
         cmd_add( $user, generate_random_hex(12) ) unless exists $users{$user};
         cmd_group_add( $user, $group );
         _ensure_conf_key( 'manager',        'enabled' );
-        _ensure_conf_key( 'manager_groups', $group );
         _ensure_manager_group_caps($group);
         $users{$user} = '';                       # revoke any credential
         write_users(%users);
@@ -663,7 +689,6 @@ sub cmd_setup_manager {
     else                          { cmd_add( $user, $pass ) }
     cmd_group_add( $user, $group );
     _ensure_conf_key( 'manager',        'enabled' );
-    _ensure_conf_key( 'manager_groups', $group );
     _ensure_manager_group_caps($group);
 
     unless ($API_MODE) {
@@ -2108,13 +2133,7 @@ sub _conf_manager_groups {
 # operator keeps manager + partner access and configures everyone else there.
 sub _ensure_groups_seeded {
     if ( -f $GROUP_SETTINGS_FILE ) {
-        # Self-heal: a conf-declared manager group with NO capability entry
-        # confers nothing - the fresh-install trap where the seeder ran before
-        # manager_groups reached the conf. Create the missing entry on ANY read,
-        # so a broken install repairs itself; an existing entry (possibly
-        # operator-tuned) is never touched.
-        my @missing = grep { !_has_settings_entry($_) } _conf_manager_groups();
-        _ensure_manager_group_caps($_) for @missing;
+        _migrate_conf_manager_groups();
         return;
     }
     my $seed = _default_group_seed();
@@ -2125,6 +2144,32 @@ sub _ensure_groups_seeded {
         $seed->{$g}{$_} = 1 for grep { $_ ne 'api' && $_ ne 'mcp' } @CAP_KEYS;
     }
     write_group_settings($seed);
+    _remove_conf_key('manager_groups');    # SM138: key retired once migrated
+    return;
+}
+
+# SM138: retire the legacy lazysite.conf manager_groups key. Any group it names
+# gets the FULL manager grant (all capabilities except the remote api/mcp
+# channels, SM127) merged into its settings entry - the conf fallback gave those
+# groups unrestricted operator access, so materialising the full grant preserves
+# their effective rights exactly. Then the conf line is removed (best-effort: if
+# the conf is not writable here, the line simply stays inert - nothing reads it
+# for access decisions any more). Runs on ANY settings read, so both fresh
+# installs and already-deployed sites migrate themselves.
+sub _migrate_conf_manager_groups {
+    my @conf = _conf_manager_groups();
+    return unless @conf;
+    my $gs      = Lazysite::Auth::Settings::read_group_settings();
+    my $changed = 0;
+    for my $g (@conf) {
+        $gs->{$g} ||= { label => $g };
+        next if $gs->{$g}{manager};    # already a manager group - grant complete
+        $gs->{$g}{manager} = 1;
+        $gs->{$g}{$_}      = 1 for grep { $_ ne q(api) && $_ ne q(mcp) } @CAP_KEYS;
+        $changed           = 1;
+    }
+    write_group_settings($gs) if $changed;
+    _remove_conf_key('manager_groups');
     return;
 }
 
