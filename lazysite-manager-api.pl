@@ -597,7 +597,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     # Plugin actions log '/' as their path; name the plugin instead (from the
     # plugin param, else the body's script basename) so the audit says WHICH one.
     if ( $action =~ /^plugin-/ ) {
-        my $plugin = _audit_plugin_target( \%params, $body, $action );
+        my $plugin = _audit_plugin_target( \%params, $body, $action, $result );
         $aud_target = $plugin if length $plugin;
     }
 
@@ -1060,7 +1060,7 @@ sub _audit_implicit_target {
 }
 
 sub _audit_plugin_target {
-    my ( $params, $body, $action ) = @_;
+    my ( $params, $body, $action, $result ) = @_;
     my $plugin = $params->{plugin} // '';
     unless ( length $plugin ) {
         my $b = eval { decode_json( $body // '' ) };
@@ -1071,11 +1071,20 @@ sub _audit_plugin_target {
     # plugin-save: name the setting(s) changed so the audit says WHICH config key
     # was edited (e.g. "lazysite (site_name)"), not just the plugin. Keys only -
     # values may be secrets; capped so a whole-form save isn't a giant target.
+    # Prefer the save handler's actual diff: the UI posts the WHOLE form, so
+    # the submitted keys read "8 settings" for a one-field edit (field report).
     if ( defined $action && $action eq 'plugin-save' && length $plugin ) {
-        my $b = eval { decode_json( $body // '' ) };
-        my $vals = ( ref $b eq 'HASH' ? $b->{values} : undef );
-        if ( ref $vals eq 'HASH' && keys %$vals ) {
-            my @keys = sort keys %$vals;
+        my @keys;
+        if ( ref $result eq 'HASH' && ref $result->{changed} eq 'ARRAY' ) {
+            @keys = @{ $result->{changed} };
+            $plugin .= ' (no changes)' unless @keys;
+        }
+        else {
+            my $b    = eval { decode_json( $body // '' ) };
+            my $vals = ( ref $b eq 'HASH' ? $b->{values} : undef );
+            @keys = sort keys %{$vals} if ref $vals eq 'HASH';
+        }
+        if (@keys) {
             my $list = @keys > 6 ? ( scalar(@keys) . ' settings' )
                                  : join( ', ', @keys );
             $plugin .= " ($list)";

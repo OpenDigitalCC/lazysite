@@ -280,6 +280,23 @@ sub action_plugin_save {
 
     my $config_file = $desc->{config_file} // '';
 
+    # Track which keys ACTUALLY changed - the UI posts the whole form, so
+    # without a diff the audit says "8 settings" for a one-field edit.
+    my @changed;
+    my $apply = sub {
+        my ( $content_ref, $k ) = @_;
+        if ( ${$content_ref} =~ /^$k\s*:[ \t]*(.*)$/m ) {
+            my $old = $1;
+            push @changed, $k if $old ne ( $safe{$k} // '' );
+            ${$content_ref} =~ s/^$k\s*:.*$/$k: $safe{$k}/m;
+        }
+        else {
+            push @changed, $k if length( $safe{$k} // '' );
+            ${$content_ref} .= "$k: $safe{$k}\n";
+        }
+        return;
+    };
+
     if ($config_file) {
         my $conf_path = "$DOCROOT/$config_file";
         my $content   = '';
@@ -288,14 +305,7 @@ sub action_plugin_save {
             close $fh;
         }
 
-        for my $k ( keys %safe ) {
-            if ( $content =~ /^$k\s*:/m ) {
-                $content =~ s/^$k\s*:.*$/$k: $safe{$k}/m;
-            }
-            else {
-                $content .= "$k: $safe{$k}\n";
-            }
-        }
+        $apply->( \$content, $_ ) for keys %safe;
 
         my $dir = dirname($conf_path);
         make_path($dir) unless -d $dir;
@@ -312,21 +322,14 @@ sub action_plugin_save {
             close $fh;
         }
 
-        for my $k ( grep { $want{$_} } keys %safe ) {
-            if ( $content =~ /^$k\s*:/m ) {
-                $content =~ s/^$k\s*:.*$/$k: $safe{$k}/m;
-            }
-            else {
-                $content .= "$k: $safe{$k}\n";
-            }
-        }
+        $apply->( \$content, $_ ) for grep { $want{$_} } keys %safe;
 
         my ( $wok, $werr ) = write_file_checked( $conf_path, $content );
         return { ok => 0, error => "Cannot write lazysite.conf: $werr" }
             unless $wok;
     }
 
-    return { ok => 1 };
+    return { ok => 1, changed => [ sort @changed ] };
 }
 
 sub action_plugin_action {
