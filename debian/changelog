@@ -1,0 +1,13 @@
+lazysite (0.7.1-1) unstable; urgency=medium
+
+  * First Debian packaging (SM139 increments 1+2): lazysite-common ships
+    the engine payload at /usr/share/lazysite, the `lazysite` host CLI
+    (provision / upgrade / upgrade --all / check / users / dev / version),
+    the site registry directory /etc/lazysite/sites.d, generated man
+    pages, and the lazysite@.service FastCGI pool template unit packaging
+    the SM142 persistent runtime.
+  * Provisioning model: no root writes into site trees - provision and
+    upgrade run as the site user; only `upgrade --all` may run as root
+    (drops to each site's owner per site).
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Fri, 10 Jul 2026 12:00:00 +0000

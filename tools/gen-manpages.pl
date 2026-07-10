@@ -21,6 +21,7 @@ make_path($outdir) unless -d $outdir;
 my %scripts = (
     'lazysite-users' => "$root/tools/lazysite-users.pl",
     'lazysite-check' => "$root/tools/lazysite-check.pl",
+    'lazysite'       => "$root/tools/lazysite-cli.pl",
     'install'        => "$root/install.pl",
 );
 

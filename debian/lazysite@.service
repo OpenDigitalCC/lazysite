@@ -1,0 +1,41 @@
+# lazysite@.service - one persistent FastCGI pool per lazysite site
+# (SM142 runtime, packaged by SM139). Instance name = the site, normally
+# its domain: `systemctl enable --now lazysite@example.com`.
+#
+# THE PATTERN (documented here on purpose - correctness over cleverness):
+# systemd cannot template User= from an instance name, so the pool's
+# identity lives in /etc/lazysite/pools/%i.conf (DOCROOT=, USER=, and
+# optionally GROUP=, WORKERS=, MAX_REQUESTS=, SOCKET=). The unit starts
+# the launcher as root; the launcher binds /run/lazysite/%i.sock, chowns
+# it USER:GROUP 0660 so the web server can connect, drops privileges to
+# USER, puts the listen socket on fd 0 (the spawn-fcgi convention the
+# processor's dual-mode dispatch detects) and execs lazysite-processor.pl.
+# No root remains in the request path and nothing writes into the site
+# tree. Point the web server at the socket (see README.Debian), e.g.
+# Apache mod_proxy_fcgi:
+#   SetHandler "proxy:unix:/run/lazysite/example.com.sock|fcgi://localhost/"
+# Plain CGI keeps working untouched wherever no pool is configured.
+
+[Unit]
+Description=lazysite FastCGI pool (%i)
+Documentation=man:lazysite(1)
+After=network.target
+ConditionPathExists=/etc/lazysite/pools/%i.conf
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/lazysite/pools/%i.conf
+# /run/lazysite is shared by every instance; Preserve stops the first
+# pool to stop from deleting the other pools' sockets.
+RuntimeDirectory=lazysite
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+ExecStart=/usr/bin/perl /usr/share/lazysite/tools/lazysite-pool.pl --instance %i
+# With WORKERS=0 the single worker exits after MAX_REQUESTS requests
+# (memory hygiene) and Restart= respawns it; with WORKERS>0
+# FCGI::ProcManager recycles children itself.
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

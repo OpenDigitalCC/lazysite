@@ -18,6 +18,17 @@ Keying
 
 ## Unreleased
 
+Feature - lazysite-common.deb + the lazysite CLI (SM139 increments 1-2)
+: debian/ packaging builds lazysite-common (engine payload at
+  /usr/share/lazysite, /usr/bin/lazysite, man pages, the lazysite@ FastCGI
+  pool unit + /etc/lazysite/pools, the site registry /etc/lazysite/sites.d)
+  via tools/build-deb.sh into /srv/projects/packages/. The CLI enforces the
+  load-bearing principle - provision/upgrade REFUSE to run as root (upgrade
+  --all drops to each site owner); verbs: provision, upgrade [--all], check,
+  users, dev, version. tools/lazysite-pool.pl launches per-site FCGI pools
+  (binds /run/lazysite/<site>.sock, drops privileges, execs the processor).
+  Lintian-clean; smoke-tested from the extracted deb.
+
 ## 0.7.1 - Persistent runtime: FastCGI worker pools (2026-07-10)
 
 Feature - persistent runtime: dual-mode FastCGI accept loop (SM142)

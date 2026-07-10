@@ -1,0 +1,68 @@
+lazysite for Debian
+===================
+
+The one load-bearing principle: no root writes into site trees
+---------------------------------------------------------------
+
+Installing or upgrading this package only refreshes the host payload at
+/usr/share/lazysite. It NEVER touches a site tree. Sites are created and
+upgraded FROM that payload by the `lazysite` CLI, running AS THE SITE
+USER, so every file in the site tree carries the right ownership from
+the start - no chown-after repair pass:
+
+    sudo -u siteuser lazysite provision \
+        --docroot /home/siteuser/web/example.com/public_html \
+        --cgibin  /home/siteuser/web/example.com/cgi-bin \
+        --domain  example.com
+
+`lazysite provision` and `lazysite upgrade` refuse to run as root by
+design. The single exception is the fleet verb:
+
+    sudo lazysite upgrade --all
+
+which iterates the site registry (/etc/lazysite/sites.d/, one small
+key=value file per site, written at provision time) and drops to each
+site's owner via sudo per site.
+
+The registry directory ships root-owned. If unprivileged provision runs
+should self-register their sites, give the directory a writable group of
+your choosing (e.g. a `lazysite-registry` group containing the site
+accounts); otherwise `provision` prints the registry entry for the admin
+to drop in place and continues.
+
+Runtime: FastCGI pool (production) or plain CGI (fallback)
+----------------------------------------------------------
+
+Plain CGI keeps working exactly as before and needs nothing from this
+section. The packaged production shape is one persistent FastCGI pool
+per site (~150x faster on cache hits): install libfcgi-perl and
+libfcgi-procmanager-perl (Recommends), then per site:
+
+1. Create /etc/lazysite/pools/example.com.conf:
+
+       DOCROOT=/home/siteuser/web/example.com/public_html
+       USER=siteuser
+       GROUP=www-data
+       WORKERS=2
+       MAX_REQUESTS=500
+
+2. systemctl enable --now lazysite@example.com
+
+   systemd cannot template User= from an instance name, so the unit
+   starts /usr/share/lazysite/tools/lazysite-pool.pl as root; it binds
+   /run/lazysite/example.com.sock, chowns it USER:GROUP 0660, drops
+   privileges to USER, and execs the processor with the listen socket
+   on fd 0 (the spawn-fcgi convention). No root remains in the request
+   path. The pattern is documented in the unit file itself.
+
+3. Point the web server at the socket, e.g. Apache mod_proxy_fcgi:
+
+       SetHandler "proxy:unix:/run/lazysite/example.com.sock|fcgi://localhost/"
+
+   or nginx: fastcgi_pass unix:/run/lazysite/example.com.sock;
+
+Web-server vhost templates and panel (Hestia) integration arrive in the
+lazysite-apache / lazysite-nginx / lazysite-hestia packages (SM139
+increments 3-4); until then wire the vhost by hand as above.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Fri, 10 Jul 2026

@@ -1,0 +1,8 @@
+# Site registry: one file per provisioned site (see lazysite(1) REGISTRY).
+# Shipped root-owned; grant a group write access (e.g. a lazysite-registry
+# group, or per-host policy) if unprivileged provision runs should be able
+# to self-register - otherwise provision prints the entry for the admin.
+etc/lazysite/sites.d
+# Per-site FastCGI pool env files consumed by lazysite@.service
+# (DOCROOT=, USER=, GROUP=, WORKERS=, MAX_REQUESTS=).
+etc/lazysite/pools

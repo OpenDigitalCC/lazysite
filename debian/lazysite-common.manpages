@@ -1,0 +1,4 @@
+debian/man1/lazysite.1
+debian/man1/lazysite-check.1
+debian/man1/lazysite-users.1
+debian/man1/lazysite-install.1

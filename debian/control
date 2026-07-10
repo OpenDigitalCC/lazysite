@@ -1,0 +1,50 @@
+Source: lazysite
+Section: web
+Priority: optional
+Maintainer: Stuart J. Mackintosh <sjm@opendigital.cc>
+Build-Depends:
+ debhelper-compat (= 13),
+ perl,
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://lazysite.io
+
+Package: lazysite-common
+Architecture: all
+# Depends = engine hard requirements only (top-level `use` in the shipped
+# code, per dist/config/sbom-deps.json / docs/reference/host-dependencies.md):
+# Template Toolkit + MultiMarkdown are the processor core; everything else
+# non-core is lazy-required. perl covers the core modules (JSON::PP,
+# Digest::SHA, DB_File, ...).
+Depends:
+ perl,
+ libtemplate-perl,
+ libtext-multimarkdown-perl,
+ ${perl:Depends},
+ ${misc:Depends},
+# Recommends = the packaged production runtime (SM142 FastCGI pool) and the
+# lazily-loaded modules behind stock manager features (theme/layout install,
+# zip download, remote includes, SMTP forms).
+Recommends:
+ libfcgi-perl,
+ libfcgi-procmanager-perl,
+ libarchive-zip-perl,
+ libwww-perl,
+ liburi-perl,
+ libio-socket-ssl-perl,
+Suggests:
+ libnet-xmpp-perl,
+Description: static site builder and manager - engine payload and CLI
+ lazysite renders Markdown sites through Template Toolkit layouts, with a
+ built-in manager UI, WebDAV/MCP publishing endpoints, forms, and auth.
+ .
+ This package ships the engine payload at /usr/share/lazysite (never
+ touching any site tree), the `lazysite` host CLI (provision, upgrade,
+ check, users, dev server), the site registry directory
+ /etc/lazysite/sites.d, and the lazysite@.service systemd template unit
+ that runs one persistent FastCGI pool per site. Sites are provisioned
+ and upgraded from the payload AS THE SITE USER, so file ownership in
+ the site tree is correct by construction.
+ .
+ Plain CGI remains the zero-dependency fallback; the FastCGI pool
+ (libfcgi-perl, libfcgi-procmanager-perl) is the production shape.

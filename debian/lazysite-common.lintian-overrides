@@ -1,0 +1,11 @@
+# The payload under /usr/share/lazysite is a SOURCE tree, not run in
+# place: `lazysite provision|upgrade` copies it into site trees and
+# install.pl re-applies 0755 to .pl/.sh there (mode_for). dh_fixperms
+# stripping +x here is therefore harmless, and the CLI/unit invoke the
+# payload tools via `perl ...` explicitly.
+lazysite-common: script-not-executable [usr/share/lazysite/*]
+# CodeMirror ships inside the starter content because provisioned sites
+# are self-contained (a site tree cannot symlink into libjs-codemirror;
+# self-containment is the SM139 design - a host payload upgrade must not
+# break a site that has not opted in).
+lazysite-common: embedded-javascript-library please use libjs-codemirror [usr/share/lazysite/starter/*]

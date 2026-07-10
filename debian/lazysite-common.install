@@ -1,0 +1,25 @@
+# The engine payload: what a release tarball carries, at /usr/share/lazysite.
+# Installing/upgrading this package NEVER touches a site tree (SM139); the
+# payload is the source `lazysite provision|upgrade` copies FROM, as the
+# site user.
+lazysite-processor.pl   usr/share/lazysite
+lazysite-auth.pl        usr/share/lazysite
+lazysite-dav.pl         usr/share/lazysite
+lazysite-manager-api.pl usr/share/lazysite
+lazysite-mcp.pl         usr/share/lazysite
+lazysite-oauth.pl       usr/share/lazysite
+install.pl              usr/share/lazysite
+VERSION                 usr/share/lazysite
+LICENSE                 usr/share/lazysite
+release-manifest.json   usr/share/lazysite
+lib                     usr/share/lazysite
+plugins                 usr/share/lazysite
+starter                 usr/share/lazysite
+tools                   usr/share/lazysite
+docs/reference/host-dependencies.md usr/share/lazysite/docs/reference
+# SM142 pool template unit. Installed via dh_install rather than
+# dh_installsystemd's file discovery because the unit name (lazysite@)
+# differs from the package name; a template unit has no instance to
+# enable/start at package install time, so no maintscript is needed -
+# dh_installsystemd still sees it in the staged tree for housekeeping.
+debian/lazysite@.service usr/lib/systemd/system

@@ -1,0 +1,32 @@
+#!/usr/bin/make -f
+# debian/rules for lazysite (SM139 increment 1: lazysite-common).
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+%:
+	dh $@
+
+# The repo Makefile is a `prove` front-end, not a build system - keep dh's
+# make auto-detection away from it (its default target runs the full test
+# suite; the deb build is not the test gate, t/ is).
+override_dh_auto_build:
+	# install.pl installs/upgrades from the manifest beside it, so the
+	# payload must carry one, generated from the staged tree exactly as
+	# tools/release.sh does for the tarball (channel: edge; stable debs
+	# are cut from release.sh --final trees, SM139 increment 3 wires
+	# the apt suites).
+	perl tools/build-manifest.pl --staged . --out release-manifest.json
+	perl tools/gen-manpages.pl debian/man1
+	# install(1) belongs to coreutils; ship the installer's page under a
+	# package-scoped name.
+	mv debian/man1/install.1 debian/man1/lazysite-install.1
+
+override_dh_auto_test:
+
+override_dh_auto_install:
+
+override_dh_auto_clean:
+
+# /usr/bin/lazysite is tools/lazysite-cli.pl renamed; plain install(1) is
+# the simplest correct rename mechanism (no dh-exec build-dep).
+execute_after_dh_install:
+	install -D -m 0755 tools/lazysite-cli.pl debian/lazysite-common/usr/bin/lazysite
