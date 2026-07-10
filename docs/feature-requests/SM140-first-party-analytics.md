@@ -45,6 +45,19 @@ Write mechanics
   PIPE_BUF, so concurrent CGI appends cannot interleave; no locking. Cost is
   one syscall trio on top of a CGI process start - negligible (bench-gated).
 
+No write buffering (decided 2026-07-10)
+: under plain CGI every request is its own process, so there is nothing to
+  buffer ACROSS - a buffer would live and die inside one request, saving
+  nothing. Cross-request batching would need a daemon or shared state, and
+  loses the buffered tail exactly when it matters most (the requests just
+  before a crash). One append per request IS the minimum I/O. Revisit only
+  if a persistent runtime (FCGI) ever lands.
+
+500s are recorded too
+: the recorder writes from a die-guard as well as the normal output paths, so
+  a runtime failure in the processor still leaves a status-500 line. (A
+  compile-level or exec-level crash cannot self-log - see the two-tier note.)
+
 Rotation and retention
 : daily files; on the first request of a new day, unlink files older than
   `retention_days` (default 90). Self-managing size; no logrotate dependency.
@@ -56,15 +69,32 @@ stats.pl reads first-party data first
   and pre-SM140 history - useful when readable, never required. The
   needs_config error state disappears for the default path.
 
-## What is and is not captured (documented, not hidden)
+## Two tiers: analytics (first-party) vs diagnostics (web server)
 
-- Captured: every page view (cache hit or miss), every clean-URL 404 and
-  scanner probe, form/api/dav activity (channel-tagged, excluded from the
-  visitor headline).
-- Not captured: direct static-asset hits (images/css/js served by the web
-  server). These are not visitor metrics; the current server-log stats
-  actually pollute "top pages" with favicons and images. Asset counts stay
-  available via the optional server-log enrichment.
+The web-server log's ROLE changes from load-bearing to diagnostic; the access
+problem on panel hosts is not solved by SM140 - it is re-scoped to the layer
+where root access already exists.
+
+Tier 1 - first-party analytics (this spec, zero setup)
+: everything FallbackResource routes to the processor: every page view (cache
+  hit or miss), every clean-URL 404 and scanner probe, AND every MISSING
+  asset - a missing image is a non-existent file, so the web server hands it
+  to the processor, which 404s it and records it. Runtime 500s are recorded
+  by the die-guard. This is the complete visitor-experience record for
+  everything lazysite is alive to serve.
+
+Tier 2 - web-server diagnostics (optional, owner-wired)
+: what only the web server can see: SUCCESSFUL static-asset serves, CGI
+  hard-crashes (compile/exec level - "End of script output before headers"),
+  and proxy-layer failures (nginx 502/504, TLS). A system cannot log its own
+  absence; this tier inherently belongs to the server owner, who has root -
+  i.e. already has access by definition. It is episodic troubleshooting, not
+  a manager-facing feature. The SM139 environment debs install as root ONCE
+  and wire this properly at package-install time (log ACL + logrotate
+  inheritance, LAZYSITE_ACCESS_LOG env); unpackaged hosts follow a documented
+  grant. The stats page consumes it as `source: server-log` enrichment
+  (asset counts, AH-code error categories) whenever it happens to be
+  readable - useful, never required.
 
 ## Alternatives rejected
 
