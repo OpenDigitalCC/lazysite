@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.6.8 - First-party analytics: stats work out of the box (2026-07-10)
+
 Feature - first-party analytics: lazysite records its own traffic (SM140 i1+i2)
 : the processor writes one anonymised JSON line per request to
   `lazysite/logs/access-YYYYMMDD.jsonl` (daily-salted visitor key - never the
