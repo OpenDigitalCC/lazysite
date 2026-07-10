@@ -1,31 +1,33 @@
 # Coverage floors for `tools/coverage.sh --check`.
 #
-# Commercial-regime TARGET: 75% statements.
-# Enforced regression floors: 60% statements AND 60% branches per
-# cleanly-measured production CGI (eight-dimension review D3: the framework
-# requires line and branch thresholds, not statements alone). Ratchet upward
-# as coverage improves - never down.
+# Enforced floors (2026-07-10 review D3, recommendation 3): 75% statements
+# AND 62% branches per cleanly-measured production CGI. The statement floor
+# now IS the Commercial-regime floor (75%) - met by enforcement, not just in
+# fact. Ratchet upward as coverage improves - never down.
 #
 # lazysite-auth.pl joined the gate 2026-07-02: its tests always ran it from
 # the repo path, but they rebuilt %ENV from scratch and dropped PERL5OPT, so
 # the instrumentation never reached the child ("not measured"). Fixed via
 # TestHelper::env_passthrough() in every %ENV-rebuilding test.
 #
-# Measured baseline (full suite, subprocess-instrumented; 2026-07-02, after
-# the eight-dimension-review hardening), statement / branch:
+# Measured baseline (full suite, subprocess-instrumented; v0.6.10 tag run,
+# 2026-07-10 eight-dimension review D3 F3.4/F3.6), statement / branch:
 #
 #   CGIs (the gate):
-#     lazysite-dav.pl                 93% / 73%
-#     lazysite-processor.pl           83% / 69%
-#     lazysite-auth.pl                82% / 61%   <- newly gated (measured via
-#                                                    env_passthrough; reported
-#                                                    under the fake-repo copy path)
-#     tools/lazysite-bundle-apply.pl  90% / 65%
-#     tools/lazysite-users.pl         89% / 70%
-#     lazysite-manager-api.pl         71% / ~57%   <- branch settled ~57 across
-#                                                     0.5.36-0.5.39; see override
+#     lazysite-dav.pl                 93.6 / 72.9
+#     lazysite-processor.pl           85.3 / 71.6
+#     lazysite-auth.pl                82.1 / 62.5  <- see branch override below
+#     tools/lazysite-bundle-apply.pl  89.8 / 65.0
+#     tools/lazysite-users.pl         89.0 / 70.8
+#     lazysite-manager-api.pl         79.5 / 62.7  <- see branch override below
+#     lazysite-mcp.pl                 90.2 / 62.6  <- gated 2026-07-10 (review
+#                                                     rec 2); see override below
+#     lazysite-oauth.pl               79.0 / 58.9  <- gated 2026-07-10; branch
+#                                                     tests added the same day
+#                                                     (t/unit/oauth/03-branches.t,
+#                                                     targeted run 99.3 / 94.6)
 #
-#   Modules (in-process + now-measured subprocess handlers):
+#   Modules (2026-07-02 run; in-process + now-measured subprocess handlers):
 #     Util 100/92 · Auth::Acl 100/85 · Session 100/73 · Credential 100/72
 #     Settings 96/69 · Audit 100/70 · Manager::Files 96/72 · Common 88/76
 #     Upload 82/69 · Themes 76/52 · Layouts 75/54 · Plugins 66/43
@@ -36,17 +38,27 @@
 # were never instrumented. TestHelper::env_passthrough() (2026-07-02) fixed
 # the measurement; the handlers were always tested. install.pl remains outside
 # the gate (its tests exercise a tempdir-copied tree end to end).
-floor=60
-branch_floor=60
+floor=75
+branch_floor=62
 # manager-api's BRANCH measurement swings run-to-run (56.6% - 80.7% observed on
 # near-identical code) - a merge-timing artifact of the instrumented subprocess
 # children, not a true coverage change. t/unit/manager/23-manager-read-actions.t
 # (2026-07-03) added real coverage for five previously-untested actions (pages,
 # config-read, principals, notices, notices-seen); the next run measured 84.6% /
-# 80.7%. Override raised to the review's 60 target (this run clears it with wide
-# margin). CAVEAT: the residual merge variance means a rare low run could dip
-# near 60; if a release gate ever flakes here, dial this back to 55 - the real
-# fix is the subprocess-coverage-stability work (backlog), not weaker tests.
-# Statements are stable (70.9-84.6). Never lower the others.
+# 80.7%. Override RETAINED at 60 under the 2026-07-10 ratchet to 62: the v0.6.10
+# measurement (62.7) clears 62 by only 0.7 points, inside the documented
+# variance band. CAVEAT: if a release gate ever flakes here, dial this back to
+# 55 - the real fix is the subprocess-coverage-stability work (backlog), not
+# weaker tests. Statements are stable (70.9-84.6). Never lower the others.
 branch_floor[lazysite-manager-api.pl]=60
+# auth and mcp measured 62.5 and 62.6 branches at v0.6.10 - real coverage, but
+# a margin of ~0.5 points over the 62 floor, thinner than the run-to-run
+# variance the instrumented-subprocess merge is documented to produce (see the
+# manager-api note above; auth's earlier full-suite run measured 61). Held at
+# the previous enforced floor (60) so the ratchet to 62 cannot flake the
+# release gate on measurement noise; remove these overrides when the
+# subprocess-coverage-stability work (backlog) lands or when targeted branch
+# tests lift them clear of 62+variance. Never lower the others.
+branch_floor[lazysite-auth.pl]=60
+branch_floor[lazysite-mcp.pl]=60
 target=75

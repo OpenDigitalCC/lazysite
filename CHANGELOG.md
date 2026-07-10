@@ -18,6 +18,15 @@ Keying
 
 ## Unreleased
 
+Tests - 2026-07-10 review batch 3 (coverage scope + floors)
+: lazysite-oauth.pl gains 51 branch-focused behavioural tests (79.0/58.9 ->
+  99.3/94.6 stmt/branch); lazysite-mcp.pl and lazysite-oauth.pl join the
+  coverage gate (eight CGIs gated); floors ratcheted to 75% statements / 62%
+  branches - the Commercial regime floor is now the enforced floor. Three
+  documented per-file branch overrides at 60 (manager-api, auth, mcp - each
+  within subprocess merge variance of 62, none weaker than the previous
+  floor, each with a dial-back note).
+
 Docs - 2026-07-10 review batch 2 (declarations + currency)
 : RELIABILITY.md declares the reference SLO/RTO/RPO + error budget mapped to
   the existing failure-mode evidence (clears the D5 refusal); ADR 0007

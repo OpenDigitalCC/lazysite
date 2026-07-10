@@ -41,7 +41,7 @@ if [ "$1" = "--check" ]; then
     report=$(cover -silent -report text "$DB" 2>/dev/null)
     fail=0
     for f in lazysite-dav.pl lazysite-processor.pl lazysite-manager-api.pl \
-             lazysite-auth.pl \
+             lazysite-auth.pl lazysite-mcp.pl lazysite-oauth.pl \
              tools/lazysite-users.pl tools/lazysite-bundle-apply.pl; do
         # Suffix match as well as exact: a test fixture may run a CGI from a
         # tempdir copy (e.g. the fake-repo fixture copies lazysite-auth.pl),
