@@ -44,6 +44,7 @@ my %ACTION_INFO = (
     manage_content => {
         title   => 'Read and write site content (pages, assets).',
         unlocks => {
+            api => [qw(aliases-list)],
             mcp    => [qw(list_files read_file write_file replace_text copy_file
                           move_file delete_file create_page delete_page rename_page
                           list_pages read_page preview_page page_status search_files

@@ -46,6 +46,21 @@ search: false
 </table>
 <div id="file-pager" class="mg-pager"></div>
 
+<div class="mg-card" id="aliases-card">
+<div class="mg-card-header"><span class="mg-card-title">Aliases</span>
+<button class="mg-btn mg-btn-sm" onclick="loadAliases()">Refresh</button></div>
+<div class="mg-card-body">
+<p class="mg-muted">Alternate URLs that redirect to a page. Aliases are authored in each
+page's front matter (<code>aliases:</code> for permanent 301 redirects,
+<code>aliases_temp:</code> for temporary 302s) - this list is read-only.</p>
+<table class="mg-file-table" id="alias-table" style="display:none">
+<thead><tr><th>Alias</th><th>Redirects to</th><th>Type</th></tr></thead>
+<tbody id="alias-rows"></tbody>
+</table>
+<p class="mg-muted" id="alias-empty" style="display:none">No aliases are defined yet.</p>
+</div>
+</div>
+
 </div>
 
 <script>
@@ -790,6 +805,33 @@ function updateSelection() {
   }
 }
 
+// SM134 follow-ups: read-only view of the alias-redirect map (aliases.json).
+function loadAliases() {
+  fetch(API + '?action=aliases-list')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) return;   // leave the card in its empty state
+      var rows = d.aliases || [];
+      var table = document.getElementById('alias-table');
+      var empty = document.getElementById('alias-empty');
+      if (!rows.length) { table.style.display = 'none'; empty.style.display = ''; return; }
+      var html = '';
+      for (var i = 0; i < rows.length; i++) {
+        var a = rows[i];
+        var badge = a.code === 302
+          ? '<span class="mg-alias-badge mg-alias-302" title="Temporary redirect (aliases_temp:)">302</span>'
+          : '<span class="mg-alias-badge" title="Permanent redirect (aliases:)">301</span>';
+        html += '<tr><td>' + escHtml(a.alias) + '</td>'
+              + '<td><a href="' + escHtml(a.target) + '">' + escHtml(a.target) + '</a></td>'
+              + '<td>' + badge + '</td></tr>';
+      }
+      document.getElementById('alias-rows').innerHTML = html;
+      table.style.display = '';
+      empty.style.display = 'none';
+    })
+    .catch(function() { /* card stays empty */ });
+}
+
 function readInitDir() {
   var qs = location.search;
   if (qs && qs.length > 1) {
@@ -804,4 +846,5 @@ function readInitDir() {
 }
 
 loadPrincipals().then(function() { loadDir(readInitDir()); });
+loadAliases();
 </script>

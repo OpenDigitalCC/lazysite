@@ -18,6 +18,48 @@ Keying
 
 ## Unreleased
 
+Feature - alias redirects: 302 override, reindex on move/copy, manager visibility (SM134 follow-ups)
+: A page may declare `aliases_temp:` alongside `aliases:` (same list syntax);
+  its entries redirect `302 Found` instead of the default `301 Moved
+  Permanently`. The map schema stays backward compatible - a plain string
+  value is a 301 target exactly as in 0.6.1; only 302 entries become
+  `{ target, code }` (old maps need no migration; unknown codes read as
+  301). Manager `move`/`copy`/migrate-to-local and WebDAV MOVE/COPY now
+  reindex the affected page(s) - directories per page beneath them - so a
+  rename re-keys its aliases immediately instead of on the next save. The
+  Files page gains a read-only Aliases card (alias → target with a 301/302
+  badge) backed by the new `aliases-list` read action (cookie: any manager;
+  token: `manage_content`; audit-skipped as a read). The redirect target is
+  still always the declaring page's own URL. Tests extended across
+  t/unit/lib/13-aliases.t, t/unit/processor/26-alias-redirect.t,
+  t/unit/lib/09-files-handlers.t, t/unit/dav/05-copy-move.t and the manager
+  API suites.
+
+Feature - Domain aliases: extra hosts serve the same site with their own chrome (SM110 phases 1+2)
+: `lazysite.conf` gains `alias_hosts:` (comma-separated extra hostnames)
+  and `alias.<host>.<key>:` per-host overrides, whitelisted to the
+  presentation keys `site_name`, `theme`, `layout`, `nav_file`,
+  `search_default` - security-relevant keys (`manager`, `auth_*`,
+  `webdav_*`) can never vary by the request-supplied Host header and are
+  ignored with a WARN. The processor sanitises the Host header (lowercase,
+  port stripped, hostname alphabet) and overlays the matching alias's
+  overrides in `resolve_site_vars`; the primary host, undeclared hosts,
+  and malformed Host headers keep the base conf unchanged. The page cache
+  is host-keyed (phase 2): the primary keeps its `.html` siblings exactly
+  as before, while each alias host caches renders in its own slot under
+  `lazysite/cache/hosts/<host>/` with identical caching rules - a themed
+  render can never cross hosts. Every cache-invalidation surface (editor
+  save/delete/move/upload, WebDAV writes, manager and MCP
+  cache-invalidate incl. Clear All, theme/layout activation, nav-change
+  sweep, backup restore, installer removals, audit report) also drops the
+  per-host copies (`Lazysite::Util::unlink_host_copies` /
+  `clear_host_cache`); shared registry regeneration is still skipped on
+  alias requests. New `alias_host` TT variable (empty on the primary)
+  lets layouts branch per host or mark canonical links. Conf-file only -
+  not exposed through the manager UI or control API. Scoping doc:
+  `docs/feature-requests/SM110-domain-aliases.md`. Tests:
+  `t/integration/16-domain-aliases.t`.
+
 Feature - Sessions page lists and revokes live sessions (SM141 phase 1)
 : Signed cookies stay the source of truth; the payload gains a short random
   session id (`user:ts:sid:groups` - legacy 3-field cookies remain valid

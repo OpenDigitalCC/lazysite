@@ -45,4 +45,45 @@ unlike( $miss, qr{Status:\s*301}i, 'an unknown path is not redirected' );
 my $real = run_processor( $docroot, '/pricing' );
 unlike( $real, qr{Status:\s*301}i, 'the canonical page is served, not redirected' );
 
+# === SM134 follow-ups: aliases_temp -> 302; old map entries stay 301 =========
+# Build the map through the writer (Lazysite::Aliases), as a save would - a page
+# declaring both kinds - then confirm the processor honours the per-entry type.
+use lib "$FindBin::Bin/../../../lib";
+require Lazysite::Aliases;
+
+open my $mx, '>', "$docroot/moving.md" or die $!;
+my $mixed = "---\ntitle: Moving\naliases:\n  - /old-home\naliases_temp:\n  - /interim\n---\n\nHi.\n";
+print $mx $mixed;
+close $mx;
+Lazysite::Aliases::index_page( $docroot, 'moving.md', $mixed );
+
+# --- an aliases_temp entry 302s ---
+my $tmp = run_processor( $docroot, '/interim' );
+like( $tmp, qr{Status:\s*302 Found}i,   'a temporary alias returns 302 Found' );
+like( $tmp, qr{Location:\s*/moving\b},  'the 302 still points at the canonical URL' );
+
+# --- mixed 301/302 on one page: the permanent sibling stays 301 ---
+my $perm = run_processor( $docroot, '/old-home' );
+like( $perm, qr{Status:\s*301 Moved Permanently}i, 'the same page\'s aliases: entry stays 301' );
+like( $perm, qr{Location:\s*/moving\b}, 'the 301 points at the canonical URL' );
+
+# --- backward compat: the hand-written old-format (string) entries above are
+# still 301 with the new reader ---
+my $legacy = run_processor( $docroot, '/old-pricing' );
+like( $legacy, qr{Status:\s*301 Moved Permanently}i,
+    'an old-format (plain string) map entry still redirects 301' );
+
+# --- defence in depth: an unknown code in a hand-edited map falls back to 301 ---
+{
+    open my $mf, '<', "$docroot/lazysite/aliases.json" or die $!;
+    my $raw = do { local $/; <$mf> };
+    close $mf;
+    $raw =~ s/\}$/,"\/odd":{"target":"\/pricing","code":307}}/;
+    open my $wf, '>', "$docroot/lazysite/aliases.json" or die $!;
+    print $wf $raw;
+    close $wf;
+    my $odd = run_processor( $docroot, '/odd' );
+    like( $odd, qr{Status:\s*301}i, 'an unknown redirect code reads as 301' );
+}
+
 done_testing();

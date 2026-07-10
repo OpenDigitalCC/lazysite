@@ -119,6 +119,15 @@ works on staging and production.
   (for a TLS-terminating proxy or trusted LAN). Loopback is always
   allowed; leave off otherwise.
 
+`alias_hosts`
+: Comma-separated list of extra hostnames that serve this site as
+  domain aliases, e.g. `alias_hosts: blog.example.com, brand2.example`.
+  See [Domain aliases](#domain-aliases) below.
+
+`alias.<host>.<key>`
+: Per-alias-host override for a whitelisted presentation key. See
+  [Domain aliases](#domain-aliases) below.
+
 All other keys become TT variables available in page content and the
 view template.
 
@@ -147,6 +156,41 @@ Only these CGI variables may be used with `${VAR}` syntax:
 
 `HTTP_HOST` is intentionally excluded - it is request-supplied and
 therefore untrusted. Use `SERVER_NAME` for host-based URL construction.
+
+### Domain aliases
+
+A domain alias is an additional host that serves the *same* site - same
+files, users, and plugins - with its own look: site name, theme (or
+layout), and navigation. Declare the hosts, then override per host:
+
+    alias_hosts: brand2.example, blog.example.com
+    alias.brand2.example.site_name: Brand Two
+    alias.brand2.example.theme: dark
+    alias.brand2.example.nav_file: lazysite/brand2-nav.conf
+
+Rules:
+
+- Only these keys may be overridden per host: `site_name`, `theme`,
+  `layout`, `nav_file`, `search_default`. Anything else (notably
+  `manager`, `auth_*`, `webdav_*`) is ignored with a logged warning -
+  the Host header is request-supplied, so security settings must never
+  vary by host.
+- The request's Host header is matched case-insensitively against
+  `alias_hosts` (port stripped). The primary host, undeclared hosts, and
+  malformed Host headers all get the base configuration unchanged.
+- The page cache is host-keyed: the primary host caches as usual, and
+  each alias host caches its renders in its own slot (under
+  `lazysite/cache/hosts/`), so a themed render is never served to the
+  wrong host. Editing a page - or invalidating it from the manager's
+  Cache page - clears every host's copy.
+- The active alias host is available to layouts as the `alias_host` TT
+  variable (empty on the primary), e.g. to mark canonical links.
+- Aliases are configured in the conf file only - they are not editable
+  through the manager UI or the control API.
+
+The web server must route the alias hosts to the same docroot (an
+Apache/nginx server alias). See the SM110 scoping document in the
+lazysite repository for design details and planned phases.
 
 ## Navigation (nav.conf)
 

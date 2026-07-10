@@ -133,6 +133,30 @@ open my $p2, '>', "$d/blog/post.md"  or die $!; print $p2 "# Post\n";  close $p2
         'notices: refused without the notifications capability' );
 }
 
+# --- action_aliases_list (SM134 follow-ups) ---------------------------------
+{
+    # Both map shapes: an old-format 301 (plain string) and a new-format 302.
+    open my $am, '>', "$d/lazysite/aliases.json" or die $!;
+    print $am '{"/old-post":"/blog/post","/preview":{"target":"/blog/post","code":302}}';
+    close $am;
+
+    my $r = op_get( $d, 'action=aliases-list' );
+    ok( $r->{ok}, 'aliases-list: ok' );
+    is_deeply( $r->{aliases},
+        [ { alias => '/old-post', target => '/blog/post', code => 301 },
+          { alias => '/preview',  target => '/blog/post', code => 302 } ],
+        'aliases-list: sorted rows of { alias, target, code }, old format read as 301' );
+
+    # UI presence: the Files page ships the read-only Aliases card and fetches
+    # this action (lock-step with the API, like config.md's schema mirror).
+    open my $ff, '<', TestHelper::repo_root() . '/starter/manager/files.md' or die $!;
+    my $files_page = do { local $/; <$ff> };
+    close $ff;
+    like( $files_page, qr/action=aliases-list/, 'Files page fetches aliases-list' );
+    like( $files_page, qr/mg-card-title">Aliases</, 'Files page has the Aliases card' );
+    like( $files_page, qr/aliases_temp/, 'the card explains the aliases_temp front-matter key' );
+}
+
 # --- action_recent_changes (SM103) ------------------------------------------
 {
     make_path("$d/lazysite/cache");

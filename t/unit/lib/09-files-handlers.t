@@ -12,7 +12,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Files
     qw(action_list action_save action_mkdir action_delete action_move action_copy action_migrate_to_local
-       action_acl_set action_acl_remove acquire_lock renew_lock release_lock);
+       action_aliases_list action_acl_set action_acl_remove acquire_lock renew_lock release_lock);
 use Lazysite::Aliases qw(lookup);
 use Lazysite::Manager::Common ();
 use Lazysite::Auth::Acl qw(load_acls);
@@ -201,6 +201,53 @@ ok( $e->{lock} && $e->{lock}{locked_by} eq 'alice', 'list surfaces the lock hold
     ok( action_delete('content/pricing.md')->{ok}, 'aliased page deleted' );
     is( lookup( $d, '/old-pricing' ), undef,
         'action_delete cleared the alias (SM134 hook)' );
+}
+
+# --- SM134 follow-ups: move/copy re-key the alias map without a save ---------
+{
+    my $md = "---\ntitle: Guide\naliases:\n  - /old-guide\naliases_temp:\n  - /guide-preview\n---\n\nG.\n";
+    ok( action_save( 'content/guide.md', 'alice', $md )->{ok}, 'aliased page saved' );
+    is( lookup( $d, '/old-guide' ), '/content/guide', 'alias targets the original path' );
+
+    # rename via the manager action: the alias follows, no save needed
+    ok( action_move( 'content/guide.md', 'content/handbook.md', 'alice' )->{ok},
+        'aliased page moved' );
+    is( lookup( $d, '/old-guide' ), '/content/handbook',
+        'action_move re-keyed the 301 alias to the new target' );
+    is( lookup( $d, '/guide-preview' ), '/content/handbook',
+        'action_move re-keyed the 302 alias too' );
+
+    # duplicate: the copy carries the alias list, so it takes the aliases
+    # (last-writer-wins, same as a save)
+    ok( action_copy( 'content/handbook.md', 'content/handbook-v2.md', 'alice' )->{ok},
+        'aliased page copied' );
+    is( lookup( $d, '/old-guide' ), '/content/handbook-v2',
+        'action_copy indexed the duplicate (last writer wins)' );
+}
+
+# --- SM134 follow-ups: migrate-to-local indexes the fetched page's aliases ---
+{
+    no warnings qw(redefine once);
+    local *Lazysite::Fetch::fetch_url =
+        sub { "---\ntitle: R\naliases:\n  - /moved-in\n---\n\nbody\n" };
+    open my $u3, '>', "$d/content/incoming.url" or die $!;
+    print {$u3} 'https://example.com/incoming';
+    close $u3;
+    ok( action_migrate_to_local( 'content/incoming.url', 'alice' )->{ok},
+        'aliased .url migrated' );
+    is( lookup( $d, '/moved-in' ), '/content/incoming',
+        'migrate-to-local indexed the fetched aliases' );
+}
+
+# --- SM134 follow-ups: action_aliases_list returns the map rows --------------
+{
+    my $r = action_aliases_list();
+    ok( $r->{ok}, 'aliases-list ok' );
+    my %by_alias = map { $_->{alias} => $_ } @{ $r->{aliases} };
+    is( $by_alias{'/old-guide'}{target}, '/content/handbook-v2',
+        'aliases-list row carries the target' );
+    is( $by_alias{'/old-guide'}{code}, 301, 'permanent row reports 301' );
+    is( $by_alias{'/guide-preview'}{code}, 302, 'temporary row reports 302' );
 }
 
 done_testing();

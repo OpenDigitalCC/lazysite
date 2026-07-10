@@ -54,7 +54,18 @@ Everything below the closing `---` is the page body. All keys are optional unles
       - /plans
     ---
 
-  A real page always wins over an alias, so an alias only takes effect when nothing else lives at that path. The alias list is kept up to date whenever the page is saved (manager or WebDAV) and cleared when it is deleted.
+  A real page always wins over an alias, so an alias only takes effect when nothing else lives at that path. The alias list is kept up to date whenever the page is saved, renamed, moved or copied (manager or WebDAV) and cleared when it is deleted.
+
+`aliases_temp`
+: Like `aliases`, but the redirect is a `302 Found` (temporary) instead of a `301 Moved Permanently` - use it while a URL is only provisionally forwarding, so browsers and search engines do not cache the redirect. Same list syntax and same rules; a path listed under both keys is treated as temporary. Example:
+
+    ---
+    title: Summer Sale
+    aliases_temp:
+      - /offer
+    ---
+
+  The current alias map (with each entry's redirect type) is shown read-only on the manager Files page.
 
 ## Dynamic & data keys
 

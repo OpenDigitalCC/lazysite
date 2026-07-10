@@ -617,6 +617,13 @@ sub do_copy_move {
 
     invalidate_cache( $src->{abs} ) if $move;
     invalidate_cache( $dst->{abs} );
+    # SM134 follow-ups: keep the alias-redirect map current across MOVE/COPY -
+    # the moved/copied page(s) would otherwise re-index only on the next save.
+    {
+        require Lazysite::Aliases;
+        if ($move) { Lazysite::Aliases::reindex_move( $DOCROOT, $a{rel}, $drel ) }
+        else       { Lazysite::Aliases::reindex_copy( $DOCROOT, $drel ) }
+    }
     log_event( 'INFO', $a{user}, ( $move ? 'dav move' : 'dav copy' ),
         path => $a{rel}, dest => $drel,
         status => ( $dst_exists ? 204 : 201 ) );
@@ -1201,6 +1208,8 @@ sub invalidate_cache {
     return unless $abs =~ /\.md$/;
     ( my $cache = $abs ) =~ s/\.md$/.html/;
     unlink $cache if -f $cache;
+    # SM110: drop the per-alias-host copies of this page's render too.
+    Lazysite::Util::unlink_host_copies( $DOCROOT, $cache );
 }
 
 # ---------------------------------------------------------------------

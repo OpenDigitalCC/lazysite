@@ -1754,3 +1754,9 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
 /* Plugin Manager: per-row Configure link (SM - plugin page split) */
 .mg-plugin-row-config { margin-left: auto; font-size: var(--mg-text-sm); color: var(--mg-accent); text-decoration: none; }
 .mg-plugin-row-config:hover { text-decoration: underline; }
+
+/* SM134 follow-ups: Files page Aliases card - redirect-type badges */
+.mg-alias-badge { display: inline-block; padding: 0 0.45em; border-radius: 0.7em;
+  font-size: 0.75em; font-weight: 700; line-height: 1.5;
+  background: var(--mg-accent-bg, #e8f0fa); color: var(--mg-accent, #3a7bd5); }
+.mg-alias-302 { background: var(--mg-warn-bg, #faf3e0); color: var(--mg-warn, #b07d1a); }

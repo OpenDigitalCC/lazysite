@@ -74,6 +74,9 @@ identity and review the plugin registry.
 - Open a page for editing (`/manager/edit?path=...`)
 - Create new `.md`, `.url`, and directory entries
 - Delete files (with confirmation)
+- Review the site's alias redirects in the read-only Aliases card
+  (alias → target, with a 301/302 badge; aliases are authored in each
+  page's front matter via `aliases:` / `aliases_temp:`)
 
 The editor at `/manager/edit` shows:
 

@@ -301,6 +301,8 @@ sub action_file_upload {
         if ( $full_target =~ /\.md$/ ) {
             ( my $cache = $full_target ) =~ s/\.md$/.html/;
             unlink $cache if -f $cache;
+            # SM110: drop the per-alias-host copies of this page's render too.
+            Lazysite::Util::unlink_host_copies( $DOCROOT, $cache );
         }
     }
 

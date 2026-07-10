@@ -39,7 +39,7 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
     action_plugin_read action_plugin_save action_plugin_action action_handler_list
     action_handler_save action_handler_delete action_form_targets_read action_form_targets_save);
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
-    action_move action_copy action_migrate_to_local
+    action_move action_copy action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove);
 use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action_theme_activate
@@ -337,6 +337,9 @@ if ( $token_auth ) {
         # write the site nav without the MCP connector or raw WebDAV to lazysite/.
         'nav-read'          => sub { $_[0]->{manage_nav} },
         'nav-save'          => sub { $_[0]->{manage_nav} },
+        # SM134 follow-ups: the alias-redirect map is content-derived - a content
+        # partner may list it (read-only; aliases are front-matter-authored).
+        'aliases-list' => sub { $_[0]->{manage_content} },
         'whoami'            => sub { 1 },   # any authenticated token may introspect its own grant
         'describe-capabilities' => sub { 1 },   # SM126: introspection - the capability map
         # Visitor-log analysis over the control API (token clients), same grant as
@@ -398,6 +401,7 @@ elsif ( $action eq 'mkdir' )            { $result = action_mkdir($path) }
 elsif ( $action eq 'move' )             { $result = action_move( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'copy' ) { $result = action_copy( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'migrate-to-local' ) { $result = action_migrate_to_local( $path, $auth_user ) }
+elsif ( $action eq 'aliases-list' )     { $result = action_aliases_list() }
 elsif ( $action eq 'lock' )             { $result = acquire_lock( $path, $auth_user ) }
 elsif ( $action eq 'unlock' )           { $result = release_lock( $path, $auth_user ) }
 elsif ( $action eq 'renew-lock' )       { $result = renew_lock( $path, $auth_user ) }
@@ -586,7 +590,7 @@ else  { $result = { ok => 0, error => "Unknown action: $action" } }
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
         csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
-        cache-invalidate nav-read config-read bad-url-blocks recent-changes pages theme-list themes-list-all themes-for-layout
+        cache-invalidate nav-read aliases-list config-read bad-url-blocks recent-changes pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant

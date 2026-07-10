@@ -11,6 +11,9 @@ search: false
 <button class="mg-btn mg-btn-danger" onclick="clearAll()">Clear All Cache</button>
 </div>
 
+<!-- SM110: alias-host copies are invalidated alongside, not listed. -->
+<p style="font-size:0.85em;color:#888;margin:0 0 12px;">The list shows primary-host renders. If domain aliases are configured (<code>alias_hosts</code>), each alias host's cached copies are cleared together with a page's Invalidate and by Clear All.</p>
+
 <div class="mg-status" id="cache-stats"></div>
 
 <div class="mg-file-list" id="cache-list">

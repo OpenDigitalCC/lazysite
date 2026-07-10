@@ -795,6 +795,17 @@ sub execute_plan {
             if ( $step->{dest} =~ /\.md$/ ) {
                 ( my $cached = $step->{dest} ) =~ s/\.md$/.html/;
                 unlink $cached if -f $cached;
+                # SM110: and its per-alias-host copies (standalone installer -
+                # inline rather than the Lazysite::Util helper).
+                ( my $rel = $cached ) =~ s{^\Q$opt{docroot}\E/?}{};
+                my $hosts = "$opt{docroot}/lazysite/cache/hosts";
+                if ( length $rel && $rel !~ m{\.\.} && opendir( my $hd, $hosts ) ) {
+                    for my $h ( readdir $hd ) {
+                        next                    if $h =~ /^\./;
+                        unlink "$hosts/$h/$rel" if -f "$hosts/$h/$rel";
+                    }
+                    closedir $hd;
+                }
             }
             $stats{removed}++;
         }

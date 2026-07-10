@@ -12,7 +12,7 @@ use warnings;
 use POSIX ();
 use Exporter 'import';
 
-our @EXPORT_OK = qw(log_event const_eq);
+our @EXPORT_OK = qw(log_event const_eq unlink_host_copies clear_host_cache);
 
 our $COMPONENT = 'lazysite';
 
@@ -67,6 +67,50 @@ sub log_event {
         $line .= " $extras" if $extras;
         print STDERR "$line\n";
     }
+}
+
+# SM110 phase 2: the host-keyed page cache. An alias host's rendered pages
+# live at lazysite/cache/hosts/<host>/<rel>.html (written by the processor,
+# mirroring the page's docroot-relative path). Every surface that removes or
+# overwrites a page's sibling .html cache must ALSO drop the per-host copies,
+# or an alias host keeps serving the stale render after an edit.
+#
+# unlink_host_copies($docroot, $abs_html): given the SIBLING cache path
+# ($docroot/<rel>.html), unlink <rel>.html under every host slot. Returns the
+# number removed. Guards against traversal in the rel path (callers pass
+# operator/user-derived paths).
+sub unlink_host_copies {
+    my ( $docroot, $abs_html ) = @_;
+    return 0 unless defined $docroot && length $docroot && defined $abs_html;
+    my $hosts = "$docroot/lazysite/cache/hosts";
+    return 0 unless -d $hosts;
+    ( my $rel = $abs_html ) =~ s{^\Q$docroot\E/?}{};
+    return 0 unless length $rel && $rel =~ /\.html\z/;
+    return 0 if index( $rel, 'lazysite/' ) == 0;                # never a slot path itself
+    return 0 if $rel =~ m{(?:^|/)\.\.(?:/|$)} || $rel =~ /\0/;  # no traversal
+    my $n = 0;
+    opendir my $dh, $hosts or return 0;
+    for my $h ( readdir $dh ) {
+        next if $h =~ /^\./;
+        my $copy = "$hosts/$h/$rel";
+        $n++ if -f $copy && unlink $copy;
+    }
+    closedir $dh;
+    return $n;
+}
+
+# clear_host_cache($docroot): remove the whole hosts tree. Used where a sweep
+# already drops every sibling cache (clear-all, theme/layout activation, nav
+# change, backup restore) - wholesale removal is the simple, always-correct
+# choice there; everything regenerates on the next request per host.
+sub clear_host_cache {
+    my ($docroot) = @_;
+    return 0 unless defined $docroot && length $docroot;
+    my $hosts = "$docroot/lazysite/cache/hosts";
+    return 0 unless -d $hosts;
+    require File::Path;
+    File::Path::remove_tree( $hosts, { safe => 1 } );
+    return 1;
 }
 
 1;

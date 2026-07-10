@@ -188,13 +188,15 @@ before work starts.
 - **SM085** Git backend / changesets *(design)* - `begin -> diff -> commit ->
   rollback` on a git-versioned docroot. Biggest remaining lever; adds the
   rollback safety net. Headline ask from both AI-partner reviews.
-- **SM110** Domain aliases - an additional host serving the same site with its
-  own theme / nav / name.
-- **SM134 follow-ups** - page alias redirects shipped (0.6.1) with 301s and
-  index-on-save. Optional extensions: a per-alias redirect-type override (302
-  temporary vs the default 301 permanent); reindex the alias map on rename/copy/DAV
-  MOVE (today a moved or copied page re-indexes on its next save); and a manager
-  surface to list/inspect the current alias map.
+- **SM110** Domain aliases *(built phases 1+2, 2026-07-10 - see
+  SM110-domain-aliases.md)* - an additional host serving the same site with its
+  own theme / nav / name. Shipped: `alias_hosts` + whitelisted
+  `alias.<host>.<key>` conf overrides (presentation keys only), sanitised
+  Host matching, `alias_host` TT var, and a host-keyed page cache (per-host
+  slots under `lazysite/cache/hosts/`; every invalidation surface clears
+  host copies too - phase 1's interim NOCACHE retired). Open: canonical
+  auto-injection, read-only alias view in the manager, per-alias access
+  groups (after SM095 design).
 - **SM141 Sessions page - list + control active sessions** *(scoped 2026-07-10 -
   see SM141-session-registry.md)* - keep signed cookies as the source of truth;
   add a small session REGISTRY at login (sid in the cookie payload; who/when/IP/UA,
@@ -286,6 +288,12 @@ before work starts.
   URLs) 301s to its canonical URL; map maintained in `lazysite/aliases.json` by
   `Lazysite::Aliases` on manager/WebDAV save+delete; processor enforces on the 404
   path only; target is always the page's own URL (not an open redirect) (0.6.1).
+- **SM134 follow-ups** - `aliases_temp:` front matter for per-alias 302s
+  (map schema stays backward compatible: string = 301, `{target, code}` = 302);
+  manager move/copy/migrate + WebDAV MOVE/COPY reindex the affected page(s) so a
+  rename re-keys aliases without a save; read-only Aliases card on the Files page
+  backed by the `aliases-list` action (`manage_content` for token clients)
+  (2026-07-10).
 - **SM096** "Migrate to local" - a `.url` page fetched (guarded `Lazysite::Fetch`)
   and written as a sibling `.md` (2026-07-03).
 - **SM098** Multi-page / wizard forms - `--- step ---` delimiters render linear

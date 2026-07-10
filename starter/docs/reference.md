@@ -102,6 +102,18 @@ Directory scan
 : Override the HTTP headers used by an external auth proxy. Defaults:
   `X-Remote-User`, `X-Remote-Name`, `X-Remote-Email`, `X-Remote-Groups`.
 
+`alias_hosts`
+: Comma-separated list of domain-alias hostnames that serve this site
+  with their own presentation. Requests from other hosts (and the
+  primary) get the base configuration.
+
+`alias.<host>.<key>`
+: Per-alias-host override. `<key>` is limited to `site_name`, `theme`,
+  `layout`, `nav_file`, `search_default`; other keys are ignored.
+  Each alias host has its own page-cache slot (`lazysite/cache/hosts/`),
+  cleared alongside the primary cache. Conf-file only - not settable via
+  the manager or API.
+
 All other keys are available as TT variables in page content and the
 layout template.
 
@@ -151,6 +163,11 @@ See [Configuration](/docs/configuration) for full details.
 
 `site_name`, `site_url`
 : From `lazysite.conf`.
+
+`alias_host`
+: The active domain-alias host (e.g. `brand2.example`) when the request's
+  Host header matches a declared `alias_hosts` entry; empty string on the
+  primary host. Useful for per-host branching or canonical links.
 
 `layout_name`
 : Active layout name, as sanitised by the processor.

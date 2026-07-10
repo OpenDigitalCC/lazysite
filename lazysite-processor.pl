@@ -24,6 +24,10 @@ my $LOG_COMPONENT = 'processor';
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
     require JSON::PP;
+    # SM110: the domain-alias keys (alias_hosts, alias.<host>.<key>) are
+    # DELIBERATELY absent from config_keys and config_schema below.
+    # Aliases are operator conf-file territory in phase 1 - not editable
+    # (or listed) through the manager UI / control API.
     print JSON::PP::encode_json({
         id          => 'lazysite',
         name        => 'Site Configuration',
@@ -130,7 +134,8 @@ my $REGISTRY_TTL     = 14400; # seconds before registries are regenerated (defau
 my $CACHE_BASE       = $ENV{LAZYSITE_CACHE_DIR} || "$LAZYSITE_DIR/cache";
 my $LAYOUT_CACHE_DIR = "$CACHE_BASE/layouts";
 my $CT_CACHE_DIR     = "$CACHE_BASE/ct";
-my $TT_COMPILE_DIR   = "$CACHE_BASE/tt";   # P-4 TT on-disk compile cache
+my $TT_COMPILE_DIR   = "$CACHE_BASE/tt";       # P-4 TT on-disk compile cache
+my $HOST_CACHE_DIR   = "$CACHE_BASE/hosts";    # SM110 phase 2: per-alias-host page cache
 my %AUTH_CONTEXT;    # populated by main() auth check, read by render_content()
 my %ACCESS_REC;      # SM140: per-request outcome for the first-party access log
 
@@ -259,6 +264,16 @@ my %ENV_ALLOWLIST = map { $_ => 1 } qw(
     REQUEST_URI REDIRECT_URL
     DOCUMENT_ROOT SERVER_ADMIN
 );
+
+# SM110: domain aliases. An alias host serves the SAME site (same files,
+# users, plugins) with its own chrome. Only these lazysite.conf keys may
+# vary per host via alias.<host>.<key> lines - a strict whitelist because
+# the Host header is request-supplied: were a security-relevant key
+# (manager, auth_*, webdav_*, update_*) overridable per host, any client
+# could pick its own policy just by sending a matching Host header. The
+# whitelisted keys are presentation-only.
+my %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
+    qw(site_name theme layout nav_file search_default);
 
 # --- Auth ---
 
@@ -905,6 +920,11 @@ sub main {
             if $sv{log_level} && !$ENV{LAZYSITE_LOG_LEVEL};
         $ENV{LAZYSITE_LOG_FORMAT} = $sv{log_format}
             if $sv{log_format} && !$ENV{LAZYSITE_LOG_FORMAT};
+
+        # SM110: alias-host cache handling happens where $html_path is
+        # computed below - phase 2 gives each alias host its own cache slot
+        # (phase 1's blanket NOCACHE is retired). See
+        # docs/feature-requests/SM110-domain-aliases.md.
     }
 
     # Trust gate: strip HTTP_X_REMOTE_* / HTTP_X_PAYMENT_* unless
@@ -940,6 +960,25 @@ sub main {
     my $md_path   = "$DOCROOT/$base.md";
     my $url_path  = "$DOCROOT/$base.url";
     my $html_path = "$DOCROOT/$base.html";
+
+    # SM110 phase 2: the page cache is host-keyed. An alias host reads and
+    # writes its cached render in its own slot - $HOST_CACHE_DIR/<host>/,
+    # mirroring the page's docroot-relative path - so an alias render can
+    # never be served to the primary host or vice versa. The primary host
+    # keeps the .html sibling exactly as before, and an alias host gets
+    # exactly the same caching rules (protected/NOCACHE/TTL gating below is
+    # host-agnostic), just in its own slots. $static_html_path stays on the
+    # SIBLING for the SM133 legacy static-HTML fallback - that is authored
+    # content, not a render cache, and is host-independent.
+    # Filesystem safety: _request_host() admits only DNS-shaped hosts
+    # (labels of [a-z0-9-] joined by single dots - no '/', no '..', no
+    # leading dot), so $sv{alias_host} is safe to use as one path segment.
+    my $static_html_path = $html_path;
+    {
+        my %sv = resolve_site_vars();
+        $html_path = "$HOST_CACHE_DIR/$sv{alias_host}/$base.html"
+            if $sv{alias_host};
+    }
 
     # Stat both source and cache files once - pass results to avoid redundant syscalls
     my @html_stat = stat($html_path);
@@ -1133,23 +1172,28 @@ sub main {
     # NOTE: verbatim serve does NOT process Apache SSI - for SSI sites the vhost
     # rewrite (lazysite-app.tpl) maps the clean URL to the .html so Apache expands
     # includes; this branch is the portable net (dev server / non-Apache fronts).
-    if ( @html_stat && -f $html_path ) {
-        my $real = realpath($html_path);
+    # (SM110: checked against the SIBLING path - a legacy static page is
+    # authored content shared by every host, never a per-host render cache.)
+    if ( -f $static_html_path ) {
+        my $real = realpath($static_html_path);
         if ( defined $real && index( $real, $DOCROOT ) == 0 ) {
             my $ct = read_ct($base) || 'text/html; charset=utf-8';
             log_event( 'INFO', $uri, 'static-html fallback (no .md source)' );
-            output_page( read_file($html_path), $ct );
+            output_page( read_file($static_html_path), $ct );
             return;
         }
     }
 
     # SM134: alias redirects. A page may declare `aliases:` (old/alternate URLs);
     # those are maintained in lazysite/aliases.json. Only when nothing else matched,
-    # a requested path that is a known alias 301s to the canonical page. The target
+    # a requested path that is a known alias redirects to the canonical page - 301
+    # by default, 302 for `aliases_temp:` entries (SM134 follow-ups). The target
     # is always the declaring page's own URL, so this is not an open redirect.
-    if ( my $canon = _alias_lookup() ) {
-        log_event( 'INFO', $uri, 'alias redirect', to => $canon );
-        print "Status: 301 Moved Permanently\r\n";
+    if ( my $hit = _alias_lookup() ) {
+        my ( $canon, $code ) = @{$hit};
+        my $phrase = $code == 302 ? 'Found' : 'Moved Permanently';
+        log_event( 'INFO', $uri, 'alias redirect', to => $canon, code => $code );
+        print "Status: $code $phrase\r\n";
         print "Location: $canon\r\n";
         print "Content-Type: text/html; charset=utf-8\r\n\r\n";
         print qq(<!DOCTYPE html><html><body>Moved to )
@@ -1161,9 +1205,12 @@ sub main {
     not_found($uri);
 }
 
-# Inline alias lookup for the 404 path: read lazysite/aliases.json and return the
-# canonical URL for the requested path, or undef. Kept inline (no module load on
-# the miss path); the map is written by Lazysite::Aliases on save/delete.
+# Inline alias lookup for the 404 path: read lazysite/aliases.json and return
+# [canonical URL, redirect code] for the requested path, or undef. Kept inline (no
+# module load on the miss path); the map is written by Lazysite::Aliases on
+# save/delete/move/copy. Schema (keep in sync with Lazysite::Aliases): a plain
+# string value is a 301 target (the 0.6.1 format); { target, code } carries a 302.
+# Anything else, or an unknown code, reads as 301.
 sub _alias_lookup {
     my $f = "$DOCROOT/lazysite/aliases.json";
     return undef unless -f $f;
@@ -1176,12 +1223,15 @@ sub _alias_lookup {
     close $fh;
     my $map = eval { decode_json( $raw // '{}' ) };
     return undef unless ref $map eq 'HASH';
-    my $canon = $map->{$req};
+    my $entry = $map->{$req};
+    my ( $canon, $code ) =
+        ref $entry eq 'HASH' ? ( $entry->{target}, $entry->{code} ) : ( $entry, 301 );
+    $code = ( defined $code && $code =~ /\A302\z/ ) ? 302 : 301;
     # The target is our own canonical URL; still refuse anything not a clean
     # site-local path (defence in depth against a hand-edited map).
     return undef unless defined $canon && $canon =~ m{^/} && $canon !~ m{^//};
     return undef if $canon =~ /[\0\r\n]/;
-    return $canon;
+    return [ $canon, $code ];
 }
 
 # --- Processing ---
@@ -2642,7 +2692,47 @@ sub resolve_tt_vars {
             $defs{$1} = $2;
         }
 
+        # SM110: domain aliases. When the request's (sanitised) Host header
+        # matches a host declared in alias_hosts, overlay that host's
+        # whitelisted alias.<host>.<key> overrides onto the base conf. The
+        # primary host, any undeclared host, and any malformed Host header
+        # all keep the base conf untouched - zero behaviour change when
+        # alias_hosts is unset. Alias lines use dotted keys, which the \w+
+        # base parse above cannot match, so they never leak into base vars.
+        my $alias_host = q{};
+        if ( defined $defs{alias_hosts} ) {
+            my $req_host = _request_host();
+            my %declared;
+            for my $h ( split /,/, lc $defs{alias_hosts} ) {
+                $h =~ s/^\s+|\s+$//g;
+                $declared{$h} = 1 if length $h;
+            }
+            if ( length $req_host && $declared{$req_host} ) {
+                $alias_host = $req_host;
+                # Greedy (\S+) so a host whose label collides with a conf
+                # key (alias.theme.example.com.theme) still splits at the
+                # LAST dot; keys never contain dots.
+                while ( $text =~ /^alias\.(\S+)\.(\w+)\h*:\h*(.+)$/mg ) {
+                    my ( $host, $key, $val ) = ( lc $1, $2, $3 );
+                    next unless $host eq $alias_host;
+                    if ( $ALIAS_OVERRIDE_KEYS{$key} ) {
+                        $defs{$key} = $val;
+                    }
+                    else {
+                        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                            'alias override ignored - key not whitelisted',
+                            host => $host, key => $key );
+                    }
+                }
+            }
+        }
+
         my %vars = resolve_tt_vars( \%defs );
+
+        # The active alias host as a TT var ('' on the primary), so layouts
+        # can branch per host or mark canonical links. Set AFTER
+        # resolve_tt_vars: authoritative, never conf-overridable.
+        $vars{alias_host} = $alias_host;
 
         my $nav_file = $vars{nav_file}
             ? "$DOCROOT/" . $vars{nav_file}
@@ -2661,6 +2751,25 @@ sub resolve_tt_vars {
         $_site_vars_loaded = 0;
         _reset_peek_cache();
     }
+}
+
+# SM110: the request's Host header, sanitised for alias matching: lowercased,
+# port stripped, trailing dot dropped, validated against the DNS hostname
+# alphabet. Anything malformed returns '' and the request renders with the
+# base conf, exactly like the primary host. Note HTTP_HOST stays EXCLUDED
+# from ${VAR} conf interpolation (%ENV_ALLOWLIST) - here its sanitised value
+# is only COMPARED against the operator-declared alias list, never emitted
+# into output, so a hostile Host header can at worst select a rendering the
+# operator explicitly configured.
+sub _request_host {
+    my $host = lc( $ENV{HTTP_HOST} // q{} );
+    $host =~ s/:\d+\z//;    # strip port
+    $host =~ s/\.\z//;      # trailing dot (FQDN form)
+    return q{} if length $host > 253;
+    return q{}
+        unless $host =~ /\A [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )?
+                         (?: \. [a-z0-9] (?: [a-z0-9-]* [a-z0-9] )? )* \z/x;
+    return $host;
 }
 
 sub parse_nav {
@@ -2964,6 +3073,14 @@ sub resolve_scan {
     my $_has_registries;    # undef = not yet probed
 
     sub update_registries {
+        # SM110: registries are shared, site-global artefacts written into
+        # the docroot (sitemap, search index, feeds). Never regenerate them
+        # from an alias-host request - the overlaid vars (site_name etc.)
+        # would be baked into files the primary host serves. The next
+        # primary-host render refreshes them as usual.
+        my %sv = resolve_site_vars();
+        return if $sv{alias_host};
+
         if ( !defined $_has_registries ) {
             if ( -d $REGISTRY_DIR ) {
                 opendir( my $dh, $REGISTRY_DIR );
@@ -3899,6 +4016,13 @@ sub write_html {
     # a symlink created after the check would not be caught. O_NOFOLLOW via sysopen
     # would close this gap but adds complexity not warranted in this deployment context.
     my $check_path = -e $html_path ? $html_path : dirname($html_path);
+    # SM110: an alias host's first write targets a slot directory that does
+    # not exist yet (lazysite/cache/hosts/<host>/...) - walk up to the
+    # nearest EXISTING ancestor for the containment check. The missing
+    # segments are created below by make_path as real directories, so the
+    # symlink guard's strength is unchanged.
+    $check_path = dirname($check_path)
+        while !-e $check_path && length($check_path) > 1;
     my $real = realpath($check_path);
     if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
         log_event("WARN", $ENV{REDIRECT_URL} // "-", "cache path outside docroot", path => $html_path);

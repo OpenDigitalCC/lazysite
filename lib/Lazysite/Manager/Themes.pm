@@ -206,6 +206,10 @@ sub _invalidate_html_cache {
         ( my $base = $File::Find::name ) =~ s/\.html$//;
         unlink $_ if -f "$base.md" || -f "$base.url";
     }, $DOCROOT );
+    # SM110: a theme/layout change re-chromes every page of every host -
+    # drop the per-alias-host cache tree wholesale too.
+    Lazysite::Util::clear_host_cache($DOCROOT);
+    return;
 }
 
 # SM080: build the web-served asset mirror at /lazysite-assets/LAYOUT/THEME/ so
@@ -721,6 +725,10 @@ sub action_cache_invalidate {
             },
             $DOCROOT
         );
+        # SM110: clear-all also removes the whole per-alias-host cache tree
+        # (wholesale - the hosts tree holds only generated renders, never
+        # authored content, so the SM133 legacy-page caution doesn't apply).
+        Lazysite::Util::clear_host_cache($DOCROOT);
         return { ok => 1, count => $count };
     }
 
@@ -733,6 +741,8 @@ sub action_cache_invalidate {
         unless $real && index( $real, $DOCROOT ) == 0;
 
     unlink $real if -f $real;
+    # SM110: drop the per-alias-host copies of this page's render too.
+    Lazysite::Util::unlink_host_copies( $DOCROOT, $real );
     log_event('INFO', $action, 'cache invalidated', path => $rel_path, user => $auth_user);
     return { ok => 1, path => $rel_path };
 }

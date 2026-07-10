@@ -104,6 +104,7 @@ YAML semantics). Recognised keys:
 | `search` | Include in the search index (defaults to the site `search_default`) |
 | `form` | Names and enables a form on the page (must match `forms/NAME.conf`) |
 | `aliases` | YAML list of old/alternate site-local URLs the page also answers to (301 → canonical) |
+| `aliases_temp` | Same list syntax, but the redirect is a temporary 302 (SM134 follow-ups) |
 | `nocache` | `true` renders the page fresh on every request, never served from or written to cache |
 
 A single-pass memoised "peek" reads the front matter **once per request** (keyed by
@@ -195,7 +196,7 @@ Cache is bypassed for: `nocache: true` pages (rendered fresh every request, for
 genuinely per-request content such as `[% client_ip %]`), query-param requests,
 auth/payment-protected pages, and previews. **Alias redirects** are resolved on the
 no-source-found path only, so a cached real page always takes precedence over an
-alias (`aliases:`, SM134).
+alias (`aliases:` for 301s, `aliases_temp:` for 302s - SM134 + follow-ups).
 
 ## Render-time security
 
@@ -487,8 +488,12 @@ lock and vice-versa - and theme/layout activation takes an artifact-level lock
 across validate→snapshot→flip. Two more (SM096): `copy` **duplicates** a page (and
 its `.brief`, the copy owned by its creator), and `migrate-to-local` turns a `.url`
 remote page into a local `.md` by fetching the body through the shared,
-SSRF-guarded `Lazysite::Fetch`. Saving or deleting a page also maintains its
-alias-redirect entries (`aliases:`, SM134).
+SSRF-guarded `Lazysite::Fetch`. Saving or deleting a page maintains its
+alias-redirect entries (`aliases:` 301 / `aliases_temp:` 302, SM134 + follow-ups),
+and so do `move`, `copy`, migrate-to-local and WebDAV MOVE/COPY - a rename re-keys
+the map without waiting for the next save. The Files page shows the current map in
+a read-only Aliases card (alias → target with a 301/302 badge), backed by the
+`aliases-list` read action (token clients: `manage_content`).
 
 ## Themes and layouts management
 

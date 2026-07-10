@@ -82,4 +82,30 @@ sub dest { "http://host/dav$_[0]" }
     ok( !-e "$s->{docroot}/content/dest.html", 'COPY drops stale dest cache' );
 }
 
+# --- SM134 follow-ups: MOVE/COPY re-key the alias-redirect map ---------
+{
+    require Lazysite::Aliases;
+    my $s = setup_dav_site();
+    my $a = $s->{auth};
+    my $body = "---\ntitle: G\naliases:\n  - /old-g\naliases_temp:\n  - /g-soon\n---\n\nG.\n";
+    run_dav( $s->{docroot}, 'PUT', '/content/g.md', body => $body, HTTP_AUTHORIZATION => $a );
+    is( Lazysite::Aliases::lookup( $s->{docroot}, '/old-g' ), '/content/g',
+        'PUT indexed the alias' );
+
+    my $r = run_dav( $s->{docroot}, 'MOVE', '/content/g.md',
+        HTTP_DESTINATION => dest('/content/g2.md'), HTTP_AUTHORIZATION => $a );
+    is( $r->{code}, 201, 'aliased page MOVEd' );
+    is( Lazysite::Aliases::lookup( $s->{docroot}, '/old-g' ), '/content/g2',
+        'MOVE re-keyed the 301 alias without a save' );
+    is( Lazysite::Aliases::lookup( $s->{docroot}, '/g-soon' ), '/content/g2',
+        'MOVE re-keyed the 302 alias too' );
+
+    # COPY: the duplicate carries the alias list, so it takes the aliases
+    # (last-writer-wins, exactly as a fresh save of the copy would)
+    run_dav( $s->{docroot}, 'COPY', '/content/g2.md',
+        HTTP_DESTINATION => dest('/content/g3.md'), HTTP_AUTHORIZATION => $a );
+    is( Lazysite::Aliases::lookup( $s->{docroot}, '/old-g' ), '/content/g3',
+        'COPY indexed the duplicate (last writer wins)' );
+}
+
 done_testing();

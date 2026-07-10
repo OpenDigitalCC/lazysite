@@ -183,6 +183,17 @@ sub run_scan {
 
     my $cache = "$report_dir/audit-report.html";
     unlink $cache if -f $cache;
+    # SM110: drop any per-alias-host copies of the report render too
+    # (standalone plugin - inline rather than the Lazysite::Util helper).
+    my $hosts_dir = "$DOCROOT/lazysite/cache/hosts";
+    if ( opendir( my $hd, $hosts_dir ) ) {
+        for my $h ( readdir $hd ) {
+            next if $h =~ /^\./;
+            my $copy = "$hosts_dir/$h/manager/audit-report.html";
+            unlink $copy if -f $copy;
+        }
+        closedir $hd;
+    }
 
     require JSON::PP;
     print JSON::PP::encode_json({

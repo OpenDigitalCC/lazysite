@@ -111,6 +111,23 @@ my $nn = mapi( $d, QUERY_STRING => 'action=nav-read',
 ok( !$nn->{ok} && $nn->{error} =~ /capability/i,
     'nav-read denied to a token without manage_nav' );
 
+# --- SM134 follow-ups: aliases-list is a token action gated by manage_content --
+open my $af, '>', "$d/lazysite/aliases.json" or die $!;
+print $af '{"/old":"/new","/soon":{"target":"/new","code":302}}';
+close $af;
+grant_caps( $d, 'partner', 'manage_content' );
+my $al = mapi( $d, QUERY_STRING => 'action=aliases-list',
+    HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+ok( $al->{ok}, 'aliases-list available to a token client with manage_content' );
+is_deeply( $al->{aliases},
+    [ { alias => '/old',  target => '/new', code => 301 },
+      { alias => '/soon', target => '/new', code => 302 } ],
+    'aliases-list returns { alias, target, code } rows (old format = 301)' );
+my $an = mapi( $d, QUERY_STRING => 'action=aliases-list',
+    HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
+ok( !$an->{ok} && $an->{error} =~ /capability/i,
+    'aliases-list denied to a token without manage_content' );
+
 # --- SM126: the api channel gate + introspection exemption -------------------
 # 'nocap' holds no caps (so no api channel). A real action is refused naming the
 # api capability, ahead of the per-action check...

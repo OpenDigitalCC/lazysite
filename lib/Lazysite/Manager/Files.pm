@@ -14,7 +14,7 @@ use File::Basename qw(dirname);
 use Cwd qw(realpath);
 use Fcntl qw(:flock);
 use POSIX qw(strftime);
-use Lazysite::Util qw(log_event);
+use Lazysite::Util qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Manager::Common
     qw(validate_path is_blocked_path is_blocked_config write_file_checked);
 use Lazysite::Auth::Acl
@@ -24,7 +24,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(
     action_list action_read action_save action_delete action_mkdir action_move action_copy
-    action_migrate_to_local
+    action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove
 );
@@ -237,6 +237,8 @@ sub action_save {
     if ( $full =~ /\.md$/ ) {
         ( my $cache = $full ) =~ s/\.md$/.html/;
         unlink $cache if -f $cache;
+        # SM110: drop the per-alias-host copies of this page's render too.
+        unlink_host_copies( $DOCROOT, $cache );
         # SM134: keep the alias-redirect map current for this content page.
         require Lazysite::Aliases;
         ( my $arel = $full ) =~ s{^\Q$DOCROOT\E/?}{};
@@ -293,6 +295,9 @@ sub _invalidate_all_html {
         }
         closedir $dh;
     }
+    # SM110: the sweep above skips lazysite/ - drop the per-alias-host cache
+    # tree wholesale too (a nav change shows on every page of every host).
+    clear_host_cache($DOCROOT);
     return;
 }
 
@@ -335,6 +340,8 @@ sub action_delete {
 
     ( my $cache = $full ) =~ s/\.md$/.html/;
     unlink $cache if -f $cache;
+    # SM110: drop the per-alias-host copies of this page's render too.
+    unlink_host_copies( $DOCROOT, $cache ) if $full =~ /\.md$/;
 
     # SM134: drop this page's alias-redirect entries.
     if ( $full =~ /\.md$/ ) {
@@ -419,6 +426,11 @@ sub action_move {
         ( my $src_cache = $src_full ) =~ s/\.md$/.html/;
         ( my $dst_cache = $dst_full ) =~ s/\.md$/.html/;
         rename( $src_cache, $dst_cache ) if -f $src_cache;
+        # SM110: per-alias-host copies are not moved - drop both the source
+        # copies (the page's URL changed) and any lingering ones at the
+        # destination path; each host re-renders on its next request.
+        unlink_host_copies( $DOCROOT, $src_cache );
+        unlink_host_copies( $DOCROOT, $dst_cache );
     }
 
     # Re-key the ACL entry to the new path.
@@ -428,6 +440,11 @@ sub action_move {
         $acls->{$dk} = delete $acls->{$sk};
         save_acls($acls);
     }
+
+    # SM134 follow-ups: the page's canonical URL changed - re-key its
+    # alias-redirect entries too (per page under a moved directory).
+    require Lazysite::Aliases;
+    Lazysite::Aliases::reindex_move( $DOCROOT, $s->{rel}, $d->{rel} );
 
     unlink $lock_file if -f $lock_file;
     log_event( 'INFO', $action, 'file moved',
@@ -473,6 +490,12 @@ sub action_copy {
         $acls->{ _acl_norm( $d->{rel} ) } = { owner => $username };
         save_acls($acls);
     }
+
+    # SM134 follow-ups: index the duplicate's aliases now, not on its next save
+    # (same last-writer-wins collision rule as a save, since the copy still
+    # carries the source's alias list).
+    require Lazysite::Aliases;
+    Lazysite::Aliases::reindex_copy( $DOCROOT, $d->{rel} );
 
     log_event( 'INFO', $action, 'file copied',
         from => $src_rel, to => $dst_rel, user => $auth_user );
@@ -531,11 +554,28 @@ sub action_migrate_to_local {
 
     ( my $cache = $md_full ) =~ s/\.md$/.html/;
     unlink $cache if -f $cache;
+    # SM110: drop the per-alias-host copies of this page's render too.
+    unlink_host_copies( $DOCROOT, $cache );
+
+    # SM134 follow-ups: the fetched body may declare aliases - index the new
+    # local page now rather than on its next save (same gap as move/copy).
+    require Lazysite::Aliases;
+    Lazysite::Aliases::index_page( $DOCROOT, $md_rel, $body );
 
     log_event( 'INFO', $action, 'migrated .url to local .md',
         from => $s->{rel}, to => $md_rel, url => $url, user => $auth_user );
     _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $md_rel, url => $url };
+}
+
+# SM134 follow-ups: the current alias-redirect map for the manager's read-only
+# Aliases card - rows of { alias, target, code }, sorted by alias. Aliases are
+# authored in page front matter (`aliases:` / `aliases_temp:`); there is nothing
+# to edit here, so this is a plain read (no path, no ACL - the map holds only
+# site-local URL pairs).
+sub action_aliases_list {
+    require Lazysite::Aliases;
+    return { ok => 1, aliases => Lazysite::Aliases::list_aliases($DOCROOT) };
 }
 
 sub _read_lock_record {

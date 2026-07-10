@@ -120,6 +120,10 @@ sub action_backup_restore {
         },
         $DOCROOT
     );
+    # SM110: backups exclude lazysite/cache entirely, so the per-alias-host
+    # tree survives a restore and would serve pre-restore renders - drop it
+    # wholesale; each host re-renders on its next request.
+    Lazysite::Util::clear_host_cache($DOCROOT);
 
     log_event( 'INFO', 'backup-restore', 'snapshot restored', file => $name,
         safety => $safety->{name}, cache_cleared => $cleared, user => $auth_user );
