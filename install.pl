@@ -77,6 +77,12 @@ Optional:
                       Set the site's update channel (update_channel in
                       lazysite.conf) and exit - no install. Loop over your
                       docroots to set a whole fleet.
+  --policy auto|manual
+                      Set the site's update policy (update_policy in
+                      lazysite.conf) and exit - no install. 'auto' lets
+                      `lazysite upgrade --all` (cron-driven fleet upgrades)
+                      touch this site; 'manual' (the default) leaves it to
+                      the operator.
   --restore-full FILE Restore a full-system backup (manager "full" backup) into
                       --docroot, optionally rewriting the site domain with
                       --domain NAME. The temp -> final domain migration path.
@@ -121,6 +127,7 @@ Getopt::Long::GetOptions(
     'verify'        => \$opt{verify},
     'channel-check' => \$opt{channel_check},
     'channel=s'      => \$opt{channel},
+    'policy=s'       => \$opt{policy},
     'restore-full=s' => \$opt{restore_full},
     'force'          => \$opt{force},
 ) or usage(1);
@@ -169,6 +176,15 @@ if ( $opt{channel_check} ) {
 if ( defined $opt{channel} ) {
     die "--channel requires --docroot\n" unless $opt{docroot};
     exit cmd_set_channel( $opt{docroot}, $opt{channel} );
+}
+
+# --policy auto|manual: set the site's update_policy in lazysite.conf (SM139). The
+# same standalone maintenance-op shape as --channel. 'auto' opts the site in to
+# cron-driven fleet upgrades (`lazysite upgrade --all`); 'manual' (the default
+# when the key is absent) means only a deliberate per-site upgrade touches it.
+if ( defined $opt{policy} ) {
+    die "--policy requires --docroot\n" unless $opt{docroot};
+    exit cmd_set_policy( $opt{docroot}, $opt{policy} );
 }
 
 # --restore-full: restore a full-system backup (from the manager's "full" backup)
@@ -235,15 +251,10 @@ sub audit_channel_skip {
     return;
 }
 
-# --channel: set update_channel in the site's lazysite.conf (replace the line if
-# present, else append). Atomic via temp + rename. Standalone maintenance op.
-sub cmd_set_channel {
-    my ( $docroot, $value ) = @_;
-    $value = lc $value;
-    unless ( $value eq 'edge' || $value eq 'stable' ) {
-        warn "--channel must be 'edge' or 'stable' (got '$value')\n";
-        return 2;
-    }
+# Replace one "key: value" line in the site's lazysite.conf (append when the key
+# is absent). Atomic via temp + rename. Shared by --channel and --policy.
+sub set_conf_line {
+    my ( $docroot, $key, $value ) = @_;
     my $conf = "$docroot/lazysite/lazysite.conf";
     unless ( -f $conf ) {
         warn "No lazysite.conf at $conf - is this a lazysite docroot?\n";
@@ -255,13 +266,13 @@ sub cmd_set_channel {
 
     my $found = 0;
     for my $l (@lines) {
-        if ( $l =~ /^\s*update_channel\s*:/ ) {
-            $l     = "update_channel: $value\n";
+        if ( $l =~ /^\s*\Q$key\E\s*:/ ) {
+            $l     = "$key: $value\n";
             $found = 1;
             last;
         }
     }
-    push @lines, "update_channel: $value\n" unless $found;
+    push @lines, "$key: $value\n" unless $found;
 
     my $tmp = "$conf.tmp.$$";
     open my $out, '>', $tmp or do { warn "Cannot write $tmp: $!\n"; return 1 };
@@ -272,10 +283,55 @@ sub cmd_set_channel {
         unlink $tmp;
         return 1;
     }
+    return 0;
+}
+
+# --channel: set update_channel in the site's lazysite.conf (replace the line if
+# present, else append). Standalone maintenance op.
+sub cmd_set_channel {
+    my ( $docroot, $value ) = @_;
+    $value = lc $value;
+    unless ( $value eq 'edge' || $value eq 'stable' ) {
+        warn "--channel must be 'edge' or 'stable' (got '$value')\n";
+        return 2;
+    }
+    my $rc = set_conf_line( $docroot, 'update_channel', $value );
+    return $rc if $rc;
 
     audit_channel_set( $docroot, $value );
     info("Update channel set to '$value' for $docroot");
     return 0;
+}
+
+# --policy: set update_policy in the site's lazysite.conf (SM139). 'auto' opts the
+# site in to fleet-wide `lazysite upgrade --all`; 'manual' (the absent-key default)
+# leaves upgrades to the operator. Standalone maintenance op, same shape as
+# --channel.
+sub cmd_set_policy {
+    my ( $docroot, $value ) = @_;
+    $value = lc $value;
+    unless ( $value eq 'auto' || $value eq 'manual' ) {
+        warn "--policy must be 'auto' or 'manual' (got '$value')\n";
+        return 2;
+    }
+    my $rc = set_conf_line( $docroot, 'update_policy', $value );
+    return $rc if $rc;
+
+    audit_policy_set( $docroot, $value );
+    info("Update policy set to '$value' for $docroot");
+    return 0;
+}
+
+# Record a policy change (origin = install).
+sub audit_policy_set {
+    my ( $docroot, $value ) = @_;
+    my $logdir = "$docroot/lazysite/logs";
+    return unless -d $logdir;
+    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
+    open my $fh, '>>', "$logdir/audit.log" or return;
+    print {$fh} "$ts | system | policy-set | update_policy: $value |  | ok | install\n";
+    close $fh;
+    return;
 }
 
 # Record a channel change (origin = install).
@@ -878,6 +934,10 @@ sub post_install_steps {
                   # New sites default to the stable update channel (edge upgrades
                   # are skipped). Change to 'all' for a test / cutting-edge site.
                   . "update_channel: stable\n"
+                        # SM139: fleet upgrades (`lazysite upgrade --all`) leave a
+                        # 'manual' site alone; set 'auto' to opt in to cron-driven
+                        # upgrades. 'manual' matches the absent-key default.
+                        . "update_policy: manual\n"
                 );
                 info("  wrote:     lazysite/lazysite.conf (from --domain)");
             }
@@ -1425,6 +1485,15 @@ registry of sites, so to set a whole fleet, loop this over your docroots:
     for d in /home/*/web/*/public_html; do
         install.pl --channel stable --docroot "$d"
     done
+
+=item B<--policy> C<auto>|C<manual>
+
+Set the site's update policy (the C<update_policy:> key in C<lazysite.conf>) and
+exit - a standalone maintenance operation, no install. C<auto> opts the site in
+to fleet-wide C<lazysite upgrade --all> runs (e.g. cron-driven); C<manual> (the
+default when the key is absent) means only a deliberate per-site upgrade - or
+C<upgrade --all --force>/C<--force-security> - touches it. Recorded in the audit
+log as C<policy-set>.
 
 =item B<--restore-full> I<FILE>
 

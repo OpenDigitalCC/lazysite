@@ -52,6 +52,35 @@ install.pl --channel edge   --docroot <docroot>   # back to edge
 Force one specific out-of-channel upgrade through the policy with `--force`
 (audited as `upgrade-forced`).
 
+### Fleet upgrades (the `lazysite` CLI)
+
+Hosts with the `lazysite-common` deb (SM139) manage sites through the site
+registry (`/etc/lazysite/sites.d/`, written by `lazysite provision`):
+
+```bash
+lazysite sites                          # the fleet: owner/channel/policy/version
+sudo lazysite upgrade --all             # upgrade every opted-in site
+sudo lazysite upgrade --all --force     # override channel AND policy
+sudo lazysite upgrade --all --force-security   # security releases only (below)
+```
+
+Two per-site keys in `lazysite.conf` gate `upgrade --all`:
+
+- `update_policy: auto|manual` (default `manual`) - whether the fleet run
+  (typically cron-driven) touches the site at all. `manual` sites are skipped
+  and logged; upgrade them individually when you choose. Set it with
+  `install.pl --policy auto --docroot <docroot>` (audited as `policy-set`).
+- `update_channel` (above) - an `auto` site still takes only a payload its
+  channel accepts; the skip is the installer's usual clean exit-3, audited.
+
+**Security releases.** A release built with
+`tools/build-manifest.pl --security-critical` carries
+`"security_critical": true` in its manifest. Only then does
+`upgrade --all --force-security` work - it overrides both channel and policy
+fleet-wide. Against a payload that does not declare it, the command refuses
+before touching any site: the override is only as strong as the release's
+own declaration.
+
 ## Logs and audit
 
 - Application logs: `lazysite/logs/`.

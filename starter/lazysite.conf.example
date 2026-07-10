@@ -12,6 +12,13 @@ manager_path: /manager
 # test / cutting-edge site that should take every release.
 update_channel: stable
 
+# Update policy: whether fleet-wide upgrades (`lazysite upgrade --all`, e.g.
+# cron-driven) touch this site. 'manual' (the default when the key is absent)
+# leaves upgrades to the operator; 'auto' opts in - still gated by the
+# update_channel above. A security-critical release deployed with
+# `lazysite upgrade --all --force-security` overrides both.
+update_policy: manual
+
 # WebDAV publishing endpoint (/dav). Off by default - the dav handler
 # returns 404 for every method until this is enabled. Toggle it on the
 # manager Config page, or set it here. Per-account access is still gated by

@@ -16,22 +16,24 @@ use Getopt::Long qw();
 use FindBin qw();
 
 my %opt = (
-    staged  => undef,
-    version => undef,
-    out     => undef,
-    check   => 0,
-    config  => undef,
-    channel => undef,
-    help    => 0,
+    staged            => undef,
+    version           => undef,
+    out               => undef,
+    check             => 0,
+    config            => undef,
+    channel           => undef,
+    security_critical => 0,
+    help              => 0,
 );
 Getopt::Long::GetOptions(
-    'staged=s'  => \$opt{staged},
-    'version=s' => \$opt{version},
-    'out=s'     => \$opt{out},
-    'check'     => \$opt{check},
-    'config=s'  => \$opt{config},
-    'channel=s' => \$opt{channel},
-    'help'      => \$opt{help},
+    'staged=s'          => \$opt{staged},
+    'version=s'         => \$opt{version},
+    'out=s'             => \$opt{out},
+    'check'             => \$opt{check},
+    'config=s'          => \$opt{config},
+    'channel=s'         => \$opt{channel},
+    'security-critical' => \$opt{security_critical},
+    'help'              => \$opt{help},
 ) or die usage();
 print usage() and exit 0 if $opt{help};
 
@@ -68,6 +70,11 @@ Options:
     --out PATH       Output path (default: release-manifest.json at repo root)
     --config PATH    Classification config (default: dist/config/classification.json)
     --check          Verify manifest matches disk; exit 1 on mismatch
+    --security-critical
+                     Mark this release security-critical in the manifest
+                     ("security_critical": true). Lets `lazysite upgrade
+                     --all --force-security` override site channel/policy
+                     for this release. Default: absent (not critical).
     --help           Show this help
 
 USAGE
@@ -262,6 +269,9 @@ sub generate_manifest {
         files            => \@manifest_files,
         runtime_paths    => $cfg->{runtime_paths},
     };
+    # SM139: a security-critical release declares itself in the manifest; the
+    # field is present only when set, so ordinary manifests are unchanged.
+    $manifest->{security_critical} = JSON::PP::true() if $opt{security_critical};
 
     write_canonical_json( $opt{out}, $manifest );
     print STDERR "build-manifest: wrote $opt{out} (" . scalar(@manifest_files) . " files)\n";

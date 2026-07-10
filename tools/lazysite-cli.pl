@@ -41,6 +41,7 @@ if    ( $verb eq '' )                                     { usage(2) }
 elsif ( $verb eq 'help' || $verb =~ /^-{0,2}help$|^-h$/ ) { usage(0) }
 elsif ( $verb eq 'provision' )                            { exit cmd_provision() }
 elsif ( $verb eq 'upgrade' )                              { exit cmd_upgrade() }
+elsif ( $verb eq 'sites' )                                { exit cmd_sites() }
 elsif ( $verb eq 'check' )   { run_tool( 'tools/lazysite-check.pl',  @ARGV ) }
 elsif ( $verb eq 'users' )   { run_tool( 'tools/lazysite-users.pl',  @ARGV ) }
 elsif ( $verb eq 'dev' )     { run_tool( 'tools/lazysite-server.pl', @ARGV ) }
@@ -64,16 +65,25 @@ checkout/tarball root when run from a source tree.
 
 Verbs:
   provision --docroot D --cgibin C [--domain NAME] [--channel edge|stable]
+            [--policy auto|manual]
         Fresh-install a site from the host payload. Runs as the SITE
         USER, never root (ownership correct by construction), and
         records the site in the registry at /etc/lazysite/sites.d/.
   upgrade --docroot D [--cgibin C] [--force]
         Upgrade one site from the host payload, as the site user.
         --cgibin defaults to the site's registry entry.
-  upgrade --all [--force]
+  upgrade --all [--force | --force-security]
         Upgrade every registered site. As root, drops to each site's
         owner via sudo -u; as a normal user, refuses unless every
-        registered site belongs to you.
+        registered site belongs to you. Sites with update_policy
+        'manual' (the default) are skipped unless --force is given;
+        each site's update_channel is then enforced by the installer.
+        --force-security overrides BOTH channel and policy, and is
+        accepted only when the payload's release manifest declares
+        "security_critical": true.
+  sites
+        List registered sites: owner, channel, policy, installed
+        version, docroot.
   check [args...]        Health/permissions doctor (lazysite-check.pl).
   users [args...]        Auth user management (lazysite-users.pl).
   dev [args...]          Local dev server (lazysite-server.pl).
@@ -122,6 +132,17 @@ sub payload_root {
     }
     fail( 'cannot locate the engine payload (install.pl + VERSION) near '
             . "$bin - expected /usr/share/lazysite or a source checkout" );
+}
+
+# The payload's release manifest, decoded; undef for a bare checkout (no
+# manifest built). Shared by version, --force-security and the sites verb.
+sub payload_manifest {
+    my $path = payload_root() . '/release-manifest.json';
+    open my $fh, '<:raw', $path or return undef;
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    my $m = eval { JSON::PP::decode_json($text) };
+    return ref $m eq 'HASH' ? $m : undef;
 }
 
 sub current_user {
@@ -201,7 +222,7 @@ sub registry_record {
     my $dir  = registry_dir();
     my $path = "$dir/$e{name}";
     my $body = join '', map { "$_=" . ( $e{$_} // '' ) . "\n" }
-        qw(docroot cgibin owner channel);
+        qw(docroot cgibin owner channel policy);
 
     if ( -d $dir && -w $dir ) {
         my $tmp = "$path.tmp.$$";
@@ -246,7 +267,7 @@ sub read_registry {
             my ( $k, $v ) = split /=/, $line, 2;
             $k =~ s/^\s+|\s+$//g;
             $v =~ s/^\s+|\s+$//g;
-            $e{$k} = $v if $k =~ /^(?:docroot|cgibin|owner|channel)$/;
+            $e{$k} = $v if $k =~ /^(?:docroot|cgibin|owner|channel|policy)$/;
         }
         close $fh;
         if ( !length( $e{docroot} // '' ) || !-d $e{docroot} ) {
@@ -266,21 +287,62 @@ sub site_owner {
     return defined $name ? $name : '';
 }
 
+# One "key: value" scalar out of a site's lazysite.conf; undef when the conf
+# (or the key) is missing/unreadable.
+sub site_conf_value {
+    my ( $docroot, $key ) = @_;
+    my $conf = "$docroot/lazysite/lazysite.conf";
+    open my $fh, '<', $conf or return undef;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^\s*\Q$key\E\s*:\s*(\S+)/;
+        close $fh;
+        return $1;
+    }
+    close $fh;
+    return undef;
+}
+
+# The site's effective update policy: 'auto' opts in to fleet upgrades,
+# anything else is 'manual' (the default). The conf key (update_policy, set
+# by install.pl --policy) is authoritative; the registry's cached policy= is
+# the fallback when the conf has no key.
+sub site_update_policy {
+    my ($s) = @_;
+    my $v = site_conf_value( $s->{docroot}, 'update_policy' );
+    $v = $s->{policy} unless defined $v && length $v;
+    return lc( $v // '' ) eq 'auto' ? 'auto' : 'manual';
+}
+
+# The site's installed engine version, from .install-state.json; '' when not
+# discoverable (never fatal - the sites listing shows '-').
+sub site_version {
+    my ($docroot) = @_;
+    my $path = "$docroot/lazysite/.install-state.json";
+    open my $fh, '<:raw', $path or return '';
+    my $text = do { local $/; <$fh> };
+    close $fh;
+    my $s = eval { JSON::PP::decode_json($text) };
+    return ref $s eq 'HASH' ? ( $s->{version} // '' ) : '';
+}
+
 # ---------- verbs ----------
 
 sub cmd_provision {
-    my %o = ( docroot => '', cgibin => '', domain => '', channel => '' );
+    my %o = ( docroot => '', cgibin => '', domain => '', channel => '', policy => '' );
     Getopt::Long::GetOptions(
         'docroot=s' => \$o{docroot},
         'cgibin=s'  => \$o{cgibin},
         'domain=s'  => \$o{domain},
         'channel=s' => \$o{channel},
+        'policy=s'  => \$o{policy},
     ) or usage(2);
     refuse_root('provision');
     fail('provision needs --docroot and --cgibin')
         unless length $o{docroot} && length $o{cgibin};
     fail("--channel must be 'edge' or 'stable'")
         if length $o{channel} && $o{channel} !~ /^(?:edge|stable)$/;
+    fail("--policy must be 'auto' or 'manual'")
+        if length $o{policy} && $o{policy} !~ /^(?:auto|manual)$/;
 
     my $root = payload_root();
     my @cmd  = ( $^X, "$root/install.pl",
@@ -288,11 +350,14 @@ sub cmd_provision {
     push @cmd, '--domain', $o{domain} if length $o{domain};
     run_or_fail(@cmd);
 
-    # install.pl --channel is a standalone maintenance op (set
-    # update_channel, no install), so it runs as a second pass.
+    # install.pl --channel / --policy are standalone maintenance ops (set
+    # the conf key, no install), so they run as second passes.
     run_or_fail( $^X, "$root/install.pl",
         '--channel', $o{channel}, '--docroot', $o{docroot} )
         if length $o{channel};
+    run_or_fail( $^X, "$root/install.pl",
+        '--policy', $o{policy}, '--docroot', $o{docroot} )
+        if length $o{policy};
 
     my $docroot = abs_path( $o{docroot} ) // $o{docroot};
     my $cgibin  = abs_path( $o{cgibin} )  // $o{cgibin};
@@ -302,18 +367,44 @@ sub cmd_provision {
         cgibin  => $cgibin,
         owner   => current_user(),
         channel => length $o{channel} ? $o{channel} : 'edge',
+        policy  => length $o{policy}  ? $o{policy}  : 'manual',
     );
     return 0;
 }
 
 sub cmd_upgrade {
-    my %o = ( docroot => '', cgibin => '', all => 0, force => 0 );
+    my %o = ( docroot => '', cgibin => '', all => 0, force => 0, force_security => 0 );
     Getopt::Long::GetOptions(
-        'docroot=s' => \$o{docroot},
-        'cgibin=s'  => \$o{cgibin},
-        'all'       => \$o{all},
-        'force'     => \$o{force},
+        'docroot=s'      => \$o{docroot},
+        'cgibin=s'       => \$o{cgibin},
+        'all'            => \$o{all},
+        'force'          => \$o{force},
+        'force-security' => \$o{force_security},
     ) or usage(2);
+    # --force-security is only as strong as the release's own declaration: it
+    # is honoured (as a full channel+policy override, i.e. --force) ONLY when
+    # the payload manifest carries "security_critical": true. Verified up
+    # front, before any site is touched.
+    if ( $o{force_security} ) {
+        my $m = payload_manifest();
+        fail( "--force-security refused: the payload has no release manifest at\n"
+                . payload_root()
+                . "/release-manifest.json, so it cannot declare itself\n"
+                . 'security-critical. Build/install a packaged release, or use --force.' )
+            unless $m;
+        fail( "--force-security refused: payload "
+                . ( $m->{version} // 'unknown' )
+                . ' (channel: '
+                . ( $m->{channel} // 'edge' )
+                . ") does not declare\n"
+                . '"security_critical": true in its release manifest. The override is only as'
+                . "\nstrong as the release's own declaration; for a routine out-of-channel\n"
+                . 'upgrade use --force.' )
+            unless $m->{security_critical};
+        print "lazysite: payload " . ( $m->{version} // 'unknown' )
+            . " declares security_critical: overriding channel and policy\n";
+        $o{force} = 1;
+    }
     return cmd_upgrade_all( \%o ) if $o{all};
 
     refuse_root('upgrade');
@@ -360,7 +451,7 @@ sub cmd_upgrade_all {
     }
 
     my $root = payload_root();
-    my ( @done, @failed );
+    my ( @done, @skipped, @failed );
     for my $s (@$sites) {
         my $owner = site_owner($s);
         if ( !length $owner || $owner eq 'root' ) {
@@ -375,6 +466,15 @@ sub cmd_upgrade_all {
             push @failed, $s->{name};
             next;
         }
+        # Per-site update policy (SM139): 'manual' (the default) keeps the
+        # fleet run off this site; --force / --force-security override.
+        # 'auto' sites still pass through the installer's channel gate below.
+        if ( !$o->{force} && site_update_policy($s) ne 'auto' ) {
+            print "== $s->{name}: update_policy is 'manual' - skipped "
+                . "(use --force, or upgrade it individually)\n";
+            push @skipped, $s->{name};
+            next;
+        }
         my @cmd = ( $^X, "$root/install.pl",
             '--docroot', $s->{docroot}, '--cgibin', $s->{cgibin} );
         push @cmd, '--force' if $o->{force};
@@ -383,12 +483,58 @@ sub cmd_upgrade_all {
         unshift @cmd, 'sudo', '-n', '-u', $owner, '--'
             if $is_root && $owner ne $me;
         print "== $s->{name}: $s->{docroot} (as $owner)\n";
-        if   ( system(@cmd) == 0 ) { push @done,   $s->{name} }
-        else                       { push @failed, $s->{name} }
+        my $rc = system(@cmd);
+        if    ( $rc == 0 ) { push @done, $s->{name} }
+        elsif ( $rc != -1 && ( $rc >> 8 ) == 3 ) {
+            # install.pl exit 3 = clean channel skip (the site's
+            # update_channel refused this payload; already explained and
+            # audited by the installer). Not a failure.
+            print "== $s->{name}: skipped by its update_channel (see above)\n";
+            push @skipped, $s->{name};
+        }
+        else { push @failed, $s->{name} }
     }
     print 'lazysite: upgraded ' . @done . ' site(s)'
-        . ( @failed ? ', FAILED: ' . join( ', ', @failed ) : '' ) . "\n";
+        . ( @skipped ? ', skipped ' . @skipped . ' (' . join( ', ', @skipped ) . ')' : '' )
+        . ( @failed  ? ', FAILED: ' . join( ', ', @failed ) : '' ) . "\n";
     return @failed ? 1 : 0;
+}
+
+# List the registered sites: name, owner, channel, policy, installed version,
+# docroot. Channel and policy show the LIVE conf value when the site's
+# lazysite.conf is readable, falling back to the registry's cached value; the
+# version comes from the site's .install-state.json ('-' when undiscoverable).
+sub cmd_sites {
+    my $sites = read_registry();
+    if ( !@$sites ) {
+        print 'lazysite: no sites registered in ' . registry_dir() . "\n";
+        return 0;
+    }
+    my @rows;
+    for my $s (@$sites) {
+        my $channel = site_conf_value( $s->{docroot}, 'update_channel' );
+        $channel = $s->{channel} unless defined $channel && length $channel;
+        push @rows,
+            [
+            $s->{name},
+            site_owner($s) || '-',
+            $channel || '-',
+            site_update_policy($s),
+            site_version( $s->{docroot} ) || '-',
+            $s->{docroot},
+            ];
+    }
+    my @head = qw(SITE OWNER CHANNEL POLICY VERSION DOCROOT);
+    my @w    = map { length } @head;
+    for my $r (@rows) {
+        for my $i ( 0 .. 4 ) {
+            $w[$i] = length $r->[$i] if length $r->[$i] > $w[$i];
+        }
+    }
+    my $fmt = join( '  ', map { "%-${_}s" } @w[ 0 .. 4 ] ) . "  %s\n";
+    printf $fmt, @head;
+    printf $fmt, @$_ for @rows;
+    return 0;
 }
 
 sub cmd_version {
@@ -398,13 +544,10 @@ sub cmd_version {
         chomp( $version = <$fh> // 'unknown' );
         close $fh;
     }
+    my $m       = payload_manifest();
     my $channel = 'unpackaged (no release manifest)';
-    if ( open my $fh, '<:raw', "$root/release-manifest.json" ) {
-        my $text = do { local $/; <$fh> };
-        close $fh;
-        my $m = eval { JSON::PP::decode_json($text) };
-        $channel = $m->{channel} if ref $m eq 'HASH' && length( $m->{channel} // '' );
-    }
+    $channel = $m->{channel} if $m && length( $m->{channel} // '' );
+    $channel .= ', security-critical' if $m && $m->{security_critical};
     print "lazysite $version (channel: $channel, payload: $root)\n";
     return 0;
 }
@@ -418,8 +561,10 @@ lazysite - host-side management CLI for lazysite sites
 =head1 SYNOPSIS
 
   lazysite provision --docroot D --cgibin C [--domain NAME] [--channel edge|stable]
+                     [--policy auto|manual]
   lazysite upgrade --docroot D [--cgibin C] [--force]
-  lazysite upgrade --all [--force]
+  lazysite upgrade --all [--force | --force-security]
+  lazysite sites
   lazysite check [args...]
   lazysite users [args...]
   lazysite dev [args...]
@@ -446,12 +591,15 @@ drops to each site's owner (C<sudo -u>) per site.
 
 =over 4
 
-=item B<provision> --docroot D --cgibin C [--domain NAME] [--channel edge|stable]
+=item B<provision> --docroot D --cgibin C [--domain NAME] [--channel edge|stable] [--policy auto|manual]
 
 Fresh-install a site from the host payload (wraps C<install.pl>). Refuses
 to run as root. C<--domain> seeds the site URL and names the registry
-entry; C<--channel> pins the site's C<update_channel> after the install.
-On success the site is recorded in the registry (see L</REGISTRY>).
+entry; C<--channel> pins the site's C<update_channel> after the install;
+C<--policy> sets the site's C<update_policy> (C<auto> opts the site in to
+fleet-wide C<upgrade --all> runs; C<manual>, the default, leaves upgrades
+to the operator). On success the site is recorded in the registry (see
+L</REGISTRY>).
 
 =item B<upgrade> --docroot D [--cgibin C] [--force]
 
@@ -460,13 +608,38 @@ When C<--cgibin> is omitted it is taken from the site's registry entry.
 C<--force> overrides the site's update-channel policy (recorded in the
 site's audit log by C<install.pl>).
 
-=item B<upgrade> --all [--force]
+=item B<upgrade> --all [--force | --force-security]
 
 Iterate the registry and upgrade every registered site. Run as root it
 drops to each site's owner via C<sudo -n -u OWNER>; run as a normal user
 it refuses unless every registered site belongs to the caller. Entries
 with a missing docroot, a missing C<cgibin=>, or owner C<root> are skipped
 with a warning. Exits non-zero if any site failed.
+
+Two per-site gates apply (SM139). B<Policy>: a site whose C<update_policy>
+is C<manual> (the default when the key is absent) is skipped - the fleet
+run, typically cron-driven, never touches it unless C<--force> is given.
+B<Channel>: an C<auto>-policy site still takes an upgrade only when its
+C<update_channel> accepts the payload's release channel; that gate lives
+in C<install.pl> (a clean exit-3 skip, audited in the site's log), and the
+CLI reports it as a skip, not a failure.
+
+C<--force> overrides both gates (the installer records the channel
+override in the site's audit log). C<--force-security> also overrides
+both, but is accepted B<only> when the payload's F<release-manifest.json>
+declares C<"security_critical": true> (stamped at build time with
+C<tools/build-manifest.pl --security-critical>); otherwise it refuses
+before touching any site - the override is only as strong as the
+release's own declaration. This is the fleet answer to "a security fix
+must reach every site now".
+
+=item B<sites>
+
+List the registered sites, one line each: name, owner, channel, policy,
+installed version and docroot. Channel and policy show the live
+C<lazysite.conf> value when readable (falling back to the registry's
+cached value); the version is read from each site's
+F<lazysite/.install-state.json> (C<-> when not discoverable).
 
 =item B<check> [args...]
 
@@ -500,11 +673,18 @@ C</etc/lazysite/sites.d/E<lt>domainE<gt>> in an INI-ish key=value format:
   cgibin=/home/user/web/example.com/cgi-bin
   owner=user
   channel=edge
+  policy=manual
 
 The deb ships the directory root-owned, so an unprivileged provision run
 usually cannot write it: in that case provisioning still succeeds and the
 CLI prints the exact file for the admin to drop in place. Reads tolerate
 missing or garbled entries (skipped with a warning, never fatal).
+
+C<channel=> and C<policy=> are provision-time caches for fleet tooling;
+the authoritative values are the site's own C<update_channel> and
+C<update_policy> keys in F<lazysite.conf> (set with C<install.pl
+--channel> / C<--policy>), which C<upgrade --all> and C<sites> prefer
+whenever the conf is readable.
 
 =head1 ENVIRONMENT
 

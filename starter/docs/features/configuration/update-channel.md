@@ -40,6 +40,17 @@ don't want on the cutting edge.
 Only *upgrades* are gated. A fresh install or a reinstall of the same version is
 the operator's explicit choice and is never skipped.
 
+## Fleet upgrades: `update_policy`
+
+On hosts managed with the `lazysite` CLI, a second conf key,
+`update_policy: auto|manual` (default `manual`), decides whether the fleet-wide
+`lazysite upgrade --all` run touches this site at all. `auto` sites are
+upgraded when the channel above accepts the payload; `manual` sites are skipped
+and upgraded only when the operator chooses. A release whose manifest declares
+`"security_critical": true` can be pushed through both gates with
+`lazysite upgrade --all --force-security`. Set the key with
+`install.pl --policy auto|manual --docroot <docroot>` (audited as `policy-set`).
+
 ## Cutting a stable release (operator)
 
     tools/release.sh --final X.Y.Z          # channel: stable
