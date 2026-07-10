@@ -188,23 +188,6 @@ before work starts.
 - **SM085** Git backend / changesets *(design)* - `begin -> diff -> commit ->
   rollback` on a git-versioned docroot. Biggest remaining lever; adds the
   rollback safety net. Headline ask from both AI-partner reviews.
-- **SM110** Domain aliases *(built phases 1+2, 2026-07-10 - see
-  SM110-domain-aliases.md)* - an additional host serving the same site with its
-  own theme / nav / name. Shipped: `alias_hosts` + whitelisted
-  `alias.<host>.<key>` conf overrides (presentation keys only), sanitised
-  Host matching, `alias_host` TT var, and a host-keyed page cache (per-host
-  slots under `lazysite/cache/hosts/`; every invalidation surface clears
-  host copies too - phase 1's interim NOCACHE retired). Open: canonical
-  auto-injection, read-only alias view in the manager, per-alias access
-  groups (after SM095 design).
-- **SM141 Sessions page - list + control active sessions** *(scoped 2026-07-10 -
-  see SM141-session-registry.md)* - keep signed cookies as the source of truth;
-  add a small session REGISTRY at login (sid in the cookie payload; who/when/IP/UA,
-  24h self-pruning) for listing, and a fail-closed REVOCATION list (revoked sids +
-  per-user not_before) checked on cookie verification (bare -f fast path) for
-  per-session / per-user sign-out without secret rotation. Additive, not breaking.
-  SEQUENCED AFTER the eight-dimension review + 0.7.0 stable (touches the auth hot
-  path). Phase 2 candidates: last-seen, SSE liveness.
 - **Remote-layout content components** *(DEFERRED 2026-07-03 - speculative)* -
   `install_layout` + fenced/sections components are local-layout only; remote
   (URL) layouts fetch just `layout.tt`, so their `components/` are not fetched or
@@ -313,6 +296,12 @@ before work starts.
   recipient (0.6.3).
 - **SM138** manager_groups retired - manager access granted by groups only
   (`ui` / `manage_users`); automatic conf migration (0.6.5).
+- **SM110** Domain aliases - alias_hosts + whitelisted per-host overrides
+  (site_name/theme/layout/nav/search), host-keyed cache slots with exhaustive
+  invalidation; security keys never vary by Host (0.7.3).
+- **SM141** Sessions - live-session listing + per-session/per-user revocation
+  on signed cookies (registry + revocation list, single enforcement point);
+  legacy cookies honoured until expiry (0.7.3).
 - **SM139** Packaged distribution - lazysite-common.deb (engine payload,
   lazysite CLI with no-root provisioning, FCGI pool unit, site registry) +
   lazysite-hestia.deb (one-command domain onboarding, cgi/fcgi vhost
