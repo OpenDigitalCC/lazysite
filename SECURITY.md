@@ -2,12 +2,14 @@
 
 ## Supported versions
 
-Security fixes are applied to `main` and ship in the next tagged release; the
-latest tagged release is the currently supported version. A formal
-support-period commitment (a CRA Article 13 requirement, expected five years
-from release) will be set at formal launch and recorded here and in
-`docs/POLICY.md` - until then this rolling-latest posture is the interim
-practice, not the committed policy.
+Security fixes are applied to `main` and ship in the next tagged release. The
+committed support period (a CRA Article 13 requirement) is **five years from
+the first stable release (0.7.0)**, with security fixes delivered on the
+stable release channel for that period; on the edge channel the latest tagged
+release remains the supported version. The commitment is recorded in
+`docs/POLICY.md` ("Support period") and in the Declaration of Conformity
+(`docs/DECLARATION-OF-CONFORMITY.md`); the period's start date is fixed when
+the 0.7.0 stable release is cut.
 
 ## Reporting a vulnerability
 
@@ -59,10 +61,17 @@ Key operational points (full detail in `docs/architecture/security.md`):
   `X-Remote-Name`, `X-Remote-Email`, `X-Payment-Verified`, and
   `X-Payment-Payer` to the vhost. The Hestia and Docker installer
   templates include this.
-- **Set `manager_groups:`** in `lazysite.conf` to restrict manager
-  access to a named group. Leaving it empty grants manager access
-  to any authenticated user (a DEBUG-level log line is emitted in
-  that case).
+- **Grant manager access through groups.** Manager access is
+  carried by groups only: the `ui` capability admits a group's
+  members to the manager UI, and `manage_users` carries the
+  operator powers. Both are grants in
+  `lazysite/auth/groups-settings.json`, edited on the manager
+  Groups page (`perl tools/lazysite-users.pl setup-manager` seeds a
+  correctly-granted admin group). When **no** group grants manager
+  access, the site is in unsecured/dev mode and any authenticated
+  user is treated as a manager (a DEBUG-level log line is emitted
+  in that case). The legacy `manager_groups:` conf key was retired
+  in 0.6.5 (SM138) with an automatic migration - see `UPGRADE.md`.
 - **Set a password** for every user who might ever connect from
   anything other than localhost. Empty-password accounts only work
   from `127.0.0.1` / `::1`, but a user that exists must be

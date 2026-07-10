@@ -68,3 +68,138 @@ Open (tracked): TOTP-seed at-rest encryption (L2); a documented pen-test
 against this model (held pre-launch, review D6); a dependency CVE check (held,
 review D6). See `docs/review/2026-07-01-eight-dimension/` and
 `docs/review/2026-07-01-eight-dimension/90-prelaunch-operational-holds.md`.
+
+## Significant-change assessments
+
+The pentest gate (declared with a dated deferral waiver in
+`docs/adr/0007-pentest-deferral.md`) fires ahead of schedule on significant
+change unless a recorded assessment finds the change contained. This register
+is that record - one dated entry per fired trigger, auditable per the
+framework's letter. Verdict "accepted" means: contained, compensating
+controls sufficient, no ahead-of-schedule engagement required. Entries for
+changes shipped before this register existed are marked retrospective.
+
+### 2026-07-10 (retrospective) - SM070/071/072: WebDAV, theme/layout management, self-service credentials
+
+what changed
+: the `/dav` endpoint (Basic over TLS), staged theme/layout authoring with a
+  delegated sub-user model and pairing-key -> token lifecycle, claim links,
+  TOTP MFA, account expiry - new external interfaces and new authentication
+  methods (shipped pre-0.5.x; assessed retrospectively).
+
+threat delta
+: Spoofing, Tampering, Elevation of privilege, Information disclosure.
+
+controls
+: groups-only capability model (ADR 0001/0003), per-file ACLs, token `%need`
+  map, `EVAL_PERL=0` on layouts, rate limits, single-use hashed claims; all
+  folded into the STRIDE table above. Batch-1 hardening (bdb4c86): the six
+  `:utf8` readers of `user-settings.json` re-paired to `:raw` so the account
+  gates (disabled/expired/MFA) cannot fail open on non-ASCII bytes.
+
+residual risk
+: a layouts-capable partner is trusted by design; TOTP seeds at rest (L2 gap).
+
+verdict
+: accepted.
+
+### 2026-07-10 (retrospective) - SM128: bad-URL auto-blocker (shipped 0.5.41, default on)
+
+what changed
+: a new enforcement surface with persistent blocking state on the anonymous
+  request path - scanner-probe detection per source IP, 403 at threshold.
+
+threat delta
+: Denial of service (mitigation added, plus a new self-DoS surface),
+  Tampering (the counter store).
+
+controls
+: keyed on `REMOTE_ADDR` only (not client-suppliable headers), list/unblock
+  gated on `manage_config`, auto-blocks audited.
+
+residual risk
+: store fails open (corrupt counter file disables the blocker - consistent
+  with the availability posture); behind a front proxy that leaves
+  `REMOTE_ADDR` as the proxy address, a threshold hit blocks all visitors -
+  deployment note for non-Hestia fronts.
+
+verdict
+: accepted.
+
+### 2026-07-10 (retrospective) - SM136: notify-xmpp (shipped 0.6.2)
+
+what changed
+: XMPP notice delivery via `Net::XMPP` - a new dependency with authentication
+  logic (the framework-named trigger, verbatim), a new outbound interface, and
+  a new stored credential class (the per-site XMPP account password in
+  `lazysite/notify-xmpp.conf`).
+
+threat delta
+: Information disclosure (credential at rest, notice content in transit),
+  Spoofing (the XMPP account).
+
+controls
+: credential file WebDAV-denied and web-denied; password never shown back;
+  TLS on by default with peer verification (`XML::Stream` 1.24); delivery
+  lazy-loaded, best-effort, time-boxed (`alarm 15`); CR/LF stripped from
+  notices. Batch-1 fix (bdb4c86): password-carrying plugin configs are now
+  chmod 0660 on save, and `notify-xmpp.conf` + `forms/smtp.conf` joined the
+  `lazysite-check` secrets probe (world-access FAIL, `--fix` repairs).
+
+residual risk
+: authenticated outbound egress to the configured XMPP host; `Net::XMPP` in
+  the SBOM/CVE surface (declared in `sbom-deps.json`).
+
+verdict
+: accepted.
+
+### 2026-07-10 (retrospective) - SM137: SMTP password + staged validation (shipped 0.6.3–0.6.4)
+
+what changed
+: a stored SMTP password (new credential class) in `lazysite/forms/smtp.conf`,
+  and a manager-driven staged connection check (DNS/TCP/TLS/auth) against the
+  saved settings.
+
+threat delta
+: Information disclosure (credential at rest), Spoofing/SSRF-shaped probe
+  (operator-driven TCP connect to an arbitrary configured host:port).
+
+controls
+: `smtp.conf` inside the 02770-checked `forms/` directory, WebDAV-denied by
+  name, never returned to the UI; `resolve_password` shared by delivery and
+  validation; the Validate action is cookie-only manager-gated, never sends
+  mail, is time-boxed, probes plain-first; pinned by
+  `t/unit/forms/05-smtp-validate.t`.
+
+residual risk
+: the SSRF-shaped validate primitive - acceptable at manager trust, recorded
+  here.
+
+verdict
+: accepted.
+
+### 2026-07-10 (retrospective) - SM140: first-party access log (shipped 0.6.8–0.6.9)
+
+what changed
+: a new data classification processed - visitor behavioural records, written
+  anonymised to `lazysite/logs/access-YYYYMMDD.jsonl` and read by the
+  analytics/export layer.
+
+threat delta
+: Information disclosure (visitor privacy), Repudiation (the log doubles as
+  the availability record - see `docs/RELIABILITY.md`).
+
+controls
+: anonymise-at-write (keyed HMAC, daily-salted, truncated to 16 hex; the IP
+  itself never written); log-injection defence (control chars stripped,
+  length-capped, JSON-escaped); 90-day prune; `first_party: off` switch;
+  recording can never break serving. Batch-1 fix (bdb4c86): the HMAC now
+  keys on a persistent random salt (`lazysite/logs/.access-salt`, 0660),
+  closing the empty-`.secret` brute-force corner on never-authed sites.
+
+residual risk
+: the anonymised log is group-readable on multi-user hosts (0664 under
+  02775) - acceptable given anonymisation.
+
+verdict
+: accepted.
