@@ -274,6 +274,7 @@ if ( -d "$LZ/cache/tt" ) {
 for my $rel (qw(
     lazysite/auth/.secret lazysite/forms/.secret lazysite/manager/.csrf-secret
     lazysite/auth/oauth.json lazysite/auth/user-settings.json
+    lazysite/notify-xmpp.conf lazysite/forms/smtp.conf
 )) {
     my $path = "$DOC/$rel";
     next unless -f $path;

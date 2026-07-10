@@ -188,6 +188,18 @@ if [ ! -f "$STAGE/dist/config/sbom-deps.json" ]; then
     exit 1
 fi
 
+# --- gate tooling must EXIST on a release host ---
+# The lint gates skip cleanly on a minimal dev host, which is right for
+# `prove` in general but wrong for a release: a missing tool would silently
+# skip a quality gate (2026-07-10 review, D2). Refuse loudly instead.
+for tool in perlcritic perltidy shellcheck; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "release.sh: gate tool '$tool' is not installed on this host; not releasing." >&2
+        echo "release.sh: staging dir retained: $STAGE" >&2
+        exit 1
+    fi
+done
+
 # --- run tests ---
 
 echo "==> Running full test suite"

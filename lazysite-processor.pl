@@ -4048,7 +4048,10 @@ sub _access_conf {
 }
 
 # Daily-salted visitor key: same visitor+day -> same key (distinct daily
-# visitors), never reversible to the IP (keyed on the site secret).
+# visitors), never reversible to the IP (keyed on the site secret). On an
+# auth-less site there is no .secret, and an unkeyed hash of ymd|ip would be
+# IPv4-brute-forceable (2026-07-10 review, D6) - mint a dedicated salt once
+# and key on that instead.
 sub _visitor_key {
     my ($ymd) = @_;
     my $ip = $ENV{REMOTE_ADDR} // '';
@@ -4059,7 +4062,27 @@ sub _visitor_key {
         $secret = <$sf> // '';
         close $sf;
     }
+    $secret = _access_salt() unless length $secret;
     return substr( hmac_sha256_hex( "$ymd|$ip", $secret ), 0, 16 );
+}
+
+# Persistent random salt for the visitor key on secret-less sites. Minted
+# once under logs/ (the recorder's own directory); losing it only re-keys
+# the visitor tokens - it can never identify anyone.
+sub _access_salt {
+    my $path = "$LAZYSITE_DIR/logs/.access-salt";
+    if ( open my $fh, '<', $path ) {
+        local $/;
+        my $s = <$fh> // '';
+        close $fh;
+        return $s if length $s;
+    }
+    my $salt = hmac_sha256_hex( join( '|', time, $$, rand, rand ), $LAZYSITE_DIR );
+    if ( sysopen( my $fh, $path, O_WRONLY | O_CREAT, 0660 ) ) {
+        syswrite( $fh, $salt );
+        close $fh;
+    }
+    return $salt;
 }
 
 # Attacker-controlled field -> safe JSON string content (control chars

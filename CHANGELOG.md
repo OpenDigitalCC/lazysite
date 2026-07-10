@@ -18,6 +18,20 @@ Keying
 
 ## Unreleased
 
+Fix - 2026-07-10 review batch 1 (seven code fixes)
+: (1) six `:utf8` readers of user-settings.json in the auth wrapper made
+  account_disabled/token_expired/account_expired/mfa_enrolled FAIL OPEN on any
+  non-ASCII byte - now `:raw` with a red-green regression test; (2) plugin
+  configs carrying a password field are chmod 0660 on save and
+  notify-xmpp.conf/smtp.conf joined the lazysite-check secrets probe; (3) the
+  SBOM declares the product licence as MIT (was Artistic-1.0-Perl on 211
+  components); (4) the SM140 visitor key mints a persistent random salt on
+  secret-less sites (was IPv4-brute-forceable); (5) an unmeasured gated CGI
+  now FAILS the coverage gate instead of silently skipping; (6) the secrets
+  lint uses `git grep -e` (the private-key check was vacuous) and every
+  pattern has a planted-fixture self-test; (7) shellcheck -S error is a lint
+  gate and release.sh refuses when perlcritic/perltidy/shellcheck are absent.
+
 ## 0.6.10 - Backlog housekeeping + SM141 sessions scoping (2026-07-10)
 
 Docs - backlog housekeeping + SM141 scoping

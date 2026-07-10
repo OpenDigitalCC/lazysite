@@ -312,6 +312,13 @@ sub action_plugin_save {
         my ( $wok, $werr ) = write_file_checked( $conf_path, $content );
         return { ok => 0, error => "Cannot write config: $werr" }
             unless $wok;
+
+        # A config carrying a password field must not be world-readable -
+        # notify-xmpp.conf sits at the lazysite/ top level, outside the
+        # mode-checked directories (2026-07-10 review, D6).
+        chmod 0660, $conf_path
+            if grep { ( $_->{type} // '' ) eq 'password' }
+            @{ $desc->{config_schema} // [] };
     }
     elsif ( $desc->{config_keys} ) {
         my %want = map { $_ => 1 } @{ $desc->{config_keys} };

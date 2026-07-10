@@ -621,7 +621,10 @@ sub _resolve_account {
     my ($ident) = @_;
     my $path = "$AUTH_DIR/user-settings.json";
     return () unless -f $path;
-    open my $fh, '<:utf8', $path or return ();
+    # ALL user-settings.json readers in this file open :raw - decode_json
+    # takes octets, and a :utf8 handle made it die on any non-ASCII byte,
+    # silently failing every gate below OPEN (2026-07-10 review, D1).
+    open my $fh, '<:raw', $path or return ();
     my $raw = do { local $/; <$fh> };
     close $fh;
     require JSON::PP;
@@ -767,7 +770,7 @@ sub ui_enabled {
     my $path = "$AUTH_DIR/user-settings.json";
     return 1 unless -f $path;
 
-    open my $fh, '<:utf8', $path or return 1;
+    open my $fh, '<:raw', $path or return 1;
     my $raw = do { local $/; <$fh> };
     close $fh;
 
@@ -791,7 +794,7 @@ sub account_disabled {
     my ($username) = @_;
     my $path = "$AUTH_DIR/user-settings.json";
     return 0 unless -f $path;
-    open my $fh, '<:utf8', $path or return 0;
+    open my $fh, '<:raw', $path or return 0;
     my $raw = do { local $/; <$fh> };
     close $fh;
     require JSON::PP;
@@ -808,7 +811,7 @@ sub token_expired {
     my ($username) = @_;
     my $path = "$AUTH_DIR/user-settings.json";
     return 0 unless -f $path;
-    open my $fh, '<:utf8', $path or return 0;
+    open my $fh, '<:raw', $path or return 0;
     my $raw = do { local $/; <$fh> };
     close $fh;
     require JSON::PP;
@@ -825,7 +828,7 @@ sub account_expired {
     my ($username) = @_;
     my $path = "$AUTH_DIR/user-settings.json";
     return 0 unless -f $path;
-    open my $fh, '<:utf8', $path or return 0;
+    open my $fh, '<:raw', $path or return 0;
     my $raw = do { local $/; <$fh> };
     close $fh;
     require JSON::PP;
@@ -841,7 +844,7 @@ sub mfa_enrolled {
     my ($username) = @_;
     my $path = "$AUTH_DIR/user-settings.json";
     return 0 unless -f $path;
-    open my $fh, '<:utf8', $path or return 0;
+    open my $fh, '<:raw', $path or return 0;
     my $raw = do { local $/; <$fh> };
     close $fh;
     require JSON::PP;

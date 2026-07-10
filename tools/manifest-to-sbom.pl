@@ -170,7 +170,7 @@ sub build_sbom {
             name     => $name,
             version  => $version,
             hashes   => [ { alg => 'SHA-256', content => $f->{sha256} } ],
-            licenses => [ { license => { id => 'Artistic-1.0-Perl' } } ],
+            licenses => [ { license => { id => 'MIT' } } ], # the product licence (LICENSE)
             purl     => $purl,
             properties => [ map { { name => $_, value => $props{$_} } }
                               sort keys %props ],
@@ -239,7 +239,7 @@ sub build_sbom {
                 name        => 'lazysite',
                 version     => $version,
                 description => 'Markdown-driven CGI site processor',
-                licenses    => [ { license => { id => 'Artistic-1.0-Perl' } } ],
+                licenses           => [ { license => { id => 'MIT' } } ],
                 externalReferences => [
                     { type => 'vcs',
                       url  => 'https://github.com/OpenDigitalCC/lazysite' },

@@ -57,7 +57,11 @@ if [ "$1" = "--check" ]; then
             END { if (best) print best, b }')
         pct=${1:-}; brn=${2:-}
         if [ -z "$pct" ]; then
-            printf "  %-34s not measured\n" "$f" >&2
+            # A gated CGI with NO measurement is a gate FAILURE, not a skip -
+            # a silent skip is exactly how lazysite-auth.pl went unmeasured
+            # for weeks (2026-07-10 review, D3).
+            printf "  %-34s NOT MEASURED - gate failure\n" "$f" >&2
+            fail=1
             continue
         fi
         # Per-file branch-floor override: `branch_floor[FILE]=NN` in the floor
