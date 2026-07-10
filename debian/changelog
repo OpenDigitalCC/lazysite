@@ -1,3 +1,12 @@
+lazysite (0.7.2-1) unstable; urgency=medium
+
+  * Release 0.7.2: the SM139 packaged-distribution arc complete - fleet
+    channels/policy + --force-security, hardened lazysite-check (post-fix
+    re-report, CGI-identity checks), lazysite-hestia one-command domain
+    onboarding, pool launcher SOCKET= fix.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Thu, 10 Jul 2026 19:30:00 +0000
+
 lazysite (0.7.1-1) unstable; urgency=medium
 
   * First Debian packaging (SM139 increments 1+2): lazysite-common ships
