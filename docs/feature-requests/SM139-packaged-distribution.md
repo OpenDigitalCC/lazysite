@@ -1,7 +1,7 @@
 # SM139 - Packaged distribution: common .deb + environment .debs + unprivileged provisioning
 
-Status: in progress - increments 1-3 and 5 built (design agreed in principle
-2026-07-09)
+Status: in progress - increments 1-5 built (design agreed in principle
+2026-07-09); apt repo publication is the remaining open item
 Driver: field incidents on the 0.6.4->0.6.5 upgrade round - 17 live production
 sites, and every root-run write into a site tree (sudo install.pl, sudo
 lazysite-users.pl) re-opens the www-data ownership gap. Per-site tarball
@@ -40,9 +40,12 @@ lazysite-apache.deb / lazysite-nginx.deb
   wiring, `lazysite provision` presets for that server.
 
 lazysite-hestia.deb
-: Depends on the apache/nginx one. Hestia integration: a web template and/or
-  v-hook so "add lazysite to a domain" is a panel action; knows Hestia's
-  user/group layout and drives provisioning correctly.
+: Hestia integration: web templates + a hook-shaped command so "add
+  lazysite to a domain" is one root command; knows Hestia's user/group
+  layout and drives provisioning correctly. As built (increment 4) it
+  depends directly on lazysite-common and carries its own Apache vhost
+  templates - the standalone apache/nginx glue packages below have not
+  been built yet, and Hestia pins the web server anyway.
 
 Tarball / git checkout
 : Stays fully supported (dev mode and non-deb hosts). install.pl remains; the
@@ -116,7 +119,21 @@ migration.
    (owner/channel/policy/installed version/docroot). Tested in
    t/tools/29-cli-fleet.t. Apt repo publication (stable/edge suites)
    remains open - see the hosting/signing question below.
-4. **hestia deb**: template/hook packaging on top of (2).
+4. **hestia deb** *(built 2026-07-10)*: lazysite-hestia binary package
+   (Arch: all; Depends: lazysite-common (= source version), sudo) from
+   the same debian/ source. Apache web templates for BOTH runtime
+   patterns at /usr/share/lazysite-hestia/templates (lazysite-cgi =
+   FallbackResource through the auth wrapper; lazysite-fcgi = visitor
+   pages proxied to unix:/run/lazysite/&lt;domain&gt;.sock via
+   mod_proxy_fcgi, session-cookie/auth/manager traffic kept on the CGI
+   path) + /usr/bin/lazysite-hestia-domain (add/remove/list): root-run
+   panel integrator that prepares the locked domain root as root,
+   drops to the panel user for `lazysite provision`, writes the
+   registry entry, and with --fcgi writes the pool conf and enables
+   lazysite@&lt;domain&gt;. remove stops/deregisters, never deletes the
+   docroot. Supersedes the hand-run installers/hestia scripts
+   (runbook rewritten around the debs; old scripts kept in-tree for
+   existing deployments). Tested in t/tools/30-hestia-pkg.t.
 5. **check hardening** *(built 2026-07-10)* (parallel, small):
    lazysite-check re-runs the checks after --fix applied anything, so the
    report reflects the post-fix state (the pre-fix snapshot confused
@@ -134,8 +151,12 @@ migration.
 
 - apt repo hosting and signing key management (Forgejo vs plain
   reprepro/aptly on the web host).
-- Whether the Hestia integration is a hook script or a full Hestia app
-  ("quick install app" template) - decide after increment 2 proves the
-  provisioning model.
+- ~~Whether the Hestia integration is a hook script or a full Hestia app
+  ("quick install app" template)~~ DECIDED (2026-07-10, increment 4):
+  **hook-shaped command** (lazysite-hestia-domain). The command shape
+  needs nothing from Hestia's app framework, is scriptable/cron-able,
+  and exercises the increment-2 provisioning model directly; a
+  panel-native "quick install app" remains a possible future layer that
+  would only wrap the same command.
 - Registry format for sites.d (one-line path vs small INI with channel/policy
   cached for fleet tooling).

@@ -9,5 +9,19 @@ lazysite (0.7.1-1) unstable; urgency=medium
   * Provisioning model: no root writes into site trees - provision and
     upgrade run as the site user; only `upgrade --all` may run as root
     (drops to each site's owner per site).
+  * New binary package lazysite-hestia (SM139 increment 4): HestiaCP
+    integration as a hook-shaped command, superseding the hand-run
+    installers/hestia scripts. Ships Apache web domain templates for
+    both runtime patterns (lazysite-cgi: FallbackResource through the
+    CGI auth wrapper; lazysite-fcgi: visitor pages proxied to the
+    per-domain lazysite@ pool socket via mod_proxy_fcgi, auth/manager
+    kept on the CGI path) under /usr/share/lazysite-hestia/templates,
+    and /usr/bin/lazysite-hestia-domain (add/remove/list): root-run
+    panel-side onboarding that prepares the locked Hestia domain root,
+    drops to the panel user for provisioning, registers the site, and
+    with --fcgi writes /etc/lazysite/pools/<domain>.conf and enables
+    lazysite@<domain>.
+  * lazysite-pool.pl now honours the SOCKET= pool-conf key it always
+    documented (previously only --socket was read).
 
  -- Stuart J. Mackintosh <sjm@opendigital.cc>  Fri, 10 Jul 2026 12:00:00 +0000

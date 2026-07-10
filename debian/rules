@@ -1,5 +1,5 @@
 #!/usr/bin/make -f
-# debian/rules for lazysite (SM139 increment 1: lazysite-common).
+# debian/rules for lazysite (SM139: lazysite-common + lazysite-hestia).
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 %:
@@ -27,6 +27,8 @@ override_dh_auto_install:
 override_dh_auto_clean:
 
 # /usr/bin/lazysite is tools/lazysite-cli.pl renamed; plain install(1) is
-# the simplest correct rename mechanism (no dh-exec build-dep).
+# the simplest correct rename mechanism (no dh-exec build-dep). Same
+# pattern for lazysite-hestia's panel-side command.
 execute_after_dh_install:
 	install -D -m 0755 tools/lazysite-cli.pl debian/lazysite-common/usr/bin/lazysite
+	install -D -m 0755 tools/lazysite-hestia-domain.pl debian/lazysite-hestia/usr/bin/lazysite-hestia-domain

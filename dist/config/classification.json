@@ -164,6 +164,7 @@
     "^tools/build-deb\\.sh$",
     "^tools/lazysite-cli\\.pl$",
     "^tools/lazysite-pool\\.pl$",
+    "^tools/lazysite-hestia-domain\\.pl$",
     "^debian/",
     "^starter/.*\\.html$",
     "^starter/lazysite/auth/\\.gitkeep$",

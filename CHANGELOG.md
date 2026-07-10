@@ -18,6 +18,30 @@ Keying
 
 ## Unreleased
 
+Feature - lazysite-hestia.deb: packaged HestiaCP integration (SM139 increment 4)
+: Second binary package from the same source (Architecture: all; Depends:
+  lazysite-common (= source version), sudo). Ships Apache web domain
+  templates for both runtime patterns at
+  /usr/share/lazysite-hestia/templates - `lazysite-cgi` (FallbackResource
+  through the CGI auth wrapper, the proven lazysite-app wiring) and
+  `lazysite-fcgi` (visitor pages proxied to the per-domain pool socket
+  `/run/lazysite/<domain>.sock` via mod_proxy_fcgi; session-cookie
+  requests, the auth wrapper and all cgi-bin/dav endpoints stay CGI - the
+  wrapper is not pooled) - plus /usr/bin/lazysite-hestia-domain
+  (add/remove/list): the hook-shaped, root-run panel integrator that
+  prepares the 0551-locked domain root and docroot group/setgid as root,
+  then DROPS to the panel user for `lazysite provision`, registers the
+  site, and with `--fcgi` writes `/etc/lazysite/pools/<domain>.conf` and
+  enables `lazysite@<domain>`. Decision recorded: hook script now; a
+  panel-native Hestia app, if ever, wraps the same command. The deb
+  supersedes the hand-run installers/hestia scripts (kept in-tree for
+  existing deployments); INSTALL-RUNBOOK.md rewritten around the packages.
+  lazysite-pool.pl now honours the `SOCKET=` pool-conf key it documented.
+  Tests: t/tools/30-hestia-pkg.t (template invariants incl. the
+  FallbackResource-to-auth contract and the socket convention
+  cross-checked against the unit/launcher, CLI edge behaviour, pool-conf
+  key schema vs the launcher's consumption, debian/ relations).
+
 Feature - lazysite-check evaluates as the CGI + post-fix report (SM139 increment 5)
 : Three field-driven hardenings of the permissions doctor. `--fix` now
   re-runs every check after applying fixes, so the printed report reflects

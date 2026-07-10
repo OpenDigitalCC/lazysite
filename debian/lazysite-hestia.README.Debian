@@ -1,0 +1,97 @@
+lazysite-hestia for Debian
+==========================
+
+HestiaCP integration for lazysite (SM139 increment 4). This package
+REPLACES the hand-run installers/hestia scripts of the tarball era
+(install-hestia.sh, lazysite-hestia-deploy.sh,
+lazysite-hestia-update-all.sh, the lazysite-app template): install the
+debs, apply a shipped template, run one command per domain. The old
+scripts remain in the source tree only for existing deployments; see
+installers/hestia/INSTALL-RUNBOOK.md in the lazysite source for the
+full runbook.
+
+The integration is a HOOK-SHAPED COMMAND (lazysite-hestia-domain), not
+a Hestia "quick install app": the command shape needs nothing from
+Hestia's app framework, works from scripts and cron, and proves the
+provisioning model. A panel-native app wrapping the same command is a
+possible future addition.
+
+One-off host setup
+------------------
+
+1. Install lazysite-common and lazysite-hestia (this package).
+
+2. Copy the web templates into Hestia. Hestia scans templates per
+   configured backend - for the standard apache2 + php-fpm setup that
+   is /usr/local/hestia/data/templates/web/apache2/php-fpm/ (one level
+   deeper than .../apache2/; a template placed too high never appears
+   in v-list-web-templates):
+
+       cp /usr/share/lazysite-hestia/templates/lazysite-*.tpl \
+          /usr/share/lazysite-hestia/templates/lazysite-*.stpl \
+          /usr/local/hestia/data/templates/web/apache2/php-fpm/
+
+3. Enable the Apache modules the templates use, then restart Apache:
+
+       a2enmod headers rewrite          # both patterns
+       a2enmod proxy proxy_fcgi         # lazysite-fcgi only
+       a2enmod include                  # only for overlaid SSI (.shtml) sites
+       systemctl restart apache2
+
+Per-domain onboarding (3 steps)
+-------------------------------
+
+1. Create the web domain in Hestia as usual (panel, or
+   `v-add-web-domain <panel-user> <domain>`).
+
+2. Provision it (as root):
+
+       lazysite-hestia-domain add <panel-user> <domain>            # plain CGI
+       lazysite-hestia-domain add <panel-user> <domain> --fcgi     # FastCGI pool
+
+   The command prepares the Hestia-specific layout as root (the
+   0551-locked domain root, docroot handed to <user>:www-data with
+   setgid dirs), then DROPS to the panel user for the actual
+   provisioning (`sudo -u <user> lazysite provision ...`) - no root
+   writes into the site tree, ownership correct by construction. It
+   registers the site in /etc/lazysite/sites.d/ for fleet tooling
+   (`lazysite sites`, `lazysite upgrade --all`). `--channel` /
+   `--policy` pass through to provisioning.
+
+   With --fcgi it also writes /etc/lazysite/pools/<domain>.conf and
+   runs `systemctl enable --now lazysite@<domain>`: a persistent
+   FastCGI pool on /run/lazysite/<domain>.sock (~150x faster on cache
+   hits; see the lazysite-common README.Debian for the pool pattern).
+
+3. Apply the matching web template (this rebuilds the vhost):
+
+       v-change-web-domain-tpl <panel-user> <domain> lazysite-cgi  yes
+   or  v-change-web-domain-tpl <panel-user> <domain> lazysite-fcgi yes
+
+First-run site steps (manager password via
+`sudo -u <user> lazysite users --docroot <docroot> setup-manager`,
+optional `webdav_enabled: yes`) are unchanged - see the runbook.
+
+Switching patterns / removing a domain
+--------------------------------------
+
+CGI -> FCGI later: `lazysite-hestia-domain add <user> <domain> --fcgi`
+is idempotent for an already-provisioned domain (it re-runs provision,
+which is a no-op at the same version, and adds the pool), then apply
+the lazysite-fcgi template.
+
+`lazysite-hestia-domain remove <domain>` stops and disables the pool
+and deregisters the site. It NEVER deletes the docroot; to take the
+domain off lazysite, also switch its web template back
+(`v-change-web-domain-tpl <user> <domain> default`).
+
+Upgrades
+--------
+
+Upgrading these packages never touches site trees. To roll sites
+forward from the new payload:
+
+    lazysite upgrade --all            # respects per-site channel/policy
+    lazysite upgrade --all --force-security   # security-critical releases
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Fri, 10 Jul 2026

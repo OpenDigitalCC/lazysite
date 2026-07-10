@@ -1,0 +1,9 @@
+# Hestia Apache web templates, both runtime patterns (lazysite-cgi /
+# lazysite-fcgi, .tpl + .stpl each). They are NOT installed into Hestia's
+# own tree: /usr/local/hestia is not deb territory and Hestia scans
+# templates per configured backend ($WEBTPL/apache2/php-fpm/), so the
+# operator copies them there once - see README.Debian.
+installers/hestia/lazysite-cgi.tpl   usr/share/lazysite-hestia/templates
+installers/hestia/lazysite-cgi.stpl  usr/share/lazysite-hestia/templates
+installers/hestia/lazysite-fcgi.tpl  usr/share/lazysite-hestia/templates
+installers/hestia/lazysite-fcgi.stpl usr/share/lazysite-hestia/templates

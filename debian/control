@@ -48,3 +48,30 @@ Description: static site builder and manager - engine payload and CLI
  .
  Plain CGI remains the zero-dependency fallback; the FastCGI pool
  (libfcgi-perl, libfcgi-procmanager-perl) is the production shape.
+
+Package: lazysite-hestia
+Architecture: all
+# Strict same-version lazysite-common: the domain command drives that
+# package's CLI/payload and the templates encode its pool-socket
+# convention - the pair must move together. sudo is the drop mechanism
+# (root integrator -> site user), load-bearing for the SM139 principle.
+Depends:
+ lazysite-common (= ${source:Version}),
+ sudo,
+ ${perl:Depends},
+ ${misc:Depends},
+Description: static site builder and manager - HestiaCP integration
+ lazysite renders Markdown sites through Template Toolkit layouts, with a
+ built-in manager UI, WebDAV/MCP publishing endpoints, forms, and auth.
+ .
+ This package integrates lazysite with the HestiaCP hosting panel
+ (nginx in front of Apache): Apache web domain templates for both
+ runtime patterns - lazysite-cgi (plain CGI, zero extra moving parts)
+ and lazysite-fcgi (persistent per-domain FastCGI pool via
+ lazysite@.service) - plus lazysite-hestia-domain, the root-run
+ panel-side command that onboards a Hestia domain (prepares the locked
+ domain-root layout, drops to the panel user to provision the site,
+ registers it for fleet upgrades, and optionally enables its pool).
+ .
+ It replaces the hand-run installers/hestia deploy scripts of the
+ tarball distribution.

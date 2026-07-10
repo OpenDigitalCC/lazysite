@@ -86,8 +86,13 @@ bail("USER $user does not exist") unless defined $uid;
 my $sock_gid = getgrnam($group);
 $sock_gid = $gid unless defined $sock_gid;
 
-my $sock_path = length $opt{socket} ? $opt{socket}
-    :   "$opt{rundir}/$opt{instance}.sock";
+# --socket wins, then the pool conf's SOCKET= (documented in the unit and
+# in usage above - it was advertised but never read before SM139 i4), then
+# the /run/lazysite/<instance>.sock convention the vhost templates encode.
+my $sock_path
+    = length $opt{socket}          ? $opt{socket}
+    : length( $ENV{SOCKET} // '' ) ? $ENV{SOCKET}
+    :                                "$opt{rundir}/$opt{instance}.sock";
 
 # The unit's RuntimeDirectory= creates /run/lazysite; cover the by-hand
 # case too.
@@ -169,7 +174,8 @@ package.
 
 C<DOCROOT> (required), C<USER> (required, never C<root>), C<GROUP>
 (socket group, default C<www-data>), C<WORKERS> (default 2),
-C<MAX_REQUESTS> (default 500), all normally from
+C<MAX_REQUESTS> (default 500), C<SOCKET> (socket path, default
+RUNDIR/NAME.sock; C<--socket> wins over it), all normally from
 F</etc/lazysite/pools/E<lt>instanceE<gt>.conf> via the unit's
 C<EnvironmentFile=>.
 
