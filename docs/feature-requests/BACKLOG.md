@@ -185,9 +185,6 @@ before work starts.
   for their own deployment; the project ships the mechanism + a worked dev-server
   exemplar (`tools/lazysite-server.pl`), not a one-time central sign-off. See the
   Status section of the holds doc.
-- **SM085** Git backend / changesets *(design)* - `begin -> diff -> commit ->
-  rollback` on a git-versioned docroot. Biggest remaining lever; adds the
-  rollback safety net. Headline ask from both AI-partner reviews.
 - **Remote-layout content components** *(DEFERRED 2026-07-03 - speculative)* -
   `install_layout` + fenced/sections components are local-layout only; remote
   (URL) layouts fetch just `layout.tt`, so their `components/` are not fetched or
@@ -296,6 +293,12 @@ before work starts.
   recipient (0.6.3).
 - **SM138** manager_groups retired - manager access granted by groups only
   (`ui` / `manage_users`); automatic conf migration (0.6.5).
+- **SM085** Content history (git backend) + git-sync - every content write a
+  commit (GIT_DIR inside lazysite/, secrets never versioned - pushable-safe by
+  construction); Files-app per-file history/View/Diff/Restore; on-demand
+  remote push/pull with plain-language conflict choices, token never on a
+  command line (0.7.4). Phase 2 (agent changesets begin/diff/commit/rollback)
+  remains future.
 - **SM110** Domain aliases - alias_hosts + whitelisted per-host overrides
   (site_name/theme/layout/nav/search), host-keyed cache slots with exhaustive
   invalidation; security keys never vary by Host (0.7.3).
