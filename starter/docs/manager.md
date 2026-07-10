@@ -117,7 +117,18 @@ On Plugin Config, each enabled plugin appears with a form generated from its
 `lazysite/forms/smtp.conf` for the SMTP plugin).
 
 Plugins that declare `actions` (e.g. Run audit) show action buttons
-that invoke the plugin and display the result.
+that invoke the plugin and display the result. An action can also come back
+asking for a decision - the **Remote sync** plugin's Pull does this when the
+same page changed both here and on the remote copy: the pages are listed and
+you choose **Keep mine** or **Take theirs** (a safety snapshot is taken
+first either way).
+
+The **Remote sync** plugin (`git-sync`) keeps a copy of the site content on
+a remote server. It needs Content history (Backups page) to be enabled;
+configure the remote address, branch and access token here, then use **Test
+connection**, **Push - send changes** and **Pull - fetch changes**. Push
+never overwrites changes on the remote that you don't have - Pull them
+first.
 
 ### Appearance
 

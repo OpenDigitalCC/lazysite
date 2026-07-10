@@ -132,8 +132,10 @@ sub run_git {
 # --- init: adopt the existing site ----------------------------------------------
 
 # The never-versioned list (SM085 design decisions, binding). Written to
-# GIT_DIR/info/exclude at init. The auth/forms/notify-xmpp/logs entries are the
-# SECURITY boundary; cache/backups/locks/git/assets/html/install-state keep the
+# GIT_DIR/info/exclude at init. The auth/forms/notify-xmpp/git-sync/logs
+# entries are the SECURITY boundary (git-sync.conf holds the remote access
+# token; the sync plugin also self-heals this entry on repos initialised
+# before it existed); cache/backups/locks/git/assets/html/install-state keep the
 # history clean of runtime and generated artefacts. The CSRF secret and the
 # upload-rate DB are manager runtime state at lazysite/manager/ top level -
 # excluded for the same reason as auth/.
@@ -141,6 +143,7 @@ my @EXCLUDE = qw(
     /lazysite/auth/
     /lazysite/forms/
     /lazysite/notify-xmpp.conf
+    /lazysite/git-sync.conf
     /lazysite/cache/
     /lazysite/logs/
     /lazysite/backups/

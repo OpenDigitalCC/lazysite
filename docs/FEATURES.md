@@ -606,6 +606,26 @@ so the restore is itself the newest version and nothing is ever lost. Reads are
 `git-restore` shares the content grant and is audited. Full-system backups remain
 the DR mechanism - they carry exactly what the history deliberately excludes.
 
+**Remote sync (the git-sync plugin, opt-in).** With content history enabled, the
+`git-sync` plugin syncs it with a private remote repository (a Forgejo/Gitea/etc.
+project): configure the remote address (`https://host/path`, `git@host:path` or
+`ssh://` - nothing else is accepted), branch and access token (password-typed, so
+`lazysite/git-sync.conf` is 0660 and itself excluded from the versioned set) on
+Plugin Config, then use the on-demand actions - **Test connection** (ls-remote:
+reachable / signed-in / content-present in plain language), **Push** ("Pushed N
+new changes"; refuses cleanly when the remote is ahead - never forces) and
+**Pull** (a fast-forward just applies; when both sides changed, the operator sees
+"These pages changed in both places: ..." and chooses **Keep mine** or **Take
+theirs**, `merge -X ours/theirs` under the hood). Every apply is preceded by a
+prerestore safety snapshot, invalidates the render caches (sibling `.html` +
+host copies, wholesale - a pulled change can affect every page) and reindexes
+aliases for the changed pages; outcomes are audited as `plugin-action git-sync
+(push|pull ...)`. The https token is fed to git through a transient 0700
+`GIT_ASKPASS` helper reading an environment variable - it never appears on a
+command line, in the stored remote URL, in git config or in the helper file.
+Operator-facing strings use no git vocabulary - changes, your copy, the remote
+copy.
+
 ## Upload and download
 
 Multipart upload (multiple files, size-capped and rate-limited *before* the body is
@@ -1053,9 +1073,9 @@ Newest first; releases are git tags.
 
 **Actionable now:**
 
-- **SM085 - Git backend / changesets** - put the docroot under git, commit on every
-  write with the partner as author, expose history/diff/restore. The biggest
-  remaining lever and the substrate for transactional changesets.
+- **SM085 - Git backend / changesets** - phase 1 SHIPPED (content history + the
+  git-sync remote plugin, see Part V). What remains is phase 2: the transactional
+  agent-changeset workflow (begin -> diff -> commit -> rollback) on the same core.
 - **SM084-restore** - the in-manager "restore this snapshot" action (list/create/
   download already ship).
 - **SM075 - Wildcard multi-tenant hosting** - many ephemeral sites under one wildcard

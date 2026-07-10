@@ -100,6 +100,9 @@ function renderPluginCard(plugin) {
   if (plugin.child_configs) {
     html += '<div class="mg-card-body" id="children-' + plugin.id + '">Loading...</div>';
   }
+  // SM085: an action result may ask for a choice (needs_choice) - the
+  // conflict list + choice buttons render here.
+  html += '<div id="choice-' + esc(plugin.id) + '" style="display:none"></div>';
   html += '<div class="mg-status" id="status-' + esc(plugin.id) + '"></div>';
   html += '</div>';
   return html;
@@ -207,16 +210,17 @@ function saveConfig(e, pluginId, script) {
   });
 }
 
-function runAction(plugin, action) {
-  if (action.confirm) { mgConfirm(action.confirm).then(function(__ok){ if (__ok) runAction_go(plugin, action); }); return; }
-  runAction_go(plugin, action);
+function runAction(plugin, action, params) {
+  if (action.confirm) { mgConfirm(action.confirm).then(function(__ok){ if (__ok) runAction_go(plugin, action, params); }); return; }
+  runAction_go(plugin, action, params);
 }
-function runAction_go(plugin, action) {
+function runAction_go(plugin, action, params) {
   var status = document.getElementById('status-' + plugin.id);
   status.textContent = 'Running...';
+  clearActionChoice(plugin.id);
   fetch(API + '?action=plugin-action&plugin=' + encodeURIComponent(plugin.id), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ script: plugin._script, action_id: action.id })
+    body: JSON.stringify({ script: plugin._script, action_id: action.id, params: params || {} })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -226,9 +230,22 @@ function runAction_go(plugin, action) {
       return;
     }
     mgClearWarning();
+    // SM085: the action needs a decision (e.g. git-sync's "changed in both
+    // places") - render the report and the declared choice buttons; the
+    // chosen id is re-posted as params.choice.
+    if (data.needs_choice && action.choices && action.choices.length) {
+      status.textContent = '';
+      renderActionChoice(plugin, action, data);
+      return;
+    }
     // A diagnostic action (e.g. SMTP validate) returns a human message - show it.
-    status.textContent = data.message || 'Done.';
-    if (data.message) mgShowWarning(data.message, false);
+    var msg = data.message || 'Done.';
+    if (data.pages && data.pages.length) {
+      msg += ' Pages: ' + data.pages.slice(0, 20).join(', ')
+           + (data.pages.length > 20 ? ', …' : '');
+    }
+    status.textContent = msg;
+    if (data.message) mgShowWarning(msg, false);
 
     // Link Audit: render the report inline in the audit-report card
     // rather than opening it in a new tab. Other plugins keep the
@@ -245,6 +262,41 @@ function runAction_go(plugin, action) {
     mgShowWarning('Error: ' + e.message, true);
     status.textContent = '';
   });
+}
+
+// SM085: the needs_choice panel - the plain-language report, the list of
+// items it concerns, one button per declared choice, and Cancel.
+function renderActionChoice(plugin, action, data) {
+  var box = document.getElementById('choice-' + plugin.id);
+  if (!box) { mgShowWarning(data.message || 'A choice is needed.', false); return; }
+  var html = '<div class="mg-plugin-desc">' + esc(data.message || 'A choice is needed.') + '</div>';
+  if (data.conflicts && data.conflicts.length) {
+    html += '<ul>';
+    data.conflicts.forEach(function(c) { html += '<li>' + esc(c) + '</li>'; });
+    html += '</ul>';
+  }
+  html += '<div class="mg-wizard-actions">';
+  (action.choices || []).forEach(function(c) {
+    html += '<button class="mg-btn mg-btn-sm" onclick="chooseAction(\'' + esc(plugin.id)
+          + '\',\'' + esc(action.id) + '\',\'' + esc(c.id) + '\')">' + esc(c.label) + '</button>';
+  });
+  html += '<button class="mg-btn mg-btn-sm" onclick="clearActionChoice(\'' + esc(plugin.id) + '\')">Cancel</button>';
+  html += '</div>';
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+
+function chooseAction(pluginId, actionId, choiceId) {
+  var p = (window._plugins || []).find(function(x) { return x.id === pluginId; });
+  if (!p) return;
+  var a = (p.actions || []).find(function(x) { return x.id === actionId; });
+  if (!a) return;
+  runAction_go(p, a, { choice: choiceId });
+}
+
+function clearActionChoice(pluginId) {
+  var box = document.getElementById('choice-' + pluginId);
+  if (box) { box.innerHTML = ''; box.style.display = 'none'; }
 }
 
 function renderAuditReport(url) {

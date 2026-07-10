@@ -42,15 +42,27 @@ core: enable it per site, point it at the docroot, and it hooks the write events
 
 ## Status
 
-**Phase 1 core BUILT (2026-07-10).** `lib/Lazysite::Git` (init / auto-commit /
-log / show / diff / `run_git` plumbing), the write hooks (manager save, delete,
-move, copy, migrate-to-local, upload; WebDAV PUT/DELETE/MOVE/COPY; nav-save and
-config saves; backup restore), the `git-init` / `git-status` / `git-history` /
-`git-show` / `git-restore` control-API actions, the Files-app history panel
-(view / diff / restore) and the Backups-page "Content history" card, plus the
-lazysite-check probes (git binary, repo perms, the auth-exclusion SECURITY
-probe). The git-sync REMOTE plugin (push/pull, collision handling) is the
-separate follow-up and calls the same `Lazysite::Git` module.
+**Phase 1 COMPLETE (2026-07-10): core + sync.** The core: `lib/Lazysite::Git`
+(init / auto-commit / log / show / diff / `run_git` plumbing), the write hooks
+(manager save, delete, move, copy, migrate-to-local, upload; WebDAV
+PUT/DELETE/MOVE/COPY; nav-save and config saves; backup restore), the
+`git-init` / `git-status` / `git-history` / `git-show` / `git-restore`
+control-API actions, the Files-app history panel (view / diff / restore) and
+the Backups-page "Content history" card, plus the lazysite-check probes (git
+binary, repo perms, the auth-exclusion SECURITY probe).
+
+The sync half: `plugins/git-sync.pl` per the Remote-sync decision below -
+Push / Pull / Test connection actions on Plugin Config, keep_mine /
+take_theirs collision handling behind a prerestore safety snapshot, the
+GIT_ASKPASS-via-environment credential mechanism (the token never on a
+command line, in the remote URL, in git config or in the helper file), and
+`lazysite/git-sync.conf` added to the never-versioned exclude list (init +
+self-heal + lazysite-check FAIL probe) so the token can never be pushed.
+Plugin actions gained the minimal parameter extension: an action may declare
+`run: 'action'` (invoked as `--action <id>` instead of `--scan`) and
+`choices`, which the Plugin Config page renders as buttons when a run
+returns `needs_choice`; the audit target now names the action ("git-sync
+(pull keep_mine)").
 
 Raised 2026-06-25 alongside SM084. The overlay-migration work (SM084) ships
 the tar-snapshot backup; this is the richer, opt-in versioning layer and its
@@ -122,7 +134,7 @@ Remote sync - the git-sync plugin (alongside, opt-in)
 Phases
 : Phase 1 (this build): core module + auto-commit hooks + Files-app history/
   step-through/restore (CORE, built 2026-07-10) + the git-sync plugin
-  (separate follow-up build on the same core). Phase 2 (future): the agent
-  changeset workflow (begin -> diff -> commit -> rollback as MCP/API
-  session), periodic auto-push schedules, history for config files in the
-  manager UI.
+  (BUILT 2026-07-10, same day, on the same core - phase 1 is complete).
+  Phase 2 (future): the agent changeset workflow (begin -> diff -> commit ->
+  rollback as MCP/API session), periodic auto-push schedules, history for
+  config files in the manager UI.

@@ -566,6 +566,17 @@ sub run_checks {
             else {
                 report( 'OK', "content history: lazysite/auth is excluded from the repo" );
             }
+            # git-sync.conf holds the remote access token; when it exists it
+            # must be excluded too (the sync plugin self-heals this before
+            # every sync, but a missing line is still a pushable-secret risk).
+            if ( -f "$LZ/git-sync.conf"
+                && $excl !~ m{^/?lazysite/git-sync\.conf\s*$}m ) {
+                report( 'FAIL',
+                    "lazysite/git/info/exclude does not exclude lazysite/git-sync.conf - "
+                        . "the remote access token could be committed and PUSHED to a remote",
+                    "add a '/lazysite/git-sync.conf' line to '$gd/info/exclude' (and "
+                        . "'git rm --cached lazysite/git-sync.conf' if it was ever committed)" );
+            }
         }
     }
 

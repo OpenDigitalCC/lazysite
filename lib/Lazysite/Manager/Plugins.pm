@@ -349,7 +349,7 @@ sub action_plugin_save {
 }
 
 sub action_plugin_action {
-    my ( $plugin_id, $script, $action_id ) = @_;
+    my ( $plugin_id, $script, $action_id, $req_params ) = @_;
 
     my $full_script = resolve_plugin_script($script);
     return { ok => 0, error => 'Plugin not found' } unless $full_script;
@@ -365,7 +365,31 @@ sub action_plugin_action {
         return { ok => 1, link => $action->{link} };
     }
 
-    my $output = qx($^X \Q$full_script\E --scan --docroot \Q$DOCROOT\E 2>/dev/null);
+    # SM085 (git-sync): the minimal generic extension for parameterised plugin
+    # actions. An action that declares run:'action' in the descriptor is
+    # invoked as `--action <id>` (the legacy default stays `--scan`), and may
+    # declare `choices`; a request's params.choice is accepted ONLY when it
+    # matches a declared choice id, so nothing request-controlled ever reaches
+    # the command line - every argument below is a descriptor literal. The
+    # acting user travels in the environment for the plugin's own attribution
+    # (commits, snapshots, log lines). Action-mode stderr is NOT discarded:
+    # the plugin's log_event lines belong in the server error log.
+    my @argv     = ('--scan');
+    my $redirect = '2>/dev/null';
+    if ( ( $action->{run} // '' ) eq 'action' ) {
+        @argv     = ( '--action', $action->{id} );
+        $redirect = '';
+        my $choice = ( ref $req_params eq 'HASH' ) ? $req_params->{choice} : undef;
+        if ( defined $choice && length $choice ) {
+            return { ok => 0, error => 'Unknown choice' }
+                unless grep { ( $_->{id} // '' ) eq $choice }
+                @{ $action->{choices} // [] };
+            push @argv, '--choice', $choice;
+        }
+    }
+    local $ENV{LAZYSITE_ACTING_USER} = $Lazysite::Manager::Common::auth_user // '';
+    my $args   = join ' ', map { quotemeta } @argv;
+    my $output = qx($^X \Q$full_script\E $args --docroot \Q$DOCROOT\E $redirect);
     my $result = eval { decode_json($output) }
         // { ok => 0, error => 'Action produced no output' };
 

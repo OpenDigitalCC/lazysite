@@ -504,7 +504,8 @@ elsif ( $action eq 'plugin-save' )      {
 }
 elsif ( $action eq 'plugin-action' )    {
     my $req = eval { decode_json($body) } // {};
-    $result = action_plugin_action( $params{plugin}, $req->{script}, $req->{action_id} );
+    $result = action_plugin_action( $params{plugin}, $req->{script}, $req->{action_id},
+        $req->{params} );
 }
 elsif ( $action eq 'nav-read' )         { $result = action_nav_read() }
 elsif ( $action eq 'pages' )            { $result = action_pages() }
@@ -1146,6 +1147,19 @@ sub _audit_plugin_target {
                                  : join( ', ', @keys );
             $plugin .= " ($list)";
         }
+    }
+
+    # plugin-action: name WHICH action ran (and any choice it carried), so a
+    # git-sync push and pull are distinguishable in the trail - "git-sync
+    # (pull keep_mine)" rather than a bare plugin name (SM085).
+    if ( defined $action && $action eq 'plugin-action' && length $plugin ) {
+        my $b      = eval { decode_json( $body // '' ) };
+        my $aid    = ( ref $b eq 'HASH' ? $b->{action_id} : undef ) // '';
+        my $choice = ( ref $b eq 'HASH' && ref $b->{params} eq 'HASH' )
+            ? ( $b->{params}{choice} // '' ) : '';
+        s/[^a-zA-Z0-9_-]//g for ( $aid, $choice );
+        $aid    .= " $choice" if length $aid && length $choice;
+        $plugin .= " ($aid)"  if length $aid;
     }
     return $plugin;
 }

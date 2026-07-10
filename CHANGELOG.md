@@ -18,6 +18,29 @@ Keying
 
 ## Unreleased
 
+Feature - remote sync: push/pull the content history to a private remote (SM085 phase 1, sync half)
+: The `git-sync` plugin (opt-in; needs content history enabled) syncs the
+  site's history with an operator-configured remote repository. Configure
+  the remote address (`https://host/path`, `git@host:path` or `ssh://` only
+  - `javascript:`/`file:`/arbitrary schemes and embedded credentials are
+  refused), branch and access token on Plugin Config; the token lives in
+  the 0660, never-versioned `lazysite/git-sync.conf` and reaches git only
+  through a transient `GIT_ASKPASS` helper reading an environment variable
+  - never on a command line, in the stored remote URL or in git config.
+  Actions: Test connection (ls-remote, plain-language verdict), Push
+  ("Pushed N new changes"; refuses cleanly when the remote is ahead, never
+  forces) and Pull (fast-forward applies; when both sides changed, the
+  operator sees "These pages changed in both places: ..." and chooses Keep
+  mine or Take theirs). Every apply takes a prerestore safety snapshot
+  first, then invalidates render caches (sibling + host copies, wholesale)
+  and reindexes aliases; outcomes are logged and audited with the action
+  named ("git-sync (pull keep_mine)"). Plugin actions gained the minimal
+  parameter extension (`run: 'action'` + declared `choices` rendered as
+  buttons on a `needs_choice` reply); `lazysite-check` FAILs when an
+  existing `git-sync.conf` is not excluded from the repo. No git
+  vocabulary anywhere an operator reads. Tests:
+  t/unit/plugins/03-git-sync.t (local bare-repo remotes, no network).
+
 Feature - content history: per-file git versioning with view/diff/restore (SM085 phase 1 core)
 : Opt-in version history for the site content. `git-init` (the Enable button
   on the Backups page's new Content history card, or the control-API action,

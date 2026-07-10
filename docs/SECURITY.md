@@ -363,3 +363,55 @@ residual risk
 
 verdict
 : accepted.
+
+### 2026-07-10 - SM085 phase 1 (sync half): git-sync - egress to an operator-configured remote (unreleased, on main)
+
+what changed
+: the `git-sync` plugin (opt-in) pushes/pulls the content history to a
+  remote the OPERATOR configures, with a stored credential. New surface:
+  outbound network connections from the site host to an
+  operator-controlled address (git-over-https/ssh egress); a long-lived
+  access token at rest in `lazysite/git-sync.conf`; a pull path that
+  rewrites the worktree from remote-supplied content outside the normal
+  save path; and a request-supplied action parameter (the
+  keep_mine/take_theirs choice) reaching a child process.
+
+threat delta
+: Information disclosure (the token; the history leaving the host;
+  SSRF-shaped abuse of the remote address), Tampering (remote-supplied
+  content applied to the worktree; argument injection through the URL or
+  branch), Repudiation (sync outcomes must be attributable).
+
+controls
+: remote address shape-validated before any git call - `https://host/path`
+  (no userinfo), `git@host:path` or `ssh://` only; `javascript:`, `file:`,
+  other schemes, option-shaped strings and shell metacharacters refused;
+  branch name regex-validated. The token is never on a command line (no
+  `ps` exposure), never in the stored remote URL or git config, and not in
+  the askpass helper either: it travels in the process environment
+  (same-uid visibility only) and git reads it via a transient 0700
+  `GIT_ASKPASS` helper under the never-served `lazysite/git/`, removed
+  after every action; `GIT_TERMINAL_PROMPT=0` + ssh BatchMode fail closed.
+  `git-sync.conf` is 0660 (password-field rule) and on the never-versioned
+  exclude list (init + self-heal before every sync + a `lazysite-check`
+  SECURITY FAIL), so the pushed history cannot carry it - and the phase-1
+  exclude list already keeps every other secret out of what egresses. The
+  choice parameter is validated against the descriptor's declared ids in
+  the manager AND re-validated in the plugin; all git execution stays
+  list-form via `Lazysite::Git::run_git`. Pull applies only fast-forwards
+  or explicit `-X ours/theirs` merges, each behind a prerestore safety
+  snapshot; a failed merge is aborted (worktree unchanged). Push never
+  forces. Outcomes are audited (`plugin-action git-sync (push|pull
+  choice)`) and logged; raw git stderr goes to the server log, never to
+  the operator response.
+
+residual risk
+: egress destination is operator-chosen by design (an operator could sync
+  the content tree to any reachable git host - equivalent to their
+  existing download rights); the token is recoverable by anything running
+  as the site uid while an action runs; content pulled from the remote is
+  trusted as operator content (same standing as a WebDAV write; the
+  processor's normal escaping applies at render).
+
+verdict
+: accepted.

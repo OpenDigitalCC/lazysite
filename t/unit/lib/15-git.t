@@ -73,6 +73,7 @@ my $d = site();
     like( $excl, qr{^/lazysite/auth/$}m,             'exclude: lazysite/auth/ (credentials, secrets)' );
     like( $excl, qr{^/lazysite/forms/$}m,            'exclude: lazysite/forms/ (submission PII, SMTP secret)' );
     like( $excl, qr{^/lazysite/notify-xmpp\.conf$}m, 'exclude: notify-xmpp.conf (XMPP password)' );
+    like( $excl, qr{^/lazysite/git-sync\.conf$}m,    'exclude: git-sync.conf (remote access token)' );
     like( $excl, qr{^/lazysite/cache/$}m,            'exclude: lazysite/cache/' );
     like( $excl, qr{^/lazysite/logs/$}m,             'exclude: lazysite/logs/ (visitor data)' );
     like( $excl, qr{^/lazysite/backups/$}m,          'exclude: lazysite/backups/' );
