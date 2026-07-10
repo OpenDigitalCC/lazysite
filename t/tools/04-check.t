@@ -17,7 +17,12 @@ ok( -f $script, 'tools/lazysite-check.pl present' );
 my $base = tempdir( CLEANUP => 1 );
 my $doc  = "$base/public_html";
 my $cgi  = "$base/cgi-bin";
-make_path( "$doc/lazysite/auth", "$doc/lazysite/cache", $cgi );
+make_path( "$doc/lazysite/auth", "$doc/lazysite/cache", "$doc/lazysite/manager", $cgi );
+
+# the manager layout (checked when the manager is enabled)
+open my $lt, '>', "$doc/lazysite/manager/layout.tt" or die $!;
+print {$lt} "<html>[% content %]</html>\n"; close $lt;
+chmod 0644, "$doc/lazysite/manager/layout.tt";
 
 # a healthy-ish conf + a bootstrapped manager
 open my $cf, '>', "$doc/lazysite/lazysite.conf" or die $!;
@@ -45,7 +50,8 @@ for my $s (qw(lazysite-processor.pl lazysite-auth.pl lazysite-manager-api.pl)) {
 # The test's files are owned by the test user's group (not www-data), so pass
 # --group explicitly; otherwise the group check would (correctly) flag them.
 my $gname = getgrgid( ( stat $doc )[5] ) // ( stat $doc )[5];
-sub run { qx($^X $script --docroot $doc --cgibin $cgi --group $gname @_ 2>&1) }
+sub run_as_group { my $g = shift; qx($^X $script --docroot $doc --cgibin $cgi --group $g @_ 2>&1) }
+sub run { run_as_group( $gname, @_ ) }
 
 # --- detection ---
 {
@@ -138,6 +144,82 @@ SKIP: {
 
     run('--fix');
     ok( !-d "$doc/lazysite/cache/tt", '--fix removed the compile-cache tree' );
+}
+
+# --- post-fix re-report: --fix re-runs the checks, report shows the result ---
+# (field feedback 2026-07-09/10: the report after --fix was the PRE-fix
+#  snapshot, which read as "the fix did nothing". A fixed FAIL must appear as
+#  ok in the SAME run's report.) Ownership/mode arithmetic, so root-safe.
+{
+    chmod 0644, "$doc/lazysite/auth/.secret";    # world-readable -> FAIL again
+    my $out = run('--fix');
+    like( $out, qr/fixed: chmod 0660/, '--fix repairs the secret (action line first)' );
+    like( $out, qr/reflects the post-fix state/, 'report is marked as post-fix' );
+    like( $out, qr{auth/\.secret readable by the CGI, not world-accessible},
+        'the fixed FAIL appears as ok in the same run\'s report' );
+    like( $out, qr/0 failure\(s\)/, 'post-fix report counts no failures' );
+    is( $? >> 8, 0, 'exit status reflects the post-fix state' );
+}
+
+# --- no re-report when there was nothing to fix ------------------------------
+{
+    my $out = run('--fix');
+    unlike( $out, qr/reflects the post-fix state/,
+        'a --fix run with nothing to fix reports normally' );
+}
+
+# --- manager-layout probe (field-hit 2026-07-09): layout.tt must exist and be
+#     readable by the CGI IDENTITY, not by whoever runs the check --------------
+{
+    # re-enable the manager (block above rewrote the conf without it)
+    open my $c3, '>', "$doc/lazysite/lazysite.conf" or die $!;
+    print {$c3} "site_name: T\nmanager: enabled\n"; close $c3;
+    chmod 0664, "$doc/lazysite/lazysite.conf";
+
+    # missing -> FAIL with the fallback-chrome symptom named
+    unlink "$doc/lazysite/manager/layout.tt" or die $!;
+    my $out = run();
+    like( $out, qr{lazysite/manager/layout\.tt missing}, 'missing manager layout is a FAIL' );
+    like( $out, qr/fallback layout, stuck at Loading/, 'symptom named for a missing layout' );
+    isnt( $? >> 8, 0, 'non-zero exit for a missing manager layout' );
+
+    # 0640 with a foreign group: readable by root, NOT by the CGI -> FAIL
+    open my $lt2, '>', "$doc/lazysite/manager/layout.tt" or die $!;
+    print {$lt2} "<html>[% content %]</html>\n"; close $lt2;
+    chmod 0640, "$doc/lazysite/manager/layout.tt";
+    my ($othergrp) = grep { defined getgrnam($_) && $_ ne $gname } qw(nogroup daemon root);
+SKIP: {
+        skip 'no second group available to simulate a foreign group', 2
+            unless defined $othergrp;
+        my $wrong = run_as_group($othergrp);
+        like( $wrong, qr{layout\.tt \(0640, .*not readable by\s+the CGI}s,
+            'a 0640 wrong-group manager layout is flagged (root -r would pass it)' );
+        like( $wrong, qr/fallback layout, stuck at Loading/,
+            'symptom named for an unreadable layout' );
+    }
+
+    # healthy again
+    chmod 0644, "$doc/lazysite/manager/layout.tt";
+    my $ok = run();
+    like( $ok, qr{\[\s*ok\s*\] lazysite/manager/layout\.tt present and readable},
+        'a readable manager layout reports ok' );
+}
+
+# --- dir traversal: the CGI must cross lazysite/, manager/, auth/ ------------
+# (all checks pass through these components; a missing group-execute is
+#  invisible to a root -x test - the arithmetic check sees it, root or not)
+{
+    chmod 0700, "$doc/lazysite/manager";
+    my $out = run();
+    like( $out, qr{lazysite/manager/ \(0700, .*not traversable by the CGI}s,
+        'a dir without group-execute is flagged as untraversable' );
+    isnt( $? >> 8, 0, 'non-zero exit for an untraversable dir' );
+
+    my $fix = run('--fix');
+    like( $fix, qr/fixed: chmod 0710/, '--fix adds group-execute (keeps the rest)' );
+    like( $fix, qr{lazysite/manager/ traversable by the CGI},
+        'post-fix report shows the dir traversable in the same run' );
+    is( $? >> 8, 0, 'zero exit after the traversal fix' );
 }
 
 done_testing();

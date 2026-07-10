@@ -1,6 +1,7 @@
 # SM139 - Packaged distribution: common .deb + environment .debs + unprivileged provisioning
 
-Status: proposed (design agreed in principle 2026-07-09)
+Status: in progress - increments 1-3 and 5 built (design agreed in principle
+2026-07-09)
 Driver: field incidents on the 0.6.4->0.6.5 upgrade round - 17 live production
 sites, and every root-run write into a site tree (sudo install.pl, sudo
 lazysite-users.pl) re-opens the www-data ownership gap. Per-site tarball
@@ -95,20 +96,39 @@ migration.
 
 ## Increments
 
-1. **debianize common**: debian/ packaging for lazysite-common (payload +
-   `lazysite` CLI skeleton wrapping install.pl/check/users). Build via the
-   existing release flow; artefacts to /srv/projects/packages/.
-2. **provision-as-site-user**: the provision/upgrade verbs with the
-   drop-privileges model + root guard in install.pl + site registry.
-3. **channels/policy**: update_policy conf key, `upgrade --all`, security
-   force; apt repo publication (stable/edge suites).
+1. **debianize common** *(built, `f66d5cc`)*: debian/ packaging for
+   lazysite-common (payload + `lazysite` CLI skeleton wrapping
+   install.pl/check/users). Build via the existing release flow; artefacts
+   to /srv/projects/packages/.
+2. **provision-as-site-user** *(built, `f66d5cc`)*: the provision/upgrade
+   verbs with the drop-privileges model + root guard in install.pl + site
+   registry.
+3. **channels/policy** *(built 2026-07-10)*: `update_policy: auto|manual`
+   conf key (default manual; setter `install.pl --policy`, audited as
+   `policy-set`; cached as `policy=` in the registry, seeded by
+   `provision --policy`). `lazysite upgrade --all` skips manual-policy
+   sites (logged per site) and lets install.pl's existing exit-3 channel
+   gate decide auto-policy sites; `--force` overrides both gates.
+   `--force-security` also overrides both but is honoured only when the
+   payload manifest declares `"security_critical": true`
+   (build-manifest.pl `--security-critical`) - refused with a clear
+   message otherwise. New `lazysite sites` verb lists the fleet
+   (owner/channel/policy/installed version/docroot). Tested in
+   t/tools/29-cli-fleet.t. Apt repo publication (stable/edge suites)
+   remains open - see the hosting/signing question below.
 4. **hestia deb**: template/hook packaging on top of (2).
-5. **check hardening** (parallel, small): lazysite-check re-runs checks after
-   --fix (report currently shows the pre-fix snapshot - confusing in the
-   field); add a manager-layout check (lazysite/manager/layout.tt present +
-   CGI-readable - a root-run check misses this today, field-hit 2026-07-09);
-   effective-access checks should evaluate as www-data (drop privileges or
-   test modes), not as root.
+5. **check hardening** *(built 2026-07-10)* (parallel, small):
+   lazysite-check re-runs the checks after --fix applied anything, so the
+   report reflects the post-fix state (the pre-fix snapshot confused
+   operators in the field); manager-layout probe when the manager is
+   enabled (lazysite/manager/layout.tt present + readable by the CGI
+   identity, FAIL names the fallback-layout / stuck-at-Loading symptom -
+   field-hit 2026-07-09); effective-access checks (conf readability,
+   cgi-bin executability, secrets) evaluate as the CGI via ownership+mode
+   arithmetic rather than -r/-w/-x (root bypasses DAC, so root-run checks
+   passed on www-data-only failures), plus a group-execute traversal check
+   on lazysite/, lazysite/manager/ and lazysite/auth/. Tested in
+   t/tools/04-check.t.
 
 ## Open questions
 

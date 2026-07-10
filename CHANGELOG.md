@@ -18,6 +18,39 @@ Keying
 
 ## Unreleased
 
+Feature - lazysite-check evaluates as the CGI + post-fix report (SM139 increment 5)
+: Three field-driven hardenings of the permissions doctor. `--fix` now
+  re-runs every check after applying fixes, so the printed report reflects
+  the post-fix state (the `fixed:` action lines stay first; the report is
+  marked as post-fix) - previously it showed the pre-fix snapshot, which
+  read as "the fix did nothing". New manager-layout probe: when the manager
+  is enabled, lazysite/manager/layout.tt must exist and be readable by the
+  CGI identity, else FAIL naming the symptom (manager renders in the
+  built-in fallback layout, stuck at "Loading..."). Effective-access checks
+  (lazysite.conf readability, cgi-bin executability, the new checks) are
+  evaluated via ownership+mode arithmetic against the expected uid/gid
+  instead of -r/-x, so a root run can no longer pass files the www-data CGI
+  cannot use; plus a group-execute traversal check on lazysite/,
+  lazysite/manager/ and lazysite/auth/. Queued chmod fixes on the same path
+  now compose (additive bits applied against the live mode) instead of the
+  last chmod clobbering earlier ones. Tests: t/tools/04-check.t (post-fix
+  re-report, layout probe, traversal).
+
+Feature - fleet upgrade channels and policy (SM139 increment 3)
+: Per-site `update_policy: auto|manual` in lazysite.conf (default manual;
+  setter install.pl --policy, audited as policy-set; cached as policy= in
+  the site registry, seeded by `lazysite provision --policy`). `lazysite
+  upgrade --all` skips manual-policy sites with a per-site log line and
+  lets install.pl's existing exit-3 channel gate decide auto-policy sites
+  (channel skips now counted as skips, not failures); --force overrides
+  both gates. New --force-security overrides channel AND policy fleet-wide
+  but is honoured only when the payload release-manifest.json declares
+  "security_critical": true (new build-manifest.pl --security-critical
+  flag) - refused with a clear message otherwise. New `lazysite sites`
+  verb lists the registry with live conf channel/policy and each site's
+  installed version. Tests: t/tools/29-cli-fleet.t (policy x channel
+  matrix, force/force-security, sites listing).
+
 Feature - lazysite-common.deb + the lazysite CLI (SM139 increments 1-2)
 : debian/ packaging builds lazysite-common (engine payload at
   /usr/share/lazysite, /usr/bin/lazysite, man pages, the lazysite@ FastCGI
