@@ -58,6 +58,14 @@ before work starts.
   force-upgrade; site registry in /etc/lazysite/sites.d/. Includes
   lazysite-check hardening: re-run checks after --fix, manager-layout check,
   evaluate access as www-data not root.
+- **SM140 First-party analytics** *(plan written 2026-07-10 - see
+  SM140-first-party-analytics.md)* - the processor records its own traffic to
+  lazysite/logs/access-YYYYMMDD.jsonl (anonymised at write, daily rotation,
+  retention prune); stats reads it first, so visitor analytics work out of the
+  box with NO server-owner ACLs or vhost env and no nginx-vs-apache undercount
+  (driver: the 0.6.7 Hestia field round). Server-log parsing stays as optional
+  enrichment for asset-level detail. FallbackResource routing means every page
+  view, cache hit, and probe already passes through the processor.
 - **Live-chat plugin (XMPP bot)** - an on-site chat widget backed by an XMPP bot
   (reuses the existing XMPP integration).
 - **Calendar-booking plugin** - bookable time slots with availability, producing
