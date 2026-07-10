@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.6.9 - AI visitor analytics reads the first-party log (2026-07-10)
+
 Feature - AI visitor analytics reads the first-party log (SM140 i3+i4)
 : `analyse_visitors`/the stats export now ingests the first-party access log
   (per-day-file byte offsets into the same incremental day-bucket cache;
