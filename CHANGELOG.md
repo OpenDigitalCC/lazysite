@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.2 - Packaged distribution: the SM139 arc (2026-07-10)
+
 Feature - lazysite-hestia.deb: packaged HestiaCP integration (SM139 increment 4)
 : Second binary package from the same source (Architecture: all; Depends:
   lazysite-common (= source version), sudo). Ships Apache web domain
