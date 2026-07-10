@@ -108,21 +108,24 @@ Tier 2 - web-server diagnostics (optional, owner-wired)
 
 ## Increments
 
-1. **Access recorder** - `Lazysite::Access::record()` + processor wiring at
-   the output chokepoints (output_page / not_found / forbidden), field
-   sanitisation, anonymise-at-write, daily files + retention prune. Bench
-   gate proves negligible overhead. (ADR 0001: processor stays module-free -
-   the recorder is a local sub in the processor; the lib module exists for
-   the other CGIs and tests.)
-2. **stats.pl first-party source** - aggregate access-*.jsonl; channel-aware
-   headline (pages only); server-log becomes optional enrichment; the
-   "no access log" / ACL guidance survives only under `source: server-log`.
-3. **AI export + channels** - convert export_stats / analyse_visitors (the AI
-   connector surface, currently still server-log + incremental byte-offset
-   cache) to the first-party source; form-handler / dav record with channel
-   tags where useful.
-4. **Docs + SM139 tie-in** - stats/features/ai-briefing docs; the hestia deb
-   drops access-log wiring from its requirements (optional enrichment note).
+1. **Access recorder** *(shipped 0.6.8)* - local subs in the processor
+   (ADR 0001: module-free) wired at the output chokepoints (output_page /
+   not_found / forbidden / serve_403, cache-hit flag, manager channel), field
+   sanitisation, anonymise-at-write, daily files + retention prune, the
+   first_party off switch, and the die-guard 500. Bench gate held.
+2. **stats.pl first-party source** *(shipped 0.6.8)* - scan aggregates
+   access-*.jsonl (headline human-only, manager channel excluded); server-log
+   is the fallback; both outputs carry `source`.
+3. **AI export** *(built 2026-07-10)* - export_stats / analyse_visitors
+   ingests first-party files into the same day-bucket cache via per-file
+   byte offsets (v2 cache; append-only day files make this trivial); shared
+   _export_assemble; `source` in the export. CHANNEL DECISION: form-handler
+   stays standalone/module-free by design and dav has its own audit - no
+   recorder wiring until a concrete consumer needs those channels; the
+   format's `ch` field already accommodates them.
+4. **Docs** *(done 2026-07-10)* - manager.md, ai-briefing-stats.md, plugin
+   --describe, the stats page hint. SM139's hestia deb treats web-server log
+   access as optional tier-2 enrichment, never a requirement.
 
 ## Open questions
 

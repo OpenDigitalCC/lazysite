@@ -7,7 +7,7 @@
 use strict;
 use warnings;
 use Test::More;
-use JSON::PP qw(decode_json);
+use JSON::PP qw(decode_json encode_json);
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
@@ -96,6 +96,18 @@ is( $s->{status}{404}, 1, '404 in the status histogram' );
 is( $s->{top_pages}[0]{key}, '/', 'top page from first-party data' );
 is( scalar @{ $s->{referrers}{external} }, 1, 'external referrer counted' );
 ok( $s->{anonymised}, 'reported as anonymised' );
+
+# --- the AI export (analyse_visitors) reads first-party data too (i3) ---
+my $e = decode_json( qx($^X $root/plugins/stats.pl --export --docroot '$d') );
+ok( $e->{ok}, 'first-party export ok' ) or diag( $e->{error} );
+is( $e->{source}, 'first-party', 'export source is the first-party log' );
+is( $e->{totals}{human_visits},    3, 'export totals from first-party data' );
+is( $e->{totals}{unique_visitors}, 2, 'export distinct daily visitor keys' );
+ok( @{ $e->{events} } >= 3, 'sanitised event stream present' );
+unlike( encode_json($e), qr/198\.51\.100/, 'no raw IP anywhere in the export' );
+my $e2 = decode_json( qx($^X $root/plugins/stats.pl --export --docroot '$d') );
+is( $e2->{totals}{human_visits}, 3,
+    'second export identical (incremental per-file offsets, nothing re-read)' );
 
 # --- the off switch: first_party: off stops recording ---
 open $sc, '>', "$d/lazysite/stats.conf" or die $!;

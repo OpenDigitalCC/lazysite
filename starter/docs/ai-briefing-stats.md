@@ -16,7 +16,9 @@ you how to read the data and what you can honestly report.
 ## How to get the data
 
 Call `analyse_visitors` with an optional `window` (days, 1-365, default 30). It
-returns a sanitised JSON summary built from the web-server access log. You never
+returns a sanitised JSON summary built from lazysite's first-party access log
+(recorded by the site itself, anonymised at write; the web-server access log
+is the fallback source when no first-party data exists). You never
 see the raw log, any filesystem path, or a visitor's IP address: the tool
 aggregates and anonymises before anything reaches you. Repeated calls are cheap -
 the data is cached and only new log lines are processed each time.

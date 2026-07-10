@@ -680,6 +680,17 @@ sub export_stats {
     $window = 365 if $window > 365;
 
     my $cfg = read_conf();
+
+    # SM140: first-party data wins, exactly as scan_stats. The server-log
+    # ingestion below survives as the fallback when no first-party data
+    # exists.
+    my @fp    = first_party_files();
+    my $cache = _load_export_cache() || {};
+    if (@fp) {
+        _export_ingest_first_party( $cfg, $cache, \@fp );
+        return _export_assemble( $cfg, $cache, $window, 'first-party' );
+    }
+
     my $log = find_log($cfg);
     return {
         ok           => 0,
@@ -690,9 +701,9 @@ sub export_stats {
     my @st = stat($log);
     my ( $inode, $size ) = ( $st[1], $st[7] );
 
-    my $cache = _load_export_cache() || {};
     # Rotation / truncation: a different inode, or the file is now smaller than our
-    # offset, means the offset is untrustworthy - reprocess from the start.
+    # offset, means the offset is untrustworthy - reprocess from the start. (A v2
+    # first-party cache lands here too and resets to the server-log shape.)
     if ( ( $cache->{inode} // -1 ) != $inode || ( $cache->{offset} // 0 ) > $size ) {
         $cache = { v => 1, inode => $inode, offset => 0, days => {}, events => [] };
     }
@@ -731,7 +742,7 @@ sub export_stats {
                     if $p->{status} < 400
                     && $p->{path} !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
                 my $ref = $p->{ref};
-                if ( !length $ref || $ref eq '-' ) { $b->{ref_direct}++ }
+                if    ( !length $ref || $ref eq '-' ) { $b->{ref_direct}++ }
                 elsif ( $ref =~ m{^\S+?://([^/\s]+)} ) {
                     ( my $rh = $1 ) =~ s/^www\.//i;
                     if ( length $site_host
@@ -755,6 +766,100 @@ sub export_stats {
         close $fh;
         $cache->{offset} = $size;
     }
+
+    return _export_assemble( $cfg, $cache, $window, 'server-log' );
+}
+
+# SM140: incremental first-party ingestion into the same day-bucket cache the
+# server-log path uses. Day files are append-only, so a per-file byte offset
+# is all the incremental state needed; pruned files simply drop out.
+sub _export_ingest_first_party {
+    my ( $cfg, $cache, $files ) = @_;
+    if ( ( $cache->{v} // 0 ) != 2 || ref $cache->{files} ne 'HASH' ) {
+        %{$cache} = ( v => 2, files => {}, days => {}, events => [] );
+    }
+    $cache->{days}   ||= {};
+    $cache->{events} ||= [];
+
+    my $extra_ai    = _split_csv( $cfg->{ai_user_agents} );
+    my $extra_noise = _split_csv( $cfg->{noise_paths} );
+    my $site_host   = _site_domain();
+    my $EVENT_CAP   = 5000;
+    my $VIS_CAP     = 50000;
+
+    my %live = map { (m{([^/]+)$})[0] => 1 } @{$files};
+    delete @{ $cache->{files} }{ grep { !$live{$_} } keys %{ $cache->{files} } };
+
+    for my $f ( @{$files} ) {
+        my ($base) = $f =~ m{([^/]+)$};
+        my $size   = ( -s $f )              // 0;
+        my $offset = $cache->{files}{$base} // 0;
+        $offset = 0 if $offset > $size;    # rewritten/truncated: reprocess
+        next unless $size > $offset;
+        open my $fh, '<', $f or next;
+        seek $fh, $offset, 0;
+        my $pos = $offset;
+        while ( my $line = <$fh> ) {
+            last unless $line =~ /\n\z/;    # incomplete final line: next time
+            $pos += length $line;
+            my $r = eval { JSON::PP::decode_json($line) } or next;
+            next unless ref $r eq 'HASH' && defined $r->{t};
+            next if ( $r->{ch} // 'page' ) ne 'page';    # operator traffic out
+            my $path  = $r->{p} // '';
+            my $st    = ( $r->{s} // 0 ) + 0;
+            my $ua    = $r->{ua} // '';
+            my $v     = $r->{v}  // '';
+            my $class = classify( $path, $ua, $extra_ai, $extra_noise );
+            my @dt    = gmtime( $r->{t} );
+            my $day   = sprintf '%04d-%02d-%02d', $dt[5] + 1900, $dt[4] + 1, $dt[3];
+            my $b     = $cache->{days}{$day} ||= {
+                cls     => {}, ips          => {}, hits => 0, pages => {}, status => {},
+                ref_ext => {}, ref_internal => 0,  ref_direct => 0,
+            };
+            $b->{cls}{$class}++;
+            $b->{ips}{$v} = 1 if length $v && keys %{ $b->{ips} } < $VIS_CAP;
+
+            if ( $class eq 'human' ) {
+                $b->{hits}++;
+                $b->{status}{$st}++;
+                $b->{pages}{$path}++
+                    if $st < 400
+                    && $path !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
+                my $ref = $r->{r} // '';
+                if    ( !length $ref || $ref eq '-' ) { $b->{ref_direct}++ }
+                elsif ( $ref =~ m{^\S+?://([^/\s]+)} ) {
+                    ( my $rh = $1 ) =~ s/^www\.//i;
+                    if ( length $site_host
+                        && ( lc $rh eq lc $site_host || $rh =~ /\Q$site_host\E$/i ) )
+                    {
+                        $b->{ref_internal}++;
+                    }
+                    else { $b->{ref_ext}{$rh}++ }
+                }
+            }
+
+            # The visitor key is already an anonymised daily token - use it
+            # directly as the event's visitor identity.
+            push @{ $cache->{events} }, {
+                t       => $r->{t} + 0,
+                class   => $class,
+                path    => $path,
+                status  => $st,
+                visitor => $v,
+            };
+            shift @{ $cache->{events} } while @{ $cache->{events} } > $EVENT_CAP;
+        }
+        close $fh;
+        $cache->{files}{$base} = $pos;
+    }
+    return;
+}
+
+# Shared tail: cache retention + save, then assemble the window view from the
+# day-buckets. Identical for both ingestion sources.
+sub _export_assemble {
+    my ( $cfg, $cache, $window, $source ) = @_;
+    my $EVENT_CAP = 5000;    # matches both ingesters' event-stream cap
 
     my $keep_from = _day_str( time() - 400 * 86400 );
     delete $cache->{days}{$_} for grep { $_ lt $keep_from } keys %{ $cache->{days} };
@@ -809,6 +914,7 @@ sub export_stats {
     return {
         ok              => JSON::PP::true,
         schema_version  => '1',
+        source         => $source,
         generated       => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         window          => { days => $window, from => $from_day, to => _day_str( time() ) },
         totals          => { human_visits => $hits, unique_visitors => scalar keys %uips, pageviews => $hits },

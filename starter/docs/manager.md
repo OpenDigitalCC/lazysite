@@ -178,19 +178,23 @@ append-only cache, so only newly-appended lines are parsed on each load.
 
 ### Visitor statistics
 
-`/manager/stats`. A read-only dashboard from the web-server access log. Because
+`/manager/stats`. A read-only dashboard from lazysite's own first-party access
+log: the site records its traffic itself (always anonymised at write - a
+daily-salted visitor key, never the IP), so statistics work out of the box
+with no web-server setup. The web-server access log is the fallback source
+when no first-party data exists. Because
 lazysite uses no cookies or JS, it classifies traffic by log-only heuristics into
 real people, the logged-in operator, AI assistants, bots and probe noise (each
 reported separately), splits referrers into external / internal / direct, links
-top pages to the live page, and shows per-day counts over a configurable window,
-with optional IP anonymisation. If an error log is configured (or auto-detected),
+top pages to the live page, and shows per-day counts over a configurable window.
+If a server error log is readable (auto-detected),
 it also shows a synthesised summary of recent server errors (categories and
 counts only - never raw lines, addresses or paths). It never exposes any log
 file's path, and the raw logs are not downloadable through the manager.
 Provided by the opt-in
 **Visitor Statistics**
 plugin: the nav item appears only when the plugin is enabled - enable it on Plugin
-Manager, then set its access-log path on Plugin Config. An AI connector granted
+Manager (recording and retention are tunable on Plugin Config). An AI connector granted
 the **Analytics** permission can analyse the same data for trends via the
 `analyse_visitors` tool, getting only the aggregated, IP-anonymised figures (see
 [AI connector tools](/docs/ai-connector-tools) and

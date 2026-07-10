@@ -18,6 +18,14 @@ Keying
 
 ## Unreleased
 
+Feature - AI visitor analytics reads the first-party log (SM140 i3+i4)
+: `analyse_visitors`/the stats export now ingests the first-party access log
+  (per-day-file byte offsets into the same incremental day-bucket cache;
+  `source` field in the export), so the AI connector analytics also work with
+  zero web-server setup. The server log remains the fallback. Docs updated
+  (manager, AI briefing); form/dav channel tags deferred until a consumer
+  exists (the format already accommodates them).
+
 ## 0.6.8 - First-party analytics: stats work out of the box (2026-07-10)
 
 Feature - first-party analytics: lazysite records its own traffic (SM140 i1+i2)
