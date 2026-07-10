@@ -141,7 +141,7 @@
     "^docs/feature-requests/",
     "^docs/reference/",
     "^docs/review/",
-    "^docs/(USER|DEVELOPER|IMPLEMENTOR|OPERATOR|POLICY|FEATURES|SECURITY|ACCESSIBILITY)\\.md$",
+    "^docs/(USER|DEVELOPER|IMPLEMENTOR|OPERATOR|POLICY|FEATURES|SECURITY|ACCESSIBILITY|RELIABILITY|DECLARATION-OF-CONFORMITY)\\.md$",
     "^docs/.*\\.pdf$",
     "^CHANGELOG\\.md$",
     "^reported-issues\\.md$",
