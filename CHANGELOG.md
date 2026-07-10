@@ -18,6 +18,12 @@ Keying
 
 ## Unreleased
 
+## 0.7.0 - First stable release (2026-07-10)
+
+The first stable-channel release, cut on completion of the 2026-07-10
+eight-dimension review resolution cycle (docs/review/2026-07-10-eight-dimension/,
+see 01-resolution.md). The batch entries below are that cycle.
+
 Tests - 2026-07-10 review batch 3 (coverage scope + floors)
 : lazysite-oauth.pl gains 51 branch-focused behavioural tests (79.0/58.9 ->
   99.3/94.6 stmt/branch); lazysite-mcp.pl and lazysite-oauth.pl join the
