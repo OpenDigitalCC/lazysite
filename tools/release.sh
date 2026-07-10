@@ -274,8 +274,11 @@ fi
 MAN_ADD=()
 for m in "$STAGE"/man/man1/*.1; do
     [ -f "$m" ] || continue
-    MAN_ADD+=("--add-file=man/man1/$(basename "$m")")
+    # --add-file stores only the BASENAME; an interleaved --prefix places
+    # each page under man/man1/ (restored to the plain prefix afterwards).
+    MAN_ADD+=("--prefix=lazysite-$VERSION/man/man1/" "--add-file=man/man1/$(basename "$m")")
 done
+MAN_ADD+=("--prefix=lazysite-$VERSION/")
 if [ "${#MAN_ADD[@]}" -eq 0 ]; then
     echo "release.sh: gen-manpages.pl produced no pages; not releasing." >&2
     echo "release.sh: staging dir retained: $STAGE" >&2
