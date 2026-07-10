@@ -18,6 +18,19 @@ Keying
 
 ## Unreleased
 
+Docs - 2026-07-10 review batch 2 (declarations + currency)
+: RELIABILITY.md declares the reference SLO/RTO/RPO + error budget mapped to
+  the existing failure-mode evidence (clears the D5 refusal); ADR 0007
+  declares the pentest gate with a dated deferral waiver (clears the D6
+  pentest condition); SECURITY.md gains the significant-change assessment
+  register (SM070-072/128/136/137/140); the support period is declared (five
+  years from 0.7.0, stable channel) and a draft Declaration of Conformity is
+  in docs/ for signing at the 0.7.0 cut (clears the D8 conditions). The SM138
+  manager_groups doc rot is swept from every security-tier and starter doc,
+  FEATURES.md is current to 0.6.10, a retired-terms lint makes future sweeps
+  unskippable, release.sh ships man pages in the tarball, and the Hestia
+  deploy first-run sentinel no longer greps the retired key.
+
 Fix - 2026-07-10 review batch 1 (seven code fixes)
 : (1) six `:utf8` readers of user-settings.json in the auth wrapper made
   account_disabled/token_expired/account_expired/mfa_enrolled FAIL OPEN on any
