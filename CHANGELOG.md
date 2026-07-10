@@ -18,6 +18,13 @@ Keying
 
 ## Unreleased
 
+## 0.6.10 - Backlog housekeeping + SM141 sessions scoping (2026-07-10)
+
+Docs - backlog housekeeping + SM141 scoping
+: thirteen shipped items moved to Done; SM139 promoted to NEXT UP; SM141
+  (session registry + revocation list - list and control active sessions)
+  scoped and sequenced after the review and 0.7.0 stable.
+
 ## 0.6.9 - AI visitor analytics reads the first-party log (2026-07-10)
 
 Feature - AI visitor analytics reads the first-party log (SM140 i3+i4)
