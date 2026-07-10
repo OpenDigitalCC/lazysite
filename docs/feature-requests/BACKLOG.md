@@ -190,19 +190,14 @@ before work starts.
   temporary vs the default 301 permanent); reindex the alias map on rename/copy/DAV
   MOVE (today a moved or copied page re-indexes on its next save); and a manager
   surface to list/inspect the current alias map.
-- **Sessions page - list + control active sessions** *(needs an architectural
-  decision - sessions are STATELESS by design)* - the Sessions page exposes only
-  "log out everyone" (rotate the auth secret) because sessions are signed cookies,
-  not server-side records (the page documents this). Listing/revoking individual
-  sessions (who / where / when / last seen, per-session log-out) fundamentally
-  requires a NEW server-side session store: track each issued session (user,
-  issued-at, last-seen, IP/UA) + a revocation list checked on each request. That
-  reverses the deliberate stateless model (state, scaling, a hot-path store read),
-  so it is a design decision, not an ad-hoc build - scope it (durable store choice,
-  the per-request revocation check, privacy of storing IP/UA) before implementing.
-  The account-level lever already exists: disable-account on the Users page. Token
-  credentials ARE individually revocable today (Reset credential); only cookie
-  sessions are stateless.
+- **SM141 Sessions page - list + control active sessions** *(scoped 2026-07-10 -
+  see SM141-session-registry.md)* - keep signed cookies as the source of truth;
+  add a small session REGISTRY at login (sid in the cookie payload; who/when/IP/UA,
+  24h self-pruning) for listing, and a fail-closed REVOCATION list (revoked sids +
+  per-user not_before) checked on cookie verification (bare -f fast path) for
+  per-session / per-user sign-out without secret rotation. Additive, not breaking.
+  SEQUENCED AFTER the eight-dimension review + 0.7.0 stable (touches the auth hot
+  path). Phase 2 candidates: last-seen, SSE liveness.
 - **Remote-layout content components** *(DEFERRED 2026-07-03 - speculative)* -
   `install_layout` + fenced/sections components are local-layout only; remote
   (URL) layouts fetch just `layout.tt`, so their `components/` are not fetched or
