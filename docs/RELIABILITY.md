@@ -126,7 +126,7 @@ widths: 2.6cm | X | 3cm | 5cm
 bold: 1
 tone: medium
 ---
-2026-07-10 | Content-restore rehearsal | TO BE TIMED | First timed rehearsal is scheduled with the 0.7.0 stable cut; will exercise `action_backup_restore` and `install.pl --restore-full --domain` against a copy of a production-shaped site
+2026-07-10 | Full-system disaster rehearsal (0.7.0 cut) | ~1 s mechanical restore | Full cycle from the shipped 0.6.10 tarball: install, operator content + manager account, `action_backup_create('full')`, docroot destroyed, `install.pl --restore-full --domain` onto a NEW docroot - content, auth store and conf verified intact. The mechanical restore is effectively instantaneous at starter-site scale; the 4 h RTO budget is operator response + DNS, not the mechanism. Script: rehearsal.sh (session records)
 ```
 
 # References
