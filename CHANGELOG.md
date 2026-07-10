@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.1 - Persistent runtime: FastCGI worker pools (2026-07-10)
+
 Feature - persistent runtime: dual-mode FastCGI accept loop (SM142)
 : spawned with a FastCGI listen socket on fd 0 (spawn-fcgi / the SM139 pool
   unit), the processor services requests from an accept loop - modules
