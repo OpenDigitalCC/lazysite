@@ -1,10 +1,15 @@
 #!/usr/bin/perl
-# stats.pl - SM083: on-site visitor statistics from the web server access log.
+# stats.pl - SM083: on-site visitor statistics. SM140: the FIRST-PARTY access
+# log (lazysite/logs/access-*.jsonl, written by the processor itself,
+# anonymised at write) is the default source - zero web-server setup. The
+# web-server access log (combined/common format) survives as the fallback
+# when no first-party data exists, and its error log as the tier-2
+# diagnostics surface.
 #
-# Read-only and out of band: it parses the access log (combined/common format)
-# and returns aggregated stats; it never writes content. This complements the
-# audit trail, which records material actions (auth, edits, deletes) - NOT
-# browsing. Browsing analytics live here.
+# Read-only and out of band: it parses logs and returns aggregated stats; it
+# never writes content. This complements the audit trail, which records
+# material actions (auth, edits, deletes) - NOT browsing. Browsing analytics
+# live here.
 #
 # Because lazysite uses no cookies or JS for analytics, every classification is a
 # LOG-ONLY heuristic (UA + path + status), attributed at request granularity -
@@ -94,31 +99,38 @@ my %ERR_LABELS = (
 );
 
 if ( $arg{describe} ) {
-    print encode_json({
-        id          => 'stats',
-        name        => 'Visitor Stats',
-        description => 'On-site visitor statistics from the web server access log '
-                     . '(read-only). Classifies traffic into people, AI assistants, '
-                     . 'bots and noise - all log-only heuristics, not authenticated. '
-                     . 'Complements the audit trail, which records material actions.',
-        version     => '2.1',
-        config_file => 'lazysite/stats.conf',
-        config_schema => [
-            # NOTE: the access/error log PATHS are deliberately NOT configurable
-            # here. They are auto-detected, or set by the server owner at install
-            # time via the LAZYSITE_ACCESS_LOG / LAZYSITE_ERROR_LOG environment
-            # variables (web-server config). A site manager must never be able to
-            # point the reader at an arbitrary file (e.g. /etc/passwd).
-            { key => 'window_days',  label => 'Window (days)',           type => 'text',    default => '30' },
-            { key => 'top_n',        label => 'Top N (pages / referrers)', type => 'text',  default => '15' },
-            { key => 'anonymise_ip', label => 'Anonymise visitor IPs',   type => 'boolean', default => 'true' },
-            { key => 'ai_user_agents', label => 'Extra AI user-agents', type => 'text', default => '',
-              note => 'Comma-separated UA substrings to also count as AI assistants, on top of the built-ins (GPTBot, ClaudeBot, anthropic, ...).' },
-            { key => 'noise_paths', label => 'Extra noise paths', type => 'text', default => '',
-              note => 'Comma-separated path prefixes to treat as probe/scanner noise, on top of the built-ins (/wp-login.php, /.env, *.php, ...).' },
-        ],
-        actions => [ { id => 'refresh', label => 'Refresh stats' } ],
-    });
+    print encode_json( {
+            id          => 'stats',
+            name        => 'Visitor Stats',
+            description => 'On-site visitor statistics from the first-party access log '
+                . '(recorded by lazysite itself, anonymised at write - no '
+                . 'web-server log access needed; the server log is the fallback). '
+                . 'Classifies traffic into people, AI assistants, bots and noise '
+                . '- all log-only heuristics, not authenticated. Complements the '
+                . 'audit trail, which records material actions.',
+            version       => '2.2',
+            config_file   => 'lazysite/stats.conf',
+            config_schema => [
+                # NOTE: the access/error log PATHS are deliberately NOT configurable
+                # here. They are auto-detected, or set by the server owner at install
+                # time via the LAZYSITE_ACCESS_LOG / LAZYSITE_ERROR_LOG environment
+                # variables (web-server config). A site manager must never be able to
+                # point the reader at an arbitrary file (e.g. /etc/passwd).
+                # SM140: the first-party access log (written by the processor
+                # itself under lazysite/logs/) is the default analytics source.
+                { key => 'first_party', label => 'First-party access log', type => 'boolean', default => 'true',
+                    note => 'The processor records its own traffic (anonymised at write) - analytics with no web-server log access needed. Turning this off falls back to reading the web-server log.' },
+                { key => 'retention_days', label => 'First-party retention (days)', type => 'text', default => '90' },
+                { key => 'window_days', label => 'Window (days)', type => 'text', default => '30' },
+                { key => 'top_n', label => 'Top N (pages / referrers)', type => 'text', default => '15' },
+                { key => 'anonymise_ip', label => 'Anonymise visitor IPs', type => 'boolean', default => 'true' },
+                { key => 'ai_user_agents', label => 'Extra AI user-agents', type => 'text', default => '',
+                    note => 'Comma-separated UA substrings to also count as AI assistants, on top of the built-ins (GPTBot, ClaudeBot, anthropic, ...).' },
+                { key => 'noise_paths', label => 'Extra noise paths', type => 'text', default => '',
+                    note => 'Comma-separated path prefixes to treat as probe/scanner noise, on top of the built-ins (/wp-login.php, /.env, *.php, ...).' },
+            ],
+            actions => [ { id => 'refresh', label => 'Refresh stats' } ],
+    } );
     exit 0;
 }
 
@@ -314,8 +326,163 @@ sub _split_csv {
     return [ grep { length } map { my $x = $_; $x =~ s/^\s+|\s+$//g; $x } split /[,|]/, $s ];
 }
 
+# Optional error-log surface (tier-2 diagnostics): a SYNTHESISED summary only
+# - error categories + counts from the recent tail, never the raw lines
+# (which carry client IPs, referer URLs and file paths). Shared by both scan
+# sources.
+sub _error_surface {
+    my ($cfg)  = @_;
+    my $elog   = find_error_log($cfg);
+    my %errors = ( available => JSON::PP::false );
+    if ( length $elog && -r $elog ) {
+        my @recent = _tail_lines( $elog, 1000 );    # bounded to the trailing 64 KB
+        my %cat;
+        for my $ln (@recent) {
+            my $c = _classify_error($ln);
+            $cat{ $c->{key} } //= { code => $c->{key}, label => $c->{label}, count => 0 };
+            $cat{ $c->{key} }{count}++;
+        }
+        my @cats = sort { $b->{count} <=> $a->{count} || $a->{code} cmp $b->{code} }
+            values %cat;
+        %errors = (
+            available  => JSON::PP::true,
+            sampled    => scalar @recent,
+            categories => \@cats,
+        );
+    }
+    return \%errors;
+}
+
+# --- SM140: first-party access log (lazysite/logs/access-*.jsonl) -----------
+# Written by the processor itself - one JSON line per request, anonymised at
+# write - so the default analytics path needs NO web-server log access. The
+# server-log parser below survives as the fallback/enrichment path only.
+
+sub first_party_files {
+    my @f;
+    if ( opendir my $dh, "$DOCROOT/lazysite/logs" ) {
+        @f = sort grep { /^access-\d{8}[.]jsonl$/ } readdir $dh;
+        closedir $dh;
+    }
+    return map { "$DOCROOT/lazysite/logs/$_" } @f;
+}
+
+sub scan_first_party {
+    my ( $cfg, @files ) = @_;
+    require JSON::PP;
+
+    my $window = ( $cfg->{window_days} || 30 ) + 0;
+    $window = 30 if $window < 1;
+    my $top_n = ( $cfg->{top_n} || 15 ) + 0;
+    $top_n = 15 if $top_n < 1;
+    my $extra_ai    = _split_csv( $cfg->{ai_user_agents} );
+    my $extra_noise = _split_csv( $cfg->{noise_paths} );
+    my $site_host   = _site_domain();
+    my $cutoff      = time() - $window * 86400;
+
+    my ( %cls_hits, %cls_vis, %pages, %ref_ext, %status, %byday, %vis );
+    my ( $hits, $bytes )              = ( 0, 0 );
+    my ( $ref_internal, $ref_direct ) = ( 0, 0 );
+    my $scanned = 0;
+    my $CAP     = 10_000_000;    # runaway guard; aggregates use bounded memory
+
+FILE: for my $f (@files) {
+        # Filename-dated: skip whole files older than the window (day grain).
+        next unless $f =~ /access-(\d{4})(\d{2})(\d{2})[.]jsonl$/;
+        my $day_end = eval { POSIX::mktime( 59, 59, 23, $3, $2 - 1, $1 - 1900 ) };
+        next if defined $day_end && $day_end < $cutoff;
+        open my $fh, '<', $f or next;
+        while ( my $line = <$fh> ) {
+            last FILE if ++$scanned > $CAP;
+            my $r = eval { JSON::PP::decode_json($line) } or next;
+            next unless ref $r eq 'HASH';
+            next unless ( $r->{t} // 0 ) >= $cutoff;
+            next if ( $r->{ch} // 'page' ) ne 'page';    # operator traffic out
+
+            my $path = $r->{p} // '';
+            my $st   = ( $r->{s} // 0 ) + 0;
+            my $ua   = $r->{ua} // '';
+            my $v    = $r->{v}  // '';
+
+            my $class = classify( $path, $ua, $extra_ai, $extra_noise );
+            $cls_hits{$class}++;
+            $cls_vis{$class}{$v} = 1 if length $v;
+
+            # Headline = the genuine human audience only (as the server path).
+            next unless $class eq 'human';
+
+            $hits++;
+            $bytes += ( $r->{b} // 0 ) + 0;
+            $vis{$v} = 1 if length $v;
+            $status{$st}++;
+            my @d = gmtime( $r->{t} );
+            $byday{ sprintf '%04d-%02d-%02d', $d[5] + 1900, $d[4] + 1, $d[3] }++;
+            $pages{$path}++ if $st < 400
+                && $path !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
+
+            my $ref = $r->{r} // '';
+            if ( !length $ref || $ref eq '-' ) {
+                $ref_direct++;
+            }
+            elsif ( $ref =~ m{^\S+?://([^/\s]+)} ) {
+                ( my $rh = $1 ) =~ s/^www\.//i;
+                if ( length $site_host
+                    && ( lc $rh eq lc $site_host || $rh =~ /\Q$site_host\E$/i ) )
+                {
+                    $ref_internal++;    # self-referrer (on-site navigation)
+                }
+                else { $ref_ext{$ref}++ }
+            }
+        }
+        close $fh;
+    }
+
+    my $top = sub {
+        my ($h) = @_;
+        my @k = sort { $h->{$b} <=> $h->{$a} || $a cmp $b } keys %$h;
+        @k = @k[ 0 .. ( $top_n - 1 ) ] if @k > $top_n;
+        return [ map { { key => $_, count => $h->{$_} } } @k ];
+    };
+    my %classes;
+    for my $c (qw(human ai bot noise logged_in)) {
+        $classes{$c} = {
+            hits     => $cls_hits{$c} // 0,
+            visitors => scalar keys %{ $cls_vis{$c} || {} },
+        };
+    }
+
+    return {
+        ok              => 1,
+        source          => 'first-party',
+        window_days     => $window,
+        scanned_lines   => $scanned,
+        capped          => ( $scanned > $CAP ? JSON::PP::true : JSON::PP::false ),
+        anonymised      => JSON::PP::true,         # always, at write time
+        log_configured  => JSON::PP::true,
+        errors          => _error_surface($cfg),
+        classes         => \%classes,
+        hits            => $hits,                  # human only
+        unique_visitors => scalar keys %vis,       # distinct daily visitor keys
+        bytes           => $bytes,
+        top_pages       => $top->( \%pages ),
+        referrers       => {
+            external => $top->( \%ref_ext ),
+            internal => $ref_internal,
+            direct   => $ref_direct,
+        },
+        status  => { map { ( $_  => $status{$_} ) } keys %status },
+        per_day => [ map { { day => $_, count => $byday{$_} } } sort keys %byday ],
+    };
+}
+
 sub scan_stats {
     my $cfg = read_conf();
+
+    # SM140: first-party data wins - zero-setup, complete for page views.
+    # The web-server log survives as the fallback (and future enrichment).
+    my @fp = first_party_files();
+    return scan_first_party( $cfg, @fp ) if @fp;
+
     my $log = find_log($cfg);
     return { ok => 0, needs_config => JSON::PP::true,
         error => 'No access log found for this site. The log path is auto-detected, '
@@ -393,27 +560,7 @@ sub scan_stats {
     }
     close $fh;
 
-    # Optional error-log surface: a SYNTHESISED summary only - error categories +
-    # counts from the recent tail, never the raw lines (which carry client IPs,
-    # referer URLs and file paths).
-    my $elog = find_error_log($cfg);
-    my %errors = ( available => JSON::PP::false );
-    if ( length $elog && -r $elog ) {
-        my @recent = _tail_lines( $elog, 1000 );    # bounded to the trailing 64 KB
-        my %cat;
-        for my $ln (@recent) {
-            my $c = _classify_error($ln);
-            $cat{ $c->{key} } //= { code => $c->{key}, label => $c->{label}, count => 0 };
-            $cat{ $c->{key} }{count}++;
-        }
-        my @cats = sort { $b->{count} <=> $a->{count} || $a->{code} cmp $b->{code} }
-            values %cat;
-        %errors = (
-            available  => JSON::PP::true,
-            sampled    => scalar @recent,
-            categories => \@cats,
-        );
-    }
+    my $errors = _error_surface($cfg);
 
     my $top = sub {
         my ($h) = @_;
@@ -432,12 +579,13 @@ sub scan_stats {
 
     return {
         ok              => 1,
+        source          => 'server-log',
         window_days     => $window,
         scanned_lines   => $scanned,
         capped          => ( $scanned > $CAP ? JSON::PP::true : JSON::PP::false ),
         anonymised      => ( $anon ? JSON::PP::true : JSON::PP::false ),
         log_configured  => JSON::PP::true,                 # never the disk path
-        errors          => \%errors,
+        errors          => $errors,
         classes         => \%classes,
         hits            => $hits,                          # human only
         unique_visitors => scalar keys %ips,               # human only

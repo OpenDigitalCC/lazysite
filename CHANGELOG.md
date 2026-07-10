@@ -18,6 +18,18 @@ Keying
 
 ## Unreleased
 
+Feature - first-party analytics: lazysite records its own traffic (SM140 i1+i2)
+: the processor writes one anonymised JSON line per request to
+  `lazysite/logs/access-YYYYMMDD.jsonl` (daily-salted visitor key - never the
+  IP; injection-sanitised; O_APPEND-atomic; daily files, retention-pruned,
+  default 90 days; `first_party: off` in stats.conf disables). Visitor
+  Statistics reads it as the primary source - working out of the box with NO
+  web-server log access, no ACLs, no vhost changes, and no nginx-vs-apache
+  undercount. The server-log parser remains the fallback/enrichment
+  (`source` field says which). Bonus: an unhandled processor error now
+  answers a clean 500 (and is recorded) instead of a headerless crash.
+  analyse_visitors (AI export) converts in a later increment.
+
 Fix - visitor stats says when the log exists but is unreadable
 : on a panel host (Hestia) the domain log exists at an auto-detect candidate
   path but www-data cannot read it; the page said "No access log found",

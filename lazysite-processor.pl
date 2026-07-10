@@ -16,6 +16,7 @@ use Encode qw(decode);
 use JSON::PP qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
 use POSIX qw(strftime);
+use Fcntl       qw(O_WRONLY O_APPEND O_CREAT);    # SM140: first-party access log
 
 my $LOG_COMPONENT = 'processor';
 
@@ -131,6 +132,7 @@ my $LAYOUT_CACHE_DIR = "$CACHE_BASE/layouts";
 my $CT_CACHE_DIR     = "$CACHE_BASE/ct";
 my $TT_COMPILE_DIR   = "$CACHE_BASE/tt";   # P-4 TT on-disk compile cache
 my %AUTH_CONTEXT;    # populated by main() auth check, read by render_content()
+my %ACCESS_REC;      # SM140: per-request outcome for the first-party access log
 
 # Built-in fallback template - used when no layout.tt is found
 my $FALLBACK_LAYOUT = <<'END_FALLBACK';
@@ -499,6 +501,7 @@ sub serve_403 {
     my ($auth_result) = @_;
     my $md_path   = "$DOCROOT/403.md";
 
+    $ACCESS_REC{s} //= 403;    # SM140
     binmode( STDOUT, ':utf8' );
 
     if ( -f $md_path ) {
@@ -650,7 +653,25 @@ sub serve_402 {
 
 # --- Main ---
 
-main();
+# SM140: record the request outcome to the first-party access log, and turn
+# an unhandled die into a proper 500 response (previously a headerless crash
+# - "End of script output before headers" - the server 500s anyway, but now
+# it is logged, recorded, and answered cleanly).
+{
+    %ACCESS_REC = ();
+    my $main_ok = eval { main(); 1 };
+    if ( !$main_ok ) {
+        log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'unhandled error',
+            error => "$@" );
+        if ( !defined $ACCESS_REC{s} ) {    # nothing emitted yet - answer 500
+            $ACCESS_REC{s} = 500;
+            print "Status: 500 Internal Server Error\n";
+            print "Content-type: text/plain; charset=utf-8\n\n";
+            print "500 Internal Server Error\n";
+        }
+    }
+    _access_record();
+}
 
 # Parse the request's query string into a hash of name => value.
 # Values are URL-decoded, UTF-8 decoded, and HTML-escaped so they
@@ -745,6 +766,8 @@ sub handle_manager_path {
         unless $uri eq $manager_path
             || index( $uri, "$manager_path/" ) == 0;
 
+    $ACCESS_REC{ch} = 'manager';    # SM140: operator traffic, not visitors
+
     my $manager_enabled = lc( $sv{manager} // 'disabled' );
     if ( $manager_enabled ne 'enabled' ) {
         forbidden();
@@ -780,6 +803,7 @@ sub try_serve_cache {
     return 0 unless @$md_stat && @$html_stat;
 
     if ( $html_stat->[9] >= $md_stat->[9] ) {
+        $ACCESS_REC{c} = 1;    # SM140: served from the page cache
         log_event('DEBUG', $ENV{REDIRECT_URL} // '-', 'cache hit');
         my $ct  = read_ct($base);
         my $ttl = peek_ttl($md_path);
@@ -3889,6 +3913,8 @@ sub write_html {
 sub output_page {
     my ( $content, $content_type, $ttl, $auth_protected ) = @_;
     $content_type //= 'text/html; charset=utf-8';
+    $ACCESS_REC{s} //= 200;                          # SM140
+    $ACCESS_REC{b} = length( $content // '' );       # SM140
     binmode( STDOUT, ':utf8' );
     print "Status: 200 OK\n";
     print "Content-type: $content_type\n";
@@ -3914,6 +3940,7 @@ sub output_page {
 }
 
 sub forbidden {
+    $ACCESS_REC{s} //= 403;    # SM140
     binmode( STDOUT, ':utf8' );
     print "Status: 403 Forbidden\n";
     print "Content-type: text/plain; charset=utf-8\n\n";
@@ -3922,6 +3949,7 @@ sub forbidden {
 
 sub not_found {
     my ($uri) = @_;
+    $ACCESS_REC{s} //= 404;    # SM140
 
     my $md_path   = "$DOCROOT/404.md";
     my $html_path = "$DOCROOT/404.html";
@@ -3994,4 +4022,107 @@ sub _json_str {
     $s =~ s/\r/\\r/g;
     $s =~ s/\t/\\t/g;
     return $s;
+}
+
+# --- SM140: first-party access log -------------------------------------------
+# The processor records its own traffic - one JSON line per request under
+# lazysite/logs/access-YYYYMMDD.jsonl - so visitor analytics need no access to
+# the web server's logs (which are root-owned on panel hosts and undercount
+# behind an nginx front). ALWAYS anonymised at write: the visitor key is a
+# daily-salted keyed hash, never the IP. Emitters fill %ACCESS_REC; the main
+# wrapper records once per request. Module-free per ADR 0001; stats.pl
+# aggregates the files.
+
+# stats.conf knobs the recorder honours (shared with the stats plugin).
+sub _access_conf {
+    my %c = ( first_party => 1, retention_days => 90 );
+    if ( open my $fh, '<', "$LAZYSITE_DIR/stats.conf" ) {
+        while ( my $l = <$fh> ) {
+            $c{first_party}    = 0      if $l =~ /^first_party\s*:\s*(?:off|false|0)\b/i;
+            $c{retention_days} = $1 + 0 if $l =~ /^retention_days\s*:\s*(\d+)/;
+        }
+        close $fh;
+    }
+    $c{retention_days} = 90 if $c{retention_days} < 1;
+    return \%c;
+}
+
+# Daily-salted visitor key: same visitor+day -> same key (distinct daily
+# visitors), never reversible to the IP (keyed on the site secret).
+sub _visitor_key {
+    my ($ymd) = @_;
+    my $ip = $ENV{REMOTE_ADDR} // '';
+    return '' unless length $ip;
+    my $secret = '';
+    if ( open my $sf, '<', "$LAZYSITE_DIR/auth/.secret" ) {
+        local $/;
+        $secret = <$sf> // '';
+        close $sf;
+    }
+    return substr( hmac_sha256_hex( "$ymd|$ip", $secret ), 0, 16 );
+}
+
+# Attacker-controlled field -> safe JSON string content (control chars
+# stripped against log injection, length-capped, JSON-escaped).
+sub _access_field {
+    my ( $s, $cap ) = @_;
+    $s //= '';
+    $s =~ s/[\x00-\x1f\x7f]//g;
+    $s = substr( $s, 0, $cap ) if length($s) > $cap;
+    return _json_str($s);
+}
+
+# Record the request outcome. No-op when no emitter ran (redirects), when
+# first_party: off, or on any internal failure - recording must never break
+# serving. One O_APPEND write; lines are far below PIPE_BUF, so concurrent
+# CGI appends cannot interleave.
+sub _access_record {
+    return unless defined $ACCESS_REC{s};
+    my $ok = eval {
+        my $conf = _access_conf();
+        return 1 unless $conf->{first_party};
+        my @t   = gmtime;
+        my $ymd = sprintf '%04d%02d%02d', $t[5] + 1900, $t[4] + 1, $t[3];
+        my $dir = "$LAZYSITE_DIR/logs";
+        eval { make_path($dir) } unless -d $dir;
+        my $file   = "$dir/access-$ymd.jsonl";
+        my $is_new = !-e $file;
+        ( my $path = $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '' ) =~ s/\?.*//s;
+        my $line = '{"t":' . time()
+            . ',"p":"' . _access_field( $path, 200 ) . '"'
+            . ',"s":' .   ( $ACCESS_REC{s} + 0 )
+            . ',"ch":"' . ( $ACCESS_REC{ch} // 'page' ) . '"'
+            . ',"v":"' . _visitor_key($ymd) . '"'
+            . ',"ua":"' . _access_field( $ENV{HTTP_USER_AGENT}, 160 ) . '"';
+        my $ref = $ENV{HTTP_REFERER} // '';
+        $line .= ',"r":"' . _access_field( $ref, 200 ) . '"' if length $ref;
+        $line .= ',"c":1'                                    if $ACCESS_REC{c};
+        $line .= ',"b":' . ( $ACCESS_REC{b} + 0 )            if defined $ACCESS_REC{b};
+        $line .= "}\n";
+        sysopen( my $fh, $file, O_WRONLY | O_APPEND | O_CREAT, 0664 )
+            or return 1;    # silent: lazysite-check owns the writability story
+        binmode $fh;
+        syswrite( $fh, $line );
+        close $fh;
+        _access_prune( $dir, $conf->{retention_days} ) if $is_new;
+        return 1;
+    };
+    log_event( 'WARN', '-', 'access record failed', error => "$@" )
+        if !$ok && $@;
+    return;
+}
+
+# Retention: on the first request of a new day, drop day-files older than the
+# window. Filename-dated, so no stat storm; runs once per day per site.
+sub _access_prune {
+    my ( $dir, $days ) = @_;
+    my @c      = gmtime( time() - $days * 86400 );
+    my $cutoff = sprintf '%04d%02d%02d', $c[5] + 1900, $c[4] + 1, $c[3];
+    opendir my $dh, $dir or return;
+    for my $e ( readdir $dh ) {
+        next unless $e =~ /^access-(\d{8})\.jsonl$/;
+        unlink "$dir/$e" if $1 lt $cutoff;
+    }
+    closedir $dh;
+    return;
 }

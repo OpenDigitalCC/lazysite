@@ -69,7 +69,9 @@ function renderStats(d) {
   var body = document.getElementById('stats-body');
   if (!d || !d.ok) {
     body.innerHTML = '<p class="mg-muted">' + sesc((d && d.error) || 'No stats available.') + '</p>'
-      + '<p class="mg-muted">Configure the access-log path on the <a href="/manager/plugin-config">Plugin Config</a> page.</p>';
+      + '<p class="mg-muted">Visits are recorded automatically (the first-party access log); '
+      + 'this message appears only when that is turned off on the '
+      + '<a href="/manager/plugin-config">Plugin Config</a> page and the web-server log is not readable.</p>';
     return;
   }
   var h = '';

@@ -117,8 +117,10 @@ Tier 2 - web-server diagnostics (optional, owner-wired)
 2. **stats.pl first-party source** - aggregate access-*.jsonl; channel-aware
    headline (pages only); server-log becomes optional enrichment; the
    "no access log" / ACL guidance survives only under `source: server-log`.
-3. **Form/api/dav channels** - form-handler, manager-api (page-relevant GETs
-   only? likely skip), dav: record with channel tags where useful.
+3. **AI export + channels** - convert export_stats / analyse_visitors (the AI
+   connector surface, currently still server-log + incremental byte-offset
+   cache) to the first-party source; form-handler / dav record with channel
+   tags where useful.
 4. **Docs + SM139 tie-in** - stats/features/ai-briefing docs; the hestia deb
    drops access-log wiring from its requirements (optional enrichment note).
 
