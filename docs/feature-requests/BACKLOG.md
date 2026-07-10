@@ -158,8 +158,29 @@ before work starts.
 
 ## Open - actionable
 
+- **SM142 Persistent runtime (FastCGI pools)** *(scoped 2026-07-10 - see
+  SM142-persistent-runtime.md; SEQUENCED BEFORE SM139 packaging)* - dual-mode
+  FastCGI accept loop in the processor (+ auth wrapper): modules compile once,
+  reset_request_state()/local %ENV per iteration (the D016 groundwork), one
+  prefork pool per site (PHP-FPM model, DOCROOT fixed at spawn), systemd
+  template units + proxy_fcgi vhost config shipped by the SM139 debs; plain
+  CGI stays the default/fallback. Cache-hit floor ~44ms -> ~4-8ms; amortises
+  the growing per-request work (SM140 recorder, bad-URL, notices). Needs
+  libfcgi-perl + libfcgi-procmanager-perl (owner install).
+- **2026-07-10 review - deferred items** *(tracked in
+  docs/review/2026-07-10-eight-dimension/01-resolution.md)* - (a) BOOK THE
+  PENTEST ENGAGEMENT before the ADR 0007 waiver expires 2026-12-31 (hard
+  date); (b) docs/MONITORS.md register + the dev-server operational exemplar
+  (D5); (c) release signing (.sig + release.sh step), VEX, OpenChain
+  5230/18974, CRA Annex VII technical file (D8 beyond the unconditional
+  items); (d) bench breadth: manager-API users-page op, DAV PROPFIND/PUT op,
+  scan-heavy render variant (D4); (e) a test pinning the 0.6.6 install.pl
+  ownership repair (D3); (f) threat-model currency rows for the 0.6.x
+  surface (D6 residual); (g) repeat a timed restore rehearsal each stable
+  cycle (RELIABILITY.md commitment).
 - **SM139 Packaged distribution** *(design agreed 2026-07-09 - see
-  SM139-packaged-distribution.md; NEXT UP)* - lazysite-common.deb (engine
+  SM139-packaged-distribution.md; NEXT UP after SM142, whose runtime pattern
+  the debs package)* - lazysite-common.deb (engine
   payload + `lazysite` CLI) plus environment debs (apache/nginx/hestia),
   tarball/dev mode unchanged. Provisioning and upgrades run AS THE SITE USER -
   no root writes into site trees, ownership correct by construction (driver:

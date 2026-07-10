@@ -84,6 +84,15 @@ site-user path.
 - Moving sites to symlinked shared cgi-bin. A site stays self-contained so a
   host payload upgrade cannot break a site that has not opted in yet.
 
+## Runtime dependency (2026-07-10)
+
+SM142 (persistent runtime - per-site FastCGI pools) lands FIRST: the debs
+package BOTH patterns - plain CGI as the zero-dependency fallback and the
+FCGI pool as the production shape (systemd template unit lazysite@domain,
+proxy_fcgi vhost config, socket conventions). Deciding the runtime before
+packaging avoids re-packaging the vhost templates and a second fleet
+migration.
+
 ## Increments
 
 1. **debianize common**: debian/ packaging for lazysite-common (payload +
