@@ -21,24 +21,25 @@ day-to-day runbook.
 
 ## Upgrading
 
-One site:
+On deb-managed hosts (`lazysite-common` installed - the packaged flow since
+0.7.2), one site, **as the site user** (the CLI refuses to run `provision` or
+a single-site `upgrade` as root - no root writes into site trees):
+
+```bash
+sudo -u <siteuser> lazysite upgrade --docroot <docroot>   # --cgibin from the registry
+```
+
+Legacy tarball-era Hestia hosts still use the superseded hand-run scripts
+(kept in-tree for existing deployments only - see the runbook's appendix):
 
 ```bash
 sudo bash installers/hestia/lazysite-hestia-deploy.sh <user> <domain> <stage>
+sudo bash installers/hestia/lazysite-hestia-update-all.sh --list   # fleet preview
+sudo bash installers/hestia/lazysite-hestia-update-all.sh          # fleet code+content
 ```
 
-Every lazysite site on the host at once (discovers them by the
-`.install-state.json` marker):
-
-```bash
-sudo bash installers/hestia/lazysite-hestia-update-all.sh --list   # preview
-sudo bash installers/hestia/lazysite-hestia-update-all.sh          # code+content
-sudo bash installers/hestia/lazysite-hestia-update-all.sh --templates  # also refresh the vhost
-```
-
-`--templates` re-applies the shared `lazysite-app` vhost template - use it when
-a release notes a vhost change (e.g. a new `FilesMatch`). Upgrades preserve
-edited content (the seed/conffile model) and skip unwritable files non-fatally.
+Upgrades preserve edited content (the seed/conffile model) and skip unwritable
+files non-fatally.
 
 **Update channel.** Each site has an `update_channel` (`edge` default, or
 `stable`); a `stable` site skips out-of-channel (edge) builds. Set or move it
@@ -81,6 +82,24 @@ fleet-wide. Against a payload that does not declare it, the command refuses
 before touching any site: the override is only as strong as the release's
 own declaration.
 
+### FastCGI pools
+
+Sites on the packaged FastCGI pattern (SM142) run a persistent per-site worker
+pool: `lazysite@<domain>.service`, identity from
+`/etc/lazysite/pools/<domain>.conf` (`DOCROOT=`, `USER=`, and optionally
+`GROUP=`, `WORKERS=`, `MAX_REQUESTS=`, `SOCKET=`), socket at
+`/run/lazysite/<domain>.sock`. On Hestia,
+`lazysite-hestia-domain add <user> <domain> --fcgi` writes the config and
+enables the unit in one step. A pool picks up upgraded site code (or an edited
+pool conf) on restart:
+
+```bash
+systemctl restart lazysite@<domain>
+```
+
+The auth wrapper, manager traffic and all cgi-bin/dav endpoints stay on the
+plain-CGI path; only anonymous visitor pages are pooled.
+
 ## Logs and audit
 
 - Application logs: `lazysite/logs/`.
@@ -93,6 +112,10 @@ own declaration.
 - **Users/credentials:** the manager Users page, or
   `tools/lazysite-users.pl` on the shell. The operator never sets a user's
   password - issue a setup link or token; the user provisions their own.
+- **Sessions:** the manager **Sessions** page (needs the Users & groups
+  permission) lists live sessions (user, signed in, IP, device) and signs out
+  one session or all of a user's sessions; rotating the signing secret (Users
+  page, "log out all users") remains the everyone-at-once option.
 - **Themes/layouts:** activate globally from the manager (or an agent does it
   over the control API). Re-activate after editing a theme.
 - **Cache:** manager **Cache → Clear** (partial-safe - only generated HTML).

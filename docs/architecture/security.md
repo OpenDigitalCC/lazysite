@@ -27,11 +27,16 @@ above it.
 ### Cookie format
 
 ```
-<username>:<timestamp>:<groups_csv>:<hmac_sha256>
+<username>:<timestamp>:<sid>:<groups_csv>:<hmac_sha256>
 ```
 
-The payload is `username:timestamp:groups_csv`, URL-encoded. The
+The payload is `username:timestamp:sid:groups_csv`, URL-encoded. The
 HMAC is computed over the payload with a per-installation secret.
+`sid` (SM141) is a random 16-hex session id minted at login so the
+session can be listed and revoked individually; legacy 3-field
+payloads (`username:timestamp:groups_csv`, from cookies issued before
+SM141) verify identically and stay valid until natural expiry - the
+sid's fixed shape disambiguates the two forms.
 
 ### Cookie attributes
 
@@ -84,10 +89,20 @@ timing attacks against the hash prefix.
 ### Session duration and revocation
 
 Cookies expire after 24 hours (via `Max-Age=86400`). There is no
-server-side session store. Logout sets an expired cookie on the
-client; the HMAC remains cryptographically valid until the 24-hour
-window passes. This is the trade-off for a stateless auth model -
-see "Known constraints" below.
+server-side session store on the request path; logout sets an expired
+cookie on the client. Since SM141 sessions are individually revocable:
+login appends an advisory line ({sid, user, t, ip, ua}) to
+`lazysite/auth/sessions.jsonl` (24-hour self-pruning; a registry
+failure never blocks login), and cookie verification in the auth
+wrapper - the single enforcement point - checks
+`lazysite/auth/revoked.json`: revoked sids, plus a per-user
+`not_before` timestamp that invalidates every cookie issued before it
+(including pre-sid legacy cookies, which carry `ts`). An absent file
+costs one `stat`; an unreadable or corrupt file fails open with a loud
+warning (no session revoked) rather than locking everyone out. The
+manager Sessions page drives both (`manage_users`-gated, audited);
+rotating the HMAC secret remains the invalidate-everything lever - see
+"Known constraints" below.
 
 ### Localhost bypass
 
@@ -500,16 +515,21 @@ API; 429 (throttle) and 423 (locked) responses carry `Retry-After`.
 
 ## Known constraints
 
-**Session revocation.** No server-side session store. Individual
-logout invalidates the cookie on the client only; the HMAC
-remains cryptographically valid until its `Max-Age` passes. A
-cookie stolen via XSS, browser exfiltration, or a compromised
-device would otherwise remain valid for up to 24 hours.
+**Session revocation.** No server-side session store on the request
+path. Individual logout invalidates the cookie on the client only;
+the HMAC remains cryptographically valid until its `Max-Age` passes
+*unless revoked*. A cookie stolen via XSS, browser exfiltration, or a
+compromised device would otherwise remain valid for up to 24 hours.
 
 Mitigations:
 - Short session lifetime (24 hours).
 - `HttpOnly` cookie attribute.
 - Installation-specific HMAC secret in `lazysite/auth/.secret`.
+- **Per-session and per-user revocation** (SM141): the manager
+  Sessions page signs out a single session (sid) or all of a user's
+  sessions (`not_before`, which also covers pre-SM141 cookies),
+  enforced at cookie verification via `lazysite/auth/revoked.json` -
+  the targeted response to a stolen cookie.
 - **"Log out all users"** action on the manager Users page
   (`action=rotate-auth-secret`). Generates a fresh secret from
   `/dev/urandom`, writes it atomically, and invalidates every

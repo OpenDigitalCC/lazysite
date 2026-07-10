@@ -110,6 +110,12 @@ Feature - lazysite-common.deb + the lazysite CLI (SM139 increments 1-2)
 
 ## 0.7.1 - Persistent runtime: FastCGI worker pools (2026-07-10)
 
+Fix - man pages land under man/man1/ in the release tarball
+: `git archive --add-file` stores only the basename, so the pages the 0.7.0
+  batch-2 change added were shipping at the tarball root; release.sh now
+  interleaves a per-page `--prefix` to place them under `man/man1/`. The
+  shipped 0.7.0 tarball was rebuilt from the tag with the corrected paths.
+
 Feature - persistent runtime: dual-mode FastCGI accept loop (SM142)
 : spawned with a FastCGI listen socket on fd 0 (spawn-fcgi / the SM139 pool
   unit), the processor services requests from an accept loop - modules

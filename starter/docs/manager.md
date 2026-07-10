@@ -56,7 +56,8 @@ visitors are redirected to `/login`.
 identity and review the plugin registry.
 
 - **Site settings** - `site_name`, `site_url`, navigation file path,
-  `search_default`, manager state, manager path, and manager groups. The active
+  `search_default`, manager state, and manager path (manager *access* is
+  granted on the Groups page, via the `ui` capability). The active
   layout and theme are shown read-only here with a link to **Appearance**, where
   they are changed. Saves to `lazysite/lazysite.conf`.
 - **Plugin Manager** (`/manager/plugins`) - lists all discovered plugins
@@ -152,10 +153,21 @@ Users page.)
 
 ### Sessions
 
-`/manager/sessions` (under **Access**). Sessions are signed cookies, not
-server-side records, so there is no per-session list yet (planned). The page lets
-you invalidate **all** sessions at once by rotating the signing secret - every
-cookie, including yours, stops working and everyone signs in again.
+`/manager/sessions` (under **Access**; needs the **Users & groups**
+permission). Lists the live sessions - user, signed in, IP address, device,
+with a marker on your own current session - and lets you:
+
+- **Sign out** a single session (its cookie stops working immediately).
+- **Sign out everywhere** for one user - all of that user's sessions,
+  including any signed in before session listing existed.
+- Invalidate **all** sessions at once by rotating the signing secret - every
+  cookie, including yours, stops working and everyone signs in again.
+
+Sessions are still signed cookies, not server-side records: the list is an
+advisory registry written at login (self-pruned after 24 hours), and
+revocations are enforced at cookie verification. Sessions from before this
+feature cannot be listed, but per-user sign-out and secret rotation still
+kill them. Revocations are recorded in the audit trail.
 
 ### Cache
 
@@ -172,8 +184,8 @@ config/theme changes, denied attempts) with who/what/when/where and the
 outcome. Filter by user, target, or a From/To date range; each row records
 the action's target (the page, the plugin, `nav`, etc.). Browsing analytics
 live separately in Visitor statistics, not here. Viewing the audit trail
-requires the **Analytics** permission (grant it per account on the Users page,
-or `lazysite-users.pl set <user> analytics on`); it is read through an
+requires the **Audit trail** permission - its own capability, separate from
+Analytics - granted through a group on the Groups page; it is read through an
 append-only cache, so only newly-appended lines are parsed on each load.
 
 ### Visitor statistics

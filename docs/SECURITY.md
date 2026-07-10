@@ -203,3 +203,115 @@ residual risk
 
 verdict
 : accepted.
+
+### 2026-07-10 - SM142: persistent runtime, dual-mode FastCGI accept loop (shipped 0.7.1)
+
+what changed
+: the processor gains a persistent execution mode - a long-lived worker
+  servicing the anonymous request path from a FastCGI accept loop, prefork
+  via `FCGI::ProcManager` - introducing the cross-request state-bleed risk
+  class that per-request CGI made structurally impossible, plus two new
+  (lazily required) dependencies.
+
+threat delta
+: Information disclosure / Tampering (request state leaking into a later
+  request in the same worker), Denial of service (a wedged or leaking
+  worker now affects subsequent requests).
+
+controls
+: per-request state reset shared by both paths (`handle_one_request`:
+  `reset_request_state` + the die-guard; `local %ENV` isolates request
+  environment); state isolation across consecutive requests pinned over the
+  real FCGI protocol (`t/lib/MiniFcgi.pm`); worker recycling
+  (`LAZYSITE_FCGI_MAX_REQUESTS`, default 500); an unhandled render error
+  answers a clean 500 and the loop continues; plain-CGI invocation stays
+  byte-identical. The auth wrapper is deliberately NOT pooled: the
+  trust-header enforcement point keeps its per-request exec design, and in
+  the shipped vhost template only cookie-less visitor traffic reaches the
+  pool socket - the pool is anonymous by design.
+
+residual risk
+: `FCGI`/`FCGI::ProcManager` join the SBOM/CVE surface (declared in
+  `sbom-deps.json`); a missed reset in future request-scoped state is the
+  standing risk class - mitigated by the shared reset helper and the
+  state-isolation test pattern, not eliminated.
+
+verdict
+: accepted.
+
+### 2026-07-10 - SM139: packaged distribution - debs, host CLI, root-run integrator (shipped 0.7.2)
+
+what changed
+: a new distribution surface: `lazysite-common` + `lazysite-hestia` debs,
+  the `lazysite` host CLI, a root-owned host registry and pool-config area
+  under `/etc/lazysite/`, the root-started pool launcher
+  (`lazysite-pool.pl` via the `lazysite@` systemd template unit), and
+  `lazysite-hestia-domain` - a root-run-by-design panel integrator.
+
+threat delta
+: Elevation of privilege (root-run integrator; root-started launcher on the
+  request path), Tampering (registry entries and pool configs as root-owned
+  inputs to privileged code).
+
+controls
+: the SM139 principle enforced in code, not convention - `provision` and
+  single-site `upgrade` refuse to run as root; `upgrade --all` drops to each
+  site's owner via `sudo -n -u` per site; the pool launcher refuses
+  `USER=root`, drops privileges before exec and verifies the drop stuck (no
+  root remains in the request path); the integrator's root pass is bounded
+  to domain layout/ownership, with every site-tree write behind
+  `sudo -n -u <panel-user>`. Domain names are validated to the hostname
+  alphabet before becoming file names, path components or unit instances;
+  `--force-security` is honoured only when the payload manifest declares
+  `"security_critical": true`. Invariants pinned by `t/tools/29-cli-fleet.t`
+  and `t/tools/30-hestia-pkg.t` (incl. the FallbackResource-to-auth contract
+  and the socket convention in the shipped templates).
+
+residual risk
+: the integrator and launcher run as root by design (bounded, reviewed
+  paths); `/etc/lazysite/` is a root-owned admin surface - a compromised
+  root already owns the host; correct `sudo` availability is a host
+  dependency (`sudo -n` fails loudly, never prompts).
+
+verdict
+: accepted.
+
+### 2026-07-10 - SM141: session registry + revocation (unreleased, on main)
+
+what changed
+: an auth-path change: the session cookie payload gains a random session id
+  (`user:ts:sid:groups`), login writes an advisory session registry
+  (`lazysite/auth/sessions.jsonl`), cookie verification gains a revocation
+  check (`lazysite/auth/revoked.json`: sids + per-user `not_before`), and
+  three new manager API actions (`sessions-list` / `session-revoke` /
+  `user-revoke`) drive the new Sessions page.
+
+threat delta
+: Information disclosure (session metadata at rest: user, IP, sanitised UA),
+  Tampering (two new files consumed by the auth path), Denial of service
+  (a corrupt revocation file on every cookie check), Elevation of privilege
+  (the revocation actions themselves).
+
+controls
+: signed cookies remain the sole source of authentication truth - the
+  registry is advisory listing metadata, never consulted to authenticate;
+  revocation is enforced at the single enforcement point (cookie
+  verification in the auth wrapper; the processor keeps trusting only the
+  wrapper's `X-Remote-*` headers); both files live in the web-denied,
+  WebDAV-denied `lazysite/auth/`; the registry is loss-tolerant (a write
+  failure never blocks login), UA-sanitised and 24-hour self-pruning; an
+  absent `revoked.json` costs one stat and a corrupt one fails open with a
+  loud WARN (no lockout, consistent with the availability posture); the
+  actions are `manage_users`-gated, cookie-only (not in the token `%need`
+  set), and revokes are audited with sid-prefix/username targets;
+  `lazysite-check` probes both files alongside the secrets. Tests:
+  `t/unit/auth/12-session-registry.t`, `t/unit/manager/24-sessions.t`.
+
+residual risk
+: fail-open on a corrupt `revoked.json` trades containment for availability
+  (loudly logged); legacy pre-sid cookies cannot be listed or revoked
+  individually - only per-user `not_before` or secret rotation reaches them,
+  until they age out at 24 h.
+
+verdict
+: accepted.

@@ -77,6 +77,19 @@ works on staging and production.
   the Groups page; on upgrade any group this key named receives its
   capabilities explicitly and the line is removed.
 
+`update_channel`
+: Which lazysite releases the site accepts on upgrade: `stable` installs
+  only certified stable-channel releases (an edge upgrade is skipped and
+  audited); any other value (the default) accepts everything. Set with
+  `install.pl --channel stable|edge --docroot ...` or from Manager → Site
+  settings. See [Update channel](/docs/features/configuration/update-channel).
+
+`update_policy`
+: `auto` or `manual` (default). Whether a fleet-wide `lazysite upgrade --all`
+  run (deb-managed hosts) touches this site at all: `manual` sites are
+  skipped and upgraded only deliberately. Set with
+  `install.pl --policy auto|manual --docroot ...` (audited as `policy-set`).
+
 `log_level`
 : `ERROR`, `WARN`, `INFO` (default), or `DEBUG`.
 

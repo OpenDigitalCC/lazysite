@@ -16,12 +16,23 @@ Toolkit / Archive::Zip / DB_File.
 
 | Script | Role |
 |---|---|
-| `lazysite-processor.pl` | the request pipeline: render Markdown pages, TT, cache, registries, auth/payment gates, the trust gate |
+| `lazysite-processor.pl` | the request pipeline: render Markdown pages, TT, cache, registries, auth/payment gates, the trust gate; dual-mode (CGI / FastCGI accept loop) |
 | `lazysite-auth.pl` | cookie login, claim redemption, pairing-key exchange, token rotation, forgot-password, TOTP - sets `X-Remote-*` for downstream CGIs |
 | `lazysite-manager-api.pl` | the manager UI back-end + the token control API |
 | `lazysite-dav.pl` | the WebDAV (class 1+2) publishing endpoint with its own Basic auth |
 | `tools/lazysite-users.pl` | the account/credential CLI (also called as an API by the others) |
 | `install.pl` / `tools/build-manifest.pl` / `tools/manifest-to-sbom.pl` | install + release tooling |
+
+**Dual-mode dispatch (SM142).** The processor detects a FastCGI listen
+socket on fd 0 (the spawn-fcgi convention, used by the SM139
+`lazysite@.service` pool unit via `tools/lazysite-pool.pl`) and services
+requests from a persistent accept loop; invoked as plain CGI it takes the
+single-shot path, byte-identical to before. Both paths share
+`handle_one_request` (per-request state reset + the die-guard); `FCGI` /
+`FCGI::ProcManager` are lazy-required, so the CGI path has no new
+dependency. When adding request-scoped state, reset it in
+`reset_request_state` - state isolation across consecutive pool requests is
+pinned over the real FCGI protocol via `t/lib/MiniFcgi.pm`.
 
 Capabilities are channel x action grants carried by **groups**
 (`lazysite/auth/groups-settings.json`, edited on the manager Groups page; see
@@ -54,7 +65,7 @@ Capabilities are channel x action grants carried by **groups**
 ## Tests
 
 Five-level taxonomy under `t/`: `unit/`, `integration/`, `journey/`, `smoke/`,
-`lint/`, plus `tools/`. Run `prove -r t/` (≈1,275 tests). The CGIs are exercised
+`lint/`, plus `tools/`. Run `prove -r t/` (≈2,700 tests). The CGIs are exercised
 as **subprocesses** (`open3`/`open2`) with CGI env, or in-process via a
 `LOAD_ONLY` hook. `t/lib/TestHelper.pm` has the fixtures (`setup_dav_site`,
 `run_processor`, …). `tools/bench.pl --check` is the performance gate.

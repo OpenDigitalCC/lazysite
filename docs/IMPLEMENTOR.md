@@ -10,7 +10,11 @@ this is the map. For running it afterwards see [OPERATOR.md](OPERATOR.md).
 - A **CGI-capable web server**. Apache is first-class: lazysite relies on
   `FallbackResource`, `ScriptAlias`, `mod_headers` (the `RequestHeader unset
   X-Remote-*` trust-strip), `<FilesMatch>`, and `+ExecCGI`. nginx needs a CGI
-  bridge and is not the supported path.
+  bridge and is not the supported path. For production speed, visitor pages
+  can instead be served by a persistent per-site **FastCGI pool** (SM142:
+  `mod_proxy_fcgi` to `/run/lazysite/<site>.sock`; needs `libfcgi-perl` +
+  `libfcgi-procmanager-perl`) - the auth wrapper and cgi-bin endpoints stay
+  CGI either way.
 - **Perl** (5.x core). Optional: Template Toolkit (theming), Archive::Zip
   (layout install), DB_File (rate limiting). All declared in
   `dist/config/sbom-deps.json`; the packaged list (Debian names + purpose) is
@@ -29,17 +33,26 @@ this is the map. For running it afterwards see [OPERATOR.md](OPERATOR.md).
 It records per-file SHAs in `lazysite/.install-state.json`, so upgrades never
 clobber edited content and an unwritable file is skipped non-fatally.
 
-## Deploying (HestiaCP, one command)
+## Deploying (packaged, since 0.7.2)
+
+The install path is the **debs**: `lazysite-common` (engine payload at
+`/usr/share/lazysite`, the `lazysite` CLI, the site registry, the FastCGI
+pool machinery) and, on HestiaCP, `lazysite-hestia` (web templates +
+`lazysite-hestia-domain`). Per domain, one root command that **drops to the
+site user** for every site-tree write:
 
 ```bash
-sudo bash installers/hestia/lazysite-hestia-deploy.sh <user> <domain> <stage-dir>
+lazysite-hestia-domain add <user> <domain>           # plain CGI
+lazysite-hestia-domain add <user> <domain> --fcgi    # + persistent FastCGI pool
 ```
 
-This applies the `lazysite-app` web template (the **cookie-auth wrapper** variant
-- not the basic `lazysite.tpl`), runs `install.pl` as the domain user, and sets
-the permissions a www-data CGI needs (`chown -R user:www-data`, setgid `2775`
-dirs, `2770` on `lazysite/auth`). See the runbook for the one-time template
-install and `a2enmod headers`.
+then apply the matching web template (`lazysite-cgi` / `lazysite-fcgi`). On a
+non-Hestia host, provision **as the site user** with
+`sudo -u <user> lazysite provision --docroot D --cgibin C --domain NAME`
+(the CLI refuses to run as root - no root writes into site trees). The full
+worked procedure, including the one-time template copy and `a2enmod` lines,
+is the runbook. The tarball-era `lazysite-hestia-deploy.sh` script is
+superseded and kept only for existing deployments (runbook appendix).
 
 ## First-run configuration
 

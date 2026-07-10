@@ -1,6 +1,6 @@
 ---
 title: "Lazysite - Complete Feature Reference"
-subtitle: "Everything lazysite has and does, and why - as of v0.4.17"
+subtitle: "Everything lazysite has and does, and why - as of v0.7.2"
 brand: plain
 ---
 
@@ -11,7 +11,9 @@ near-core Perl. You drop a `.md` file into a document root; on the first request
 the processor renders it to HTML through a layout/theme, caches the result as a
 sibling `.html`, and the web server serves that cache directly thereafter. There
 is **no build step, no database, and no application server** - just CGI scripts, a
-tree of Markdown, and a flat-file configuration.
+tree of Markdown, and a flat-file configuration. (For production speed the same
+processor can run as a persistent per-site FastCGI pool - see Part IX - but
+plain CGI remains the default and the baseline.)
 
 Around that core sits a full publishing and management stack: a browser-based
 manager UI, a JSON control API, a WebDAV endpoint, an AI connector that speaks the
@@ -227,10 +229,20 @@ it only consumes the header contract.
 
 ## The session model
 
-- **Signed cookies, no server-side session store.** The cookie carries an
-  HMAC-signed `username:timestamp:groups` payload - a stateless, tamper-evident
-  session token, `HttpOnly; SameSite=Lax`, `Secure` under HTTPS, 24-hour expiry,
-  compared constant-time.
+- **Signed cookies, no server-side session store on the request path.** The
+  cookie carries an HMAC-signed `username:timestamp:sid:groups` payload - a
+  stateless, tamper-evident session token with a short random session id
+  (legacy 3-field cookies remain valid until natural expiry), `HttpOnly;
+  SameSite=Lax`, `Secure` under HTTPS, 24-hour expiry, compared constant-time.
+- **Sessions are visible and revocable** (SM141). Login appends one line (sid,
+  user, time, IP, sanitised UA) to `lazysite/auth/sessions.jsonl` (24-hour
+  self-pruning, loss-tolerant - a registry failure never blocks login), and
+  cookie verification checks `lazysite/auth/revoked.json` (revoked sids +
+  per-user `not_before`, which also kills pre-sid legacy cookies; an absent
+  file costs one stat, a corrupt file fails open with a loud warning, never a
+  lockout). The manager **Sessions** page lists live sessions and offers
+  per-session Sign out and per-user Sign out everywhere; rotating the HMAC
+  secret stays as the everyone-at-once lever.
 - **Trusted headers + the trust gate.** Identity reaches the processor only as
   `X-Remote-User`/`-Groups`/`-Name`/`-Email` (names configurable). These are trusted
   *only* when a trusted source set them: the wrapper sets a one-shot trust signal
@@ -430,6 +442,9 @@ is retired - migrated groups received their capabilities explicitly). The pages:
   actor's own subtree.
 - **Groups** - the capability editor: each group carries its channel + action
   grants and a description; members inherit the union.
+- **Sessions** - the live-session list (SM141): user, signed in, IP, device,
+  a "this session" marker; per-session **Sign out** and per-user **Sign out
+  everywhere**, plus secret rotation as the everyone-at-once option.
 - **Cache** - list cached pages (with orphan badges), invalidate one or all.
 - **Stats** - the visitor-statistics dashboard, reading lazysite's own
   first-party access log as the primary source (SM140; the server log is the
@@ -455,9 +470,10 @@ capability gating; and a per-token rate limit (token-bucket, burst 200 / refill
 download/zip, ACL get/set/remove, cache list/invalidate, allow-listed `config-set`,
 the full theme/layout management set, artifact manifest/validate, users/principals
 (proxied to the users tool), plugins/handlers/form-targets, nav read/save, backups,
-SM071 preview grant/clear, `whoami`, `version`, `audit`, and `rotate-auth-secret`
-(the mass-logout lever - rewrites the install HMAC secret, invalidating every
-session at once).
+SM071 preview grant/clear, `whoami`, `version`, `audit`, the session controls
+(`sessions-list` / `session-revoke` / `user-revoke`, `manage_users`-gated and
+not reachable by token clients), and `rotate-auth-secret` (the mass-logout
+lever - rewrites the install HMAC secret, invalidating every session at once).
 
 ## File operations, locking, ACLs
 
@@ -676,6 +692,59 @@ for a specific out-of-channel build (audited as `upgrade-forced`); and
 `--restore-full <file> [--domain NAME]` restores a full-system backup, optionally
 rewriting the site domain - the cross-domain migration path.
 
+## Packaged distribution (SM139)
+
+Two Debian packages built from the same source (`debian/`, via
+`tools/build-deb.sh`), replacing per-site sudo tarball installs:
+
+- **`lazysite-common`** - the engine payload at `/usr/share/lazysite`, the
+  **`lazysite` CLI** at `/usr/bin/lazysite`, man pages, the `lazysite@`
+  FastCGI pool unit + `/etc/lazysite/pools/`, and the **site registry**
+  (`/etc/lazysite/sites.d/`, one key=value file per site). Installing or
+  upgrading the deb only refreshes the host payload - it never touches a
+  site tree.
+- **`lazysite-hestia`** - the HestiaCP integration: Apache web domain
+  templates for both runtime patterns (`lazysite-cgi` and `lazysite-fcgi`)
+  plus **`lazysite-hestia-domain`** (`add`/`remove`/`list`), the root-run
+  panel integrator that prepares the 0551-locked domain layout as root, then
+  **drops to the panel user** for `lazysite provision`, registers the site,
+  and with `--fcgi` writes the pool config and enables `lazysite@<domain>` -
+  one-command domain onboarding.
+
+The CLI enforces the load-bearing SM139 principle: **no root writes into site
+trees**. `provision` and single-site `upgrade` refuse to run as root; only
+`upgrade --all` may run as root, because it drops to each site's owner
+(`sudo -u`) per site - ownership correct by construction, no chown-after
+repair pass. Verbs: `provision`, `upgrade [--all]`, `sites`, `check`, `users`,
+`dev`, `version`.
+
+**Fleet channels and policy.** Each site carries `update_channel`
+(`edge`/`stable`) and `update_policy` (`auto`/`manual`, default `manual`) in
+`lazysite.conf`; `upgrade --all` skips `manual` sites and lets the installer's
+channel gate decide `auto` sites. `--force` overrides both gates;
+`--force-security` also overrides both fleet-wide but is honoured **only**
+when the payload's release manifest declares `"security_critical": true`
+(stamped with `build-manifest.pl --security-critical`) - the fleet answer to
+"a security fix must reach every site now". `lazysite sites` lists the
+registry with live channel/policy and installed versions.
+
+## Persistent runtime: FastCGI worker pools (SM142)
+
+The processor is **dual-mode**: invoked as plain CGI it behaves byte-identically
+to before, but spawned with a FastCGI listen socket on fd 0 (the spawn-fcgi
+convention; the SM139 pool unit) it services requests from a persistent accept
+loop - modules compile once, per-request state resets inside the loop, and both
+paths share one `handle_one_request`. Prefork is via FCGI::ProcManager
+(`LAZYSITE_FCGI_WORKERS`) with worker recycling
+(`LAZYSITE_FCGI_MAX_REQUESTS`, default 500); FCGI.pm is lazy-required, so the
+CGI path gains no new dependency. **Measured: a cache-hit at 62.2 ms as CGI
+serves in 0.4 ms pooled (147x)** - the CGI figure is almost entirely process
+start, which the loop amortises away. One pool per site
+(`tools/lazysite-pool.pl` binds `/run/lazysite/<site>.sock`, drops privileges,
+execs the processor). The auth wrapper stays CGI (its exec design), so pooling
+covers the anonymous visitor-facing hot path; see
+`docs/architecture/performance.md`.
+
 ## Hestia deployment
 
 A two-layer model: a Hestia Apache **web template** owns the vhost (survives
@@ -684,11 +753,12 @@ rebuilds), and `install.pl` owns the code/seed deploy. The vhost wires
 processor directly - that would break login), a rewrite that fronts the real cgi-bin
 scripts with the wrapper, the **`RequestHeader unset X-Remote-*`/`X-Payment-*`
 trust-strip**, the `/dav` ScriptAlias, a `Require all denied` on `/lazysite/`, a
-`.brief` deny, and **`Options -Indexes`** (no directory listing). A rebuild hook
-fixes perms for the no-suexec www-data model; a one-command **deploy** script folds
-the whole runbook; and a **fleet updater** discovers every lazysite site on the host
-(by its state-file marker) and updates them all, optionally refreshing templates
-first. (A Docker target is a placeholder, not yet implemented.)
+`.brief` deny, and **`Options -Indexes`** (no directory listing). Since 0.7.2
+the packaged flow (`lazysite-hestia` above: shipped templates +
+`lazysite-hestia-domain`) is the install path -
+`installers/hestia/INSTALL-RUNBOOK.md` is written around it; the hand-run
+deploy/fleet-update scripts of the tarball era remain in-tree only for
+existing deployments. (A Docker target is a placeholder, not yet implemented.)
 
 ## The dev server
 
@@ -721,14 +791,29 @@ Pages, Netlify, or Cloudflare Pages.
   component per shipped file and per curated dependency (with Debian/RHEL/Alpine
   package names and licences). The **`--strict` drift gate** scans every script for
   `use`/`require` and **fails the release** if a dependency isn't declared - so a new
-  dependency can't ship unaccounted-for. Everything is `Artistic-1.0-Perl`,
-  overwhelmingly Perl-core.
+  dependency can't ship unaccounted-for. The product licence is **MIT**;
+  dependencies carry their own declared licences, overwhelmingly Perl-core.
 - **Release pipeline** (`release.sh`) - never touches `main`: clones fresh, checks
   out a commit, runs the **full test suite**, builds the manifest, runs the strict
-  SBOM gate, builds a reproducible tarball via `git archive`, records a SHA sidecar,
-  and tags + pushes `vX.Y.Z`. Tags are the only stable identifiers; since the 0.4.x
-  line, `main` is unstable and carries unreleased work with no per-release bump
-  commit.
+  SBOM gate, builds a reproducible tarball via `git archive` (man pages included
+  under `man/man1/`), records a SHA sidecar, and tags + pushes `vX.Y.Z`. Tags are
+  the only stable identifiers; since the 0.4.x line, `main` is unstable and
+  carries unreleased work with no per-release bump commit. Builds are **`edge`**
+  by default; `--final` stamps `channel: stable` into the manifest - the
+  certified releases that `stable`-channel sites accept. **0.7.0 is the first
+  stable release**, opening the declared five-year support period
+  (`docs/POLICY.md`).
+- **Debian packaging** (`tools/build-deb.sh` + `debian/`) - builds
+  `lazysite-common` and `lazysite-hestia` (Part IX); lintian-clean, smoke-tested
+  from the extracted deb, template/packaging invariants pinned by
+  `t/tools/30-hestia-pkg.t`.
+- **Permissions doctor** (`lazysite-check.pl`) - the health/permissions checker
+  (`lazysite check`): probes conf readability, cgi-bin executability, secrets
+  modes (incl. the session registry/revocation files), manager layout presence,
+  and group-execute traversal - all **evaluated as the CGI identity**
+  (ownership+mode arithmetic, so a root run cannot pass files www-data cannot
+  use); `--fix` re-runs every check afterwards and prints the **post-fix**
+  report, with queued chmods on one path composing additively.
 - **Versioning** (`bump-version.pl`) - promotes `NEXT_VERSION` into `VERSION` and
   advances the next, once per release.
 - **User admin** (`lazysite-users.pl`) - the full credential/account/MFA/claim/
@@ -736,13 +821,19 @@ Pages, Netlify, or Cloudflare Pages.
 - **Offline bundle apply** (`lazysite-bundle-apply.pl`) - applies a network-less
   agent's single-JSON publishing bundle, deny-list-validated, dry-run by default.
 - **Coverage** (`coverage.sh`) - measures the CGIs even though tests run them as
-  subprocesses, enforcing a floor.
+  subprocesses, enforcing declared floors: **75% statements / 62% branches**
+  across the eight gated CGIs (three documented per-file branch overrides at
+  60); an unmeasured gated CGI fails the gate rather than silently skipping.
 - **Benchmark** (`bench.pl`) - a host-relative gate on the hot paths (render, token
   verify, password verify), failing only on a gross regression.
 
-The test suite is large (≈1 658 tests across unit, integration, journey, and lint
-tiers) and is a release gate, alongside a `perlcritic` gate, a secrets gate, and the
-SBOM gate.
+The test suite is large (thousands of tests across unit, integration, journey,
+smoke, lint, and tools tiers) and is a release gate, alongside the `perlcritic`
+(severity-3 + security) gate, the changed-code `perltidy` gate, a
+`shellcheck -S error` gate, a secrets gate (every pattern self-tested against a
+planted fixture), the **retired-terms lint** (a retired mechanism taught as
+current anywhere in the docs fails the build), the coverage floors, and the
+SBOM gate; `release.sh` refuses to run when the lint tools are absent.
 
 ---
 
@@ -766,8 +857,11 @@ SBOM gate.
   responses on forgot/claim/exchange; single-use + locked redemption; hashed-at-rest
   secrets shown once; constant-time compares throughout; atomic, zero-byte-refusing,
   symlink-guarded writes.
-- **Session revocation.** Rotating the install HMAC secret invalidates every cookie
-  at once (the manager "log out all users" button).
+- **Session revocation** (SM141). The Sessions page revokes a single session
+  (by sid) or all of a user's sessions (a per-user `not_before`, which also
+  kills legacy pre-sid cookies); rotating the install HMAC secret remains the
+  invalidate-everything-at-once lever. Enforcement is in the auth wrapper's
+  cookie verification - the single enforcement point.
 - **No directory listing in production**, ever (processor 404 + `Options -Indexes`),
   tested.
 - **Manager access is interactive-only** (SM127). An account holding the
@@ -816,6 +910,26 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **Unreleased** - Session registry + revocation (SM141 phase 1): the cookie
+  payload gains a session id, live sessions are listed on the new manager
+  **Sessions** page, and single sessions or all of a user's sessions can be
+  signed out via `lazysite/auth/revoked.json` - enforced in the auth wrapper.
+- **0.7.2** (2026-07-10) - Packaged distribution (SM139): the
+  `lazysite-common` + `lazysite-hestia` debs, the `lazysite` CLI
+  (provision/upgrade/sites, root-refusal by design, the site registry), fleet
+  `update_policy` + `--force-security` (honoured only for manifests declaring
+  `security_critical`), one-command Hestia onboarding
+  (`lazysite-hestia-domain`, CGI + FastCGI templates), and the hardened
+  `lazysite-check` (post-fix re-report, CGI-identity evaluation).
+- **0.7.1** (2026-07-10) - Persistent runtime (SM142): the dual-mode FastCGI
+  accept loop - per-site worker pools, modules compile once; measured
+  cache-hit 62.2 ms CGI → 0.4 ms FCGI (147x); plain CGI byte-identical.
+- **0.7.0** (2026-07-10) - **First stable release**, cut on completion of the
+  2026-07-10 eight-dimension review resolution: seven refusal-level code
+  fixes, the RELIABILITY.md SLO/RTO/RPO declarations, the pentest-gate ADR +
+  significant-change register, the five-year support period + Declaration of
+  Conformity, coverage floors ratcheted to 75/62 across eight gated CGIs, and
+  the retired-terms/shellcheck lint gates.
 - **0.6.10** (2026-07-10) - Backlog housekeeping: thirteen shipped items closed;
   SM139 (packaged distribution) promoted to next up; SM141 (session registry +
   revocation) scoped.
@@ -906,9 +1020,6 @@ Newest first; releases are git tags.
   remaining lever and the substrate for transactional changesets.
 - **SM084-restore** - the in-manager "restore this snapshot" action (list/create/
   download already ship).
-- **SM139 - Packaged distribution** - a common `.deb` plus environment `.deb`s and
-  unprivileged provisioning, replacing per-site sudo tarball installs (the fix for
-  the ownership fragility the 0.6.5/0.6.6 round repaired after the fact).
 - **SM075 - Wildcard multi-tenant hosting** - many ephemeral sites under one wildcard
   vhost, auto-provisioned, with promote-to-permanent.
 
@@ -922,13 +1033,11 @@ Newest first; releases are git tags.
   canonical store (publishing-format slice first).
 - **SM092 - Gopher + Gemini services** - read-only public front-ends over the same
   content tree, the natural next "thin transports."
-- **SM141 - Session registry** - list active sessions (who / when / last-seen) and
-  revoke one, without inverting the stateless-cookie design (scoped, not yet
-  committed; sequenced after the 0.7.0 stable cut).
 
 ---
 
 *This reference was synthesised from the lazysite source, the `starter/docs/`
 documentation set, the `docs/feature-requests/` record, and the CHANGELOG, at
-v0.6.10. For the authoritative detail of any feature, read the cited script or doc;
-for the "why", read the corresponding `SMxxx` feature-request.*
+v0.7.2 (including the unreleased SM141 session registry on `main`). For the
+authoritative detail of any feature, read the cited script or doc; for the
+"why", read the corresponding `SMxxx` feature-request.*

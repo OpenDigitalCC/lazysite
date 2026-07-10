@@ -74,6 +74,16 @@ Directory scan
   page); on upgrade any group this key named receives its capabilities and the
   line is removed.
 
+`update_channel`
+: `stable` accepts only certified stable-channel releases on upgrade (edge
+  upgrades are skipped and audited); any other value (default) accepts every
+  release. See [Update channel](/docs/features/configuration/update-channel).
+
+`update_policy`
+: `auto` or `manual` (default). Whether the fleet-wide
+  `lazysite upgrade --all` run on deb-managed hosts upgrades this site;
+  `manual` sites are skipped. Set with `install.pl --policy`.
+
 `log_level`
 : One of `ERROR`, `WARN`, `INFO`, `DEBUG`. Default: `INFO`.
 

@@ -2,10 +2,13 @@
 
 ## CGI execution model
 
-lazysite runs as a CGI application. Every HTTP request spawns a fresh
-`perl` process that loads its modules, reads `lazysite.conf`, resolves
-the request URI, serves the page, and exits. Nothing persists between
-requests at the Perl level.
+lazysite runs as a CGI application by default. Every HTTP request
+spawns a fresh `perl` process that loads its modules, reads
+`lazysite.conf`, resolves the request URI, serves the page, and exits.
+Nothing persists between requests at the Perl level. (The packaged
+production alternative - a persistent per-site FastCGI pool - is the
+"FastCGI" section below; everything in this section describes the
+default CGI mode.)
 
 Consequences:
 
@@ -184,8 +187,8 @@ sibling `.ct` file under `lazysite/cache/ct/`.
 
 - Replace `Text::MultiMarkdown` with a lighter Markdown parser. MMD
   contributes ~15 ms of module load. This is a large API change and
-  is not scheduled.
-- Move to a persistent-process model (see FastCGI below).
+  is not scheduled. (The persistent-process model, formerly listed
+  here, shipped as SM142 - see FastCGI below.)
 
 ## FastCGI
 
@@ -213,10 +216,12 @@ One pool per site: DOCROOT is fixed at spawn, so docroot-derived state is
 valid for the worker's life and site isolation stays process-level. Needs
 libfcgi-perl (+ libfcgi-procmanager-perl for prefork) and a web server
 speaking FastCGI to the socket (Apache mod_proxy_fcgi / nginx fastcgi_pass);
-packaging (systemd template unit, vhost config) ships with SM139. The auth
-wrapper still execs the processor per request (its trust-header design), so
-manager traffic stays on the CGI path for now - the visitor-facing hot path
-is the pooled one.
+the packaging shipped with SM139 (0.7.2): the `lazysite@.service` template
+unit + `tools/lazysite-pool.pl` launcher and `/etc/lazysite/pools/` in
+`lazysite-common`, and the `lazysite-fcgi` vhost template in
+`lazysite-hestia`. The auth wrapper still execs the processor per request
+(its trust-header design), so manager traffic stays on the CGI path for
+now - the visitor-facing hot path is the pooled one.
 
 The CGI path remains the default and the dev-server path. FastCGI is the
 packaged production pattern, not a requirement.
