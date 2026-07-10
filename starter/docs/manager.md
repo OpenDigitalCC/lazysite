@@ -77,6 +77,12 @@ identity and review the plugin registry.
 - Review the site's alias redirects in the read-only Aliases card
   (alias → target, with a 301/302 badge; aliases are authored in each
   page's front matter via `aliases:` / `aliases_temp:`)
+- Step through a file's **version history** (when content history is
+  enabled on the Backups page): each file's expand card gains a History
+  panel listing every recorded version (when, who, what) with **View**
+  (that version's raw content, read-only), **Diff** (against the current
+  file) and **Restore**. A restore is written back as a normal save, so
+  it becomes the newest version itself - always reversible.
 
 The editor at `/manager/edit` shows:
 
@@ -171,6 +177,22 @@ advisory registry written at login (self-pruned after 24 hours), and
 revocations are enforced at cookie verification. Sessions from before this
 feature cannot be listed, but per-user sign-out and secret rotation still
 kill them. Revocations are recorded in the audit trail.
+
+### Backups
+
+`/manager/backups`. Typed snapshot sections - **Content backups** (create,
+download, in-app restore with an automatic pre-restore safety snapshot) and
+**Full-system backups** (download only; restored by a system user with
+`install.pl --restore-full`, since they carry the auth secrets).
+
+The **Content history** card enables and reports the per-file version history
+(SM085): enabling takes an initial snapshot of the current site, then every
+save becomes a recorded version, browsable per file on the Files page. The
+history covers the content plus `lazysite.conf` / `nav.conf` and never
+includes secrets or personal data (accounts, form submissions, logs), so it
+is safe to sync to a private remote. It needs the `git` package on the host;
+the card says so when git is missing. Full-system backups remain the
+disaster-recovery mechanism for exactly what the history excludes.
 
 ### Cache
 

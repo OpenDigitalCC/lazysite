@@ -44,7 +44,7 @@ my %ACTION_INFO = (
     manage_content => {
         title   => 'Read and write site content (pages, assets).',
         unlocks => {
-            api => [qw(aliases-list)],
+            api => [qw(aliases-list git-status git-history git-show git-restore)],
             mcp    => [qw(list_files read_file write_file replace_text copy_file
                           move_file delete_file create_page delete_page rename_page
                           list_pages read_page preview_page page_status search_files
@@ -87,7 +87,7 @@ my %ACTION_INFO = (
     manage_config => {
         title   => 'Read and set safe site configuration.',
         unlocks => {
-            api    => [qw(config-read config-set)],
+            api    => [qw(config-read config-set git-init)],
             webdav => ['lazysite/nav.conf', 'lazysite/forms/<name>.conf'],
         },
     },

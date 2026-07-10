@@ -230,6 +230,7 @@ sub run_checks {
         'lazysite-assets'        => 02775,
         'lazysite/auth'          => 02770,
         'lazysite/forms'         => 02770,
+        'lazysite/git'           => 02770,
     );
     for my $rel ( sort keys %want_dir ) {
         my $path = "$DOC/$rel";
@@ -513,6 +514,57 @@ sub run_checks {
             }
             else {
                 report( 'OK', "lazysite/manager/layout.tt present and readable by the CGI" );
+            }
+        }
+    }
+
+    # --- 7c. content history (SM085) ----------------------------------------------
+    # When git_history is enabled: the git binary must exist (WARN - saves keep
+    # working, history silently stops), the repo dir must not be world-accessible,
+    # and info/exclude MUST carry the lazysite/auth exclusion - a history that can
+    # be pushed to a remote must never contain the credential store (SECURITY).
+    if ( ( conf_value( $conf, 'git_history' ) // '' ) =~ /enabled/i ) {
+        my $have_git = 0;
+        for my $bd ( split /:/, ( $ENV{PATH} // '' ) ) {
+            next unless length $bd;
+            if ( -f "$bd/git" && -x _ ) { $have_git = 1; last }
+        }
+        if ( !$have_git ) {
+            report( 'WARN',
+                "git_history is enabled but git is not installed - saves keep working "
+                    . "but no content history is recorded",
+                "apt-get install git (or the distro equivalent)" );
+        }
+        my $gd = "$LZ/git";
+        if ( !-d $gd ) {
+            report( 'WARN',
+                "git_history is enabled but lazysite/git is not initialised",
+                "use the Enable button on the manager Backups page (action git-init)" );
+        }
+        else {
+            my $mode = mode_of($gd);
+            if ( $mode & 0007 ) {
+                report( 'FAIL',
+                    sprintf( "lazysite/git is world-accessible (%04o) - the content "
+                            . "history must not be", $mode ),
+                    sprintf( "chmod 02770 '%s'", $gd ) );
+                push @chmod_fixes, [ 02770, $gd ];
+            }
+            my $excl = '';
+            if ( open my $xf, '<', "$gd/info/exclude" ) {
+                local $/;
+                $excl = <$xf> // '';
+                close $xf;
+            }
+            if ( $excl !~ m{^/?lazysite/auth/?\s*$}m ) {
+                report( 'FAIL',
+                    "lazysite/git/info/exclude does not exclude lazysite/auth - the "
+                        . "credential store could be committed and PUSHED to a remote",
+                    "add a '/lazysite/auth/' line to '$gd/info/exclude' (and "
+                        . "'git rm -r --cached lazysite/auth' if it was ever committed)" );
+            }
+            else {
+                report( 'OK', "content history: lazysite/auth is excluded from the repo" );
             }
         }
     }

@@ -125,6 +125,11 @@ sub action_backup_restore {
     # wholesale; each host re-renders on its next request.
     Lazysite::Util::clear_host_cache($DOCROOT);
 
+    # SM085: a restore is visible content history, not history erasure - commit
+    # the restored state of the whole versioned set (no-op when git is off).
+    require Lazysite::Git;
+    Lazysite::Git::commit_all( $DOCROOT, $auth_user, "restore from backup $name" );
+
     log_event( 'INFO', 'backup-restore', 'snapshot restored', file => $name,
         safety => $safety->{name}, cache_cleared => $cleared, user => $auth_user );
     return { ok => 1, restored => $name, safety => $safety->{name},

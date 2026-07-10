@@ -18,6 +18,33 @@ Keying
 
 ## Unreleased
 
+Feature - content history: per-file git versioning with view/diff/restore (SM085 phase 1 core)
+: Opt-in version history for the site content. `git-init` (the Enable button
+  on the Backups page's new Content history card, or the control-API action,
+  gated on `manage_config`) sets `git_history: enabled` and adopts the
+  current site into a repo at `lazysite/git/` (never web-reachable; the
+  docroot is the work tree). Every content write then auto-commits with the
+  acting user as author and the action as message - manager save / delete /
+  move / copy / migrate-to-local, uploads, WebDAV PUT/DELETE/MOVE/COPY, MCP
+  writes, nav and site-config saves, and content-backup restores; a batched
+  operation is one commit, and a git failure never breaks the write. The
+  never-versioned exclude list (auth store, forms, notify-xmpp.conf, logs,
+  caches, backups, the repo itself, generated HTML, asset mirrors) is
+  written at init and keeps the history safe to push to a private remote
+  later; `lazysite-check` gains probes for the git binary, repo permissions,
+  and a SECURITY FAIL when `lazysite/auth` is not excluded. Files-page file
+  cards gain a History panel (per-version View / Diff / Restore; restore
+  routes through the normal save path, so it is cache-invalidated, audited
+  and itself the newest version). New control-API actions `git-init` /
+  `git-status` / `git-history` / `git-show` / `git-restore` (reads
+  audit-skipped; token gating manage_content, init manage_config); the
+  capability map and host-dependencies docs are regenerated, with git
+  recorded as an optional host binary in the SBOM environment section. The
+  new module `Lazysite::Git` (list-form git exec only; sha/path validation
+  before any git call) is the seam the git-sync remote plugin (follow-up)
+  builds on. Tests: t/unit/lib/15-git.t, t/unit/manager/25-git-actions.t,
+  and a commit-on-PUT block in t/unit/dav/04-put-delete-mkcol.t.
+
 ## 0.7.3 - Sessions, domain aliases, documentation currency (2026-07-10)
 
 Feature - alias redirects: 302 override, reindex on move/copy, manager visibility (SM134 follow-ups)

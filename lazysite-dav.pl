@@ -497,6 +497,11 @@ sub do_put {
         ( my $arel = $r->{abs} ) =~ s{^\Q$DOCROOT\E/?}{};
         Lazysite::Aliases::index_page( $DOCROOT, $arel, $body );
     }
+    # SM085: a DAV write is a content-history commit with the same actor
+    # attribution as the audit trail (instant no-op when git history is off).
+    require Lazysite::Git;
+    Lazysite::Git::commit_paths( $DOCROOT, $a{user},
+        ( $exists ? "edit $a{rel}" : "create $a{rel}" ), $a{rel} );
     log_event( 'INFO', $a{user}, 'dav put',
         path => $a{rel}, bytes => $written,
         status => ( $exists ? 204 : 201 ) );
@@ -555,6 +560,9 @@ sub do_delete {
         ( my $arel = $r->{abs} ) =~ s{^\Q$DOCROOT\E/?}{};
         Lazysite::Aliases::deindex_page( $DOCROOT, $arel );
     }
+    # SM085: a deletion (file or whole collection) is one history commit.
+    require Lazysite::Git;
+    Lazysite::Git::commit_paths( $DOCROOT, $a{user}, "delete $a{rel}", $a{rel} );
     log_event( 'INFO', $a{user}, 'dav delete', path => $a{rel}, status => 204 );
     send_status(204);
 }
@@ -623,6 +631,18 @@ sub do_copy_move {
         require Lazysite::Aliases;
         if ($move) { Lazysite::Aliases::reindex_move( $DOCROOT, $a{rel}, $drel ) }
         else       { Lazysite::Aliases::reindex_copy( $DOCROOT, $drel ) }
+    }
+    # SM085: a batched MOVE/COPY (a whole collection included) is ONE commit.
+    {
+        require Lazysite::Git;
+        if ($move) {
+            Lazysite::Git::commit_paths( $DOCROOT, $a{user},
+                "move $a{rel} -> $drel", $a{rel}, $drel );
+        }
+        else {
+            Lazysite::Git::commit_paths( $DOCROOT, $a{user},
+                "copy $a{rel} -> $drel", $drel );
+        }
     }
     log_event( 'INFO', $a{user}, ( $move ? 'dav move' : 'dav copy' ),
         path => $a{rel}, dest => $drel,

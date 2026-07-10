@@ -306,6 +306,16 @@ sub action_file_upload {
         }
     }
 
+    # SM085: a multi-file upload is ONE content-history commit (instant no-op
+    # when the feature is off; a git failure never fails the upload).
+    if (@saved) {
+        require Lazysite::Git;
+        my @paths = map { $_->{path} } @saved;
+        my $msg   = @paths == 1 ? "upload $paths[0]"
+            :   'upload ' . scalar(@paths) . ' files';
+        Lazysite::Git::commit_paths( $DOCROOT, $auth_user, $msg, @paths );
+    }
+
     # ok=1 means the request was processed. The client inspects
     # saved/skipped/errors to decide what to show. Returning ok=0
     # when all files were skipped-no-overwrite would make the

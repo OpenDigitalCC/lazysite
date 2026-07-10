@@ -41,7 +41,8 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
-    action_acl_get action_acl_set action_acl_remove);
+    action_acl_get action_acl_set action_acl_remove
+    action_git_status action_git_history action_git_show action_git_restore action_git_init);
 use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action_theme_activate
     action_layout_activate action_theme_delete action_theme_rename action_theme_upload
     action_cache_list action_cache_invalidate _read_active_layout_and_theme
@@ -340,6 +341,14 @@ if ( $token_auth ) {
         # SM134 follow-ups: the alias-redirect map is content-derived - a content
         # partner may list it (read-only; aliases are front-matter-authored).
         'aliases-list' => sub { $_[0]->{manage_content} },
+        # SM085: content history. Reads and restore follow the content grant
+        # (restore routes through the normal save path); enabling/initialising
+        # the repo is a site-configuration act.
+        'git-status'  => sub { $_[0]->{manage_content} },
+        'git-history' => sub { $_[0]->{manage_content} },
+        'git-show'    => sub { $_[0]->{manage_content} },
+        'git-restore' => sub { $_[0]->{manage_content} },
+        'git-init'    => sub { $_[0]->{manage_config} },
         'whoami'            => sub { 1 },   # any authenticated token may introspect its own grant
         'describe-capabilities' => sub { 1 },   # SM126: introspection - the capability map
         # Visitor-log analysis over the control API (token clients), same grant as
@@ -402,6 +411,11 @@ elsif ( $action eq 'move' )             { $result = action_move( $path, $params{
 elsif ( $action eq 'copy' ) { $result = action_copy( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'migrate-to-local' ) { $result = action_migrate_to_local( $path, $auth_user ) }
 elsif ( $action eq 'aliases-list' )     { $result = action_aliases_list() }
+elsif ( $action eq 'git-status' )   { $result = action_git_status() }
+elsif ( $action eq 'git-history' ) { $result = action_git_history( $path, $auth_user, $params{limit} ) }
+elsif ( $action eq 'git-show' ) { $result = action_git_show( $path, $auth_user, $params{sha} ) }
+elsif ( $action eq 'git-restore' ) { $result = action_git_restore( $path, $auth_user, $params{sha} ) }
+elsif ( $action eq 'git-init' )         { $result = action_git_init($auth_user) }
 elsif ( $action eq 'lock' )             { $result = acquire_lock( $path, $auth_user ) }
 elsif ( $action eq 'unlock' )           { $result = release_lock( $path, $auth_user ) }
 elsif ( $action eq 'renew-lock' )       { $result = renew_lock( $path, $auth_user ) }
@@ -594,7 +608,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
-        backup-list sessions-list );
+        backup-list sessions-list git-status git-history git-show );
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
@@ -1206,6 +1220,10 @@ sub action_config_set {
     _write_conf_key( $key, $value )
         or return { ok => 0, error => "Could not write lazysite.conf" };
     log_event( 'INFO', 'config-set', 'config key set', key => $key, user => $auth_user );
+    # SM085: lazysite.conf is one of the two versioned config files.
+    require Lazysite::Git;
+    Lazysite::Git::commit_paths( $DOCROOT, $auth_user,
+        'edit lazysite/lazysite.conf', 'lazysite/lazysite.conf' );
     return { ok => 1, key => $key, value => $value };
 }
 
@@ -1771,6 +1789,12 @@ sub action_nav_save {
     make_path($dir) unless -d $dir;
     my ( $wok, $werr ) = write_file_checked( $path, $content );
     return { ok => 0, error => "Cannot write nav: $werr" } unless $wok;
+
+    # SM085: nav.conf is one of the two versioned config files - a nav save is
+    # a content-history commit (instant no-op when git history is off).
+    ( my $nav_rel = $path ) =~ s{^\Q$DOCROOT\E/+}{};
+    require Lazysite::Git;
+    Lazysite::Git::commit_paths( $DOCROOT, $auth_user, "edit $nav_rel", $nav_rel );
 
     return { ok => 1 };
 }

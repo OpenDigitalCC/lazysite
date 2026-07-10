@@ -334,6 +334,15 @@ sub action_plugin_save {
         my ( $wok, $werr ) = write_file_checked( $conf_path, $content );
         return { ok => 0, error => "Cannot write lazysite.conf: $werr" }
             unless $wok;
+
+        # SM085: lazysite.conf is one of the two versioned config files - a
+        # Site-settings save (this branch) commits it (no-op when git is off).
+        if (@changed) {
+            require Lazysite::Git;
+            Lazysite::Git::commit_paths( $DOCROOT,
+                $Lazysite::Manager::Common::auth_user,
+                'edit lazysite/lazysite.conf', 'lazysite/lazysite.conf' );
+        }
     }
 
     return { ok => 1, changed => [ sort @changed ] };

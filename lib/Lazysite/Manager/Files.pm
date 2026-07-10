@@ -16,7 +16,7 @@ use Fcntl qw(:flock);
 use POSIX qw(strftime);
 use Lazysite::Util qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key);
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Manager::Upload qw(is_editable_text);
@@ -27,6 +27,7 @@ our @EXPORT_OK = qw(
     action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove
+    action_git_status action_git_history action_git_show action_git_restore action_git_init
 );
 
 our $DOCROOT;
@@ -34,6 +35,20 @@ our $LOCK_DIR;
 our $LOCK_TIMEOUT = 300;
 our $auth_user    = '';
 our $action       = '';
+
+# SM085: content-history commit hook. One cheap enabled() check inside
+# commit_paths makes every call an instant no-op when the feature is off, and
+# Lazysite::Git eval-guards the git work - a git failure never breaks a save.
+# $GIT_COMMIT_MESSAGE is a one-shot override localised by action_git_restore so
+# the restore's pass through action_save commits as "restore <path> to <sha7>".
+our $GIT_COMMIT_MESSAGE;
+
+sub _git_commit {
+    my ( $user, $message, @paths ) = @_;
+    require Lazysite::Git;
+    Lazysite::Git::commit_paths( $DOCROOT, ( $user // $auth_user ), $message, @paths );
+    return;
+}
 
 # === moved from lazysite-manager-api.pl (SM079a) ===
 
@@ -250,6 +265,12 @@ sub action_save {
 
     log_event('INFO', $action, 'file saved', path => $rel_path, user => $auth_user);
 
+    # SM085: every save is a content-history commit (create vs edit named).
+    _git_commit( $username,
+        $GIT_COMMIT_MESSAGE
+            // ( ( $existed ? 'edit ' : 'create ' ) . $result->{rel} ),
+        $result->{rel} );
+
     _invalidate_registries();
     # A nav change shows on every page - clear all caches, and tell the caller.
     my $nav_change = $rel_path =~ m{(?:^|/)nav\.conf$} ? 1 : 0;
@@ -351,6 +372,8 @@ sub action_delete {
     }
 
     log_event('INFO', $action, 'file deleted', path => $rel_path, user => $auth_user);
+    # SM085: record the deletion in the content history.
+    _git_commit( $username, "delete $result->{rel}", $result->{rel} );
     _invalidate_registries();
 
     return { ok => 1, path => $rel_path };
@@ -449,6 +472,11 @@ sub action_move {
     unlink $lock_file if -f $lock_file;
     log_event( 'INFO', $action, 'file moved',
         from => $src_rel, to => $dst_rel, user => $auth_user );
+    # SM085: a move (and its sidecar) is ONE commit; the source deletion and
+    # the destination are staged together.
+    _git_commit( $username, "move $s->{rel} -> $d->{rel}",
+        $s->{rel}, $d->{rel},
+        ( -e "$dst_full.brief" ? ( "$s->{rel}.brief", "$d->{rel}.brief" ) : () ) );
     _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $d->{rel} };
 }
@@ -499,6 +527,9 @@ sub action_copy {
 
     log_event( 'INFO', $action, 'file copied',
         from => $src_rel, to => $dst_rel, user => $auth_user );
+    # SM085: the duplicate (and its copied sidecar) is one commit.
+    _git_commit( $username, "copy $s->{rel} -> $d->{rel}",
+        $d->{rel}, ( -e "$dst_full.brief" ? ("$d->{rel}.brief") : () ) );
     _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $d->{rel} };
 }
@@ -564,6 +595,10 @@ sub action_migrate_to_local {
 
     log_event( 'INFO', $action, 'migrated .url to local .md',
         from => $s->{rel}, to => $md_rel, url => $url, user => $auth_user );
+    # SM085: the .url removal and the new local .md are one commit.
+    _git_commit( $username, "migrate $s->{rel} -> $md_rel",
+        $s->{rel}, $md_rel,
+        ( -e "$md_full.brief" ? ( "$s->{rel}.brief", "$md_rel.brief" ) : () ) );
     _invalidate_registries();
     return { ok => 1, from => $s->{rel}, to => $md_rel, url => $url };
 }
@@ -753,6 +788,132 @@ sub action_acl_remove {
     save_acls($acls) or return { ok => 0, error => "Cannot write the ACL store" };
     log_event( 'INFO', 'acl-remove', 'acl removed', path => $rel, user => $auth_user );
     return { ok => 1, path => $r->{rel}, removed => 1 };
+}
+
+# --- SM085: content-history manager actions -------------------------------------
+# Reads (status/history/show) mirror action_read's gates: path validation, the
+# deny lists, and the per-file ACL read gate. Restore never writes divergently -
+# it routes the historic content back through action_save, so it inherits the
+# lock/ACL checks, cache invalidation (host copies included), alias reindexing,
+# the audit entry, and its own history commit.
+
+sub _git_bool { return $_[0] ? JSON::PP::true : JSON::PP::false }
+
+# Shared validation for the per-file history reads. Returns the validate_path
+# result or the refusal hash.
+sub _git_target {
+    my ( $rel_path, $username ) = @_;
+    my $r = validate_path($rel_path);
+    return $r unless $r->{ok};
+    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
+        if is_blocked_path( $r->{rel} );
+    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
+        if is_blocked_config( $r->{rel} );
+    if ( my $deny = _acl_denied( $r->{rel}, 'read', $username ) ) { return $deny }
+    return $r;
+}
+
+# Feature status for the Backups card and the Files page's History control.
+sub action_git_status {
+    require Lazysite::Git;
+    my $enabled = Lazysite::Git::enabled($DOCROOT);
+    return {
+        ok            => 1,
+        enabled       => _git_bool($enabled),
+        initialised   => _git_bool( Lazysite::Git::initialised($DOCROOT) ),
+        git_available => _git_bool( Lazysite::Git::git_available() ),
+        commits       => ( $enabled ? Lazysite::Git::count_commits($DOCROOT) : 0 ),
+    };
+}
+
+# Per-file timeline. Disabled / no repo = an empty list, never an error.
+sub action_git_history {
+    my ( $rel_path, $username, $limit ) = @_;
+    my $r = _git_target( $rel_path, $username );
+    return $r unless $r->{ok};
+    require Lazysite::Git;
+    my $enabled = Lazysite::Git::enabled($DOCROOT);
+    return {
+        ok      => 1,
+        path    => $r->{rel},
+        enabled => _git_bool($enabled),
+        entries => ( $enabled ? Lazysite::Git::file_log( $DOCROOT, $r->{rel}, $limit ) : [] ),
+    };
+}
+
+# One version: its raw content plus the unified diff against the worktree.
+sub action_git_show {
+    my ( $rel_path, $username, $sha ) = @_;
+    my $r = _git_target( $rel_path, $username );
+    return $r unless $r->{ok};
+    return { ok => 0, error => 'Invalid version id' }
+        unless defined $sha && $sha =~ /\A[0-9a-f]{7,40}\z/;
+    # Binary parity with action_read: history content travels as JSON text and
+    # a restore would round-trip through the :utf8 save path.
+    return { ok => 0, binary => 1, kind => 'binary',
+        error => 'Binary file - history view is text-only' }
+        unless is_editable_text( $r->{rel} );
+    require Lazysite::Git;
+    return { ok => 0, error => 'Content history is not enabled' }
+        unless Lazysite::Git::enabled($DOCROOT);
+    my $content = Lazysite::Git::file_at( $DOCROOT, $sha, $r->{rel} );
+    return { ok => 0, error => 'No such version of this file' }
+        unless defined $content;
+    return {
+        ok      => 1,
+        path    => $r->{rel},
+        sha     => $sha,
+        content => $content,
+        diff    => ( Lazysite::Git::file_diff( $DOCROOT, $sha, $r->{rel} ) // '' ),
+    };
+}
+
+# Restore = the historic content written back THROUGH action_save (never a
+# divergent write path); the save commits it as "restore <path> to <sha7>".
+sub action_git_restore {
+    my ( $rel_path, $username, $sha ) = @_;
+    my $r = _git_target( $rel_path, $username );
+    return $r unless $r->{ok};
+    return { ok => 0, error => 'Invalid version id' }
+        unless defined $sha && $sha =~ /\A[0-9a-f]{7,40}\z/;
+    return { ok => 0, binary => 1, kind => 'binary',
+        error => 'Binary file - restore from history is text-only' }
+        unless is_editable_text( $r->{rel} );
+    require Lazysite::Git;
+    return { ok => 0, error => 'Content history is not enabled' }
+        unless Lazysite::Git::enabled($DOCROOT);
+    my $content = Lazysite::Git::file_at( $DOCROOT, $sha, $r->{rel} );
+    return { ok => 0, error => 'No such version of this file' }
+        unless defined $content;
+    my $sha7 = substr $sha, 0, 7;
+    local $GIT_COMMIT_MESSAGE = "restore $r->{rel} to $sha7";
+    my $saved = action_save( $rel_path, $username, $content, undef );
+    return $saved unless ref $saved eq 'HASH' && $saved->{ok};
+    $saved->{restored_from} = $sha;
+    return $saved;
+}
+
+# Enable + initialise: sets the conf key, runs the adoption commit, reports it.
+sub action_git_init {
+    my ($username) = @_;
+    require Lazysite::Git;
+    return { ok => 0,
+        error => 'git is not installed on this host - install the git package '
+            . 'and try again' }
+        unless Lazysite::Git::git_available();
+    _write_conf_key( 'git_history', 'enabled' )
+        or return { ok => 0, error => 'Could not write lazysite.conf' };
+    Lazysite::Git::reset_cache();
+    if ( Lazysite::Git::initialised($DOCROOT) ) {
+        return { ok => 1, already => 1,
+            commits => Lazysite::Git::count_commits($DOCROOT) };
+    }
+    my $r = Lazysite::Git::init( $DOCROOT, $username );
+    return $r unless $r->{ok};
+    log_event( 'INFO', $action, 'content history enabled',
+        commit => ( $r->{commit} // '' ), user => $auth_user );
+    return { ok => 1, commit => $r->{commit},
+        commits => Lazysite::Git::count_commits($DOCROOT) };
 }
 
 1;

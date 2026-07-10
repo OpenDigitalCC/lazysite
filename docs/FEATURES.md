@@ -573,6 +573,39 @@ auth secrets, in-app restore refuses a full backup; a system user restores it wi
 rewrites the site domain on restore - the **cross-domain migration** path (build on
 a temporary domain, then move content, config and accounts to the final one).
 
+## Content history (git, SM085)
+
+Opt-in per-file version history for the site content. Enabling it (conf key
+`git_history: enabled` + the Enable button on the Backups page, or the `git-init`
+control-API action, gated on `manage_config`) puts the docroot under git: the
+repository lives at `lazysite/git/` (inside the never-served infra tree - no `.git`
+under the docroot for a web server to leak) with the docroot as the work tree, and
+the enabling act takes an **adoption commit** of the current site. From then on
+every content write - manager save/delete/move/copy/migrate, upload, WebDAV
+PUT/DELETE/MOVE/COPY, MCP writes (they route through the same handlers), nav and
+site-config saves, and a content-backup restore - is an automatic commit with the
+acting user as author (`user <user@lazysite>`) and the action as message ("edit
+about.md", "move a.md -> b.md"); a batched operation is one commit. A git failure
+never breaks the write (WARN + proceed), and a host without git degrades cleanly.
+
+What is versioned: the content tree plus the two operator-authored config files
+(`lazysite/lazysite.conf`, `lazysite/nav.conf`). Never versioned (written to
+`GIT_DIR/info/exclude` at init): `lazysite/auth/`, `lazysite/forms/`,
+`notify-xmpp.conf`, cache/logs/backups/locks, the repo itself, generated `*.html`
+and `lazysite-assets/` mirrors - the exclude list is the security boundary that
+makes the history safe to sync to a private remote later (the git-sync plugin
+follow-up builds on the same `Lazysite::Git` core). `lazysite-check` probes the
+repo permissions and FAILs if `lazysite/auth` is not excluded.
+
+Each file row on the Files page gains a **History** panel: the commit list (when /
+who / what), a read-only **View** of any version, a unified **Diff** against the
+current file, and **Restore** - which writes the old content back *through the
+normal save path* (cache invalidation incl. host copies, alias reindexing, audit),
+so the restore is itself the newest version and nothing is ever lost. Reads are
+`git-history` / `git-show` / `git-status` (token: `manage_content`, audit-skipped);
+`git-restore` shares the content grant and is audited. Full-system backups remain
+the DR mechanism - they carry exactly what the history deliberately excludes.
+
 ## Upload and download
 
 Multipart upload (multiple files, size-capped and rate-limited *before* the body is

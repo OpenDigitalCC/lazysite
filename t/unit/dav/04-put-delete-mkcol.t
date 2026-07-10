@@ -5,7 +5,9 @@ use warnings;
 use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
+use lib "$FindBin::Bin/../../../lib";
 use TestHelper qw(setup_dav_site run_dav);
+use Lazysite::Git ();
 
 # --- PUT create / overwrite -------------------------------------------
 {
@@ -96,6 +98,26 @@ use TestHelper qw(setup_dav_site run_dav);
     open my $cf, '>', "$s->{docroot}/content/cached.html"; print $cf "<html>"; close $cf;
     run_dav( $s->{docroot}, 'PUT', '/content/cached.md', body => "y", HTTP_AUTHORIZATION => $a );
     ok( !-e "$s->{docroot}/content/cached.html", 'PUT drops stale rendered cache' );
+}
+
+# --- SM085: a DAV PUT/DELETE commits to the content history when enabled ------
+SKIP: {
+    skip 'git not installed on this host', 6 unless Lazysite::Git::git_available();
+    my $s = setup_dav_site( conf => "webdav_enabled: true\ngit_history: enabled\n" );
+    my $d = $s->{docroot};
+    ok( Lazysite::Git::init( $d, 'installer' )->{ok}, 'content history initialised' );
+
+    my $c = run_dav( $d, 'PUT', '/content/tracked.md', body => "v1",
+        HTTP_AUTHORIZATION => $s->{auth} );
+    is( $c->{code}, 201, 'PUT succeeds with git history on' );
+    my $log = Lazysite::Git::file_log( $d, 'content/tracked.md' );
+    is( scalar @{$log}, 1, 'the PUT committed' );
+    is( $log->[0]{subject}, 'create content/tracked.md', 'terse create message' );
+    is( $log->[0]{author}, $s->{user}, 'commit attributed to the DAV user' );
+
+    run_dav( $d, 'DELETE', '/content/tracked.md', HTTP_AUTHORIZATION => $s->{auth} );
+    my $log2 = Lazysite::Git::file_log( $d, 'content/tracked.md' );
+    is( $log2->[0]{subject}, 'delete content/tracked.md', 'the DELETE committed too' );
 }
 
 done_testing();

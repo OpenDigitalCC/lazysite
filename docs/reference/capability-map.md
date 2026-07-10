@@ -32,12 +32,12 @@ bold: 1
 tone: medium
 text: 2
 ---
-manage_content | Read and write site content (pages, assets). | webdav: write anywhere in the content namespace (within dav_scope); api: aliases-list; mcp: list_files, read_file, write_file, replace_text, copy_file, move_file, delete_file, create_page, delete_page, rename_page, list_pages, read_page, preview_page, page_status, search_files, validate_page, invalidate_cache, read_nav, audit_site, get_permissions, set_permissions
+manage_content | Read and write site content (pages, assets). | webdav: write anywhere in the content namespace (within dav_scope); api: aliases-list, git-status, git-history, git-show, git-restore; mcp: list_files, read_file, write_file, replace_text, copy_file, move_file, delete_file, create_page, delete_page, rename_page, list_pages, read_page, preview_page, page_status, search_files, validate_page, invalidate_cache, read_nav, audit_site, get_permissions, set_permissions
 manage_nav | Edit site navigation. | webdav: lazysite/nav.conf; api: nav-read, nav-save, pages; mcp: set_nav
 manage_forms | Wire forms to delivery handlers. | webdav: lazysite/forms/<name>.conf (not smtp.conf / handlers.conf); mcp: list_form_handlers, bind_form
 manage_themes | Install and activate themes. | webdav: lazysite/layouts/<layout>/themes/<theme>/ (active theme read-only); api: theme-activate, theme-list, themes-for-layout, themes-list-all; mcp: list_themes, activate_theme
 manage_layouts | Install, author and activate layouts. | webdav: lazysite/layouts/<layout>/ (active layout read-only); api: layout-activate, layout-install, layout-delete, layouts-available, layouts-manifest; mcp: activate_layout, install_layout, delete_layout, list_layout_catalogue
-manage_config | Read and set safe site configuration. | webdav: lazysite/nav.conf, lazysite/forms/<name>.conf; api: config-read, config-set
+manage_config | Read and set safe site configuration. | webdav: lazysite/nav.conf, lazysite/forms/<name>.conf; api: config-read, config-set, git-init
 manage_users | Manage user accounts and group membership. | ui: the manager Users and Groups pages
 analytics | Read sanitised, IP-anonymised visitor analytics. | api: analyse_visitors; mcp: analyse_visitors
 audit | Read the append-only audit trail. | api: audit

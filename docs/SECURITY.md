@@ -315,3 +315,51 @@ residual risk
 
 verdict
 : accepted.
+
+### 2026-07-10 - SM085 phase 1: content history - git execution on the write path (unreleased, on main)
+
+what changed
+: an opt-in per-file version history: enabling (`git_history: enabled` +
+  `git-init`) puts the docroot under git with the repository at
+  `lazysite/git/`, and every content write (manager, WebDAV, MCP, uploads,
+  nav/config saves, backup restores) invokes the `git` host binary to
+  auto-commit. New attack surface: subprocess execution with
+  attacker-influenced arguments (paths, commit messages, usernames) on
+  every write; historic content exposure through the new `git-history` /
+  `git-show` / `git-restore` actions; and a repository whose future remote
+  sync (the git-sync plugin follow-up) must never carry a secret.
+
+threat delta
+: Elevation of privilege / Tampering (command construction on the write
+  path), Information disclosure (a leaked repo would expose the whole
+  content history; history reads bypass "the file was edited since"),
+  Denial of service (git failures on the save path).
+
+controls
+: every git invocation is LIST-FORM exec (`open '-|'` on an argument list -
+  no shell anywhere; messages/paths/authors can never be interpreted);
+  shas are validated against `/\A[0-9a-f]{7,40}\z/` and paths
+  traversal-checked (no `..`/absolute/option-shaped segments) before any
+  git call; the author string is stripped to a safe alphabet. GIT_DIR
+  lives inside the protected `lazysite/` tree - no `.git` under a served
+  path (and the processor/DAV deny lists refuse `/.git` anyway, defence in
+  depth). The `info/exclude` written at init keeps secrets and personal
+  data out of the history (`lazysite/auth/`, `lazysite/forms/`,
+  `notify-xmpp.conf`, logs, the CSRF secret) - asserted literally in
+  t/unit/lib/15-git.t and probed by a `lazysite-check` FAIL when
+  `lazysite/auth` is not excluded. History reads run behind the same path
+  validation, deny lists and per-file ACL read gate as `read`; restore
+  routes through `action_save` (locks, ACLs, audit, cache invalidation) -
+  no divergent write path. Token gating: reads/restore `manage_content`,
+  init `manage_config`; restore and init are audited. All git work is
+  eval-guarded: a git failure WARNs and the save proceeds (availability
+  posture).
+
+residual risk
+: the repo doubles content at rest under `lazysite/git/` (0770, probed);
+  a manage_content token may read any non-ACL-restricted file's history,
+  which mirrors its live read grant; remote-sync risk is deferred to the
+  git-sync plugin's own assessment.
+
+verdict
+: accepted.

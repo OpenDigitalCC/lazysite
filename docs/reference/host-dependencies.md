@@ -58,6 +58,9 @@ libwww-perl | LWP::UserAgent | remote content fetch for :::include and url: vari
 perl
 : Perl runtime. Required version 5.10+. On Debian: 'perl'. On Alpine: 'perl'. On RHEL: 'perl'. Includes core modules listed above.
 
+git
+: Host binary for the SM085 content history (conf key 'git_history: enabled'). Optional - only needed when the feature is enabled; invoked list-form (never through a shell), never a Perl module. Saves keep working without it (lazysite-check WARNs). Debian: 'git'.
+
 Apache HTTP Server
 : CGI host. Operator-provided. Any CGI/1.1-capable server works; Apache is the reference platform. The dev server (tools/lazysite-server.pl) is evaluation-only.
 

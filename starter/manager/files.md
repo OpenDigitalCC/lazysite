@@ -300,7 +300,7 @@ function permsCard(f) {
     + '<div class="mg-perms-card">'
     +   '<div class="mg-perms-head">'
     +     '<span class="mg-perms-title">' + escHtml(f.name) + '</span>'
-    +     '<a class="mg-perms-history" href="/manager/audit?target=' + encodeURIComponent(f.path) + '" title="This file\'s audit history">&#128340; History</a>'
+    +     '<a class="mg-perms-history" href="/manager/audit?target=' + encodeURIComponent(f.path) + '" title="This file\'s audit history">&#128340; Audit</a>'
     +   '</div>'
     +   '<div class="mg-perms-owner"><label>Owner</label>'
     +     '<select class="mg-perm-owner">' + ownerOptions(f.owner) + '</select></div>'
@@ -318,9 +318,11 @@ function permsCard(f) {
     +     '<button class="mg-btn" onclick="moveFile(this)">&#8644; Move&hellip;</button>'
     +     '<button class="mg-btn" onclick="duplicateFile(this)">&#10697; Duplicate&hellip;</button>'
     +     ( /\.url$/.test(f.name) ? '<button class="mg-btn" onclick="migrateToLocal(this)">&#11015; Migrate to local</button>' : '' )
+    +     ( GIT.enabled && isEditable(f.name) ? '<button class="mg-btn" onclick="toggleHistory(this)">&#128337; History</button>' : '' )
     +     '<button class="mg-btn mg-btn-danger" onclick="deleteOneFile(this)">&#128465; Delete</button>'
     +     '<button class="mg-btn mg-btn-primary mg-perms-save" onclick="savePerms(this)">Save permissions</button>'
     +   '</div>'
+    +   '<div class="mg-git-panel" data-path="' + escHtml(f.path) + '" style="display:none;margin-top:10px;"></div>'
     + '</div>'
     + '</td></tr>';
 }
@@ -832,6 +834,104 @@ function loadAliases() {
     .catch(function() { /* card stays empty */ });
 }
 
+// SM085: content history (git). The feature flag is fetched once at load;
+// the per-file History control renders only when the feature is enabled.
+var GIT = { enabled: false };
+function loadGitStatus() {
+  return fetch(API + '?action=git-status')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { if (d && d.ok) GIT.enabled = !!d.enabled; })
+    .catch(function() { /* control stays hidden */ });
+}
+
+// Expand/collapse the per-file history panel; loads the commit list on open.
+function toggleHistory(btn) {
+  var card = btn.closest('tr');
+  var panel = card.querySelector('.mg-git-panel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  var path = panel.getAttribute('data-path');
+  panel.style.display = '';
+  panel.innerHTML = '<p class="mg-muted">Loading history&hellip;</p>';
+  fetch(API + '?action=git-history&path=' + encodeURIComponent(path))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { panel.innerHTML = '<p class="mg-muted">' + escHtml(d.error || 'No history available') + '</p>'; return; }
+      renderHistory(panel, d.entries || []);
+    })
+    .catch(function(e) { panel.innerHTML = '<p class="mg-muted">Error: ' + escHtml(e.message) + '</p>'; });
+}
+
+function renderHistory(panel, entries) {
+  if (!entries.length) {
+    panel.innerHTML = '<p class="mg-muted">No history for this file yet &mdash; entries appear as it is saved.</p>';
+    return;
+  }
+  var html = '<table class="mg-file-table"><thead><tr>'
+           + '<th>When</th><th>Who</th><th>Change</th><th></th></tr></thead><tbody>';
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i];
+    html += '<tr>'
+          + '<td>' + escHtml(absTime(e.epoch)) + '</td>'
+          + '<td>' + escHtml(e.author || '') + '</td>'
+          + '<td><span title="' + escHtml(e.sha) + '">' + escHtml(e.subject || '') + '</span></td>'
+          + '<td style="white-space:nowrap">'
+          +   '<button class="mg-btn mg-btn-sm" data-sha="' + escHtml(e.sha) + '" onclick="showVersion(this, \'view\')">View</button> '
+          +   '<button class="mg-btn mg-btn-sm" data-sha="' + escHtml(e.sha) + '" onclick="showVersion(this, \'diff\')">Diff</button> '
+          +   '<button class="mg-btn mg-btn-sm mg-btn-danger" data-sha="' + escHtml(e.sha) + '" onclick="restoreVersion(this)">Restore</button>'
+          + '</td></tr>';
+  }
+  html += '</tbody></table>'
+        + '<pre class="mg-git-view" style="display:none;font-family:var(--mg-mono,monospace);'
+        + 'font-size:0.8rem;max-height:320px;overflow:auto;white-space:pre-wrap;'
+        + 'margin-top:8px;padding:8px;border:1px solid var(--mg-border,#ddd);"></pre>';
+  panel.innerHTML = html;
+}
+
+// View a version's raw content, or its unified diff against the current file.
+function showVersion(btn, mode) {
+  var panel = btn.closest('.mg-git-panel');
+  var path = panel.getAttribute('data-path');
+  var sha = btn.getAttribute('data-sha');
+  fetch(API + '?action=git-show&path=' + encodeURIComponent(path) + '&sha=' + encodeURIComponent(sha))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var out = panel.querySelector('.mg-git-view');
+      if (!out) return;
+      out.style.display = '';
+      if (!d.ok) { out.textContent = d.error || 'Cannot load this version'; return; }
+      if (mode === 'diff') {
+        out.textContent = '# ' + sha.slice(0, 7) + ' vs current\n\n'
+                        + (d.diff || '(identical to the current version)');
+      } else {
+        out.textContent = '# content at ' + sha.slice(0, 7) + ' (read-only)\n\n' + d.content;
+      }
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// Restore = the old content written back through a normal save: the restore
+// becomes the newest version itself, so nothing is ever lost.
+function restoreVersion(btn) {
+  var panel = btn.closest('.mg-git-panel');
+  var path = panel.getAttribute('data-path');
+  var sha = btn.getAttribute('data-sha');
+  var msg = 'Restore "' + path + '" to version ' + sha.slice(0, 7) + '?\n\n'
+          + 'The old content is written back as a normal save - the restore '
+          + 'becomes the newest version, so this is always reversible.';
+  mgConfirm(msg, { ok: 'Restore' }).then(function(ok) {
+    if (!ok) return;
+    fetch(API + '?action=git-restore&path=' + encodeURIComponent(path) + '&sha=' + encodeURIComponent(sha), { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.ok) { showStatus(d.error || 'Restore failed', true); return; }
+        showStatus('Restored ' + path + ' to ' + sha.slice(0, 7) + '.');
+        loadDir(currentDir);
+      })
+      .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
+}
+
 function readInitDir() {
   var qs = location.search;
   if (qs && qs.length > 1) {
@@ -845,6 +945,6 @@ function readInitDir() {
   return h || '/';
 }
 
-loadPrincipals().then(function() { loadDir(readInitDir()); });
+loadPrincipals().then(loadGitStatus).then(function() { loadDir(readInitDir()); });
 loadAliases();
 </script>
