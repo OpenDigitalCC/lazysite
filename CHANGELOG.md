@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.3 - Sessions, domain aliases, documentation currency (2026-07-10)
+
 Feature - alias redirects: 302 override, reindex on move/copy, manager visibility (SM134 follow-ups)
 : A page may declare `aliases_temp:` alongside `aliases:` (same list syntax);
   its entries redirect `302 Found` instead of the default `301 Moved
