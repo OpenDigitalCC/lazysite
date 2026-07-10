@@ -158,15 +158,10 @@ before work starts.
 
 ## Open - actionable
 
-- **SM142 Persistent runtime (FastCGI pools)** *(scoped 2026-07-10 - see
-  SM142-persistent-runtime.md; SEQUENCED BEFORE SM139 packaging)* - dual-mode
-  FastCGI accept loop in the processor (+ auth wrapper): modules compile once,
-  reset_request_state()/local %ENV per iteration (the D016 groundwork), one
-  prefork pool per site (PHP-FPM model, DOCROOT fixed at spawn), systemd
-  template units + proxy_fcgi vhost config shipped by the SM139 debs; plain
-  CGI stays the default/fallback. Cache-hit floor ~44ms -> ~4-8ms; amortises
-  the growing per-request work (SM140 recorder, bad-URL, notices). Needs
-  libfcgi-perl + libfcgi-procmanager-perl (owner install).
+- **apt-repo publication (SM139 residue)** - the debs exist
+  (/srv/projects/packages/); publishing them from an apt repo (candidate:
+  the Forgejo instance; suites stable/edge, signing key management) turns
+  the dpkg step into `apt upgrade`. Scope when Forgejo is ready.
 - **2026-07-10 review - deferred items** *(tracked in
   docs/review/2026-07-10-eight-dimension/01-resolution.md)* - (a) BOOK THE
   PENTEST ENGAGEMENT before the ADR 0007 waiver expires 2026-12-31 (hard
@@ -178,17 +173,6 @@ before work starts.
   ownership repair (D3); (f) threat-model currency rows for the 0.6.x
   surface (D6 residual); (g) repeat a timed restore rehearsal each stable
   cycle (RELIABILITY.md commitment).
-- **SM139 Packaged distribution** *(design agreed 2026-07-09 - see
-  SM139-packaged-distribution.md; NEXT UP after SM142, whose runtime pattern
-  the debs package)* - lazysite-common.deb (engine
-  payload + `lazysite` CLI) plus environment debs (apache/nginx/hestia),
-  tarball/dev mode unchanged. Provisioning and upgrades run AS THE SITE USER -
-  no root writes into site trees, ownership correct by construction (driver:
-  the 0.6.5 upgrade round's ownership breakage across 17 production sites).
-  Per-site update_channel/update_policy, `lazysite upgrade --all`, security
-  force-upgrade; site registry in /etc/lazysite/sites.d/. Includes
-  lazysite-check hardening: re-run checks after --fix, manager-layout check,
-  evaluate access as www-data not root.
 - **Eight-dimension review follow-up (2026-07-01, v0.5.35)** - full review at
   `docs/review/2026-07-01-eight-dimension/` (verdicts: D1-D4 + D7-D8 WARN,
   D5 + D6 REFUSE). Application-side actions proceed in the current cycle;
@@ -321,6 +305,13 @@ before work starts.
   recipient (0.6.3).
 - **SM138** manager_groups retired - manager access granted by groups only
   (`ui` / `manage_users`); automatic conf migration (0.6.5).
+- **SM139** Packaged distribution - lazysite-common.deb (engine payload,
+  lazysite CLI with no-root provisioning, FCGI pool unit, site registry) +
+  lazysite-hestia.deb (one-command domain onboarding, cgi/fcgi vhost
+  templates); fleet upgrade --all with channel/policy + --force-security;
+  hardened lazysite-check (post-fix re-report, CGI-identity checks) (0.7.2).
+- **SM142** Persistent runtime - dual-mode FastCGI accept loop, prefork
+  pools, 147x on cache hits (62.2ms -> 0.4ms); plain CGI unchanged (0.7.1).
 - **SM140** First-party analytics - the processor records its own traffic
   (anonymised at write, daily rotation, retention prune); the stats page AND the
   analyse_visitors AI export read it first, so analytics work with zero
