@@ -263,6 +263,25 @@ if ! perl "$STAGE/tools/manifest-to-sbom.pl" --strict \
     exit 1
 fi
 
+# --- man pages (generated artefact; the tarball must ship them - review D7) ---
+
+echo "==> Generating man pages"
+if ! perl "$STAGE/tools/gen-manpages.pl" "$STAGE/man/man1"; then
+    echo "release.sh: man-page generation failed; not releasing." >&2
+    echo "release.sh: staging dir retained: $STAGE" >&2
+    exit 1
+fi
+MAN_ADD=()
+for m in "$STAGE"/man/man1/*.1; do
+    [ -f "$m" ] || continue
+    MAN_ADD+=("--add-file=man/man1/$(basename "$m")")
+done
+if [ "${#MAN_ADD[@]}" -eq 0 ]; then
+    echo "release.sh: gen-manpages.pl produced no pages; not releasing." >&2
+    echo "release.sh: staging dir retained: $STAGE" >&2
+    exit 1
+fi
+
 # --- build tarball ---
 
 DIST_DIR="$STAGE/dist"
@@ -281,6 +300,7 @@ git -C "$STAGE" archive --format=tar.gz \
     --prefix="lazysite-$VERSION/" \
     --add-file=release-manifest.json \
     --add-file=sbom.json \
+    "${MAN_ADD[@]}" \
     -o "$TARBALL" "$TARGET_SHA"
 
 SHA256=$(sha256sum "$TARBALL" | awk '{print $1}')

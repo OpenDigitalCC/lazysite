@@ -33,9 +33,9 @@ var SITE_SCHEMA = [
     default: 'lazysite/nav.conf', group: 'Content' },
   { key: 'search_default', label: 'Pages searchable by default', type: 'toggle',
     on: 'true', off: 'false', default: 'true' },
-  // SM095: Manager-UI access is the `ui` channel capability, granted through a
-  // group on the Groups page. The old manager_groups list is no longer edited
-  // here; it remains a backend-only (lazysite.conf) fallback.
+  // SM095/SM138: Manager-UI access is the `ui` channel capability, granted through
+  // a group on the Groups page. The legacy manager_groups conf key is retired
+  // (SM138): an automatic migration grants its groups explicitly and removes the line.
   { key: 'manager',        label: 'Enable the manager UI', type: 'toggle',
     on: 'enabled', off: 'disabled', default: 'disabled', group: 'Manager user interface',
     note: 'The manager UI is the web interface you are using right now. Switch it OFF to run lazysite as a HEADLESS CMS: the /manager interface is disabled (including for you), but the site keeps serving pages and stays fully configurable over the control API, WebDAV, MCP and direct file access. To turn it back on, set "manager: enabled" in lazysite.conf.' },

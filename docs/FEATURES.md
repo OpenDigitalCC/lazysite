@@ -181,7 +181,11 @@ within a page `ttl`). Writes are **atomic** (temp-then-rename), **refuse zero-by
 output** (an empty cache file would permanently shadow regeneration), and are
 **realpath-guarded** against symlink escapes. A separate content-type cache
 preserves custom headers across cache hits, and Template Toolkit keeps an on-disk
-compiled-template cache. The whole cache base can be relocated off the docroot via
+compiled-template cache - an unwritable compile cache cannot break rendering: the
+render retries once without it, a failed manager-layout render shows a loud error
+banner naming the TT error (public pages keep the silent fallback chrome), and
+`lazysite-check` probes `cache/tt` writability (`--fix` clears the tree - it is a
+pure cache). The whole cache base can be relocated off the docroot via
 `LAZYSITE_CACHE_DIR` (used by the dev server's browse mode so it writes nothing into
 a tree it is merely viewing). `LAZYSITE_NOCACHE=1` forces a one-off uncached render.
 
@@ -320,6 +324,7 @@ effective set.
 | `manage_users` | User/group administration; the unrestricted operator bypass |
 | `analytics` | Visitor-stats analysis (`analyse_visitors`) |
 | `audit` | The audit trail (its own capability, split from analytics) |
+| `notifications` | The manager notices bell - operator notifications such as form submissions and requests awaiting a response (SM136; seeded on `user-managers`) |
 | `create_sub_users` / `delegate_sub_user_creation` | Sub-account creation and onward delegation |
 
 The per-account `ui` flag in `user-settings.json` survives only as the
@@ -426,6 +431,9 @@ is retired - migrated groups received their capabilities explicitly). The pages:
 - **Groups** - the capability editor: each group carries its channel + action
   grants and a description; members inherit the union.
 - **Cache** - list cached pages (with orphan badges), invalidate one or all.
+- **Stats** - the visitor-statistics dashboard, reading lazysite's own
+  first-party access log as the primary source (SM140; the server log is the
+  fallback tier), plus the bad-URL blocker's blocked-IP list with unblock.
 - **Audit** - the paginated, filterable audit viewer, timestamps in the viewer's
   local timezone.
 - **Backups** - typed sections (Content / Full-system); create/download, with
@@ -490,6 +498,38 @@ delivered by `plugins/form-smtp.pl`), `file`, or `webhook` (JSON or Slack format
 and a form is wired to one or more handlers by its `<form>.conf`. The credentials
 and destinations live in operator-only config; an agent can *reference* a handler
 but never see or set a destination.
+
+## Notifications
+
+Operator notifications (SM136) ride a shared write path (`Lazysite::Notify`):
+every notice is appended to the manager bell store and - when the **notify-xmpp**
+plugin is enabled - also delivered over **XMPP**, with one client config per site
+like SMTP (sender JID + password + a recipient JID, an individual or a group-chat
+room; best-effort and time-boxed, so delivery can never block or fail the
+triggering action). The manager-header **bell** is gated by the `notifications`
+capability (seeded on the `user-managers` group): the notices actions refuse
+without it and the bell hides itself; it renders greyscale when nothing is unread
+and coloured with an unread badge otherwise. Notices cover the
+human-awaiting-a-response events: form submissions, a password-reset request when
+no SMTP is configured (previously a silent dead-end), and agent feedback
+submissions.
+
+## Visitor analytics
+
+**First-party analytics** (SM140): lazysite records its own traffic, so visitor
+statistics work out of the box - no web-server log access, no ACLs, no vhost
+changes, and no nginx-in-front-of-Apache undercount. The processor appends one
+compact JSON line per request to `lazysite/logs/access-YYYYMMDD.jsonl`,
+**anonymised at write**: a daily-salted visitor key, never the IP;
+attacker-controlled fields sanitised against log injection; O_APPEND-atomic
+appends; daily files pruned by retention (default 90 days); `first_party: off`
+in `stats.conf` disables. The manager **Stats** page reads this log as the
+primary source, and the AI analytics export (`analyse_visitors`, gated by the
+`analytics` capability) ingests the same log - the tool never sees raw log
+lines. The server-log parser remains the second tier - fallback and operator
+diagnostics/enrichment - with a `source` field saying which tier answered, and
+an existing-but-unreadable server log reported as exactly that rather than
+"not found".
 
 ## Backups and overlay install
 
@@ -586,10 +626,20 @@ accessible, CSRF-token-and-honeypot-protected HTML form that submits via `fetch`
 a handler CGI and swaps to a success message. Delivery is configured by the
 operator: the form's `<form>.conf` references one or more named handlers in
 `handlers.conf`, each of type `smtp` (with shared connection config in `smtp.conf`  - 
-sendmail or authenticated SMTP with TLS and a `password_file`), `file` (stored
-submissions), or `webhook` (custom JSON or Slack-formatted). The forms docs cover the
-field grammar, the webhook JSON contract, and SMTP setup. Credentials and
-destinations are operator-only and deny-listed from every publishing surface.
+sendmail or authenticated SMTP with TLS), `file` (stored submissions), or `webhook`
+(custom JSON or Slack-formatted). The forms docs cover the field grammar, the
+webhook JSON contract, and SMTP setup. Credentials and destinations are
+operator-only and deny-listed from every publishing surface.
+
+**SMTP credentials and validation** (SM137): the connection config carries a
+**password** field - typed once into the Plugin Config form or the handler wizard,
+stored in the operator-only `smtp.conf`, never shown back; `password_file:` remains
+as the alternative and is used only when no password is set. A **Validate SMTP
+connection** action in the wizard's connection section runs a staged check against
+the SAVED settings and names the failing stage - host (DNS), port (TCP reach, with
+a plain probe first so a closed port is never mistaken for TLS), TLS (STARTTLS vs
+implicit vs none, suggesting the mode to try), or auth (rejected with the server
+code, or no password set). It never sends an email and is time-boxed.
 
 **Multi-step (wizard) forms** (SM098): a `--- step ---` line (optionally titled,
 `--- step: Title ---`) inside a `:::form` splits it into wizard steps rendered as
@@ -614,7 +664,11 @@ always overwritten**, but **seed files are preserved if the operator edited them
 previews the plan with zero filesystem changes; `--restore` rolls back to a backup
 and invalidates the cache; runtime state (auth, logs, locks) is never touched.
 Imperative post-steps create cgi-bin symlinks for plugin endpoints, mirror the
-manager CSS, and seed fresh installs.
+manager CSS, and seed fresh installs. Run as root, the installer also repairs
+ownership - scoped to **root-owned files only**, aligned to the docroot owner and
+the web-server group; it never re-owns CGI runtime files or operator content
+(0.6.5/0.6.6; `lazysite-check --fix` performs the same scoped repair on a live
+site).
 
 Further flags: `--channel edge|stable` sets a site's `update_channel` (a standalone,
 audited maintenance op); `--force` upgrades a `stable` site past its channel policy
@@ -762,6 +816,25 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.6.10** (2026-07-10) - Backlog housekeeping: thirteen shipped items closed;
+  SM139 (packaged distribution) promoted to next up; SM141 (session registry +
+  revocation) scoped.
+- **0.6.8-0.6.9** (2026-07-10) - First-party analytics (SM140): lazysite records
+  its own anonymised access log and the Stats page reads it as the primary source
+  (zero web-server setup); the AI analytics export (`analyse_visitors`) ingests
+  the same log; the server log stays as the fallback/diagnostics tier; unhandled
+  processor errors now answer a clean 500.
+- **0.6.5-0.6.7** (2026-07-09) - **Breaking:** manager access granted by groups
+  only - `ui` / `manage_users` capabilities; the legacy `manager_groups` conf key
+  retired with an automatic migration (SM138). Robustness round: installer
+  ownership repair scoped to root-owned files (0.6.6); TT compile-cache immunity
+  with a loud manager-layout failure banner and a `lazysite-check` cache/tt probe
+  (0.6.7); fresh-install self-heal (`setup-manager` guarantees the admin group's
+  capabilities) and manager UI field fixes (autofill, bell states).
+- **0.6.2-0.6.4** (2026-07-08) - Notifications (SM136): the `notifications`
+  capability, the manager bell, XMPP delivery via the notify-xmpp plugin, and
+  human-event notices; SMTP password field + staged connection validation
+  (SM137, Validate button placement fixed in 0.6.4).
 - **0.6.1** (2026-07-07) - Multi-step (wizard) forms (SM098); full-system backup +
   cross-domain migration (`install.pl --restore-full --domain`) + a consolidated
   Backups page; page alias redirects (`aliases:`, SM134); recent-change markers on
@@ -833,8 +906,9 @@ Newest first; releases are git tags.
   remaining lever and the substrate for transactional changesets.
 - **SM084-restore** - the in-manager "restore this snapshot" action (list/create/
   download already ship).
-- **SM083 - Access-log stats plugin** - an awstats/webalizer-style dashboard from the
-  access log; keeps browsing analytics separate from the material-events audit.
+- **SM139 - Packaged distribution** - a common `.deb` plus environment `.deb`s and
+  unprivileged provisioning, replacing per-site sudo tarball installs (the fix for
+  the ownership fragility the 0.6.5/0.6.6 round repaired after the fact).
 - **SM075 - Wildcard multi-tenant hosting** - many ephemeral sites under one wildcard
   vhost, auto-provisioned, with promote-to-permanent.
 
@@ -848,10 +922,13 @@ Newest first; releases are git tags.
   canonical store (publishing-format slice first).
 - **SM092 - Gopher + Gemini services** - read-only public front-ends over the same
   content tree, the natural next "thin transports."
+- **SM141 - Session registry** - list active sessions (who / when / last-seen) and
+  revoke one, without inverting the stateless-cookie design (scoped, not yet
+  committed; sequenced after the 0.7.0 stable cut).
 
 ---
 
 *This reference was synthesised from the lazysite source, the `starter/docs/`
 documentation set, the `docs/feature-requests/` record, and the CHANGELOG, at
-v0.4.17. For the authoritative detail of any feature, read the cited script or doc;
+v0.6.10. For the authoritative detail of any feature, read the cited script or doc;
 for the "why", read the corresponding `SMxxx` feature-request.*

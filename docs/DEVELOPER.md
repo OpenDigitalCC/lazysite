@@ -23,9 +23,11 @@ Toolkit / Archive::Zip / DB_File.
 | `tools/lazysite-users.pl` | the account/credential CLI (also called as an API by the others) |
 | `install.pl` / `tools/build-manifest.pl` / `tools/manifest-to-sbom.pl` | install + release tooling |
 
-Capabilities are per-account settings read **per request** (`webdav`,
-`manage_themes/layouts/config`, `create_sub_users`, `ui`); enforcement lives in
-`lazysite-dav.pl` (`authorise`) and the manager API.
+Capabilities are channel x action grants carried by **groups**
+(`lazysite/auth/groups-settings.json`, edited on the manager Groups page; see
+`docs/adr/0003`), resolved per request through the one resolver
+(`Lazysite::Auth::Settings::caps_for`); enforcement lives in `lazysite-dav.pl`
+(`authorise`), the manager API, and the MCP connector.
 
 ## Conventions
 

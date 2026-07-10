@@ -149,7 +149,11 @@ if [ -f "$DOC/index.html" ] && [ -f "$DOC/index.md" ]; then
   echo "pages do, this vhost is on an OLDER template - re-apply it:"
   echo "    v-rebuild-web-domain $U $DOMAIN"
 fi
-if ! grep -q '^manager_groups:' "$DOC/lazysite/lazysite.conf" 2>/dev/null; then
+# First-run sentinel: the group-settings store exists once setup-manager has
+# run. (The old sentinel grepped the conf for manager_groups:, which SM138
+# retired in 0.6.5 - it never matched again, so setup-manager re-ran on every
+# deploy; harmless because it self-heals, but wrong.)
+if [ ! -f "$DOC/lazysite/auth/groups-settings.json" ]; then
   # First-run: bootstrap the manager in one step (account + admin group +
   # lazysite.conf + a generated password, printed below). Runs as the domain
   # user so the auth store and conf are written with the right ownership.

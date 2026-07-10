@@ -35,9 +35,9 @@ wiring; the `lazysite-app` template must use `auth.pl`.
 BUT FallbackResource only covers NON-EXISTENT paths (pages like
 `/manager/`). The manager UI's AJAX calls hit `/cgi-bin/lazysite-manager-api.pl`,
 a REAL file served straight by `ScriptAlias /cgi-bin/`, so it bypasses
-`auth.pl`, gets no `X-Remote-User`, and (with `manager_groups` set)
-rejects every call -> the manager renders but every panel is stuck on
-"Loading...". `security.md` states the contract: "every `/cgi-bin/*.pl`
+`auth.pl`, gets no `X-Remote-User`, and (on a secured site - one where
+a group grants manager access) rejects every call -> the manager
+renders but every panel is stuck on "Loading...". `security.md` states the contract: "every `/cgi-bin/*.pl`
 request (except those targeting `lazysite-auth.pl` itself) passes through
 the auth wrapper". The dev server implements it by running `auth.pl` with
 `LAZYSITE_PROCESSOR=<target>`; the Hestia template must replicate it with
@@ -102,9 +102,11 @@ sudo bash STAGE/installers/hestia/lazysite-hestia-deploy.sh USER DOMAIN STAGE
 
 It applies the template, runs `install.pl` as the domain user, sets the
 www-data docroot perms (`2775` dirs / `664` files, `2770` on auth/forms),
-and drops the Hestia `index.html` stub. On a NEW install it prints the two
-remaining first-run touches (`manager_groups`/`webdav_enabled` in
-`lazysite.conf`, and the manager password).
+and drops the Hestia `index.html` stub. On a NEW install it also runs
+`lazysite-users.pl setup-manager` as the domain user (manager account +
+a fully-granted admin group + a generated password, printed once); the
+remaining first-run touch is `webdav_enabled` in `lazysite.conf` if you
+want WebDAV publishing.
 
 This is the fix for "`install.pl` as the domain user can't write the
 0551-locked domain root or chgrp to www-data": **run the whole thing as
@@ -208,23 +210,31 @@ ships `manager: enabled` + `manager_path: /manager`; the minimal conf
 omits them, so `manager` defaults to `disabled` and `/manager/` returns a
 bare `403 Forbidden` (via `handle_manager_path` -> `forbidden()`).
 
-Two more "default off" site gates live in the same conf:
+One more "default off" site gate lives in the same conf:
 
 - `manager: enabled` — without it the manager UI is a hard 403.
-- `manager_groups: <group>` — if UNSET, ANY authenticated user is
-  treated as a manager (`_is_manager` returns 1). Set it to
-  `lazysite-admins` so only that group has manager access.
 - `webdav_enabled: yes` — site gate for `/dav` (separate from per-user
   `set <user> webdav on`); defaults off (so `/dav` is 404 until set).
+
+Manager ACCESS is not a conf key: it is granted by GROUPS only — the
+`ui` capability (manager UI) and `manage_users` (operator powers) in
+`lazysite/auth/groups-settings.json`, managed on the Groups page.
+`perl tools/lazysite-users.pl --docroot <docroot> setup-manager` seeds
+the `lazysite-admins` group with the full grant. If NO group grants
+manager access, the site is in unsecured/dev mode and ANY authenticated
+user is treated as a manager. (The legacy `manager_groups:` conf key
+was retired in 0.6.5, SM138, with an automatic migration that removes
+the line — do not add it back.)
 
 Fix on a live site: append to `lazysite/lazysite.conf`:
 
 ```
 manager: enabled
 manager_path: /manager
-manager_groups: lazysite-admins
 webdav_enabled: yes
 ```
+
+then run `setup-manager` (or grant `ui` to a group on the Groups page).
 
 Better: do NOT use `--domain` for a real install — seed the full
 `lazysite.conf.example` and edit `site_name`/`site_url`, so the manager

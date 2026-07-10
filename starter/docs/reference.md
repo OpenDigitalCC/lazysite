@@ -69,7 +69,7 @@ Directory scan
 `manager_path`
 : URL path for the manager. Default: `/manager`.
 
-`manager_groups`
+`manager_groups` *(retired - SM138)*
 : Retired. Manager access is the `ui` capability granted to a group (Groups
   page); on upgrade any group this key named receives its capabilities and the
   line is removed.

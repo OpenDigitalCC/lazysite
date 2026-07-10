@@ -136,16 +136,27 @@ minimal HTML page otherwise.
 
 ### Manager access
 
-`manager_groups:` in `lazysite.conf` names the groups whose members
-can access `/manager/*` and the manager API.
+Manager access is carried by **groups**. A group in
+`lazysite/auth/groups-settings.json` grants the `ui` capability
+(access to `/manager/*` and the manager API) and, for the operator
+powers, `manage_users`; an account holds the union of its groups'
+grants. Grants are edited on the manager Groups page or with
+`tools/lazysite-users.pl` (`setup-manager` seeds a fully-granted
+admin group).
 
-If `manager_groups:` is set: only users in one of the listed groups
-pass. Any other authenticated user gets redirected to `/login`.
+If a group granting manager access exists: only members of such a
+group pass. Any other authenticated user gets redirected to
+`/login`.
 
-If `manager_groups:` is empty: any authenticated user has manager
-access. A DEBUG-level log line is emitted when this condition is
-encountered, to surface the "open manager" configuration to the
-operator without flooding INFO-level logs on every request.
+If **no** group grants manager access, the site is in unsecured/dev
+mode: any authenticated user has manager access. A DEBUG-level log
+line is emitted when this condition is encountered, to surface the
+"open manager" configuration to the operator without flooding
+INFO-level logs on every request.
+
+(The legacy `manager_groups:` conf key was retired in 0.6.5, SM138,
+with an automatic migration that grants its groups explicitly and
+removes the conf line - see `UPGRADE.md`.)
 
 ### Payment
 
@@ -458,8 +469,9 @@ the right on) plus a `created_by`/`managed_by` provenance tree. Account
 management (disable/enable/cascade/reassign) authorises on **ancestry**:
 the actor must be an ancestor of the target via `managed_by`. The
 manager API injects `actor=$auth_user` for these actions, so a manager
-can never manage accounts outside its own sub-tree; the operator
-(`local`, no `manager_groups`) is unrestricted.
+can never manage accounts outside its own sub-tree; the operator (the
+local CLI, or an account whose groups grant `manage_users`) is
+unrestricted.
 
 **Disabled and token expiry** are enforced in both `lazysite-auth.pl`
 (login refused, cookie rejected) and `lazysite-dav.pl` (403 / 401),
