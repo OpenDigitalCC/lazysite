@@ -318,9 +318,12 @@ sub run_checks {
     # --- 4. secrets: not world-accessible AND readable by the CGI ----------------
     # (the common live-500: .secret is 0600 owned by a non-www-data user, so a
     #  cookie/secret verification by the www-data CGI dies before headers)
+    # SM141: sessions.jsonl + revoked.json carry visitor IP/UA + revocation
+    # state - 0660, CGI-readable, never world-accessible, like the secrets.
     for my $rel ( qw(
         lazysite/auth/.secret lazysite/forms/.secret lazysite/manager/.csrf-secret
         lazysite/auth/oauth.json lazysite/auth/user-settings.json
+        lazysite/auth/sessions.jsonl lazysite/auth/revoked.json
         lazysite/notify-xmpp.conf lazysite/forms/smtp.conf
         ) ) {
         my $path = "$DOC/$rel";

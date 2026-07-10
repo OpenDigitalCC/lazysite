@@ -53,6 +53,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
     action_layouts_repo_get action_layouts_repo_set);
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore);
+use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
@@ -72,6 +73,7 @@ $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";   # SM138: site_gran
 $Lazysite::Manager::Upload::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Manager::Themes::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Manager::Layouts::LAZYSITE_DIR = $LAZYSITE_DIR;
+$Lazysite::Manager::Sessions::LAZYSITE_DIR = $LAZYSITE_DIR;    # SM141
 $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 my $LOCK_TIMEOUT = 300;
@@ -181,6 +183,7 @@ $Lazysite::Manager::Themes::auth_user = $auth_user;
 $Lazysite::Manager::Themes::action    = $action;
 $Lazysite::Manager::Layouts::auth_user = $auth_user;
 $Lazysite::Manager::Layouts::action    = $action;
+$Lazysite::Manager::Sessions::auth_user = $auth_user;    # SM141
 $Lazysite::Auth::Acl::auth_user            = $auth_user;
 $Lazysite::Auth::Acl::token_auth           = $token_auth;
 # SM077: requester's groups for @group ACL entries (cookie users carry them in
@@ -444,6 +447,26 @@ elsif ( $action eq 'layouts-repo-set' )  {
 elsif ( $action eq 'users' )            { $result = action_users( $body, \%params ) }
 elsif ( $action eq 'principals' )       { $result = action_principals() }
 elsif ( $action eq 'rotate-auth-secret' ) { $result = action_rotate_auth_secret( $auth_user ) }
+elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 'user-revoke' ) {
+    # SM141: session visibility + revocation are user-management powers.
+    # Cookie (manager) callers need the manage_users capability - same
+    # strict cookie-side gate pattern as the audit trail; token clients
+    # cannot reach these at all (not in the %need set above).
+    # (A denied revoke is still audited: the generic POST audit block below
+    # records the fail with kind 'forbidden'; sessions-list is a GET read.)
+    if ( !$token_auth && !_user_manage_users($auth_user) ) {
+        $result = { ok => 0, kind => 'forbidden',
+            error => "Managing sessions requires the 'Users & groups' permission. "
+                . "An operator can grant it on the Groups page." };
+    }
+    elsif ( $action eq 'sessions-list' ) { $result = action_sessions_list() }
+    else {
+        my $req = eval { decode_json($body) } // {};
+        $result = $action eq 'session-revoke'
+            ? action_session_revoke( $req->{sid} )
+            : action_user_revoke( $req->{username} );
+    }
+}
 elsif ( $action eq 'plugin-list' )      { $result = action_plugin_list() }
 elsif ( $action eq 'plugin-enable' )    {
     my $req = eval { decode_json($body) } // {};
@@ -567,7 +590,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
-        backup-list );
+        backup-list sessions-list );
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
@@ -591,6 +614,22 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
             else {
                 $aud_target = ( ref $b eq 'HASH' ? $b->{username} : undef ) // '';
             }
+        }
+    }
+
+    # SM141: the session revokes carry their target in the POST body - name it
+    # (a sid prefix / the username) instead of the meaningless '/' path.
+    if ( $action eq 'session-revoke' || $action eq 'user-revoke' ) {
+        my $b = eval { decode_json($body) };
+        if ( $action eq 'session-revoke' ) {
+            my $sid = ( ref $b eq 'HASH' ? $b->{sid} : undef ) // '';
+            $sid =~ s/[^0-9a-f]//g;
+            $aud_target = length $sid ? 'sid:' . substr( $sid, 0, 8 ) : '';
+        }
+        else {
+            my $u = ( ref $b eq 'HASH' ? $b->{username} : undef ) // '';
+            $u =~ s/[^a-zA-Z0-9_.-]//g;
+            $aud_target = $u;
         }
     }
 
@@ -1301,6 +1340,15 @@ sub _user_audit {
     return 0 unless defined $user && length $user;
     my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
     return $s->{audit} ? 1 : 0;
+}
+
+# SM141: the manage_users capability (session listing + revocation). Same
+# resolution as _user_audit.
+sub _user_manage_users {
+    my ($user) = @_;
+    return 0 unless defined $user && length $user;
+    my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
+    return $s->{manage_users} ? 1 : 0;
 }
 
 # The notifications capability (the manager bell). Same resolution as _user_audit.

@@ -1,6 +1,7 @@
 # SM141 - Session registry: list + control active sessions
 
-Status: scoped 2026-07-10 (exploration; not yet committed to build)
+Status: BUILT (option B, phase 1 - no last-seen) 2026-07-10; scoped earlier
+the same day. See "What shipped" at the end.
 Driver: the Sessions page currently exposes only "log out everyone" (rotate
 the auth secret) because sessions are signed cookies with no server-side
 record. Operators want to see who is signed in (who / when / where /
@@ -96,3 +97,59 @@ Build option B, phase 1 (no last-seen) - but AFTER the eight-dimension
 review and the 0.7.0 stable cut: it touches the auth hot path, which is
 exactly what should not churn while a review is in flight. It is additive
 (no on-disk breaking change), so it does not need to beat the compat freeze.
+
+## What shipped (phase 1, 2026-07-10)
+
+Cookie format
+: `lazysite_auth` payload is now `user:ts:sid:groups` (sid = 16 random hex
+  chars). Verification accepts BOTH shapes: the legacy 3-field
+  `user:ts:groups` stays valid until natural expiry (groups can contain
+  commas but never colons, so a limit-4 split + the 16-hex sid shape check
+  disambiguates). Legacy cookies carry no sid but are killable per-user via
+  `not_before` (they carry `ts`).
+
+Registry
+: `lazysite/auth/sessions.jsonl` - one `{sid, user, t, ip, ua}` line per
+  login (ua control-stripped + truncated to 120, the SM140 recorder's
+  sanitisation pattern; the wrapper keeps its own small copy,
+  `_session_field`). Self-prunes lines older than COOKIE_MAX on write
+  (atomic temp+rename, 0660). Registry failure never blocks login
+  (eval-guard + WARN).
+
+Revocation
+: `lazysite/auth/revoked.json` - `{ sids => {sid: revoked_at},
+  not_before => {user: epoch} }`, checked in the auth wrapper's
+  cookie-verify path after signature+expiry: reject a revoked sid, or a
+  cookie issued before the user's `not_before`. Fast path is a single `-f`
+  stat (absent file = nothing revoked); an unreadable/corrupt file is
+  treated as empty with a loud WARN (fail-open-with-alarm - a corrupt file
+  must not lock everyone out; lazysite-check probes both files). Writers
+  prune entries older than COOKIE_MAX.
+
+Manager surface
+: manager-api actions `sessions-list` (live sessions only: fresh, not
+  revoked, at/after `not_before`; `current` marked via the
+  `LAZYSITE_AUTH_SID` env the wrapper passes to its children),
+  `session-revoke {sid}` and `user-revoke {username}` - all gated on
+  `manage_users` (cookie side; token clients cannot reach them), the two
+  revokes audited (target = sid prefix / username). The Sessions page shows
+  the live table (user / signed in / IP / device / "this session") with
+  per-session Sign out and per-user Sign out everywhere; secret rotation
+  stays as the nuclear option.
+
+Deviation from the scoping text
+: the revocation check lives ONLY in the auth wrapper. The scoping assumed
+  a second local copy in the processor's check_auth, but the processor never
+  validates the auth cookie - it trusts the `X-Remote-*` headers the wrapper
+  sets when it execs the processor / manager-api - so there is exactly one
+  enforcement point and no copy to keep in sync.
+
+Tests
+: `t/unit/auth/12-session-registry.t` (mint shape, registry sanitisation,
+  legacy acceptance, sid + not_before revocation incl. a legacy-shape
+  cookie, corrupt-file fail-open WARN, registry prune) and
+  `t/unit/manager/24-sessions.t` (list shape + current marking, gating,
+  audit targets, writer prune).
+
+Phase 2 (not built)
+: last-seen (bounded touch or derived from the SM140 first-party log).

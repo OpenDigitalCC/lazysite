@@ -18,6 +18,26 @@ Keying
 
 ## Unreleased
 
+Feature - Sessions page lists and revokes live sessions (SM141 phase 1)
+: Signed cookies stay the source of truth; the payload gains a short random
+  session id (`user:ts:sid:groups` - legacy 3-field cookies remain valid
+  until natural expiry). Login appends `{sid, user, t, ip, ua}` to
+  `lazysite/auth/sessions.jsonl` (sanitised UA, 24h self-pruning,
+  loss-tolerant - a registry failure never blocks login), and cookie
+  verification in the auth wrapper - the single enforcement point; the
+  processor trusts the wrapper's X-Remote-* headers - gains a revocation
+  check against `lazysite/auth/revoked.json` (revoked sids + per-user
+  not_before, which also kills pre-sid legacy cookies; absent file = one
+  `-f` stat; corrupt file = fail open with a loud WARN, never a lockout).
+  Manager API: `sessions-list` / `session-revoke` / `user-revoke`
+  (manage_users-gated, revokes audited with sid-prefix/username targets;
+  not reachable by token clients). The Sessions page now lists live
+  sessions (user, signed in, IP, device, "this session") with per-session
+  Sign out and per-user Sign out everywhere; secret rotation stays as the
+  nuclear option. lazysite-check probes the two new files alongside the
+  secrets. Tests: t/unit/auth/12-session-registry.t,
+  t/unit/manager/24-sessions.t.
+
 ## 0.7.2 - Packaged distribution: the SM139 arc (2026-07-10)
 
 Feature - lazysite-hestia.deb: packaged HestiaCP integration (SM139 increment 4)

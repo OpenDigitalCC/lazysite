@@ -4,7 +4,7 @@
 use strict;
 use warnings;
 use Digest::SHA qw(sha256_hex hmac_sha256_hex);
-use Fcntl qw(:flock O_RDWR O_CREAT);
+use Fcntl          qw(:flock O_RDWR O_WRONLY O_APPEND O_CREAT);
 use File::Path qw(make_path);
 use File::Basename qw(dirname);
 use POSIX qw(strftime);
@@ -293,12 +293,22 @@ sub handle_login {
     # Load groups for user
     my $groups_str = load_user_groups($username);
 
-    # Generate signed cookie
-    my $ts     = time();
-    my $secret = load_auth_secret();
-    my $payload = "$username:$ts:$groups_str";
+    # Generate signed cookie. SM141: the payload carries a short random
+    # session id (user:ts:sid:groups) so this session can be listed and
+    # revoked individually. Legacy 3-field cookies (user:ts:groups) minted
+    # before SM141 stay valid until natural expiry - see handle_request.
+    my $ts      = time();
+    my $sid     = generate_random_hex(8);                  # 16 hex chars
+    my $secret  = load_auth_secret();
+    my $payload = "$username:$ts:$sid:$groups_str";
     my $sig     = hmac_sha256_hex( $payload, $secret );
     my $cookie  = uri_encode_simple($payload) . ":$sig";
+
+    # SM141: record the session in the registry (listing metadata only -
+    # losing the file degrades the Sessions page, never authentication).
+    # A registry failure must NEVER block a valid login: eval-guard + WARN.
+    eval { _session_register( $username, $ts, $sid ); 1 }
+        or log_event( 'WARN', $username, 'session registry write failed', error => "$@" );
 
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
 
@@ -337,6 +347,8 @@ sub _session_user {
     $payload = uri_decode_simple($payload);
     my $secret = load_auth_secret();
     return '' unless const_eq( $sig, hmac_sha256_hex( $payload, $secret ) );
+    # SM141: user and ts lead BOTH payload shapes (user:ts:sid:groups and the
+    # legacy user:ts:groups), so this limit-3 split handles either.
     my ( $user, $ts ) = split /:/, $payload, 3;
     return '' unless defined $ts && $ts =~ /^\d+$/ && ( time() - $ts ) < $COOKIE_MAX;
     return $user // '';
@@ -695,7 +707,21 @@ sub handle_request {
                 log_event('WARN', $uri, 'auth: signature mismatch');
             }
             else {
-                my ( $user, $ts, $groups ) = split /:/, $payload, 3;
+                # SM141: two payload shapes are valid. Current cookies are
+                # user:ts:sid:groups (sid exactly 16 hex); legacy cookies
+                # minted before the session registry are user:ts:groups and
+                # stay valid until natural expiry. Groups can contain commas
+                # but never colons, so a limit-4 split plus the sid shape
+                # check disambiguates.
+                my @f = split /:/, $payload, 4;
+                my ( $user, $ts, $sid, $groups );
+                if ( @f == 4 && defined $f[2] && $f[2] =~ /\A[0-9a-f]{16}\z/ ) {
+                    ( $user, $ts, $sid, $groups ) = @f;
+                }
+                else {
+                    ( $user, $ts, $groups ) = split /:/, $payload, 3;
+                    $sid = '';
+                }
                 $groups //= '';
 
                 if ( !defined $ts || $ts !~ /^\d+$/ || ( time() - $ts ) >= $COOKIE_MAX ) {
@@ -707,6 +733,14 @@ sub handle_request {
                     # treated as unauthenticated.
                     log_event('WARN', $uri, 'auth: account disabled', user => $user);
                 }
+                elsif ( _session_revoked( $user, $ts, $sid ) ) {
+                    # SM141: an operator signed this session out (revoked
+                    # sid) or signed the user out everywhere (not_before).
+                    # No trusted headers are set, so the request is treated
+                    # as unauthenticated. Legacy cookies carry no sid but do
+                    # carry ts, so not_before kills them too.
+                    log_event( 'WARN', $uri, 'auth: session revoked', user => $user );
+                }
                 else {
                     # C-1: these headers come from our HMAC-verified cookie,
                     # not from the client. Set LAZYSITE_AUTH_TRUSTED=1 so
@@ -714,6 +748,11 @@ sub handle_request {
                     $ENV{HTTP_X_REMOTE_USER}    = $user;
                     $ENV{HTTP_X_REMOTE_GROUPS}  = $groups;
                     $ENV{LAZYSITE_AUTH_TRUSTED} = '1';
+
+                    # SM141: pass the caller's session id to the children
+                    # (processor / manager-api) so the Sessions page can mark
+                    # "this session". A legacy cookie has none.
+                    $ENV{LAZYSITE_AUTH_SID} = $sid if length $sid;
 
                     # Flag passwordless accounts so the admin bar can warn.
                     # Checked per-request so setting a password clears it immediately.
@@ -852,6 +891,106 @@ sub mfa_enrolled {
     return 0 unless ref $data eq 'HASH';
     my $s = $data->{$username};
     return ( ref $s eq 'HASH' && $s->{totp_secret} ) ? 1 : 0;
+}
+
+# SM141: attacker-controlled field -> safe registry string (control chars
+# stripped against log injection, length-capped). The wrapper's own small
+# copy of the SM140 recorder's sanitisation pattern (_access_field in
+# lazysite-processor.pl) - kept local so the wrapper stays self-contained;
+# JSON escaping is JSON::PP's job here, so no _json_str step.
+sub _session_field {
+    my ( $s, $cap ) = @_;
+    $s //= '';
+    $s =~ s/[\x00-\x1f\x7f]//g;
+    $s = substr( $s, 0, $cap ) if length($s) > $cap;
+    return $s;
+}
+
+# SM141: append one {sid, user, t, ip, ua} line to the session registry
+# (lazysite/auth/sessions.jsonl - advisory listing metadata, never on the
+# per-request path). Self-prunes on write: entries older than COOKIE_MAX are
+# dead by definition, so when any line has aged out the file is rewritten
+# keeping only fresh lines (atomic temp+rename, 0660) and stays tiny
+# (~ logins per day). Dies on IO failure; the caller eval-guards.
+sub _session_register {
+    my ( $user, $ts, $sid ) = @_;
+    my $path = "$AUTH_DIR/sessions.jsonl";
+    require JSON::PP;
+    my $line = JSON::PP::encode_json( {
+            sid  => $sid,
+            user => $user,
+            t    => $ts + 0,
+            ip   => _session_field( $ENV{REMOTE_ADDR},     45 ),
+            ua   => _session_field( $ENV{HTTP_USER_AGENT}, 120 ),
+    } ) . "\n";
+
+    my $cutoff = $ts - $COOKIE_MAX;
+    my ( @keep, $stale );
+    if ( open my $rfh, '<:raw', $path ) {
+        while ( my $l = <$rfh> ) {
+            my ($t) = $l =~ /"t":(\d+)/;
+            if ( defined $t && $t <= $cutoff ) { $stale = 1; next }
+            push @keep, $l;
+        }
+        close $rfh;
+    }
+
+    if ($stale) {
+        my $tmp = "$path.tmp.$$";
+        open my $wfh, '>:raw', $tmp or die "cannot write $tmp: $!\n";
+        chmod 0o660, $tmp;
+        print {$wfh} @keep, $line;
+        close $wfh or die "cannot finish $tmp: $!\n";
+        rename $tmp, $path or do { my $e = $!; unlink $tmp; die "cannot replace $path: $e\n" };
+        return 1;
+    }
+
+    my $is_new = !-e $path;
+    sysopen( my $afh, $path, O_WRONLY | O_APPEND | O_CREAT, 0o660 )
+        or die "cannot append $path: $!\n";
+    binmode $afh;
+    syswrite( $afh, $line );
+    close $afh;
+    chmod 0o660, $path if $is_new;    # sysopen's mode is umask-masked
+    return 1;
+}
+
+# SM141: is this (user, ts, sid) revoked? FAST PATH: no revoked.json = a
+# single -f stat and nothing is revoked (the bad-url-blocker precedent);
+# a present file is one tiny JSON read. Reject when the sid is in the
+# revoked set, or the cookie was issued before the user's not_before (which
+# also kills legacy pre-sid cookies - they carry ts). Unreadable/corrupt
+# file = treat as EMPTY but WARN loudly (the spec's fail-open-with-alarm
+# decision: a corrupt file must not lock everyone out; lazysite-check
+# probes the file so the alarm is actionable).
+sub _session_revoked {
+    my ( $user, $ts, $sid ) = @_;
+    my $path = "$AUTH_DIR/revoked.json";
+    return 0 unless -f $path;
+
+    my $data;
+    if ( open my $fh, '<:raw', $path ) {
+        my $raw = do { local $/; <$fh> };
+        close $fh;
+        require JSON::PP;
+        $data = eval { JSON::PP::decode_json( $raw // '' ) };
+    }
+    unless ( ref $data eq 'HASH' ) {
+        log_event( 'WARN', $user,
+            'revoked.json unreadable or corrupt - treating as empty (NO session is revoked); '
+                . 'run lazysite-check and repair or remove the file' );
+        return 0;
+    }
+
+    my $sids = ref $data->{sids} eq 'HASH' ? $data->{sids} : {};
+    return 1 if length($sid) && exists $sids->{$sid};
+
+    my $nb = ref $data->{not_before} eq 'HASH' ? $data->{not_before} : {};
+    return 1
+        if defined $nb->{$user}
+        && $nb->{$user} =~ /^\d+$/
+        && $ts < $nb->{$user};
+    return 0;
 }
 
 sub load_user_groups {

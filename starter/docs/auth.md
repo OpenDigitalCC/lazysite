@@ -138,6 +138,20 @@ cookie is set and the user is redirected to the original page (via the
 
 The HMAC secret lives at `lazysite/auth/.secret` (chmod 0600).
 
+### Sessions
+
+A session is the signed cookie itself - there is no server-side session
+store on the request path. Two small side files make sessions visible and
+revocable: at login the cookie payload carries a random session id and one
+line (who / when / IP / device) is appended to
+`lazysite/auth/sessions.jsonl` (self-pruned after 24 h), and cookie
+verification consults `lazysite/auth/revoked.json` when it exists. The
+manager **Sessions** page lists the live sessions and can sign out a single
+session, all of one user's sessions ("Sign out everywhere"), or - by
+rotating the signing secret - everyone at once. Losing the registry only
+degrades the listing; cookies minted before this feature cannot be listed
+but are still killable per-user or by rotation.
+
 ### Dev server
 
 The dev server auto-detects built-in auth when `lazysite/auth/users`
