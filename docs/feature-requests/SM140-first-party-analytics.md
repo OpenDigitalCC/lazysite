@@ -1,6 +1,9 @@
 # SM140 - First-party analytics: lazysite records its own traffic
 
-Status: proposed (plan requested 2026-07-10)
+Status: agreed 2026-07-10 (design accepted; two-tier model confirmed - first-party
+log owns the owner/visitor record, server logs are the operator diagnostic.
+Per-request append I/O accepted as inherent to CGI until a persistent
+runtime exists - see Open questions.)
 Driver: the 0.6.7 field round. Getting visitor stats working on a Hestia host
 took server-owner ACL grants on /var/log/apache2/domains plus (for full
 fidelity) a vhost `LAZYSITE_ACCESS_LOG` override - and the Apache log still
