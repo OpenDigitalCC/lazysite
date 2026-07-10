@@ -1,3 +1,12 @@
+lazysite (0.7.3-1) unstable; urgency=medium
+
+  * Release 0.7.3: sessions (registry + revocation, Sessions page), domain
+    aliases (whitelisted per-host overrides, host-keyed cache), alias 302
+    redirects + map reindexing + Aliases card, full documentation currency
+    review.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Thu, 10 Jul 2026 21:30:00 +0000
+
 lazysite (0.7.2-1) unstable; urgency=medium
 
   * Release 0.7.2: the SM139 packaged-distribution arc complete - fleet
