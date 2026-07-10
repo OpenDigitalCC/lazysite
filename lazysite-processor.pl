@@ -653,12 +653,15 @@ sub serve_402 {
 
 # --- Main ---
 
-# SM140: record the request outcome to the first-party access log, and turn
-# an unhandled die into a proper 500 response (previously a headerless crash
-# - "End of script output before headers" - the server 500s anyway, but now
-# it is logged, recorded, and answered cleanly).
-{
-    %ACCESS_REC = ();
+# One request, end to end: per-request state reset, main(), the SM140 access
+# record, and the die-guard that turns an unhandled error into a proper 500
+# (previously a headerless crash). Shared verbatim by the single-shot CGI
+# path and every FastCGI loop iteration (SM142) - state hygiene lives HERE,
+# not at file scope, so a persistent worker cannot leak between requests.
+sub handle_one_request {
+    reset_request_state();
+    %ACCESS_REC   = ();
+    %AUTH_CONTEXT = ();
     my $main_ok = eval { main(); 1 };
     if ( !$main_ok ) {
         log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'unhandled error',
@@ -671,6 +674,37 @@ sub serve_402 {
         }
     }
     _access_record();
+    return;
+}
+
+# SM142: dual-mode dispatch. Spawned with STDIN as a FastCGI listen socket
+# (spawn-fcgi / systemd socket / the SM139 pool unit), the worker services
+# requests from an accept loop - modules compiled once, ~10x on cache hits.
+# Invoked as a plain CGI (no listen socket, or FCGI.pm absent), it runs the
+# single-shot path on native handles, byte-identical to the pre-SM142
+# behaviour. Knobs (set by the pool unit): LAZYSITE_FCGI_WORKERS (prefork
+# size via FCGI::ProcManager; 0/unset = single worker, the spawner manages),
+# LAZYSITE_FCGI_MAX_REQUESTS (worker recycles after N requests; memory
+# hygiene; default 500).
+my $_fcgi = eval { require FCGI; FCGI::Request() };
+if ( $_fcgi && $_fcgi->IsFastCGI() ) {
+    my $workers = ( $ENV{LAZYSITE_FCGI_WORKERS} || 0 ) + 0;
+    my $pm;
+    if ( $workers > 0 && eval { require FCGI::ProcManager; 1 } ) {
+        $pm = FCGI::ProcManager->new( { n_processes => $workers } );
+        $pm->pm_manage();
+    }
+    my $max    = ( $ENV{LAZYSITE_FCGI_MAX_REQUESTS} || 500 ) + 0;
+    my $served = 0;
+    while ( $_fcgi->Accept() >= 0 ) {
+        $pm->pm_pre_dispatch() if $pm;
+        handle_one_request();
+        $pm->pm_post_dispatch() if $pm;
+        last                    if ++$served >= $max;    # recycle; the manager respawns
+    }
+}
+else {
+    handle_one_request();
 }
 
 # Parse the request's query string into a hash of name => value.

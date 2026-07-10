@@ -23,6 +23,8 @@ On Debian or Ubuntu, install them all with:
 ```bash
 sudo apt-get install \
     libarchive-zip-perl \
+    libfcgi-perl \
+    libfcgi-procmanager-perl \
     libio-socket-ssl-perl \
     libnet-xmpp-perl \
     libtemplate-perl \
@@ -41,6 +43,8 @@ tone: medium
 text: 3
 ---
 libarchive-zip-perl | Archive::Zip | theme upload (manager), zip download (manager)
+libfcgi-perl | FCGI | FastCGI accept loop (SM142, optional; lazy-required - plain CGI needs nothing)
+libfcgi-procmanager-perl | FCGI::ProcManager | FastCGI prefork pool (SM142, optional; lazy-required when LAZYSITE_FCGI_WORKERS>0)
 libio-socket-ssl-perl | IO::Socket::SSL | SMTP form delivery over STARTTLS
 libnet-xmpp-perl | Net::XMPP | XMPP notification delivery (notify-xmpp plugin, optional; lazy-required only when enabled)
 libtemplate-perl | Template, Template::Parser | SM071 layout.tt compile validation in the control API (ships with Template); Template Toolkit page rendering (processor core)

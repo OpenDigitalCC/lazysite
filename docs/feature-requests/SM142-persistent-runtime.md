@@ -1,7 +1,7 @@
 # SM142 - Persistent runtime: FastCGI pools ahead of packaging
 
-Status: scoped 2026-07-10 (revisited on the user's call ahead of SM139 -
-the runtime pattern changes what the debs package)
+Status: BUILT 2026-07-10 (engine increments 1-3 and 5; packaging = SM139).
+Measured: cache-hit 62.2 ms CGI -> 0.4 ms FCGI (147x) on the reference host.
 Driver: under plain CGI every request pays fork + exec + full Perl compile
 (~50-100 ms) before any work happens; the render-cache-hit bench op is
 62 ms of which the overwhelming majority is process start. Per-request

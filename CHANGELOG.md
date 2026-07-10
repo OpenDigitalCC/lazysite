@@ -18,6 +18,21 @@ Keying
 
 ## Unreleased
 
+Feature - persistent runtime: dual-mode FastCGI accept loop (SM142)
+: spawned with a FastCGI listen socket on fd 0 (spawn-fcgi / the SM139 pool
+  unit), the processor services requests from an accept loop - modules
+  compile once, per-request state resets inside the loop
+  (reset_request_state + the SM140 access record + the die-guard, now shared
+  by both paths as handle_one_request). Invoked as plain CGI it is
+  byte-identical to before; FCGI.pm is lazy-required (no new hard
+  dependency). Prefork via FCGI::ProcManager (LAZYSITE_FCGI_WORKERS) with
+  worker recycling (LAZYSITE_FCGI_MAX_REQUESTS, default 500). Measured:
+  cache-hit 62.2ms CGI -> 0.4ms FCGI (147x). Tested over the real FCGI
+  protocol via a minimal in-tree client (t/lib/MiniFcgi.pm) - state
+  isolation across consecutive requests pinned. Packaging (systemd units,
+  vhost config) ships with SM139; the auth wrapper stays CGI for now (its
+  exec design), so pooling covers the visitor-facing hot path.
+
 ## 0.7.0 - First stable release (2026-07-10)
 
 The first stable-channel release, cut on completion of the 2026-07-10

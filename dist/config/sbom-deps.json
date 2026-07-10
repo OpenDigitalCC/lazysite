@@ -175,6 +175,22 @@
       "rhel_pkg": "perl-URI",
       "alpine_pkg": "perl-uri",
       "used_by": "URL parsing in SSRF guard and remote-fetch path resolution"
+    },
+    "FCGI": {
+      "core": false,
+      "license": "OML",
+      "debian_pkg": "libfcgi-perl",
+      "rhel_pkg": "perl-FCGI",
+      "alpine_pkg": "perl-fcgi",
+      "used_by": "FastCGI accept loop (SM142, optional; lazy-required - plain CGI needs nothing)"
+    },
+    "FCGI::ProcManager": {
+      "core": false,
+      "license": "Artistic-1.0-Perl",
+      "debian_pkg": "libfcgi-procmanager-perl",
+      "rhel_pkg": "perl-FCGI-ProcManager",
+      "alpine_pkg": "perl-fcgi-procmanager",
+      "used_by": "FastCGI prefork pool (SM142, optional; lazy-required when LAZYSITE_FCGI_WORKERS>0)"
     }
   },
   "environment": [

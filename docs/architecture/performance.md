@@ -189,22 +189,34 @@ sibling `.ct` file under `lazysite/cache/ct/`.
 
 ## FastCGI
 
-A persistent FastCGI wrapper is planned. Under FastCGI, the Perl
-process loads its modules once at startup and then services many
-requests from a loop. This amortises module-load across requests and
-drops the cache-hit floor from ~44 ms to an estimated 4-8 ms.
+IMPLEMENTED (SM142, 2026-07-10). The processor is dual-mode: spawned with a
+FastCGI listen socket on fd 0 (spawn-fcgi convention; the SM139 pool unit),
+it services requests from an accept loop - modules compile once,
+`handle_one_request()` runs `reset_request_state()` + the SM140 access
+record per iteration, and `local %ENV` in `main()` isolates request state.
+Invoked as a plain CGI it takes the single-shot path on native handles,
+byte-identical to the pre-SM142 behaviour; FCGI.pm is lazy-required, so the
+CGI path has no new dependency.
 
-What this requires:
+Measured on the reference host (mean of 50 cache-hit requests, one worker):
+plain CGI 62.2 ms, FastCGI 0.4 ms - the CGI figure is almost entirely
+process start, which the loop amortises away.
 
-- A small wrapper script that accepts FastCGI requests, rebinds the
-  CGI environment per request, and calls the processor's `main()` -
-  which currently runs unconditionally at script load.
-- Per-request reset of the memoised state in `resolve_site_vars()`
-  and `update_registries()`. The processor already exposes
-  `reset_request_state()` for this; the wrapper is expected to call
-  it at the start of each iteration.
-- Container or VPS deployment. FastCGI is not available on most
-  shared hosts.
+Knobs (set by the pool unit / spawner):
 
-The CGI path remains the default and supported path. FastCGI is an
-opt-in optimisation for operators who can run a persistent process.
+- `LAZYSITE_FCGI_WORKERS` - prefork size via FCGI::ProcManager (0/unset:
+  single worker, the spawner manages processes).
+- `LAZYSITE_FCGI_MAX_REQUESTS` - worker recycles after N requests (memory
+  hygiene; default 500). The manager respawns it.
+
+One pool per site: DOCROOT is fixed at spawn, so docroot-derived state is
+valid for the worker's life and site isolation stays process-level. Needs
+libfcgi-perl (+ libfcgi-procmanager-perl for prefork) and a web server
+speaking FastCGI to the socket (Apache mod_proxy_fcgi / nginx fastcgi_pass);
+packaging (systemd template unit, vhost config) ships with SM139. The auth
+wrapper still execs the processor per request (its trust-header design), so
+manager traffic stays on the CGI path for now - the visitor-facing hot path
+is the pooled one.
+
+The CGI path remains the default and the dev-server path. FastCGI is the
+packaged production pattern, not a requirement.
