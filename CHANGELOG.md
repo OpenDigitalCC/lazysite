@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.4 - Content history: the git backend (2026-07-11)
+
 Feature - remote sync: push/pull the content history to a private remote (SM085 phase 1, sync half)
 : The `git-sync` plugin (opt-in; needs content history enabled) syncs the
   site's history with an operator-configured remote repository. Configure
