@@ -15,8 +15,9 @@ query_params:
 <p class="mg-card-subtitle" style="margin:0 0 8px 0;">Where layouts and themes are downloaded from. Leave the default, or point at your own fork. See the <a href="/docs/features/configuration/remote-layouts">docs</a>.</p>
 <div class="mg-form-row" style="margin:0;">
 <label for="layouts-repo-input">Repo</label>
-<input type="text" id="layouts-repo-input" placeholder="OpenDigitalCC/lazysite-layouts" style="flex:1;">
+<input type="text" id="layouts-repo-input" placeholder="OpenDigitalCC/lazysite-layouts" style="flex:1;" oninput="markRepoDirty()">
 <button class="mg-btn mg-btn-outline mg-btn-sm" onclick="saveLayoutsRepo()">Save</button>
+<span id="repo-dirty" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes &mdash; click Save</span>
 </div>
 </div>
 </div>
@@ -334,6 +335,12 @@ function loadLayoutsRepo() {
     }).catch(function(){});
 }
 
+// SM118 pattern (field report): the repo field is this page's one explicit-save
+// control, so flag unsaved edits via the shared mgDirtyGuard (manager layout).
+// loadLayoutsRepo() populates it programmatically, which doesn't fire oninput.
+function markRepoDirty()  { mgDirtyGuard.set('layouts-repo', 'repo-dirty'); }
+function clearRepoDirty() { mgDirtyGuard.clear('layouts-repo'); }
+
 function saveLayoutsRepo() {
   var input = document.getElementById('layouts-repo-input');
   if (!input) return;
@@ -343,6 +350,7 @@ function saveLayoutsRepo() {
     body: JSON.stringify({ value: value })
   }).then(function(r){ return r.json(); }).then(function(d) {
     if (!d.ok) { showStatus(d.error || 'Save failed.', true); return; }
+    clearRepoDirty();
     showStatus(value ? ('Layouts repo saved: ' + value) : 'Layouts repo cleared.');
   }).catch(function(e){ showStatus('Error: ' + e.message, true); });
 }

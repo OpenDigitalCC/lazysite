@@ -352,9 +352,9 @@ destined for the manager API. The token is fetched once per page
 load via `GET ?action=csrf-token`. Any body type (JSON,
 `FormData`, `ArrayBuffer` for theme upload) works, because the
 token travels in the header rather than the body. The
-`beforeunload` handler in `edit.md` uses `navigator.sendBeacon`,
-which cannot set headers, so it appends the token as a query
-parameter instead.
+`pagehide` handler in `edit.md` (edit-lock release) uses
+`navigator.sendBeacon`, which cannot set headers, so it appends
+the token as a query parameter instead.
 
 ## HTTP response headers
 

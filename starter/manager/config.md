@@ -254,22 +254,12 @@ function applyShowWhen(container) {
   }
 }
 
-// SM118: the settings form is the one place that needs an explicit Save, so flag
-// unsaved changes (and warn on leaving). Programmatic population doesn't fire these.
-var siteDirty = false;
-function markSiteDirty() {
-  siteDirty = true;
-  var n = document.getElementById('site-dirty');
-  if (n) n.style.display = '';
-}
-function clearSiteDirty() {
-  siteDirty = false;
-  var n = document.getElementById('site-dirty');
-  if (n) n.style.display = 'none';
-}
-window.addEventListener('beforeunload', function(e) {
-  if (siteDirty) { e.preventDefault(); e.returnValue = ''; }
-});
+// SM118: the settings form needs an explicit Save, so flag unsaved changes (and
+// warn on leaving) via the shared mgDirtyGuard in the manager layout - the same
+// guard every explicit-save manager page uses. Programmatic population doesn't
+// fire these.
+function markSiteDirty()  { mgDirtyGuard.set('site-settings', 'site-dirty'); }
+function clearSiteDirty() { mgDirtyGuard.clear('site-settings'); }
 
 // SM114: aggregate the checked group boxes into the hidden comma-separated value.
 function saveSiteSettings(e) {

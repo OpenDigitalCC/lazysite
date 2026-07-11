@@ -15,6 +15,7 @@ search: false
 </select>
 <button class="mg-btn" onclick="addItem()">Add</button>
 <span style="flex:1;"></span>
+<span id="nav-dirty" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes &mdash; click Save</span>
 <button class="mg-btn mg-btn-primary" onclick="saveNav()">Save</button>
 <button class="mg-btn" onclick="loadNav()">Reload</button>
 </div>
@@ -43,6 +44,13 @@ function showStatus(msg, isError) {
 
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+// SM118 pattern (field report): every mutation below edits only the in-memory
+// list - nothing touches nav.conf until Save - so each mutation path flags dirty
+// via the shared mgDirtyGuard (manager layout), which shows the note and warns
+// on leaving. Load and save success re-sync with the server, so both clear it.
+function markNavDirty()  { mgDirtyGuard.set('nav', 'nav-dirty'); }
+function clearNavDirty() { mgDirtyGuard.clear('nav'); }
+
 function loadNav() {
   fetch(API + '?action=nav-read')
     .then(function(r) { return r.json(); })
@@ -55,6 +63,7 @@ function loadNav() {
           navItems.push({ label: child.label, url: child.url || '', indent: 1 });
         });
       });
+      clearNavDirty();
       renderNav();
       updateParentSelect();
     })
@@ -125,6 +134,7 @@ function onDropZoneDrop(e, beforeIdx) {
   var insertAt = beforeIdx > dragSrcIdx ? beforeIdx - 1 : beforeIdx;
   navItems.splice(insertAt, 0, moved);
   dragSrcIdx = null;
+  markNavDirty();
   renderNav();
 }
 
@@ -167,6 +177,7 @@ function addItem() {
 
   document.getElementById('add-label').value = '';
   document.getElementById('add-url').value = '';
+  markNavDirty();
   renderNav();
   updateParentSelect();
 }
@@ -179,6 +190,7 @@ function editItem(idx) {
       if (newUrl === null) return;
       item.label = newLabel;
       item.url = newUrl;
+      markNavDirty();
       renderNav();
     });
   });
@@ -189,6 +201,7 @@ function indentItem(idx) {
   if (navItems[idx].indent >= 1) return;
   if (navItems[idx - 1].indent > 0) return;
   navItems[idx].indent = 1;
+  markNavDirty();
   renderNav();
   updateParentSelect();
 }
@@ -196,6 +209,7 @@ function indentItem(idx) {
 function outdentItem(idx) {
   if (navItems[idx].indent <= 0) return;
   navItems[idx].indent = 0;
+  markNavDirty();
   renderNav();
   updateParentSelect();
 }
@@ -210,6 +224,7 @@ function deleteItem(idx) {
       while (idx + count < navItems.length && navItems[idx + count].indent > 0) count++;
     }
     navItems.splice(idx, count);
+    markNavDirty();
     renderNav();
     updateParentSelect();
   });
@@ -236,7 +251,7 @@ function saveNav() {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.ok) { showStatus('Navigation saved.'); }
+    if (data.ok) { clearNavDirty(); showStatus('Navigation saved.'); }
     else { showStatus(data.error || 'Save failed', true); }
   })
   .catch(function(e) { showStatus('Error: ' + e.message, true); });

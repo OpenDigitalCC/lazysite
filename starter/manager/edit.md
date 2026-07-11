@@ -235,6 +235,7 @@ function markDirty() {
     document.getElementById('ed-save-btn').classList.add('dirty');
     document.getElementById('ed-save-btn').disabled = false;
     document.getElementById('ed-dirty').textContent = 'unsaved';
+    mgDirtyGuard.set('editor');
   }
 }
 function clearDirty() {
@@ -242,6 +243,7 @@ function clearDirty() {
   document.getElementById('ed-save-btn').classList.remove('dirty');
   document.getElementById('ed-dirty').textContent = '';
   document.getElementById('ed-saved').textContent = 'Saved ' + new Date().toLocaleTimeString();
+  mgDirtyGuard.clear('editor');
 }
 
 // --- Front matter ---
@@ -777,8 +779,13 @@ function refreshPreview() {
 })();
 
 // --- Unload ---
-window.addEventListener('beforeunload', function(e) {
-  if (isDirty) { e.preventDefault(); e.returnValue = ''; }
+// The unsaved-changes warning comes from the shared mgDirtyGuard in the manager
+// layout (markDirty/clearDirty above register with it). Lock release lives on
+// pagehide, which fires only when the page REALLY goes away: cancelling the
+// leave prompt keeps the lock and the renew timer, confirming the leave
+// releases the lock as before. (Previously the release beacon fired from the
+// same handler as the prompt, so a cancelled leave silently lost the lock.)
+window.addEventListener('pagehide', function() {
   if (lockRenewTimer) clearInterval(lockRenewTimer);
   if (filePath && !isNew) {
     // sendBeacon bypasses the window.fetch CSRF wrapper, so include the

@@ -27,6 +27,17 @@ var smtpConnectionValues = {};
 function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
 
+// SM118 pattern (field report): every explicit-save surface on this page - the
+// per-plugin config forms, the handler add/edit forms and the form targets -
+// flags unsaved changes via the shared mgDirtyGuard (manager layout). Each
+// surface gets its own key so saving or cancelling one never un-flags another.
+function markPluginDirty(id)   { mgDirtyGuard.set('plugin-' + id, 'dirty-' + id); }
+function clearPluginDirty(id)  { mgDirtyGuard.clear('plugin-' + id); }
+function markHandlerDirty(fid) { mgDirtyGuard.set('handler-' + fid, 'handler-dirty-' + fid); }
+function clearHandlerDirty(fid){ mgDirtyGuard.clear('handler-' + fid); }
+function markTargetsDirty(f)   { mgDirtyGuard.set('targets-' + f, 'targets-dirty-' + f); }
+function clearTargetsDirty(f)  { mgDirtyGuard.clear('targets-' + f); }
+
 function shouldRenderPlugin(plugin, allPlugins) {
   if (plugin.id === 'form-smtp') {
     return !allPlugins.some(function(p) { return p.id === 'form-handler' && p._enabled; });
@@ -128,7 +139,8 @@ function loadConfig(plugin) {
 }
 
 function renderForm(plugin, values) {
-  var html = '<form onsubmit="saveConfig(event,\'' + plugin.id + '\',\'' + esc(plugin._script) + '\')">';
+  var html = '<form onsubmit="saveConfig(event,\'' + plugin.id + '\',\'' + esc(plugin._script) + '\')"'
+           + ' oninput="markPluginDirty(\'' + plugin.id + '\')" onchange="markPluginDirty(\'' + plugin.id + '\')">';
   (plugin.config_schema||[]).forEach(function(f) {
     var v = values[f.key] !== undefined ? values[f.key] : (f.default || '');
     var sw = f.show_when;
@@ -155,7 +167,8 @@ function renderForm(plugin, values) {
     }
     html += '</div>';
   });
-  html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-outline">Save</button></div></form>';
+  html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-outline">Save</button>'
+       +  ' <span id="dirty-' + plugin.id + '" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div></form>';
   return html;
 }
 
@@ -197,6 +210,7 @@ function saveConfig(e, pluginId, script) {
   .then(function(data) {
     if (data.ok) {
       mgClearWarning();
+      clearPluginDirty(pluginId);
       if (status) status.textContent = 'Saved. Reloading...';
       setTimeout(function() { location.reload(); }, 1000);
     } else {
@@ -553,13 +567,18 @@ function typeLabelFor(type) {
 function hideAddWizard() {
   var wizard = document.getElementById('add-handler-wizard');
   if (wizard) { wizard.innerHTML = ''; wizard.style.display = 'none'; }
+  // Closing the wizard - by Cancel or after a successful save - discards it.
+  clearHandlerDirty('new');
 }
 
 // --- Step 2 form (shared by add and edit) ---
 
 function renderStep2Form(type, name, existingData, isEdit) {
   var d = existingData || {};
-  var html = '';
+  // Dirty key per form instance: the add wizard is 'new', an edit form is the
+  // handler id - so several open forms track (and clear) independently.
+  var fid = isEdit ? d.id : 'new';
+  var html = '<div oninput="markHandlerDirty(\'' + esc(fid) + '\')" onchange="markHandlerDirty(\'' + esc(fid) + '\')">';
 
   if (isEdit) {
     html += '<div class="mg-form-row">';
@@ -594,6 +613,8 @@ function renderStep2Form(type, name, existingData, isEdit) {
     html += '<button type="button" class="mg-btn mg-btn-outline" onclick="saveHandlerFromWizard(null,\'' + type + '\',false)">Add handler</button>';
     html += '<button type="button" class="mg-btn" onclick="hideAddWizard()">Cancel</button>';
   }
+  html += ' <span id="handler-dirty-' + esc(fid) + '" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes</span>';
+  html += '</div>';
   html += '</div>';
 
   return html;
@@ -833,11 +854,7 @@ function editHandler(handler) {
   var div = document.getElementById('handler-edit-' + handler.id);
   if (!div) return;
 
-  if (div.style.display !== 'none') {
-    div.innerHTML = '';
-    div.style.display = 'none';
-    return;
-  }
+  if (div.style.display !== 'none') { cancelHandlerEdit(handler.id); return; }
 
   if (handler.type === 'smtp' && !smtpConnectionLoaded && smtpPlugin) {
     div.textContent = 'Loading...';
@@ -870,6 +887,8 @@ function editHandler(handler) {
 function cancelHandlerEdit(id) {
   var div = document.getElementById('handler-edit-' + id);
   if (div) { div.innerHTML = ''; div.style.display = 'none'; }
+  // Closing the edit form - by Cancel or after a successful save - discards it.
+  clearHandlerDirty(id);
 }
 
 // --- Handler delete and refresh ---
@@ -960,6 +979,10 @@ function renderFormTargets(formName, currentTargets) {
   html += '<div class="mg-wizard-actions">';
   html += '<button class="mg-btn mg-btn-sm mg-btn-outline" onclick="addTarget(\'' + esc(formName) + '\')">+ Add target</button>';
   html += '<button class="mg-btn mg-btn-sm mg-btn-outline" onclick="saveFormTargets(\'' + esc(formName) + '\')">Save</button>';
+  // Re-rendered on every mutation, so seed the note from the guard's state.
+  var dirtyNow = mgDirtyGuard.isDirty('targets-' + formName);
+  html += ' <span id="targets-dirty-' + esc(formName) + '" class="mg-dirty-note"'
+       +  (dirtyNow ? '' : ' style="display:none"') + '>&#9679; Unsaved changes &mdash; click Save</span>';
   html += '</div>';
 
   div.innerHTML = html;
@@ -971,6 +994,7 @@ function updateFormTarget(el) {
   var div = document.getElementById('form-targets-' + formName);
   if (!div || !div._targets) return;
   div._targets[idx] = el.value;
+  markTargetsDirty(formName);
   renderFormTargets(formName, div._targets);
 }
 
@@ -992,6 +1016,7 @@ function addTarget(formName) {
     return;
   }
   div._targets.push('');
+  markTargetsDirty(formName);
   renderFormTargets(formName, div._targets);
 }
 
@@ -999,6 +1024,7 @@ function deleteTarget(formName, idx) {
   var div = document.getElementById('form-targets-' + formName);
   if (!div || !div._targets) return;
   div._targets.splice(idx, 1);
+  markTargetsDirty(formName);
   renderFormTargets(formName, div._targets);
 }
 
@@ -1016,6 +1042,7 @@ function saveFormTargets(formName) {
   .then(function(data) {
     if (data.ok) {
       mgClearWarning();
+      clearTargetsDirty(formName);
       if (status) { status.textContent = 'Targets saved.'; setTimeout(function() { status.textContent = ''; }, 3000); }
     } else {
       mgShowWarning(data.error || 'Save failed', true);

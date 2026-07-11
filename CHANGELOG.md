@@ -18,6 +18,77 @@ Keying
 
 ## Unreleased
 
+Audit completeness - CLI events, loud failures, umask-proof modes (defect round)
+: a fresh 0.7.5 field provision showed only the `installed` audit event.
+  Two root causes fixed: (1) the audit writer opened with `or return`
+  (silent) and created `audit.log` at umask-default 0644, so a
+  CLI/installer-created file rejected every www-data CGI append forever -
+  the writer now creates 0664 umask-proof, self-heals an owned 0644 file,
+  and WARNs (once per process) naming the lost action on any failure;
+  install.pl's inline writer matches. (2) the users tool performed all its
+  mutations with no audit calls - every state-mutating command now writes
+  one entry (origin `cli`, invoking OS identity, manager-api action
+  vocabulary), suppressed under `--api` where the calling surface already
+  audits (one entry per operation from either path); `setup-manager`
+  records its two events (group setup + credential issue). Fresh installs
+  record the seeded update channel in the install event. A guarantee suite
+  (t/unit/lib/16-audit-guarantee.t) pins failure-visibility and
+  structurally forbids unclassified (unaudited-by-omission) actions in
+  both the manager API and the users tool.
+
+Logging & forwarding - audit/diagnostics to syslog
+: the logging plugin (renamed "Logging & forwarding") gains
+  `forward_audit`, `forward_diagnostics` and `syslog_facility`: best-effort
+  syslog copies of the audit trail (pipe format, INFO) and application
+  diagnostics (mapped priority) via core Sys::Syslog, eval-guarded so
+  forwarding failure never breaks a request (WARN once).
+
+CGI-writable file modes - umask-proof install (nav-save field defect)
+: install.pl seeded `nav.conf` 0644 and the auth store 0640, locking the
+  www-data CGI out of files it must write in place ("Cannot write nav:
+  Permission denied" in the field). Seeds are now 0664/0660 and a
+  generalised post-install sweep adds the group-write bit across the same
+  CGI-writable list lazysite-check's 4b probe verifies. Permission-denied
+  write errors from the manager now append an actionable hint (run:
+  lazysite check --fix) when the errno is EACCES/EPERM.
+
+lazysite-check --fix - the chown pass broke what it had just verified
+: field root cause (dito.tech): the root `chown -R` pass hands every
+  CGI-owned (www-data) runtime file to the site user - so a 0600
+  `.secret` the CGI had minted, which run 1 verified accessible VIA
+  OWNERSHIP, came out of the same `--fix` run as site-user-owned 0600
+  (a 500 on every cookie verification); the post-fix re-check reported
+  the new damage but the single apply pass never repaired it. Fixed
+  twice over: the chown pass now replicates a CGI-owned path's owner
+  bits onto the group before the handover (`handover_mode`: 0600 to
+  0660, 0755 to 0775), and `--fix` iterates apply+recollect until
+  stable (bounded at 3 passes) - one run converges, and a second run
+  reports 0 failures for every mode-fixable category (group-ownership
+  repairs still need root and stay explicitly reported, never dropped).
+
+Split-identity invariant - secret mints 0660, compile cache umask-scoped
+: every secret/salt mint (auth/.secret, forms/.secret, .csrf-secret,
+  oauth.json, .access-salt, payment demo) now creates at 0660 -
+  owner+group, never world - so a CLI-context mint no longer locks the
+  www-data CGI out of cookie/secret verification (and vice versa). The
+  processor scopes umask 0002 around the TT compile-cache surfaces (TT
+  mkdirs its mirror dirs with the process umask) and the page-cache
+  writes, so whichever identity renders first leaves cache/tt and
+  cached .html group-writable; page refreshes were never blocked (the
+  atomic rename needs only the setgid dir), the compile cache and
+  check-tool noise were.
+
+Fix - unsaved-changes warning on every explicit-save manager page (field report)
+: the Nav editor lost unsaved reorder/label work silently on navigation. The
+  SM118 settings pattern is lifted into a shared `mgDirtyGuard` helper in the
+  manager layout; Nav (every mutation path), the Plugin Config surfaces
+  (per-plugin forms, handler add/edit forms, form targets) and the Appearance
+  layouts-repo field now show the "Unsaved changes" note and warn on leaving,
+  cleared on save. The editor's lock release moved from `beforeunload` to
+  `pagehide`, so cancelling the leave prompt no longer drops the edit lock.
+  Immediate-apply pages (users, groups, sessions, cache, backups, plugins)
+  deliberately stay guard-free.
+
 ## 0.7.6 - Licensing audit: notices + self-hosted theme fonts (2026-07-11)
 
 Licensing - third-party notices + self-hosted theme fonts (audit round)

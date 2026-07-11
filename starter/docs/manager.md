@@ -93,7 +93,9 @@ The editor at `/manager/edit` shows:
 - Collaborative edit lock - only one user can edit a file at a time
 
 Locks expire after 5 minutes and are renewed automatically while the
-editor is open.
+editor is open. Leaving with unsaved changes prompts a browser warning
+first; cancelling the warning keeps your edit lock, confirming releases
+it.
 
 ### Nav
 
@@ -104,7 +106,10 @@ editor is open.
 - Edit labels and URLs inline
 - Toggle between link items and group headings
 
-Saves back to `lazysite/nav.conf` as YAML.
+Saves back to `lazysite/nav.conf` as YAML. Changes apply only on Save:
+an "Unsaved changes" note appears next to the Save button as soon as you
+modify anything, and the browser warns before you leave the page with
+unsaved changes.
 
 ### Plugin Manager and Plugin Config
 
@@ -218,7 +223,10 @@ disaster-recovery mechanism for exactly what the history excludes.
 `/manager/audit`. The material-action trail (logins, edits, deletes,
 config/theme changes, denied attempts) with who/what/when/where and the
 outcome. Filter by user, target, or a From/To date range; each row records
-the action's target (the page, the plugin, `nav`, etc.). Browsing analytics
+the action's target (the page, the plugin, `nav`, etc.). Operations run on
+the shell with the users tool (setup-manager, account and credential
+changes) appear here too, with origin `cli` and the invoking system user;
+installs and upgrades appear with origin `install`. Browsing analytics
 live separately in Visitor statistics, not here. Viewing the audit trail
 requires the **Audit trail** permission - its own capability, separate from
 Analytics - granted through a group on the Groups page; it is read through an

@@ -111,6 +111,29 @@
   window.mgConfirm = function(msg, opts){ opts = opts || {}; return mgModal({ msg: msg, ok: opts.ok || 'Confirm', danger: opts.danger }); };
   window.mgPrompt  = function(msg, value){ return mgModal({ msg: msg, prompt: true, value: value, ok: 'OK' }); };
 
+  // SM118 (lifted from config.md after a field report against the Nav editor):
+  // shared unsaved-changes guard. A page with an explicit Save registers its
+  // dirty state with one call - mgDirtyGuard.set(key, noteId) on first
+  // modification, mgDirtyGuard.clear(key) on a successful save (or an explicit
+  // discard). noteId names the page's "Unsaved changes" span, shown while
+  // dirty. The single beforeunload below warns only while something is dirty,
+  // so normal navigation is never nagged.
+  window.mgDirtyGuard = (function(){
+    var dirty = {}, notes = {};
+    function refresh(key){
+      var n = notes[key] ? document.getElementById(notes[key]) : null;
+      if (n) n.style.display = dirty[key] ? '' : 'none';
+    }
+    window.addEventListener('beforeunload', function(e){
+      for (var k in dirty) { if (dirty[k]) { e.preventDefault(); e.returnValue = ''; return; } }
+    });
+    return {
+      set:     function(key, noteId){ dirty[key] = true; if (noteId) notes[key] = noteId; refresh(key); },
+      clear:   function(key){ dirty[key] = false; refresh(key); },
+      isDirty: function(key){ return !!dirty[key]; }
+    };
+  })();
+
   // SM109 phase 5: command palette (Ctrl/Cmd-K) - jump to a page or run a command.
   window.MG_DESTINATIONS = [
     { label: 'Site settings', url: '/manager' },
