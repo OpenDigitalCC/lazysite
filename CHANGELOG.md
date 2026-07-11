@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.10 - BETA: channel ladder, one-switch history, MCP version tools (2026-07-11)
+
 Content history reaches MCP agents; layout switching taught everywhere it matters
 : Closing the exposure audit: the MCP connector gains list_versions /
   view_version / restore_version (same manage_content gate and engine
