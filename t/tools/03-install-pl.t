@@ -563,6 +563,61 @@ subtest 'upgrade channel: a stable site refuses an edge build' => sub {
     is( $rc3, 0, 'an all-channel site upgrades normally (exit 0)' );
 };
 
+subtest 'channel ladder: beta sits between edge and stable' => sub {
+    my ( $doc, $cgi ) = fresh_docroot();
+    my ($irc) = run_install( '--docroot', $doc, '--cgibin', $cgi );
+    is( $irc, 0, 'fresh install ok' );
+    make_path("$doc/lazysite/logs");
+
+    my $sp        = "$doc/lazysite/.install-state.json";
+    my $age_state = sub {
+        open my $f, '<', $sp or die $!;
+        local $/; my $j = <$f>; close $f;
+        $j =~ s/"version"\s*:\s*"[^"]*"/"version":"0.0.1"/;
+        open my $w, '>', $sp or die $!; print {$w} $j; close $w;
+    };
+    my $set_payload_channel = sub {
+        my ($ch) = @_;
+        open my $f, '<', $MANIFEST or die $!;
+        local $/; my $j = <$f>; close $f;
+        $j =~ s/"channel"\s*:\s*"[^"]*"/"channel" : "$ch"/;
+        open my $w, '>', $MANIFEST or die $!; print {$w} $j; close $w;
+    };
+    my $set_site_channel = sub {
+        my ($ch) = @_;
+        my ($rc) = run_install( '--channel', $ch, '--docroot', $doc );
+        is( $rc, 0, "site moved to the '$ch' channel" );
+    };
+
+    # A beta site refuses an edge build (the repo manifest default)...
+    $set_site_channel->('beta');
+    $age_state->();
+    my ($cc) = run_install( '--channel-check', '--docroot', $doc );
+    is( $cc, 3, '--channel-check: beta site refuses an edge build' );
+    my ( $rc2, $out2 ) = run_install( '--docroot', $doc, '--cgibin', $cgi );
+    is( $rc2, 3, 'edge upgrade on a beta site exits 3 (skipped)' );
+    like( $out2, qr/'beta' update channel/, 'the skip names the site channel' );
+
+    # ...but accepts a beta build...
+    $set_payload_channel->('beta');
+    my ($rc3) = run_install( '--docroot', $doc, '--cgibin', $cgi );
+    is( $rc3, 0, 'beta upgrade on a beta site proceeds' );
+
+    # ...while a stable site refuses that same beta build...
+    $set_site_channel->('stable');
+    $age_state->();
+    my ($rc4) = run_install( '--docroot', $doc, '--cgibin', $cgi );
+    is( $rc4, 3, 'beta upgrade on a stable site exits 3 (skipped)' );
+
+    # ...and a beta site accepts a stable build (up-ladder is always fine).
+    $set_payload_channel->('stable');
+    $set_site_channel->('beta');
+    my ($rc5) = run_install( '--docroot', $doc, '--cgibin', $cgi );
+    is( $rc5, 0, 'stable upgrade on a beta site proceeds' );
+
+    $set_payload_channel->('edge');    # restore the shared manifest
+};
+
 subtest '--channel sets the site update channel in lazysite.conf' => sub {
     my ( $doc, $cgi ) = fresh_docroot();
     my ($irc) = run_install( '--docroot', $doc, '--cgibin', $cgi );

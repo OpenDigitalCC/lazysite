@@ -65,7 +65,7 @@ to this executable: /usr/share/lazysite for the deb install, the
 checkout/tarball root when run from a source tree.
 
 Verbs:
-  provision --docroot D --cgibin C [--domain NAME] [--channel edge|stable]
+  provision --docroot D --cgibin C [--domain NAME] [--channel edge|beta|stable]
             [--policy auto|manual]
         Fresh-install a site from the host payload. Runs as the SITE
         USER, never root (ownership correct by construction), and
@@ -345,8 +345,8 @@ sub cmd_provision {
     refuse_root('provision');
     fail('provision needs --docroot and --cgibin')
         unless length $o{docroot} && length $o{cgibin};
-    fail("--channel must be 'edge' or 'stable'")
-        if length $o{channel} && $o{channel} !~ /^(?:edge|stable)$/;
+    fail("--channel must be 'edge', 'beta' or 'stable'")
+        if length $o{channel} && $o{channel} !~ /^(?:edge|beta|stable)$/;
     fail("--policy must be 'auto' or 'manual'")
         if length $o{policy} && $o{policy} !~ /^(?:auto|manual)$/;
 
@@ -624,7 +624,7 @@ lazysite - host-side management CLI for lazysite sites
 
 =head1 SYNOPSIS
 
-  lazysite provision --docroot D --cgibin C [--domain NAME] [--channel edge|stable]
+  lazysite provision --docroot D --cgibin C [--domain NAME] [--channel edge|beta|stable]
                      [--policy auto|manual]
   lazysite upgrade --docroot D [--cgibin C] [--force]
   lazysite upgrade --all [--force | --force-security]
@@ -656,7 +656,7 @@ drops to each site's owner (C<sudo -u>) per site.
 
 =over 4
 
-=item B<provision> --docroot D --cgibin C [--domain NAME] [--channel edge|stable] [--policy auto|manual]
+=item B<provision> --docroot D --cgibin C [--domain NAME] [--channel edge|beta|stable] [--policy auto|manual]
 
 Fresh-install a site from the host payload (wraps C<install.pl>). Refuses
 to run as root. C<--domain> seeds the site URL and names the registry

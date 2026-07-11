@@ -19,6 +19,11 @@
 #   --notes FILE    release-notes file. Default: use the target
 #                   commit's own commit message.
 #   --commit REF    SHA or ref to release. Default: origin/main HEAD.
+#   --beta          mark the release 'beta' on the channel ladder
+#                   (edge < beta < stable): a bedded-in candidate for
+#                   sites that want tested-but-not-yet-certified builds.
+#   --final         mark the release 'stable' (alias: --stable) - the
+#                   certified customer-rollout channel. Default: 'edge'.
 #
 # Preconditions:
 #   - VERSION (provided or proposed) is a semver string.
@@ -38,7 +43,7 @@ STAGE=/tmp/lazysite-release-$$
 VERSION=""
 NOTES_FILE=""
 COMMIT_REF="origin/main"
-CHANNEL="edge"          # --final marks the release 'stable' (else 'edge')
+CHANNEL="edge"          # ladder: edge (default) < beta (--beta) < stable (--final)
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -54,8 +59,12 @@ while [ $# -gt 0 ]; do
             CHANNEL="stable"
             shift
             ;;
+        --beta)
+            CHANNEL="beta"
+            shift
+            ;;
         -h|--help)
-            sed -n '2,22p' "$0" | sed 's/^# \?//'
+            sed -n '2,27p' "$0" | sed 's/^# \?//'
             exit 0
             ;;
         -*)

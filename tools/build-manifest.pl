@@ -42,12 +42,14 @@ $opt{config}  //= "$REPO_ROOT/dist/config/classification.json";
 $opt{staged}  //= $REPO_ROOT;
 $opt{out}     //= "$REPO_ROOT/release-manifest.json";
 $opt{version} //= read_version_file();
-# Release channel: 'stable' (certified, cut with --channel stable / release.sh
-# --final) or 'edge' (everything else, the default). A site set to the stable
-# update channel refuses to install an 'edge' build.
+# Release channel ladder - the build's maturity declaration: 'edge' (every
+# release, early testing - the default), 'beta' (bedded-in candidate, cut
+# with --channel beta / release.sh --beta), 'stable' (certified customer
+# rollout, cut with --channel stable / release.sh --final). A site's
+# update_channel is the minimum maturity it accepts (see install.pl).
 $opt{channel} //= 'edge';
-die "build-manifest: --channel must be 'stable' or 'edge'\n"
-    unless $opt{channel} eq 'stable' || $opt{channel} eq 'edge';
+die "build-manifest: --channel must be 'edge', 'beta' or 'stable'\n"
+    unless $opt{channel} =~ /^(?:edge|beta|stable)$/;
 
 if ( $opt{check} ) {
     exit check_manifest();

@@ -38,6 +38,15 @@ use Fcntl          qw(O_WRONLY O_APPEND O_CREAT);
 
 my $STAGE_DIR = abs_path(dirname($0));
 
+# The channel ladder: a build's channel declares its maturity, a site's
+# update_channel is the MINIMUM maturity it accepts. edge = every release
+# (early testing), beta = bedded-in candidates, stable = certified customer
+# rollout. Keep in sync with tools/build-manifest.pl and the CLI validators
+# (the installer does not load the lib). Initialised here, ahead of the
+# top-level option blocks (--channel-check runs before the sub definitions'
+# region is reached at runtime).
+our %CHANNEL_RANK = ( edge => 0, beta => 1, stable => 2 );
+
 # ---------- arg parse ----------
 
 my %opt = (
@@ -74,9 +83,12 @@ Optional:
   --force             Upgrade even if the site's update channel would skip this
                       release (e.g. a 'stable' site taking an 'edge' build). The
                       override is recorded in the audit log.
-  --channel edge|stable
+  --channel edge|beta|stable
                       Set the site's update channel (update_channel in
-                      lazysite.conf) and exit - no install. Loop over your
+                      lazysite.conf) and exit - no install. The ladder is
+                      edge < beta < stable: a site accepts builds at its own
+                      maturity or above (beta takes beta+stable; stable takes
+                      stable only; edge takes everything). Loop over your
                       docroots to set a whole fleet.
   --policy auto|manual
                       Set the site's update policy (update_policy in
@@ -164,12 +176,12 @@ if ( $opt{channel_check} ) {
     if ( $state && ( $state->{version} // '' ) ne ( $manifest->{version} // '' ) ) {
         my $site = read_update_channel( $opt{docroot} );
         my $rel  = $manifest->{channel} || 'edge';
-        exit 3 if $site eq 'stable' && $rel ne 'stable';
+        exit 3 if channel_refuses( $site, $rel );
     }
     exit 0;
 }
 
-# --channel edge|stable: set the site's update_channel in lazysite.conf. A
+# --channel edge|beta|stable: set the site's update_channel in lazysite.conf. A
 # standalone maintenance op (no install) - pins a deployment to a channel, or
 # moves it back, without hand-editing the conf. To set a whole fleet, loop it over
 # your docroots (lazysite has no central site registry - the host knows the sites):
@@ -223,8 +235,9 @@ exit cmd_install( \%opt );
 # SM117: record the install / upgrade in the audit trail. Written directly (the
 # installer does not load the lib) in the same pipe format Lazysite::Audit uses;
 # origin "install", user "system", target the version (or "from -> to").
-# The site's update channel preference, read from lazysite.conf. 'stable' = only
-# install stable releases; anything else (default) = 'all' (today's behaviour).
+# The site's update channel preference, read from lazysite.conf. 'stable' =
+# only stable releases; 'beta' = beta or stable; anything else (default) =
+# 'all' (accepts every build - the pre-ladder behaviour).
 sub read_update_channel {
     my ($docroot) = @_;
     my $conf = "$docroot/lazysite/lazysite.conf";
@@ -232,10 +245,20 @@ sub read_update_channel {
     while ( my $l = <$fh> ) {
         next unless $l =~ /^\s*update_channel\s*:\s*(\S+)/;
         close $fh;
-        return lc($1) eq 'stable' ? 'stable' : 'all';
+        my $c = lc $1;
+        return ( $c eq 'stable' || $c eq 'beta' ) ? $c : 'all';
     }
     close $fh;
     return 'all';
+}
+
+# Would the site's channel refuse this release? 'all' (and 'edge') accept
+# everything; otherwise the release must sit at the site's rung or above.
+sub channel_refuses {
+    my ( $site_channel, $release_channel ) = @_;
+    my $need = $CHANNEL_RANK{$site_channel}                      // 0;
+    my $got  = $CHANNEL_RANK{ lc( $release_channel // 'edge' ) } // 0;
+    return $got < $need ? 1 : 0;
 }
 
 # Shared appender for the installer's audit events. Same file and pipe format
@@ -273,10 +296,12 @@ sub audit_append {
 
 # Record an upgrade that was skipped by the channel policy (origin = install).
 sub audit_channel_skip {
-    my ( $docroot, $from, $to, $rel_channel ) = @_;
+    my ( $docroot, $from, $to, $rel_channel, $site_channel ) = @_;
     audit_append( $docroot,
         'upgrade-skipped',
-        "$from -> $to (release channel: $rel_channel; site is stable-only)" );
+        "$from -> $to (release channel: $rel_channel; site channel: "
+            . ( $site_channel // 'stable' )
+            . ")" );
     return;
 }
 
@@ -320,8 +345,8 @@ sub set_conf_line {
 sub cmd_set_channel {
     my ( $docroot, $value ) = @_;
     $value = lc $value;
-    unless ( $value eq 'edge' || $value eq 'stable' ) {
-        warn "--channel must be 'edge' or 'stable' (got '$value')\n";
+    unless ( exists $CHANNEL_RANK{$value} ) {
+        warn "--channel must be 'edge', 'beta' or 'stable' (got '$value')\n";
         return 2;
     }
     my $rc = set_conf_line( $docroot, 'update_channel', $value );
@@ -430,10 +455,12 @@ sub audit_full_restore {
 
 # Record an out-of-channel upgrade that --force pushed through (origin = install).
 sub audit_channel_forced {
-    my ( $docroot, $from, $to, $rel_channel ) = @_;
+    my ( $docroot, $from, $to, $rel_channel, $site_channel ) = @_;
     audit_append( $docroot,
         'upgrade-forced',
-        "$from -> $to (release channel: $rel_channel; site is stable-only; --force override)" );
+        "$from -> $to (release channel: $rel_channel; site channel: "
+            . ( $site_channel // 'stable' )
+            . "; --force override)" );
     return;
 }
 
@@ -475,20 +502,23 @@ sub cmd_install {
         info("  to:      $manifest->{version}");
     }
 
-    # Upgrade channel policy: a site set to the 'stable' update channel refuses a
-    # non-stable (edge) UPGRADE - this is how a not-yet-certified build is kept off
-    # stable customer sites. Fresh installs and reinstalls are the operator's
-    # explicit choice and are never gated. The skip is a clean no-op (exit 3, not
-    # an error) and is recorded in the site's audit log.
+    # Upgrade channel policy: a site's update_channel is the minimum maturity it
+    # accepts on the edge < beta < stable ladder - a 'stable' site refuses beta
+    # and edge UPGRADES, a 'beta' site refuses edge ones. This is how a
+    # not-yet-bedded-in build is kept off customer sites. Fresh installs and
+    # reinstalls are the operator's explicit choice and are never gated. The
+    # skip is a clean no-op (exit 3, not an error) and is recorded in the
+    # site's audit log.
     if ( $mode eq 'upgrade' && !$o->{force} ) {
-        my $site_channel    = read_update_channel( $o->{docroot} );  # 'stable'|'all'
+        my $site_channel = read_update_channel( $o->{docroot} );   # 'stable'|'beta'|'all'
         my $release_channel = $manifest->{channel} || 'edge';
-        if ( $site_channel eq 'stable' && $release_channel ne 'stable' ) {
-            info( "Upgrade SKIPPED: this site is on the 'stable' update channel and "
+        if ( channel_refuses( $site_channel, $release_channel ) ) {
+            info( "Upgrade SKIPPED: this site is on the '$site_channel' update channel and "
                     . "$manifest->{version} is an '$release_channel' build. No changes made. "
                     . "Use --force to install it anyway." );
             audit_channel_skip( $o->{docroot},
-                $state->{version}, $manifest->{version}, $release_channel );
+                $state->{version}, $manifest->{version}, $release_channel,
+                $site_channel );
             return 3;
         }
     }
@@ -496,12 +526,13 @@ sub cmd_install {
         # --force: install regardless of the site's update channel (a deliberate
         # operator override for an out-of-channel build). Recorded in the audit log;
         # the normal upgrade event is still logged when the install completes.
-        my $rel = $manifest->{channel} || 'edge';
-        if ( read_update_channel( $o->{docroot} ) eq 'stable' && $rel ne 'stable' ) {
+        my $rel  = $manifest->{channel} || 'edge';
+        my $site = read_update_channel( $o->{docroot} );
+        if ( channel_refuses( $site, $rel ) ) {
             info( "--force: installing '$rel' build $manifest->{version} over the "
-                    . "site's 'stable' channel policy (operator override)." );
+                    . "site's '$site' channel policy (operator override)." );
             audit_channel_forced( $o->{docroot},
-                $state->{version}, $manifest->{version}, $rel );
+                $state->{version}, $manifest->{version}, $rel, $site );
         }
     }
 

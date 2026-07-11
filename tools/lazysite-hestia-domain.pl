@@ -14,7 +14,7 @@
 # intact - no root writes into site trees.
 #
 # Verbs:
-#   add USER DOMAIN [--channel edge|stable] [--policy auto|manual] [--fcgi]
+#   add USER DOMAIN [--channel edge|beta|stable] [--policy auto|manual] [--fcgi]
 #                   [--workers N] [--max-requests N]
 #   remove DOMAIN
 #   list
@@ -75,7 +75,7 @@ HestiaCP panel-side integrator for lazysite domains. Runs as root (the
 panel context) and drops to the site user for every site-tree write.
 
 Verbs:
-  add USER DOMAIN [--channel edge|stable] [--policy auto|manual] [--fcgi]
+  add USER DOMAIN [--channel edge|beta|stable] [--policy auto|manual] [--fcgi]
                   [--workers N] [--max-requests N]
         Prepare the Hestia domain layout as root (locked domain root,
         docroot group/setgid), then provision the site AS THE PANEL USER
@@ -175,8 +175,8 @@ sub cmd_add {
     fail('add needs USER and DOMAIN: lazysite-hestia-domain add USER DOMAIN')
         unless length( $user // '' ) && length( $domain // '' );
     check_domain($domain);
-    fail("--channel must be 'edge' or 'stable'")
-        if length $o{channel} && $o{channel} !~ /^(?:edge|stable)$/;
+    fail("--channel must be 'edge', 'beta' or 'stable'")
+        if length $o{channel} && $o{channel} !~ /^(?:edge|beta|stable)$/;
     fail("--policy must be 'auto' or 'manual'")
         if length $o{policy} && $o{policy} !~ /^(?:auto|manual)$/;
     require_root('add');
@@ -415,7 +415,7 @@ lazysite-hestia-domain - HestiaCP panel-side provisioning for lazysite domains
 
 =head1 SYNOPSIS
 
-  lazysite-hestia-domain add USER DOMAIN [--channel edge|stable]
+  lazysite-hestia-domain add USER DOMAIN [--channel edge|beta|stable]
                              [--policy auto|manual] [--fcgi]
                              [--workers N] [--max-requests N]
   lazysite-hestia-domain remove DOMAIN
@@ -439,7 +439,7 @@ describes the full packaged onboarding.
 
 =over 4
 
-=item B<add> USER DOMAIN [--channel edge|stable] [--policy auto|manual] [--fcgi] [--workers N] [--max-requests N]
+=item B<add> USER DOMAIN [--channel edge|beta|stable] [--policy auto|manual] [--fcgi] [--workers N] [--max-requests N]
 
 Onboard an existing Hestia web domain (create it in Hestia first). As
 root it prepares the panel-specific layout: the C<plugins/>, C<tools/>
