@@ -34,6 +34,7 @@ while ( @ARGV ) {
     elsif ( $a eq '--fix' )     { $opt{fix}     = 1 }
     elsif ( $a eq '--check-dav' ) { $opt{check_dav} = shift @ARGV }
     elsif ( $a eq '--dependencies' ) { $opt{dependencies} = 1 }
+    elsif ( $a eq '--handover-mode' ) { $opt{handover_mode} = shift @ARGV }
     elsif ( $a eq '--help' )    { usage(); exit 0 }
     else { print STDERR "lazysite-check: unknown option: $a\n"; exit 2 }
 }
@@ -43,6 +44,13 @@ while ( @ARGV ) {
 # so it runs before the docroot validation below. An operator (or an onboarding
 # agent) can ask "what must I install here" and get the missing-package line.
 run_dependency_check() if $opt{dependencies};   # exits
+
+# Introspection for the regression tests (the chown-handover logic is only
+# reachable as root): print what handover_mode() computes for an octal mode.
+if ( defined $opt{handover_mode} ) {
+    printf "%04o\n", handover_mode( oct( $opt{handover_mode} ) );
+    exit 0;
+}
 
 sub usage {
     print <<'USAGE';
@@ -684,6 +692,20 @@ sub run_checks {
 # $bits into the file's mode AT APPLY TIME, so two fixes on the same path
 # compose (e.g. group-write from check 4b + group/other-read from check 6)
 # instead of the later chmod clobbering the earlier one.
+
+# The mode a CGI-owned path must carry BEFORE the root chown pass hands it to
+# the site user: the owner bits are replicated onto the group, so the access
+# the CGI had AS OWNER survives the handover AS GROUP (0600 secret -> 0660,
+# 0755 tt-cache dir -> 0775). Field defect 2026-07-11: the chown pass turned
+# the CGI's own 0600 .secret files into site-user-owned 0600 - breaking them
+# in the very run that printed "fixed:" - because run 1 had verified them via
+# OWNERSHIP, which the chown then took away. Pure function; unit-tested.
+sub handover_mode {
+    my ($mode) = @_;
+    $mode &= 07777;
+    return $mode | ( ( $mode & 0700 ) >> 3 );
+}
+
 sub apply_fixes {
     my $fixed = 0;
     if ($tt_cache_bad) {
@@ -698,7 +720,10 @@ sub apply_fixes {
     }
     for my $f (@chmod_fixes) {
         my ( $mode, $path, $how ) = @{$f};
-        $mode |= mode_of($path) if ( $how // '' ) eq 'add';
+        my @s   = stat $path or next;      # vanished (e.g. under the tt purge)
+        my $cur = $s[2] & 07777;
+        $mode |= $cur if ( $how // '' ) eq 'add';
+        next          if $mode == $cur;    # already in the target state - no re-print
         if ( chmod $mode, $path ) {
             printf "fixed: chmod %04o %s\n", $mode, $path;
             $fixed++;
@@ -707,9 +732,19 @@ sub apply_fixes {
     }
     if ($chown_needed) {
         if ( $> == 0 ) {
-            # recursive chown to the expected owner:group
+            # Recursive chown to the expected owner:group. Handing a path the
+            # CGI currently OWNS to the site user must not strip the CGI's
+            # access - replicate the owner bits onto the group first (see
+            # handover_mode above).
             File::Find::find( { no_chdir => 1, wanted => sub {
-                chown $exp_uid, $exp_gid, $File::Find::name;
+                        my $p = $File::Find::name;
+                        my @s = lstat $p or return;
+                        return if -l _;
+                        if ( defined $cgi_uid && $s[4] == $cgi_uid ) {
+                            my $want = handover_mode( $s[2] );
+                            chmod $want, $p if $want != ( $s[2] & 07777 );
+                        }
+                        chown $exp_uid, $exp_gid, $p;
             } }, $LZ );
             print "fixed: chown -R $exp_user:$exp_grp $LZ\n";
             $fixed++;
@@ -724,13 +759,21 @@ sub apply_fixes {
 
 run_checks();
 
-# When --fix applied anything, collect every check again: the report below must
-# describe the tree as it now IS. (Field feedback 2026-07-09/10: printing the
-# pre-fix snapshot after "fixed:" lines reads as "the fix did nothing".)
+# When --fix is on, apply-and-recollect UNTIL STABLE (bounded): one pass can
+# CREATE new fixable findings - the field case 2026-07-11 was the root chown
+# pass handing CGI-owned files to the site user, after which the 0600 secrets
+# needed a 0660 chmod that only the NEXT collection could queue; the old
+# single apply pass reported that new damage but never repaired it ("--fix
+# said fixed, the site still 500s"). Each iteration re-collects, so the
+# report below always describes the tree as it now IS (SM139 increment 5).
 my $fixes_applied = 0;
 if ( $opt{fix} ) {
-    $fixes_applied = apply_fixes();
-    run_checks() if $fixes_applied;
+    for my $pass ( 1 .. 3 ) {
+        my $n = apply_fixes();
+        $fixes_applied += $n;
+        run_checks();
+        last unless $n;
+    }
 }
 
 # --- report ------------------------------------------------------------------

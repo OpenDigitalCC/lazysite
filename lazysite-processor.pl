@@ -1785,7 +1785,9 @@ sub load_form_secret {
         log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot write form secret', error => $!);
         return $s;
     };
-    chmod 0o600, $secret_path;
+    # 0660: identity-shared secret (site-user CLI/dev-server + www-data CGI,
+    # via the setgid forms dir group). Owner-only minting locks the CGI out.
+    chmod 0o660, $secret_path;
     print $fh "$s\n";
     close($fh);
     return $s;
@@ -3118,6 +3120,9 @@ sub resolve_scan {
     my @pages = scan_pages();
     my %site_vars = resolve_site_vars();
 
+        # Compile-cache dirs + .ttc files are minted during new()/process():
+        # group-writable creation whichever identity renders first (_cache_umask).
+        my $old_umask = _cache_umask();
     make_path($TT_COMPILE_DIR) unless -d $TT_COMPILE_DIR;
     my $tt = Template->new(
         ABSOLUTE    => 1,
@@ -3125,7 +3130,7 @@ sub resolve_scan {
         EVAL_PERL   => 0,               # L-2
         COMPILE_DIR => $TT_COMPILE_DIR, # P-4
         COMPILE_EXT => '.ttc',          # P-4
-    ) or return;
+        ) or do { umask $old_umask; return };
 
     for my $tmpl (@templates) {
         ( my $output_name = $tmpl ) =~ s/\.tt$//;
@@ -3161,6 +3166,7 @@ sub resolve_scan {
         print $fh $output;
         close $fh;
     }
+        umask $old_umask;
 }
 }   # close P-3 _has_registries memo block
 
@@ -3224,6 +3230,17 @@ sub scan_pages {
     return @pages;
 }
 
+# Mixed-identity compile cache (field 2026-07-11): TT creates its compile
+# cache mirror dirs itself with plain mkdir, i.e. with the PROCESS umask -
+# under the usual 0022 that yields 0755 dirs, and on a group-shared docroot
+# ANY identity may render first (the site user's CLI/dev-server vs the
+# www-data CGI), after which the other identity cannot write cache/tt and its
+# compile cache is silently disabled (and lazysite-check flags the tree).
+# Scope umask 0002 around every surface that creates compile-cache dirs so
+# they come out group-writable; the setgid cache dir supplies the shared
+# group. Callers restore the returned old value when done.
+sub _cache_umask { return umask 0002 }
+
 # A TT compile-cache problem must never break rendering. TT 2.x raises a
 # fatal file error when it cannot write a .ttc ("cache failed to write"),
 # and TT 3.x dies outright from Provider's mkdir - either way a stale or
@@ -3231,6 +3248,15 @@ sub scan_pages {
 # Run process() under eval; on any failure retry once on a fresh instance
 # with the on-disk compile cache disabled. Returns (ok, error_text).
 sub _tt_render {
+    my ( $opts, $template, $vars, $out_ref ) = @_;
+    # Compile-cache dirs are created inside new()/process() - see _cache_umask.
+    my $old_umask = _cache_umask();
+    my @r         = _tt_render_impl( $opts, $template, $vars, $out_ref );
+    umask $old_umask;
+    return @r;
+}
+
+sub _tt_render_impl {
     my ( $opts, $template, $vars, $out_ref ) = @_;
     my %opts = %{$opts};
     my $err  = 'cannot create TT instance';
@@ -3264,6 +3290,9 @@ sub render_content {
     # (content is processed as a string ref, which TT never writes to the
     # compile cache - so an unwritable cache/tt cannot fail this instance;
     # only the make_path needs guarding.)
+    # TT 3.x pre-creates compile-dir mirrors in new() - group-writable
+    # creation whichever identity renders first (_cache_umask).
+    my $old_umask = _cache_umask();
     eval { make_path($TT_COMPILE_DIR) } unless -d $TT_COMPILE_DIR;
     my $tt = Template->new(
         ABSOLUTE    => 0,
@@ -3271,7 +3300,8 @@ sub render_content {
         EVAL_PERL   => 0,               # L-2
         COMPILE_DIR => $TT_COMPILE_DIR, # P-4
         COMPILE_EXT => '.ttc',          # P-4
-    ) or die "Template error: " . Template->error() . "\n";
+    ) or do { umask $old_umask; die "Template error: " . Template->error() . "\n" };
+    umask $old_umask;
 
     my %site_vars = resolve_site_vars();
     my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
@@ -4042,8 +4072,16 @@ sub write_html {
     # P-5: atomic write via tempfile + rename so readers never see a torn
     # file. $html_path.tmp.$$ is pid-scoped to avoid concurrent writers
     # collapsing on the same temp name.
+    #
+    # Mixed identities: refreshes go through rename (a DIRECTORY write, so a
+    # 0644 file from the other identity never blocks them - no stale-cache
+    # risk), but keep the files group-writable anyway (_cache_umask) so both
+    # the site user's tooling and the www-data CGI can manage each other's
+    # cache entries in place on a group-shared docroot.
+    my $old_umask = _cache_umask();
     my $tmp = "$html_path.tmp.$$";
     open( my $fh, '>:utf8', $tmp ) or do {
+        umask $old_umask;
         log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot write cache tempfile', path => $tmp, error => $!);
         return;
     };
@@ -4052,6 +4090,7 @@ sub write_html {
     # renamed a TRUNCATED tempfile into place and the torn page was then
     # served from cache. Fail closed: drop the tempfile, keep the old cache.
     my $wrote = print {$fh} $page;
+    umask $old_umask;    # tempfile minted; restore before the exit paths
     unless ( close($fh) && $wrote ) {
         my $err = $!;
         unlink $tmp;
@@ -4237,6 +4276,9 @@ sub _access_salt {
     }
     my $salt = hmac_sha256_hex( join( '|', time, $$, rand, rand ), $LAZYSITE_DIR );
     if ( sysopen( my $fh, $path, O_WRONLY | O_CREAT, 0660 ) ) {
+        # sysopen's mode is umask-filtered - re-assert 0660 so BOTH identities
+        # (site-user CLI/dev-server and the www-data CGI) can rewrite it.
+        chmod 0660, $path;
         syswrite( $fh, $salt );
         close $fh;
     }

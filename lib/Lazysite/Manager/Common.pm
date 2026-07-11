@@ -8,6 +8,7 @@ package Lazysite::Manager::Common;
 use strict;
 use warnings;
 use Cwd qw(realpath);
+use Errno          ();                # %! (errno names) for the permission-failure hint
 use File::Basename qw(dirname);
 use JSON::PP qw(encode_json);
 use Lazysite::Util qw(log_event);
@@ -63,21 +64,33 @@ sub is_blocked_path {
     return 0;
 }
 
+# A permission failure is server-truthful but operator-opaque ("Permission
+# denied" told the field nothing actionable) - name the likely cause and the
+# fix. Appended only for EACCES/EPERM, at this layer because it is the one
+# that still has the errno.
+sub _perm_hint {
+    return ( $!{EACCES} || $!{EPERM} )
+        ? ' (the file is not writable by the web-server user - run: lazysite check --fix)'
+        : '';
+}
+
 # Write a file, cleaning up the partial on any failure. Returns (ok, error).
 sub write_file_checked {
     my ( $path, $content ) = @_;
     open my $fh, '>:utf8', $path
-        or return ( 0, "Cannot write file: $!" );
+        or return ( 0, "Cannot write file: $!" . _perm_hint() );
     unless ( print {$fh} $content ) {
-        my $err = "$!";
+        my $err  = "$!";
+        my $hint = _perm_hint();
         close $fh;
         unlink $path;
-        return ( 0, "Write failed: $err" );
+        return ( 0, "Write failed: $err$hint" );
     }
     unless ( close $fh ) {
-        my $err = "$!";
+        my $err  = "$!";
+        my $hint = _perm_hint();
         unlink $path;
-        return ( 0, "Close failed: $err" );
+        return ( 0, "Close failed: $err$hint" );
     }
     return ( 1, undef );
 }
@@ -271,7 +284,9 @@ sub _write_conf_key {
     }
 
     my ( $ok, $err ) = write_file_checked( $conf_path, $content );
-    return $ok ? 1 : 0;
+    # Scalar callers keep the boolean contract; a list caller (config-set)
+    # also gets the underlying error, incl. the permission hint.
+    return wantarray ? ( $ok ? 1 : 0, $err ) : ( $ok ? 1 : 0 );
 }
 
 1;

@@ -244,6 +244,9 @@ plugins:
 ```yaml
 log_level: INFO        # ERROR, WARN, INFO, DEBUG
 log_format: text       # text or json
+forward_audit: off        # also send audit entries to syslog
+forward_diagnostics: off  # also send app log events to syslog
+syslog_facility: daemon   # or local0..local7
 ```
 
 Override at runtime with environment variables:
@@ -251,7 +254,8 @@ Override at runtime with environment variables:
     LAZYSITE_LOG_LEVEL=DEBUG
     LAZYSITE_LOG_FORMAT=json
 
-Logs go to `lazysite/logs/` (when writable) or stderr.
+Logs go to `lazysite/logs/` (when writable) or stderr. Syslog forwarding
+is best-effort (never blocks a request); the on-disk logs are the record.
 
 ## Theme activation
 

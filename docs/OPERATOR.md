@@ -104,7 +104,12 @@ plain-CGI path; only anonymous visitor pages are pooled.
 
 - Application logs: `lazysite/logs/`.
 - Manager audit trail (who/what/when/where): the manager **Audit** page, and
-  per-user from each account's card.
+  per-user from each account's card. Shell user management is on the trail
+  too (origin `cli`, attributed to the invoking system user);
+  installs/upgrades appear as origin `install`.
+- Optional syslog forwarding of the audit trail and/or diagnostics for an
+  external collector: the **Logging & forwarding** plugin
+  (`forward_audit` / `forward_diagnostics` / `syslog_facility`).
 - Apache logs: the vhost's usual access/error logs.
 
 ## Routine tasks

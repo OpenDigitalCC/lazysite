@@ -53,8 +53,12 @@ session ceiling.
 ### HMAC secret
 
 Stored in `lazysite/auth/.secret`. Generated on first need from
-`/dev/urandom` (32 bytes, hex-encoded). The file is mode `0600` and
-the `auth/` directory is mode `0750`. The code fails closed if
+`/dev/urandom` (32 bytes, hex-encoded). The file is mode `0660` -
+owner + group, never world: on a group-shared docroot either identity
+(the site user's CLI context or the `www-data` CGI, joined by the
+setgid `auth/` dir's group) may mint it first, and an owner-only file
+would 500 the other side's cookie verification (field 2026-07-11).
+The `auth/` directory is mode `02770`. The code fails closed if
 `/dev/urandom` is not readable - there is no weaker fallback.
 
 ### Password storage

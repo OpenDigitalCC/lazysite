@@ -1028,7 +1028,12 @@ sub load_auth_secret {
     my $s = generate_random_hex(32);
 
     open( my $fh, '>', $path ) or die "Cannot write auth secret\n";
-    chmod 0o600, $path;
+    # 0660, not 0600: the secret is shared between the two identities that
+    # legitimately run this code on a group-shared docroot (the site user's
+    # CLI/setup context and the www-data CGI, joined by the setgid auth dir's
+    # group). An owner-only file minted from the CLI 500s every CGI cookie
+    # verification. Never any world bits.
+    chmod 0o660, $path;
     print $fh "$s\n";
     close $fh;
     return $s;

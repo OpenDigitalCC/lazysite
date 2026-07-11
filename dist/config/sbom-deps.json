@@ -191,6 +191,16 @@
       "rhel_pkg": "perl-FCGI-ProcManager",
       "alpine_pkg": "perl-fcgi-procmanager",
       "used_by": "FastCGI prefork pool (SM142, optional; lazy-required when LAZYSITE_FCGI_WORKERS>0)"
+    },
+    "Sys::Syslog": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "optional syslog forwarding of audit trail + diagnostics (Lazysite::Util::forward_line, the Logging & forwarding plugin)"
+    },
+    "Errno": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "EACCES/EPERM detection for the actionable permission hint on manager write failures (Lazysite::Manager::Common)"
     }
   },
   "environment": [

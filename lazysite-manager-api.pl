@@ -720,7 +720,9 @@ sub _preview_secret {
     die "Short read from /dev/urandom\n" unless $got == 32;
     my $s = unpack( 'H*', $raw );
     open my $wfh, '>', $path or die "Cannot write $path: $!\n";
-    chmod 0o600, $path;
+    # 0660: identity-shared secret (site-user CLI + www-data CGI via the
+    # setgid auth dir group); owner-only minting locks the other side out.
+    chmod 0o660, $path;
     print $wfh "$s\n";
     close $wfh;
     return $s;
@@ -1231,8 +1233,10 @@ sub action_config_set {
         unless defined $value && length $value;
     return { ok => 0, error => "Value must be a single line" }
         if $value =~ /[\r\n]/;
-    _write_conf_key( $key, $value )
-        or return { ok => 0, error => "Could not write lazysite.conf" };
+    my ( $wok, $werr ) = _write_conf_key( $key, $value );
+    return { ok => 0,
+        error => 'Could not write lazysite.conf' . ( defined $werr ? ": $werr" : '' ) }
+        unless $wok;
     log_event( 'INFO', 'config-set', 'config key set', key => $key, user => $auth_user );
     # SM085: lazysite.conf is one of the two versioned config files.
     require Lazysite::Git;
@@ -1682,7 +1686,8 @@ sub action_rotate_auth_secret {
     my $tmp = "$path.tmp.$$";
     open my $wfh, '>', $tmp
         or return { ok => 0, error => "Cannot write $tmp: $!" };
-    chmod 0o600, $tmp;
+    # 0660: identity-shared secret (see _preview_secret) - never world.
+    chmod 0o660, $tmp;
     print $wfh "$new\n";
     close $wfh;
     unless ( rename $tmp, $path ) {
@@ -1690,7 +1695,7 @@ sub action_rotate_auth_secret {
         unlink $tmp;
         return { ok => 0, error => "Cannot replace $path: $err" };
     }
-    chmod 0o600, $path;
+    chmod 0o660, $path;
 
     # Also clear the CSRF secret cache file (if dedicated one exists).
     # The CSRF helper falls back to .secret, so the new .secret

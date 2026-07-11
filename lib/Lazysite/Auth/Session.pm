@@ -41,7 +41,9 @@ sub _csrf_secret {
     die "Short read from /dev/urandom\n" unless $got == 32;
     my $s = unpack( 'H*', $raw );
     open my $wfh, '>', $mpath or die "Cannot write $mpath: $!\n";
-    chmod 0o600, $mpath;
+    # 0660: identity-shared secret (site-user CLI + www-data CGI) - see the
+    # auth-secret mint in lazysite-auth.pl. Never any world bits.
+    chmod 0o660, $mpath;
     print {$wfh} "$s\n";
     close $wfh;
     return $s;

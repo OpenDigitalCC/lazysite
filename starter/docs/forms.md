@@ -200,7 +200,9 @@ and 2 hours after the form was rendered. Prevents replay attacks.
 all fields.
 
 The HMAC secret is auto-generated and stored at
-`lazysite/forms/.secret` (chmod 0600).
+`lazysite/forms/.secret` (chmod 0660 - owner + group, never world,
+so both the site user's tools and the web-server CGI can use it
+whichever minted it first).
 
 ## Installation
 

@@ -62,7 +62,9 @@ sub save_store {
     open my $fh, '>', $tmp or return 0;
     print {$fh} JSON::PP->new->canonical->encode($m);
     close $fh;
-    chmod 0600, $tmp;
+    # 0660: token store shared between identities (CGI + CLI tooling) via
+    # the setgid auth dir group; never world.
+    chmod 0660, $tmp;
     return rename $tmp, $p;
 }
 

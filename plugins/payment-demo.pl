@@ -158,7 +158,8 @@ sub load_secret {
     my $s = unpack( 'H*', $raw );
 
     open( my $fh, '>', $path ) or return $s;
-    chmod 0o600, $path;
+    # 0660: identity-shared secret (CLI/dev-server + www-data CGI) - never world.
+    chmod 0o660, $path;
     print $fh "$s\n";
     close $fh;
     return $s;

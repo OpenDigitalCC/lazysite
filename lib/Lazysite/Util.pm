@@ -12,7 +12,7 @@ use warnings;
 use POSIX ();
 use Exporter 'import';
 
-our @EXPORT_OK = qw(log_event const_eq unlink_host_copies clear_host_cache);
+our @EXPORT_OK = qw(log_event const_eq unlink_host_copies clear_host_cache forward_line);
 
 our $COMPONENT = 'lazysite';
 
@@ -40,7 +40,8 @@ sub _json_str {
 }
 
 # Levelled logging to STDERR (text or json), honouring LAZYSITE_LOG_LEVEL and
-# LAZYSITE_LOG_FORMAT. Component comes from $COMPONENT.
+# LAZYSITE_LOG_FORMAT. Component comes from $COMPONENT. Emitted diagnostics
+# are also forwarded to syslog when forward_diagnostics is on (see below).
 sub log_event {
     my ( $level, $context, $message, %extra ) = @_;
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
@@ -49,24 +50,122 @@ sub log_event {
     my $ts = POSIX::strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
     no warnings 'uninitialized';    # helper subs in unit tests may pass undef
+    my $line;
     if ( $format eq 'json' ) {
         my $pairs = join ',',
             map { '"' . _json_str($_) . '":"' . _json_str( $extra{$_} ) . '"' }
             keys %extra;
-        print STDERR '{"ts":"' . $ts . '"'
+        $line = '{"ts":"' . $ts . '"'
             . ',"level":"' . _json_str($level) . '"'
             . ',"component":"' . _json_str($COMPONENT) . '"'
             . ',"context":"' . _json_str($context) . '"'
             . ',"message":"' . _json_str($message) . '"'
-            . ( $pairs ? ",$pairs" : '' ) . "}\n";
+            . ( $pairs ? ",$pairs" : '' ) . '}';
     }
     else {
         my $extras = join ' ', map { "$_=" . ( $extra{$_} // '' ) } keys %extra;
         my $ctx = $context // '';
-        my $line = "[$ts] [$level] [$COMPONENT] [$ctx] $message";
+        $line = "[$ts] [$level] [$COMPONENT] [$ctx] $message";
         $line .= " $extras" if $extras;
-        print STDERR "$line\n";
     }
+    print STDERR "$line\n";
+    my %prio = ( DEBUG => 'debug', INFO => 'info', WARN => 'warning', ERROR => 'err' );
+    forward_line( 'diag', $prio{$level} // 'info', $line );
+    return;
+}
+
+# --- External log forwarding (the 'Logging & forwarding' plugin, log.pl) ----
+#
+# forward_audit / forward_diagnostics / syslog_facility in lazysite.conf turn
+# on best-effort syslog copies of the two streams: audit-trail lines (the pipe
+# format, at LOG_INFO) and log_event diagnostics (at their mapped priority).
+# Config resolution rides the same path as log_level: an env override wins
+# (LAZYSITE_FORWARD_AUDIT / LAZYSITE_FORWARD_DIAGNOSTICS /
+# LAZYSITE_SYSLOG_FACILITY), else ONE cheap peek at lazysite.conf per process
+# (located via $Lazysite::Audit::LAZYSITE_DIR, else DOCUMENT_ROOT); the result
+# is cached, so a request pays at most one small-file read - and syslog is
+# only opened when a stream is actually enabled. Sys::Syslog is core Perl.
+#
+# Forwarding failure NEVER propagates: everything is eval-guarded, with a
+# single WARN per process. Test seam (test-only): LAZYSITE_SYSLOG_DUMP=<file>
+# appends "<priority> <line>" to that file instead of calling syslog, so tests
+# can assert what would have been forwarded without a running syslogd.
+
+my %FWD;           # cached forwarding config (per process)
+my $fwd_warned;    # WARN once per process on forwarding failure
+my $syslog_open;
+
+sub _conf_bool {
+    my $v = lc( $_[0] // '' );
+    return $v =~ /^(?:1|on|yes|true|enabled)$/ ? 1 : 0;
+}
+
+sub _forward_conf {
+    return \%FWD if $FWD{loaded};
+    $FWD{loaded} = 1;
+    my %want = (
+        audit    => $ENV{LAZYSITE_FORWARD_AUDIT},
+        diag     => $ENV{LAZYSITE_FORWARD_DIAGNOSTICS},
+        facility => $ENV{LAZYSITE_SYSLOG_FACILITY},
+    );
+    unless ( defined $want{audit} && defined $want{diag} && defined $want{facility} ) {
+        my $dir =
+            defined $Lazysite::Audit::LAZYSITE_DIR ? $Lazysite::Audit::LAZYSITE_DIR
+            : defined $ENV{DOCUMENT_ROOT}          ? "$ENV{DOCUMENT_ROOT}/lazysite"
+            :                                        undef;
+        if ( defined $dir && open my $fh, '<', "$dir/lazysite.conf" ) {
+            while ( my $l = <$fh> ) {
+                $want{audit}    //= $1 if $l =~ /^forward_audit\s*:\s*(\S+)/;
+                $want{diag}     //= $1 if $l =~ /^forward_diagnostics\s*:\s*(\S+)/;
+                $want{facility} //= $1 if $l =~ /^syslog_facility\s*:\s*(\S+)/;
+            }
+            close $fh;
+        }
+    }
+    $FWD{audit} = _conf_bool( $want{audit} );
+    $FWD{diag}  = _conf_bool( $want{diag} );
+    my $fac = lc( $want{facility} // 'daemon' );
+    $fac = 'daemon' unless $fac =~ /^(?:daemon|local[0-7])$/;
+    $FWD{facility} = $fac;
+    return \%FWD;
+}
+
+sub _forward_warn {
+    my ($err) = @_;
+    $err = defined $err ? "$err" : '';
+    $err =~ s/\s+$//;
+    # Once per process; incremented BEFORE the nested log_event so its own
+    # forward attempt cannot recurse back into a second warning.
+    return if $fwd_warned++;
+    log_event( 'WARN', 'forwarding', 'log forwarding failed', error => $err );
+    return;
+}
+
+sub forward_line {
+    my ( $stream, $priority, $line ) = @_;
+    my $cfg = _forward_conf();
+    return unless $cfg->{ $stream eq 'audit' ? 'audit' : 'diag' };
+    if ( defined $ENV{LAZYSITE_SYSLOG_DUMP} && length $ENV{LAZYSITE_SYSLOG_DUMP} ) {
+        my $ok = eval {
+            open my $fh, '>>', $ENV{LAZYSITE_SYSLOG_DUMP} or die "$!\n";
+            print {$fh} "$priority $line\n";
+            close $fh;
+            1;
+        };
+        _forward_warn("syslog dump: $@") unless $ok;
+        return;
+    }
+    my $ok = eval {
+        require Sys::Syslog;
+        unless ($syslog_open) {
+            Sys::Syslog::openlog( 'lazysite', 'ndelay,pid', $cfg->{facility} );
+            $syslog_open = 1;
+        }
+        Sys::Syslog::syslog( $priority, '%s', $line );
+        1;
+    };
+    _forward_warn($@) unless $ok;
+    return;
 }
 
 # SM110 phase 2: the host-keyed page cache. An alias host's rendered pages

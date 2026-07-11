@@ -34,6 +34,7 @@ use JSON::PP ();
 use POSIX qw(strftime);
 use Getopt::Long ();
 use Cwd qw(abs_path);
+use Fcntl          qw(O_WRONLY O_APPEND O_CREAT);
 
 my $STAGE_DIR = abs_path(dirname($0));
 
@@ -237,17 +238,45 @@ sub read_update_channel {
     return 'all';
 }
 
+# Shared appender for the installer's audit events. Same file and pipe format
+# as Lazysite::Audit (the installer must not load the lib - keep the two in
+# sync). Robust like the lib writer: creation is umask-proof (sysopen 0664 +
+# chmod, so the web-server group - inherited via the setgid logs dir - can
+# append later; the field defect was a 0644 install-created file silently
+# locking every CGI audit write out forever), an owned file that lost its
+# group-write bit is healed before appending, and a failed write warns to
+# STDERR instead of vanishing. Never dies - auditing must not break a deploy.
+sub audit_append {
+    my ( $docroot, $act, $target, $detail ) = @_;
+    my $logdir = "$docroot/lazysite/logs";
+    unless ( -d $logdir || mkdir $logdir ) {
+        warn "audit write failed ($act): cannot create $logdir: $!\n";
+        return;
+    }
+    for ( $target, $detail ) { $_ = defined $_ ? "$_" : ''; s/[|\r\n]+/ /g }
+    my $ts   = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
+    my $file = "$logdir/audit.log";
+    my @s    = stat $file;
+    chmod 0664, $file if @s && !( $s[2] & 0020 ) && $s[4] == $>;
+    my $fh;
+    unless ( sysopen $fh, $file, O_WRONLY | O_APPEND | O_CREAT, 0664 ) {
+        warn "audit write failed ($act): cannot append to $file: $!\n";
+        return;
+    }
+    chmod 0664, $file unless @s;    # umask-proof the create
+    my $line = "$ts | system | $act | $target |  | ok | install";
+    $line .= " | $detail" if length $detail;
+    print {$fh} "$line\n" or warn "audit write failed ($act): $!\n";
+    close $fh;
+    return;
+}
+
 # Record an upgrade that was skipped by the channel policy (origin = install).
 sub audit_channel_skip {
     my ( $docroot, $from, $to, $rel_channel ) = @_;
-    my $logdir = "$docroot/lazysite/logs";
-    return unless -d $logdir;
-    my $target = "$from -> $to (release channel: $rel_channel; site is stable-only)";
-    $target =~ s/[|\r\n]+/ /g;
-    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
-    open my $fh, '>>', "$logdir/audit.log" or return;
-    print {$fh} "$ts | system | upgrade-skipped | $target |  | ok | install\n";
-    close $fh;
+    audit_append( $docroot,
+        'upgrade-skipped',
+        "$from -> $to (release channel: $rel_channel; site is stable-only)" );
     return;
 }
 
@@ -325,24 +354,14 @@ sub cmd_set_policy {
 # Record a policy change (origin = install).
 sub audit_policy_set {
     my ( $docroot, $value ) = @_;
-    my $logdir = "$docroot/lazysite/logs";
-    return unless -d $logdir;
-    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
-    open my $fh, '>>', "$logdir/audit.log" or return;
-    print {$fh} "$ts | system | policy-set | update_policy: $value |  | ok | install\n";
-    close $fh;
+    audit_append( $docroot, 'policy-set', "update_policy: $value" );
     return;
 }
 
 # Record a channel change (origin = install).
 sub audit_channel_set {
     my ( $docroot, $value ) = @_;
-    my $logdir = "$docroot/lazysite/logs";
-    return unless -d $logdir;
-    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
-    open my $fh, '>>', "$logdir/audit.log" or return;
-    print {$fh} "$ts | system | channel-set | update_channel: $value |  | ok | install\n";
-    close $fh;
+    audit_append( $docroot, 'channel-set', "update_channel: $value" );
     return;
 }
 
@@ -402,46 +421,29 @@ sub _set_conf_key {
 # Record a full-system restore (origin = install).
 sub audit_full_restore {
     my ( $docroot, $tarball, $domain ) = @_;
-    my $logdir = "$docroot/lazysite/logs";
-    return unless -d $logdir;
     ( my $base = $tarball ) =~ s{.*/}{};
     my $target = "full restore from $base"
         . ( ( defined $domain && length $domain ) ? " -> domain $domain" : '' );
-    $target =~ s/[|\r\n]+/ /g;
-    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
-    open my $fh, '>>', "$logdir/audit.log" or return;
-    print {$fh} "$ts | system | full-restore | $target |  | ok | install\n";
-    close $fh;
+    audit_append( $docroot, 'full-restore', $target );
     return;
 }
 
 # Record an out-of-channel upgrade that --force pushed through (origin = install).
 sub audit_channel_forced {
     my ( $docroot, $from, $to, $rel_channel ) = @_;
-    my $logdir = "$docroot/lazysite/logs";
-    return unless -d $logdir;
-    my $target = "$from -> $to (release channel: $rel_channel; site is stable-only; --force override)";
-    $target =~ s/[|\r\n]+/ /g;
-    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
-    open my $fh, '>>', "$logdir/audit.log" or return;
-    print {$fh} "$ts | system | upgrade-forced | $target |  | ok | install\n";
-    close $fh;
+    audit_append( $docroot,
+        'upgrade-forced',
+        "$from -> $to (release channel: $rel_channel; site is stable-only; --force override)" );
     return;
 }
 
 sub audit_install_event {
-    my ( $docroot, $mode, $from, $to ) = @_;
-    my $logdir = "$docroot/lazysite/logs";
-    return unless -d $logdir;
+    my ( $docroot, $mode, $from, $to, $detail ) = @_;
     my $act = $mode eq 'fresh'   ? 'installed'
             : $mode eq 'upgrade' ? 'upgraded'
             :                      'reinstalled';
     my $target = ( $mode eq 'upgrade' && defined $from ) ? "$from -> $to" : $to;
-    $target =~ s/[|\r\n]+/ /g;
-    my $ts = POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime );
-    open my $fh, '>>', "$logdir/audit.log" or return;
-    print {$fh} "$ts | system | $act | $target |  | ok | install\n";
-    close $fh;
+    audit_append( $docroot, $act, $target, $detail );
     return;
 }
 
@@ -551,8 +553,18 @@ sub cmd_install {
     write_state( $state_path, $manifest->{version}, $state_files );
 
     # ---- audit the deploy (SM117) ----
-    audit_install_event( $o->{docroot}, $mode,
-        ( defined $state ? $state->{version} : undef ), $manifest->{version} );
+    # A fresh install records the channel it was seeded with (post_install_steps
+    # writes update_channel into a seeded lazysite.conf) in the install event's
+    # detail field, matching the standalone --channel audit's wording - so a
+    # provision-time channel choice is on the trail, not just later switches.
+    audit_install_event(
+        $o->{docroot}, $mode,
+        ( defined $state ? $state->{version} : undef ),
+        $manifest->{version},
+        $mode eq 'fresh'
+        ? 'update_channel: ' . read_update_channel( $o->{docroot} )
+        : undef
+    );
 
     # ---- retention ----
     if ( $mode ne 'fresh' ) {
@@ -910,7 +922,10 @@ sub post_install_steps {
             if ( -f $src && !-f $dst ) {
                 File::Copy::copy( $src, $dst )
                     or die "Could not seed auth/$f: $!\n";
-                chmod 0640, $dst;
+                # 0660, not 0640: the auth store is co-managed by the CLI
+                # users tool (site user) and the www-data CGI (setgid auth
+                # dir); without group-write the manager cannot save users.
+                chmod 0660, $dst;
                 info("  seeded:    lazysite/auth/$f (from $f.example)");
             }
         }
@@ -923,7 +938,9 @@ sub post_install_steps {
         if ( -f $src && !-f $dst ) {
             File::Copy::copy( $src, $dst )
                 or die "Could not seed nav.conf: $!\n";
-            chmod 0644, $dst;
+            # 0664, not 0644: the manager's nav editor saves this through the
+            # www-data CGI ("Cannot write nav: Permission denied" in the field).
+            chmod 0664, $dst;
             info("  seeded:    lazysite/nav.conf (from nav.conf.example)");
         }
     }
@@ -966,6 +983,28 @@ sub post_install_steps {
             # see align_ownership below for the root-run case.
             chmod 0664, $conf if -f $conf;
         }
+    }
+
+    # --- CGI-writable file set: umask-proof the group-write bit ---
+    #
+    # Every file the www-data CGI must WRITE IN PLACE (the manager saves
+    # nav.conf / lazysite.conf / the auth store / ACLs; every surface appends
+    # audit.log) has to carry group-write whatever umask this installer ran
+    # under - a 0644 file here silently locks the CGI out (the field defects:
+    # nav-save "Permission denied", and audit entries lost without trace).
+    # This list mirrors check 4b in tools/lazysite-check.pl - keep the two in
+    # step (t/tools/03-install-pl.t cross-checks them). Runs on every mode and
+    # only ADDS the group-write bit to files that exist; anything else about
+    # an operator's modes is left alone.
+    for my $rel ( qw(
+        lazysite/nav.conf lazysite/lazysite.conf
+        lazysite/auth/users lazysite/auth/groups lazysite/auth/acls.json
+        lazysite/logs/audit.log
+        ) ) {
+        my $p = "$docroot/$rel";
+        next unless -f $p;
+        my $m = ( stat _ )[2] & 07777;
+        chmod( $m | 0020, $p ) unless $m & 0020;
     }
 
     # --- SGID on the lazysite/ subtree (not whole docroot) ---

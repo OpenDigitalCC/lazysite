@@ -222,4 +222,74 @@ SKIP: {
     is( $? >> 8, 0, 'zero exit after the traversal fix' );
 }
 
+# --- doctor convergence (field defect 2026-07-11, dito.tech) -----------------
+# A single --fix run must leave NOTHING fixable behind: the old single apply
+# pass could CREATE new findings (the root chown pass handed CGI-owned 0600
+# secrets to the site user) and then only report them. --fix now iterates
+# apply+recollect until stable. Non-root fixture: the exact field category
+# mix that is mode-fixable (0600 secrets, unwritable cache/tt, 0644
+# nav/audit, world-readable smtp); group-ownership repairs still need root
+# and are the documented exclusion (reported with the chown command, never
+# silently dropped).
+subtest 'one --fix run converges: every fixable FAIL repaired and printed' => sub {
+    my $b   = tempdir( CLEANUP => 1 );
+    my $d   = "$b/public_html";
+    make_path( "$d/lazysite/auth", "$d/lazysite/forms", "$d/lazysite/logs",
+        "$d/lazysite/cache/tt/deep" );
+    my $w = sub { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1] // "x\n"; close $fh };
+    $w->("$d/lazysite/lazysite.conf", "site_name: t\n");
+    $w->("$d/lazysite/auth/.secret");
+    $w->("$d/lazysite/forms/.secret");
+    $w->("$d/lazysite/forms/smtp.conf");
+    $w->("$d/lazysite/nav.conf");
+    $w->("$d/lazysite/logs/audit.log");
+    chmod 0600, "$d/lazysite/auth/.secret", "$d/lazysite/forms/.secret";
+    chmod 0666, "$d/lazysite/forms/smtp.conf";                       # world bits
+    chmod 0644, "$d/lazysite/nav.conf", "$d/lazysite/logs/audit.log";
+    chmod 0644, "$d/lazysite/lazysite.conf";
+    chmod 0555, "$d/lazysite/cache/tt", "$d/lazysite/cache/tt/deep"; # CGI-unwritable
+
+    my $grp = getgrgid( ( stat $d )[5] ) // ( stat $d )[5];
+    my $fix = qx($^X $script --docroot $d --group $grp --fix 2>&1);
+
+    like( $fix, qr/fixed: rm -rf .*cache\/tt/, 'tt cache purge printed its fixed: line' );
+    like( $fix, qr/fixed: chmod 0660 .*auth\/\.secret/,  'auth secret fixed AND printed' );
+    like( $fix, qr/fixed: chmod 0660 .*forms\/\.secret/, 'forms secret fixed AND printed' );
+    like( $fix, qr/fixed: chmod 0660 .*smtp\.conf/,      'smtp.conf fixed AND printed' );
+    like( $fix, qr/fixed: chmod 0664 .*nav\.conf/,       'nav.conf fixed AND printed' );
+    like( $fix, qr/fixed: chmod 0664 .*audit\.log/,      'audit.log fixed AND printed' );
+    like( $fix, qr/0 failure\(s\)/, 'the post-fix report of the SAME run shows 0 failures' );
+    is( $? >> 8, 0, 'zero exit after the single --fix run' );
+
+    is( ( ( stat "$d/lazysite/auth/.secret" )[2] & 07777 ), 0660,
+        'auth secret really is 0660 on disk' );
+    ok( !-e "$d/lazysite/cache/tt", 'tt cache really removed' );
+
+    # The invariant itself: a second plain run finds nothing fixable left.
+    my $again = qx($^X $script --docroot $d --group $grp 2>&1);
+    like( $again, qr/0 failure\(s\)/, 'a second run reports 0 failures' );
+    is( $? >> 8, 0, 'second run exits 0' );
+};
+
+# --- chown handover must never strip the CGI's access ------------------------
+# The root-only chown pass replicates a CGI-owned path's owner bits onto the
+# group before handing it to the site user (the field 500: www-data's 0600
+# .secret became ispadmin's 0600). The pure function is probed via
+# --handover-mode since the chown branch itself needs root.
+subtest 'handover_mode: owner bits replicated onto the group' => sub {
+    my %case = (
+        '0600' => '0660',    # CGI-minted secret keeps CGI access via the group
+        '0640' => '0660',
+        '0755' => '0775',    # CGI-created tt-cache dir stays CGI-writable
+        '0700' => '0770',
+        '2770' => '2770',    # already group-complete: unchanged
+        '0444' => '0444',    # nothing new to grant
+    );
+    for my $in ( sort keys %case ) {
+        my $out = qx($^X $script --handover-mode $in);
+        chomp $out;
+        is( $out, $case{$in}, "handover_mode($in) -> $case{$in}" );
+    }
+};
+
 done_testing();

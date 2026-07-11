@@ -309,6 +309,16 @@ Both can be overridden at startup with environment variables:
     LAZYSITE_LOG_LEVEL=DEBUG perl tools/lazysite-server.pl ...
     LAZYSITE_LOG_FORMAT=json perl tools/lazysite-server.pl ...
 
+To also forward log streams to syslog for an external collector (the
+"Logging & forwarding" plugin manages these keys):
+
+    forward_audit: off        # audit-trail entries -> syslog, INFO priority
+    forward_diagnostics: off  # application log events -> mapped priority
+    syslog_facility: daemon   # or local0..local7
+
+Forwarding is best-effort and never blocks the site; the files under
+`lazysite/logs/` remain the record.
+
 ## Layouts and themes
 
 Activate a layout and theme by name in `lazysite.conf`:

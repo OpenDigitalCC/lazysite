@@ -109,6 +109,7 @@ BEGIN {
     }
 }
 use Lazysite::Util qw(log_event const_eq);
+use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
 use Lazysite::Auth::Settings qw(read_settings write_settings _consume_lock
@@ -157,6 +158,91 @@ my $USERS_FILE    = "$AUTH_DIR/users";
 my $GROUPS_FILE   = "$AUTH_DIR/groups";
 my $GROUP_SETTINGS_FILE = "$AUTH_DIR/groups-settings.json";
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
+$Lazysite::Audit::LAZYSITE_DIR      = "$DOCROOT/lazysite";
+
+# --- CLI audit trail (audit-completeness round) ------------------------------
+#
+# Every state-MUTATING command records ONE audit entry: origin 'cli', user =
+# the invoking OS identity, action names matching the manager-api audit
+# vocabulary (user-<sub-action>) so a given operation appears under one name
+# whichever door it came through. Under --api the entry is suppressed: the
+# calling web surface (manager API generic POST audit, auth wrapper, oauth)
+# has already recorded the request with the real web actor, origin and client
+# IP - see Lazysite::Audit's header for the one-entry-per-op contract.
+# Secrets are NEVER written: entries name the account/group acted on and the
+# kind of credential event, only. CLI entries record successes; a failed CLI
+# command dies loudly to the operator instead.
+#
+# %CLI_AUDIT_ACTION / %CLI_NO_DIRECT_AUDIT classify every cmd_* in this file;
+# the hidden `audit-registry` command dumps them plus the real cmd_* set, and
+# t/unit/lib/16-audit-guarantee.t cross-checks the two - so a new command
+# cannot ship unclassified (and therefore unaudited by omission).
+our %CLI_AUDIT_ACTION = (
+    cmd_add                  => 'user-add',
+    cmd_passwd               => 'user-passwd',
+    cmd_remove               => 'user-remove',
+    cmd_rename               => 'user-rename',
+    cmd_group_add            => 'user-group-add',
+    cmd_group_remove         => 'user-group-remove',
+    cmd_set                  => 'user-settings-set',
+    cmd_token                => 'user-token',
+    cmd_setup_manager        => 'setup-manager',         # + a credential entry (see sub)
+    cmd_account_create       => 'user-account-create',
+    cmd_account_set_disabled => 'user-account-disable|user-account-enable',
+    cmd_account_reassign     => 'user-account-reassign',
+    cmd_pairing_key          => 'user-pairing-key',
+    cmd_token_exchange       => 'user-token-exchange',
+    cmd_token_rotate         => 'user-token-rotate',
+    cmd_claim_create         => 'user-claim-create',
+    cmd_claim_redeem         => 'user-claim-redeem',
+    cmd_mfa_enroll           => 'user-mfa-enroll',
+    cmd_mfa_disable          => 'user-mfa-disable',
+    cmd_group_settings_set   => 'user-group-settings-set',
+    cmd_group_create         => 'user-group-create',
+    cmd_group_delete         => 'user-group-delete',
+    cmd_partner_create       => 'user-partner-create',    # + a pairing-key entry
+    cmd_onboarding           => 'user-onboarding',
+);
+our %CLI_NO_DIRECT_AUDIT = (
+    # read-only commands
+    cmd_list              => 'read-only',
+    cmd_groups            => 'read-only',
+    cmd_settings          => 'read-only',
+    cmd_permissions_grid  => 'read-only',
+    cmd_permissions_cli   => 'read-only',
+    cmd_credential_status => 'read-only',
+    cmd_audit_registry    => 'read-only (audit introspection itself)',
+    # thin CLI wrappers - the audited core command writes the entry
+    cmd_set_cli              => 'delegates to cmd_set',
+    cmd_brief_cli            => 'delegates to cmd_onboarding',
+    cmd_account_create_cli   => 'delegates to cmd_account_create',
+    cmd_account_disable_cli  => 'delegates to cmd_account_set_disabled',
+    cmd_account_enable_cli   => 'delegates to cmd_account_set_disabled',
+    cmd_account_reassign_cli => 'delegates to cmd_account_reassign',
+    cmd_claim_create_cli     => 'delegates to cmd_claim_create',
+    cmd_claim_redeem_cli     => 'delegates to cmd_claim_redeem',
+    cmd_partner_create_cli   => 'delegates to cmd_partner_create',
+    # verification / --api-only surfaces: the calling web surface audits
+    cmd_verify_credential   => 'verification stamp; audited by the caller',
+    cmd_partner_caps        => 'verification stamp; audited by the caller',
+    cmd_mfa_verify          => 'verification; audited api-side',
+    cmd_connect_code        => 'api-only; audited by the calling surface',
+    cmd_redeem_connect_code => 'api-only; audited by the calling surface',
+    cmd_onboarding_web      => 'api-only; audited by the calling surface',
+);
+
+# Compound commands (setup-manager, partner-create, the role-group grant
+# helper) suppress the entries of the primitives they compose and write their
+# own summary entries, so one operator action is one (or two) trail lines.
+our $AUDIT_SUPPRESS = 0;
+
+sub cli_audit {
+    my ( $act, $target, $detail ) = @_;
+    return if $API_MODE || $AUDIT_SUPPRESS;
+    my $who = getpwuid($<) // "uid:$<";
+    audit_log( $who, $act, $target, '', 'ok', 'cli', $detail );
+    return;
+}
 
 # --- API mode ---
 
@@ -401,6 +487,7 @@ elsif ( $cmd eq 'mfa-enroll' )     { cmd_mfa_enroll(@args) }
 elsif ( $cmd eq 'mfa-disable' )    { cmd_mfa_disable(@args) }
 elsif ( $cmd eq 'partner-create' ) { cmd_partner_create_cli(@args) }
 elsif ( $cmd eq 'permissions' )    { cmd_permissions_cli(@args) }
+elsif ( $cmd eq 'audit-registry' )   { cmd_audit_registry() }
 else {
     print STDERR "Unknown command: $cmd\n\n" if $cmd;
     usage();
@@ -424,6 +511,7 @@ sub cmd_add {
     $users{$user} = length($pass) ? hash_password($pass) : '';
     write_users(%users);
     log_event('INFO', $user, 'user added');
+    cli_audit( 'user-add', $user );
     print "User '$user' added.\n" unless $API_MODE;
 }
 
@@ -468,6 +556,7 @@ sub cmd_rename {
     write_groups(%groups);
 
     log_event( 'INFO', $new, 'account renamed', from => $old );
+    cli_audit( 'user-rename', $new, "from $old" );
     print "Renamed '$old' to '$new'.\n" unless $API_MODE;
 }
 
@@ -484,6 +573,7 @@ sub cmd_passwd {
     write_users(%users);
     clear_token_expiry($user);   # SM071: a password has no token expiry
     log_event('INFO', $user, 'password changed');
+    cli_audit( 'user-passwd', $user );
     print "Password updated for '$user'.\n" unless $API_MODE;
 }
 
@@ -496,6 +586,7 @@ sub cmd_remove {
 
     write_users(%users);
     log_event('INFO', $user, 'user removed');
+    cli_audit( 'user-remove', $user );
 
     if ( -f $GROUPS_FILE ) {
         my %groups = read_groups();
@@ -543,6 +634,7 @@ sub cmd_group_add {
         push @{ $groups{$group} }, $user;
     }
     write_groups(%groups);
+    cli_audit( 'user-group-add', "$user\@$group" );
     print "User '$user' added to group '$group'.\n" unless $API_MODE;
 }
 
@@ -654,18 +746,26 @@ sub cmd_setup_manager {
     # --link: create the account but issue a single-use self-service claim instead
     # of a password, so the new manager sets their own (no password to hand over).
     if ($link) {
-        my %users = read_users();
-        cmd_add( $user, generate_random_hex(12) ) unless exists $users{$user};
-        cmd_group_add( $user, $group );
-        _ensure_conf_key( 'manager',        'enabled' );
-        _ensure_manager_group_caps($group);
-        $users{$user} = '';                       # revoke any credential
-        write_users(%users);
-        my $all = read_settings();
-        $all->{$user} ||= {};
-        my $claim     = _issue_claim( $all, $user, 'set-password' );
-        write_settings($all);
-        my $claim_url = _claim_url( $user, $claim );
+        my ( $claim, $claim_url );
+        {
+            # One operator action = two trail entries (below), not one per
+            # composed primitive - see the CLI audit registry note above.
+            local $AUDIT_SUPPRESS = 1;
+            my %users = read_users();
+            cmd_add( $user, generate_random_hex(12) ) unless exists $users{$user};
+            cmd_group_add( $user, $group );
+            _ensure_conf_key( 'manager', 'enabled' );
+            _ensure_manager_group_caps($group);
+            $users{$user} = '';    # revoke any credential
+            write_users(%users);
+            my $all = read_settings();
+            $all->{$user} ||= {};
+            $claim = _issue_claim( $all, $user, 'set-password' );
+            write_settings($all);
+            $claim_url = _claim_url( $user, $claim );
+        }
+        cli_audit( 'setup-manager',     $group, "manager account '$user'" );
+        cli_audit( 'user-claim-create', $user,  'set-password claim issued' );
         unless ($API_MODE) {
             print "\nManager account created (no password set).\n";
             print "Send this single-use self-service link (expires in "
@@ -684,12 +784,20 @@ sub cmd_setup_manager {
         $generated = 1;
     }
 
-    my %users = read_users();
-    if   ( exists $users{$user} ) { cmd_passwd( $user, $pass ) }
-    else                          { cmd_add( $user, $pass ) }
-    cmd_group_add( $user, $group );
-    _ensure_conf_key( 'manager',        'enabled' );
-    _ensure_manager_group_caps($group);
+    {
+        # One operator action = two trail entries (below), not one per
+        # composed primitive.
+        local $AUDIT_SUPPRESS = 1;
+        my %users = read_users();
+        if ( exists $users{$user} ) { cmd_passwd( $user, $pass ) }
+        else                        { cmd_add( $user, $pass ) }
+        cmd_group_add( $user, $group );
+        _ensure_conf_key( 'manager', 'enabled' );
+        _ensure_manager_group_caps($group);
+    }
+    cli_audit( 'setup-manager', $group, "manager account '$user'" );
+    cli_audit( 'user-passwd', $user,
+        $generated ? 'password generated' : 'password set' );
 
     unless ($API_MODE) {
         my $url = read_conf_value('site_url') // '';
@@ -720,6 +828,7 @@ sub cmd_group_remove {
 
     $groups{$group} = [ grep { $_ ne $user } @{ $groups{$group} } ];
     write_groups(%groups);
+    cli_audit( 'user-group-remove', "$user\@$group" );
     print "User '$user' removed from group '$group'.\n" unless $API_MODE;
 }
 
@@ -906,6 +1015,7 @@ sub cmd_set {
 
     write_settings($all);
     log_event( 'INFO', $user, 'settings changed', key => $key );
+    cli_audit( 'user-settings-set', $user, "key $key" );
     print "Set $key for '$user'.\n" unless $API_MODE;
 }
 
@@ -931,6 +1041,7 @@ sub cmd_token {
     delete $all->{$user}{cred_used_at};
     write_settings($all);
     log_event( 'INFO', $user, 'credential generated' );
+    cli_audit( 'user-token', $user, 'credential generated' );
 
     unless ($API_MODE) {
         print "Generated credential for '$user' (shown once, store it now):\n";
@@ -995,6 +1106,8 @@ sub cmd_account_create {
     _grant_account_caps( $user, 'create_sub_users' ) if $opt{create_subs};
 
     log_event( 'INFO', $user, 'sub-user created', created_by => $creator );
+    cli_audit( 'user-account-create', $user,
+        "created by $creator" . ( $opt{create_subs} ? ', with create_sub_users' : '' ) );
     print "Sub-user '$user' created (parent '$creator').\n" unless $API_MODE;
 }
 
@@ -1088,6 +1201,8 @@ sub cmd_account_set_disabled {
     write_settings($all);
     log_event( 'INFO', $user, ( $disabled ? 'account disabled' : 'account enabled' ),
         cascade => ( $opt{cascade} ? 1 : 0 ), count => scalar(@targets) );
+    cli_audit( $disabled ? 'user-account-disable' : 'user-account-enable', $user,
+        $opt{cascade} ? 'cascade: ' . scalar(@targets) . ' account(s)' : '' );
     print( ( $disabled ? 'Disabled ' : 'Enabled ' )
          . scalar(@targets) . " account(s).\n" ) unless $API_MODE;
 }
@@ -1117,6 +1232,7 @@ sub cmd_account_reassign {
     $all->{$user}{managed_by} = $new_parent;   # created_by untouched
     write_settings($all);
     log_event( 'INFO', $user, 'account reassigned', to => $new_parent );
+    cli_audit( 'user-account-reassign', $user, "to $new_parent" );
     print "Reassigned '$user' to '$new_parent'.\n" unless $API_MODE;
 }
 
@@ -1197,6 +1313,7 @@ sub cmd_pairing_key {
     my $key = _issue_pairing_key( $all, $user );
     write_settings($all);
     log_event( 'INFO', $user, 'pairing key issued' );
+    cli_audit( 'user-pairing-key', $user, 'pairing key issued' );
 
     unless ($API_MODE) {
         print "Pairing key for '$user' (single use, expires in "
@@ -1234,6 +1351,7 @@ sub cmd_token_exchange {
     $all->{$user}{token_expires_at} = time() + $ACCESS_TOKEN_TTL;
     write_settings($all);
     log_event( 'INFO', $user, 'access token issued via pairing exchange' );
+    cli_audit( 'user-token-exchange', $user, 'access token issued' );
 
     unless ($API_MODE) {
         print "Access token for '$user' (expires in "
@@ -1260,6 +1378,7 @@ sub cmd_token_rotate {
     $all->{$user}{token_expires_at} = time() + $ACCESS_TOKEN_TTL;
     write_settings($all);
     log_event( 'INFO', $user, 'access token rotated' );
+    cli_audit( 'user-token-rotate', $user );
 
     unless ($API_MODE) {
         print "Rotated access token for '$user' (expires in "
@@ -1322,6 +1441,8 @@ sub cmd_claim_create {
     log_event( 'INFO', $user,
         $opt{revoke} ? 'credential reset; setup claim issued' : 'setup claim issued',
         purpose => $purpose );
+    cli_audit( 'user-claim-create', $user,
+        ( $opt{revoke} ? 'credential reset; ' : '' ) . "$purpose claim issued" );
 
     unless ($API_MODE) {
         print "Setup claim for '$user' ($purpose, single use, expires in "
@@ -1377,6 +1498,7 @@ sub cmd_claim_redeem {
     delete $all->{$user}{token_expires_at};      # a claim-set credential is permanent
     write_settings($all);
     log_event( 'INFO', $user, 'claim redeemed', purpose => $purpose );
+    cli_audit( 'user-claim-redeem', $user, $purpose );
 
     unless ($API_MODE) {
         if ( $result->{token} ) {
@@ -1440,6 +1562,7 @@ sub cmd_mfa_enroll {
             . '&algorithm=SHA1&digits=6&period=30';
 
     log_event( 'INFO', $user, 'mfa enrolled' );
+    cli_audit( 'user-mfa-enroll', $user );
     my $r = { secret => $secret, otpauth_uri => $uri, recovery_codes => \@recovery };
     unless ($API_MODE) {
         print "TOTP secret for '$user': $secret\n";
@@ -1458,6 +1581,7 @@ sub cmd_mfa_disable {
         write_settings($all);
     }
     log_event( 'INFO', $user, 'mfa disabled' );
+    cli_audit( 'user-mfa-disable', $user );
     print "MFA disabled for '$user'.\n" unless $API_MODE;
     return { ok => 1 };
 }
@@ -1924,6 +2048,7 @@ sub cmd_onboarding {
     my $key = _issue_pairing_key( $all, $user );
     write_settings($all);
     log_event( 'INFO', $user, 'onboarding brief issued' );
+    cli_audit( 'user-onboarding', $user, 'pairing key issued' );
     return {
         username    => $user,
         pairing_key => $key,
@@ -1936,6 +2061,8 @@ sub cmd_onboarding {
 sub _grant_account_caps {
     my ( $account, @caps ) = @_;
     return unless @caps;
+    # Internal role-group plumbing: the calling command's entry covers it.
+    local $AUDIT_SUPPRESS = 1;
     cmd_group_add( $account, "role-$account" );
     for my $c (@caps) { cmd_group_settings_set( "role-$account", $c, 'on' ); }
     return;
@@ -1947,28 +2074,36 @@ sub cmd_partner_create {
     die "Creator (--by USERNAME) required\n"
         unless defined $opt{created_by} && length $opt{created_by};
 
-    my $locked = generate_random_hex(32);
-    cmd_account_create( $name, $locked,
-        created_by => $opt{created_by}, create_subs => $opt{create_subs} );
+    my $key;
+    {
+        # One operator action = two trail entries (below), not one per
+        # composed primitive.
+        local $AUDIT_SUPPRESS = 1;
+        my $locked = generate_random_hex(32);
+        cmd_account_create( $name, $locked,
+            created_by => $opt{created_by}, create_subs => $opt{create_subs} );
 
-    # SM095: a partner's capabilities live on its own role group (role-<name>), not
-    # per-account. Default a connector role: the channels it uses + content
-    # publishing + themes; layouts/config opt-in.
-    my @caps = qw(webdav api mcp manage_content manage_nav manage_forms);
-    push @caps, 'manage_themes'  unless defined $opt{themes} && !$opt{themes};
-    push @caps, 'manage_layouts' if $opt{layouts};
-    push @caps, 'manage_config'  if $opt{config};
-    _grant_account_caps( $name, @caps );
+        # SM095: a partner's capabilities live on its own role group (role-<name>), not
+        # per-account. Default a connector role: the channels it uses + content
+        # publishing + themes; layouts/config opt-in.
+        my @caps = qw(webdav api mcp manage_content manage_nav manage_forms);
+        push @caps, 'manage_themes' unless defined $opt{themes} && !$opt{themes};
+        push @caps, 'manage_layouts' if $opt{layouts};
+        push @caps, 'manage_config'  if $opt{config};
+        _grant_account_caps( $name, @caps );
 
-    # dav_scope is account-shaped (not a capability) - it stays per-account.
-    my $all = read_settings();
-    if ( defined $opt{scope} && length $opt{scope} ) {
-        my $sc = normalise_scope( $opt{scope} );
-        $all->{$name}{dav_scope} = $sc if defined $sc;
+        # dav_scope is account-shaped (not a capability) - it stays per-account.
+        my $all = read_settings();
+        if ( defined $opt{scope} && length $opt{scope} ) {
+            my $sc = normalise_scope( $opt{scope} );
+            $all->{$name}{dav_scope} = $sc if defined $sc;
+        }
+        $key = _issue_pairing_key( $all, $name );
+        write_settings($all);
     }
-    my $key = _issue_pairing_key( $all, $name );
-    write_settings($all);
     log_event( 'INFO', $name, 'partner created', created_by => $opt{created_by} );
+    cli_audit( 'user-partner-create', $name, "created by $opt{created_by}" );
+    cli_audit( 'user-pairing-key',    $name, 'pairing key issued' );
 
     my $brief = _onboarding_brief( $name, $key, effective_settings($name) );
     print $brief unless $API_MODE;
@@ -2285,6 +2420,28 @@ sub cmd_permissions_cli {
     return;
 }
 
+# Introspection for the audit-completeness guarantee test: dump the CLI audit
+# classification (%CLI_AUDIT_ACTION / %CLI_NO_DIRECT_AUDIT) plus the actual
+# cmd_* set from the symbol table as JSON, so the test can prove every command
+# is classified and a new one cannot ship unaudited by omission.
+sub cmd_audit_registry {
+    require JSON::PP;
+    my @subs;
+    for my $name ( keys %main:: ) {
+        next unless $name =~ /^cmd_/;
+        my $glob = $main::{$name};
+        push @subs, $name if defined *{$glob}{CODE};
+    }
+    print JSON::PP::encode_json(
+        {
+            mutating => \%CLI_AUDIT_ACTION,
+            exempt   => \%CLI_NO_DIRECT_AUDIT,
+            subs     => [ sort @subs ],
+        }
+    );
+    return;
+}
+
 # Unified Groups view for the manager UI: every group (from group-settings OR the
 # membership file), with its capabilities, manager flag, label, and members.
 sub _group_settings_view {
@@ -2322,6 +2479,7 @@ sub cmd_group_settings_set {
         else             { delete $gs->{$group}{$key} }
         write_group_settings($gs);
         log_event( 'INFO', $group, "group $key set" );
+        cli_audit( 'user-group-settings-set', $group, "key $key" );
         return { ok => 1 };
     }
 
@@ -2362,6 +2520,7 @@ sub cmd_group_settings_set {
     else     { delete $gs->{$group}{$key} }
     write_group_settings($gs);
     log_event( 'INFO', $group, 'group setting changed', key => $key, value => $on );
+    cli_audit( 'user-group-settings-set', $group, "key $key=" . ( $on ? 'on' : 'off' ) );
     return { ok => 1 };
 }
 
@@ -2377,6 +2536,7 @@ sub cmd_group_create {
     $gs->{$group} = { label => $group };
     write_group_settings($gs);
     log_event( 'INFO', $group, 'group created' );
+    cli_audit( 'user-group-create', $group );
     return { ok => 1 };
 }
 
@@ -2392,6 +2552,7 @@ sub cmd_group_delete {
     if ( exists $members{$group} ) { delete $members{$group}; write_groups(%members); }
     if ( exists $gs->{$group} )    { delete $gs->{$group};    write_group_settings($gs); }
     log_event( 'INFO', $group, 'group deleted' );
+    cli_audit( 'user-group-delete', $group );
     return { ok => 1 };
 }
 
@@ -2459,6 +2620,8 @@ Commands:
   groups                      List all groups and members
   permissions USERNAME        Print the channel x capability grid for a user
                               (resolved from groups; debug user access issues)
+  audit-registry              Dump the CLI audit classification as JSON (used
+                              by the audit-completeness guarantee test)
   setup-manager [PASSWORD]    One-command first-run: create the manager account
                               (+ admin group + lazysite.conf), set/generate its
                               password. Idempotent. [--user NAME] [--group NAME]

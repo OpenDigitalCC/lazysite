@@ -652,6 +652,91 @@ subtest 'untracked pre-existing seed file preserved (not clobbered) on upgrade' 
     is( sha_file($index), $mine, 'homepage STILL preserved on a subsequent upgrade' );
 };
 
+# --- audit-completeness round: fresh install leaves a working, shared trail ---
+# The 0.7.5 field defect: install created audit.log 0644 (umask default), the
+# www-data CGI could never append, and every subsequent event vanished
+# silently. Pin: mode 0664 with the group-write bit (the "second identity can
+# append" contract, asserted via mode+group bits since tests are not root),
+# the install event present WITH the seeded-channel detail, and setup-manager
+# appending its TWO events with cli origin + real attribution.
+subtest 'fresh install: audit.log 0664, install event + channel, setup-manager events' => sub {
+    my ( $docroot, $cgibin ) = fresh_docroot();
+    my $old = umask 0022;    # the field umask that produced 0644
+    my ( $rc, $out ) = run_install(
+        '--docroot', $docroot, '--cgibin', $cgibin, '--domain', 'audit.test' );
+    umask $old;
+    is( $rc, 0, 'fresh install ok' ) or diag $out;
+
+    my $log = "$docroot/lazysite/logs/audit.log";
+    ok( -f $log, 'audit.log created by the install event' );
+    my $mode = ( stat $log )[2] & 07777;
+    is( $mode, 0664, sprintf( 'audit.log is 0664 (got %04o) despite umask 0022', $mode ) );
+    ok( $mode & 0020, 'group-write bit set: the CGI identity (via the setgid ' .
+        'logs dir group) can append' );
+
+    my $audit = slurp($log);
+    like( $audit, qr/\| system \| installed \| .* \| ok \| install \| update_channel: stable/,
+        'install event present, carrying the seeded channel as detail' );
+
+    # setup-manager through the users tool (the provisioning path runs exactly
+    # this): exactly two more events, origin cli, attributed to the real user.
+    my @before = split /\n/, $audit;
+    my $users  = "$FindBin::Bin/../../tools/lazysite-users.pl";
+    my $sout   = qx{$^X "$users" --docroot "$docroot" setup-manager pw-test-1 2>&1};
+    my @after  = split /\n/, slurp($log);
+    is( scalar @after, scalar(@before) + 2,
+        'setup-manager appended exactly TWO events' ) or diag $sout;
+    my $me = getpwuid($<) // "uid:$<";
+    like( $after[-2], qr/\| \Q$me\E \| setup-manager \| lazysite-admins \| .* \| ok \| cli/,
+        'setup-manager event: cli origin, invoking-user attribution, group target' );
+    like( $after[-1], qr/\| \Q$me\E \| user-passwd \| manager \| .* \| ok \| cli/,
+        'credential-issue event for the manager account' );
+    unlike( slurp($log), qr/pw-test-1/, 'the password itself is not in the trail' );
+
+    # Split-identity invariant: any secret minted so far is exactly 0660
+    # (owner+group, never world) - a CLI-context mint must not lock the
+    # www-data CGI out (field 500: 0600 site-user .secret).
+    for my $rel ( qw(
+        lazysite/auth/.secret lazysite/forms/.secret
+        lazysite/manager/.csrf-secret lazysite/logs/.access-salt
+        ) ) {
+        next unless -f "$docroot/$rel";
+        my $sm = ( stat "$docroot/$rel" )[2] & 07777;
+        is( $sm, 0660, "$rel minted 0660" );
+    }
+};
+
+# --- structural: every CGI-writable file from lazysite-check's 4b list is g+w ---
+# Driven off the SAME qw() list the check tool uses, parsed from its source,
+# so a future addition to the list is automatically covered here.
+subtest 'fresh install: every 4b CGI-writable file is group-writable' => sub {
+    my $check_src = slurp("$FindBin::Bin/../../tools/lazysite-check.pl");
+    my ($list) = $check_src =~
+        /config\/auth files the CGI overwrites in place.*?qw\(\s*(.*?)\)/s;
+    ok( defined $list, '4b list parsed from tools/lazysite-check.pl' ) or return;
+    my @rels = split ' ', $list;
+    ok( scalar @rels >= 6, 'the 4b list has the expected breadth' )
+        or diag "parsed: @rels";
+
+    my ( $docroot, $cgibin ) = fresh_docroot();
+    my $old = umask 0022;
+    my ($rc) = run_install(
+        '--docroot', $docroot, '--cgibin', $cgibin, '--domain', 'perm.test' );
+    umask $old;
+    is( $rc, 0, 'fresh install ok' );
+
+    for my $rel (@rels) {
+        my $p = "$docroot/$rel";
+        SKIP: {
+            skip "$rel not created by a fresh install", 1 unless -f $p;
+            my $mode = ( stat $p )[2] & 07777;
+            ok( $mode & 0020,
+                sprintf( '%s is group-writable (%04o) - the CGI can write it in place',
+                    $rel, $mode ) );
+        }
+    }
+};
+
 done_testing();
 
 # --- helpers ---

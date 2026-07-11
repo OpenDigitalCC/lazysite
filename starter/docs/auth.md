@@ -136,7 +136,9 @@ cookie is set and the user is redirected to the original page (via the
 - HMAC-SHA256 signed with an auto-generated secret
 - 24-hour expiry
 
-The HMAC secret lives at `lazysite/auth/.secret` (chmod 0600).
+The HMAC secret lives at `lazysite/auth/.secret` (chmod 0660 -
+owner + group, never world, so the site user's CLI tools and the
+web-server CGI can both use it whichever minted it first).
 
 ### Sessions
 

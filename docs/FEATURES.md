@@ -380,12 +380,26 @@ A single append-only writer (`Lazysite::Audit`) records **material events only**
 state changes and security grants, never browsing - to `lazysite/logs/audit.log`,
 used by every state-changing entry point. Each line is `ts | user | action | target
 | ip | status | origin [| detail]`; `origin` distinguishes `ui` (cookie), `api`
-(token), `dav`, and `mcp`; `save` is recorded as `create` or `edit`; failures record
-the reason. This is deliberately **non-overlapping with the access log** - it
-answers *who changed what, to what, when, from where, and the outcome*. The manager
-audit viewer paginates (50/page), filters by user and by target (one file's
-history), links a page target to its editor, and shows the failure reason on failed
-events.
+(token), `dav`, `mcp`, `cli` (the users tool run from the shell, attributed to the
+invoking OS identity), and `install`; `save` is recorded as `create` or `edit`;
+failures record the reason. One entry per operation: each web surface audits its
+own requests, and the users tool audits only when NOT driven through `--api`
+(where the calling surface has already recorded the actor). Shell user management
+(setup-manager, add/remove/rename, credential and claim issue, group and
+capability changes) is fully on the trail - secrets themselves never are. This is
+deliberately **non-overlapping with the access log** - it answers *who changed
+what, to what, when, from where, and the outcome*. The manager audit viewer
+paginates (50/page), filters by user and by target (one file's history), links a
+page target to its editor, and shows the failure reason on failed events.
+
+The writer is failure-loud: the log is created umask-proof at `0664` (so the CLI
+and the www-data CGI can always append to the same file via the setgid logs dir),
+an owned file that lost its group-write bit self-heals on the next append, and a
+write that still fails emits a WARN naming the lost action instead of vanishing.
+The **Logging & forwarding** plugin can additionally forward each audit entry
+(and, separately, application diagnostics) to syslog (`forward_audit` /
+`forward_diagnostics` / `syslog_facility`) for an external collector -
+best-effort, never blocking, with the on-disk log as the record.
 
 ---
 
