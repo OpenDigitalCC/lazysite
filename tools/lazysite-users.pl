@@ -1645,6 +1645,11 @@ sub _onboarding_brief {
     my $eff_content = defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav};
     my $can_nav     = defined $s->{manage_nav}     ? $s->{manage_nav}     : $eff_content;
     push @caps, 'manage the site navigation (control API: nav-read / nav-save)' if $can_nav;
+    push @caps,
+        'inspect and restore content versions when the site has Content history '
+        . 'enabled (control API: git-history / git-show / git-restore; MCP: '
+        . 'list_versions / view_version / restore_version)'
+        if $eff_content;
     my $caps = join "\n", map { "- $_" } @caps;
     my $scope = ( defined $s->{dav_scope} && length $s->{dav_scope} )
         ? $s->{dav_scope} : 'whole docroot (minus denied paths)';

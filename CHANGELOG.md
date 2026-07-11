@@ -18,6 +18,27 @@ Keying
 
 ## Unreleased
 
+Content history reaches MCP agents; layout switching taught everywhere it matters
+: Closing the exposure audit: the MCP connector gains list_versions /
+  view_version / restore_version (same manage_content gate and engine
+  actions as the API's git-history/show/restore; reads audit-skipped,
+  restore audited), so a connector agent can inspect and undo content
+  changes. Discovery fixed at every layer: the capability map lists the
+  new tools and gains two task recipes (restore-from-history, and
+  switch-layout - install/activate FIRST, delete after), the onboarding
+  brief mentions version history under the content grant, and
+  ai-connector-tools.md - found missing six other live tools
+  (describe_capabilities, list_themes, list_layout_catalogue,
+  install_layout, delete_layout, submit_feedback) - is brought current
+  (37 tools) with a Version history section and an explicit note that
+  git-sync remote push/pull is operator-only by design. Field trigger:
+  an audited failed delete-before-switch; the active-layout delete
+  refusal now says what to do instead, and install_layout/delete_layout
+  descriptions teach the order. End-to-end MCP test drives the real CGI
+  dispatch: honest enabled:false, connector writes become versions,
+  view returns exact content + diff, restore lands as the newest
+  version, capability gate holds.
+
 Release channel ladder: edge < beta < stable
 : Owner request: a middle rung between early testing and the slow customer
   channel. A build now declares one of three maturities (build-manifest

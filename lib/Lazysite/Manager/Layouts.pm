@@ -590,7 +590,10 @@ sub action_layout_delete {
     # Deleting a layout removes its themes/ too, so guard hard: never the
     # active layout (the UI also gates this and confirms before calling).
     my ( $active_layout, undef ) = _read_active_layout_and_theme();
-    return { ok => 0, error => 'Cannot delete the active layout' }
+    return { ok => 0,
+        error => 'Cannot delete the active layout. Switch first - install/'
+            . 'activate the replacement (install_layout or layout-activate) - '
+            . 'then delete this one.' }
         if length $active_layout && $layout_name eq $active_layout;
 
     my $layouts_dir = "$DOCROOT/lazysite/layouts";

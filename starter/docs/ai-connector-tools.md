@@ -77,7 +77,7 @@ machine-readable `kind`:
 
 ## Tools
 
-28 tools. **Reads** are not audited; **writes** are recorded in the audit log as
+37 tools. **Reads** are not audited; **writes** are recorded in the audit log as
 material events and may trigger the AI client's per-call approval. All file tools
 need `manage_content` unless noted.
 
@@ -86,6 +86,14 @@ need `manage_content` unless noted.
 whoami
 : Partner identity, capabilities, active layout/theme, the full `tools` manifest,
   and the `auth` block (method + expiry). No capability required. Call it first.
+
+describe_capabilities
+: The full capability map: every capability and what it unlocks (MCP tools,
+  control-API actions, WebDAV paths), task recipes for common jobs, the
+  engine-owned paths you must not write, and - under `holds` - what THIS account
+  currently has. No capability required. The task recipes are the sanctioned
+  sequences: follow them (e.g. `switch-layout`, `restore-from-history`) rather
+  than improvising an order.
 
 ### Reading and inspecting (reads - not audited)
 
@@ -146,6 +154,41 @@ read_nav
 : The site navigation as a structured list (items + children) plus the raw
   nav.conf. Read before set_nav.
 
+list_themes
+: The themes installed across all layouts, with which is active. Needs
+  `manage_themes`.
+
+list_layout_catalogue
+: The layouts available in the configured layouts repo (name, version, default
+  theme, themes), annotated with what is already installed - discover what
+  `install_layout` can pull without downloading anything. Needs `manage_layouts`.
+
+### Version history (needs the site's Content history plugin)
+
+When the operator has enabled the **Content history** plugin, every save
+(manager, WebDAV, or this connector) is recorded as a version, and these tools
+let you inspect and undo content changes. If `list_versions` returns
+`enabled: false`, versions are not being recorded - ask the operator to enable
+the plugin; do not try to build your own history. All three need
+`manage_content`.
+
+list_versions `{ path, limit }`
+: A file's recorded versions, newest first: version id, author, date, message.
+  Not audited (a read).
+
+view_version `{ path, version }`
+: One version's full content plus a unified diff against the current file.
+  Not audited (a read).
+
+restore_version `{ path, version }`
+: Restore the file to that version. The historic content is written back
+  through the normal save path (page cache refreshed) and the restore itself
+  becomes the newest recorded version - nothing is lost by restoring. Audited.
+
+Remote sync of the history (push/pull to a git host) is **operator-only** by
+design - it is configured and driven from the manager UI (Remote sync plugin)
+and is not exposed over the connector or the control API.
+
 ### Writing and editing (writes - audited)
 
 write_file `{ path, content }`
@@ -198,6 +241,25 @@ activate_theme `{ theme }`
 
 activate_layout `{ layout, theme }`
 : Activate a layout, optionally naming a compatible theme. Needs `manage_layouts`.
+
+install_layout `{ layout, theme, all, update, activate }`
+: Install a layout and its theme(s) from the configured repo and activate it
+  (default). Needs `manage_layouts`. **To switch the site to a different
+  layout, this one call is the whole switch** - it installs AND activates.
+  Only delete the old layout afterwards, if at all. Use
+  `list_layout_catalogue` first to see names.
+
+delete_layout `{ layout }`
+: Delete an installed layout and its themes. **The ACTIVE layout is always
+  refused** - when switching, install/activate the replacement first, then
+  delete the old one. Never delete first: the right order is
+  `list_layout_catalogue` -> `install_layout` -> (optionally) `delete_layout`.
+  A recovery snapshot is kept. Needs `manage_layouts`.
+
+submit_feedback `{ summary, good, bad, rating, context }`
+: Report what worked and what got in the way while building through the
+  connector - this is how the operators improve the tools. Use it freely; your
+  identity and context are recorded automatically. No capability required.
 
 invalidate_cache `{ path }`
 : Drop a page's cached HTML so it re-renders (`"*"` for all). A normal write

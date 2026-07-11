@@ -49,7 +49,8 @@ my %ACTION_INFO = (
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files
                     validate_page invalidate_cache read_nav audit_site
-                    get_permissions set_permissions) ],
+                    get_permissions set_permissions
+                    list_versions view_version restore_version) ],
             webdav => ['write anywhere in the content namespace (within dav_scope)'],
         },
     },
@@ -143,6 +144,22 @@ my @TASKS = (
         steps    => [
             'PUT layout files (view.tt, components) under lazysite/layouts/<name>/ over WebDAV',
             'call activate_layout (MCP) or POST action=layout-activate (control API)',
+        ],
+    },
+    { id => 'switch-layout', title => 'Switch the site to a different layout',
+        requires => ['manage_layouts'],
+        steps    => [
+            'call list_layout_catalogue (MCP) or GET action=layouts-manifest (control API) to see what is available and installed',
+            'call install_layout (MCP) or POST action=layout-install (control API) - it installs AND activates the new layout in one step',
+            'ONLY THEN, if the old layout is no longer wanted: delete_layout / layout-delete. Deleting the ACTIVE layout is always refused - install/activate the replacement first, never delete first',
+        ],
+    },
+    { id => 'restore-from-history', title => 'Undo a content change (restore a recorded version)',
+        requires => ['manage_content'],
+        steps    => [
+            'call list_versions (MCP) or GET action=git-history (control API) for the file - needs the site\'s Content history plugin enabled',
+            'call view_version / git-show to confirm the version (content + diff against the current file)',
+            'call restore_version / git-restore - the historic content is saved back through the normal save path and the restore itself becomes the newest version, so nothing is lost',
         ],
     },
     { id => 'publish-page', title => 'Publish a page',

@@ -33,7 +33,8 @@ use Lazysite::Audit qw(audit_log);
 use Lazysite::Capabilities qw(describe);
 use Lazysite::Auth::OAuth ();
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
-    action_move action_acl_get action_acl_set action_acl_remove);
+    action_move action_acl_get action_acl_set action_acl_remove
+    action_git_history action_git_show action_git_restore);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
     action_cache_invalidate _read_active_layout_and_theme action_themes_list_all);
 use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
@@ -385,7 +386,7 @@ my %TOOLS = (
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
-                path  => { type => 'string' },
+                path => { type => 'string' },
                 read  => { type => 'string', description => 'comma-separated users / @groups' },
                 write => { type => 'string' },
             },
@@ -427,7 +428,7 @@ my %TOOLS = (
         run         => sub { action_layouts_manifest() },
     },
     install_layout => {
-        description => 'Install a layout and its theme(s) from the repo on demand, then activate it. By default installs the layout default_theme; pass theme for a specific one, or all:true for every theme. Mirrors assets and clears the cache. Use list_layout_catalogue first to see names.',
+        description => 'Install a layout and its theme(s) from the repo on demand, then activate it. By default installs the layout default_theme; pass theme for a specific one, or all:true for every theme. Mirrors assets and clears the cache. Use list_layout_catalogue first to see names. To SWITCH the site to a different layout this one tool is the whole switch (install + activate in one step); only delete the old layout AFTERWARDS if it is no longer wanted - deleting the active layout is always refused, so never delete first.',
         cap         => 'manage_layouts',
         inputSchema => { type => 'object',
             properties => {
@@ -449,7 +450,7 @@ my %TOOLS = (
         },
     },
     delete_layout => {
-        description => 'Delete an installed layout AND its themes. Refuses the active layout; a recovery snapshot is kept and the web asset mirror is cleared.',
+        description => 'Delete an installed layout AND its themes. Refuses the ACTIVE layout - when switching layouts, install/activate the replacement first (install_layout does both), then delete the old one. A recovery snapshot is kept and the web asset mirror is cleared.',
         cap         => 'manage_layouts',
         inputSchema => { type => 'object',
             properties => { layout => { type => 'string' } },
@@ -608,6 +609,43 @@ my %TOOLS = (
             properties => { path => { type => 'string', description => 'Page path (e.g. /enquire), or "*" for all pages' } },
             required => ['path'], additionalProperties => JSON::PP::false },
         run => sub { action_cache_invalidate( $_[0]->{path} ) },
+    },
+    # SM085 over MCP: the content-history surface the control API already has
+    # (git-history / git-show / git-restore), so a connector agent can inspect
+    # and undo content changes. Available when the site's Content history
+    # plugin is enabled; list_versions says so honestly when it is not.
+    list_versions => {
+        description => 'List a file\'s recorded versions (content history): newest first, each with a version id, author, date and message. Works when the site\'s Content history plugin is enabled - if the result says enabled:false, versions are not being recorded and there is nothing to restore (ask the operator to enable the plugin).',
+        cap         => 'manage_content', path_aware => 1,
+        inputSchema => { type => 'object',
+            properties => {
+                path => { type => 'string' },
+                limit => { type => 'integer', description => 'maximum entries to return (default 50)' },
+            },
+            required => ['path'], additionalProperties => JSON::PP::false },
+        run => sub { action_git_history( $_[0]->{path}, $_[1], $_[0]->{limit} ) },
+    },
+    view_version => {
+        description => 'View one recorded version of a file: its full content at that version plus a unified diff against the current file. Get the version id from list_versions first.',
+        cap         => 'manage_content', path_aware => 1,
+        inputSchema => { type => 'object',
+            properties => {
+                path => { type => 'string' },
+                version => { type => 'string', description => 'version id from list_versions' },
+            },
+            required => [ 'path', 'version' ], additionalProperties => JSON::PP::false },
+        run => sub { action_git_show( $_[0]->{path}, $_[1], $_[0]->{version} ) },
+    },
+    restore_version => {
+        description => 'Restore a file to one of its recorded versions. The historic content is written back through the normal save path (page cache refreshed), and the restore itself becomes the newest recorded version - nothing is ever lost by restoring. Use list_versions / view_version first to pick the version.',
+        cap         => 'manage_content', path_aware => 1,
+        inputSchema => { type => 'object',
+            properties => {
+                path => { type => 'string' },
+                version => { type => 'string', description => 'version id from list_versions' },
+            },
+            required => [ 'path', 'version' ], additionalProperties => JSON::PP::false },
+        run => sub { action_git_restore( $_[0]->{path}, $_[1], $_[0]->{version} ) },
     },
 );
 
@@ -1192,6 +1230,9 @@ my %ANNOTATE = (
     install_layout  => [ 0, 0, 1 ],
     delete_layout   => [ 0, 1, 1 ],
     invalidate_cache => [ 0, 0, 0 ],
+    list_versions         => [ 1, 0, 0 ],
+    view_version          => [ 1, 0, 0 ],
+    restore_version       => [ 0, 0, 1 ],
 );
 
 sub _tool_names { return [ sort keys %TOOLS ] }
@@ -1343,7 +1384,8 @@ elsif ( $method eq 'tools/call' ) {
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
     my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, analyse_visitors => 1 );
+        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, analyse_visitors => 1,
+        list_versions => 1, view_version => 1 ); # history reads: audit-skipped like the API's git-history/show
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the

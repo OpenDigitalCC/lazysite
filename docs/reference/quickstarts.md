@@ -23,6 +23,22 @@ Requires: `manage_layouts`
 1. PUT layout files (view.tt, components) under lazysite/layouts/<name>/ over WebDAV
 2. call activate_layout (MCP) or POST action=layout-activate (control API)
 
+## Switch the site to a different layout
+
+Requires: `manage_layouts`
+
+1. call list_layout_catalogue (MCP) or GET action=layouts-manifest (control API) to see what is available and installed
+2. call install_layout (MCP) or POST action=layout-install (control API) - it installs AND activates the new layout in one step
+3. ONLY THEN, if the old layout is no longer wanted: delete_layout / layout-delete. Deleting the ACTIVE layout is always refused - install/activate the replacement first, never delete first
+
+## Undo a content change (restore a recorded version)
+
+Requires: `manage_content`
+
+1. call list_versions (MCP) or GET action=git-history (control API) for the file - needs the site's Content history plugin enabled
+2. call view_version / git-show to confirm the version (content + diff against the current file)
+3. call restore_version / git-restore - the historic content is saved back through the normal save path and the restore itself becomes the newest version, so nothing is lost
+
 ## Publish a page
 
 Requires: `manage_content`
