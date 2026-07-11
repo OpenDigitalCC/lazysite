@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.8 - STABLE: version recording guaranteed + Content history as a plugin (2026-07-11)
+
 Content history presents as a plugin; the Backups page is backups only (field feedback)
 : Field feedback: the Content history controls were lost on the Backups
   page - and content history is not a backup, it is the enabling of change
