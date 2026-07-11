@@ -25,3 +25,10 @@ License: MIT
  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
+
+Files: starter/manager/assets/cm/*
+Copyright: 2017, Marijn Haverbeke <marijnh@gmail.com> and others
+License: Expat
+Comment: CodeMirror 5.65.16 (https://codemirror.net/5/), bundled minified;
+ the upstream licence header is removed by minification and reproduced in
+ THIRD-PARTY-NOTICES.md at the source root.

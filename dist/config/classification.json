@@ -121,7 +121,7 @@
     },
     {
       "_comment": "Root-of-tarball docs including UPGRADE.md from 0.2.0 onwards.",
-      "pattern": "^(LICENSE|COPYRIGHT|README\\.md|SECURITY\\.md|UPGRADE\\.md)$",
+      "pattern": "^(LICENSE|COPYRIGHT|THIRD-PARTY-NOTICES\\.md|README\\.md|SECURITY\\.md|UPGRADE\\.md)$",
       "install_to": null,
       "bucket": "code"
     }
