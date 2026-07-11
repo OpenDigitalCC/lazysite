@@ -1,3 +1,11 @@
+lazysite (0.7.6-1) unstable; urgency=medium
+
+  * Release 0.7.6: licensing audit round - THIRD-PARTY-NOTICES for bundled
+    CodeMirror (MIT notice compliance) + debian/copyright stanza; theme
+    library fonts now self-hosted (no CDN, standing rule).
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Fri, 11 Jul 2026 12:30:00 +0000
+
 lazysite (0.7.5-1) UNRELEASED; urgency=medium
 
   * New binary packages lazysite-apache and lazysite-nginx (the SM139
