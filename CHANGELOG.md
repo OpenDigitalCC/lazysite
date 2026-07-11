@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.5 - Webserver glue debs + lazysite demo (2026-07-11)
+
 Feature - webserver glue packages: lazysite-apache + lazysite-nginx (SM139 increment 6)
 : Two new Debian packages wire lazysite into plain (non-panel) hosts. Each
   ships commented vhost examples for both runtime patterns - plain CGI
