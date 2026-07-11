@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.7 - STABLE: the field-validation round, cured at source (2026-07-11)
+
 Audit completeness - CLI events, loud failures, umask-proof modes (defect round)
 : a fresh 0.7.5 field provision showed only the `installed` audit event.
   Two root causes fixed: (1) the audit writer opened with `or return`
