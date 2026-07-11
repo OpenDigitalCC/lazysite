@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.6 - Licensing audit: notices + self-hosted theme fonts (2026-07-11)
+
 Licensing - third-party notices + self-hosted theme fonts (audit round)
 : the 2026-07-11 input-licence audit (for the AGPL + commercial-waiver
   evaluation) found one gap and one policy breach, both fixed: (1) bundled
