@@ -182,4 +182,58 @@ SKIP: {
     is( $log->[0]{author}, 'bob', 'the adoption commit is attributed to the acting user' );
 }
 
+# --- ONE switch: the Plugin-Manager toggle runs the lifecycle hooks ----------------
+# Field feedback: enabling the plugin must be all it takes - no second Enable
+# on the config page. Ticking runs on_enable (init + adoption commit);
+# unticking runs on_disable (recording paused, every version kept).
+SKIP: {
+    require Lazysite::Manager::Plugins;
+    my $base = tempdir( CLEANUP => 1 );
+    symlink( "$ROOT/plugins", "$base/plugins" )
+        or skip 'no symlink support', 1;
+    my $site = "$base/site";
+    make_path("$site/lazysite");
+    t_spit( "$site/lazysite/lazysite.conf", "site_name: T\n" );
+    t_spit( "$site/index.md",               "home\n" );
+    local $Lazysite::Manager::Plugins::DOCROOT  = $site;
+    local $Lazysite::Manager::Common::auth_user = 'bob';
+
+    my $desc = decode_json( scalar qx($^X \Q$PLUGIN\E --describe) );
+    is( $desc->{on_enable},  'enable',  'descriptor declares the on_enable hook' );
+    is( $desc->{on_disable}, 'disable', 'descriptor declares the on_disable hook' );
+
+    my $en = Lazysite::Manager::Plugins::action_plugin_enable('plugins/content-history.pl');
+    ok( $en->{ok}, 'plugin-enable ok' ) or diag explain $en;
+    ok( $en->{hook} && $en->{hook}{ok}, 'the toggle ran the on_enable hook' )
+        or diag explain $en;
+    like( $en->{hook}{commit}, qr/\A[0-9a-f]{40}\z/, 'hook took the adoption commit' );
+    like( t_slurp("$site/lazysite/lazysite.conf"), qr/^plugins:/m, 'plugin listed in conf' );
+    Lazysite::Git::reset_cache();
+    ok( Lazysite::Git::enabled($site), 'recording is ON after the one switch' );
+    my $commits = Lazysite::Git::count_commits($site);
+
+    my $dis = Lazysite::Manager::Plugins::action_plugin_disable('plugins/content-history.pl');
+    ok( $dis->{ok}, 'plugin-disable ok' ) or diag explain $dis;
+    ok( $dis->{hook} && $dis->{hook}{ok}, 'the toggle ran the on_disable hook' )
+        or diag explain $dis;
+    like( $dis->{hook}{message}, qr/kept/, 'pause message says the versions are kept' );
+    Lazysite::Git::reset_cache();
+    ok( !Lazysite::Git::enabled($site), 'recording is OFF after unticking' );
+    ok( -f "$site/lazysite/git/HEAD", 'the repo (and its versions) stay on disk' );
+    like( t_slurp("$site/lazysite/lazysite.conf"), qr/^git_history:/m,
+        'conf keys survive removing the last plugin on their own lines (line-glue regression)' );
+
+    my $re = Lazysite::Manager::Plugins::action_plugin_enable('plugins/content-history.pl');
+    ok( $re->{ok} && $re->{hook} && $re->{hook}{ok}, 're-enable resumes recording' )
+        or diag explain $re;
+    Lazysite::Git::reset_cache();
+    ok( Lazysite::Git::enabled($site), 'recording is ON again' );
+    is( Lazysite::Git::count_commits($site), $commits, 'resume kept every version (no re-adoption)' );
+
+    # A plugin with no lifecycle hooks toggles exactly as before (no hook key).
+    my $plain = Lazysite::Manager::Plugins::action_plugin_enable('plugins/git-sync.pl');
+    ok( $plain->{ok} && !exists $plain->{hook}, 'a hookless plugin toggles with no hook result' )
+        or diag explain $plain;
+}
+
 done_testing();

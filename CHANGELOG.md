@@ -18,6 +18,30 @@ Keying
 
 ## Unreleased
 
+Release channel ladder: edge < beta < stable
+: Owner request: a middle rung between early testing and the slow customer
+  channel. A build now declares one of three maturities (build-manifest
+  `--channel beta`, `release.sh --beta`; stable stays `--final`) and a
+  site's `update_channel` is the minimum maturity it accepts - beta sites
+  take beta+stable, stable sites take stable only, edge/unset takes
+  everything. One ordering (`%CHANNEL_RANK`) drives the installer gate,
+  `--channel-check`, the maintenance op and every CLI validator; the
+  skip/force audit entries now name the site's actual channel. Ladder
+  covered end-to-end in the installer suite.
+
+Content history: one switch, and a conf-corruption fix underneath it
+: Field feedback: enabling the feature took two enables (plugin tick, then
+  Enable on Plugin Config). Plugins may now declare on_enable/on_disable
+  lifecycle hooks (run with the Plugin-Manager toggle, descriptor literals
+  only, failure surfaced on the page and never undoing the toggle);
+  content-history declares both - ticking records the initial snapshot,
+  unticking pauses recording with every version kept, Plugin Config stays
+  as the inspection/recovery surface (Status / Enable / Pause). The hook
+  work exposed a latent defect: removing a site's LAST plugin glued the
+  neighbouring lazysite.conf lines into one corrupt line ("site_name:
+  Tgit_history: enabled"); the rebuild is now line-wise, with a regression
+  test.
+
 ## 0.7.9 - permissions say what they mean: SM095 leftover sweep (2026-07-11)
 
 SM095 leftovers swept: per-account capability language and the missing group-set verb

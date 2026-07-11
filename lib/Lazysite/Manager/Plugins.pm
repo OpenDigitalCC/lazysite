@@ -137,14 +137,49 @@ sub action_plugin_enable {
     my ($script) = @_;
     $script =~ s/[^a-zA-Z0-9_.\/\-]//g;
     return { ok => 0, error => 'No script' } unless $script;
-    return _update_plugins_conf($script, 'add');
+    my $r = _update_plugins_conf( $script, 'add' );
+    return $r unless $r->{ok};
+    my $hook = _run_plugin_hook( $script, 'on_enable' );
+    $r->{hook} = $hook if $hook;
+    return $r;
 }
 
 sub action_plugin_disable {
     my ($script) = @_;
     $script =~ s/[^a-zA-Z0-9_.\/\-]//g;
     return { ok => 0, error => 'No script' } unless $script;
-    return _update_plugins_conf($script, 'remove');
+    my $r = _update_plugins_conf( $script, 'remove' );
+    return $r unless $r->{ok};
+    my $hook = _run_plugin_hook( $script, 'on_disable' );
+    $r->{hook} = $hook if $hook;
+    return $r;
+}
+
+# Field feedback (2026-07-11): enabling a plugin IS enabling its feature - a
+# second Enable on the config page is a trap. A plugin may declare on_enable /
+# on_disable in its descriptor (each names one of its own declared actions);
+# the named action runs right after the Plugin-Manager toggle and its result
+# travels back as `hook` for the page's status line. Hook ids resolve against
+# the descriptor's actions, so - exactly as in action_plugin_action - only
+# descriptor literals ever reach the command line. A failed hook never undoes
+# the toggle: the plugin's own status action is the recovery surface.
+sub _run_plugin_hook {
+    my ( $script, $hook_key ) = @_;
+    my $full_script = resolve_plugin_script($script);
+    return undef unless $full_script;
+    my $json = qx($^X \Q$full_script\E --describe 2>/dev/null);
+    my $desc = eval { decode_json($json) };
+    return undef unless $desc && ref $desc eq 'HASH';
+    my $id = $desc->{$hook_key};
+    return undef unless defined $id && length $id;
+    my ($action) = grep { ( $_->{id} // '' ) eq $id } @{ $desc->{actions} // [] };
+    return { ok => 0, error => "$hook_key names an undeclared action '$id'" }
+        unless $action && ( $action->{run} // '' ) eq 'action';
+    local $ENV{LAZYSITE_ACTING_USER} = $Lazysite::Manager::Common::auth_user // '';
+    my $args   = join ' ', map { quotemeta } ( '--action', $id );
+    my $output = qx($^X \Q$full_script\E $args --docroot \Q$DOCROOT\E);
+    return eval { decode_json($output) }
+        // { ok => 0, error => 'hook produced no output' };
 }
 
 sub _update_plugins_conf {
@@ -195,12 +230,16 @@ sub _update_plugins_conf {
         @plugins = grep { $_ ne $script } @plugins;
     }
 
-    my $new_conf = join("\n", @before);
-    if ( @plugins ) {
-        $new_conf .= "\nplugins:\n";
-        $new_conf .= "  - $_\n" for @plugins;
+    # Rebuild line-wise. (The old string concatenation lost the newline
+    # between the last before-line and the first after-line whenever the
+    # plugins block emptied - removing a site's only plugin glued two conf
+    # keys into one corrupt line.)
+    my @out = @before;
+    if (@plugins) {
+        push @out, 'plugins:', map { "  - $_" } @plugins;
     }
-    $new_conf .= join("\n", @after) if @after;
+    push @out, @after;
+    my $new_conf = join( "\n", @out );
     $new_conf =~ s/\n{3,}/\n\n/g;
     $new_conf .= "\n" unless $new_conf =~ /\n$/;
 

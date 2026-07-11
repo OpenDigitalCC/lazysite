@@ -591,11 +591,14 @@ a temporary domain, then move content, config and accounts to the final one).
 
 ## Content history (git, SM085)
 
-Opt-in per-file version history for the site content. Enabling it (conf key
-`git_history: enabled` + the **Content history plugin**'s Enable action - enable the
-plugin on Plugin Manager, then Enable on Plugin Config; or the `git-init`
-control-API action, gated on `manage_config` - the plugin's status/enable actions
-drive the same `Lazysite::Git` machinery) puts the docroot under git: the
+Opt-in per-file version history for the site content. ONE switch enables it:
+ticking the **Content history plugin** on Plugin Manager runs its `on_enable`
+hook (conf key `git_history: enabled` + the initial snapshot), and unticking
+runs `on_disable` (recording paused, every version kept). The `git-init`
+control-API action (gated on `manage_config`) and the plugin's Status /
+Enable / Pause actions on Plugin Config drive the same `Lazysite::Git`
+machinery - the config page is the inspection/recovery surface, not a second
+required step. Enabling puts the docroot under git: the
 repository lives at `lazysite/git/` (inside the never-served infra tree - no `.git`
 under the docroot for a web server to leak) with the docroot as the work tree, and
 the enabling act takes an **adoption commit** of the current site. From then on

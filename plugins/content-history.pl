@@ -5,8 +5,11 @@
 # Field feedback (2026-07-11): the enable/status controls used to be a card on
 # the Backups page, where they were lost - and content history is not a backup,
 # it is the enabling of change logging. Its sibling git-sync already presents
-# as a plugin, so the pair now lives coherently on the plugin surface: enable
-# the plugin on Plugin Manager, then Status / Enable on Plugin Config.
+# as a plugin, so the pair now lives coherently on the plugin surface. ONE
+# switch: ticking the plugin on Plugin Manager runs the on_enable hook (git
+# init + adoption commit), unticking runs on_disable (recording paused, every
+# version kept) - no second Enable on the config page. Status / Enable /
+# Pause on Plugin Config remain for inspection and recovery.
 #
 # The ENGINE is untouched. The write hooks stay keyed on the `git_history`
 # conf key plus an initialised repo (lib/Lazysite/Git.pm), the Files page keeps
@@ -66,7 +69,20 @@ sub describe {
                     . 'recorded as a version. Secrets and personal data (accounts, '
                     . 'form submissions, logs) are never included.',
             },
+            {
+                id      => 'disable',
+                label   => 'Pause recording',
+                run     => 'action',
+                confirm => 'Pause content history? Every recorded version is '
+                    . 'kept; new saves are not recorded until it is enabled '
+                    . 'again.',
+            },
         ],
+        # Lifecycle: the Plugin-Manager toggle is the ONE switch. Enabling the
+        # plugin enables recording (init + adoption commit); disabling pauses
+        # it. Both hooks reference the actions above.
+        on_enable  => 'enable',
+        on_disable => 'disable',
     };
 }
 
@@ -93,9 +109,10 @@ sub run {
     my $what    = $opt{scan} ? 'status' : ( $opt{action} // '' );
 
     my $result =
-        $what eq 'status'   ? do_status($docroot)
-        : $what eq 'enable' ? do_enable( $docroot, $user )
-        :                     { ok => 0, error => 'Unknown action.' };
+        $what eq 'status'    ? do_status($docroot)
+        : $what eq 'enable'  ? do_enable( $docroot, $user )
+        : $what eq 'disable' ? do_disable($docroot)
+        :                      { ok => 0, error => 'Unknown action.' };
     print encode_json($result);
     return 0;
 }
@@ -185,6 +202,34 @@ sub do_enable {
         commits => Lazysite::Git::count_commits($docroot),
         message => "Content history enabled (initial snapshot $sha7). "
             . 'Every save is now recorded as a version.' };
+}
+
+# DISABLE (the on_disable hook / Pause recording): recording stops, nothing
+# is lost - the repo and every recorded version stay on disk, and re-enabling
+# resumes on top of them (do_enable's already-initialised path).
+sub do_disable {
+    my ($docroot) = @_;
+    return { ok => 0, error => 'No site directory given.' }
+        unless defined $docroot && length $docroot && -d $docroot;
+
+    require Lazysite::Manager::Common;
+    Lazysite::Manager::Common->import('_write_conf_key');
+    local $Lazysite::Manager::Common::DOCROOT = $docroot;
+
+    unless ( Lazysite::Git::enabled($docroot) ) {
+        return { ok => 1, already => 1,
+            message => 'Content history was not recording.' };
+    }
+    _write_conf_key( 'git_history', 'disabled' )
+        or return { ok => 0, error => 'Could not write lazysite.conf.' };
+    Lazysite::Git::reset_cache();
+    my $commits = Lazysite::Git::count_commits($docroot);
+    Lazysite::Util::log_event( 'INFO', 'disable', 'content history paused',
+        commits_kept => $commits );
+    return { ok => 1, commits => $commits,
+        message => "Content history paused - $commits recorded version"
+            . ( $commits == 1 ? '' : 's' )
+            . ' kept. Enable the plugin again to resume recording.' };
 }
 
 1;

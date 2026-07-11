@@ -63,7 +63,15 @@ function togglePlugin(input, script, name) {
     if (!data.ok) {
       input.checked = !input.checked;
       warn('Failed to ' + (input.checked ? 'enable' : 'disable') + ' ' + name + ': ' + (data.error || 'unknown'));
-    } else { warn(''); loadPluginRegistry(); }
+    } else {
+      // A plugin may run a setup/teardown step with its toggle (on_enable /
+      // on_disable) - its outcome IS the news, so show it here.
+      var h = data.hook;
+      if (h && h.message) { warn(name + ': ' + h.message); }
+      else if (h && !h.ok) { warn(name + ' is toggled, but its setup step failed: ' + (h.error || 'unknown') + ' - open its config page for status.'); }
+      else { warn(''); }
+      loadPluginRegistry();
+    }
   }).catch(function (e) {
     input.disabled = false; input.checked = !input.checked; warn('Error: ' + e.message);
   });

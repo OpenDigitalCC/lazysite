@@ -129,12 +129,14 @@ you choose **Keep mine** or **Take theirs** (a safety snapshot is taken
 first either way).
 
 The **Content history** plugin (`content-history`) turns on per-file
-version history for the site content: **Enable content history** takes an
-initial snapshot of the current site, then every save (manager, WebDAV, or
-AI connector) becomes a recorded version, browsable per file on the Files
-page (History / Diff / Restore). **Status** reports whether it is enabled,
-how many versions are recorded, and whether the host has the `git` package
-it needs. The history covers the content plus `lazysite.conf` / `nav.conf`
+version history for the site content. Ticking the plugin on Plugin Manager
+is all it takes: an initial snapshot of the current site is recorded, then
+every save (manager, WebDAV, or AI connector) becomes a recorded version,
+browsable per file on the Files page (History / Diff / Restore). Unticking
+the plugin pauses recording and keeps every recorded version. On Plugin
+Config, **Status** reports whether it is recording, how many versions are
+recorded, and whether the host has the `git` package it needs (with
+**Enable** / **Pause recording** there for recovery). The history covers the content plus `lazysite.conf` / `nav.conf`
 and never includes secrets or personal data (accounts, form submissions,
 logs), so it is safe to sync to a private remote; full-system backups (see
 Backups) remain the disaster-recovery mechanism for exactly what the
