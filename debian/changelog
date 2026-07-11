@@ -1,3 +1,14 @@
+lazysite (0.7.7-1) unstable; urgency=medium
+
+  * Release 0.7.7 (STABLE): field-validation round cured at source -
+    never-silent audit trail + structural guarantee suite, CLI auditing,
+    split-identity correctness (secret mints 0660, umask-scoped caches,
+    installer modes), lazysite-check chown-handover convergence fix,
+    actionable permission errors, unsaved-changes guard across the manager,
+    logging plugin gains syslog forwarding.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Fri, 11 Jul 2026 16:30:00 +0000
+
 lazysite (0.7.6-1) unstable; urgency=medium
 
   * Release 0.7.6: licensing audit round - THIRD-PARTY-NOTICES for bundled
