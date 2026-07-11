@@ -13,14 +13,14 @@ package Lazysite::Capabilities;
 
 use strict;
 use warnings;
-use JSON::PP ();
+use JSON::PP                 ();
 use Lazysite::Auth::Settings qw(@CAP_KEYS);
 use Exporter 'import';
 our @EXPORT_OK = qw(describe capability_keys channel_keys action_keys);
 
 # The four channels (WHERE you operate). Fixed concept; the rest of @CAP_KEYS are
 # actions (WHAT you may do).
-my @CHANNELS = qw(ui webdav api mcp);
+my @CHANNELS   = qw(ui webdav api mcp);
 my %IS_CHANNEL = map { $_ => 1 } @CHANNELS;
 
 sub channel_keys    { return @CHANNELS }
@@ -45,11 +45,11 @@ my %ACTION_INFO = (
         title   => 'Read and write site content (pages, assets).',
         unlocks => {
             api => [qw(aliases-list git-status git-history git-show git-restore)],
-            mcp    => [qw(list_files read_file write_file replace_text copy_file
-                          move_file delete_file create_page delete_page rename_page
-                          list_pages read_page preview_page page_status search_files
-                          validate_page invalidate_cache read_nav audit_site
-                          get_permissions set_permissions)],
+            mcp => [ qw(list_files read_file write_file replace_text copy_file
+                    move_file delete_file create_page delete_page rename_page
+                    list_pages read_page preview_page page_status search_files
+                    validate_page invalidate_cache read_nav audit_site
+                    get_permissions set_permissions) ],
             webdav => ['write anywhere in the content namespace (within dav_scope)'],
         },
     },
@@ -79,8 +79,8 @@ my %ACTION_INFO = (
     manage_layouts => {
         title   => 'Install, author and activate layouts.',
         unlocks => {
-            api    => [qw(layout-activate layout-install layout-delete layouts-available layouts-manifest)],
-            mcp    => [qw(activate_layout install_layout delete_layout list_layout_catalogue)],
+            api => [qw(layout-activate layout-install layout-delete layouts-available layouts-manifest)],
+            mcp => [qw(activate_layout install_layout delete_layout list_layout_catalogue)],
             webdav => ['lazysite/layouts/<layout>/ (active layout read-only)'],
         },
     },
@@ -88,7 +88,7 @@ my %ACTION_INFO = (
         title   => 'Read and set safe site configuration.',
         unlocks => {
             api    => [qw(config-read config-set git-init)],
-            webdav => ['lazysite/nav.conf', 'lazysite/forms/<name>.conf'],
+            webdav => [ 'lazysite/nav.conf', 'lazysite/forms/<name>.conf' ],
         },
     },
     manage_users => {
@@ -131,30 +131,30 @@ my @ENGINE_OWNED = (
 # Task recipes: the sanctioned sequence for common jobs, machine-readable so an
 # agent can plan without prose. The human quickstarts (Phase B) are the twins.
 my @TASKS = (
-    {   id => 'install-theme', title => 'Install and activate a theme',
+    { id => 'install-theme', title => 'Install and activate a theme',
         requires => ['manage_themes'],
-        steps => [
+        steps    => [
             'PUT the theme files under lazysite/layouts/<layout>/themes/<name>/ over WebDAV (or use the MCP write_file tool on those paths)',
             'call activate_theme (MCP) or POST action=theme-activate (control API)',
         ],
     },
-    {   id => 'author-layout', title => 'Author and activate a layout',
+    { id => 'author-layout', title => 'Author and activate a layout',
         requires => ['manage_layouts'],
-        steps => [
+        steps    => [
             'PUT layout files (view.tt, components) under lazysite/layouts/<name>/ over WebDAV',
             'call activate_layout (MCP) or POST action=layout-activate (control API)',
         ],
     },
-    {   id => 'publish-page', title => 'Publish a page',
+    { id => 'publish-page', title => 'Publish a page',
         requires => ['manage_content'],
-        steps => [
+        steps    => [
             'create the page with the MCP create_page tool, or PUT the .md over WebDAV in the content namespace',
             'optionally preview_page (MCP) to confirm the render before it goes live',
         ],
     },
-    {   id => 'wire-form', title => 'Wire a form to a handler',
+    { id => 'wire-form', title => 'Wire a form to a handler',
         requires => ['manage_forms'],
-        steps => [
+        steps    => [
             'call bind_form (MCP), or PUT lazysite/forms/<name>.conf over WebDAV, naming an operator-defined handler',
         ],
     },
@@ -165,8 +165,8 @@ my @TASKS = (
 # omit caps for the static model only (e.g. the generated doc).
 sub describe {
     my (%opt) = @_;
-    my $T = JSON::PP::true();
-    my $F = JSON::PP::false();
+    my $T     = JSON::PP::true();
+    my $F     = JSON::PP::false();
 
     my %channels;
     $channels{$_} = { enforced => $T, note => $CHANNEL_INFO{$_} } for @CHANNELS;
@@ -188,7 +188,7 @@ sub describe {
         my $caps = $opt{caps};
         $map{holds} = {
             ( defined $opt{account} ? ( account => $opt{account} ) : () ),
-            ( $opt{groups} ? ( groups => $opt{groups} ) : () ),
+            ( $opt{groups}          ? ( groups  => $opt{groups} )  : () ),
             capabilities => { map { $_ => ( $caps->{$_} ? $T : $F ) } @CAP_KEYS },
         };
     }
