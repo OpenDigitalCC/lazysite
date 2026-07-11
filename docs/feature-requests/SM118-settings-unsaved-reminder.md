@@ -2,6 +2,8 @@
 title: "SM118 - unsaved-changes reminder on the settings form"
 subtitle: "The one place with an explicit Save should flag pending changes"
 brand: plain
+status: shipped
+status-note: "landed across 2 release(s), 0.4.38 .. 0.7.7"
 ---
 
 ## What

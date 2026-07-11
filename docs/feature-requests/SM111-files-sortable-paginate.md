@@ -2,6 +2,8 @@
 title: "SM111 - file manager: sortable columns + pagination"
 subtitle: "Sort by name/modified/type, and page beyond 50 files"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.34 .. 0.4.34"
 ---
 
 ## What

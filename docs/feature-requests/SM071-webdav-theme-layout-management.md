@@ -3,6 +3,8 @@ title: "SM071: WebDAV theme and layout management"
 subtitle: "Staged authoring with preview, activation, sub-user accounts, and a token-driven control API"
 brand: plain
 standard-margins: true
+status: shipped
+status-note: "spec was design-only at 2026-06-17; delivered since via SM082 path-aware capabilities, the artifact validate/activate actions and preview grants"
 ---
 
 Status

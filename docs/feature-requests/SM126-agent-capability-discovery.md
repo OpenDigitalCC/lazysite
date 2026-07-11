@@ -3,6 +3,8 @@ title: "Agent capability discovery and onboarding"
 subtitle: "A machine-parseable capability map, quickstarts, and a legible private-file boundary"
 brand: plain
 standard-margins: true
+status: shipped
+status-note: "landed across 1 release(s), 0.5.39 .. 0.5.39"
 ---
 
 ## Why this document exists

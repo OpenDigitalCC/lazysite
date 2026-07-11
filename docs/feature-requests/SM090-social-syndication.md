@@ -1,3 +1,10 @@
+---
+title: "CANDIDATE - Social syndication (consumer + publisher)"
+brand: plain
+status: candidate
+status-note: "not scoped; Stuart will brief properly when ready to action"
+---
+
 CANDIDATE - Social syndication (consumer + publisher)
 ======================================================
 

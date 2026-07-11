@@ -2,6 +2,8 @@
 title: "SM122 - config self-service for manage_config tokens"
 subtitle: "Let an agent read (and set a safe subset of) site config"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.40 .. 0.4.40"
 ---
 
 ## From the field report

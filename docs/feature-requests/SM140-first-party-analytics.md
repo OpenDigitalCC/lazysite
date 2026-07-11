@@ -1,3 +1,10 @@
+---
+title: "SM140 - First-party analytics: lazysite records its own traffic"
+brand: plain
+status: shipped
+status-note: "landed across 4 release(s), 0.6.8 .. 0.7.1"
+---
+
 # SM140 - First-party analytics: lazysite records its own traffic
 
 Status: agreed 2026-07-10 (design accepted; two-tier model confirmed - first-party

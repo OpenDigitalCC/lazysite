@@ -2,6 +2,8 @@
 title: "SM080 - Reconcile partner docs with CC field reports"
 subtitle: "Fold the dhcf + Barn build learnings into the shipped briefings; fix the theme_assets mirror"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.1 .. 0.4.1"
 ---
 
 ::: widebox

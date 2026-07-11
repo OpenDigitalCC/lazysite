@@ -2,6 +2,8 @@
 title: "SM087 - Connector editing ergonomics (from live ChatGPT use)"
 subtitle: "Make AI-driven site editing safer, higher-level and self-checking"
 brand: plain
+status: shipped
+status-note: "landed across 3 release(s), 0.4.11 .. 0.4.16"
 ---
 
 ::: widebox

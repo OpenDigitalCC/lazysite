@@ -2,6 +2,8 @@
 title: "Making the Manager Slick"
 subtitle: "A UI and UX direction for the lazysite manager"
 brand: plain
+status: shipped
+status-note: "landed across 6 release(s), 0.4.28 .. 0.4.53"
 ---
 
 ## Why this document exists

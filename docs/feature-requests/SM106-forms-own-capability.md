@@ -2,6 +2,8 @@
 title: "SM106 - forms as its own capability"
 subtitle: "Grant form management with content (default) or separately"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.26 .. 0.4.26"
 ---
 
 ::: widebox

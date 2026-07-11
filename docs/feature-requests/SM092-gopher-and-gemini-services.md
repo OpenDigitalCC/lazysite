@@ -2,6 +2,8 @@
 title: "SM092 - Gopher and Gemini services"
 subtitle: "Serve the same content tree over the small-internet protocols, as additional thin transports"
 brand: plain
+status: parked
+status-note: "no implementation; niche protocols, revisit on request"
 ---
 
 ::: widebox

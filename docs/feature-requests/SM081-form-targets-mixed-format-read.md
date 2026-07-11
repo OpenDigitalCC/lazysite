@@ -2,6 +2,8 @@
 title: "SM081 - Form targets: mixed handler/type read drops the type targets"
 subtitle: "action_form_targets_read skips the legacy block if any handler target exists"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.1 .. 0.4.1"
 ---
 
 ::: widebox

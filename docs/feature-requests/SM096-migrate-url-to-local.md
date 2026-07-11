@@ -2,6 +2,8 @@
 title: "SM096 - migrate a .url page to a local .md"
 subtitle: "Capture a remote-content page's body locally so it can be edited"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.5.41 .. 0.5.41"
 ---
 
 ::: widebox

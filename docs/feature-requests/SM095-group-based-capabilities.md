@@ -2,6 +2,8 @@
 title: "SM095 - group-based capabilities (permissions overhaul)"
 subtitle: "One central resolver; explicit channel x action capabilities on groups"
 brand: plain
+status: shipped
+status-note: "landed across 9 release(s), 0.5.12 .. 0.7.9"
 ---
 
 ::: widebox

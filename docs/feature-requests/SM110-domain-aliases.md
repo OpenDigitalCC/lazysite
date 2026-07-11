@@ -1,3 +1,10 @@
+---
+title: "SM110 - Domain aliases: one site, many hosts, different chrome"
+brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.7.3 .. 0.7.3"
+---
+
 # SM110 - Domain aliases: one site, many hosts, different chrome
 
 Status: BUILT phases 1 and 2, 2026-07-10. Host-matched conf overlay

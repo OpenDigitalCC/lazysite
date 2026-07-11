@@ -1,3 +1,10 @@
+---
+title: "SM142 - Persistent runtime: FastCGI pools ahead of packaging"
+brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.7.1 .. 0.7.1"
+---
+
 # SM142 - Persistent runtime: FastCGI pools ahead of packaging
 
 Status: BUILT 2026-07-10 (engine increments 1-3 and 5; packaging = SM139).

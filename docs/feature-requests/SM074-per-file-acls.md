@@ -2,6 +2,8 @@
 title: "SM074 - Per-file ownership and ACLs"
 subtitle: "Opt-in owner + read/write lists in a central store, enforced at the WebDAV and manager layers"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.0 .. 0.4.0"
 ---
 
 ::: widebox

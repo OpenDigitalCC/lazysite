@@ -2,6 +2,8 @@
 title: "SM079a - Action-handler decomposition plan"
 subtitle: "Taking lazysite-manager-api.pl from a 3967-line script to a dispatcher over Manager::* modules"
 brand: plain
+status: shipped
+status-note: "landed across 2 release(s), 0.4.0 .. 0.4.2"
 ---
 
 ::: widebox

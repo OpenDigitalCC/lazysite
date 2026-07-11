@@ -2,6 +2,8 @@
 title: "SM102 - agent/connector feedback endpoint"
 subtitle: "Let agents and MCP consumers log what worked and what didn't, for us to review"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.27 .. 0.4.27"
 ---
 
 ::: widebox

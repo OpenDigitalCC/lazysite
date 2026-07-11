@@ -2,6 +2,8 @@
 title: "SM098 - multi-page (wizard) forms"
 subtitle: "Multi-step forms that collect across pages and submit once"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.6.1 .. 0.6.1"
 ---
 
 ## What

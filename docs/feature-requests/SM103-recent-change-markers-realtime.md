@@ -2,6 +2,8 @@
 title: "SM103 - recent-change markers and real-time presence"
 subtitle: "A dot for what changed lately; later, live audit and change notifications"
 brand: plain
+status: partial
+status-note: "phase 1 (recent-change markers) shipped in 0.6.1; OPEN: phase 2 real-time presence"
 ---
 
 ::: widebox

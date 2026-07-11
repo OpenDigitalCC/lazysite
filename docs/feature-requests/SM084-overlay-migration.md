@@ -2,6 +2,8 @@
 title: "SM084 - Non-destructive overlay install + inline migration"
 subtitle: "Deploy lazysite onto a live HTML/SSI site and migrate page by page"
 brand: plain
+status: shipped
+status-note: "landed across 2 release(s), 0.4.10 .. 0.5.37"
 ---
 
 ::: widebox

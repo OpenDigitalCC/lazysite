@@ -2,6 +2,8 @@
 title: "SM075 - Wildcard multi-tenant hosting"
 subtitle: "Many cheap, ephemeral lazysite sites under one wildcard vhost, auto-provisioned via CLI and API"
 brand: plain
+status: parked
+status-note: "no implementation; revisit if multi-tenant demand appears"
 ---
 
 ::: widebox

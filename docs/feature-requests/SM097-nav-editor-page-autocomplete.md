@@ -2,6 +2,8 @@
 title: "SM097 - nav editor: autocomplete URLs from existing pages"
 subtitle: "Offer the pages that exist when typing a nav link"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.43 .. 0.4.43"
 ---
 
 ## What

@@ -2,6 +2,8 @@
 title: "SM073 - Per-file .brief sidecars"
 subtitle: "Author-maintained intent records alongside content, layout and theme files"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.0 .. 0.4.0"
 ---
 
 ::: widebox

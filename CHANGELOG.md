@@ -18,6 +18,18 @@ Keying
 
 ## Unreleased
 
+The backlog is now machine-readable (status headers on every feature request)
+: Every docs/feature-requests/SM*.md carries `status:` (shipped | partial |
+  parked | candidate | superseded) and, where not shipped, a `status-note:`
+  saying what remains or what replaced it - statuses derived from the
+  CHANGELOG cross-reference and the session record. `tools/backlog.pl`
+  lists the open work (--all for everything); a new lint gate
+  (t/lint/09-feature-request-status.t) refuses any SM doc without a valid
+  status, so the backlog cannot drift back to inferred. SM107 closed as
+  superseded (SM138 retired the manager_groups key it asked a picker
+  for); SM089 gets an honest candidate stub (filed 0.4.13, never
+  spec'd).
+
 Channel ladder reaches the Site settings page (field finding on 0.7.10)
 : The manager UI's Update channel selector and the control API's
   config-set validator still offered only all/stable - the one surface

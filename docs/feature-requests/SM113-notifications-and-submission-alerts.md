@@ -2,6 +2,8 @@
 title: "SM113 - notification system + unreviewed-submission alerts"
 subtitle: "Tell an operator when something needs attention; let plugins raise notices"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.44 .. 0.4.44"
 ---
 
 ::: widebox

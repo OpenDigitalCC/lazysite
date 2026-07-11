@@ -1,3 +1,10 @@
+---
+title: "SM070 — WebDAV publishing endpoint with per-user access-mechanism controls"
+brand: plain
+status: shipped
+status-note: "landed across 2 release(s), 0.4.0 .. 0.7.0"
+---
+
 # SM070 — WebDAV publishing endpoint with per-user access-mechanism controls
 
 Status: **implemented** (2026-06-12) — `lazysite-dav.pl` plus the

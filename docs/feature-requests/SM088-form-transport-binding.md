@@ -2,6 +2,8 @@
 title: "SM088 - Binding a form to a transport via the connector"
 subtitle: "Let the AI wire a new form to delivery without touching credentials"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.12 .. 0.4.12"
 ---
 
 ::: widebox

@@ -2,6 +2,8 @@
 title: "SM116 - readable dark colour scheme for the content editor"
 subtitle: "CodeMirror's Markdown highlighting is hard to read on the dark surface"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.35 .. 0.4.35"
 ---
 
 ## What

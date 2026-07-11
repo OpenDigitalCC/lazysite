@@ -1,3 +1,10 @@
+---
+title: "SM139 - Packaged distribution: common .deb + environment .debs + unprivileged provisioning"
+brand: plain
+status: partial
+status-note: "increments 1-6 shipped (0.6.10-0.7.5); OPEN: apt-repo publication + signing-key management (candidate host: the Forgejo instance)"
+---
+
 # SM139 - Packaged distribution: common .deb + environment .debs + unprivileged provisioning
 
 Status: in progress - increments 1-6 built (design agreed in principle

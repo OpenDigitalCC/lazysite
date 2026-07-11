@@ -2,6 +2,8 @@
 title: "SM086 - Pandoc-wrapper construct renderers"
 subtitle: "Bring the rich pandoc-markdown constructs into lazysite HTML output"
 brand: plain
+status: parked
+status-note: "no implementation; depends on appetite for pandoc constructs in themes"
 ---
 
 ::: widebox

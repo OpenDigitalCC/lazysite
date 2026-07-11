@@ -2,6 +2,8 @@
 title: "SM085 - Git backend plugin (content versioning)"
 subtitle: "Version the docroot with git; per-asset timelines and rollback"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.7.4 .. 0.7.4"
 ---
 
 ::: widebox

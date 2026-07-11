@@ -2,6 +2,8 @@
 title: "SM124 - connector onboarding: align grant, brief, and docs"
 subtitle: "The brief should match the issued grant and whoami"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.40 .. 0.4.40"
 ---
 
 ## From the field report (Medium/Low)

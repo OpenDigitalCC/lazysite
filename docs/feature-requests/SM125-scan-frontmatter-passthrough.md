@@ -2,6 +2,8 @@
 title: "SM125 - scan: custom front-matter passthrough + custom sort"
 subtitle: "Self-describing registry cards without smuggling data through tags"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.46 .. 0.4.46"
 ---
 
 ::: widebox

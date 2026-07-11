@@ -2,6 +2,8 @@
 title: "SM076 OAuth - make the MCP server usable from Claude.ai web"
 subtitle: "OAuth 2.1 (RFC 9728 + 8414 + 7591 + PKCE) so a web custom connector can authenticate"
 brand: plain
+status: shipped
+status-note: "landed across 5 release(s), 0.4.2 .. 0.4.45"
 ---
 
 ::: widebox

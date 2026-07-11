@@ -2,6 +2,8 @@
 title: "SM121 - WebDAV provisioning: wire /dav/ on enable + health check"
 subtitle: "Turning on webdav_enabled should make /dav/ actually route"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.41 .. 0.4.41"
 ---
 
 ::: widebox

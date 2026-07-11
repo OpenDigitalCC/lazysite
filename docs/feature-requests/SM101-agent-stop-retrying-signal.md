@@ -2,6 +2,8 @@
 title: "SM101 - a clear 'do not retry' signal so an agent backs off"
 subtitle: "A permanent failure should tell the agent to stop, not invite another attempt"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.27 .. 0.4.27"
 ---
 
 ::: widebox

@@ -2,6 +2,8 @@
 title: "SM107 - Manager access groups as a group picker"
 subtitle: "Choose existing groups instead of typing names"
 brand: plain
+status: superseded
+status-note: "by SM138: the manager_groups conf key this asked a picker for was retired outright - manager access is the ui capability granted on the Groups page"
 ---
 
 ::: widebox

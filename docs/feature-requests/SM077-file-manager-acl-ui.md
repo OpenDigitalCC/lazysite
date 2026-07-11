@@ -2,6 +2,8 @@
 title: "SM077 - File-manager UI overhaul: permissions, rename/move, locks, group ACLs"
 subtitle: "Make the Files page manage ownership, moves, locks and group ACLs - in one pass"
 brand: plain
+status: shipped
+status-note: "landed across 4 release(s), 0.4.1 .. 0.4.5"
 ---
 
 ::: widebox

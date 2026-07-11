@@ -2,6 +2,8 @@
 title: "SM093 - one-command manager bootstrap"
 subtitle: "Getting started must be a single built-in command, not a sequence of fiddly steps"
 brand: plain
+status: shipped
+status-note: "landed across 3 release(s), 0.4.18 .. 0.4.20"
 ---
 
 ::: widebox

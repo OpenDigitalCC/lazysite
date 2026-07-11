@@ -2,6 +2,8 @@
 title: "SM094 - Users page: permission clarity + UX"
 subtitle: "Show only what's relevant; make the operator-vs-partner model legible"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.37 .. 0.4.37"
 ---
 
 ::: widebox

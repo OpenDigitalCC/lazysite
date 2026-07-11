@@ -2,6 +2,8 @@
 title: "SM112 - lazysite meta tags on generated pages"
 subtitle: "Identify the generator (and optional author) in page head"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.34 .. 0.4.34"
 ---
 
 ## What

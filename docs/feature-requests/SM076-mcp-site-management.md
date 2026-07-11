@@ -2,6 +2,8 @@
 title: "SM076 - MCP server for site management"
 subtitle: "Expose lazysite's control API + WebDAV as MCP tools so claude.ai (and any MCP client) can manage sites"
 brand: plain
+status: shipped
+status-note: "landed across 5 release(s), 0.4.2 .. 0.4.45"
 ---
 
 ::: widebox

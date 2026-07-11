@@ -2,6 +2,8 @@
 title: "SM119 - audit log filters as value dropdowns"
 subtitle: "Filter by a user/target that actually appears in the log"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.39 .. 0.4.39"
 ---
 
 ## What

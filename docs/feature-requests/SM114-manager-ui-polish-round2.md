@@ -2,6 +2,8 @@
 title: "SM114 - manager UI polish, round 2"
 subtitle: "Follow-ups from the SM109 live review"
 brand: plain
+status: shipped
+status-note: "landed across 3 release(s), 0.4.34 .. 0.4.37"
 ---
 
 ::: widebox

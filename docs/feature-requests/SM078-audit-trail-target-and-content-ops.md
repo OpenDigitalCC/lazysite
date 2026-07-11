@@ -2,6 +2,8 @@
 title: "SM078 - Audit trail: record the target of content / config / ACL operations"
 subtitle: "The audit log captures the action name but not what it touched"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.1 .. 0.4.1"
 ---
 
 ::: widebox

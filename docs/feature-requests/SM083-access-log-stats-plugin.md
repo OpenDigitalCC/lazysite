@@ -2,6 +2,8 @@
 title: "SM083 - Access-log stats plugin (modern awstats/webalizer)"
 subtitle: "Turn the web server access log into on-site visitor stats"
 brand: plain
+status: shipped
+status-note: "as the access-log plugin (tier-2 diagnostics); SM140 first-party analytics is the primary tier since 0.6.8"
 ---
 
 ::: widebox

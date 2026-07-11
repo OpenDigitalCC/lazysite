@@ -2,6 +2,8 @@
 title: "SM104 - clarity: top-level accounts vs sub-users"
 subtitle: "Make the account hierarchy legible, and stop the 'under the manager' confusion"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.26 .. 0.4.26"
 ---
 
 ::: widebox

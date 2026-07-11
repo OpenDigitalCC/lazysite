@@ -3,6 +3,8 @@ title: "SM072: Self-service credentials and MFA-ready auth"
 subtitle: "A single claim-token primitive for setup links, email reset, partner exchange - and a TOTP slot designed in from the start"
 brand: plain
 standard-margins: true
+status: shipped
+status-note: "spec was design-only at 2026-06-23; delivered since across the SM072 batches (claims, setup links, MFA, token lifecycle)"
 ---
 
 Status

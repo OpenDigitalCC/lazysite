@@ -2,6 +2,8 @@
 title: "SM120 - per-page theme: preview override"
 subtitle: "Make theme symmetric with layout - the highest-leverage theming fix"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.40 .. 0.4.40"
 ---
 
 ::: widebox

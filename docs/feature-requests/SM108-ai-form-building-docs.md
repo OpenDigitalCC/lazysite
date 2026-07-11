@@ -2,6 +2,8 @@
 title: "SM108 - AI form-building documentation"
 subtitle: "Let an agent build and wire a form natively, not only by copying an existing one"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.38 .. 0.4.38"
 ---
 
 ::: widebox

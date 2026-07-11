@@ -2,6 +2,8 @@
 title: "SM091 - dev-server auto-index: browse any tree with no index files"
 subtitle: "Point lazysite-server.pl at an arbitrary folder of Markdown and get a generated index + breadcrumb nav, writing nothing"
 brand: plain
+status: shipped
+status-note: "landed across 2 release(s), 0.4.17 .. 0.4.18"
 ---
 
 ::: widebox

@@ -2,6 +2,8 @@
 title: "SM117 - audit install / upgrade / version events"
 subtitle: "Record deploys in the audit trail"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.37 .. 0.4.37"
 ---
 
 ## What

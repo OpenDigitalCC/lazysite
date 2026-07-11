@@ -1,3 +1,10 @@
+---
+title: "SM141 - Session registry: list + control active sessions"
+brand: plain
+status: shipped
+status-note: "landed across 2 release(s), 0.6.10 .. 0.7.3"
+---
+
 # SM141 - Session registry: list + control active sessions
 
 Status: BUILT (option B, phase 1 - no last-seen) 2026-07-10; scoped earlier

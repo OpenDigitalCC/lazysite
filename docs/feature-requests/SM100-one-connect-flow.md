@@ -2,6 +2,8 @@
 title: "SM100 - one 'Connect' flow per account (not three credential controls)"
 subtitle: "Pick the client once; get the one credential that works"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.25 .. 0.4.25"
 ---
 
 ::: widebox

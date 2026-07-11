@@ -2,6 +2,8 @@
 title: "SM123 - theme discovery: list installed themes + asset-mirror lifecycle"
 subtitle: "See what themes are installed without activating each in turn"
 brand: plain
+status: shipped
+status-note: "landed across 1 release(s), 0.4.40 .. 0.4.40"
 ---
 
 ## From the field report (Low/Medium)
