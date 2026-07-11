@@ -864,7 +864,7 @@ function toggleHistory(btn) {
 
 function renderHistory(panel, entries) {
   if (!entries.length) {
-    panel.innerHTML = '<p class="mg-muted">No history for this file yet &mdash; entries appear as it is saved.</p>';
+    panel.innerHTML = '<p class="mg-muted">No versions recorded for this file. If it was changed after history was enabled, version recording may be failing &mdash; run <code>lazysite check</code>.</p>';
     return;
   }
   var html = '<table class="mg-file-table"><thead><tr>'

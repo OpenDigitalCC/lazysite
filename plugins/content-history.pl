@@ -1,0 +1,190 @@
+#!/usr/bin/perl
+# content-history.pl - the operator-facing surface for the content history
+# (SM085; the enable/status half of the pair whose remote half is git-sync.pl).
+#
+# Field feedback (2026-07-11): the enable/status controls used to be a card on
+# the Backups page, where they were lost - and content history is not a backup,
+# it is the enabling of change logging. Its sibling git-sync already presents
+# as a plugin, so the pair now lives coherently on the plugin surface: enable
+# the plugin on Plugin Manager, then Status / Enable on Plugin Config.
+#
+# The ENGINE is untouched. The write hooks stay keyed on the `git_history`
+# conf key plus an initialised repo (lib/Lazysite/Git.pm), the Files page keeps
+# its per-file History/Diff/Restore panels (hidden while disabled), and the
+# manager-api git-* actions remain the control-API surface. This plugin drives
+# exactly the machinery action_git_init drives: ENABLE writes the conf key
+# through the manager's own _write_conf_key and takes the adoption commit via
+# Lazysite::Git::init (idempotent - re-enabling reports "already enabled" and
+# keeps every recorded version); STATUS reports enabled / initialised / git
+# availability / the recorded version count in plain language.
+
+use strict;
+use warnings;
+no warnings 'once';    # cross-module package vars (the Common docroot context,
+                       # $Lazysite::Util::COMPONENT) are each set once here.
+use JSON::PP qw(encode_json);
+
+BEGIN {
+    # Locate the Lazysite module tree relative to this script (run-in-place,
+    # tar and Hestia installs), falling back to the system @INC (package
+    # installs). Deferred to the action paths below via require - --describe
+    # must answer even where the tree is not found.
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+}
+
+exit run(@ARGV) if !caller;
+
+sub describe {
+    return {
+        id          => 'content-history',
+        name        => 'Content history',
+        description => 'Every content change recorded as a version. With history '
+            . 'enabled, every save (manager, WebDAV, or AI connector) becomes a '
+            . 'recorded version, and each file gains a History panel on the Files '
+            . 'page - view, diff and restore any version. The history covers the '
+            . 'content plus lazysite.conf and nav.conf; it never includes secrets '
+            . 'or personal data (accounts, form submissions, logs) nor generated '
+            . 'caches, so it stays safe to sync to a private remote (the Remote '
+            . 'sync plugin). Full-system backups on the Backups page remain the '
+            . 'disaster-recovery mechanism for exactly what the history excludes.',
+        version       => '1.0',
+        config_file   => '',
+        config_schema => [],
+        actions       => [
+            { id => 'status', label => 'Status' },
+            {
+                id      => 'enable',
+                label   => 'Enable content history',
+                run     => 'action',
+                confirm => 'Enable content history? The current site is captured '
+                    . 'as an initial snapshot, and every save from now on is '
+                    . 'recorded as a version. Secrets and personal data (accounts, '
+                    . 'form submissions, logs) are never included.',
+            },
+        ],
+    };
+}
+
+sub run {
+    my (@argv) = @_;
+    my %opt;
+    for my $i ( 0 .. $#argv ) {
+        $opt{describe} = 1 if $argv[$i] eq '--describe';
+        $opt{scan}     = 1 if $argv[$i] eq '--scan';
+        $opt{docroot}  = $argv[ $i + 1 ] // '' if $argv[$i] eq '--docroot';
+        $opt{action}   = $argv[ $i + 1 ] // '' if $argv[$i] eq '--action';
+    }
+    if ( $opt{describe} ) {
+        print encode_json( describe() );
+        return 0;
+    }
+
+    require Lazysite::Util;
+    require Lazysite::Git;
+    $Lazysite::Util::COMPONENT = 'content-history';
+
+    my $docroot = $opt{docroot} // $ENV{DOCUMENT_ROOT} // '';
+    my $user    = $ENV{LAZYSITE_ACTING_USER} // 'operator';
+    my $what    = $opt{scan} ? 'status' : ( $opt{action} // '' );
+
+    my $result =
+        $what eq 'status'   ? do_status($docroot)
+        : $what eq 'enable' ? do_enable( $docroot, $user )
+        :                     { ok => 0, error => 'Unknown action.' };
+    print encode_json($result);
+    return 0;
+}
+
+sub _bool { return $_[0] ? JSON::PP::true : JSON::PP::false }
+
+# STATUS: the same facts action_git_status reports, plus the plain-language
+# sentence the old Backups card rendered from them - and last-commit health:
+# the engine leaves GIT_DIR/COMMIT_FAILED behind when a version could not be
+# recorded (the save itself succeeds by design), so a currently-failing
+# recorder is visible here without log-diving.
+sub do_status {
+    my ($docroot) = @_;
+    return { ok => 0, error => 'No site directory given.' }
+        unless defined $docroot && length $docroot && -d $docroot;
+    my $git         = Lazysite::Git::git_available();
+    my $initialised = Lazysite::Git::initialised($docroot);
+    my $enabled     = Lazysite::Git::enabled($docroot);
+    my $commits     = $enabled ? Lazysite::Git::count_commits($docroot)               : 0;
+    my $failing = ( $initialised && -e Lazysite::Git::breadcrumb_path($docroot) ) ? 1 : 0;
+
+    my $message;
+    if ($enabled) {
+        $message = "Content history is enabled: $commits recorded version"
+            . ( $commits == 1 ? '' : 's' )
+            . '. Each file has History, Diff and Restore on the Files page.';
+        $message .= ' ATTENTION: the last attempt to record a version FAILED, so '
+            . 'recent changes may be missing from the history. Run "lazysite check '
+            . '--fix" on the server; the next successful save clears this.'
+            if $failing;
+    }
+    elsif ( !$git ) {
+        $message = 'git is not installed on this host. Ask your system '
+            . 'administrator to install the git package, then enable '
+            . 'content history here.';
+    }
+    else {
+        $message = 'Content history is not enabled. Enabling takes an initial '
+            . 'snapshot of the current site and then records every save as a '
+            . 'version.';
+        $message .= ' The versions recorded earlier are kept.' if $initialised;
+    }
+    return {
+        ok               => 1,
+        enabled          => _bool($enabled),
+        initialised      => _bool($initialised),
+        git_available    => _bool($git),
+        recording_failed => _bool($failing),
+        commits          => $commits,
+        message          => $message,
+    };
+}
+
+# ENABLE: the git-init semantics - set the conf key, initialise the repo, take
+# the adoption commit, report it. Idempotent: with a repo already initialised
+# only the conf key is (re)written and the version count is reported.
+sub do_enable {
+    my ( $docroot, $user ) = @_;
+    return { ok => 0, error => 'No site directory given.' }
+        unless defined $docroot && length $docroot && -d $docroot;
+    return { ok => 0,
+        error => 'git is not installed on this host. Ask your system '
+            . 'administrator to install the git package and try again.' }
+        unless Lazysite::Git::git_available();
+
+    # The conf key travels through the manager's own writer (permission hints
+    # included) - the same code path action_git_init uses.
+    require Lazysite::Manager::Common;
+    Lazysite::Manager::Common->import('_write_conf_key');
+    local $Lazysite::Manager::Common::DOCROOT = $docroot;
+    _write_conf_key( 'git_history', 'enabled' )
+        or return { ok => 0, error => 'Could not write lazysite.conf.' };
+    Lazysite::Git::reset_cache();
+
+    if ( Lazysite::Git::initialised($docroot) ) {
+        return { ok => 1, already => 1,
+            commits => Lazysite::Git::count_commits($docroot),
+            message => 'Content history was already enabled. '
+                . 'Every recorded version is kept.' };
+    }
+    my $r = Lazysite::Git::init( $docroot, $user );
+    return $r unless $r->{ok};
+    my $sha7 = substr( $r->{commit} // '', 0, 7 );
+    Lazysite::Util::log_event( 'INFO', 'enable', 'content history enabled',
+        commit => ( $r->{commit} // '' ), user => $user );
+    return { ok => 1, commit => $r->{commit},
+        commits => Lazysite::Git::count_commits($docroot),
+        message => "Content history enabled (initial snapshot $sha7). "
+            . 'Every save is now recorded as a version.' };
+}
+
+1;

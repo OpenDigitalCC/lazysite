@@ -18,6 +18,40 @@ Keying
 
 ## Unreleased
 
+Content history presents as a plugin; the Backups page is backups only (field feedback)
+: Field feedback: the Content history controls were lost on the Backups
+  page - and content history is not a backup, it is the enabling of change
+  logging. The enable/status surface moves to a new `content-history`
+  plugin (enable on Plugin Manager; Status / Enable actions on Plugin
+  Config), coherent with its sibling Remote sync (`git-sync`), whose
+  description now points at the plugin instead of the Backups page. The
+  engine is untouched: same conf key, same `Lazysite::Git` machinery, same
+  manager-api `git-*` actions, Files-page History unchanged. The Backups
+  page drops the Content history card and the info-only Themes & layouts
+  pointer card, and gains one intro line distinguishing the roles (backups
+  = disaster recovery incl. secrets; versioning = the plugin; theme/layout
+  snapshots = Appearance).
+
+Content history can no longer fail silently (field defect, dito.tech)
+: A pre-0.7.7 doctor chown left 0755 object dirs under lazysite/git, so
+  every post-init commit failed while saves succeeded - silent version
+  loss. Fixed at three layers: (1) the repo is initialised
+  `--shared=group` (core.sharedRepository=group), so git keeps everything
+  it creates group-accessible umask-independently, and the hook keeps the
+  in-place-rewritten COMMIT_EDITMSG 0664 (an unwritable one is fatal to a
+  commit); (2) lazysite-check gains repo-internals probes - FAIL naming
+  the symptom on any repo path the CGI cannot use, WARN on a missing
+  sharedRepository and on the failure breadcrumb, `--fix` repairs modes
+  and sets the config; (3) failure is visible without log-diving: a
+  COMMIT_FAILED breadcrumb (touched on failure, cleared by the next
+  successful commit) is read by the plugin's status action and the
+  doctor, and the Files page's empty history panel now suspects a
+  recording failure instead of pretending the file is new. A guarantee
+  suite (t/unit/lib/18-git-guarantee.t, the 16-audit-guarantee tier) pins
+  a write-path registry (every manager/DAV write action classified
+  hooked-or-exempt), the shared-permissions promise incl. a gc cycle, and
+  the failure->recovery lifecycle across all four surfaces.
+
 ## 0.7.7 - STABLE: the field-validation round, cured at source (2026-07-11)
 
 Audit completeness - CLI events, loud failures, umask-proof modes (defect round)

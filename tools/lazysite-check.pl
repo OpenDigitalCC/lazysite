@@ -166,6 +166,7 @@ my $cgi_uid = ( getpwnam 'www-data' )[2];
 
 # --- result collection -------------------------------------------------------
 my ( @results, @chmod_fixes, $chown_needed, $tt_cache_bad );
+my ( $git_fix_root, $git_shared_fix );
 sub report {    # (level, message, [hint])
     my ( $level, $msg, $hint ) = @_;
     push @results, { level => $level, msg => $msg, hint => $hint };
@@ -187,16 +188,41 @@ sub cgi_can {    # ( $bit, @stat )
     return ( $mode & $bit ) ? 1 : 0;
 }
 
+# The access bits a path under lazysite/git must gain, or 0 when the CGI can
+# already use it (probe 7c-i and its --fix share this). The FLAG condition is
+# CGI access arithmetic (cgi_can); the FIX bits also top up the owner so a
+# stripped dir serves both identities (matching git's own shared-repo modes:
+# dirs 2775-shaped, mutable files 0664-shaped). Dirs need group rwx + setgid
+# (git creates object files inside them); loose objects/packs need group READ
+# only (git deliberately keeps them read-only - mutable state is replaced via
+# rename, so directory writability is the real requirement); other files get
+# read+write (COMMIT_EDITMSG and FETCH_HEAD are rewritten IN PLACE, and an
+# unwritable COMMIT_EDITMSG is fatal to a commit).
+sub git_want_bits {    # ( $gd, $path, $is_dir, @stat )
+    my ( $gd, $p, $is_dir, @s ) = @_;
+    if ($is_dir) {
+        return 0 if cgi_can( 4, @s ) && cgi_can( 2, @s ) && cgi_can( 1, @s );
+        return 02770;
+    }
+    if ( index( $p, "$gd/objects/" ) == 0 ) {
+        return cgi_can( 4, @s ) ? 0 : 0040;
+    }
+    return 0 if cgi_can( 4, @s ) && cgi_can( 2, @s );
+    return 0660;
+}
+
 my $conf = "$LZ/lazysite.conf";
 
 # All checks are collected here so --fix can run them AGAIN after applying
 # fixes: the printed report must reflect the post-fix tree, not the pre-fix
 # snapshot (SM139 increment 5).
 sub run_checks {
-    @results      = ();
-    @chmod_fixes  = ();
-    $chown_needed = 0;
-    $tt_cache_bad = 0;
+    @results        = ();
+    @chmod_fixes    = ();
+    $chown_needed   = 0;
+    $tt_cache_bad   = 0;
+    $git_fix_root   = '';
+    $git_shared_fix = '';
 
     # --- 1. ownership: nothing under lazysite/ should be foreign-owned -----------
     {
@@ -547,7 +573,8 @@ sub run_checks {
         if ( !-d $gd ) {
             report( 'WARN',
                 "git_history is enabled but lazysite/git is not initialised",
-                "use the Enable button on the manager Backups page (action git-init)" );
+                "use the Content history plugin's Enable action on Plugin Config "
+                    . "(or the git-init control-API action)" );
         }
         else {
             my $mode = mode_of($gd);
@@ -584,6 +611,78 @@ sub run_checks {
                         . "the remote access token could be committed and PUSHED to a remote",
                     "add a '/lazysite/git-sync.conf' line to '$gd/info/exclude' (and "
                         . "'git rm --cached lazysite/git-sync.conf' if it was ever committed)" );
+            }
+
+            # 7c-i. repo internals (field defect 2026-07-11, dito.tech): a
+            # pre-0.7.7 doctor chown left 0755 object dirs the CGI cannot
+            # write, so every commit failed while the saves succeeded - new
+            # file versions were silently not recorded. Ownership+mode
+            # arithmetic (cgi_can) as everywhere: root's -w would pass what
+            # the CGI cannot use.
+            my ( $git_bad, @git_sample ) = (0);
+            File::Find::find(
+                { no_chdir => 1, wanted => sub {
+                        my $p = $File::Find::name;
+                        my @s = lstat $p or return;
+                        return if -l _;
+                        my $bits = git_want_bits( $gd, $p, ( -d _ ? 1 : 0 ), @s );
+                        return unless $bits;
+                        $git_bad++;
+                        push @git_sample, $p if @git_sample < 5;
+                        $chown_needed = 1 if $s[5] != $exp_gid;
+                } }, $gd );
+            if ($git_bad) {
+                my $sample = join( ', ', map { s{^\Q$DOC/\E}{}r } @git_sample );
+                $sample .= ', …' if $git_bad > @git_sample;
+                report( 'FAIL',
+                    "$git_bad path(s) under lazysite/git the CGI ($exp_grp) cannot use - "
+                        . "commits fail while saves succeed, so new file versions are "
+                        . "SILENTLY NOT RECORDED ($sample)",
+                    "re-run with --fix (restores group access; a foreign group also needs "
+                        . "the chown above)" );
+                $git_fix_root = $gd;
+            }
+            else {
+                report( 'OK', "content history: the repo is usable by the CGI" );
+            }
+
+            # 7c-ii. core.sharedRepository=group makes git itself keep every
+            # path it creates group-accessible regardless of the process umask
+            # - set at init since 0.7.8; repos initialised earlier predate it
+            # and regress on the next umask-0022 write unless set.
+            if ($have_git) {
+                my $val = '';
+                if ( open my $ph, '-|', 'git', "--git-dir=$gd", 'config', '--get',
+                    'core.sharedRepository' ) {
+                    local $/; $val = <$ph> // ''; close $ph;
+                }
+                $val =~ s/\s+//g;
+                if ( $val =~ /\A(?:1|2|group|true|all|world|everybody|0[0-7]{2,3})\z/i ) {
+                    report( 'OK',
+                        "content history: core.sharedRepository keeps the repo group-accessible" );
+                }
+                else {
+                    report( 'WARN',
+                        "content history: core.sharedRepository is not set - git creates new "
+                            . "object dirs with the process umask, which can silently break "
+                            . "version recording after an ownership change",
+                        "git --git-dir='$gd' config core.sharedRepository group  (--fix does this)" );
+                    $git_shared_fix = $gd;
+                }
+            }
+
+            # 7c-iii. recording-health breadcrumb: the engine touches
+            # COMMIT_FAILED when a version could not be recorded (the save
+            # itself succeeds by design) and removes it on the next successful
+            # commit. WARN, not FAIL: --fix repairs the cause above; only a
+            # subsequent save can prove recording works again.
+            if ( -e "$gd/COMMIT_FAILED" ) {
+                report( 'WARN',
+                    "content history: the last version-recording attempt FAILED "
+                        . "(lazysite/git/COMMIT_FAILED present) - changes since then are "
+                        . "missing from the history",
+                    "fix the findings above (--fix), then save any page - a successful "
+                        . "save clears this flag" );
             }
         }
     }
@@ -717,6 +816,35 @@ sub apply_fixes {
             print "fixed: rm -rf $LZ/cache/tt (compile cache regenerates)\n";
             $fixed++;
         }
+    }
+    if ($git_fix_root) {
+        # One walk, one summary line - a repo can hold hundreds of object
+        # dirs; per-path "fixed:" lines would drown the report.
+        my $gd = $git_fix_root;
+        my $n  = 0;
+        File::Find::find(
+            { no_chdir => 1, wanted => sub {
+                    my $p = $File::Find::name;
+                    my @s = lstat $p or return;
+                    return if -l _;
+                    my $bits = git_want_bits( $gd, $p, ( -d _ ? 1 : 0 ), @s );
+                    return unless $bits;
+                    $n++ if chmod( ( $s[2] & 07777 ) | $bits, $p );
+            } }, $gd );
+        if ($n) {
+            print "fixed: restored group access on $n path(s) under lazysite/git "
+                . "(version recording works again on the next save)\n";
+            $fixed++;
+        }
+    }
+    if ($git_shared_fix) {
+        if ( system( 'git', "--git-dir=$git_shared_fix", 'config',
+                'core.sharedRepository', 'group' ) == 0 ) {
+            print "fixed: git config core.sharedRepository group "
+                . "(git keeps future repo paths group-accessible, umask-independent)\n";
+            $fixed++;
+        }
+        else { warn "could not set core.sharedRepository on $git_shared_fix\n" }
     }
     for my $f (@chmod_fixes) {
         my ( $mode, $path, $how ) = @{$f};

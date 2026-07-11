@@ -21,7 +21,8 @@ use Lazysite::Util qw(log_event);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(enabled initialised git_available git_dir init
-    commit_paths commit_all file_log file_at file_diff count_commits run_git);
+    commit_paths commit_all file_log file_at file_diff count_commits run_git
+    breadcrumb_path);
 
 sub git_dir { return "$_[0]/lazysite/git" }
 
@@ -169,9 +170,18 @@ sub init {
         if initialised($docroot);
 
     my $gd = git_dir($docroot);
-    my ($iok) = run_git( $docroot, '-c', 'init.defaultBranch=main', 'init', '-q' );
+    # --shared=group: git forces group-writable modes on everything it creates
+    # (object dirs, refs, locks), umask-independent - the canonical shared-repo
+    # setting. Without it a 0022 umask leaves 0755 object dirs that break the
+    # CGI's commits after any ownership handover (field defect 2026-07-11:
+    # silent version loss on a doctored site).
+    my ($iok) = run_git( $docroot, '-c', 'init.defaultBranch=main', 'init', '-q',
+        '--shared=group' );
     return { ok => 0, error => 'git init failed' } unless $iok && -d $gd;
     run_git( $docroot, 'config', 'core.worktree', $docroot );
+    # --shared=group records core.sharedRepository=1; normalise to the named
+    # form so the doctor's probe reads one canonical value.
+    run_git( $docroot, 'config', 'core.sharedRepository', 'group' );
     chmod 02770, $gd;    # CGI-writable, never world-accessible (check-tool probe)
 
     open my $ex, '>', "$gd/info/exclude"
@@ -180,12 +190,19 @@ sub init {
     print {$ex} "# A pushable history must never carry a secret or personal data.\n";
     print {$ex} "$_\n" for @EXCLUDE;
     close $ex;
+    # Group-writable: git-sync's exclude self-heal may append as the other
+    # identity (CLI-enabled repo, CGI-run sync) - umask-independent, like the
+    # rest of the repo under core.sharedRepository=group.
+    chmod 0664, "$gd/info/exclude";
 
     my ($aok) = run_git( $docroot, 'add', '-A', '--', '.' );
     return { ok => 0, error => 'git add failed for the adoption commit' } unless $aok;
     my ($cok) = run_git( $docroot, 'commit', '-q', '--allow-empty',
         '-m', 'adopt existing site', '--author', _author($user) );
     return { ok => 0, error => 'the adoption commit failed' } unless $cok;
+    # See _stage_and_commit: git rewrites this scratch file in place; keep it
+    # group-writable for the other identity's commits.
+    chmod 0664, "$gd/COMMIT_EDITMSG";
 
     reset_cache();
     my ( undef, $sha ) = run_git( $docroot, 'rev-parse', 'HEAD' );
@@ -197,18 +214,45 @@ sub init {
 
 # --- auto-commit ------------------------------------------------------------------
 
+# The recording-health breadcrumb. A failed commit never breaks the save that
+# triggered it (by design, below), which also makes the failure invisible
+# without log-diving - the field defect 2026-07-11 was a doctored repo whose
+# 0755 object dirs silently lost every post-init version. The breadcrumb
+# GIT_DIR/COMMIT_FAILED is touched on any commit failure and removed by the
+# next successful commit; the content-history plugin's status action and the
+# lazysite-check doctor both read it, so "versioning is currently failing" is
+# visible without the server log.
+sub breadcrumb_path { return git_dir( $_[0] ) . '/COMMIT_FAILED' }
+
+sub _mark_commit_failed {
+    my ($docroot) = @_;
+    if ( open my $fh, '>', breadcrumb_path($docroot) ) {
+        print {$fh} "content-history commit failed - see the server error log;\n"
+            . "cleared automatically by the next successful commit\n";
+        close $fh;
+        # Group-writable: the clearing commit may run as the other identity.
+        chmod 0664, breadcrumb_path($docroot);
+    }
+    return;
+}
+
 # Stage exactly the named pathspecs and commit. Internal: callers validated (or
 # own) the pathspecs. Per-path add so one unmatched pathspec (a never-tracked
-# sidecar, an ignored file) cannot abort the batch. Returns 1 if a commit was
-# made, 0 otherwise; NEVER dies past the eval - a git failure must not break
-# the save that triggered it.
+# sidecar, an ignored file) cannot abort the batch - but an add that fails for
+# a path that EXISTS is repo trouble (e.g. unwritable object dirs), not the
+# tolerated unmatched case, and fails loudly. Returns 1 if a commit was made,
+# 0 otherwise; NEVER dies past the eval - a git failure must not break the
+# save that triggered it (it leaves the breadcrumb above instead).
 sub _stage_and_commit {
     my ( $docroot, $user, $message, @specs ) = @_;
     my $made = eval {
         my $staged = 0;
         for my $spec (@specs) {
             my ($ok) = run_git( $docroot, 'add', '-A', '--', $spec );
-            $staged++ if $ok;
+            if    ($ok) { $staged++ }
+            elsif ( $spec eq '.' || -e "$docroot/$spec" ) {
+                die "git add failed for an existing path ($spec)\n";
+            }
         }
         return 0 unless $staged;
         my ($clean) = run_git( $docroot, 'diff', '--cached', '--quiet' );
@@ -221,7 +265,17 @@ sub _stage_and_commit {
     unless ( defined $made ) {
         log_event( 'WARN', 'git', 'content-history commit failed (the write itself succeeded)',
             error => ( $@ // 'unknown' ), user => ( $user // '' ) );
+        _mark_commit_failed($docroot);
         return 0;
+    }
+    if ($made) {
+        unlink breadcrumb_path($docroot);
+        # COMMIT_EDITMSG is a scratch file git rewrites IN PLACE on every
+        # commit, with the process umask - core.sharedRepository does not
+        # cover it, and an unwritable one is FATAL to the next commit
+        # (verified). Keep it group-writable so the other identity can
+        # commit after us.
+        chmod 0664, git_dir($docroot) . '/COMMIT_EDITMSG';
     }
     return $made;
 }

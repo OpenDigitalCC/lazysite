@@ -77,8 +77,8 @@ identity and review the plugin registry.
 - Review the site's alias redirects in the read-only Aliases card
   (alias → target, with a 301/302 badge; aliases are authored in each
   page's front matter via `aliases:` / `aliases_temp:`)
-- Step through a file's **version history** (when content history is
-  enabled on the Backups page): each file's expand card gains a History
+- Step through a file's **version history** (when the **Content history**
+  plugin is enabled): each file's expand card gains a History
   panel listing every recorded version (when, who, what) with **View**
   (that version's raw content, read-only), **Diff** (against the current
   file) and **Restore**. A restore is written back as a normal save, so
@@ -128,8 +128,20 @@ same page changed both here and on the remote copy: the pages are listed and
 you choose **Keep mine** or **Take theirs** (a safety snapshot is taken
 first either way).
 
+The **Content history** plugin (`content-history`) turns on per-file
+version history for the site content: **Enable content history** takes an
+initial snapshot of the current site, then every save (manager, WebDAV, or
+AI connector) becomes a recorded version, browsable per file on the Files
+page (History / Diff / Restore). **Status** reports whether it is enabled,
+how many versions are recorded, and whether the host has the `git` package
+it needs. The history covers the content plus `lazysite.conf` / `nav.conf`
+and never includes secrets or personal data (accounts, form submissions,
+logs), so it is safe to sync to a private remote; full-system backups (see
+Backups) remain the disaster-recovery mechanism for exactly what the
+history excludes.
+
 The **Remote sync** plugin (`git-sync`) keeps a copy of the site content on
-a remote server. It needs Content history (Backups page) to be enabled;
+a remote server. It needs the Content history plugin to be enabled;
 configure the remote address, branch and access token here, then use **Test
 connection**, **Push - send changes** and **Pull - fetch changes**. Push
 never overwrites changes on the remote that you don't have - Pull them
@@ -149,6 +161,10 @@ Manage layouts and themes and switch the active pair.
 - **Installed layouts & themes** - activate a layout; **delete a layout** (which
   removes its themes too, behind a confirm, and only when it is not active);
   per-theme activate / preview / rename / delete. Preview now works across
+  layouts. A collapsed **Backups** panel collects the theme/layout snapshots
+  taken automatically when a layout or theme is switched or deleted - safe to
+  remove, individually or all at once (the active layout is never touched).
+  A full-system backup (Backups page) also carries the current themes and
   layouts.
 - **Upload a theme** zip (must contain `theme.json` at the root with a non-empty
   `layouts[]` array naming installed layouts).
@@ -199,16 +215,11 @@ kill them. Revocations are recorded in the audit trail.
 `/manager/backups`. Typed snapshot sections - **Content backups** (create,
 download, in-app restore with an automatic pre-restore safety snapshot) and
 **Full-system backups** (download only; restored by a system user with
-`install.pl --restore-full`, since they carry the auth secrets).
-
-The **Content history** card enables and reports the per-file version history
-(SM085): enabling takes an initial snapshot of the current site, then every
-save becomes a recorded version, browsable per file on the Files page. The
-history covers the content plus `lazysite.conf` / `nav.conf` and never
-includes secrets or personal data (accounts, form submissions, logs), so it
-is safe to sync to a private remote. It needs the `git` package on the host;
-the card says so when git is missing. Full-system backups remain the
-disaster-recovery mechanism for exactly what the history excludes.
+`install.pl --restore-full`, since they carry the auth secrets). Backups
+are the disaster-recovery mechanism, including config and secrets;
+day-to-day content versioning lives in the **Content history** plugin
+(Plugin Manager / Plugin Config). Theme and layout snapshots are managed
+on the Appearance page.
 
 ### Cache
 

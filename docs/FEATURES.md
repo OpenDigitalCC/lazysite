@@ -578,8 +578,10 @@ content - the processor serves existing `.html`/`.shtml` directly and only rende
 pre-existing `index.md`.
 
 The Backups page is organised into typed sections: **Content** (create / list /
-in-app restore / download) and **Full-system**, plus a pointer to the Appearance
-page for theme/layout version snapshots. A **full-system** backup captures the whole
+in-app restore / download) and **Full-system**; its intro distinguishes the roles -
+backups are disaster recovery (the full-system kind includes secrets), while
+day-to-day content versioning lives in the Content history plugin, and theme/layout
+version snapshots are managed on the Appearance page. A **full-system** backup captures the whole
 site *including* the `lazysite/` infra (config, auth, forms, nav, themes/layouts) -
 only the backups dir and regenerable caches are excluded. Because it carries the
 auth secrets, in-app restore refuses a full backup; a system user restores it with
@@ -590,8 +592,10 @@ a temporary domain, then move content, config and accounts to the final one).
 ## Content history (git, SM085)
 
 Opt-in per-file version history for the site content. Enabling it (conf key
-`git_history: enabled` + the Enable button on the Backups page, or the `git-init`
-control-API action, gated on `manage_config`) puts the docroot under git: the
+`git_history: enabled` + the **Content history plugin**'s Enable action - enable the
+plugin on Plugin Manager, then Enable on Plugin Config; or the `git-init`
+control-API action, gated on `manage_config` - the plugin's status/enable actions
+drive the same `Lazysite::Git` machinery) puts the docroot under git: the
 repository lives at `lazysite/git/` (inside the never-served infra tree - no `.git`
 under the docroot for a web server to leak) with the docroot as the work tree, and
 the enabling act takes an **adoption commit** of the current site. From then on
@@ -610,6 +614,26 @@ and `lazysite-assets/` mirrors - the exclude list is the security boundary that
 makes the history safe to sync to a private remote later (the git-sync plugin
 follow-up builds on the same `Lazysite::Git` core). `lazysite-check` probes the
 repo permissions and FAILs if `lazysite/auth` is not excluded.
+
+**Recording-health hardening (0.7.8, field defect dito.tech).** The repo is
+initialised `--shared=group` (`core.sharedRepository=group`), so git itself keeps
+every object dir and ref group-accessible regardless of the process umask - the
+canonical shared-repo setting for the split www-data/site-user identity; the
+in-place-rewritten scratch files (`COMMIT_EDITMSG`, an unwritable one is fatal to
+a commit) are kept 0664 by the hook. Because a failed commit deliberately never
+breaks the save, failure is made visible instead of silent: the engine touches
+`lazysite/git/COMMIT_FAILED` on any commit failure (an add failing for an
+*existing* path counts - that is repo trouble, not the tolerated
+unmatched-pathspec case) and removes it on the next successful commit. Three
+surfaces read the state: the content-history plugin's **status** action says
+"recording is failing", the Files page's empty history panel suspects a failure
+instead of pretending the file is new, and `lazysite-check` FAILs on any repo
+path the CGI cannot use ("new file versions are silently not recorded"), WARNs
+on the breadcrumb and on a missing `core.sharedRepository`, and `--fix` repairs
+the modes and sets the config. The guarantee suite
+(t/unit/lib/18-git-guarantee.t) pins a write-path registry (every manager/DAV
+write action classified hooked-or-exempt), the shared-permissions promise, and
+the full failure->recovery lifecycle across all surfaces.
 
 Each file row on the Files page gains a **History** panel: the commit list (when /
 who / what), a read-only **View** of any version, a unified **Diff** against the

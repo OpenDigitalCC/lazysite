@@ -65,7 +65,7 @@ sub describe {
         name        => 'Remote sync',
         description => 'Keep a copy of the site content on a remote server. '
             . 'Push sends your changes, Pull fetches changes made elsewhere; '
-            . 'needs Content history (Backups page) to be enabled. When both '
+            . 'needs the Content history plugin to be enabled. When both '
             . 'sides changed the same page you choose Keep mine or Take '
             . 'theirs, and a safety snapshot is taken first.',
         version       => '1.0',
@@ -218,7 +218,7 @@ sub _gate {
     return ( undef,
         { ok => 0,
             error => 'Content history is not enabled for this site. '
-                . 'Enable it on the Backups page first.'
+                . 'Enable it with the Content history plugin first.'
         }
     ) unless Lazysite::Git::enabled($docroot);
     my $conf = _conf($docroot);

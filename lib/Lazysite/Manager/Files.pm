@@ -813,7 +813,9 @@ sub _git_target {
     return $r;
 }
 
-# Feature status for the Backups card and the Files page's History control.
+# Feature status for the Files page's History control (the operator-facing
+# enable/status surface is the content-history plugin, which drives the same
+# Lazysite::Git machinery).
 sub action_git_status {
     require Lazysite::Git;
     my $enabled = Lazysite::Git::enabled($DOCROOT);

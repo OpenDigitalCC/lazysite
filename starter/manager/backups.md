@@ -6,6 +6,12 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
+<p class="mg-muted">
+Backups are whole-site snapshots for disaster recovery &mdash; the full-system
+kind includes configuration and secrets. Day-to-day <b>content versioning</b>
+(per-file history, diff and restore) lives in the <b>Content history</b> plugin.
+</p>
+
 <div class="mg-card">
 <div class="mg-card-header"><span class="mg-card-title">Content backups</span>
 <button class="mg-btn mg-btn-sm" onclick="loadBackups()">Refresh</button></div>
@@ -47,40 +53,6 @@ backup effectively holds the site's secrets &mdash; treat it accordingly.</p>
 <div class="mg-file-list" id="full-list">
 <div class="mg-file-item"><span class="mg-file-name">Loading&hellip;</span></div>
 </div>
-</div>
-</div>
-
-<div class="mg-card">
-<div class="mg-card-header"><span class="mg-card-title">Content history</span>
-<button class="mg-btn mg-btn-sm" onclick="loadGitStatus()">Refresh</button></div>
-<div class="mg-card-body">
-<p class="mg-muted">
-Day-to-day <b>version history</b> for the site content: with history enabled, every
-save (manager, WebDAV, or AI connector) becomes a git commit, and each file gains a
-per-version timeline on the <a href="/manager/files">Files</a> page &mdash; view, diff
-and restore any version. Restoring a content backup above is recorded in the history
-too. The history versions the content tree plus <code>lazysite.conf</code> and
-<code>nav.conf</code>; it <b>never</b> includes secrets or personal data
-(<code>lazysite/auth</code>, forms and submissions, <code>notify-xmpp.conf</code>,
-logs, backups) nor generated caches &mdash; so it stays safe to sync to a private
-remote. Full-system backups remain the disaster-recovery mechanism for exactly what
-the history excludes.
-</p>
-<div id="git-state" class="mg-muted">Loading&hellip;</div>
-<div style="margin-top:12px;">
-<button class="mg-btn mg-btn-primary" id="git-enable-btn" style="display:none" onclick="enableGit(this)">Enable content history</button>
-</div>
-</div>
-</div>
-
-<div class="mg-card">
-<div class="mg-card-header"><span class="mg-card-title">Themes &amp; layouts</span></div>
-<div class="mg-card-body">
-<p class="mg-muted">
-Theme and layout version snapshots are taken automatically when you activate or
-replace one, and are managed on the <a href="/manager/appearance">Appearance</a>
-page. A full-system backup above also includes the current themes and layouts.
-</p>
 </div>
 </div>
 
@@ -203,62 +175,5 @@ function _create(btn, extra, okMsg) {
     .catch(function(e) { if (btn) btn.disabled = false; showStatus('Error: ' + e.message, true); });
 }
 
-// SM085: content-history (git) status + enable control.
-function loadGitStatus() {
-  fetch(API + '?action=git-status', { credentials: 'same-origin' })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      var el = document.getElementById('git-state');
-      var btn = document.getElementById('git-enable-btn');
-      if (!el) return;
-      if (!d.ok) { el.textContent = d.error || 'Status unavailable'; return; }
-      if (d.enabled) {
-        el.innerHTML = '<span class="mg-badge mg-badge-success">enabled</span> '
-                     + escHtml(String(d.commits)) + ' commit'
-                     + (d.commits === 1 ? '' : 's')
-                     + ' recorded. Per-file history is on the '
-                     + '<a href="/manager/files">Files</a> page.';
-        if (btn) btn.style.display = 'none';
-      } else if (!d.git_available) {
-        el.innerHTML = '<span class="mg-badge mg-badge-muted">unavailable</span> '
-                     + 'git is not installed on this host. Ask your system '
-                     + 'administrator to install the <code>git</code> package, '
-                     + 'then enable history here.';
-        if (btn) btn.style.display = 'none';
-      } else {
-        el.innerHTML = '<span class="mg-badge mg-badge-muted">not enabled</span> '
-                     + 'Enabling takes an initial snapshot of the current site '
-                     + '(the adoption commit) and then records every save.';
-        if (btn) btn.style.display = '';
-      }
-    })
-    .catch(function(e) { showStatus('Failed to load history status: ' + e.message, true); });
-}
-
-function enableGit(btn) {
-  var msg = 'Enable content history?\n\nThe current site is captured as an initial '
-          + 'snapshot, and every save from now on is recorded as a version. Secrets '
-          + 'and personal data (accounts, form submissions, logs) are never included.';
-  var go = function(ok) {
-    if (!ok) return;
-    if (btn) btn.disabled = true;
-    showStatus('Enabling content history...');
-    fetch(API + '?action=git-init', { method: 'POST', credentials: 'same-origin' })
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        if (btn) btn.disabled = false;
-        if (!d.ok) { showStatus(d.error, true); return; }
-        showStatus(d.already
-          ? 'Content history was already enabled.'
-          : 'Content history enabled (adoption commit ' + String(d.commit).slice(0, 7) + ').');
-        loadGitStatus();
-      })
-      .catch(function(e) { if (btn) btn.disabled = false; showStatus('Error: ' + e.message, true); });
-  };
-  if (typeof mgConfirm === 'function') { mgConfirm(msg, { ok: 'Enable' }).then(go); }
-  else { go(window.confirm(msg)); }
-}
-
 loadBackups();
-loadGitStatus();
 </script>
