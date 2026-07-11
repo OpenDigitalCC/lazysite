@@ -40,7 +40,7 @@ Prereqs: Hestia with `WEB_SYSTEM=apache2` (php-fpm backend, nginx
 proxy in front). lazysite requires the apache2 backend — a nginx-only
 domain cannot route `/cgi-bin/` or `/dav`.
 
-1. Install the packages (from `/srv/projects/packages/` or the apt
+1. Install the packages (from `dist/ (in the lazysite checkout)` or the apt
    repo once published):
 
    ```bash

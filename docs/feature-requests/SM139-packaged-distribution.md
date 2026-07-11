@@ -102,7 +102,7 @@ migration.
 1. **debianize common** *(built, `f66d5cc`)*: debian/ packaging for
    lazysite-common (payload + `lazysite` CLI skeleton wrapping
    install.pl/check/users). Build via the existing release flow; artefacts
-   to /srv/projects/packages/.
+   to dist/.
 2. **provision-as-site-user** *(built, `f66d5cc`)*: the provision/upgrade
    verbs with the drop-privileges model + root guard in install.pl + site
    registry.

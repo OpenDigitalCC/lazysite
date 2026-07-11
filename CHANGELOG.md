@@ -197,7 +197,7 @@ Feature - lazysite-common.deb + the lazysite CLI (SM139 increments 1-2)
 : debian/ packaging builds lazysite-common (engine payload at
   /usr/share/lazysite, /usr/bin/lazysite, man pages, the lazysite@ FastCGI
   pool unit + /etc/lazysite/pools, the site registry /etc/lazysite/sites.d)
-  via tools/build-deb.sh into /srv/projects/packages/. The CLI enforces the
+  via tools/build-deb.sh into the repo dist/ (relocated 2026-07-11; was /srv/projects/packages/). The CLI enforces the
   load-bearing principle - provision/upgrade REFUSE to run as root (upgrade
   --all drops to each site owner); verbs: provision, upgrade [--all], check,
   users, dev, version. tools/lazysite-pool.pl launches per-site FCGI pools

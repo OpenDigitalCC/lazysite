@@ -159,7 +159,7 @@ before work starts.
 ## Open - actionable
 
 - **apt-repo publication (SM139 residue)** - the debs exist
-  (/srv/projects/packages/); publishing them from an apt repo (candidate:
+  (the repo dist/); publishing them from an apt repo (candidate:
   the Forgejo instance; suites stable/edge, signing key management) turns
   the dpkg step into `apt upgrade`. Scope when Forgejo is ready.
 - **2026-07-10 review - deferred items** *(tracked in

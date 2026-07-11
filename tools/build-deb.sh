@@ -2,7 +2,7 @@
 # tools/build-deb.sh - build lazysite-common.deb from a clean staging copy
 # (SM139 increment 1). Never modifies the working tree: the source set is
 # exported into scratch, dpkg-buildpackage runs there, and the resulting
-# .deb lands in /srv/projects/packages/ (house convention).
+# .deb lands in the repo dist/ next to the tarballs (owner decision 2026-07-11).
 #
 # The export uses `git ls-files --cached --others --exclude-standard`
 # rather than `git archive HEAD`: under the uncommitted-tree release
@@ -12,12 +12,12 @@
 #
 # Usage: tools/build-deb.sh
 #   BUILD_AREA   scratch base (default /srv/tmp; kept on failure)
-#   PACKAGES_DIR output dir (default /srv/projects/packages)
+#   PACKAGES_DIR output dir (default: <repo>/dist)
 set -euo pipefail
 
 REPO=$(dirname "$(dirname "$(readlink -f "$0")")")
 BUILD_AREA=${BUILD_AREA:-/srv/tmp}
-PACKAGES_DIR=${PACKAGES_DIR:-/srv/projects/packages}
+PACKAGES_DIR=${PACKAGES_DIR:-$ROOT/dist}
 STAGE="$BUILD_AREA/lazysite-deb-$$"
 SRC="$STAGE/lazysite"
 

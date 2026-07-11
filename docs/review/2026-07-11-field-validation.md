@@ -16,8 +16,8 @@ hard failures. Versions under test: engine 0.7.4, debs 0.7.4-1.
 # 1. Packages and CLI (SM139)
 
 Install
-: `sudo dpkg -i /srv/projects/packages/lazysite-common_0.7.4-1_all.deb
-  /srv/projects/packages/lazysite-hestia_0.7.4-1_all.deb` - installs clean,
+: `sudo dpkg -i dist/lazysite-common_0.7.4-1_all.deb
+  dist/lazysite-hestia_0.7.4-1_all.deb` - installs clean,
   no dependency errors (perl deps are all in place on this host).
   `man lazysite`, `man lazysite-hestia-domain` render.
 
