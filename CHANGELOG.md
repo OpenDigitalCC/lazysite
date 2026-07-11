@@ -18,6 +18,21 @@ Keying
 
 ## Unreleased
 
+SM095 leftovers swept: per-account capability language and the missing group-set verb
+: Field finding (audit trail, 2026-07-11): creating an AI account from the
+  Users page still issued the pre-SM095 per-account `webdav on` call - the
+  backend rightly refused it, but the page reported success anyway. The
+  creation flow now relies on group capabilities alone and surfaces any
+  failed follow-up step; the dead per-account toggle helpers are removed.
+  A full sweep then cleared every other leftover: the CLI's `set` usage,
+  help and error text no longer offer capability keys, the unreachable
+  per-account webdav branch is gone, and the guidance in `webdav.md`,
+  `theme-publishing.md` and the README teaches the group route
+  (`partner-create` for AI partners). One real gap surfaced: the
+  `group-set` verb that every refusal points at existed only in `--api`
+  mode - it is now a shell command too, with a regression test proving
+  the refusal's advice works verbatim.
+
 ## 0.7.8 - STABLE: version recording guaranteed + Content history as a plugin (2026-07-11)
 
 Content history presents as a plugin; the Backups page is backups only (field feedback)

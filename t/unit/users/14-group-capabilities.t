@@ -208,6 +208,26 @@ sub api {
     ok( !caps( $d, 'legacy' )->{analytics}, 'no per-account capability resolves' );
 }
 
+# The refusal's advice must actually work from the shell: following it verbatim
+# (the group-set verb) grants the capability through the group. (Regression:
+# the verb only existed in --api mode, so the advice named an unknown command.)
+{
+    my $d = docroot();
+    cli( $d, 'add', 'bot', 'pw' );
+    my $r = cli( $d, 'set', 'bot', 'webdav', 'on' );
+    isnt( $r->{code}, 0, 'per-account webdav set refuses' );
+    like( $r->{err}, qr/group-set/, 'refusal names the group-set route' );
+
+    cli( $d, 'group-add', 'bot', 'publishers' );
+    my $g = cli( $d, 'group-set', 'publishers', 'webdav', 'on' );
+    is( $g->{code}, 0, 'shell-mode group-set verb exists and succeeds' ) or diag $g->{err};
+    like( $g->{out}, qr/webdav on.*'publishers'/, 'group-set confirms the grant' );
+    ok( caps( $d, 'bot' )->{webdav}, 'member holds the capability via the group' );
+
+    my $bad = cli( $d, 'group-set', 'publishers', 'no-such-cap', 'on' );
+    isnt( $bad->{code}, 0, 'group-set refuses an unknown capability key' );
+}
+
 # CLI permissions grid: human-readable channel x capability view resolved from
 # groups only, for debugging user access from the shell.
 {

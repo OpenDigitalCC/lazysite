@@ -214,6 +214,7 @@ our %CLI_NO_DIRECT_AUDIT = (
     cmd_audit_registry    => 'read-only (audit introspection itself)',
     # thin CLI wrappers - the audited core command writes the entry
     cmd_set_cli              => 'delegates to cmd_set',
+    cmd_group_set_cli        => 'delegates to cmd_group_settings_set',
     cmd_brief_cli            => 'delegates to cmd_onboarding',
     cmd_account_create_cli   => 'delegates to cmd_account_create',
     cmd_account_disable_cli  => 'delegates to cmd_account_set_disabled',
@@ -468,6 +469,7 @@ elsif ( $cmd eq 'rename' )       { cmd_rename(@args) }
 elsif ( $cmd eq 'list' )         { cmd_list() }
 elsif ( $cmd eq 'group-add' )    { cmd_group_add(@args) }
 elsif ( $cmd eq 'group-remove' ) { cmd_group_remove(@args) }
+elsif ( $cmd eq 'group-set' )        { cmd_group_set_cli(@args) }
 elsif ( $cmd eq 'groups' )       { cmd_groups() }
 elsif ( $cmd eq 'setup-manager' ){ cmd_setup_manager(@args) }
 elsif ( $cmd eq 'settings' )     { cmd_settings(@args) }
@@ -846,9 +848,10 @@ sub cmd_groups {
 
 # --- SM070: access-mechanism settings and credential generation ---
 
-# Effective settings for a user, defaults applied:
-#   ui:        on  (preserve existing behaviour for users with no row)
-#   webdav:    off (new surface is opt-in per user)
+# Effective settings for a user. Capability booleans (webdav, api, mcp,
+# manage_* ...) resolve through caps_for - group-only since the SM095 clean
+# cut. Account-shaped fields keep per-account defaults:
+#   ui:        on  (interactive login allowed unless switched off)
 #   dav_scope: undef (docroot-wide, still subject to endpoint denials)
 sub effective_settings {
     my ($user) = @_;
@@ -943,7 +946,7 @@ sub cmd_set_cli {
 
 sub cmd_set {
     my ( $user, $key, $value, %opt ) = @_;
-    die "Usage: set USERNAME (webdav|ui|dav_scope) VALUE\n"
+    die "Usage: set USERNAME (ui|dav_scope|comment|email|expires_at) VALUE\n"
         unless defined $user && length $user && defined $key && length $key;
 
     my %users = read_users();
@@ -958,19 +961,9 @@ sub cmd_set {
         die "Capabilities are assigned to GROUPS now, not accounts. Add the user "
           . "to a group, or: group-set <group> $key on\n";
     }
-    my %bool_key = ( ui => 1 );
-
-    if ( $bool_key{$key} ) {
+    if ( $key eq 'ui' ) {
         my $bool = parse_onoff($value);
-        # Per-user WebDAV can only be granted when WebDAV is enabled site-wide;
-        # otherwise the grant is a dead switch (the /dav endpoint 404s for everyone).
-        if ( $key eq 'webdav' && $bool ) {
-            my $g = lc( read_conf_value('webdav_enabled') // '' );
-            die "WebDAV is not enabled site-wide - enable it in Site settings "
-                . "(webdav_enabled) before granting it per user\n"
-                unless $g =~ /^(?:enabled|yes|true|on)$/;
-        }
-        if ( $key eq 'ui' && !$bool && !$opt{force} ) {
+        if ( !$bool && !$opt{force} ) {
             die "would disable last manager-capable UI account\n"
                 if is_last_manager_ui( $user, $all );
         }
@@ -1008,9 +1001,8 @@ sub cmd_set {
         else { delete $all->{$user}{email} }
     }
     else {
-        die "Unknown setting '$key' (expected webdav, ui, dav_scope, comment, "
-          . "expires_at, create_sub_users, delegate_sub_user_creation, "
-          . "manage_content, manage_themes, manage_layouts, or manage_config)\n";
+        die "Unknown setting '$key' (expected ui, dav_scope, comment, email, "
+            . "or expires_at)\n";
     }
 
     write_settings($all);
@@ -1728,8 +1720,8 @@ These govern your **token** (partner) access over WebDAV / the control API / the
 connector. They are independent of any manager-group / "operator" status the account
 may also hold - operator status only bypasses capabilities on the browser-cookie
 manager UI, never on this token path. If `whoami` shows a capability you need is off
-(e.g. manage_themes for a theming task), ask the operator to grant it on this account;
-it applies on your next request, with no new token.
+(e.g. manage_themes for a theming task), ask the operator to grant it to one of this
+account's groups; it applies on your next request, with no new token.
 
 ## Getting connected
 
@@ -2229,8 +2221,8 @@ sub write_users {
 
 # SM095: per-group capabilities + manager flag. JSON keyed by group name:
 #   { "<group>": { "label":..., "manager":1, "webdav":1, "manage_content":1, ... } }
-# An account's effective capabilities are the UNION across its groups. Phase 1
-# also unions any legacy per-user grant, so nothing breaks on upgrade.
+# An account's effective capabilities are the UNION across its groups. Since the
+# clean cut (0.5.20) that union is group-only: legacy per-user grants are ignored.
 
 sub _default_group_seed {
     return {
@@ -2524,6 +2516,19 @@ sub cmd_group_settings_set {
     return { ok => 1 };
 }
 
+# CLI wrapper: the shell-mode verb for group capabilities - the route the
+# cmd_set refusal (and the manager audit trail) points operators at.
+sub cmd_group_set_cli {
+    my ( $group, $key, $value ) = @_;
+    die "Usage: group-set GROUP KEY (on|off)\n"
+        unless defined $group && defined $key && defined $value;
+    my $r = cmd_group_settings_set( $group, $key, $value );
+    die "$r->{error}\n" unless $r->{ok};
+    my $on = ( $value =~ /^(?:on|1|true|yes)$/i ) ? 'on' : 'off';
+    print "Set $key $on for group '$group'.\n" unless $API_MODE;
+    return $r;
+}
+
 sub cmd_group_create {
     my ($group) = @_;
     return { ok => 0, error => 'group required' } unless defined $group && length $group;
@@ -2618,6 +2623,12 @@ Commands:
   group-add USERNAME GROUP    Add user to a group
   group-remove USERNAME GROUP Remove user from a group
   groups                      List all groups and members
+  group-set GROUP KEY VALUE   Grant/revoke a group capability (on/off): ui,
+                              webdav, api, mcp, manage_content, manage_nav,
+                              manage_forms, manage_themes, manage_layouts,
+                              manage_config, manage_users, analytics, audit,
+                              notifications, create_sub_users,
+                              delegate_sub_user_creation
   permissions USERNAME        Print the channel x capability grid for a user
                               (resolved from groups; debug user access issues)
   audit-registry              Dump the CLI audit classification as JSON (used
@@ -2626,11 +2637,11 @@ Commands:
                               (+ admin group + lazysite.conf), set/generate its
                               password. Idempotent. [--user NAME] [--group NAME]
   settings USERNAME           Show a user's access-mechanism settings
-  set USERNAME KEY VALUE      Set a boolean (on/off): webdav, ui,
-                              create_sub_users, delegate_sub_user_creation,
-                              manage_themes, manage_layouts, manage_config;
-                              or dav_scope (/path). (set ui off honours a
-                              last-manager guard; pass --force to override)
+  set USERNAME KEY VALUE      Set an account-shaped field: ui (on/off),
+                              dav_scope (/path), comment, email, expires_at.
+                              Capabilities are group-only - use group-set.
+                              (set ui off honours a last-manager guard;
+                              pass --force to override)
   token USERNAME              Generate a strong permanent credential (shown once)
   pairing-key USERNAME        Mint a single-use, short-lived pairing key (shown once)
   token-exchange USER KEY     Exchange a pairing key for a fresh access token

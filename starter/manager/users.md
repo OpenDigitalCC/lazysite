@@ -267,11 +267,6 @@ function focusUserFromUrl() {
   el.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
-function cap(user, key, on, label) {
-  return '<label class="mg-chk"><input type="checkbox"' + (on ? ' checked' : '') +
-    ' onchange="toggleSetting(\'' + user + '\',\'' + key + '\',this)"> ' + label + '</label>';
-}
-
 // Wrap a card section in a bounded box with a heading.
 function sec(title, inner) {
   return '<div class="mg-box"><div class="mg-sec">' + title + '</div>' + inner + '</div>';
@@ -464,16 +459,6 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
 }
 
 // --- per-row actions ---
-
-function toggleSetting(user, key, el) {
-  var checked = el.checked;
-  apiCall({ action: 'settings-set', username: user, key: key, value: checked ? 'on' : 'off' })
-    .then(function(d) {
-      if (!d.ok) { el.checked = !checked; showStatus(d.error, true); return; }
-      showStatus(key + ' ' + (checked ? 'on' : 'off') + ' for "' + user + '".');
-    })
-    .catch(function(e) { el.checked = !checked; showStatus('Error: ' + e.message, true); });
-}
 
 // Human/AI switch for an existing account (the `ui` setting). Reloads so
 // the summary tag and any form state reflect the new type.
@@ -911,13 +896,22 @@ function addUser() {
   apiCall(req)
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
+      // Follow-up steps must not fail silently: a refused call is thrown so
+      // the catch below reports it (it also lands in the audit trail).
+      var step = function(r, what) {
+        return function() {
+          return apiCall(r).then(function(d2) {
+            if (!d2.ok) throw new Error(what + ': ' + d2.error);
+          });
+        };
+      };
       var chain = Promise.resolve();
-      gl.forEach(function(g) { chain = chain.then(function() { return apiCall({ action: 'group-add', username: username, group: g }); }); });
+      gl.forEach(function(g) { chain = chain.then(step({ action: 'group-add', username: username, group: g }, 'group "' + g + '"')); });
       if (type === 'ai') {
-        // backend account: no interactive login, WebDAV on - the card then
-        // leads with Generate setup link / onboarding brief.
-        chain = chain.then(function() { return apiCall({ action: 'settings-set', username: username, key: 'ui', value: 'off' }); })
-                     .then(function() { return apiCall({ action: 'settings-set', username: username, key: 'webdav', value: 'on' }); });
+        // backend account: no interactive login - the card then leads with
+        // Generate setup link / onboarding brief. Capabilities (WebDAV etc.)
+        // come from its groups; there is nothing per-account to grant.
+        chain = chain.then(step({ action: 'settings-set', username: username, key: 'ui', value: 'off' }, 'interactive login off'));
       }
       chain.then(function() {
         var where = parent ? (' under "' + parent + '"') : '';
@@ -925,6 +919,9 @@ function addUser() {
           ? ('AI account "' + username + '" added' + where + ' - open its card to Generate a setup link or onboarding brief.')
           : ('User "' + username + '" added' + where + ' - use Generate setup link in its card so they set their own password.'));
         document.getElementById('new-username').value = '';
+        loadUsers();
+      }).catch(function(e) {
+        showStatus('User "' + username + '" added, but a follow-up step failed - ' + e.message, true);
         loadUsers();
       });
     })

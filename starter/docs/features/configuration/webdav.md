@@ -38,26 +38,31 @@ for local testing.
 
 ### Per-user access mechanisms
 
-Each user has independent access-mechanism settings, managed from the
-manager **Users** page or with `tools/lazysite-users.pl`:
+Access is decided per user, from two sides:
 
-| Setting | Default | Meaning |
+| Setting | Where it lives | Meaning |
 |---|---|---|
-| `webdav` | `off` | Whether this account may use the WebDAV endpoint. |
-| `ui` | `on` | Whether this account may log in through the browser. |
-| `dav_scope` | unset | If set (e.g. `/content`), confines this account's WebDAV access to that subtree. |
+| `webdav` | on a **group** (Groups page, or `group-set GROUP webdav on`) | Members of the group may use the WebDAV endpoint. |
+| `ui` | on the account (default `on`) | Whether this account may log in through the browser. |
+| `dav_scope` | on the account (default unset) | If set (e.g. `/content`), confines this account's WebDAV access to that subtree. |
 
-There is no separate "machine account" type — a deploy identity is
-simply a user with `webdav: on`, `ui: off`, a generated credential,
-and usually a scope:
+Capabilities are always granted to groups, never to individual
+accounts; the account keeps only account-shaped fields (`ui`,
+`dav_scope`). There is no separate "machine account" type — a deploy
+identity is simply a user in a WebDAV-capable group, with `ui: off`, a
+generated credential, and usually a scope:
 
 ```
 tools/lazysite-users.pl --docroot DIR add deploy-bot <placeholder>
 tools/lazysite-users.pl --docroot DIR set deploy-bot ui off
-tools/lazysite-users.pl --docroot DIR set deploy-bot webdav on
+tools/lazysite-users.pl --docroot DIR group-add deploy-bot publishers
+tools/lazysite-users.pl --docroot DIR group-set publishers webdav on
 tools/lazysite-users.pl --docroot DIR set deploy-bot dav_scope /content
 tools/lazysite-users.pl --docroot DIR token deploy-bot      # prints the credential once
 ```
+
+(For an AI partner, `partner-create` does all of this in one command
+and prints the onboarding brief.)
 
 Disabling `ui` blocks the browser login entirely (no session cookie is
 ever issued), so a `ui: off` account cannot reach the manager or any

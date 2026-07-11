@@ -16,8 +16,9 @@ and the [preview](/docs/features/configuration/themes) feature.
 
 ### Capabilities
 
-Three per-user capability flags gate this surface (set with
-`tools/lazysite-users.pl set USER KEY on`, or in the manager Users page):
+Three capability flags gate this surface. Capabilities are granted to
+groups (with `tools/lazysite-users.pl group-set GROUP KEY on`, or in
+the manager Groups page) and a user holds whatever their groups grant:
 
 `manage_themes`
 : Read, edit, preview, and activate themes.
