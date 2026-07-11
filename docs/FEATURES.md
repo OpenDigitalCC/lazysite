@@ -752,7 +752,7 @@ rewriting the site domain - the cross-domain migration path.
 
 ## Packaged distribution (SM139)
 
-Two Debian packages built from the same source (`debian/`, via
+Four Debian packages built from the same source (`debian/`, via
 `tools/build-deb.sh`), replacing per-site sudo tarball installs:
 
 - **`lazysite-common`** - the engine payload at `/usr/share/lazysite`, the
@@ -768,13 +768,28 @@ Two Debian packages built from the same source (`debian/`, via
   **drops to the panel user** for `lazysite provision`, registers the site,
   and with `--fcgi` writes the pool config and enables `lazysite@<domain>` -
   one-command domain onboarding.
+- **`lazysite-apache`** / **`lazysite-nginx`** - the plain-host webserver
+  glue: commented vhost examples for both runtime patterns on each server
+  (`vhost-cgi` = page misses through the CGI auth wrapper - Apache
+  `FallbackResource`, nginx `try_files` + fcgiwrap; `vhost-fcgi` = anonymous
+  pages to the per-site pool socket with the session-cookie carve-out to the
+  CGI wrapper) plus **`lazysite-apache-vhost`** / **`lazysite-nginx-vhost`**
+  (`add`/`remove`): root-run commands that render a domain's vhost into
+  `sites-available/` - never touching site content, printing (never
+  running) the enable/reload steps. Both ship
+  [docs/reference/webserver-wiring.md](reference/webserver-wiring.md), the
+  one wiring reference that also covers Caddy, lighttpd and the generic
+  front-end contract for any other server.
 
 The CLI enforces the load-bearing SM139 principle: **no root writes into site
 trees**. `provision` and single-site `upgrade` refuse to run as root; only
 `upgrade --all` may run as root, because it drops to each site's owner
 (`sudo -u`) per site - ownership correct by construction, no chown-after
 repair pass. Verbs: `provision`, `upgrade [--all]`, `sites`, `check`, `users`,
-`dev`, `version`.
+`dev`, `demo`, `version`. **`lazysite demo`** is the zero-argument try-it
+path: it fresh-installs a scratch site (default `~/lazysite-demo`) as the
+current user and serves it on the built-in dev server - no web server, no
+configuration, removable with one `rm -rf`.
 
 **Fleet channels and policy.** Each site carries `update_channel`
 (`edge`/`stable`) and `update_policy` (`auto`/`manual`, default `manual`) in
@@ -816,7 +831,12 @@ the packaged flow (`lazysite-hestia` above: shipped templates +
 `lazysite-hestia-domain`) is the install path -
 `installers/hestia/INSTALL-RUNBOOK.md` is written around it; the hand-run
 deploy/fleet-update scripts of the tarball era remain in-tree only for
-existing deployments. (A Docker target is a placeholder, not yet implemented.)
+existing deployments. On plain (non-panel) hosts the same two-layer model is
+served by the `lazysite-apache`/`lazysite-nginx` glue packages above; for
+Caddy, lighttpd or anything else,
+[docs/reference/webserver-wiring.md](reference/webserver-wiring.md) states the
+front-end contract with copy-paste snippets. (A Docker target is a
+placeholder, not yet implemented.)
 
 ## The dev server
 
@@ -862,9 +882,10 @@ Pages, Netlify, or Cloudflare Pages.
   stable release**, opening the declared five-year support period
   (`docs/POLICY.md`).
 - **Debian packaging** (`tools/build-deb.sh` + `debian/`) - builds
-  `lazysite-common` and `lazysite-hestia` (Part IX); lintian-clean, smoke-tested
-  from the extracted deb, template/packaging invariants pinned by
-  `t/tools/30-hestia-pkg.t`.
+  `lazysite-common`, `lazysite-hestia`, `lazysite-apache` and `lazysite-nginx`
+  (Part IX); lintian-clean, smoke-tested from the extracted deb,
+  template/packaging invariants pinned by `t/tools/30-hestia-pkg.t` and
+  `t/tools/31-webserver-glue.t`.
 - **Permissions doctor** (`lazysite-check.pl`) - the health/permissions checker
   (`lazysite check`): probes conf readability, cgi-bin executability, secrets
   modes (incl. the session registry/revocation files), manager layout presence,

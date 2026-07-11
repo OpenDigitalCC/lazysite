@@ -18,6 +18,30 @@ Keying
 
 ## Unreleased
 
+Feature - webserver glue packages: lazysite-apache + lazysite-nginx (SM139 increment 6)
+: Two new Debian packages wire lazysite into plain (non-panel) hosts. Each
+  ships commented vhost examples for both runtime patterns - plain CGI
+  (page misses through the CGI auth wrapper: Apache `FallbackResource`,
+  nginx `try_files` + fcgiwrap) and the per-site FastCGI pool (anonymous
+  pages to `/run/lazysite/<domain>.sock`, session-cookie-bearing requests
+  carved out to the CGI auth wrapper on both servers) - plus a root-run
+  render command (`lazysite-apache-vhost` / `lazysite-nginx-vhost`,
+  `add`/`remove`) writing `sites-available/<domain>.conf`: it never
+  touches site content, refuses to overwrite without `--force`, and
+  prints - never runs - the enable/reload steps. A single reference,
+  `docs/reference/webserver-wiring.md` (shipped in both packages), states
+  the front-end contract once with copy-paste snippets for Apache, nginx,
+  Caddy, lighttpd and any other server. Tests:
+  t/tools/31-webserver-glue.t.
+
+Feature - `lazysite demo`: the zero-argument try-it path (SM139 increment 6)
+: `lazysite demo [--port N] [--dir PATH]` fresh-installs a scratch site
+  (default `~/lazysite-demo`) from the host payload as the current user -
+  root is refused, like every site-tree write - and serves it on the
+  built-in dev server, printing the URL, where the site lives and the one
+  `rm -rf` that removes it. Re-running reuses the site. No web server, no
+  configuration; the deb README leads with it.
+
 ## 0.7.4 - Content history: the git backend (2026-07-11)
 
 Feature - remote sync: push/pull the content history to a private remote (SM085 phase 1, sync half)

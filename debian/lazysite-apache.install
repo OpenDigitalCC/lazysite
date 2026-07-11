@@ -1,0 +1,5 @@
+# Plain-Apache vhost templates, both runtime patterns, rendered into
+# /etc/apache2/sites-available/ by lazysite-apache-vhost (installed via
+# debian/rules, same rename pattern as the other host commands).
+installers/apache/vhost-cgi.conf.example  usr/share/lazysite-apache
+installers/apache/vhost-fcgi.conf.example usr/share/lazysite-apache

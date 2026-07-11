@@ -11,13 +11,13 @@ click-path and the expected observation, so a failure localises fast.
 Sections are ordered so later items build on earlier ones (debs before
 pools before sync). Log anything surprising - wording, friction, and
 "that's odd" reactions are wanted findings for the usability pass, not just
-hard failures. Versions under test: engine 0.7.4, debs 0.7.4-1.
+hard failures. Versions under test: engine 0.7.5, debs 0.7.5-1.
 
 # 1. Packages and CLI (SM139)
 
 Install
-: `sudo dpkg -i dist/lazysite-common_0.7.4-1_all.deb
-  dist/lazysite-hestia_0.7.4-1_all.deb` - installs clean,
+: `sudo dpkg -i dist/lazysite-common_0.7.5-1_all.deb
+  dist/lazysite-hestia_0.7.5-1_all.deb` - installs clean,
   no dependency errors (perl deps are all in place on this host).
   `man lazysite`, `man lazysite-hestia-domain` render.
 
@@ -30,6 +30,34 @@ CLI basics
 Host dependencies
 : `lazysite check --dependencies` - all modules OK on this host, git
   listed in the environment section.
+
+Instant demo
+: `lazysite demo` (as your normal user) - fresh-installs a scratch site
+  at ~/lazysite-demo and serves http://localhost:8080/ immediately;
+  Ctrl-C stops it, `rm -rf ~/lazysite-demo` removes it. `sudo lazysite
+  demo` REFUSES (a feature).
+
+# 1b. Webserver glue (if testing on a plain host)
+
+Skip on the Hestia host (Hestia owns its vhosts - section 2 covers it);
+on any plain Apache or nginx box, the 0.7.5 glue debs replace hand
+wiring.
+
+Install + render
+: `sudo dpkg -i dist/lazysite-apache_0.7.5-1_all.deb` (or
+  lazysite-nginx). Provision a site as its user (`sudo -u <user>
+  lazysite provision --docroot D --cgibin C --domain <d>`), then `sudo
+  lazysite-apache-vhost add <d> --docroot D` (or lazysite-nginx-vhost;
+  `--fcgi` for the pool pattern) - the vhost file appears in
+  sites-available, the a2enmod/enable/reload steps are PRINTED not run.
+  Run them; the site serves, /manager and /login work. On nginx check
+  fcgiwrap is installed first.
+
+Guard rails
+: a second `add` without `--force` REFUSES; `remove <d>` deletes only
+  the vhost file (docroot untouched); `man lazysite-apache-vhost` /
+  `man lazysite-nginx-vhost` render. The wiring reference is in
+  /usr/share/doc/lazysite-apache/webserver-wiring.md (same in -nginx).
 
 # 2. Domain onboarding (SM139 i4)
 

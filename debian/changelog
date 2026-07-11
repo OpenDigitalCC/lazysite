@@ -1,3 +1,26 @@
+lazysite (0.7.5-1) UNRELEASED; urgency=medium
+
+  * New binary packages lazysite-apache and lazysite-nginx (the SM139
+    webserver glue): commented vhost examples for both runtime patterns
+    on each server - plain CGI (Apache FallbackResource / nginx
+    try_files + fcgiwrap through the CGI auth wrapper) and the per-site
+    FastCGI pool (mod_proxy_fcgi / native fastcgi_pass to
+    /run/lazysite/<domain>.sock, session-bearing requests carved out to
+    the CGI auth wrapper) - plus lazysite-apache-vhost and
+    lazysite-nginx-vhost (add/remove): root-run render commands writing
+    sites-available/<domain>.conf that never touch site content and
+    print, never run, the enable/reload steps.
+  * New `lazysite demo` verb (lazysite-common): zero-argument try-it -
+    fresh-installs a scratch site (default ~/lazysite-demo) as the
+    current user, never root, and serves it on the built-in dev server.
+  * docs/reference/webserver-wiring.md: one wiring reference for every
+    front-end - the two runtime patterns explained once, per-server
+    sections for Apache/nginx (the glue packages) plus Caddy and
+    lighttpd snippets, and the generic front-end contract; shipped in
+    both glue packages' doc directories.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sat, 11 Jul 2026 09:00:00 +0100
+
 lazysite (0.7.4-1) unstable; urgency=medium
 
   * Release 0.7.4: content history (git backend - per-file history/diff/

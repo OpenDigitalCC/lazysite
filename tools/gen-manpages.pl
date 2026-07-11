@@ -23,6 +23,8 @@ my %scripts = (
     'lazysite-check'         => "$root/tools/lazysite-check.pl",
     'lazysite'               => "$root/tools/lazysite-cli.pl",
     'lazysite-hestia-domain' => "$root/tools/lazysite-hestia-domain.pl",
+    'lazysite-apache-vhost'  => "$root/tools/lazysite-apache-vhost.pl",
+    'lazysite-nginx-vhost'   => "$root/tools/lazysite-nginx-vhost.pl",
     'install'                => "$root/install.pl",
 );
 

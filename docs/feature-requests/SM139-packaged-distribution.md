@@ -1,7 +1,8 @@
 # SM139 - Packaged distribution: common .deb + environment .debs + unprivileged provisioning
 
-Status: in progress - increments 1-5 built (design agreed in principle
-2026-07-09); apt repo publication is the remaining open item
+Status: in progress - increments 1-6 built (design agreed in principle
+2026-07-09; the apache/nginx glue debs landed 2026-07-11); apt repo
+publication is the remaining open item
 Driver: field incidents on the 0.6.4->0.6.5 upgrade round - 17 live production
 sites, and every root-run write into a site tree (sudo install.pl, sudo
 lazysite-users.pl) re-opens the www-data ownership gap. Per-site tarball
@@ -37,15 +38,21 @@ lazysite-common.deb
 
 lazysite-apache.deb / lazysite-nginx.deb
 : Depend on common. Web-server glue: vhost/htaccess templates, the CGI/FCGI
-  wiring, `lazysite provision` presets for that server.
+  wiring, `lazysite provision` presets for that server. *Built 2026-07-11
+  (increment 6): commented vhost examples for both runtime patterns per
+  server + `lazysite-apache-vhost`/`lazysite-nginx-vhost` render commands;
+  the "presets" idea landed as the documented provision-then-wire flow in
+  each package's README.Debian rather than CLI presets. One wiring
+  reference (docs/reference/webserver-wiring.md) covers all servers.*
 
 lazysite-hestia.deb
 : Hestia integration: web templates + a hook-shaped command so "add
   lazysite to a domain" is one root command; knows Hestia's user/group
   layout and drives provisioning correctly. As built (increment 4) it
   depends directly on lazysite-common and carries its own Apache vhost
-  templates - the standalone apache/nginx glue packages below have not
-  been built yet, and Hestia pins the web server anyway.
+  templates - Hestia pins the web server, so it does not reuse the
+  standalone glue packages above (built later, increment 6, with the
+  panel specifics removed from the same proven directive set).
 
 Tarball / git checkout
 : Stays fully supported (dev mode and non-deb hosts). install.pl remains; the
@@ -146,6 +153,23 @@ migration.
    passed on www-data-only failures), plus a group-execute traversal check
    on lazysite/, lazysite/manager/ and lazysite/auth/. Tested in
    t/tools/04-check.t.
+6. **webserver glue debs** *(built 2026-07-11)*: lazysite-apache +
+   lazysite-nginx binary packages (Arch: all; Depends: lazysite-common
+   (= source version)) from the same debian/ source, realising the
+   package-split sketch above. Each ships commented vhost examples for
+   BOTH runtime patterns (Apache: FallbackResource/auth-wrapper CGI +
+   mod_proxy_fcgi pool with the session carve-out, de-Hestia-ised from
+   the increment-4 templates; nginx: try_files + fcgiwrap CGI + native
+   fastcgi_pass pool with a rewrite-based cookie carve-out to an
+   internal fcgiwrap location - nginx CAN express the carve-out) and a
+   root-run render command (lazysite-apache-vhost /
+   lazysite-nginx-vhost add|remove) writing sites-available/, never
+   touching site content, printing (not running) the enable steps.
+   Plus `lazysite demo` in lazysite-common (zero-argument scratch-site
+   install + dev server, never root) and
+   docs/reference/webserver-wiring.md (the front-end contract +
+   Apache/nginx/Caddy/lighttpd snippets, shipped in both glue debs).
+   Tested in t/tools/31-webserver-glue.t.
 
 ## Open questions
 

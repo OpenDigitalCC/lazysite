@@ -1,0 +1,204 @@
+# =========================================================================
+# lazysite nginx vhost - FastCGI pool pattern
+# Shipped by the lazysite-nginx package; rendered to
+# /etc/nginx/sites-available/<domain>.conf by lazysite-nginx-vhost(1).
+# Rendered as (domain, docroot, cgi-bin, port):
+#   __DOMAIN__ __DOCROOT__ __CGIBIN__ __PORT__
+#
+# Pattern (RECOMMENDED on nginx): static files are served directly;
+# anonymous page traffic speaks native FastCGI to the persistent
+# per-site lazysite@ pool socket (~150x faster on cache hits). The auth
+# wrapper, manager and cgi-bin endpoints stay on the CGI path via
+# fcgiwrap - the pool is anonymous BY DESIGN
+# (docs/architecture/performance.md), so a request carrying the
+# lazysite_auth session cookie is carved out to the CGI auth wrapper
+# below.
+#
+# Needs: apt install fcgiwrap (the CGI path: /manager, /login, /dav,
+#        plugin endpoints), and the pool itself:
+#        /etc/lazysite/pools/__DOMAIN__.conf +
+#        `systemctl enable --now lazysite@__DOMAIN__`
+#        (see the lazysite-common README.Debian).
+# HTTPS: this file is the port-80 server; `certbot --nginx -d <domain>`
+# extends it in place.
+# Derived from the field-proven Apache directive set (see
+# docs/reference/webserver-wiring.md for the front-end contract).
+# https://lazysite.io
+# =========================================================================
+
+# The lazysite CGIs read the originally-requested path from REDIRECT_URL
+# (what Apache's FallbackResource sets); nginx must synthesise it.
+# $request_uri keeps the query string, so strip it here. A `map` is only
+# valid at http scope - which this spot is: files in sites-enabled are
+# included at http scope, so it lives in this file, above the server
+# block.
+map $request_uri $lazysite_request_path {
+    ~^(?<path>[^?]*) $path;
+}
+
+server {
+    listen __PORT__;
+    server_name __DOMAIN__;
+    root __DOCROOT__;
+
+    access_log /var/log/nginx/__DOMAIN__.access.log;
+    error_log  /var/log/nginx/__DOMAIN__.error.log;
+
+    # WebDAV publishing (/dav) uploads whole files (images, theme
+    # bundles); nginx's default 1m body cap is too small.
+    client_max_body_size 64m;
+
+    # index.html is deliberately NOT an index file: it is lazysite's own
+    # page cache for the homepage, and serving it directly would bypass
+    # the processor, so the per-request manager admin bar would never
+    # appear on "/". A markdown home (index.md) falls through try_files
+    # to the pool (or, with a session cookie, the auth wrapper) - which
+    # serves the cache AND injects the bar; index.htm/index.shtml cover
+    # a purely static pre-lazysite home.
+    index index.htm index.shtml;
+
+    # The lazysite engine directory is never served raw (config, auth,
+    # logs live under it). ^~ so no regex location can override it.
+    location ^~ /lazysite/ {
+        deny all;
+    }
+    # SM073: .brief sidecars document authoring intent and are never
+    # public. try_files serves existing files directly, so deny them at
+    # the origin.
+    location ~ \.brief$ {
+        deny all;
+    }
+
+    # Front the two real CGI endpoints with the auth wrapper so the
+    # session cookie becomes X-Remote-User before the target runs
+    # (security.md: "every /cgi-bin/*.pl passes through the auth
+    # wrapper"). Exact-match locations, so they beat the generic
+    # /cgi-bin/ regex below; LAZYSITE_PROCESSOR names the real target
+    # the wrapper execs after validating the cookie. These are CGI, not
+    # pool: authenticated traffic is exec-per-request by design.
+    location = /cgi-bin/lazysite-processor.pl {
+        include fastcgi_params;
+        # Strip client-supplied trust headers (security.md): an explicit
+        # fastcgi_param replaces the pass-through of the same-named
+        # client header, and the lazysite scripts treat empty as unset.
+        fastcgi_param HTTP_X_REMOTE_USER      "";
+        fastcgi_param HTTP_X_REMOTE_GROUPS    "";
+        fastcgi_param HTTP_X_REMOTE_NAME      "";
+        fastcgi_param HTTP_X_REMOTE_EMAIL     "";
+        fastcgi_param HTTP_X_PAYMENT_VERIFIED "";
+        fastcgi_param HTTP_X_PAYMENT_PAYER    "";
+        fastcgi_param REDIRECT_URL       $lazysite_request_path;
+        fastcgi_param SCRIPT_FILENAME    __CGIBIN__/lazysite-auth.pl;
+        fastcgi_param LAZYSITE_PROCESSOR __CGIBIN__/lazysite-processor.pl;
+        fastcgi_pass unix:/run/fcgiwrap.socket;
+    }
+    location = /cgi-bin/lazysite-manager-api.pl {
+        include fastcgi_params;
+        # Same trust-header strip as above.
+        fastcgi_param HTTP_X_REMOTE_USER      "";
+        fastcgi_param HTTP_X_REMOTE_GROUPS    "";
+        fastcgi_param HTTP_X_REMOTE_NAME      "";
+        fastcgi_param HTTP_X_REMOTE_EMAIL     "";
+        fastcgi_param HTTP_X_PAYMENT_VERIFIED "";
+        fastcgi_param HTTP_X_PAYMENT_PAYER    "";
+        fastcgi_param REDIRECT_URL       $lazysite_request_path;
+        fastcgi_param SCRIPT_FILENAME    __CGIBIN__/lazysite-auth.pl;
+        fastcgi_param LAZYSITE_PROCESSOR __CGIBIN__/lazysite-manager-api.pl;
+        fastcgi_pass unix:/run/fcgiwrap.socket;
+    }
+
+    # Any other /cgi-bin script (lazysite-auth.pl itself - the login
+    # endpoint - and plugin endpoints installed as cgi-bin symlinks)
+    # runs as plain CGI via fcgiwrap: Apache's ScriptAlias equivalent.
+    # One path segment only - no traversal out of the cgi-bin.
+    location ~ ^/cgi-bin/(?<lazysite_script>[^/]+)$ {
+        include fastcgi_params;
+        # Same trust-header strip as above.
+        fastcgi_param HTTP_X_REMOTE_USER      "";
+        fastcgi_param HTTP_X_REMOTE_GROUPS    "";
+        fastcgi_param HTTP_X_REMOTE_NAME      "";
+        fastcgi_param HTTP_X_REMOTE_EMAIL     "";
+        fastcgi_param HTTP_X_PAYMENT_VERIFIED "";
+        fastcgi_param HTTP_X_PAYMENT_PAYER    "";
+        fastcgi_param REDIRECT_URL    $lazysite_request_path;
+        fastcgi_param SCRIPT_FILENAME __CGIBIN__/$lazysite_script;
+        fastcgi_pass unix:/run/fcgiwrap.socket;
+    }
+
+    # SM070: WebDAV publishing endpoint - its own Basic auth (the
+    # client's Authorization header reaches it as HTTP_AUTHORIZATION via
+    # fastcgi_params), bypasses the cookie auth wrapper. Stays CGI: DAV
+    # traffic is authenticated per request, exactly what the pool does
+    # not do.
+    location ~ ^/dav(?<lazysite_dav_path>/.*)?$ {
+        include fastcgi_params;
+        # Same trust-header strip as above.
+        fastcgi_param HTTP_X_REMOTE_USER      "";
+        fastcgi_param HTTP_X_REMOTE_GROUPS    "";
+        fastcgi_param HTTP_X_REMOTE_NAME      "";
+        fastcgi_param HTTP_X_REMOTE_EMAIL     "";
+        fastcgi_param HTTP_X_PAYMENT_VERIFIED "";
+        fastcgi_param HTTP_X_PAYMENT_PAYER    "";
+        fastcgi_param SCRIPT_FILENAME __CGIBIN__/lazysite-dav.pl;
+        fastcgi_param PATH_INFO       $lazysite_dav_path;
+        fastcgi_pass unix:/run/fcgiwrap.socket;
+    }
+
+    # Everything else: existing files (assets, static pages) are served
+    # directly, session or not; a URL that maps to no file falls through
+    # to @lazysite. (No $uri/ entry on purpose: a bare "/" must reach
+    # the processor, not a directory index.)
+    location / {
+        try_files $uri @lazysite;
+    }
+
+    # Page misses. Session-bearing requests stay on the CGI path: the
+    # pooled worker is anonymous BY DESIGN, so a request carrying the
+    # lazysite_auth cookie is rewritten to the internal carve-out
+    # location below (the CGI auth wrapper turns the cookie into
+    # X-Remote-User before the processor runs - what makes /manager/ and
+    # the logged-in admin bar work). This `if` holds only a
+    # rewrite-module directive - the documented-safe form; the
+    # file-existence test already happened in try_files, mirroring the
+    # Apache template's !-f RewriteCond, so a logged-in user's static
+    # assets never pay the CGI fork. Only cookie-less misses - the hot
+    # path - reach the pool.
+    location @lazysite {
+        if ($cookie_lazysite_auth) {
+            rewrite ^ /lazysite-session-carveout last;
+        }
+        include fastcgi_params;
+        # Same trust-header strip as above.
+        fastcgi_param HTTP_X_REMOTE_USER      "";
+        fastcgi_param HTTP_X_REMOTE_GROUPS    "";
+        fastcgi_param HTTP_X_REMOTE_NAME      "";
+        fastcgi_param HTTP_X_REMOTE_EMAIL     "";
+        fastcgi_param HTTP_X_PAYMENT_VERIFIED "";
+        fastcgi_param HTTP_X_PAYMENT_PAYER    "";
+        fastcgi_param REDIRECT_URL $lazysite_request_path;
+        # Socket path = the lazysite@.service convention:
+        # /run/lazysite/<instance>.sock with instance = the domain (see
+        # the unit file and tools/lazysite-pool.pl).
+        fastcgi_pass unix:/run/lazysite/__DOMAIN__.sock;
+    }
+
+    # The session carve-out: the CGI auth wrapper via fcgiwrap. internal,
+    # so only the rewrite above can reach it; REDIRECT_URL/REQUEST_URI
+    # still carry the originally-requested URL ($request_uri is immune to
+    # rewrites), so no path information is lost.
+    location = /lazysite-session-carveout {
+        internal;
+        include fastcgi_params;
+        # Same trust-header strip as above.
+        fastcgi_param HTTP_X_REMOTE_USER      "";
+        fastcgi_param HTTP_X_REMOTE_GROUPS    "";
+        fastcgi_param HTTP_X_REMOTE_NAME      "";
+        fastcgi_param HTTP_X_REMOTE_EMAIL     "";
+        fastcgi_param HTTP_X_PAYMENT_VERIFIED "";
+        fastcgi_param HTTP_X_PAYMENT_PAYER    "";
+        fastcgi_param REDIRECT_URL       $lazysite_request_path;
+        fastcgi_param SCRIPT_FILENAME    __CGIBIN__/lazysite-auth.pl;
+        fastcgi_param LAZYSITE_PROCESSOR __CGIBIN__/lazysite-processor.pl;
+        fastcgi_pass unix:/run/fcgiwrap.socket;
+    }
+}

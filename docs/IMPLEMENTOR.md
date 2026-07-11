@@ -9,10 +9,13 @@ this is the map. For running it afterwards see [OPERATOR.md](OPERATOR.md).
 
 - A **CGI-capable web server**. Apache is first-class: lazysite relies on
   `FallbackResource`, `ScriptAlias`, `mod_headers` (the `RequestHeader unset
-  X-Remote-*` trust-strip), `<FilesMatch>`, and `+ExecCGI`. nginx needs a CGI
-  bridge and is not the supported path. For production speed, visitor pages
-  can instead be served by a persistent per-site **FastCGI pool** (SM142:
-  `mod_proxy_fcgi` to `/run/lazysite/<site>.sock`; needs `libfcgi-perl` +
+  X-Remote-*` trust-strip), `<FilesMatch>`, and `+ExecCGI`. nginx is supported
+  through the `lazysite-nginx` glue package (fcgiwrap as the CGI bridge, or
+  the pool below); other servers implement the contract in
+  [reference/webserver-wiring.md](reference/webserver-wiring.md). For
+  production speed, visitor pages can instead be served by a persistent
+  per-site **FastCGI pool** (SM142: `mod_proxy_fcgi`/`fastcgi_pass` to
+  `/run/lazysite/<site>.sock`; needs `libfcgi-perl` +
   `libfcgi-procmanager-perl`) - the auth wrapper and cgi-bin endpoints stay
   CGI either way.
 - **Perl** (5.x core). Optional: Template Toolkit (theming), Archive::Zip
@@ -49,10 +52,19 @@ lazysite-hestia-domain add <user> <domain> --fcgi    # + persistent FastCGI pool
 then apply the matching web template (`lazysite-cgi` / `lazysite-fcgi`). On a
 non-Hestia host, provision **as the site user** with
 `sudo -u <user> lazysite provision --docroot D --cgibin C --domain NAME`
-(the CLI refuses to run as root - no root writes into site trees). The full
-worked procedure, including the one-time template copy and `a2enmod` lines,
-is the runbook. The tarball-era `lazysite-hestia-deploy.sh` script is
-superseded and kept only for existing deployments (runbook appendix).
+(the CLI refuses to run as root - no root writes into site trees), then wire
+the web server with the matching glue package: `lazysite-apache` or
+`lazysite-nginx` ship commented vhost templates for both runtime patterns
+plus a render command (`lazysite-apache-vhost add <domain> --docroot D
+[--fcgi]`, same for nginx). **The wiring reference for every front-end** -
+the two patterns explained once, Apache/nginx/Caddy/lighttpd snippets, and
+the generic contract - is
+[reference/webserver-wiring.md](reference/webserver-wiring.md). To evaluate
+lazysite with no web server at all, `lazysite demo` provisions a scratch
+site and serves it on the built-in dev server. The full worked Hestia
+procedure, including the one-time template copy and `a2enmod` lines, is the
+runbook. The tarball-era `lazysite-hestia-deploy.sh` script is superseded
+and kept only for existing deployments (runbook appendix).
 
 ## First-run configuration
 

@@ -1,0 +1,5 @@
+# nginx server-block templates, both runtime patterns, rendered into
+# /etc/nginx/sites-available/ by lazysite-nginx-vhost (installed via
+# debian/rules, same rename pattern as the other host commands).
+installers/nginx/vhost-cgi.conf.example  usr/share/lazysite-nginx
+installers/nginx/vhost-fcgi.conf.example usr/share/lazysite-nginx

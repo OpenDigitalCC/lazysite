@@ -1,0 +1,3 @@
+# The one wiring reference for every front-end (Apache, nginx, Caddy,
+# lighttpd, the generic contract) - both glue packages ship it.
+docs/reference/webserver-wiring.md

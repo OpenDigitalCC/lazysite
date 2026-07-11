@@ -1,0 +1,65 @@
+lazysite-apache for Debian
+==========================
+
+Plain-Apache glue for lazysite (the SM139 glue packages): the shipped
+vhost templates at /usr/share/lazysite-apache/ and the
+lazysite-apache-vhost command that renders them into
+/etc/apache2/sites-available/. It never touches site content, and it
+prints - never runs - the a2enmod/a2ensite/reload steps, so the
+host-wide actions stay visible operator choices.
+
+Two patterns (one vhost file each):
+
+  vhost-cgi   Plain CGI. Zero extra moving parts: static files are
+              served directly, page misses fall through FallbackResource
+              to the processor via the CGI auth wrapper. Every page
+              render forks a CGI - the simplest correct starting point
+              on Apache.
+  vhost-fcgi  FastCGI pool. Anonymous page traffic proxies to the
+              persistent per-site lazysite@<domain> pool socket
+              (~150x faster on cache hits); session-bearing traffic,
+              /manager, /cgi-bin and /dav stay on the CGI path (the
+              pool is anonymous by design). The production shape.
+
+Which pattern: start with vhost-cgi; move to vhost-fcgi when the site
+matters. Switching is `lazysite-apache-vhost add <domain> --fcgi --force`
+plus the pool setup below - site content is untouched.
+
+Per-domain wiring (3 steps)
+---------------------------
+
+1. Provision the site AS ITS USER (never root - see lazysite(1)):
+
+       sudo -u siteuser lazysite provision \
+           --docroot /srv/www/example.com/public_html \
+           --cgibin  /srv/www/example.com/cgi-bin \
+           --domain  example.com
+
+2. Render the vhost (as root; --cgibin defaults to the cgi-bin sibling
+   of the docroot):
+
+       lazysite-apache-vhost add example.com \
+           --docroot /srv/www/example.com/public_html            # CGI
+       lazysite-apache-vhost add example.com --fcgi \
+           --docroot /srv/www/example.com/public_html            # pool
+
+3. Run the printed steps: a2enmod (cgid headers rewrite, plus proxy
+   proxy_fcgi for --fcgi), a2ensite, configtest, reload. HTTPS:
+   `certbot --apache -d example.com` derives the SSL vhost.
+
+For --fcgi the pool must exist before pages render:
+/etc/lazysite/pools/example.com.conf + `systemctl enable --now
+lazysite@example.com` - the pattern is documented in the
+lazysite-common README.Debian and in the unit file.
+
+`lazysite-apache-vhost remove <domain>` deletes the vhost file only -
+site content is never touched.
+
+Trying lazysite without a web server: `lazysite demo` (lazysite-common)
+provisions a scratch site and serves it on the built-in dev server.
+
+The full multi-server reference (these patterns explained once, plus
+nginx, Caddy, lighttpd and the generic front-end contract) is
+/usr/share/doc/lazysite-apache/webserver-wiring.md.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sat, 11 Jul 2026

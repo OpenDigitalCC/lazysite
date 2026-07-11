@@ -32,3 +32,5 @@ override_dh_auto_clean:
 execute_after_dh_install:
 	install -D -m 0755 tools/lazysite-cli.pl debian/lazysite-common/usr/bin/lazysite
 	install -D -m 0755 tools/lazysite-hestia-domain.pl debian/lazysite-hestia/usr/bin/lazysite-hestia-domain
+	install -D -m 0755 tools/lazysite-apache-vhost.pl debian/lazysite-apache/usr/bin/lazysite-apache-vhost
+	install -D -m 0755 tools/lazysite-nginx-vhost.pl debian/lazysite-nginx/usr/bin/lazysite-nginx-vhost

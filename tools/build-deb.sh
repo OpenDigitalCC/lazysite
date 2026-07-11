@@ -17,7 +17,7 @@ set -euo pipefail
 
 REPO=$(dirname "$(dirname "$(readlink -f "$0")")")
 BUILD_AREA=${BUILD_AREA:-/srv/tmp}
-PACKAGES_DIR=${PACKAGES_DIR:-$ROOT/dist}
+PACKAGES_DIR=${PACKAGES_DIR:-$REPO/dist}
 STAGE="$BUILD_AREA/lazysite-deb-$$"
 SRC="$STAGE/lazysite"
 

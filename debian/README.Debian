@@ -1,6 +1,17 @@
 lazysite for Debian
 ===================
 
+Try it in one command
+---------------------
+
+    lazysite demo
+
+fresh-installs a throwaway site at ~/lazysite-demo (as you, never root)
+and serves it on the built-in dev server at http://localhost:8080/ -
+no web server, no configuration. Remove it with rm -rf ~/lazysite-demo.
+`lazysite demo --port N --dir PATH` override the defaults; re-running
+reuses the site.
+
 The one load-bearing principle: no root writes into site trees
 ---------------------------------------------------------------
 
@@ -61,11 +72,16 @@ libfcgi-procmanager-perl (Recommends), then per site:
 
    or nginx: fastcgi_pass unix:/run/lazysite/example.com.sock;
 
-On HestiaCP hosts, install the lazysite-hestia package instead of wiring
-any of this by hand: it ships Apache web domain templates for both
-patterns (lazysite-cgi / lazysite-fcgi) and the lazysite-hestia-domain
-command that provisions a domain, registers it and enables its pool in
-one step - see that package's README.Debian. Plain lazysite-apache /
-lazysite-nginx glue packages remain future work.
+Do not wire this by hand: the glue packages do it per pattern.
+On HestiaCP hosts, install lazysite-hestia - it ships Apache web domain
+templates for both patterns (lazysite-cgi / lazysite-fcgi) and the
+lazysite-hestia-domain command that provisions a domain, registers it
+and enables its pool in one step. On plain hosts, install
+lazysite-apache or lazysite-nginx - vhost templates for both patterns
+plus the lazysite-apache-vhost / lazysite-nginx-vhost render commands.
+Each package's README.Debian carries the walk-through; the glue
+packages also ship docs/reference/webserver-wiring.md, the one wiring
+reference for every front-end (including Caddy, lighttpd and the
+generic contract for anything else).
 
- -- Stuart J. Mackintosh <sjm@opendigital.cc>  Fri, 10 Jul 2026
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sat, 11 Jul 2026

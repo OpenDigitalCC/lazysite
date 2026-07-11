@@ -45,6 +45,7 @@ elsif ( $verb eq 'sites' )                                { exit cmd_sites() }
 elsif ( $verb eq 'check' )   { run_tool( 'tools/lazysite-check.pl',  @ARGV ) }
 elsif ( $verb eq 'users' )   { run_tool( 'tools/lazysite-users.pl',  @ARGV ) }
 elsif ( $verb eq 'dev' )     { run_tool( 'tools/lazysite-server.pl', @ARGV ) }
+elsif ( $verb eq 'demo' )    { exit cmd_demo() }
 elsif ( $verb eq 'version' ) { exit cmd_version() }
 else {
     print {*STDERR} "lazysite: unknown verb '$verb'\n\n";
@@ -87,6 +88,11 @@ Verbs:
   check [args...]        Health/permissions doctor (lazysite-check.pl).
   users [args...]        Auth user management (lazysite-users.pl).
   dev [args...]          Local dev server (lazysite-server.pl).
+  demo [--port N] [--dir PATH]
+        Instant try-it: fresh-install a scratch site (default
+        ~/lazysite-demo) as the current user and serve it on the dev
+        server (default port 8080). Never runs as root. Re-running
+        reuses the site; remove it with rm -rf when done.
   version                Payload version, channel and location.
   help                   This help.
 
@@ -537,6 +543,64 @@ sub cmd_sites {
     return 0;
 }
 
+# The zero-argument try-it path: fresh-install a scratch site from the
+# payload (install.pl, exactly what provision wraps) and exec the dev
+# server on it. No new server or installer logic lives here - the verb is
+# defaults + the existing code paths. The site is deliberately NOT
+# registered in the fleet registry: it is a throwaway.
+sub cmd_demo {
+    my %o = ( port => 8080, dir => '' );
+    Getopt::Long::GetOptions(
+        'port=i' => \$o{port},
+        'dir=s'  => \$o{dir},
+    ) or usage(2);
+    refuse_root('demo');
+    fail("--port must be 1-65535, not '$o{port}'")
+        if $o{port} !~ /^\d+$/ || $o{port} < 1 || $o{port} > 65535;
+
+    my $dir = $o{dir};
+    if ( !length $dir ) {
+        my $base
+            = length( $ENV{HOME}   // '' ) ? $ENV{HOME}
+            : length( $ENV{TMPDIR} // '' ) ? $ENV{TMPDIR}
+            :                                '/tmp';
+        $dir = "$base/lazysite-demo";
+    }
+    my $docroot = "$dir/public_html";
+    my $cgibin  = "$dir/cgi-bin";
+    my $root    = payload_root();
+
+    if ( -f "$docroot/lazysite/.install-state.json" ) {
+        print "lazysite: reusing the demo site at $dir\n";
+    }
+    else {
+        require File::Path;
+        File::Path::make_path( $docroot, $cgibin );
+        fail("cannot create the demo site directories under $dir")
+            unless -d $docroot && -d $cgibin;
+        print "lazysite: fresh-installing a demo site at $dir\n";
+        run_or_fail( $^X, "$root/install.pl",
+            '--docroot', $docroot, '--cgibin', $cgibin );
+    }
+
+    my @serve = ( $^X, "$root/tools/lazysite-server.pl",
+        '--port', $o{port}, '--docroot', $docroot );
+    print "\nDemo site:  $dir\n"
+        . "Serving on: http://localhost:$o{port}/\n"
+        . "Remove it:  rm -rf $dir\n"
+        . "(Ctrl-C stops the server; the site stays for next time.)\n\n";
+    # LAZYSITE_DEMO_NO_SERVE is a TEST-ONLY seam: the suite verifies the
+    # install round-trip without inheriting a listening server process.
+    if ( $ENV{LAZYSITE_DEMO_NO_SERVE} ) {
+        print 'lazysite: LAZYSITE_DEMO_NO_SERVE set - would exec: '
+            . join( ' ', @serve ) . "\n";
+        return 0;
+    }
+    exec @serve
+        or fail("cannot exec the dev server: $!");
+    return 1;    # unreached (fail exits); keeps the verb shape uniform
+}
+
 sub cmd_version {
     my $root    = payload_root();
     my $version = 'unknown';
@@ -568,6 +632,7 @@ lazysite - host-side management CLI for lazysite sites
   lazysite check [args...]
   lazysite users [args...]
   lazysite dev [args...]
+  lazysite demo [--port N] [--dir PATH]
   lazysite version
   lazysite help
 
@@ -656,6 +721,18 @@ e.g. C<lazysite users --docroot D list>.
 Pass-through to C<tools/lazysite-server.pl>, the local development server,
 e.g. C<lazysite dev --docroot D --auto-index>.
 
+=item B<demo> [--port N] [--dir PATH]
+
+The zero-argument try-it path: fresh-install a scratch site from the host
+payload (the same C<install.pl> run that C<provision> wraps) into
+C<--dir> - default F<~/lazysite-demo>, or F<$TMPDIR/lazysite-demo>
+without a HOME - as the B<current user> (root is refused, like every
+site-tree write), then exec the dev server on C<--port> (default 8080)
+and print the URL, where the site lives and how to remove it
+(C<rm -rf> the directory). Re-running reuses an existing demo site
+instead of reinstalling. The demo site is not recorded in the fleet
+registry - it is a throwaway.
+
 =item B<version>
 
 Print the payload version (from C<VERSION>), its release channel (from
@@ -700,6 +777,13 @@ by the test suite and useful on non-FHS hosts.
 B<Test-only.> When set, the CLI behaves as if it were running as uid 0 so
 the test suite can exercise the root-refusal paths. It only ever makes the
 CLI more restrictive; never set it in production.
+
+=item LAZYSITE_DEMO_NO_SERVE
+
+B<Test-only.> When set, C<demo> stops after the install and prints the
+dev-server command it would have exec'd, so the test suite can verify the
+round-trip without a listening server process. Never set it in
+production.
 
 =back
 

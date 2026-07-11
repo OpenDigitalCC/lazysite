@@ -1,0 +1,76 @@
+lazysite-nginx for Debian
+=========================
+
+nginx glue for lazysite (the SM139 glue packages): the shipped
+server-block templates at /usr/share/lazysite-nginx/ and the
+lazysite-nginx-vhost command that renders them into
+/etc/nginx/sites-available/. It never touches site content, and it
+prints - never runs - the enable/test/reload steps, so the host-wide
+actions stay visible operator choices.
+
+nginx has no CGI engine: both patterns run lazysite's CGI endpoints
+through fcgiwrap (apt-get install fcgiwrap; Debian provides
+/run/fcgiwrap.socket).
+
+Two patterns (one vhost file each):
+
+  vhost-cgi   Plain CGI via fcgiwrap. Static files are served directly;
+              page misses go to the processor via the CGI auth wrapper
+              (nginx has no FallbackResource - try_files + a named
+              location is the equivalent). Every page render forks a
+              CGI through fcgiwrap.
+  vhost-fcgi  FastCGI pool - RECOMMENDED on nginx. Anonymous page
+              traffic speaks native FastCGI to the persistent per-site
+              lazysite@<domain> pool socket (~150x faster on cache
+              hits, no fcgiwrap fork on the hot path); session-bearing
+              page requests are carved out to the CGI auth wrapper
+              (the pool is anonymous by design), and /manager,
+              /cgi-bin, /dav stay on the fcgiwrap CGI path.
+
+Which pattern: on nginx, prefer vhost-fcgi - the CGI pattern pays a
+double fork (fcgiwrap + the CGI) on every page render and exists as the
+no-daemon fallback. Switching is `lazysite-nginx-vhost add <domain>
+--fcgi --force` plus the pool setup below - site content is untouched.
+
+Per-domain wiring (3 steps)
+---------------------------
+
+1. Provision the site AS ITS USER (never root - see lazysite(1)):
+
+       sudo -u siteuser lazysite provision \
+           --docroot /srv/www/example.com/public_html \
+           --cgibin  /srv/www/example.com/cgi-bin \
+           --domain  example.com
+
+2. Render the vhost (as root; --cgibin defaults to the cgi-bin sibling
+   of the docroot):
+
+       lazysite-nginx-vhost add example.com --fcgi \
+           --docroot /srv/www/example.com/public_html            # pool
+       lazysite-nginx-vhost add example.com \
+           --docroot /srv/www/example.com/public_html            # CGI
+
+3. Run the printed steps: install fcgiwrap (once per host), link
+   sites-enabled, nginx -t, reload. HTTPS:
+   `certbot --nginx -d example.com`.
+
+For --fcgi the pool must exist before pages render:
+/etc/lazysite/pools/example.com.conf + `systemctl enable --now
+lazysite@example.com` - the pattern is documented in the
+lazysite-common README.Debian and in the unit file.
+
+Note: the CGI runs as the fcgiwrap user (www-data on Debian) - the same
+identity Apache's mod_cgi gives it, so the provisioned group/setgid
+layout needs no adjustment.
+
+`lazysite-nginx-vhost remove <domain>` deletes the vhost file only -
+site content is never touched.
+
+Trying lazysite without a web server: `lazysite demo` (lazysite-common)
+provisions a scratch site and serves it on the built-in dev server.
+
+The full multi-server reference (these patterns explained once, plus
+Apache, Caddy, lighttpd and the generic front-end contract) is
+/usr/share/doc/lazysite-nginx/webserver-wiring.md.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sat, 11 Jul 2026

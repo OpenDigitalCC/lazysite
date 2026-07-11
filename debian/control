@@ -75,3 +75,67 @@ Description: static site builder and manager - HestiaCP integration
  .
  It replaces the hand-run installers/hestia deploy scripts of the
  tarball distribution.
+
+Package: lazysite-apache
+Architecture: all
+# Strict same-version lazysite-common: the vhost command renders templates
+# that encode that package's pool-socket and auth-wrapper conventions -
+# the pair must move together. apache2 is Recommends, not Depends: the
+# vhost files are also useful as reference on a host that fronts lazysite
+# from elsewhere.
+Depends:
+ lazysite-common (= ${source:Version}),
+ ${perl:Depends},
+ ${misc:Depends},
+Recommends:
+ apache2,
+Description: static site builder and manager - plain Apache glue
+ lazysite renders Markdown sites through Template Toolkit layouts, with a
+ built-in manager UI, WebDAV/MCP publishing endpoints, forms, and auth.
+ .
+ This package wires lazysite sites into a plain (non-panel) Apache host:
+ commented vhost examples for both runtime patterns - plain CGI
+ (FallbackResource through the CGI auth wrapper, zero extra moving
+ parts) and the per-site FastCGI pool (visitor pages proxied to
+ unix:/run/lazysite/<domain>.sock via mod_proxy_fcgi, session traffic
+ kept on the CGI path) - plus lazysite-apache-vhost, the root-run
+ command that renders them into /etc/apache2/sites-available/ (add /
+ remove; it never touches site content and prints, never runs, the
+ a2enmod/a2ensite steps).
+ .
+ The multi-server wiring reference (Apache, nginx, Caddy, lighttpd and
+ the generic front-end contract) ships in this package's doc directory.
+
+Package: lazysite-nginx
+Architecture: all
+# Strict same-version lazysite-common: the vhost command renders templates
+# that encode that package's pool-socket and auth-wrapper conventions -
+# the pair must move together. fcgiwrap is Recommends because BOTH
+# shipped patterns use it: it is the whole CGI engine for the plain-CGI
+# pattern, and the FastCGI-pool pattern still routes /manager, /login,
+# /dav and plugin endpoints through it (the pool is anonymous by design).
+Depends:
+ lazysite-common (= ${source:Version}),
+ ${perl:Depends},
+ ${misc:Depends},
+Recommends:
+ nginx,
+ fcgiwrap,
+Description: static site builder and manager - nginx glue
+ lazysite renders Markdown sites through Template Toolkit layouts, with a
+ built-in manager UI, WebDAV/MCP publishing endpoints, forms, and auth.
+ .
+ This package wires lazysite sites into an nginx host: commented
+ server-block examples for both runtime patterns - plain CGI (page
+ misses to the CGI auth wrapper via fcgiwrap; nginx has no
+ FallbackResource, so try_files + a named location provide the
+ equivalent) and the per-site FastCGI pool (RECOMMENDED on nginx:
+ anonymous page traffic speaks native FastCGI to
+ unix:/run/lazysite/<domain>.sock, session-bearing requests are carved
+ out to the CGI auth wrapper) - plus lazysite-nginx-vhost, the root-run
+ command that renders them into /etc/nginx/sites-available/ (add /
+ remove; it never touches site content and prints, never runs, the
+ enable/reload steps).
+ .
+ The multi-server wiring reference (Apache, nginx, Caddy, lighttpd and
+ the generic front-end contract) ships in this package's doc directory.

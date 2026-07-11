@@ -1,0 +1,129 @@
+# =========================================================================
+# lazysite Apache vhost - plain-CGI pattern
+# Shipped by the lazysite-apache package; rendered to
+# /etc/apache2/sites-available/<domain>.conf by lazysite-apache-vhost(1).
+# Rendered as (domain, docroot, cgi-bin, port):
+#   __DOMAIN__ __DOCROOT__ __CGIBIN__ __PORT__
+#
+# Pattern: static files are served directly; any URL that maps to no file
+# falls through (FallbackResource) to the lazysite processor VIA THE CGI
+# AUTH WRAPPER. Zero extra moving parts - every page render forks a CGI.
+# For production speed use the FastCGI pool pattern
+# (vhost-fcgi.conf.example); see the lazysite-apache README.Debian.
+#
+# Needs: a2enmod cgid headers rewrite   (+ include for overlaid SSI sites)
+# HTTPS: this file is the port-80 vhost; `certbot --apache -d <domain>`
+# derives the SSL vhost from it.
+# Derived from the field-proven HestiaCP template (lazysite-cgi.tpl) with
+# the panel specifics removed. https://lazysite.io
+# =========================================================================
+<VirtualHost *:__PORT__>
+    ServerName __DOMAIN__
+    DocumentRoot __DOCROOT__
+
+    # Strip client-supplied trust headers before any trusted component
+    # sets them (docs/architecture/security.md "Apache config
+    # requirement"): a client must never be able to smuggle an identity
+    # past the auth wrapper. Needs mod_headers.
+    RequestHeader unset X-Remote-User
+    RequestHeader unset X-Remote-Groups
+    RequestHeader unset X-Remote-Name
+    RequestHeader unset X-Remote-Email
+    RequestHeader unset X-Payment-Verified
+    RequestHeader unset X-Payment-Payer
+
+    # The site's cgi-bin (lazysite scripts + plugin endpoints). Needs
+    # mod_cgid (or mod_cgi on a prefork MPM).
+    ScriptAlias /cgi-bin/ __CGIBIN__/
+    # SM070: WebDAV publishing endpoint - its own Basic auth, bypasses
+    # the cookie auth wrapper.
+    ScriptAlias /dav __CGIBIN__/lazysite-dav.pl
+
+    # Default processor target for the FallbackResource path below, so a
+    # cgi-bin that is NOT the docroot's sibling still works. SetEnvIf
+    # deliberately, not SetEnv: mod_env runs after mod_rewrite and would
+    # clobber the [E=] override in the next rule; mod_setenvif runs
+    # before, so the rewrite wins where it matters.
+    SetEnvIf Request_URI "." LAZYSITE_PROCESSOR=__CGIBIN__/lazysite-processor.pl
+
+    # Front the real cgi-bin scripts with the auth wrapper so the session
+    # cookie becomes X-Remote-User before the target CGI runs
+    # (security.md: "every /cgi-bin/*.pl passes through the auth
+    # wrapper"). The wrapper execs LAZYSITE_PROCESSOR. Excludes auth.pl
+    # itself (recursion); /dav does its own Basic auth. Needs mod_rewrite.
+    RewriteEngine On
+    RewriteRule ^/cgi-bin/(lazysite-(?:processor|manager-api)\.pl)$ /cgi-bin/lazysite-auth.pl [E=LAZYSITE_PROCESSOR:__CGIBIN__/$1,PT]
+
+    CustomLog ${APACHE_LOG_DIR}/__DOMAIN__.access.log combined
+    ErrorLog ${APACHE_LOG_DIR}/__DOMAIN__.error.log
+
+    # index.html is deliberately NOT a DirectoryIndex: it is lazysite's
+    # own page cache for the homepage, and serving it directly would
+    # bypass the processor (and the auth wrapper), so the per-request
+    # manager admin bar would never appear on "/". With it removed, a
+    # lazysite markdown home (index.md) falls through to FallbackResource
+    # -> the processor, which serves the cache AND injects the bar. A
+    # purely static index.html home (no index.md) is still served
+    # directly by the rewrite below.
+    DirectoryIndex index.htm index.shtml
+    RewriteCond %{DOCUMENT_ROOT}/index.md   !-f
+    RewriteCond %{DOCUMENT_ROOT}/index.html -f
+    RewriteRule ^/$ /index.html [L]
+
+    # SM133: migration fallback for clean URLs. A path with no Markdown
+    # source but a static sibling is served directly - .shtml preferred
+    # so Apache expands SSI includes (mod_include), else .html - keeping
+    # a legacy pre-lazysite page intact until it is converted to
+    # Markdown. Self-limiting: it fires only when the static sibling
+    # exists and no .md does, so system paths (which have neither) are
+    # untouched, and a .md source shadows it the moment it lands.
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.md    !-f
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.shtml -f
+    RewriteRule ^/([^.]+)$ /$1.shtml [L]
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.md   !-f
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.html -f
+    RewriteRule ^/([^.]+)$ /$1.html [L]
+
+    # Cookie auth: route unmatched URLs through the auth wrapper, which
+    # validates the cookie, sets X-Remote-User, then execs the processor.
+    # CRITICAL: this must point at lazysite-auth.pl, NOT the processor,
+    # or logins never take effect (the cookie is never read).
+    FallbackResource /cgi-bin/lazysite-auth.pl
+
+    # The lazysite engine directory is never served raw (config, auth,
+    # logs live under it).
+    <Location /lazysite/>
+        Require all denied
+    </Location>
+    # SM073: .brief sidecars document authoring intent and are never
+    # public. FallbackResource only routes non-existent paths through, so
+    # an existing .brief is otherwise served raw - deny it at the origin.
+    <FilesMatch "\.brief$">
+        Require all denied
+    </FilesMatch>
+
+    <Directory __DOCROOT__>
+        # Debian's default config denies the filesystem outside
+        # /var/www; grant the docroot explicitly (the Hestia original
+        # inherited this from the panel).
+        Require all granted
+        AllowOverride All
+        Options -Indexes +ExecCGI +Includes
+        # Server-Side Includes for an overlaid static (.shtml) site -
+        # mod_include. Harmless for markdown-only sites (no .shtml
+        # present).
+        AddType text/html .shtml
+        AddOutputFilter INCLUDES .shtml
+    </Directory>
+    <Directory __CGIBIN__>
+        # Same Debian default-deny: the ScriptAlias target must be
+        # granted or every CGI 403s.
+        Require all granted
+        AllowOverride None
+        Options +ExecCGI
+    </Directory>
+
+    # Pass the Basic-auth Authorization header through to the CGIs
+    # (Apache strips it by default); /dav's own authentication needs it.
+    SetEnvIf Authorization .+ HTTP_AUTHORIZATION=$0
+</VirtualHost>

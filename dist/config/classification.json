@@ -109,6 +109,12 @@
       "bucket": "code"
     },
     {
+      "_comment": "SM139 glue-deb vhost templates (lazysite-apache / lazysite-nginx): released with the tarball, never installed into a site tree.",
+      "pattern": "^installers/(apache|nginx)/(.+)$",
+      "install_to": null,
+      "bucket": "code"
+    },
+    {
       "pattern": "^install\\.(sh|pl)$",
       "install_to": null,
       "bucket": "code"
@@ -165,6 +171,8 @@
     "^tools/lazysite-cli\\.pl$",
     "^tools/lazysite-pool\\.pl$",
     "^tools/lazysite-hestia-domain\\.pl$",
+    "^tools/lazysite-apache-vhost\\.pl$",
+    "^tools/lazysite-nginx-vhost\\.pl$",
     "^debian/",
     "^starter/.*\\.html$",
     "^starter/lazysite/auth/\\.gitkeep$",
