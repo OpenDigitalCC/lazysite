@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.9 - permissions say what they mean: SM095 leftover sweep (2026-07-11)
+
 SM095 leftovers swept: per-account capability language and the missing group-set verb
 : Field finding (audit trail, 2026-07-11): creating an AI account from the
   Users page still issued the pre-SM095 per-account `webdav on` call - the

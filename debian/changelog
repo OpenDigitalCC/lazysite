@@ -1,3 +1,11 @@
+lazysite (0.7.9-1) unstable; urgency=medium
+
+  * SM095 leftover sweep: Users-page AI-account creation is group-only and
+    surfaces failed follow-up steps; new shell verb group-set; CLI and docs
+    no longer offer per-account capability grants.
+
+ -- Stuart J Mackintosh <sjm@opendigital.cc>  Sat, 11 Jul 2026 18:00:00 +0000
+
 lazysite (0.7.8-1) unstable; urgency=medium
 
   * STABLE: silent version-loss cured (shared git repo, loud add failures,
