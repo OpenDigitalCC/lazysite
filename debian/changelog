@@ -1,3 +1,13 @@
+lazysite (0.7.8-1) unstable; urgency=medium
+
+  * STABLE: silent version-loss cured (shared git repo, loud add failures,
+    COMMIT_FAILED breadcrumb, check probe + --fix repair).
+  * Content history becomes a plugin; Backups page is purely backups.
+  * Guarantee suite: structural write-path registry, mixed-identity
+    permanence, four reporting surfaces proven to agree.
+
+ -- Stuart J Mackintosh <sjm@opendigital.cc>  Sat, 11 Jul 2026 12:00:00 +0000
+
 lazysite (0.7.7-1) unstable; urgency=medium
 
   * Release 0.7.7 (STABLE): field-validation round cured at source -

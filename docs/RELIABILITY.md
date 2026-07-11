@@ -128,6 +128,7 @@ tone: medium
 ---
 2026-07-10 | Full-system disaster rehearsal (0.7.0 cut) | ~1 s mechanical restore | Full cycle from the shipped 0.6.10 tarball: install, operator content + manager account, `action_backup_create('full')`, docroot destroyed, `install.pl --restore-full --domain` onto a NEW docroot - content, auth store and conf verified intact. The mechanical restore is effectively instantaneous at starter-site scale; the 4 h RTO budget is operator response + DNS, not the mechanism. Script: rehearsal.sh (session records)
  2026-07-11 | Full-system disaster rehearsal (0.7.7 stable cycle) | <1 s mechanical restore | Same full cycle against the shipped 0.7.6 tarball: install, content + manager, full backup, docroot destroyed, --restore-full --domain onto a new docroot - content, auth store and conf verified intact. Per-stable-cycle commitment met
+ 2026-07-11 | Full-system disaster rehearsal (0.7.8 stable cycle) | <1 s mechanical restore | Same full cycle against the shipped 0.7.7 tarball - content, auth store and conf verified intact on the new docroot. Per-stable-cycle commitment met
 ```
 
 # References
