@@ -1,3 +1,14 @@
+lazysite (0.7.11-1) unstable; urgency=medium
+
+  * STABLE: rolls the ladder + one-switch history + MCP version tools to
+    the whole fleet (folds 0.7.9 + 0.7.10 for stable-channel sites).
+  * Site settings Update channel selector offers the full ladder
+    (all/beta/stable); config-set API accepts all|edge|beta|stable.
+  * Feature-request backlog machine-readable: status headers, lister,
+    lint gate.
+
+ -- Stuart J Mackintosh <sjm@opendigital.cc>  Sat, 11 Jul 2026 22:30:00 +0000
+
 lazysite (0.7.10-1) unstable; urgency=medium
 
   * BETA channel release (first use of the edge < beta < stable ladder).

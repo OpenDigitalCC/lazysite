@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.11 - STABLE: the ladder reaches Site settings + a machine-readable backlog (2026-07-11)
+
 The backlog is now machine-readable (status headers on every feature request)
 : Every docs/feature-requests/SM*.md carries `status:` (shipped | partial |
   parked | candidate | superseded) and, where not shipped, a `status-note:`
