@@ -1222,8 +1222,10 @@ sub action_config_set {
     if ( $key eq 'webdav_enabled' && defined $value && $value !~ /^(?:enabled|disabled)$/ ) {
         return { ok => 0, error => "webdav_enabled must be 'enabled' or 'disabled'" };
     }
-    if ( $key eq 'update_channel' && defined $value && $value !~ /^(?:all|stable)$/ ) {
-        return { ok => 0, error => "update_channel must be 'all' or 'stable'" };
+    # Channel ladder: 'all' (the UI vocabulary) and 'edge' (the CLI's) are
+    # synonyms - both mean "accept every release".
+    if ( $key eq 'update_channel' && defined $value && $value !~ /^(?:all|edge|beta|stable)$/ ) {
+        return { ok => 0, error => "update_channel must be 'all', 'beta' or 'stable'" };
     }
     if ( ( $key eq 'layout' || $key eq 'theme' ) && defined $value && length $value
          && $value !~ /^[A-Za-z0-9_-]+$/ ) {

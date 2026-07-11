@@ -71,6 +71,20 @@ my $bad = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set
 ok( !$bad->{ok}, 'a privilege-relevant key is refused' );
 unlike( conf($d), qr/manager_groups: pwn/, 'refused key is not written' );
 
+# update_channel accepts the full ladder (field finding: only all/stable were
+# selectable), plus 'edge' as the CLI-vocabulary synonym of 'all'; junk refused.
+for my $ch (qw(all edge beta stable)) {
+    my $c = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+        HTTP_AUTHORIZATION => basic( 'p', $tok ),
+        body => encode_json( { key => 'update_channel', value => $ch } ) );
+    ok( $c->{ok}, "config-set update_channel accepts '$ch'" ) or diag $c->{error};
+}
+like( conf($d), qr/^update_channel: stable$/m, 'last channel value written' );
+my $badch = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+    HTTP_AUTHORIZATION => basic( 'p', $tok ),
+    body => encode_json( { key => 'update_channel', value => 'nightly' } ) );
+ok( !$badch->{ok}, 'an unknown channel is refused' );
+
 # without manage_config the capability gate refuses it
 uapi( $d, { action => 'add', username => 'q', password => 'x' } );
 my $tok2 = uapi( $d, { action => 'token', username => 'q' } )->{token};

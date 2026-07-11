@@ -46,8 +46,8 @@ var SITE_SCHEMA = [
     on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
     note: 'The /dav publishing endpoint (files, themes, layouts) for partner tools and agents. Off by default; when off, /dav returns 404 to every request.' },
   { key: 'update_channel', label: 'Update channel', type: 'select',
-    options: ['all', 'stable'], default: 'all', group: 'Updates',
-    note: 'Which lazysite upgrades this site accepts. "all" installs every release; "stable" refuses non-stable (edge) upgrades (the deploy is skipped and logged in the audit trail). Use "stable" for customer sites.' },
+    options: ['all', 'beta', 'stable'], default: 'all', group: 'Updates',
+    note: 'The minimum release maturity this site accepts, on the edge < beta < stable ladder. "all" installs every release (early testing); "beta" takes beta and stable builds (tested, bedding in); "stable" takes only certified stable releases. Out-of-channel upgrades are skipped and logged in the audit trail. Use "stable" for customer sites.' },
 ];
 
 // SM044: populated by parallel fetch of layouts-available at load time.

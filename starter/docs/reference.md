@@ -75,9 +75,11 @@ Directory scan
   line is removed.
 
 `update_channel`
-: `stable` accepts only certified stable-channel releases on upgrade (edge
-  upgrades are skipped and audited); any other value (default) accepts every
-  release. See [Update channel](/docs/features/configuration/update-channel).
+: The minimum release maturity accepted on upgrade, on the
+  `edge < beta < stable` ladder: `stable` takes only certified releases,
+  `beta` takes beta and stable, any other value (default) accepts every
+  release. Out-of-channel upgrades are skipped and audited. See
+  [Update channel](/docs/features/configuration/update-channel).
 
 `update_policy`
 : `auto` or `manual` (default). Whether the fleet-wide

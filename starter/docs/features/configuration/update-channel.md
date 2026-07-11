@@ -1,5 +1,5 @@
 ---
-title: Update channel (stable vs edge)
+title: Update channel (the edge < beta < stable ladder)
 ---
 
 A site can choose **which lazysite upgrades it accepts**, so a not-yet-certified
@@ -7,35 +7,42 @@ release can be kept off stable customer sites while test sites take everything.
 
 This is *not* a self-updater. Upgrades still happen the normal way - an operator
 deploys a release tarball and runs the installer. The channel is a **site
-preference** that the installer enforces: a `stable` site refuses an `edge`
-upgrade.
+preference** that the installer enforces: the site's channel is the *minimum
+release maturity* it accepts.
 
-## The two channels
+## The channel ladder
 
-A release is built as one of:
+A release is built as one of three maturities, `edge < beta < stable`:
 
-- **stable** - certified; cut with `release.sh --final` (stamps
-  `channel: stable` into the release manifest).
-- **edge** - everything else (the default for every build).
+- **edge** - every release (the default for every build); early testing.
+- **beta** - a tested, bedding-in candidate; cut with `release.sh --beta`.
+- **stable** - certified for customer rollout; cut with `release.sh --final`
+  (each stamps its `channel` into the release manifest).
 
 A site is set to one of:
 
 - **all** (default) - installs every release, exactly as before.
-- **stable** - installs only `stable` releases. An `edge` upgrade is **skipped**:
-  no files change, the installer exits 3 (a clean no-op, not an error), and the
-  skip is recorded in the site's audit trail as `upgrade-skipped`.
+- **beta** - installs `beta` and `stable` releases; `edge` upgrades are skipped.
+- **stable** - installs only `stable` releases.
+
+A skipped out-of-channel upgrade changes no files: the installer exits 3 (a
+clean no-op, not an error) and the skip is recorded in the site's audit trail
+as `upgrade-skipped`, naming both channels.
 
 The site preference is `update_channel` in `lazysite.conf`, set from
 **Manager → Site settings → Update channel**. Use `stable` for customer sites you
-don't want on the cutting edge.
+don't want on the cutting edge, and `beta` for sites that should track tested
+builds without waiting for certification.
 
 ## How it behaves
 
-| Site channel | Release channel | Result                                  |
-| ------------ | --------------- | --------------------------------------- |
-| all          | edge or stable  | installs (today's behaviour)            |
-| stable       | stable          | installs                                |
-| stable       | edge            | **skipped** + audited; nothing changes  |
+| Site channel | Release channel      | Result                                  |
+| ------------ | -------------------- | --------------------------------------- |
+| all          | edge, beta or stable | installs (today's behaviour)            |
+| beta         | beta or stable       | installs                                |
+| beta         | edge                 | **skipped** + audited; nothing changes  |
+| stable       | stable               | installs                                |
+| stable       | edge or beta         | **skipped** + audited; nothing changes  |
 
 Only *upgrades* are gated. A fresh install or a reinstall of the same version is
 the operator's explicit choice and is never skipped.

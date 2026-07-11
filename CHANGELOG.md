@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+Channel ladder reaches the Site settings page (field finding on 0.7.10)
+: The manager UI's Update channel selector and the control API's
+  config-set validator still offered only all/stable - the one surface
+  most operators set the channel from could not select beta. The
+  selector now offers all / beta / stable with the ladder explained in
+  its note; the API accepts all|edge|beta|stable ('edge' as the CLI's
+  synonym of 'all'); the site-facing docs (update-channel feature page,
+  reference, configuration, FEATURES) teach the three-rung ladder; and
+  the config-set test pins every accepted value plus a refused junk one.
+
 ## 0.7.10 - BETA: channel ladder, one-switch history, MCP version tools (2026-07-11)
 
 Content history reaches MCP agents; layout switching taught everywhere it matters
