@@ -18,6 +18,19 @@ Keying
 
 ## Unreleased
 
+Licensing - third-party notices + self-hosted theme fonts (audit round)
+: the 2026-07-11 input-licence audit (for the AGPL + commercial-waiver
+  evaluation) found one gap and one policy breach, both fixed: (1) bundled
+  CodeMirror 5.65.16 ships minified with its MIT headers stripped -
+  THIRD-PARTY-NOTICES.md now reproduces the licence and ships in the
+  install set, with the DEP-5 stanza in debian/copyright; (2) the theme
+  library carried fonts.googleapis.com links in 22 layouts - the
+  lazysite-layouts release packs now BUNDLE all 16 font families (SIL OFL
+  1.1, licences shipped per family, ~1MB deduplicated variable fonts),
+  served first-party via generated fonts.css, with a check-no-cdn gate
+  blocking any future external resource load at packaging time. Standing
+  rule: no CDN anywhere in lazysite or its themes.
+
 ## 0.7.5 - Webserver glue debs + lazysite demo (2026-07-11)
 
 Feature - webserver glue packages: lazysite-apache + lazysite-nginx (SM139 increment 6)
