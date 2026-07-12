@@ -1392,20 +1392,64 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
 /* Accordion rows (Users, etc.) */
 .mg-acc-list { padding:0; }
 .mg-acc { border-bottom:1px solid var(--mg-border); }
-.mg-acc > summary {
-  cursor:pointer; padding:0.55rem 0.75rem; display:flex; align-items:center;
-  gap:0.75rem; list-style:none;
-}
+/* One-line account row (SM144): name + role + lineage on the left, the
+   Configure button on the right. A parent row lives in a <summary> (collapsible
+   subtree); a leaf row is a plain div. Both share .mg-acc-line. */
+.mg-acc-line { cursor:default; padding:0.45rem 0.75rem; display:flex; align-items:center;
+  gap:0.5rem; list-style:none; }
+summary.mg-acc-line { cursor:pointer; }
 .mg-acc > summary::-webkit-details-marker { display:none; }
-.mg-acc > summary::before { content:'\25B8'; color:var(--mg-text-muted); font-size:0.8em; }
-.mg-acc[open] > summary::before { content:'\25BE'; }
-.mg-acc > summary:hover { background:var(--mg-surface-alt); }
+summary.mg-acc-line::before { content:'\25B8'; color:var(--mg-text-muted); font-size:0.8em; width:0.9em; display:inline-block; }
+.mg-acc[open] > summary.mg-acc-line::before { content:'\25BE'; }
+.mg-acc-leaf > .mg-acc-line { padding-left:calc(0.75rem + 0.9em + 0.5rem); }  /* align names under a parent's, past the (absent) triangle */
+summary.mg-acc-line:hover { background:var(--mg-surface-alt); }
 .mg-acc-name { font-weight:600; }
+.mg-acc-spacer { flex:1 1 auto; }
+.mg-acc-line .mg-configbtn { flex:0 0 auto; }
+/* The nested sub-tree: an indent + a rule, so depth reads as hierarchy. The row
+   stays full width; only the left indent grows, so even a deep tree keeps the
+   Configure button aligned on the right. */
+.mg-acc-kids { margin-left:1.1rem; border-left:2px solid var(--mg-border); }
 .mg-subcount { color:var(--mg-text-light); font-weight:400; font-size:var(--mg-text-sm); }
 .mg-connect-pick { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.3rem; }
 .mg-connect-hint { font-size:var(--mg-text-sm); margin:0.2rem 0; min-height:1em; }
 .mg-acc-tags { color:var(--mg-text-muted); font-size:var(--mg-text-sm); margin-left:auto; }
-.mg-acc-body { padding:0.5rem 0.75rem 0.9rem 1.75rem; background:var(--mg-surface-alt); }
+
+/* SELECT vs CONFIGURE (SM144, users page). The tree is for SELECTING: one line
+   per account (name + role + count + Configure), sub-users nested (the indent
+   rule alone shows hierarchy - no row tint). CONFIGURING happens in the
+   full-width editor sheet - one consistent surface at any tree depth, so
+   nesting never shrinks the editor. */
+.mg-configbtn.active { box-shadow:0 0 0 2px var(--mg-surface), 0 0 0 4px var(--mg-accent); }
+
+/* The editor sheet: a centred, fixed-width overlay so editing is the same size
+   and position however deep the account sits in the tree (not a nested,
+   ever-narrowing panel). The header is a solid accent bar naming the account. */
+.mg-sheet { position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.45);
+  display:flex; align-items:flex-start; justify-content:center;
+  padding:4vh 1rem; overflow:auto; }
+.mg-sheet[hidden] { display:none; }
+.mg-sheet-panel { width:min(720px, 96vw); max-height:92vh; display:flex;
+  flex-direction:column; background:var(--mg-surface); border-radius:var(--mg-radius);
+  box-shadow:0 12px 40px rgba(0,0,0,0.35); overflow:hidden; }
+.mg-sheet-head { position:sticky; top:0; display:flex; align-items:center; gap:0.6rem;
+  padding:0.7rem 1rem; background:var(--mg-accent); color:var(--mg-accent-text);
+  font-weight:600; font-size:1.02em; }
+.mg-sheet-sub { font-weight:400; font-size:var(--mg-text-sm); opacity:0.9; }
+.mg-sheet-close { margin-left:auto; background:transparent; border:none;
+  color:var(--mg-accent-text); font-size:1.5rem; line-height:1; cursor:pointer;
+  padding:0 0.2rem; }
+.mg-sheet-close:hover { opacity:0.8; }
+.mg-sheet-body { padding:0.3rem 1rem 1rem; overflow:auto; background:var(--mg-surface-alt); }
+body.mg-sheet-open { overflow:hidden; }
+
+/* 2FA enrolment QR (SM146): centred, on a white card so it scans on any theme. */
+.mg-qr { display:flex; justify-content:center; margin:0.5rem 0; }
+.mg-qr svg { width:180px; height:180px; background:#fff; padding:8px; border:1px solid var(--mg-border); border-radius:var(--mg-radius); }
+
+/* Danger-zone box (SM144): the disable/delete actions, set apart. */
+.mg-box-danger { border-color:var(--mg-danger); }
+.mg-box-danger > .mg-sec { color:var(--mg-danger); }
 
 /* Section label + rows + fields */
 .mg-sec { font-size:var(--mg-text-sm); text-transform:uppercase; letter-spacing:0.04em;

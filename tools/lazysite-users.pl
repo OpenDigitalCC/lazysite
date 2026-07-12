@@ -194,6 +194,7 @@ our %CLI_AUDIT_ACTION = (
     cmd_token_exchange       => 'user-token-exchange',
     cmd_token_rotate         => 'user-token-rotate',
     cmd_claim_create         => 'user-claim-create',
+    cmd_claim_cancel         => 'user-claim-cancel',
     cmd_claim_redeem         => 'user-claim-redeem',
     cmd_mfa_enroll           => 'user-mfa-enroll',
     cmd_mfa_disable          => 'user-mfa-disable',
@@ -202,6 +203,7 @@ our %CLI_AUDIT_ACTION = (
     cmd_group_delete         => 'user-group-delete',
     cmd_partner_create       => 'user-partner-create',    # + a pairing-key entry
     cmd_onboarding           => 'user-onboarding',
+    cmd_key_revoke           => 'user-key-revoke',
 );
 our %CLI_NO_DIRECT_AUDIT = (
     # read-only commands
@@ -211,6 +213,7 @@ our %CLI_NO_DIRECT_AUDIT = (
     cmd_permissions_grid  => 'read-only',
     cmd_permissions_cli   => 'read-only',
     cmd_credential_status => 'read-only',
+    cmd_keys_list         => 'read-only',
     cmd_audit_registry    => 'read-only (audit introspection itself)',
     # thin CLI wrappers - the audited core command writes the entry
     cmd_set_cli              => 'delegates to cmd_set',
@@ -391,6 +394,9 @@ if ( $API_MODE ) {
                 revoke => ( $req->{revoke} ? 1 : 0 ) );
             $result = { ok => 1, %$r };
         }
+        elsif ( $action eq 'claim-cancel' ) {
+            $result = cmd_claim_cancel( $req->{username}, actor => $req->{actor} );
+        }
         elsif ( $action eq 'claim-redeem' ) {
             $result = cmd_claim_redeem( $req->{username}, $req->{claim},
                 password => $req->{password} );
@@ -414,6 +420,12 @@ if ( $API_MODE ) {
         }
         elsif ( $action eq 'credential-status' ) {
             $result = cmd_credential_status( $req->{username} );
+        }
+        elsif ( $action eq 'keys-list' ) {
+            $result = cmd_keys_list();
+        }
+        elsif ( $action eq 'key-revoke' ) {
+            $result = cmd_key_revoke( $req->{username} );
         }
         elsif ( $action eq 'onboarding' ) {
             my $r = cmd_onboarding( $req->{username} );
@@ -1443,6 +1455,32 @@ sub cmd_claim_create {
     return { claim => $claim, purpose => $purpose };
 }
 
+# Cancel an outstanding setup link: clear the pending claim so its URL stops
+# working. Does NOT touch the account's credential (that is what "Reset
+# credential" did; cancelling a link is the safe, narrow action).
+sub cmd_claim_cancel {
+    my ( $user, %opt ) = @_;
+    die "Username required\n" unless defined $user && length $user;
+    my $all = read_settings();
+    my $s   = $all->{$user};
+    return { ok => 1, cancelled => 0 } unless $s;    # nothing pending
+
+    my $actor = $opt{actor};
+    if ( defined $actor && length $actor && $actor ne 'local' ) {
+        die "Not authorised to manage '$user'\n"
+            unless $actor eq $user || is_ancestor( $actor, $user, $all );
+    }
+
+    my $had = $s->{claim_hash} ? 1 : 0;
+    delete @{$s}{qw(claim_hash claim_expires_at claim_purpose)};
+    write_settings($all);
+    if ($had) {
+        log_event( 'INFO', $user, 'setup link cancelled' );
+        cli_audit( 'user-claim-cancel', $user, 'setup link cancelled' );
+    }
+    return { ok => 1, cancelled => $had };
+}
+
 # Redeem a claim to set the account's own credential. set-password needs a
 # password (opt{password}); mint-token generates and returns a token. The
 # claim is single-use (cleared on success). Every "no valid claim" path
@@ -1837,6 +1875,80 @@ sub cmd_credential_status {
         used_at   => $used,
         used      => ( $used && $used >= $iss ) ? 1 : 0,
     };
+}
+
+# SM145: list the ACTIVE ACCESS KEYS - the machine credentials operators most
+# want to see and revoke on the Sessions page. A "key" is an account that holds
+# a live credential AND operates on a machine channel (api / mcp / webdav): an
+# AI connector, a control-API client, or a WebDAV publisher. Interactive-only
+# manager passwords are NOT keys and are not listed (revoking a login belongs to
+# the account, not this view). For each key we report the channels it carries,
+# when it was issued, whether it has been used since issuance, and any expiry.
+sub cmd_keys_list {
+    my %users    = read_users();
+    my $settings = read_settings();
+    my @keys;
+    for my $u ( sort keys %users ) {
+        next unless defined $users{$u} && length $users{$u};    # holds a credential
+        my $eff = effective_settings($u);
+        # A key is a MACHINE credential on a non-interactive account. An
+        # interactive (human) account's credential is its login PASSWORD - even
+        # if it also has WebDAV - and belongs to the account, not this view;
+        # listing it here would let an operator lock a manager out by "revoking
+        # a key". So interactive accounts are excluded on purpose.
+        next if $eff->{ui};
+        next unless $eff->{api} || $eff->{mcp} || $eff->{webdav};    # a machine key
+        my $s    = $settings->{$u}      || {};
+        my $iss  = $s->{cred_issued_at} || 0;
+        my $used = $s->{cred_used_at}   || 0;
+        push @keys,
+            {
+            user      => $u,
+            channels  => [ grep { $eff->{$_} } qw(api mcp webdav) ],
+            issued_at => $iss,
+            used_at   => $used,
+            in_use => ( $used && $used >= $iss ) ? JSON::PP::true() : JSON::PP::false(),
+            token_expires_at => $s->{token_expires_at},
+            expires_at       => $s->{expires_at},
+            disabled         => $eff->{disabled} ? JSON::PP::true() : JSON::PP::false(),
+            interactive      => $eff->{ui}       ? JSON::PP::true() : JSON::PP::false(),
+            };
+    }
+    return { ok => 1, keys => \@keys };
+}
+
+# SM145: revoke an account's access key. Clears the stored credential (the token
+# stops authenticating on the NEXT request) and the issue/use/exchange markers,
+# so the account is left intact and can be re-issued a key (token / setup link)
+# later - the same shape as "Reset credential" without minting a replacement.
+sub cmd_key_revoke {
+    my ($user) = @_;
+    return { ok => 0, error => 'Username required' }
+        unless defined $user && length $user;
+    my %users = read_users();
+    return { ok => 0, error => "User '$user' not found" }
+        unless exists $users{$user};
+    # Guard: never blank an interactive account's credential here - that is its
+    # login PASSWORD, and clearing it (e.g. the sole manager's) is a lockout, not
+    # a key revocation. Password/credential changes for a human account go
+    # through the Users page.
+    if ( effective_settings($user)->{ui} ) {
+        return { ok => 0,
+            error => "'$user' is an interactive account - its credential is a login "
+                . "password, not an access key. Manage it on the Users page." };
+    }
+    $users{$user} = '';    # blank the credential hash - nothing verifies against it
+    write_users(%users);
+    my $all = read_settings();
+    if ( my $s = $all->{$user} ) {
+        delete @{$s}{
+            qw(cred_issued_at cred_used_at token_expires_at connect_code_hash connect_code_expires)
+        };
+        write_settings($all);
+    }
+    log_event( 'INFO', $user, 'access key revoked' );
+    cli_audit( 'user-key-revoke', $user, 'access key revoked' );
+    return { ok => 1, user => $user };
 }
 
 sub cmd_verify_credential {

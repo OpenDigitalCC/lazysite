@@ -465,19 +465,29 @@ elsif ( $action eq 'layouts-repo-set' )  {
 elsif ( $action eq 'users' )            { $result = action_users( $body, \%params ) }
 elsif ( $action eq 'principals' )       { $result = action_principals() }
 elsif ( $action eq 'rotate-auth-secret' ) { $result = action_rotate_auth_secret( $auth_user ) }
-elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 'user-revoke' ) {
-    # SM141: session visibility + revocation are user-management powers.
-    # Cookie (manager) callers need the manage_users capability - same
-    # strict cookie-side gate pattern as the audit trail; token clients
-    # cannot reach these at all (not in the %need set above).
+elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 'user-revoke'
+    || $action eq 'keys-list' || $action eq 'key-revoke' ) {
+    # SM141/SM145: session AND access-key visibility + revocation are all
+    # user-management powers. Cookie (manager) callers need the manage_users
+    # capability - same strict cookie-side gate pattern as the audit trail;
+    # token clients cannot reach these at all (not in the %need set above).
     # (A denied revoke is still audited: the generic POST audit block below
-    # records the fail with kind 'forbidden'; sessions-list is a GET read.)
+    # records the fail with kind 'forbidden'; the -list actions are GET reads.)
     if ( !$token_auth && !_user_manage_users($auth_user) ) {
         $result = { ok => 0, kind => 'forbidden',
-            error => "Managing sessions requires the 'Users & groups' permission. "
+            error => "Managing sessions and keys requires the 'Users & groups' permission. "
                 . "An operator can grant it on the Groups page." };
     }
     elsif ( $action eq 'sessions-list' ) { $result = action_sessions_list() }
+    elsif ( $action eq 'keys-list' ) {
+        # SM145: the access-key inventory lives in the users tool (it reads the
+        # credential store); forward the read.
+        $result = _users_tool_call( { action => 'keys-list' } );
+    }
+    elsif ( $action eq 'key-revoke' ) {
+        my $req = eval { decode_json($body) } // {};
+        $result = _users_tool_call( { action => 'key-revoke', username => $req->{username} } );
+    }
     else {
         my $req = eval { decode_json($body) } // {};
         $result = $action eq 'session-revoke'
@@ -609,7 +619,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
-        backup-list sessions-list git-status git-history git-show );
+        backup-list sessions-list keys-list git-status git-history git-show );
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
@@ -636,9 +646,9 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         }
     }
 
-    # SM141: the session revokes carry their target in the POST body - name it
+    # SM141/SM145: the revokes carry their target in the POST body - name it
     # (a sid prefix / the username) instead of the meaningless '/' path.
-    if ( $action eq 'session-revoke' || $action eq 'user-revoke' ) {
+    if ( $action eq 'session-revoke' || $action eq 'user-revoke' || $action eq 'key-revoke' ) {
         my $b = eval { decode_json($body) };
         if ( $action eq 'session-revoke' ) {
             my $sid = ( ref $b eq 'HASH' ? $b->{sid} : undef ) // '';
@@ -1586,6 +1596,24 @@ sub action_principals {
     return { ok => 1, users => \@users, groups => \@groups };
 }
 
+# SM145: a thin one-shot call into the users tool (--api) for reads/writes that
+# this file gates itself (keys-list / key-revoke), bypassing action_users'
+# GET-guard and actor-injection which are specific to the account CRUD path.
+sub _users_tool_call {
+    my ($payload) = @_;
+    my $script = _users_tool_path()
+        or return { ok => 0, error => "User management not available" };
+    my ( $out, $in );
+    my $pid = eval { open2( $out, $in, $^X, $script, '--api', '--docroot', $DOCROOT ) };
+    return { ok => 0, error => "Cannot run user management: $@" } unless $pid;
+    print $in encode_json($payload);
+    close $in;
+    my $o = do { local $/; <$out> };
+    close $out;
+    waitpid $pid, 0;
+    return eval { decode_json( $o // '{}' ) } // { ok => 0, error => "Invalid response" };
+}
+
 sub action_users {
     my ( $request_body, $params_ref ) = @_;
 
@@ -1627,7 +1655,7 @@ sub action_users {
             return { ok => 0, error => "claim-redeem is not a manager action" }
                 if $act eq 'claim-redeem';
             if ( $auth_user ne 'local'
-                && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|rename)$/x ) {
+                && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|claim-cancel|rename)$/x ) {
                 $parsed->{actor} = $auth_user unless _is_operator();
                 $parsed->{created_by} //= $auth_user if $act eq 'account-create';
                 $request_body = encode_json($parsed);

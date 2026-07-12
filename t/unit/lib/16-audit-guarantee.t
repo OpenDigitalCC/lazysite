@@ -203,7 +203,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         git-restore handler-delete handler-save layout-activate layout-delete
         layout-install layouts-install layouts-manifest layouts-repo-set
         migrate-to-local mkdir move nav-save notices notices-seen
-        plugin-action plugin-disable plugin-enable plugin-save
+        key-revoke plugin-action plugin-disable plugin-enable plugin-save
         rotate-auth-secret save session-revoke theme-activate theme-delete
         theme-rename theme-upload user-revoke users
     );

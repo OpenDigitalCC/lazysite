@@ -18,6 +18,52 @@ Keying
 
 ## Unreleased
 
+Users page: the account tree and the account editor are now two surfaces (SM144)
+: Field feedback: sub-accounts work, but operators could not tell whether they
+  were editing a main account or a sub-account - a nested parent and child
+  showed two identical settings stacks with nothing marking whose was whose -
+  and each level of nesting made the edit panel narrower. Now the account list
+  is a pure tree browser: **one line per account** (name, human/AI, a "(+N)"
+  sub-user count, and its Configure button, all on the row - no expand-to-reveal
+  step), sub-users nested (collapsed by default; the indent alone shows
+  hierarchy). Editing opens in a single full-width **editor sheet** - a centred,
+  fixed-width overlay with a solid accent-coloured header naming the account -
+  the same size and position however deep the account sits, so nesting never
+  shrinks it and whose settings are on screen is unmistakable (Esc / × /
+  backdrop-click close it; a save refreshes it in place). In the sheet, the
+  disable/delete actions move to their own **Danger zone** box at the end, and
+  the credential control offers **Cancel setup link** to clear an outstanding
+  setup link. Users-page markup only (render split into tree +
+  accountSettingsHtml + an editor-sheet controller; new claim-cancel action);
+  guarded by t/lint/10-users-select-configure.t.
+
+Sessions page: see and revoke active access keys (SM145)
+: The Sessions page gains an **Active keys** card listing every non-interactive
+  account that holds a live machine credential (AI connector / API / WebDAV) -
+  its channels, when issued, whether used, any expiry - each with **Revoke
+  key**, which stops the credential on the next request while leaving the
+  account intact. Interactive (human) accounts are excluded and refused: their
+  credential is a login password, managed on the Users page, not a key.
+  manage_users-gated like sessions; key-revoke is audited. Guarded by
+  t/unit/users/17-keys.t.
+
+2FA enrolment: a QR to scan, the secret to copy, and recovery codes (SM146)
+: The two-factor control now shows state - **Set up 2FA** when off, an `enabled`
+  tag + **Disable 2FA** when on. Setting up reveals a **QR code**, the copyable
+  **secret** beneath it (manual entry when a QR can't be scanned), and the
+  **recovery codes** behind a disclosure. The QR is drawn client-side from the
+  account's otpauth URI by a newly bundled, self-contained QR library - no CDN,
+  no host dependency (see below); the library only computes the matrix and
+  lazysite draws the SVG, so the URI is never inserted as markup.
+
+Bundled web assets are in the SBOM now, and stay there (SM147)
+: The release SBOM was Perl-module focused; bundled third-party JS/CSS
+  (CodeMirror, and the new qrcode-generator 1.4.4, MIT) appeared only in
+  THIRD-PARTY-NOTICES. sbom-deps.json gains a `web_assets` channel, both are
+  declared (with a NOTICES entry for the QR library), manifest-to-sbom.pl emits
+  them as CycloneDX components, and t/lint/11-web-assets-sbom.t scans the tree
+  and fails the build if a vendored bundle is undeclared.
+
 ## 0.7.11 - STABLE: the ladder reaches Site settings + a machine-readable backlog (2026-07-11)
 
 The backlog is now machine-readable (status headers on every feature request)

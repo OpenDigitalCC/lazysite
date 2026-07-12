@@ -60,6 +60,20 @@ on their own pages (under Access in the menu). You can still assign a user to
 groups from each user's card below.
 </p>
 
+<!-- SM144: the full-width editor sheet. One consistent surface for editing ANY
+     account, opened by a row's Configure button - the same size and position
+     however deep the account sits in the tree. A coloured header names the
+     account being configured. Click the backdrop or press Esc to close. -->
+<div id="cfg-sheet" class="mg-sheet" hidden onclick="if(event.target===this)closeConfig()">
+  <div class="mg-sheet-panel" role="dialog" aria-label="Account settings">
+    <div class="mg-sheet-head">
+      <span id="cfg-sheet-title" class="mg-sheet-title"></span>
+      <button type="button" class="mg-sheet-close" onclick="closeConfig()" aria-label="Close settings">&times;</button>
+    </div>
+    <div class="mg-sheet-body" id="cfg-sheet-body"></div>
+  </div>
+</div>
+
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var DAV_BASE = location.origin + '/dav';
@@ -230,9 +244,10 @@ function groupsForUser(user) {
 // (managed_by/created_by) so the tree expands as the hierarchy it is.
 function renderUsers(rows) {
   var list = document.getElementById('user-list');
-  if (!rows.length) { list.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No users</div>'; return; }
+  if (!rows.length) { list.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No users</div>'; rowsByUser = {}; closeConfig(); return; }
   var byUser = {};
   rows.forEach(function(r) { byUser[r.user] = r; });
+  rowsByUser = byUser;   // the editor sheet reads accounts by name from here
   var kids = {}, roots = [];
   rows.forEach(function(r) {
     var s = r.settings || {};
@@ -251,6 +266,12 @@ function renderUsers(rows) {
   }
   list.innerHTML = roots.sort(byName).map(function(r) { return node(r, ''); }).join('');
   focusUserFromUrl();
+  // Keep an open editor in sync with the fresh data (a save reloads the tree),
+  // or close it if its account is gone (deleted / renamed).
+  if (currentConfigUser) {
+    if (rowsByUser[currentConfigUser]) renderConfigSheet(currentConfigUser);
+    else closeConfig();
+  }
 }
 
 // Deep-link support: /manager/users?user=NAME opens that user's row and centres
@@ -260,11 +281,13 @@ function focusUserFromUrl() {
   if (!m) return;
   var u = decodeURIComponent(m[1].replace(/\+/g, ' '));
   var sel = (window.CSS && CSS.escape) ? CSS.escape(u) : u.replace(/"/g, '\\"');
-  var el = document.querySelector('#user-list details[data-user="' + sel + '"]');
+  var el = document.querySelector('#user-list [data-user="' + sel + '"]');
   if (!el) return;
-  // open the target and every ancestor <details>, so a nested sub-user is visible
-  for (var p = el; p; p = p.parentElement) { if (p.tagName === 'DETAILS') p.open = true; }
+  // open every ancestor <details>, so a nested sub-user's row is visible
+  for (var p = el.parentElement; p; p = p.parentElement) { if (p.tagName === 'DETAILS') p.open = true; }
   el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  // A deep link lands you IN the target's editor, not just on its row.
+  if (rowsByUser[u]) configureUser(u);
 }
 
 // Wrap a card section in a bounded box with a heading.
@@ -272,7 +295,73 @@ function sec(title, inner) {
   return '<div class="mg-box"><div class="mg-sec">' + title + '</div>' + inner + '</div>';
 }
 
+// SM144: the TREE ROW is for *selecting* an account. ONE line per account -
+// name, role, lineage, and its Configure button, all visible at once (no
+// expand-to-reveal step). Sub-users nest beneath as an indented tree; a parent
+// row is a <details> so its sub-tree can be collapsed, but the row itself is
+// always a single line. Editing opens in the full-width editor sheet
+// (configureUser), which never nests - so the tree can go arbitrarily deep
+// without the editor ever shrinking.
 function renderUserRow(row, kidsHtml, subCount, parentName) {
+  var u = row.user, s = row.settings || {}, ue = escHtml(u);
+  var disabled = !!s.disabled;
+  var ui       = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
+  var roleTag  = ui ? '<span class="mg-tag mg-tag-human">human</span>'
+                    : '<span class="mg-tag mg-tag-auto">AI</span>';
+  // Sub-user count only ("(+3)"). A sub-user's parent is obvious from the nesting,
+  // so it is not repeated on the row.
+  var lineChip = (subCount > 0)
+    ? '<span class="mg-subcount" title="' + subCount + ' sub-user' + (subCount > 1 ? 's' : '') + '">(+' + subCount + ')</span>'
+    : '';
+  var comment  = s.comment || '';
+  var note     = comment ? '<span class="mg-acc-note">' + escHtml(comment) + '</span>' : '';
+  var flags    = disabled ? '<span class="mg-tag mg-tag-off">disabled</span>' : '';
+  if (s.expires_at && s.expires_at < Date.now() / 1000) flags += ' <span class="mg-tag mg-tag-off">expired</span>';
+  var isSub    = !!parentName;
+
+  // The single row: identity on the left, its Configure button on the right.
+  // stopPropagation keeps a click on Configure from toggling a parent's subtree.
+  var line =
+    '<span class="mg-acc-name">' + ue + '</span>' + recentDot(u) +
+    roleTag + lineChip + note +
+    '<span class="mg-acc-spacer"></span>' + flags +
+    '<button type="button" class="mg-btn mg-btn-sm mg-btn-primary mg-configbtn" data-cfg="' + ue + '" ' +
+    'onclick="event.stopPropagation();configureUser(\'' + ue + '\')">Configure</button>';
+
+  if (kidsHtml) {
+    // A parent: collapsible subtree (starts collapsed), row stays one line.
+    return '<details class="mg-acc' + (isSub ? ' mg-sub' : '') + '" data-user="' + ue + '">' +
+      '<summary class="mg-acc-line">' + line + '</summary>' +
+      '<div class="mg-acc-kids">' + kidsHtml + '</div></details>';
+  }
+  // A leaf: a plain one-line row (no disclosure triangle).
+  return '<div class="mg-acc mg-acc-leaf' + (isSub ? ' mg-sub' : '') + '" data-user="' + ue + '">' +
+    '<div class="mg-acc-line">' + line + '</div></div>';
+}
+
+// The one-line "who is this" for an account. A sub-user names its parent; a
+// top-level account names its role and how many sub-users hang off it. subCount
+// is passed from the tree; when omitted (the editor header) it is derived.
+function lineageText(user, parentName, subCount) {
+  if (parentName) return 'sub-user of ' + escHtml(parentName);
+  var n = (typeof subCount === 'number') ? subCount : childCountOf(user);
+  return n > 0 ? ('top-level account · ' + n + ' sub-user' + (n > 1 ? 's' : '')) : 'top-level account';
+}
+
+function childCountOf(user) {
+  var n = 0;
+  Object.keys(rowsByUser).forEach(function(x) {
+    var r = rowsByUser[x], s = (r && r.settings) || {};
+    if ((s.managed_by || s.created_by || '') === user) n++;
+  });
+  return n;
+}
+
+// The EDITOR CONTENT (configuring): every setting for ONE account. Rendered into
+// the full-width sheet by renderConfigSheet - never inline in the tree, so its
+// width is identical at any depth. Only one account's settings exist in the DOM
+// at a time, so the per-field ids stay unique.
+function accountSettingsHtml(row) {
   var u = row.user, s = row.settings || {}, ue = escHtml(u);
   var webdav   = !!s.webdav;
   var ui       = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
@@ -280,41 +369,8 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   var api      = !!s.api;
   var disabled = !!s.disabled;
   var scope    = s.dav_scope || '';
-  var status   = disabled ? '<span class="mg-tag mg-tag-off">disabled</span>'
-                          : '<span class="mg-tag mg-tag-on">enabled</span>';
-  // "automated" == no interactive login (the Access > Interactive login box
-  // is off); a normal interactive account gets no tag. Same language as the
-  // checkbox, so the summary and the control agree.
-  var typeTag  = ui
-    ? '<span class="mg-tag mg-tag-human">human</span> &middot; '
-    : '<span class="mg-tag mg-tag-auto">AI</span> &middot; ';
-  var by       = s.created_by ? ' &middot; by ' + escHtml(s.created_by) : '';
   var comment  = s.comment || '';
-  var note     = comment ? '<span class="mg-acc-note">' + escHtml(comment) + '</span>' : '';
-  var expTag   = '';
-  if (s.expires_at) {
-    expTag = (s.expires_at < Date.now() / 1000)
-      ? ' &middot; <span class="mg-tag mg-tag-off">expired</span>'
-      : ' &middot; <span class="mg-acc-note">expires ' + expiryDate(s.expires_at) + '</span>';
-  }
-
-  var subBadge = (subCount > 0)
-    ? ' <span class="mg-subcount" title="' + subCount + ' sub-user' + (subCount > 1 ? 's' : '') + '">(+' + subCount + ')</span>'
-    : '';
-  // SM104: a sub-user shows whose account it is under; a top-level account shows nothing.
-  var parentTag = parentName
-    ? ' <span class="mg-subcount" title="sub-user of ' + escHtml(parentName) + '">&#8627; ' + escHtml(parentName) + '</span>'
-    : '';
-  var h = '<details class="mg-acc" data-user="' + ue + '"><summary>' +
-    '<span class="mg-acc-name">' + ue + '</span>' + recentDot(u) + subBadge + parentTag + note +
-    '<span class="mg-acc-tags">' + typeTag + status + by + expTag + '</span></summary>' +
-    '<div class="mg-acc-body">';
-
-  // Sub-users at the TOP of the owning account's card - nested inside the parent's
-  // body so collapsing the parent collapses them too.
-  if (kidsHtml) {
-    h += sec('Sub-users', '<div class="mg-subusers" style="border-left:2px solid var(--mg-border,#e2e2e2);padding-left:0.6rem;display:flex;flex-direction:column;gap:0.4rem">' + kidsHtml + '</div>');
-  }
+  var h = '';
 
   // --- Notes ---
   var nb = '<div class="mg-line"><span class="mg-line-lbl">Note</span>' +
@@ -372,14 +428,15 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
       '<span class="mg-inline-msg" id="pwmsg-' + ue + '"></span></div>';
     cred += '<div class="mg-line"><span class="mg-line-lbl">Setup link</span>' +
       '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',false)">Generate setup link</button>' +
-      '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',true)">Reset credential</button>' +
-      (s.claim_pending ? ' <span class="mg-muted">(link outstanding)</span>' : '') +
-      '<span class="mg-help" title="A one-time link the user opens to set their OWN password (or mint their own token) - you never see it. Reset credential revokes the current one first. Single-use, expires in 24h.">&#9432;</span></div>';
+      (s.claim_pending
+        ? '<button class="mg-btn mg-btn-sm" onclick="cancelSetupLink(\'' + ue + '\')">Cancel setup link</button> <span class="mg-muted">(link outstanding)</span>'
+        : '') +
+      '<span class="mg-help" title="A one-time link the user opens to set their OWN password (or mint their own token) - you never see it. Single-use, expires in 24h. Cancel it here to stop the URL working.">&#9432;</span></div>';
     cred += '<div class="mg-cred-reveal" id="setup-' + ue + '" style="display:none"></div>';
     cred += '<div class="mg-line"><span class="mg-line-lbl">Two-factor</span>' +
       (s.mfa_enrolled
-        ? '<span class="mg-tag mg-tag-on">enabled</span> <button class="mg-btn mg-btn-sm" onclick="disable2fa(\'' + ue + '\')">Disable</button>'
-        : '<button class="mg-btn mg-btn-sm" onclick="enable2fa(\'' + ue + '\')">Enable 2FA</button>') +
+        ? '<span class="mg-tag mg-tag-on">enabled</span> <button class="mg-btn mg-btn-sm" onclick="disable2fa(\'' + ue + '\')">Disable 2FA</button>'
+        : '<span class="mg-tag mg-tag-off">not set up</span> <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="setup2fa(\'' + ue + '\')">Set up 2FA</button>') +
       '<span class="mg-inline-msg" id="mfamsg-' + ue + '"></span></div>';
     cred += '<div class="mg-cred-reveal" id="mfa-' + ue + '" style="display:none"></div>';
     h += sec('Credentials', cred);
@@ -422,11 +479,7 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   }
 
   // --- Account ---
-  var ac = '<div class="mg-line">' +
-    '<button class="mg-btn mg-btn-sm" onclick="toggleDisabled(\'' + ue + '\',' + (disabled ? 'true' : 'false') + ')">' +
-    (disabled ? 'Enable' : 'Disable') + '</button>' +
-    '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + ue + '\')">Delete</button></div>';
-  ac += '<div class="mg-line"><a href="/manager/audit?user=' + encodeURIComponent(u) + '">View this account\'s audit log &rarr;</a></div>';
+  var ac = '<div class="mg-line"><a href="/manager/audit?user=' + encodeURIComponent(u) + '">View this account\'s audit log &rarr;</a></div>';
   ac += '<div class="mg-line"><span class="mg-line-lbl">Expires</span>' +
     '<input type="date" class="mg-inp" id="exp-' + ue + '" value="' + expiryDate(s.expires_at) + '">' +
     '<button class="mg-btn mg-btn-sm" onclick="setExpiry(\'' + ue + '\')">Set</button>' +
@@ -454,9 +507,70 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   }
   h += sec('Account', ac);
 
-  h += '</div></details>';
+  // --- Danger zone (its own box, last): the irreversible / lock-out actions. ---
+  var danger = '<div class="mg-line">' +
+    '<button class="mg-btn mg-btn-sm" onclick="toggleDisabled(\'' + ue + '\',' + (disabled ? 'true' : 'false') + ')">' +
+    (disabled ? 'Enable account' : 'Disable account') + '</button>' +
+    '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteUser(\'' + ue + '\')">Delete account</button></div>';
+  h += '<div class="mg-box mg-box-danger"><div class="mg-sec">Danger zone</div>' + danger + '</div>';
+
   return h;
 }
+
+// --- The full-width editor sheet (SM144): configuring an account ---
+// One consistent surface, the same size and position however deep the account
+// sits in the tree. Driven by whichever Configure button was pressed.
+var rowsByUser = {};            // username -> row, refreshed each render
+var currentConfigUser = null;   // account whose sheet is open (null = closed)
+
+// Open the editor sheet for an account, or toggle it shut if already open.
+function configureUser(user) {
+  if (currentConfigUser === user) { closeConfig(); return; }
+  currentConfigUser = user;
+  renderConfigSheet(user);
+}
+
+// (Re)fill the sheet for the open account - also called after a reload so the
+// editor reflects fresh data (a save reloads the tree underneath).
+function renderConfigSheet(user) {
+  var row = rowsByUser[user];
+  if (!row) { closeConfig(); return; }
+  var s = row.settings || {};
+  var ui = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
+  var parent = s.managed_by || s.created_by || '';
+  var lineage = lineageText(user, parent, undefined);
+  document.getElementById('cfg-sheet-title').innerHTML =
+    'Configuring ' + escHtml(user) +
+    ' <span class="mg-sheet-sub">' + (ui ? 'human' : 'AI') + ' &middot; ' + lineage + '</span>';
+  document.getElementById('cfg-sheet-body').innerHTML = accountSettingsHtml(row);
+  var sheet = document.getElementById('cfg-sheet');
+  sheet.hidden = false;
+  document.body.classList.add('mg-sheet-open');
+  var b = document.getElementById('cfg-sheet-body'); if (b) b.scrollTop = 0;
+  markConfiguring(user);
+}
+
+function closeConfig() {
+  currentConfigUser = null;
+  var sheet = document.getElementById('cfg-sheet');
+  if (sheet) sheet.hidden = true;
+  var body = document.getElementById('cfg-sheet-body'); if (body) body.innerHTML = '';
+  document.body.classList.remove('mg-sheet-open');
+  markConfiguring(null);
+}
+
+// Highlight the Configure button of the account whose sheet is open.
+function markConfiguring(user) {
+  var btns = document.querySelectorAll('.mg-configbtn');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.toggle('active', !!user && btns[i].getAttribute('data-cfg') === user);
+  }
+}
+
+// Esc closes; a click on the backdrop (not the panel) closes. Wired once.
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && currentConfigUser) closeConfig();
+});
 
 // --- per-row actions ---
 
@@ -773,6 +887,22 @@ function setupLink(user, reset) {
     .catch(function(e) { show('<span class="mg-err">Error: ' + escHtml(e.message) + '</span>'); });
 }
 
+// Cancel an outstanding setup link (clears the pending claim; the account and
+// its current credential are untouched).
+function cancelSetupLink(user) {
+  mgConfirm('Cancel the outstanding setup link for "' + user + '"? Its URL stops working immediately. The account and its current credential are untouched.',
+    { danger: true, ok: 'Cancel link' }).then(function(__ok) {
+    if (!__ok) return;
+    apiCall({ action: 'claim-cancel', username: user })
+      .then(function(d) {
+        if (!d.ok) { showStatus(d.error, true); return; }
+        showStatus(d.cancelled ? ('Setup link for "' + user + '" cancelled.') : 'No outstanding link.');
+        loadUsers();
+      })
+      .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
+}
+
 // epoch -> YYYY-MM-DD for the date input (local time).
 function expiryDate(epoch) {
   if (!epoch) return '';
@@ -815,23 +945,59 @@ function renameUser(user) {
     .catch(function(e) { say('Error: ' + e.message, false); });
 }
 
-// Enrol TOTP: reveal the secret, otpauth URI, and recovery codes once.
-function enable2fa(user) {
+// Set up TOTP: enrol, then show a QR to scan, the copyable secret beneath (for
+// manual entry), and the recovery codes behind a disclosure. All shown once.
+function setup2fa(user) {
   var box = document.getElementById('mfa-' + user);
   function show(html) { if (box) { box.style.display = 'block'; box.innerHTML = html; } }
+  show('<span class="mg-muted">Setting up&hellip;</span>');
   apiCall({ action: 'mfa-enroll', username: user })
     .then(function(d) {
       if (!d.ok) { show('<span class="mg-err">' + escHtml(d.error) + '</span>'); return; }
       var codes = (d.recovery_codes || []).map(escHtml).join('<br>');
-      show('<div class="mg-muted">Add to an authenticator app, then sign out and back in with a code. Shown once.</div>' +
+      show('<div class="mg-muted">Scan this with an authenticator app (Google Authenticator, Aegis, 1Password&hellip;), then sign out and back in with a 6-digit code.</div>' +
+        '<div class="mg-qr" id="mfaqr-' + user + '"><span class="mg-muted">rendering QR&hellip;</span></div>' +
         '<div class="mg-line"><span class="mg-line-lbl">Secret</span><code class="mg-code" id="mfasec-' + user + '">' + escHtml(d.secret) + '</code>' +
-        '<button class="mg-btn mg-btn-sm" onclick="copyText(\'mfasec-' + user + '\')">Copy</button></div>' +
-        '<div class="mg-line"><span class="mg-line-lbl">otpauth</span><code class="mg-code" id="mfauri-' + user + '">' + escHtml(d.otpauth_uri) + '</code>' +
-        '<button class="mg-btn mg-btn-sm" onclick="copyText(\'mfauri-' + user + '\')">Copy</button></div>' +
-        '<div class="mg-muted">Recovery codes (store now, each works once):</div>' +
-        '<div class="mg-code" style="white-space:normal">' + codes + '</div>');
+        '<button class="mg-btn mg-btn-sm" onclick="copyText(\'mfasec-' + user + '\')">Copy</button>' +
+        '<span class="mg-help" title="Can\'t scan? Add the account manually in your app with this secret.">&#9432;</span></div>' +
+        '<details style="margin-top:0.4rem"><summary style="cursor:pointer">Show recovery codes</summary>' +
+        '<div class="mg-muted">Store these now &mdash; each works once if you lose the authenticator. Shown only now.</div>' +
+        '<div class="mg-code" style="white-space:normal">' + codes + '</div></details>');
+      renderQR('mfaqr-' + user, d.otpauth_uri);
     })
     .catch(function(e) { show('<span class="mg-err">Error: ' + escHtml(e.message) + '</span>'); });
+}
+
+// Lazily load the bundled QR library (only when 2FA setup needs it), then run cb.
+var _qrQueue = null;
+function withQR(cb) {
+  if (window.qrcode) { cb(); return; }
+  if (_qrQueue) { _qrQueue.push(cb); return; }
+  _qrQueue = [cb];
+  var s = document.createElement('script');
+  s.src = '/manager/assets/qrcode.js';
+  s.onload = function() { var q = _qrQueue; _qrQueue = null; q.forEach(function(f) { f(); }); };
+  s.onerror = function() { var q = _qrQueue; _qrQueue = null; q.forEach(function(f) { f(true); }); };
+  document.head.appendChild(s);
+}
+
+// Render an otpauth URI as an inline SVG QR. The library only COMPUTES the
+// module matrix (qr.isDark); we build the SVG from integers here, so the URI is
+// never inserted into the DOM as markup - no injection surface.
+function renderQR(elId, text) {
+  withQR(function(err) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    if (err || !window.qrcode) { el.innerHTML = '<span class="mg-muted">(QR unavailable - add the account manually with the secret below)</span>'; return; }
+    var qr = qrcode(0, 'M'); qr.addData(text); qr.make();
+    var n = qr.getModuleCount(), cell = 4, m = 4, sz = (n + 2 * m) * cell, r = '';
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+      if (qr.isDark(y, x)) r += '<rect x="' + ((x + m) * cell) + '" y="' + ((y + m) * cell) + '" width="' + cell + '" height="' + cell + '"/>';
+    }
+    el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="' + sz + '" height="' + sz +
+      '" viewBox="0 0 ' + sz + ' ' + sz + '" role="img" aria-label="two-factor QR code">' +
+      '<rect width="' + sz + '" height="' + sz + '" fill="#fff"/><g fill="#000">' + r + '</g></svg>';
+  });
 }
 
 function disable2fa(user) {

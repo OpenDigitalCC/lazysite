@@ -12,10 +12,23 @@ search: false
 <p class="mg-card-subtitle" style="margin:0 0 0.5rem">
 Everyone signed in right now (sessions expire 24&nbsp;hours after sign-in).
 <strong>Sign out</strong> ends one session; <strong>Sign out everywhere</strong>
-ends all of a user's sessions, including any started before session listing
-existed. Neither touches the account &mdash; the user can sign straight back in.
+ends all of a user's sessions. The user can sign straight back in.
 </p>
 <div id="session-list"><div class="mg-empty" style="padding:0.75rem;">Loading...</div></div>
+</div>
+</div>
+
+<div class="mg-card">
+<div class="mg-card-header"><span class="mg-card-title">Active keys</span></div>
+<div class="mg-card-body">
+<p class="mg-card-subtitle" style="margin:0 0 0.5rem">
+Access keys let AI agents and publishing tools reach this site without a browser
+&mdash; on the API, the MCP connector, or WebDAV. Each account below holds a live
+key. <strong>Revoke key</strong> stops it working on the next request; the
+account is left intact and can be issued a fresh key later from its card on the
+<a href="/manager/users">Users</a> page.
+</p>
+<div id="key-list"><div class="mg-empty" style="padding:0.75rem;">Loading...</div></div>
 </div>
 </div>
 
@@ -148,5 +161,81 @@ function rotateAuthSecret() {
   });
 }
 
+// --- SM145: active access keys (AI / API / WebDAV credentials) ---
+function loadKeys() {
+  fetch(API + '?action=keys-list')
+    .then(function(r) { return r.json(); })
+    .then(renderKeys)
+    .catch(function(e) {
+      var box = document.getElementById('key-list');
+      if (box) box.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">Error: ' + escHtml(e.message) + '</div>';
+    });
+}
+
+function renderKeys(d) {
+  var box = document.getElementById('key-list');
+  if (!box) return;
+  if (!d.ok) {
+    box.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">' + escHtml(d.error || 'Failed to load keys.') + '</div>';
+    return;
+  }
+  var rows = d.keys || [];
+  if (!rows.length) {
+    box.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No active keys. AI / publishing accounts get a key from the <strong>Connect</strong> or <strong>Generate credential</strong> action on their Users-page card.</div>';
+    return;
+  }
+  var h = '<table class="audit-table"><thead><tr>' +
+    '<th>Account</th><th>Key for</th><th>Issued</th><th>Status</th><th></th>' +
+    '</tr></thead><tbody>';
+  rows.forEach(function(k) {
+    var chans = (k.channels || []).map(function(c) {
+      return '<span class="mg-tag mg-tag-auto">' + escHtml(c) + '</span>';
+    }).join(' ');
+    var when = k.issued_at ? new Date(k.issued_at * 1000).toLocaleString() : '<span class="mg-muted">unknown</span>';
+    // Status: in use vs never used since issue; plus disabled / expiry flags.
+    var status = k.in_use
+      ? '<span class="mg-tag mg-tag-on">in use</span>'
+      : '<span class="mg-tag mg-tag-auto">not used yet</span>';
+    if (k.disabled) status += ' <span class="mg-tag mg-tag-off">account disabled</span>';
+    var now = Date.now() / 1000;
+    if (k.expires_at && k.expires_at < now) status += ' <span class="mg-tag mg-tag-off">account expired</span>';
+    if (k.token_expires_at) {
+      status += (k.token_expires_at < now)
+        ? ' <span class="mg-tag mg-tag-off">token expired</span>'
+        : ' <span class="mg-tag mg-tag-auto">expires ' + escHtml(new Date(k.token_expires_at * 1000).toLocaleDateString()) + '</span>';
+    }
+    h += '<tr>' +
+      '<td>' + escHtml(k.user) + '</td>' +
+      '<td>' + chans + '</td>' +
+      '<td>' + when + '</td>' +
+      '<td>' + status + '</td>' +
+      '<td style="white-space:nowrap">' +
+      '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="revokeKey(\'' + escHtml(k.user) + '\')">Revoke key</button>' +
+      '</td></tr>';
+  });
+  h += '</tbody></table>';
+  box.innerHTML = h;
+}
+
+function revokeKey(user) {
+  mgConfirm('Revoke the access key for "' + user + '"? Its API / connector / WebDAV credential stops working on the next request. The account is untouched and can be issued a new key from its Users-page card.',
+    { danger: true, ok: 'Revoke key' }).then(function(__ok) {
+    if (!__ok) return;
+    fetch(API + '?action=key-revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.ok) { showStatus(d.error || 'Revoke failed', true); return; }
+        showStatus('Key for "' + user + '" revoked.');
+        loadKeys();
+      })
+      .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
+}
+
 loadSessions();
+loadKeys();
 </script>
