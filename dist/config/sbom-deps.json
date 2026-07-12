@@ -203,6 +203,26 @@
       "used_by": "EACCES/EPERM detection for the actionable permission hint on manager write failures (Lazysite::Manager::Common)"
     }
   },
+  "web_assets": [
+    {
+      "name": "codemirror",
+      "version": "5.65.16",
+      "license": "MIT",
+      "purl": "pkg:npm/codemirror@5.65.16",
+      "files": "starter/manager/assets/cm/*",
+      "homepage": "https://codemirror.net/5/",
+      "used_by": "manager content editor (syntax highlighting)"
+    },
+    {
+      "name": "qrcode-generator",
+      "version": "1.4.4",
+      "license": "MIT",
+      "purl": "pkg:npm/qrcode-generator@1.4.4",
+      "files": "starter/manager/assets/qrcode.js",
+      "homepage": "https://github.com/kazuhikoarase/qrcode-generator",
+      "used_by": "manager 2FA enrolment QR (rendered client-side from the otpauth URI)"
+    }
+  ],
   "environment": [
     {
       "name": "perl",

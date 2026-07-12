@@ -204,6 +204,30 @@ sub build_sbom {
         push @components, $entry;
     }
 
+    # Bundled web-asset components (third-party JS/CSS shipped in the tree, e.g.
+    # CodeMirror, qrcode-generator). Declared with their real upstream identity
+    # and licence - distinct from the per-file 'source' components above, which
+    # carry the product licence.
+    for my $wa ( @{ $deps->{web_assets} // [] } ) {
+        my $purl  = $wa->{purl} // ( 'pkg:npm/' . ( $wa->{name} // 'unknown' ) );
+        my %props = ( 'lazysite:category' => 'web-asset' );
+        $props{'lazysite:files'}   = $wa->{files}   if defined $wa->{files};
+        $props{'lazysite:used_by'} = $wa->{used_by} if defined $wa->{used_by};
+        my $entry = {
+            type       => 'library',
+            'bom-ref'  => $purl,
+            name       => $wa->{name},
+            version    => $wa->{version} // 'unknown',
+            purl       => $purl,
+            properties => [ map { { name => $_, value => $props{$_} } } sort keys %props ],
+        };
+        $entry->{licenses} = [ { license => { id => $wa->{license} } } ]
+            if defined $wa->{license} && length $wa->{license};
+        $entry->{externalReferences} = [ { type => 'website', url => $wa->{homepage} } ]
+            if defined $wa->{homepage} && length $wa->{homepage};
+        push @components, $entry;
+    }
+
     # Environment components.
     for my $env ( @{ $deps->{environment} // [] } ) {
         my $entry = {
