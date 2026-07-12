@@ -60,22 +60,21 @@ sub describe {
         config_schema => [],
         actions       => [
             { id => 'status', label => 'Status' },
+            # enable/disable are the toggle's lifecycle hooks (on_enable /
+            # on_disable), hidden from the config page so there is never an
+            # "Enable" button while it is already enabled - the Plugin-Manager
+            # tick is the one switch.
             {
-                id      => 'enable',
-                label   => 'Enable content history',
-                run     => 'action',
-                confirm => 'Enable content history? The current site is captured '
-                    . 'as an initial snapshot, and every save from now on is '
-                    . 'recorded as a version. Secrets and personal data (accounts, '
-                    . 'form submissions, logs) are never included.',
+                id     => 'enable',
+                label  => 'Enable content history',
+                run    => 'action',
+                hidden => JSON::PP::true(),
             },
             {
-                id      => 'disable',
-                label   => 'Pause recording',
-                run     => 'action',
-                confirm => 'Pause content history? Every recorded version is '
-                    . 'kept; new saves are not recorded until it is enabled '
-                    . 'again.',
+                id     => 'disable',
+                label  => 'Pause recording',
+                run    => 'action',
+                hidden => JSON::PP::true(),
             },
         ],
         # Lifecycle: the Plugin-Manager toggle is the ONE switch. Enabling the

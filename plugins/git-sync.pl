@@ -97,7 +97,7 @@ sub describe {
             },
         ],
         actions => [
-            { id => 'test', label => 'Test connection' },
+            { id => 'test', label => 'Test connection',     needs => 'remote_url' },
             { id => 'push', label => 'Push - send changes', run => 'action' },
             {
                 id      => 'pull',

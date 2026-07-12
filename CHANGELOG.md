@@ -18,6 +18,25 @@ Keying
 
 ## Unreleased
 
+Plugin surface + Users/Groups polish from the demo review (SM149)
+: Plugin Manager rows redesigned - the enable toggle with Configure stacked
+  beneath it (no more column-jump on enable), the script path replaced by an
+  info tooltip, and the core badge on the info side. Plugins can mark an action
+  `hidden` (lifecycle hooks driven by the toggle - so Content history never
+  shows "Enable" while enabled; the Stats "refresh" is programmatic only) or
+  `unlisted` (ships and works but off the Plugin Manager - the payment demo,
+  hidden until real payments exist, and Logging & forwarding, an operator/CLI
+  concern). Remote sync's "Test connection" is gated behind a configured
+  remote. On the Users editor: a **General** card (Type, Note, Email) leads,
+  then Credentials, Groups, Capabilities, Account configuration; "Move under"
+  shows the account hierarchy indented; the open account is carried in the URL
+  so a full refresh reopens its editor. Group members and the add-user group
+  picker are now the **same** "pick none-or-many" pill control (was a
+  select-box vs pills), and adding/removing a member updates in place instead
+  of reloading the page. Delete group is refused (UI + backend) while it has
+  members. Appearance: trying a theme on/off only snapshots when something
+  actually changed, so exploring stops spawning identical backups.
+
 2FA setup can't lock you out, and the manager UI is more consistent (SM148)
 : Two-step 2FA enrolment: setting up generates the secret/QR/recovery codes but
   leaves 2FA **pending** - not enforced at login - until a code from the app

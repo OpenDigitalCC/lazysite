@@ -111,6 +111,9 @@ sub action_plugin_list {
 
         my $desc = eval { decode_json($json) };
         next unless $desc && ref $desc eq 'HASH' && $desc->{id};
+        # A plugin may mark itself unlisted (e.g. the payment demo helper): it
+        # ships and works, but is not a user-facing toggle in the Plugin Manager.
+        next if $desc->{unlisted};
 
         $desc->{_script}  = $rel;
         $desc->{_enabled} = $enabled{$rel} ? JSON::PP::true : JSON::PP::false;

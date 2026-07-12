@@ -42,7 +42,10 @@ identity in both domains; only <em>where</em> it is granted differs.
 </div>
 <div class="mg-form-row">
 <label>Groups</label>
-<select multiple id="new-groups" class="mg-inp mg-inp-wide" size="3"></select>
+<div style="flex:1">
+<div class="mg-tokens" id="new-group-tokens"></div>
+<div class="mg-tokens-pick"><input list="new-group-datalist" id="new-group-input" class="mg-inp" placeholder="add a group&hellip;" style="max-width:14rem" onkeydown="if(event.key==='Enter'){addNewUserGroupFromInput();event.preventDefault();}"><datalist id="new-group-datalist"></datalist> <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="addNewUserGroupFromInput()">Add</button></div>
+</div>
 </div>
 <div class="mg-form-row">
 <label>Create under</label>
@@ -340,6 +343,31 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
     '<div class="mg-acc-line">' + line + '</div></div>';
 }
 
+// Build the "move under" options in TREE ORDER, indented by depth, so the
+// dropdown shows the hierarchy. Skips the moving account and its descendants
+// (excl), which cannot become its own parent.
+function orderedParentOptions(self, excl) {
+  var kids = {};
+  Object.keys(rowsByUser).forEach(function(x) {
+    var s = (rowsByUser[x] || {}).settings || {};
+    var p = s.managed_by || s.created_by || '';
+    (kids[p] = kids[p] || []).push(x);
+  });
+  function byName(a, b) { return a.localeCompare(b); }
+  var out = '';
+  (function walk(parent, depth) {
+    (kids[parent] || []).sort(byName).forEach(function(x) {
+      if (x !== self && !excl[x]) {
+        var pad = '';
+        for (var i = 0; i < depth; i++) pad += '   ';
+        out += '<option value="' + escHtml(x) + '">' + pad + (depth ? '↳ ' : '') + escHtml(x) + '</option>';
+      }
+      walk(x, depth + 1);   // still descend, so a deep tree shows fully
+    });
+  })('', 0);
+  return out;
+}
+
 // The one-line "who is this" for an account. A sub-user names its parent; a
 // top-level account names its role and how many sub-users hang off it. subCount
 // is passed from the tree; when omitted (the editor header) it is derived.
@@ -373,51 +401,24 @@ function accountSettingsHtml(row) {
   var comment  = s.comment || '';
   var h = '';
 
-  // --- Notes ---
-  var nb = '<div class="mg-line"><span class="mg-line-lbl">Note</span>' +
-    '<input type="text" class="mg-inp mg-inp-wide" autocomplete="off" id="note-' + ue + '" value="' + escHtml(comment) +
-    '" placeholder="what this account is for (e.g. Claude dav publisher)">' +
-    '<button class="mg-btn mg-btn-sm" onclick="saveComment(\'' + ue + '\')">Save</button>' +
-    '<span class="mg-inline-msg" id="notemsg-' + ue + '"></span></div>';
-  nb += '<div class="mg-line"><span class="mg-line-lbl">Email</span>' +
-    '<input type="email" class="mg-inp" id="email-' + ue + '" value="' + escHtml(s.email || '') +
-    '" placeholder="for emailed setup / reset links">' +
-    '<button class="mg-btn mg-btn-sm" onclick="saveEmail(\'' + ue + '\')">Save</button>' +
-    '<span class="mg-inline-msg" id="emailmsg-' + ue + '"></span></div>';
-  h += sec('Notes', nb);
-
-  // --- Access ---
-  // Type is a Human/AI switch (the `ui` setting), matching the Add-user
-  // form, rather than a lone "Interactive login" checkbox.
-  var acc = '<div class="mg-line"><span class="mg-line-lbl">Type</span>' +
+  // --- General (Type, Note, Email) - the first card ---
+  // Type is a Human/AI switch (the `ui` setting), matching the Add-user form.
+  var gen = '<div class="mg-line"><span class="mg-line-lbl">Type</span>' +
     '<select class="mg-inp" onchange="setUserType(\'' + ue + '\', this.value)">' +
     '<option value="human"' + (ui ? ' selected' : '') + '>Human (interactive login)</option>' +
     '<option value="ai"' + (ui ? '' : ' selected') + '>AI / backend (token)</option>' +
     '</select></div>';
-  h += sec('Access', acc);
-
-  // --- Groups ---
-  var mine = groupsForUser(u);
-  var gnames = Object.keys(allGroups).sort();
-  var grp = '<div class="mg-checks">';
-  grp += gnames.length ? gnames.map(function(g) {
-    var on = mine.indexOf(g) !== -1;
-    return '<label class="mg-chk"><input type="checkbox"' + (on ? ' checked' : '') +
-      ' onchange="toggleGroup(\'' + ue + '\',\'' + escHtml(g) + '\',this)"> ' + escHtml(g) + '</label>';
-  }).join('') : '<span class="mg-empty">No groups yet.</span>';
-  grp += '</div>';
-  h += sec('Groups', grp);
-
-  // --- Capabilities (read-only; derived from group membership, SM095) ---
-  // The channel x capability grid IS the capability view now; capabilities are
-  // edited on the Groups page (this is read-only). Lazy-loaded on open.
-  var pv = '<p class="mg-muted" style="margin:0 0 0.3rem">Derived from '
-    + '<b>group membership</b> (below) &mdash; edit on the '
-    + '<a href="/manager/groups">Groups</a> page.</p>'
-    + '<details ontoggle="loadPermGrid(\'' + ue + '\', this)">'
-    + '<summary style="cursor:pointer">Show the channel &times; capability grid</summary>'
-    + '<div id="permgrid-' + ue + '" style="margin-top:0.4rem">&hellip;</div></details>';
-  h += sec('Capabilities', pv);
+  gen += '<div class="mg-line"><span class="mg-line-lbl">Note</span>' +
+    '<input type="text" class="mg-inp mg-inp-wide" autocomplete="off" id="note-' + ue + '" value="' + escHtml(comment) +
+    '" placeholder="what this account is for (e.g. Claude dav publisher)">' +
+    '<button class="mg-btn mg-btn-sm" onclick="saveComment(\'' + ue + '\')">Save</button>' +
+    '<span class="mg-inline-msg" id="notemsg-' + ue + '"></span></div>';
+  gen += '<div class="mg-line"><span class="mg-line-lbl">Email</span>' +
+    '<input type="email" class="mg-inp" id="email-' + ue + '" value="' + escHtml(s.email || '') +
+    '" placeholder="for emailed setup / reset links">' +
+    '<button class="mg-btn mg-btn-sm" onclick="saveEmail(\'' + ue + '\')">Save</button>' +
+    '<span class="mg-inline-msg" id="emailmsg-' + ue + '"></span></div>';
+  h += sec('General', gen);
 
   // --- Credentials (interactive login - human accounts only) ---
   // The connector credential (token) now lives in "Connect an AI assistant" below,
@@ -489,6 +490,27 @@ function accountSettingsHtml(row) {
     h += sec('Connect an AI assistant', conn);
   }
 
+  // --- Groups ---
+  var mine = groupsForUser(u);
+  var gnames = Object.keys(allGroups).sort();
+  var grp = '<div class="mg-checks">';
+  grp += gnames.length ? gnames.map(function(g) {
+    var on = mine.indexOf(g) !== -1;
+    return '<label class="mg-chk"><input type="checkbox"' + (on ? ' checked' : '') +
+      ' onchange="toggleGroup(\'' + ue + '\',\'' + escHtml(g) + '\',this)"> ' + escHtml(g) + '</label>';
+  }).join('') : '<span class="mg-empty">No groups yet.</span>';
+  grp += '</div>';
+  h += sec('Groups', grp);
+
+  // --- Capabilities (read-only; derived from group membership, SM095) ---
+  var pv = '<p class="mg-muted" style="margin:0 0 0.3rem">Derived from '
+    + '<b>group membership</b> (above) &mdash; edit on the '
+    + '<a href="/manager/groups">Groups</a> page.</p>'
+    + '<details ontoggle="loadPermGrid(\'' + ue + '\', this)">'
+    + '<summary style="cursor:pointer">Show the channel &times; capability grid</summary>'
+    + '<div id="permgrid-' + ue + '" style="margin-top:0.4rem">&hellip;</div></details>';
+  h += sec('Capabilities', pv);
+
   // --- Account ---
   var ac = '<div class="mg-line"><a href="/manager/audit?user=' + encodeURIComponent(u) + '">View this account\'s audit log &rarr;</a></div>';
   ac += '<div class="mg-line"><span class="mg-line-lbl">Expires</span>' +
@@ -508,15 +530,18 @@ function accountSettingsHtml(row) {
     // Exclude the user itself and its whole sub-tree: those targets would form a
     // cycle (and the server refuses them), so don't offer them.
     var desc = descendantsOf(u);
+    // Offer the targets in TREE ORDER, indented by depth, so the hierarchy is
+    // visible in the dropdown (was a flat alphabetical list). Top-level first,
+    // then each account's sub-tree beneath it; the account itself and its own
+    // descendants are excluded (they would form a cycle).
     var ropts = '<option value="">move under&hellip;</option>' +
-      allUsers.filter(function(x) { return x !== u && !desc[x]; })
-        .map(function(x) { return '<option value="' + escHtml(x) + '">' + escHtml(x) + '</option>'; }).join('');
+      orderedParentOptions(u, desc);
     ac += '<div class="mg-line"><span class="mg-line-lbl">Parent</span>' +
       '<code class="mg-code">' + escHtml(owner) + '</code>' +
       '<select class="mg-inp" id="reassign-' + ue + '">' + ropts + '</select>' +
       '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Move</button></div>';
   }
-  h += sec('Account', ac);
+  h += sec('Account configuration', ac);
 
   // --- Danger zone (its own box, last): the irreversible / lock-out actions. ---
   var danger = '<div class="mg-line">' +
@@ -538,6 +563,9 @@ var currentConfigUser = null;   // account whose sheet is open (null = closed)
 function configureUser(user) {
   if (currentConfigUser === user) { closeConfig(); return; }
   currentConfigUser = user;
+  // Carry the open account in the URL so a full page refresh (F5) reopens it
+  // (focusUserFromUrl reads ?user=). No navigation - just replaceState.
+  try { history.replaceState(null, '', '/manager/users?user=' + encodeURIComponent(user)); } catch (e) {}
   renderConfigSheet(user);
 }
 
@@ -567,6 +595,7 @@ function closeConfig() {
   if (sheet) sheet.hidden = true;
   var body = document.getElementById('cfg-sheet-body'); if (body) body.innerHTML = '';
   document.body.classList.remove('mg-sheet-open');
+  try { history.replaceState(null, '', '/manager/users'); } catch (e) {}
   markConfiguring(null);
 }
 
@@ -1065,17 +1094,34 @@ function disable2fa(user) {
   });
 }
 
-// Fill the Add-user group multi-select from the loaded groups.
-function populateAddUserGroups() {
-  var sel = document.getElementById('new-groups');
-  if (!sel) return;
-  var keys = Object.keys(allGroups).sort();
-  sel.innerHTML = keys.length
-    ? keys.map(function(g) {
-        var hint = groupLabels[g] ? ' — ' + groupLabels[g] : '';
-        return '<option value="' + escHtml(g) + '">' + escHtml(g + hint) + '</option>';
+// Add-user group picker: the same "pick none-or-many from a list" token widget
+// the Groups page uses for members. newUserGroups holds the staged selection.
+var newUserGroups = [];
+function populateAddUserGroups() { renderNewUserGroups(); }
+function renderNewUserGroups() {
+  var toks = document.getElementById('new-group-tokens');
+  var dl   = document.getElementById('new-group-datalist');
+  if (!toks) return;
+  toks.innerHTML = newUserGroups.length
+    ? newUserGroups.map(function(g) {
+        return '<span class="mg-token">' + escHtml(g) +
+          '<button type="button" class="mg-token-x" title="Remove ' + escHtml(g) + '" onclick="removeNewUserGroup(\'' + escHtml(g) + '\')">&times;</button></span>';
       }).join('')
-    : '<option value="" disabled>no groups yet</option>';
+    : '<span class="mg-tokens-empty">No groups selected (optional).</span>';
+  if (dl) {
+    var avail = Object.keys(allGroups).sort().filter(function(g) { return newUserGroups.indexOf(g) === -1; });
+    dl.innerHTML = avail.map(function(g) { return '<option value="' + escHtml(g) + '">'; }).join('');
+  }
+}
+function addNewUserGroup(g) { if (g && allGroups[g] && newUserGroups.indexOf(g) === -1) { newUserGroups.push(g); renderNewUserGroups(); } }
+function removeNewUserGroup(g) { newUserGroups = newUserGroups.filter(function(x) { return x !== g; }); renderNewUserGroups(); }
+function addNewUserGroupFromInput() {
+  var inp = document.getElementById('new-group-input');
+  var g = (inp && inp.value || '').trim();
+  if (!g) return;
+  if (!allGroups[g]) { showStatus('No such group: ' + g, true); return; }
+  addNewUserGroup(g);
+  if (inp) inp.value = '';
 }
 
 // Fill the "Create under" parent dropdown from accounts that can own sub-users.
@@ -1101,9 +1147,7 @@ function addUser() {
   var username = document.getElementById('new-username').value.trim();
   var type = document.getElementById('new-type').value;            // human | ai
   var parent = document.getElementById('new-parent').value;        // '' = top-level
-  var sel = document.getElementById('new-groups');
-  var gl = sel ? Array.prototype.slice.call(sel.selectedOptions)
-                   .map(function(o) { return o.value; }).filter(Boolean) : [];
+  var gl = newUserGroups.slice();
   if (!username) { showStatus('Username required.', true); return; }
   // Accounts are created with no password - credentials are set afterward
   // from the card (Generate setup link, or Generate credential). A parent
@@ -1137,6 +1181,7 @@ function addUser() {
           ? ('AI account "' + username + '" added' + where + ' - open its card to Generate a setup link or onboarding brief.')
           : ('User "' + username + '" added' + where + ' - use Generate setup link in its card so they set their own password.'));
         document.getElementById('new-username').value = '';
+        newUserGroups = []; renderNewUserGroups();
         loadUsers();
       }).catch(function(e) {
         showStatus('User "' + username + '" added, but a follow-up step failed - ' + e.message, true);

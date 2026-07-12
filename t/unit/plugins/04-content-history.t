@@ -64,8 +64,12 @@ sub mksite {
     ok( $act{status} && $act{enable}, 'actions: status / enable' );
     ok( !$act{status}{run}, 'status rides the default --scan path' );
     is( $act{enable}{run}, 'action', 'enable runs in action mode' );
-    like( $act{enable}{confirm} // '', qr/initial snapshot/i,
-        'enable is behind a confirm explaining the adoption snapshot' );
+    # SM148: enable/disable are the toggle's lifecycle hooks, HIDDEN from the
+    # config page (so no "Enable" button shows while already enabled).
+    ok( $act{enable}{hidden},  'enable is a hidden lifecycle action (toggle-driven)' );
+    ok( $act{disable}{hidden}, 'disable/pause is hidden too' );
+    is( $desc->{on_enable},  'enable',  'the toggle on_enable hook points at it' );
+    is( $desc->{on_disable}, 'disable', 'the toggle on_disable hook points at it' );
 }
 
 # --- git-absent: plain-language degradation, never a failure ---------------------

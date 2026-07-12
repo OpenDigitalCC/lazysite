@@ -6,7 +6,7 @@
 use strict;
 use warnings;
 use Digest::SHA qw(hmac_sha256_hex);
-use File::Path qw(make_path);
+use File::Path  qw(make_path);
 
 my $LOG_COMPONENT = 'payment-demo';
 
@@ -17,26 +17,30 @@ my $LOG_COMPONENT = 'payment-demo';
 # only required key; demo marks it as not-for-production.
 if ( grep { $_ eq '--describe' } @ARGV ) {
     require JSON::PP;
-    print JSON::PP::encode_json({
-        id          => 'payment-demo',
-        name        => 'Payment Demo',
-        description => 'DEMO ONLY x402 payment simulator (signed cookie). Not for '
-                     . 'production - use an upstream payment proxy that sets '
-                     . 'X-Payment-Verified after on-chain validation.',
-        version     => '1.0',
-        demo        => JSON::PP::true(),
-        config_schema => [],
-        actions       => [],
-    });
+    print JSON::PP::encode_json( {
+            id          => 'payment-demo',
+            name        => 'Payment Demo',
+            description => 'DEMO ONLY x402 payment simulator (signed cookie). Not for '
+                . 'production - use an upstream payment proxy that sets '
+                . 'X-Payment-Verified after on-chain validation.',
+            version => '1.0',
+            demo    => JSON::PP::true(),
+            # Hidden from the Plugin Manager until a real payment integration exists
+            # (it is a demo helper for the 402 paywall, wired via cgi-bin, not a
+            # user-facing feature to toggle). The helper + docs stay in place.
+            unlisted      => JSON::PP::true(),
+            config_schema => [],
+            actions       => [],
+    } );
     exit 0;
 }
 
-my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
+my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
 my $COOKIE_NAME  = 'lazysite_payment_demo';
-my $COOKIE_MAX   = 3600;  # 1 hour - demo payments expire
+my $COOKIE_MAX   = 3600;                      # 1 hour - demo payments expire
 
 # --- Main ---
 
@@ -69,18 +73,18 @@ else {
 # --- Handlers ---
 
 sub handle_pay {
-    my $page   = $params{page} // '/';
+    my $page = $params{page} // '/';
     $page = '/' unless $page =~ m{\A/[\w/.-]*\z};
 
-    my $ts     = time();
-    my $secret = load_secret();
+    my $ts      = time();
+    my $secret  = load_secret();
     my $payload = "$page:$ts";
     my $sig     = hmac_sha256_hex( $payload, $secret );
     my $cookie  = uri_encode("$payload:$sig");
 
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
 
-    log_event('INFO', $page, 'demo payment created', ip => $ENV{REMOTE_ADDR} // '');
+    log_event( 'INFO', $page, 'demo payment created', ip => $ENV{REMOTE_ADDR} // '' );
 
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
@@ -104,7 +108,7 @@ sub handle_request {
     # Check demo payment cookie for current page
     my $cookie = read_cookie($COOKIE_NAME);
 
-    if ( $cookie ) {
+    if ($cookie) {
         my $decoded = uri_decode($cookie);
         if ( $decoded =~ /^(.+):(\d+):([a-f0-9]{64})$/ ) {
             my ( $page, $ts, $sig ) = ( $1, $2, $3 );
@@ -116,7 +120,7 @@ sub handle_request {
                 if ( $uri eq $page ) {
                     $ENV{HTTP_X_PAYMENT_VERIFIED} = '1';
                     $ENV{HTTP_X_PAYMENT_PAYER}    = 'demo-wallet';
-                    log_event('INFO', $page, 'payment verified', ip => $ENV{REMOTE_ADDR} // '');
+                    log_event( 'INFO', $page, 'payment verified', ip => $ENV{REMOTE_ADDR} // '' );
                 }
             }
         }
@@ -129,7 +133,7 @@ sub handle_request {
         // "$DOCROOT/../cgi-bin/lazysite-processor.pl";
 
     unless ( exec {$^X} $^X, $processor ) {
-        log_event('ERROR', $uri, 'exec failed', error => $!);
+        log_event( 'ERROR', $uri, 'exec failed', error => $! );
         die "exec failed: $!\n";
     }
 }
@@ -171,7 +175,7 @@ sub read_cookie {
     for my $pair ( split /;\s*/, $cookies ) {
         my ( $k, $v ) = split /=/, $pair, 2;
         $k =~ s/^\s+|\s+$//g if defined $k;
-        return $v if defined $k && $k eq $name;
+        return $v            if defined $k && $k eq $name;
     }
     return '';
 }
@@ -191,22 +195,22 @@ sub uri_decode {
 # --- Logging ---
 
 sub log_event {
-    my ($level, $context, $message, %extra) = @_;
+    my ( $level, $context, $message, %extra ) = @_;
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
-    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    my %rank      = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
     return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
     use POSIX qw(strftime);
-    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $ts     = strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
     if ( $format eq 'json' ) {
         my $pairs = join ',',
-            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            map { '"' . _json_str($_) . '":"' . _json_str( $extra{$_} ) . '"' }
             keys %extra;
         my $json = '{"ts":"' . $ts . '"'
-            . ',"level":"'     . _json_str($level)          . '"'
-            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
-            . ',"context":"'   . _json_str($context)        . '"'
-            . ',"message":"'   . _json_str($message)        . '"'
+            . ',"level":"' . _json_str($level) . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT) . '"'
+            . ',"context":"' . _json_str($context) . '"'
+            . ',"message":"' . _json_str($message) . '"'
             . ( $pairs ? ",$pairs" : '' )
             . '}';
         print STDERR "$json\n";
@@ -215,7 +219,7 @@ sub log_event {
         my $extras = join ' ',
             map { "$_=" . $extra{$_} } keys %extra;
         my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
-        $line   .= " $extras" if $extras;
+        $line .= " $extras" if $extras;
         print STDERR "$line\n";
     }
 }

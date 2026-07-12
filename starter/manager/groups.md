@@ -127,18 +127,12 @@ function renderGroups() {
     h += '<div class="mg-checks">' + ACTIONS.map(row).join('') + '</div>';
 
     h += '<div class="mg-sec">Members</div>';
-    if (!members.length) {
-      h += '<div class="mg-empty" style="padding:0.3rem 0;">No members yet.</div>';
-    } else {
-      h += '<div class="mg-checks">' + members.map(function(m) {
-        return '<span class="mg-chip"><a href="/manager/users?user=' + encodeURIComponent(m) + '">' + escHtml(m) + '</a>' +
-          ' <a href="#" onclick="removeMember(\'' + escHtml(m) + '\',\'' + ge + '\');return false;" title="Remove">&times;</a></span>';
-      }).join('') + '</div>';
-    }
-    h += '<div class="mg-line"><input list="all-users-list" id="add-' + ge + '" class="mg-inp" placeholder="add a user&hellip;" style="max-width:14rem">' +
+    h += '<div class="mg-tokens" id="gm-' + ge + '">' + memberPillsHtml(members, ge) + '</div>';
+    h += '<div class="mg-tokens-pick"><input list="all-users-list" id="add-' + ge + '" class="mg-inp" placeholder="add a user&hellip;" style="max-width:14rem" onkeydown="if(event.key===\'Enter\'){addMember(\'' + ge + '\');event.preventDefault();}">' +
          ' <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="addMember(\'' + ge + '\')">Add</button>' +
          '<span style="flex:1;"></span>' +
-         '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteGroup(\'' + ge + '\')">Delete group</button></div>';
+         '<span id="gd-' + ge + '">' + deleteControlHtml(members, ge) + '</span>' +
+         '</div>';
 
     h += '</div></details>';
     return h;
@@ -170,6 +164,29 @@ function toggleSetting(group, key, el) {
     .catch(function(e) { el.checked = !on; showStatus('Error: ' + e.message, true); });
 }
 
+// Members render as removable pills (the shared "pick none-or-many" style).
+function memberPillsHtml(members, ge) {
+  if (!members.length) return '<span class="mg-tokens-empty">No members yet.</span>';
+  return members.map(function(m) {
+    return '<span class="mg-token"><a href="/manager/users?user=' + encodeURIComponent(m) + '">' + escHtml(m) + '</a>' +
+      '<button type="button" class="mg-token-x" title="Remove ' + escHtml(m) + '" onclick="removeMember(\'' + escHtml(m) + '\',\'' + ge + '\')">&times;</button></span>';
+  }).join('');
+}
+// Delete only when empty - removing a group with members strips their permissions.
+function deleteControlHtml(members, ge) {
+  return members.length
+    ? '<span class="mg-muted" title="Remove all members before deleting this group">Remove members to delete</span>'
+    : '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deleteGroup(\'' + ge + '\')">Delete group</button>';
+}
+// Re-render just one group's members + delete control in place (no full reload).
+function refreshGroupMembers(group) {
+  var members = (allGroups[group] && allGroups[group].members) || [];
+  var gm = document.getElementById('gm-' + group);
+  var gd = document.getElementById('gd-' + group);
+  if (gm) gm.innerHTML = memberPillsHtml(members, group);
+  if (gd) gd.innerHTML = deleteControlHtml(members, group);
+}
+
 function addMember(group) {
   var inp = document.getElementById('add-' + group);
   var user = (inp && inp.value || '').trim();
@@ -177,8 +194,12 @@ function addMember(group) {
   apiCall({ action: 'group-add', username: user, group: group })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
+      // Update the local cache and re-render just this group's members in place.
+      var m = allGroups[group].members = allGroups[group].members || [];
+      if (m.indexOf(user) === -1) m.push(user);
+      if (inp) inp.value = '';
+      refreshGroupMembers(group);
       showStatus('Added ' + user + ' to ' + group + '.');
-      loadGroups();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
@@ -187,8 +208,10 @@ function removeMember(user, group) {
   apiCall({ action: 'group-remove', username: user, group: group })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
+      var m = allGroups[group].members = allGroups[group].members || [];
+      var i = m.indexOf(user); if (i !== -1) m.splice(i, 1);
+      refreshGroupMembers(group);
       showStatus('Removed ' + user + ' from ' + group + '.');
-      loadGroups();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }

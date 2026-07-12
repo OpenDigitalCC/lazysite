@@ -96,8 +96,17 @@ function renderPluginCard(plugin) {
   if (plugin.actions && plugin.actions.length) {
     html += '<div class="mg-wizard-actions">';
     plugin.actions.forEach(function(a, ai) {
+      // Lifecycle actions a plugin drives from its enable/disable toggle
+      // (on_enable / on_disable) are marked hidden - they are not buttons here,
+      // so e.g. content history never shows "Enable" while already enabled.
+      if (a.hidden) { return; }
       if (a.link) {
         html += '<a href="' + a.link + '">' + esc(a.label) + '</a>';
+      } else if (a.needs) {
+        // Gated action (e.g. git-sync "Test connection" needs a remote_url):
+        // refuse until the required config key is set, so the button is never a
+        // dead end on an unconfigured plugin.
+        html += '<button class="mg-btn mg-btn-sm" onclick="runActionGated(\'' + esc(plugin.id) + '\',' + ai + ',\'' + esc(a.needs) + '\')">' + esc(a.label) + '</button>';
       } else {
         html += '<button class="mg-btn mg-btn-sm" onclick="(function(){var p=window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'});runAction(p,p.actions[' + ai + '])})()">' + esc(a.label) + '</button>';
       }
@@ -222,6 +231,27 @@ function saveConfig(e, pluginId, script) {
     mgShowWarning('Error: ' + e.message, true);
     if (status) status.textContent = '';
   });
+}
+
+// Run an action only once its required config key is set; otherwise point the
+// operator at the config first (no test-against-nothing).
+function runActionGated(pluginId, ai, needs) {
+  var p = window._plugins.find(function(x) { return x.id === pluginId; });
+  if (!p) return;
+  fetch(API + '?action=plugin-read&plugin=' + encodeURIComponent(pluginId), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ script: p._script })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var v = (d.ok && d.values && d.values[needs] != null) ? String(d.values[needs]).trim() : '';
+      var st = document.getElementById('status-' + pluginId);
+      if (!v) {
+        if (st) { st.textContent = 'Set "' + needs + '" and Save first, then test.'; st.className = 'mg-status mg-status-error'; }
+        return;
+      }
+      runAction(p, p.actions[ai]);
+    });
 }
 
 function runAction(plugin, action, params) {

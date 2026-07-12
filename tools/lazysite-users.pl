@@ -2708,6 +2708,13 @@ sub cmd_group_delete {
         return { ok => 0, error => 'Refusing to delete the only manager group' } if @mgr <= 1;
     }
     my %members = read_groups();
+    # Refuse a non-empty group: deleting it would silently strip its members'
+    # permissions. Empty it first (the UI hides Delete until then).
+    if ( ref $members{$group} eq 'ARRAY' && @{ $members{$group} } ) {
+        return { ok => 0,
+            error => 'Remove all members before deleting this group ('
+                . scalar( @{ $members{$group} } ) . ' remaining).' };
+    }
     if ( exists $members{$group} ) { delete $members{$group}; write_groups(%members); }
     if ( exists $gs->{$group} )    { delete $gs->{$group};    write_group_settings($gs); }
     log_event( 'INFO', $group, 'group deleted' );

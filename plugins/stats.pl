@@ -129,7 +129,10 @@ if ( $arg{describe} ) {
                 { key => 'noise_paths', label => 'Extra noise paths', type => 'text', default => '',
                     note => 'Comma-separated path prefixes to treat as probe/scanner noise, on top of the built-ins (/wp-login.php, /.env, *.php, ...).' },
             ],
-            actions => [ { id => 'refresh', label => 'Refresh stats' } ],
+            # 'refresh' is called programmatically by the Stats page to pull
+            # data - it is not a config-page button (hidden), so the plugin page
+            # shows no pointless Refresh.
+            actions => [ { id => 'refresh', label => 'Refresh stats', hidden => JSON::PP::true() } ],
     } );
     exit 0;
 }

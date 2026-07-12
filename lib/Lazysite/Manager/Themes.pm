@@ -263,12 +263,28 @@ sub _backup_base {
     return $base;
 }
 
+sub _latest_backup_dir {
+    my ( $parent, $base ) = @_;
+    opendir my $dh, $parent or return undef;
+    my @b = sort grep { /^\Q$base\E-backup-/ && -d "$parent/$_" } readdir $dh;
+    closedir $dh;
+    return @b ? "$parent/$b[-1]" : undef;    # timestamps sort lexically; last = newest
+}
+
 sub _snapshot_artifact {
     my ( $parent, $name ) = @_;
     my $src = "$parent/$name";
     return unless -d $src;
     my $base = _backup_base($name);
-    my $dst  = "$parent/$base-backup-" . strftime( '%Y%m%dT%H%M%SZ', gmtime );
+    # Only snapshot when something actually CHANGED since the last backup. Just
+    # trying themes on and off (which edits nothing) must not spawn a pile of
+    # identical snapshots.
+    if ( my $latest = _latest_backup_dir( $parent, $base ) ) {
+        # $latest ne $src: when the source IS itself a backup dir, don't compare
+        # it to itself (that would always "match" and wrongly skip).
+        return if $latest ne $src && _artifact_digest($src) eq _artifact_digest($latest);
+    }
+    my $dst = "$parent/$base-backup-" . strftime( '%Y%m%dT%H%M%SZ', gmtime );
     return if -e $dst;
     system( 'cp', '-r', $src, $dst );
 }

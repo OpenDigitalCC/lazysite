@@ -33,20 +33,32 @@ function renderPluginRegistry(plugins) {
   if (!plugins.length) { container.innerHTML = '<p class="mg-empty">No plugins discovered.</p>'; return; }
   var html = '<div class="mg-plugin-registry">';
   plugins.forEach(function (p) {
-    html += '<div class="mg-plugin-row" data-script="' + esc(p._script) + '">';
+    html += '<div class="mg-plugin-row' + (p.core ? ' mg-plugin-core' : '') + '" data-script="' + esc(p._script) + '">';
+    // Control column: the enable toggle, with Configure stacked beneath it when
+    // enabled (so enabling never shifts the row across a column).
+    html += '<div class="mg-plugin-ctl">';
+    if (!p.core) {
+      var checked = p._enabled ? ' checked' : '';
+      html += '<input type="checkbox" class="mg-toggle"' + checked + ' onchange="togglePlugin(this,\'' + esc(p._script) + '\',\'' + esc(p.name) + '\')">';
+      if (p._enabled) {
+        html += '<a class="mg-plugin-row-config" href="/manager/plugin-config">Configure</a>';
+      }
+    }
+    html += '</div>';
+    // Main column: name + description.
+    html += '<div class="mg-plugin-main">' +
+      '<div class="mg-plugin-row-name">' + esc(p.name) + '</div>' +
+      '<div class="mg-plugin-row-desc">' + esc(p.description || '') + '</div></div>';
+    // End column (info only): the core badge, or an info tooltip carrying the
+    // plugin details (its file is here, not cluttering the row).
+    html += '<div class="mg-plugin-end">';
     if (p.core) {
       html += '<span class="mg-badge enabled" title="Always on - wired in the web server config">core</span>';
     } else {
-      var checked = p._enabled ? ' checked' : '';
-      html += '<input type="checkbox" class="mg-toggle"' + checked + ' onchange="togglePlugin(this,\'' + esc(p._script) + '\',\'' + esc(p.name) + '\')">';
+      var info = 'File: ' + p._script + (p.version ? '  ·  v' + p.version : '') + (p.id ? '  ·  id: ' + p.id : '');
+      html += '<span class="mg-info" tabindex="0" role="img" aria-label="Plugin details" title="' + esc(info) + '">&#9432;</span>';
     }
-    html += '<span class="mg-plugin-row-name">' + esc(p.name) + '</span>';
-    html += '<span class="mg-plugin-row-desc">' + esc(p.description || '') + '</span>';
-    if (p._enabled && !p.core) {
-      html += '<a class="mg-plugin-row-config" href="/manager/plugin-config">Configure</a>';
-    }
-    html += '<span class="mg-plugin-row-path">' + esc(p._script) + '</span>';
-    html += '</div>';
+    html += '</div></div>';
   });
   html += '</div>';
   container.innerHTML = html;

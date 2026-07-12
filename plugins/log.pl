@@ -14,6 +14,10 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
                 . '(for an external log collector). Forwarding is best-effort and '
                 . 'never blocks the site; the on-disk logs remain the record.',
             version     => '1.1',
+            # Operator/host concern, not a site-manager one: hidden from the
+            # Plugin Manager. Still configured from the CLI via the lazysite.conf
+            # keys below (log_level, forwarding, syslog facility).
+            unlisted    => JSON::PP::true(),
             config_file => 'lazysite/lazysite.conf',
             config_keys => [ 'log_level', 'log_format', 'forward_audit',
                 'forward_diagnostics', 'syslog_facility' ],
