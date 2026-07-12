@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.12 - STABLE: manager UX overhaul from live field review (2026-07-12)
+
 Plugin surface + Users/Groups polish from the demo review (SM149)
 : Plugin Manager rows redesigned - the enable toggle with Configure stacked
   beneath it (no more column-jump on enable), the script path replaced by an

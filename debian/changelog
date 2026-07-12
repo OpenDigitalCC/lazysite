@@ -1,3 +1,13 @@
+lazysite (0.7.12-1) unstable; urgency=medium
+
+  * STABLE: manager UX overhaul from live field review - Users tree + editor
+    sheet, active keys, self-contained 2FA QR with a confirm step, plugin
+    manager redesign (hidden/unlisted plugins), one pill picker, in-place
+    updates, theme snapshot-on-change.
+  * Bundles qrcode-generator (MIT) for the 2FA QR; declared in the SBOM.
+
+ -- Stuart J Mackintosh <sjm@opendigital.cc>  Sat, 12 Jul 2026 14:00:00 +0000
+
 lazysite (0.7.11-1) unstable; urgency=medium
 
   * STABLE: rolls the ladder + one-switch history + MCP version tools to
