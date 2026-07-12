@@ -18,13 +18,14 @@ the <a href="/manager/users">Users</a> page. Access to this Manager UI is the
 <div class="mg-card">
 <div class="mg-card-header"><span class="mg-card-title">Groups</span></div>
 <div id="groups-info" class="mg-acc-list">Loading...</div>
-<details class="mg-add-card" style="margin:0.5rem;">
-<summary>+ Add group</summary>
+</div>
+
+<div class="mg-card">
+<div class="mg-card-header"><span class="mg-card-title">Add group</span></div>
 <div class="mg-card-body mg-new-group-row">
 <input type="text" id="new-group-name" placeholder="new group name">
 <button class="mg-btn mg-btn-primary" onclick="createGroup()">Add group</button>
 </div>
-</details>
 </div>
 <datalist id="all-users-list"></datalist>
 
@@ -105,8 +106,10 @@ function renderGroups() {
     var caps = info.caps || {};
     var ge = escHtml(g);
     var nOn = CAPS.filter(function(c){ return caps[c[0]]; }).length;
-    var h = '<details class="mg-acc"><summary><span class="mg-acc-name">' + ge + '</span>' +
-            '<span class="mg-acc-tags">' + (info.manager ? '<span class="mg-badge mg-badge-success">manager</span> ' : '') +
+    var h = '<details class="mg-acc"><summary class="mg-acc-line"><span class="mg-acc-name">' + ge + '</span>' +
+            (info.manager ? ' <span class="mg-badge mg-badge-success">manager</span>' : '') +
+            '<span class="mg-acc-spacer"></span>' +
+            '<span class="mg-acc-tags">' +
             nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies') + ' &middot; ' +
             members.length + ' member' + (members.length === 1 ? '' : 's') + '</span></summary>';
     h += '<div class="mg-acc-body">';
@@ -128,7 +131,7 @@ function renderGroups() {
       h += '<div class="mg-empty" style="padding:0.3rem 0;">No members yet.</div>';
     } else {
       h += '<div class="mg-checks">' + members.map(function(m) {
-        return '<span class="mg-chip">' + escHtml(m) +
+        return '<span class="mg-chip"><a href="/manager/users?user=' + encodeURIComponent(m) + '">' + escHtml(m) + '</a>' +
           ' <a href="#" onclick="removeMember(\'' + escHtml(m) + '\',\'' + ge + '\');return false;" title="Remove">&times;</a></span>';
       }).join('') + '</div>';
     }

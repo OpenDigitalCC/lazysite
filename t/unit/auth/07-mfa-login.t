@@ -78,12 +78,24 @@ sub build {
     my $d = build();
     my $e = users_api( $d, { action => 'mfa-enroll', username => 'human' } );
 
+    # SM148: enrolment is PENDING - not enforced - until a code confirms it. So
+    # a login before confirming still succeeds with just the password.
+    like( login( docroot => $d, username => 'human', password => 'pw' ),
+        qr/Set-Cookie:/, 'a pending (unconfirmed) enrolment does NOT gate login' );
+
+    my $ccode = users_api( $d, { action => 'totp-code', secret => $e->{secret},
+                                 time => time(), step => 30, digits => 6 } )->{code};
+    my $cf = users_api( $d, { action => 'mfa-confirm', username => 'human', code => $ccode } );
+    ok( $cf->{ok}, 'mfa-confirm with a valid code turns 2FA on' );
+
     my $nocode = login( docroot => $d, username => 'human', password => 'pw' );
-    unlike( $nocode, qr/Set-Cookie:/, 'no cookie without a 2FA code' );
+    unlike( $nocode, qr/Set-Cookie:/, 'after confirming, no cookie without a 2FA code' );
     like(   $nocode, qr/error=mfa/,   'redirect signals 2FA required' );
 
+    # A later time-step than the one confirm consumed (the replay guard rejects
+    # reusing a step).
     my $code = users_api( $d, { action => 'totp-code', secret => $e->{secret},
-                                time => time(), step => 30, digits => 6 } )->{code};
+                                time => time() + 30, step => 30, digits => 6 } )->{code};
     like( login( docroot => $d, username => 'human', password => 'pw', code => $code ),
         qr/Set-Cookie:/, 'password + valid TOTP issues a cookie' );
 

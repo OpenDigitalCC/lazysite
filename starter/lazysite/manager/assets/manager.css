@@ -275,10 +275,12 @@
     font-size: var(--mg-text-sm);
     font-family: var(--mg-font);
     font-weight: 500;
-    border: 1px solid transparent;
+    border: 1px solid var(--mg-border);
     border-radius: var(--mg-radius);
-    background: transparent;
-    color: var(--mg-text-muted);
+    /* A low background always, so every button reads as an action; it lifts on
+       hover. (Was transparent-until-hover, which looked like plain text.) */
+    background: var(--mg-surface-alt);
+    color: var(--mg-text);
     cursor: pointer;
     text-decoration: none;
     transition: background 0.12s, color 0.12s, box-shadow 0.12s, border-color 0.12s;
@@ -288,6 +290,7 @@
 
 .mg-btn:hover {
     background: var(--mg-border-light);
+    border-color: var(--mg-text-light);
     color: var(--mg-text);
 }
 
@@ -1406,10 +1409,12 @@ summary.mg-acc-line:hover { background:var(--mg-surface-alt); }
 .mg-acc-name { font-weight:600; }
 .mg-acc-spacer { flex:1 1 auto; }
 .mg-acc-line .mg-configbtn { flex:0 0 auto; }
-/* The nested sub-tree: an indent + a rule, so depth reads as hierarchy. The row
-   stays full width; only the left indent grows, so even a deep tree keeps the
-   Configure button aligned on the right. */
-.mg-acc-kids { margin-left:1.1rem; border-left:2px solid var(--mg-border); }
+/* The nested sub-tree: an indent + an accent (blue) bar, so depth reads as
+   hierarchy at a glance. The row stays full width; only the left indent grows,
+   so even a deep tree keeps the Configure button aligned on the right. */
+.mg-acc-kids { margin-left:1.1rem; border-left:3px solid var(--mg-accent); }
+/* Expandable accordion body (Groups page: members + capabilities under a row). */
+.mg-acc-body { padding:0.5rem 0.75rem 0.9rem 1.75rem; background:var(--mg-surface-alt); }
 .mg-subcount { color:var(--mg-text-light); font-weight:400; font-size:var(--mg-text-sm); }
 .mg-connect-pick { display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.3rem; }
 .mg-connect-hint { font-size:var(--mg-text-sm); margin:0.2rem 0; min-height:1em; }

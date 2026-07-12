@@ -91,7 +91,7 @@ function renderSessions(d) {
     var when  = s.issued ? new Date(s.issued * 1000).toLocaleString() : '';
     var badge = s.current ? ' <span class="mg-tag mg-tag-on">this session</span>' : '';
     h += '<tr>' +
-      '<td>' + escHtml(s.user) + badge + '</td>' +
+      '<td><a href="/manager/users?user=' + encodeURIComponent(s.user) + '">' + escHtml(s.user) + '</a>' + badge + '</td>' +
       '<td>' + escHtml(when) + '</td>' +
       '<td>' + escHtml(s.ip || '') + '</td>' +
       '<td class="mg-muted" style="max-width:20rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' +
@@ -205,7 +205,7 @@ function renderKeys(d) {
         : ' <span class="mg-tag mg-tag-auto">expires ' + escHtml(new Date(k.token_expires_at * 1000).toLocaleDateString()) + '</span>';
     }
     h += '<tr>' +
-      '<td>' + escHtml(k.user) + '</td>' +
+      '<td><a href="/manager/users?user=' + encodeURIComponent(k.user) + '">' + escHtml(k.user) + '</a></td>' +
       '<td>' + chans + '</td>' +
       '<td>' + when + '</td>' +
       '<td>' + status + '</td>' +

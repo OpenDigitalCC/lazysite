@@ -18,6 +18,20 @@ Keying
 
 ## Unreleased
 
+2FA setup can't lock you out, and the manager UI is more consistent (SM148)
+: Two-step 2FA enrolment: setting up generates the secret/QR/recovery codes but
+  leaves 2FA **pending** - not enforced at login - until a code from the app
+  **confirms** it (Confirm & enable); a never-confirmed setup enforces nothing,
+  so exploring the control cannot lock anyone out. Confirming your own account
+  signs you straight out to sign back in with 2FA. Consistency pass from the
+  same review: every manager **button** now has a low background that lifts on
+  hover (was transparent-until-hover, looking like text); the account
+  **hierarchy** bar is the accent colour; **Add user** and **Add group** are
+  their own cards; the nav item is **Sessions & keys**; usernames on the
+  Sessions/keys tables and group member chips link to the account; and the
+  **Groups** page is restyled to match the Users one-line conventions it had
+  drifted from.
+
 Users page: the account tree and the account editor are now two surfaces (SM144)
 : Field feedback: sub-accounts work, but operators could not tell whether they
   were editing a main account or a sub-account - a nested parent and child

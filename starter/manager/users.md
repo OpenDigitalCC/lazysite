@@ -24,8 +24,10 @@ identity in both domains; only <em>where</em> it is granted differs.
 <div id="user-list" class="mg-acc-list">
 <div class="mg-empty" style="padding:0.75rem;">Loading...</div>
 </div>
-<details class="mg-add-card" style="margin:0.5rem;">
-<summary>+ Add user</summary>
+</div>
+
+<div class="mg-card">
+<div class="mg-card-header"><span class="mg-card-title">Add user</span></div>
 <div class="mg-card-body">
 <div class="mg-form-row">
 <label>Type</label>
@@ -51,11 +53,10 @@ identity in both domains; only <em>where</em> it is granted differs.
 <button class="mg-btn mg-btn-primary" onclick="addUser()">Add user</button>
 </div>
 </div>
-</details>
 </div>
 
 <p class="mg-card-subtitle" style="margin:0.25rem 0.5rem;">
-Manage <a href="/manager/groups">Groups</a> and <a href="/manager/sessions">Sessions</a>
+Manage <a href="/manager/groups">Groups</a> and <a href="/manager/sessions">Sessions &amp; keys</a>
 on their own pages (under Access in the menu). You can still assign a user to
 groups from each user's card below.
 </p>
@@ -433,10 +434,20 @@ function accountSettingsHtml(row) {
         : '') +
       '<span class="mg-help" title="A one-time link the user opens to set their OWN password (or mint their own token) - you never see it. Single-use, expires in 24h. Cancel it here to stop the URL working.">&#9432;</span></div>';
     cred += '<div class="mg-cred-reveal" id="setup-' + ue + '" style="display:none"></div>';
-    cred += '<div class="mg-line"><span class="mg-line-lbl">Two-factor</span>' +
-      (s.mfa_enrolled
-        ? '<span class="mg-tag mg-tag-on">enabled</span> <button class="mg-btn mg-btn-sm" onclick="disable2fa(\'' + ue + '\')">Disable 2FA</button>'
-        : '<span class="mg-tag mg-tag-off">not set up</span> <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="setup2fa(\'' + ue + '\')">Set up 2FA</button>') +
+    var mfaCtl;
+    if (s.mfa_enrolled) {
+      mfaCtl = '<span class="mg-tag mg-tag-on">enabled</span> ' +
+        '<button class="mg-btn mg-btn-sm" onclick="disable2fa(\'' + ue + '\')">Disable 2FA</button>';
+    } else if (s.mfa_pending) {
+      // Enrolled but never confirmed - not enforced. Offer to finish or drop it.
+      mfaCtl = '<span class="mg-tag mg-tag-off">setup not confirmed</span> ' +
+        '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="setup2fa(\'' + ue + '\')">Restart setup</button> ' +
+        '<button class="mg-btn mg-btn-sm" onclick="cancel2fa(\'' + ue + '\')">Cancel setup</button>';
+    } else {
+      mfaCtl = '<span class="mg-tag mg-tag-off">not set up</span> ' +
+        '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="setup2fa(\'' + ue + '\')">Set up 2FA</button>';
+    }
+    cred += '<div class="mg-line"><span class="mg-line-lbl">Two-factor</span>' + mfaCtl +
       '<span class="mg-inline-msg" id="mfamsg-' + ue + '"></span></div>';
     cred += '<div class="mg-cred-reveal" id="mfa-' + ue + '" style="display:none"></div>';
     h += sec('Credentials', cred);
@@ -955,17 +966,58 @@ function setup2fa(user) {
     .then(function(d) {
       if (!d.ok) { show('<span class="mg-err">' + escHtml(d.error) + '</span>'); return; }
       var codes = (d.recovery_codes || []).map(escHtml).join('<br>');
-      show('<div class="mg-muted">Scan this with an authenticator app (Google Authenticator, Aegis, 1Password&hellip;), then sign out and back in with a 6-digit code.</div>' +
+      show('<div class="mg-muted">Scan this with an authenticator app (Google Authenticator, Aegis, 1Password&hellip;), then enter a code below to confirm. 2FA is <b>not on</b> until you confirm.</div>' +
         '<div class="mg-qr" id="mfaqr-' + user + '"><span class="mg-muted">rendering QR&hellip;</span></div>' +
         '<div class="mg-line"><span class="mg-line-lbl">Secret</span><code class="mg-code" id="mfasec-' + user + '">' + escHtml(d.secret) + '</code>' +
         '<button class="mg-btn mg-btn-sm" onclick="copyText(\'mfasec-' + user + '\')">Copy</button>' +
         '<span class="mg-help" title="Can\'t scan? Add the account manually in your app with this secret.">&#9432;</span></div>' +
+        '<div class="mg-line"><span class="mg-line-lbl">Confirm</span>' +
+        '<input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="mg-inp" id="mfacode-' + user + '" placeholder="6-digit code">' +
+        '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="confirm2fa(\'' + user + '\')">Confirm &amp; enable</button>' +
+        '<button class="mg-btn mg-btn-sm" onclick="cancel2fa(\'' + user + '\')">Cancel setup</button>' +
+        '<span class="mg-inline-msg" id="mfacmsg-' + user + '"></span></div>' +
         '<details style="margin-top:0.4rem"><summary style="cursor:pointer">Show recovery codes</summary>' +
         '<div class="mg-muted">Store these now &mdash; each works once if you lose the authenticator. Shown only now.</div>' +
         '<div class="mg-code" style="white-space:normal">' + codes + '</div></details>');
       renderQR('mfaqr-' + user, d.otpauth_uri);
     })
     .catch(function(e) { show('<span class="mg-err">Error: ' + escHtml(e.message) + '</span>'); });
+}
+
+// Confirm a pending 2FA setup with a code from the app. Only now is 2FA turned
+// on. If it is the operator's OWN account, sign them straight out to sign back
+// in with 2FA - so they prove it works now, not discover a lockout tomorrow.
+function confirm2fa(user) {
+  var inp = document.getElementById('mfacode-' + user);
+  var msg = document.getElementById('mfacmsg-' + user);
+  function say(t, ok) { if (msg) { msg.textContent = t; msg.className = 'mg-inline-msg ' + (ok ? 'mg-ok' : 'mg-err'); } }
+  var code = ((inp && inp.value) || '').replace(/\s/g, '');
+  if (!code) { say('Enter the 6-digit code from your app.', false); return; }
+  apiCall({ action: 'mfa-confirm', username: user, code: code })
+    .then(function(d) {
+      if (!d.ok) { say(d.error || 'That code did not match.', false); return; }
+      if (user === ME) {
+        say('2FA enabled. Signing you out to sign back in with it…', true);
+        setTimeout(function() { location.href = '/login'; }, 1300);
+      } else {
+        say('2FA enabled for this account.', true);
+        setTimeout(loadUsers, 800);
+      }
+    })
+    .catch(function(e) { say('Error: ' + e.message, false); });
+}
+
+// Abandon a pending 2FA setup (clears the unconfirmed secret; nothing was ever
+// enforced).
+function cancel2fa(user) {
+  apiCall({ action: 'mfa-disable', username: user })
+    .then(function(d) {
+      var box = document.getElementById('mfa-' + user);
+      if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+      showStatus(d.ok ? 'Two-factor setup cancelled.' : (d.error || 'Cancel failed'), !d.ok);
+      loadUsers();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 // Lazily load the bundled QR library (only when 2FA setup needs it), then run cb.

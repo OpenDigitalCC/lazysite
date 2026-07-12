@@ -198,6 +198,7 @@ our %CLI_AUDIT_ACTION = (
     cmd_claim_redeem         => 'user-claim-redeem',
     cmd_mfa_enroll           => 'user-mfa-enroll',
     cmd_mfa_disable          => 'user-mfa-disable',
+    cmd_mfa_confirm          => 'user-mfa-confirm',
     cmd_group_settings_set   => 'user-group-settings-set',
     cmd_group_create         => 'user-group-create',
     cmd_group_delete         => 'user-group-delete',
@@ -411,6 +412,9 @@ if ( $API_MODE ) {
         }
         elsif ( $action eq 'mfa-verify' ) {
             $result = cmd_mfa_verify( $req->{username}, $req->{code} );
+        }
+        elsif ( $action eq 'mfa-confirm' ) {
+            $result = cmd_mfa_confirm( $req->{username}, $req->{code} );
         }
         elsif ( $action eq 'totp-code' ) {
             $result = { ok => 1, code => totp_code( $req->{secret}, $req->{time}, $req->{step}, $req->{digits} ) };
@@ -925,7 +929,11 @@ sub effective_settings {
         # SM072: account-level expiry (epoch); after it all auth fails.
         expires_at => $s->{expires_at},
         # SM072 batch 4: MFA status (the secret is never exposed).
-        mfa_enrolled => $s->{totp_secret}  ? JSON::PP::true() : JSON::PP::false(),
+        # SM148: "enrolled" means CONFIRMED (a secret that is enforced). A
+        # pending, unconfirmed enrolment reports mfa_pending instead, so the UI
+        # can show the in-progress setup without claiming 2FA is on.
+        mfa_enrolled => ( $s->{totp_secret} && !$s->{mfa_pending} ) ? JSON::PP::true() : JSON::PP::false(),
+        mfa_pending => ( $s->{totp_secret} && $s->{mfa_pending} ) ? JSON::PP::true() : JSON::PP::false(),
         mfa_required => $s->{mfa_required} ? JSON::PP::true() : JSON::PP::false(),
         # SM072 batch 2: contact email (for emailed setup/reset links).
         email => $s->{email},
@@ -1583,6 +1591,10 @@ sub cmd_mfa_enroll {
     $all->{$user} ||= {};
     $all->{$user}{totp_secret}     = $secret;
     $all->{$user}{recovery_hashes} = [ map { hash_token($_) } @recovery ];
+    # SM148: enrolment is PENDING until a code is confirmed - so it is NOT
+    # enforced at login yet, and exploring "Set up 2FA" cannot lock anyone out.
+    # cmd_mfa_confirm clears this once the user proves their app works.
+    $all->{$user}{mfa_pending} = 1;
     write_settings($all);
 
     my $issuer = read_conf_value('site_name') || 'lazysite';
@@ -1607,13 +1619,38 @@ sub cmd_mfa_disable {
     die "Username required\n" unless defined $user && length $user;
     my $all = read_settings();
     if ( exists $all->{$user} ) {
-        delete $all->{$user}{$_} for qw(totp_secret recovery_hashes mfa_required);
+        delete $all->{$user}{$_}
+            for qw(totp_secret recovery_hashes mfa_required mfa_pending totp_last_step);
         write_settings($all);
     }
     log_event( 'INFO', $user, 'mfa disabled' );
     cli_audit( 'user-mfa-disable', $user );
     print "MFA disabled for '$user'.\n" unless $API_MODE;
     return { ok => 1 };
+}
+
+# SM148: confirm a pending enrolment by proving a code from the authenticator.
+# Only on success is 2FA actually turned on (mfa_pending cleared) - so login is
+# never enforced until the user has shown the app works, and an accidental
+# "Set up 2FA" that is never confirmed enforces nothing.
+sub cmd_mfa_confirm {
+    my ( $user, $code ) = @_;
+    return { ok => 0, error => 'Username required' }
+        unless defined $user && length $user;
+    my $s = ( read_settings()->{$user} ) || {};
+    return { ok => 0, error => 'No 2FA setup in progress' } unless $s->{totp_secret};
+    return { ok => 0, error => 'Already confirmed' }        unless $s->{mfa_pending};
+
+    my $v = cmd_mfa_verify( $user, $code );    # TOTP or recovery code
+    return { ok => 0, error => 'That code did not match - try the current 6-digit code.' }
+        unless $v->{ok};
+
+    my $all = read_settings();
+    delete $all->{$user}{mfa_pending};         # now enforced at login
+    write_settings($all);
+    log_event( 'INFO', $user, 'mfa confirmed' );
+    cli_audit( 'user-mfa-confirm', $user );
+    return { ok => 1, confirmed => 1 };
 }
 
 # Verify a TOTP (6 digits) or a single-use recovery code. Returns { ok }.

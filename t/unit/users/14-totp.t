@@ -68,10 +68,19 @@ sub settings { api( $_[0], { action => 'settings-get', username => $_[1] } )->{s
     ok( $e->{ok} && $e->{secret}, 'enrol returns a secret' );
     like( $e->{otpauth_uri}, qr{^otpauth://totp/}, 'otpauth URI present' );
     is( scalar @{ $e->{recovery_codes} }, 8, 'eight recovery codes' );
-    ok( settings( $d, 'alice' )->{mfa_enrolled}, 'mfa_enrolled is true' );
+    # SM148: enrolment is PENDING (not enforced) until confirmed.
+    ok(  settings( $d, 'alice' )->{mfa_pending},  'enrol leaves 2FA pending, not on' );
+    ok( !settings( $d, 'alice' )->{mfa_enrolled}, 'mfa_enrolled is false until confirmed' );
+    my $ccode = api( $d, { action => 'totp-code', secret => $e->{secret},
+                           time => time(), step => 30, digits => 6 } )->{code};
+    ok( api( $d, { action => 'mfa-confirm', username => 'alice', code => $ccode } )->{ok},
+        'mfa-confirm with a valid code succeeds' );
+    ok(  settings( $d, 'alice' )->{mfa_enrolled}, 'mfa_enrolled is true after confirm' );
+    ok( !settings( $d, 'alice' )->{mfa_pending},  'no longer pending after confirm' );
 
+    # A later step than confirm consumed (replay guard).
     my $code = api( $d, { action => 'totp-code', secret => $e->{secret},
-                          time => time(), step => 30, digits => 6 } )->{code};
+                          time => time() + 30, step => 30, digits => 6 } )->{code};
     ok(  api( $d, { action => 'mfa-verify', username => 'alice', code => $code } )->{ok},
         'the current TOTP verifies' );
     ok( !api( $d, { action => 'mfa-verify', username => 'alice', code => $code } )->{ok},

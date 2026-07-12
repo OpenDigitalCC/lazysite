@@ -890,7 +890,9 @@ sub mfa_enrolled {
     my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
     return 0 unless ref $data eq 'HASH';
     my $s = $data->{$username};
-    return ( ref $s eq 'HASH' && $s->{totp_secret} ) ? 1 : 0;
+    # SM148: a PENDING (unconfirmed) enrolment does not enforce 2FA - the user
+    # has not yet proved their authenticator works, so it must not gate login.
+    return ( ref $s eq 'HASH' && $s->{totp_secret} && !$s->{mfa_pending} ) ? 1 : 0;
 }
 
 # SM141: attacker-controlled field -> safe registry string (control chars
