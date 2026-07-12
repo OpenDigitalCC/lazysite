@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.13 - STABLE: public QR component + manager polish from the demo review (2026-07-12)
+
 Manager polish: click-to-configure names, no group-edit reloads, clearer wording (SM150)
 : Users tree: clicking an account NAME opens its editor (consistent for
   top-level and sub-accounts - a leaf name did nothing before), and the accent

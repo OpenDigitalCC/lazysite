@@ -1,3 +1,15 @@
+lazysite (0.7.13-1) unstable; urgency=medium
+
+  * STABLE: the bundled QR library becomes a public site asset at
+    /assets/qrcode.js plus a built-in `::: qr data="..."` content component
+    (with a processor built-in-component fallback); declared in the SBOM.
+  * Manager polish from the demo review: click an account name to open its
+    editor (consistent for parents and leaves), group edits update in place
+    instead of reloading, and permission messages say "an administrator"
+    rather than "an operator".
+
+ -- Stuart J Mackintosh <sjm@opendigital.cc>  Sun, 12 Jul 2026 16:00:00 +0000
+
 lazysite (0.7.12-1) unstable; urgency=medium
 
   * STABLE: manager UX overhaul from live field review - Users tree + editor
