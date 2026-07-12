@@ -1,0 +1,47 @@
+[%# Built-in QR component. Use in any Markdown page:
+      ::: qr data="https://example.com/pay" size="180"
+      :::
+    Pass the payload in the data attribute (a URL, wifi string, etc.) - not the
+    fence body, which Markdown would reflow. Renders client-side from the shared
+    /assets/qrcode.js (bundled, MIT); the data is only ever COMPUTED into a
+    matrix, never inserted as markup, so there is no injection surface. -%]
+[%- data = attrs.data -%]
+[%- size = attrs.size || 160 -%]
+[%- IF data -%]
+<div class="lz-qr" data-qr="[% data | html %]" data-qr-size="[% size | html %]" role="img" aria-label="QR code"><noscript>[% data | html %]</noscript></div>
+<script>
+(function () {
+  if (!window.lzRenderQRs) {
+    window.lzRenderQRs = function () {
+      var run = function () {
+        var els = document.querySelectorAll('.lz-qr:not([data-qr-done])');
+        for (var i = 0; i < els.length; i++) {
+          var el = els[i], text = el.getAttribute('data-qr');
+          if (!text || !window.qrcode) continue;
+          el.setAttribute('data-qr-done', '1');
+          var cell = 4, m = 4, qr = qrcode(0, 'M');
+          qr.addData(text); qr.make();
+          var n = qr.getModuleCount(), sz = (n + 2 * m) * cell, r = '';
+          for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+            if (qr.isDark(y, x)) r += '<rect x="' + ((x + m) * cell) + '" y="' + ((y + m) * cell) + '" width="' + cell + '" height="' + cell + '"/>';
+          }
+          var t = parseInt(el.getAttribute('data-qr-size'), 10) || 160;
+          el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="' + t + '" height="' + t +
+            '" viewBox="0 0 ' + sz + ' ' + sz + '"><rect width="' + sz + '" height="' + sz + '" fill="#fff"/><g fill="#000">' + r + '</g></svg>';
+        }
+      };
+      if (window.qrcode) { run(); return; }
+      if (window._lzQRq) { window._lzQRq.push(run); return; }
+      window._lzQRq = [run];
+      var s = document.createElement('script');
+      s.src = '/assets/qrcode.js';
+      s.onload = function () { var q = window._lzQRq; window._lzQRq = null; for (var i = 0; i < q.length; i++) q[i](); };
+      document.head.appendChild(s);
+    };
+  }
+  window.lzRenderQRs();
+})();
+</script>
+[%- ELSE -%]
+<!-- qr component: add a data="..." attribute with the value to encode -->
+[%- END -%]

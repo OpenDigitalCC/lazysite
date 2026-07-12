@@ -137,6 +137,18 @@ MultiMarkdown puts around top-level block HTML (`<p><section>…`) are stripped.
   Each form carries an HMAC time-token, a honeypot field, and an inline `fetch`-based
   submit handler that swaps to a success message - wired to a delivery handler (see
   Forms).
+- **`::: qr data="…"`** renders a QR code for the given value (a link, a payment
+  URL, a wifi string, …), with an optional `size="N"` in pixels. It is a built-in
+  content component - available on any layout - drawn client-side from the shared,
+  self-contained `/assets/qrcode.js` (bundled qrcode-generator, MIT; in the SBOM).
+  The value is only ever computed into a matrix, never inserted as markup, so there
+  is no injection surface. Pass the value in `data="…"` (not the fence body, which
+  Markdown would reflow).
+
+Built-in content components live under `lazysite/templates/components/` and are the
+fallback for the `::: name` component syntax: a `::: name` fence resolves against the
+active layout's `components/NAME.tt` first, then the built-in dir - so a layout can
+override a built-in, and built-ins (like `qr`) work everywhere.
 
 ## Layouts and themes (decision D013)
 

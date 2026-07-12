@@ -46,6 +46,18 @@
       "bucket": "code"
     },
     {
+      "_comment": "Public shared assets served at /assets/ (docroot root, no auth) - e.g. the bundled qrcode.js used by the 2FA QR and the ::: qr content component. Code bucket so upgrades refresh them.",
+      "pattern": "^starter/assets/(.+)$",
+      "install_to": "{DOCROOT}/assets/$1",
+      "bucket": "code"
+    },
+    {
+      "_comment": "Built-in content components (::: qr, ...) available on any layout via the templates fallback in the processor.",
+      "pattern": "^starter/lazysite/templates/components/(.+)$",
+      "install_to": "{DOCROOT}/lazysite/templates/components/$1",
+      "bucket": "code"
+    },
+    {
       "pattern": "^starter/manager/(.+)$",
       "install_to": "{DOCROOT}/manager/$1",
       "bucket": "code"

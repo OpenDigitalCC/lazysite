@@ -218,7 +218,7 @@
       "version": "1.4.4",
       "license": "MIT",
       "purl": "pkg:npm/qrcode-generator@1.4.4",
-      "files": "starter/manager/assets/qrcode.js",
+      "files": "starter/assets/qrcode.js",
       "homepage": "https://github.com/kazuhikoarase/qrcode-generator",
       "used_by": "manager 2FA enrolment QR (rendered client-side from the otpauth URI)"
     }

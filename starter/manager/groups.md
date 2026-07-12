@@ -96,6 +96,26 @@ function loadGroups() {
 
 // One accordion per group: channel + action capability toggles, then a
 // member-centric roster (who's in, type-to-add, remove) - not an all-users list.
+// The summary line for one group (name, manager badge, capability + member
+// counts) - re-rendered in place on an edit, so a change never reloads the list.
+function groupSummaryInner(g) {
+  var info = allGroups[g] || {};
+  var members = Array.isArray(info.members) ? info.members : [];
+  var caps = info.caps || {};
+  var ge = escHtml(g);
+  var nOn = CAPS.filter(function(c) { return caps[c[0]]; }).length;
+  return '<span class="mg-acc-name">' + ge + '</span>' +
+    (info.manager ? ' <span class="mg-badge mg-badge-success">manager</span>' : '') +
+    '<span class="mg-acc-spacer"></span>' +
+    '<span class="mg-acc-tags">' +
+    nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies') + ' &middot; ' +
+    members.length + ' member' + (members.length === 1 ? '' : 's') + '</span>';
+}
+function refreshGroupSummary(g) {
+  var s = document.getElementById('gsum-' + escHtml(g));
+  if (s) s.innerHTML = groupSummaryInner(g);
+}
+
 function renderGroups() {
   var el = document.getElementById('groups-info');
   var keys = Object.keys(allGroups).sort();
@@ -105,13 +125,8 @@ function renderGroups() {
     var members = Array.isArray(info.members) ? info.members : [];
     var caps = info.caps || {};
     var ge = escHtml(g);
-    var nOn = CAPS.filter(function(c){ return caps[c[0]]; }).length;
-    var h = '<details class="mg-acc"><summary class="mg-acc-line"><span class="mg-acc-name">' + ge + '</span>' +
-            (info.manager ? ' <span class="mg-badge mg-badge-success">manager</span>' : '') +
-            '<span class="mg-acc-spacer"></span>' +
-            '<span class="mg-acc-tags">' +
-            nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies') + ' &middot; ' +
-            members.length + ' member' + (members.length === 1 ? '' : 's') + '</span></summary>';
+    var h = '<details class="mg-acc" data-group="' + ge + '"><summary class="mg-acc-line" id="gsum-' + ge + '">' +
+            groupSummaryInner(g) + '</summary>';
     h += '<div class="mg-acc-body">';
     h += '<div class="mg-line"><label style="min-width:5.5rem">Description</label>'
        + '<input type="text" class="mg-inp" style="flex:1" value="' + escHtml(info.description || '') + '" '
@@ -159,7 +174,9 @@ function toggleSetting(group, key, el) {
         else { allGroups[group].caps = allGroups[group].caps || {}; allGroups[group].caps[key] = on; }
       }
       showStatus(group + ': ' + key + ' ' + (on ? 'on' : 'off') + '.');
-      renderGroups();
+      // Update just this group's summary counts / manager badge in place - no
+      // list reload (the checkbox already reflects the new state).
+      refreshGroupSummary(group);
     })
     .catch(function(e) { el.checked = !on; showStatus('Error: ' + e.message, true); });
 }
@@ -198,7 +215,7 @@ function addMember(group) {
       var m = allGroups[group].members = allGroups[group].members || [];
       if (m.indexOf(user) === -1) m.push(user);
       if (inp) inp.value = '';
-      refreshGroupMembers(group);
+      refreshGroupMembers(group); refreshGroupSummary(group);
       showStatus('Added ' + user + ' to ' + group + '.');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
@@ -210,7 +227,7 @@ function removeMember(user, group) {
       if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
       var m = allGroups[group].members = allGroups[group].members || [];
       var i = m.indexOf(user); if (i !== -1) m.splice(i, 1);
-      refreshGroupMembers(group);
+      refreshGroupMembers(group); refreshGroupSummary(group);
       showStatus('Removed ' + user + ' from ' + group + '.');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });

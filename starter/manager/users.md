@@ -323,13 +323,16 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   if (s.expires_at && s.expires_at < Date.now() / 1000) flags += ' <span class="mg-tag mg-tag-off">expired</span>';
   var isSub    = !!parentName;
 
-  // The single row: identity on the left, its Configure button on the right.
-  // stopPropagation keeps a click on Configure from toggling a parent's subtree.
+  // The single row. Clicking the NAME opens the editor (consistent for parents
+  // and leaves); the expand disclosure (the accent triangle, for parents only)
+  // toggles the sub-tree. stopPropagation keeps a name/Configure click from
+  // also toggling a parent's subtree.
+  var nameBtn = '<button type="button" class="mg-acc-name mg-acc-namebtn" title="Configure ' + ue + '" ' +
+    'onclick="event.stopPropagation();configureUser(\'' + ue + '\')">' + ue + '</button>';
   var line =
-    '<span class="mg-acc-name">' + ue + '</span>' + recentDot(u) +
-    roleTag + lineChip + note +
+    nameBtn + recentDot(u) + roleTag + lineChip + note +
     '<span class="mg-acc-spacer"></span>' + flags +
-    '<button type="button" class="mg-btn mg-btn-sm mg-btn-primary mg-configbtn" data-cfg="' + ue + '" ' +
+    '<button type="button" class="mg-btn mg-btn-sm mg-configbtn" data-cfg="' + ue + '" ' +
     'onclick="event.stopPropagation();configureUser(\'' + ue + '\')">Configure</button>';
 
   if (kidsHtml) {
@@ -1056,7 +1059,7 @@ function withQR(cb) {
   if (_qrQueue) { _qrQueue.push(cb); return; }
   _qrQueue = [cb];
   var s = document.createElement('script');
-  s.src = '/manager/assets/qrcode.js';
+  s.src = '/assets/qrcode.js';
   s.onload = function() { var q = _qrQueue; _qrQueue = null; q.forEach(function(f) { f(); }); };
   s.onerror = function() { var q = _qrQueue; _qrQueue = null; q.forEach(function(f) { f(true); }); };
   document.head.appendChild(s);

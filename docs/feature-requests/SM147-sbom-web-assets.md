@@ -2,8 +2,8 @@
 title: "SM147 - SBOM covers bundled web assets, and stays complete"
 subtitle: "Every vendored JS/CSS in the release SBOM, enforced"
 brand: plain
-status: partial
-status-note: "web_assets channel + gate delivered (2026-07-12): CodeMirror + qrcode-generator declared, t/lint/11 fails on any undeclared vendored bundle. OPEN: periodic re-scan for new bundles (fonts, wasm) and a VEX/versions refresh at release time"
+status: shipped
+status-note: "web_assets channel + gate (2026-07-12): CodeMirror + qrcode-generator declared, t/lint/11 fails on any undeclared bundle. qrcode.js promoted to a shared PUBLIC asset (/assets/qrcode.js), used by both the manager 2FA and the built-in ::: qr content component. Ongoing: periodic re-scan for new bundle types (fonts, wasm) + version/VEX refresh at release time"
 ---
 
 # SM147 - SBOM covers bundled web assets, and stays complete
@@ -28,6 +28,16 @@ SBOM is a supply-chain blind spot.
   if any is not covered by a `web_assets` files glob. So a new library cannot
   ship undeclared.
 
+## Shared public asset + TT helper (delivered)
+
+`qrcode.js` is now a shared **public** asset at `/assets/qrcode.js`
+(`starter/assets/qrcode.js`, served from the docroot, no auth) - the manager
+2FA QR loads it there, and so does a new **built-in `::: qr` content
+component** (`starter/lazysite/templates/components/qr.tt`). The processor
+gained a built-in-component fallback: `::: name` resolves against the active
+layout's `components/` first, then `lazysite/templates/components/`, so `::: qr`
+works on any layout. Authors write `::: qr data="https://..." size="180"`.
+
 ## Open
 
 - Re-scan periodically for asset types the heuristic does not yet catch
@@ -35,5 +45,3 @@ SBOM is a supply-chain blind spot.
   broaden the gate's candidate set as needed.
 - Refresh `version` fields (and any VEX/advisory data) at release time; the
   gate checks presence, not that the declared version matches upstream.
-- Consider promoting `qrcode.js` to a shared/global asset (public-side QR via a
-  TT helper); if so, its served path moves and the `files` glob updates.

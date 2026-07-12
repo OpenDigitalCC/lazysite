@@ -1400,10 +1400,16 @@ input.mg-toggle:focus-visible { outline: none; box-shadow: var(--mg-focus-ring);
    subtree); a leaf row is a plain div. Both share .mg-acc-line. */
 .mg-acc-line { cursor:default; padding:0.45rem 0.75rem; display:flex; align-items:center;
   gap:0.5rem; list-style:none; }
-summary.mg-acc-line { cursor:pointer; }
+summary.mg-acc-line { cursor:pointer; }        /* the row (minus the name) toggles the subtree */
 .mg-acc > summary::-webkit-details-marker { display:none; }
-summary.mg-acc-line::before { content:'\25B8'; color:var(--mg-text-muted); font-size:0.8em; width:0.9em; display:inline-block; }
+/* An obvious accent disclosure triangle on parent rows; leaves have none. */
+summary.mg-acc-line::before { content:'\25B8'; color:var(--mg-accent); font-size:0.95em; width:1em; display:inline-block; text-align:center; }
 .mg-acc[open] > summary.mg-acc-line::before { content:'\25BE'; }
+summary.mg-acc-line:hover::before { color:var(--mg-accent-hover); }
+/* The account name is the click target for the editor (not the toggle). */
+.mg-acc-namebtn { background:none; border:none; padding:0; font:inherit; font-weight:600;
+  color:var(--mg-text); cursor:pointer; }
+.mg-acc-namebtn:hover, .mg-acc-namebtn:focus { color:var(--mg-accent); text-decoration:underline; outline:none; }
 .mg-acc-leaf > .mg-acc-line { padding-left:calc(0.75rem + 0.9em + 0.5rem); }  /* align names under a parent's, past the (absent) triangle */
 summary.mg-acc-line:hover { background:var(--mg-surface-alt); }
 .mg-acc-name { font-weight:600; }

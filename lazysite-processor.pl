@@ -2141,7 +2141,11 @@ sub convert_fenced_divs {
 sub _component_exists {
     my ( $layout_dir, $name ) = @_;
     return 0 unless defined $name && $name =~ /\A[\w-]+\z/;
-    return ( -f "$layout_dir/components/$name.tt" ) ? 1 : 0;
+    return 1 if defined $layout_dir && -f "$layout_dir/components/$name.tt";
+    # Built-in components (e.g. ::: qr) ship under lazysite/templates/components
+    # and are available on ANY layout - a layout component of the same name wins.
+    return 1 if -f "$LAZYSITE_DIR/templates/components/$name.tt";
+    return 0;
 }
 
 sub _md_fragment {
@@ -2161,7 +2165,11 @@ sub _md_fragment {
 
 sub convert_fenced_components {
     my ( $text, $layout_dir, $md_path, $meta ) = @_;
-    return $text unless defined $layout_dir && -d "$layout_dir/components";
+    # Proceed if the active layout has a components/ dir OR built-in components
+    # exist (::: qr and friends work even on a layout that ships none).
+    return $text
+        unless ( defined $layout_dir && -d "$layout_dir/components" )
+        || -d "$LAZYSITE_DIR/templates/components";
     return $text unless $text =~ /^:::[ \t]+[\w-]+/m;   # fast bail
 
     my @lines = split /\n/, $text, -1;
@@ -2247,7 +2255,9 @@ sub _render_component {
     my $tt = Template->new(
         ABSOLUTE     => 1,
         EVAL_PERL    => 0,
-        INCLUDE_PATH => $layout_dir,
+        # Layout components win; built-in components (lazysite/templates) are the
+        # fallback so ::: qr resolves on any layout.
+        INCLUDE_PATH => [ grep { defined } ( $layout_dir, "$LAZYSITE_DIR/templates" ) ],
         FILTERS      => { markdown => \&_markdown_filter },
     );
     my $rendered = '';

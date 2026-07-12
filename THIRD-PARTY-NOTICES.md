@@ -39,7 +39,7 @@ Licence: MIT
 
 ## qrcode-generator 1.4.4
 
-File: `starter/manager/assets/qrcode.js` (unminified; the upstream MIT
+File: `starter/assets/qrcode.js` (unminified; the upstream MIT
 licence header is retained in the file). Used to render the 2FA
 enrolment QR code in the browser from the account's `otpauth://` URI -
 pure computation (no DOM, no `eval`, no network); lazysite reads the

@@ -18,6 +18,29 @@ Keying
 
 ## Unreleased
 
+Manager polish: click-to-configure names, no group-edit reloads, clearer wording (SM150)
+: Users tree: clicking an account NAME opens its editor (consistent for
+  top-level and sub-accounts - a leaf name did nothing before), and the accent
+  disclosure triangle is the obvious control to expand a sub-tree; the explicit
+  Configure button stays, de-emphasised. Groups: editing a group no longer
+  reloads the list - a capability toggle or member change updates just that
+  group's summary/pills in place (the full renderGroups() reload on every
+  capability toggle was the jolt). Permission-denied messages say "an
+  administrator can grant it on the Groups page" instead of "an operator"
+  (clearer to the person reading it) - audit, sessions & keys, notifications.
+
+QR codes on public pages: a shared asset + a built-in ::: qr component (SM147)
+: The bundled QR library is promoted to a shared PUBLIC asset at
+  `/assets/qrcode.js` (served from the docroot, no auth) - the manager 2FA QR
+  loads it there now, and so does a new built-in **`::: qr data="…"`** content
+  component that renders a QR (link, payment URL, wifi string, ...) on any
+  Markdown page, with an optional `size`. The processor gained a
+  built-in-component fallback: `::: name` resolves against the active layout's
+  `components/` first, then `lazysite/templates/components/`, so a built-in
+  works on any layout and a layout can override it. The QR is drawn
+  client-side from the matrix (the value is never inserted as markup - no
+  injection surface). Guarded by t/unit/processor/17-component-qr.t.
+
 ## 0.7.12 - STABLE: manager UX overhaul from live field review (2026-07-12)
 
 Plugin surface + Users/Groups polish from the demo review (SM149)

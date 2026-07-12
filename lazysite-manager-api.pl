@@ -476,7 +476,7 @@ elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 
     if ( !$token_auth && !_user_manage_users($auth_user) ) {
         $result = { ok => 0, kind => 'forbidden',
             error => "Managing sessions and keys requires the 'Users & groups' permission. "
-                . "An operator can grant it on the Groups page." };
+                . "An administrator can grant it on the Groups page." };
     }
     elsif ( $action eq 'sessions-list' ) { $result = action_sessions_list() }
     elsif ( $action eq 'keys-list' ) {
@@ -526,7 +526,7 @@ elsif ( $action eq 'notices' || $action eq 'notices-seen' ) {
     if ( !$token_auth && !_user_cap_notifications($auth_user) ) {
         $result = { ok => 0, kind => 'forbidden',
             error => "Notifications require the 'Notifications' permission. An "
-                . "operator can grant it on the Groups page." };
+                . "administrator can grant it on the Groups page." };
     }
     else {
         $result = $action eq 'notices' ? action_notices() : action_notices_seen();
@@ -548,9 +548,9 @@ elsif ( $action eq 'audit' )            {
     if ( !$token_auth && !_user_audit($auth_user) ) {
         audit_log( $auth_user, 'audit', '', $ENV{REMOTE_ADDR} // '', 'fail', 'ui', 'denied: needs audit' );
         $result = { ok => 0, kind => 'forbidden',
-            error => "The audit trail requires the 'Audit trail' permission. An operator "
-                   . "can grant it on the Groups page: give a group the 'Audit trail' "
-                   . "action, and add the user to it." };
+            error => "The audit trail requires the 'Audit trail' permission. An "
+                . "administrator can grant it on the Groups page: give a group the "
+                . "'Audit trail' action, and add the user to it." };
     }
     else {
         $result = action_audit( user => $params{user}, target => $params{target}, start => $params{start}, end => $params{end}, page => $params{page}, per_page => $params{per_page} );
