@@ -130,6 +130,7 @@ tone: medium
  2026-07-11 | Full-system disaster rehearsal (0.7.7 stable cycle) | <1 s mechanical restore | Same full cycle against the shipped 0.7.6 tarball: install, content + manager, full backup, docroot destroyed, --restore-full --domain onto a new docroot - content, auth store and conf verified intact. Per-stable-cycle commitment met
  2026-07-11 | Full-system disaster rehearsal (0.7.8 stable cycle) | <1 s mechanical restore | Same full cycle against the shipped 0.7.7 tarball - content, auth store and conf verified intact on the new docroot. Per-stable-cycle commitment met
  2026-07-11 | Full-system disaster rehearsal (0.7.11 stable cycle) | <1 s mechanical restore | Same full cycle against the shipped 0.7.10 tarball - content, auth store and conf verified intact on the new docroot. Per-stable-cycle commitment met
+ 2026-07-12 | Full-system disaster rehearsal (0.7.12 stable cycle) | <1 s mechanical restore | Same full cycle against the shipped 0.7.11 tarball - content, auth store and conf verified intact on the new docroot. Per-stable-cycle commitment met
 ```
 
 # References
