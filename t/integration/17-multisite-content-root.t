@@ -57,11 +57,14 @@ symlink( $docroot, "$docroot/sites/clienta/escape" )
 
 _write( "$docroot/lazysite/lazysite.conf", <<'CONF' );
 site_name: Agency Home
+site_url: https://agency.example
 alias_hosts: clienta.example, clientb.example, badroot.example, introot.example, missroot.example, travroot.example
 alias.clienta.example.content_root: sites/clienta
 alias.clienta.example.site_name: Client A
+alias.clienta.example.site_url: https://www.clienta.example
 alias.clientb.example.content_root: sites/clientb
 alias.clientb.example.site_name: Client B
+alias.clientb.example.site_url: https://clientb.example
 alias.badroot.example.content_root: sites/evil
 alias.introot.example.content_root: lazysite/auth
 alias.missroot.example.content_root: sites/does-not-exist
@@ -166,6 +169,36 @@ sub _write {
     run_processor( $docroot, '/index', HTTP_HOST => 'introot.example' );
     my $out = run_processor( $docroot, '/index', HTTP_HOST => 'clienta.example' );
     like( $out, qr/CLIENT_A_HOME/, 'a good domain still serves after broken siblings were hit' );
+}
+
+# =========================================================================
+# P2: per-host canonical from the declared site_url (never the request Host).
+# site_url is set to a host DIFFERENT from the request Host to prove the
+# canonical is config-driven, not spoofable via Host.
+# =========================================================================
+{
+    my $out = run_processor( $docroot, '/index', HTTP_HOST => 'clienta.example' );
+    like( $out, qr{<link rel="canonical" href="https://www\.clienta\.example/">},
+        'client A / canonical uses its declared site_url, index collapsed to /' );
+    unlike( $out, qr{canonical[^>]*clienta\.example/index},
+        'canonical does not carry the /index suffix' );
+}
+{
+    my $out = run_processor( $docroot, '/about', HTTP_HOST => 'clienta.example' );
+    like( $out, qr{<link rel="canonical" href="https://www\.clienta\.example/about">},
+        'client A deep page canonical is site_url + clean path' );
+}
+{
+    my $out = run_processor( $docroot, '/index', HTTP_HOST => 'clientb.example' );
+    like( $out, qr{<link rel="canonical" href="https://clientb\.example/">},
+        'client B canonical uses its own declared site_url' );
+    unlike( $out, qr{canonical[^>]*clienta}, 'client B canonical never carries client A host' );
+}
+{
+    # Undeclared host falls back to the base site_url for its canonical.
+    my $out = run_processor( $docroot, '/index', HTTP_HOST => 'agency.example' );
+    like( $out, qr{<link rel="canonical" href="https://agency\.example/">},
+        'undeclared host canonical uses the base site_url' );
 }
 
 done_testing();

@@ -27,8 +27,11 @@ Multi-site: per-domain content roots (SM151 P1)
   root (`confine_content_root()` + tightened realpath checks): a root can never
   escape the docroot or reach the `lazysite/` management tree, and a bad or
   missing root degrades that host to the docroot root with a WARN rather than
-  failing. Adversarial gate: `t/integration/17-multisite-content-root.t`.
-  Per-domain SEO, search and the manager view land in later phases.
+  failing. Each domain also emits its own `<link rel="canonical">` in the head,
+  driven by the resolved per-host `site_url` (a declared value, never the
+  request Host), injected regardless of layout and deferring to a layout that
+  already emits one. Adversarial gate: `t/integration/17-multisite-content-root.t`.
+  Per-domain sitemap/feeds, boxed search and the manager view land in later phases.
 
 ## 0.7.13 - STABLE: public QR component + manager polish from the demo review (2026-07-12)
 

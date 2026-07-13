@@ -3780,6 +3780,13 @@ sub render_template {
                 return $processed_body;
             };
 
+        # Head injection must be layout-independent (SM112 generator meta,
+        # SM151 per-host canonical): the real-layout path does it at output
+        # time below, so the no-layout fallback path must too, or a fallback
+        # site would silently lose its generator meta and its canonical link.
+        $output = _inject_meta( $output, $vars );
+        $output = _inject_canonical( $output, $vars );
+
         # Admin bar injected per-request at output time, not cached (see note below).
         return $output;
     }
@@ -3851,6 +3858,13 @@ sub render_template {
     # SM112: identify the generator (+ optional author/description) in the head,
     # regardless of which layout rendered the page.
     $output = _inject_meta( $output, $vars );
+
+    # SM151: per-host canonical link, so each domain is a first-class site to
+    # search engines. Driven by the resolved (per-host) site_url - a declared,
+    # stable value, never the request Host - so it is safe to bake into the
+    # per-host page cache. Skipped when a layout already emitted a canonical or
+    # site_url is unset.
+    $output = _inject_canonical( $output, $vars );
 
     # SM099: client-side sign-in/out so a shared cached page never shows the wrong
     # auth control. Toggles [data-ls-auth-in]/[data-ls-auth-out] from the lzs_session
@@ -3951,6 +3965,39 @@ sub _inject_meta {
     }
     my $block = "\n    " . join( "\n    ", @m );
     $html =~ s/(<head[^>]*>)/$1$block/i;
+    return $html;
+}
+
+# SM151: emit a per-host canonical <link rel="canonical"> in the head. The base
+# comes from the resolved (per-host) site_url - a declared value, never the
+# untrusted request Host - so it is stable and safe to cache per host. The path
+# is the request's own clean URL (extension stripped, /index collapsed to /).
+# No-ops when: the head is absent, site_url is unset, or the layout already
+# emitted a canonical (the engine defers to an explicit one).
+sub _inject_canonical {
+    my ( $html, $vars ) = @_;
+    return $html unless $html =~ /<head[^>]*>/i;
+    return $html if $html     =~ /rel=["']canonical["']/i;
+
+    my $base = $vars->{site_url};
+    return $html unless defined $base && length $base;
+    $base =~ s{/+$}{};
+
+    my $path = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '/';
+    $path =~ s/[?#].*$//;                # drop query / fragment
+    $path = "/$path" unless $path =~ m{^/};
+    $path =~ s{\.(?:html|md|url)$}{};    # clean serving extension
+    $path =~ s{/index$}{/};              # /foo/index -> /foo/
+    $path = '/' if $path eq q{} || $path eq '/index';
+
+    my $href = $base . $path;
+    $href =~ s/&/&amp;/g;
+    $href =~ s/</&lt;/g;
+    $href =~ s/>/&gt;/g;
+    $href =~ s/"/&quot;/g;
+
+    my $tag = qq{\n    <link rel="canonical" href="$href">};
+    $html =~ s/(<head[^>]*>)/$1$tag/i;
     return $html;
 }
 
