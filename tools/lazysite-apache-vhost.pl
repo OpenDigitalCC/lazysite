@@ -19,6 +19,9 @@ use warnings;
 use Cwd            qw(abs_path);
 use File::Basename qw(dirname);
 use Getopt::Long   ();
+use FindBin        ();
+use lib "$FindBin::Bin/../lib";
+use Lazysite::DomainRewrites ();
 
 Getopt::Long::Configure( 'no_ignore_case', 'bundling_override' );
 
@@ -39,6 +42,7 @@ if    ( $verb eq '' )                                     { usage(2) }
 elsif ( $verb eq 'help' || $verb =~ /^-{0,2}help$|^-h$/ ) { usage(0) }
 elsif ( $verb eq 'add' )                                  { exit cmd_add() }
 elsif ( $verb eq 'remove' )                               { exit cmd_remove() }
+elsif ( $verb eq 'rewrites' )                             { exit cmd_rewrites() }
 else {
     print {*STDERR} "lazysite-apache-vhost: unknown verb '$verb'\n\n";
     usage(2);
@@ -69,6 +73,13 @@ Verbs:
   remove DOMAIN
         Delete sites-available/DOMAIN.conf. NEVER deletes site content;
         a2dissite is printed, not run.
+  rewrites --docroot D
+        Print a mod_rewrite block (to stdout; writes nothing, needs no
+        root) that serves each multi-site alias domain's static files
+        directly from its content root. Read from the docroot's
+        lazysite.conf (SM151). Paste it into the <VirtualHost> serving
+        the alias hosts. Clean page URLs and /lazysite, /cgi-bin,
+        /manager still reach the processor.
   help
         This help.
 
@@ -227,6 +238,26 @@ sub cmd_add {
             . "    systemctl enable --now lazysite\@$domain\n"
             . "    (see the lazysite-common README.Debian for the pool pattern)\n";
     }
+    return 0;
+}
+
+# ---------- rewrites (SM151 P6b) ----------
+
+# Emit the per-Host static-file rewrite block for a multi-site instance, read
+# from the docroot's lazysite.conf. Prints config text to stdout - it writes no
+# files and needs no root - so the operator can paste it into the <VirtualHost>
+# serving the alias hosts (or redirect it into an include). Static files for
+# each alias domain then serve directly from its content root; clean page URLs
+# and /lazysite, /cgi-bin, /manager still reach the processor.
+sub cmd_rewrites {
+    my %o = ( docroot => '' );
+    Getopt::Long::GetOptions( 'docroot=s' => \$o{docroot} ) or usage(2);
+    fail('rewrites needs --docroot (the site public_html)') unless length $o{docroot};
+    my $docroot = check_dir_opt( '--docroot', $o{docroot}, '' );
+    my $conf    = "$docroot/lazysite/lazysite.conf";
+    fail("no lazysite.conf under $docroot/lazysite") unless -f $conf;
+    my $roots = Lazysite::DomainRewrites::read_domain_roots($conf);
+    print Lazysite::DomainRewrites::apache_snippet($roots);
     return 0;
 }
 

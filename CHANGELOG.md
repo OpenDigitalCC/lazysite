@@ -48,10 +48,15 @@ Multi-site: many first-class domains under one instance (SM151)
   under a content root (sitemap, feeds, robots, images, css, downloads) are
   served by the processor from that subtree with a content-type by extension
   (binary-safe, confined) - so each domain's own SEO artefacts and assets
-  serve at its URL, not just its rendered pages; a per-Host web-server rewrite
-  can serve them directly in production. Adversarial gate:
+  serve at its URL, not just its rendered pages. For production, the
+  apache/nginx vhost tools gain a `rewrites --docroot D` verb
+  (`Lazysite::DomainRewrites`) that generates a per-Host rewrite from
+  lazysite.conf so each alias domain's static files serve directly from its
+  content root, skipping the app - clean page URLs and /lazysite, /cgi-bin,
+  /manager still reach the processor. Adversarial gate:
   `t/integration/17-multisite-content-root.t`; API gate:
-  `t/unit/manager/23-manager-read-actions.t`.
+  `t/unit/manager/23-manager-read-actions.t`; rewrite generator:
+  `t/tools/32-domain-rewrites.t`.
 
 ## 0.7.13 - STABLE: public QR component + manager polish from the demo review (2026-07-12)
 

@@ -3,7 +3,7 @@ title: "SM151 - First-class multi-site: many domains, one instance, one login"
 subtitle: "Per-domain content roots, SEO and search on top of the SM110 alias plane"
 brand: plain
 status: candidate
-status-note: "built on branch claude/multisite 2026-07-13, awaiting review/merge/release. P1 content_root routing + confinement (S1/S2/S6); P2 per-host site_url + canonical; P3 per-domain registries + symlink-safe scanner; P4 boxed per-domain search; P5 read-only Domains manager view + Host on access-log lines; P6a processor-served per-domain static files (sitemap/feeds/robots/assets, binary-safe, confined) - found in a local demo where only rendered pages routed per-domain; P6b per-Host web-server rewrite (production static perf) still to build. Gates: t/integration/17-multisite-content-root.t (adversarial), t/unit/manager/23-manager-read-actions.t (domains-list API). Subsumes SM110 phase 3; distinct from SM075."
+status-note: "built on branch claude/multisite 2026-07-13, awaiting review/merge/release. P1 content_root routing + confinement (S1/S2/S6); P2 per-host site_url + canonical; P3 per-domain registries + symlink-safe scanner; P4 boxed per-domain search; P5 read-only Domains manager view + Host on access-log lines; P6a processor-served per-domain static files (found in a local demo where only rendered pages routed per-domain); P6b vhost `rewrites` verb (Lazysite::DomainRewrites) generating per-Host static rewrites for apache/nginx - config-text tested, NOT yet validated against a live web server. Gates: t/integration/17-multisite-content-root.t (adversarial), t/unit/manager/23-manager-read-actions.t (domains-list API), t/tools/32-domain-rewrites.t (rewrite generator). Subsumes SM110 phase 3; distinct from SM075."
 ---
 
 ::: widebox
