@@ -272,8 +272,16 @@ my %ENV_ALLOWLIST = map { $_ => 1 } qw(
 # (manager, auth_*, webdav_*, update_*) overridable per host, any client
 # could pick its own policy just by sending a matching Host header. The
 # whitelisted keys are presentation-only.
+#
+# SM151: first-class multi-site adds two more presentation/routing keys.
+# content_root roots the host at its own docroot-relative content subtree
+# (confine_content_root() enforces the boundary - it can never reach the
+# lazysite/ management tree or escape the docroot). site_url gives the host
+# its own canonical/absolute base URL for links, sitemap and feeds. Both are
+# still presentation/routing only - they move no auth, management or update
+# surface, so they stay safe to select via a declared Host.
 my %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
-    qw(site_name theme layout nav_file search_default);
+    qw(site_name theme layout nav_file search_default content_root site_url);
 
 # --- Auth ---
 
@@ -957,9 +965,34 @@ sub main {
         return;
     }
 
-    my $md_path   = "$DOCROOT/$base.md";
-    my $url_path  = "$DOCROOT/$base.url";
-    my $html_path = "$DOCROOT/$base.html";
+    # SM151: per-domain content root. When the resolved site vars carry a
+    # content_root (a base `content_root:` on the primary host, or an alias's
+    # whitelisted override), the request is served from that confined subtree -
+    # the domain's own '/'. confine_content_root() guarantees the root stays
+    # inside the docroot and never reaches the lazysite/ tree (spec S1/S2); an
+    # invalid or missing root degrades to the docroot root with a WARN (S6), so
+    # one mis-configured domain can never take the instance down or leak a
+    # sibling's tree. Unset content_root => $croot == $DOCROOT (unchanged).
+    my $croot = $DOCROOT;
+    {
+        my %sv = resolve_site_vars();
+        if ( defined $sv{content_root} && length $sv{content_root} ) {
+            my $c = confine_content_root( $DOCROOT, $sv{content_root} );
+            if ( defined $c ) {
+                $croot = $c;
+            }
+            else {
+                log_event( 'WARN', $uri,
+                    'content_root rejected - serving docroot root',
+                    host         => ( $sv{alias_host} || '-' ),
+                    content_root => $sv{content_root} );
+            }
+        }
+    }
+
+    my $md_path   = "$croot/$base.md";
+    my $url_path  = "$croot/$base.url";
+    my $html_path = "$croot/$base.html";
 
     # SM110 phase 2: the page cache is host-keyed. An alias host reads and
     # writes its cached render in its own slot - $HOST_CACHE_DIR/<host>/,
@@ -969,7 +1002,9 @@ sub main {
     # exactly the same caching rules (protected/NOCACHE/TTL gating below is
     # host-agnostic), just in its own slots. $static_html_path stays on the
     # SIBLING for the SM133 legacy static-HTML fallback - that is authored
-    # content, not a render cache, and is host-independent.
+    # content, not a render cache. (SM151: the sibling now sits under the
+    # domain's content root $croot, so a domain's legacy static pages live in
+    # its own subtree; the render cache slot below is still host-keyed.)
     # Filesystem safety: _request_host() admits only DNS-shaped hosts
     # (labels of [a-z0-9-] joined by single dots - no '/', no '..', no
     # leading dot), so $sv{alias_host} is safe to use as one path segment.
@@ -1120,8 +1155,11 @@ sub main {
     # .md exists but no cache yet - process it
     # realpath check runs here on the write path only, not on cache hits
     if ( @md_stat ) {
+        # SM151: confine against the domain's content root (== $DOCROOT when no
+        # content_root), so a symlink inside one domain's tree cannot serve a
+        # sibling domain's or the docroot's files (spec S1).
         my $real = realpath($md_path);
-        if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
+        if ( !defined $real || index( $real, $croot ) != 0 ) {
             not_found($uri);
             return;
         }
@@ -1153,7 +1191,7 @@ sub main {
     # Found .url - fetch remote content
     if ( -f $url_path ) {
         my $real = realpath($url_path);
-        if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
+        if ( !defined $real || index( $real, $croot ) != 0 ) {
             not_found($uri);
             return;
         }
@@ -1176,7 +1214,7 @@ sub main {
     # authored content shared by every host, never a per-host render cache.)
     if ( -f $static_html_path ) {
         my $real = realpath($static_html_path);
-        if ( defined $real && index( $real, $DOCROOT ) == 0 ) {
+        if ( defined $real && index( $real, $croot ) == 0 ) {
             my $ct = read_ct($base) || 'text/html; charset=utf-8';
             log_event( 'INFO', $uri, 'static-html fallback (no .md source)' );
             output_page( read_file($static_html_path), $ct );
@@ -1265,6 +1303,55 @@ sub sanitise_uri {
     $uri = 'index' unless length $uri;
 
     return $uri;
+}
+
+# SM151: resolve a per-domain content root to a confined absolute directory.
+# $content_root is the docroot-relative directory from lazysite.conf
+# (a base `content_root:` for the primary host, or a whitelisted
+# `alias.<host>.content_root:` for an alias). Returns:
+#   * the docroot itself when unset/empty or '/'  - today's behaviour, so an
+#     install that configures no roots is unchanged (pure superset);
+#   * the confined absolute directory when valid;
+#   * undef when the configured value escapes the docroot or reaches into the
+#     lazysite/ management tree, or does not exist - the caller treats undef as
+#     "fall back to the docroot root and WARN" (spec S6), never as a hard fail.
+# Enforces spec S1 (no escape via traversal/symlink) and S2 (never the
+# lazysite/ secrets/auth/ACL tree). realpath() resolves symlinks, so a root
+# that symlinks out of the docroot is rejected; it returns undef for a
+# non-existent path, so a mis-typed root safely degrades rather than serving
+# an unintended tree.
+sub confine_content_root {
+    my ( $docroot, $content_root ) = @_;
+    return $docroot unless defined $content_root && length $content_root;
+
+    ( my $rel = $content_root ) =~ s{^/+|/+$}{}g;    # strip leading/trailing /
+    return $docroot unless length $rel;              # '' or '/' => docroot root
+
+    # Reject dangerous shapes before touching the filesystem.
+    return undef if $rel =~ /\0/;
+    return undef if $rel =~ m{(?:^|/)\.\.(?:/|$)};
+    return undef if $rel =~ m{[<>"'\\]};
+
+    # Must resolve to a real directory. The -d guard is load-bearing: realpath
+    # resolves a non-existent leaf against its existing parent on some systems
+    # (returning a path rather than undef), so a mis-typed root would otherwise
+    # look valid and 404 every page instead of degrading. Requiring the dir to
+    # exist means realpath below fully resolves any symlinks in the path, so a
+    # root that symlinks out of the docroot is still caught.
+    my $target = "$docroot/$rel";
+    return undef unless -d $target;
+
+    my $droot = realpath($docroot) // return undef;
+    my $abs   = realpath($target)  // return undef;
+    my $lzdir = realpath("$docroot/lazysite");    # may not exist
+
+    # Must sit within the docroot ...
+    return undef unless $abs eq $droot || index( $abs, "$droot/" ) == 0;
+    # ... and must never be, or be inside, the lazysite/ management tree.
+    return undef if defined $lzdir
+        && ( $abs eq $lzdir || index( $abs, "$lzdir/" ) == 0 );
+
+    return $abs;
 }
 
 sub process_md {

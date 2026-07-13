@@ -1,0 +1,171 @@
+#!/usr/bin/perl
+# SM151 phase 1: first-class multi-site content roots. One docroot serves
+# several domains, each rooted at its own content subtree via
+# `alias.<host>.content_root`. This suite is the security gate: it proves the
+# per-domain content root is a HARD public boundary. The spec's invariants:
+#   S1  served paths are confined under the domain's content root (no escape
+#       by traversal or by a symlink leaving the subtree);
+#   S2  a content root can never be, contain, or alias into lazysite/ (auth,
+#       secret, ACLs are never web-reachable through any domain root);
+#   S6  a bad/missing content root degrades that host to the docroot root with
+#       a WARN - it never 500s, never leaks a sibling, never takes the
+#       instance down.
+# Plus the functional half: each domain serves its own subtree as '/', and one
+# domain can never see another's pages.
+use strict;
+use warnings;
+use Test::More;
+use File::Temp qw(tempdir);
+use File::Path qw(make_path);
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/../../lib";
+use TestHelper qw(run_processor);
+
+# --- Fixture --------------------------------------------------------------
+# A docroot with two real client subtrees, an agency root page, a secret
+# under lazysite/auth, and four deliberately-broken domains (symlink out of
+# the docroot, traversal, a root inside lazysite/, and a missing root).
+my $docroot = tempdir( CLEANUP => 1 );
+my $outside = tempdir( CLEANUP => 1 );    # a tree OUTSIDE the docroot
+
+make_path("$docroot/lazysite/cache");
+make_path("$docroot/lazysite/auth");
+make_path("$docroot/sites/clienta");
+make_path("$docroot/sites/clientb");
+
+# Agency root (what a domain with no/invalid content_root falls back to).
+_write( "$docroot/index.md", "---\ntitle: Agency\n---\nAGENCY_ROOT_HOME\n" );
+_write( "$docroot/404.md",   "---\ntitle: NF\n---\nAGENCY_404\n" );
+# A secret that must NEVER be reachable through any domain root (S2).
+_write( "$docroot/lazysite/auth/secret", "TOP_SECRET_MATERIAL\n" );
+
+# Client A subtree.
+_write( "$docroot/sites/clienta/index.md", "---\ntitle: A\n---\nCLIENT_A_HOME\n" );
+_write( "$docroot/sites/clienta/about.md", "---\ntitle: A2\n---\nCLIENT_A_ABOUT\n" );
+# Client B subtree (has a page that A does not).
+_write( "$docroot/sites/clientb/index.md",  "---\ntitle: B\n---\nCLIENT_B_HOME\n" );
+_write( "$docroot/sites/clientb/only-b.md", "---\ntitle: B2\n---\nCLIENT_B_ONLY\n" );
+
+# Content OUTSIDE the docroot, reached by a symlink inside sites/ (S1/S2).
+_write( "$outside/evil.md", "---\ntitle: E\n---\nOUTSIDE_CONTENT\n" );
+symlink( $outside, "$docroot/sites/evil" )
+    or plan skip_all => "symlink unsupported on this filesystem";
+# A symlink INSIDE client A's tree that escapes back to the docroot root (S1).
+symlink( $docroot, "$docroot/sites/clienta/escape" )
+    or plan skip_all => "symlink unsupported on this filesystem";
+
+_write( "$docroot/lazysite/lazysite.conf", <<'CONF' );
+site_name: Agency Home
+alias_hosts: clienta.example, clientb.example, badroot.example, introot.example, missroot.example, travroot.example
+alias.clienta.example.content_root: sites/clienta
+alias.clienta.example.site_name: Client A
+alias.clientb.example.content_root: sites/clientb
+alias.clientb.example.site_name: Client B
+alias.badroot.example.content_root: sites/evil
+alias.introot.example.content_root: lazysite/auth
+alias.missroot.example.content_root: sites/does-not-exist
+alias.travroot.example.content_root: ../../etc
+CONF
+
+sub _write {
+    my ( $path, $body ) = @_;
+    open my $fh, '>', $path or die "write $path: $!";
+    print {$fh} $body;
+    close $fh;
+}
+
+# =========================================================================
+# Functional: each domain serves its own subtree as '/'.
+# =========================================================================
+{
+    my $out = run_processor( $docroot, '/index', HTTP_HOST => 'clienta.example' );
+    like( $out, qr/Status: 200 OK/, 'client A / renders 200' );
+    like( $out, qr/CLIENT_A_HOME/,  'client A / serves its own subtree index' );
+    unlike( $out, qr/AGENCY_ROOT_HOME/, 'client A / does NOT serve the agency root index' );
+    unlike( $out, qr/CLIENT_B_HOME/,    'client A / does NOT serve client B' );
+}
+{
+    my $out = run_processor( $docroot, '/about', HTTP_HOST => 'clienta.example' );
+    like( $out, qr/CLIENT_A_ABOUT/, 'client A serves a deeper page in its subtree' );
+}
+{
+    my $out = run_processor( $docroot, '/index', HTTP_HOST => 'clientb.example' );
+    like( $out, qr/CLIENT_B_HOME/, 'client B / serves its own subtree' );
+    unlike( $out, qr/CLIENT_A_HOME/, 'client B / does not serve client A' );
+}
+
+# A page that exists only in B's tree is 404 on A's host (no cross-domain read).
+{
+    my $out = run_processor( $docroot, '/only-b', HTTP_HOST => 'clienta.example' );
+    unlike( $out, qr/CLIENT_B_ONLY/,  'B-only page is not served on client A' );
+    unlike( $out, qr/Status: 200 OK/, 'B-only page on A is not a 200' );
+}
+
+# Superset: an undeclared host (no content_root) is unchanged - docroot root.
+{
+    my $out = run_processor( $docroot, '/index', HTTP_HOST => 'agency.example' );
+    like( $out, qr/AGENCY_ROOT_HOME/, 'undeclared host serves docroot root (unchanged behaviour)' );
+}
+
+# =========================================================================
+# S1: no escape from the content root.
+# =========================================================================
+# Traversal in the request URI (sanitise_uri already strips it) - must not
+# climb into a sibling subtree.
+{
+    my $out = run_processor( $docroot, '/../clientb/index', HTTP_HOST => 'clienta.example' );
+    unlike( $out, qr/CLIENT_B_HOME/,  'traversal URI cannot reach a sibling subtree' );
+    unlike( $out, qr/Status: 200 OK/, 'traversal URI is not a 200' );
+}
+# A symlink inside A's tree that points back to the docroot root: the realpath
+# confinement must reject it (would otherwise serve the agency index).
+{
+    my $out = run_processor( $docroot, '/escape/index', HTTP_HOST => 'clienta.example' );
+    unlike( $out, qr/AGENCY_ROOT_HOME/, 'in-tree symlink escaping the content root is denied' );
+    unlike( $out, qr/Status: 200 OK/, 'symlink-escape request is not a 200' );
+}
+# A content_root that is a symlink OUT of the docroot: rejected -> fall back to
+# the docroot root; the outside tree is never served.
+{
+    my $out = run_processor( $docroot, '/evil', HTTP_HOST => 'badroot.example' );
+    unlike( $out, qr/OUTSIDE_CONTENT/, 'content_root symlinked outside the docroot is not served' );
+}
+# A content_root with traversal is rejected before touching the filesystem.
+{
+    my $out = run_processor( $docroot, '/index', HTTP_HOST => 'travroot.example' );
+    like( $out, qr/AGENCY_ROOT_HOME/, 'traversal content_root degrades to docroot root' );
+}
+
+# =========================================================================
+# S2: the lazysite/ management tree is never reachable through a domain root.
+# =========================================================================
+{
+    # content_root: lazysite/auth is rejected -> docroot-root fallback.
+    my $out = run_processor( $docroot, '/index', HTTP_HOST => 'introot.example' );
+    unlike( $out, qr/TOP_SECRET_MATERIAL/, 'content_root into lazysite/ never serves secrets' );
+    like( $out, qr/AGENCY_ROOT_HOME/, 'content_root into lazysite/ degrades to docroot root' );
+}
+{
+    # Even asking for the secret by name through that host must not serve it.
+    my $out = run_processor( $docroot, '/secret', HTTP_HOST => 'introot.example' );
+    unlike( $out, qr/TOP_SECRET_MATERIAL/, 'secret is not served by name through a lazysite-rooted host' );
+}
+
+# =========================================================================
+# S6: bad/missing roots degrade safely and in isolation.
+# =========================================================================
+{
+    my $out = run_processor( $docroot, '/index', HTTP_HOST => 'missroot.example' );
+    unlike( $out, qr/Status: 5\d\d/, 'missing content_root does not 500' );
+    like( $out, qr/AGENCY_ROOT_HOME/, 'missing content_root degrades to docroot root' );
+}
+# Fault isolation: after hitting every broken domain, a good domain still works.
+{
+    run_processor( $docroot, '/index', HTTP_HOST => 'badroot.example' );
+    run_processor( $docroot, '/index', HTTP_HOST => 'introot.example' );
+    my $out = run_processor( $docroot, '/index', HTTP_HOST => 'clienta.example' );
+    like( $out, qr/CLIENT_A_HOME/, 'a good domain still serves after broken siblings were hit' );
+}
+
+done_testing();

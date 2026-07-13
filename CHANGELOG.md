@@ -18,6 +18,18 @@ Keying
 
 ## Unreleased
 
+Multi-site: per-domain content roots (SM151 P1)
+: First-class multi-site under one instance - an alias host can be rooted at
+  its own content subtree with `alias.<host>.content_root`, so one docroot,
+  one auth store and one AI/MCP endpoint serve many domains that each present
+  as an independent site. `content_root` and `site_url` join the SM110 alias
+  override whitelist. The served path is confined under the domain's content
+  root (`confine_content_root()` + tightened realpath checks): a root can never
+  escape the docroot or reach the `lazysite/` management tree, and a bad or
+  missing root degrades that host to the docroot root with a WARN rather than
+  failing. Adversarial gate: `t/integration/17-multisite-content-root.t`.
+  Per-domain SEO, search and the manager view land in later phases.
+
 ## 0.7.13 - STABLE: public QR component + manager polish from the demo review (2026-07-12)
 
 Manager polish: click-to-configure names, no group-edit reloads, clearer wording (SM150)
