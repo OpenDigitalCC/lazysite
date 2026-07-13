@@ -57,6 +57,15 @@ _write( "$docroot/sites/clienta/about.md", "---\ntitle: A2\nregister:\n  - sitem
 _write( "$docroot/sites/clientb/index.md",  "---\ntitle: B\nregister:\n  - sitemap.xml\n---\nCLIENT_B_HOME\n" );
 _write( "$docroot/sites/clientb/only-b.md", "---\ntitle: B2\nregister:\n  - sitemap.xml\n---\nCLIENT_B_ONLY\n" );
 
+# Per-domain search endpoints (P4): each scans /**/*.md, which must resolve
+# against the requesting domain's own content root.
+my $find_page =
+      "---\ntitle: Find\napi: true\ncontent_type: text/plain\n"
+    . "tt_page_var:\n  results: scan:/**/*.md sort=filename\n---\n"
+    . "[% FOREACH p IN results %]URL:[% p.url %]\n[% END %]\n";
+_write( "$docroot/sites/clienta/find.md", $find_page );
+_write( "$docroot/sites/clientb/find.md", $find_page );
+
 # Content OUTSIDE the docroot, reached by a symlink inside sites/ (S1/S2).
 _write( "$outside/evil.md", "---\ntitle: E\n---\nOUTSIDE_CONTENT\n" );
 symlink( $outside, "$docroot/sites/evil" )
@@ -246,6 +255,26 @@ sub _slurp {
         'B sitemap lists the B-only page with B site_url' );
     unlike( $b, qr{clienta|www\.clienta},
         'B sitemap contains none of client A' );
+}
+
+# =========================================================================
+# P4: per-domain search is boxed to the requesting domain's content root -
+# a search on one domain never returns another domain's pages, and result
+# URLs are domain-relative.
+# =========================================================================
+{
+    my $out = run_processor( $docroot, '/find', HTTP_HOST => 'clienta.example' );
+    like( $out, qr{URL:/about\b}, 'client A search includes its own /about' );
+    like( $out, qr{^URL:/$}m,     'client A search includes its own index (/)' );
+    unlike( $out, qr{only-b|clientb|CLIENT_B},
+        'client A search excludes every client B page' );
+    unlike( $out, qr{URL:/sites/},
+        'client A search URLs are domain-relative, not docroot-relative' );
+}
+{
+    my $out = run_processor( $docroot, '/find', HTTP_HOST => 'clientb.example' );
+    like( $out, qr{URL:/only-b\b}, 'client B search includes its B-only page' );
+    unlike( $out, qr{URL:/about\b}, 'client B search excludes client A /about' );
 }
 
 done_testing();

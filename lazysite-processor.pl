@@ -138,6 +138,10 @@ my $TT_COMPILE_DIR   = "$CACHE_BASE/tt";       # P-4 TT on-disk compile cache
 my $HOST_CACHE_DIR   = "$CACHE_BASE/hosts";    # SM110 phase 2: per-alias-host page cache
 my %AUTH_CONTEXT;    # populated by main() auth check, read by render_content()
 my %ACCESS_REC;      # SM140: per-request outcome for the first-party access log
+my $REQUEST_CROOT;    # SM151: the request's confined content root (undef => docroot),
+                      # set by main(), read by resolve_scan() so per-domain search is
+                      # boxed to the requesting domain's subtree without re-entering
+                      # resolve_site_vars (which calls resolve_scan for conf directives)
 
 # Built-in fallback template - used when no layout.tt is found
 my $FALLBACK_LAYOUT = <<'END_FALLBACK';
@@ -989,6 +993,10 @@ sub main {
             }
         }
     }
+
+    # SM151: publish the content root for this request so resolve_scan() (search)
+    # boxes its glob to this domain's subtree. Set here, after confinement.
+    $REQUEST_CROOT = $croot;
 
     my $md_path   = "$croot/$base.md";
     my $url_path  = "$croot/$base.url";
@@ -2848,6 +2856,7 @@ sub resolve_tt_vars {
     sub reset_request_state {
         %_site_vars_cache  = ();
         $_site_vars_loaded = 0;
+        undef $REQUEST_CROOT;    # SM151: recomputed per request in main()
         _reset_peek_cache();
     }
 }
@@ -2964,11 +2973,16 @@ sub resolve_scan {
         $sort_field = 'filename' unless $sort_field =~ /^\w+$/;
     }
 
-    # Pattern must be docroot-relative starting with /
+    # Pattern must be root-relative starting with /
     return [] unless $pattern =~ m{^/};
 
+    # SM151: box the scan to the requesting domain's content root (the domain's
+    # '/'), so search on one domain never returns another's pages. Falls back to
+    # the docroot for the primary host / when no content_root is in effect.
+    my $scan_root = $REQUEST_CROOT // $DOCROOT;
+
     # Build filesystem glob pattern
-    my $fs_pattern = $DOCROOT . $pattern;
+    my $fs_pattern = $scan_root . $pattern;
 
     # Limit to .md files only
     return [] unless $fs_pattern =~ /\.md$/;
@@ -2990,6 +3004,10 @@ sub resolve_scan {
                     next if $entry =~ /^\./;
                     my $path = "$dir/$entry";
                     if ( -d $path ) {
+                        # SM151: don't follow symlinked dirs - a symlink could
+                        # cycle (hanging the walk) or escape the content root
+                        # (leaking a sibling domain's pages into search).
+                        next if -l $path;
                         push @queue, $path;
                     }
                     elsif ( $entry =~ $file_re ) {
@@ -3012,17 +3030,19 @@ sub resolve_scan {
 
     my @pages;
     for my $path ( sort @files ) {
-        # Realpath check
+        # Realpath check - confined to the scan root (the domain's content root,
+        # or the docroot), so a symlinked file cannot escape the domain (SM151).
         my $real = realpath($path);
-        next unless defined $real && index($real, $DOCROOT) == 0;
+        next unless defined $real && index( $real, $scan_root ) == 0;
         next unless -f $real;
 
         # Read front matter
         my $raw = read_file($path);
         my ( $meta, undef ) = parse_yaml_front_matter($raw);
 
-        # Derive URL
-        ( my $url = $path ) =~ s{^\Q$DOCROOT\E}{};
+        # Derive URL relative to the scan root, so a boxed domain's results
+        # carry that domain's own '/'-relative paths (SM151).
+        ( my $url = $path ) =~ s{^\Q$scan_root\E}{};
         $url =~ s/\.md$//;
         $url =~ s{/index$}{/};
 

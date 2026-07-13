@@ -3,7 +3,7 @@ title: "SM151 - First-class multi-site: many domains, one instance, one login"
 subtitle: "Per-domain content roots, SEO and search on top of the SM110 alias plane"
 brand: plain
 status: partial
-status-note: "spec approved 2026-07-13; P1 (content_root routing + confinement, S1/S2/S6), P2 (per-host site_url + canonical) and P3 (per-domain registries: sitemap/feeds scoped to and written into each content root, symlink-safe scanner) built on branch claude/multisite, gated by t/integration/17-multisite-content-root.t. Remaining: P4 boxed search, P5 Domains manager view + Host in access log. Subsumes SM110 phase 3; distinct from SM075."
+status-note: "spec approved 2026-07-13; P1 (content_root routing + confinement, S1/S2/S6), P2 (per-host site_url + canonical), P3 (per-domain registries, symlink-safe scanner) and P4 (per-domain boxed search) built on branch claude/multisite, gated by t/integration/17-multisite-content-root.t. Remaining: P5 Domains manager view + Host in access log. Subsumes SM110 phase 3; distinct from SM075."
 ---
 
 ::: widebox

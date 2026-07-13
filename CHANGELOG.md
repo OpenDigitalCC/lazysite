@@ -35,9 +35,13 @@ Multi-site: per-domain content roots (SM151 P1)
   sitemap/feeds written into its subtree, listing just its own pages with
   content-root-relative URLs and its own `site_url`; the page scanner no
   longer follows symlinked directories (no cycles, no cross-domain leak) and
-  never indexes the `lazysite/` tree. Adversarial gate:
+  never indexes the `lazysite/` tree. Search (`scan:` directives) is boxed
+  to the requesting domain's content root, so a search on one domain never
+  returns another's pages and result URLs are domain-relative; the scan
+  root is published per request and the scanner shares the same symlink
+  safety and realpath confinement. Adversarial gate:
   `t/integration/17-multisite-content-root.t`.
-  Boxed per-domain search and the manager Domains view land in later phases.
+  The manager Domains view + Host in the access log land in the final phase.
 
 ## 0.7.13 - STABLE: public QR component + manager polish from the demo review (2026-07-12)
 
