@@ -44,8 +44,13 @@ Multi-site: many first-class domains under one instance (SM151)
   (`domains-list` control-API action, `manage_config`-gated for token
   clients), and each first-party access-log line now records the requesting
   Host so per-domain visitor stats are possible later. Aliases stay operator
-  conf-file territory (the manager displays, never edits, them). Adversarial
-  gate: `t/integration/17-multisite-content-root.t`; API gate:
+  conf-file territory (the manager displays, never edits, them). Static files
+  under a content root (sitemap, feeds, robots, images, css, downloads) are
+  served by the processor from that subtree with a content-type by extension
+  (binary-safe, confined) - so each domain's own SEO artefacts and assets
+  serve at its URL, not just its rendered pages; a per-Host web-server rewrite
+  can serve them directly in production. Adversarial gate:
+  `t/integration/17-multisite-content-root.t`; API gate:
   `t/unit/manager/23-manager-read-actions.t`.
 
 ## 0.7.13 - STABLE: public QR component + manager polish from the demo review (2026-07-12)

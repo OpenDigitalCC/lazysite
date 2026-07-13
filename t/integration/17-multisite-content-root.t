@@ -49,10 +49,14 @@ _write( "$docroot/index.md", "---\ntitle: Agency\n---\nAGENCY_ROOT_HOME\n" );
 _write( "$docroot/404.md",   "---\ntitle: NF\n---\nAGENCY_404\n" );
 # A secret that must NEVER be reachable through any domain root (S2).
 _write( "$docroot/lazysite/auth/secret", "TOP_SECRET_MATERIAL\n" );
+# A static file at the bare docroot root - must NOT leak onto an alias host (P6).
+_write( "$docroot/agency-only.txt", "AGENCY_ONLY_ASSET\n" );
 
 # Client A subtree. Pages register for the sitemap (P3).
 _write( "$docroot/sites/clienta/index.md", "---\ntitle: A\nregister:\n  - sitemap.xml\n---\nCLIENT_A_HOME\n" );
 _write( "$docroot/sites/clienta/about.md", "---\ntitle: A2\nregister:\n  - sitemap.xml\n---\nCLIENT_A_ABOUT\n" );
+# A static asset in client A's subtree (P6: should serve at the domain URL).
+_write( "$docroot/sites/clienta/logo.svg", "<svg>CLIENT_A_LOGO</svg>\n" );
 # Client B subtree (has a page that A does not).
 _write( "$docroot/sites/clientb/index.md",  "---\ntitle: B\nregister:\n  - sitemap.xml\n---\nCLIENT_B_HOME\n" );
 _write( "$docroot/sites/clientb/only-b.md", "---\ntitle: B2\nregister:\n  - sitemap.xml\n---\nCLIENT_B_ONLY\n" );
@@ -288,6 +292,37 @@ sub _slurp {
     my $lines = _slurp( $log // '' );
     like( $lines, qr{"h":"clienta\.example"},
         'access log line records the requesting host' );
+}
+
+# =========================================================================
+# P6: the processor serves static files (sitemap, feeds, assets) from the
+# domain's content root - so each domain's own SEO artefacts and assets serve
+# at its URL - confined to the content root.
+# =========================================================================
+{
+    my $out = run_processor( $docroot, '/sitemap.xml', HTTP_HOST => 'clienta.example' );
+    like( $out, qr{Status: 200 OK},                     'client A /sitemap.xml served' );
+    like( $out, qr{Content-type: application/xml},      'sitemap served with an xml content-type' );
+    like( $out, qr{https://www\.clienta\.example/about}, 'the served sitemap is client A\x27s own' );
+    unlike( $out, qr{clientb|only-b},                    'served sitemap has none of client B' );
+}
+{
+    my $out = run_processor( $docroot, '/logo.svg', HTTP_HOST => 'clienta.example' );
+    like( $out, qr{Content-type: image/svg\+xml}, 'a subtree asset serves with its own content-type' );
+    like( $out, qr{CLIENT_A_LOGO},                'the asset body is client A\x27s' );
+}
+{
+    # A static file at the bare docroot root must NOT leak onto an alias host:
+    # the alias is confined to its content root, where the file does not exist.
+    my $out = run_processor( $docroot, '/agency-only.txt', HTTP_HOST => 'clienta.example' );
+    unlike( $out, qr{AGENCY_ONLY_ASSET}, 'a docroot-root static does not leak onto an alias host' );
+    unlike( $out, qr{Status: 200 OK},    'the docroot-root static is not served on the alias host' );
+}
+{
+    # Client B has no logo.svg - an alias must not serve a sibling's asset.
+    my $out = run_processor( $docroot, '/logo.svg', HTTP_HOST => 'clientb.example' );
+    unlike( $out, qr{CLIENT_A_LOGO},  'client B does not serve client A\x27s asset' );
+    unlike( $out, qr{Status: 200 OK}, 'client B has no such asset' );
 }
 
 done_testing();

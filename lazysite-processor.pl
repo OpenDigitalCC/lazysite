@@ -287,6 +287,31 @@ my %ENV_ALLOWLIST = map { $_ => 1 } qw(
 my %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
     qw(site_name theme layout nav_file search_default content_root site_url);
 
+# SM151 P6: content-type by extension for per-domain static files served by the
+# processor (_serve_content_static). Kept small - the SEO artefacts
+# (xml/rss/atom/txt) plus common web assets; anything unlisted falls back to
+# octet-stream (a safe download). Declared here in the config block so it is
+# initialised before the request is dispatched.
+my %STATIC_CT = (
+    xml   => 'application/xml; charset=utf-8',
+    rss   => 'application/rss+xml; charset=utf-8',
+    atom  => 'application/atom+xml; charset=utf-8',
+    txt   => 'text/plain; charset=utf-8',
+    json  => 'application/json; charset=utf-8',
+    css   => 'text/css; charset=utf-8',
+    js    => 'text/javascript; charset=utf-8',
+    svg   => 'image/svg+xml',
+    png   => 'image/png',
+    jpg   => 'image/jpeg',
+    jpeg  => 'image/jpeg',
+    gif   => 'image/gif',
+    webp  => 'image/webp',
+    ico   => 'image/x-icon',
+    pdf   => 'application/pdf',
+    woff  => 'font/woff',
+    woff2 => 'font/woff2',
+);
+
 # --- Auth ---
 
 {
@@ -1230,6 +1255,17 @@ sub main {
         }
     }
 
+    # SM151 P6: per-domain static files. On a content-rooted host, a request for
+    # a real static file under the content root (sitemap.xml, feed.rss, robots.txt,
+    # images, css, downloads) is served from that subtree with a content-type from
+    # its extension - so each domain's own SEO artefacts and assets serve at its
+    # URL. Production fronts serve these directly or via a per-host vhost rewrite;
+    # this is the portable net (dev server / FallbackResource-only fronts). Gated
+    # on $croot ne $DOCROOT so the primary docroot's behaviour is unchanged.
+    if ( $croot ne $DOCROOT && _serve_content_static( $croot, $base ) ) {
+        return;
+    }
+
     # SM134: alias redirects. A page may declare `aliases:` (old/alternate URLs);
     # those are maintained in lazysite/aliases.json. Only when nothing else matched,
     # a requested path that is a known alias redirects to the canonical page - 301
@@ -1360,6 +1396,40 @@ sub confine_content_root {
         && ( $abs eq $lzdir || index( $abs, "$lzdir/" ) == 0 );
 
     return $abs;
+}
+
+# Serve a static file that lives under the domain's content root (SM151 P6).
+# Returns 1 when it served a file, 0 otherwise. Only extensioned files are
+# considered (clean page URLs are extensionless and handled by the .md path).
+# Binary-safe (raw read/write). Confined to $root via realpath, so a symlink
+# under the content root cannot escape it.
+sub _serve_content_static {
+    my ( $root, $rel ) = @_;
+    return 0 unless length $rel;
+    my ($ext) = $rel =~ /\.([A-Za-z0-9]+)\z/;
+    return 0 unless defined $ext;
+
+    my $path = "$root/$rel";
+    return 0 unless -f $path;
+    my $real = realpath($path);
+    return 0 unless defined $real && index( $real, "$root/" ) == 0;
+
+    open my $fh, '<', $real or return 0;
+    binmode $fh;
+    my $data = do { local $/; <$fh> };
+    close $fh;
+
+    my $ct = $STATIC_CT{ lc $ext } || 'application/octet-stream';
+    $ACCESS_REC{s} //= 200;
+    $ACCESS_REC{b} = length( $data // '' );
+    binmode(STDOUT);
+    print "Status: 200 OK\n";
+    print "Content-type: $ct\n";
+    print "X-Content-Type-Options: nosniff\n";
+    print "Cache-Control: no-cache, must-revalidate\n";
+    print "\n";
+    print $data;
+    return 1;
 }
 
 sub process_md {
