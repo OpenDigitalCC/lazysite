@@ -3172,13 +3172,23 @@ sub resolve_scan {
     my $_has_registries;    # undef = not yet probed
 
     sub update_registries {
-        # SM110: registries are shared, site-global artefacts written into
-        # the docroot (sitemap, search index, feeds). Never regenerate them
-        # from an alias-host request - the overlaid vars (site_name etc.)
-        # would be baked into files the primary host serves. The next
-        # primary-host render refreshes them as usual.
-        my %sv = resolve_site_vars();
-        return if $sv{alias_host};
+        # SM110/SM151: registries (sitemap, feeds, llms.txt) are generated per
+        # content root. A host with its OWN content_root gets first-class
+        # registries - scanned from and written INTO its subtree, with its own
+        # per-host site_url - so each domain has a correct sitemap/feeds of just
+        # its own pages. A host that is an alias WITHOUT a content root shares
+        # the docroot (SM110 chrome-only alias); it is still skipped, or its
+        # overlaid vars (site_name etc.) would bake into the docroot-shared
+        # registries the primary serves. The primary host - with or without a
+        # base content_root - generates as before.
+        my %sv       = resolve_site_vars();
+        my $root     = $DOCROOT;
+        my $has_root = 0;
+        if ( defined $sv{content_root} && length $sv{content_root} ) {
+            my $c = confine_content_root( $DOCROOT, $sv{content_root} );
+            if ( defined $c ) { $root = $c; $has_root = 1; }
+        }
+        return if $sv{alias_host} && !$has_root;
 
         if ( !defined $_has_registries ) {
             if ( -d $REGISTRY_DIR ) {
@@ -3199,86 +3209,102 @@ sub resolve_scan {
 
         return unless @templates;
 
-    # Check if any registry needs updating
-    my $needs_update = 0;
-    for my $tmpl (@templates) {
-        ( my $output_name = $tmpl ) =~ s/\.tt$//;
-        my $output_path = "$DOCROOT/$output_name";
-        if ( !-f $output_path
-            || ( time() - ( stat($output_path) )[9] ) >= $REGISTRY_TTL )
-        {
-            $needs_update = 1;
-            last;
+        # Check if any registry needs updating
+        my $needs_update = 0;
+        for my $tmpl (@templates) {
+            ( my $output_name = $tmpl ) =~ s/\.tt$//;
+            my $output_path = "$root/$output_name";
+            if ( !-f $output_path
+                || ( time() - ( stat($output_path) )[9] ) >= $REGISTRY_TTL )
+            {
+                $needs_update = 1;
+                last;
+            }
         }
-    }
-    return unless $needs_update;
+        return unless $needs_update;
 
-    # Scan all source pages
-    my @pages = scan_pages();
-    my %site_vars = resolve_site_vars();
+        # Scan the source pages of THIS content root only (SM151), so a domain's
+        # registries list just its own subtree with content-root-relative URLs.
+        my @pages     = scan_pages($root);
+        my %site_vars = resolve_site_vars();
 
         # Compile-cache dirs + .ttc files are minted during new()/process():
         # group-writable creation whichever identity renders first (_cache_umask).
         my $old_umask = _cache_umask();
-    make_path($TT_COMPILE_DIR) unless -d $TT_COMPILE_DIR;
-    my $tt = Template->new(
-        ABSOLUTE    => 1,
-        ENCODING    => 'utf8',
-        EVAL_PERL   => 0,               # L-2
-        COMPILE_DIR => $TT_COMPILE_DIR, # P-4
-        COMPILE_EXT => '.ttc',          # P-4
+        make_path($TT_COMPILE_DIR) unless -d $TT_COMPILE_DIR;
+        my $tt = Template->new(
+            ABSOLUTE    => 1,
+            ENCODING    => 'utf8',
+            EVAL_PERL   => 0,                  # L-2
+            COMPILE_DIR => $TT_COMPILE_DIR,    # P-4
+            COMPILE_EXT => '.ttc',             # P-4
         ) or do { umask $old_umask; return };
 
-    for my $tmpl (@templates) {
-        ( my $output_name = $tmpl ) =~ s/\.tt$//;
-        my $output_path  = "$DOCROOT/$output_name";
-        my $tmpl_path    = "$REGISTRY_DIR/$tmpl";
+        for my $tmpl (@templates) {
+            ( my $output_name = $tmpl ) =~ s/\.tt$//;
+            my $output_path = "$root/$output_name";
+            my $tmpl_path   = "$REGISTRY_DIR/$tmpl";
 
-        # Check this specific registry needs updating
-        next if -f $output_path
-            && ( time() - ( stat($output_path) )[9] ) < $REGISTRY_TTL;
+            # Check this specific registry needs updating
+            next if -f $output_path
+                && ( time() - ( stat($output_path) )[9] ) < $REGISTRY_TTL;
 
-        # Filter pages registered for this registry
-        my $registry_name = $output_name;
-        my @registered = grep {
-            my $page = $_;
-            grep { $_ eq $registry_name } @{ $page->{register} || [] }
-        } @pages;
+            # Filter pages registered for this registry
+            my $registry_name = $output_name;
+            my @registered    = grep {
+                my $page = $_;
+                grep { $_ eq $registry_name } @{ $page->{register} || [] }
+            } @pages;
 
-        my $vars = {
-            %site_vars,
-            pages => \@registered,
-        };
+            my $vars = {
+                %site_vars,
+                pages => \@registered,
+            };
 
-        my $output = '';
-        $tt->process( $tmpl_path, $vars, \$output ) or do {
-            log_event("ERROR", "-", "registry template error", tmpl => $tmpl, error => $tt->error());
-            next;
-        };
+            my $output = '';
+            $tt->process( $tmpl_path, $vars, \$output ) or do {
+                log_event( "ERROR", "-", "registry template error", tmpl => $tmpl, error => $tt->error() );
+                next;
+            };
 
-        open( my $fh, '>:utf8', $output_path ) or do {
-            log_event("WARN", "-", "cannot write registry", path => $output_path, error => $!);
-            next;
-        };
-        print $fh $output;
-        close $fh;
-    }
+            open( my $fh, '>:utf8', $output_path ) or do {
+                log_event( "WARN", "-", "cannot write registry", path => $output_path, error => $! );
+                next;
+            };
+            print $fh $output;
+            close $fh;
+        }
         umask $old_umask;
-}
-}   # close P-3 _has_registries memo block
+    }
+}    # close P-3 _has_registries memo block
 
 sub scan_pages {
+    # SM151: scan a specific content root (default: the docroot). URLs are
+    # derived relative to $root so a per-domain registry carries the domain's
+    # own '/'-relative links.
+    my ($root) = @_;
+    $root //= $DOCROOT;
+
     my @pages;
 
-    # Find all .md and .url files recursively under docroot
-    my @queue = ($DOCROOT);
+    # Find all .md and .url files recursively under the root
+    my @queue = ($root);
     while ( my $dir = shift @queue ) {
         opendir( my $dh, $dir ) or next;
         for my $entry ( sort readdir($dh) ) {
             next if $entry =~ /^\./;
             next if $entry =~ /\.brief$/;   # SM073: briefs never index
             my $path = "$dir/$entry";
+            # Never index the lazysite/ management tree (auth, templates,
+            # cache); relevant when $root is the bare docroot.
+            next if $path eq $LAZYSITE_DIR;
             if ( -d $path ) {
+                # SM151: do not follow symlinked directories - a symlink can
+                # form a cycle (which would hang the walk) or escape the
+                # content root (which would leak a sibling domain's pages into
+                # this domain's registries). Page serving is realpath-confined
+                # (P1); the scanner simply refuses to traverse symlinked dirs.
+                next if -l $path;
                 push @queue, $path;
             }
             elsif ( $entry =~ /\.(md|url)$/ ) {
@@ -3307,8 +3333,8 @@ sub scan_pages {
                     }
                 }
 
-                # Derive URL from path
-                ( my $url = $path ) =~ s{^\Q$DOCROOT\E}{};
+                # Derive URL from path, relative to the scanned root (SM151)
+                ( my $url = $path ) =~ s{^\Q$root\E}{};
                 $url =~ s/\.md$//;
                 $url =~ s{/index$}{/};
 

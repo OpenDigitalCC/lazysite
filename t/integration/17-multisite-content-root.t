@@ -31,8 +31,18 @@ my $outside = tempdir( CLEANUP => 1 );    # a tree OUTSIDE the docroot
 
 make_path("$docroot/lazysite/cache");
 make_path("$docroot/lazysite/auth");
+make_path("$docroot/lazysite/templates/registries");
 make_path("$docroot/sites/clienta");
 make_path("$docroot/sites/clientb");
+
+# A minimal per-domain sitemap registry template (P3). Emits each registered
+# page's absolute URL from the per-host site_url + content-root-relative url.
+_write( "$docroot/lazysite/templates/registries/sitemap.xml.tt", <<'TT' );
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset>[% FOREACH p IN pages %]
+<url><loc>[% site_url %][% p.url %]</loc></url>[% END %]
+</urlset>
+TT
 
 # Agency root (what a domain with no/invalid content_root falls back to).
 _write( "$docroot/index.md", "---\ntitle: Agency\n---\nAGENCY_ROOT_HOME\n" );
@@ -40,12 +50,12 @@ _write( "$docroot/404.md",   "---\ntitle: NF\n---\nAGENCY_404\n" );
 # A secret that must NEVER be reachable through any domain root (S2).
 _write( "$docroot/lazysite/auth/secret", "TOP_SECRET_MATERIAL\n" );
 
-# Client A subtree.
-_write( "$docroot/sites/clienta/index.md", "---\ntitle: A\n---\nCLIENT_A_HOME\n" );
-_write( "$docroot/sites/clienta/about.md", "---\ntitle: A2\n---\nCLIENT_A_ABOUT\n" );
+# Client A subtree. Pages register for the sitemap (P3).
+_write( "$docroot/sites/clienta/index.md", "---\ntitle: A\nregister:\n  - sitemap.xml\n---\nCLIENT_A_HOME\n" );
+_write( "$docroot/sites/clienta/about.md", "---\ntitle: A2\nregister:\n  - sitemap.xml\n---\nCLIENT_A_ABOUT\n" );
 # Client B subtree (has a page that A does not).
-_write( "$docroot/sites/clientb/index.md",  "---\ntitle: B\n---\nCLIENT_B_HOME\n" );
-_write( "$docroot/sites/clientb/only-b.md", "---\ntitle: B2\n---\nCLIENT_B_ONLY\n" );
+_write( "$docroot/sites/clientb/index.md",  "---\ntitle: B\nregister:\n  - sitemap.xml\n---\nCLIENT_B_HOME\n" );
+_write( "$docroot/sites/clientb/only-b.md", "---\ntitle: B2\nregister:\n  - sitemap.xml\n---\nCLIENT_B_ONLY\n" );
 
 # Content OUTSIDE the docroot, reached by a symlink inside sites/ (S1/S2).
 _write( "$outside/evil.md", "---\ntitle: E\n---\nOUTSIDE_CONTENT\n" );
@@ -76,6 +86,15 @@ sub _write {
     open my $fh, '>', $path or die "write $path: $!";
     print {$fh} $body;
     close $fh;
+}
+
+sub _slurp {
+    my ($path) = @_;
+    open my $fh, '<', $path or return '';
+    local $/;
+    my $c = <$fh>;
+    close $fh;
+    return $c // '';
 }
 
 # =========================================================================
@@ -199,6 +218,34 @@ sub _write {
     my $out = run_processor( $docroot, '/index', HTTP_HOST => 'agency.example' );
     like( $out, qr{<link rel="canonical" href="https://agency\.example/">},
         'undeclared host canonical uses the base site_url' );
+}
+
+# =========================================================================
+# P3: per-domain registries. Each domain's sitemap is written INTO its own
+# content root, lists only that subtree, and uses the domain's own site_url.
+# The sitemaps are generated as a side effect of the render tests above.
+# =========================================================================
+{
+    my $smA = "$docroot/sites/clienta/sitemap.xml";
+    ok( -f $smA, 'client A sitemap is written into its own content root' );
+    my $a = _slurp($smA);
+    like( $a, qr{https://www\.clienta\.example/</loc>},
+        'A sitemap uses A site_url with its index collapsed to /' );
+    like( $a, qr{https://www\.clienta\.example/about},
+        'A sitemap lists A about page' );
+    unlike( $a, qr{clientb|CLIENT_B|/only-b},
+        'A sitemap contains none of client B' );
+    unlike( $a, qr{/sites/|/escape/},
+        'A sitemap did not leak the docroot via the escape symlink' );
+}
+{
+    my $smB = "$docroot/sites/clientb/sitemap.xml";
+    ok( -f $smB, 'client B sitemap is written into its own content root' );
+    my $b = _slurp($smB);
+    like( $b, qr{https://clientb\.example/only-b},
+        'B sitemap lists the B-only page with B site_url' );
+    unlike( $b, qr{clienta|www\.clienta},
+        'B sitemap contains none of client A' );
 }
 
 done_testing();

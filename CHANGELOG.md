@@ -30,8 +30,14 @@ Multi-site: per-domain content roots (SM151 P1)
   failing. Each domain also emits its own `<link rel="canonical">` in the head,
   driven by the resolved per-host `site_url` (a declared value, never the
   request Host), injected regardless of layout and deferring to a layout that
-  already emits one. Adversarial gate: `t/integration/17-multisite-content-root.t`.
-  Per-domain sitemap/feeds, boxed search and the manager view land in later phases.
+  already emits one. Registries (sitemap, feeds, llms.txt) are generated
+  per content root: a domain with its own `content_root` gets a first-class
+  sitemap/feeds written into its subtree, listing just its own pages with
+  content-root-relative URLs and its own `site_url`; the page scanner no
+  longer follows symlinked directories (no cycles, no cross-domain leak) and
+  never indexes the `lazysite/` tree. Adversarial gate:
+  `t/integration/17-multisite-content-root.t`.
+  Boxed per-domain search and the manager Domains view land in later phases.
 
 ## 0.7.13 - STABLE: public QR component + manager polish from the demo review (2026-07-12)
 

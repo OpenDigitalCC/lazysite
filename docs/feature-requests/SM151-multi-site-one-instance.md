@@ -3,7 +3,7 @@ title: "SM151 - First-class multi-site: many domains, one instance, one login"
 subtitle: "Per-domain content roots, SEO and search on top of the SM110 alias plane"
 brand: plain
 status: partial
-status-note: "spec approved 2026-07-13; P1 (content_root routing + confinement, S1/S2/S6) and P2 (per-host site_url + canonical link, layout-independent) built on branch claude/multisite, gated by t/integration/17-multisite-content-root.t. Remaining: P3 per-domain registries, P4 boxed search, P5 Domains manager view + Host in access log. Subsumes SM110 phase 3; distinct from SM075."
+status-note: "spec approved 2026-07-13; P1 (content_root routing + confinement, S1/S2/S6), P2 (per-host site_url + canonical) and P3 (per-domain registries: sitemap/feeds scoped to and written into each content root, symlink-safe scanner) built on branch claude/multisite, gated by t/integration/17-multisite-content-root.t. Remaining: P4 boxed search, P5 Domains manager view + Host in access log. Subsumes SM110 phase 3; distinct from SM075."
 ---
 
 ::: widebox
@@ -182,8 +182,21 @@ skipped on alias requests** (3094). SM151 makes them per-domain.
   the domain's `site_url`.
 - **Generation trigger.** Per-host registries regenerate on write within that
   subtree and on a TTL, keyed by host so one domain's refresh never stamps on
-  another's. The current "skip on alias" short-circuit (3094) is replaced by
-  "regenerate for this host's root".
+  another's. The "skip on alias" short-circuit is replaced by "generate for
+  this host's content root"; an alias with no content root (SM110 chrome-only)
+  is still skipped so its overlaid vars never bake into the docroot-shared
+  registries.
+- **Symlink safety.** The scanner does not follow symlinked directories - a
+  symlink could form a cycle (hanging the walk) or escape the content root
+  (leaking a sibling domain's pages into this sitemap) - and never indexes
+  `lazysite/`.
+- **Primary/bare-docroot caveat (as built).** A primary host with no
+  `content_root` still scans the whole docroot, so its own sitemap would list
+  every domain's pages under the primary host. A clean multi-site therefore
+  puts **every** domain - including the agency's own site - under its own
+  `content_root`, leaving the bare docroot for shared assets only. (A future
+  refinement could auto-exclude declared content-root subtrees from a
+  bare-docroot scan; not needed when every domain has a root.)
 
 ## 8. Search - boxed per domain
 
