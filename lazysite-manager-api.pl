@@ -319,6 +319,7 @@ if ( $token_auth ) {
         'preview-grant'     => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'config-set'        => sub { $_[0]->{manage_config} },
         'config-read'       => sub { $_[0]->{manage_config} },   # SM122: read a safe subset
+        'domains-list' => sub { $_[0]->{manage_config} },  # SM151: read-only domains view
         'bad-url-blocks'    => sub { $_[0]->{manage_config} }, # SM128: blocked-IP list
         'bad-url-unblock'   => sub { $_[0]->{manage_config} },
         'pages'             => sub { $_[0]->{manage_nav} },       # SM097: page-URL list for the nav editor
@@ -423,6 +424,7 @@ elsif ( $action eq 'preview' )          { $result = action_preview($path) }
 elsif ( $action eq 'cache-list' )       { $result = action_cache_list() }
 elsif ( $action eq 'cache-invalidate' ) { $result = action_cache_invalidate($path) }
 elsif ( $action eq 'config-read' )      { $result = action_config_read() }
+elsif ( $action eq 'domains-list' )     { $result = action_domains_list() }
 elsif ( $action eq 'config-set' )       {
     my $req = eval { decode_json($body) } // {};
     $result = action_config_set(
@@ -615,7 +617,7 @@ else  { $result = { ok => 0, error => "Unknown action: $action" } }
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
         csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
-        cache-invalidate nav-read aliases-list config-read bad-url-blocks recent-changes pages theme-list themes-list-all themes-for-layout
+        cache-invalidate nav-read aliases-list config-read domains-list bad-url-blocks recent-changes pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
@@ -1217,6 +1219,48 @@ sub action_config_read {
         close $fh;
     }
     return { ok => 1, config => \%out };
+}
+
+# SM151: read-only view of the domains this instance serves - the primary host
+# plus each declared alias, with the presentation/routing keys that vary per
+# host (an alias inherits the base value where it has no override). Parsed
+# straight from lazysite.conf; aliases are operator conf-file territory, so the
+# manager only displays them, never edits them.
+sub action_domains_list {
+    my @keys = qw(site_name site_url content_root theme layout nav_file search_default);
+    my %base;
+    my %ov;    # host => { key => value }
+    if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
+        while ( my $line = <$fh> ) {
+            if ( $line =~ /^alias\.(\S+)\.(\w+)\s*:\s*(.*?)\s*$/ ) {
+                $ov{ lc $1 }{$2} = $3;
+            }
+            elsif ( $line =~ /^(\w+)\s*:\s*(.*?)\s*$/ ) {
+                $base{$1} = $2;
+            }
+        }
+        close $fh;
+    }
+
+    my @domains;
+    push @domains,
+        {
+        host       => '(default)',
+        is_primary => 1,
+        map { $_ => ( $base{$_} // '' ) } @keys,
+        };
+    for my $h ( split /,/, ( $base{alias_hosts} // '' ) ) {
+        $h =~ s/^\s+|\s+$//g;
+        next unless length $h;
+        my %row = ( host => lc $h, is_primary => 0 );
+        for my $k (@keys) {
+            # An alias override wins; otherwise the host inherits the base value.
+            $row{$k} = defined $ov{ lc $h }{$k} ? $ov{ lc $h }{$k} : ( $base{$k} // '' );
+            $row{ $k . '_inherited' } = ( defined $ov{ lc $h }{$k} ) ? 0 : 1;
+        }
+        push @domains, \%row;
+    }
+    return { ok => 1, domains => \@domains, keys => \@keys };
 }
 
 sub action_config_set {

@@ -171,6 +171,7 @@ my %EXEMPT = (
         'notice-seen marker under lazysite/manager, not page content',
     'API::action_pages'                 => 'read-only',
     'API::action_config_read'           => 'read-only',
+    'API::action_domains_list'          => 'read-only',
     'API::action_describe_capabilities' => 'read-only',
     'API::action_whoami'                => 'read-only',
     'API::action_recent_changes'        => 'read-only',

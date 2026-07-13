@@ -187,4 +187,55 @@ open my $p2, '>', "$d/blog/post.md"  or die $!; print $p2 "# Post\n";  close $p2
     ok( !$r2->{changes}{'/blog/post'}, 'recent-changes: the window parameter narrows the result' );
 }
 
+# --- action_domains_list (SM151) --------------------------------------------
+{
+    # Declare a first-class alias (own content_root/site_url/theme) and a
+    # chrome-only alias (overrides site_name; inherits everything else).
+    open my $cf2, '>>', "$d/lazysite/lazysite.conf" or die $!;
+    print $cf2 "site_url: https://main.example\n"
+        . "alias_hosts: clienta.example, brand.example\n"
+        . "alias.clienta.example.content_root: sites/clienta\n"
+        . "alias.clienta.example.site_url: https://clienta.example\n"
+        . "alias.clienta.example.theme: harbour\n"
+        . "alias.brand.example.site_name: Brand\n";
+    close $cf2;
+
+    my $r = op_get( $d, 'action=domains-list' );
+    ok( $r->{ok}, 'domains-list: ok' );
+    my %by = map { $_->{host} => $_ } @{ $r->{domains} || [] };
+    ok( $by{'(default)'} && $by{'(default)'}{is_primary},
+        'domains-list: includes the primary/default host' );
+    ok( $by{'clienta.example'}, 'domains-list: includes a declared alias' );
+    is( $by{'clienta.example'}{content_root}, 'sites/clienta',
+        'domains-list: reports the per-domain content_root' );
+    is( $by{'clienta.example'}{site_url}, 'https://clienta.example',
+        'domains-list: reports the overridden site_url' );
+    is( $by{'clienta.example'}{theme}, 'harbour',
+        'domains-list: reports the overridden theme' );
+    ok( !$by{'clienta.example'}{theme_inherited},
+        'domains-list: inherited flag clear for an overridden key' );
+
+    is( $by{'brand.example'}{site_name}, 'Brand',
+        'domains-list: alias site_name override' );
+    is( $by{'brand.example'}{theme}, 'live',
+        'domains-list: an unoverridden key inherits the base value' );
+    ok( $by{'brand.example'}{theme_inherited},
+        'domains-list: inherited flag set for a non-overridden key' );
+
+    # UI presence: the Domains manager page fetches this action (lock-step).
+    open my $dp, '<', TestHelper::repo_root() . '/starter/manager/domains.md' or die $!;
+    my $page = do { local $/; <$dp> };
+    close $dp;
+    like( $page, qr/action=domains-list/, 'Domains page fetches domains-list' );
+
+    # Token gating: like config-read, domains-list is a benign conf read - open
+    # to any cookie manager, but a token client needs manage_config (%need). The
+    # action is registered in the token %need map so a capless token is refused.
+    open my $api, '<', TestHelper::repo_root() . '/lazysite-manager-api.pl' or die $!;
+    my $api_src = do { local $/; <$api> };
+    close $api;
+    like( $api_src, qr/'domains-list'\s*=>\s*sub\s*\{\s*\$_\[0\]->\{manage_config\}/,
+        'domains-list is gated to manage_config for token clients' );
+}
+
 done_testing();

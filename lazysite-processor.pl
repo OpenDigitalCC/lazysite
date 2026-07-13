@@ -4511,6 +4511,11 @@ sub _access_record {
         $line .= ',"r":"' . _access_field( $ref, 200 ) . '"' if length $ref;
         $line .= ',"c":1'                                    if $ACCESS_REC{c};
         $line .= ',"b":' . ( $ACCESS_REC{b} + 0 )            if defined $ACCESS_REC{b};
+        # SM151: the sanitised request Host, so multi-site (many domains under
+        # one docroot) can split visitor stats per domain later. DNS-shaped and
+        # capped; empty (primary / malformed Host) is simply omitted.
+        my $host = _request_host();
+        $line .= ',"h":"' . _access_field( $host, 253 ) . '"' if length $host;
         $line .= "}\n";
         sysopen( my $fh, $file, O_WRONLY | O_APPEND | O_CREAT, 0664 )
             or return 1;    # silent: lazysite-check owns the writability story

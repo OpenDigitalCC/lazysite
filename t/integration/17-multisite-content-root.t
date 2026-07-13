@@ -277,4 +277,17 @@ sub _slurp {
     unlike( $out, qr{URL:/about\b}, 'client B search excludes client A /about' );
 }
 
+# =========================================================================
+# P5: the first-party access log records the requesting Host, so per-domain
+# visitor stats are possible later (splitting is deferred; the field is not).
+# =========================================================================
+{
+    run_processor( $docroot, '/index', HTTP_HOST => 'clienta.example' );
+    my ($log) = glob("$docroot/lazysite/logs/access-*.jsonl");
+    ok( $log && -f $log, 'first-party access log is written' );
+    my $lines = _slurp( $log // '' );
+    like( $lines, qr{"h":"clienta\.example"},
+        'access log line records the requesting host' );
+}
+
 done_testing();

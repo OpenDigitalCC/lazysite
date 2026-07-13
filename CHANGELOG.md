@@ -18,7 +18,7 @@ Keying
 
 ## Unreleased
 
-Multi-site: per-domain content roots (SM151 P1)
+Multi-site: many first-class domains under one instance (SM151)
 : First-class multi-site under one instance - an alias host can be rooted at
   its own content subtree with `alias.<host>.content_root`, so one docroot,
   one auth store and one AI/MCP endpoint serve many domains that each present
@@ -39,9 +39,14 @@ Multi-site: per-domain content roots (SM151 P1)
   to the requesting domain's content root, so a search on one domain never
   returns another's pages and result URLs are domain-relative; the scan
   root is published per request and the scanner shares the same symlink
-  safety and realpath confinement. Adversarial gate:
-  `t/integration/17-multisite-content-root.t`.
-  The manager Domains view + Host in the access log land in the final phase.
+  safety and realpath confinement. A read-only **Domains** manager view
+  (System nav) lists the configured domains and their per-host keys
+  (`domains-list` control-API action, `manage_config`-gated for token
+  clients), and each first-party access-log line now records the requesting
+  Host so per-domain visitor stats are possible later. Aliases stay operator
+  conf-file territory (the manager displays, never edits, them). Adversarial
+  gate: `t/integration/17-multisite-content-root.t`; API gate:
+  `t/unit/manager/23-manager-read-actions.t`.
 
 ## 0.7.13 - STABLE: public QR component + manager polish from the demo review (2026-07-12)
 
