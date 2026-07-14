@@ -44,8 +44,18 @@ _write( "$docroot/lazysite/templates/registries/sitemap.xml.tt", <<'TT' );
 </urlset>
 TT
 
-# Agency root (what a domain with no/invalid content_root falls back to).
-_write( "$docroot/index.md", "---\ntitle: Agency\n---\nAGENCY_ROOT_HOME\n" );
+# Agency root (what a domain with no/invalid content_root falls back to). It is
+# registered so the bare-docroot sitemap has its OWN entry (proving §7 excludes
+# only the client subtrees, not the docroot-root pages).
+_write( "$docroot/index.md",
+    "---\ntitle: Agency\nregister:\n  - sitemap.xml\nsearchable: true\n---\nAGENCY_ROOT_HOME\n" );
+# A search endpoint at the bare docroot root (for the §7 search test). No
+# searchable filter, so only §7's directory exclusion (not the filter) keeps
+# the client subtrees out of the bare-host results.
+_write( "$docroot/find.md",
+    "---\ntitle: Find Agency\napi: true\ncontent_type: text/plain\n"
+        . "tt_page_var:\n  results: scan:/**/*.md sort=filename\n---\n"
+        . "[% FOREACH p IN results %]URL:[% p.url %]\n[% END %]\n" );
 _write( "$docroot/404.md",   "---\ntitle: NF\n---\nAGENCY_404\n" );
 # A secret that must NEVER be reachable through any domain root (S2).
 _write( "$docroot/lazysite/auth/secret", "TOP_SECRET_MATERIAL\n" );
@@ -341,6 +351,33 @@ sub _slurp {
     my $out = run_processor( $docroot, '/logo.svg', HTTP_HOST => 'clientb.example' );
     unlike( $out, qr{CLIENT_A_LOGO},  'client B does not serve client A\x27s asset' );
     unlike( $out, qr{Status: 200 OK}, 'client B has no such asset' );
+}
+
+# =========================================================================
+# §7: a bare-docroot host (no content_root) excludes every OTHER domain's
+# content root from its sitemap AND its search - so the primary/default host
+# never enumerates client subtrees. It still lists its OWN docroot-root pages.
+# =========================================================================
+{
+    # Trigger the bare-host sitemap (undeclared host scans the docroot).
+    run_processor( $docroot, '/index', HTTP_HOST => 'stranger.example' );
+    my $sm = _slurp("$docroot/sitemap.xml");
+    ok( length $sm, 'bare-docroot sitemap is generated' );
+    like( $sm, qr{https://agency\.example/</loc>},
+        'bare sitemap lists the agency root page (its own)' );
+    unlike( $sm, qr{clienta|clientb|/menu|/about|/only-b|CLIENT_},
+        'bare sitemap excludes every client subtree (§7)' );
+    unlike( $sm, qr{/sites/}, 'bare sitemap has no /sites/ paths' );
+}
+{
+    my $out = run_processor( $docroot, '/find', HTTP_HOST => 'stranger.example' );
+    like( $out, qr{^URL:/$}m, 'bare-host search includes the docroot-root index' );
+    # The DECLARED client roots (sites/clienta, sites/clientb) must not be
+    # traversed. Without §7 their pages would appear as /sites/clienta/menu etc.
+    # (a non-declared dir like sites/clienta-secret is legitimately still in the
+    # bare docroot's content - §7 excludes declared roots, not arbitrary dirs).
+    unlike( $out, qr{URL:/sites/client[ab]/},
+        'bare-host search does not traverse the declared client roots (§7)' );
 }
 
 done_testing();

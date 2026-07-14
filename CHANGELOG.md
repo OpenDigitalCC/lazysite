@@ -18,6 +18,17 @@ Keying
 
 ## Unreleased
 
+Multi-site: bare-docroot scan excludes other domains' content roots (SM151 §7)
+: A primary/default host with no `content_root` scanned the whole docroot, so
+  its sitemap and search enumerated every client subtree's pages. The page
+  scanner (`scan_pages` for registries, `resolve_scan` for search) now skips
+  any directory that is a declared content root - the base `content_root:` or
+  any `alias.<host>.content_root:` (`_declared_content_roots()`) - so a
+  bare/default host lists only its own docroot-root content, and no domain
+  lists a nested sub-domain's pages. Non-domain directories stay part of the
+  bare host's content. Single-site installs (no content roots declared) are
+  unchanged. Gate: `t/integration/17-multisite-content-root.t`.
+
 ## 0.7.14 - EDGE: multi-site (SM151) + Hestia fleet discovery + field fixes (2026-07-14)
 
 Fix: conf writes preserve mode/group; create-user keeps its picked groups

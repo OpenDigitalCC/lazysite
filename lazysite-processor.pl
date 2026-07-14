@@ -1364,6 +1364,28 @@ sub _path_under {
     return ( $real eq $root || index( $real, "$root/" ) == 0 ) ? 1 : 0;
 }
 
+# SM151 §7: the directories declared as content roots in lazysite.conf (the base
+# `content_root:` and every `alias.<host>.content_root:`), as absolute paths
+# under the docroot. A page scan skips any directory in this set that is not its
+# own scan root, so a bare-docroot host's sitemap/search never enumerates a
+# client subtree, and no domain lists a nested sub-domain's pages. Paths are the
+# plain "$DOCROOT/<rel>" string form (not realpath) to match the scan walk,
+# which builds "$dir/$entry" from the docroot down; symlinked dirs are already
+# skipped separately, so no symlink normalisation is needed here.
+sub _declared_content_roots {
+    my %roots;
+    return \%roots unless -f $CONF_FILE;
+    my $text = read_file($CONF_FILE);
+    return \%roots unless defined $text;
+    while ( $text =~ /^(?:alias\.\S+\.)?content_root\s*:\s*(.+?)\s*$/mg ) {
+        ( my $rel = $1 ) =~ s{^/+|/+$}{}g;
+        next unless length $rel;
+        next if $rel =~ m{(?:^|/)\.\.(?:/|$)};    # ignore traversal shapes
+        $roots{"$DOCROOT/$rel"} = 1;
+    }
+    return \%roots;
+}
+
 # SM151: resolve a per-domain content root to a confined absolute directory.
 # $content_root is the docroot-relative directory from lazysite.conf
 # (a base `content_root:` for the primary host, or a whitelisted
@@ -3065,6 +3087,7 @@ sub resolve_scan {
     # '/'), so search on one domain never returns another's pages. Falls back to
     # the docroot for the primary host / when no content_root is in effect.
     my $scan_root = $REQUEST_CROOT // $DOCROOT;
+    my $excl      = _declared_content_roots();    # §7: other domains' roots
 
     # Build filesystem glob pattern
     my $fs_pattern = $scan_root . $pattern;
@@ -3093,6 +3116,9 @@ sub resolve_scan {
                         # cycle (hanging the walk) or escape the content root
                         # (leaking a sibling domain's pages into search).
                         next if -l $path;
+                        # §7: never descend into ANOTHER domain's content root,
+                        # so a bare-docroot search excludes client subtrees.
+                        next if $excl->{$path} && $path ne $base;
                         push @queue, $path;
                     }
                     elsif ( $entry =~ $file_re ) {
@@ -3389,6 +3415,7 @@ sub scan_pages {
     # own '/'-relative links.
     my ($root) = @_;
     $root //= $DOCROOT;
+    my $excl = _declared_content_roots();    # §7: other domains' roots
 
     my @pages;
 
@@ -3410,6 +3437,9 @@ sub scan_pages {
                 # this domain's registries). Page serving is realpath-confined
                 # (P1); the scanner simply refuses to traverse symlinked dirs.
                 next if -l $path;
+                # §7: never descend into ANOTHER domain's content root - a
+                # bare-docroot host's sitemap must not enumerate client subtrees.
+                next if $excl->{$path} && $path ne $root;
                 push @queue, $path;
             }
             elsif ( $entry =~ /\.(md|url)$/ ) {

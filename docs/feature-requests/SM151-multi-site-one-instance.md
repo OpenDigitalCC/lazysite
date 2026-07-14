@@ -190,13 +190,15 @@ skipped on alias requests** (3094). SM151 makes them per-domain.
   symlink could form a cycle (hanging the walk) or escape the content root
   (leaking a sibling domain's pages into this sitemap) - and never indexes
   `lazysite/`.
-- **Primary/bare-docroot caveat (as built).** A primary host with no
-  `content_root` still scans the whole docroot, so its own sitemap would list
-  every domain's pages under the primary host. A clean multi-site therefore
-  puts **every** domain - including the agency's own site - under its own
-  `content_root`, leaving the bare docroot for shared assets only. (A future
-  refinement could auto-exclude declared content-root subtrees from a
-  bare-docroot scan; not needed when every domain has a root.)
+- **Bare-docroot exclusion (built).** A primary host with no `content_root`
+  scans the whole docroot, but the scan now **excludes every declared content
+  root** (`_declared_content_roots()`): the base `content_root:` and every
+  `alias.<host>.content_root:`. So a bare/default host's sitemap and search
+  never enumerate a client subtree, and no domain lists a nested sub-domain's
+  pages - the walk descends the bare docroot but skips any directory that is
+  another domain's root. Non-domain directories under the docroot remain part
+  of the bare host's own content. (A clean multi-site still gives every domain
+  its own `content_root`; this just makes the bare-host case safe by default.)
 
 ## 8. Search - boxed per domain
 
@@ -207,13 +209,11 @@ SM151 scopes the scan to the requesting domain's content root so a search on
 resolver (`resolve_scan()`, 2860-2890) roots its glob at the request's
 `content_root`; the per-host cache keeps each domain's index response separate.
 
-Same primary/bare-docroot caveat as the registries (§7, "as built"): a host
-with **no** `content_root` scans the whole docroot, so a search on the bare
-default host returns every domain's pages - the boxing guarantee holds only
-for a content-rooted host. A clean multi-site gives every domain (including
-the agency's own) its own `content_root`; the same future auto-exclude of
-declared content-root subtrees would close the bare-docroot case for both
-search and registries.
+The bare-docroot case is handled the same way as the registries (§7): a host
+with **no** `content_root` searches the whole docroot but **excludes every
+declared content root**, so a search on the bare/default host does not return
+client-subtree pages. The boxing guarantee therefore holds for both a
+content-rooted host and the bare host.
 
 ## 9. Navigation, theme, layout
 
