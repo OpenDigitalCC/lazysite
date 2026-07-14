@@ -1,3 +1,18 @@
+lazysite (0.7.14-1) unstable; urgency=medium
+
+  * EDGE: SM151 multi-site - one instance serves many first-class domains,
+    each rooted at its own content_root subtree with its own site_url/
+    canonical, sitemap/feeds, boxed search and static assets; per-Host vhost
+    rewrite generator; boundary-safe confinement (adversarial review).
+  * Hestia: lazysite-hestia-list.sh (authoritative site discovery via the
+    lazysite-app web template, unioned with install markers); update-all
+    discovers via it.
+  * Fix: install.pl conf writes preserve mode/group across the atomic replace
+    (a channel sweep no longer breaks manager save); create-user keeps a
+    group picked but not yet committed.
+
+ -- Stuart J Mackintosh <sjm@opendigital.cc>  Mon, 14 Jul 2026 12:00:00 +0000
+
 lazysite (0.7.13-1) unstable; urgency=medium
 
   * STABLE: the bundled QR library becomes a public site asset at

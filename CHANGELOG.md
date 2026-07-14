@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.14 - EDGE: multi-site (SM151) + Hestia fleet discovery + field fixes (2026-07-14)
+
 Fix: conf writes preserve mode/group; create-user keeps its picked groups
 : Two field reports from the beta-channel sweep and live testing. (1)
   `install.pl --channel` / `--policy` (any `set_conf_line` write) replaced
