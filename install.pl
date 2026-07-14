@@ -328,10 +328,24 @@ sub set_conf_line {
     }
     push @lines, "$key: $value\n" unless $found;
 
-    my $tmp = "$conf.tmp.$$";
+    # Preserve the original's mode and group across the atomic replace. The
+    # temp file is born with the INVOKING user's umask and primary group, so
+    # without this a site-user CLI run (e.g. a root-driven channel sweep via
+    # sudo -u) silently replaced a siteuser:www-data 0664 conf with a
+    # siteuser:siteuser 0644 one - and the manager (running as the web-server
+    # user on a no-suexec host) could no longer save settings. chmod is always
+    # ours to do (we own the temp); the chgrp is best-effort (only root or a
+    # member of the target group may set it - lazysite check --fix repairs
+    # anything left).
+    my @orig_stat = stat $conf;
+    my $tmp       = "$conf.tmp.$$";
     open my $out, '>', $tmp or do { warn "Cannot write $tmp: $!\n"; return 1 };
     print {$out} @lines;
     close $out;
+    if (@orig_stat) {
+        chmod $orig_stat[2] & 07777, $tmp;
+        chown -1, $orig_stat[5], $tmp;    # group only; may fail as non-root
+    }
     unless ( rename $tmp, $conf ) {
         warn "Cannot replace $conf: $!\n";
         unlink $tmp;
@@ -436,10 +450,16 @@ sub _set_conf_key {
         if ( $l =~ /^\s*\Q$key\E\s*:/ ) { $l = "$key: $value\n"; $found = 1; last }
     }
     push @lines, "$key: $value\n" unless $found;
-    my $tmp = "$conf.tmp.$$";
+    # Preserve mode/group across the replace (same rationale as set_conf_line).
+    my @orig_stat = stat $conf;
+    my $tmp       = "$conf.tmp.$$";
     open my $out, '>', $tmp or return 0;
     print {$out} @lines;
     close $out;
+    if (@orig_stat) {
+        chmod $orig_stat[2] & 07777, $tmp;
+        chown -1, $orig_stat[5], $tmp;    # group only; may fail as non-root
+    }
     return rename( $tmp, $conf ) ? 1 : do { unlink $tmp; 0 };
 }
 

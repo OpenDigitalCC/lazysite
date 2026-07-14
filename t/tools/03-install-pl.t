@@ -642,6 +642,19 @@ subtest '--channel sets the site update channel in lazysite.conf' => sub {
 
     like( slurp("$doc/lazysite/logs/audit.log"), qr/channel-set/,
         'the channel change is recorded in the audit log' );
+
+    # Regression: the temp+rename replace must PRESERVE the conf's mode. It
+    # used to leave the temp file's umask-born mode, so a site-user channel
+    # sweep silently turned a group-writable 0664 conf into 0644 and the
+    # manager (web-server user, no-suexec) could no longer save settings.
+    # (Group preservation is best-effort chown and needs root to assert;
+    # mode is deterministic, so that is what is pinned here.)
+    my $confp = "$doc/lazysite/lazysite.conf";
+    chmod 0664, $confp or die "chmod: $!";
+    my ($rc4) = run_install( '--channel', 'beta', '--docroot', $doc );
+    is( $rc4, 0, '--channel beta exits 0' );
+    is( ( stat $confp )[2] & 07777, 0664,
+        'the conf keeps its 0664 mode across the channel write' );
 };
 
 subtest '--restore-full migrates a full backup to a new domain' => sub {
