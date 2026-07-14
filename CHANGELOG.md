@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.15 - EDGE: multi-site bare-docroot exclusion (SM151 §7) (2026-07-14)
+
 Multi-site: bare-docroot scan excludes other domains' content roots (SM151 §7)
 : A primary/default host with no `content_root` scanned the whole docroot, so
   its sitemap and search enumerated every client subtree's pages. The page

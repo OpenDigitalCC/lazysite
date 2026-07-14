@@ -1,3 +1,13 @@
+lazysite (0.7.15-1) unstable; urgency=medium
+
+  * EDGE: SM151 §7 - the multi-site page scanner (sitemap/feeds + search) now
+    excludes every declared content root, so a primary/default host with no
+    content_root no longer enumerates client subtrees, and no domain lists a
+    nested sub-domain's pages. Closes the second cross-domain-review finding
+    (the first shipped in 0.7.14). Single-site installs unchanged.
+
+ -- Stuart J Mackintosh <sjm@opendigital.cc>  Mon, 14 Jul 2026 18:00:00 +0000
+
 lazysite (0.7.14-1) unstable; urgency=medium
 
   * EDGE: SM151 multi-site - one instance serves many first-class domains,
