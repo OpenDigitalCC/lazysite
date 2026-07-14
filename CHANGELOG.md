@@ -18,6 +18,20 @@ Keying
 
 ## Unreleased
 
+Fix: conf writes preserve mode/group; create-user keeps its picked groups
+: Two field reports from the beta-channel sweep and live testing. (1)
+  `install.pl --channel` / `--policy` (any `set_conf_line` write) replaced
+  `lazysite.conf` via temp+rename WITHOUT preserving the original's mode and
+  group - a site-user CLI run turned a `siteuser:www-data 0664` conf into
+  `siteuser:siteuser 0644`, and the manager (web-server user, no-suexec)
+  could no longer save settings. The atomic replace now restores the mode
+  and (best-effort) group; `lazysite check --fix` repairs anything left.
+  (2) On the Users page, a group picked in the create-user input but not
+  committed with Enter / the picker's Add was silently dropped when "Add
+  user" was clicked - the account was created with no groups. The create
+  flow now flushes the pending selection first and refuses an unresolvable
+  group name instead of dropping it.
+
 Multi-site: many first-class domains under one instance (SM151)
 : First-class multi-site under one instance - an alias host can be rooted at
   its own content subtree with `alias.<host>.content_root`, so one docroot,

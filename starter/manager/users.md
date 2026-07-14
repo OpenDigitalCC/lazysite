@@ -1150,6 +1150,18 @@ function addUser() {
   var username = document.getElementById('new-username').value.trim();
   var type = document.getElementById('new-type').value;            // human | ai
   var parent = document.getElementById('new-parent').value;        // '' = top-level
+  // Flush a PENDING group selection: picking a group in the input and clicking
+  // "Add user" without Enter/the picker's Add left the choice unstaged, so the
+  // account was silently created with no groups (field report 2026-07-13). A
+  // valid pending name is staged now; an unresolved one blocks the create
+  // rather than being silently dropped.
+  var ginp = document.getElementById('new-group-input');
+  var pending = (ginp && ginp.value || '').trim();
+  if (pending) {
+    if (!allGroups[pending]) { showStatus('No such group: ' + pending + ' - fix or clear the group box.', true); return; }
+    addNewUserGroup(pending);
+    ginp.value = '';
+  }
   var gl = newUserGroups.slice();
   if (!username) { showStatus('Username required.', true); return; }
   // Accounts are created with no password - credentials are set afterward

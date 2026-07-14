@@ -58,4 +58,20 @@ like( $csrc, qr/\.mg-sheet-panel\s*\{[^}]*width:\s*min\(/s, 'the sheet has a fix
 like( $csrc, qr/\.mg-sheet-head\s*\{[^}]*background:\s*var\(--mg-accent\)/s, 'the header is a solid accent (coloured) bar' );
 like( $csrc, qr/\.mg-acc-kids\s*\{[^}]*border-left/s, 'nested sub-trees are indented with a rule' );
 
+# Create-user group staging (field report 2026-07-13): a group picked in the
+# input but not committed with Enter / the picker's Add was silently dropped
+# when "Add user" was clicked - the account was created with no groups. The
+# create flow must flush the pending input (and refuse an unresolvable name)
+# BEFORE it snapshots the staged list.
+{
+    my ($adduser) = $src =~ /function addUser\(\)\s*\{(.*?)\n\}/s;
+    ok( defined $adduser, 'addUser() body found' );
+    like( $adduser, qr/new-group-input/,
+        'addUser() reads the pending group input (flush-before-create)' );
+    like( $adduser, qr/allGroups\[pending\]/,
+        'an unresolvable pending group name blocks the create (no silent drop)' );
+    ok( $adduser =~ /new-group-input.*newUserGroups\.slice\(\)/s,
+        'the pending input is flushed BEFORE the staged list is snapshotted' );
+}
+
 done_testing();
