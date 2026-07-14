@@ -77,6 +77,15 @@ symlink( $outside, "$docroot/sites/evil" )
 # A symlink INSIDE client A's tree that escapes back to the docroot root (S1).
 symlink( $docroot, "$docroot/sites/clienta/escape" )
     or plan skip_all => "symlink unsupported on this filesystem";
+# A SIBLING content dir whose name is a STRING-SUPERSET of client A's content
+# root (sites/clienta vs sites/clienta-secret), plus an in-tree symlink into it.
+# A bare index($real, $croot)==0 prefix check would treat clienta-secret as
+# "inside clienta" and serve it; the boundary check ("$croot/") must not (S1).
+make_path("$docroot/sites/clienta-secret");
+_write( "$docroot/sites/clienta-secret/leak.md",
+    "---\ntitle: L\n---\nSUPERSTRING_SIBLING_SECRET\n" );
+symlink( "$docroot/sites/clienta-secret", "$docroot/sites/clienta/peek" )
+    or plan skip_all => "symlink unsupported on this filesystem";
 
 _write( "$docroot/lazysite/lazysite.conf", <<'CONF' );
 site_name: Agency Home
@@ -159,6 +168,15 @@ sub _slurp {
     my $out = run_processor( $docroot, '/escape/index', HTTP_HOST => 'clienta.example' );
     unlike( $out, qr/AGENCY_ROOT_HOME/, 'in-tree symlink escaping the content root is denied' );
     unlike( $out, qr/Status: 200 OK/, 'symlink-escape request is not a 200' );
+}
+# The superstring-sibling case: a symlink into sites/clienta-secret (a sibling
+# whose name is a prefix-superset of sites/clienta) must NOT be served to A -
+# the boundary check rejects it where a bare-prefix check would have leaked it.
+{
+    my $out = run_processor( $docroot, '/peek/leak', HTTP_HOST => 'clienta.example' );
+    unlike( $out, qr/SUPERSTRING_SIBLING_SECRET/,
+        'a prefix-superset sibling is not served via an in-tree symlink' );
+    unlike( $out, qr/Status: 200 OK/, 'superstring-sibling request is not a 200' );
 }
 # A content_root that is a symlink OUT of the docroot: rejected -> fall back to
 # the docroot root; the outside tree is never served.

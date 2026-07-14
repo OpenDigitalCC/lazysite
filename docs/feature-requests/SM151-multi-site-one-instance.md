@@ -207,6 +207,14 @@ SM151 scopes the scan to the requesting domain's content root so a search on
 resolver (`resolve_scan()`, 2860-2890) roots its glob at the request's
 `content_root`; the per-host cache keeps each domain's index response separate.
 
+Same primary/bare-docroot caveat as the registries (§7, "as built"): a host
+with **no** `content_root` scans the whole docroot, so a search on the bare
+default host returns every domain's pages - the boxing guarantee holds only
+for a content-rooted host. A clean multi-site gives every domain (including
+the agency's own) its own `content_root`; the same future auto-exclude of
+declared content-root subtrees would close the bare-docroot case for both
+search and registries.
+
 ## 9. Navigation, theme, layout
 
 Already per-host via SM110 (`nav_file`, `theme`, `layout` overrides). With

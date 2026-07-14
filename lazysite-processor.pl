@@ -1192,7 +1192,7 @@ sub main {
         # content_root), so a symlink inside one domain's tree cannot serve a
         # sibling domain's or the docroot's files (spec S1).
         my $real = realpath($md_path);
-        if ( !defined $real || index( $real, $croot ) != 0 ) {
+        if ( !_path_under( $real, $croot ) ) {
             not_found($uri);
             return;
         }
@@ -1224,7 +1224,7 @@ sub main {
     # Found .url - fetch remote content
     if ( -f $url_path ) {
         my $real = realpath($url_path);
-        if ( !defined $real || index( $real, $croot ) != 0 ) {
+        if ( !_path_under( $real, $croot ) ) {
             not_found($uri);
             return;
         }
@@ -1247,7 +1247,7 @@ sub main {
     # authored content shared by every host, never a per-host render cache.)
     if ( -f $static_html_path ) {
         my $real = realpath($static_html_path);
-        if ( defined $real && index( $real, $croot ) == 0 ) {
+        if ( _path_under( $real, $croot ) ) {
             my $ct = read_ct($base) || 'text/html; charset=utf-8';
             log_event( 'INFO', $uri, 'static-html fallback (no .md source)' );
             output_page( read_file($static_html_path), $ct );
@@ -1347,6 +1347,21 @@ sub sanitise_uri {
     $uri = 'index' unless length $uri;
 
     return $uri;
+}
+
+# SM151: is an absolute path strictly inside a directory (or equal to it)?
+# Boundary-safe containment for every realpath confinement check. A bare
+# index($real,$root)==0 prefix test also passes for a SIBLING whose name is a
+# string-superset of $root (docroot/site vs docroot/site-backup, or
+# sites/clienta vs sites/clienta-old), so a symlink resolving there would
+# escape the intended tree. Comparing against "$root/" (and allowing equality)
+# closes that. Used by the page/.url/static-html serve, the boxed-search file
+# check, TT include/json sources, and the cache-path guard so they cannot drift
+# apart again.
+sub _path_under {
+    my ( $real, $root ) = @_;
+    return 0 unless defined $real && defined $root && length $root;
+    return ( $real eq $root || index( $real, "$root/" ) == 0 ) ? 1 : 0;
 }
 
 # SM151: resolve a per-domain content root to a confined absolute directory.
@@ -2510,7 +2525,7 @@ sub _resolve_include {
 
         # Realpath check - reject if outside $DOCROOT
         my $real = realpath($resolved);
-        if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
+        if ( !_path_under( $real, $DOCROOT ) ) {
             log_event("WARN", $ENV{REDIRECT_URL} // "-", "include path invalid", source => $source);
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
         }
@@ -2780,7 +2795,7 @@ sub resolve_json {
         : $src =~ m{^/}                ? $DOCROOT . $src
         :                                "$DOCROOT/$src";
     my $real = realpath($path);
-    if ( !defined $real || index( $real, $DOCROOT ) != 0 || !-f $real ) {
+    if ( !_path_under( $real, $DOCROOT ) || !-f $real ) {
         log_event( "WARN", $ENV{REDIRECT_URL} // "-",
             "tt json source not found or outside docroot", src => $src );
         return '';
@@ -3103,7 +3118,7 @@ sub resolve_scan {
         # Realpath check - confined to the scan root (the domain's content root,
         # or the docroot), so a symlinked file cannot escape the domain (SM151).
         my $real = realpath($path);
-        next unless defined $real && index( $real, $scan_root ) == 0;
+        next unless _path_under( $real, $scan_root );
         next unless -f $real;
 
         # Read front matter
@@ -4314,7 +4329,7 @@ sub write_html {
     $check_path = dirname($check_path)
         while !-e $check_path && length($check_path) > 1;
     my $real = realpath($check_path);
-    if ( !defined $real || index( $real, $DOCROOT ) != 0 ) {
+    if ( !_path_under( $real, $DOCROOT ) ) {
         log_event("WARN", $ENV{REDIRECT_URL} // "-", "cache path outside docroot", path => $html_path);
         return;
     }
