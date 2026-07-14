@@ -48,16 +48,32 @@ HESTIA=/usr/local/hestia
 TPLDIR="$HESTIA/data/templates/web/apache2/php-fpm"
 
 ver_of() {   # print the "version" from an install-state.json, or "?"
+    # (perl -ne exits 0 on a missing file, so test first rather than ||)
+    [ -f "$1" ] || { echo '?'; return; }
     perl -MJSON::PP -0777 -ne 'my $d=eval{decode_json($_)}; print(($d && $d->{version}) ? $d->{version} : "?")' "$1" 2>/dev/null || echo '?'
 }
 
-# --- discover lazysite sites by their own marker ----------------------------
+# --- discover lazysite sites -------------------------------------------------
+# Preferred: lazysite-hestia-list.sh - Hestia-authoritative (the domain's web
+# template is lazysite-app) unioned with the install markers, so a site whose
+# marker was lost or whose tree moved is still found, and template/marker
+# mismatches are visible in the lister's own report. Fallback (older STAGE
+# without the lister): the original marker glob.
 USERS=(); DOMAINS=(); VERS=()
-for state in /home/*/web/*/public_html/lazysite/.install-state.json; do
-    USERS+=(   "$(echo "$state" | cut -d/ -f3)" )
-    DOMAINS+=( "$(echo "$state" | cut -d/ -f5)" )
-    VERS+=(    "$(ver_of "$state")" )
-done
+LISTER="$STAGE/installers/hestia/lazysite-hestia-list.sh"
+if [ -f "$LISTER" ]; then
+    while IFS=$'\t' read -r u d doc; do
+        [ -n "$d" ] || continue
+        USERS+=( "$u" ); DOMAINS+=( "$d" )
+        VERS+=( "$(ver_of "$doc/lazysite/.install-state.json")" )
+    done < <(bash "$LISTER" --plain)
+else
+    for state in /home/*/web/*/public_html/lazysite/.install-state.json; do
+        USERS+=(   "$(echo "$state" | cut -d/ -f3)" )
+        DOMAINS+=( "$(echo "$state" | cut -d/ -f5)" )
+        VERS+=(    "$(ver_of "$state")" )
+    done
+fi
 
 n=${#DOMAINS[@]}
 NEWVER="$(ver_of "$STAGE/release-manifest.json")"

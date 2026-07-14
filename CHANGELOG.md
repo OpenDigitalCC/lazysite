@@ -58,6 +58,21 @@ Multi-site: many first-class domains under one instance (SM151)
   `t/unit/manager/23-manager-read-actions.t`; rewrite generator:
   `t/tools/32-domain-rewrites.t`.
 
+Hestia: authoritative site discovery + reusable lister (SM139 follow-up)
+: New `installers/hestia/lazysite-hestia-list.sh` lists every lazysite site
+  on a Hestia host from Hestia's OWN registry - a domain whose web template
+  is `lazysite-app` - unioned with the install markers as a cross-check, so
+  a lost marker or a marker-without-template is flagged instead of silently
+  skipped. `--plain` emits `user<TAB>domain<TAB>docroot` for bulk operations
+  (channel sweeps, bulk updates). `lazysite-hestia-update-all.sh` now
+  discovers via the lister (marker-glob fallback for an older STAGE) - the
+  unreliable `/home/*` glob is no longer the primary discovery. Also fixes
+  `ver_of` printing nothing instead of its placeholder on a missing state
+  file (perl -ne exits 0 on a missing file), and the manifest classification
+  now excludes `.git` as a file as well as a directory (a git WORKTREE has a
+  `.git` file, which broke build-manifest - and with it several tool tests -
+  when run from a worktree). Test: `t/tools/33-hestia-list.t`.
+
 ## 0.7.13 - STABLE: public QR component + manager polish from the demo review (2026-07-12)
 
 Manager polish: click-to-configure names, no group-edit reloads, clearer wording (SM150)
