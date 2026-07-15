@@ -531,6 +531,23 @@ sub _site_grants_manager {
     return 0;
 }
 
+# SM154: read one setting for a user from user-settings.json. Local raw-octets
+# read to keep the render path module-free (ADR 0001), matching _groups_grant_cap.
+# Used to expose a bound user's dav_scope (scope_root) and home_domain to the
+# manager UI so it can root a delegated editor at their own content_root.
+sub _user_setting {
+    my ( $user, $key ) = @_;
+    return undef unless length( $user // '' ) && length( $key // '' );
+    my $f = "$DOCROOT/lazysite/auth/user-settings.json";
+    return undef unless -f $f;
+    require JSON::PP;
+    open my $fh, '<:raw', $f or return undef;
+    local $/;
+    my $s = eval { JSON::PP::decode_json(<$fh>) } || {};
+    close $fh;
+    return ( ref $s->{$user} eq 'HASH' ) ? $s->{$user}{$key} : undef;
+}
+
 sub _is_manager {
     my ( $site_vars, $auth_user, $auth_groups ) = @_;
     return 0 unless $auth_user;
@@ -3597,6 +3614,24 @@ sub render_content {
     my $groups_str = ref $groups_ref eq 'ARRAY' ? join( ',', @$groups_ref ) : ( $groups_ref // '' );
     my $editor_flag = _is_manager( \%site_vars, $AUTH_CONTEXT{auth_user} // '', $groups_str ) ? 1 : 0;
 
+    # SM154 (P3): expose what the domain-aware manager UI needs - whether the
+    # user may manage domains (gates the Domains nav entry), and a bound editor's
+    # own content_root + home_domain (so the file browser roots there instead of
+    # the docroot the confinement would deny). Only computed when authenticated.
+    my $mgr_user = $AUTH_CONTEXT{auth_user} // '';
+    my %manager_caps;
+    my ( $scope_root, $home_domain ) = ( '', '' );
+    if ( length $mgr_user ) {
+        # An operator (unsecured/dev fallback: no group grants manager) implicitly
+        # holds every cap; otherwise resolve manage_config from the user's groups.
+        $manager_caps{manage_config} = (
+            !_site_grants_manager()
+                || _groups_grant_cap( 'manage_config', split /\s*,\s*/, $groups_str )
+        ) ? 1 : 0;
+        $scope_root  = _user_setting( $mgr_user, 'dav_scope' )   // '';
+        $home_domain = _user_setting( $mgr_user, 'home_domain' ) // '';
+    }
+
     my $vars = {
         %site_vars,
         %page_vars,
@@ -3635,6 +3670,9 @@ sub render_content {
         params           => $query,
         lazysite_version => _lazysite_version(),    # asset cache-buster (?v=)
         enabled_plugins  => _enabled_plugins(),     # conditional manager nav
+        manager_caps     => \%manager_caps,         # SM154: gate the Domains nav
+        scope_root       => $scope_root,            # SM154: a bound editor's root
+        home_domain      => $home_domain,           # SM154: a bound editor's domain
         smtp_configured => ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) ? 1 : 0, # gate emailed reset
             # SM099: a cache-safe sign in / out control. BOTH links ship hidden; the
             # injected auth-sync script reveals the right one from the lzs_session
