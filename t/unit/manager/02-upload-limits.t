@@ -42,8 +42,11 @@ subtest 'defaults when no conf file' => sub {
     is( $l->{max_bytes},  10 * 1024 * 1024, 'default max_bytes 10MB' );
     is( $l->{rate_count}, 60,               'default rate_count' );
     is( $l->{rate_bytes}, 500 * 1024 * 1024, 'default rate_bytes 500MB' );
-    is_deeply( $l->{blocked_extensions}, [ 'pl', 'cgi' ],
-        'default blocked_extensions' );
+    # SEC-2026-07: the default blocks all active-content / server-config types,
+    # not just pl/cgi (SSI, PHP, .htaccess, ...).
+    my %be = map { $_ => 1 } @{ $l->{blocked_extensions} };
+    ok( $be{pl} && $be{cgi} && $be{shtml} && $be{php} && $be{htaccess},
+        'default blocked_extensions include active-content types' );
     ok( scalar @{ $l->{blocked_paths} } >= 3,
         'default blocked_paths non-empty' );
 };

@@ -30,6 +30,15 @@ our @BLOCKED_PATHS = (
     'lazysite/auth/user-settings.json',
 );
 
+# SEC-2026-07: extensions that must never be written or served as site content -
+# they execute (CGI/SSI/PHP) or reconfigure the web server. Case-insensitive.
+# Kept in sync with the upload blocked_extensions default and the WebDAV
+# blocklist. (perl doesn't care about extension, but the plugin runner is now
+# registry-confined; these stop the *web server* executing an authored file.)
+our @DANGEROUS_EXT
+    = qw(pl pm cgi fcgi shtml shtm phtml php php3 php4 php5 phps phar htaccess htpasswd);
+our $DANGEROUS_RE = do { my $alt = join '|', @DANGEROUS_EXT; qr/\.(?:$alt)\z/i };
+
 # Resolve a relative path under DOCROOT, rejecting traversal (realpath must stay
 # within DOCROOT). Returns { ok, full, rel } or { ok=>0, error }.
 sub validate_path {
@@ -42,8 +51,12 @@ sub validate_path {
     my $check = -e $full ? $full : dirname($full);
     my $real = realpath($check);
 
+    # SEC-2026-07 (H3): boundary-safe containment. A bare index($real,$DOCROOT)
+    # prefix test also passed for a SIBLING whose name is a string-superset of
+    # the docroot (public_html vs public_html.bak), letting a write escape the
+    # docroot. Require equality or a "$DOCROOT/" prefix.
     return { ok => 0, error => "Invalid path" }
-        unless $real && index( $real, $DOCROOT ) == 0;
+        unless $real && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 );
 
     return { ok => 1, full => $full, rel => $rel_path };
 }
@@ -57,7 +70,21 @@ sub is_blocked_path {
             return 1;
         }
     }
-    if ( $rel_path =~ /\.pl$/ ) {
+    # SEC-2026-07 (H4): the whole lazysite/ management tree is off-limits to the
+    # generic file editor (auth store, .secret, ACLs, lazysite.conf, templates,
+    # backups, logs, plugin-secret confs). Dedicated actions (nav-save, theme/
+    # layout ops, handler-save, plugin-save, config-set) write their specific
+    # files through their own gated paths; the generic read/save/delete/move/
+    # copy must not reach the tree. forms/submissions stays readable (operator
+    # reviews form entries there).
+    if ( $rel_path =~ m{\Alazysite/}
+        && $rel_path !~ m{\Alazysite/forms/submissions/} )
+    {
+        log_event( 'WARN', $action, 'blocked lazysite tree', path => $rel_path, user => $auth_user );
+        return 1;
+    }
+    # SEC-2026-07: never write/serve an executable or server-config extension.
+    if ( $rel_path =~ $DANGEROUS_RE ) {
         log_event( 'WARN', $action, 'blocked path access', path => $rel_path, user => $auth_user );
         return 1;
     }
@@ -115,7 +142,7 @@ sub load_upload_limits {
             lazysite/auth lazysite/forms lazysite/cache
             lazysite/manager cgi-bin manager
         ) ],
-        blocked_extensions => [ qw(pl cgi) ],
+        blocked_extensions => [@DANGEROUS_EXT],    # SEC-2026-07: block active content
         rate_count         => 60,
         rate_bytes         => 500 * 1024 * 1024,
     );

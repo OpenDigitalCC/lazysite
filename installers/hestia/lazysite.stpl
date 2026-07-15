@@ -39,10 +39,10 @@
         Require all denied
     </FilesMatch>
     <Directory %home%/%user%/web/%domain%/stats>
-        AllowOverride All
+        AllowOverride None
     </Directory>
     <Directory %sdocroot%>
-        AllowOverride All
+        AllowOverride None
         SSLRequireSSL
         Options -Indexes +ExecCGI
     </Directory>

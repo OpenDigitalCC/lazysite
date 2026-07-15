@@ -40,10 +40,10 @@
         Require all denied
     </FilesMatch>
     <Directory %home%/%user%/web/%domain%/stats>
-        AllowOverride All
+        AllowOverride None
     </Directory>
     <Directory %docroot%>
-        AllowOverride All
+        AllowOverride None
         Options -Indexes +ExecCGI
     </Directory>
     SetEnvIf Authorization .+ HTTP_AUTHORIZATION=$0

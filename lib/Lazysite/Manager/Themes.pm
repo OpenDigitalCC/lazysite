@@ -754,7 +754,7 @@ sub action_cache_invalidate {
 
     my $real = realpath($full);
     return { ok => 0, error => "Invalid path" }
-        unless $real && index( $real, $DOCROOT ) == 0;
+        unless $real && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 ); # SEC-2026-07 (H3)
 
     unlink $real if -f $real;
     # SM110: drop the per-alias-host copies of this page's render too.
