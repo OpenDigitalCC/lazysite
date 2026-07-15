@@ -191,6 +191,37 @@ $Lazysite::Auth::Acl::token_auth        = $token_auth;
 # X-Remote-Groups; token partners carry none, so a @group never matches them).
 @Lazysite::Auth::Acl::user_groups = grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
 
+# SEC-2026-07 (M2) / SM154 (P1): the content path-bearing actions whose target a
+# dav_scope binding confines (WebDAV enforces the same). Non-content actions
+# carry no path (or $path defaults to '/'); the lazysite/ theme-authoring
+# namespace is outside scope's remit (governed by manage_themes/manage_layouts).
+my %SCOPED_ACTION = map { $_ => 1 } qw(
+    list read save delete mkdir move copy migrate-to-local file-upload
+    acl-get acl-set acl-remove git-status git-history git-show git-restore
+    cache-invalidate preview lock unlock renew-lock
+);
+
+# Confine this request to $scope (a content-root-relative subtree) when set,
+# refusing any content path outside it. Shared by BOTH channels: a token/partner
+# credential's dav_scope (M2) and a domain-bound cookie user's dav_scope (SM154
+# - a delegated domain editor must not reach another domain's content over the
+# interactive UI either). $origin tags the audit entry ('api' | 'ui').
+sub _confine_scope {
+    my ( $scope, $origin ) = @_;
+    return unless $SCOPED_ACTION{$action} && defined $scope && length $scope;
+    for my $p ( grep { defined && length } ( $path, $params{to}, $params{from} ) ) {
+        next if $p =~ m{^/?lazysite/};
+        next
+            unless Lazysite::Manager::Common::path_out_of_scope( $scope, $p );
+        audit_log( $auth_user, $action, $p, $ENV{REMOTE_ADDR} // '',
+            'fail', $origin, 'denied: outside dav_scope' );
+        ( my $sc = $scope ) =~ s{^/+|/+$}{}g;
+        respond( { ok => 0, kind => 'forbidden',
+                error => "Path '$p' is outside your assigned scope ($sc/)." } );
+        exit 0;
+    }
+}
+
 my $body = '';
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my $len = $ENV{CONTENT_LENGTH} // 0;
@@ -339,19 +370,29 @@ if ( !$token_auth ) {
         respond( { ok => 0, error => "This action must be sent as POST." } );
         exit 0;
     }
-    if ( !_is_operator() && ( my $req_cap = $COOKIE_CAP{$action} ) ) {
+    if ( !_is_operator() ) {
         my $caps = _user_caps($auth_user);
-        my $ok   = 0;
-        $ok ||= $caps->{$_} for split /\|/, $req_cap;
-        unless ($ok) {
-            audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
-                'fail', 'ui', 'denied: capability' );
-            ( my $names = $req_cap ) =~ s/\|/ or /g;
-            respond( { ok => 0, kind => 'forbidden',
-                    error => "This action requires the '$names' permission. An "
-                        . "administrator can grant it on the Groups page." } );
-            exit 0;
+
+        # Capability gate (H1): the escalation-sensitive actions need their cap.
+        if ( my $req_cap = $COOKIE_CAP{$action} ) {
+            my $ok = 0;
+            $ok ||= $caps->{$_} for split /\|/, $req_cap;
+            unless ($ok) {
+                audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
+                    'fail', 'ui', 'denied: capability' );
+                ( my $names = $req_cap ) =~ s/\|/ or /g;
+                respond( { ok => 0, kind => 'forbidden',
+                        error => "This action requires the '$names' permission. An "
+                            . "administrator can grant it on the Groups page." } );
+                exit 0;
+            }
         }
+
+        # SM154 (P1): a domain-bound (dav_scope) cookie user is confined to their
+        # content_root on the interactive channel too, so a delegated domain
+        # editor cannot reach another domain's content through the manager UI.
+        _confine_scope( $caps->{dav_scope}, 'ui' )
+            if defined $caps->{dav_scope} && length $caps->{dav_scope};
     }
 }
 
@@ -460,32 +501,9 @@ if ($token_auth) {
 
     # SEC-2026-07 (M2): enforce dav_scope on the control-API channel too. A
     # scoped partner credential is confined to its content subtree over WebDAV;
-    # without this it reached the whole content namespace over the API. Only the
-    # content path-bearing actions carry a target to confine (others have no
-    # path, or $path defaults to '/'); the lazysite/ theme-authoring namespace
-    # is outside scope's remit (governed by manage_themes/manage_layouts).
-    my %SCOPED_ACTION = map { $_ => 1 } qw(
-        list read save delete mkdir move copy migrate-to-local file-upload
-        acl-get acl-set acl-remove git-status git-history git-show git-restore
-        cache-invalidate preview lock unlock renew-lock
-    );
-    if ( $SCOPED_ACTION{$action}
-        && defined $token_caps{dav_scope}
-        && length $token_caps{dav_scope} )
-    {
-        for my $p ( grep { defined && length } ( $path, $params{to}, $params{from} ) ) {
-            next if $p =~ m{^/?lazysite/};
-            next
-                unless Lazysite::Manager::Common::path_out_of_scope(
-                $token_caps{dav_scope}, $p );
-            audit_log( $auth_user, $action, $p, $ENV{REMOTE_ADDR} // '',
-                'fail', 'api', 'denied: outside dav_scope' );
-            ( my $sc = $token_caps{dav_scope} ) =~ s{^/+|/+$}{}g;
-            respond( { ok => 0, error => "Path '$p' is outside your assigned "
-                        . "scope ($sc/). Ask the operator to widen your dav_scope." } );
-            exit 0;
-        }
-    }
+    # without this it reached the whole content namespace over the API.
+    _confine_scope( $token_caps{dav_scope}, 'api' )
+        if defined $token_caps{dav_scope} && length $token_caps{dav_scope};
 
     # SM071 Phase 3 (P3.6): per-token volume throttle. 429 + Retry-After
     # so the client can back off per the documented retry contract.
