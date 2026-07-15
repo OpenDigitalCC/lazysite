@@ -166,8 +166,13 @@ function buildBreadcrumb(dirPath, linkFn) {
 }
 
 function updateBreadcrumb() {
+  // SEC-2026-07 (H5): path and label are attacker-controllable (a directory can
+  // be named with an XSS payload via mkdir). JSON.stringify(path) yields a valid
+  // JS string literal; escHtml then makes it safe inside the double-quoted HTML
+  // attribute (the browser decodes the entities back before the JS engine parses
+  // it). label is HTML-escaped for its text-node context.
   var html = buildBreadcrumb(currentDir, function(path, label) {
-    return '<a href="#" onclick="loadDir(\'' + path + '\'); return false;">' + label + '</a>';
+    return '<a href="#" onclick="loadDir(' + escHtml(JSON.stringify(path)) + '); return false;">' + escHtml(label) + '</a>';
   });
   document.getElementById('breadcrumb').innerHTML = html;
 }

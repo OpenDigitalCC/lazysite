@@ -150,7 +150,7 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    [% IF page_subtitle %]<meta name="description" content="[% page_subtitle | html %]">[% END %]
+    [% IF page_subtitle %]<meta name="description" content="[% page_subtitle %]">[% END %]
     <title>[% page_title %][% IF site_name %]  -  [% site_name %][% END %]</title>
     <style>
         body { font-family: system-ui, sans-serif; max-width: 800px;
@@ -1362,6 +1362,20 @@ sub _path_under {
     my ( $real, $root ) = @_;
     return 0 unless defined $real && defined $root && length $root;
     return ( $real eq $root || index( $real, "$root/" ) == 0 ) ? 1 : 0;
+}
+
+# SEC-2026-07 (H5): HTML-escape the five significant characters. Safe in both
+# element-text and double/single-quoted attribute contexts, so a value escaped
+# once here needs no per-sink `| html`.
+sub _esc_html {
+    my $s = shift;
+    return '' unless defined $s;
+    $s =~ s/&/&amp;/g;
+    $s =~ s/</&lt;/g;
+    $s =~ s/>/&gt;/g;
+    $s =~ s/"/&quot;/g;
+    $s =~ s/'/&#39;/g;
+    return $s;
 }
 
 # SM151 §7: the directories declared as content roots in lazysite.conf (the base
@@ -3584,9 +3598,15 @@ sub render_content {
         %AUTH_CONTEXT,
         %PAYMENT_CONTEXT,
         %PREVIEW_CONTEXT,    # SM071: preview override wins over site layout/theme
-        page_title        => $meta->{title}             || '',
-        page_subtitle     => $meta->{subtitle}          || '',
-        page_author       => $meta->{author}            || '',
+            # SEC-2026-07 (H5): escape the author-controllable front-matter fields
+            # HERE, at the single point they enter the stash, so EVERY layout - the
+            # bundled fallback/manager layouts AND every third-party/library layout
+            # we cannot edit - emits them safely even when it interpolates them
+            # without a `| html` filter. $meta->{...} stays raw for the search index
+            # and page scan, which never render it as HTML.
+        page_title        => _esc_html( $meta->{title} ),
+        page_subtitle     => _esc_html( $meta->{subtitle} ),
+        page_author       => _esc_html( $meta->{author} ),
         page_modified     => $meta->{page_modified}     || '',
         page_modified_iso => $meta->{page_modified_iso} || '',
         request_uri       => $ENV{REDIRECT_URL}         || $ENV{REQUEST_URI} || '',
@@ -4127,12 +4147,15 @@ sub _inject_meta {
     };
     my $ver = _lazysite_version();
     my @m = ( '<meta name="generator" content="' . $esc->( 'lazysite' . ( $ver ? " $ver" : '' ) ) . '">' );
+    # SEC-2026-07 (H5): page_author / page_subtitle are already HTML-escaped at
+    # the stash source (render_content), so they are emitted raw here - re-
+    # escaping would double-encode ("&lt;" -> "&amp;lt;").
     if ( length( $vars->{page_author} // '' ) ) {
-        push @m, '<meta name="author" content="' . $esc->( $vars->{page_author} ) . '">';
+        push @m, '<meta name="author" content="' . ( $vars->{page_author} // '' ) . '">';
     }
     # Only add description if the layout did not already emit one.
     if ( length( $vars->{page_subtitle} // '' ) && $html !~ /<meta\s+name=["']description["']/i ) {
-        push @m, '<meta name="description" content="' . $esc->( $vars->{page_subtitle} ) . '">';
+        push @m, '<meta name="description" content="' . ( $vars->{page_subtitle} // '' ) . '">';
     }
     my $block = "\n    " . join( "\n    ", @m );
     $html =~ s/(<head[^>]*>)/$1$block/i;
