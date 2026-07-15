@@ -3,12 +3,12 @@
 # Sets X-Remote-* headers from signed cookie, then execs the processor
 use strict;
 use warnings;
-use Digest::SHA qw(sha256_hex hmac_sha256_hex);
+use Digest::SHA    qw(sha256_hex hmac_sha256_hex);
 use Fcntl          qw(:flock O_RDWR O_WRONLY O_APPEND O_CREAT);
-use File::Path qw(make_path);
+use File::Path     qw(make_path);
 use File::Basename qw(dirname);
-use POSIX qw(strftime);
-use IPC::Open2 qw(open2);
+use POSIX          qw(strftime);
+use IPC::Open2     qw(open2);
 
 BEGIN {
     # Locate the Lazysite module tree relative to this script (run-in-place,
@@ -21,46 +21,46 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util qw(log_event const_eq);
-use Lazysite::Audit qw(audit_log);
+use Lazysite::Util             qw(log_event const_eq);
+use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Credential qw(generate_random_hex hash_password verify_password);
-use Lazysite::Auth::Settings qw(groups_grant_cap);
+use Lazysite::Auth::Settings   qw(groups_grant_cap);
 $Lazysite::Util::COMPONENT = 'auth';
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
     require JSON::PP;
-    print JSON::PP::encode_json({
-        id          => 'auth',
-        name        => 'Built-in Auth',
-        description => 'Cookie-based authentication with user and group management',
-        version     => '1.0',
-        # Wired in the web-server config (FallbackResource), not toggled via
-        # the plugins list - the manager renders core plugins as "always on".
-        core        => 1,
-        config_file => '',
-        config_keys => [qw(auth_default auth_redirect auth_header_user
-                           auth_header_name auth_header_email auth_header_groups)],
-        config_schema => [
-            { key => 'auth_default', label => 'Default auth requirement', type => 'select',
-              options => ['none','optional','required'], default => 'none' },
-            { key => 'auth_redirect', label => 'Login page path', type => 'text', default => '/login' },
-            { key => 'auth_header_user', label => 'User header name', type => 'text', default => 'X-Remote-User' },
-            { key => 'auth_header_name', label => 'Display name header', type => 'text', default => 'X-Remote-Name' },
-            { key => 'auth_header_email', label => 'Email header name', type => 'text', default => 'X-Remote-Email' },
-            { key => 'auth_header_groups', label => 'Groups header name', type => 'text', default => 'X-Remote-Groups' },
-        ],
-        actions => [
-            { id => 'manage-users', label => 'Manage users', link => '/manager/users' },
-        ],
-    });
+    print JSON::PP::encode_json( {
+            id          => 'auth',
+            name        => 'Built-in Auth',
+            description => 'Cookie-based authentication with user and group management',
+            version     => '1.0',
+            # Wired in the web-server config (FallbackResource), not toggled via
+            # the plugins list - the manager renders core plugins as "always on".
+            core        => 1,
+            config_file => '',
+            config_keys => [ qw(auth_default auth_redirect auth_header_user
+                    auth_header_name auth_header_email auth_header_groups) ],
+            config_schema => [
+                { key => 'auth_default', label => 'Default auth requirement', type => 'select',
+                    options => [ 'none', 'optional', 'required' ], default => 'none' },
+                { key => 'auth_redirect', label => 'Login page path', type => 'text', default => '/login' },
+                { key => 'auth_header_user', label => 'User header name', type => 'text', default => 'X-Remote-User' },
+                { key => 'auth_header_name', label => 'Display name header', type => 'text', default => 'X-Remote-Name' },
+                { key => 'auth_header_email', label => 'Email header name', type => 'text', default => 'X-Remote-Email' },
+                { key => 'auth_header_groups', label => 'Groups header name', type => 'text', default => 'X-Remote-Groups' },
+            ],
+            actions => [
+                { id => 'manage-users', label => 'Manage users', link => '/manager/users' },
+            ],
+    } );
     exit 0;
 }
 
-my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
+my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
-$Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
+$Lazysite::Audit::LAZYSITE_DIR      = $LAZYSITE_DIR;
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
 
 # Record a material authentication event in the audit trail (login/logout, claim,
@@ -113,21 +113,21 @@ sub _bad_url_deny {
     print "403 Forbidden\n";
     exit 0;
 }
-my $COOKIE_NAME  = 'lazysite_auth';
-my $COOKIE_MAX   = 86400;    # 24 hours
+my $COOKIE_NAME = 'lazysite_auth';
+my $COOKIE_MAX  = 86400;             # 24 hours
 
 # H-3: login rate limiting (per-IP, sliding window)
-my $LOGIN_RATE_DB  = "$AUTH_DIR/.login-rate.db";
-my $LOGIN_MAX      = 5;      # attempts per window
-my $LOGIN_WINDOW   = 300;    # seconds (5 minutes)
-my $LOGIN_DELAY    = 2;      # seconds sleep on failure
+my $LOGIN_RATE_DB = "$AUTH_DIR/.login-rate.db";
+my $LOGIN_MAX     = 5;                            # attempts per window
+my $LOGIN_WINDOW  = 300;                          # seconds (5 minutes)
+my $LOGIN_DELAY   = 2;                            # seconds sleep on failure
 
 # --- Main ---
 
-my $method  = $ENV{REQUEST_METHOD} // 'GET';
-my $uri     = $ENV{REDIRECT_URL}   // '/';
-my $query   = $ENV{QUERY_STRING}   // '';
-my $action  = '';
+my $method = $ENV{REQUEST_METHOD} // 'GET';
+my $uri    = $ENV{REDIRECT_URL}   // '/';
+my $query  = $ENV{QUERY_STRING}   // '';
+my $action = '';
 # Capture the FULL action token (including hyphens) so a short action like
 # `rotate` does not shadow a longer one such as `rotate-auth-secret`.
 $action = $1 if $query =~ /action=([a-z][a-z-]*)/;
@@ -172,11 +172,11 @@ sub handle_login {
     my $next     = sanitise_next( $form{next} // '/' );
 
     my $auth_redirect = read_conf_key('auth_redirect') || '/login';
-    my $ip = $ENV{REMOTE_ADDR} // '';
+    my $ip            = $ENV{REMOTE_ADDR} // '';
 
     # H-3: per-IP rate limit before checking credentials (fail-closed on ok).
     unless ( check_login_rate($ip) ) {
-        log_event('WARN', $username, 'login rate limit exceeded', ip => $ip);
+        log_event( 'WARN', $username, 'login rate limit exceeded', ip => $ip );
         _audit_auth( $username, 'login', 'fail', 'rate-limited' );
         sleep $LOGIN_DELAY;
         redirect("$auth_redirect?error=rate");
@@ -184,18 +184,18 @@ sub handle_login {
     }
 
     unless ( length $username ) {
-        log_event('WARN', $username, 'login failed', ip => $ip);
+        log_event( 'WARN', $username, 'login failed', ip => $ip );
         _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
         sleep $LOGIN_DELAY;
         redirect("$auth_redirect?error=1");
         return;
     }
 
-    my $users = load_users();
+    my $users    = load_users();
     my $expected = $users->{$username};
 
     unless ( defined $expected ) {
-        log_event('WARN', $username, 'login failed', ip => $ip);
+        log_event( 'WARN', $username, 'login failed', ip => $ip );
         _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
         sleep $LOGIN_DELAY;
         redirect("$auth_redirect?error=1");
@@ -206,20 +206,20 @@ sub handle_login {
         # No-password account: only allowed from localhost
         my $addr = $ENV{REMOTE_ADDR} // '';
         unless ( $addr eq '127.0.0.1' || $addr eq '::1' ) {
-            log_event('WARN', $username, 'no-password login refused (not localhost)', ip => $addr);
+            log_event( 'WARN', $username, 'no-password login refused (not localhost)', ip => $addr );
             _audit_auth( $username, 'login', 'fail', 'no-password-remote' );
             reject_no_password();
             return;
         }
-        log_event('INFO', $username, 'no-password login (localhost)', ip => $addr);
+        log_event( 'INFO', $username, 'no-password login (localhost)', ip => $addr );
         _audit_auth( $username, 'login', 'ok', 'no-password' );
     }
     else {
         # H-2: verify_password handles both legacy (unsalted) and new
         # (sha256iter) formats. Legacy hashes are auto-rehashed on
         # successful login.
-        unless ( length $password && verify_password($password, $expected) ) {
-            log_event('WARN', $username, 'login failed', ip => $ip);
+        unless ( length $password && verify_password( $password, $expected ) ) {
+            log_event( 'WARN', $username, 'login failed', ip => $ip );
             _audit_auth( $username, 'login', 'fail', 'invalid-credentials' );
             sleep $LOGIN_DELAY;
             redirect("$auth_redirect?error=1");
@@ -227,8 +227,8 @@ sub handle_login {
         }
         if ( $expected =~ /\A[0-9a-f]{64}\z/ ) {
             my $new_hash = hash_password($password);
-            if ( update_user_hash($username, $new_hash) ) {
-                log_event('INFO', $username, 'password rehashed to salted format');
+            if ( update_user_hash( $username, $new_hash ) ) {
+                log_event( 'INFO', $username, 'password rehashed to salted format' );
             }
         }
     }
@@ -244,7 +244,7 @@ sub handle_login {
     # ahead of the ui mechanism check. After credential verification, so
     # it leaks nothing to a password guesser.
     if ( account_disabled($username) ) {
-        log_event('WARN', $username, 'login refused: account disabled', ip => $ip);
+        log_event( 'WARN', $username, 'login refused: account disabled', ip => $ip );
         _audit_auth( $username, 'login', 'fail', 'account-disabled' );
         redirect("$auth_redirect?error=1");
         return;
@@ -253,7 +253,7 @@ sub handle_login {
     # SM071 Phase 2: an expired access-token credential cannot start a
     # session (a human password has no expiry, so this never affects them).
     if ( token_expired($username) ) {
-        log_event('WARN', $username, 'login refused: credential expired', ip => $ip);
+        log_event( 'WARN', $username, 'login refused: credential expired', ip => $ip );
         _audit_auth( $username, 'login', 'fail', 'credential-expired' );
         redirect("$auth_redirect?error=1");
         return;
@@ -261,14 +261,14 @@ sub handle_login {
 
     # SM072: account-level expiry (time-boxed access)
     if ( account_expired($username) ) {
-        log_event('WARN', $username, 'login refused: account expired', ip => $ip);
+        log_event( 'WARN', $username, 'login refused: account expired', ip => $ip );
         _audit_auth( $username, 'login', 'fail', 'account-expired' );
         redirect("$auth_redirect?error=1");
         return;
     }
 
     unless ( ui_enabled($username) ) {
-        log_event('WARN', $username, 'interactive login disabled for account', ip => $ip);
+        log_event( 'WARN', $username, 'interactive login disabled for account', ip => $ip );
         _audit_auth( $username, 'login', 'fail', 'ui-disabled' );
         reject_ui_disabled();
         return;
@@ -280,9 +280,9 @@ sub handle_login {
     if ( mfa_enrolled($username) ) {
         my $code = $form{code} // '';
         $code =~ s/[^0-9A-Za-z-]//g;
-        my $v = users_tool_api({ action => 'mfa-verify', username => $username, code => $code });
+        my $v = users_tool_api( { action => 'mfa-verify', username => $username, code => $code } );
         unless ( ref $v eq 'HASH' && $v->{ok} ) {
-            log_event('WARN', $username, 'login refused: 2FA required or invalid', ip => $ip);
+            log_event( 'WARN', $username, 'login refused: 2FA required or invalid', ip => $ip );
             _audit_auth( $username, 'login', 'fail', 'mfa' );
             sleep $LOGIN_DELAY;
             redirect("$auth_redirect?error=mfa");
@@ -312,7 +312,7 @@ sub handle_login {
 
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
 
-    log_event('INFO', $username, 'login success', ip => $ENV{REMOTE_ADDR} // '');
+    log_event( 'INFO', $username, 'login success', ip => $ENV{REMOTE_ADDR} // '' );
     _audit_auth( $username, 'login', 'ok', '' );
 
     # Manager-aware landing: a recognised manager who did not come from a specific
@@ -361,7 +361,7 @@ sub handle_logout {
     # noise; and a genuine logout now records the actual username (not the empty
     # HTTP_X_REMOTE_USER it used to read on this direct call).
     if ( length $user ) {
-        log_event('INFO', $user, 'logout', ip => $ENV{REMOTE_ADDR} // '');
+        log_event( 'INFO', $user, 'logout', ip => $ENV{REMOTE_ADDR} // '' );
         _audit_auth( $user, 'logout', 'ok', '' );
     }
 
@@ -370,7 +370,7 @@ sub handle_logout {
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
     print "Set-Cookie: $COOKIE_NAME=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
-    print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";   # SM099 marker
+    print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n"; # SM099 marker
     print "Location: /logout\r\n\r\n";
 }
 
@@ -379,18 +379,18 @@ sub handle_logout {
 # claim token IS the authentication; we shell to the (tested) users-tool
 # claim-redeem, which returns ONE generic error on any failure.
 sub handle_claim {
-    my %form = parse_post();
+    my %form     = parse_post();
     my $username = $form{username} // '';
     $username =~ s/[^a-zA-Z0-9_.-]//g;
     $username = substr( $username, 0, 64 ) if length($username) > 64;
-    my $claim    = $form{claim} // '';
+    my $claim = $form{claim} // '';
     $claim =~ s/[^a-zA-Z0-9_]//g;
-    my $password = $form{password} // '';
-    my $ip = $ENV{REMOTE_ADDR} // '';
+    my $password = $form{password}   // '';
+    my $ip       = $ENV{REMOTE_ADDR} // '';
 
     # HTTPS-only (setting a secret); localhost allowed for dev/CLI.
     unless ( $ENV{HTTPS} || $ip eq '127.0.0.1' || $ip eq '::1' ) {
-        log_event('WARN', $username, 'claim over plaintext refused', ip => $ip);
+        log_event( 'WARN', $username, 'claim over plaintext refused', ip => $ip );
         redirect("/claim?u=$username&error=1");
         return;
     }
@@ -402,23 +402,23 @@ sub handle_claim {
         return;
     }
 
-    my $r = users_tool_api({
-        action => 'claim-redeem', username => $username,
-        claim  => $claim, password => $password,
-    });
+    my $r = users_tool_api( {
+            action => 'claim-redeem', username => $username,
+            claim  => $claim,         password => $password,
+    } );
 
     unless ( ref $r eq 'HASH' && $r->{ok} ) {
         sleep $LOGIN_DELAY;
-        log_event('WARN', $username, 'claim redeem failed', ip => $ip);
+        log_event( 'WARN', $username, 'claim redeem failed', ip => $ip );
         _audit_auth( $username, 'claim-redeem', 'fail', '' );
         redirect("/claim?u=$username&error=1");
         return;
     }
 
-    log_event('INFO', $username, 'claim redeemed', ip => $ip);
+    log_event( 'INFO', $username, 'claim redeemed', ip => $ip );
     _audit_auth( $username, 'claim-redeem', 'ok', '' );
     if ( $r->{token} ) {
-        claim_token_page( $username, $r->{token} );   # machine: show token once
+        claim_token_page( $username, $r->{token} );    # machine: show token once
     }
     else {
         my $auth_redirect = read_conf_key('auth_redirect') || '/login';
@@ -492,7 +492,7 @@ sub json_response {
 # SM072 Flow C: public pairing-key -> access-token exchange. The agent
 # presents its single-use pairing key and receives {token, expires_at}.
 sub handle_exchange {
-    my %form = parse_post();
+    my %form     = parse_post();
     my $username = $form{username} // '';
     $username =~ s/[^a-zA-Z0-9_.-]//g;
     my $key = $form{pairing_key} // $form{key} // '';
@@ -509,16 +509,16 @@ sub handle_exchange {
         return;
     }
 
-    my $r = users_tool_api({
-        action => 'token-exchange', username => $username, pairing_key => $key,
-    });
+    my $r = users_tool_api( {
+            action => 'token-exchange', username => $username, pairing_key => $key,
+    } );
     unless ( ref $r eq 'HASH' && $r->{ok} ) {
         sleep $LOGIN_DELAY;
-        log_event('WARN', $username, 'pairing exchange failed', ip => $ip);
+        log_event( 'WARN', $username, 'pairing exchange failed', ip => $ip );
         json_response( { ok => 0, error => 'Invalid or expired pairing key' }, 401 );
         return;
     }
-    log_event('INFO', $username, 'access token issued (HTTP exchange)', ip => $ip);
+    log_event( 'INFO', $username, 'access token issued (HTTP exchange)', ip => $ip );
     _audit_auth( $username, 'token-exchange', 'ok', '', 'api' );
     json_response( { ok => 1, token => $r->{token}, expires_at => $r->{expires_at} }, 200 );
     return;
@@ -547,19 +547,19 @@ sub handle_rotate {
         json_response( { ok => 0, error => 'Too many attempts' }, 429 );
         return;
     }
-    my $v = users_tool_api({ action => 'verify-credential', username => $u, secret => $token });
+    my $v = users_tool_api( { action => 'verify-credential', username => $u, secret => $token } );
     unless ( ref $v eq 'HASH' && $v->{ok} ) {
         sleep $LOGIN_DELAY;
-        log_event('WARN', $u, 'token rotation: invalid current token', ip => $ip);
+        log_event( 'WARN', $u, 'token rotation: invalid current token', ip => $ip );
         json_response( { ok => 0, error => 'Invalid token' }, 401 );
         return;
     }
-    my $r = users_tool_api({ action => 'token-rotate', username => $u });
+    my $r = users_tool_api( { action => 'token-rotate', username => $u } );
     unless ( ref $r eq 'HASH' && $r->{ok} ) {
         json_response( { ok => 0, error => 'Rotation failed' }, 500 );
         return;
     }
-    log_event('INFO', $u, 'access token rotated (HTTP)', ip => $ip);
+    log_event( 'INFO', $u, 'access token rotated (HTTP)', ip => $ip );
     _audit_auth( $u, 'token-rotate', 'ok', '', 'api' );
     json_response( { ok => 1, token => $r->{token}, expires_at => $r->{expires_at} }, 200 );
     return;
@@ -570,10 +570,10 @@ sub handle_rotate {
 # and the account having an email. ALWAYS a generic response, so it cannot
 # enumerate accounts or emails.
 sub handle_forgot {
-    my %form = parse_post();
+    my %form  = parse_post();
     my $ident = $form{identifier} // $form{username} // $form{email} // '';
     $ident =~ s/^\s+|\s+$//g;
-    my $ip = $ENV{REMOTE_ADDR} // '';
+    my $ip            = $ENV{REMOTE_ADDR} // '';
     my $auth_redirect = read_conf_key('auth_redirect') || '/login';
 
     if ( check_login_rate($ip) ) {
@@ -581,7 +581,7 @@ sub handle_forgot {
     }
     else { sleep $LOGIN_DELAY }
 
-    redirect("$auth_redirect?reset=1");   # generic, always
+    redirect("$auth_redirect?reset=1");    # generic, always
     return;
 }
 
@@ -613,9 +613,9 @@ sub _forgot_dispatch {
     my ( $user, $email ) = _resolve_account($ident);
     return unless $user && $email;
     return if account_disabled($user);
-    return unless ui_enabled($user);                    # interactive accounts only
+    return unless ui_enabled($user);    # interactive accounts only
 
-    my $r = users_tool_api({ action => 'claim-create', username => $user });
+    my $r = users_tool_api( { action => 'claim-create', username => $user } );
     return unless ref $r eq 'HASH' && $r->{ok} && $r->{claim};
 
     my $scheme = $ENV{HTTPS} ? 'https' : 'http';
@@ -661,20 +661,20 @@ sub _send_setup_email {
     my ( $to, $user, $link ) = @_;
     my $smtp;
     for my $c ( dirname($0) . "/../plugins/form-smtp.pl",
-                "$DOCROOT/../plugins/form-smtp.pl",
-                "$DOCROOT/plugins/form-smtp.pl" ) {
+        "$DOCROOT/../plugins/form-smtp.pl",
+        "$DOCROOT/plugins/form-smtp.pl" ) {
         if ( -f $c ) { $smtp = $c; last }
     }
     return unless $smtp;
     require JSON::PP;
-    my $payload = JSON::PP::encode_json({
-        config => { to => $to, subject_prefix => 'Set your password - ' },
-        form   => { message =>
-              "A password setup link was requested for '$user'.\n\n"
-            . "Open this one-time link (it expires in 24 hours) to set your password:\n\n"
-            . "$link\n\n"
-            . "If you did not request this, you can ignore this email." },
-    });
+    my $payload = JSON::PP::encode_json( {
+            config => { to => $to, subject_prefix => 'Set your password - ' },
+            form   => { message =>
+                    "A password setup link was requested for '$user'.\n\n"
+                    . "Open this one-time link (it expires in 24 hours) to set your password:\n\n"
+                    . "$link\n\n"
+                    . "If you did not request this, you can ignore this email." },
+    } );
     my ( $out, $in );
     my $pid = eval { open2( $out, $in, $^X, $smtp, '--pipe' ) };
     return unless $pid;
@@ -690,21 +690,21 @@ sub handle_request {
     my $cookie = read_cookie($COOKIE_NAME);
 
     if ( !$cookie ) {
-        log_event('INFO', $uri, 'auth: no cookie');
+        log_event( 'INFO', $uri, 'auth: no cookie' );
     }
     else {
         my ( $payload, $sig ) = $cookie =~ /^(.+):([a-f0-9]{64})$/;
         if ( !( $payload && $sig ) ) {
-            log_event('WARN', $uri, 'auth: cookie malformed');
+            log_event( 'WARN', $uri, 'auth: cookie malformed' );
         }
         else {
             $payload = uri_decode_simple($payload);
-            my $secret = load_auth_secret();
+            my $secret   = load_auth_secret();
             my $expected = hmac_sha256_hex( $payload, $secret );
 
             # M-5: constant-time signature comparison
-            unless ( const_eq($sig, $expected) ) {
-                log_event('WARN', $uri, 'auth: signature mismatch');
+            unless ( const_eq( $sig, $expected ) ) {
+                log_event( 'WARN', $uri, 'auth: signature mismatch' );
             }
             else {
                 # SM141: two payload shapes are valid. Current cookies are
@@ -725,13 +725,13 @@ sub handle_request {
                 $groups //= '';
 
                 if ( !defined $ts || $ts !~ /^\d+$/ || ( time() - $ts ) >= $COOKIE_MAX ) {
-                    log_event('WARN', $uri, 'auth: cookie expired or malformed ts', ts => $ts // 'undef');
+                    log_event( 'WARN', $uri, 'auth: cookie expired or malformed ts', ts => $ts // 'undef' );
                 }
                 elsif ( account_disabled($user) ) {
                     # SM071: reject an existing cookie for a now-disabled
                     # account; no trusted headers are set, so the request is
                     # treated as unauthenticated.
-                    log_event('WARN', $uri, 'auth: account disabled', user => $user);
+                    log_event( 'WARN', $uri, 'auth: account disabled', user => $user );
                 }
                 elsif ( _session_revoked( $user, $ts, $sid ) ) {
                     # SM141: an operator signed this session out (revoked
@@ -760,7 +760,7 @@ sub handle_request {
                     $ENV{LAZYSITE_AUTH_NO_PASSWORD} = '1'
                         if exists $users->{$user} && !length $users->{$user};
 
-                    log_event('INFO', $uri, 'auth: cookie valid', user => $user, groups => $groups);
+                    log_event( 'INFO', $uri, 'auth: cookie valid', user => $user, groups => $groups );
                 }
             }
         }
@@ -774,6 +774,22 @@ sub handle_request {
     my $processor = $ENV{LAZYSITE_PROCESSOR}
         // $ENV{REDIRECT_LAZYSITE_PROCESSOR}
         // "$DOCROOT/../cgi-bin/lazysite-processor.pl";
+
+    # SEC-2026-07 (H7): never exec ourselves. A direct request to
+    # lazysite-auth.pl with no ?action (notably a bare POST) reaches this
+    # passthrough with LAZYSITE_PROCESSOR pointing back at this wrapper; exec'ing
+    # it would re-enter with the same env and loop forever, wedging a
+    # single-threaded server. Refuse with a 400 instead.
+    my $self      = Cwd::abs_path(__FILE__)   // '';
+    my $proc_real = Cwd::abs_path($processor) // $processor;
+    if ( length $self && $proc_real eq $self ) {
+        log_event( 'WARN', $uri, 'auth: refusing self-exec (no action)',
+            method => $method );
+        print "Status: 400 Bad Request\r\n";
+        print "Content-Type: text/plain; charset=utf-8\r\n\r\n";
+        print "lazysite-auth: no action. Use ?action=login or ?action=logout.\n";
+        exit 0;
+    }
 
     exec $^X, $processor;
     die "exec failed: $!\n";
@@ -816,7 +832,7 @@ sub ui_enabled {
     require JSON::PP;
     my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
     if ( !$data || ref $data ne 'HASH' ) {
-        log_event('WARN', $username, 'user-settings.json unparseable; ui defaults on');
+        log_event( 'WARN', $username, 'user-settings.json unparseable; ui defaults on' );
         return 1;
     }
     my $s = $data->{$username};
@@ -1082,7 +1098,7 @@ sub update_user_hash {
 # broken rate-limit store cannot lock out all logins.
 sub check_login_rate {
     my ($ip) = @_;
-    return 1 unless $ip;
+    return 1             unless $ip;
     make_path($AUTH_DIR) unless -d $AUTH_DIR;
 
     # SM022: do not capture the tie return value. A lexical holding
@@ -1093,7 +1109,7 @@ sub check_login_rate {
     eval {
         tie %db, 'DB_File', $LOGIN_RATE_DB, O_CREAT | O_RDWR, 0o600;
     };
-    return 1 if $@ || !tied %db;    # fail open
+    return 1 if $@ || !tied %db;                # fail open
 
     my $window = int( time() / $LOGIN_WINDOW );
     my $key    = "$ip:$window";
@@ -1115,7 +1131,7 @@ sub read_conf_key {
     return '' unless -f $path;
     open( my $fh, '<:utf8', $path ) or return '';
     while (<$fh>) {
-        if ( /^\Q$key\E\s*:\s*(.+)$/ ) {
+        if (/^\Q$key\E\s*:\s*(.+)$/) {
             close $fh;
             my $v = $1;
             $v =~ s/^\s+|\s+$//g;
@@ -1172,7 +1188,7 @@ sub read_cookie {
     for my $pair ( split /;\s*/, $cookies ) {
         my ( $k, $v ) = split /=/, $pair, 2;
         $k =~ s/^\s+|\s+$//g if defined $k;
-        return $v if defined $k && $k eq $name;
+        return $v            if defined $k && $k eq $name;
     }
     return '';
 }
@@ -1183,7 +1199,7 @@ sub sanitise_next {
     # H-1: reject protocol-relative URLs (//host) and backslash forms
     # before the permissive character-class check below - otherwise
     # //evil.com matches \A/[\w/.-]*\z.
-    return '/' if $next =~ m{\A(?://|\\)};
+    return '/' if $next     =~ m{\A(?://|\\)};
     return '/' unless $next =~ m{\A/[\w/.-]*\z};
     return $next;
 }

@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use IO::Socket::INET;
 use File::Basename qw(dirname);
-use Cwd qw(abs_path);
+use Cwd            qw(abs_path);
 use Encode;
 
 # --- Module check ---
@@ -18,18 +18,18 @@ my @required = (
 );
 
 my @missing;
-for my $pair ( @required ) {
+for my $pair (@required) {
     my ( $mod, $pkg ) = @$pair;
     # L-11: block-form eval with explicit path munging (no stringy eval)
     eval {
         ( my $file = $mod ) =~ s{::}{/}g;
-        require "$file.pm";  ## no critic (Modules::RequireBarewordIncludes)
+        require "$file.pm";    ## no critic (Modules::RequireBarewordIncludes)
     };
     push @missing, [ $mod, $pkg ] if $@;
 }
 
 
-if ( @missing ) {
+if (@missing) {
     print "lazysite-server: missing required Perl modules:\n\n";
     printf "  %-30s (package: %s)\n", $_->[0], $_->[1] for @missing;
     print "\nOn Debian/Ubuntu:\n\n";
@@ -43,17 +43,17 @@ if ( @missing ) {
 
 my @optional = (
     [ 'Template::Plugin::JSON::Escape', 'libtemplate-plugin-json-escape-perl',
-      'Required for search index (search-index.md)' ],
+        'Required for search index (search-index.md)' ],
 );
 
 my @opt_missing;
-for my $pair ( @optional ) {
+for my $pair (@optional) {
     my ( $mod, $pkg, $note ) = @$pair;
-    eval "require $mod";   ## no critic (ProhibitStringyEval) - dynamic optional-module probe, dev server only
+    eval "require $mod"; ## no critic (ProhibitStringyEval) - dynamic optional-module probe, dev server only
     push @opt_missing, [ $mod, $pkg, $note ] if $@;
 }
 
-if ( @opt_missing ) {
+if (@opt_missing) {
     print "lazysite-server: optional modules not installed:\n\n";
     printf "  %-40s %s\n", $_->[0], $_->[2] for @opt_missing;
     print "\n  sudo apt-get install "
@@ -80,13 +80,17 @@ $SIG{INT} = $SIG{TERM} = sub { exit 0 };
 
 my $SCRIPT_DIR = dirname( abs_path($0) );
 my $PORT       = 8080;
-my $DOCROOT    = abs_path("$SCRIPT_DIR/../starter");
-my $PROCESSOR  = abs_path("$SCRIPT_DIR/../lazysite-processor.pl");
-my $nocache    = 1;
-my $auto_index = 0;    # SM091: generate index + breadcrumb nav for an arbitrary tree
-my $seed       = 1;    # seed scaffolding into a lazysite docroot (off for browsing)
-my $ERR_FILE   = "/tmp/lazysite-server-$$.err";
-my $LOG_FILE   = '';
+# SEC-2026-07 (H7): bind loopback by default - this is a local dev tool with no
+# authentication on its static handler, so it must not be reachable off-host
+# unless the operator explicitly opts in with --host (e.g. 0.0.0.0 for a LAN demo).
+my $BIND         = '127.0.0.1';
+my $DOCROOT      = abs_path("$SCRIPT_DIR/../starter");
+my $PROCESSOR    = abs_path("$SCRIPT_DIR/../lazysite-processor.pl");
+my $nocache      = 1;
+my $auto_index   = 0;     # SM091: generate index + breadcrumb nav for an arbitrary tree
+my $seed         = 1;     # seed scaffolding into a lazysite docroot (off for browsing)
+my $ERR_FILE     = "/tmp/lazysite-server-$$.err";
+my $LOG_FILE     = '';
 my $BROWSE_CACHE = '';    # SM091: off-docroot cache base, set in --auto-index mode
 
 END {
@@ -101,24 +105,25 @@ END {
 
 my $show_help = 0;
 
-while ( @ARGV ) {
+while (@ARGV) {
     my $arg = shift @ARGV;
-    if    ( $arg eq '--port' )      { $PORT      = shift @ARGV; }
-    elsif ( $arg eq '--docroot' )   { $DOCROOT   = abs_path( shift @ARGV ); }
-    elsif ( $arg eq '--processor' ) { $PROCESSOR = abs_path( shift @ARGV ); }
+    if    ( $arg eq '--port' )       { $PORT       = shift @ARGV; }
+    elsif ( $arg eq '--host' )       { $BIND       = shift @ARGV; }
+    elsif ( $arg eq '--docroot' )    { $DOCROOT    = abs_path( shift @ARGV ); }
+    elsif ( $arg eq '--processor' )  { $PROCESSOR  = abs_path( shift @ARGV ); }
     elsif ( $arg eq '--cache' )      { $nocache    = 0; }
     elsif ( $arg eq '--auto-index' ) { $auto_index = 1; }
     elsif ( $arg eq '--no-seed' )    { $seed       = 0; }
-    elsif ( $arg eq '--debug' )     { $ENV{LAZYSITE_LOG_LEVEL} = 'DEBUG'; }
-    elsif ( $arg eq '--log' )       { $LOG_FILE  = shift @ARGV; }
-    elsif ( $arg eq '--help' )      { $show_help = 1; }
+    elsif ( $arg eq '--debug' )      { $ENV{LAZYSITE_LOG_LEVEL} = 'DEBUG'; }
+    elsif ( $arg eq '--log' )        { $LOG_FILE                = shift @ARGV; }
+    elsif ( $arg eq '--help' )       { $show_help               = 1; }
     else {
         print STDERR "lazysite-server: unknown option: $arg\n";
         exit 1;
     }
 }
 
-if ( $show_help ) {
+if ($show_help) {
     print <<'HELP';
 lazysite dev server - local development only, not for production use
 
@@ -126,6 +131,8 @@ Usage: perl tools/lazysite-server.pl [options]
 
 Options:
   --port      PORT    Port to listen on (default: 8080)
+  --host      ADDR    Address to bind (default: 127.0.0.1 - loopback only;
+                      pass 0.0.0.0 to expose on the LAN for a demo)
   --docroot   PATH    Document root (default: ../starter)
   --processor PATH    Processor path (default: ../lazysite-processor.pl)
   --cache             Respect cache files (default: always regenerate)
@@ -218,7 +225,7 @@ if ($do_seed) {
     for my $base (qw(users groups)) {
         my $example = "$auth_dir/$base.example";
         my $target  = "$auth_dir/$base";
-        if ( -f $example && ! -f $target ) {
+        if ( -f $example && !-f $target ) {
             require File::Copy;
             File::Copy::copy( $example, $target );
             print "  seeded: lazysite/auth/$base\n";
@@ -230,10 +237,10 @@ if ($do_seed) {
 
 my $conf_target = "$DOCROOT/lazysite/lazysite.conf";
 my $conf_source = "$DOCROOT/lazysite.conf.example";
-if ( $do_seed && ! -f $conf_target && -f $conf_source ) {
+if ( $do_seed && !-f $conf_target && -f $conf_source ) {
     require File::Copy;
     require File::Path;
-    File::Path::make_path( "$DOCROOT/lazysite" );
+    File::Path::make_path("$DOCROOT/lazysite");
     File::Copy::copy( $conf_source, $conf_target );
     print "  seeded: lazysite/lazysite.conf\n";
 }
@@ -259,7 +266,7 @@ if ($do_seed) {
     for my $base (qw(contact handlers smtp)) {
         my $target  = "$forms_dir/$base.conf";
         my $example = "$forms_dir/$base.conf.example";
-        if ( ! -f $target && -f $example ) {
+        if ( !-f $target && -f $example ) {
             File::Copy::copy( $example, $target );
             print "  seeded: lazysite/forms/$base.conf\n";
         }
@@ -268,7 +275,7 @@ if ($do_seed) {
 
 my $nav_target = "$DOCROOT/lazysite/nav.conf";
 my $nav_source = "$DOCROOT/nav.conf.example";
-if ( $do_seed && ! -f $nav_target && -f $nav_source ) {
+if ( $do_seed && !-f $nav_target && -f $nav_source ) {
     require File::Copy;
     File::Copy::copy( $nav_source, $nav_target );
     print "  seeded: lazysite/nav.conf\n";
@@ -306,21 +313,21 @@ print "  processor: $PROCESSOR\n";
 print "  docroot:   $DOCROOT\n";
 print "  url:       http://localhost:$PORT/\n";
 print "  cache:     $cache_label\n";
-print "  auto-index: " . ($auto_index ? "on (generated index + breadcrumb nav)" : "off") . "\n";
-print "  seeding:   " . ($do_seed ? "on" : "off (docroot left untouched)") . "\n";
-print "  manager:   " . ($manager_enabled ? "enabled" : "disabled") . "\n";
-print "  log level: " . ($ENV{LAZYSITE_LOG_LEVEL} // 'INFO') . "\n";
-print "  log format: " . ($ENV{LAZYSITE_LOG_FORMAT} // 'text') . "\n";
-print "  log file:  " . ($LOG_FILE || 'terminal only') . "\n" if $LOG_FILE;
+print "  auto-index: " . ( $auto_index ? "on (generated index + breadcrumb nav)" : "off" ) . "\n";
+print "  seeding:   " .  ( $do_seed ? "on" : "off (docroot left untouched)" ) . "\n";
+print "  manager:   " .  ( $manager_enabled ? "enabled" : "disabled" ) . "\n";
+print "  log level: " .  ( $ENV{LAZYSITE_LOG_LEVEL}  // 'INFO' ) . "\n";
+print "  log format: " . ( $ENV{LAZYSITE_LOG_FORMAT} // 'text' ) . "\n";
+print "  log file:  " .  ( $LOG_FILE || 'terminal only' ) . "\n" if $LOG_FILE;
 print "\nPress Ctrl+C to stop.\n\n";
 
 my $server = IO::Socket::INET->new(
-    LocalAddr => '0.0.0.0',
+    LocalAddr => $BIND,
     LocalPort => $PORT,
     Proto     => 'tcp',
     Listen    => 5,
     ReuseAddr => 1,
-) or die "lazysite-server: cannot bind to port $PORT: $!\n";
+) or die "lazysite-server: cannot bind to $BIND:$PORT: $!\n";
 
 # --- Main loop ---
 
@@ -338,8 +345,8 @@ while ( my $client = $server->accept() ) {
 # than collapsed to the last value by a name-keyed hash.
 sub parse_cgi_headers {
     my ($header_block) = @_;
-    my $status       = '200 OK';
-    my $content_type = 'text/html; charset=utf-8';
+    my $status         = '200 OK';
+    my $content_type   = 'text/html; charset=utf-8';
     my @extra;
     for my $line ( split /\r?\n/, $header_block ) {
         if ( $line =~ /^Status:\s*(.+)/i ) {
@@ -372,7 +379,7 @@ sub handle_request {
 
     # Read headers
     my %req_headers;
-    my $content_length = 0;
+    my $content_length   = 0;
     my $content_type_req = '';
     while ( my $header = <$client> ) {
         last if $header =~ /^\r?\n$/;
@@ -380,7 +387,7 @@ sub handle_request {
             $req_headers{ lc($1) } = $2;
         }
     }
-    $content_length  = $req_headers{'content-length'} || 0;
+    $content_length   = $req_headers{'content-length'} || 0;
     $content_type_req = $req_headers{'content-type'}   || '';
 
     # Read POST body
@@ -400,10 +407,21 @@ sub handle_request {
     # Normalise: / -> /index for processor, but check static first
     my $file_path = $DOCROOT . $uri;
 
+    # SEC-2026-07 (H7): the dev server's own static/auto-index handlers run
+    # BEFORE the processor's confinement, so without this an unauthenticated GET
+    # for /lazysite/auth/users, /lazysite/auth/.secret, a log, or
+    # ../../etc/passwd (curl --path-as-is) was served raw. Confine to the
+    # docroot and deny the lazysite/ management tree + dotfiles, matching the
+    # production Apache/nginx vhosts. Denied -> 404 (no existence oracle).
+    if ( $method eq 'GET' && -e $file_path && !_dev_path_ok( $uri, $file_path ) ) {
+        serve_denied( $client, $uri, $t0 );
+        return;
+    }
+
     # Static file serving
     # Skip .html files that have a .md or .url source - let the processor handle them
     if ( $method eq 'GET' && -f $file_path && $file_path !~ /\.(?:md|url|tt|conf|brief)$/
-         && !( $file_path =~ /\.html$/ && ( -f ($file_path =~ s/\.html$/.md/r) || -f ($file_path =~ s/\.html$/.url/r) ) ) ) {
+        && !( $file_path =~ /\.html$/ && ( -f ( $file_path =~ s/\.html$/.md/r ) || -f ( $file_path =~ s/\.html$/.url/r ) ) ) ) {
         serve_static( $client, $file_path, $method, $uri, $t0 );
         return;
     }
@@ -414,17 +432,17 @@ sub handle_request {
     if ( $auto_index && $method eq 'GET' ) {
         ( my $dpath = $uri ) =~ s{/+$}{};
         my $dir_fs = length $dpath ? "$DOCROOT$dpath" : $DOCROOT;
-        if ( -d $dir_fs && ! -f "$dir_fs/index.md" && ! -f "$dir_fs.md" ) {
+        if ( -d $dir_fs && !-f "$dir_fs/index.md" && !-f "$dir_fs.md" ) {
             serve_auto_index( $client, $dir_fs, $uri, $t0 );
             return;
         }
     }
 
     # Determine which script to run
-    my $auth_script  = abs_path("$SCRIPT_DIR/../lazysite-auth.pl");
-    my $manager_api  = abs_path("$SCRIPT_DIR/../lazysite-manager-api.pl");
-    my $auth_users   = "$DOCROOT/lazysite/auth/users";
-    my $use_auth     = -f $auth_users && -f $auth_script;
+    my $auth_script = abs_path("$SCRIPT_DIR/../lazysite-auth.pl");
+    my $manager_api = abs_path("$SCRIPT_DIR/../lazysite-manager-api.pl");
+    my $auth_users  = "$DOCROOT/lazysite/auth/users";
+    my $use_auth    = -f $auth_users && -f $auth_script;
 
     # Pick the ultimate target CGI. Default is the processor; /cgi-bin/*.pl
     # overrides with the explicit script.
@@ -470,21 +488,21 @@ sub handle_request {
 
     # Build CGI environment
     my %env = (
-        DOCUMENT_ROOT    => $DOCROOT,
-        REDIRECT_URL     => $uri,
-        REQUEST_URI      => $raw_uri,
-        REQUEST_METHOD   => $method,
-        QUERY_STRING     => $query_string,
-        CONTENT_LENGTH   => $content_length,
-        CONTENT_TYPE     => $content_type_req,
-        REQUEST_SCHEME   => 'http',
-        SERVER_NAME      => 'localhost',
-        SERVER_PORT      => $PORT,
-        REMOTE_ADDR      => $client->peerhost || '127.0.0.1',
-        LAZYSITE_NOCACHE    => $nocache,
-        LAZYSITE_PROCESSOR  => $target,  # real CGI target (auth wrapper execs this)
+        DOCUMENT_ROOT      => $DOCROOT,
+        REDIRECT_URL       => $uri,
+        REQUEST_URI        => $raw_uri,
+        REQUEST_METHOD     => $method,
+        QUERY_STRING       => $query_string,
+        CONTENT_LENGTH     => $content_length,
+        CONTENT_TYPE       => $content_type_req,
+        REQUEST_SCHEME     => 'http',
+        SERVER_NAME        => 'localhost',
+        SERVER_PORT        => $PORT,
+        REMOTE_ADDR        => $client->peerhost || '127.0.0.1',
+        LAZYSITE_NOCACHE   => $nocache,
+        LAZYSITE_PROCESSOR => $target,    # real CGI target (auth wrapper execs this)
         ( $BROWSE_CACHE ? ( LAZYSITE_CACHE_DIR => "$BROWSE_CACHE/cache" ) : () ),
-        ( $ENV{LAZYSITE_LOG_LEVEL}  ? ( LAZYSITE_LOG_LEVEL  => $ENV{LAZYSITE_LOG_LEVEL}  ) : () ),
+        ( $ENV{LAZYSITE_LOG_LEVEL} ? ( LAZYSITE_LOG_LEVEL => $ENV{LAZYSITE_LOG_LEVEL} ) : () ),
         ( $ENV{LAZYSITE_LOG_FORMAT} ? ( LAZYSITE_LOG_FORMAT => $ENV{LAZYSITE_LOG_FORMAT} ) : () ),
     );
 
@@ -517,8 +535,8 @@ sub handle_request {
         my $pf;
         unless ( open( $pf, '>:raw', $post_file ) ) {
             my $err = $!;
-            log_event('ERROR', $uri, 'cannot write POST tempfile',
-                path => $post_file, error => $err);
+            log_event( 'ERROR', $uri, 'cannot write POST tempfile',
+                path => $post_file, error => $err );
             print $client "HTTP/1.0 500 Internal Server Error\r\n";
             print $client "Content-Type: text/plain\r\n\r\n";
             print $client "500 Internal Server Error\n";
@@ -601,7 +619,37 @@ sub handle_request {
 
     # Log
     my $ms = $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0;
-    log_event('INFO', $uri, 'request', method => $method, status => $status, ms => $ms);
+    log_event( 'INFO', $uri, 'request', method => $method, status => $status, ms => $ms );
+}
+
+# SEC-2026-07 (H7): is this filesystem path safe for the dev server to expose?
+# Rejects traversal, anything under the lazysite/ management tree (secrets,
+# hashes, ACLs, logs), and dotfiles/dotdirs - parity with the production vhosts.
+# Confinement is by realpath so a symlink out of the docroot is caught too.
+sub _dev_path_ok {
+    my ( $uri, $fs, $docroot ) = @_;
+    $docroot //= $DOCROOT;
+    return 0 if $uri =~ m{(?:^|/)\.\.(?:/|$)};    # traversal (defense in depth)
+    my $real  = abs_path($fs)      // return 0;
+    my $droot = abs_path($docroot) // return 0;
+    return 0 unless $real eq $droot || index( $real, "$droot/" ) == 0;
+    ( my $rel = substr( $real, length $droot ) ) =~ s{^/+}{};
+    return 0 if $rel =~ m{\Alazysite(?:/|\z)};    # management tree
+    return 0 if $rel =~ m{(?:\A|/)\.[^/]};        # dotfile / dotdir
+    return 1;
+}
+
+sub serve_denied {
+    my ( $client, $uri, $t0 ) = @_;
+    my $body = "Not found\n";
+    print $client "HTTP/1.0 404 Not Found\r\n";
+    print $client "Content-Type: text/plain\r\n";
+    print $client "Content-Length: " . length($body) . "\r\n";
+    print $client "Connection: close\r\n\r\n";
+    print $client $body;
+    my $ms = $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0;
+    log_event( 'WARN', $uri, 'request', status => '404 Not Found', ms => $ms,
+        denied => 1 );
 }
 
 sub serve_static {
@@ -621,7 +669,7 @@ sub serve_static {
         print $client "Cannot read file\n";
 
         my $ms = $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0;
-        log_event('ERROR', $uri, 'request', method => $method, status => '500 Internal Server Error', ms => $ms, error => $!);
+        log_event( 'ERROR', $uri, 'request', method => $method, status => '500 Internal Server Error', ms => $ms, error => $! );
         return;
     };
     local $/;
@@ -642,7 +690,7 @@ sub serve_static {
     print $client $body;
 
     my $ms = $has_hires ? int( ( Time::HiRes::time() - $t0 ) * 1000 ) : 0;
-    log_event('INFO', $uri, 'request', method => $method, status => '200 OK', ms => $ms, static => 1);
+    log_event( 'INFO', $uri, 'request', method => $method, status => '200 OK', ms => $ms, static => 1 );
 }
 
 # --- SM091: auto-index (generated directory listing + breadcrumb nav) ---
@@ -701,15 +749,15 @@ sub render_auto_index {
     for my $e ( sort readdir $dh ) {
         next if $e =~ /^\./;
         next if $e eq 'lazysite' || $e eq 'manager';
-        if    ( -d "$dir_fs/$e" )                    { push @dirs, $e }
-        elsif ( $e =~ /\.md$/ && $e ne 'index.md' )  {
+        if    ( -d "$dir_fs/$e" ) { push @dirs, $e }
+        elsif ( $e =~ /\.md$/ && $e ne 'index.md' ) {
             if ( $e eq 'README.md' ) { $has_readme = 1 }
             else                     { push @notes, $e }
         }
     }
     closedir $dh;
 
-    ( my $base = $uri ) =~ s{/+$}{};          # '' at root, '/auth' otherwise
+    ( my $base = $uri ) =~ s{/+$}{};    # '' at root, '/auth' otherwise
     my $name = ( $base =~ m{([^/]+)$} ) ? $1 : 'index';
 
     my $h = breadcrumb_html($uri);
@@ -808,10 +856,10 @@ sub display_log_line {
     return unless length $line;
     my $colour = '';
     if    ( $line =~ /\[DEBUG\]/ ) { $colour = $LEVEL_COLOUR{DEBUG} }
-    elsif ( $line =~ /\[INFO\]/  ) { $colour = $LEVEL_COLOUR{INFO}  }
-    elsif ( $line =~ /\[WARN\]/  ) { $colour = $LEVEL_COLOUR{WARN}  }
+    elsif ( $line =~ /\[INFO\]/ )  { $colour = $LEVEL_COLOUR{INFO} }
+    elsif ( $line =~ /\[WARN\]/ )  { $colour = $LEVEL_COLOUR{WARN} }
     elsif ( $line =~ /\[ERROR\]/ ) { $colour = $LEVEL_COLOUR{ERROR} }
-    if ( -t STDOUT && $colour ) {
+    if    ( -t STDOUT && $colour ) {
         print "$colour$line$RESET\n";
     } else {
         print "$line\n";
@@ -819,22 +867,22 @@ sub display_log_line {
 }
 
 sub log_event {
-    my ($level, $context, $message, %extra) = @_;
+    my ( $level, $context, $message, %extra ) = @_;
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
-    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    my %rank      = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
     return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
     use POSIX qw(strftime);
-    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $ts     = strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
     if ( $format eq 'json' ) {
         my $pairs = join ',',
-            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            map { '"' . _json_str($_) . '":"' . _json_str( $extra{$_} ) . '"' }
             keys %extra;
         my $json = '{"ts":"' . $ts . '"'
-            . ',"level":"'     . _json_str($level)          . '"'
-            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
-            . ',"context":"'   . _json_str($context)        . '"'
-            . ',"message":"'   . _json_str($message)        . '"'
+            . ',"level":"' . _json_str($level) . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT) . '"'
+            . ',"context":"' . _json_str($context) . '"'
+            . ',"message":"' . _json_str($message) . '"'
             . ( $pairs ? ",$pairs" : '' )
             . '}';
         print STDERR "$json\n";
@@ -843,7 +891,7 @@ sub log_event {
         my $extras = join ' ',
             map { "$_=" . $extra{$_} } keys %extra;
         my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
-        $line   .= " $extras" if $extras;
+        $line .= " $extras" if $extras;
         print STDERR "$line\n";
     }
 }
