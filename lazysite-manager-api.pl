@@ -3,11 +3,11 @@
 use strict;
 use warnings;
 use Digest::SHA qw(hmac_sha256_hex sha256_hex);
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP    qw(encode_json decode_json);
 use File::Find;
-use File::Path qw(make_path);
+use File::Path     qw(make_path);
 use File::Basename qw(dirname basename);
-use Cwd qw(realpath);
+use Cwd            qw(realpath);
 use IPC::Open2;
 use Fcntl qw(:flock O_RDWR O_CREAT);
 use POSIX qw(strftime);
@@ -23,13 +23,13 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util qw(log_event const_eq);
-use Lazysite::Audit qw(audit_log);
-use Lazysite::Capabilities qw(describe capability_keys);
-use Lazysite::BadUrl       qw(list_blocks unblock);
+use Lazysite::Util           qw(log_event const_eq);
+use Lazysite::Audit          qw(audit_log);
+use Lazysite::Capabilities   qw(describe capability_keys);
+use Lazysite::BadUrl         qw(list_blocks unblock);
 use Lazysite::Auth::Settings qw(site_grants_manager);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
-use Lazysite::Auth::Session qw(generate_csrf_token verify_csrf_token);
+use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key);
@@ -57,23 +57,23 @@ use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
-my $DOCROOT      = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
-$Lazysite::Auth::Acl::DOCROOT = $DOCROOT;
-$Lazysite::Manager::Common::DOCROOT = $DOCROOT;
-$Lazysite::Manager::Upload::DOCROOT = $DOCROOT;
+my $DOCROOT = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
+$Lazysite::Auth::Acl::DOCROOT        = $DOCROOT;
+$Lazysite::Manager::Common::DOCROOT  = $DOCROOT;
+$Lazysite::Manager::Upload::DOCROOT  = $DOCROOT;
 $Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
-$Lazysite::Manager::Files::DOCROOT = $DOCROOT;
-$Lazysite::Manager::Themes::DOCROOT = $DOCROOT;
+$Lazysite::Manager::Files::DOCROOT   = $DOCROOT;
+$Lazysite::Manager::Themes::DOCROOT  = $DOCROOT;
 $Lazysite::Manager::Layouts::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Backups::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 $Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
-$Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
-$Lazysite::Auth::Session::LAZYSITE_DIR = $LAZYSITE_DIR;
+$Lazysite::Audit::LAZYSITE_DIR            = $LAZYSITE_DIR;
+$Lazysite::Auth::Session::LAZYSITE_DIR    = $LAZYSITE_DIR;
 $Lazysite::Auth::Settings::AUTH_DIR = "$LAZYSITE_DIR/auth";   # SM138: site_grants_manager
-$Lazysite::Manager::Upload::LAZYSITE_DIR = $LAZYSITE_DIR;
-$Lazysite::Manager::Themes::LAZYSITE_DIR = $LAZYSITE_DIR;
-$Lazysite::Manager::Layouts::LAZYSITE_DIR = $LAZYSITE_DIR;
+$Lazysite::Manager::Upload::LAZYSITE_DIR   = $LAZYSITE_DIR;
+$Lazysite::Manager::Themes::LAZYSITE_DIR   = $LAZYSITE_DIR;
+$Lazysite::Manager::Layouts::LAZYSITE_DIR  = $LAZYSITE_DIR;
 $Lazysite::Manager::Sessions::LAZYSITE_DIR = $LAZYSITE_DIR;    # SM141
 $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
@@ -85,7 +85,7 @@ $Lazysite::Manager::Files::LOCK_TIMEOUT = $LOCK_TIMEOUT;
 # cookie the processor verifies; declared here (before dispatch runs) so
 # the action subs see initialised values.
 my $PREVIEW_COOKIE = 'lzs_preview';
-my $PREVIEW_TTL    = 3600;   # 1 hour
+my $PREVIEW_TTL    = 3600;            # 1 hour
 
 # SM019: download Content-Type table. Unknown extensions fall back to
 # application/octet-stream so the browser treats the body as raw bytes.
@@ -130,14 +130,14 @@ my %token_caps;
             # A token request must not also carry a session cookie, so the
             # CSRF exemption can never be used to ride a browser session.
             if ( length( $ENV{HTTP_X_REMOTE_USER} // '' ) ) {
-                respond({ ok => 0, error => 'Do not combine cookie and token auth' });
+                respond( { ok => 0, error => 'Do not combine cookie and token auth' } );
                 exit 0;
             }
-            my $v = users_api({ action => 'verify-credential',
-                                username => $u, secret => $secret });
+            my $v = users_api( { action => 'verify-credential',
+                    username => $u, secret => $secret } );
             unless ( $v && $v->{ok} ) {
-                sleep 1;   # brute-force delay (per-IP limiter lands in P3.6)
-                respond({ ok => 0, error => 'Invalid credentials' });
+                sleep 1;    # brute-force delay (per-IP limiter lands in P3.6)
+                respond( { ok => 0, error => 'Invalid credentials' } );
                 exit 0;
             }
             $auth_user  = $u;
@@ -148,10 +148,10 @@ my %token_caps;
 }
 
 # Cookie (manager) auth: the trusted X-Remote-User set by the auth wrapper.
-unless ( $token_auth ) {
+unless ($token_auth) {
     $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
     if ( $site_secured && !$auth_user ) {
-        respond({ ok => 0, error => "Authentication required" });
+        respond( { ok => 0, error => "Authentication required" } );
         exit 0;
     }
     $auth_user ||= 'local';
@@ -173,20 +173,20 @@ for my $pair ( split /&/, $ENV{QUERY_STRING} // '' ) {
 my $action = $params{action} // '';
 my $path   = $params{path}   // '/';
 # Mirror the per-request context into Manager::Common for log attribution.
-$Lazysite::Manager::Common::action    = $action;
-$Lazysite::Manager::Common::auth_user = $auth_user;
-$Lazysite::Manager::Upload::auth_user = $auth_user;
-$Lazysite::Manager::Backups::auth_user = $auth_user;
-$Lazysite::Manager::Plugins::action   = $action;
-$Lazysite::Manager::Files::auth_user  = $auth_user;
-$Lazysite::Manager::Files::action     = $action;
-$Lazysite::Manager::Themes::auth_user = $auth_user;
-$Lazysite::Manager::Themes::action    = $action;
-$Lazysite::Manager::Layouts::auth_user = $auth_user;
-$Lazysite::Manager::Layouts::action    = $action;
+$Lazysite::Manager::Common::action      = $action;
+$Lazysite::Manager::Common::auth_user   = $auth_user;
+$Lazysite::Manager::Upload::auth_user   = $auth_user;
+$Lazysite::Manager::Backups::auth_user  = $auth_user;
+$Lazysite::Manager::Plugins::action     = $action;
+$Lazysite::Manager::Files::auth_user    = $auth_user;
+$Lazysite::Manager::Files::action       = $action;
+$Lazysite::Manager::Themes::auth_user   = $auth_user;
+$Lazysite::Manager::Themes::action      = $action;
+$Lazysite::Manager::Layouts::auth_user  = $auth_user;
+$Lazysite::Manager::Layouts::action     = $action;
 $Lazysite::Manager::Sessions::auth_user = $auth_user;    # SM141
-$Lazysite::Auth::Acl::auth_user            = $auth_user;
-$Lazysite::Auth::Acl::token_auth           = $token_auth;
+$Lazysite::Auth::Acl::auth_user         = $auth_user;
+$Lazysite::Auth::Acl::token_auth        = $token_auth;
 # SM077: requester's groups for @group ACL entries (cookie users carry them in
 # X-Remote-Groups; token partners carry none, so a @group never matches them).
 @Lazysite::Auth::Acl::user_groups = grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
@@ -204,14 +204,14 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         if ( $len > $max ) {
             log_event( 'WARN', 'file-upload', 'upload too large',
                 size => $len, max => $max, user => $auth_user );
-            respond({ ok => 0,
-                error => "Upload exceeds limit of "
-                       . int( $max / 1024 / 1024 ) . " MB" });
+            respond( { ok => 0,
+                    error => "Upload exceeds limit of "
+                        . int( $max / 1024 / 1024 ) . " MB" } );
             exit 0;
         }
         my $rate = check_upload_rate( $auth_user, $len );
         unless ( $rate->{ok} ) {
-            respond({ ok => 0, error => $rate->{error} });
+            respond( { ok => 0, error => $rate->{error} } );
             exit 0;
         }
     }
@@ -235,12 +235,12 @@ if ( $method eq 'POST' && !$token_auth ) {
     #     apiCall() patterns that send JSON.
     #   - csrf_token query-string parameter - last-resort fallback for
     #     sendBeacon() calls that cannot set headers.
-    my $token = $ENV{HTTP_X_CSRF_TOKEN} // '';
+    my $token  = $ENV{HTTP_X_CSRF_TOKEN} // '';
     my $source = $token ? 'header' : '';
     if ( !$token && $body ) {
         my $parsed = eval { decode_json($body) };
         if ( ref $parsed eq 'HASH' ) {
-            $token = $parsed->{csrf_token} // '';
+            $token  = $parsed->{csrf_token} // '';
             $source = 'body' if $token;
         }
     }
@@ -249,35 +249,116 @@ if ( $method eq 'POST' && !$token_auth ) {
         $source = 'query' if $token;
     }
 
-    log_event('DEBUG', $action, 'CSRF check',
+    log_event( 'DEBUG', $action, 'CSRF check',
         method    => $method,
         user      => $auth_user,
         token_len => length($token),
         source    => $source || 'none',
-        result    => $token ? 'has-token' : 'no-token');
+        result    => $token ? 'has-token' : 'no-token' );
 
     my $valid = verify_csrf_token( $token, $auth_user );
 
-    log_event('DEBUG', $action, 'CSRF verify',
+    log_event( 'DEBUG', $action, 'CSRF verify',
         user   => $auth_user,
-        result => $valid ? 'ok' : 'fail');
+        result => $valid ? 'ok' : 'fail' );
 
-    unless ( $valid ) {
-        respond({ ok => 0, error => 'Invalid or missing CSRF token' });
+    unless ($valid) {
+        respond( { ok => 0, error => 'Invalid or missing CSRF token' } );
         exit 0;
     }
 }
 
 # Per-action csrf-token read
 if ( $action eq 'csrf-token' ) {
-    respond({ ok => 1, token => generate_csrf_token($auth_user) });
+    respond( { ok => 1, token => generate_csrf_token($auth_user) } );
     exit 0;
+}
+
+# SEC-2026-07 (H1/H2): cookie/manager path authorization. The %need map below
+# gates only TOKEN clients; a cookie session historically reached every action
+# ungated ("manager UI = trusted operator"), so a low-privilege interactive
+# account (content-editors) could config-set, run backups, enable plugins, etc.
+# Now the cookie path is capability-gated by the same model, and a state-changing
+# action must be POST (a GET would bypass the CSRF gate above - and be CSRF-able
+# from an admin's browser). Operators (manage_users, or the unsecured/dev
+# fallback where no group grants manager) bypass the CAPABILITY gate, matching
+# the rest of the manager. The users/sessions/keys/audit/notices actions keep
+# their own bespoke gates in dispatch (they carry actor confinement / forbidden
+# messaging), so they are not listed here.
+if ( !$token_auth ) {
+    my %COOKIE_CAP = (
+        # Content-mutation actions (save/delete/mkdir/move/copy/file-upload/
+        # migrate-to-local) and acl-get/set/remove self-authorize per file via
+        # the ACL layer (action_save -> _acl_can_write; action_acl_* by
+        # ownership): a file owner or @group-listed writer need not hold the
+        # global manage_content cap. They are absent from the token %need map
+        # for the same reason (token clients write over WebDAV). So they are NOT
+        # capability-gated here - only POST-gated below (CSRF). Content-history
+        # reads/restore ARE gated (they mirror the token %need manage_content).
+        'git-restore'     => 'manage_content', 'git-status' => 'manage_content',
+        'git-history'     => 'manage_content', 'git-show'   => 'manage_content',
+        'git-init'        => 'manage_config',
+        'config-set'      => 'manage_config',  'config-read'        => 'manage_config',
+        'domains-list'    => 'manage_config',  'bad-url-blocks'     => 'manage_config',
+        'bad-url-unblock' => 'manage_config',  'rotate-auth-secret' => 'manage_config',
+        'backup-create'   => 'manage_config',  'backup-restore'     => 'manage_config',
+        'backup-download' => 'manage_config',  'backup-list'        => 'manage_config',
+        'theme-activate'  => 'manage_themes',  'theme-delete'       => 'manage_themes',
+        'theme-rename'    => 'manage_themes',  'theme-upload'       => 'manage_themes',
+        'layout-activate' => 'manage_layouts', 'layout-delete'      => 'manage_layouts',
+        'layout-install'  => 'manage_layouts', 'layouts-install'    => 'manage_layouts',
+        'layouts-repo-set'        => 'manage_layouts',
+        'preview-grant'           => 'manage_themes|manage_layouts',
+        'preview-clear'           => 'manage_themes|manage_layouts',
+        'artifact-backups-delete' => 'manage_themes|manage_layouts',
+        'nav-save'                => 'manage_nav',
+        'handler-save'            => 'manage_forms', 'handler-delete' => 'manage_forms',
+        'form-targets-save'       => 'manage_forms',
+        'plugin-enable' => 'manage_config', 'plugin-disable'   => 'manage_config',
+        'plugin-read'   => 'manage_config', 'plugin-save'      => 'manage_config',
+        'plugin-action' => 'manage_config', 'analyse_visitors' => 'analytics',
+        # SEC-2026-07 (C1): the account-management action requires a user-mgmt
+        # capability to be reached at all - a content-only account could
+        # previously reset any password (incl. the admin's). A delegated
+        # sub-manager (create_sub_users) is then confined to its own sub-tree by
+        # the actor logic in the users tool.
+        'users' => 'manage_users|create_sub_users|delegate_sub_user_creation',
+    );
+    my %MUTATING = map { $_ => 1 } qw(
+        save delete mkdir move copy migrate-to-local file-upload git-restore
+        git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
+        rotate-auth-secret backup-create backup-restore theme-activate
+        theme-delete theme-rename theme-upload layout-activate layout-delete
+        layout-install layouts-install layouts-repo-set artifact-backups-delete
+        preview-grant preview-clear nav-save handler-save handler-delete
+        form-targets-save plugin-enable plugin-disable plugin-save plugin-action
+        lock unlock renew-lock notices-seen
+    );
+
+    if ( $MUTATING{$action} && $method ne 'POST' ) {
+        respond( { ok => 0, error => "This action must be sent as POST." } );
+        exit 0;
+    }
+    if ( !_is_operator() && ( my $req_cap = $COOKIE_CAP{$action} ) ) {
+        my $caps = _user_caps($auth_user);
+        my $ok   = 0;
+        $ok ||= $caps->{$_} for split /\|/, $req_cap;
+        unless ($ok) {
+            audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
+                'fail', 'ui', 'denied: capability' );
+            ( my $names = $req_cap ) =~ s/\|/ or /g;
+            respond( { ok => 0, kind => 'forbidden',
+                    error => "This action requires the '$names' permission. An "
+                        . "administrator can grant it on the Groups page." } );
+            exit 0;
+        }
+    }
 }
 
 # SM071 Phase 3: token clients are confined to the control-API action set
 # and gated by capability. Cookie (manager) requests are unaffected and
 # keep their existing manager-group authorisation.
-if ( $token_auth ) {
+if ($token_auth) {
     # SM127: manager/UI-remote separation. An account with manager UI access
     # (the `ui` capability) must NEVER be reachable over a remote channel - manager
     # access is interactive-only, so a misissued or leaked token on a manager
@@ -306,9 +387,9 @@ if ( $token_auth ) {
     unless ( $token_caps{api} || $introspection{$action} ) {
         audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
             'fail', 'api', 'denied: api channel capability' );
-        respond({ ok => 0, error => "The 'api' capability is required to use the "
-            . "control API. Ask the operator to grant the api capability to your "
-            . "account's group." });
+        respond( { ok => 0, error => "The 'api' capability is required to use the "
+                    . "control API. Ask the operator to grant the api capability to your "
+                    . "account's group." } );
         exit 0;
     }
     my %need = (
@@ -318,27 +399,27 @@ if ( $token_auth ) {
         'layout-activate'   => sub { $_[0]->{manage_layouts} },
         'preview-grant'     => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'config-set'        => sub { $_[0]->{manage_config} },
-        'config-read'       => sub { $_[0]->{manage_config} },   # SM122: read a safe subset
+        'config-read'  => sub { $_[0]->{manage_config} },  # SM122: read a safe subset
         'domains-list' => sub { $_[0]->{manage_config} },  # SM151: read-only domains view
-        'bad-url-blocks'    => sub { $_[0]->{manage_config} }, # SM128: blocked-IP list
-        'bad-url-unblock'   => sub { $_[0]->{manage_config} },
-        'pages'             => sub { $_[0]->{manage_nav} },       # SM097: page-URL list for the nav editor
-        # SM123: a theme/layout manager may list what is installed (was previously
-        # unavailable to token clients, so they activated each in turn to discover).
+        'bad-url-blocks'  => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
+        'bad-url-unblock' => sub { $_[0]->{manage_config} },
+        'pages' => sub { $_[0]->{manage_nav} },  # SM097: page-URL list for the nav editor
+            # SM123: a theme/layout manager may list what is installed (was previously
+            # unavailable to token clients, so they activated each in turn to discover).
         'theme-list'        => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'themes-for-layout' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'themes-list-all'   => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'layouts-available' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'layouts-manifest'  => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         # SM: a layouts manager may install/remove layouts on demand from the repo.
-        'layout-install'    => sub { $_[0]->{manage_layouts} },
-        'layout-delete'     => sub { $_[0]->{manage_layouts} },
+        'layout-install'          => sub { $_[0]->{manage_layouts} },
+        'layout-delete'           => sub { $_[0]->{manage_layouts} },
         'artifact-backups-delete' => sub { $_[0]->{manage_layouts} || $_[0]->{manage_themes} },
         # SM105: navigation is a token-client action gated by manage_nav (which
         # inherits manage_content / webdav), so a WebDAV/API partner can read and
         # write the site nav without the MCP connector or raw WebDAV to lazysite/.
-        'nav-read'          => sub { $_[0]->{manage_nav} },
-        'nav-save'          => sub { $_[0]->{manage_nav} },
+        'nav-read' => sub { $_[0]->{manage_nav} },
+        'nav-save' => sub { $_[0]->{manage_nav} },
         # SM134 follow-ups: the alias-redirect map is content-derived - a content
         # partner may list it (read-only; aliases are front-matter-authored).
         'aliases-list' => sub { $_[0]->{manage_content} },
@@ -350,30 +431,30 @@ if ( $token_auth ) {
         'git-show'    => sub { $_[0]->{manage_content} },
         'git-restore' => sub { $_[0]->{manage_content} },
         'git-init'    => sub { $_[0]->{manage_config} },
-        'whoami'            => sub { 1 },   # any authenticated token may introspect its own grant
-        'describe-capabilities' => sub { 1 },   # SM126: introspection - the capability map
-        # Visitor-log analysis over the control API (token clients), same grant as
-        # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
-        'analyse_visitors'  => sub { $_[0]->{analytics} },
+        'whoami'      => sub { 1 }, # any authenticated token may introspect its own grant
+        'describe-capabilities' => sub { 1 },  # SM126: introspection - the capability map
+            # Visitor-log analysis over the control API (token clients), same grant as
+            # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
+        'analyse_visitors' => sub { $_[0]->{analytics} },
         # The audit trail is its own capability, separate from visitor analytics.
-        'audit'             => sub { $_[0]->{audit} },
+        'audit' => sub { $_[0]->{audit} },
         # SM074: a publishing partner manages ACLs on the content it owns.
-        'acl-get'           => sub { $_[0]->{webdav} },
-        'acl-set'           => sub { $_[0]->{webdav} },
-        'acl-remove'        => sub { $_[0]->{webdav} },
+        'acl-get'    => sub { $_[0]->{webdav} },
+        'acl-set'    => sub { $_[0]->{webdav} },
+        'acl-remove' => sub { $_[0]->{webdav} },
     );
     my $check = $need{$action};
     unless ($check) {
-        respond({ ok => 0, error => "Action not available to token clients: $action" });
+        respond( { ok => 0, error => "Action not available to token clients: $action" } );
         exit 0;
     }
     unless ( $check->( \%token_caps ) ) {
         # Audit the denied attempt (was invisible before).
         audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
             'fail', 'api', 'denied: capability' );
-        respond({ ok => 0, error => "Insufficient capability for $action. Call "
-            . "describe-capabilities to see what your account holds and what each "
-            . "capability unlocks." });
+        respond( { ok => 0, error => "Insufficient capability for $action. Call "
+                    . "describe-capabilities to see what your account holds and what each "
+                    . "capability unlocks." } );
         exit 0;
     }
 
@@ -381,11 +462,11 @@ if ( $token_auth ) {
     # so the client can back off per the documented retry contract.
     my $rl = _rate_ok($auth_user);
     unless ( $rl->{ok} ) {
-        binmode( STDOUT );    # encode_json emits UTF-8 bytes; do not re-encode
+        binmode(STDOUT);    # encode_json emits UTF-8 bytes; do not re-encode
         print "Status: 429 Too Many Requests\r\n";
         print "Retry-After: $rl->{retry_after}\r\n";
         print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-        print encode_json({ ok => 0, error => 'Rate limit exceeded' });
+        print encode_json( { ok => 0, error => 'Rate limit exceeded' } );
         exit 0;
     }
 }
@@ -393,25 +474,25 @@ if ( $token_auth ) {
 # --- Dispatch ---
 
 my $result;
-if    ( $action eq 'list' )             { $result = action_list($path) }
-elsif ( $action eq 'read' )             { $result = action_read($path, $auth_user) }
-elsif ( $action eq 'save' )             {
+if    ( $action eq 'list' ) { $result = action_list($path) }
+elsif ( $action eq 'read' ) { $result = action_read( $path, $auth_user ) }
+elsif ( $action eq 'save' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_save( $path, $auth_user, $req->{content}, $req->{mtime} );
 }
-elsif ( $action eq 'delete' )           { $result = action_delete( $path, $auth_user ) }
-elsif ( $action eq 'acl-get' )          { $result = action_acl_get( $path, $auth_user ) }
-elsif ( $action eq 'acl-set' )          {
+elsif ( $action eq 'delete' )  { $result = action_delete( $path, $auth_user ) }
+elsif ( $action eq 'acl-get' ) { $result = action_acl_get( $path, $auth_user ) }
+elsif ( $action eq 'acl-set' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_acl_set( $path, $auth_user,
         $req->{read}, $req->{write}, $req->{owner} );
 }
-elsif ( $action eq 'acl-remove' )       { $result = action_acl_remove( $path, $auth_user ) }
-elsif ( $action eq 'mkdir' )            { $result = action_mkdir($path) }
-elsif ( $action eq 'move' )             { $result = action_move( $path, $params{to}, $auth_user ) }
+elsif ( $action eq 'acl-remove' ) { $result = action_acl_remove( $path, $auth_user ) }
+elsif ( $action eq 'mkdir' )      { $result = action_mkdir($path) }
+elsif ( $action eq 'move' ) { $result = action_move( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'copy' ) { $result = action_copy( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'migrate-to-local' ) { $result = action_migrate_to_local( $path, $auth_user ) }
-elsif ( $action eq 'aliases-list' )     { $result = action_aliases_list() }
+elsif ( $action eq 'aliases-list' ) { $result = action_aliases_list() }
 elsif ( $action eq 'git-status' )   { $result = action_git_status() }
 elsif ( $action eq 'git-history' ) { $result = action_git_history( $path, $auth_user, $params{limit} ) }
 elsif ( $action eq 'git-show' ) { $result = action_git_show( $path, $auth_user, $params{sha} ) }
@@ -425,7 +506,7 @@ elsif ( $action eq 'cache-list' )       { $result = action_cache_list() }
 elsif ( $action eq 'cache-invalidate' ) { $result = action_cache_invalidate($path) }
 elsif ( $action eq 'config-read' )      { $result = action_config_read() }
 elsif ( $action eq 'domains-list' )     { $result = action_domains_list() }
-elsif ( $action eq 'config-set' )       {
+elsif ( $action eq 'config-set' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_config_set(
         ( defined $req->{key}   ? $req->{key}   : $params{key} ),
@@ -438,18 +519,18 @@ elsif ( $action eq 'bad-url-unblock' ) {
     log_event( 'INFO', 'bad-url-unblock', 'IP unblocked', ip => ( $ip // '' ), user => $auth_user );
     $result = { ok => 1, removed => ( $removed ? JSON::PP::true : JSON::PP::false ) };
 }
-elsif ( $action eq 'theme-list' )       { $result = action_theme_list() }
-elsif ( $action eq 'themes-list-all' )  { $result = action_themes_list_all() }
-elsif ( $action eq 'theme-activate' )   { $result = action_theme_activate($path, \%params) }
-elsif ( $action eq 'layout-activate' )  { $result = action_layout_activate($path, \%params) }
-elsif ( $action eq 'theme-delete' )     { $result = action_theme_delete($path) }
-elsif ( $action eq 'layout-delete' )    { $result = action_layout_delete($path) }
+elsif ( $action eq 'theme-list' )      { $result = action_theme_list() }
+elsif ( $action eq 'themes-list-all' ) { $result = action_themes_list_all() }
+elsif ( $action eq 'theme-activate' ) { $result = action_theme_activate( $path, \%params ) }
+elsif ( $action eq 'layout-activate' ) { $result = action_layout_activate( $path, \%params ) }
+elsif ( $action eq 'theme-delete' )            { $result = action_theme_delete($path) }
+elsif ( $action eq 'layout-delete' )           { $result = action_layout_delete($path) }
 elsif ( $action eq 'artifact-backups-delete' ) { $result = action_artifact_backups_delete($path) }
-elsif ( $action eq 'theme-rename' )     {
+elsif ( $action eq 'theme-rename' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_theme_rename( $path, $req->{new_name} );
 }
-elsif ( $action eq 'theme-upload' )     { $result = action_theme_upload( $body, $params{filename} ) }
+elsif ( $action eq 'theme-upload' ) { $result = action_theme_upload( $body, $params{filename} ) }
 elsif ( $action eq 'layouts-releases' ) { $result = action_layouts_releases() }
 elsif ( $action eq 'layouts-install' )  { $result = action_layouts_install($body) }
 elsif ( $action eq 'layouts-manifest' ) { $result = action_layouts_manifest() }
@@ -459,14 +540,14 @@ elsif ( $action eq 'layouts-release-contents' ) {
 }
 elsif ( $action eq 'layouts-available' ) { $result = action_layouts_available() }
 elsif ( $action eq 'themes-for-layout' ) { $result = action_themes_for_layout( $params{layout} ) }
-elsif ( $action eq 'layouts-repo-get' )  { $result = action_layouts_repo_get() }
-elsif ( $action eq 'layouts-repo-set' )  {
+elsif ( $action eq 'layouts-repo-get' ) { $result = action_layouts_repo_get() }
+elsif ( $action eq 'layouts-repo-set' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_layouts_repo_set( $req->{value} );
 }
-elsif ( $action eq 'users' )            { $result = action_users( $body, \%params ) }
-elsif ( $action eq 'principals' )       { $result = action_principals() }
-elsif ( $action eq 'rotate-auth-secret' ) { $result = action_rotate_auth_secret( $auth_user ) }
+elsif ( $action eq 'users' )              { $result = action_users( $body, \%params ) }
+elsif ( $action eq 'principals' )         { $result = action_principals() }
+elsif ( $action eq 'rotate-auth-secret' ) { $result = action_rotate_auth_secret($auth_user) }
 elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 'user-revoke'
     || $action eq 'keys-list' || $action eq 'key-revoke' ) {
     # SM141/SM145: session AND access-key visibility + revocation are all
@@ -497,30 +578,30 @@ elsif ( $action eq 'sessions-list' || $action eq 'session-revoke' || $action eq 
             : action_user_revoke( $req->{username} );
     }
 }
-elsif ( $action eq 'plugin-list' )      { $result = action_plugin_list() }
-elsif ( $action eq 'plugin-enable' )    {
+elsif ( $action eq 'plugin-list' ) { $result = action_plugin_list() }
+elsif ( $action eq 'plugin-enable' ) {
     my $req = eval { decode_json($body) } // {};
-    $result = action_plugin_enable($req->{script});
+    $result = action_plugin_enable( $req->{script} );
 }
-elsif ( $action eq 'plugin-disable' )   {
+elsif ( $action eq 'plugin-disable' ) {
     my $req = eval { decode_json($body) } // {};
-    $result = action_plugin_disable($req->{script});
+    $result = action_plugin_disable( $req->{script} );
 }
-elsif ( $action eq 'plugin-read' )      {
+elsif ( $action eq 'plugin-read' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_plugin_read( $params{plugin}, $req->{script} );
 }
-elsif ( $action eq 'plugin-save' )      {
+elsif ( $action eq 'plugin-save' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_plugin_save( $params{plugin}, $req->{script}, $req->{values} // {} );
 }
-elsif ( $action eq 'plugin-action' )    {
+elsif ( $action eq 'plugin-action' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_plugin_action( $params{plugin}, $req->{script}, $req->{action_id},
         $req->{params} );
 }
-elsif ( $action eq 'nav-read' )         { $result = action_nav_read() }
-elsif ( $action eq 'pages' )            { $result = action_pages() }
+elsif ( $action eq 'nav-read' ) { $result = action_nav_read() }
+elsif ( $action eq 'pages' )    { $result = action_pages() }
 elsif ( $action eq 'notices' || $action eq 'notices-seen' ) {
     # Operator notifications require the 'notifications' capability (granted via
     # a group; seeded on user-managers). Same cookie-side gate pattern as audit;
@@ -534,16 +615,16 @@ elsif ( $action eq 'notices' || $action eq 'notices-seen' ) {
         $result = $action eq 'notices' ? action_notices() : action_notices_seen();
     }
 }
-elsif ( $action eq 'nav-save' )         {
+elsif ( $action eq 'nav-save' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_nav_save( $req->{items} // [] );
 }
-elsif ( $action eq 'handler-list' )     { $result = action_handler_list() }
-elsif ( $action eq 'version' )          { $result = action_version() }
+elsif ( $action eq 'handler-list' ) { $result = action_handler_list() }
+elsif ( $action eq 'version' )      { $result = action_version() }
 elsif ( $action eq 'analyse_visitors' ) { $result = action_analyse_visitors( $params{window} ) }
 elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
-elsif ( $action eq 'audit' )            {
+elsif ( $action eq 'audit' ) {
     # Strict gate: the audit trail requires the 'audit' capability (separate from
     # visitor analytics). Token clients are already gated by %need above; a cookie
     # (manager) request is checked here against the user's own grant.
@@ -559,11 +640,11 @@ elsif ( $action eq 'audit' )            {
     }
 }
 elsif ( $action eq 'recent-changes' ) { $result = action_recent_changes( $params{window} ) }
-elsif ( $action eq 'handler-save' )     {
+elsif ( $action eq 'handler-save' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_handler_save($req);
 }
-elsif ( $action eq 'handler-delete' )   {
+elsif ( $action eq 'handler-delete' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_handler_delete( $req->{id} );
 }
@@ -581,7 +662,7 @@ elsif ( $action eq 'file-download' ) {
     action_file_download($path);
     exit 0;
 }
-elsif ( $action eq 'backup-list' )   { $result = action_backup_list() }
+elsif ( $action eq 'backup-list' ) { $result = action_backup_list() }
 elsif ( $action eq 'backup-create' ) {
     # scope=full = a full-system snapshot (config + auth + content) for DR and
     # cross-domain migration; otherwise a content-only snapshot. These are
@@ -608,7 +689,7 @@ elsif ( $action eq 'preview-clear' ) {
 }
 elsif ( $action eq 'artifact-manifest' ) { $result = action_artifact_manifest( \%params ) }
 elsif ( $action eq 'artifact-validate' ) { $result = action_artifact_validate( \%params ) }
-else  { $result = { ok => 0, error => "Unknown action: $action" } }
+else { $result = { ok => 0, error => "Unknown action: $action" } }
 
 # Audit trail: record MATERIAL actions only - state changes and security grants
 # (who did what, TO WHAT, when, from where, outcome). Reads/browsing are NOT
@@ -629,8 +710,8 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     # action=users carries its sub-action in the POST body; audit only the
     # material ones (add / remove / settings-set / token / ...), not the reads.
     if ( $action eq 'users' ) {
-        my $b   = eval { decode_json($body) };
-        my $sub = ( ref $b eq 'HASH' ) ? ( $b->{action} // '' ) : '';
+        my $b     = eval { decode_json($body) };
+        my $sub   = ( ref $b eq 'HASH' ) ? ( $b->{action} // '' ) : '';
         my %uskip = map { $_ => 1 } qw(
             list users-detail users-page groups group-settings-get permissions-grid settings-get credential-status partner-caps
             verify-credential totp-code onboarding );
@@ -741,16 +822,16 @@ sub _preview_secret {
 }
 
 sub action_preview_grant {
-    my ($p) = @_;
+    my ($p)    = @_;
     my $layout = $p->{layout} // '';
     my $theme  = $p->{theme}  // '';
 
     unless ( $layout =~ /^[A-Za-z0-9_-]+$/ ) {
-        respond({ ok => 0, error => 'Invalid or missing layout' });
+        respond( { ok => 0, error => 'Invalid or missing layout' } );
         return;
     }
     unless ( $theme =~ /^[A-Za-z0-9_-]*$/ ) {
-        respond({ ok => 0, error => 'Invalid theme' });
+        respond( { ok => 0, error => 'Invalid theme' } );
         return;
     }
 
@@ -758,12 +839,12 @@ sub action_preview_grant {
     # theme means "preview the layout, no theme styling". This stops the
     # manager handing out a preview of something that cannot render.
     unless ( -f "$LAZYSITE_DIR/layouts/$layout/layout.tt" ) {
-        respond({ ok => 0, error => "No such layout: $layout" });
+        respond( { ok => 0, error => "No such layout: $layout" } );
         return;
     }
     if ( length $theme
         && !-f "$LAZYSITE_DIR/layouts/$layout/themes/$theme/theme.json" ) {
-        respond({ ok => 0, error => "No such theme: $theme" });
+        respond( { ok => 0, error => "No such theme: $theme" } );
         return;
     }
 
@@ -780,25 +861,25 @@ sub action_preview_grant {
     log_event( 'INFO', 'preview-grant', 'preview granted',
         layout => $layout, theme => $theme, user => $auth_user );
 
-    binmode( STDOUT );    # encode_json emits UTF-8 bytes; do not re-encode
+    binmode(STDOUT);    # encode_json emits UTF-8 bytes; do not re-encode
     print "Status: 200 OK\r\n";
     print "Set-Cookie: $PREVIEW_COOKIE=$value; HttpOnly; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure\r\n";
     # Non-HttpOnly UI marker so the manager can show/hide "Stop preview".
     # Carries no auth value - the signed HttpOnly cookie above is the gate.
     print "Set-Cookie: ${PREVIEW_COOKIE}_active=1; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-    print encode_json({ ok => 1, layout => $layout, theme => $theme, expires => $exp });
+    print encode_json( { ok => 1, layout => $layout, theme => $theme, expires => $exp } );
 }
 
 sub action_preview_clear {
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
     log_event( 'INFO', 'preview-clear', 'preview cleared', user => $auth_user );
-    binmode( STDOUT );    # encode_json emits UTF-8 bytes; do not re-encode
+    binmode(STDOUT);    # encode_json emits UTF-8 bytes; do not re-encode
     print "Status: 200 OK\r\n";
     print "Set-Cookie: $PREVIEW_COOKIE=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
     print "Set-Cookie: ${PREVIEW_COOKIE}_active=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-    print encode_json({ ok => 1 });
+    print encode_json( { ok => 1 } );
 }
 
 # --- SM071 Phase 3: control-API helpers ---
@@ -825,7 +906,7 @@ sub _rate_ok {
     $tokens = $burst if $tokens > $burst;
     my ( $allow, $retry ) = ( 0, 0 );
     if ( $tokens >= 1 ) { $tokens -= 1; $allow = 1 }
-    else { $retry = $rate > 0 ? int( ( 1 - $tokens ) / $rate ) + 1 : 60 }
+    else                { $retry = $rate > 0 ? int( ( 1 - $tokens ) / $rate ) + 1 : 60 }
     $data->{$key} = { tokens => $tokens, last => $now };
     seek( $fh, 0, 0 ); truncate( $fh, 0 ); print $fh encode_json($data);
     flock( $fh, LOCK_UN ); close $fh;
@@ -948,9 +1029,9 @@ sub action_preview {
     $uri =~ s/\.md$//;
     $uri =~ s{/index$}{/};
 
-    local $ENV{LAZYSITE_NOCACHE}  = '1';
-    local $ENV{REDIRECT_URL}      = $uri;
-    local $ENV{DOCUMENT_ROOT}     = $DOCROOT;
+    local $ENV{LAZYSITE_NOCACHE} = '1';
+    local $ENV{REDIRECT_URL}     = $uri;
+    local $ENV{DOCUMENT_ROOT}    = $DOCROOT;
 
     my $processor = "$DOCROOT/../cgi-bin/lazysite-processor.pl";
     $processor = $ENV{LAZYSITE_PROCESSOR} if $ENV{LAZYSITE_PROCESSOR};
@@ -1086,7 +1167,7 @@ sub action_notices {
     if ( open my $fh, '<', _notices_path() ) {
         my @lines = <$fh>;
         close $fh;
-        @lines = @lines[ -100 .. -1 ] if @lines > 100;   # bound: most recent 100
+        @lines = @lines[ -100 .. -1 ] if @lines > 100;    # bound: most recent 100
         for my $l ( reverse @lines ) {                    # newest first
             chomp $l;
             my $n = eval { decode_json($l) };
@@ -1096,7 +1177,7 @@ sub action_notices {
     my $seen = 0;
     if ( open my $sf, '<', _notices_seen_path() ) {
         local $/;
-        my $h = eval { decode_json( <$sf> ) };
+        my $h = eval { decode_json(<$sf>) };
         close $sf;
         $seen = $h->{$auth_user} if ref $h eq 'HASH' && $h->{$auth_user};
     }
@@ -1108,7 +1189,7 @@ sub action_notices_seen {
     my %h;
     if ( open my $sf, '<', _notices_seen_path() ) {
         local $/;
-        my $x = eval { decode_json( <$sf> ) };
+        my $x = eval { decode_json(<$sf>) };
         close $sf;
         %h = %{$x} if ref $x eq 'HASH';
     }
@@ -1135,7 +1216,7 @@ sub _audit_plugin_target {
     my ( $params, $body, $action, $result ) = @_;
     my $plugin = $params->{plugin} // '';
     unless ( length $plugin ) {
-        my $b = eval { decode_json( $body // '' ) };
+        my $b      = eval { decode_json( $body // '' ) };
         my $script = ( ref $b eq 'HASH' ? $b->{script} : undef ) // '';
         $plugin = $script =~ m{([^/]+?)(?:\.pl)?$} ? $1 : '';
     }
@@ -1158,7 +1239,7 @@ sub _audit_plugin_target {
         }
         if (@keys) {
             my $list = @keys > 6 ? ( scalar(@keys) . ' settings' )
-                                 : join( ', ', @keys );
+                :   join( ', ', @keys );
             $plugin .= " ($list)";
         }
     }
@@ -1194,7 +1275,7 @@ sub action_pages {
             }
             elsif ( $e =~ /\.(?:md|url)$/ ) {
                 ( my $u = $rel ) =~ s/\.(?:md|url)$//;
-                $u =~ s{(^|/)index$}{$1};   # index -> the dir itself
+                $u =~ s{(^|/)index$}{$1};                  # index -> the dir itself
                 $u = "/$u";
                 push @urls, $u;
             }
@@ -1268,7 +1349,7 @@ sub action_config_set {
     # SM122: a small, injection-safe subset settable via the API (with manage_config).
     my %allow = map { $_ => 1 }
         qw(site_name site_url search_default webdav_enabled layout theme nav_file
-           update_channel);
+        update_channel);
     $key = '' unless defined $key;
     return { ok => 0, error => "Config key '$key' is not settable via the API" }
         unless $allow{$key};
@@ -1282,7 +1363,7 @@ sub action_config_set {
         return { ok => 0, error => "update_channel must be 'all', 'beta' or 'stable'" };
     }
     if ( ( $key eq 'layout' || $key eq 'theme' ) && defined $value && length $value
-         && $value !~ /^[A-Za-z0-9_-]+$/ ) {
+        && $value !~ /^[A-Za-z0-9_-]+$/ ) {
         return { ok => 0, error => "$key must be a simple name" };
     }
     return { ok => 0, error => "A value is required" }
@@ -1351,8 +1432,8 @@ sub site_capabilities {
 # "holds". Introspection: allowed for any authenticated caller (token or cookie).
 sub action_describe_capabilities {
     my ($user) = @_;
-    my $s = ( users_api({ action => 'settings-get', username => $user }) || {} )->{settings} || {};
-    my $allg = ( users_api({ action => 'groups' }) || {} )->{groups} || {};
+    my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
+    my $allg   = ( users_api( { action => 'groups' } ) || {} )->{groups} || {};
     my @groups = sort grep {
         ref $allg->{$_} eq 'ARRAY' && ( grep { $_ eq $user } @{ $allg->{$_} } )
     } keys %$allg;
@@ -1363,9 +1444,9 @@ sub action_describe_capabilities {
 
 sub action_whoami {
     my ($user) = @_;
-    my $s = ( users_api({ action => 'settings-get', username => $user }) || {} )->{settings} || {};
+    my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
 
-    my $allg = ( users_api({ action => 'groups' }) || {} )->{groups} || {};
+    my $allg   = ( users_api( { action => 'groups' } ) || {} )->{groups} || {};
     my @groups = sort grep {
         ref $allg->{$_} eq 'ARRAY' && ( grep { $_ eq $user } @{ $allg->{$_} } )
     } keys %$allg;
@@ -1389,18 +1470,18 @@ sub action_whoami {
         capabilities => {
             map {
                 $_ => ( $_ eq 'ui'
-                        ? $bool->( !( exists $s->{ui} && !$s->{ui} ) )
-                        : $bool->( $s->{$_} ) )
+                    ? $bool->( !( exists $s->{ui} && !$s->{ui} ) )
+                    : $bool->( $s->{$_} ) )
             } capability_keys()
         },
         groups => \@groups,
         scope  => {
             allow => ( defined $s->{dav_scope} && length $s->{dav_scope} ) ? $s->{dav_scope} : '/',
-            deny  => [ '/cgi-bin/', '/manager/', '/lazysite/auth/',
-                       '/lazysite/forms/smtp.conf', '/lazysite/forms/handlers.conf',
-                       '/lazysite/forms/submissions/', '/lazysite/cache/',
-                       '/lazysite/logs/', '/lazysite/manager/',
-                       '/lazysite/templates/', '/lazysite/lazysite.conf', '*.pl' ],
+            deny => [ '/cgi-bin/', '/manager/', '/lazysite/auth/',
+                '/lazysite/forms/smtp.conf',    '/lazysite/forms/handlers.conf',
+                '/lazysite/forms/submissions/', '/lazysite/cache/',
+                '/lazysite/logs/',              '/lazysite/manager/',
+                '/lazysite/templates/',         '/lazysite/lazysite.conf', '*.pl' ],
         },
         layouts => {
             active_layout => $active_layout,
@@ -1438,6 +1519,15 @@ sub _user_audit {
     return $s->{audit} ? 1 : 0;
 }
 
+# SEC-2026-07 (H1): the acting cookie user's full effective capability hash, for
+# the cookie-side authorization gate (the token path uses %token_caps). Same
+# resolution as the single-cap helpers above.
+sub _user_caps {
+    my ($user) = @_;
+    return {} unless defined $user && length $user;
+    return ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
+}
+
 # SM141: the manage_users capability (session listing + revocation). Same
 # resolution as _user_audit.
 sub _user_manage_users {
@@ -1462,10 +1552,10 @@ sub _audit_parse_line {
     # Column growth over releases: 5 = ts|user|action|ip|status (pre-SM078);
     # 6 adds target (SM078); 7 appends origin (SM077, ui/api); 8 adds detail.
     my ( $ts, $u, $act, $target, $ip, $status, $origin, $detail );
-    if    ( @f >= 8 ) { ( $ts, $u, $act, $target, $ip, $status, $origin, $detail ) = @f[ 0 .. 7 ] }
+    if ( @f >= 8 ) { ( $ts, $u, $act, $target, $ip, $status, $origin, $detail ) = @f[ 0 .. 7 ] }
     elsif ( @f == 7 ) { ( $ts, $u, $act, $target, $ip, $status, $origin ) = @f[ 0 .. 6 ]; $detail = '' }
     elsif ( @f == 6 ) { ( $ts, $u, $act, $target, $ip, $status ) = @f[ 0 .. 5 ]; $origin = ''; $detail = '' }
-    else              { ( $ts, $u, $act, $ip, $status ) = @f[ 0 .. 4 ]; $target = ''; $origin = ''; $detail = '' }
+    else { ( $ts, $u, $act, $ip, $status ) = @f[ 0 .. 4 ]; $target = ''; $origin = ''; $detail = '' }
     return { ts => $ts, user => $u, action => $act, target => $target,
         ip => $ip, status => $status, origin => $origin, detail => $detail };
 }
@@ -1478,15 +1568,15 @@ sub _audit_cached_entries {
     my $CAP        = 5000;
     my $cache_dir  = "$LAZYSITE_DIR/cache";
     my $cache_file = "$cache_dir/audit-cache.json";
-    my @st = stat($file);
+    my @st         = stat($file);
     my ( $inode, $size ) = ( $st[1], $st[7] );
 
     my $cache;
     if ( open my $cf, '<', $cache_file ) {
-        local $/; $cache = eval { decode_json( <$cf> ) }; close $cf;
+        local $/; $cache = eval { decode_json(<$cf>) }; close $cf;
     }
     if ( !$cache || ref $cache ne 'HASH'
-        || ( $cache->{inode} // -1 ) != $inode
+        || ( $cache->{inode}  // -1 ) != $inode
         || ( $cache->{offset} // 0 ) > $size ) {
         $cache = { inode => $inode, offset => 0, entries => [] };
     }
@@ -1497,7 +1587,7 @@ sub _audit_cached_entries {
         seek $fh, $offset, 0;
         my $pos = $offset;
         while ( my $line = <$fh> ) {
-            last unless $line =~ /\n\z/;      # incomplete final line: next time
+            last unless $line =~ /\n\z/;    # incomplete final line: next time
             $pos += length $line;
             push @{ $cache->{entries} }, _audit_parse_line($line);
         }
@@ -1535,26 +1625,26 @@ sub action_recent_changes {
 }
 
 sub action_audit {
-    my (%opt) = @_;
+    my (%opt)  = @_;
     my $cached = _audit_cached_entries();
     my $want   = $opt{user};
-    my $want_t = $opt{target};    # SM077: filter to one file's history
-    # Date-range filter: timestamps are ISO (2026-06-27T14:47:24Z) so they sort
-    # lexically. A bare date widens to the whole day (start -> 00:00, end -> 23:59).
+    my $want_t = $opt{target};              # SM077: filter to one file's history
+        # Date-range filter: timestamps are ISO (2026-06-27T14:47:24Z) so they sort
+        # lexically. A bare date widens to the whole day (start -> 00:00, end -> 23:59).
     my ( $start, $end ) = ( $opt{start}, $opt{end} );
     for my $b ( [ \$start, 'T00:00:00Z' ], [ \$end, 'T23:59:59Z' ] ) {
         my ( $ref, $pad ) = @$b;
         if ( defined $$ref && length $$ref ) {
-            $$ref =~ s/[^0-9T:Z+-].*\z//;             # keep ISO-ish chars only
+            $$ref =~ s/[^0-9T:Z+-].*\z//;    # keep ISO-ish chars only
             $$ref .= $pad if $$ref =~ /\A\d{4}-\d\d-\d\d\z/;
         }
         else { $$ref = undef }
     }
     my @entries;
-    my ( %fusers, %ftargets );    # SM119: distinct values for the filter dropdowns
+    my ( %fusers, %ftargets );          # SM119: distinct values for the filter dropdowns
     for my $e ( reverse @$cached ) {    # newest first
         my ( $ts, $u, $target ) = ( $e->{ts}, $e->{user}, $e->{target} );
-        $fusers{ defined $u ? $u : '' }             = 1;   # facets from all entries
+        $fusers{ defined $u        ? $u      : '' } = 1;    # facets from all entries
         $ftargets{ defined $target ? $target : '' } = 1;
         # SM119: a "__none" filter matches blank-valued entries; else exact match.
         if ( defined $want && length $want ) {
@@ -1583,8 +1673,8 @@ sub action_audit {
     my @slice = $total ? @entries[ $pg_start .. $pg_end ] : ();
 
     return { ok => 1, entries => \@slice,
-        total => $total, page => $page, per_page => $per, pages => $pages,
-        users   => [ sort keys %fusers ],     # SM119: filter dropdown options
+        total   => $total, page => $page, per_page => $per, pages => $pages,
+        users   => [ sort keys %fusers ],       # SM119: filter dropdown options
         targets => [ sort keys %ftargets ] };
 }
 
@@ -1633,10 +1723,10 @@ sub action_version {
 # SM077: assignable principals for the permissions pickers - usernames + group
 # names only (no settings/records). Cookie-manager action, like 'users'.
 sub action_principals {
-    my $u = users_api( { action => 'list' } )   || {};
-    my $g = users_api( { action => 'groups' } )  || {};
-    my @users  = ref $u->{users}  eq 'ARRAY' ? @{ $u->{users} } : ();
-    my @groups = ref $g->{groups} eq 'HASH'  ? ( sort keys %{ $g->{groups} } ) : ();
+    my $u      = users_api( { action => 'list' } )   || {};
+    my $g      = users_api( { action => 'groups' } ) || {};
+    my @users  = ref $u->{users} eq 'ARRAY' ? @{ $u->{users} }                : ();
+    my @groups = ref $g->{groups} eq 'HASH' ? ( sort keys %{ $g->{groups} } ) : ();
     return { ok => 1, users => \@users, groups => \@groups };
 }
 
@@ -1677,7 +1767,7 @@ sub action_users {
         my $sub = ( $params_ref && $params_ref->{sub} ) || 'list';
         return { ok => 0, error => "Read-only sub-action on GET; allowed: list, groups" }
             unless $sub eq 'list' || $sub eq 'groups';
-        $request_body = encode_json({ action => $sub });
+        $request_body = encode_json( { action => $sub } );
     }
 
     # SM071/SM072: scope sub-user management to the actor's own sub-tree.
@@ -1698,8 +1788,29 @@ sub action_users {
             my $act = $parsed->{action} // '';
             return { ok => 0, error => "claim-redeem is not a manager action" }
                 if $act eq 'claim-redeem';
+
+            # SEC-2026-07 (C1): a DELEGATED sub-manager (create_sub_users, not
+            # full manage_users) may run only sub-tree-confinable operations on
+            # its own descendants. The powerful account operations - group
+            # membership, capability settings, account removal, token minting,
+            # top-level add - require full manage_users, or a delegate could add
+            # itself to an admin group / reset another account. Operators and
+            # 'local' bypass. passwd is now actor-confined (below + in the tool).
+            if ( $auth_user ne 'local' && !_is_operator() && !_user_manage_users($auth_user) ) {
+                my %DELEGABLE = map { $_ => 1 } qw(
+                    account-create account-disable account-enable account-reassign
+                    rename claim-create claim-cancel passwd
+                    list groups users-detail settings-get group-settings-get
+                    users-page principals recent-changes keys-list sessions-list
+                );
+                return { ok => 0, kind => 'forbidden',
+                    error => "That account operation requires the 'Users & groups' "
+                        . "permission (full user management)." }
+                    unless $DELEGABLE{$act};
+            }
+
             if ( $auth_user ne 'local'
-                && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|claim-cancel|rename)$/x ) {
+                && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|claim-cancel|rename|passwd)$/x ) {
                 $parsed->{actor} = $auth_user unless _is_operator();
                 $parsed->{created_by} //= $auth_user if $act eq 'account-create';
                 $request_body = encode_json($parsed);
@@ -1725,7 +1836,7 @@ sub action_users {
     # The combined Users-page call folds in the current operator's identity so the
     # browser needs no separate whoami round-trip (its shape carries users+groups).
     if ( ref $result eq 'HASH' && $result->{ok}
-         && exists $result->{users} && exists $result->{groups} ) {
+        && exists $result->{users} && exists $result->{groups} ) {
         $result->{me} = $auth_user;
     }
     return $result;
@@ -1798,10 +1909,10 @@ sub action_rotate_auth_secret {
 sub _nav_conf_path {
     # Read nav_file from lazysite.conf, default to lazysite/nav.conf
     my $nav_file = 'lazysite/nav.conf';
-    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf     = "$DOCROOT/lazysite/lazysite.conf";
     if ( -f $conf and open my $fh, '<:utf8', $conf ) {
         while (<$fh>) {
-            if ( /^nav_file\s*:\s*(.+)/ ) {
+            if (/^nav_file\s*:\s*(.+)/) {
                 $nav_file = $1;
                 $nav_file =~ s/^\s+|\s+$//g;
                 last;
@@ -1833,7 +1944,7 @@ sub action_nav_read {
             $url   =~ s/^\s+|\s+$//g;
             next unless length $label;
 
-            if ($is_child && $current_parent >= 0) {
+            if ( $is_child && $current_parent >= 0 ) {
                 push @{ $items[$current_parent]{children} },
                     { label => $label, url => $url };
             } else {
@@ -1855,7 +1966,7 @@ sub action_nav_save {
     $content .= "# Format: Label | /url\n";
     $content .= "# Indent child items with any whitespace\n\n";
 
-    for my $item ( @$items ) {
+    for my $item (@$items) {
         my $label = $item->{label} // '';
         my $url   = $item->{url}   // '';
         $label =~ s/^\s+|\s+$//g;

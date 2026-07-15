@@ -3,8 +3,8 @@
 use strict;
 use warnings;
 use Digest::SHA qw(sha256_hex);
-use Fcntl qw(:flock);
-use File::Path qw(make_path);
+use Fcntl       qw(:flock);
+use File::Path  qw(make_path);
 
 # H-2 / M-6: salted iterated SHA-256 hashing, CSPRNG fail-closed.
 
@@ -108,7 +108,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util qw(log_event const_eq);
+use Lazysite::Util  qw(log_event const_eq);
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
@@ -119,9 +119,9 @@ $Lazysite::Util::COMPONENT = 'users';
 # SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
 # exchanged for a short-lived access token that the client rotates before
 # it expires. TTLs in seconds.
-my $PAIRING_TTL      = 900;     # 15 minutes
-my $ACCESS_TOKEN_TTL = 86_400;  # 24 hours
-my $CLAIM_TTL        = 86_400;  # SM072 setup/reset claim: 24 hours
+my $PAIRING_TTL      = 900;       # 15 minutes
+my $ACCESS_TOKEN_TTL = 86_400;    # 24 hours
+my $CLAIM_TTL        = 86_400;    # SM072 setup/reset claim: 24 hours
 
 my $DOCROOT;
 my $API_MODE = 0;
@@ -154,8 +154,8 @@ unless ( -d $AUTH_DIR ) {
     chmod 02770, $AUTH_DIR;
 }
 
-my $USERS_FILE    = "$AUTH_DIR/users";
-my $GROUPS_FILE   = "$AUTH_DIR/groups";
+my $USERS_FILE          = "$AUTH_DIR/users";
+my $GROUPS_FILE         = "$AUTH_DIR/groups";
 my $GROUP_SETTINGS_FILE = "$AUTH_DIR/groups-settings.json";
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
 $Lazysite::Audit::LAZYSITE_DIR      = "$DOCROOT/lazysite";
@@ -251,13 +251,13 @@ sub cli_audit {
 
 # --- API mode ---
 
-if ( $API_MODE ) {
+if ($API_MODE) {
     require JSON::PP;
     JSON::PP->import(qw(encode_json decode_json));
 
     my $input = do { local $/; <STDIN> };
-    my $req   = eval { decode_json($input // '{}') } or do {
-        print encode_json({ ok => 0, error => "Invalid JSON input" });
+    my $req   = eval { decode_json( $input // '{}' ) } or do {
+        print encode_json( { ok => 0, error => "Invalid JSON input" } );
         exit 0;
     };
 
@@ -265,12 +265,12 @@ if ( $API_MODE ) {
     my $result;
 
     eval {
-        if    ( $action eq 'add' ) {
+        if ( $action eq 'add' ) {
             cmd_add( $req->{username}, $req->{password} );
             $result = { ok => 1, message => "User added" };
         }
         elsif ( $action eq 'passwd' ) {
-            cmd_passwd( $req->{username}, $req->{password} );
+            cmd_passwd( $req->{username}, $req->{password}, actor => $req->{actor} );
             $result = { ok => 1, message => "Password updated" };
         }
         elsif ( $action eq 'remove' ) {
@@ -294,8 +294,8 @@ if ( $API_MODE ) {
             # while(<$fh>), which clobbers the map's $_ - so building the hash inline
             # from $_ could yield a null user. +{...} forces a hashref.
             $result = { ok => 1, users => [
-                map { my $u = $_; +{ user => $u, settings => effective_settings($u) } }
-                grep { defined && length } sort keys %users ] };
+                    map { my $u = $_; +{ user => $u, settings => effective_settings($u) } }
+                    grep { defined && length } sort keys %users ] };
         }
         elsif ( $action eq 'group-add' ) {
             cmd_group_add( $req->{username}, $req->{group} );
@@ -348,7 +348,7 @@ if ( $API_MODE ) {
         }
         elsif ( $action eq 'settings-set' ) {
             cmd_set( $req->{username}, $req->{key}, $req->{value},
-                     force => ( $req->{force} ? 1 : 0 ) );
+                force => ( $req->{force} ? 1 : 0 ) );
             $result = { ok => 1, message => "Setting updated" };
         }
         elsif ( $action eq 'token' ) {
@@ -451,11 +451,11 @@ if ( $API_MODE ) {
         }
         elsif ( $action eq 'partner-create' ) {
             my $r = cmd_partner_create( $req->{username},
-                created_by  => $req->{created_by},
-                themes      => ( exists $req->{manage_themes}
-                                 ? ( $req->{manage_themes} ? 1 : 0 ) : 1 ),
-                layouts     => ( $req->{manage_layouts}   ? 1 : 0 ),
-                config      => ( $req->{manage_config}    ? 1 : 0 ),
+                created_by => $req->{created_by},
+                themes     => ( exists $req->{manage_themes}
+                    ? ( $req->{manage_themes} ? 1 : 0 ) : 1 ),
+                layouts     => ( $req->{manage_layouts} ? 1 : 0 ),
+                config      => ( $req->{manage_config}  ? 1 : 0 ),
                 scope       => $req->{dav_scope},
                 create_subs => ( $req->{create_sub_users} ? 1 : 0 ) );
             $result = { ok => 1, %$r };
@@ -478,33 +478,33 @@ if ( $API_MODE ) {
 
 my $cmd = shift @args // '';
 
-if    ( $cmd eq 'add' )          { cmd_add(@args) }
-elsif ( $cmd eq 'passwd' )       { cmd_passwd(@args) }
-elsif ( $cmd eq 'remove' )       { cmd_remove(@args) }
-elsif ( $cmd eq 'rename' )       { cmd_rename(@args) }
-elsif ( $cmd eq 'list' )         { cmd_list() }
-elsif ( $cmd eq 'group-add' )    { cmd_group_add(@args) }
-elsif ( $cmd eq 'group-remove' ) { cmd_group_remove(@args) }
+if    ( $cmd eq 'add' )              { cmd_add(@args) }
+elsif ( $cmd eq 'passwd' )           { cmd_passwd(@args) }
+elsif ( $cmd eq 'remove' )           { cmd_remove(@args) }
+elsif ( $cmd eq 'rename' )           { cmd_rename(@args) }
+elsif ( $cmd eq 'list' )             { cmd_list() }
+elsif ( $cmd eq 'group-add' )        { cmd_group_add(@args) }
+elsif ( $cmd eq 'group-remove' )     { cmd_group_remove(@args) }
 elsif ( $cmd eq 'group-set' )        { cmd_group_set_cli(@args) }
-elsif ( $cmd eq 'groups' )       { cmd_groups() }
-elsif ( $cmd eq 'setup-manager' ){ cmd_setup_manager(@args) }
-elsif ( $cmd eq 'settings' )     { cmd_settings(@args) }
-elsif ( $cmd eq 'set' )          { cmd_set_cli(@args) }
-elsif ( $cmd eq 'token' )        { cmd_token(@args) }
-elsif ( $cmd eq 'brief' )        { cmd_brief_cli(@args) }
+elsif ( $cmd eq 'groups' )           { cmd_groups() }
+elsif ( $cmd eq 'setup-manager' )    { cmd_setup_manager(@args) }
+elsif ( $cmd eq 'settings' )         { cmd_settings(@args) }
+elsif ( $cmd eq 'set' )              { cmd_set_cli(@args) }
+elsif ( $cmd eq 'token' )            { cmd_token(@args) }
+elsif ( $cmd eq 'brief' )            { cmd_brief_cli(@args) }
 elsif ( $cmd eq 'account-create' )   { cmd_account_create_cli(@args) }
 elsif ( $cmd eq 'account-disable' )  { cmd_account_disable_cli(@args) }
 elsif ( $cmd eq 'account-enable' )   { cmd_account_enable_cli(@args) }
 elsif ( $cmd eq 'account-reassign' ) { cmd_account_reassign_cli(@args) }
-elsif ( $cmd eq 'pairing-key' )    { cmd_pairing_key(@args) }
-elsif ( $cmd eq 'token-exchange' ) { cmd_token_exchange(@args) }
-elsif ( $cmd eq 'token-rotate' )   { cmd_token_rotate(@args) }
-elsif ( $cmd eq 'claim-create' )   { cmd_claim_create_cli(@args) }
-elsif ( $cmd eq 'claim-redeem' )   { cmd_claim_redeem_cli(@args) }
-elsif ( $cmd eq 'mfa-enroll' )     { cmd_mfa_enroll(@args) }
-elsif ( $cmd eq 'mfa-disable' )    { cmd_mfa_disable(@args) }
-elsif ( $cmd eq 'partner-create' ) { cmd_partner_create_cli(@args) }
-elsif ( $cmd eq 'permissions' )    { cmd_permissions_cli(@args) }
+elsif ( $cmd eq 'pairing-key' )      { cmd_pairing_key(@args) }
+elsif ( $cmd eq 'token-exchange' )   { cmd_token_exchange(@args) }
+elsif ( $cmd eq 'token-rotate' )     { cmd_token_rotate(@args) }
+elsif ( $cmd eq 'claim-create' )     { cmd_claim_create_cli(@args) }
+elsif ( $cmd eq 'claim-redeem' )     { cmd_claim_redeem_cli(@args) }
+elsif ( $cmd eq 'mfa-enroll' )       { cmd_mfa_enroll(@args) }
+elsif ( $cmd eq 'mfa-disable' )      { cmd_mfa_disable(@args) }
+elsif ( $cmd eq 'partner-create' )   { cmd_partner_create_cli(@args) }
+elsif ( $cmd eq 'permissions' )      { cmd_permissions_cli(@args) }
 elsif ( $cmd eq 'audit-registry' )   { cmd_audit_registry() }
 else {
     print STDERR "Unknown command: $cmd\n\n" if $cmd;
@@ -519,7 +519,7 @@ sub cmd_add {
     die "Username required\n" unless defined $user && length $user;
     $user =~ s/[^a-zA-Z0-9_.-]//g;
     die "Username required\n" unless length $user;
-    $pass = '' unless defined $pass;
+    $pass = ''                unless defined $pass;
 
     my %users = read_users();
     die "User '$user' already exists\n" if exists $users{$user};
@@ -528,7 +528,7 @@ sub cmd_add {
     # login; generate a token for WebDAV/API). Same form as the seed.
     $users{$user} = length($pass) ? hash_password($pass) : '';
     write_users(%users);
-    log_event('INFO', $user, 'user added');
+    log_event( 'INFO', $user, 'user added' );
     cli_audit( 'user-add', $user );
     print "User '$user' added.\n" unless $API_MODE;
 }
@@ -548,7 +548,7 @@ sub cmd_rename {
     die "User '$old' not found\n" unless exists $users{$old};
     die "User '$new' already exists\n" if exists $users{$new};
 
-    my $all = read_settings();
+    my $all   = read_settings();
     my $actor = $opt{actor};
     if ( defined $actor && length $actor && $actor ne 'local' ) {
         die "Not authorised to manage '$old'\n"
@@ -579,7 +579,7 @@ sub cmd_rename {
 }
 
 sub cmd_passwd {
-    my ( $user, $pass ) = @_;
+    my ( $user, $pass, %opt ) = @_;
     die "Username and password required\n" unless $user && $pass;
 
     my %users = read_users();
@@ -587,10 +587,22 @@ sub cmd_passwd {
     # ('user:') is present but falsey - passwd must still set its password.
     die "User '$user' not found\n" unless exists $users{$user};
 
+    # SEC-2026-07 (C1): confine a delegated (non-operator) actor to itself or its
+    # descendants - same rule as rename/disable/reassign. Without this, the
+    # manager API's passwd sub-action was authorised for ANY account, so any
+    # interactive account could reset the admin's password and take over. The
+    # manager injects actor for non-operators; operators pass actor unset.
+    my $actor = $opt{actor};
+    if ( defined $actor && length $actor && $actor ne 'local' ) {
+        my $all = read_settings();
+        die "Not authorised to manage '$user'\n"
+            unless $actor eq $user || is_ancestor( $actor, $user, $all );
+    }
+
     $users{$user} = hash_password($pass);
     write_users(%users);
-    clear_token_expiry($user);   # SM071: a password has no token expiry
-    log_event('INFO', $user, 'password changed');
+    clear_token_expiry($user);    # SM071: a password has no token expiry
+    log_event( 'INFO', $user, 'password changed' );
     cli_audit( 'user-passwd', $user );
     print "Password updated for '$user'.\n" unless $API_MODE;
 }
@@ -603,7 +615,7 @@ sub cmd_remove {
     die "User '$user' not found\n" unless delete $users{$user};
 
     write_users(%users);
-    log_event('INFO', $user, 'user removed');
+    log_event( 'INFO', $user, 'user removed' );
     cli_audit( 'user-remove', $user );
 
     if ( -f $GROUPS_FILE ) {
@@ -626,7 +638,7 @@ sub cmd_remove {
 
 sub cmd_list {
     my %users = read_users();
-    if ( %users ) {
+    if (%users) {
         print "$_\n" for sort keys %users;
     }
     else {
@@ -741,10 +753,10 @@ sub cmd_setup_manager {
     my ( $pass, $user, $group, $link );
     while (@a) {
         my $x = shift @a;
-        if    ( $x eq '--user'  )            { $user  = shift @a }
-        elsif ( $x eq '--group' )            { $group = shift @a }
-        elsif ( $x eq '--link' || $x eq '--self-service' ) { $link = 1 }
-        elsif ( !defined $pass )             { $pass  = $x }
+        if    ( $x eq '--user' )                           { $user  = shift @a }
+        elsif ( $x eq '--group' )                          { $group = shift @a }
+        elsif ( $x eq '--link' || $x eq '--self-service' ) { $link  = 1 }
+        elsif ( !defined $pass )                           { $pass  = $x }
     }
     $user = 'manager' unless defined $user && length $user;
 
@@ -798,7 +810,7 @@ sub cmd_setup_manager {
 
     my $generated = 0;
     unless ( defined $pass && length $pass ) {
-        $pass      = generate_random_hex(12);   # 24 hex chars
+        $pass      = generate_random_hex(12);    # 24 hex chars
         $generated = 1;
     }
 
@@ -852,7 +864,7 @@ sub cmd_group_remove {
 
 sub cmd_groups {
     my %groups = read_groups();
-    if ( %groups ) {
+    if (%groups) {
         for my $g ( sort keys %groups ) {
             printf "%-20s %s\n", "$g:", join( ', ', @{ $groups{$g} } );
         }
@@ -871,30 +883,30 @@ sub cmd_groups {
 #   dav_scope: undef (docroot-wide, still subject to endpoint denials)
 sub effective_settings {
     my ($user) = @_;
-    my $all = read_settings();
-    my $s   = $all->{$user} || {};
-    my $scope = $s->{dav_scope};
+    my $all    = read_settings();
+    my $s      = $all->{$user} || {};
+    my $scope  = $s->{dav_scope};
     $scope = undef unless defined $scope && length $scope;
     # SM095: capability bools come from the ONE resolver (caps_for) - the same one
     # the manager API, MCP, and the WebDAV endpoint consult, so a grant resolves
     # identically everywhere. Since the clean cut (0.5.20) caps_for is group-only:
     # per-account capability grants are no longer honoured.
     _ensure_groups_seeded();
-    my $caps = caps_for($user);
+    my $caps     = caps_for($user);
     my @mygroups = do {
         my %g = read_groups();
         sort grep { grep { $_ eq $user } @{ $g{$_} || [] } } keys %g;
     };
     return {
-        groups    => \@mygroups,
-        webdav    => $caps->{webdav} ? JSON::PP::true() : JSON::PP::false(),
-        ui        => ( exists $s->{ui} && !$s->{ui} ) ? JSON::PP::false() : JSON::PP::true(),
+        groups => \@mygroups,
+        webdav => $caps->{webdav}                  ? JSON::PP::true() : JSON::PP::false(),
+        ui     => ( exists $s->{ui} && !$s->{ui} ) ? JSON::PP::false() : JSON::PP::true(),
         # SM127: manager UI ACCESS - the `ui` capability GRANTED BY A GROUP (real
         # manager access), distinct from the default-on `ui` flag above (which just
         # means "interactive login is allowed"). The transport gates use this to
         # refuse a manager account over api/mcp.
         manager_ui => $caps->{ui} ? JSON::PP::true() : JSON::PP::false(),
-        dav_scope => $scope,
+        dav_scope  => $scope,
         # SM071 Phase 2: sub-user provenance and delegation. created_by /
         # created_at are immutable; managed_by defaults to created_by and
         # changes only on reassign. Top-level (operator-created) accounts
@@ -902,9 +914,9 @@ sub effective_settings {
         created_by => $s->{created_by},
         created_at => $s->{created_at},
         managed_by => ( defined $s->{managed_by} ? $s->{managed_by} : $s->{created_by} ),
-        create_sub_users           => $caps->{create_sub_users}           ? JSON::PP::true() : JSON::PP::false(),
+        create_sub_users => $caps->{create_sub_users} ? JSON::PP::true() : JSON::PP::false(),
         delegate_sub_user_creation => $caps->{delegate_sub_user_creation} ? JSON::PP::true() : JSON::PP::false(),
-        disabled                   => $s->{disabled} ? JSON::PP::true() : JSON::PP::false(),
+        disabled       => $s->{disabled}          ? JSON::PP::true() : JSON::PP::false(),
         manage_themes  => $caps->{manage_themes}  ? JSON::PP::true() : JSON::PP::false(),
         manage_layouts => $caps->{manage_layouts} ? JSON::PP::true() : JSON::PP::false(),
         manage_config  => $caps->{manage_config}  ? JSON::PP::true() : JSON::PP::false(),
@@ -915,9 +927,9 @@ sub effective_settings {
         manage_nav     => $caps->{manage_nav}     ? JSON::PP::true() : JSON::PP::false(),
         manage_forms   => $caps->{manage_forms}   ? JSON::PP::true() : JSON::PP::false(),
         # SM095: channel capabilities (api/mcp) + user administration. Group-only.
-        api            => $caps->{api}            ? JSON::PP::true() : JSON::PP::false(),
-        mcp            => $caps->{mcp}            ? JSON::PP::true() : JSON::PP::false(),
-        manage_users   => $caps->{manage_users}   ? JSON::PP::true() : JSON::PP::false(),
+        api          => $caps->{api}          ? JSON::PP::true() : JSON::PP::false(),
+        mcp          => $caps->{mcp}          ? JSON::PP::true() : JSON::PP::false(),
+        manage_users => $caps->{manage_users} ? JSON::PP::true() : JSON::PP::false(),
         # SM071 Phase 2: access-token expiry (null = no expiry, e.g. a
         # human password or an operator-minted permanent credential).
         token_expires_at => $s->{token_expires_at},
@@ -947,8 +959,8 @@ sub cmd_settings {
     die "User '$user' not found\n" unless exists $users{$user};
 
     my $eff = effective_settings($user);
-    printf "%-11s %s\n", 'webdav:', $eff->{webdav}        ? 'on' : 'off';
-    printf "%-11s %s\n", 'ui:',     $eff->{ui}            ? 'on' : 'off';
+    printf "%-11s %s\n", 'webdav:', $eff->{webdav} ? 'on' : 'off';
+    printf "%-11s %s\n", 'ui:',     $eff->{ui}     ? 'on' : 'off';
     printf "%-11s %s\n", 'dav_scope:',
         defined $eff->{dav_scope} ? $eff->{dav_scope} : '(unset)';
 }
@@ -958,8 +970,8 @@ sub cmd_set_cli {
     my @pos;
     my $force = 0;
     for my $a (@_) {
-        if   ( $a eq '--force' ) { $force = 1 }
-        else                     { push @pos, $a }
+        if ( $a eq '--force' ) { $force = 1 }
+        else                   { push @pos, $a }
     }
     cmd_set( $pos[0], $pos[1], $pos[2], force => $force );
 }
@@ -979,7 +991,7 @@ sub cmd_set {
     # only account-shaped boolean left is `ui` (interactive-login allowed).
     if ( $key ne 'ui' && grep { $_ eq $key } @CAP_KEYS ) {
         die "Capabilities are assigned to GROUPS now, not accounts. Add the user "
-          . "to a group, or: group-set <group> $key on\n";
+            . "to a group, or: group-set <group> $key on\n";
     }
     if ( $key eq 'ui' ) {
         my $bool = parse_onoff($value);
@@ -1044,9 +1056,9 @@ sub cmd_token {
     my $token = generate_token();
     $users{$user} = hash_token($token);
     write_users(%users);
-    clear_token_expiry($user);   # SM071: operator credential is permanent
-    # SM076: record issuance + clear any prior "used" mark, so the connector
-    # setup flow can detect the first time this credential authenticates.
+    clear_token_expiry($user);    # SM071: operator credential is permanent
+        # SM076: record issuance + clear any prior "used" mark, so the connector
+        # setup flow can detect the first time this credential authenticates.
     my $all = read_settings();
     $all->{$user} ||= {};
     $all->{$user}{cred_issued_at} = time();
@@ -1074,7 +1086,7 @@ sub cmd_account_create {
     my ( $user, $pass, %opt ) = @_;
     my $creator = $opt{created_by};
     die "Username required\n" unless defined $user && length $user;
-    $pass = '' unless defined $pass;   # empty => token-only sub-user (setup link)
+    $pass = '' unless defined $pass;    # empty => token-only sub-user (setup link)
     die "Creator (--by USERNAME) required\n"
         unless defined $creator && length $creator;
     $user =~ s/[^a-zA-Z0-9_.-]//g;
@@ -1130,7 +1142,7 @@ sub cmd_account_create_cli {
     my @a = @_;
     while (@a) {
         my $x = shift @a;
-        if    ( $x eq '--by' )          { $created_by  = shift @a }
+        if    ( $x eq '--by' )          { $created_by = shift @a }
         elsif ( $x eq '--create-subs' ) { $create_subs = 1 }
         else                            { push @pos, $x }
     }
@@ -1159,7 +1171,7 @@ sub descendants {
         my $cur = shift @queue;
         for my $c ( @{ $children{$cur} || [] } ) {
             next if $seen{$c}++;
-            push @out, $c;
+            push @out,   $c;
             push @queue, $c;
         }
     }
@@ -1185,7 +1197,7 @@ sub is_ancestor {
 # operator; an API actor may only manage accounts in its own sub-tree.
 sub _authorise_manage {
     my ( $actor, $target, $all ) = @_;
-    return if !defined $actor || !length $actor;   # operator / CLI
+    return if !defined $actor || !length $actor;    # operator / CLI
     die "Not authorised to manage '$target'\n"
         unless is_ancestor( $actor, $target, $all );
 }
@@ -1194,7 +1206,7 @@ sub _authorise_manage {
 # sub-tree. Disabling leaves the tree structure intact so enable can
 # reverse it. A disabled account fails authentication everywhere.
 sub cmd_account_set_disabled {
-    my ( $user, $disabled, %opt ) = @_;   # opt: actor, cascade
+    my ( $user, $disabled, %opt ) = @_;    # opt: actor, cascade
     die "Username required\n" unless defined $user && length $user;
     my %users = read_users();
     die "User '$user' not found\n" unless exists $users{$user};
@@ -1207,8 +1219,8 @@ sub cmd_account_set_disabled {
 
     for my $t (@targets) {
         $all->{$t} ||= {};
-        if   ($disabled) { $all->{$t}{disabled} = JSON::PP::true() }
-        else             { delete $all->{$t}{disabled} }
+        if ($disabled) { $all->{$t}{disabled} = JSON::PP::true() }
+        else           { delete $all->{$t}{disabled} }
     }
     write_settings($all);
     log_event( 'INFO', $user, ( $disabled ? 'account disabled' : 'account enabled' ),
@@ -1216,21 +1228,21 @@ sub cmd_account_set_disabled {
     cli_audit( $disabled ? 'user-account-disable' : 'user-account-enable', $user,
         $opt{cascade} ? 'cascade: ' . scalar(@targets) . ' account(s)' : '' );
     print( ( $disabled ? 'Disabled ' : 'Enabled ' )
-         . scalar(@targets) . " account(s).\n" ) unless $API_MODE;
+        . scalar(@targets) . " account(s).\n" ) unless $API_MODE;
 }
 
 # SM071 Phase 2: reassign an account (and its sub-tree, which follows
 # via managed_by) to a new parent. created_by is left as immutable
 # provenance; only managed_by changes.
 sub cmd_account_reassign {
-    my ( $user, $new_parent, %opt ) = @_;   # opt: actor
+    my ( $user, $new_parent, %opt ) = @_;    # opt: actor
     die "Usage: account-reassign USER --to NEWPARENT\n"
-        unless defined $user && length $user
-            && defined $new_parent && length $new_parent;
+        unless defined $user   && length $user
+        && defined $new_parent && length $new_parent;
     die "Cannot reassign an account to itself\n" if $user eq $new_parent;
 
     my %users = read_users();
-    die "User '$user' not found\n"        unless exists $users{$user};
+    die "User '$user' not found\n"             unless exists $users{$user};
     die "New parent '$new_parent' not found\n" unless exists $users{$new_parent};
 
     my $all = read_settings();
@@ -1241,7 +1253,7 @@ sub cmd_account_reassign {
         if $desc{$new_parent};
 
     $all->{$user} ||= {};
-    $all->{$user}{managed_by} = $new_parent;   # created_by untouched
+    $all->{$user}{managed_by} = $new_parent;    # created_by untouched
     write_settings($all);
     log_event( 'INFO', $user, 'account reassigned', to => $new_parent );
     cli_audit( 'user-account-reassign', $user, "to $new_parent" );
@@ -1254,7 +1266,7 @@ sub cmd_account_disable_cli {
     my @a = @_;
     while (@a) {
         my $x = shift @a;
-        if    ( $x eq '--actor' )   { $actor   = shift @a }
+        if    ( $x eq '--actor' )   { $actor = shift @a }
         elsif ( $x eq '--cascade' ) { $cascade = 1 }
         else                        { push @pos, $x }
     }
@@ -1266,7 +1278,7 @@ sub cmd_account_enable_cli {
     my @a = @_;
     while (@a) {
         my $x = shift @a;
-        if    ( $x eq '--actor' )   { $actor   = shift @a }
+        if    ( $x eq '--actor' )   { $actor = shift @a }
         elsif ( $x eq '--cascade' ) { $cascade = 1 }
         else                        { push @pos, $x }
     }
@@ -1279,7 +1291,7 @@ sub cmd_account_reassign_cli {
     while (@a) {
         my $x = shift @a;
         if    ( $x eq '--actor' ) { $actor = shift @a }
-        elsif ( $x eq '--to' )    { $to    = shift @a }
+        elsif ( $x eq '--to' )    { $to = shift @a }
         else                      { push @pos, $x }
     }
     cmd_account_reassign( $pos[0], $to, actor => $actor );
@@ -1342,7 +1354,7 @@ sub cmd_token_exchange {
     die "Username and pairing key required\n"
         unless defined $user && length $user && defined $key && length $key;
 
-    my $lk = _consume_lock();   # single-use: serialise verify-consume
+    my $lk = _consume_lock();    # single-use: serialise verify-consume
 
     my %users = read_users();
     die "User '$user' not found\n" unless exists $users{$user};
@@ -1354,7 +1366,7 @@ sub cmd_token_exchange {
         if !$s->{pairing_key_expires_at} || time() > $s->{pairing_key_expires_at};
     die "Invalid pairing key\n" unless verify_secret( $key, $s->{pairing_key_hash} );
 
-    delete $all->{$user}{pairing_key_hash};         # single use
+    delete $all->{$user}{pairing_key_hash};    # single use
     delete $all->{$user}{pairing_key_expires_at};
 
     my $token = generate_token();
@@ -1439,11 +1451,11 @@ sub cmd_claim_create {
     }
 
     # purpose follows the ui flag: interactive => password, machine => token
-    my $ui      = ( exists $s->{ui} && !$s->{ui} ) ? 0 : 1;
-    my $purpose = $ui ? 'set-password' : 'mint-token';
+    my $ui      = ( exists $s->{ui} && !$s->{ui} ) ? 0              : 1;
+    my $purpose = $ui                              ? 'set-password' : 'mint-token';
 
     if ( $opt{revoke} ) {
-        $users{$user} = '';                  # revoke the current credential
+        $users{$user} = '';    # revoke the current credential
         write_users(%users);
         delete $s->{token_expires_at};
     }
@@ -1498,9 +1510,9 @@ sub cmd_claim_redeem {
     my ( $user, $claim, %opt ) = @_;
     my $GENERIC = "Invalid or expired claim\n";
     die $GENERIC unless defined $user && length $user
-                     && defined $claim && length $claim;
+        && defined $claim && length $claim;
 
-    my $lk = _consume_lock();   # single-use: serialise verify-consume
+    my $lk = _consume_lock();    # single-use: serialise verify-consume
 
     my %users = read_users();
     die $GENERIC unless exists $users{$user};
@@ -1523,17 +1535,17 @@ sub cmd_claim_redeem {
         $users{$user} = hash_password($pw);
         $result = { ok => 1, purpose => $purpose };
     }
-    else {   # mint-token
+    else {    # mint-token
         my $token = generate_token();
         $users{$user} = hash_token($token);
         $result = { ok => 1, purpose => $purpose, token => $token };
     }
     write_users(%users);
 
-    delete $all->{$user}{claim_hash};            # single use
+    delete $all->{$user}{claim_hash};          # single use
     delete $all->{$user}{claim_expires_at};
     delete $all->{$user}{claim_purpose};
-    delete $all->{$user}{token_expires_at};      # a claim-set credential is permanent
+    delete $all->{$user}{token_expires_at};    # a claim-set credential is permanent
     write_settings($all);
     log_event( 'INFO', $user, 'claim redeemed', purpose => $purpose );
     cli_audit( 'user-claim-redeem', $user, $purpose );
@@ -1583,7 +1595,7 @@ sub cmd_mfa_enroll {
 
     my $secret   = generate_totp_secret();
     my @recovery = map {
-        my $h = generate_random_hex(5);            # 10 hex chars
+        my $h = generate_random_hex(5);    # 10 hex chars
         substr( $h, 0, 5 ) . '-' . substr( $h, 5, 5 );
     } 1 .. 8;
 
@@ -1600,8 +1612,8 @@ sub cmd_mfa_enroll {
     my $issuer = read_conf_value('site_name') || 'lazysite';
     $issuer =~ s/[^A-Za-z0-9 ._-]//g;
     my $uri = 'otpauth://totp/' . _uri_escape("$issuer:$user")
-            . "?secret=$secret&issuer=" . _uri_escape($issuer)
-            . '&algorithm=SHA1&digits=6&period=30';
+        . "?secret=$secret&issuer=" . _uri_escape($issuer)
+        . '&algorithm=SHA1&digits=6&period=30';
 
     log_event( 'INFO', $user, 'mfa enrolled' );
     cli_audit( 'user-mfa-enroll', $user );
@@ -1657,11 +1669,11 @@ sub cmd_mfa_confirm {
 sub cmd_mfa_verify {
     my ( $user, $code ) = @_;
     return { ok => 0 } unless defined $user && length $user && defined $code && length $code;
-    my $lk     = _consume_lock();   # serialise verify-consume across processes
+    my $lk     = _consume_lock();              # serialise verify-consume across processes
     my $all    = read_settings();
     my $s      = $all->{$user} || {};
     my $secret = $s->{totp_secret};
-    return { ok => 0 } unless $secret;          # not enrolled
+    return { ok => 0 } unless $secret;         # not enrolled
 
     if ( $code =~ /^\d{6}$/ ) {
         my $step = totp_verify( $secret, $code );
@@ -1677,7 +1689,7 @@ sub cmd_mfa_verify {
     my $rec = $s->{recovery_hashes} || [];
     for my $i ( 0 .. $#$rec ) {
         next unless verify_secret( $code, $rec->[$i] );
-        splice @$rec, $i, 1;                     # single use
+        splice @$rec, $i, 1;    # single use
         $all->{$user}{recovery_hashes} = $rec;
         write_settings($all);
         log_event( 'INFO', $user, 'mfa recovery code used' );
@@ -1712,9 +1724,9 @@ sub _onboarding_brief {
     $base =~ s/\$\{SERVER_NAME\}/$ENV{SERVER_NAME} || $ENV{HTTP_HOST} || 'YOUR-SITE'/ge;
     my @caps;
     push @caps, 'publish content over WebDAV (`/dav`)' if $s->{webdav};
-    push @caps, 'manage themes'             if $s->{manage_themes};
-    push @caps, 'manage layouts'            if $s->{manage_layouts};
-    push @caps, 'set allowlisted site config' if $s->{manage_config};
+    push @caps, 'manage themes'                        if $s->{manage_themes};
+    push @caps, 'manage layouts'                       if $s->{manage_layouts};
+    push @caps, 'set allowlisted site config'          if $s->{manage_config};
     # nav/forms/content inherit: manage_content inherits webdav, and nav/forms
     # inherit content - report the EFFECTIVE grants so the partner knows nav is theirs.
     my $eff_content = defined $s->{manage_content} ? $s->{manage_content} : $s->{webdav};
@@ -1725,7 +1737,7 @@ sub _onboarding_brief {
         . 'enabled (control API: git-history / git-show / git-restore; MCP: '
         . 'list_versions / view_version / restore_version)'
         if $eff_content;
-    my $caps = join "\n", map { "- $_" } @caps;
+    my $caps  = join "\n", map { "- $_" } @caps;
     my $scope = ( defined $s->{dav_scope} && length $s->{dav_scope} )
         ? $s->{dav_scope} : 'whole docroot (minus denied paths)';
 
@@ -1736,7 +1748,7 @@ sub _onboarding_brief {
     push @mcaps, 'webdav'         if $s->{webdav};
     push @mcaps, 'manage_content' if $eff_content;
     push @mcaps, 'manage_nav'     if $can_nav;
-    push @mcaps, 'manage_forms'   if ( defined $s->{manage_forms} ? $s->{manage_forms} : $eff_content );
+    push @mcaps, 'manage_forms' if ( defined $s->{manage_forms} ? $s->{manage_forms} : $eff_content );
     push @mcaps, 'manage_themes'  if $s->{manage_themes};
     push @mcaps, 'manage_layouts' if $s->{manage_layouts};
     push @mcaps, 'manage_config'  if $s->{manage_config};
@@ -1903,9 +1915,9 @@ BRIEF
 sub cmd_credential_status {
     my ($user) = @_;
     return { ok => 0, error => 'Username required' } unless defined $user && length $user;
-    my $s = ( read_settings()->{$user} ) || {};
-    my $iss  = $s->{cred_issued_at} || 0;
-    my $used = $s->{cred_used_at}   || 0;
+    my $s    = ( read_settings()->{$user} ) || {};
+    my $iss  = $s->{cred_issued_at}         || 0;
+    my $used = $s->{cred_used_at}           || 0;
     return {
         ok        => 1,
         issued_at => $iss,
@@ -1999,7 +2011,7 @@ sub cmd_verify_credential {
     return { ok => 0 } if $eff->{disabled};
     my $exp = $eff->{token_expires_at};
     return { ok => 0 } if $exp && time() > $exp;
-    my $aexp = $eff->{expires_at};   # SM072: account-level expiry
+    my $aexp = $eff->{expires_at};    # SM072: account-level expiry
     return { ok => 0 } if $aexp && time() > $aexp;
 
     # SM076: when the caller asks (the MCP connector path), record the first use
@@ -2008,12 +2020,12 @@ sub cmd_verify_credential {
     my $first_use = 0;
     if ($touch) {
         my $all = read_settings();
-        my $u = $all->{$user} ||= {};
+        my $u   = $all->{$user} ||= {};
         my $iss = $u->{cred_issued_at} || 0;
         if ( !$u->{cred_used_at} || $u->{cred_used_at} < $iss ) {
             $u->{cred_used_at} = time();
             write_settings($all);
-            $first_use = 1;   # first use of this credential since issuance
+            $first_use = 1;    # first use of this credential since issuance
         }
     }
 
@@ -2039,7 +2051,7 @@ sub cmd_connect_code {
     my $all  = read_settings();
     my $u    = $all->{$user} ||= {};
     $u->{connect_code_hash}    = sha256_hex($code);
-    $u->{connect_code_expires} = time() + 900;    # 15 min
+    $u->{connect_code_expires} = time() + 900;        # 15 min
     $u->{cred_issued_at}       = time();
     delete $u->{cred_used_at};
     write_settings($all);
@@ -2060,7 +2072,7 @@ sub cmd_redeem_connect_code {
         delete $s->{connect_code_hash};
         delete $s->{connect_code_expires};
         write_settings($all);
-        return { ok => 0, error => 'expired' } if $exp < time();
+        return { ok => 0, error    => 'expired' } if $exp < time();
         return { ok => 1, username => $user };
     }
     return { ok => 0, error => 'invalid' };
@@ -2102,18 +2114,18 @@ sub cmd_onboarding_web {
     die "Username required\n" unless defined $user && length $user;
     my %users = read_users();
     die "User '$user' not found\n" unless exists $users{$user};
-    my $cc = cmd_connect_code($user);    # mints the connect code + resets detection
-    my $s = ( read_settings()->{$user} ) || {};
+    my $cc   = cmd_connect_code($user);    # mints the connect code + resets detection
+    my $s    = ( read_settings()->{$user} ) || {};
     my $base = _brief_base();
     ( my $domain = $base ) =~ s{^https?://}{};
     $domain =~ s{/.*$}{};
     log_event( 'INFO', $user, 'connector setup issued' );
     return {
-        username         => $user,
-        connect_code     => $cc->{code},
-        domain           => $domain,         # the connector name (one per site)
-        connector_url    => "$base/cgi-bin/lazysite-mcp.pl",
-        connector_setup  => _connector_setup_text( $user, $cc->{code}, $domain, $base ),
+        username        => $user,
+        connect_code    => $cc->{code},
+        domain          => $domain,       # the connector name (one per site)
+        connector_url   => "$base/cgi-bin/lazysite-mcp.pl",
+        connector_setup => _connector_setup_text( $user, $cc->{code}, $domain, $base ),
         assistant_prompt => _assistant_prompt( $user, $domain, $base, effective_settings($user) ),
     };
 }
@@ -2259,7 +2271,7 @@ sub cmd_partner_create {
 sub cmd_partner_create_cli {
     my @a = @_;
     my ( @pos, %opt );
-    $opt{themes} = 1;   # partner default
+    $opt{themes} = 1;    # partner default
     while (@a) {
         my $x = shift @a;
         if    ( $x eq '--by' )          { $opt{created_by}  = shift @a }
@@ -2318,9 +2330,9 @@ sub is_last_manager_ui {
         $manager_user{$_} = 1 for keys %users;
     }
 
-    return 0 unless $manager_user{$user};   # target isn't manager-capable
+    return 0 unless $manager_user{$user};    # target isn't manager-capable
 
-    my $cur = $all->{$user} || {};
+    my $cur    = $all->{$user} || {};
     my $cur_ui = ( exists $cur->{ui} && !$cur->{ui} ) ? 0 : 1;
     return 0 unless $cur_ui;                 # already off, no reduction
 
@@ -2329,9 +2341,9 @@ sub is_last_manager_ui {
         next unless exists $users{$u};
         my $s  = $all->{$u} || {};
         my $ui = ( exists $s->{ui} && !$s->{ui} ) ? 0 : 1;
-        return 0 if $ui;                     # someone else still covers it
+        return 0 if $ui;    # someone else still covers it
     }
-    return 1;                                # $user is the last one
+    return 1;               # $user is the last one
 }
 
 sub read_manager_groups {
@@ -2382,15 +2394,15 @@ sub _default_group_seed {
     return {
         'content-editors' => { label => 'Content editors',
             ui => 1, webdav => 1, manage_content => 1, manage_nav => 1, manage_forms => 1 },
-        'design-team'     => { label => 'Layouts & themes',
+        'design-team' => { label => 'Layouts & themes',
             ui => 1, webdav => 1, manage_themes => 1, manage_layouts => 1 },
-        'agent-ai'        => { label => 'Agent AI',
+        'agent-ai' => { label => 'Agent AI',
             webdav => 1, api => 1, manage_content => 1, manage_nav => 1, manage_forms => 1,
             manage_themes => 1, manage_layouts => 1, analytics => 1 },
-        'mcp-ai'          => { label => 'MCP AI',
-            mcp => 1, manage_content => 1, manage_nav => 1, manage_forms => 1,
-            manage_themes => 1, manage_layouts => 1, analytics => 1 },
-        'user-managers'   => { label => 'User managers',
+        'mcp-ai' => { label => 'MCP AI',
+            mcp           => 1, manage_content => 1, manage_nav => 1, manage_forms => 1,
+            manage_themes => 1, manage_layouts => 1, analytics  => 1 },
+        'user-managers' => { label => 'User managers',
             ui               => 1, manage_users               => 1, notifications => 1,
             create_sub_users => 1, delegate_sub_user_creation => 1 },
     };
@@ -2484,7 +2496,7 @@ sub cmd_permissions_grid {
     my ($user) = @_;
     return { ok => 0, error => 'username required' } unless defined $user && length $user;
     _ensure_groups_seeded();
-    my $gs = Lazysite::Auth::Settings::read_group_settings();
+    my $gs         = Lazysite::Auth::Settings::read_group_settings();
     my %membership = read_groups();
     my @mygroups = sort grep { grep { $_ eq $user } @{ $membership{$_} || [] } } keys %membership;
 
@@ -2499,9 +2511,9 @@ sub cmd_permissions_grid {
     # new capability appears automatically. Channels are the fixed where-you-operate
     # set; actions are the rest. The hard-coded arrays here had to be kept in sync
     # by hand and could drift.
-    my @channels = qw(ui webdav api mcp);
-    my %is_channel = map { $_ => 1 } @channels;
-    my @actions = grep { !$is_channel{$_} } @CAP_KEYS;
+    my @channels   = qw(ui webdav api mcp);
+    my %is_channel = map  { $_ => 1 } @channels;
+    my @actions    = grep { !$is_channel{$_} } @CAP_KEYS;
     return {
         ok         => 1,
         user       => $user,
@@ -2529,7 +2541,7 @@ sub cmd_permissions_cli {
     my @chans = @{ $g->{channels} };
     my @acts  = @{ $g->{actions} };
     my $gb    = $g->{granted_by};
-    my $has   = sub { ( $gb->{ $_[0] } && @{ $gb->{ $_[0] } } ) ? 1 : 0 };
+    my $has   = sub { ( $gb->{ $_[0] } && @{ $gb->{ $_[0] } } ) ? 1      : 0 };
     my $src   = sub { $has->( $_[0] ) ? join( ',', @{ $gb->{ $_[0] } } ) : '' };
 
     print "Permissions for '$user'\n";
@@ -2554,7 +2566,7 @@ sub cmd_permissions_cli {
     # Effective grid: an action is usable only WITH a channel to do it through.
     print "\nEffective (Y = has the action AND the channel):\n";
     printf '  %-28s', q{};
-    printf ' %-7s', $_ for @chans;
+    printf ' %-7s',   $_ for @chans;
     print "\n";
     for my $a (@acts) {
         printf '  %-28s', $a;
@@ -2591,15 +2603,15 @@ sub cmd_audit_registry {
 # Unified Groups view for the manager UI: every group (from group-settings OR the
 # membership file), with its capabilities, manager flag, label, and members.
 sub _group_settings_view {
-    my $gs = read_group_settings();
+    my $gs      = read_group_settings();
     my %members = read_groups();
-    my %all = map { $_ => 1 } ( keys %$gs, keys %members );
+    my %all     = map { $_ => 1 } ( keys %$gs, keys %members );
     my %view;
     for my $g ( keys %all ) {
         my $cfg = $gs->{$g} || {};
         my %caps = map { $_ => ( $cfg->{$_} ? JSON::PP::true() : JSON::PP::false() ) } @CAP_KEYS;
         $view{$g} = {
-            label       => ( defined $cfg->{label} ? $cfg->{label} : $g ),
+            label       => ( defined $cfg->{label}       ? $cfg->{label}       : $g ),
             description => ( defined $cfg->{description} ? $cfg->{description} : '' ),
             manager     => ( $cfg->{manager} ? JSON::PP::true() : JSON::PP::false() ),
             caps        => \%caps,
@@ -2688,7 +2700,7 @@ sub cmd_group_create {
     return { ok => 0, error => 'group required' } unless defined $group && length $group;
     return { ok => 0, error => 'invalid group name (letters, digits, _ or -)' }
         unless $group =~ /^[A-Za-z0-9_-]+$/;
-    my $gs = read_group_settings();
+    my $gs      = read_group_settings();
     my %members = read_groups();
     return { ok => 0, error => "group '$group' already exists" }
         if $gs->{$group} || $members{$group};
@@ -2748,7 +2760,7 @@ sub write_groups {
     }
     flock( $fh, LOCK_UN );
     close $fh;
-    chmod 0660, $GROUPS_FILE;   # group-writable: CLI + www-data both manage it
+    chmod 0660, $GROUPS_FILE;    # group-writable: CLI + www-data both manage it
 }
 
 # Returns an exclusive lock handle held until it goes out of scope (the
