@@ -458,6 +458,35 @@ if ($token_auth) {
         exit 0;
     }
 
+    # SEC-2026-07 (M2): enforce dav_scope on the control-API channel too. A
+    # scoped partner credential is confined to its content subtree over WebDAV;
+    # without this it reached the whole content namespace over the API. Only the
+    # content path-bearing actions carry a target to confine (others have no
+    # path, or $path defaults to '/'); the lazysite/ theme-authoring namespace
+    # is outside scope's remit (governed by manage_themes/manage_layouts).
+    my %SCOPED_ACTION = map { $_ => 1 } qw(
+        list read save delete mkdir move copy migrate-to-local file-upload
+        acl-get acl-set acl-remove git-status git-history git-show git-restore
+        cache-invalidate preview lock unlock renew-lock
+    );
+    if ( $SCOPED_ACTION{$action}
+        && defined $token_caps{dav_scope}
+        && length $token_caps{dav_scope} )
+    {
+        for my $p ( grep { defined && length } ( $path, $params{to}, $params{from} ) ) {
+            next if $p =~ m{^/?lazysite/};
+            next
+                unless Lazysite::Manager::Common::path_out_of_scope(
+                $token_caps{dav_scope}, $p );
+            audit_log( $auth_user, $action, $p, $ENV{REMOTE_ADDR} // '',
+                'fail', 'api', 'denied: outside dav_scope' );
+            ( my $sc = $token_caps{dav_scope} ) =~ s{^/+|/+$}{}g;
+            respond( { ok => 0, error => "Path '$p' is outside your assigned "
+                        . "scope ($sc/). Ask the operator to widen your dav_scope." } );
+            exit 0;
+        }
+    }
+
     # SM071 Phase 3 (P3.6): per-token volume throttle. 429 + Retry-After
     # so the client can back off per the documented retry contract.
     my $rl = _rate_ok($auth_user);

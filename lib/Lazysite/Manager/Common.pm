@@ -16,7 +16,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
-    _write_conf_key);
+    _write_conf_key path_out_of_scope);
 
 our $DOCROOT;                         # set by the script
 our $action    = '';                  # current request action (for log attribution)
@@ -59,6 +59,25 @@ sub validate_path {
         unless $real && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 );
 
     return { ok => 1, full => $full, rel => $rel_path };
+}
+
+# SEC-2026-07 (M2): dav_scope confines a token/partner credential to one content
+# subtree. WebDAV enforces it in lazysite-dav.pl::authorise; the MCP and control-
+# API file channels must enforce the SAME confinement, or a scoped credential
+# that also holds api/mcp reaches the whole content namespace over those
+# channels. Returns 1 if the content path is OUTSIDE the scope, else 0. An
+# empty/undef scope confines nothing (an unscoped credential). The lazysite/
+# theme-authoring namespace is NOT a content path and is governed by
+# manage_themes/manage_layouts, so callers skip it (parity with WebDAV, where
+# dav_scope "does not apply" to the layouts carve-out).
+sub path_out_of_scope {
+    my ( $scope, $path ) = @_;
+    return 0 unless defined $scope && length $scope;
+    ( my $s = $scope ) =~ s{^/+|/+$}{}g;
+    return 0 unless length $s;
+    ( my $rel = defined $path ? $path : '' ) =~ s{^/+}{};
+    $rel =~ s{/+$}{};
+    return ( $rel eq $s || index( $rel, "$s/" ) == 0 ) ? 0 : 1;
 }
 
 # The hard deny list (exact paths) plus the *.pl rule.
