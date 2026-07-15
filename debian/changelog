@@ -1,3 +1,21 @@
+lazysite (0.7.17-1) unstable; urgency=medium
+
+  * EDGE: SM154 domains admin - the agency multi-domain management plane on top
+    of the SM151 serving plane. lazysite owns only the lazysite side (register a
+    domain as alias.<host>.* + its content root); DNS, the web-server domain
+    alias and TLS stay a precondition (operator/Hestia/external orchestrator).
+  * P1: a domain-bound (dav_scope) editor is confined to their content_root on
+    the interactive manager channel too (one shared helper across WebDAV, token/
+    MCP and cookie); operators unconfined.
+  * P2: Lazysite::Manager::Domains engine + a scriptable lazysite-domains CLI +
+    manager domain-add/set/remove control-API actions (manage_config, POST-only,
+    audited). A registered domain is served by the SM151 processor by Host.
+  * P3: full CRUD Domains panel, operator-gated nav, and a bound editor's file
+    browser rooted at their own content_root; home_domain is a settable account
+    key.
+
+ -- Stuart J Mackintosh <sjm@opendigital.cc>  Tue, 15 Jul 2026 12:15:00 +0000
+
 lazysite (0.7.16-1) unstable; urgency=high
 
   * EDGE: security hardening round 1 (SEC-2026-07). An 11-agent review against

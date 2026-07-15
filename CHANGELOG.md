@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.17 - EDGE: domains admin (agency multi-domain management, SM154) (2026-07-15)
+
 Domains admin: the agency multi-domain management plane (SM154)
 : SM151 lets one instance serve many first-class domains; SM154 adds the admin
   plane to manage and delegate them without shell access, staying strictly on
