@@ -33,12 +33,37 @@ sub fetch_url {
 
     # P-1: load LWP::UserAgent only on first use.
     require LWP::UserAgent;
+
+    # SEC-2026-07 (H6): is_safe_url guards only the URL we are handed. LWP
+    # follows redirects by default (up to 7), and it does NOT re-run our guard
+    # on the Location target - so a public URL that 302s to
+    # http://169.254.169.254/ (cloud metadata) or http://127.0.0.1/ bypasses
+    # the SSRF guard entirely. Disable automatic redirects and follow them
+    # manually, re-validating every hop (so a legitimate http->https redirect
+    # still works, but a redirect into a private range is refused). max_size
+    # caps the body so a hostile endpoint cannot exhaust memory.
     my $ua = LWP::UserAgent->new(
-        timeout => 10,
-        agent   => 'lazysite/1.0',
+        timeout      => 10,
+        agent        => 'lazysite/1.0',
+        max_redirect => 0,
+        max_size     => 5 * 1024 * 1024,
     );
 
-    my $response = $ua->get($url);
+    my $current  = $url;
+    my $response = $ua->get($current);
+    for ( 1 .. 5 ) {
+        last unless $response->is_redirect;
+        my $loc = $response->header('Location');
+        last unless defined $loc && length $loc;
+        my $next = URI->new_abs( $loc, $current )->as_string;
+        unless ( $next =~ m{\Ahttps?://} && is_safe_url($next) ) {
+            log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                'SSRF blocked (redirect)', url => substr( $next, 0, 100 ) );
+            return;
+        }
+        $current  = $next;
+        $response = $ua->get($current);
+    }
 
     return unless $response->is_success;
     return $response->decoded_content;
