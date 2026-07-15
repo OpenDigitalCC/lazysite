@@ -7,11 +7,11 @@ package Lazysite::Manager::Backups;
 
 use strict;
 use warnings;
-use POSIX qw(strftime);
-use File::Path qw(make_path);
-use File::Find ();
+use POSIX          qw(strftime);
+use File::Path     qw(make_path);
+use File::Find     ();
 use Lazysite::Util qw(log_event);
-use Exporter qw(import);
+use Exporter       qw(import);
 our @EXPORT_OK = qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore);
 
@@ -99,17 +99,22 @@ sub action_backup_restore {
     return { ok => 0, error => 'Refusing to restore: safety snapshot failed' }
         unless $safety->{ok};
 
-    my $rc = system( 'tar', 'xzf', $full, '-C', $DOCROOT, '--no-same-owner' );
+    # SEC-2026-07 (M-TAR): --no-same-permissions (with the existing
+    # --no-same-owner) so a hostile or ancient tarball cannot restore setuid/
+    # setgid bits or world-writable/over-permissive modes onto the docroot;
+    # extracted files take the process umask instead of the archived mode.
+    my $rc = system( 'tar', 'xzf', $full, '-C', $DOCROOT,
+        '--no-same-owner', '--no-same-permissions' );
     return { ok => 0, error => 'Restore extraction failed (safety snapshot kept: '
-                             . $safety->{name} . ')' }
+            . $safety->{name} . ')' }
         if $rc != 0;
 
     # Drop render caches: only .html with a .md sibling (a bare legacy .html is
     # real migration content since SM133, never a cache - leave it alone).
     my $cleared = 0;
     File::Find::find(
-        {   no_chdir => 1,
-            wanted   => sub {
+        { no_chdir => 1,
+            wanted => sub {
                 my $p = $File::Find::name;
                 return unless $p =~ /\.html\z/ && -f $p;
                 return if index( $p, "$DOCROOT/lazysite" ) == 0;
@@ -133,7 +138,7 @@ sub action_backup_restore {
     log_event( 'INFO', 'backup-restore', 'snapshot restored', file => $name,
         safety => $safety->{name}, cache_cleared => $cleared, user => $auth_user );
     return { ok => 1, restored => $name, safety => $safety->{name},
-             cache_cleared => $cleared };
+        cache_cleared => $cleared };
 }
 
 # Streams the tarball (Content-Disposition attachment). Returns an error hash

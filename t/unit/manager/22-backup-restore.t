@@ -8,9 +8,9 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
-use File::Path qw(make_path);
-use JSON::PP qw(encode_json decode_json);
+use File::Temp  qw(tempdir);
+use File::Path  qw(make_path);
+use JSON::PP    qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -53,7 +53,7 @@ sub op {
     );
 }
 sub slurp { open my $fh, '<', $_[0] or return undef; local $/; my $t = <$fh>; close $fh; $t }
-sub spit  { open my $fh, '>', $_[0] or die $!; print $fh $_[1]; close $fh }
+sub spit { open my $fh, '>', $_[0] or die $!; print $fh $_[1]; close $fh }
 
 my $d = tempdir( CLEANUP => 1 );
 make_path( "$d/lazysite/auth", "$d/lazysite/logs" );
@@ -82,12 +82,12 @@ ok( $r->{ok}, 'backup-restore ok' ) or diag explain $r;
 is( $r->{restored}, $snap, 'reports the restored snapshot' );
 like( $r->{safety}, qr/^prerestore-.*\.tar\.gz$/, 'a prerestore safety snapshot was taken' );
 
-like(   slurp("$d/page.md"), qr/version ONE/, 'restored file carries the snapshot content' );
-ok(     -f "$d/extra.md",                     'file added after the snapshot survives (overlay)' );
-ok(     !-f "$d/page.html",                   'render cache for a restored source was cleared' );
-is(     slurp("$d/legacy.html"), "<html>LEGACY STATIC - not a cache</html>",
-        'legacy static .html (no .md sibling) untouched by the cache clear' );
-ok(     -f "$d/lazysite/backups/$r->{safety}", 'safety snapshot exists on disk' );
+like( slurp("$d/page.md"), qr/version ONE/, 'restored file carries the snapshot content' );
+ok( -f "$d/extra.md",   'file added after the snapshot survives (overlay)' );
+ok( !-f "$d/page.html", 'render cache for a restored source was cleared' );
+is( slurp("$d/legacy.html"), "<html>LEGACY STATIC - not a cache</html>",
+    'legacy static .html (no .md sibling) untouched by the cache clear' );
+ok( -f "$d/lazysite/backups/$r->{safety}", 'safety snapshot exists on disk' );
 
 # The safety snapshot must contain the PRE-restore state (v2) - reversibility.
 my $peek = qx(tar xzf \Q$d/lazysite/backups/$r->{safety}\E -O ./page.md 2>/dev/null);
@@ -99,6 +99,28 @@ like( $audit, qr/backup-restore/, 'restore recorded in the audit trail' );
 
 # --- refusals ---
 ok( !op( $d, 'action=backup-restore&name=../evil.tar.gz' )->{ok}, 'traversal name refused' );
-ok( !op( $d, 'action=backup-restore&name=nope.tar.gz' )->{ok},    'missing backup refused' );
+ok( !op( $d, 'action=backup-restore&name=nope.tar.gz' )->{ok}, 'missing backup refused' );
+
+# --- SEC-2026-07 (M-TAR): a hostile tarball cannot restore setuid / world-
+# writable modes onto the docroot (tar --no-same-permissions). Craft a tarball
+# whose member is mode 04777 and confirm the restored file is NOT setuid and
+# NOT world-writable.
+SKIP: {
+    my $stage = tempdir( CLEANUP => 1 );
+    spit( "$stage/evil.sh", "#!/bin/sh\necho pwned\n" );
+    chmod 0o4777, "$stage/evil.sh";
+    skip 'could not stage a 04777 file', 2
+        unless ( ( stat "$stage/evil.sh" )[2] & 0o4000 );
+    my $tb = "$d/lazysite/backups/manual-evilperms.tar.gz";
+    system( 'tar', 'czf', $tb, '-C', $stage, 'evil.sh' ) == 0
+        or skip 'tar create failed', 2;
+
+    my $er = op( $d, 'action=backup-restore&name=manual-evilperms.tar.gz' );
+    ok( $er->{ok}, 'restore of the crafted tarball runs' );
+    my $mode = ( stat "$d/evil.sh" )[2] // 0;
+    ok( !( $mode & 0o4000 ) && !( $mode & 0o2 ),
+        sprintf( 'M-TAR: restored file is not setuid/world-writable (mode %04o)',
+            $mode & 0o7777 ) );
+}
 
 done_testing();
