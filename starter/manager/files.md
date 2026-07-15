@@ -155,9 +155,24 @@ function recentDot(key) {
 }
 
 function buildBreadcrumb(dirPath, linkFn) {
-  var parts = dirPath.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
-  var items = [linkFn('/', '<span class="mg-bc-root" title="Site root">&#128193;</span>')];
-  var accumulated = '';
+  // SM154 (P3): for a domain-bound editor, the breadcrumb starts at their own
+  // content root (they cannot go above it), so strip the scope prefix and label
+  // the root icon with the domain rather than the site root.
+  var root = scopeRoot();
+  var full = '/' + dirPath.replace(/^\/+|\/+$/g, '');
+  var accumulated, rest, rootTitle;
+  if (root !== '/' && (full + '/').indexOf(root) === 0) {
+    accumulated = root.replace(/\/+$/, '');
+    rest = full.substr(accumulated.length).replace(/^\/+|\/+$/g, '');
+    rootTitle = window.LAZYSITE_HOME_DOMAIN || 'Your site';
+  } else {
+    accumulated = '';
+    rest = dirPath.replace(/^\/+|\/+$/g, '');
+    rootTitle = 'Site root';
+  }
+  var items = [linkFn((accumulated || '') + '/',
+    '<span class="mg-bc-root" title="' + escHtml(rootTitle) + '">&#128193;</span>')];
+  var parts = rest.split('/').filter(Boolean);
   for (var i = 0; i < parts.length; i++) {
     accumulated += '/' + parts[i];
     items.push(linkFn(accumulated + '/', parts[i]));
@@ -937,17 +952,35 @@ function restoreVersion(btn) {
   });
 }
 
+// SM154 (P3): a domain-bound editor's own content root ('/content/clientA/'),
+// or '/' for an unbound operator. The server confines a bound user regardless;
+// this just gives them a coherent starting view rooted at their own domain.
+function scopeRoot() {
+  var s = (window.LAZYSITE_SCOPE_ROOT || '').replace(/^\/+|\/+$/g, '');
+  return s ? ('/' + s + '/') : '/';
+}
+function withinScope(dir) {
+  var root = scopeRoot();
+  if (root === '/') return true;
+  var d = (dir || '/').replace(/\/+$/, '') + '/';
+  return d.indexOf(root) === 0;
+}
+
 function readInitDir() {
+  var want = null;
   var qs = location.search;
   if (qs && qs.length > 1) {
     var params = qs.substr(1).split('&');
     for (var i = 0; i < params.length; i++) {
       var kv = params[i].split('=');
-      if (kv[0] === 'path') return decodeURIComponent(kv[1] || '') || '/';
+      if (kv[0] === 'path') { want = decodeURIComponent(kv[1] || ''); break; }
     }
   }
-  var h = decodeURIComponent(location.hash.replace(/^#/, ''));
-  return h || '/';
+  if (!want) { want = decodeURIComponent(location.hash.replace(/^#/, '')); }
+  if (!want) return scopeRoot();
+  // Clamp a bound editor to their own domain (the server would deny anything
+  // outside it anyway).
+  return withinScope(want) ? want : scopeRoot();
 }
 
 loadPrincipals().then(loadGitStatus).then(function() { loadDir(readInitDir()); });

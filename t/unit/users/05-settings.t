@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP   qw(encode_json decode_json);
 use IPC::Open2;
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -33,7 +33,7 @@ sub cli {
     my $err = gensym;
     my $pid = open3( $wtr, $rdr, $err, $^X, $script, '--docroot', $docroot, @args );
     close $wtr;
-    my $out = do { local $/; <$rdr> };
+    my $out  = do { local $/; <$rdr> };
     my $eout = do { local $/; <$err> };
     waitpid $pid, 0;
     return { out => $out // '', err => $eout // '', code => $? >> 8 };
@@ -58,8 +58,8 @@ sub api {
 
     my $r = api( $d, { action => 'settings-get', username => 'alice' } );
     is( $r->{ok}, 1, 'settings-get ok for user with no settings row' );
-    ok( !$r->{settings}{webdav}, 'webdav defaults off' );
-    ok( $r->{settings}{ui},      'ui defaults on' );
+    ok( !$r->{settings}{webdav},            'webdav defaults off' );
+    ok( $r->{settings}{ui},                 'ui defaults on' );
     ok( !defined $r->{settings}{dav_scope}, 'dav_scope defaults unset (null)' );
 
     ok( !-f "$d/lazysite/auth/user-settings.json",
@@ -181,8 +181,8 @@ sub api {
     print $cf "manager_groups: admins\n";
     close $cf;
 
-    cli( $d, 'add', 'admin1', 'pw' );
-    cli( $d, 'add', 'editor', 'pw' );
+    cli( $d, 'add',       'admin1', 'pw' );
+    cli( $d, 'add',       'editor', 'pw' );
     cli( $d, 'group-add', 'admin1', 'admins' );
 
     # editor is not in admins, so admin1 is the only manager-capable UI
@@ -192,6 +192,24 @@ sub api {
 
     my $allow = cli( $d, 'set', 'editor', 'ui', 'off' );
     is( $allow->{code}, 0, 'non-manager account ui can be disabled freely' );
+}
+
+# --- SM154: home_domain binds an account to a served domain -----------------
+{
+    my $d = fresh_docroot();
+    cli( $d, 'add', 'client', 'pw' );
+
+    my $ok = cli( $d, 'set', 'client', 'home_domain', 'Clienta.COM' );
+    is( $ok->{code}, 0, 'home_domain accepted' );
+    my $r = api( $d, { action => 'settings-get', username => 'client' } );
+    is( $r->{settings}{home_domain}, 'clienta.com', 'home_domain stored lowercased' );
+
+    my $bad = cli( $d, 'set', 'client', 'home_domain', 'not a host!' );
+    isnt( $bad->{code}, 0, 'an invalid home_domain is rejected' );
+
+    cli( $d, 'set', 'client', 'home_domain', '' );    # clear
+    $r = api( $d, { action => 'settings-get', username => 'client' } );
+    ok( !defined $r->{settings}{home_domain}, 'empty value clears the binding' );
 }
 
 done_testing();

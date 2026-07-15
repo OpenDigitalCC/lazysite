@@ -907,6 +907,11 @@ sub effective_settings {
         # refuse a manager account over api/mcp.
         manager_ui => $caps->{ui} ? JSON::PP::true() : JSON::PP::false(),
         dav_scope  => $scope,
+        # SM154: the domain this account is bound to (the UI pointer paired with
+        # dav_scope). Null for an unbound operator.
+        home_domain => ( defined $s->{home_domain} && length $s->{home_domain} )
+        ? $s->{home_domain}
+        : undef,
         # SM071 Phase 2: sub-user provenance and delegation. created_by /
         # created_at are immutable; managed_by defaults to created_by and
         # changes only on reassign. Top-level (operator-created) accounts
@@ -1032,9 +1037,22 @@ sub cmd_set {
         }
         else { delete $all->{$user}{email} }
     }
+    elsif ( $key eq 'home_domain' ) {
+        # SM154: bind an account to a served domain (the UI pointer; pair it with
+        # dav_scope = that domain's content_root for the confinement). A lowercase
+        # DNS host; empty clears the binding.
+        my $h = lc( defined $value ? "$value" : '' );
+        $h =~ s/^\s+|\s+$//g;
+        if ( length $h ) {
+            die "Invalid home_domain (must be a hostname)\n"
+                unless $h =~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/;
+            $all->{$user}{home_domain} = $h;
+        }
+        else { delete $all->{$user}{home_domain} }
+    }
     else {
-        die "Unknown setting '$key' (expected ui, dav_scope, comment, email, "
-            . "or expires_at)\n";
+        die "Unknown setting '$key' (expected ui, dav_scope, home_domain, "
+            . "comment, email, or expires_at)\n";
     }
 
     write_settings($all);
