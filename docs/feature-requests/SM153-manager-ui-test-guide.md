@@ -2,8 +2,8 @@
 title: "SM153 - Manager UI test guide (chunked, compile-merged)"
 subtitle: "A menu-complete test/walkthrough document for human review, agent onboarding, and tutorial authoring"
 brand: plain
-status: planned
-status-note: "targeted for 0.7.17; requested 2026-07-15"
+status: candidate
+status-note: "requested 2026-07-15; targeted for a later round after the domains work"
 ---
 
 # SM153 - Manager UI test guide
