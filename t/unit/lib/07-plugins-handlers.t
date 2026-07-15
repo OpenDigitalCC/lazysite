@@ -14,8 +14,17 @@ use Lazysite::Manager::Plugins qw(
     action_handler_list action_handler_delete action_form_targets_save
     action_form_targets_read resolve_plugin_script);
 
-my $d = tempdir( CLEANUP => 1 );
-make_path( "$d/lazysite/forms", "$d/lazysite/cache" );
+# SM152: a real install layout - base holds plugins/, docroot is base/public_html
+# - so the plugin registry (base/plugins/*.pl + core) resolves. enable/disable
+# and resolve now go through that registry, not an arbitrary path.
+my $base = tempdir( CLEANUP => 1 );
+my $d    = "$base/public_html";
+make_path( "$d/lazysite/forms", "$d/lazysite/cache", "$base/plugins" );
+for my $p (qw(log.pl audit.pl)) {
+    open my $pf, '>', "$base/plugins/$p" or die $!;
+    print {$pf} "print '{\"id\":\"$p\",\"actions\":[]}' if \"@ARGV\"=~/--describe/; exit 0;\n";
+    close $pf;
+}
 $Lazysite::Manager::Plugins::DOCROOT = $d;
 $Lazysite::Manager::Plugins::action  = 'test';
 open my $c, '>', "$d/lazysite/lazysite.conf" or die $!;
@@ -76,13 +85,19 @@ is_deeply( action_form_targets_read('mixed')->{targets},
     [ { handler => 'email1' }, { type => 'file' } ],
     'SM081 fixed: mixed-format read preserves both targets in order' );
 
-# --- resolve_plugin_script ---
-open my $p, '>', "$d/../sample-plugin.pl" or die $!;
-print {$p} "1;\n"; close $p;
-is( resolve_plugin_script('sample-plugin.pl'), "$d/../sample-plugin.pl",
-    'resolves a plugin script beside the docroot (candidate 1)' );
+# --- resolve_plugin_script (SM152: registry-only) ---
+is( resolve_plugin_script('plugins/log.pl'), "$base/plugins/log.pl",
+    'a registered plugin resolves to its canonical path' );
 ok( !defined resolve_plugin_script('does-not-exist.pl'),
-    'a missing script resolves to undef' );
-unlink "$d/../sample-plugin.pl";
+    'an unregistered name resolves to undef' );
+# A script placed beside the docroot is NOT a registry key -> no longer resolves
+# (this was the RCE: arbitrary path resolution). See 27-plugin-registry-rce.t.
+open my $p, '>', "$base/sample-plugin.pl" or die $!;
+print {$p} "1;\n"; close $p;
+ok( !defined resolve_plugin_script('sample-plugin.pl'),
+    'a script beside the install root is NOT resolvable (registry-only)' );
+ok( !defined resolve_plugin_script('../sample-plugin.pl'),
+    'a traversal path is NOT resolvable' );
+unlink "$base/sample-plugin.pl";
 
 done_testing();

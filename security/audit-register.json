@@ -1,0 +1,78 @@
+{
+  "purpose": "Durable, versioned register of lazysite security-review rounds. One record per round: scope, coverage (so a future run can deliberately repeat, skip, or extend an area), findings with severity and the release that fixed them, and root-cause themes to re-verify. Detailed per-round exploit reports are delivered as files and NOT committed here.",
+  "practice": {
+    "cadence": "Reviewed regularly (target: weekly). Releases are cut from findings + fixes; a security release records every fixed issue in CHANGELOG.md in detail.",
+    "method": "A fan-out of review agents (static across every surface + black-box probers on a live multi-account, multi-site instance), plus focused follow-ups when a class warrants it (e.g. an RCE/OS-access deep dive). Serious findings are verified by reproduction before they are trusted.",
+    "coverage_rule": "Each round marks the areas it covered. A subsequent round should either extend an already-covered area (deeper/different angle) or move to an areas_not_covered candidate, so the corpus of checks grows rather than repeats blindly.",
+    "reports_location": "Out-of-repo files (carry live exploit detail); this register carries only severity + title + status."
+  },
+  "severity_levels": ["critical", "high", "medium", "low", "info"],
+  "areas": [
+    { "id": "authz-cookie-vs-token", "last_covered": "round-1", "note": "capability gating parity between the cookie/manager path and the token %need map" },
+    { "id": "csrf", "last_covered": "round-1" },
+    { "id": "path-confinement", "last_covered": "round-1", "note": "boundary-safe containment; the bare index() prefix bug class" },
+    { "id": "rce-exec-primitives", "last_covered": "round-1", "note": "command/code exec sinks; plugin runner; SSI; .htaccess" },
+    { "id": "xss-injection", "last_covered": "round-1", "note": "manager DOM sinks, front-matter, uploads; no CSP" },
+    { "id": "ssrf", "last_covered": "round-1" },
+    { "id": "auth-session-crypto", "last_covered": "round-1", "note": "cookie HMAC, CSRF token, TOTP, OAuth/PKCE, session lifecycle" },
+    { "id": "webdav-mcp-tokens", "last_covered": "round-1", "note": "channel gating, dav_scope, token verification" },
+    { "id": "plugins", "last_covered": "round-1" },
+    { "id": "deployment-misconfig", "last_covered": "round-1", "note": "vhost templates, Hestia, privilege model, systemd, file perms" },
+    { "id": "dev-server", "last_covered": "round-1" },
+    { "id": "dos-resource-exhaustion", "last_covered": null, "note": "CANDIDATE: regex/ReDoS, upload floods, cache fill, oauth store growth, flat-file store contention" },
+    { "id": "timing-side-channels", "last_covered": null, "note": "CANDIDATE: deeper timing analysis of compares/login" },
+    { "id": "concurrency-races", "last_covered": null, "note": "CANDIDATE: races on the flat-file auth/content stores under concurrent writes" },
+    { "id": "supply-chain-deps", "last_covered": null, "note": "CANDIDATE: Perl/CPAN + bundled JS dependency CVEs (cross-check the SBOM)" },
+    { "id": "multi-tenant-isolation", "last_covered": "round-1", "note": "PARTIAL: shared-www-data CGI is not a tenant boundary (documented); pool model isolates. Extend: cross-site under shared CGI." }
+  ],
+  "rounds": [
+    {
+      "id": "round-1",
+      "date": "2026-07-15",
+      "target": "0.7.15 (edge)",
+      "fixes_released_in": "0.7.16",
+      "agents": 11,
+      "scope": "8-agent review (6 static: core processor+multisite, auth/session/oauth, manager-api+access-control, dav/mcp/tokens, all plugins, xss/injection/upload; 2 black-box probers) + 3-agent RCE/OS-access follow-up (exec primitives, write->exec chains [verified], deployment misconfig).",
+      "areas_covered": ["authz-cookie-vs-token", "csrf", "path-confinement", "rce-exec-primitives", "xss-injection", "ssrf", "auth-session-crypto", "webdav-mcp-tokens", "plugins", "deployment-misconfig", "dev-server", "multi-tenant-isolation"],
+      "areas_not_covered": ["dos-resource-exhaustion", "timing-side-channels", "concurrency-races", "supply-chain-deps"],
+      "root_cause_themes": [
+        "A: cookie-path authorization not at parity with the token %need map (yields takeover + escalation + the plugin-runner RCE gate)",
+        "B: bare-prefix path confinement (index($real,$root) without trailing slash) recurring across the manager file layer and the include/json resolvers",
+        "C: escape-at-sink discipline + no CSP; active-content writes (.shtml/.htaccess/.cgi) not blocked",
+        "D: dev-server and shipped vhost templates not at parity with production hardening (SSI #exec, AllowOverride All, 0.0.0.0 bind)"
+      ],
+      "summary": { "critical": 3, "high": 10, "medium": 6, "low": 9 },
+      "findings": [
+        { "id": "RCE-1", "severity": "critical", "area": "rce-exec-primitives", "title": "Plugin runner executes an attacker-named file as Perl (resolve_plugin_script no confinement); any ui account writes Perl into a non-.pl file then plugin-action runs it", "verified": true, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "C1", "severity": "critical", "area": "authz-cookie-vs-token", "title": "Account takeover: any interactive account resets any password (cmd_passwd called without actor; no cookie manage_users gate)", "verified": true, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "C2", "severity": "critical", "area": "path-confinement", "title": ":::include / json: reads lazysite/auth/.secret -> session forgery (confines to $DOCROOT, not the lazysite tree, nor $croot)", "verified": true, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "H-SSI", "severity": "high", "area": "deployment-misconfig", "title": "SSI #exec RCE: vhost templates ship Options +Includes on the writable docroot and .shtml is not blocked -> manage_content partner writes evil.shtml (Apache)", "verified": "write", "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "H-HTACCESS", "severity": "high", "area": "deployment-misconfig", "title": ".htaccess handler injection: AllowOverride All + a saved .htaccess (AddHandler cgi-script .txt) -> CGI (Apache)", "verified": "write", "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "H1", "severity": "high", "area": "authz-cookie-vs-token", "title": "Cookie sessions bypass the capability model: %need is token-only; editor did config-set/backup/domains-list/user-enum", "verified": true, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "H2", "severity": "high", "area": "csrf", "title": "CSRF gate is POST-only; mutating actions work over GET (config-set proven via GET)", "verified": true, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "H3", "severity": "high", "area": "path-confinement", "title": "validate_path sibling-prefix docroot escape (index($real,$DOCROOT) no trailing slash) -> write outside docroot via MCP/API", "verified": true, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "H4", "severity": "high", "area": "authz-cookie-vs-token", "title": "File-editor deny-list gaps: reads lazysite.conf/templates/full-backups/audit.log/plugin-secret confs", "verified": true, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "H5a", "severity": "high", "area": "xss-injection", "title": "Stored+reflected XSS in manager breadcrumb (files.md:170 unescaped path/label)", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "H5b", "severity": "high", "area": "xss-injection", "title": "Front-matter title/subtitle emitted unescaped in every layout -> content-author XSS", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "H5c", "severity": "high", "area": "xss-injection", "title": "Uploads: active-content extensions (html/svg/js/shtml) not blocked, served same-origin", "verified": true, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "H6", "severity": "high", "area": "ssrf", "title": "SSRF guard validates only the initial URL; LWP follows redirects to internal targets", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "H7", "severity": "high", "area": "dev-server", "title": "Dev server serve_static: unauthenticated arbitrary file read (../etc/passwd, /lazysite/auth/users); binds 0.0.0.0", "verified": true, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "M1", "severity": "medium", "area": "path-confinement", "title": "Cross-domain :::include/json (confine $DOCROOT not $croot)", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "M2", "severity": "medium", "area": "webdav-mcp-tokens", "title": "dav_scope not enforced on MCP/API (only WebDAV)", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "M4", "severity": "medium", "area": "auth-session-crypto", "title": "Logout does not invalidate the session (sid stays in registry; cookie valid 24h)", "verified": true, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "M5", "severity": "medium", "area": "auth-session-crypto", "title": "Group membership carried in cookie and trusted 24h (demotion delayed)", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "M-TAR", "severity": "medium", "area": "deployment-misconfig", "title": "Backup restore tar xzf --no-same-owner keeps setuid/setgid, no symlink guard (root --restore-full)", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "M-SAVEEXT", "severity": "medium", "area": "authz-cookie-vs-token", "title": "Save path calls is_blocked_config without ext check -> .cgi/.PL/.shtml/.htaccess pass save", "verified": true, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "L-SYSTEMD", "severity": "low", "area": "deployment-misconfig", "title": "lazysite@.service has no NoNewPrivileges/ProtectSystem/PrivateTmp/RestrictSUIDSGID", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "L-CSRF-SESSION", "severity": "low", "area": "csrf", "title": "CSRF token user+hour scoped, not session-scoped (survives logout <=2h)", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "L-LOGIN-THROTTLE", "severity": "low", "area": "auth-session-crypto", "title": "Login rate limit per-IP only, fails open; no per-account counter", "verified": false, "status": "planned", "fixed_in": "0.7.16" },
+        { "id": "L-OAUTH", "severity": "low", "area": "auth-session-crypto", "title": "OAuth PKCE not re-asserted on consent POST; unauthenticated register has no rate limit (store growth)", "verified": false, "status": "planned", "fixed_in": "0.7.16" },
+        { "id": "L-PLUGINS-ESC", "severity": "low", "area": "xss-injection", "title": "plugins.md uses a weak esc() in attribute contexts", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "L-SECRET-CHMOD", "severity": "low", "area": "auth-session-crypto", "title": "Secret files open()'d then chmod'd (TOCTOU window; shielded by 02770 dir)", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "L-ALIAS-ESC", "severity": "low", "area": "xss-injection", "title": "Alias-redirect body echoes $canon unescaped (manager-controlled source)", "verified": false, "status": "fixing", "fixed_in": "0.7.16" },
+        { "id": "L-CGI-TENANT", "severity": "low", "area": "multi-tenant-isolation", "title": "Plain-CGI shares one www-data across sites; secrets group-readable -> document 'plain CGI is not a tenant boundary'", "verified": true, "status": "doc", "fixed_in": "0.7.16" },
+        { "id": "L-DEVBIND", "severity": "low", "area": "dev-server", "title": "Dev server login POST without ?action=login self-execs in a loop and wedges", "verified": true, "status": "fixing", "fixed_in": "0.7.16" }
+      ]
+    }
+  ]
+}
