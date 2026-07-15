@@ -1045,7 +1045,8 @@ sub cmd_set {
         $h =~ s/^\s+|\s+$//g;
         if ( length $h ) {
             die "Invalid home_domain (must be a hostname)\n"
-                unless $h =~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/;
+                unless $h =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
+                    (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
             $all->{$user}{home_domain} = $h;
         }
         else { delete $all->{$user}{home_domain} }
