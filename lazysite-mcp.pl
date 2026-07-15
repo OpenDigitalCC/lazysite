@@ -16,7 +16,7 @@
 # not the manager-only operations (user admin, secrets).
 use strict;
 use warnings;
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP       qw(encode_json decode_json);
 use File::Basename qw(dirname);
 use IPC::Open2;
 
@@ -28,10 +28,10 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util qw(log_event);
-use Lazysite::Audit qw(audit_log);
-use Lazysite::Capabilities qw(describe);
-use Lazysite::Auth::OAuth ();
+use Lazysite::Util           qw(log_event);
+use Lazysite::Audit          qw(audit_log);
+use Lazysite::Capabilities   qw(describe);
+use Lazysite::Auth::OAuth    ();
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
     action_move action_acl_get action_acl_set action_acl_remove
     action_git_history action_git_show action_git_restore);
@@ -51,7 +51,7 @@ my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
 # Set early so verify_bearer (which runs before setup_context) can audit a connect.
-$Lazysite::Audit::LAZYSITE_DIR       = $LAZYSITE_DIR;
+$Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
 
 # How the current request authenticated, for whoami to surface the real session
 # lifetime (an OAuth access token expires ~hourly even when the partner's static
@@ -85,7 +85,7 @@ sub rpc_result { send_json( { jsonrpc => '2.0', id => $_[0], result => $_[1] } )
 sub rpc_error {
     my ( $id, $code, $msg ) = @_;
     send_json( { jsonrpc => '2.0', id => $id,
-        error => { code => $code, message => $msg } } );
+            error => { code => $code, message => $msg } } );
 }
 
 # SM076 OAuth: a tool call without valid auth returns HTTP 401 with a
@@ -100,7 +100,7 @@ sub send_401 {
     # in / authorisation incomplete) vs a credential that didn't verify (expired
     # or revoked - reconnect). Points the agent + operator at the right fix.
     my $had_cred = ( $ENV{HTTP_AUTHORIZATION} || $ENV{REDIRECT_HTTP_AUTHORIZATION} ) ? 1 : 0;
-    my $msg = $had_cred
+    my $msg      = $had_cred
         ? 'Credential did not verify (expired or revoked) - reconnect the connector.'
         : 'Connector sign-in incomplete - finish authorising the connector before calling tools (this is not a missing-header you can fix in the prompt).';
     binmode STDOUT;    # encode_json emits UTF-8 bytes; do not re-encode
@@ -109,8 +109,8 @@ sub send_401 {
     print "Content-Type: application/json\r\n";
     print "MCP-Protocol-Version: $PROTOCOL\r\n\r\n";
     print encode_json( { jsonrpc => '2.0', id => $id,
-        error => { code => -32001, message => $msg,
-            data => { reason => ( $had_cred ? 'credential-invalid' : 'sign-in-incomplete' ) } } } );
+            error => { code => -32001, message => $msg,
+                data => { reason => ( $had_cred ? 'credential-invalid' : 'sign-in-incomplete' ) } } } );
     exit 0;
 }
 
@@ -183,7 +183,7 @@ sub verify_bearer {
     my ( $user, $secret ) = split /:/, $cred, 2;
     if ( defined $user && defined $secret && $secret =~ /^lzs_/ ) {
         my $v = _users_api( { action => 'verify-credential',
-            username => $user, secret => $secret, touch => 1 } );
+                username => $user, secret => $secret, touch => 1 } );
         return () unless $v && $v->{ok};
         # Audit the connector's first authentication with this credential (the
         # static-bearer "connected" moment - Claude Code / Desktop / a script).
@@ -226,8 +226,8 @@ sub setup_context {
     $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
     $Lazysite::Auth::Acl::DOCROOT              = $DOCROOT;
     $Lazysite::Auth::Acl::auth_user            = $user;
-    $Lazysite::Auth::Acl::token_auth           = 1;     # never an operator
-    @Lazysite::Auth::Acl::user_groups          = ();    # token carries no groups
+    $Lazysite::Auth::Acl::token_auth           = 1;              # never an operator
+    @Lazysite::Auth::Acl::user_groups          = ();             # token carries no groups
     $Lazysite::Audit::LAZYSITE_DIR             = $LAZYSITE_DIR;
     return;
 }
@@ -239,7 +239,7 @@ sub setup_context {
 my %TOOLS = (
     whoami => {
         description => 'Report the calling partner identity, capabilities, and the active layout/theme.',
-        cap         => undef,
+        cap => undef,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub {
             my ( $args, $user, $caps ) = @_;
@@ -248,7 +248,7 @@ my %TOOLS = (
             # call (the connector loads tools a few at a time, which can hide some).
             return { ok => 1, user => $user, capabilities => $caps,
                 active_layout => $layout, active_theme => $theme,
-                tools => _tool_names(),
+                tools         => _tool_names(),
                 # How this session authenticated + when the credential expires
                 # (OAuth tokens expire ~hourly and refresh transparently; a
                 # static/operator credential may be permanent = null).
@@ -261,7 +261,7 @@ my %TOOLS = (
             . 'control-API actions and WebDAV paths), task recipes for common jobs, '
             . 'the engine-owned paths you must not write, and - under "holds" - what '
             . 'THIS account currently has. Call this first to learn what you may do.',
-        cap         => undef,   # introspection: exempt from the mcp channel gate
+        cap => undef,    # introspection: exempt from the mcp channel gate
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub {
             my ( $args, $user, $caps ) = @_;
@@ -283,14 +283,14 @@ my %TOOLS = (
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
-            required => ['path'], additionalProperties => JSON::PP::false },
+            required   => ['path'], additionalProperties => JSON::PP::false },
         run => sub {
             my $out = action_read( $_[0]->{path}, $_[1] );
             # Guard against an oversized response (slow transfer / client
             # timeout). Refuse rather than truncate - a truncated read that gets
             # written back would destroy content.
             if ( ref $out eq 'HASH' && $out->{ok} && defined $out->{content}
-                 && length( $out->{content} ) > $MAX_READ_BYTES ) {
+                && length( $out->{content} ) > $MAX_READ_BYTES ) {
                 return { ok => 0, too_large => 1, kind => 'too-large', path => $_[0]->{path},
                     error => 'File too large to read through the connector ('
                         . length( $out->{content} ) . ' bytes); edit it over WebDAV instead.' };
@@ -313,7 +313,7 @@ my %TOOLS = (
                 my $v = _validate_page( undef, $a->{content}, $user );
                 if ( ref $v eq 'HASH' ) {
                     $r->{warnings} = $v->{warnings} if $v->{warnings} && @{ $v->{warnings} };
-                    $r->{issues}   = $v->{issues}   if $v->{issues}   && @{ $v->{issues} };
+                    $r->{issues} = $v->{issues}     if $v->{issues} && @{ $v->{issues} };
                 }
             }
             return $r;
@@ -325,8 +325,8 @@ my %TOOLS = (
         inputSchema => { type => 'object',
             properties => {
                 path => { type => 'string' },
-                old  => { type => 'string', description => 'exact text to find (must match including whitespace)' },
-                new  => { type => 'string', description => 'replacement text' },
+                old => { type => 'string', description => 'exact text to find (must match including whitespace)' },
+                new => { type => 'string', description => 'replacement text' },
             },
             required => [ 'path', 'old', 'new' ], additionalProperties => JSON::PP::false },
         run => sub {
@@ -339,7 +339,7 @@ my %TOOLS = (
             my $count = @parts - 1;
             return { ok => 0, error => 'text not found in ' . ( $a->{path} // '' ) } unless $count;
             my $content = join( ( defined $a->{new} ? $a->{new} : '' ), @parts );
-            my $s = action_save( $a->{path}, $user, $content, undef );
+            my $s       = action_save( $a->{path}, $user, $content, undef );
             $s->{replacements} = $count if ref $s eq 'HASH' && $s->{ok};
             return $s;
         },
@@ -349,7 +349,7 @@ my %TOOLS = (
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { from => { type => 'string' }, to => { type => 'string' } },
-            required => [ 'from', 'to' ], additionalProperties => JSON::PP::false },
+            required   => [ 'from', 'to' ], additionalProperties => JSON::PP::false },
         run => sub {
             my ( $a, $user ) = @_;
             my $r = action_read( $a->{from}, $user );
@@ -362,7 +362,7 @@ my %TOOLS = (
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
-            required => ['path'], additionalProperties => JSON::PP::false },
+            required   => ['path'], additionalProperties => JSON::PP::false },
         run => sub { action_acl_get( $_[0]->{path}, $_[1] ) },
     },
     move_file => {
@@ -370,7 +370,7 @@ my %TOOLS = (
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { from => { type => 'string' }, to => { type => 'string' } },
-            required => [ 'from', 'to' ], additionalProperties => JSON::PP::false },
+            required   => [ 'from', 'to' ], additionalProperties => JSON::PP::false },
         run => sub { action_move( $_[0]->{from}, $_[0]->{to}, $_[1] ) },
     },
     delete_file => {
@@ -378,7 +378,7 @@ my %TOOLS = (
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
-            required => ['path'], additionalProperties => JSON::PP::false },
+            required   => ['path'], additionalProperties => JSON::PP::false },
         run => sub { action_delete( $_[0]->{path}, $_[1] ) },
     },
     set_permissions => {
@@ -387,7 +387,7 @@ my %TOOLS = (
         inputSchema => { type => 'object',
             properties => {
                 path => { type => 'string' },
-                read  => { type => 'string', description => 'comma-separated users / @groups' },
+                read => { type => 'string', description => 'comma-separated users / @groups' },
                 write => { type => 'string' },
             },
             required => ['path'], additionalProperties => JSON::PP::false },
@@ -397,16 +397,16 @@ my %TOOLS = (
     },
     list_themes => {
         description => 'List the themes installed across all layouts (with which is active), so you can discover what is available without activating each in turn.',
-        cap         => 'manage_themes',
+        cap => 'manage_themes',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run         => sub { action_themes_list_all() },
+        run => sub { action_themes_list_all() },
     },
     activate_theme => {
         description => 'Activate a theme for the current layout (clears the HTML cache).',
         cap         => 'manage_themes',
         inputSchema => { type => 'object',
             properties => { theme => { type => 'string' } },
-            required => ['theme'], additionalProperties => JSON::PP::false },
+            required   => ['theme'], additionalProperties => JSON::PP::false },
         run => sub { action_theme_activate( $_[0]->{theme}, {} ) },
     },
     activate_layout => {
@@ -414,7 +414,7 @@ my %TOOLS = (
         cap         => 'manage_layouts',
         inputSchema => { type => 'object',
             properties => { layout => { type => 'string' }, theme => { type => 'string' } },
-            required => ['layout'], additionalProperties => JSON::PP::false },
+            required   => ['layout'], additionalProperties => JSON::PP::false },
         run => sub {
             my $p = {};
             $p->{theme} = $_[0]->{theme} if defined $_[0]->{theme};
@@ -423,24 +423,24 @@ my %TOOLS = (
     },
     list_layout_catalogue => {
         description => 'List the layouts available in the configured layouts repo (its manifest.json): each layout, its version, default theme, and its themes - annotated with what is already installed. Discover what install_layout can pull, without downloading anything.',
-        cap         => 'manage_layouts',
+        cap => 'manage_layouts',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run         => sub { action_layouts_manifest() },
+        run => sub { action_layouts_manifest() },
     },
     install_layout => {
         description => 'Install a layout and its theme(s) from the repo on demand, then activate it. By default installs the layout default_theme; pass theme for a specific one, or all:true for every theme. Mirrors assets and clears the cache. Use list_layout_catalogue first to see names. To SWITCH the site to a different layout this one tool is the whole switch (install + activate in one step); only delete the old layout AFTERWARDS if it is no longer wanted - deleting the active layout is always refused, so never delete first.',
         cap         => 'manage_layouts',
         inputSchema => { type => 'object',
             properties => {
-                layout   => { type => 'string',  description => 'layout name from list_layout_catalogue' },
-                theme    => { type => 'string',  description => 'optional specific theme; default is the layout default_theme' },
-                all      => { type => 'boolean', description => 'install every theme for the layout' },
-                update   => { type => 'boolean', description => 'overwrite an already-installed layout (e.g. to push a layout fix); the old one is snapshotted, its themes/ kept' },
+                layout => { type => 'string', description => 'layout name from list_layout_catalogue' },
+                theme => { type => 'string', description => 'optional specific theme; default is the layout default_theme' },
+                all => { type => 'boolean', description => 'install every theme for the layout' },
+                update => { type => 'boolean', description => 'overwrite an already-installed layout (e.g. to push a layout fix); the old one is snapshotted, its themes/ kept' },
                 activate => { type => 'boolean', description => 'activate after install (default true)' },
             },
             required => ['layout'], additionalProperties => JSON::PP::false },
         run => sub {
-            my $a = $_[0];
+            my $a   = $_[0];
             my %req = ( layout => $a->{layout} );
             $req{theme}    = $a->{theme}    if defined $a->{theme};
             $req{all}      = $a->{all}      if defined $a->{all};
@@ -454,21 +454,21 @@ my %TOOLS = (
         cap         => 'manage_layouts',
         inputSchema => { type => 'object',
             properties => { layout => { type => 'string' } },
-            required => ['layout'], additionalProperties => JSON::PP::false },
+            required   => ['layout'], additionalProperties => JSON::PP::false },
         run => sub { action_layout_delete( $_[0]->{layout} ) },
     },
     list_form_handlers => {
         description => 'List the configured form delivery handlers (id, type, name) - what a form can be bound to. Destinations and credentials are operator-only and never returned.',
-        cap         => 'manage_forms',
+        cap => 'manage_forms',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run         => sub { _list_form_handlers() },
+        run => sub { _list_form_handlers() },
     },
     bind_form => {
         description => 'Wire a form to delivery. FULL FLOW to build a working form natively (do not just copy an existing page): (1) in the page Markdown add front matter "form: NAME" and a :::form block - each field is a "field_name | Label | rules" line; rules include required, email, textarea, select:A,B,C, max:N; end with "submit | Button label". Example: ":::form\\nname | Your name | required max:200\\nemail | Email | required email\\nmessage | Message | required textarea\\nsubmit | Send\\n:::". See /docs/forms for the full reference. (2) call list_form_handlers to see the operator-vetted delivery handlers. (3) call bind_form(form: NAME, handler: ID). A :::form renders but does NOT deliver until bound. You never set a destination or credential (operator-only). Writes lazysite/forms/<form>.conf.',
         cap         => 'manage_forms',
         inputSchema => { type => 'object',
             properties => {
-                form    => { type => 'string', description => 'the form name (the _form / front-matter form key)' },
+                form => { type => 'string', description => 'the form name (the _form / front-matter form key)' },
                 handler => { type => 'string', description => 'an existing handler id from list_form_handlers' },
             },
             required => [ 'form', 'handler' ], additionalProperties => JSON::PP::false },
@@ -476,9 +476,9 @@ my %TOOLS = (
     },
     audit_site => {
         description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), and duplicate content blocks (the same paragraph on multiple pages, e.g. repeated reviews). Returns lists per category.',
-        cap         => 'manage_content', path_aware => 1,
+        cap => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run         => sub { _audit_site() },
+        run => sub { _audit_site() },
     },
     analyse_visitors => {
         description => 'Visitor-log analysis for trend reporting (read-only). Returns a SANITISED JSON: per-day totals, a people/AI-assistant/bot/noise traffic breakdown, top pages, referrers, status codes, and a capped recent event stream - never the raw log, any filesystem path, or a visitor IP (IPs are anonymised; events carry only a network-level visitor token). Aggregated from the web-server access log via an incremental cache. Read the site briefing /docs/ai-briefing-stats to interpret the fields and the traffic taxonomy, then answer the operator\'s question (trends, rising/falling pages, AI-crawler share, 404 spikes). Heuristic and not authenticated.',
@@ -495,7 +495,7 @@ my %TOOLS = (
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
-                path    => { type => 'string', description => 'page to validate' },
+                path => { type => 'string', description => 'page to validate' },
                 content => { type => 'string', description => 'draft content to validate instead of a saved file' },
             },
             additionalProperties => JSON::PP::false },
@@ -503,27 +503,27 @@ my %TOOLS = (
     },
     read_nav => {
         description => 'Read the site navigation as a structured list (top-level items with optional children) plus the raw nav.conf. Read this before set_nav to modify it.',
-        cap         => 'manage_content', path_aware => 1,
+        cap => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run         => sub { _read_nav() },
+        run => sub { _read_nav() },
     },
     set_nav => {
         description => 'Replace the site navigation. items is an ordered list of { label, url } (a child list under "children" becomes an indented sub-menu; an item with no url is a section header). Writes lazysite/nav.conf and rebuilds the cache (nav is on every page).',
         cap         => 'manage_nav',
         inputSchema => { type => 'object',
             properties => { items => { type => 'array', items => { type => 'object' } } },
-            required => ['items'], additionalProperties => JSON::PP::false },
+            required   => ['items'], additionalProperties => JSON::PP::false },
         run => sub { _set_nav( $_[0], $_[1] ) },
     },
     submit_feedback => {
         description => 'Submit a brief feedback report on your experience building this site through the connector - what worked, what got in the way, anything confusing or missing. You are encouraged to use this whenever something helps or hinders: it is how the operators improve the tools. Provide the content; your identity and context are recorded automatically. Returns the saved report id.',
         inputSchema => { type => 'object',
             properties => {
-                summary => { type => 'string',  description => 'one-line summary (required)' },
-                good    => { type => 'string',  description => 'what worked well' },
-                bad     => { type => 'string',  description => 'what got in the way or was missing' },
-                rating  => { type => 'integer', description => 'optional overall rating, 1 (poor) to 5 (great)' },
-                context => { type => 'string',  description => 'what you were doing when this applied' },
+                summary => { type => 'string', description => 'one-line summary (required)' },
+                good => { type => 'string', description => 'what worked well' },
+                bad => { type => 'string', description => 'what got in the way or was missing' },
+                rating => { type => 'integer', description => 'optional overall rating, 1 (poor) to 5 (great)' },
+                context => { type => 'string', description => 'what you were doing when this applied' },
             },
             required => ['summary'], additionalProperties => JSON::PP::false },
         run => sub { _submit_feedback( $_[0], $_[1], $_[2] ) },
@@ -533,7 +533,7 @@ my %TOOLS = (
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
-                slug     => { type => 'string', description => 'page path, e.g. things-to-do' },
+                slug => { type => 'string', description => 'page path, e.g. things-to-do' },
                 title    => { type => 'string' },
                 subtitle => { type => 'string' },
                 body     => { type => 'string', description => 'Markdown body' },
@@ -547,7 +547,7 @@ my %TOOLS = (
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { slug => { type => 'string' } },
-            required => ['slug'], additionalProperties => JSON::PP::false },
+            required   => ['slug'], additionalProperties => JSON::PP::false },
         run => sub { _delete_page( $_[0], $_[1] ) },
     },
     rename_page => {
@@ -555,7 +555,7 @@ my %TOOLS = (
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
-                old => { type => 'string' }, new => { type => 'string' },
+                old          => { type => 'string' }, new => { type => 'string' },
                 update_links => { type => 'boolean' },
             },
             required => [ 'old', 'new' ], additionalProperties => JSON::PP::false },
@@ -563,9 +563,9 @@ my %TOOLS = (
     },
     list_pages => {
         description => 'List the site pages with their title, public URL, and which registries (sitemap/llms/feed) each is in. A page-level view rather than a raw file list.',
-        cap         => 'manage_content', path_aware => 1,
+        cap => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run         => sub { _list_pages() },
+        run => sub { _list_pages() },
     },
     read_page => {
         description => 'Read a page as structured data: parsed front matter, the Markdown body, whether it has an authoring brief, and its public URL. Higher-level than read_file for editing a page.',
@@ -597,7 +597,7 @@ my %TOOLS = (
         inputSchema => { type => 'object',
             properties => {
                 query => { type => 'string', description => 'text to search for' },
-                path  => { type => 'string', description => 'directory to search under (default /)' },
+                path => { type => 'string', description => 'directory to search under (default /)' },
             },
             required => ['query'], additionalProperties => JSON::PP::false },
         run => sub { _mcp_search( $_[0]->{query}, $_[0]->{path} ) },
@@ -680,9 +680,9 @@ sub _mcp_search {
             my $ln = 0;
             while ( my $line = <$fh> ) {
                 $ln++;
-                next unless $line =~ $qre;
+                next unless $line   =~ $qre;
                 ( my $rel = $full ) =~ s{^\Q$DOCROOT\E/?}{/};
-                chomp $line; $line =~ s/^\s+//; $line = substr( $line, 0, 200 );
+                chomp $line; $line  =~ s/^\s+//; $line = substr( $line, 0, 200 );
                 push @matches, { path => $rel, line => $ln, text => $line };
                 if ( @matches >= 200 ) { $truncated = 1; last }
             }
@@ -704,7 +704,7 @@ sub _page_status {
     ( my $rel = $path ) =~ s{^/+}{}; $rel =~ s{\.\.}{}g;
     my $full   = "$DOCROOT/$rel";
     my $exists = -f $full;
-    my %out = ( ok => 1, path => "/$rel",
+    my %out    = ( ok => 1, path => "/$rel",
         exists => ( $exists ? JSON::PP::true : JSON::PP::false ) );
     $out{modified} = ( stat $full )[9] if $exists;
     if ( $rel =~ /\.md$/ ) {
@@ -782,7 +782,7 @@ sub _parse_fm {
         my ( $k, $v ) = ( $1, $2 );
         $v =~ s/\s+$//;
         if ( $v =~ /^\[(.*)\]$/ ) { $h{$k} = [ grep { length } map { s/^\s+|\s+$|["']//gr } split /,/, $1 ]; }
-        else { $v =~ s/^["']|["']$//g; $h{$k} = $v; }
+        else                      { $v =~ s/^["']|["']$//g; $h{$k} = $v; }
     }
     return \%h;
 }
@@ -802,15 +802,15 @@ sub _read_page {
     ( my $rel = $path ) =~ s{^/+}{};
     return { ok => 1, path => "/$rel",
         front_matter => _parse_fm($fm), body => $body,
-        has_brief  => ( -f "$DOCROOT/$rel.brief" ? JSON::PP::true : JSON::PP::false ),
-        public_url => _public_url($rel), modified => $r->{mtime} };
+        has_brief    => ( -f "$DOCROOT/$rel.brief" ? JSON::PP::true : JSON::PP::false ),
+        public_url   => _public_url($rel), modified => $r->{mtime} };
 }
 
 # Walk top-level + content/ .md pages (skip infra/manager/generated partials).
 sub _each_page {
-    my ($cb) = @_;
+    my ($cb)  = @_;
     my @stack = ($DOCROOT);
-    my $n = 0;
+    my $n     = 0;
     while (@stack) {
         my $dir = pop @stack;
         opendir my $dh, $dir or next;
@@ -835,14 +835,14 @@ sub _each_page {
 sub _list_pages {
     my @pages;
     _each_page( sub {
-        my ( $rel, $full ) = @_;
-        open my $fh, '<:utf8', $full or return;
-        local $/; my $c = <$fh>; close $fh;
-        my ( $fm ) = _split_front_matter($c);
-        my $h = _parse_fm($fm);
-        push @pages, { path => "/$rel", title => ( $h->{title} // '' ),
-            registers => ( ref $h->{register} eq 'ARRAY' ? $h->{register} : ( $h->{register} ? [ $h->{register} ] : [] ) ),
-            public_url => _public_url($rel) };
+            my ( $rel, $full ) = @_;
+            open my $fh, '<:utf8', $full or return;
+            local $/; my $c = <$fh>; close $fh;
+            my ($fm) = _split_front_matter($c);
+            my $h = _parse_fm($fm);
+            push @pages, { path => "/$rel", title => ( $h->{title} // '' ),
+                registers => ( ref $h->{register} eq 'ARRAY' ? $h->{register} : ( $h->{register} ? [ $h->{register} ] : [] ) ),
+                public_url => _public_url($rel) };
     } );
     @pages = sort { $a->{path} cmp $b->{path} } @pages;
     return { ok => 1, count => scalar @pages, pages => \@pages };
@@ -883,8 +883,8 @@ sub _validate_page {
             # contain spaces) - drop it before checking the remaining rule tokens.
             ( my $check = $rules ) =~ s/\bselect:.*$//s;
             for my $tok ( split /\s+/, $check ) {
-                next if $FORM_FLAGS{$tok} || $tok =~ /^[a-z]+:/;    # known flag or key:value
-                next if $tok !~ /^[a-z]+$/;                          # only flag plain words
+                next if $FORM_FLAGS{$tok} || $tok =~ /^[a-z]+:/; # known flag or key:value
+                next if $tok                      !~ /^[a-z]+$/; # only flag plain words
                 push @issues, { kind => 'invalid-form-rule',
                     message => "unknown form rule '$tok' on field '$name'" };
             }
@@ -915,27 +915,27 @@ sub _validate_page {
 sub _audit_site {
     my ( %exists, %inbound, %para, @info, @links );
     _each_page( sub {
-        my ( $rel, $full ) = @_;
-        ( my $slug = "/$rel" ) =~ s/\.md$//;
-        $exists{$slug} = 1;
-        open my $fh, '<:utf8', $full or return;
-        local $/; my $c = <$fh>; close $fh;
-        my ( $fm, $body ) = _split_front_matter($c);
-        my $h = _parse_fm($fm);
-        push @info, { slug => $slug, title => ( $h->{title} // '' ) };
-        while ( $body =~ /\]\(([^)\s]+)\)/g )      { push @links, [ $slug, $1 ] }
-        while ( $body =~ /href=["']([^"'#?]+)/g )   { push @links, [ $slug, $1 ] }
-        for my $p ( split /\n\s*\n/, $body ) {
-            $p =~ s/\s+/ /g; $p =~ s/^\s+|\s+$//g;
-            push @{ $para{$p} }, $slug if length $p >= 60;
-        }
+            my ( $rel, $full ) = @_;
+            ( my $slug = "/$rel" ) =~ s/\.md$//;
+            $exists{$slug} = 1;
+            open my $fh, '<:utf8', $full or return;
+            local $/; my $c = <$fh>; close $fh;
+            my ( $fm, $body ) = _split_front_matter($c);
+            my $h = _parse_fm($fm);
+            push @info, { slug => $slug, title => ( $h->{title} // '' ) };
+            while ( $body =~ /\]\(([^)\s]+)\)/g )     { push @links, [ $slug, $1 ] }
+            while ( $body =~ /href=["']([^"'#?]+)/g ) { push @links, [ $slug, $1 ] }
+            for my $p ( split /\n\s*\n/, $body ) {
+                $p =~ s/\s+/ /g; $p =~ s/^\s+|\s+$//g;
+                push @{ $para{$p} }, $slug if length $p >= 60;
+            }
     } );
 
     my @broken;
     for my $l (@links) {
         my ( $from, $to ) = @$l;
         next unless $to =~ m{^/};
-        next if $to =~ m{^/(?:cgi-bin|manager|lazysite|img|lazysite-assets)/};
+        next if $to     =~ m{^/(?:cgi-bin|manager|lazysite|img|lazysite-assets)/};
         ( my $t = $to ) =~ s/[#?].*$//; $t =~ s{/$}{};
         next unless length $t;
         if ( $exists{$t} || -e "$DOCROOT$t" || -f "$DOCROOT$t.md" || -f "$DOCROOT$t.html" ) {
@@ -944,8 +944,8 @@ sub _audit_site {
         else { push @broken, { from => $from, to => $to }; last if @broken >= 200 }
     }
 
-    my @orphans   = map { $_->{slug} } grep { $_->{slug} ne '/index' && !$inbound{ $_->{slug} } } @info;
-    my @no_title  = map { $_->{slug} } grep { !length $_->{title} } @info;
+    my @orphans = map { $_->{slug} } grep { $_->{slug} ne '/index' && !$inbound{ $_->{slug} } } @info;
+    my @no_title = map { $_->{slug} } grep { !length $_->{title} } @info;
 
     # Stale generated HTML: a rendered .html with no .md source.
     my ( @stale, @stack ) = ( (), $DOCROOT );
@@ -972,7 +972,7 @@ sub _audit_site {
     }
 
     return { ok => 1, pages => scalar @info,
-        broken_links => \@broken, orphan_pages => \@orphans,
+        broken_links  => \@broken,   orphan_pages => \@orphans,
         missing_title => \@no_title, stale_html => \@stale, duplicate_blocks => \@dups };
 }
 
@@ -989,8 +989,8 @@ sub _list_form_handlers {
     while ( $c =~ /^[ \t]*-[ \t]+id:[ \t]*(\S+)(.*?)(?=^[ \t]*-[ \t]+id:|\z)/gms ) {
         my ( $id, $block ) = ( $1, $2 );
         my %x = ( id => $id, type => 'unknown' );
-        $x{type} = $1 if $block =~ /^[ \t]*type:[ \t]*(\S+)/m;
-        $x{name} = $1 if $block =~ /^[ \t]*name:[ \t]*(.+?)[ \t]*$/m;
+        $x{type}    = $1 if $block =~ /^[ \t]*type:[ \t]*(\S+)/m;
+        $x{name}    = $1 if $block =~ /^[ \t]*name:[ \t]*(.+?)[ \t]*$/m;
         $x{enabled} = ( $block =~ /^[ \t]*enabled:[ \t]*(?:true|yes|1)[ \t]*$/mi )
             ? JSON::PP::true : JSON::PP::false;
         push @h, \%x;
@@ -1087,14 +1087,14 @@ sub _submit_feedback {
 
     my @caplist = sort grep { $caps->{$_} }
         qw(webdav manage_content manage_nav manage_forms
-           manage_themes manage_layouts manage_config create_sub_users analytics);
+        manage_themes manage_layouts manage_config create_sub_users analytics);
 
     my $report = {
         ts           => $iso,
         user         => $user,
         method       => ( $AUTH_INFO{method} // 'mcp' ),
-        ip           => ( $ENV{REMOTE_ADDR} // '' ),
-        site         => ( $ENV{HTTP_HOST}   // '' ),
+        ip           => ( $ENV{REMOTE_ADDR}  // '' ),
+        site         => ( $ENV{HTTP_HOST}    // '' ),
         version      => $VERSION,
         capabilities => \@caplist,
         rating       => ( defined $a->{rating} ? $a->{rating} + 0 : undef ),
@@ -1140,7 +1140,7 @@ sub _create_page {
     return { ok => 0, kind => 'exists', error => "page already exists: /$slug (use write_file to overwrite)" }
         if -e "$DOCROOT/$slug.md";
     my $fm = "---\n";
-    $fm .= 'title: ' . _yaml_scalar( $a->{title} ) . "\n"       if defined $a->{title}    && length $a->{title};
+    $fm .= 'title: ' . _yaml_scalar( $a->{title} ) . "\n" if defined $a->{title} && length $a->{title};
     $fm .= 'subtitle: ' . _yaml_scalar( $a->{subtitle} ) . "\n" if defined $a->{subtitle} && length $a->{subtitle};
     $fm .= 'register: [' . join( ', ', @{ $a->{register} } ) . "]\n"
         if ref $a->{register} eq 'ARRAY' && @{ $a->{register} };
@@ -1169,23 +1169,23 @@ sub _rewrite_links {
     my ( $old, $new, $user ) = @_;
     my $changed = 0;
     _each_page( sub {
-        my ( $rel, $full ) = @_;
-        open my $fh, '<:utf8', $full or return;
-        local $/; my $c = <$fh>; close $fh;
-        my $orig = $c;
-        $c =~ s{(/)\Q$old\E(?=[\s)"'#?\]]|\z)}{$1$new}g;
-        $c =~ s{\b\Q$old\E\.md\b}{$new.md}g;
-        if ( $c ne $orig ) {
-            my $sr = action_save( "/$rel", $user, $c, undef );
-            $changed++ if ref $sr eq 'HASH' && $sr->{ok};
-        }
+            my ( $rel, $full ) = @_;
+            open my $fh, '<:utf8', $full or return;
+            local $/; my $c = <$fh>; close $fh;
+            my $orig = $c;
+            $c =~ s{(/)\Q$old\E(?=[\s)"'#?\]]|\z)}{$1$new}g;
+            $c =~ s{\b\Q$old\E\.md\b}{$new.md}g;
+            if ( $c ne $orig ) {
+                my $sr = action_save( "/$rel", $user, $c, undef );
+                $changed++ if ref $sr eq 'HASH' && $sr->{ok};
+            }
     } );
     return $changed;
 }
 
 sub _rename_page {
-    my ( $a, $user ) = @_;
-    my ( $old, $new ) = ( $a->{old} // '', $a->{new} // '' );
+    my ( $a,   $user ) = @_;
+    my ( $old, $new )  = ( $a->{old} // '', $a->{new} // '' );
     for my $s ( \$old, \$new ) { $$s =~ s{^/+}{}; $$s =~ s{\.\.}{}g; $$s =~ s{\.md\z}{}; $$s =~ s{/+\z}{} }
     return { ok => 0, error => 'old and new required' } unless length $old && length $new;
     my $r = action_move( "/$old.md", "/$new.md", $user );
@@ -1198,38 +1198,38 @@ sub _rename_page {
 # ChatGPT (drives its per-call approval + read/write gating) and good practice
 # for every client. openWorld = the action publishes to / changes the live site.
 my %ANNOTATE = (
-    whoami          => [ 1, 0, 0 ],
-    list_files      => [ 1, 0, 0 ],
-    read_file       => [ 1, 0, 0 ],
-    search_files    => [ 1, 0, 0 ],
-    page_status     => [ 1, 0, 0 ],
-    preview_page    => [ 1, 0, 0 ],
-    list_pages      => [ 1, 0, 0 ],
-    read_page       => [ 1, 0, 0 ],
-    validate_page   => [ 1, 0, 0 ],
-    audit_site      => [ 1, 0, 0 ],
+    whoami             => [ 1, 0, 0 ],
+    list_files         => [ 1, 0, 0 ],
+    read_file          => [ 1, 0, 0 ],
+    search_files       => [ 1, 0, 0 ],
+    page_status        => [ 1, 0, 0 ],
+    preview_page       => [ 1, 0, 0 ],
+    list_pages         => [ 1, 0, 0 ],
+    read_page          => [ 1, 0, 0 ],
+    validate_page      => [ 1, 0, 0 ],
+    audit_site         => [ 1, 0, 0 ],
     list_form_handlers => [ 1, 0, 0 ],
     bind_form          => [ 0, 0, 1 ],
-    write_file      => [ 0, 0, 1 ],
-    replace_text    => [ 0, 0, 1 ],
-    copy_file       => [ 0, 0, 1 ],
-    create_page     => [ 0, 0, 1 ],
-    read_nav        => [ 1, 0, 0 ],
-    set_nav         => [ 0, 0, 1 ],
-    submit_feedback => [ 0, 0, 0 ],   # writes a report, but changes nothing on the live site
-    delete_page     => [ 0, 1, 1 ],
-    rename_page     => [ 0, 0, 1 ],
-    get_permissions => [ 1, 0, 0 ],
-    move_file       => [ 0, 0, 1 ],
-    delete_file     => [ 0, 1, 1 ],
-    set_permissions => [ 0, 0, 0 ],
-    list_themes     => [ 1, 0, 0 ],
-    activate_theme  => [ 0, 0, 1 ],
-    activate_layout => [ 0, 0, 1 ],
+    write_file         => [ 0, 0, 1 ],
+    replace_text       => [ 0, 0, 1 ],
+    copy_file          => [ 0, 0, 1 ],
+    create_page        => [ 0, 0, 1 ],
+    read_nav           => [ 1, 0, 0 ],
+    set_nav            => [ 0, 0, 1 ],
+    submit_feedback => [ 0, 0, 0 ], # writes a report, but changes nothing on the live site
+    delete_page           => [ 0, 1, 1 ],
+    rename_page           => [ 0, 0, 1 ],
+    get_permissions       => [ 1, 0, 0 ],
+    move_file             => [ 0, 0, 1 ],
+    delete_file           => [ 0, 1, 1 ],
+    set_permissions       => [ 0, 0, 0 ],
+    list_themes           => [ 1, 0, 0 ],
+    activate_theme        => [ 0, 0, 1 ],
+    activate_layout       => [ 0, 0, 1 ],
     list_layout_catalogue => [ 1, 0, 0 ],
-    install_layout  => [ 0, 0, 1 ],
-    delete_layout   => [ 0, 1, 1 ],
-    invalidate_cache => [ 0, 0, 0 ],
+    install_layout        => [ 0, 0, 1 ],
+    delete_layout         => [ 0, 1, 1 ],
+    invalidate_cache      => [ 0, 0, 0 ],
     list_versions         => [ 1, 0, 0 ],
     view_version          => [ 1, 0, 0 ],
     restore_version       => [ 0, 0, 1 ],
@@ -1282,19 +1282,19 @@ if ( !defined $id ) {
 
 if ( $method eq 'initialize' ) {
     rpc_result( $id, {
-        protocolVersion => $PROTOCOL,
-        capabilities    => { tools => { listChanged => JSON::PP::false } },
-        serverInfo      => { name => 'lazysite-mcp', version => $VERSION },
-        instructions    =>
-              'You are connected to a lazysite site as a maintenance agent. Before '
-            . 'creating or restructuring pages, read the site briefing '
-            . '/docs/ai-briefing-building-sites: keep content (Markdown), layout and '
-            . 'theme separate, and never put ordinary pages in raw mode (api:true / '
-            . 'raw:true) or hand-author HTML into /lazysite-assets/. For content rules '
-            . 'see /docs/ai-briefing-authoring; for layouts and themes '
-            . '/docs/ai-briefing-layouts. When you screenshot or QA the live site, set '
-            . 'your User-Agent to lazysite-agent/<partner-id> so your hits stay out of '
-            . 'the visitor analytics.',
+            protocolVersion => $PROTOCOL,
+            capabilities    => { tools => { listChanged => JSON::PP::false } },
+            serverInfo      => { name  => 'lazysite-mcp', version => $VERSION },
+            instructions    =>
+                'You are connected to a lazysite site as a maintenance agent. Before '
+                . 'creating or restructuring pages, read the site briefing '
+                . '/docs/ai-briefing-building-sites: keep content (Markdown), layout and '
+                . 'theme separate, and never put ordinary pages in raw mode (api:true / '
+                . 'raw:true) or hand-author HTML into /lazysite-assets/. For content rules '
+                . 'see /docs/ai-briefing-authoring; for layouts and themes '
+                . '/docs/ai-briefing-layouts. When you screenshot or QA the live site, set '
+                . 'your User-Agent to lazysite-agent/<partner-id> so your hits stay out of '
+                . 'the visitor analytics.',
     } );
 }
 elsif ( $method eq 'ping' ) {
@@ -1341,7 +1341,7 @@ elsif ( $method eq 'tools/call' ) {
             'fail', 'mcp', 'denied: mcp channel capability' );
         rpc_error( $id, -32002,
             "The 'mcp' capability is required to use this connector. Ask the "
-          . "operator to grant the mcp capability to your account's group. Do not retry." );
+                . "operator to grant the mcp capability to your account's group. Do not retry." );
     }
 
     # Compute the capability this call requires. File tools are path-aware (SM082):
@@ -1368,8 +1368,31 @@ elsif ( $method eq 'tools/call' ) {
             $ENV{REMOTE_ADDR} // '', 'fail', 'mcp', "denied: needs $need" );
         # SM101: a missing capability is permanent - tell the agent to stop, not retry.
         rpc_error( $id, -32002, "Insufficient capability for $name (needs $need). "
-            . "Do not retry; ask the operator to grant it. Call describe_capabilities "
-            . "to see what your account currently holds and what each capability unlocks." );
+                . "Do not retry; ask the operator to grant it. Call describe_capabilities "
+                . "to see what your account currently holds and what each capability unlocks." );
+    }
+
+    # SEC-2026-07 (M2): enforce dav_scope on the MCP channel too. A scoped
+    # partner credential is confined to its content subtree over WebDAV; without
+    # this it reached the whole content namespace over MCP. Applies to every
+    # content path argument (path/to/from); the lazysite/ theme-authoring
+    # namespace is out of scope's remit (governed by manage_themes/layouts).
+    if ( defined $caps->{dav_scope} && length $caps->{dav_scope} ) {
+        my $a = $params->{arguments} || {};
+        for my $pk (qw(path to from)) {
+            my $p = $a->{$pk};
+            next unless defined $p && length $p;
+            next if $p =~ m{^/?lazysite/};
+            next
+                unless Lazysite::Manager::Common::path_out_of_scope(
+                $caps->{dav_scope}, $p );
+            audit_log( $user, $name, $p, $ENV{REMOTE_ADDR} // '',
+                'fail', 'mcp', 'denied: outside dav_scope' );
+            ( my $sc = $caps->{dav_scope} ) =~ s{^/+|/+$}{}g;
+            rpc_error( $id, -32002,
+                "Path '$p' is outside your assigned scope ($sc/). Do not retry; "
+                    . "ask the operator to widen your dav_scope." );
+        }
     }
 
     setup_context($user);
@@ -1391,16 +1414,16 @@ elsif ( $method eq 'tools/call' ) {
         # Meaningful file-event labels (create/edit/delete/move) to match the
         # manager UI + WebDAV audit vocabulary.
         my $act =
-            $name eq 'write_file'   ? ( ( ref $out eq 'HASH' && $out->{created} ) ? 'create' : 'edit' )
-          : $name eq 'replace_text' ? 'edit'
-          : $name eq 'create_page'  ? 'create'
-          : $name eq 'delete_file'  ? 'delete'
-          : $name eq 'delete_page'  ? 'delete'
-          : $name eq 'rename_page'  ? 'move'
-          : $name eq 'move_file'    ? 'move'
-          : $name eq 'submit_feedback' ? 'feedback'
-          :                           $name;
-        my $aok = ref $out eq 'HASH' && $out->{ok};
+            $name eq 'write_file' ? ( ( ref $out eq 'HASH' && $out->{created} ) ? 'create' : 'edit' )
+            : $name eq 'replace_text'    ? 'edit'
+            : $name eq 'create_page'     ? 'create'
+            : $name eq 'delete_file'     ? 'delete'
+            : $name eq 'delete_page'     ? 'delete'
+            : $name eq 'rename_page'     ? 'move'
+            : $name eq 'move_file'       ? 'move'
+            : $name eq 'submit_feedback' ? 'feedback'
+            :                              $name;
+        my $aok    = ref $out eq 'HASH' && $out->{ok};
         my $detail = $aok ? ''
             : ( ref $out eq 'HASH' ? ( $out->{kind} || $out->{error} || '' ) : '' );
         audit_log( $user, $act, $target, $ENV{REMOTE_ADDR} // '',
@@ -1412,7 +1435,7 @@ elsif ( $method eq 'tools/call' ) {
     # of hammering. Only a small set of kinds is genuinely transient.
     if ( ref $out eq 'HASH' && !$out->{ok} ) {
         my %TRANSIENT = ( 'lock-held' => 1, 'locked' => 1, 'rate-limited' => 1, 'busy' => 1 );
-        my $retry = $TRANSIENT{ $out->{kind} // '' } ? 1 : 0;
+        my $retry     = $TRANSIENT{ $out->{kind} // '' } ? 1 : 0;
         $out->{retryable} = $retry ? JSON::PP::true : JSON::PP::false;
         $out->{hint} = 'Do not retry - this will not succeed unless the request changes '
             . 'or the operator grants access.'
@@ -1427,9 +1450,9 @@ elsif ( $method eq 'tools/call' ) {
     my $text = encode_json($out);
     utf8::decode($text);
     rpc_result( $id, {
-        content          => [ { type => 'text', text => $text } ],
-        structuredContent => $out,
-        isError          => $is_err,
+            content           => [ { type => 'text', text => $text } ],
+            structuredContent => $out,
+            isError           => $is_err,
     } );
 }
 else {
