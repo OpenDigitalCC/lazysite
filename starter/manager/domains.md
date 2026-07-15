@@ -10,24 +10,34 @@ search: false
 This instance serves one or more domains. Each domain has its own
 <code>content_root</code> (a first&#8209;class site: its own home, sitemap, feeds
 and search) and can override presentation keys. Point DNS, the web&#8209;server
-domain alias and TLS at this server first (that is your control&#8209;panel /
-Hestia's job) &mdash; then register the lazysite side here. A grey value is
-inherited from the default host; a solid value is a per&#8209;domain override.
+domain alias and TLS at this server first (your control&#8209;panel / Hestia's
+job &mdash; a wildcard record + wildcard certificate covers every sub&#8209;domain
+at once) &mdash; then register the lazysite side here. A grey value is inherited
+from the default host; a solid value is a per&#8209;domain override.
 </p>
 
 <div class="mg-toolbar" style="margin-bottom:12px;">
   <button class="mg-btn" onclick="toggleAdd()">Add domain</button>
 </div>
 
-<div id="add-panel" style="display:none;border:1px solid var(--mg-border,#ddd);border-radius:6px;padding:12px;margin-bottom:16px;">
-  <div class="mg-form-row"><label>Host <input id="f-host" placeholder="clienta.com" size="24"></label></div>
-  <div class="mg-form-row"><label>Content root <input id="f-croot" placeholder="sites/clienta" size="24"></label>
-    <span style="font-size:0.8em;color:#888;">directory under the docroot; not the lazysite/ tree</span></div>
-  <div class="mg-form-row"><label>Site URL <input id="f-siteurl" placeholder="https://clienta.com" size="24"></label></div>
-  <div class="mg-form-row"><label>Site name <input id="f-sitename" placeholder="Client A" size="24"></label></div>
-  <div class="mg-form-row"><label>Theme <input id="f-theme" placeholder="(inherit)" size="16"></label>
-    <label style="margin-left:12px;"><input type="checkbox" id="f-seed" checked> seed a starter page</label></div>
-  <div class="mg-form-row" style="margin-top:8px;">
+<div id="add-panel" style="display:none;border:1px solid var(--mg-border,#ddd);border-radius:6px;padding:12px;margin-bottom:16px;max-width:520px;">
+  <fieldset style="border:1px solid var(--mg-border,#e2e2e2);border-radius:5px;padding:8px 12px 12px;margin:0 0 12px;">
+    <legend style="font-size:0.78em;color:#888;padding:0 4px;">Identity</legend>
+    <div class="mg-form-row"><label>Host<br><input id="f-host" placeholder="clienta.com" size="30"></label></div>
+    <div class="mg-form-row"><label>Content root<br><input id="f-croot" placeholder="sites/clienta" size="30"></label>
+      <div style="font-size:0.8em;color:#888;margin-top:2px;">A directory under the docroot (created if missing). Not the <code>lazysite/</code> tree.</div></div>
+  </fieldset>
+  <fieldset style="border:1px solid var(--mg-border,#e2e2e2);border-radius:5px;padding:8px 12px 12px;margin:0 0 12px;">
+    <legend style="font-size:0.78em;color:#888;padding:0 4px;">Presentation &mdash; optional (inherits the default site otherwise)</legend>
+    <div class="mg-form-row"><label>Site URL<br><input id="f-siteurl" placeholder="https://clienta.com" size="30"></label></div>
+    <div class="mg-form-row"><label>Site name<br><input id="f-sitename" placeholder="Client A" size="30"></label></div>
+    <div class="mg-form-row"><label>Theme<br>
+      <select id="f-theme"><option value="">(inherit the default)</option></select></label></div>
+  </fieldset>
+  <div class="mg-form-row" style="margin:0 0 10px;">
+    <label><input type="checkbox" id="f-seed" checked> Seed a starter home page</label>
+  </div>
+  <div class="mg-form-row">
     <button class="mg-btn mg-btn-primary" onclick="addDomain()">Register domain</button>
     <button class="mg-btn" onclick="toggleAdd()">Cancel</button>
   </div>
@@ -37,6 +47,7 @@ inherited from the default host; a solid value is a per&#8209;domain override.
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
+var THEMES = [];   // installed theme names, loaded once (see loadThemes)
 
 // SEC: attribute-safe escape (all five significant characters), not the weak
 // textContent->innerHTML which leaves quotes raw.
@@ -54,6 +65,39 @@ function showStatus(msg, isError) {
 function toggleAdd() {
   var p = document.getElementById('add-panel');
   p.style.display = (p.style.display === 'none') ? 'block' : 'none';
+}
+
+// A <select> of installed themes, with an "(inherit)" first option and, for an
+// edit row, the domain's current theme pre-selected. This is a picker over what
+// is already installed - not the theme installer (that lives on Appearance).
+function themeSelect(id, current) {
+  var html = '<select id="' + esc(id) + '"><option value="">(inherit)</option>';
+  THEMES.forEach(function (name) {
+    html += '<option value="' + esc(name) + '"' + (name === current ? ' selected' : '') + '>' + esc(name) + '</option>';
+  });
+  return html + '</select>';
+}
+
+function loadThemes() {
+  return fetch(API + '?action=themes-list-all', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok) return;
+      var seen = {};
+      (d.themes || []).forEach(function (t) {
+        if (t.name && !seen[t.name]) { seen[t.name] = 1; THEMES.push(t.name); }
+      });
+      THEMES.sort();
+      var sel = document.getElementById('f-theme');   // populate the add-form select
+      if (sel) {
+        THEMES.forEach(function (name) {
+          var o = document.createElement('option');
+          o.value = name; o.textContent = name;
+          sel.appendChild(o);
+        });
+      }
+    })
+    .catch(function () {});
 }
 
 // Presentation keys an existing domain can override (content_root is set at
@@ -76,7 +120,7 @@ function addDomain() {
     host: host, content_root: croot,
     site_url: document.getElementById('f-siteurl').value.trim(),
     site_name: document.getElementById('f-sitename').value.trim(),
-    theme: document.getElementById('f-theme').value.trim(),
+    theme: document.getElementById('f-theme').value,
     seed: document.getElementById('f-seed').checked ? 1 : 0
   }).then(function (d) {
     if (d && d.ok) { showStatus('Registered ' + host); toggleAdd(); loadDomains(); }
@@ -143,8 +187,11 @@ function loadDomains() {
           // Hidden inline edit row for the presentation keys.
           html += '<tr id="edit-' + esc(row.host) + '" style="display:none"><td colspan="' + (keys.length + 2) + '">';
           EDIT_KEYS.forEach(function (k) {
-            html += '<label style="display:inline-block;margin:2px 10px 2px 0">' + esc(k) + ' '
-                  + '<input id="e-' + esc(row.host) + '-' + esc(k) + '" value="' + esc(row[k + '_inherited'] ? '' : (row[k] || '')) + '" size="16"></label>';
+            var cur = row[k + '_inherited'] ? '' : (row[k] || '');
+            var field = (k === 'theme')
+              ? themeSelect('e-' + row.host + '-' + k, cur)
+              : '<input id="e-' + esc(row.host) + '-' + esc(k) + '" value="' + esc(cur) + '" size="16">';
+            html += '<label style="display:inline-block;margin:2px 10px 2px 0">' + esc(k) + ' ' + field + '</label>';
           });
           html += ' <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveDomain(' + esc(JSON.stringify(row.host)) + ')">Save</button>';
           html += '</td></tr>';
@@ -163,5 +210,5 @@ function loadDomains() {
     });
 }
 
-loadDomains();
+loadThemes().then(loadDomains);
 </script>
