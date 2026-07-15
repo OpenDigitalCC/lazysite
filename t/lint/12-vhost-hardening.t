@@ -30,4 +30,17 @@ for my $t (@templates) {
         "$name: no AllowOverride All (.htaccess handler injection)" );
 }
 
+# SEC-2026-07 (L-SYSTEMD): the FastCGI pool unit must carry the sandbox
+# directives so the long-running worker's blast radius stays small.
+{
+    my $unit = "$root/debian/lazysite\@.service";
+    open my $fh, '<', $unit or do { fail("read $unit"); goto DONE };
+    my $src = do { local $/; <$fh> };
+    close $fh;
+    for my $d (qw(NoNewPrivileges ProtectSystem PrivateTmp RestrictSUIDSGID)) {
+        like( $src, qr/^\Q$d\E=/m, "lazysite\@.service sets $d" );
+    }
+}
+DONE:
+
 done_testing();
