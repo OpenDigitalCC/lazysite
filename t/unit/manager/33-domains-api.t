@@ -64,7 +64,7 @@ sub post {
 }
 
 my $d = tempdir( CLEANUP => 1 );
-make_path("$d/lazysite/auth");
+make_path( "$d/lazysite/auth", "$d/lazysite/logs" );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: Agency\n";
 close $cf;
@@ -85,6 +85,8 @@ grant_caps( $d, 'ed', 'manage_content' );
     like( slurp("$d/lazysite/lazysite.conf"), qr/^alias_hosts: clienta\.com/m,
         'the API write reached the conf' );
     ok( -d "$d/sites/clienta", 'the API provisioned the content root' );
+    like( slurp("$d/lazysite/logs/audit.log"), qr/domain-add/,
+        'domain-add is recorded in the audit trail' );
 }
 
 # --- content editor (no manage_config) is forbidden -------------------------
