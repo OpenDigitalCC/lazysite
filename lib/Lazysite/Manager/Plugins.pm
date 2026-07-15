@@ -26,25 +26,50 @@ our $action = '';
 
 # === moved from lazysite-manager-api.pl (SM079a) ===
 
+# SM152: the plugin registry - the canonical, authoritative enumeration of the
+# scripts the manager may probe/run. Keys are the stable plugin identifiers
+# ("plugins/<name>.pl", plus the two core descriptor scripts); values are the
+# resolved absolute paths. This is the ONLY place a plugin identity maps to a
+# filesystem path, and it is built by SCANNING the known locations - never from
+# request input. A request names a plugin by its registry KEY; the key is looked
+# up here. This is both the security boundary (SEC-2026-07: the old resolver
+# interpolated the request `script` straight into a path with only a `-f` check,
+# so `plugin-action {script:"../../x.pl"}` or `{script:"content/x.md"}` executed
+# an arbitrary on-disk file as Perl via qx($^X ...) - authenticated RCE) and the
+# canonical source of plugin data for the manager UI.
+sub plugin_registry {
+    my $base = Cwd::realpath("$DOCROOT/..");
+    my %reg;
+    return \%reg unless defined $base;
+
+    # Core descriptor scripts: at the install root, or under cgi-bin/ on a
+    # real deployment. They publish config schemas (the site config page).
+    for my $core (qw(lazysite-processor.pl lazysite-auth.pl)) {
+        for my $cand ( "$base/$core", "$base/cgi-bin/$core" ) {
+            if ( -f $cand && -r $cand ) { $reg{$core} = $cand; last }
+        }
+    }
+
+    # Installed plugins: plugins/<name>.pl. Name restricted to a plain filename
+    # (no path separators), so a symlink/entry cannot smuggle a traversal key.
+    if ( opendir my $pd, "$base/plugins" ) {
+        for my $f ( sort grep { /\A[A-Za-z0-9_.-]+\.pl\z/ } readdir $pd ) {
+            my $p = "$base/plugins/$f";
+            $reg{"plugins/$f"} = $p if -f $p && -r $p && !-l $p;
+        }
+        closedir $pd;
+    }
+    return \%reg;
+}
+
+# Resolve a request-named plugin to its absolute path via the registry ONLY.
+# An exact key match returns the canonical path; anything else (a traversal
+# path, an arbitrary file, an unregistered name) returns undef and the caller
+# reports "unknown plugin" - it never runs.
 sub resolve_plugin_script {
     my ($script) = @_;
-    return unless $script;
-    my $base = basename($script);
-    # In order: installed layout (plugins/...), under docroot, core scripts
-    # in cgi-bin/ (real install) by path then basename, and finally the
-    # repo/dev layout where scripts sit at the tree root. The cgi-bin cases
-    # are what let plugin-read/save find lazysite-processor.pl (the site
-    # config descriptor) on a deployed site, not just the dev layout.
-    for my $cand (
-        "$DOCROOT/../$script",
-        "$DOCROOT/$script",
-        "$DOCROOT/../cgi-bin/$script",
-        "$DOCROOT/../cgi-bin/$base",
-        "$DOCROOT/../$base",
-    ) {
-        return $cand if -f $cand;
-    }
-    return;
+    return unless defined $script && length $script;
+    return plugin_registry()->{$script};
 }
 
 sub action_plugin_list {
@@ -80,27 +105,17 @@ sub action_plugin_list {
     # drives its form from the processor's descriptor rather than
     # duplicating the schema. Every shipped plugin answers
     # --describe (payment-demo included, marked demo:true).
-    my $base = Cwd::realpath("$DOCROOT/..");
     my @plugins;
 
-    # The two core scripts publish config schemas; the rest are discovered
-    # dynamically from plugins/*.pl, so a new plugin appears without editing this
-    # list (each candidate is validated by --describe below, so a non-plugin .pl
-    # is dropped). SM083: stats.pl was invisible under the old hard-coded list.
-    my @CANDIDATES = ( 'lazysite-processor.pl', 'lazysite-auth.pl' );
-    if ( defined $base && opendir my $pd, "$base/plugins" ) {
-        push @CANDIDATES, map { "plugins/$_" } sort grep { /\.pl\z/ } readdir $pd;
-        closedir $pd;
-    }
+    # SM152: the registry is the single canonical enumeration - core descriptor
+    # scripts + plugins/*.pl, each mapped to its resolved absolute path. Every
+    # candidate is still validated by --describe below (a non-plugin .pl is
+    # dropped); a new plugins/*.pl appears automatically. This is the same map
+    # resolve_plugin_script uses, so what is LISTED is exactly what can be RUN.
+    my $reg = plugin_registry();
 
-    for my $rel ( @CANDIDATES ) {
-        my $full = "$base/$rel";
-        # Core scripts (processor, auth) install into cgi-bin/, not the
-        # docroot parent. The repo/dev layout has them at $base; a real
-        # deployment has them under $base/cgi-bin/. Fall back so the site
-        # config descriptor is discovered in both.
-        $full = "$base/cgi-bin/$rel"
-            if !-f $full && -f "$base/cgi-bin/$rel";
+    for my $rel ( sort keys %$reg ) {
+        my $full = $reg->{$rel};
         next unless -f $full && -r $full;
 
         local $SIG{ALRM} = sub { die "timeout\n" };
@@ -140,6 +155,11 @@ sub action_plugin_enable {
     my ($script) = @_;
     $script =~ s/[^a-zA-Z0-9_.\/\-]//g;
     return { ok => 0, error => 'No script' } unless $script;
+    # SM152: only a REGISTERED plugin can be enabled - so a stray name can never
+    # be written into the conf `plugins:` list (and the on_enable hook only ever
+    # runs a registry script).
+    return { ok => 0, error => "Unknown plugin: $script" }
+        unless plugin_registry()->{$script};
     my $r = _update_plugins_conf( $script, 'add' );
     return $r unless $r->{ok};
     my $hook = _run_plugin_hook( $script, 'on_enable' );
