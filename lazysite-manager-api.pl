@@ -55,6 +55,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
+use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
@@ -66,6 +67,7 @@ $Lazysite::Manager::Files::DOCROOT   = $DOCROOT;
 $Lazysite::Manager::Themes::DOCROOT  = $DOCROOT;
 $Lazysite::Manager::Layouts::DOCROOT = $DOCROOT;
 $Lazysite::Manager::Backups::DOCROOT = $DOCROOT;
+$Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 $Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Audit::LAZYSITE_DIR            = $LAZYSITE_DIR;
@@ -185,6 +187,7 @@ $Lazysite::Manager::Themes::action      = $action;
 $Lazysite::Manager::Layouts::auth_user  = $auth_user;
 $Lazysite::Manager::Layouts::action     = $action;
 $Lazysite::Manager::Sessions::auth_user = $auth_user;    # SM141
+$Lazysite::Manager::Domains::auth_user  = $auth_user;    # SM154
 $Lazysite::Auth::Acl::auth_user         = $auth_user;
 $Lazysite::Auth::Acl::token_auth        = $token_auth;
 # SM077: requester's groups for @group ACL entries (cookie users carry them in
@@ -329,8 +332,10 @@ if ( !$token_auth ) {
         'git-restore'     => 'manage_content', 'git-status' => 'manage_content',
         'git-history'     => 'manage_content', 'git-show'   => 'manage_content',
         'git-init'        => 'manage_config',
-        'config-set'      => 'manage_config',  'config-read'        => 'manage_config',
-        'domains-list'    => 'manage_config',  'bad-url-blocks'     => 'manage_config',
+        'config-set'      => 'manage_config', 'config-read'    => 'manage_config',
+        'domains-list'    => 'manage_config', 'bad-url-blocks' => 'manage_config',
+        'domain-add'      => 'manage_config', 'domain-set'     => 'manage_config',
+        'domain-remove'   => 'manage_config',
         'bad-url-unblock' => 'manage_config',  'rotate-auth-secret' => 'manage_config',
         'backup-create'   => 'manage_config',  'backup-restore'     => 'manage_config',
         'backup-download' => 'manage_config',  'backup-list'        => 'manage_config',
@@ -364,6 +369,7 @@ if ( !$token_auth ) {
         preview-grant preview-clear nav-save handler-save handler-delete
         form-targets-save plugin-enable plugin-disable plugin-save plugin-action
         lock unlock renew-lock notices-seen
+        domain-add domain-set domain-remove
     );
 
     if ( $MUTATING{$action} && $method ne 'POST' ) {
@@ -442,6 +448,12 @@ if ($token_auth) {
         'config-set'        => sub { $_[0]->{manage_config} },
         'config-read'  => sub { $_[0]->{manage_config} },  # SM122: read a safe subset
         'domains-list' => sub { $_[0]->{manage_config} },  # SM151: read-only domains view
+            # SM154: domain registration is a site-configuration act (manage_config),
+            # so an orchestrating control panel with a manage_config token can drive
+            # the lazysite side of a deploy over the API, same as the CLI/UI.
+        'domain-add'      => sub { $_[0]->{manage_config} },
+        'domain-set'      => sub { $_[0]->{manage_config} },
+        'domain-remove'   => sub { $_[0]->{manage_config} },
         'bad-url-blocks'  => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
         'bad-url-unblock' => sub { $_[0]->{manage_config} },
         'pages' => sub { $_[0]->{manage_nav} },  # SM097: page-URL list for the nav editor
@@ -553,6 +565,28 @@ elsif ( $action eq 'cache-list' )       { $result = action_cache_list() }
 elsif ( $action eq 'cache-invalidate' ) { $result = action_cache_invalidate($path) }
 elsif ( $action eq 'config-read' )      { $result = action_config_read() }
 elsif ( $action eq 'domains-list' )     { $result = action_domains_list() }
+elsif ( $action eq 'domain-add' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = domain_add(
+        $req->{host},
+        content_root   => $req->{content_root},
+        site_url       => $req->{site_url},
+        site_name      => $req->{site_name},
+        theme          => $req->{theme},
+        layout         => $req->{layout},
+        nav_file       => $req->{nav_file},
+        search_default => $req->{search_default},
+        seed           => ( $req->{seed} ? 1 : 0 ),
+    );
+}
+elsif ( $action eq 'domain-set' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = domain_set( $req->{host}, $req->{key}, $req->{value} );
+}
+elsif ( $action eq 'domain-remove' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = domain_remove( $req->{host}, purge => ( $req->{purge} ? 1 : 0 ) );
+}
 elsif ( $action eq 'config-set' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_config_set(
