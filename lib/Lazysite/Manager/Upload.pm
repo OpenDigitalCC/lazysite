@@ -203,7 +203,7 @@ sub action_file_upload {
         return { ok => 0, error => "Target is not a directory" };
     }
     my $real = realpath($full_dir);
-    unless ( $real && index( $real, $DOCROOT ) == 0 ) {
+    unless ( $real && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 ) ) { # SEC-2026-07 (H3)
         return { ok => 0, error => "Invalid target directory" };
     }
 

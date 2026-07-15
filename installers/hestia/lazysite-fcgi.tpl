@@ -105,11 +105,11 @@
         Require all denied
     </FilesMatch>
     <Directory %home%/%user%/web/%domain%/stats>
-        AllowOverride All
+        AllowOverride None
     </Directory>
     <Directory %docroot%>
-        AllowOverride All
-        Options -Indexes +ExecCGI +Includes
+        AllowOverride None
+        Options -Indexes +ExecCGI +IncludesNOEXEC
         # Server-Side Includes for an overlaid static (.shtml) site - mod_include.
         # Harmless for markdown-only sites (no .shtml present); an existing
         # index.shtml is served via DirectoryIndex so lazysite's markdown

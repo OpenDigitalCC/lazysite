@@ -65,7 +65,9 @@ sub action_list {
     my $fs_path = "$DOCROOT$dir_path";
     my $real    = realpath($fs_path);
     return { ok => 0, error => "Invalid path" }
-        unless $real && index( $real, $DOCROOT ) == 0 && -d $real;
+        unless $real
+        && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 )    # SEC-2026-07 (H3)
+        && -d $real;
 
     my @entries;
     my $acls = load_acls();   # SM074: owner display, read once per listing

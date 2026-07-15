@@ -1118,6 +1118,12 @@ sub authorise_layout {
     return _deny( 403, 'malformed layouts path' ) unless defined $layout;
     $rest //= '';
 
+    # SEC-2026-07 (F3): the layouts carve-out returns before the general
+    # is_blocked check, so re-assert the extension block here - a theme/layout
+    # must never carry an executable or server-config file.
+    return _deny( 403, 'that file type is not allowed under lazysite/layouts/ (executable/server-config content)' )
+        if $is_write && is_blocked( $rel, $conf );
+
     # A theme path: lazysite/layouts/<L>/themes/<T>/...
     if ( $rest =~ m{^themes/([^/]+)} ) {
         my $theme = $1;
@@ -1156,15 +1162,21 @@ sub manage_layouts_for { return caps_for( $_[0] )->{manage_layouts} ? 1 : 0 }
 sub manage_config_for  { return caps_for( $_[0] )->{manage_config}  ? 1 : 0 }
 sub manage_content_for { return caps_for( $_[0] )->{manage_content} ? 1 : 0 }
 
+# SEC-2026-07: extensions that must never be written/served (execute or
+# reconfigure the server). Always blocked, case-insensitive, in addition to the
+# operator's configured list. Parity with Manager::Common @DANGEROUS_EXT.
+our @DANGEROUS_EXT
+    = qw(pl pm cgi fcgi shtml shtm phtml php php3 php4 php5 phps phar htaccess htpasswd);
+
 sub is_blocked {
     my ( $rel, $conf ) = @_;
-    return 1 if $rel =~ /\.pl$/;    # is_blocked_path parity
     for my $p ( @{ $conf->{blocked_paths} || [] } ) {
         return 1 if $rel eq $p || index( $rel, "$p/" ) == 0;
     }
     my ($ext) = $rel =~ /\.([^.\/]+)$/;
     if ( defined $ext ) {
         $ext = lc $ext;
+        return 1 if grep { $ext eq $_ } @DANGEROUS_EXT;
         for my $b ( @{ $conf->{blocked_extensions} || [] } ) {
             return 1 if $ext eq lc $b;
         }
