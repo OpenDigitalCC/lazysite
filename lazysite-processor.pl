@@ -4,18 +4,18 @@ use warnings;
 use Text::MultiMarkdown;
 use Template;
 use File::Basename qw(dirname);
-use File::Path qw(make_path);
+use File::Path     qw(make_path);
 # P-1: LWP::UserAgent is require()d lazily inside fetch_url / fetch_oembed
 # / fetch_remote_layout. These paths are rare relative to cache-hit
 # traffic, so deferring the ~20ms of LWP module load keeps the hot path
 # fast.
-use Cwd qw(realpath);
+use Cwd    qw(realpath);
 use Encode qw(decode);
 # Socket + URI moved to Lazysite::Fetch (SM096): they backed only the SSRF guard,
 # now on the lazily-loaded fetch path, so the hot render path no longer loads them.
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP    qw(encode_json decode_json);
 use Digest::SHA qw(hmac_sha256_hex);
-use POSIX qw(strftime);
+use POSIX       qw(strftime);
 use Fcntl       qw(O_WRONLY O_APPEND O_CREAT);    # SM140: first-party access log
 
 my $LOG_COMPONENT = 'processor';
@@ -28,86 +28,86 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
     # DELIBERATELY absent from config_keys and config_schema below.
     # Aliases are operator conf-file territory in phase 1 - not editable
     # (or listed) through the manager UI / control API.
-    print JSON::PP::encode_json({
-        id          => 'lazysite',
-        name        => 'Site Configuration',
-        description => 'Core lazysite.conf settings: site identity, layout, theme, search, and manager',
-        version     => '1.0',
-        config_file => '',
-        # SM044: layouts_repo is in config_keys so action_plugin_save
-        # treats it as write-allowed for the site plugin.
-        #
-        # SM068: layouts_repo now also appears in config_schema as
-        # a readonly_with_link entry — the operator sees its current
-        # value on Config with a link to /manager/themes where it's
-        # editable. SITE_SCHEMA in config.md duplicates this; they
-        # must stay in sync until SM042 unifies them.
-        config_keys => [qw(site_name site_url layout theme layouts_repo
-                           nav_file search_default webdav_enabled
+    print JSON::PP::encode_json( {
+            id   => 'lazysite',
+            name => 'Site Configuration',
+            description => 'Core lazysite.conf settings: site identity, layout, theme, search, and manager',
+            version     => '1.0',
+            config_file => '',
+            # SM044: layouts_repo is in config_keys so action_plugin_save
+            # treats it as write-allowed for the site plugin.
+            #
+            # SM068: layouts_repo now also appears in config_schema as
+            # a readonly_with_link entry — the operator sees its current
+            # value on Config with a link to /manager/themes where it's
+            # editable. SITE_SCHEMA in config.md duplicates this; they
+            # must stay in sync until SM042 unifies them.
+            config_keys => [ qw(site_name site_url layout theme layouts_repo
+                    nav_file search_default webdav_enabled
                     manager manager_path update_channel) ],
-        config_schema => [
-            { key => 'site_name', label => 'Site name', type => 'text',
-              default => 'My Site', required => JSON::PP::true() },
-            { key => 'site_url', label => 'Site URL', type => 'text',
-              default => '${REQUEST_SCHEME}://${SERVER_NAME}' },
-            # SM044: dropdown_layouts / dropdown_themes_for_active_layout
-            # are dynamically-populated selects rendered by config.md's
-            # JS. Options come from manager-api endpoints
-            # (layouts-available / themes-for-layout). The 'text' fallback
-            # in renderSiteForm keeps these sensible on older UIs.
-            # The active layout/theme switcher lives on /manager/appearance;
-            # Config shows them read-only with a link there (was inline
-            # dropdowns here pre-Appearance).
-            { key => 'layout', label => 'Active layout',
-              type => 'readonly_with_link', default => '',
-              link_href => '/manager/appearance',
-              link_label => 'Manage on Appearance' },
-            { key => 'theme',  label => 'Active theme',
-              type => 'readonly_with_link', default => '',
-              link_href => '/manager/appearance',
-              link_label => 'Manage on Appearance' },
-            { key => 'layouts_repo', label => 'Layouts repo',
-              type => 'readonly_with_link', default => '',
-              link_href => '/manager/appearance',
-              link_label => 'Edit on Appearance' },
-            { key => 'nav_file', label => 'Navigation file', type => 'text',
-              default => 'lazysite/nav.conf' },
-            { key => 'search_default', label => 'Pages searchable by default', type => 'select',
-              options => ['true', 'false'], default => 'true' },
-            { key => 'manager', label => 'Manager', type => 'select',
-              options => ['disabled', 'enabled'], default => 'disabled' },
-            { key => 'manager_path', label => 'Manager URL path', type => 'text',
-              default => '/manager',
-              show_when => { key => 'manager', value => ['enabled'] } },
-            { key => 'webdav_enabled', label => 'WebDAV publishing', type => 'select',
-              options => ['disabled', 'enabled'], default => 'disabled' },
-            { key => 'update_channel', label => 'Update channel', type => 'select',
-              options => ['all', 'stable'], default => 'all',
-              note => 'Which lazysite upgrades this site accepts. "all" installs '
-                    . 'every release (default); "stable" refuses non-stable (edge) '
-                    . 'upgrades - a deploy of an edge build is skipped and logged in '
-                    . 'the audit trail. Use "stable" for customer sites.' },
-        ],
-        actions => [],
-    });
+            config_schema => [
+                { key => 'site_name', label => 'Site name', type => 'text',
+                    default => 'My Site', required => JSON::PP::true() },
+                { key => 'site_url', label => 'Site URL', type => 'text',
+                    default => '${REQUEST_SCHEME}://${SERVER_NAME}' },
+                # SM044: dropdown_layouts / dropdown_themes_for_active_layout
+                # are dynamically-populated selects rendered by config.md's
+                # JS. Options come from manager-api endpoints
+                # (layouts-available / themes-for-layout). The 'text' fallback
+                # in renderSiteForm keeps these sensible on older UIs.
+                # The active layout/theme switcher lives on /manager/appearance;
+                # Config shows them read-only with a link there (was inline
+                # dropdowns here pre-Appearance).
+                { key => 'layout', label => 'Active layout',
+                    type       => 'readonly_with_link', default => '',
+                    link_href  => '/manager/appearance',
+                    link_label => 'Manage on Appearance' },
+                { key => 'theme', label => 'Active theme',
+                    type       => 'readonly_with_link', default => '',
+                    link_href  => '/manager/appearance',
+                    link_label => 'Manage on Appearance' },
+                { key => 'layouts_repo', label => 'Layouts repo',
+                    type       => 'readonly_with_link', default => '',
+                    link_href  => '/manager/appearance',
+                    link_label => 'Edit on Appearance' },
+                { key => 'nav_file', label => 'Navigation file', type => 'text',
+                    default => 'lazysite/nav.conf' },
+                { key => 'search_default', label => 'Pages searchable by default', type => 'select',
+                    options => [ 'true', 'false' ], default => 'true' },
+                { key => 'manager', label => 'Manager', type => 'select',
+                    options => [ 'disabled', 'enabled' ], default => 'disabled' },
+                { key => 'manager_path', label => 'Manager URL path', type => 'text',
+                    default   => '/manager',
+                    show_when => { key => 'manager', value => ['enabled'] } },
+                { key => 'webdav_enabled', label => 'WebDAV publishing', type => 'select',
+                    options => [ 'disabled', 'enabled' ], default => 'disabled' },
+                { key => 'update_channel', label => 'Update channel', type => 'select',
+                    options => [ 'all', 'stable' ], default => 'all',
+                    note => 'Which lazysite upgrades this site accepts. "all" installs '
+                        . 'every release (default); "stable" refuses non-stable (edge) '
+                        . 'upgrades - a deploy of an edge build is skipped and logged in '
+                        . 'the audit trail. Use "stable" for customer sites.' },
+            ],
+            actions => [],
+    } );
     exit 0;
 }
 
 # --- Configuration ---
 
-my $DOCROOT     = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
+my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 
-my $LAZYSITE_DIR  = "$DOCROOT/lazysite";
-my $LAZYSITE_URI  = "/lazysite";
-my $PREVIEW_COOKIE = 'lzs_preview';   # SM071: theme/layout preview cookie
+my $LAZYSITE_DIR   = "$DOCROOT/lazysite";
+my $LAZYSITE_URI   = "/lazysite";
+my $PREVIEW_COOKIE = 'lzs_preview';         # SM071: theme/layout preview cookie
 
 # F0003: lazysite.conf path override
 # Priority: --conf arg > LAZYSITE_CONF env var > default
 my $CONF_OVERRIDE;
 for my $i ( 0 .. $#ARGV ) {
-    if ( $ARGV[$i] eq '--conf' && defined $ARGV[$i+1] ) {
-        $CONF_OVERRIDE = $ARGV[$i+1];
+    if ( $ARGV[$i] eq '--conf' && defined $ARGV[ $i + 1 ] ) {
+        $CONF_OVERRIDE = $ARGV[ $i + 1 ];
         last;
     }
 }
@@ -122,11 +122,11 @@ my $CONF_FILE = $CONF_OVERRIDE
 # fallback ($LAZYSITE_DIR/templates/*.tt) and no default view.tt path —
 # if no layout is installed, the embedded $FALLBACK_LAYOUT is the sole
 # fallback.
-my $LAYOUT_DIR    = "$LAZYSITE_DIR/layouts";
-my $REGISTRY_DIR  = "$LAZYSITE_DIR/templates/registries";
+my $LAYOUT_DIR     = "$LAZYSITE_DIR/layouts";
+my $REGISTRY_DIR   = "$LAZYSITE_DIR/templates/registries";
 my $MANAGER_LAYOUT = "$LAZYSITE_DIR/manager/layout.tt";
-my $REMOTE_TTL       = 3600;  # seconds before remote content is refetched (default 1 hour)
-my $REGISTRY_TTL     = 14400; # seconds before registries are regenerated (default 4 hours)
+my $REMOTE_TTL     = 3600;   # seconds before remote content is refetched (default 1 hour)
+my $REGISTRY_TTL   = 14400;  # seconds before registries are regenerated (default 4 hours)
 # SM091: the cache base normally lives under the docroot, but a read-only
 # browse (the dev server's --auto-index) can relocate it off the docroot via
 # LAZYSITE_CACHE_DIR so pointing the processor at an arbitrary tree writes
@@ -136,8 +136,8 @@ my $LAYOUT_CACHE_DIR = "$CACHE_BASE/layouts";
 my $CT_CACHE_DIR     = "$CACHE_BASE/ct";
 my $TT_COMPILE_DIR   = "$CACHE_BASE/tt";       # P-4 TT on-disk compile cache
 my $HOST_CACHE_DIR   = "$CACHE_BASE/hosts";    # SM110 phase 2: per-alias-host page cache
-my %AUTH_CONTEXT;    # populated by main() auth check, read by render_content()
-my %ACCESS_REC;      # SM140: per-request outcome for the first-party access log
+my %AUTH_CONTEXT;     # populated by main() auth check, read by render_content()
+my %ACCESS_REC;       # SM140: per-request outcome for the first-party access log
 my $REQUEST_CROOT;    # SM151: the request's confined content root (undef => docroot),
                       # set by main(), read by resolve_scan() so per-domain search is
                       # boxed to the requesting domain's subtree without re-entering
@@ -246,15 +246,15 @@ END_FALLBACK
 # Extension to language identifier map for include code block wrapping
 my %LANG_MAP = (
     md   => 'markdown',
-    yml  => 'yaml',   yaml => 'yaml',
-    sh   => 'bash',   bash => 'bash',
+    yml  => 'yaml', yaml => 'yaml',
+    sh   => 'bash', bash => 'bash',
     pl   => 'perl',
     py   => 'python',
     js   => 'javascript',
     json => 'json',
-    html => 'html',   htm  => 'html',
+    html => 'html', htm => 'html',
     css  => 'css',
-    conf => 'text',   cfg  => 'text',
+    conf => 'text', cfg => 'text',
     txt  => 'text',
     toml => 'toml',
     xml  => 'xml',
@@ -347,20 +347,20 @@ my %STATIC_CT = (
             last if $. > 1 && $line =~ /^---/;
 
             # scalar keys
-            if    ( $line =~ /^auth\s*:\s*(\w+)/i )          { $m{auth} = lc $1 }
-            elsif ( $line =~ /^ttl\s*:\s*(\d+)/ )            { $m{ttl} = $1 }
-            elsif ( $line =~ /^api\s*:\s*true/i )            { $m{api} = 1 }
+            if    ( $line =~ /^auth\s*:\s*(\w+)/i )   { $m{auth}    = lc $1 }
+            elsif ( $line =~ /^ttl\s*:\s*(\d+)/ )     { $m{ttl}     = $1 }
+            elsif ( $line =~ /^api\s*:\s*true/i )     { $m{api}     = 1 }
             elsif ( $line =~ /^nocache\s*:\s*true/i ) { $m{nocache} = 1 }
-            elsif ( $line =~ /^raw\s*:\s*true/i )            { $m{raw} = 1 }
-            elsif ( $line =~ /^content_type\s*:\s*(.+)/ )    {
+            elsif ( $line =~ /^raw\s*:\s*true/i )     { $m{raw}     = 1 }
+            elsif ( $line =~ /^content_type\s*:\s*(.+)/ ) {
                 ( my $v = $1 ) =~ s/^\s+|\s+$//g;
                 $m{content_type} = $v;
             }
 
             # payment.* scalar keys
-            for my $pk (qw(payment payment_amount payment_currency
-                           payment_network payment_address
-                           payment_asset payment_description)) {
+            for my $pk ( qw(payment payment_amount payment_currency
+                payment_network payment_address
+                payment_asset payment_description) ) {
                 if ( $line =~ /^\Q$pk\E\s*:\s*(.+)$/ ) {
                     ( my $v = $1 ) =~ s/\s+$//;
                     $m{$pk} = $v;
@@ -371,7 +371,7 @@ my %STATIC_CT = (
             if ( $line =~ /^auth_groups\s*:\s*$/ ) {
                 $in_groups = 1; $in_qp = 0; next;
             }
-            if ( $in_groups ) {
+            if ($in_groups) {
                 if ( $line =~ /^\s+-\s+(.+)$/ ) {
                     ( my $g = $1 ) =~ s/^\s+|\s+$//g;
                     push @groups, $g;
@@ -384,7 +384,7 @@ my %STATIC_CT = (
             if ( $line =~ /^query_params\s*:\s*$/ ) {
                 $in_qp = 1; $in_groups = 0; next;
             }
-            if ( $in_qp ) {
+            if ($in_qp) {
                 if ( $line =~ /^[ \t]+-[ \t]*(\S+)/ ) {
                     push @qp, $1;
                     next;
@@ -442,9 +442,9 @@ sub check_auth {
         return $h;
     };
 
-    my $auth_user   = $ENV{ $make_env->( $site_vars->{auth_header_user}   || 'X-Remote-User' ) }   // '';
-    my $auth_name   = $ENV{ $make_env->( $site_vars->{auth_header_name}   || 'X-Remote-Name' ) }   // '';
-    my $auth_email  = $ENV{ $make_env->( $site_vars->{auth_header_email}  || 'X-Remote-Email' ) }  // '';
+    my $auth_user = $ENV{ $make_env->( $site_vars->{auth_header_user} || 'X-Remote-User' ) } // '';
+    my $auth_name = $ENV{ $make_env->( $site_vars->{auth_header_name} || 'X-Remote-Name' ) } // '';
+    my $auth_email = $ENV{ $make_env->( $site_vars->{auth_header_email} || 'X-Remote-Email' ) } // '';
     my $auth_groups = $ENV{ $make_env->( $site_vars->{auth_header_groups} || 'X-Remote-Groups' ) } // '';
 
     my $authenticated = $auth_user ne '' ? 1 : 0;
@@ -469,8 +469,8 @@ sub check_auth {
     # Group check
     my @required = @{ $auth_meta->{groups} // [] };
     if ( $authenticated && @required ) {
-        my %user_groups = map { lc($_) => 1 } split /\s*,\s*/, $auth_groups;
-        my $in_group = grep { $user_groups{ lc($_) } } @required;
+        my %user_groups = map  { lc($_) => 1 } split /\s*,\s*/, $auth_groups;
+        my $in_group    = grep { $user_groups{ lc($_) } } @required;
         unless ($in_group) {
             return {
                 forbidden            => 1,
@@ -505,7 +505,7 @@ sub _groups_grant_cap {
     require JSON::PP;
     open my $fh, '<:raw', $f or return 0;
     local $/;
-    my $gs = eval { JSON::PP::decode_json( <$fh> ) } || {};
+    my $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
     close $fh;
     for my $g (@groups) { return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap} }
     return 0;
@@ -541,7 +541,7 @@ sub _is_manager {
     unless ( _site_grants_manager() ) {
         # L-3: config advisory, not an operational warning (DEBUG - under CGI
         # every request is a new process; the dev server surfaces it once).
-        log_event('DEBUG', '-',
+        log_event( 'DEBUG', '-',
             'no group grants manager access - any authenticated user has it',
             suggestion => 'grant the ui capability to a group on the Groups page' );
         return 1;
@@ -551,14 +551,14 @@ sub _is_manager {
 
 sub serve_403 {
     my ($auth_result) = @_;
-    my $md_path   = "$DOCROOT/403.md";
+    my $md_path = "$DOCROOT/403.md";
 
     $ACCESS_REC{s} //= 403;    # SM140
     binmode( STDOUT, ':utf8' );
 
     if ( -f $md_path ) {
         my $html_path = "$DOCROOT/403.html";
-        my $page = process_md( $md_path, $html_path, (stat($md_path))[9], {} );
+        my $page      = process_md( $md_path, $html_path, ( stat($md_path) )[9], {} );
         print "Status: 403 Forbidden\r\n";
         print "Content-type: text/html; charset=utf-8\r\n";
         print "Cache-Control: no-store, private\r\n\r\n";
@@ -582,16 +582,16 @@ sub serve_403 {
 
 # --- Payment ---
 
-my %PAYMENT_CONTEXT;  # populated by main(), read by render_content()
-my %PREVIEW_CONTEXT;  # SM071: preview layout/theme override, set by main()
+my %PAYMENT_CONTEXT;    # populated by main(), read by render_content()
+my %PREVIEW_CONTEXT;    # SM071: preview layout/theme override, set by main()
 
 sub peek_payment {
     my ($path) = @_;
     my $m = _peek_md($path);
     my %out;
-    for my $k (qw(payment payment_amount payment_currency
-                  payment_network payment_address
-                  payment_asset payment_description)) {
+    for my $k ( qw(payment payment_amount payment_currency
+        payment_network payment_address
+        payment_asset payment_description) ) {
         $out{$k} = $m->{$k} if defined $m->{$k};
     }
     return \%out;
@@ -633,12 +633,12 @@ sub check_payment {
 
     return {
         payment_required => 1,
-        amount           => $payment_meta->{payment_amount}       // '0',
-        currency         => $payment_meta->{payment_currency}     // 'USD',
-        network          => $payment_meta->{payment_network}      // 'base',
-        address          => $payment_meta->{payment_address}      // '',
-        asset            => $payment_meta->{payment_asset}        // '',
-        description      => $payment_meta->{payment_description}  // '',
+        amount           => $payment_meta->{payment_amount}      // '0',
+        currency         => $payment_meta->{payment_currency}    // 'USD',
+        network          => $payment_meta->{payment_network}     // 'base',
+        address          => $payment_meta->{payment_address}     // '',
+        asset            => $payment_meta->{payment_asset}       // '',
+        description      => $payment_meta->{payment_description} // '',
     };
 }
 
@@ -649,24 +649,24 @@ sub serve_402 {
     # Assumption: amount is in human-readable decimal (e.g. 0.01 USD)
     # Convert to smallest unit assuming USDC (6 decimals)
     my $amount_raw = int( ( $payment_result->{amount} // 0 ) * 1_000_000 );
-    my $network    = $payment_result->{network}  || 'base';
-    my $address    = $payment_result->{address}  || '';
-    my $asset      = $payment_result->{asset}    || '';
+    my $network    = $payment_result->{network} || 'base';
+    my $address    = $payment_result->{address} || '';
+    my $asset      = $payment_result->{asset}   || '';
 
-    my $x_payment = encode_json({
-        version => '1.0',
-        accepts => [{
-            scheme            => 'exact',
-            network           => $network,
-            maxAmountRequired => "$amount_raw",
-            to                => $address,
-            asset             => $asset,
-            extra             => {
-                name    => $payment_result->{currency} || 'USDC',
-                version => '1',
-            },
-        }],
-    });
+    my $x_payment = encode_json( {
+            version => '1.0',
+            accepts => [ {
+                    scheme            => 'exact',
+                    network           => $network,
+                    maxAmountRequired => "$amount_raw",
+                    to                => $address,
+                    asset             => $asset,
+                    extra             => {
+                        name    => $payment_result->{currency} || 'USDC',
+                        version => '1',
+                    },
+            } ],
+    } );
 
     binmode( STDOUT, ':utf8' );
 
@@ -682,7 +682,7 @@ sub serve_402 {
             payment_description => $payment_result->{description} // '',
         );
         my $page = process_md( $md_path, "$DOCROOT/402.html",
-                               (stat($md_path))[9], {} );
+            ( stat($md_path) )[9], {} );
         print "Status: 402 Payment Required\r\n";
         print "Content-type: text/html; charset=utf-8\r\n";
         print "X-Payment-Response: $x_payment\r\n";
@@ -698,7 +698,7 @@ sub serve_402 {
         print "<h1>Payment Required</h1>";
         print "<p>This content requires payment of ";
         print( ( $payment_result->{amount} // '0' ) . " "
-             . ( $payment_result->{currency} // 'USD' ) );
+                . ( $payment_result->{currency} // 'USD' ) );
         print ".</p></body></html>";
     }
 }
@@ -811,28 +811,28 @@ sub parse_query_string {
 # (operator opt-in for upstream auth proxies). Logs a WARN if a
 # client attempted to set these directly.
 sub apply_trust_gate {
-    my ($uri) = @_;
-    my %sv = resolve_site_vars();
+    my ($uri)         = @_;
+    my %sv            = resolve_site_vars();
     my $proxy_trusted = lc( $sv{auth_proxy_trusted} // 'false' );
-    my $auth_trusted  = $ENV{LAZYSITE_AUTH_TRUSTED}  // '';
+    my $auth_trusted  = $ENV{LAZYSITE_AUTH_TRUSTED} // '';
     return if ( $auth_trusted eq '1' ) || ( $proxy_trusted eq 'true' );
 
     if ( $ENV{HTTP_X_REMOTE_USER} ) {
-        log_event('WARN', $uri,
+        log_event( 'WARN', $uri,
             'untrusted auth header ignored - set auth_proxy_trusted: true to enable proxy auth',
             header => 'X-Remote-User',
-            value  => substr( $ENV{HTTP_X_REMOTE_USER}, 0, 32 ));
+            value  => substr( $ENV{HTTP_X_REMOTE_USER}, 0, 32 ) );
     }
     if ( $ENV{HTTP_X_PAYMENT_VERIFIED} ) {
-        log_event('WARN', $uri,
+        log_event( 'WARN', $uri,
             'untrusted payment header ignored',
-            header => 'X-Payment-Verified');
+            header => 'X-Payment-Verified' );
     }
-    for my $hdr (qw(
+    for my $hdr ( qw(
         HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS
         HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL
         HTTP_X_PAYMENT_VERIFIED HTTP_X_PAYMENT_PAYER
-    )) {
+        ) ) {
         delete $ENV{$hdr};
     }
 }
@@ -844,13 +844,13 @@ sub apply_trust_gate {
 # this request". Returns falsy when the URI is not a manager
 # path, or the user is authorised to proceed.
 sub handle_manager_path {
-    my ($uri) = @_;
-    my %sv = resolve_site_vars();
+    my ($uri)        = @_;
+    my %sv           = resolve_site_vars();
     my $manager_path = $sv{manager_path} || '/manager';
 
     return 0
         unless $uri eq $manager_path
-            || index( $uri, "$manager_path/" ) == 0;
+        || index( $uri, "$manager_path/" ) == 0;
 
     $ACCESS_REC{ch} = 'manager';    # SM140: operator traffic, not visitors
 
@@ -890,7 +890,7 @@ sub try_serve_cache {
 
     if ( $html_stat->[9] >= $md_stat->[9] ) {
         $ACCESS_REC{c} = 1;    # SM140: served from the page cache
-        log_event('DEBUG', $ENV{REDIRECT_URL} // '-', 'cache hit');
+        log_event( 'DEBUG', $ENV{REDIRECT_URL} // '-', 'cache hit' );
         my $ct  = read_ct($base);
         my $ttl = peek_ttl($md_path);
         output_page( _inject_admin_bar_live( read_file($html_path), $md_path ),
@@ -915,15 +915,15 @@ sub try_serve_cache {
 # /logout path; both are matched for their exact value and any
 # sub-path.
 sub is_auth_surface {
-    my ($uri) = @_;
-    my %sv = resolve_site_vars();
+    my ($uri)         = @_;
+    my %sv            = resolve_site_vars();
     my $auth_redirect = $sv{auth_redirect} || '/login';
     my $logout_path   = $auth_redirect;
     $logout_path =~ s{/login\b}{/logout};
-    return    $uri eq $auth_redirect
-           || index( $uri, "$auth_redirect/" ) == 0
-           || $uri eq $logout_path
-           || index( $uri, "$logout_path/" ) == 0;
+    return $uri eq $auth_redirect
+        || index( $uri, "$auth_redirect/" ) == 0
+        || $uri eq $logout_path
+        || index( $uri, "$logout_path/" ) == 0;
 }
 
 sub main {
@@ -953,7 +953,7 @@ sub main {
     # here - %ENV is already localised at the top of main().
     {
         my %sv = resolve_site_vars();
-        $ENV{LAZYSITE_LOG_LEVEL}  = $sv{log_level}
+        $ENV{LAZYSITE_LOG_LEVEL} = $sv{log_level}
             if $sv{log_level} && !$ENV{LAZYSITE_LOG_LEVEL};
         $ENV{LAZYSITE_LOG_FORMAT} = $sv{log_format}
             if $sv{log_format} && !$ENV{LAZYSITE_LOG_FORMAT};
@@ -1057,10 +1057,10 @@ sub main {
     my $auth_result    = { ok => 1 };
     my $auth_peek      = {};
     my %site_vars_peek;
-    if ( @md_stat ) {
-        $auth_peek         = peek_auth($md_path);
-        %site_vars_peek    = resolve_site_vars();
-        $auth_result        = check_auth( $uri, $auth_peek, \%site_vars_peek );
+    if (@md_stat) {
+        $auth_peek      = peek_auth($md_path);
+        %site_vars_peek = resolve_site_vars();
+        $auth_result    = check_auth( $uri, $auth_peek, \%site_vars_peek );
 
         if ( $auth_result->{redirect} ) {
             binmode( STDOUT, ':utf8' );
@@ -1102,7 +1102,7 @@ sub main {
 
     # Payment check (after auth - auth group bypass may apply)
     my $payment_protected = 0;
-    if ( @md_stat ) {
+    if (@md_stat) {
         my $payment_peek = peek_payment($md_path);
 
         # Merge auth_groups from auth peek for bypass check
@@ -1138,7 +1138,7 @@ sub main {
     # ship with `auth: none` but must never be cached because they
     # embed per-request TT variables (query.next etc.).
     my $protected = $auth_protected || $payment_protected
-                 || is_auth_surface($uri);
+        || is_auth_surface($uri);
 
     # SM071: theme/layout preview. A valid preview cookie overrides the
     # active layout/theme for this request only (%PREVIEW_CONTEXT, merged
@@ -1161,9 +1161,9 @@ sub main {
 
     if ( %query_params && @md_stat ) {
         $declared_params = peek_query_params($md_path);
-        if ( $declared_params ) {
+        if ($declared_params) {
             # Check if any declared param appears in the request
-            for my $p ( @$declared_params ) {
+            for my $p (@$declared_params) {
                 if ( exists $query_params{$p} ) {
                     $has_query_request = 1;
                     last;
@@ -1182,12 +1182,12 @@ sub main {
     # query-carrying request, or any protection flag is set.
     unless ( $ENV{LAZYSITE_NOCACHE} || $has_query_request || $protected ) {
         return if try_serve_cache( $base, $md_path, $html_path,
-                                   \@html_stat, \@md_stat );
+            \@html_stat, \@md_stat );
     }
 
     # .md exists but no cache yet - process it
     # realpath check runs here on the write path only, not on cache hits
-    if ( @md_stat ) {
+    if (@md_stat) {
         # SM151: confine against the domain's content root (== $DOCROOT when no
         # content_root), so a symlink inside one domain's tree cannot serve a
         # sibling domain's or the docroot's files (spec S1).
@@ -1200,14 +1200,14 @@ sub main {
         # Filter query params to declared allowlist only
         my %filtered_query;
         if ( $declared_params && $has_query_request ) {
-            for my $p ( @$declared_params ) {
+            for my $p (@$declared_params) {
                 $filtered_query{$p} = $query_params{$p}
                     if exists $query_params{$p};
             }
         }
 
         # Inject protection flag into filtered_query to prevent caching
-        if ( $protected ) {
+        if ($protected) {
             $filtered_query{_protected} = 1;
         }
 
@@ -1215,7 +1215,7 @@ sub main {
         my $ct   = peek_content_type($md_path);
         my $ttl  = $protected ? undef : peek_ttl($md_path);
         write_ct( $base, $ct ) unless $protected;
-        log_event('INFO', $uri, 'page rendered');
+        log_event( 'INFO', $uri, 'page rendered' );
         # Admin bar added here (post-cache, per-viewer), not inside the cached page.
         output_page( _inject_admin_bar_live( $page, $md_path ), $ct, $ttl, $protected );
         return;
@@ -1228,7 +1228,7 @@ sub main {
             not_found($uri);
             return;
         }
-        my $page = process_url( $url_path, $html_path, (stat($url_path))[9] );
+        my $page = process_url( $url_path, $html_path, ( stat($url_path) )[9] );
         my $ct   = peek_content_type($url_path);
         write_ct( $base, $ct );
         output_page( _inject_admin_bar_live( $page, $url_path ), $ct );
@@ -1473,18 +1473,18 @@ sub process_md {
     my ( $md_path, $html_path, $md_mtime, $query ) = @_;
     $query //= {};
 
-    my $raw_text        = read_file($md_path);
+    my $raw_text = read_file($md_path);
     my ( $meta, $body ) = parse_yaml_front_matter($raw_text);
 
     # Format mtime for TT variables
     if ( defined $md_mtime ) {
-        my @t = localtime($md_mtime);
+        my @t      = localtime($md_mtime);
         my @months = qw(January February March April May June
-                        July August September October November December);
-        $meta->{page_modified} = sprintf("%d %s %d",
-            $t[3], $months[$t[4]], $t[5] + 1900);
-        $meta->{page_modified_iso} = sprintf("%04d-%02d-%02d",
-            $t[5] + 1900, $t[4] + 1, $t[3]);
+            July August September October November December);
+        $meta->{page_modified} = sprintf( "%d %s %d",
+            $t[3], $months[ $t[4] ], $t[5] + 1900 );
+        $meta->{page_modified_iso} = sprintf( "%04d-%02d-%02d",
+            $t[5] + 1900, $t[4] + 1, $t[3] );
     }
     my $page;
 
@@ -1499,42 +1499,42 @@ sub process_md {
 
     # api: true - body is pure TT, no Markdown pipeline, no layout
     if ( $meta->{api} && $meta->{api} =~ /^true$/i ) {
-        my ( $processed_body ) = render_content( $meta, $body, $query );
-        $processed_body =~ s/^\s+|\s+$//g;  # trim for clean JSON
+        my ($processed_body) = render_content( $meta, $body, $query );
+        $processed_body =~ s/^\s+|\s+$//g;    # trim for clean JSON
         $page = $processed_body;
     }
     # raw: true - Markdown pipeline runs, no layout
     elsif ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
-        my $converted_form  = convert_fenced_form($body, $meta);
-        my $converted_comp  = convert_fenced_components($converted_form, $layout_dir, $md_path, $meta);
-        my $converted       = convert_fenced_divs($converted_comp);
-        my $converted_inc   = convert_fenced_include($converted, $md_path, $meta);
-        my $converted2      = convert_fenced_code($converted_inc);
-        my $converted3      = convert_oembed($converted2);
-        my $html_body       = convert_md($converted3);
-        my ( $processed_body ) = render_content( $meta, $html_body, $query );
+        my $converted_form = convert_fenced_form( $body, $meta );
+        my $converted_comp = convert_fenced_components( $converted_form, $layout_dir, $md_path, $meta );
+        my $converted        = convert_fenced_divs($converted_comp);
+        my $converted_inc    = convert_fenced_include( $converted, $md_path, $meta );
+        my $converted2       = convert_fenced_code($converted_inc);
+        my $converted3       = convert_oembed($converted2);
+        my $html_body        = convert_md($converted3);
+        my ($processed_body) = render_content( $meta, $html_body, $query );
         $page = $processed_body;
     }
     # Normal mode - full pipeline with layout
     else {
-        my $converted_form  = convert_fenced_form($body, $meta);
-        my $converted_comp  = convert_fenced_components($converted_form, $layout_dir, $md_path, $meta);
-        my $converted       = convert_fenced_divs($converted_comp);
-        my $converted_inc   = convert_fenced_include($converted, $md_path, $meta);
-        my $converted2      = convert_fenced_code($converted_inc);
-        my $converted3      = convert_oembed($converted2);
-        my $html_body       = convert_md($converted3);
-        $meta->{_md_path}   = $md_path;
-        $page               = render_template( $meta, $html_body, $query );
-        $page               = convert_dt_links($page);
-        $page               = convert_p_links($page);
+        my $converted_form = convert_fenced_form( $body, $meta );
+        my $converted_comp = convert_fenced_components( $converted_form, $layout_dir, $md_path, $meta );
+        my $converted     = convert_fenced_divs($converted_comp);
+        my $converted_inc = convert_fenced_include( $converted, $md_path, $meta );
+        my $converted2    = convert_fenced_code($converted_inc);
+        my $converted3    = convert_oembed($converted2);
+        my $html_body     = convert_md($converted3);
+        $meta->{_md_path} = $md_path;
+        $page             = render_template( $meta, $html_body, $query );
+        $page             = convert_dt_links($page);
+        $page             = convert_p_links($page);
     }
 
     # Only cache if no query params - query responses are dynamic
     if ( !%$query ) {
         write_html( $html_path, $page );
         eval { update_registries() };
-        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'registry update failed', error => $@) if $@;
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'registry update failed', error => $@ ) if $@;
     }
 
     return $page;
@@ -1545,7 +1545,7 @@ sub process_url {
 
     # Read URL from file
     my $url = read_file($url_path);
-    $url =~ s/^\s+|\s+$//g;  # trim whitespace
+    $url =~ s/^\s+|\s+$//g;    # trim whitespace
 
     # Serve stale cache if still within TTL
     if ( is_fresh_ttl($html_path) ) {
@@ -1571,24 +1571,24 @@ sub process_url {
 
     # Format mtime for TT variables
     if ( defined $url_mtime ) {
-        my @t = localtime($url_mtime);
+        my @t      = localtime($url_mtime);
         my @months = qw(January February March April May June
-                        July August September October November December);
-        $meta->{page_modified} = sprintf("%d %s %d",
-            $t[3], $months[$t[4]], $t[5] + 1900);
-        $meta->{page_modified_iso} = sprintf("%04d-%02d-%02d",
-            $t[5] + 1900, $t[4] + 1, $t[3]);
+            July August September October November December);
+        $meta->{page_modified} = sprintf( "%d %s %d",
+            $t[3], $months[ $t[4] ], $t[5] + 1900 );
+        $meta->{page_modified_iso} = sprintf( "%04d-%02d-%02d",
+            $t[5] + 1900, $t[4] + 1, $t[3] );
     }
 
-    my $converted  = convert_fenced_divs($body);
-    my $converted_inc = convert_fenced_include($converted, $url_path, $meta);
-    my $converted2 = convert_fenced_code($converted_inc);
-    my $converted3 = convert_oembed($converted2);
-    my $html_body  = convert_md($converted3);
+    my $converted     = convert_fenced_divs($body);
+    my $converted_inc = convert_fenced_include( $converted, $url_path, $meta );
+    my $converted2    = convert_fenced_code($converted_inc);
+    my $converted3    = convert_oembed($converted2);
+    my $html_body     = convert_md($converted3);
 
     my $page;
     if ( $meta->{raw} && $meta->{raw} =~ /^true$/i ) {
-        my ( $processed_body ) = render_content( $meta, $html_body );
+        my ($processed_body) = render_content( $meta, $html_body );
         $page = $processed_body;
     }
     else {
@@ -1599,7 +1599,7 @@ sub process_url {
 
     write_html( $html_path, $page );
     eval { update_registries() };
-    log_event('WARN', $ENV{REDIRECT_URL} // '-', 'registry update failed', error => $@) if $@;
+    log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'registry update failed', error => $@ ) if $@;
 
     return $page;
 }
@@ -1631,10 +1631,10 @@ sub peek_ttl {
 sub peek_content_type {
     my ($path) = @_;
     my $m = _peek_md($path);
-    return $m->{content_type}                  if $m->{content_type};
-    return                                      unless $m->{raw} || $m->{api};
-    return 'application/json; charset=utf-8'   if $m->{api};
-    return 'text/plain; charset=utf-8'         if $m->{raw};
+    return $m->{content_type} if $m->{content_type};
+    return unless $m->{raw} || $m->{api};
+    return 'application/json; charset=utf-8' if $m->{api};
+    return 'text/plain; charset=utf-8'       if $m->{raw};
     return 'text/html; charset=utf-8';
 }
 
@@ -1674,8 +1674,8 @@ sub _yaml_scalar {
     $s =~ s/^\s+//;
     $s =~ s/\s+$//;
     return undef if $s eq '' || $s eq '~' || lc $s eq 'null';
-    return $1 if $s =~ /^"(.*)"$/s;
-    return $1 if $s =~ /^'(.*)'$/s;
+    return $1    if $s =~ /^"(.*)"$/s;
+    return $1    if $s =~ /^'(.*)'$/s;
     return $s;
 }
 
@@ -1684,10 +1684,10 @@ sub _yaml_split_flow {
     my @parts;
     my ( $cur, $depth, $q ) = ( '', 0, '' );
     for my $ch ( split //, $s ) {
-        if ($q) { $cur .= $ch; $q = '' if $ch eq $q; next }
-        if ( $ch eq '"' || $ch eq "'" ) { $q = $ch; $cur .= $ch; next }
-        if ( $ch eq '{' || $ch eq '[' ) { $depth++; $cur .= $ch; next }
-        if ( $ch eq '}' || $ch eq ']' ) { $depth--; $cur .= $ch; next }
+        if ($q)                          { $cur .= $ch; $q = '' if $ch eq $q; next }
+        if ( $ch eq '"' || $ch eq "'" )  { $q = $ch; $cur .= $ch; next }
+        if ( $ch eq '{' || $ch eq '[' )  { $depth++; $cur .= $ch; next }
+        if ( $ch eq '}' || $ch eq ']' )  { $depth--; $cur .= $ch; next }
         if ( $ch eq ',' && $depth == 0 ) { push @parts, $cur; $cur = ''; next }
         $cur .= $ch;
     }
@@ -1744,7 +1744,7 @@ sub _yaml_block {
         my %map;
         while ( $$i <= $#$toks && $toks->[$$i][0] == $ind ) {
             my $line = $toks->[$$i][1];
-            last if $line =~ /^-(?:\s|$)/;
+            last if $line     =~ /^-(?:\s|$)/;
             last unless $line =~ /^(.+?)\s*:\s*(.*)$/;
             my ( $k, $v ) = ( _yaml_scalar($1), $2 );
             $$i++;
@@ -1772,7 +1772,7 @@ sub _parse_sections {
         next if $line =~ /^\s*#/;
         my ($lead) = $line =~ /^(\s*)/;
         ( my $expanded = $lead ) =~ s/\t/    /g;
-        ( my $text = $line ) =~ s/^\s+//;
+        ( my $text     = $line ) =~ s/^\s+//;
         $text =~ s/\s+$//;
         push @toks, [ length $expanded, $text ];
     }
@@ -1854,8 +1854,8 @@ sub parse_yaml_front_matter {
             next if $1 eq 'tt_page_var';
             next if $1 eq 'register';
             next if $1 eq 'query_params';
-            next if $1 eq 'sections';    # nested block; parsed above (and \s* here would eat its first line)
-            next if $1 eq 'tags' && ref $meta{tags} eq 'ARRAY';
+            next if $1 eq 'sections'; # nested block; parsed above (and \s* here would eat its first line)
+            next if $1 eq 'tags'        && ref $meta{tags} eq 'ARRAY';
             next if $1 eq 'auth_groups' && ref $meta{auth_groups} eq 'ARRAY';
             # Strip TT directives from all scalar values including title and subtitle
             my ( $k, $v ) = ( $1, strip_tt_directives($2) );
@@ -1869,7 +1869,7 @@ sub parse_yaml_front_matter {
 
         # Sanitise auth value
         if ( defined $meta{auth} ) {
-            $meta{auth} = lc($meta{auth});
+            $meta{auth} = lc( $meta{auth} );
             $meta{auth} = 'none'
                 unless $meta{auth} =~ /^(required|optional|none)$/;
         }
@@ -1965,7 +1965,7 @@ sub load_form_secret {
 
     if ( -f $secret_path ) {
         open( my $fh, '<', $secret_path ) or do {
-            log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot read form secret', error => $!);
+            log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'cannot read form secret', error => $! );
             return '';
         };
         chomp( my $s = <$fh> );
@@ -1984,7 +1984,7 @@ sub load_form_secret {
     my $s = unpack( 'H*', $raw );
 
     open( my $fh, '>', $secret_path ) or do {
-        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot write form secret', error => $!);
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'cannot write form secret', error => $! );
         return $s;
     };
     # 0660: identity-shared secret (site-user CLI/dev-server + www-data CGI,
@@ -2014,8 +2014,8 @@ sub _render_form {
     my ( $body, $meta ) = @_;
 
     my $form_name = $meta->{form} // '';
-    unless ( $form_name ) {
-        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'form block found but no form key in front matter');
+    unless ($form_name) {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'form block found but no form key in front matter' );
         return "<!-- lazysite: form: key required in front matter -->\n";
     }
 
@@ -2036,8 +2036,8 @@ sub _render_form {
         next unless length $line;
 
         my ( $name, $label, $rules_str ) = split /\s*\|\s*/, $line, 3;
-        $name  //= '';
-        $label //= '';
+        $name      //= '';
+        $label     //= '';
         $rules_str //= '';
         $name  =~ s/^\s+|\s+$//g;
         $label =~ s/^\s+|\s+$//g;
@@ -2046,8 +2046,8 @@ sub _render_form {
 
         if ( $name eq 'submit' ) {
             push @{ $steps[-1]{fields} }, qq(  <div class="form-field form-submit">\n)
-                        . qq(    <button type="submit">$label</button>\n)
-                        . qq(  </div>\n);
+                . qq(    <button type="submit">$label</button>\n)
+                . qq(  </div>\n);
             next;
         }
 
@@ -2064,23 +2064,23 @@ sub _render_form {
             # contain spaces, so put select: last among a field's rules. (Quotes
             # around the list or an option are tolerated and stripped on render.)
             if    ( $rs =~ s/^(select:.*)\z//s )        { push @rule_tokens, $1; }
-            elsif ( $rs =~ s/^([A-Za-z]+:)"([^"]*)"// )  { push @rule_tokens, "$1$2"; }
-            elsif ( $rs =~ s/^(\S+)// )                  { push @rule_tokens, $1; }
-            else  { last; }
+            elsif ( $rs =~ s/^([A-Za-z]+:)"([^"]*)"// ) { push @rule_tokens, "$1$2"; }
+            elsif ( $rs =~ s/^(\S+)// )                 { push @rule_tokens, $1; }
+            else                                        { last; }
         }
-        for my $r ( @rule_tokens ) {
-            if ( $r eq 'required' )      { $rules{required} = 1; }
-            elsif ( $r eq 'optional' )   { $rules{optional} = 1; }
-            elsif ( $r eq 'email' )      { $rules{type} = 'email'; }
+        for my $r (@rule_tokens) {
+            if    ( $r eq 'required' ) { $rules{required} = 1; }
+            elsif ( $r eq 'optional' ) { $rules{optional} = 1; }
+            elsif ( $r eq 'email' )    { $rules{type}     = 'email'; }
             elsif ( $r =~ /^(tel|date|time|number|url|password)$/ ) { $rules{type} = $1; }
-            elsif ( $r eq 'textarea' )   { $rules{textarea} = 1; }
-            elsif ( $r eq 'file' )       { $rules{file} = 1; }
-            elsif ( $r eq 'multiple' )   { $rules{multiple} = 1; }
-            elsif ( $r =~ /^accept:(.+)/ )  { $rules{accept} = $1; }
-            elsif ( $r =~ /^select:(.+)/ ) { $rules{select} = [ split /,/, $1 ]; }
-            elsif ( $r =~ /^max:(\d+)/ ) { $rules{max} = $1; }
-            elsif ( $r =~ /^min:(\d+)/ ) { $rules{min} = $1; }
-            elsif ( $r =~ /^pattern:(.+)/ )     { $rules{pattern} = $1; }
+            elsif ( $r eq 'textarea' )          { $rules{textarea} = 1; }
+            elsif ( $r eq 'file' )              { $rules{file}     = 1; }
+            elsif ( $r eq 'multiple' )          { $rules{multiple} = 1; }
+            elsif ( $r =~ /^accept:(.+)/ )      { $rules{accept}   = $1; }
+            elsif ( $r =~ /^select:(.+)/ )      { $rules{select}   = [ split /,/, $1 ]; }
+            elsif ( $r =~ /^max:(\d+)/ )        { $rules{max}      = $1; }
+            elsif ( $r =~ /^min:(\d+)/ )        { $rules{min}      = $1; }
+            elsif ( $r =~ /^pattern:(.+)/ )     { $rules{pattern}  = $1; }
             elsif ( $r =~ /^placeholder:(.+)/ ) { $rules{placeholder} = $1; }
         }
         my $ph_attr = '';
@@ -2105,18 +2105,18 @@ sub _render_form {
             }
             my $mult = $rules{multiple} ? ' multiple' : '';
             $field_html = qq(    <input type="file" name="$name" id="$name")
-                        . $acc . $mult . qq($req_attr>\n);
+                . $acc . $mult . qq($req_attr>\n);
         }
         elsif ( $rules{textarea} ) {
             $field_html = qq(    <textarea name="$name" id="$name")
-                        . qq( maxlength="$max"$ph_attr$req_attr></textarea>\n);
+                . qq( maxlength="$max"$ph_attr$req_attr></textarea>\n);
         }
         elsif ( $rules{select} ) {
             $field_html = qq(    <select name="$name" id="$name"$req_attr>\n);
             $field_html .= qq(      <option value="">-- Select --</option>\n);
             for my $opt ( @{ $rules{select} } ) {
                 $opt =~ s/^\s+|\s+$//g;
-                $opt =~ s/^"+//; $opt =~ s/"+$//;    # tolerate a quoted option list / option
+                $opt =~ s/^"+//; $opt =~ s/"+$//; # tolerate a quoted option list / option
                 $opt =~ s/^\s+|\s+$//g;
                 next unless length $opt;
                 $field_html .= qq(      <option value="$opt">$opt</option>\n);
@@ -2143,13 +2143,13 @@ sub _render_form {
                 $attrs .= qq( pattern="$pat");
             }
             $field_html = qq(    <input type="$type" name="$name" id="$name")
-                        . $attrs . $ph_attr . qq($req_attr>\n);
+                . $attrs . $ph_attr . qq($req_attr>\n);
         }
 
         push @{ $steps[-1]{fields} }, qq(  <div class="form-field">\n)
-                     . qq(    <label for="$name">$label$req_mark</label>\n)
-                     . $field_html
-                     . qq(  </div>\n);
+            . qq(    <label for="$name">$label$req_mark</label>\n)
+            . $field_html
+            . qq(  </div>\n);
     }
 
     # Drop steps that ended up with no fields (e.g. a leading delimiter).
@@ -2342,7 +2342,7 @@ sub convert_fenced_divs {
 # aware), and byte-preserving for everything that is not a component block.
 sub _component_exists {
     my ( $layout_dir, $name ) = @_;
-    return 0 unless defined $name && $name =~ /\A[\w-]+\z/;
+    return 0 unless defined $name   && $name =~ /\A[\w-]+\z/;
     return 1 if defined $layout_dir && -f "$layout_dir/components/$name.tt";
     # Built-in components (e.g. ::: qr) ship under lazysite/templates/components
     # and are available on ANY layout - a layout component of the same name wins.
@@ -2354,8 +2354,8 @@ sub _md_fragment {
     my ( $text, $layout_dir, $md_path, $meta ) = @_;
     return '' unless defined $text && $text =~ /\S/;
     $text .= "\n" unless $text =~ /\n\z/;    # fence closers need a trailing newline
-    # Run the inner through the same fence passes as the page body, so a component
-    # can contain nested components, fenced divs and includes - then Markdown.
+        # Run the inner through the same fence passes as the page body, so a component
+        # can contain nested components, fenced divs and includes - then Markdown.
     my $t = convert_fenced_components( $text, $layout_dir, $md_path, $meta );
     $t = convert_fenced_divs($t);
     $t = convert_fenced_include( $t, $md_path, $meta ) if defined $md_path;
@@ -2372,7 +2372,7 @@ sub convert_fenced_components {
     return $text
         unless ( defined $layout_dir && -d "$layout_dir/components" )
         || -d "$LAZYSITE_DIR/templates/components";
-    return $text unless $text =~ /^:::[ \t]+[\w-]+/m;   # fast bail
+    return $text unless $text =~ /^:::[ \t]+[\w-]+/m;    # fast bail
 
     my @lines = split /\n/, $text, -1;
     my @out;
@@ -2388,12 +2388,12 @@ sub convert_fenced_components {
             my $j     = $i + 1;
             while ( $j <= $#lines && $depth > 0 ) {
                 my $x = $lines[$j];
-                if    ( $x =~ /^:::[ \t]+\S/ ) { $depth++; push @inner, $x }
-                elsif ( $x =~ /^:::[ \t]*$/ )  { $depth--; push @inner, $x if $depth > 0 }
-                else                           { push @inner, $x }
+                if ( $x =~ /^:::[ \t]+\S/ ) { $depth++; push @inner, $x }
+                elsif ( $x =~ /^:::[ \t]*$/ ) { $depth--; push @inner, $x if $depth > 0 }
+                else                          { push @inner, $x }
                 $j++;
             }
-            if ( $depth != 0 ) { push @out, $l; $i++; next; }   # unbalanced: leave as-is
+            if ( $depth != 0 ) { push @out, $l; $i++; next; }    # unbalanced: leave as-is
             push @out, _render_component( $layout_dir, $name, $attr,
                 join( "\n", @inner ), $md_path, $meta );
             $i = $j;
@@ -2425,9 +2425,9 @@ sub _render_component {
             my $j     = $i + 1;
             while ( $j <= $#il && $depth > 0 ) {
                 my $x = $il[$j];
-                if    ( $x =~ /^:::[ \t]+\S/ ) { $depth++; push @sb, $x }
-                elsif ( $x =~ /^:::[ \t]*$/ )  { $depth--; push @sb, $x if $depth > 0 }
-                else                           { push @sb, $x }
+                if ( $x =~ /^:::[ \t]+\S/ ) { $depth++; push @sb, $x }
+                elsif ( $x =~ /^:::[ \t]*$/ ) { $depth--; push @sb, $x if $depth > 0 }
+                else                          { push @sb, $x }
                 $j++;
             }
             if ( $depth == 0 ) {
@@ -2455,8 +2455,8 @@ sub _render_component {
         _md_fragment( join( "\n", @content_lines ), $layout_dir, $md_path, $meta );
 
     my $tt = Template->new(
-        ABSOLUTE     => 1,
-        EVAL_PERL    => 0,
+        ABSOLUTE  => 1,
+        EVAL_PERL => 0,
         # Layout components win; built-in components (lazysite/templates) are the
         # fallback so ::: qr resolves on any layout.
         INCLUDE_PATH => [ grep { defined } ( $layout_dir, "$LAZYSITE_DIR/templates" ) ],
@@ -2514,52 +2514,62 @@ sub _resolve_include {
 
     # HTML-escape source for error spans
     ( my $source_escaped = $source ) =~ s/&/&amp;/g;
-    $source_escaped =~ s/</&lt;/g;
-    $source_escaped =~ s/>/&gt;/g;
-    $source_escaped =~ s/"/&quot;/g;
+    $source_escaped                  =~ s/</&lt;/g;
+    $source_escaped                  =~ s/>/&gt;/g;
+    $source_escaped                  =~ s/"/&quot;/g;
 
     my $content;
     my $is_remote = $source =~ m{\Ahttps?://};
 
-    if ( $is_remote ) {
+    if ($is_remote) {
         # Remote URL
         $content = fetch_url($source);
         unless ( defined $content ) {
-            log_event("WARN", $ENV{REDIRECT_URL} // "-", "include fetch failed", source => $source);
+            log_event( "WARN", $ENV{REDIRECT_URL} // "-", "include fetch failed", source => $source );
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
         }
     }
     else {
-        # Local file
+        # Local file. SEC-2026-07 (C2): an include is content, so it is confined
+        # to the request's content root ($REQUEST_CROOT, the docroot for a
+        # single-site install) - never the whole docroot under multisite - AND
+        # the lazysite/ management tree (auth/.secret, groups-settings.json,
+        # users, ACLs, logs) is excluded outright. Without this a content author
+        # could `::: include /lazysite/auth/.secret` and leak the CSRF/HMAC
+        # secret and password hashes into a public page.
+        my $base = $REQUEST_CROOT // $DOCROOT;
         my $resolved;
         if ( index( $source, $DOCROOT ) == 0 ) {
             # Already a full filesystem path (e.g. from scan results)
             $resolved = $source;
         }
         elsif ( $source =~ m{\A/} ) {
-            # Absolute from docroot
-            $resolved = $DOCROOT . $source;
+            # Absolute from the content root
+            $resolved = $base . $source;
         }
         else {
             # Relative to parent .md file
             $resolved = dirname($md_path) . '/' . $source;
         }
 
-        # Realpath check - reject if outside $DOCROOT
+        # Realpath check - reject if outside the content root or inside the
+        # lazysite/ management tree (always at the docroot root).
         my $real = realpath($resolved);
-        if ( !_path_under( $real, $DOCROOT ) ) {
-            log_event("WARN", $ENV{REDIRECT_URL} // "-", "include path invalid", source => $source);
+        if ( !_path_under( $real, $base )
+            || _path_under( $real, "$DOCROOT/lazysite" ) )
+        {
+            log_event( "WARN", $ENV{REDIRECT_URL} // "-", "include path invalid", source => $source );
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
         }
 
-        if ( ! -f $real ) {
-            log_event("WARN", $ENV{REDIRECT_URL} // "-", "include file not found", source => $source);
+        if ( !-f $real ) {
+            log_event( "WARN", $ENV{REDIRECT_URL} // "-", "include file not found", source => $source );
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
         }
 
         $content = eval { read_file($real) };
         if ( $@ || !defined $content ) {
-            log_event("WARN", $ENV{REDIRECT_URL} // "-", "include failed", source => $source, error => $@);
+            log_event( "WARN", $ENV{REDIRECT_URL} // "-", "include failed", source => $source, error => $@ );
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
         }
     }
@@ -2576,16 +2586,16 @@ sub _resolve_include {
         # Strip YAML front matter, run sub-pipeline (no recursion)
         my ( undef, $body ) = parse_yaml_front_matter($content);
         my $sub = convert_fenced_divs($body);
-        $sub    = convert_fenced_code($sub);
-        $sub    = convert_oembed($sub);
-        $sub    = convert_md($sub);
+        $sub = convert_fenced_code($sub);
+        $sub = convert_oembed($sub);
+        $sub = convert_md($sub);
         return $sub;
     }
     elsif ( $ext eq 'html' || $ext eq 'htm' ) {
         # Insert bare HTML
         return $content;
     }
-    elsif ( $lang ) {
+    elsif ($lang) {
         # Code file - wrap in fenced code block for convert_fenced_code
         return "```$lang\n$content```\n";
     }
@@ -2698,11 +2708,11 @@ sub convert_p_links {
 # Known provider endpoints - matched by URL pattern
 # Falls back to autodiscovery for unlisted providers
 my %OEMBED_PROVIDERS = (
-    qr{youtube\.com/watch|youtu\.be/}   => 'https://www.youtube.com/oembed',
-    qr{vimeo\.com/}                     => 'https://vimeo.com/api/oembed.json',
-    qr{/videos/watch/|/videos/embed/}   => undef,  # PeerTube - autodiscover
-    qr{twitter\.com/|x\.com/}           => 'https://publish.twitter.com/oembed',
-    qr{soundcloud\.com/}                => 'https://soundcloud.com/oembed',
+    qr{youtube\.com/watch|youtu\.be/} => 'https://www.youtube.com/oembed',
+    qr{vimeo\.com/}                   => 'https://vimeo.com/api/oembed.json',
+    qr{/videos/watch/|/videos/embed/} => undef,    # PeerTube - autodiscover
+    qr{twitter\.com/|x\.com/}         => 'https://publish.twitter.com/oembed',
+    qr{soundcloud\.com/}              => 'https://soundcloud.com/oembed',
 );
 
 sub convert_oembed {
@@ -2730,14 +2740,14 @@ sub fetch_oembed {
 
     my $endpoint = find_oembed_endpoint($url);
     unless ($endpoint) {
-        log_event("WARN", $ENV{REDIRECT_URL} // "-", "oembed no endpoint", url => $url);
+        log_event( "WARN", $ENV{REDIRECT_URL} // "-", "oembed no endpoint", url => $url );
         return;
     }
 
     my $oembed_url = $endpoint . '?url=' . uri_encode($url) . '&format=json';
-    my $raw = fetch_url($oembed_url);
+    my $raw        = fetch_url($oembed_url);
     unless ($raw) {
-        log_event("WARN", $ENV{REDIRECT_URL} // "-", "oembed fetch failed", url => $oembed_url);
+        log_event( "WARN", $ENV{REDIRECT_URL} // "-", "oembed fetch failed", url => $oembed_url );
         return;
     }
 
@@ -2748,7 +2758,7 @@ sub fetch_oembed {
     # hosts if this is a concern in your deployment.
     my $data = eval { decode_json($raw) };
     if ( $@ || !defined $data || !defined $data->{html} ) {
-        log_event("WARN", $ENV{REDIRECT_URL} // "-", "oembed parse failed", url => $oembed_url, error => $@);
+        log_event( "WARN", $ENV{REDIRECT_URL} // "-", "oembed parse failed", url => $oembed_url, error => $@ );
         return;
     }
 
@@ -2763,7 +2773,7 @@ sub find_oembed_endpoint {
         if ( $url =~ $pattern ) {
             my $ep = $OEMBED_PROVIDERS{$pattern};
             return $ep if $ep;
-            last;  # Pattern matched but no endpoint - fall through to autodiscovery
+            last;    # Pattern matched but no endpoint - fall through to autodiscovery
         }
     }
 
@@ -2813,9 +2823,9 @@ sub interpolate_env {
 sub resolve_json {
     my ($src) = @_;
     my $path =
-          index( $src, $DOCROOT ) == 0 ? $src
-        : $src =~ m{^/}                ? $DOCROOT . $src
-        :                                "$DOCROOT/$src";
+        index( $src, $DOCROOT ) == 0 ? $src
+        : $src =~ m{^/}              ? $DOCROOT . $src
+        :                              "$DOCROOT/$src";
     my $real = realpath($path);
     if ( !_path_under( $real, $DOCROOT ) || !-f $real ) {
         log_event( "WARN", $ENV{REDIRECT_URL} // "-",
@@ -2869,7 +2879,7 @@ sub resolve_tt_vars {
                 $vars{$key} = $fetched;
             }
             else {
-                log_event("WARN", $ENV{REDIRECT_URL} // "-", "tt var fetch failed", key => $key, val => $val);
+                log_event( "WARN", $ENV{REDIRECT_URL} // "-", "tt var fetch failed", key => $key, val => $val );
                 $vars{$key} = '';
             }
         }
@@ -2898,7 +2908,7 @@ sub resolve_tt_vars {
 
     sub resolve_site_vars {
         return %_site_vars_cache if $_site_vars_loaded;
-        return ()                 unless -f $CONF_FILE;
+        return () unless -f $CONF_FILE;
 
         my $text = read_file($CONF_FILE);
         my %defs;
@@ -2998,21 +3008,21 @@ sub parse_nav {
 
     while ( my $line = <$fh> ) {
         chomp $line;
-        next if $line =~ /^\s*#/;   # comment
-        next if $line =~ /^\s*$/;   # blank line
+        next if $line =~ /^\s*#/;    # comment
+        next if $line =~ /^\s*$/;    # blank line
 
         my $is_child = $line =~ /^\s+/;
-        $line =~ s/^\s+|\s+$//g;    # trim
+        $line =~ s/^\s+|\s+$//g;     # trim
 
         my ( $label, $url ) = split /\s*\|\s*/, $line, 2;
         $label = defined $label ? $label : '';
         $label =~ s/^\s+|\s+$//g;
-        $url   = defined $url   ? $url   : '';
-        $url   =~ s/^\s+|\s+$//g;
+        $url = defined $url ? $url : '';
+        $url =~ s/^\s+|\s+$//g;
 
         next unless length $label;
 
-        if ( $is_child ) {
+        if ($is_child) {
             # Add to current parent's children
             if ( defined $current_parent ) {
                 push @{ $nav[$current_parent]{children} },
@@ -3037,8 +3047,8 @@ sub parse_nav {
 sub peek_search_default {
     return 1 unless -f $CONF_FILE;
     open( my $fh, '<:utf8', $CONF_FILE ) or return 1;
-    while ( <$fh> ) {
-        if ( /^search_default\s*:\s*(\S+)/ ) {
+    while (<$fh>) {
+        if (/^search_default\s*:\s*(\S+)/) {
             close $fh;
             return $1 =~ /^false$/i ? 0 : 1;
         }
@@ -3134,7 +3144,7 @@ sub resolve_scan {
     }
 
     # Limit to 200 files
-    @files = @files[0..199] if @files > 200;
+    @files = @files[ 0 .. 199 ] if @files > 200;
 
     # Read site search default once if any filter references searchable
     my $search_default;
@@ -3154,17 +3164,17 @@ sub resolve_scan {
         # Derive URL relative to the scan root, so a boxed domain's results
         # carry that domain's own '/'-relative paths (SM151).
         ( my $url = $path ) =~ s{^\Q$scan_root\E}{};
-        $url =~ s/\.md$//;
-        $url =~ s{/index$}{/};
+        $url                =~ s/\.md$//;
+        $url                =~ s{/index$}{/};
 
         # Date from front matter or mtime
         my $date = $meta->{date} || '';
-        unless ( $date ) {
+        unless ($date) {
             my @st = stat($path);
-            if ( @st ) {
+            if (@st) {
                 my @t = localtime( $st[9] );
-                $date = sprintf("%04d-%02d-%02d",
-                    $t[5] + 1900, $t[4] + 1, $t[3]);
+                $date = sprintf( "%04d-%02d-%02d",
+                    $t[5] + 1900, $t[4] + 1, $t[3] );
             }
         }
 
@@ -3174,7 +3184,7 @@ sub resolve_scan {
         if ( ref $tags_raw eq 'ARRAY' ) {
             @tags = @$tags_raw;
         }
-        elsif ( $tags_raw ) {
+        elsif ($tags_raw) {
             @tags = map { s/^\s+|\s+$//gr } split /,/, $tags_raw;
         }
 
@@ -3189,7 +3199,7 @@ sub resolve_scan {
             $excerpt =~ s{<script\b[^>]*>.*?</script>}{ }gis;
             $excerpt =~ s{<!--.*?-->}{ }gs;
             $excerpt =~ s/^\s+|\s+$//g;
-            $excerpt = substr($excerpt, 0, 500) if length($excerpt) > 500;
+            $excerpt = substr( $excerpt, 0, 500 ) if length($excerpt) > 500;
         }
 
         # Determine searchable status
@@ -3234,12 +3244,12 @@ sub resolve_scan {
             # Docroot-relative, never the absolute server path: this object is
             # published in the public /search-index JSON and exposed to templates
             # as [% p.path %]. Leaking /home/<user>/web/... was an info disclosure.
-            path       => ( $path =~ s{^\Q$DOCROOT\E}{}r ),
+            path => ( $path =~ s{^\Q$DOCROOT\E}{}r ),
         };
     }
 
     # Apply filters
-    for my $filter ( @filters ) {
+    for my $filter (@filters) {
         my $field = $filter->{field};
         my $val   = $filter->{value};
 
@@ -3248,7 +3258,7 @@ sub resolve_scan {
             my $pval = $page->{$field};
 
             if ( !defined $pval ) {
-                0;  # field not present - exclude
+                0;    # field not present - exclude
             }
             elsif ( $val =~ /^>(.+)$/ ) {
                 # Greater than
@@ -3281,8 +3291,8 @@ sub resolve_scan {
     # custom key (numeric-aware, so sort=order gives 2 before 10).
     my @sorted = sort {
         my ( $va, $vb );
-        if    ( $sort_field eq 'date' )     { ( $va, $vb ) = ( $a->{date}, $b->{date} ) }
-        elsif ( $sort_field eq 'title' )    { ( $va, $vb ) = ( lc( $a->{title} ), lc( $b->{title} ) ) }
+        if ( $sort_field eq 'date' ) { ( $va, $vb ) = ( $a->{date}, $b->{date} ) }
+        elsif ( $sort_field eq 'title' ) { ( $va, $vb ) = ( lc( $a->{title} ), lc( $b->{title} ) ) }
         elsif ( $sort_field eq 'filename' ) { ( $va, $vb ) = ( $a->{path}, $b->{path} ) }
         else {
             $va = ( defined $a->{$sort_field} && !ref $a->{$sort_field} ) ? $a->{$sort_field} : '';
@@ -3425,7 +3435,7 @@ sub scan_pages {
         opendir( my $dh, $dir ) or next;
         for my $entry ( sort readdir($dh) ) {
             next if $entry =~ /^\./;
-            next if $entry =~ /\.brief$/;   # SM073: briefs never index
+            next if $entry =~ /\.brief$/;    # SM073: briefs never index
             my $path = "$dir/$entry";
             # Never index the lazysite/ management tree (auth, templates,
             # cache); relevant when $root is the bare docroot.
@@ -3459,19 +3469,19 @@ sub scan_pages {
 
                 # Get date from front matter or file mtime
                 my $date = $meta->{date} || '';
-                unless ( $date ) {
+                unless ($date) {
                     my @st = stat($path);
-                    if ( @st ) {
+                    if (@st) {
                         my @t = localtime( $st[9] );
-                        $date = sprintf("%04d-%02d-%02d",
-                            $t[5] + 1900, $t[4] + 1, $t[3]);
+                        $date = sprintf( "%04d-%02d-%02d",
+                            $t[5] + 1900, $t[4] + 1, $t[3] );
                     }
                 }
 
                 # Derive URL from path, relative to the scanned root (SM151)
                 ( my $url = $path ) =~ s{^\Q$root\E}{};
-                $url =~ s/\.md$//;
-                $url =~ s{/index$}{/};
+                $url                =~ s/\.md$//;
+                $url                =~ s{/index$}{/};
 
                 push @pages, {
                     url      => $url,
@@ -3555,17 +3565,17 @@ sub render_content {
     my $tt = Template->new(
         ABSOLUTE    => 0,
         ENCODING    => 'utf8',
-        EVAL_PERL   => 0,               # L-2
-        COMPILE_DIR => $TT_COMPILE_DIR, # P-4
-        COMPILE_EXT => '.ttc',          # P-4
+        EVAL_PERL   => 0,                  # L-2
+        COMPILE_DIR => $TT_COMPILE_DIR,    # P-4
+        COMPILE_EXT => '.ttc',             # P-4
     ) or do { umask $old_umask; die "Template error: " . Template->error() . "\n" };
     umask $old_umask;
 
     my %site_vars = resolve_site_vars();
     my %page_vars = resolve_tt_vars( $meta->{tt_page_var} || {} );
 
-    my $groups_ref  = $AUTH_CONTEXT{auth_groups};
-    my $groups_str  = ref $groups_ref eq 'ARRAY' ? join( ',', @$groups_ref ) : ( $groups_ref // '' );
+    my $groups_ref = $AUTH_CONTEXT{auth_groups};
+    my $groups_str = ref $groups_ref eq 'ARRAY' ? join( ',', @$groups_ref ) : ( $groups_ref // '' );
     my $editor_flag = _is_manager( \%site_vars, $AUTH_CONTEXT{auth_user} // '', $groups_str ) ? 1 : 0;
 
     my $vars = {
@@ -3573,13 +3583,13 @@ sub render_content {
         %page_vars,
         %AUTH_CONTEXT,
         %PAYMENT_CONTEXT,
-        %PREVIEW_CONTEXT,   # SM071: preview override wins over site layout/theme
-        page_title        => $meta->{title}            || '',
-        page_subtitle     => $meta->{subtitle}         || '',
-        page_author       => $meta->{author}           || '',
-        page_modified     => $meta->{page_modified}    || '',
+        %PREVIEW_CONTEXT,    # SM071: preview override wins over site layout/theme
+        page_title        => $meta->{title}             || '',
+        page_subtitle     => $meta->{subtitle}          || '',
+        page_author       => $meta->{author}            || '',
+        page_modified     => $meta->{page_modified}     || '',
         page_modified_iso => $meta->{page_modified_iso} || '',
-        request_uri       => $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '',
+        request_uri       => $ENV{REDIRECT_URL}         || $ENV{REQUEST_URI} || '',
         # The visitor's IP: the first hop of X-Forwarded-For (the original client
         # behind a reverse proxy) if present, else the direct peer REMOTE_ADDR.
         # Per-request, so only correct on a `nocache: true` page - a cached page
@@ -3591,28 +3601,28 @@ sub render_content {
             $ip =~ s/[^0-9A-Fa-f:.\[\]]//g;
             $ip;
         },
-        page_source       => do {
+        page_source => do {
             my $src = $meta->{_md_path} // '';
             $src =~ s{^\Q$DOCROOT\E}{};
             $src || '';
         },
-        query             => $query,
-        params            => $query,
-        lazysite_version  => _lazysite_version(),   # asset cache-buster (?v=)
-        enabled_plugins   => _enabled_plugins(),    # conditional manager nav
-        smtp_configured   => ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) ? 1 : 0,  # gate emailed reset
-        # SM099: a cache-safe sign in / out control. BOTH links ship hidden; the
-        # injected auth-sync script reveals the right one from the lzs_session
-        # cookie. Themes drop [% auth_control %] into their header instead of a
-        # server-side [% IF authenticated %], which bakes the wrong state into the
-        # cached HTML (the "shows Sign in while logged in" bug).
-        auth_control      =>
-              '<a href="/login" data-ls-auth-in class="ls-auth ls-auth-in" style="display:none">Sign in</a>'
+        query            => $query,
+        params           => $query,
+        lazysite_version => _lazysite_version(),    # asset cache-buster (?v=)
+        enabled_plugins  => _enabled_plugins(),     # conditional manager nav
+        smtp_configured => ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) ? 1 : 0, # gate emailed reset
+            # SM099: a cache-safe sign in / out control. BOTH links ship hidden; the
+            # injected auth-sync script reveals the right one from the lzs_session
+            # cookie. Themes drop [% auth_control %] into their header instead of a
+            # server-side [% IF authenticated %], which bakes the wrong state into the
+            # cached HTML (the "shows Sign in while logged in" bug).
+        auth_control =>
+            '<a href="/login" data-ls-auth-in class="ls-auth ls-auth-in" style="display:none">Sign in</a>'
             . '<a href="/cgi-bin/lazysite-auth.pl?action=logout" data-ls-auth-out class="ls-auth ls-auth-out" style="display:none">Sign out</a>',
-        sections          => $meta->{sections} || [],  # D035 Phase 3: data-driven pages
-        editor            => $editor_flag,
-        year              => sprintf( '%04d', (localtime)[5] + 1900 ),
-        search_enabled    => ( -f "$DOCROOT/search-results.md" || -f "$DOCROOT/search-results.url" ) ? 1 : 0,
+        sections => $meta->{sections} || [],    # D035 Phase 3: data-driven pages
+        editor   => $editor_flag,
+        year     => sprintf( '%04d', (localtime)[5] + 1900 ),
+        search_enabled => ( -f "$DOCROOT/search-results.md" || -f "$DOCROOT/search-results.url" ) ? 1 : 0,
     };
 
     # Protect <pre><code> blocks and inline <code> elements from TT processing
@@ -3632,8 +3642,8 @@ sub render_content {
     my $processed_body = '';
     $tt->process( \$protected_body, $vars, \$processed_body )
         or do {
-            log_event("ERROR", $ENV{REDIRECT_URL} // "-", "template error, using raw content", error => $tt->error());
-            $processed_body = $protected_body;
+        log_event( "ERROR", $ENV{REDIRECT_URL} // "-", "template error, using raw content", error => $tt->error() );
+        $processed_body = $protected_body;
         };
 
     # Restore protected code blocks
@@ -3657,33 +3667,33 @@ sub get_layout_path {
     my $uri = $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '';
     if ( index( $uri, $manager_path ) == 0 ) {
         return ( $MANAGER_LAYOUT, undef ) if -f $MANAGER_LAYOUT;
-        return ( undef, undef );
+        return ( undef,           undef );
     }
 
     my $name = $meta->{layout} || $vars->{layout} || '';
 
-    if ( $name ) {
+    if ($name) {
         # Remote layout: URL in layout key. Remote keeps the flat
         # /lazysite-assets/CACHE_KEY/ asset convention (D013 decision:
         # remote is a single bundled package).
         if ( $name =~ m{^https?://} ) {
             my ( $cached, $theme_key ) = fetch_remote_layout($name);
             return ( $cached, $theme_key ) if $cached;
-            log_event("WARN", $ENV{REDIRECT_URL} // "-",
-                "remote layout fetch failed", name => $name);
+            log_event( "WARN", $ENV{REDIRECT_URL} // "-",
+                "remote layout fetch failed", name => $name );
             return ( undef, undef );
         }
 
         $name =~ s/[^a-zA-Z0-9_-]//g;
         $name ||= '';
 
-        if ( $name ) {
+        if ($name) {
             # D013: layouts/NAME/layout.tt. No flat-template fallback.
             my $layout_path = "$LAYOUT_DIR/$name/layout.tt";
             return ( $layout_path, $name ) if -f $layout_path;
 
-            log_event('WARN', $ENV{REDIRECT_URL} // '-',
-                'layout not found, using fallback', layout => $name);
+            log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+                'layout not found, using fallback', layout => $name );
         }
     }
 
@@ -3708,25 +3718,25 @@ sub resolve_theme {
     return {} unless -f $theme_json;
 
     open my $fh, '<:utf8', $theme_json or do {
-        log_event('WARN', $ENV{REDIRECT_URL} // '-',
-            'cannot open theme.json', path => $theme_json);
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'cannot open theme.json', path => $theme_json );
         return {};
     };
     my $raw = do { local $/; <$fh> };
     close $fh;
     my $data = eval { decode_json($raw) };
     unless ( ref $data eq 'HASH' ) {
-        log_event('WARN', $ENV{REDIRECT_URL} // '-',
-            'invalid theme.json', path => $theme_json);
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'invalid theme.json', path => $theme_json );
         return {};
     }
 
     # Strict: theme must declare compatibility with the active layout.
     my $layouts = $data->{layouts};
     unless ( ref $layouts eq 'ARRAY' && grep { $_ eq $layout_name } @$layouts ) {
-        log_event('WARN', $ENV{REDIRECT_URL} // '-',
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
             'theme not declared for layout; rendering without theme styling',
-            theme => $theme_name, layout => $layout_name);
+            theme => $theme_name, layout => $layout_name );
         return {};
     }
 
@@ -3778,7 +3788,7 @@ sub generate_theme_css {
         }
     }
     return '' unless @lines;
-    return "<style>\n:root {\n" . join("\n", @lines) . "\n}\n</style>";
+    return "<style>\n:root {\n" . join( "\n", @lines ) . "\n}\n</style>";
 }
 
 sub fetch_remote_layout {
@@ -3788,14 +3798,14 @@ sub fetch_remote_layout {
     my $cache_key = $url;
     $cache_key =~ s{https?://}{};
     $cache_key =~ s{[^a-zA-Z0-9_-]}{_}g;
-    $cache_key = substr($cache_key, 0, 200);  # limit length
+    $cache_key = substr( $cache_key, 0, 200 );    # limit length
 
     my $cache_path = "$LAYOUT_CACHE_DIR/$cache_key.tt";
 
     # Serve from cache if fresh (use $REMOTE_TTL - same as remote pages)
     if ( -f $cache_path ) {
         my @st = stat($cache_path);
-        if ( @st && (time() - $st[9]) < $REMOTE_TTL ) {
+        if ( @st && ( time() - $st[9] ) < $REMOTE_TTL ) {
             return ( $cache_path, $cache_key );
         }
     }
@@ -3810,7 +3820,7 @@ sub fetch_remote_layout {
     # Write to cache
     make_path($LAYOUT_CACHE_DIR) unless -d $LAYOUT_CACHE_DIR;
     open( my $fh, '>:utf8', $cache_path ) or do {
-        log_event("WARN", $ENV{REDIRECT_URL} // "-", "cannot write layout cache", path => $cache_path, error => $!);
+        log_event( "WARN", $ENV{REDIRECT_URL} // "-", "cannot write layout cache", path => $cache_path, error => $! );
         return ( undef, undef );
     };
     print $fh $content;
@@ -3818,7 +3828,7 @@ sub fetch_remote_layout {
 
     # Attempt to fetch theme.json manifest from same directory
     my $base_url = $url;
-    $base_url =~ s{/[^/]+$}{};  # strip filename to get directory URL
+    $base_url =~ s{/[^/]+$}{};    # strip filename to get directory URL
     my $manifest_url = "$base_url/theme.json";
     my $manifest_raw = fetch_url($manifest_url);
 
@@ -3833,7 +3843,7 @@ sub fetch_remote_layout {
                 # Still accept legacy view.tt in the files list so a
                 # transitional manifest doesn't re-fetch it.
                 next if $file eq 'layout.tt' || $file eq 'view.tt';
-                next if $file =~ /\.\./;     # no traversal
+                next if $file =~ /\.\./;                              # no traversal
 
                 my $file_url     = "$base_url/$file";
                 my $file_content = fetch_url($file_url);
@@ -3874,7 +3884,7 @@ sub render_template {
     #   package; D013 nested structure does not apply).
     # - undef for the manager path and for the embedded fallback.
     my $is_remote_layout = defined $layout
-        && index($layout, $LAYOUT_CACHE_DIR) == 0;
+        && index( $layout, $LAYOUT_CACHE_DIR ) == 0;
 
     if ( defined $layout_key && $is_remote_layout ) {
         # Remote: flat asset path, no theme resolution (§3 decision).
@@ -3928,17 +3938,17 @@ sub render_template {
 
     if ( !defined $layout ) {
         # No layout found - use built-in fallback directly
-        log_event("WARN", $ENV{REDIRECT_URL} // "-", "layout not found, using fallback");
+        log_event( "WARN", $ENV{REDIRECT_URL} // "-", "layout not found, using fallback" );
         my $tt_fallback = Template->new( ENCODING => 'utf8', EVAL_PERL => 0 )
             or do {
-                log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance');
-                return $processed_body;
+            log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'cannot create fallback TT instance' );
+            return $processed_body;
             };
 
         $tt_fallback->process( \$FALLBACK_LAYOUT, $vars, \$output )
             or do {
-                log_event('ERROR', $ENV{REDIRECT_URL} // '-', 'fallback layout error', error => $tt_fallback->error());
-                return $processed_body;
+            log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'fallback layout error', error => $tt_fallback->error() );
+            return $processed_body;
             };
 
         # Head injection must be layout-independent (SM112 generator meta,
@@ -4078,10 +4088,10 @@ sub _enabled_plugins {
         if (/^plugins\s*:\s*$/) { $in = 1; next }
         if ( $in && /^\s+-\s+(.+?)\s*$/ ) {
             my $e = $1;
-            $en{$e} = 1;                  # raw entry, e.g. stats.pl
-            ( my $base = $e ) =~ s{.*/}{};        # basename (drop any path prefix)
+            $en{$e} = 1;                           # raw entry, e.g. stats.pl
+            ( my $base = $e ) =~ s{.*/}{};         # basename (drop any path prefix)
             $en{$base} = 1;
-            ( my $id = $base ) =~ s/\.[^.]+$//;   # extensionless id, e.g. stats
+            ( my $id = $base ) =~ s/\.[^.]+$//;    # extensionless id, e.g. stats
             $en{$id} = 1 if length $id;
         }
         elsif ( $in && /^\S/ ) { $in = 0 }
@@ -4174,7 +4184,7 @@ sub _inject_admin_bar {
     # Don't inject on manager pages - they have their own chrome
     my $manager_path = $vars->{manager_path} || '/manager';
     return $html if $request_uri eq $manager_path
-                  || index( $request_uri, "$manager_path/" ) == 0;
+        || index( $request_uri, "$manager_path/" ) == 0;
 
     # Who is viewing? Use the same rule as the /manager route protection.
     my $auth_user   = $ENV{HTTP_X_REMOTE_USER}   // '';
@@ -4190,12 +4200,12 @@ sub _inject_admin_bar {
     # /manager/config's Active theme dropdown (SM044) is now the
     # single path to set the site-wide active theme.
     my $manager_tools = '';
-    if ( $is_manager ) {
+    if ($is_manager) {
         $manager_tools .= '<a href="/manager/" style="color:#6db3f2;text-decoration:none;">Manage</a>';
 
-        if ( $page_source ) {
+        if ($page_source) {
             $manager_tools .= '<a href="/manager/edit?path=' . $page_source
-                           .  '" style="color:#6db3f2;text-decoration:none;">Edit</a>';
+                . '" style="color:#6db3f2;text-decoration:none;">Edit</a>';
         }
 
         if ( $ENV{LAZYSITE_AUTH_NO_PASSWORD} ) {
@@ -4204,7 +4214,7 @@ sub _inject_admin_bar {
         }
 
         my $user = $vars->{auth_name} || $vars->{auth_user} || '';
-        if ( $user ) {
+        if ($user) {
             $manager_tools .= '<span style="margin-left:auto;">' . $user . '</span>';
             $manager_tools .= '<a href="/cgi-bin/lazysite-auth.pl?action=logout" style="color:#888;text-decoration:none;">Sign out</a>';
         }
@@ -4240,7 +4250,7 @@ sub _inject_admin_bar {
 
     # Hide in iframes (e.g. the editor's srcdoc preview)
     $bar .= '<script>if(window!==window.top){var ab=document.getElementById("ls-admin-bar");'
-          . 'if(ab)ab.style.display="none";}</script>';
+        . 'if(ab)ab.style.display="none";}</script>';
 
     # Anchor to the FIRST <body> after </head>, not the first <body> anywhere: a
     # page can carry a literal "<body>" inside a head comment or script string
@@ -4271,16 +4281,16 @@ sub _inject_admin_bar_live {
     return $html unless ( $sv{manager} // '' ) eq 'enabled';
 
     my $page_source = $md_path // '';
-    $page_source =~ s{^\Q$DOCROOT\E/}{};   # docroot-relative, for the Edit link
+    $page_source =~ s{^\Q$DOCROOT\E/}{};    # docroot-relative, for the Edit link
 
-    my $groups = $AUTH_CONTEXT{auth_groups} || [];
+    my $groups   = $AUTH_CONTEXT{auth_groups} || [];
     my $bar_vars = {
-        %sv,                                     # manager, manager_path, manager_groups
-        # Behind the auth wrapper (every /manager/* page) REDIRECT_URL is unset and
-        # the real path is in REQUEST_URI - same resolution as the request_uri TT
-        # var and get_layout_path. Using REDIRECT_URL alone left request_uri empty,
-        # so the "skip on manager pages" guard never fired and the bar was injected
-        # into the manager page (and into a <body> in its head comment).
+        %sv,   # manager, manager_path, manager_groups
+               # Behind the auth wrapper (every /manager/* page) REDIRECT_URL is unset and
+               # the real path is in REQUEST_URI - same resolution as the request_uri TT
+               # var and get_layout_path. Using REDIRECT_URL alone left request_uri empty,
+               # so the "skip on manager pages" guard never fired and the bar was injected
+               # into the manager page (and into a <body> in its head comment).
         request_uri => ( $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '' ),
         page_source => $page_source,
         auth_user   => $AUTH_CONTEXT{auth_user} // '',
@@ -4314,7 +4324,7 @@ sub write_ct {
 
     my $ct_path = ct_cache_path($base);
     open( my $fh, '>:utf8', $ct_path ) or do {
-        log_event("WARN", $ENV{REDIRECT_URL} // "-", "cannot write content type cache", path => $ct_path, error => $!);
+        log_event( "WARN", $ENV{REDIRECT_URL} // "-", "cannot write content type cache", path => $ct_path, error => $! );
         return;
     };
     print $fh $content_type;
@@ -4341,7 +4351,7 @@ sub write_html {
     # Refuse to write zero-byte content - protects against empty cache
     # files that would permanently block regeneration via DirectoryIndex
     unless ( length($page) ) {
-        log_event("WARN", $ENV{REDIRECT_URL} // "-", "refusing zero-byte cache write", path => $html_path);
+        log_event( "WARN", $ENV{REDIRECT_URL} // "-", "refusing zero-byte cache write", path => $html_path );
         return;
     }
 
@@ -4360,7 +4370,7 @@ sub write_html {
         while !-e $check_path && length($check_path) > 1;
     my $real = realpath($check_path);
     if ( !_path_under( $real, $DOCROOT ) ) {
-        log_event("WARN", $ENV{REDIRECT_URL} // "-", "cache path outside docroot", path => $html_path);
+        log_event( "WARN", $ENV{REDIRECT_URL} // "-", "cache path outside docroot", path => $html_path );
         return;
     }
 
@@ -4371,7 +4381,7 @@ sub write_html {
         # and subdirectories inherit the group automatically.
         my $gid = ( stat($DOCROOT) )[5];
         chown -1, $gid, $dir;
-        chmod 0o775 | 0o2000, $dir;  # L-8: explicit octal; 0o2000 = setgid
+        chmod 0o775 | 0o2000, $dir;    # L-8: explicit octal; 0o2000 = setgid
     }
 
     # P-5: atomic write via tempfile + rename so readers never see a torn
@@ -4384,10 +4394,10 @@ sub write_html {
     # the site user's tooling and the www-data CGI can manage each other's
     # cache entries in place on a group-shared docroot.
     my $old_umask = _cache_umask();
-    my $tmp = "$html_path.tmp.$$";
+    my $tmp       = "$html_path.tmp.$$";
     open( my $fh, '>:utf8', $tmp ) or do {
         umask $old_umask;
-        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot write cache tempfile', path => $tmp, error => $!);
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'cannot write cache tempfile', path => $tmp, error => $! );
         return;
     };
     # SM020 checked-write pattern (review D5): a failed print surfaces as a
@@ -4399,13 +4409,13 @@ sub write_html {
     unless ( close($fh) && $wrote ) {
         my $err = $!;
         unlink $tmp;
-        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cache write failed, tempfile dropped', path => $tmp, error => $err);
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'cache write failed, tempfile dropped', path => $tmp, error => $err );
         return;
     }
     unless ( rename $tmp, $html_path ) {
         my $err = $!;
         unlink $tmp;
-        log_event('WARN', $ENV{REDIRECT_URL} // '-', 'cannot rename cache tempfile', path => $html_path, error => $err);
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-', 'cannot rename cache tempfile', path => $html_path, error => $err );
         return;
     }
 }
@@ -4414,7 +4424,7 @@ sub write_html {
 
 sub output_page {
     my ( $content, $content_type, $ttl, $auth_protected ) = @_;
-    $content_type //= 'text/html; charset=utf-8';
+    $content_type  //= 'text/html; charset=utf-8';
     $ACCESS_REC{s} //= 200;                          # SM140
     $ACCESS_REC{b} = length( $content // '' );       # SM140
     binmode( STDOUT, ':utf8' );
@@ -4427,7 +4437,7 @@ sub output_page {
     print "X-Content-Type-Options: nosniff\n";
     print "X-Frame-Options: SAMEORIGIN\n";
     print "Referrer-Policy: strict-origin-when-cross-origin\n";
-    if ( $auth_protected ) {
+    if ($auth_protected) {
         print "Cache-Control: no-store, private\n";
     }
     elsif ( defined $ttl && $ttl > 0 ) {
@@ -4486,22 +4496,22 @@ sub read_file {
 }
 
 sub log_event {
-    my ($level, $context, $message, %extra) = @_;
+    my ( $level, $context, $message, %extra ) = @_;
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
-    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    my %rank      = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
     return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
     use POSIX qw(strftime);
-    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $ts     = strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
     if ( $format eq 'json' ) {
         my $pairs = join ',',
-            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            map { '"' . _json_str($_) . '":"' . _json_str( $extra{$_} ) . '"' }
             keys %extra;
         my $json = '{"ts":"' . $ts . '"'
-            . ',"level":"'     . _json_str($level)          . '"'
-            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
-            . ',"context":"'   . _json_str($context)        . '"'
-            . ',"message":"'   . _json_str($message)        . '"'
+            . ',"level":"' . _json_str($level) . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT) . '"'
+            . ',"context":"' . _json_str($context) . '"'
+            . ',"message":"' . _json_str($message) . '"'
             . ( $pairs ? ",$pairs" : '' )
             . '}';
         print STDERR "$json\n";
@@ -4510,7 +4520,7 @@ sub log_event {
         my $extras = join ' ',
             map { "$_=" . $extra{$_} } keys %extra;
         my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
-        $line   .= " $extras" if $extras;
+        $line .= " $extras" if $extras;
         print STDERR "$line\n";
     }
 }
