@@ -1,3 +1,22 @@
+lazysite (0.7.16-1) unstable; urgency=high
+
+  * EDGE: security hardening round 1 (SEC-2026-07). An 11-agent review against
+    0.7.15 (static + black-box + an RCE/OS-access follow-up); every critical,
+    high and medium finding is fixed here with a regression test. See
+    CHANGELOG.md and security/audit-register.json.
+  * Criticals: plugin-runner arbitrary-file execution (registry confinement);
+    password-reset account takeover (user-mgmt capability + actor confinement);
+    content include reading the lazysite/ secrets tree (content-root confinement).
+  * Highs: cookie/manager path capability-gated + POST-only + boundary-safe
+    containment + lazysite/-tree deny (H1-H4); SSI #exec and .htaccess RCE
+    removed from the vhost templates; front-matter/breadcrumb XSS escaping;
+    SSRF redirect re-validation; dev-server confinement + loopback bind.
+  * Mediums: dav_scope enforced on MCP/API; logout invalidates the session;
+    per-request group re-resolution; backup restore drops setuid/world-writable.
+  * urgency=high: fixes three criticals on the public-facing profile.
+
+ -- Stuart J Mackintosh <sjm@opendigital.cc>  Tue, 15 Jul 2026 09:00:00 +0000
+
 lazysite (0.7.15-1) unstable; urgency=medium
 
   * EDGE: SM151 §7 - the multi-site page scanner (sitemap/feeds + search) now

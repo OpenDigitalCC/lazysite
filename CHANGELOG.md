@@ -18,6 +18,113 @@ Keying
 
 ## Unreleased
 
+## 0.7.16 - EDGE: security hardening round 1 (SEC-2026-07) (2026-07-15)
+
+Security round 1 (SEC-2026-07): this release is a dedicated security-hardening
+pass. An 11-agent review (static across every surface plus black-box probers on
+a live multi-account, multi-site instance, then a focused RCE/OS-access
+follow-up) was run against 0.7.15; every critical, high and medium finding is
+fixed here and covered by a regression test. The durable register of what the
+round covered - so future rounds extend rather than repeat it - is
+`security/audit-register.json`. Exploit-level detail is kept out of the repo by
+policy; the entries below describe the defect and the fix.
+
+Critical: plugin runner no longer executes an arbitrary on-disk file (RCE-1)
+: The manager plugin runner resolved a caller-supplied `script` name with no
+  confinement, so any account with manager-UI access could write Perl into a
+  file and have the runner execute it as the web user. Plugins are now resolved
+  through a canonical `plugin_registry()` (core scripts + the `plugins/`
+  directory, symlinks refused) - the first step of the plugins-vs-core
+  formalisation (SM152) - and `resolve_plugin_script` returns only a registry
+  entry. `t/unit/manager/27-plugin-registry-rce.t`.
+
+Critical: account-takeover via password reset is closed (C1)
+: The cookie/manager path reached the account-management action ungated, so a
+  content-only account could reset any password, including an administrator's.
+  The `users` action now requires a user-management capability
+  (`manage_users`, or a delegated `create_sub_users` /
+  `delegate_sub_user_creation`), and `cmd_passwd` takes an actor and refuses to
+  reset an account outside the actor's own delegated sub-tree.
+  `t/unit/manager/29-cookie-authz.t`.
+
+Critical: content includes can no longer read the secrets tree (C2)
+: A `::: include` (and the `json:` reader) was confined only to the docroot and
+  never excluded the `lazysite/` management tree, so a content author could
+  include `lazysite/auth/.secret` and leak the cookie-signing secret (and
+  password hashes) into a public page. Includes are now confined to the
+  request's content root and refuse any path resolving under `lazysite/`.
+  `t/unit/processor/06-convert-fenced-include.t`.
+
+High: cookie/manager path is capability-gated, POST-only, docroot-confined (H1-H4)
+: The capability model existed only for token clients (`%need`); the cookie
+  (manager-UI) channel was treated as a trusted operator, so a low-privilege
+  interactive account could config-set, run backups, list users, and more (H1).
+  The same per-action model now applies to the cookie path, and state-changing
+  actions must be POST so a GET cannot bypass the CSRF gate (H2). The manager
+  file layer's containment check had a sibling-prefix escape
+  (`index($real,$DOCROOT)` with no trailing slash - `public_html.bak` passed for
+  `public_html`); it is now boundary-safe (H3). The generic file editor is
+  denied the sensitive `lazysite/` subtrees - auth store, logs, backups,
+  templates, manager chrome, form-config secrets - while the capability-gated
+  authoring areas (`layouts/`, `themes/`, `nav.conf`) stay reachable (H4).
+  `t/unit/manager/{28-file-editor-confinement,29-cookie-authz}.t`.
+
+High: SSI #exec and .htaccess handler-injection RCE removed from the templates (H-SSI, H-HTACCESS)
+: The shipped Apache/Hestia vhost templates enabled `Options +Includes` (SSI
+  `#exec`) and `AllowOverride All` (`.htaccess`) on the writable docroot, so a
+  `manage_content` author could publish `evil.shtml` or a handler-injecting
+  `.htaccess` and gain execution. Templates now ship `+IncludesNOEXEC` and
+  `AllowOverride None`, and active-content / server-config extensions
+  (`.pl .cgi .php .shtml .phtml .htaccess .htpasswd` ...) are refused on save,
+  upload and WebDAV write. `t/lint/12-vhost-hardening.t`.
+
+High: front-matter and the manager breadcrumb are XSS-escaped (H5)
+: A page's front-matter `title`/`subtitle`/`author` were emitted unescaped in
+  every layout, and the manager breadcrumb built an `onclick` from an unescaped
+  path/label (a directory can be named with a payload). Front-matter is now
+  HTML-escaped at the single point it enters the template stash - protecting
+  every layout, including third-party ones - and the breadcrumb escapes both the
+  JS-string and HTML contexts. `t/integration/17-frontmatter-xss.t`.
+
+High: the remote fetch re-validates redirect targets (H6)
+: The SSRF guard checked only the initial URL; LWP then followed up to seven
+  redirects unchecked, so a public URL that 302'd to `169.254.169.254` or
+  `127.0.0.1` reached internal targets. Redirects are now followed manually with
+  the guard re-run on every hop, plus a response-size cap.
+  `t/unit/lib/19-fetch-ssrf.t`.
+
+High: the dev server is confined and no longer wedges (H7, L-DEVBIND)
+: `tools/lazysite-server.pl` served any existing file - including
+  `lazysite/auth/users` and `../../etc/passwd` - unauthenticated, and bound
+  `0.0.0.0`. Its static/auto-index handlers now realpath-confine to the docroot
+  and deny the `lazysite/` tree, dotfiles and traversal; it binds `127.0.0.1` by
+  default (`--host` opts into a LAN bind). A bare POST to `lazysite-auth.pl`
+  with no `?action` self-exec'd in a loop and wedged the single-threaded server;
+  the wrapper now refuses to exec itself. `t/unit/tools/02-dev-server-confinement.t`.
+
+Medium: token/partner scope, session lifecycle and backup restore hardened (M1-M5, M-TAR)
+: Cross-domain includes are confined to the content root (M1, same fix as C2).
+  `dav_scope` is now enforced on the MCP and control-API channels, not only over
+  WebDAV, so a scoped partner credential that also holds `api`/`mcp` can no
+  longer reach the whole content namespace (M2). Logout now invalidates the
+  session server-side (revokes the sid) rather than only clearing the browser
+  cookie, so a captured cookie stops working immediately (M4). Group membership
+  is re-resolved from the live groups file each request rather than trusted from
+  the 24h cookie, so a demotion takes effect at once (M5). Backup restore
+  extracts with `--no-same-permissions` so a hostile archive cannot restore
+  setuid/world-writable modes (M-TAR). `t/unit/manager/30-dav-scope.t`,
+  `t/unit/mcp/02-dav-scope.t`, `t/unit/auth/13-logout-and-groups.t`,
+  `t/unit/manager/22-backup-restore.t`.
+
+Low/info hardening
+: The manager plugin list and the alias-redirect body now escape their output
+  (attribute-safe), the FastCGI pool unit gains `NoNewPrivileges`,
+  `ProtectSystem=full`, `PrivateTmp`, `RestrictSUIDSGID` and related sandboxing,
+  and the CSRF-token-survives-logout window is closed in practice by the M4
+  logout revocation. A per-account login throttle and the OAuth register
+  rate-limit are deferred (recorded in the register), and the secret-file
+  `chmod` TOCTOU is accepted as shielded by the `02770` auth directory.
+
 ## 0.7.15 - EDGE: multi-site bare-docroot exclusion (SM151 §7) (2026-07-14)
 
 Multi-site: bare-docroot scan excludes other domains' content roots (SM151 §7)
