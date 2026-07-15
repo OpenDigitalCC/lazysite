@@ -37,5 +37,19 @@ ExecStart=/usr/bin/perl /usr/share/lazysite/tools/lazysite-pool.pl --instance %i
 Restart=always
 RestartSec=2
 
+# SEC-2026-07 (L-SYSTEMD): sandbox the request-path process. The launcher starts
+# as root only to bind + chown the socket, then drops to USER - a privilege DROP,
+# which these directives never impede - so they simply shrink the blast radius of
+# the long-running worker. ProtectSystem=full makes /usr, /boot and /etc read-
+# only; docroots live under /home|/var|/srv (still writable), so content history,
+# caches and form submissions are unaffected.
+NoNewPrivileges=yes
+ProtectSystem=full
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+
 [Install]
 WantedBy=multi-user.target
