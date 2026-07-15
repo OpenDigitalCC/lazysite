@@ -25,8 +25,8 @@ load_processor($docroot);
         "$docroot/index.md",
         $meta,
     );
-    like(   $out, qr/Partial content/, 'absolute include brings in body' );
-    unlike( $out, qr/title: Partial/,   'front matter stripped' );
+    like( $out, qr/Partial content/, 'absolute include brings in body' );
+    unlike( $out, qr/title: Partial/, 'front matter stripped' );
 }
 
 # --- missing file produces include-error span ---
@@ -46,8 +46,8 @@ load_processor($docroot);
         "$docroot/index.md",
         {},
     );
-    unlike( $out, qr/root:/,                'traversal not resolved' );
-    like(   $out, qr/class="include-error"/, 'traversal → include-error span' );
+    unlike( $out, qr/root:/, 'traversal not resolved' );
+    like( $out, qr/class="include-error"/, 'traversal → include-error span' );
 }
 
 # --- TT variable in path is deferred to second pass ---
@@ -58,7 +58,7 @@ load_processor($docroot);
         {},
     );
     like( $out, qr/\[% feature\.path %\]/, 'TT variable path preserved' );
-    like( $out, qr/:::/,                    'fence preserved for second pass' );
+    like( $out, qr/:::/,                   'fence preserved for second pass' );
 }
 
 # --- ttl modifier sets meta ttl ---
@@ -81,6 +81,26 @@ load_processor($docroot);
         $meta,
     );
     is( $meta->{ttl}, 600, 'existing ttl in meta not overridden' );
+}
+
+# --- SEC-2026-07 (C2): the lazysite/ management tree is never includable ---
+# A content author must not be able to `::: include /lazysite/auth/.secret`
+# and leak the CSRF/HMAC secret (or password hashes) into a public page.
+{
+    mkdir "$docroot/lazysite";
+    mkdir "$docroot/lazysite/auth";
+    open my $s, '>', "$docroot/lazysite/auth/.secret" or die $!;
+    print $s "TOPSECRET-HMAC-KEY-9f3a\n";
+    close $s;
+
+    for my $src ( '/lazysite/auth/.secret', 'lazysite/auth/.secret',
+        "$docroot/lazysite/auth/.secret" )
+    {
+        my $out = main::convert_fenced_include(
+            "::: include\n$src\n:::\n", "$docroot/index.md", {} );
+        unlike( $out, qr/TOPSECRET/, "secret not leaked via include ($src)" );
+        like( $out, qr/class="include-error"/, "lazysite/ include refused ($src)" );
+    }
 }
 
 done_testing();
