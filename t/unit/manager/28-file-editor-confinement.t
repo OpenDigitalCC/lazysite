@@ -22,6 +22,16 @@ ok( is_blocked_path('lazysite/git-sync.conf'), 'H4: plugin-secret conf blocked' 
 ok( !is_blocked_path('lazysite/forms/submissions/2026.jsonl'), 'forms/submissions still readable' );
 ok( !is_blocked_path('content/page.md'), 'ordinary content not blocked' );
 
+# The capability-/scope-gated content areas partners legitimately manage by
+# path (layouts, themes, nav.conf) must NOT be caught by this path blocklist -
+# their own manage_layouts/manage_themes/manage_nav + dav_scope gates apply.
+ok( !is_blocked_path('lazysite/layouts/demo/theme.css'), 'layouts/ managed area allowed' );
+ok( !is_blocked_path('lazysite/themes/live/theme.css'), 'themes/ managed area allowed' );
+ok( !is_blocked_path('lazysite/nav.conf'),              'nav.conf (nav editor) allowed' );
+# ...but the sensitive form CONFIGS next to submissions stay blocked.
+ok( is_blocked_path('lazysite/forms/smtp.conf'), 'form configs (secrets) still blocked' );
+ok( is_blocked_path('lazysite/manager/layout.tt'), 'manager UI chrome still blocked' );
+
 # --- active-content / server-config extensions (SSI, PHP, .htaccess, .PL) ----
 ok( is_blocked_path('x.cgi'),         'cgi blocked' );
 ok( is_blocked_path('x.shtml'),       'shtml (SSI) blocked' );

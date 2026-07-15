@@ -7,10 +7,10 @@ package Lazysite::Manager::Common;
 
 use strict;
 use warnings;
-use Cwd qw(realpath);
+use Cwd            qw(realpath);
 use Errno          ();                # %! (errno names) for the permission-failure hint
 use File::Basename qw(dirname);
-use JSON::PP qw(encode_json);
+use JSON::PP       qw(encode_json);
 use Lazysite::Util qw(log_event);
 use Exporter 'import';
 
@@ -18,9 +18,9 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key);
 
-our $DOCROOT;          # set by the script
-our $action    = '';   # current request action (for log attribution)
-our $auth_user = '';   # current request user (for log attribution)
+our $DOCROOT;                         # set by the script
+our $action    = '';                  # current request action (for log attribution)
+our $auth_user = '';                  # current request user (for log attribution)
 
 our @BLOCKED_PATHS = (
     'lazysite/auth/.secret',
@@ -47,9 +47,9 @@ sub validate_path {
 
     $rel_path =~ s{^/+}{};
 
-    my $full = "$DOCROOT/$rel_path";
+    my $full  = "$DOCROOT/$rel_path";
     my $check = -e $full ? $full : dirname($full);
-    my $real = realpath($check);
+    my $real  = realpath($check);
 
     # SEC-2026-07 (H3): boundary-safe containment. A bare index($real,$DOCROOT)
     # prefix test also passed for a SIBLING whose name is a string-superset of
@@ -70,15 +70,19 @@ sub is_blocked_path {
             return 1;
         }
     }
-    # SEC-2026-07 (H4): the whole lazysite/ management tree is off-limits to the
-    # generic file editor (auth store, .secret, ACLs, lazysite.conf, templates,
-    # backups, logs, plugin-secret confs). Dedicated actions (nav-save, theme/
-    # layout ops, handler-save, plugin-save, config-set) write their specific
-    # files through their own gated paths; the generic read/save/delete/move/
-    # copy must not reach the tree. forms/submissions stays readable (operator
-    # reviews form entries there).
+    # SEC-2026-07 (H4): the SENSITIVE part of the lazysite/ management tree is
+    # off-limits to the generic file editor - the auth store (.secret, hashes,
+    # ACLs, sessions), logs, cache, backups, the built-in templates, the manager
+    # UI chrome, lazysite.conf, and form CONFIGS (smtp.conf etc. hold secrets).
+    # The capability-/scope-gated content areas that partners legitimately manage
+    # by path - layouts/, themes/, nav.conf - and form SUBMISSIONS (operator
+    # reviews entries) stay reachable: those are guarded by manage_layouts/
+    # manage_themes/manage_nav + dav_scope, not by this path blocklist.
     if ( $rel_path =~ m{\Alazysite/}
-        && $rel_path !~ m{\Alazysite/forms/submissions/} )
+        && $rel_path !~ m{\Alazysite/forms/submissions/}
+        && $rel_path !~ m{\Alazysite/layouts/}
+        && $rel_path !~ m{\Alazysite/themes/}
+        && $rel_path !~ m{\Alazysite/nav\.conf\z} )
     {
         log_event( 'WARN', $action, 'blocked lazysite tree', path => $rel_path, user => $auth_user );
         return 1;
@@ -127,7 +131,7 @@ sub respond {
     my ($data) = @_;
     # encode_json already emits UTF-8 bytes; print raw (a :utf8 layer would
     # double-encode non-ASCII content into mojibake).
-    binmode( STDOUT );
+    binmode(STDOUT);
     print "Status: 200 OK\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json($data);
@@ -137,10 +141,10 @@ our $_upload_limits_cache;
 
 sub load_upload_limits {
     my %limits = (
-        max_bytes          => 10 * 1024 * 1024,
-        blocked_paths      => [ qw(
-            lazysite/auth lazysite/forms lazysite/cache
-            lazysite/manager cgi-bin manager
+        max_bytes     => 10 * 1024 * 1024,
+        blocked_paths => [ qw(
+                lazysite/auth lazysite/forms lazysite/cache
+                lazysite/manager cgi-bin manager
         ) ],
         blocked_extensions => [@DANGEROUS_EXT],    # SEC-2026-07: block active content
         rate_count         => 60,
@@ -154,7 +158,7 @@ sub load_upload_limits {
     my $old_key_seen = 0;
     open my $fh, '<', $conf_path or return \%limits;
     while (<$fh>) {
-        if ( /^manager_upload_max_mb\s*:\s*(\S+)/ ) {
+        if (/^manager_upload_max_mb\s*:\s*(\S+)/) {
             my $mb = $1;
             if ( $mb =~ /^\d+$/ && $mb > 0 ) {
                 $limits{max_bytes} = $mb * 1024 * 1024;
@@ -163,19 +167,19 @@ sub load_upload_limits {
                     'invalid manager_upload_max_mb', value => $mb );
             }
         }
-        elsif ( /^manager_blocked_paths\s*:\s*(.+)/ ) {
+        elsif (/^manager_blocked_paths\s*:\s*(.+)/) {
             my $v = $1;
             $v =~ s/\s+$//;
             if ( length $v ) {
                 $limits{blocked_paths} = [
-                    map  { my $p = $_; $p =~ s{^/+|/+$}{}g; $p }
-                    grep { length }
-                    split /\s*,\s*/, $v
+                    map { my $p = $_; $p =~ s{^/+|/+$}{}g; $p }
+                        grep { length }
+                        split /\s*,\s*/, $v
                 ];
             }
             $new_key_seen = 1;
         }
-        elsif ( /^manager_upload_blocked_paths\s*:\s*(.+)/ ) {
+        elsif (/^manager_upload_blocked_paths\s*:\s*(.+)/) {
             # Deprecated alias; only honoured if the new key
             # is absent. The new-key check happens after the
             # loop because they may appear in either order.
@@ -183,25 +187,25 @@ sub load_upload_limits {
             $v =~ s/\s+$//;
             if ( length $v ) {
                 $limits{_deprecated_blocked_paths} = [
-                    map  { my $p = $_; $p =~ s{^/+|/+$}{}g; $p }
-                    grep { length }
-                    split /\s*,\s*/, $v
+                    map { my $p = $_; $p =~ s{^/+|/+$}{}g; $p }
+                        grep { length }
+                        split /\s*,\s*/, $v
                 ];
             }
             $old_key_seen = 1;
         }
-        elsif ( /^manager_upload_blocked_extensions\s*:\s*(.+)/ ) {
+        elsif (/^manager_upload_blocked_extensions\s*:\s*(.+)/) {
             my $v = $1;
             $v =~ s/\s+$//;
             if ( length $v ) {
                 $limits{blocked_extensions} = [
-                    map  { lc $_ }
-                    grep { length }
-                    split /\s*,\s*/, $v
+                    map { lc $_ }
+                        grep { length }
+                        split /\s*,\s*/, $v
                 ];
             }
         }
-        elsif ( /^manager_upload_rate_count\s*:\s*(\S+)/ ) {
+        elsif (/^manager_upload_rate_count\s*:\s*(\S+)/) {
             my $n = $1;
             if ( $n =~ /^\d+$/ ) {
                 $limits{rate_count} = $n + 0;
@@ -210,7 +214,7 @@ sub load_upload_limits {
                     'invalid manager_upload_rate_count', value => $n );
             }
         }
-        elsif ( /^manager_upload_rate_mb\s*:\s*(\S+)/ ) {
+        elsif (/^manager_upload_rate_mb\s*:\s*(\S+)/) {
             my $mb = $1;
             if ( $mb =~ /^\d+$/ ) {
                 $limits{rate_bytes} = $mb * 1024 * 1024;
@@ -229,7 +233,7 @@ sub load_upload_limits {
         $limits{blocked_paths} = delete $limits{_deprecated_blocked_paths};
         log_event( 'INFO', 'config',
             'manager_upload_blocked_paths is deprecated; '
-          . 'rename to manager_blocked_paths in lazysite.conf' );
+                . 'rename to manager_blocked_paths in lazysite.conf' );
     }
     delete $limits{_deprecated_blocked_paths};
 
