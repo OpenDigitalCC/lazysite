@@ -339,23 +339,31 @@ sub handle_login {
 # The user of a VALID session cookie, or '' if there is no valid session. auth.pl
 # handles ?action=logout directly (not behind the wrapper), so HTTP_X_REMOTE_USER
 # is not set here - validate the cookie ourselves.
-sub _session_user {
+sub _session_user { return ( _session_identity() )[0] }
+
+# Verify the session cookie and return ( $user, $sid ) - $sid is '' for a
+# legacy (pre-SM141) user:ts:groups cookie. Returns ( '', '' ) if the cookie is
+# absent, unsigned, tampered, or expired.
+sub _session_identity {
     my $cookie = read_cookie($COOKIE_NAME);
-    return '' unless $cookie;
+    return ( '', '' ) unless $cookie;
     my ( $payload, $sig ) = $cookie =~ /^(.+):([a-f0-9]{64})$/;
-    return '' unless $payload && $sig;
+    return ( '', '' ) unless $payload && $sig;
     $payload = uri_decode_simple($payload);
     my $secret = load_auth_secret();
-    return '' unless const_eq( $sig, hmac_sha256_hex( $payload, $secret ) );
+    return ( '', '' ) unless const_eq( $sig, hmac_sha256_hex( $payload, $secret ) );
     # SM141: user and ts lead BOTH payload shapes (user:ts:sid:groups and the
-    # legacy user:ts:groups), so this limit-3 split handles either.
-    my ( $user, $ts ) = split /:/, $payload, 3;
-    return '' unless defined $ts && $ts =~ /^\d+$/ && ( time() - $ts ) < $COOKIE_MAX;
-    return $user // '';
+    # legacy user:ts:groups); the sid is the 3rd field ONLY in the 4-field shape
+    # (exactly 16 hex), else it is the legacy groups field and not a sid.
+    my ( $user, $ts, $third ) = split /:/, $payload, 4;
+    return ( '', '' )
+        unless defined $ts && $ts =~ /^\d+$/ && ( time() - $ts ) < $COOKIE_MAX;
+    my $sid = ( defined $third && $third =~ /\A[0-9a-f]{16}\z/ ) ? $third : '';
+    return ( $user // '', $sid );
 }
 
 sub handle_logout {
-    my $user = _session_user();
+    my ( $user, $sid ) = _session_identity();
     # Only audit a real logout (a valid session). An unauthenticated hit on
     # ?action=logout - common from vulnerability scanners - must write no audit
     # noise; and a genuine logout now records the actual username (not the empty
@@ -363,6 +371,22 @@ sub handle_logout {
     if ( length $user ) {
         log_event( 'INFO', $user, 'logout', ip => $ENV{REMOTE_ADDR} // '' );
         _audit_auth( $user, 'logout', 'ok', '' );
+
+        # SEC-2026-07 (M4): actually invalidate the session server-side, not just
+        # clear the browser cookie - otherwise a cookie captured before logout
+        # keeps authenticating for the full 24h TTL. Add this sid to the revoked
+        # set (the same mechanism an operator's session-revoke uses; enforced in
+        # the cookie-verify path above). A legacy cookie carries no sid, so it
+        # cannot be revoked individually - it still ages out at COOKIE_MAX.
+        if ( length $sid ) {
+            require Lazysite::Manager::Sessions;
+            local $Lazysite::Manager::Sessions::LAZYSITE_DIR = $LAZYSITE_DIR;
+            local $Lazysite::Manager::Sessions::auth_user    = $user;
+            my $r = Lazysite::Manager::Sessions::action_session_revoke($sid);
+            log_event( 'WARN', $user, 'logout: session revoke failed',
+                error => $r->{error} )
+                if ref $r eq 'HASH' && !$r->{ok};
+        }
     }
 
     my $secure = $ENV{HTTPS} ? '; Secure' : '';
@@ -745,8 +769,16 @@ sub handle_request {
                     # C-1: these headers come from our HMAC-verified cookie,
                     # not from the client. Set LAZYSITE_AUTH_TRUSTED=1 so
                     # the processor accepts them.
-                    $ENV{HTTP_X_REMOTE_USER}    = $user;
-                    $ENV{HTTP_X_REMOTE_GROUPS}  = $groups;
+                    $ENV{HTTP_X_REMOTE_USER} = $user;
+
+                    # SEC-2026-07 (M5): re-resolve the account's CURRENT group
+                    # membership per request rather than trusting the (HMAC-
+                    # signed but possibly stale) groups baked into the cookie at
+                    # login - otherwise a demoted admin keeps privileged groups
+                    # until the cookie expires (up to 24h). The groups file is
+                    # the same source of truth login reads, so a promotion also
+                    # takes effect immediately.
+                    $ENV{HTTP_X_REMOTE_GROUPS}  = load_user_groups($user);
                     $ENV{LAZYSITE_AUTH_TRUSTED} = '1';
 
                     # SM141: pass the caller's session id to the children
