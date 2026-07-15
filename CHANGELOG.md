@@ -18,6 +18,43 @@ Keying
 
 ## Unreleased
 
+Domains admin: the agency multi-domain management plane (SM154)
+: SM151 lets one instance serve many first-class domains; SM154 adds the admin
+  plane to manage and delegate them without shell access, staying strictly on
+  the lazysite side of a hard line - DNS, the web-server domain alias and TLS
+  are a precondition (operator/Hestia/an external orchestrator), never touched
+  by lazysite. Model B (domain-scoped delegation): an account is bound to a
+  domain via `home_domain` + `dav_scope` and confined to its `content_root` on
+  every channel; the agency super-admin sees all. Delivered in three parts.
+  Gates: `t/unit/manager/{31-domain-confinement,32-domains-engine,33-domains-api}.t`,
+  `t/integration/18-domains-served.t`, `t/unit/processor/28-domains-nav.t`.
+
+Domains: a bound editor is confined on the interactive channel too (P1)
+: The scope confinement built for tokens/MCP (M2) is now applied on the cookie/
+  manager channel for a `dav_scope`-bound user, through one shared helper across
+  WebDAV, token/MCP and cookie - so a delegated domain editor cannot read, list
+  or write another domain's content through the manager UI. Operators are
+  unconfined.
+
+Domains: register/configure/remove from the UI and CLI (P2)
+: A single engine (`Lazysite::Manager::Domains`) registers a domain as
+  `alias_hosts` + `alias.<host>.<key>` in `lazysite.conf` plus a content-root
+  directory (optionally seeded), with strict host + content-root validation (no
+  traversal, no `lazysite/` tree) and in-place conf writes that preserve a
+  site-user's mode/group. Exposed identically through the manager `domain-add`/
+  `-set`/`-remove` control-API actions (manage_config, POST-only) and a
+  scriptable `lazysite-domains` CLI (`list`/`add`/`set`/`remove`, `--json`),
+  so an external control panel can drive the lazysite side of a deploy. A domain
+  registered this way is served by the SM151 processor under its Host header.
+
+Domains: management panel + gated nav + auto-scoping (P3)
+: The Domains page is now a full CRUD panel over the P2 actions. The Domains nav
+  entry shows only to a user who may manage domains. A bound editor's file
+  browser (and breadcrumb) roots at their own `content_root` - the processor
+  stashes `manager_caps`/`scope_root`/`home_domain` and the layout exposes the
+  latter as JS globals. `home_domain` is a settable, hostname-validated account
+  key surfaced in `settings-get`.
+
 ## 0.7.16 - EDGE: security hardening round 1 (SEC-2026-07) (2026-07-15)
 
 Security round 1 (SEC-2026-07): this release is a dedicated security-hardening
