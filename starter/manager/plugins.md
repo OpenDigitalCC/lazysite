@@ -15,7 +15,14 @@ var API = '/cgi-bin/lazysite-manager-api.pl';
 // config schema; it is the host, not a togglable plugin, so it is filtered out.
 var SITE_PLUGIN_ID = 'lazysite';
 
-function esc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
+// SEC-2026-07 (Low/Info): textContent->innerHTML escapes < > & but NOT quotes,
+// so it was unsafe in the attribute contexts below (data-script, title, the
+// onchange handler). Escape all five significant characters - attribute-safe.
+function esc(s) {
+  s = (s == null ? '' : String(s));
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 function warn(msg) { var el = document.getElementById('plugin-status'); if (el) { el.textContent = msg || ''; el.style.display = msg ? '' : 'none'; } }
 
 function loadPluginRegistry() {
@@ -39,7 +46,12 @@ function renderPluginRegistry(plugins) {
     html += '<div class="mg-plugin-ctl">';
     if (!p.core) {
       var checked = p._enabled ? ' checked' : '';
-      html += '<input type="checkbox" class="mg-toggle"' + checked + ' onchange="togglePlugin(this,\'' + esc(p._script) + '\',\'' + esc(p.name) + '\')">';
+      // JS-string args in an attribute: JSON.stringify makes a valid literal,
+      // esc() makes it safe inside the double-quoted attribute (the browser
+      // decodes the entities back before the JS engine parses it).
+      html += '<input type="checkbox" class="mg-toggle"' + checked
+        + ' onchange="togglePlugin(this,' + esc(JSON.stringify(p._script))
+        + ',' + esc(JSON.stringify(p.name)) + ')">';
       if (p._enabled) {
         html += '<a class="mg-plugin-row-config" href="/manager/plugin-config">Configure</a>';
       }

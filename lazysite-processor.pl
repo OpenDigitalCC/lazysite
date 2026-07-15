@@ -1275,11 +1275,16 @@ sub main {
         my ( $canon, $code ) = @{$hit};
         my $phrase = $code == 302 ? 'Found' : 'Moved Permanently';
         log_event( 'INFO', $uri, 'alias redirect', to => $canon, code => $code );
+        # SEC-2026-07 (Low/Info): $canon is author-controlled (front-matter
+        # aliases -> aliases.json). Strip CR/LF from the Location header (no
+        # header injection) and HTML-escape it in the body (no reflected XSS).
+        ( my $loc = $canon ) =~ s/[\r\n]//g;
+        my $canon_h = _esc_html($canon);
         print "Status: $code $phrase\r\n";
-        print "Location: $canon\r\n";
+        print "Location: $loc\r\n";
         print "Content-Type: text/html; charset=utf-8\r\n\r\n";
         print qq(<!DOCTYPE html><html><body>Moved to )
-            . qq(<a href="$canon">$canon</a></body></html>\n);
+            . qq(<a href="$canon_h">$canon_h</a></body></html>\n);
         return;
     }
 

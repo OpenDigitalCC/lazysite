@@ -26,8 +26,8 @@ close $m;
 
 # --- an alias 301s to the canonical page ---
 my $out = run_processor( $docroot, '/old-pricing' );
-like( $out, qr{Status:\s*301}i,          'a known alias returns 301' );
-like( $out, qr{Location:\s*/pricing\b},  'the redirect points at the canonical URL' );
+like( $out, qr{Status:\s*301}i,         'a known alias returns 301' );
+like( $out, qr{Location:\s*/pricing\b}, 'the redirect points at the canonical URL' );
 
 my $out2 = run_processor( $docroot, '/plans' );
 like( $out2, qr{Location:\s*/pricing\b}, 'a second alias also redirects to the canonical' );
@@ -38,7 +38,7 @@ like( $out3, qr{Status:\s*301}i, 'a trailing slash on the alias still redirects'
 
 # --- a genuine miss (not an alias) still 404s, not 301 ---
 my $miss = run_processor( $docroot, '/genuinely-missing' );
-like(   $miss, qr{Status:\s*404}i, 'an unknown path still 404s' );
+like( $miss, qr{Status:\s*404}i, 'an unknown path still 404s' );
 unlike( $miss, qr{Status:\s*301}i, 'an unknown path is not redirected' );
 
 # --- the canonical page itself is served, never redirected ---
@@ -59,8 +59,8 @@ Lazysite::Aliases::index_page( $docroot, 'moving.md', $mixed );
 
 # --- an aliases_temp entry 302s ---
 my $tmp = run_processor( $docroot, '/interim' );
-like( $tmp, qr{Status:\s*302 Found}i,   'a temporary alias returns 302 Found' );
-like( $tmp, qr{Location:\s*/moving\b},  'the 302 still points at the canonical URL' );
+like( $tmp, qr{Status:\s*302 Found}i,  'a temporary alias returns 302 Found' );
+like( $tmp, qr{Location:\s*/moving\b}, 'the 302 still points at the canonical URL' );
 
 # --- mixed 301/302 on one page: the permanent sibling stays 301 ---
 my $perm = run_processor( $docroot, '/old-home' );
@@ -84,6 +84,19 @@ like( $legacy, qr{Status:\s*301 Moved Permanently}i,
     close $wf;
     my $odd = run_processor( $docroot, '/odd' );
     like( $odd, qr{Status:\s*301}i, 'an unknown redirect code reads as 301' );
+}
+
+# --- SEC-2026-07 (Low/Info): a hostile alias target (author-controlled) must
+# not reflect into the redirect body as XSS, nor inject headers via CR/LF. ---
+{
+    open my $wf, '>', "$docroot/lazysite/aliases.json" or die $!;
+    print $wf '{"/x":"/pricing\"><script>alert(1)</script>"}';
+    close $wf;
+    my $evil = run_processor( $docroot, '/x' );
+    my ($body) = $evil =~ /\r?\n\r?\n(.*)/s;
+    $body //= '';
+    unlike( $body, qr{<script>alert\(1\)}, 'alias target not reflected as raw <script> in the body' );
+    like( $body, qr{&lt;script&gt;alert\(1\)}, 'alias target HTML-escaped in the body' );
 }
 
 done_testing();
