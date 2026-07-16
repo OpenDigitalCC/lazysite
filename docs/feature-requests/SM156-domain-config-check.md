@@ -87,6 +87,13 @@ Graceful degradation
 : `_tls_probe` / `_marker_fetch` lazy-require IO::Socket::SSL / HTTP::Tiny inside
   an eval; an absent module reports "check unavailable" instead of crashing.
 
+Certificate coverage gap vs no HTTPS (0.7.21)
+: When full verification fails, `_tls_probe` retries verifying the chain but not
+  the hostname. A trusted certificate that does not cover the host (SAN gap - the
+  common Hestia case where a new sub-domain was not added to the cert) is
+  reported distinctly from an expired / self-signed / absent cert, pointing the
+  operator at the certificate fix. lazysite still never issues or edits certs.
+
 ## Out of scope
 
 - lazysite never configures DNS, the web-server domain alias or TLS - those are

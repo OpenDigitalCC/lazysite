@@ -397,12 +397,16 @@ sub _resolve_ips {
 
 # Open a verified TLS connection to $host:443. A connection only forms when the
 # certificate is valid AND matches the host (SSL_verify_mode PEER + SNI), so a
-# returned {ok=>1} means "trusted HTTPS". Detail carries the CN and expiry when
-# they can be read. Never throws - a bad/absent cert is a {ok=>0} result.
+# returned {ok=>1} means "trusted HTTPS". When full verification fails we probe
+# again verifying the CHAIN but NOT the hostname, to tell a SAN/coverage gap
+# (a trusted cert is served but does not cover this host - e.g. Hestia did not
+# add the sub-domain to the certificate) apart from "no trusted HTTPS at all".
+# Detail carries the CN and expiry when they can be read; never throws.
 sub _tls_probe {
     my ( $host, $timeout ) = @_;
     return { ok => 0, detail => 'TLS check unavailable (IO::Socket::SSL not installed)' }
         unless eval { require IO::Socket::SSL; 1 };
+
     my $sock = IO::Socket::SSL->new(
         PeerHost          => $host,
         PeerPort          => 443,
@@ -411,23 +415,44 @@ sub _tls_probe {
         SSL_hostname      => $host,
         SSL_verifycn_name => $host,
     );
-    unless ($sock) {
-        no warnings 'once';    # $SSL_ERROR lives in the lazily-required package
-        my $e = $IO::Socket::SSL::SSL_ERROR || $! || 'connection failed';
-        $e =~ s/\s+/ /g;
-        return { ok => 0, detail => "no trusted HTTPS ($e)" };
+    if ($sock) {
+        my $cn      = eval { $sock->peer_certificate('commonName') } // '';
+        my $expires = eval {
+            require Net::SSLeay;    # IO::Socket::SSL's backend; named for the SBOM
+            my $t = Net::SSLeay::X509_get_notAfter( $sock->peer_certificate );
+            $t ? Net::SSLeay::P_ASN1_TIME_get_isotime($t) : '';
+        } // '';
+        close $sock;
+        my $detail = 'valid certificate';
+        $detail .= " for $cn"           if length $cn;
+        $detail .= ", expires $expires" if length $expires;
+        return { ok => 1, detail => $detail, expires => $expires };
     }
-    my $cn      = eval { $sock->peer_certificate('commonName') } // '';
-    my $expires = eval {
-        require Net::SSLeay;    # IO::Socket::SSL's backend; named for the SBOM
-        my $t = Net::SSLeay::X509_get_notAfter( $sock->peer_certificate );
-        $t ? Net::SSLeay::P_ASN1_TIME_get_isotime($t) : '';
-    } // '';
-    close $sock;
-    my $detail = 'valid certificate';
-    $detail .= " for $cn"           if length $cn;
-    $detail .= ", expires $expires" if length $expires;
-    return { ok => 1, detail => $detail, expires => $expires };
+
+    my $e = do { no warnings 'once'; $IO::Socket::SSL::SSL_ERROR || $! || 'connection failed' };
+    $e =~ s/\s+/ /g;
+
+    # Chain-only probe: same connection, hostname verification disabled. If it
+    # succeeds, a TRUSTED certificate is served - it just does not cover $host.
+    my $chain = IO::Socket::SSL->new(
+        PeerHost            => $host,
+        PeerPort            => 443,
+        Timeout             => $timeout,
+        SSL_verify_mode     => IO::Socket::SSL::SSL_VERIFY_PEER(),
+        SSL_hostname        => $host,     # SNI, so the server returns its cert
+        SSL_verifycn_scheme => 'none',    # verify the chain, NOT the hostname
+    );
+    if ($chain) {
+        my $cn = eval { $chain->peer_certificate('commonName') } // '';
+        close $chain;
+        my $detail = 'a certificate is served';
+        $detail .= " (for $cn)" if length $cn;
+        $detail .= ' but it does not cover this host'
+            . ' - add this host to the certificate (e.g. via Hestia SSL)';
+        return { ok => 0, kind => 'cert-mismatch', detail => $detail };
+    }
+
+    return { ok => 0, detail => "no trusted HTTPS ($e)" };
 }
 
 # GET the public instance marker over $host and read back its instance id, so

@@ -76,6 +76,28 @@ use Lazysite::Manager::Domains qw(domain_check instance_public_ips);
     like( $r->{checks}[3]{detail}, qr/different server or instance/, 'terminates detail explains' );
 }
 
+# --- a certificate that doesn't cover the host is a distinct SSL result ------
+# (_tls_probe returns kind=cert-mismatch with a "add this host to the cert"
+# detail; domain_check surfaces it as a failed ssl check.)
+{
+    my $r = domain_check(
+        'sub.clienta.com',
+        self_ips    => ['203.0.113.5'],
+        instance_id => 'abc',
+        resolve     => sub { ('203.0.113.5') },
+        tls         => sub {
+            { ok => 0, kind => 'cert-mismatch',
+                detail => 'a certificate is served (for clienta.com) but it does not '
+                    . 'cover this host - add this host to the certificate (e.g. via Hestia SSL)' };
+        },
+        fetch => sub { { ok => 1, instance => 'abc' } },
+    );
+    is( $r->{checks}[2]{pass}, 0, 'ssl fails when the cert does not cover the host' );
+    like( $r->{checks}[2]{detail}, qr/does not cover this host/,
+        'ssl detail explains the coverage gap (points at the cert / Hestia SSL)' );
+    is( $r->{all_pass}, 0, 'a cert coverage gap keeps the domain not-ready' );
+}
+
 # --- our public address unknown (proxy/NAT) => host indeterminate -----------
 {
     my $r = domain_check(
