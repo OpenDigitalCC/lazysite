@@ -1493,7 +1493,7 @@ sub action_pages {
 sub action_config_read {
     my %out = map { $_ => '' }
         qw(site_name site_url layout theme nav_file webdav_enabled manager
-        search_default manager_path);
+        search_default manager_path canonical_ip);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
             next unless $line =~ /^(\w+)\s*:\s*(.*?)\s*$/;
@@ -1577,8 +1577,11 @@ sub action_config_set {
         && $value !~ /^[A-Za-z0-9_-]+$/ ) {
         return { ok => 0, error => "$key must be a simple name" };
     }
+    # canonical_ip may be CLEARED (empty = auto-detect); every other key needs a
+    # value.
     return { ok => 0, error => "A value is required" }
-        unless defined $value && length $value;
+        unless ( defined $value && length $value ) || $key eq 'canonical_ip';
+    $value = '' unless defined $value;
     return { ok => 0, error => "Value must be a single line" }
         if $value =~ /[\r\n]/;
     my ( $wok, $werr ) = _write_conf_key( $key, $value );

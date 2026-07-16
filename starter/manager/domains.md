@@ -19,6 +19,13 @@ before its DNS is live, and <strong>Check</strong> to verify that DNS, HTTPS and
 routing are configured so the domain reaches this instance.
 </p>
 
+<div style="border:1px solid var(--mg-border,#e2e2e2);border-radius:5px;padding:10px 12px;margin-bottom:12px;">
+  <label style="font-size:0.9em;">This server's public IP address(es) <span style="color:#aaa;font-weight:400">&mdash; optional</span><br>
+    <input id="f-canonical-ip" placeholder="e.g. 203.0.113.5" style="width:16rem;max-width:100%;box-sizing:border-box;">
+    <button class="mg-btn mg-btn-sm" onclick="saveCanonicalIp()">Save</button></label>
+  <div style="font-size:0.8em;color:#888;margin-top:2px;">Used by <strong>Check</strong> to confirm a domain points to this server. Comma&#8209;separate several. Leave blank to auto&#8209;detect (from your site address, or the server's own address) &mdash; set it when this server sits behind a proxy or NAT.</div>
+</div>
+
 <div class="mg-toolbar" style="margin-bottom:12px;">
   <button class="mg-btn" onclick="toggleAdd()">Add domain</button>
 </div>
@@ -426,5 +433,24 @@ function loadDomains() {
     });
 }
 
-Promise.all([loadThemes(), loadLayouts()]).then(loadDomains);
+// SM156: the server's public IP(s) - stored as the canonical_ip config key,
+// read/written like any config value. Used by Check when this server is behind
+// a proxy/NAT and can't self-discover its public address.
+function loadCanonicalIp() {
+  return fetch(API + '?action=config-read', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.ok && d.config) { document.getElementById('f-canonical-ip').value = d.config.canonical_ip || ''; }
+    })
+    .catch(function () {});
+}
+function saveCanonicalIp() {
+  var v = document.getElementById('f-canonical-ip').value.trim();
+  post('config-set', { key: 'canonical_ip', value: v }).then(function (d) {
+    if (d && d.ok) { showStatus('Saved this server’s public IP'); }
+    else { showStatus((d && d.error) || 'Could not save the IP.', true); }
+  });
+}
+
+Promise.all([loadThemes(), loadLayouts(), loadCanonicalIp()]).then(loadDomains);
 </script>

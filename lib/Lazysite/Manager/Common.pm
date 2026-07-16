@@ -350,7 +350,10 @@ sub _reset_upload_limits_cache { $_upload_limits_cache = undef }
 
 sub _write_conf_key {
     my ( $key, $value ) = @_;
-    return 0 unless defined $key && length $key && defined $value && length $value;
+    # An empty value is allowed (writes "key:" - used to CLEAR a key, e.g.
+    # canonical_ip = auto-detect); the caller is the emptiness gate. The key
+    # itself must be present and name-shaped.
+    return 0 unless defined $key && length $key && defined $value;
     return 0 unless $key =~ /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
     my $conf_path = "$DOCROOT/lazysite/lazysite.conf";

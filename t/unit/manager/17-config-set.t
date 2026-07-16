@@ -85,6 +85,30 @@ my $badch = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-s
     body => encode_json( { key => 'update_channel', value => 'nightly' } ) );
 ok( !$badch->{ok}, 'an unknown channel is refused' );
 
+# SM156: canonical_ip - a comma list of IP literals; may be CLEARED (empty =
+# auto-detect); a hostname / junk is refused; config-read surfaces it.
+my $cip = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+    HTTP_AUTHORIZATION => basic( 'p', $tok ),
+    body => encode_json( { key => 'canonical_ip', value => '2.59.188.206, 2606:4700::1' } ) );
+ok( $cip->{ok}, 'config-set canonical_ip accepts comma-separated IPs' ) or diag $cip->{error};
+like( conf($d), qr/^canonical_ip: 2\.59\.188\.206, 2606:4700::1$/m, 'canonical_ip written' );
+
+my $cread = mapi( $d, REQUEST_METHOD => 'GET', QUERY_STRING => 'action=config-read',
+    HTTP_AUTHORIZATION => basic( 'p', $tok ) );
+is( $cread->{config}{canonical_ip}, '2.59.188.206, 2606:4700::1',
+    'config-read surfaces canonical_ip for the panel' );
+
+my $cipbad = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+    HTTP_AUTHORIZATION => basic( 'p', $tok ),
+    body => encode_json( { key => 'canonical_ip', value => 'evil.example.com' } ) );
+ok( !$cipbad->{ok}, 'a hostname is refused as canonical_ip (IP literals only)' );
+
+my $cipclear = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+    HTTP_AUTHORIZATION => basic( 'p', $tok ),
+    body => encode_json( { key => 'canonical_ip', value => '' } ) );
+ok( $cipclear->{ok}, 'canonical_ip may be cleared (empty = auto-detect)' ) or diag $cipclear->{error};
+like( conf($d), qr/^canonical_ip:\s*$/m, 'cleared canonical_ip is written empty' );
+
 # without manage_config the capability gate refuses it
 uapi( $d, { action => 'add', username => 'q', password => 'x' } );
 my $tok2 = uapi( $d, { action => 'token', username => 'q' } )->{token};
