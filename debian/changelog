@@ -1,3 +1,17 @@
+lazysite (0.7.20-1) unstable; urgency=medium
+
+  * EDGE: the domain check's "points to this server" now works behind a proxy /
+    NAT. It self-discovers the server's PUBLIC address (a canonical_ip config
+    key, else the install's own domain, else a public SERVER_ADDR) instead of
+    comparing against the private inbound SERVER_ADDR; when unknown the check is
+    indeterminate, not a false failure.
+  * EDGE: domain_check degrades gracefully when IO::Socket::SSL / HTTP::Tiny are
+    absent (reports "check unavailable" instead of crashing).
+  * EDGE: the domain edit form's Layout is a picker of installed layouts (like
+    Theme), not free text.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Thu, 16 Jul 2026 14:00:00 +0000
+
 lazysite (0.7.19-1) unstable; urgency=medium
 
   * EDGE: SM156 - a domain configuration check. A Check button, a `domain-check`

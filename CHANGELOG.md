@@ -18,6 +18,27 @@ Keying
 
 ## Unreleased
 
+## 0.7.20 - EDGE: proxy-aware domain check + graceful degradation (2026-07-16)
+
+Domains: the "points to this server" check works behind a proxy / NAT
+: The check compared the domain's public IP against `SERVER_ADDR`, which behind
+  a reverse proxy is the private inbound address - a permanent false failure.
+  It now self-discovers the server's PUBLIC address: an operator `canonical_ip`
+  config key (comma-separated, settable via the manager), else resolving the
+  install's own domain (its `site_url` host), else a public `SERVER_ADDR`. When
+  none is known the check is INDETERMINATE (not failed) and points the operator
+  at `canonical_ip` - the "Serves this lazysite" check remains the authoritative
+  reachability signal. `t/unit/manager/34-domain-check.t`.
+
+Domains: the check degrades gracefully when TLS/HTTP modules are absent
+: `domain_check` lazy-requires IO::Socket::SSL / HTTP::Tiny; a box without them
+  now reports "TLS/HTTPS check unavailable" instead of crashing the request.
+  `t/unit/manager/34-domain-check.t`.
+
+Domains: the edit form's Layout is a picker of installed layouts
+: Layout is now a dropdown of installed layouts with "inherit the default"
+  (matching the Theme picker), not a free-text field.
+
 ## 0.7.19 - EDGE: domain config check + domains panel fixes (2026-07-16)
 
 Domains: preview no longer fails on a live (wrapped) deployment
