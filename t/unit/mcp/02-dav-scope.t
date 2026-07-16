@@ -37,7 +37,7 @@ my $in = do { local $/; <STDIN> };
 my $r = eval { decode_json($in) } || {};
 my $u = $r->{username} // '';
 my %s = ( webdav=>1, manage_content=>1, manage_nav=>1, manage_forms=>1, mcp=>1 );
-$s{dav_scope} = 'content/clientA' if $u =~ /scoped/;
+$s{dav_scopes} = ['content/clientA'] if $u =~ /scoped/;    # SM155: group-derived list
 print encode_json({ ok => 1, settings => \%s });
 STUB
 close $sf;

@@ -531,21 +531,47 @@ sub _site_grants_manager {
     return 0;
 }
 
-# SM154: read one setting for a user from user-settings.json. Local raw-octets
-# read to keep the render path module-free (ADR 0001), matching _groups_grant_cap.
-# Used to expose a bound user's dav_scope (scope_root) and home_domain to the
-# manager UI so it can root a delegated editor at their own content_root.
-sub _user_setting {
-    my ( $user, $key ) = @_;
-    return undef unless length( $user // '' ) && length( $key // '' );
-    my $f = "$DOCROOT/lazysite/auth/user-settings.json";
-    return undef unless -f $f;
+# SM155: the content-root scope(s) a set of groups confine their members to, and
+# the single-domain home_domain pointer. Module-free raw-octets read of
+# groups-settings.json to keep the render path module-free (ADR 0001), a local
+# copy of Lazysite::Auth::Settings::group_scopes / group_home_domain (kept in
+# step). Used to root a delegated editor's file browser at their own domain.
+sub _group_settings {
+    my $f = "$DOCROOT/lazysite/auth/groups-settings.json";
+    return {} unless -f $f;
     require JSON::PP;
-    open my $fh, '<:raw', $f or return undef;
+    open my $fh, '<:raw', $f or return {};
     local $/;
-    my $s = eval { JSON::PP::decode_json(<$fh>) } || {};
+    my $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
     close $fh;
-    return ( ref $s->{$user} eq 'HASH' ) ? $s->{$user}{$key} : undef;
+    return ref $gs eq 'HASH' ? $gs : {};
+}
+
+sub _group_scopes {
+    my (@groups) = @_;
+    return () unless @groups;
+    my $gs = _group_settings();
+    my ( %seen, @scopes );
+    for my $g (@groups) {
+        next unless ref $gs->{$g} eq 'HASH';
+        my $s = $gs->{$g}{dav_scope};
+        next unless defined $s && length $s;
+        push @scopes, $s unless $seen{$s}++;
+    }
+    return @scopes;
+}
+
+sub _group_home_domain {
+    my (@groups) = @_;
+    my $gs = _group_settings();
+    my @hd;
+    for my $g (@groups) {
+        next unless ref $gs->{$g} eq 'HASH';
+        my $s = $gs->{$g}{dav_scope};
+        next unless defined $s && length $s;
+        push @hd, ( $gs->{$g}{home_domain} // '' );
+    }
+    return ( @hd == 1 && length $hd[0] ) ? $hd[0] : '';
 }
 
 sub _is_manager {
@@ -3628,8 +3654,13 @@ sub render_content {
             !_site_grants_manager()
                 || _groups_grant_cap( 'manage_config', split /\s*,\s*/, $groups_str )
         ) ? 1 : 0;
-        $scope_root  = _user_setting( $mgr_user, 'dav_scope' )   // '';
-        $home_domain = _user_setting( $mgr_user, 'home_domain' ) // '';
+        # SM155: the domain binding is on the user's GROUPS now. Root the file
+        # browser only when the user has exactly ONE scoped group (a single-domain
+        # editor); a multi-domain editor keeps scope_root empty (a switcher is a
+        # follow-up) - the server-side confinement holds either way.
+        my @my_scopes = _group_scopes( split /\s*,\s*/, $groups_str );
+        $scope_root  = ( @my_scopes == 1 ) ? $my_scopes[0] : '';
+        $home_domain = _group_home_domain( split /\s*,\s*/, $groups_str );
     }
 
     my $vars = {

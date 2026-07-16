@@ -55,7 +55,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
-use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set);
+use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
@@ -204,23 +204,25 @@ my %SCOPED_ACTION = map { $_ => 1 } qw(
     cache-invalidate preview lock unlock renew-lock
 );
 
-# Confine this request to $scope (a content-root-relative subtree) when set,
-# refusing any content path outside it. Shared by BOTH channels: a token/partner
-# credential's dav_scope (M2) and a domain-bound cookie user's dav_scope (SM154
-# - a delegated domain editor must not reach another domain's content over the
-# interactive UI either). $origin tags the audit entry ('api' | 'ui').
+# Confine this request to a SET of content-root scopes, refusing any content
+# path outside EVERY scope. SM155: the binding moved to groups, so the set is the
+# UNION of the user's scoped groups (already resolved into the settings'
+# `dav_scopes` by effective_settings). Shared by the token/partner (M2) and
+# cookie (SM154) channels; $origin tags the audit entry ('api' | 'ui'). An empty
+# set confines nothing (an unbound account).
 sub _confine_scope {
-    my ( $scope, $origin ) = @_;
-    return unless $SCOPED_ACTION{$action} && defined $scope && length $scope;
+    my ( $scopes, $origin ) = @_;
+    return unless $SCOPED_ACTION{$action} && ref $scopes eq 'ARRAY' && @$scopes;
     for my $p ( grep { defined && length } ( $path, $params{to}, $params{from} ) ) {
         next if $p =~ m{^/?lazysite/};
         next
-            unless Lazysite::Manager::Common::path_out_of_scope( $scope, $p );
+            unless Lazysite::Manager::Common::outside_all_scopes( $scopes, $p );
         audit_log( $auth_user, $action, $p, $ENV{REMOTE_ADDR} // '',
             'fail', $origin, 'denied: outside dav_scope' );
-        ( my $sc = $scope ) =~ s{^/+|/+$}{}g;
+        my $names = join ', ',
+            map { ( my $s = $_ ) =~ s{^/+|/+$}{}g; "$s/" } @$scopes;
         respond( { ok => 0, kind => 'forbidden',
-                error => "Path '$p' is outside your assigned scope ($sc/)." } );
+                error => "Path '$p' is outside your assigned scope ($names)." } );
         exit 0;
     }
 }
@@ -329,20 +331,21 @@ if ( !$token_auth ) {
         # for the same reason (token clients write over WebDAV). So they are NOT
         # capability-gated here - only POST-gated below (CSRF). Content-history
         # reads/restore ARE gated (they mirror the token %need manage_content).
-        'git-restore'     => 'manage_content', 'git-status' => 'manage_content',
-        'git-history'     => 'manage_content', 'git-show'   => 'manage_content',
-        'git-init'        => 'manage_config',
-        'config-set'      => 'manage_config', 'config-read'    => 'manage_config',
-        'domains-list'    => 'manage_config', 'bad-url-blocks' => 'manage_config',
-        'domain-add'      => 'manage_config', 'domain-set'     => 'manage_config',
-        'domain-remove'   => 'manage_config',
-        'bad-url-unblock' => 'manage_config',  'rotate-auth-secret' => 'manage_config',
-        'backup-create'   => 'manage_config',  'backup-restore'     => 'manage_config',
-        'backup-download' => 'manage_config',  'backup-list'        => 'manage_config',
-        'theme-activate'  => 'manage_themes',  'theme-delete'       => 'manage_themes',
-        'theme-rename'    => 'manage_themes',  'theme-upload'       => 'manage_themes',
-        'layout-activate' => 'manage_layouts', 'layout-delete'      => 'manage_layouts',
-        'layout-install'  => 'manage_layouts', 'layouts-install'    => 'manage_layouts',
+        'git-restore'      => 'manage_content', 'git-status' => 'manage_content',
+        'git-history'      => 'manage_content', 'git-show'   => 'manage_content',
+        'git-init'         => 'manage_config',
+        'config-set'       => 'manage_config', 'config-read'    => 'manage_config',
+        'domains-list'     => 'manage_config', 'bad-url-blocks' => 'manage_config',
+        'domain-add'       => 'manage_config', 'domain-set'     => 'manage_config',
+        'domain-remove'    => 'manage_config', 'domain-preview' => 'manage_config',
+        'domain-alias-add' => 'manage_config',
+        'bad-url-unblock'  => 'manage_config',  'rotate-auth-secret' => 'manage_config',
+        'backup-create'    => 'manage_config',  'backup-restore'     => 'manage_config',
+        'backup-download'  => 'manage_config',  'backup-list'        => 'manage_config',
+        'theme-activate'   => 'manage_themes',  'theme-delete'       => 'manage_themes',
+        'theme-rename'     => 'manage_themes',  'theme-upload'       => 'manage_themes',
+        'layout-activate'  => 'manage_layouts', 'layout-delete'      => 'manage_layouts',
+        'layout-install'   => 'manage_layouts', 'layouts-install'    => 'manage_layouts',
         'layouts-repo-set'        => 'manage_layouts',
         'preview-grant'           => 'manage_themes|manage_layouts',
         'preview-clear'           => 'manage_themes|manage_layouts',
@@ -369,7 +372,7 @@ if ( !$token_auth ) {
         preview-grant preview-clear nav-save handler-save handler-delete
         form-targets-save plugin-enable plugin-disable plugin-save plugin-action
         lock unlock renew-lock notices-seen
-        domain-add domain-set domain-remove
+        domain-add domain-set domain-remove domain-alias-add
     );
 
     if ( $MUTATING{$action} && $method ne 'POST' ) {
@@ -394,11 +397,11 @@ if ( !$token_auth ) {
             }
         }
 
-        # SM154 (P1): a domain-bound (dav_scope) cookie user is confined to their
-        # content_root on the interactive channel too, so a delegated domain
-        # editor cannot reach another domain's content through the manager UI.
-        _confine_scope( $caps->{dav_scope}, 'ui' )
-            if defined $caps->{dav_scope} && length $caps->{dav_scope};
+        # SM154/SM155 (P1): a domain-bound cookie user (via their scoped
+        # group(s)) is confined to the union of their content roots on the
+        # interactive channel too, so a delegated domain editor cannot reach
+        # another domain's content through the manager UI.
+        _confine_scope( $caps->{dav_scopes}, 'ui' );
     }
 }
 
@@ -451,11 +454,13 @@ if ($token_auth) {
             # SM154: domain registration is a site-configuration act (manage_config),
             # so an orchestrating control panel with a manage_config token can drive
             # the lazysite side of a deploy over the API, same as the CLI/UI.
-        'domain-add'      => sub { $_[0]->{manage_config} },
-        'domain-set'      => sub { $_[0]->{manage_config} },
-        'domain-remove'   => sub { $_[0]->{manage_config} },
-        'bad-url-blocks'  => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
-        'bad-url-unblock' => sub { $_[0]->{manage_config} },
+        'domain-add'       => sub { $_[0]->{manage_config} },
+        'domain-set'       => sub { $_[0]->{manage_config} },
+        'domain-remove'    => sub { $_[0]->{manage_config} },
+        'domain-preview'   => sub { $_[0]->{manage_config} },    # SM155: pre-DNS render
+        'domain-alias-add' => sub { $_[0]->{manage_config} },    # SM155: alias host
+        'bad-url-blocks'   => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
+        'bad-url-unblock'  => sub { $_[0]->{manage_config} },
         'pages' => sub { $_[0]->{manage_nav} },  # SM097: page-URL list for the nav editor
             # SM123: a theme/layout manager may list what is installed (was previously
             # unavailable to token clients, so they activated each in turn to discover).
@@ -511,11 +516,10 @@ if ($token_auth) {
         exit 0;
     }
 
-    # SEC-2026-07 (M2): enforce dav_scope on the control-API channel too. A
-    # scoped partner credential is confined to its content subtree over WebDAV;
-    # without this it reached the whole content namespace over the API.
-    _confine_scope( $token_caps{dav_scope}, 'api' )
-        if defined $token_caps{dav_scope} && length $token_caps{dav_scope};
+    # SEC-2026-07 (M2) / SM155: enforce the group-derived scope union on the
+    # control-API channel too - a scoped partner credential is confined to its
+    # content subtree(s) over WebDAV and must be here as well.
+    _confine_scope( $token_caps{dav_scopes}, 'api' );
 
     # SM071 Phase 3 (P3.6): per-token volume throttle. 429 + Retry-After
     # so the client can back off per the documented retry contract.
@@ -586,6 +590,13 @@ elsif ( $action eq 'domain-set' ) {
 elsif ( $action eq 'domain-remove' ) {
     my $req = eval { decode_json($body) } // {};
     $result = domain_remove( $req->{host}, purge => ( $req->{purge} ? 1 : 0 ) );
+}
+elsif ( $action eq 'domain-preview' ) {
+    $result = action_domain_preview( $params{host} );
+}
+elsif ( $action eq 'domain-alias-add' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = domain_add_alias( $req->{host}, $req->{of} );
 }
 elsif ( $action eq 'config-set' ) {
     my $req = eval { decode_json($body) } // {};
@@ -779,7 +790,7 @@ else { $result = { ok => 0, error => "Unknown action: $action" } }
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
         csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
-        cache-invalidate nav-read aliases-list config-read domains-list bad-url-blocks recent-changes pages theme-list themes-list-all themes-for-layout
+        cache-invalidate nav-read aliases-list config-read domains-list domain-preview bad-url-blocks recent-changes pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
@@ -1122,6 +1133,42 @@ sub action_preview {
     $output =~ s/\A.*?\r?\n\r?\n//s;
 
     return { ok => 1, html => $output };
+}
+
+# SM155: render a registered domain's HOME page as an anonymous public visitor
+# would see it under its own Host - so an operator can prepare/debug a new domain
+# BEFORE DNS/TLS is pointing at it. Shells the processor exactly like the dev
+# server / action_preview, but with HTTP_HOST set (SM151 per-Host routing picks
+# the domain's content_root + theme/layout/nav overrides) and the auth headers
+# cleared (so the render is the public site, no manager admin bar).
+sub action_domain_preview {
+    my ($host) = @_;
+    $host = lc( $host // '' );
+    return { ok => 0, error => 'Invalid domain host' }
+        unless $host =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
+            (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
+
+    # Only a registered domain (or the primary/default host) may be previewed.
+    my $dl    = domains_list();
+    my $known = grep { lc( $_->{host} ) eq $host || $_->{is_primary} }
+        @{ $dl->{domains} || [] };
+    return { ok => 0, error => "Not a registered domain: $host" } unless $known;
+
+    local %ENV = %ENV;
+    delete @ENV{ grep { /^(?:HTTP_X_REMOTE_|LAZYSITE_AUTH_)/ } keys %ENV };
+    $ENV{DOCUMENT_ROOT}    = $DOCROOT;
+    $ENV{HTTP_HOST}        = $host;
+    $ENV{REDIRECT_URL}     = '/';
+    $ENV{REQUEST_METHOD}   = 'GET';
+    $ENV{QUERY_STRING}     = '';
+    $ENV{LAZYSITE_NOCACHE} = '1';
+
+    my $processor = "$DOCROOT/../cgi-bin/lazysite-processor.pl";
+    $processor = $ENV{LAZYSITE_PROCESSOR} if $ENV{LAZYSITE_PROCESSOR};
+    my $output = qx($^X \Q$processor\E 2>/dev/null);
+    $output =~ s/\A.*?\r?\n\r?\n//s;    # strip CGI headers
+
+    return { ok => 1, host => $host, html => $output };
 }
 
 # --- Cache actions ---
@@ -1557,7 +1604,9 @@ sub action_whoami {
         },
         groups => \@groups,
         scope  => {
-            allow => ( defined $s->{dav_scope} && length $s->{dav_scope} ) ? $s->{dav_scope} : '/',
+            # SM155: group-derived; a comma-joined list for a multi-domain editor.
+            allow => ( @{ $s->{dav_scopes} || [] }
+                ? join( ', ', @{ $s->{dav_scopes} } ) : '/' ),
             deny => [ '/cgi-bin/', '/manager/', '/lazysite/auth/',
                 '/lazysite/forms/smtp.conf',    '/lazysite/forms/handlers.conf',
                 '/lazysite/forms/submissions/', '/lazysite/cache/',

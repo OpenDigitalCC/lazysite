@@ -1372,26 +1372,27 @@ elsif ( $method eq 'tools/call' ) {
                 . "to see what your account currently holds and what each capability unlocks." );
     }
 
-    # SEC-2026-07 (M2): enforce dav_scope on the MCP channel too. A scoped
-    # partner credential is confined to its content subtree over WebDAV; without
-    # this it reached the whole content namespace over MCP. Applies to every
-    # content path argument (path/to/from); the lazysite/ theme-authoring
-    # namespace is out of scope's remit (governed by manage_themes/layouts).
-    if ( defined $caps->{dav_scope} && length $caps->{dav_scope} ) {
+    # SEC-2026-07 (M2) / SM155: enforce the group-derived scope union on the MCP
+    # channel too. A scoped partner (via its group(s)) is confined to its content
+    # subtree(s) over WebDAV and must be here as well. Applies to every content
+    # path argument (path/to/from); the lazysite/ theme-authoring namespace is out
+    # of scope's remit (governed by manage_themes/layouts).
+    my $scopes = $caps->{dav_scopes};
+    if ( ref $scopes eq 'ARRAY' && @$scopes ) {
         my $a = $params->{arguments} || {};
         for my $pk (qw(path to from)) {
             my $p = $a->{$pk};
             next unless defined $p && length $p;
             next if $p =~ m{^/?lazysite/};
             next
-                unless Lazysite::Manager::Common::path_out_of_scope(
-                $caps->{dav_scope}, $p );
+                unless Lazysite::Manager::Common::outside_all_scopes( $scopes, $p );
             audit_log( $user, $name, $p, $ENV{REMOTE_ADDR} // '',
                 'fail', 'mcp', 'denied: outside dav_scope' );
-            ( my $sc = $caps->{dav_scope} ) =~ s{^/+|/+$}{}g;
+            my $names = join ', ',
+                map { ( my $s = $_ ) =~ s{^/+|/+$}{}g; "$s/" } @$scopes;
             rpc_error( $id, -32002,
-                "Path '$p' is outside your assigned scope ($sc/). Do not retry; "
-                    . "ask the operator to widen your dav_scope." );
+                "Path '$p' is outside your assigned scope ($names). Do not retry; "
+                    . "ask the operator to widen your group's dav_scope." );
         }
     }
 

@@ -45,6 +45,17 @@ from the default host; a solid value is a per&#8209;domain override.
 
 <div id="domains-list"><div class="mg-status">Loading&hellip;</div></div>
 
+<div id="domain-preview-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#fff;width:92%;max-width:1100px;height:86%;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--mg-border,#ddd);">
+      <strong id="domain-preview-title" style="flex:1;font-size:0.95em;"></strong>
+      <span style="font-size:0.8em;color:#888;">public render &mdash; scripts disabled</span>
+      <button class="mg-btn mg-btn-sm" onclick="closePreview()">Close</button>
+    </div>
+    <iframe id="domain-preview-frame" sandbox="allow-same-origin" style="flex:1;border:0;width:100%;"></iframe>
+  </div>
+</div>
+
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var THEMES = [];   // installed theme names, loaded once (see loadThemes)
@@ -128,6 +139,19 @@ function addDomain() {
   });
 }
 
+// SM155: add an alias host that serves the same content as a canonical domain
+// (e.g. www.clienta.com for clienta.com). Unique host, shared content root.
+function addAlias(canonical) {
+  var host = window.prompt('Alias host for ' + canonical + ' (serves the same content):', 'www.' + canonical);
+  if (!host) return;
+  host = host.trim();
+  if (!host) return;
+  post('domain-alias-add', { host: host, of: canonical }).then(function (d) {
+    if (d && d.ok) { showStatus('Added alias ' + host + ' -> ' + canonical); loadDomains(); }
+    else { showStatus((d && d.error) || 'Could not add the alias.', true); }
+  });
+}
+
 function removeDomain(host) {
   if (!window.confirm('Unregister ' + host + '? Its content files are kept.')) return;
   post('domain-remove', { host: host }).then(function (d) {
@@ -140,6 +164,26 @@ function editDomain(host) {
   var row = document.getElementById('edit-' + host);
   if (row) row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
 }
+
+// SM155: preview a domain's home page as a public visitor would see it under its
+// own Host - rendered server-side, so it works BEFORE DNS/TLS is live (to
+// prepare/debug a new domain). The HTML is shown in a sandboxed iframe srcdoc.
+function previewDomain(host) {
+  var ov = document.getElementById('domain-preview-overlay');
+  var frame = document.getElementById('domain-preview-frame');
+  var title = document.getElementById('domain-preview-title');
+  title.textContent = 'Preview: ' + host;
+  frame.srcdoc = '<p style="font:14px system-ui;padding:1rem;color:#888">Rendering&hellip;</p>';
+  ov.style.display = 'flex';
+  fetch(API + '?action=domain-preview&host=' + encodeURIComponent(host), { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.ok) { frame.srcdoc = d.html || '<p style="padding:1rem">(empty page)</p>'; }
+      else { frame.srcdoc = '<p style="font:14px system-ui;padding:1rem;color:#b00">' + (d && d.error ? d.error : 'Preview failed') + '</p>'; }
+    })
+    .catch(function (e) { frame.srcdoc = '<p style="font:14px system-ui;padding:1rem;color:#b00">Error: ' + e.message + '</p>'; });
+}
+function closePreview() { document.getElementById('domain-preview-overlay').style.display = 'none'; }
 
 function saveDomain(host) {
   var chain = Promise.resolve();
@@ -167,8 +211,12 @@ function loadDomains() {
       keys.forEach(function (k) { html += '<th>' + esc(k) + '</th>'; });
       html += '<th></th></tr></thead><tbody>';
       rows.forEach(function (row) {
-        html += '<tr><td class="mg-file-name"><strong>' + esc(row.host) + '</strong>'
-              + (row.is_primary ? ' <span style="color:#888;font-weight:400">primary</span>' : '') + '</td>';
+        // SM155: an alias row is indented and tagged under its canonical domain.
+        var tag = row.is_primary ? ' <span style="color:#888;font-weight:400">primary</span>'
+                : row.alias_of ? ' <span style="color:#888;font-weight:400" title="serves the same content as ' + esc(row.alias_of) + '">&#8627; alias of ' + esc(row.alias_of) + '</span>'
+                : '';
+        var pad = row.alias_of ? ' style="padding-left:1.6rem"' : '';
+        html += '<tr><td class="mg-file-name"' + pad + '><strong>' + esc(row.host) + '</strong>' + tag + '</td>';
         keys.forEach(function (k) {
           var v = row[k], inherited = row[k + '_inherited'], cell;
           if (!v) cell = '<span style="color:#ccc">&mdash;</span>';
@@ -179,9 +227,17 @@ function loadDomains() {
         // Actions (never on the primary/default row).
         if (row.is_primary) {
           html += '<td></td></tr>';
+        } else if (row.alias_of) {
+          // An alias shares its canonical's content - preview + remove only.
+          html += '<td style="white-space:nowrap">'
+                + '<button class="mg-btn mg-btn-sm" onclick="previewDomain(' + esc(JSON.stringify(row.host)) + ')">Preview</button> '
+                + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Remove</button>'
+                + '</td></tr>';
         } else {
           html += '<td style="white-space:nowrap">'
+                + '<button class="mg-btn mg-btn-sm" onclick="previewDomain(' + esc(JSON.stringify(row.host)) + ')">Preview</button> '
                 + '<button class="mg-btn mg-btn-sm" onclick="editDomain(' + esc(JSON.stringify(row.host)) + ')">Edit</button> '
+                + '<button class="mg-btn mg-btn-sm" onclick="addAlias(' + esc(JSON.stringify(row.host)) + ')">Alias</button> '
                 + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Remove</button>'
                 + '</td></tr>';
           // Hidden inline edit row for the presentation keys.

@@ -20,7 +20,7 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
-use JSON::PP qw(decode_json);
+use JSON::PP   qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
@@ -33,8 +33,8 @@ Lazysite::Audit->import('audit_log');
 # Run audit_log with STDERR captured; returns the captured diagnostics.
 sub audit_capture {
     my (@args) = @_;
-    my $err = '';
-    my $lived = eval {
+    my $err    = '';
+    my $lived  = eval {
         local *STDERR;
         open STDERR, '>', \$err or die "capture: $!";
         audit_log(@args);
@@ -135,18 +135,18 @@ subtest 'unwritable DIR: no die, WARN reaches stderr with the lost action' => su
     chmod 0755, "$d/lazysite/logs";
     ok( $ok, 'process survived (never dies)' );
     like( $out, qr/audit write failed/i, 'WARN emitted' );
-    like( $out, qr/lost-action-1/, 'the WARN names the action that was lost' );
+    like( $out, qr/lost-action-1/,       'the WARN names the action that was lost' );
 };
 
 subtest 'missing logs dir that cannot be created: no die, loud' => sub {
     my $d = tempdir( CLEANUP => 1 );
     make_path("$d/lazysite");
-    chmod 0555, "$d/lazysite";    # mkdir logs will fail
+    chmod 0555, "$d/lazysite";         # mkdir logs will fail
     my ( $ok, $out ) = subprocess_audit("$d/lazysite");
     chmod 0755, "$d/lazysite";
     ok( $ok, 'process survived' );
     like( $out, qr/audit write failed/i, 'WARN emitted for the unmakeable dir' );
-    like( $out, qr/lost-action-1/, 'lost action named' );
+    like( $out, qr/lost-action-1/,       'lost action named' );
 };
 
 subtest 'dangling symlink into a nonexistent tree: no die, loud' => sub {
@@ -199,7 +199,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
     my %audited = map { $_ => 1 } qw(
         acl-remove acl-set artifact-backups-delete backup-create
         backup-download backup-restore bad-url-unblock config-set copy delete
-        domain-add domain-remove domain-set
+        domain-add domain-remove domain-set domain-alias-add
         file-download file-upload file-zip-download form-targets-save git-init
         git-restore handler-delete handler-save layout-activate layout-delete
         layout-install layouts-install layouts-manifest layouts-repo-set
@@ -250,7 +250,7 @@ subtest 'users tool: registry covers every cmd_*, mutating subs call cli_audit' 
     my @both = grep { $mut{$_} && $exempt{$_} } @subs;
     ok( !@both, 'no cmd_* is in both registries' ) or diag "IN BOTH: @both";
 
-    my %live = map { $_ => 1 } @subs;
+    my %live  = map  { $_ => 1 } @subs;
     my @stale = grep { !$live{$_} } ( sort keys %mut, sort keys %exempt );
     ok( !@stale, 'registry names only real cmd_* subs (no stale entries)' )
         or diag "STALE registry entries: @stale";

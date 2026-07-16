@@ -70,12 +70,14 @@ sub api {
 {
     my $d = fresh_docroot();
     cli( $d, 'add', 'deploy', 'pw' );
-    grant_caps( $d, 'deploy', 'webdav' );
-    cli( $d, 'set', 'deploy', 'dav_scope', '/content' );
+    grant_caps( $d, 'deploy', 'webdav' );    # creates the role-deploy group
+        # SM155: the scope binding is on the GROUP now (grant_caps made role-deploy).
+    cli( $d, 'group-set', 'role-deploy', 'dav_scope', 'content' );
 
     my $r = api( $d, { action => 'settings-get', username => 'deploy' } );
     ok( $r->{settings}{webdav}, 'webdav now on' );
-    is( $r->{settings}{dav_scope}, '/content', 'scope round-trips' );
+    is_deeply( $r->{settings}{dav_scopes}, ['/content'],
+        'scope round-trips via the group (group-derived union)' );
     ok( $r->{settings}{ui}, 'ui still defaults on (untouched)' );
 
     # analytics capability (visitor stats; audit is a separate cap now): off by
@@ -84,36 +86,35 @@ sub api {
     grant_caps( $d, 'deploy', 'analytics' );
     my $r2 = api( $d, { action => 'settings-get', username => 'deploy' } );
     ok( $r2->{settings}{analytics}, 'analytics now on after set' );
-
-    # file is valid JSON keyed by username
-    open my $fh, '<', "$d/lazysite/auth/user-settings.json" or die;
-    my $data = decode_json( do { local $/; <$fh> } );
-    close $fh;
-    ok( exists $data->{deploy}, 'settings file keyed by username' );
 }
 
-# --- on/off parsing and clearing scope --------------------------------
+# --- SM155: group scope normalise / clear / traversal + per-user refusal ----
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'u', 'pw' );
+    cli( $d, 'add',       'u', 'pw' );
+    cli( $d, 'group-add', 'u', 'g1' );
 
     my $bad = cli( $d, 'set', 'u', 'webdav', 'maybe' );
     isnt( $bad->{code}, 0, 'invalid on/off value is rejected' );
 
-    cli( $d, 'set', 'u', 'dav_scope', '/content/' );    # trailing slash
+    cli( $d, 'group-set', 'g1', 'dav_scope', '/content/' );    # trailing slash
     my $r = api( $d, { action => 'settings-get', username => 'u' } );
-    is( $r->{settings}{dav_scope}, '/content', 'trailing slash normalised away' );
+    is_deeply( $r->{settings}{dav_scopes}, ['/content'], 'trailing slash normalised away' );
 
-    cli( $d, 'set', 'u', 'dav_scope', '' );             # clear
+    cli( $d, 'group-set', 'g1', 'dav_scope', '' );             # clear
     $r = api( $d, { action => 'settings-get', username => 'u' } );
-    ok( !defined $r->{settings}{dav_scope}, 'empty value clears scope' );
+    is_deeply( $r->{settings}{dav_scopes}, [], 'empty value clears the group scope' );
 
-    cli( $d, 'set', 'u', 'dav_scope', '/' );            # root = unset
+    cli( $d, 'group-set', 'g1', 'dav_scope', '/' );            # root = unset
     $r = api( $d, { action => 'settings-get', username => 'u' } );
-    ok( !defined $r->{settings}{dav_scope}, 'root scope is treated as unset' );
+    is_deeply( $r->{settings}{dav_scopes}, [], 'root scope is treated as unset' );
 
-    my $trav = cli( $d, 'set', 'u', 'dav_scope', '/a/../b' );
-    isnt( $trav->{code}, 0, 'traversal in scope rejected' );
+    my $trav = cli( $d, 'group-set', 'g1', 'dav_scope', '/a/../b' );
+    isnt( $trav->{code}, 0, 'traversal in a group scope is rejected' );
+
+    # SM155: the per-account key is gone - setting it errors and points to groups.
+    my $peruser = cli( $d, 'set', 'u', 'dav_scope', '/content' );
+    isnt( $peruser->{code}, 0, 'per-account dav_scope is refused (group setting now)' );
 
     my $badkey = cli( $d, 'set', 'u', 'nonsense', 'on' );
     isnt( $badkey->{code}, 0, 'unknown setting key rejected' );
@@ -194,22 +195,26 @@ sub api {
     is( $allow->{code}, 0, 'non-manager account ui can be disabled freely' );
 }
 
-# --- SM154: home_domain binds an account to a served domain -----------------
+# --- SM155: home_domain is a GROUP binding; a member inherits it ------------
 {
     my $d = fresh_docroot();
-    cli( $d, 'add', 'client', 'pw' );
+    cli( $d, 'add',       'client', 'pw' );
+    cli( $d, 'group-add', 'client', 'clienta-editors' );
+    # home_domain is only surfaced when the group is also scoped (one domain).
+    cli( $d, 'group-set', 'clienta-editors', 'dav_scope', 'content/clienta' );
 
-    my $ok = cli( $d, 'set', 'client', 'home_domain', 'Clienta.COM' );
-    is( $ok->{code}, 0, 'home_domain accepted' );
+    my $ok = cli( $d, 'group-set', 'clienta-editors', 'home_domain', 'Clienta.COM' );
+    is( $ok->{code}, 0, 'group home_domain accepted' );
     my $r = api( $d, { action => 'settings-get', username => 'client' } );
-    is( $r->{settings}{home_domain}, 'clienta.com', 'home_domain stored lowercased' );
+    is( $r->{settings}{home_domain}, 'clienta.com',
+        'member inherits the group home_domain, lowercased' );
 
-    my $bad = cli( $d, 'set', 'client', 'home_domain', 'not a host!' );
-    isnt( $bad->{code}, 0, 'an invalid home_domain is rejected' );
+    my $bad = cli( $d, 'group-set', 'clienta-editors', 'home_domain', 'not a host!' );
+    isnt( $bad->{code}, 0, 'an invalid group home_domain is rejected' );
 
-    cli( $d, 'set', 'client', 'home_domain', '' );    # clear
-    $r = api( $d, { action => 'settings-get', username => 'client' } );
-    ok( !defined $r->{settings}{home_domain}, 'empty value clears the binding' );
+    # The per-account key is gone.
+    my $peruser = cli( $d, 'set', 'client', 'home_domain', 'x.com' );
+    isnt( $peruser->{code}, 0, 'per-account home_domain is refused (group setting now)' );
 }
 
 done_testing();

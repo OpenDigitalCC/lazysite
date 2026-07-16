@@ -113,7 +113,7 @@ use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
 use Lazysite::Auth::Settings qw(read_settings write_settings _consume_lock
-    caps_for write_group_settings @CAP_KEYS);
+    caps_for write_group_settings group_scopes group_home_domain @CAP_KEYS);
 $Lazysite::Util::COMPONENT = 'users';
 
 # SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
@@ -885,8 +885,6 @@ sub effective_settings {
     my ($user) = @_;
     my $all    = read_settings();
     my $s      = $all->{$user} || {};
-    my $scope  = $s->{dav_scope};
-    $scope = undef unless defined $scope && length $scope;
     # SM095: capability bools come from the ONE resolver (caps_for) - the same one
     # the manager API, MCP, and the WebDAV endpoint consult, so a grant resolves
     # identically everywhere. Since the clean cut (0.5.20) caps_for is group-only:
@@ -897,6 +895,11 @@ sub effective_settings {
         my %g = read_groups();
         sort grep { grep { $_ eq $user } @{ $g{$_} || [] } } keys %g;
     };
+    # SM155: the domain binding is now on the GROUP - the user's effective scope
+    # is the union of their scoped groups' content roots (empty = unconfined);
+    # home_domain is the UI pointer when exactly one group is scoped.
+    my @scopes = group_scopes(@mygroups);
+    my $hd     = group_home_domain(@mygroups);
     return {
         groups => \@mygroups,
         webdav => $caps->{webdav}                  ? JSON::PP::true() : JSON::PP::false(),
@@ -906,12 +909,10 @@ sub effective_settings {
         # means "interactive login is allowed"). The transport gates use this to
         # refuse a manager account over api/mcp.
         manager_ui => $caps->{ui} ? JSON::PP::true() : JSON::PP::false(),
-        dav_scope  => $scope,
-        # SM154: the domain this account is bound to (the UI pointer paired with
-        # dav_scope). Null for an unbound operator.
-        home_domain => ( defined $s->{home_domain} && length $s->{home_domain} )
-        ? $s->{home_domain}
-        : undef,
+        # SM155: the union of content roots this account is confined to (from its
+        # groups), and the single-domain UI pointer. Empty/null = unconfined.
+        dav_scopes  => \@scopes,
+        home_domain => ( length $hd ) ? $hd : undef,
         # SM071 Phase 2: sub-user provenance and delegation. created_by /
         # created_at are immutable; managed_by defaults to created_by and
         # changes only on reassign. Top-level (operator-created) accounts
@@ -966,8 +967,9 @@ sub cmd_settings {
     my $eff = effective_settings($user);
     printf "%-11s %s\n", 'webdav:', $eff->{webdav} ? 'on' : 'off';
     printf "%-11s %s\n", 'ui:',     $eff->{ui}     ? 'on' : 'off';
+    my @sc = @{ $eff->{dav_scopes} || [] };    # SM155: group-derived
     printf "%-11s %s\n", 'dav_scope:',
-        defined $eff->{dav_scope} ? $eff->{dav_scope} : '(unset)';
+        ( @sc ? join( ', ', @sc ) : '(unset - set on a group)' );
 }
 
 # CLI wrapper: pull an optional --force flag out of the positional args.
@@ -983,7 +985,7 @@ sub cmd_set_cli {
 
 sub cmd_set {
     my ( $user, $key, $value, %opt ) = @_;
-    die "Usage: set USERNAME (ui|dav_scope|comment|email|expires_at) VALUE\n"
+    die "Usage: set USERNAME (ui|comment|email|expires_at) VALUE\n"
         unless defined $user && length $user && defined $key && length $key;
 
     my %users = read_users();
@@ -1006,10 +1008,11 @@ sub cmd_set {
         }
         $all->{$user}{$key} = $bool ? JSON::PP::true() : JSON::PP::false();
     }
-    elsif ( $key eq 'dav_scope' ) {
-        my $scope = normalise_scope($value);
-        if ( defined $scope ) { $all->{$user}{dav_scope} = $scope }
-        else                  { delete $all->{$user}{dav_scope} }
+    elsif ( $key eq 'dav_scope' || $key eq 'home_domain' ) {
+     # SM155: the domain binding moved to the GROUP. Set it there:
+     #   group-set <group> dav_scope <content-root> ; group-set <group> home_domain <host>
+        die "SM155: dav_scope/home_domain are group settings now, not per-account. "
+            . "Use: group-set <group> $key <value> (members inherit it, unioned).\n";
     }
     elsif ( $key eq 'comment' ) {
         # Free-text operator annotation (single line, length-capped).
@@ -1037,23 +1040,10 @@ sub cmd_set {
         }
         else { delete $all->{$user}{email} }
     }
-    elsif ( $key eq 'home_domain' ) {
-        # SM154: bind an account to a served domain (the UI pointer; pair it with
-        # dav_scope = that domain's content_root for the confinement). A lowercase
-        # DNS host; empty clears the binding.
-        my $h = lc( defined $value ? "$value" : '' );
-        $h =~ s/^\s+|\s+$//g;
-        if ( length $h ) {
-            die "Invalid home_domain (must be a hostname)\n"
-                unless $h =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
-                    (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
-            $all->{$user}{home_domain} = $h;
-        }
-        else { delete $all->{$user}{home_domain} }
-    }
     else {
-        die "Unknown setting '$key' (expected ui, dav_scope, home_domain, "
-            . "comment, email, or expires_at)\n";
+        die "Unknown setting '$key' (expected ui, comment, email, or "
+            . "expires_at; dav_scope/home_domain are group settings - see "
+            . "group-set)\n";
     }
 
     write_settings($all);
@@ -1757,8 +1747,8 @@ sub _onboarding_brief {
         . 'list_versions / view_version / restore_version)'
         if $eff_content;
     my $caps  = join "\n", map { "- $_" } @caps;
-    my $scope = ( defined $s->{dav_scope} && length $s->{dav_scope} )
-        ? $s->{dav_scope} : 'whole docroot (minus denied paths)';
+    my @sc    = @{ $s->{dav_scopes} || [] };    # SM155: group-derived, may be several
+    my $scope = @sc ? join( ', ', @sc ) : 'whole docroot (minus denied paths)';
 
     # Machine-readable capability tokens - the snake_case names whoami returns.
     # nav editing is gated by manage_nav (SM105), which inherits manage_content
@@ -1798,8 +1788,8 @@ you can edit content - you do not need a new pairing key or any extra grant.
 An item with no `url` is a section heading; `children` make a sub-menu. nav-save
 replaces the entire navigation in one call.
 NAV
-    my $allow = ( defined $s->{dav_scope} && length $s->{dav_scope} )
-        ? $s->{dav_scope} : '/';
+    my @bsc   = @{ $s->{dav_scopes} || [] };       # SM155: group-derived
+    my $allow = @bsc ? join( ', ', @bsc ) : '/';
 
     return <<"BRIEF";
 # lazysite partner brief: $name
@@ -2269,12 +2259,16 @@ sub cmd_partner_create {
         push @caps, 'manage_config'  if $opt{config};
         _grant_account_caps( $name, @caps );
 
-        # dav_scope is account-shaped (not a capability) - it stays per-account.
-        my $all = read_settings();
+        # SM155: dav_scope is a GROUP setting now. Set it on the account's own
+        # role group (just created by _grant_account_caps), so a scoped partner
+        # is confined through the same group model as an interactive editor -
+        # unioned with any other scoped group it later joins. (The group setter
+        # normalises + rejects traversal.)
         if ( defined $opt{scope} && length $opt{scope} ) {
-            my $sc = normalise_scope( $opt{scope} );
-            $all->{$name}{dav_scope} = $sc if defined $sc;
+            local $AUDIT_SUPPRESS = 1;
+            cmd_group_settings_set( "role-$name", 'dav_scope', $opt{scope} );
         }
+        my $all = read_settings();
         $key = _issue_pairing_key( $all, $name );
         write_settings($all);
     }
@@ -2635,6 +2629,10 @@ sub _group_settings_view {
             manager     => ( $cfg->{manager} ? JSON::PP::true() : JSON::PP::false() ),
             caps        => \%caps,
             members     => ( $members{$g} || [] ),
+            # SM155: the domain binding - members are confined to dav_scope
+            # (content root) on every channel; home_domain is the UI pointer.
+            dav_scope   => ( defined $cfg->{dav_scope}   ? $cfg->{dav_scope}   : '' ),
+            home_domain => ( defined $cfg->{home_domain} ? $cfg->{home_domain} : '' ),
         };
     }
     return \%view;
@@ -2654,6 +2652,35 @@ sub cmd_group_settings_set {
         $v = substr( $v, 0, 500 ) if length $v > 500;
         if ( length $v ) { $gs->{$group}{$key} = $v }
         else             { delete $gs->{$group}{$key} }
+        write_group_settings($gs);
+        log_event( 'INFO', $group, "group $key set" );
+        cli_audit( 'user-group-settings-set', $group, "key $key" );
+        return { ok => 1 };
+    }
+
+    # SM155: the domain binding lives on the GROUP now - a content-root subtree
+    # (dav_scope) that confines members on every channel, plus a home_domain (the
+    # UI pointer). Members of several scoped groups get the union. Empty clears.
+    if ( defined $key && ( $key eq 'dav_scope' || $key eq 'home_domain' ) ) {
+        my $gs = read_group_settings();
+        $gs->{$group} ||= { label => $group };
+        my $v = defined $value ? $value : '';
+        $v =~ s/^\s+|\s+$//g;
+        if ( !length $v ) {
+            delete $gs->{$group}{$key};
+        }
+        elsif ( $key eq 'dav_scope' ) {
+            my $scope = normalise_scope($v);    # dies on traversal; undef for '/'
+            if ( defined $scope ) { $gs->{$group}{dav_scope} = $scope }
+            else                  { delete $gs->{$group}{dav_scope} }
+        }
+        else {                                  # home_domain
+            $v = lc $v;
+            die "Invalid home_domain (must be a hostname)\n"
+                unless $v =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
+                    (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
+            $gs->{$group}{home_domain} = $v;
+        }
         write_group_settings($gs);
         log_event( 'INFO', $group, "group $key set" );
         cli_audit( 'user-group-settings-set', $group, "key $key" );
@@ -2830,7 +2857,8 @@ Commands:
                               password. Idempotent. [--user NAME] [--group NAME]
   settings USERNAME           Show a user's access-mechanism settings
   set USERNAME KEY VALUE      Set an account-shaped field: ui (on/off),
-                              dav_scope (/path), comment, email, expires_at.
+                              comment, email, expires_at. (dav_scope/home_domain
+                              are GROUP settings now - see group-set.)
                               Capabilities are group-only - use group-set.
                               (set ui off honours a last-manager guard;
                               pass --force to override)
@@ -2895,8 +2923,9 @@ cover.
 =item Accounts
 
 C<add>, C<passwd>, C<remove>, C<list>, C<settings>, C<set> - create and manage
-accounts and the one account-shaped setting (C<ui>, interactive-login) plus
-C<dav_scope>.
+accounts and the account-shaped settings (C<ui> interactive-login, C<comment>,
+C<email>, C<expires_at>). The domain binding (C<dav_scope>, C<home_domain>) is a
+GROUP setting (SM155) - see C<group-set>.
 
 =item Groups and capabilities
 
