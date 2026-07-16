@@ -91,7 +91,8 @@ routing are configured so the domain reaches this instance.
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
-var THEMES = [];   // installed theme names, loaded once (see loadThemes)
+var THEMES = [];    // installed theme names, loaded once (see loadThemes)
+var LAYOUTS = [];   // installed layout names, loaded once (see loadLayouts)
 var siteUrlEdited = false;   // true once the operator types in the Site URL field
 
 // Friendly labels for the per-domain keys - the table headers and the edit row
@@ -159,6 +160,23 @@ function loadThemes() {
         });
       }
     })
+    .catch(function () {});
+}
+
+// A <select> of installed layouts (like themeSelect) - the edit row uses it so
+// layout is chosen from what is installed, not typed.
+function layoutSelect(id, current) {
+  var html = '<select id="' + esc(id) + '"><option value="">Inherit the default</option>';
+  LAYOUTS.forEach(function (name) {
+    html += '<option value="' + esc(name) + '"' + (name === current ? ' selected' : '') + '>' + esc(name) + '</option>';
+  });
+  return html + '</select>';
+}
+
+function loadLayouts() {
+  return fetch(API + '?action=layouts-available', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d && d.ok) { LAYOUTS = (d.layouts || []).slice().sort(); } })
     .catch(function () {});
 }
 
@@ -323,6 +341,8 @@ function editField(host, k, row) {
   var field;
   if (k === 'theme') {
     field = themeSelect('e-' + host + '-' + k, own);
+  } else if (k === 'layout') {
+    field = layoutSelect('e-' + host + '-' + k, own);
   } else {
     var ph = (row[k + '_inherited'] && effective)
       ? ' placeholder="' + esc(effective) + ' (inherited)"' : '';
@@ -406,5 +426,5 @@ function loadDomains() {
     });
 }
 
-loadThemes().then(loadDomains);
+Promise.all([loadThemes(), loadLayouts()]).then(loadDomains);
 </script>

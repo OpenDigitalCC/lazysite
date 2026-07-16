@@ -1230,9 +1230,17 @@ sub action_domain_check {
     return { ok => 0, error => "Not a registered domain: $host" }
         unless _known_domain_host($host);
 
+    # Self-discover this install's PUBLIC address(es): SERVER_ADDR is the private
+    # inbound IP behind a proxy/NAT, so instance_public_ips prefers the operator's
+    # canonical_ip config, then the install's own domain, then a public
+    # SERVER_ADDR. An empty list makes the "points here" check indeterminate
+    # rather than a false failure.
+    my @self = Lazysite::Manager::Domains::instance_public_ips(
+        fallback_ip => ( $ENV{SERVER_ADDR} // '' ) );
+
     return domain_check(
         $host,
-        self_ip     => ( $ENV{SERVER_ADDR} // '' ),
+        self_ips    => \@self,
         instance_id => _instance_id(),
     );
 }
@@ -1543,10 +1551,19 @@ sub action_config_set {
     # SM122: a small, injection-safe subset settable via the API (with manage_config).
     my %allow = map { $_ => 1 }
         qw(site_name site_url search_default webdav_enabled layout theme nav_file
-        update_channel);
+        update_channel canonical_ip);
     $key = '' unless defined $key;
     return { ok => 0, error => "Config key '$key' is not settable via the API" }
         unless $allow{$key};
+    # SM156: canonical_ip is a comma list of this server's PUBLIC IPs (for the
+    # domain-check "points here" check behind a proxy/NAT). Validate as IPv4/IPv6
+    # literals, comma-separated - no hostnames, no shell/markup metacharacters.
+    if ( $key eq 'canonical_ip' && defined $value && length $value ) {
+        for my $ip ( split /\s*,\s*/, $value ) {
+            return { ok => 0, error => 'canonical_ip must be comma-separated IP addresses' }
+                unless $ip =~ /^[0-9.]+$/ || $ip =~ /^[0-9A-Fa-f:]+$/;
+        }
+    }
     # SM122: validate the enum/name-shaped keys.
     if ( $key eq 'webdav_enabled' && defined $value && $value !~ /^(?:enabled|disabled)$/ ) {
         return { ok => 0, error => "webdav_enabled must be 'enabled' or 'disabled'" };

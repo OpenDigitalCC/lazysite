@@ -71,6 +71,22 @@ guard had been a no-op (it matched the ever-present default row).
 - Hestia `update-all` discovers by the web template (`--template-only`), not the
   marker union.
 
+## 0.7.20 refinements (live-testing)
+
+Points-to-this-server behind a proxy / NAT
+: The first cut compared the domain's public IP to `SERVER_ADDR`, which behind a
+  reverse proxy is the private inbound address - a permanent false failure. The
+  server now self-discovers its PUBLIC address: an operator `canonical_ip` config
+  key (comma-separated; settable via the manager, IP-validated), else resolving
+  the install's own domain (`site_url` host), else a public `SERVER_ADDR`. With
+  none known the check is INDETERMINATE, not failed - "Serves this lazysite"
+  stays the authoritative signal. `_is_public_ip` excludes RFC1918 / loopback /
+  link-local (v4) and loopback / link-local / unique-local (v6).
+
+Graceful degradation
+: `_tls_probe` / `_marker_fetch` lazy-require IO::Socket::SSL / HTTP::Tiny inside
+  an eval; an absent module reports "check unavailable" instead of crashing.
+
 ## Out of scope
 
 - lazysite never configures DNS, the web-server domain alias or TLS - those are

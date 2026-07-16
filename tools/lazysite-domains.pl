@@ -13,7 +13,9 @@
 #   lazysite-domains.pl --docroot DIR set    --host H --key K --value V
 #   lazysite-domains.pl --docroot DIR remove --host H [--purge]
 #   lazysite-domains.pl --docroot DIR alias  --host H --of CANONICAL_HOST
-#   lazysite-domains.pl --docroot DIR check  --host H [--self-ip IP]
+#   lazysite-domains.pl --docroot DIR check  --host H [--self-ip PUBLIC_IP]
+#     (--self-ip overrides this server's public IP; otherwise it is discovered
+#      from the canonical_ip config key or the install's own domain)
 #
 # Exit 0 on success, 1 on error. `check` exits 2 when the domain is not yet
 # fully configured (some check failed), so a caller can gate on it. --json
@@ -97,9 +99,13 @@ elsif ( $cmd eq 'check' ) {
     require Digest::SHA;
     my $base = Cwd::realpath($docroot) // $docroot;
     my $instance = substr( Digest::SHA::hmac_sha256_hex( $base, 'lazysite-instance' ), 0, 32 );
+    # --self-ip, when given, is an explicit canonical-IP override; otherwise the
+    # public address is discovered from config / the install's own domain.
+    my @self = Lazysite::Manager::Domains::instance_public_ips(
+        canonical_ip => ( $opt{'self-ip'} // '' ) );
     $result = domain_check(
         $opt{host},
-        self_ip     => ( $opt{'self-ip'} // '' ),
+        self_ips    => \@self,
         instance_id => $instance,
     );
 }

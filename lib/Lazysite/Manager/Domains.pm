@@ -20,7 +20,7 @@ use File::Path                qw(make_path);
 use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved);
 use Exporter 'import';
-our @EXPORT_OK = qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check);
+our @EXPORT_OK = qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check instance_public_ips);
 
 our $DOCROOT;           # set by the caller (manager-api or the CLI)
 our $auth_user = '';    # for log attribution
@@ -381,7 +381,7 @@ sub domain_remove {
 # not add to every manager request's startup.
 sub _resolve_ips {
     my ($host) = @_;
-    require Socket;
+    return () unless eval { require Socket; 1 };    # absent => treated as "no resolution"
     my ( $err, @res )
         = Socket::getaddrinfo( $host, '', { socktype => Socket::SOCK_STREAM() } );
     return () if $err;
@@ -401,7 +401,8 @@ sub _resolve_ips {
 # they can be read. Never throws - a bad/absent cert is a {ok=>0} result.
 sub _tls_probe {
     my ( $host, $timeout ) = @_;
-    require IO::Socket::SSL;
+    return { ok => 0, detail => 'TLS check unavailable (IO::Socket::SSL not installed)' }
+        unless eval { require IO::Socket::SSL; 1 };
     my $sock = IO::Socket::SSL->new(
         PeerHost          => $host,
         PeerPort          => 443,
@@ -433,7 +434,8 @@ sub _tls_probe {
 # the caller can tell whether the request terminated on THIS install.
 sub _marker_fetch {
     my ( $host, $timeout ) = @_;
-    require HTTP::Tiny;
+    return { ok => 0, detail => 'HTTPS check unavailable (HTTP::Tiny not installed)' }
+        unless eval { require HTTP::Tiny; 1 };
     my $http = HTTP::Tiny->new(
         timeout    => $timeout,
         verify_SSL => 1,
@@ -450,13 +452,68 @@ sub _marker_fetch {
     return { ok => 1, instance => ( $inst // '' ), detail => 'marker answered' };
 }
 
+# True for a routable public address - excludes RFC1918 / loopback / link-local
+# (v4) and loopback / link-local / unique-local (v6). Used so a private
+# SERVER_ADDR (the norm behind a proxy) is never taken for the public address.
+sub _is_public_ip {
+    my ($ip) = @_;
+    return 0 unless defined $ip && length $ip;
+    if ( $ip =~ /:/ ) {    # IPv6
+        my $l = lc $ip;
+        return 0 if $l eq '::1';                   # loopback
+        return 0 if $l =~ /^fe80:/;                # link-local
+        return 0 if $l =~ /^f[cd][0-9a-f]{2}:/;    # unique-local (fc00::/7)
+        return 1;
+    }
+    my @o = $ip =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/ or return 0;
+    return 0 if $o[0] == 0 || $o[0] == 10 || $o[0] == 127;
+    return 0 if $o[0] == 172 && $o[1] >= 16 && $o[1] <= 31;
+    return 0 if $o[0] == 192 && $o[1] == 168;
+    return 0 if $o[0] == 169 && $o[1] == 254;    # link-local
+    return 1;
+}
+
+# The PUBLIC address(es) an operator would point a domain at to reach THIS
+# install - for the "points to this server" check. Behind a proxy/NAT the
+# private SERVER_ADDR is wrong, so discover the public address in order:
+#   1. canonical_ip (an explicit override, or the config key) - authoritative;
+#   2. resolving the install's own domain (the primary site_url host), which
+#      goes through the same public entry point a new domain must;
+#   3. SERVER_ADDR, only if it is itself public (a non-proxied host).
+# Empty list => undecidable; the check then reports "unknown", not a failure.
+sub instance_public_ips {
+    my (%o)    = @_;
+    my ($base) = _parse();
+
+    my $cfg = ( defined $o{canonical_ip} && length $o{canonical_ip} )
+        ? $o{canonical_ip}
+        : ( $base->{canonical_ip} // '' );
+    if ( length $cfg ) {
+        my @ips = grep { _is_public_ip($_) } map { s/^\s+|\s+$//gr } split /,/, $cfg;
+        return @ips if @ips;
+    }
+
+    my $site_url = $base->{site_url} // '';
+    if ( $site_url =~ m{^https?://([^/:]+)}i ) {
+        my @ips = grep { _is_public_ip($_) } _resolve_ips( lc $1 );
+        return @ips if @ips;
+    }
+
+    return ( $o{fallback_ip} )
+        if length( $o{fallback_ip} // '' ) && _is_public_ip( $o{fallback_ip} );
+
+    return ();
+}
+
 # domain_check($host, %opt) - is $host configured to serve THIS install live?
 # Runs four ordered checks and returns them as an array (UI renders in order):
 #   dns        - the name resolves to an address
-#   host       - one of those addresses is THIS server (opt{self_ip})
+#   host       - one of those addresses is THIS server (opt{self_ips}); undef
+#                (indeterminate) when our public address is unknown
 #   ssl        - a trusted certificate terminates for the host
 #   terminates - an HTTPS request lands on THIS install (marker id == opt{instance_id})
-# %opt: self_ip, instance_id, timeout; and resolve/tls/fetch code-ref overrides
+# %opt: self_ips (arrayref) or self_ip, instance_id, timeout; and
+#       resolve/tls/fetch code-ref overrides
 # so tests drive every branch without touching the network. A check `pass` is
 # 1, 0, or undef (indeterminate - e.g. this server's own address is unknown).
 sub domain_check {
@@ -465,7 +522,14 @@ sub domain_check {
     return { ok => 0, kind => 'invalid', error => 'Invalid domain host' }
         unless _valid_host($host);
 
-    my $self_ip  = $opt{self_ip}     // '';
+    # The server's own PUBLIC address(es). A list, because behind a proxy / NAT
+    # the private SERVER_ADDR is useless - the caller self-discovers the public
+    # IP(s) (operator canonical_ip, or resolving the install's own domain) and
+    # passes them here. self_ip (scalar) is still accepted for a simple caller.
+    my @self_ips
+        = $opt{self_ips} ? grep { length } @{ $opt{self_ips} }
+        : ( defined $opt{self_ip} && length $opt{self_ip} ) ? ( $opt{self_ip} )
+        :                                                     ();
     my $instance = $opt{instance_id} // '';
     my $timeout  = $opt{timeout} || 6;
     my $resolve  = $opt{resolve} || \&_resolve_ips;
@@ -486,24 +550,34 @@ sub domain_check {
         : 'the host name does not resolve yet - add the DNS record',
     };
 
-    # 2. Points to this server (one resolved IP is our own).
+    # 2. Points to this server (a resolved IP is one of ours). Behind a proxy or
+    # NAT the server cannot know its own public IP, so when none was discovered
+    # this is INDETERMINATE (undef), not a failure - the "Serves this lazysite"
+    # check below is the authoritative reachability signal.
     if ( !$dns_ok ) {
         push @checks, { id => 'host', label => 'Points to this server',
             pass => 0, detail => 'skipped - the host does not resolve' };
     }
-    elsif ( !length $self_ip ) {
-        push @checks, { id => 'host', label => 'Points to this server',
-            pass => undef, detail => "cannot read this server's address to compare" };
+    elsif ( !@self_ips ) {
+        push @checks, {
+            id     => 'host',
+            label  => 'Points to this server',
+            pass   => undef,
+            detail => "this server's public address is unknown (behind a proxy/NAT?) - "
+                . 'set canonical_ip in config to enable this check',
+        };
     }
     else {
-        my $match = grep { $_ eq $self_ip } @ips;
+        my %mine = map { $_ => 1 } @self_ips;
+        my ($match) = grep { $mine{$_} } @ips;
         push @checks, {
             id     => 'host',
             label  => 'Points to this server',
             pass   => $match ? 1 : 0,
             detail => $match
-            ? "points here ($self_ip)"
-            : ( 'resolves elsewhere (' . join( ', ', @ips ) . "), not $self_ip" ),
+            ? "points here ($match)"
+            : ( 'resolves to ' . join( ', ', @ips )
+                    . ', not this server (' . join( ', ', @self_ips ) . ')' ),
         };
     }
 
