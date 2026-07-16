@@ -173,7 +173,7 @@ function buildBreadcrumb(dirPath, linkFn) {
     rootTitle = 'Site root';
   }
   var items = [linkFn((accumulated || '') + '/',
-    '<span class="mg-bc-root" title="' + escHtml(rootTitle) + '">&#128193;</span>')];
+    '<span class="mg-bc-root" title="' + escHtml(rootTitle) + '">&#128193;</span>', true)];
   var parts = rest.split('/').filter(Boolean);
   for (var i = 0; i < parts.length; i++) {
     accumulated += '/' + parts[i];
@@ -183,13 +183,17 @@ function buildBreadcrumb(dirPath, linkFn) {
 }
 
 function updateBreadcrumb() {
-  // SEC-2026-07 (H5): path and label are attacker-controllable (a directory can
-  // be named with an XSS payload via mkdir). JSON.stringify(path) yields a valid
-  // JS string literal; escHtml then makes it safe inside the double-quoted HTML
-  // attribute (the browser decodes the entities back before the JS engine parses
-  // it). label is HTML-escaped for its text-node context.
-  var html = buildBreadcrumb(currentDir, function(path, label) {
-    return '<a href="#" onclick="loadDir(' + escHtml(JSON.stringify(path)) + '); return false;">' + escHtml(label) + '</a>';
+  // SEC-2026-07 (H5): path and a SEGMENT label are attacker-controllable (a
+  // directory can be named with an XSS payload via mkdir). JSON.stringify(path)
+  // yields a valid JS string literal; escHtml then makes it safe inside the
+  // double-quoted HTML attribute (the browser decodes the entities back before
+  // the JS engine parses it). A segment label is HTML-escaped for its text-node
+  // context. The ROOT item's label (rawLabel=true) is trusted icon HTML built
+  // above (its only dynamic part, the title, is already escaped there), so it is
+  // passed through un-escaped - else the folder icon shows as raw <span> markup.
+  var html = buildBreadcrumb(currentDir, function(path, label, rawLabel) {
+    var text = rawLabel ? label : escHtml(label);
+    return '<a href="#" onclick="loadDir(' + escHtml(JSON.stringify(path)) + '); return false;">' + text + '</a>';
   });
   document.getElementById('breadcrumb').innerHTML = html;
 }
