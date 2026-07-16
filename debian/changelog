@@ -1,3 +1,13 @@
+lazysite (0.7.21-1) unstable; urgency=medium
+
+  * EDGE: the domain check distinguishes a certificate COVERAGE gap (a trusted
+    cert is served but does not cover this host - the common Hestia case where a
+    sub-domain was not added to the cert) from "no trusted HTTPS" (expired /
+    self-signed / absent). It points the operator at the certificate fix;
+    lazysite still never touches certificates.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Thu, 16 Jul 2026 15:30:00 +0000
+
 lazysite (0.7.20-1) unstable; urgency=medium
 
   * EDGE: the domain check's "points to this server" now works behind a proxy /

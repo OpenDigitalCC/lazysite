@@ -18,6 +18,18 @@ Keying
 
 ## Unreleased
 
+## 0.7.21 - EDGE: domain check distinguishes a certificate coverage gap (2026-07-16)
+
+Domains: the check tells a certificate coverage gap from no HTTPS
+: When full TLS verification fails, the check probes again verifying the
+  certificate CHAIN but not the hostname. A trusted certificate that does not
+  cover the host - a SAN/coverage gap, e.g. Hestia did not add the sub-domain to
+  the certificate - is now reported as "a certificate is served (for X) but does
+  not cover this host - add this host to the certificate (e.g. via Hestia SSL)",
+  distinct from "no trusted HTTPS" (an expired, self-signed or absent cert). It
+  points the operator at the cert fix; lazysite still never touches certificates
+  itself. `t/unit/manager/34-domain-check.t`.
+
 ## 0.7.20 - EDGE: proxy-aware domain check + graceful degradation (2026-07-16)
 
 Domains: the "points to this server" check works behind a proxy / NAT
