@@ -35,7 +35,7 @@ use File::Find ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper qw(repo_root);
+use TestHelper    qw(repo_root);
 use Lazysite::Git ();
 
 my $root = repo_root();
@@ -101,10 +101,10 @@ my %EXEMPT = (
     'Files::action_git_status'   => 'read-only',
     'Files::action_git_history'  => 'read-only',
     'Files::action_git_show'     => 'read-only',
-    'Files::action_mkdir'   => 'creates an empty directory - git cannot track one',
-    'Files::action_acl_set' => 'ACL sidecar store (permissions metadata, not page '
+    'Files::action_mkdir'        => 'creates an empty directory - git cannot track one',
+    'Files::action_acl_set'      => 'ACL sidecar store (permissions metadata, not page '
         . 'content; swept by the next commit_all capture)',
-    'Files::action_acl_remove' => 'ACL sidecar store (as action_acl_set)',
+    'Files::action_acl_remove'  => 'ACL sidecar store (as action_acl_set)',
     'Files::action_git_restore' =>
         'commits via its pass through action_save (asserted behaviourally '
         . 'in t/unit/manager/25-git-actions.t)',
@@ -114,20 +114,20 @@ my %EXEMPT = (
     # --- Backups ---
     'Backups::action_backup_list'     => 'read-only',
     'Backups::action_backup_download' => 'read-only',
-    'Backups::action_backup_create' =>
+    'Backups::action_backup_create'   =>
         'writes only under lazysite/backups/ - excluded from the versioned set',
     # --- Plugins ---
-    'Plugins::action_plugin_list'       => 'read-only',
-    'Plugins::action_plugin_read'       => 'read-only',
+    'Plugins::action_plugin_list'   => 'read-only',
+    'Plugins::action_plugin_read'   => 'read-only',
     'Plugins::action_plugin_action' => 'dispatches a plugin child process; a plugin '
         . 'that mutates content owns its capture (git-sync commits via Lazysite::Git '
         . 'and snapshots before any apply)',
     'Plugins::action_handler_list'      => 'read-only',
     'Plugins::action_form_targets_read' => 'read-only',
-    'Plugins::action_plugin_enable' => 'rewrites the plugins: list in lazysite.conf '
+    'Plugins::action_plugin_enable'     => 'rewrites the plugins: list in lazysite.conf '
         . 'without a commit (pre-existing; folded into the next capture sweep)',
     'Plugins::action_plugin_disable' => 'as action_plugin_enable',
-    'Plugins::action_handler_save' =>
+    'Plugins::action_handler_save'   =>
         'writes under lazysite/forms/ - excluded from the versioned set',
     'Plugins::action_handler_delete'    => 'as action_handler_save',
     'Plugins::action_form_targets_save' => 'as action_handler_save',
@@ -139,10 +139,10 @@ my %EXEMPT = (
     'Layouts::action_themes_for_layout'        => 'read-only',
     'Layouts::action_layouts_repo_get'         => 'read-only',
     'Layouts::action_layouts_manifest'         => 'read-only',
-    'Layouts::action_layouts_install'          => 'layout/theme artifact write (capture-swept)',
-    'Layouts::action_layout_install'           => 'layout/theme artifact write (capture-swept)',
-    'Layouts::action_layout_delete'            => 'layout/theme artifact write (capture-swept)',
-    'Layouts::action_artifact_backups_delete'  => 'layout/theme artifact write (capture-swept)',
+    'Layouts::action_layouts_install' => 'layout/theme artifact write (capture-swept)',
+    'Layouts::action_layout_install'  => 'layout/theme artifact write (capture-swept)',
+    'Layouts::action_layout_delete'   => 'layout/theme artifact write (capture-swept)',
+    'Layouts::action_artifact_backups_delete' => 'layout/theme artifact write (capture-swept)',
     'Layouts::action_layouts_repo_set' => 'conf write without a commit (pre-existing; '
         . 'folded into the next capture sweep)',
     'Themes::action_theme_list'        => 'read-only',
@@ -155,10 +155,10 @@ my %EXEMPT = (
     'Themes::action_theme_delete'      => 'layout/theme artifact write (capture-swept)',
     'Themes::action_theme_rename'      => 'layout/theme artifact write (capture-swept)',
     'Themes::action_theme_upload'      => 'layout/theme artifact write (capture-swept)',
-    'Themes::action_cache_invalidate' =>
+    'Themes::action_cache_invalidate'  =>
         'removes generated *.html - excluded from the versioned set',
     # --- Sessions ---
-    'Sessions::action_sessions_list' => 'read-only',
+    'Sessions::action_sessions_list'  => 'read-only',
     'Sessions::action_session_revoke' =>
         'auth store write - lazysite/auth/ is excluded from the versioned set',
     'Sessions::action_user_revoke' => 'as action_session_revoke',
@@ -167,11 +167,12 @@ my %EXEMPT = (
     'API::action_preview_clear' => 'preview grant state, not site content',
     'API::action_preview'       => 'read-only',
     'API::action_notices'       => 'read-only',
-    'API::action_notices_seen' =>
+    'API::action_notices_seen'  =>
         'notice-seen marker under lazysite/manager, not page content',
     'API::action_pages'                 => 'read-only',
     'API::action_config_read'           => 'read-only',
     'API::action_domains_list'          => 'read-only',
+    'API::action_domain_preview'        => 'read-only', # SM155: renders, no content write
     'API::action_describe_capabilities' => 'read-only',
     'API::action_whoami'                => 'read-only',
     'API::action_recent_changes'        => 'read-only',
@@ -269,11 +270,11 @@ subtest 'representative write paths: history grows by exactly one per operation'
     my $d = mksite();
     require Lazysite::Manager::Files;
     require Lazysite::Manager::Backups;
-    local $Lazysite::Manager::Files::DOCROOT   = $d;
-    local $Lazysite::Manager::Files::LOCK_DIR  = "$d/lazysite/manager/locks";
-    local $Lazysite::Manager::Files::auth_user = 'alice';
-    local $Lazysite::Manager::Common::DOCROOT  = $d;    # validate_path/deny lists
-    local $Lazysite::Auth::Acl::DOCROOT        = $d;    # per-file ACL store
+    local $Lazysite::Manager::Files::DOCROOT        = $d;
+    local $Lazysite::Manager::Files::LOCK_DIR       = "$d/lazysite/manager/locks";
+    local $Lazysite::Manager::Files::auth_user      = 'alice';
+    local $Lazysite::Manager::Common::DOCROOT       = $d;    # validate_path/deny lists
+    local $Lazysite::Auth::Acl::DOCROOT             = $d;    # per-file ACL store
     local $Lazysite::Manager::Backups::DOCROOT      = $d;
     local $Lazysite::Manager::Backups::LAZYSITE_DIR = "$d/lazysite";
     local $Lazysite::Manager::Backups::auth_user    = 'alice';
@@ -293,34 +294,34 @@ subtest 'representative write paths: history grows by exactly one per operation'
     };
 
     $step->( 'save (create)', 1, sub {
-        Lazysite::Manager::Files::action_save( 'note.md', 'alice', "v1\n", undef ) } );
+            Lazysite::Manager::Files::action_save( 'note.md', 'alice', "v1\n", undef ) } );
     $step->( 'save (edit)', 1, sub {
-        Lazysite::Manager::Files::action_save( 'note.md', 'alice', "v2\n", undef ) } );
+            Lazysite::Manager::Files::action_save( 'note.md', 'alice', "v2\n", undef ) } );
     $step->( 'copy', 1, sub {
-        Lazysite::Manager::Files::action_copy( 'note.md', 'note-copy.md', 'alice' ) } );
+            Lazysite::Manager::Files::action_copy( 'note.md', 'note-copy.md', 'alice' ) } );
     $step->( 'move', 1, sub {
-        Lazysite::Manager::Files::action_move( 'note-copy.md', 'moved.md', 'alice' ) } );
+            Lazysite::Manager::Files::action_move( 'note-copy.md', 'moved.md', 'alice' ) } );
     $step->( 'delete', 1, sub {
-        Lazysite::Manager::Files::action_delete( 'moved.md', 'alice' ) } );
+            Lazysite::Manager::Files::action_delete( 'moved.md', 'alice' ) } );
 
     # backup create is NOT a commit (it writes only under the excluded
     # lazysite/backups/); the restore that changes the worktree IS one.
     my $backup;
     $step->( 'backup create', 0, sub {
-        my $b = Lazysite::Manager::Backups::action_backup_create('manual');
-        $backup = $b->{name};
-        $b } );
+            my $b = Lazysite::Manager::Backups::action_backup_create('manual');
+            $backup = $b->{name};
+            $b } );
     $step->( 'delete before restore', 1, sub {
-        Lazysite::Manager::Files::action_delete( 'note.md', 'alice' ) } );
+            Lazysite::Manager::Files::action_delete( 'note.md', 'alice' ) } );
     $step->( 'backup restore', 1, sub {
-        Lazysite::Manager::Backups::action_backup_restore($backup) } );
+            Lazysite::Manager::Backups::action_backup_restore($backup) } );
     ok( -f "$d/note.md", 'the restore brought the page back' );
 
     # A batched operation is ONE commit carrying every path.
     t_spit( "$d/a.md", "a\n" );
     t_spit( "$d/b.md", "b\n" );
     $step->( 'batched commit_paths (2 paths)', 1, sub {
-        Lazysite::Git::commit_paths( $d, 'alice', 'upload 2 files', 'a.md', 'b.md' ) } );
+            Lazysite::Git::commit_paths( $d, 'alice', 'upload 2 files', 'a.md', 'b.md' ) } );
     my ( $ok, $names ) =
         Lazysite::Git::run_git( $d, 'show', '--name-only', '--format=', 'HEAD' );
     ok( $ok, 'newest commit readable' );
@@ -343,7 +344,7 @@ subtest 'shared-repo promise: group access survives commits and gc under umask 0
         t_spit( "$d/p$n.md", "v$n\n" );
         Lazysite::Git::commit_paths( $d, 'alice', "create p$n.md", "p$n.md" );
     }
-    my ( $gok ) = Lazysite::Git::run_git( $d, 'gc', '-q' );
+    my ($gok) = Lazysite::Git::run_git( $d, 'gc', '-q' );
     ok( $gok, 'gc/repack cycle ran' );
     umask $old;
 
@@ -397,10 +398,10 @@ subtest 'one induced failure, every surface agrees; one fix, every surface recov
     ok( $r->{ok}, 'init ok' );
     Lazysite::Git::reset_cache();
     my $gd = Lazysite::Git::git_dir($d);
-    chmod 0664, "$d/lazysite/lazysite.conf", "$d/lazysite/nav.conf";    # keep the doctor quiet
+    chmod 0664, "$d/lazysite/lazysite.conf", "$d/lazysite/nav.conf"; # keep the doctor quiet
 
     my $grp = getgrgid( ( stat $d )[5] ) // ( stat $d )[5];
-    my $check  = sub { qx($^X "$root/tools/lazysite-check.pl" --docroot "$d" --group $grp @_ 2>&1) };
+    my $check = sub { qx($^X "$root/tools/lazysite-check.pl" --docroot "$d" --group $grp @_ 2>&1) };
     my $status = sub {
         my $out = qx($^X "$root/plugins/content-history.pl" --scan --docroot "$d");
         return eval { decode_json($out) } // {};
@@ -437,7 +438,7 @@ subtest 'one induced failure, every surface agrees; one fix, every surface recov
         '--fix repairs the repo perms' );
     like( $fix, qr/0 failure\(s\)/, 'post-fix report shows no failures' );
 
-    my $warn2 = '';
+    my $warn2  = '';
     my $saved2 = do {
         local *STDERR;
         open STDERR, '>', \$warn2 or die $!;
