@@ -16,7 +16,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
-    _write_conf_key path_out_of_scope);
+    _write_conf_key path_out_of_scope outside_all_scopes);
 
 our $DOCROOT;                         # set by the script
 our $action    = '';                  # current request action (for log attribution)
@@ -78,6 +78,20 @@ sub path_out_of_scope {
     ( my $rel = defined $path ? $path : '' ) =~ s{^/+}{};
     $rel =~ s{/+$}{};
     return ( $rel eq $s || index( $rel, "$s/" ) == 0 ) ? 0 : 1;
+}
+
+# SM155: a user may be confined by SEVERAL groups' content roots (the union -
+# an editor of clienta AND clientb). Returns 1 iff the set is non-empty AND the
+# path lies outside EVERY scope (i.e. deny); an empty set confines nothing
+# (unconfined). Reuses path_out_of_scope per scope, so the lazysite/ carve-out
+# and boundary-safe matching are identical to the single-scope path.
+sub outside_all_scopes {
+    my ( $scopes, $path ) = @_;
+    return 0 unless ref $scopes eq 'ARRAY' && @$scopes;
+    for my $s (@$scopes) {
+        return 0 unless path_out_of_scope( $s, $path );    # inside one => allowed
+    }
+    return 1;
 }
 
 # The hard deny list (exact paths) plus the *.pl rule.

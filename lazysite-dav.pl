@@ -15,14 +15,14 @@
 # path restriction). See docs/feature-requests/SM070-webdav-publishing.md.
 use strict;
 use warnings;
-use MIME::Base64 qw(decode_base64);
-use Digest::SHA qw(sha256_hex);
-use Cwd qw(realpath);
-use File::Path qw(make_path remove_tree);
+use MIME::Base64   qw(decode_base64);
+use Digest::SHA    qw(sha256_hex);
+use Cwd            qw(realpath);
+use File::Path     qw(make_path remove_tree);
 use File::Basename qw(dirname basename);
-use File::Copy qw(copy);
-use Fcntl qw(:flock O_RDWR O_CREAT);
-use POSIX qw(strftime);
+use File::Copy     qw(copy);
+use Fcntl          qw(:flock O_RDWR O_CREAT);
+use POSIX          qw(strftime);
 
 BEGIN {
     # Locate the Lazysite module tree relative to this script (run-in-place,
@@ -35,11 +35,11 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util qw(log_event const_eq);
-use Lazysite::Audit qw(audit_log);
-use Lazysite::Auth::Acl qw(_acl_allows);
+use Lazysite::Util             qw(log_event const_eq);
+use Lazysite::Audit            qw(audit_log);
+use Lazysite::Auth::Acl        qw(_acl_allows);
 use Lazysite::Auth::Credential qw(verify_password);
-use Lazysite::Auth::Settings qw(read_settings caps_for);
+use Lazysite::Auth::Settings   qw(read_settings caps_for group_scopes);
 $Lazysite::Util::COMPONENT = 'dav';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT};
@@ -52,22 +52,22 @@ our $DENY_REASON;
 my $LAZYSITE_DIR = defined $DOCROOT ? "$DOCROOT/lazysite" : undef;
 $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Auth::Acl::DOCROOT  = $DOCROOT;
-my $AUTH_DIR     = defined $DOCROOT ? "$LAZYSITE_DIR/auth" : undef;
-my $LOCK_DIR     = defined $DOCROOT ? "$LAZYSITE_DIR/manager/locks" : undef;
-my $DAV_RATE_DB  = defined $DOCROOT ? "$AUTH_DIR/.dav-rate.db" : undef;
+my $AUTH_DIR    = defined $DOCROOT ? "$LAZYSITE_DIR/auth"          : undef;
+my $LOCK_DIR    = defined $DOCROOT ? "$LAZYSITE_DIR/manager/locks" : undef;
+my $DAV_RATE_DB = defined $DOCROOT ? "$AUTH_DIR/.dav-rate.db"      : undef;
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
 
 # Failed-auth rate limit (per IP), mirroring the login limiter (H-3).
-my $RATE_MAX    = 5;       # failures per window
-my $RATE_WINDOW = 300;     # seconds
+my $RATE_MAX    = 5;                                      # failures per window
+my $RATE_WINDOW = 300;                                    # seconds
 my $FAIL_DELAY  = defined $ENV{LAZYSITE_DAV_FAIL_DELAY}
-                  ? $ENV{LAZYSITE_DAV_FAIL_DELAY} : 2;
+    ? $ENV{LAZYSITE_DAV_FAIL_DELAY} : 2;
 
 # Lock parameters.
-my $LOCK_DEFAULT     = 300;     # seconds, when client asks for none
-my $LOCK_MAX         = 3600;    # ceiling on any grant
-my $MAX_LOCKS_USER   = 100;     # concurrent dav locks per user
-my $OWNER_MAX        = 1024;    # bytes of client owner XML retained
+my $LOCK_DEFAULT   = 300;     # seconds, when client asks for none
+my $LOCK_MAX       = 3600;    # ceiling on any grant
+my $MAX_LOCKS_USER = 100;     # concurrent dav locks per user
+my $OWNER_MAX      = 1024;    # bytes of client owner XML retained
 
 my $PUT_CHUNK = 65536;
 
@@ -97,14 +97,14 @@ my %CONTENT_TYPE_MAP = (
 );
 
 my %REASON = (
-    200 => 'OK', 201 => 'Created', 204 => 'No Content',
-    207 => 'Multi-Status', 400 => 'Bad Request', 401 => 'Unauthorized',
-    403 => 'Forbidden', 404 => 'Not Found', 405 => 'Method Not Allowed',
-    409 => 'Conflict', 412 => 'Precondition Failed',
-    413 => 'Payload Too Large', 415 => 'Unsupported Media Type',
-    423 => 'Locked', 429 => 'Too Many Requests',
+    200 => 'OK',                    201 => 'Created',     204 => 'No Content',
+    207 => 'Multi-Status',          400 => 'Bad Request', 401 => 'Unauthorized',
+    403 => 'Forbidden',             404 => 'Not Found',   405 => 'Method Not Allowed',
+    409 => 'Conflict',              412 => 'Precondition Failed',
+    413 => 'Payload Too Large',     415 => 'Unsupported Media Type',
+    423 => 'Locked',                429 => 'Too Many Requests',
     500 => 'Internal Server Error', 502 => 'Bad Gateway',
-    503 => 'Service Unavailable', 507 => 'Insufficient Storage',
+    503 => 'Service Unavailable',   507 => 'Insufficient Storage',
 );
 
 # Unit-test hook: a `do "lazysite-dav.pl"` with this set returns after
@@ -155,7 +155,7 @@ sub main {
             headers => ['WWW-Authenticate: Basic realm="lazysite-dav"'],
             body    => "Authentication required\n" );
     }
-    my $users = load_users();
+    my $users  = load_users();
     my $stored = $users->{$user};
     unless ( defined $stored && length $stored && verify_password( $pass, $stored ) ) {
         dav_rate_record($ip);
@@ -261,12 +261,12 @@ sub main {
     }
     # Meaningful file-event labels: a PUT is a create (201) or an edit (204).
     my $act =
-        $method eq 'PUT'    ? ( ( defined $code && $code == 201 ) ? 'create' : 'edit' )
-      : $method eq 'DELETE' ? 'delete'
-      : $method eq 'MKCOL'  ? 'mkdir'
-      : $method eq 'MOVE'   ? 'move'
-      : $method eq 'COPY'   ? 'copy'
-      :                       lc($method);
+        $method eq 'PUT'      ? ( ( defined $code && $code == 201 ) ? 'create' : 'edit' )
+        : $method eq 'DELETE' ? 'delete'
+        : $method eq 'MKCOL'  ? 'mkdir'
+        : $method eq 'MOVE'   ? 'move'
+        : $method eq 'COPY'   ? 'copy'
+        :                       lc($method);
     my $ok = defined $code && $code < 400;
     audit_log( $user, $act, $target, $ip,
         ( $ok ? 'ok' : 'fail' ), 'dav', ( $ok ? '' : "http $code" ) );
@@ -291,14 +291,14 @@ sub do_options {
 
 sub allow_header {
     return 'Allow: OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, PROPPATCH, '
-         . 'MKCOL, COPY, MOVE, LOCK, UNLOCK';
+        . 'MKCOL, COPY, MOVE, LOCK, UNLOCK';
 }
 
 sub do_propfind {
     my (%a) = @_;
     my $r = resolve_under_docroot( $a{rel} );
     return send_status( $r->{err}, body => "Error\n" ) if $r->{err};
-    return send_status( 404, body => "Not found\n" )
+    return send_status( 404,       body => "Not found\n" )
         if !$r->{parent_ok} || !-e $r->{abs};
 
     my $depth = $ENV{HTTP_DEPTH};
@@ -329,20 +329,20 @@ sub do_propfind {
     }
 
     my $xml = qq{<?xml version="1.0" encoding="utf-8"?>\n}
-            . qq{<D:multistatus xmlns:D="DAV:" xmlns:lzs="urn:lazysite:dav">\n}
-            . join( '', @blocks )
-            . qq{</D:multistatus>\n};
+        . qq{<D:multistatus xmlns:D="DAV:" xmlns:lzs="urn:lazysite:dav">\n}
+        . join( '', @blocks )
+        . qq{</D:multistatus>\n};
     send_response( 207, type => 'application/xml; charset=utf-8', body => $xml );
 }
 
 # A single <D:response> for one resource.
 sub prop_response {
     my ( $rel, $abs, $want_sha ) = @_;
-    my @st = stat $abs;
-    my $is_dir = -d _;
-    my $href = href_for( $rel, $is_dir );
-    my $name = xml_escape( length $rel ? ( split m{/}, $rel )[-1] : '' );
-    my $mtime = $st[9] // 0;
+    my @st      = stat $abs;
+    my $is_dir  = -d _;
+    my $href    = href_for( $rel, $is_dir );
+    my $name    = xml_escape( length $rel ? ( split m{/}, $rel )[-1] : '' );
+    my $mtime   = $st[9] // 0;
     my $lastmod = strftime( '%a, %d %b %Y %H:%M:%S GMT', gmtime($mtime) );
 
     my $props = "        <D:displayname>$name</D:displayname>\n";
@@ -368,42 +368,42 @@ sub prop_response {
     }
     $props .= "        <D:getlastmodified>$lastmod</D:getlastmodified>\n";
     $props .= "        <D:supportedlock>\n"
-            . "          <D:lockentry><D:lockscope><D:exclusive/></D:lockscope>"
-            . "<D:locktype><D:write/></D:locktype></D:lockentry>\n"
-            . "        </D:supportedlock>\n";
+        . "          <D:lockentry><D:lockscope><D:exclusive/></D:lockscope>"
+        . "<D:locktype><D:write/></D:locktype></D:lockentry>\n"
+        . "        </D:supportedlock>\n";
     $props .= lockdiscovery_xml( read_lock($rel) );
 
     return "  <D:response>\n"
-         . "    <D:href>$href</D:href>\n"
-         . "    <D:propstat>\n"
-         . "      <D:prop>\n"
-         . $props
-         . "      </D:prop>\n"
-         . "      <D:status>HTTP/1.1 200 OK</D:status>\n"
-         . "    </D:propstat>\n"
-         . "  </D:response>\n";
+        . "    <D:href>$href</D:href>\n"
+        . "    <D:propstat>\n"
+        . "      <D:prop>\n"
+        . $props
+        . "      </D:prop>\n"
+        . "      <D:status>HTTP/1.1 200 OK</D:status>\n"
+        . "    </D:propstat>\n"
+        . "  </D:response>\n";
 }
 
 sub do_proppatch {
     my (%a) = @_;
     my $r = resolve_under_docroot( $a{rel} );
     return send_status( $r->{err}, body => "Error\n" ) if $r->{err};
-    return send_status( 404, body => "Not found\n" )
+    return send_status( 404,       body => "Not found\n" )
         if !$r->{parent_ok} || !-e $r->{abs};
 
     # SM070 scope exclusion 3: no dead-property store. Property writes
     # are refused, spec-compliantly, with a per-property 403.
     my $href = href_for( $a{rel}, -d $r->{abs} );
-    my $xml = qq{<?xml version="1.0" encoding="utf-8"?>\n}
-            . qq{<D:multistatus xmlns:D="DAV:">\n}
-            . "  <D:response>\n"
-            . "    <D:href>$href</D:href>\n"
-            . "    <D:propstat>\n"
-            . "      <D:prop/>\n"
-            . "      <D:status>HTTP/1.1 403 Forbidden</D:status>\n"
-            . "    </D:propstat>\n"
-            . "  </D:response>\n"
-            . qq{</D:multistatus>\n};
+    my $xml  = qq{<?xml version="1.0" encoding="utf-8"?>\n}
+        . qq{<D:multistatus xmlns:D="DAV:">\n}
+        . "  <D:response>\n"
+        . "    <D:href>$href</D:href>\n"
+        . "    <D:propstat>\n"
+        . "      <D:prop/>\n"
+        . "      <D:status>HTTP/1.1 403 Forbidden</D:status>\n"
+        . "    </D:propstat>\n"
+        . "  </D:response>\n"
+        . qq{</D:multistatus>\n};
     send_response( 207, type => 'application/xml; charset=utf-8', body => $xml );
 }
 
@@ -411,13 +411,13 @@ sub do_get {
     my (%a) = @_;
     my $r = resolve_under_docroot( $a{rel} );
     return send_status( $r->{err}, body => "Error\n" ) if $r->{err};
-    return send_status( 404, body => "Not found\n" )
+    return send_status( 404,       body => "Not found\n" )
         if !$r->{parent_ok} || !-e $r->{abs};
     return send_status( 403, body => "Is a collection\n" ) if -d $r->{abs};
 
     open my $fh, '<:raw', $r->{abs}
         or return send_status( 404, body => "Not found\n" );
-    my @st = stat $r->{abs};
+    my @st      = stat $r->{abs};
     my $lastmod = strftime( '%a, %d %b %Y %H:%M:%S GMT', gmtime( $st[9] // 0 ) );
     print "Status: 200 OK\r\n";
     print "Content-Type: " . content_type_for( $a{rel} ) . "\r\n";
@@ -438,7 +438,7 @@ sub do_put {
     my (%a) = @_;
     my $r = resolve_under_docroot( $a{rel} );
     return send_status( $r->{err}, body => "Error\n" ) if $r->{err};
-    return send_status( 409, body => "Parent collection missing\n" )
+    return send_status( 409,       body => "Parent collection missing\n" )
         unless $r->{parent_ok};
     return send_status( 405, body => "Cannot PUT a collection\n" )
         if -d $r->{abs};
@@ -452,7 +452,7 @@ sub do_put {
     }
 
     # Size gate before reading the body.
-    my $max = max_bytes( $a{conf} );
+    my $max  = max_bytes( $a{conf} );
     my $clen = $ENV{CONTENT_LENGTH};
     if ( defined $clen && $clen =~ /^\d+$/ && $clen > $max ) {
         return send_status( 413, body => "Payload too large\n" );
@@ -465,7 +465,7 @@ sub do_put {
     my $written = 0;
     my $buf;
     my $remaining = ( defined $clen && $clen =~ /^\d+$/ ) ? $clen : undef;
-    while ( 1 ) {
+    while (1) {
         my $want = $PUT_CHUNK;
         $want = $remaining if defined $remaining && $remaining < $want;
         last if defined $remaining && $remaining <= 0;
@@ -503,7 +503,7 @@ sub do_put {
     Lazysite::Git::commit_paths( $DOCROOT, $a{user},
         ( $exists ? "edit $a{rel}" : "create $a{rel}" ), $a{rel} );
     log_event( 'INFO', $a{user}, 'dav put',
-        path => $a{rel}, bytes => $written,
+        path   => $a{rel}, bytes => $written,
         status => ( $exists ? 204 : 201 ) );
     send_status( $exists ? 204 : 201 );
 }
@@ -517,7 +517,7 @@ sub do_mkcol {
 
     my $r = resolve_under_docroot( $a{rel} );
     return send_status( $r->{err}, body => "Error\n" ) if $r->{err};
-    return send_status( 409, body => "Parent collection missing\n" )
+    return send_status( 409,       body => "Parent collection missing\n" )
         unless $r->{parent_ok};
     return send_status( 405, body => "Already exists\n" ) if -e $r->{abs};
 
@@ -532,7 +532,7 @@ sub do_delete {
     my (%a) = @_;
     my $r = resolve_under_docroot( $a{rel} );
     return send_status( $r->{err}, body => "Error\n" ) if $r->{err};
-    return send_status( 404, body => "Not found\n" )
+    return send_status( 404,       body => "Not found\n" )
         if !$r->{parent_ok} || !-e $r->{abs};
 
     if ( my $code = check_conditionals( \@_, $r->{abs}, 1, $a{rel} ) ) {
@@ -568,11 +568,11 @@ sub do_delete {
 }
 
 sub do_copy_move {
-    my (%a) = @_;
+    my (%a)  = @_;
     my $move = $a{move};
     my $src  = resolve_under_docroot( $a{rel} );
     return send_status( $src->{err}, body => "Error\n" ) if $src->{err};
-    return send_status( 404, body => "Not found\n" )
+    return send_status( 404,         body => "Not found\n" )
         if !$src->{parent_ok} || !-e $src->{abs};
 
     my $drel = destination_rel();
@@ -584,11 +584,11 @@ sub do_copy_move {
     }
     my $dst = resolve_under_docroot($drel);
     return send_status( $dst->{err}, body => "Error\n" ) if $dst->{err};
-    return send_status( 409, body => "Destination parent missing\n" )
+    return send_status( 409,         body => "Destination parent missing\n" )
         unless $dst->{parent_ok};
 
     my $dst_exists = -e $dst->{abs};
-    my $overwrite = $ENV{HTTP_OVERWRITE} // 'T';
+    my $overwrite  = $ENV{HTTP_OVERWRITE} // 'T';
     if ( $dst_exists && uc($overwrite) eq 'F' ) {
         return send_status( 412, body => "Destination exists\n" );
     }
@@ -601,7 +601,7 @@ sub do_copy_move {
         return send_status( $code, body => "Source locked\n" );
     }
 
-    if ( $dst_exists ) {
+    if ($dst_exists) {
         if ( -d $dst->{abs} ) { remove_tree( $dst->{abs}, { safe => 1 } ) }
         else                  { unlink $dst->{abs} }
     }
@@ -645,7 +645,7 @@ sub do_copy_move {
         }
     }
     log_event( 'INFO', $a{user}, ( $move ? 'dav move' : 'dav copy' ),
-        path => $a{rel}, dest => $drel,
+        path   => $a{rel}, dest => $drel,
         status => ( $dst_exists ? 204 : 201 ) );
     send_status( $dst_exists ? 204 : 201 );
 }
@@ -662,7 +662,7 @@ sub do_lock {
     return send_status( 403, body => "Only Depth 0 locks supported\n" )
         if lc($depth) eq 'infinity' || $depth eq '1';
 
-    my $body = read_request_body();
+    my $body     = read_request_body();
     my $existing = read_lock( $a{rel} );
 
     # Refresh: empty body + an If header carrying the current token.
@@ -671,7 +671,7 @@ sub do_lock {
             unless $existing;
         my @tokens = parse_if_tokens( $ENV{HTTP_IF} // '' );
         unless ( $existing->{origin} eq 'dav'
-                 && grep { $_ eq $existing->{token} } @tokens ) {
+            && grep { $_ eq $existing->{token} } @tokens ) {
             return send_status( 423, body => "Lock token required to refresh\n" );
         }
         $existing->{at}      = time();
@@ -686,9 +686,9 @@ sub do_lock {
     # A live lock held by someone else (or a manager session) blocks.
     if ($existing) {
         my @tokens = parse_if_tokens( $ENV{HTTP_IF} // '' );
-        my $own = ( $existing->{origin} eq 'dav'
-                    && $existing->{user} eq $a{user}
-                    && grep { $_ eq $existing->{token} } @tokens );
+        my $own    = ( $existing->{origin} eq 'dav'
+                && $existing->{user} eq $a{user}
+                && grep { $_ eq $existing->{token} } @tokens );
         return send_status( 423, body => "Already locked\n" ) unless $own;
     }
 
@@ -713,7 +713,7 @@ sub do_lock {
     }
 
     my $owner = extract_owner($body);
-    my $rec = {
+    my $rec   = {
         user    => $a{user},
         at      => time(),
         origin  => 'dav',
@@ -727,8 +727,8 @@ sub do_lock {
 }
 
 sub do_unlock {
-    my (%a) = @_;
-    my $hdr = $ENV{HTTP_LOCK_TOKEN} // '';
+    my (%a)     = @_;
+    my $hdr     = $ENV{HTTP_LOCK_TOKEN} // '';
     my ($token) = $hdr =~ /<([^>]+)>/;
     return send_status( 400, body => "Missing Lock-Token\n" )
         unless defined $token && length $token;
@@ -748,8 +748,8 @@ sub do_unlock {
 sub lock_blocks {
     my ( $rel, $user ) = @_;
     my $lock = read_lock($rel);
-    return undef unless $lock;                       # unlocked
-    return 423 if $lock->{origin} ne 'dav';          # manager lock: opaque
+    return undef unless $lock;                 # unlocked
+    return 423 if $lock->{origin} ne 'dav';    # manager lock: opaque
     my @tokens = parse_if_tokens( $ENV{HTTP_IF} // '' );
     return undef if grep { $_ eq $lock->{token} } @tokens;
     return 423;
@@ -758,15 +758,15 @@ sub lock_blocks {
 sub lock_ok {
     my ( $rel, $rec, %o ) = @_;
     my $body = qq{<?xml version="1.0" encoding="utf-8"?>\n}
-             . qq{<D:prop xmlns:D="DAV:">\n}
-             . "  <D:lockdiscovery>\n"
-             . activelock_xml($rec)
-             . "  </D:lockdiscovery>\n"
-             . qq{</D:prop>\n};
+        . qq{<D:prop xmlns:D="DAV:">\n}
+        . "  <D:lockdiscovery>\n"
+        . activelock_xml($rec)
+        . "  </D:lockdiscovery>\n"
+        . qq{</D:prop>\n};
     send_response(
         ( $o{created} ? 201 : 200 ),
         type    => 'application/xml; charset=utf-8',
-        headers => [ "Lock-Token: <$rec->{token}>" ],
+        headers => ["Lock-Token: <$rec->{token}>"],
         body    => $body,
     );
 }
@@ -775,8 +775,8 @@ sub lockdiscovery_xml {
     my ($rec) = @_;
     return "        <D:lockdiscovery/>\n" unless $rec;
     return "        <D:lockdiscovery>\n"
-         . activelock_xml($rec)
-         . "        </D:lockdiscovery>\n";
+        . activelock_xml($rec)
+        . "        </D:lockdiscovery>\n";
 }
 
 sub activelock_xml {
@@ -786,14 +786,14 @@ sub activelock_xml {
     my $remain = ( $rec->{at} + $rec->{timeout} ) - time();
     $remain = 0 if $remain < 0;
     return "    <D:activelock>\n"
-         . "      <D:locktype><D:write/></D:locktype>\n"
-         . "      <D:lockscope><D:exclusive/></D:lockscope>\n"
-         . "      <D:depth>0</D:depth>\n"
-         . $owner
-         . "      <D:timeout>Second-$remain</D:timeout>\n"
-         . "      <D:locktoken><D:href>" . xml_escape( $rec->{token} )
-         . "</D:href></D:locktoken>\n"
-         . "    </D:activelock>\n";
+        . "      <D:locktype><D:write/></D:locktype>\n"
+        . "      <D:lockscope><D:exclusive/></D:lockscope>\n"
+        . "      <D:depth>0</D:depth>\n"
+        . $owner
+        . "      <D:timeout>Second-$remain</D:timeout>\n"
+        . "      <D:locktoken><D:href>" . xml_escape( $rec->{token} )
+        . "</D:href></D:locktoken>\n"
+        . "    </D:activelock>\n";
 }
 
 sub grant_timeout {
@@ -876,7 +876,7 @@ sub parse_lock_record {
     $at //= 0;
     $at =~ s/\D.*$//;
     return { user => $user, at => ( $at || 0 ), origin => 'manager',
-             timeout => $LOCK_DEFAULT, token => undef, owner => '' };
+        timeout => $LOCK_DEFAULT, token => undef, owner => '' };
 }
 
 sub write_lock {
@@ -911,7 +911,7 @@ sub count_user_locks {
         close $fh;
         my $rec = parse_lock_record($raw) or next;
         next unless ( $rec->{origin} // '' ) eq 'dav'
-                 && ( $rec->{user} // '' ) eq $user;
+            && ( $rec->{user} // '' ) eq $user;
         next if time() - ( $rec->{at} // 0 ) >= ( $rec->{timeout} // $LOCK_DEFAULT );
         $n++;
     }
@@ -924,8 +924,8 @@ sub count_user_locks {
 
 sub check_conditionals {
     my ( undef, $abs, $exists, $rel ) = @_;
-    my $im  = $ENV{HTTP_IF_MATCH};
-    my $inm = $ENV{HTTP_IF_NONE_MATCH};
+    my $im   = $ENV{HTTP_IF_MATCH};
+    my $inm  = $ENV{HTTP_IF_NONE_MATCH};
     my $etag = $exists && -f $abs ? etag_for( [ stat $abs ] ) : undef;
 
     if ( defined $im ) {
@@ -949,7 +949,7 @@ sub etag_in_list {
     my ( $etag, $list ) = @_;
     for my $t ( split /\s*,\s*/, $list ) {
         $t =~ s/^\s+|\s+$//g;
-        $t =~ s/^W\///;    # weak-tag marker, ignored
+        $t =~ s/^W\///;         # weak-tag marker, ignored
         return 1 if $t eq $etag;
     }
     return 0;
@@ -966,13 +966,13 @@ sub etag_in_list {
 sub sanitise_path {
     my ($path) = @_;
     $path = '' unless defined $path;
-    return undef if $path =~ /\0/;            # null byte
-    return undef if $path =~ /[\x00-\x1f]/;   # control chars
-    $path =~ s{^/+}{};                        # strip leading slashes
-    $path =~ s{/+$}{};                        # strip trailing slashes
+    return undef if $path =~ /\0/;             # null byte
+    return undef if $path =~ /[\x00-\x1f]/;    # control chars
+    $path =~ s{^/+}{};                         # strip leading slashes
+    $path =~ s{/+$}{};                         # strip trailing slashes
     return '' if $path eq '';
     for my $seg ( split m{/}, $path ) {
-        return undef if $seg eq '..';         # traversal
+        return undef if $seg eq '..';          # traversal
     }
     return $path;
 }
@@ -1026,7 +1026,7 @@ sub _deny { $DENY_REASON = $_[1]; return $_[0]; }
 # Returns an HTTP error code if denied, or undef if allowed.
 sub authorise {
     my ( $rel, $scope, $is_write, $conf, $user ) = @_;
-    $DENY_REASON = undef;   # cleared here; set by _deny(), read by the caller
+    $DENY_REASON = undef;    # cleared here; set by _deny(), read by the caller
 
     # SM072: lazysite/nav.conf is agent-editable over WebDAV, gated by
     # manage_config. Nav is benign structure - no more powerful than the
@@ -1066,12 +1066,19 @@ sub authorise {
     return _deny( 403, 'publishing site content requires the manage_content capability' )
         unless manage_content_for($user);
 
-    # Content namespace: scope confinement + write blocklist (unchanged).
-    if ( defined $scope && length $scope ) {
-        ( my $s = $scope ) =~ s{^/+|/+$}{}g;
-        if ( length $s ) {
-            return _deny( 403, "outside your assigned WebDAV scope ($s/)" )
-                unless $rel eq $s || index( $rel, "$s/" ) == 0;
+    # Content namespace: scope confinement (SM155: the UNION of the user's group
+    # scopes - allow if the path is within ANY of them) + write blocklist.
+    if ( ref $scope eq 'ARRAY' && @$scope ) {
+        my $ok = 0;
+        for my $sc (@$scope) {
+            ( my $s = $sc ) =~ s{^/+|/+$}{}g;
+            next unless length $s;
+            if ( $rel eq $s || index( $rel, "$s/" ) == 0 ) { $ok = 1; last }
+        }
+        unless ($ok) {
+            my $names = join ', ',
+                map { ( my $s = $_ ) =~ s{^/+|/+$}{}g; "$s/" } @$scope;
+            return _deny( 403, "outside your assigned WebDAV scope ($names)" );
         }
     }
 
@@ -1104,7 +1111,7 @@ sub authorise_layout {
     # Only the layouts subtree is reachable; the rest of lazysite/ is denied.
     return _deny( 403, 'only lazysite/layouts/ is writable over WebDAV; the rest of lazysite/ is protected. Install a theme under lazysite/layouts/<layout>/themes/<theme>/' )
         unless $rel eq 'lazysite/layouts'
-            || $rel =~ m{^lazysite/layouts/};
+        || $rel =~ m{^lazysite/layouts/};
 
     my $active_layout = $conf->{active_layout} // '';
     my $active_theme  = $conf->{active_theme}  // '';
@@ -1198,7 +1205,7 @@ sub resolve_under_docroot {
     my $abs = "$droot/$rel";
     ( my $parent = $abs ) =~ s{/[^/]*$}{};
     my $base = ( split m{/}, $rel )[-1];
-    my $rp = realpath($parent);
+    my $rp   = realpath($parent);
     # realpath() resolves the existing prefix and appends a missing
     # trailing component without erroring, so an existence check on the
     # resolved parent is required to detect a genuinely-missing parent.
@@ -1223,7 +1230,7 @@ sub destination_rel {
     my $dest = $ENV{HTTP_DESTINATION};
     return undef unless defined $dest && length $dest;
     $dest =~ s{^\s+|\s+$}{}g;
-    $dest =~ s{^[a-zA-Z][\w+.-]*://[^/]+}{};    # strip scheme://host
+    $dest =~ s{^[a-zA-Z][\w+.-]*://[^/]+}{};       # strip scheme://host
     my $prefix = script_prefix();
     return undef unless $dest eq $prefix || index( $dest, "$prefix/" ) == 0;
     my $path = substr( $dest, length $prefix );
@@ -1237,7 +1244,7 @@ sub destination_rel {
 
 sub invalidate_cache {
     my ($abs) = @_;
-    return unless $abs =~ /\.md$/;
+    return unless $abs   =~ /\.md$/;
     ( my $cache = $abs ) =~ s/\.md$/.html/;
     unlink $cache if -f $cache;
     # SM110: drop the per-alias-host copies of this page's render too.
@@ -1302,7 +1309,7 @@ sub _rate_ok {
     $tokens = $burst if $tokens > $burst;
     my ( $allow, $retry ) = ( 0, 0 );
     if ( $tokens >= 1 ) { $tokens -= 1; $allow = 1 }
-    else { $retry = $rate > 0 ? int( ( 1 - $tokens ) / $rate ) + 1 : 60 }
+    else                { $retry = $rate > 0 ? int( ( 1 - $tokens ) / $rate ) + 1 : 60 }
     $data->{$key} = { tokens => $tokens, last => $now };
     seek( $fh, 0, 0 ); truncate( $fh, 0 ); print $fh JSON::PP::encode_json($data);
     flock( $fh, LOCK_UN ); close $fh;
@@ -1325,12 +1332,12 @@ sub token_expired {
     return time() > $s->{token_expires_at} ? 1 : 0;
 }
 
+# SM155: the content-root scope(s) the user is confined to, resolved from their
+# GROUPS (the binding moved off the account). Returns an arrayref (possibly empty
+# = unconfined); a member of several scoped groups gets the union.
 sub scope_for {
     my ($user) = @_;
-    my $s = read_settings()->{$user};
-    return undef unless ref $s eq 'HASH';
-    my $scope = $s->{dav_scope};
-    return ( defined $scope && length $scope ) ? $scope : undef;
+    return [ group_scopes( user_groups_for($user) ) ];
 }
 
 # ---------------------------------------------------------------------
@@ -1345,7 +1352,7 @@ sub dav_rate_blocked {
     eval { tie %db, 'DB_File', $DAV_RATE_DB, O_CREAT | O_RDWR, 0o600 };
     return 0 if $@ || !tied %db;
     my $window = int( time() / $RATE_WINDOW );
-    my $count = $db{"$ip:$window"} // 0;
+    my $count  = $db{"$ip:$window"} // 0;
     untie %db;
     return $count >= $RATE_MAX ? 1 : 0;
 }
@@ -1374,34 +1381,34 @@ sub read_conf {
         webdav_enabled     => 0,
         dav_allow_insecure => 0,
         max_bytes          => 10 * 1024 * 1024,
-        active_layout      => '',   # SM071 Phase 3: theme/layout pointers
+        active_layout      => '',                 # SM071 Phase 3: theme/layout pointers
         active_theme       => '',
         blocked_paths      => [ qw(
-            lazysite/auth lazysite/forms lazysite/cache
-            lazysite/manager cgi-bin manager
+                lazysite/auth lazysite/forms lazysite/cache
+                lazysite/manager cgi-bin manager
         ) ],
-        blocked_extensions => [ qw(pl cgi) ],
+        blocked_extensions => [qw(pl cgi)],
     );
     my $path = "$LAZYSITE_DIR/lazysite.conf";
     return \%c unless -f $path;
     open my $fh, '<', $path or return \%c;
     while (<$fh>) {
-        if    ( /^webdav_enabled\s*:\s*(\S+)/ )     { $c{webdav_enabled}     = $1 }
-        elsif ( /^dav_allow_insecure\s*:\s*(\S+)/ ) { $c{dav_allow_insecure} = $1 }
-        elsif ( /^layout\s*:\s*(\S+)/ )             { $c{active_layout}      = $1 }
-        elsif ( /^theme\s*:\s*(\S+)/ )              { $c{active_theme}       = $1 }
+        if    (/^webdav_enabled\s*:\s*(\S+)/)     { $c{webdav_enabled}     = $1 }
+        elsif (/^dav_allow_insecure\s*:\s*(\S+)/) { $c{dav_allow_insecure} = $1 }
+        elsif (/^layout\s*:\s*(\S+)/)             { $c{active_layout}      = $1 }
+        elsif (/^theme\s*:\s*(\S+)/)              { $c{active_theme}       = $1 }
         elsif ( /^manager_upload_max_mb\s*:\s*(\d+)/ && $1 > 0 ) {
             $c{max_bytes} = $1 * 1024 * 1024;
         }
-        elsif ( /^manager_blocked_paths\s*:\s*(.+)/ ) {
+        elsif (/^manager_blocked_paths\s*:\s*(.+)/) {
             my $v = $1; $v =~ s/\s+$//;
             $c{blocked_paths} = [ map { s{^/+|/+$}{}gr } grep { length }
-                split /\s*,\s*/, $v ] if length $v;
+                    split /\s*,\s*/, $v ] if length $v;
         }
-        elsif ( /^manager_upload_blocked_extensions\s*:\s*(.+)/ ) {
+        elsif (/^manager_upload_blocked_extensions\s*:\s*(.+)/) {
             my $v = $1; $v =~ s/\s+$//;
             $c{blocked_extensions} = [ map { lc } grep { length }
-                split /\s*,\s*/, $v ] if length $v;
+                    split /\s*,\s*/, $v ] if length $v;
         }
     }
     close $fh;
@@ -1415,7 +1422,7 @@ sub is_truthy {
     return 0 unless defined $v;
     $v = lc $v;
     return ( $v eq '1' || $v eq 'true' || $v eq 'yes'
-          || $v eq 'on' || $v eq 'enabled' ) ? 1 : 0;
+            || $v eq 'on' || $v eq 'enabled' ) ? 1 : 0;
 }
 
 # ---------------------------------------------------------------------
@@ -1467,7 +1474,7 @@ sub href_for {
     my ( $rel, $is_dir ) = @_;
     my $href = script_prefix();
     $href .= '/' . uri_escape_path($rel) if length $rel;
-    $href .= '/' if $is_dir && $href !~ m{/$};
+    $href .= '/'                         if $is_dir && $href !~ m{/$};
     return xml_escape($href);
 }
 
@@ -1542,7 +1549,7 @@ sub send_response {
     # (throttled) always carry a Retry-After so clients back off.
     my @headers = @{ $o{headers} || [] };
     if ( ( $code == 423 || $code == 429 )
-         && !grep { /^Retry-After:/i } @headers ) {
+        && !grep { /^Retry-After:/i } @headers ) {
         push @headers, 'Retry-After: 30';
     }
     for my $h (@headers) {

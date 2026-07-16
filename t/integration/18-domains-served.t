@@ -13,7 +13,7 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
 use TestHelper                 qw(run_processor);
-use Lazysite::Manager::Domains qw(domain_add domain_remove);
+use Lazysite::Manager::Domains qw(domain_add domain_add_alias domain_remove);
 
 my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite");
@@ -49,6 +49,17 @@ close $ch;
     my $out = run_processor( $docroot, '/index', HTTP_HOST => 'agency.example' );
     like( $out, qr/AGENCY-PRIMARY/, 'the default host serves the primary content' );
     unlike( $out, qr/CLIENT-A-CONTENT/, 'the default host does not serve a client subtree' );
+}
+
+# --- SM155: an alias host serves the canonical domain's content -------------
+{
+    my $al = domain_add_alias( 'www.clienta.com', 'clienta.com' );
+    ok( $al->{ok}, 'engine added www.clienta.com as an alias of clienta.com' )
+        or diag explain $al;
+    my $out = run_processor( $docroot, '/index', HTTP_HOST => 'www.clienta.com' );
+    like( $out, qr/CLIENT-A-CONTENT/, 'the alias host serves the canonical content' );
+    unlike( $out, qr/AGENCY-PRIMARY/, 'the alias does not serve the primary content' );
+    domain_remove('www.clienta.com');
 }
 
 # --- after removal, the host no longer routes to the client root ------------

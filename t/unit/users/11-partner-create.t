@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP   qw(encode_json decode_json);
 use IPC::Open2;
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -49,28 +49,30 @@ grant_caps( $d, 'boss', 'delegate_sub_user_creation' );
 # --- default partner: webdav + manage_themes, brief, pairing key ------
 my $r = api( $d, { action => 'partner-create', username => 'designer', created_by => 'boss' } );
 ok( $r->{ok}, 'partner-create ok' );
-like( $r->{pairing_key}, qr/^lzp_/, 'pairing key returned' );
-like( $r->{onboarding}, qr/designer/, 'brief names the partner' );
-like( $r->{onboarding}, qr{https://example\.test/dav/}, 'brief carries the DAV URL' );
-like( $r->{onboarding}, qr/\Q$r->{pairing_key}\E/, 'brief embeds the pairing key' );
+like( $r->{pairing_key}, qr/^lzp_/,                      'pairing key returned' );
+like( $r->{onboarding},  qr/designer/,                   'brief names the partner' );
+like( $r->{onboarding},  qr{https://example\.test/dav/}, 'brief carries the DAV URL' );
+like( $r->{onboarding},  qr/\Q$r->{pairing_key}\E/,      'brief embeds the pairing key' );
 
 my $s = settings( $d, 'designer' );
-ok( $s->{webdav},        'partner has webdav' );
-ok( $s->{manage_themes}, 'partner has manage_themes by default' );
+ok( $s->{webdav},          'partner has webdav' );
+ok( $s->{manage_themes},   'partner has manage_themes by default' );
 ok( !$s->{manage_layouts}, 'no manage_layouts unless requested' );
 is( $s->{created_by}, 'boss', 'provenance recorded' );
 
 # --- extras: layouts, config, scope -----------------------------------
 api( $d, { action => 'partner-create', username => 'builder', created_by => 'boss',
-    manage_layouts => 1, manage_config => 1, dav_scope => '/content' } );
+        manage_layouts => 1, manage_config => 1, dav_scope => '/content' } );
 my $s2 = settings( $d, 'builder' );
 ok( $s2->{manage_layouts}, 'builder: manage_layouts on' );
 ok( $s2->{manage_config},  'builder: manage_config on' );
-is( $s2->{dav_scope}, '/content', 'builder: scope set' );
+# SM155: partner scope lands on the account's role group; effective settings
+# surface it as the group-derived dav_scopes union.
+is_deeply( $s2->{dav_scopes}, ['/content'], 'builder: scope set (via role group)' );
 
 # --- the pairing key actually works -----------------------------------
 my $ex = api( $d, { action => 'token-exchange',
-    username => 'designer', pairing_key => $r->{pairing_key} } );
+        username => 'designer', pairing_key => $r->{pairing_key} } );
 ok( $ex->{ok} && $ex->{token} =~ /^lzs_/, 'partner pairing key exchanges for a token' );
 
 # --- gating: creator without create_sub_users -------------------------

@@ -12,6 +12,7 @@
 #       [--nav-file F] [--search-default S] [--seed]
 #   lazysite-domains.pl --docroot DIR set    --host H --key K --value V
 #   lazysite-domains.pl --docroot DIR remove --host H [--purge]
+#   lazysite-domains.pl --docroot DIR alias  --host H --of CANONICAL_HOST
 #
 # Exit 0 on success, 1 on error. --json prints the raw result object.
 use strict;
@@ -26,7 +27,7 @@ BEGIN {
     }
 }
 use Lazysite::Manager::Domains
-    qw(domains_list domain_add domain_remove domain_set);
+    qw(domains_list domain_add domain_add_alias domain_remove domain_set);
 
 my %opt;
 my @pos;
@@ -83,9 +84,14 @@ elsif ( $cmd eq 'remove' ) {
     die "lazysite-domains: remove requires --host\n" unless defined $opt{host};
     $result = domain_remove( $opt{host}, purge => ( $opt{purge} ? 1 : 0 ) );
 }
+elsif ( $cmd eq 'alias' ) {
+    die "lazysite-domains: alias requires --host and --of\n"
+        unless defined $opt{host} && defined $opt{of};
+    $result = domain_add_alias( $opt{host}, $opt{of} );
+}
 else {
     die "lazysite-domains: unknown command '$cmd' "
-        . "(list|add|set|remove); run with no command for usage.\n";
+        . "(list|add|alias|set|remove); run with no command for usage.\n";
 }
 
 if ( $opt{json} ) {

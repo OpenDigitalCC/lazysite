@@ -85,12 +85,14 @@ open my $a, '>', "$d/content/clientA/ok.md"     or die $!; print $a "A\n"; close
 open my $b, '>', "$d/content/clientB/secret.md" or die $!; print $b "B\n"; close $b;
 
 # op = operator (manage_users secures the site, so non-operators are gated);
-# client = a domain-bound editor confined to content/clientA.
+# client = a domain-bound editor confined to content/clientA. SM155: the binding
+# is on the GROUP now - grant_caps makes a role-<user> group, so set its
+# dav_scope; the member inherits it.
 uapi( $d, { action => 'add', username => 'op', password => 'x' } );
 grant_caps( $d, 'op', 'manage_users', 'manage_content' );
 uapi( $d, { action => 'add', username => 'client', password => 'y' } );
 grant_caps( $d, 'client', 'manage_content' );
-uapi( $d, { action => 'settings-set', username => 'client',
+uapi( $d, { action => 'group-settings-set', group => 'role-client',
         key => 'dav_scope', value => 'content/clientA' } );
 
 # --- the bound client works INSIDE its scope --------------------------------
@@ -121,6 +123,28 @@ uapi( $d, { action => 'settings-set', username => 'client',
 {
     my $r = get( $d, 'op', 'role-op', 'action=read&path=/content/clientB/secret.md' );
     ok( $r->{ok}, 'operator (unbound) reads any domain' ) or diag encode_json($r);
+}
+
+# --- SM155: a member of TWO scoped groups gets the UNION ---------------------
+# Add 'client' to a second scoped group (clientB). Now clientA AND clientB are
+# reachable, but a third domain is still denied.
+{
+    uapi( $d, { action => 'group-add', username => 'client', group => 'clientb-team' } );
+    uapi( $d, { action => 'group-settings-set', group => 'clientb-team',
+            key => 'manage_content', value => 'on' } );
+    uapi( $d, { action => 'group-settings-set', group => 'clientb-team',
+            key => 'dav_scope', value => 'content/clientB' } );
+    mkdir "$d/content/clientC";
+    open my $c, '>', "$d/content/clientC/z.md" or die $!; print $c "C\n"; close $c;
+
+    my $ga = 'role-client,clientb-team';   # the client's groups, as the wrapper sets them
+    ok( get( $d, 'client', $ga, 'action=read&path=/content/clientA/ok.md' )->{ok},
+        'union: still reads clientA (first scoped group)' );
+    ok( get( $d, 'client', $ga, 'action=read&path=/content/clientB/secret.md' )->{ok},
+        'union: now reads clientB (second scoped group)' );
+    my $c3 = get( $d, 'client', $ga, 'action=read&path=/content/clientC/z.md' );
+    ok( !$c3->{ok}, 'union: a third domain is still denied' );
+    is( $c3->{kind}, 'forbidden', 'union: the third domain read is forbidden' );
 }
 
 done_testing();

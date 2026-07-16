@@ -141,6 +141,18 @@ function renderGroups() {
     h += '<div class="mg-sec">Actions <span style="font-weight:400;color:#888">— what they may do</span></div>';
     h += '<div class="mg-checks">' + ACTIONS.map(row).join('') + '</div>';
 
+    // SM155: the domain binding. Set a content root here and members of this
+    // group are confined to it on every channel (a delegated domain team); a
+    // member of several scoped groups gets the union. home_domain is the label
+    // their file browser roots under. Leave blank for an unscoped group.
+    h += '<div class="mg-sec">Domain binding <span style="font-weight:400;color:#888">— confine this group to one domain</span></div>';
+    h += '<div class="mg-line"><label style="min-width:7rem">Content root</label>'
+       + '<input type="text" class="mg-inp" style="flex:1" value="' + escHtml(info.dav_scope || '') + '" '
+       + 'onchange="setGroupBinding(\'' + ge + '\',\'dav_scope\', this.value)" placeholder="e.g. content/clienta (blank = unconfined)"></div>';
+    h += '<div class="mg-line"><label style="min-width:7rem">Home domain</label>'
+       + '<input type="text" class="mg-inp" style="flex:1" value="' + escHtml(info.home_domain || '') + '" '
+       + 'onchange="setGroupBinding(\'' + ge + '\',\'home_domain\', this.value)" placeholder="e.g. clienta.com (roots the file browser)"></div>';
+
     h += '<div class="mg-sec">Members</div>';
     h += '<div class="mg-tokens" id="gm-' + ge + '">' + memberPillsHtml(members, ge) + '</div>';
     h += '<div class="mg-tokens-pick"><input list="all-users-list" id="add-' + ge + '" class="mg-inp" placeholder="add a user&hellip;" style="max-width:14rem" onkeydown="if(event.key===\'Enter\'){addMember(\'' + ge + '\');event.preventDefault();}">' +
@@ -160,6 +172,18 @@ function setDescription(group, value) {
       if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
       if (allGroups[group]) allGroups[group].description = value;
       showStatus('Description saved.');
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM155: save a group's domain binding (dav_scope / home_domain). The server
+// normalises + validates; an invalid value is reported and the field reverts.
+function setGroupBinding(group, key, value) {
+  apiCall({ action: 'group-settings-set', group: group, key: key, value: value })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Failed.', true); loadGroups(); return; }
+      if (allGroups[group]) allGroups[group][key] = value;
+      showStatus(group + ': ' + key + (value ? ' set' : ' cleared') + '.');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }

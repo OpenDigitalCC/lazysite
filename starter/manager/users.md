@@ -400,7 +400,8 @@ function accountSettingsHtml(row) {
   var mcp      = !!s.mcp;
   var api      = !!s.api;
   var disabled = !!s.disabled;
-  var scope    = s.dav_scope || '';
+  var scopes   = Array.isArray(s.dav_scopes) ? s.dav_scopes : [];   // SM155: group-derived
+  var scope    = scopes.length === 1 ? scopes[0] : '';
   var comment  = s.comment || '';
   var h = '';
 
@@ -466,10 +467,12 @@ function accountSettingsHtml(row) {
     wd += '<div class="mg-line"><span class="mg-line-lbl">Username</span><code class="mg-code">' + ue + '</code></div>';
     wd += '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
       '<span class="mg-muted">use a <strong>Generate credential</strong> token (above) &mdash; far faster than the account password</span></div>';
+    // SM155: scope is a GROUP setting now (the domain binding). Show the
+    // effective scope(s) read-only and point to Groups to change it.
+    var scopeTxt = scopes.length ? scopes.join(', ') : 'whole site (minus denied paths)';
     wd += '<div class="mg-line"><span class="mg-line-lbl">Scope</span>' +
-      '<input type="text" class="mg-inp" id="scope-' + ue + '" value="' + escHtml(scope) + '" placeholder="/ (whole site)" autocomplete="off">' +
-      '<button class="mg-btn mg-btn-sm" onclick="setUserScope(\'' + ue + '\')">Set</button>' +
-      '<span class="mg-help" title="Limits this account\'s WebDAV writes to a path prefix under the docroot. Empty = whole site (minus denied paths).">&#9432;</span></div>';
+      '<span class="mg-muted">' + escHtml(scopeTxt) + ' &mdash; set on the account\'s <a href="/manager/groups">group(s)</a> (Domain binding)</span>' +
+      '<span class="mg-help" title="A group\'s dav_scope confines its members\' WebDAV/API/MCP/UI access to a content root. Members of several scoped groups get the union.">&#9432;</span></div>';
     h += sec('WebDAV', wd);
   }
 
@@ -647,18 +650,8 @@ function toggleGroup(user, group, el) {
     .catch(function(e) { el.checked = !checked; showStatus('Error: ' + e.message, true); });
 }
 
-function setUserScope(user) {
-  var input = document.getElementById('scope-' + user);
-  var val = ((input && input.value) || '').trim();
-  apiCall({ action: 'settings-set', username: user, key: 'dav_scope', value: val })
-    .then(function(d) {
-      if (!d.ok) { showStatus(d.error, true); return; }
-      var code = document.getElementById('dav-' + user);
-      if (code) code.textContent = DAV_BASE + (val ? val.replace(/\/+$/, '') : '');
-      showStatus(val ? ('Scope set to ' + val + ' for "' + user + '".') : ('Scope cleared for "' + user + '".'));
-    })
-    .catch(function(e) { showStatus('Error: ' + e.message, true); });
-}
+// SM155: per-account scope removed - the domain binding is a GROUP setting now
+// (Groups page > Domain binding). setUserScope() is gone with it.
 
 function savePassword(user) {
   var inp = document.getElementById('pw-' + user);

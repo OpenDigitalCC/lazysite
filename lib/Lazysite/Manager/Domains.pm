@@ -19,7 +19,7 @@ use Cwd            qw(realpath);
 use File::Path     qw(make_path);
 use Lazysite::Util qw(log_event);
 use Exporter 'import';
-our @EXPORT_OK = qw(domains_list domain_add domain_remove domain_set);
+our @EXPORT_OK = qw(domains_list domain_add domain_add_alias domain_remove domain_set);
 
 our $DOCROOT;           # set by the caller (manager-api or the CLI)
 our $auth_user = '';    # for log attribution
@@ -146,15 +146,55 @@ sub domains_list {
             is_primary => 1,
             map { $_ => ( $base->{$_} // '' ) } @DOMAIN_KEYS,
     } );
+    my %canon_for;    # content_root -> the first host that declared it (canonical)
     for my $h (@$hosts) {
         my %row = ( host => $h, is_primary => 0 );
         for my $k (@DOMAIN_KEYS) {
             $row{$k} = defined $ov->{$h}{$k} ? $ov->{$h}{$k}      : ( $base->{$k} // '' );
             $row{ $k . '_inherited' } = defined $ov->{$h}{$k} ? 0 : 1;
         }
+        # SM155: an ALIAS is a host that shares another registered domain's own
+        # content root. The first host to declare a given root is canonical;
+        # later hosts with the same root are marked as its aliases so the UI can
+        # group them under it rather than list them as separate domains.
+        my $cr = $ov->{$h}{content_root};
+        if ( defined $cr && length $cr ) {
+            if   ( defined $canon_for{$cr} ) { $row{alias_of}  = $canon_for{$cr} }
+            else                             { $canon_for{$cr} = $h }
+        }
         push @domains, \%row;
     }
     return { ok => 1, domains => \@domains, keys => \@DOMAIN_KEYS };
+}
+
+# --- public: add an alias --------------------------------------------------
+
+# SM155: register $host as an ALIAS of an existing domain $of - the same content
+# root (and canonical site_url), a different host. Aliases let one first-class
+# domain answer to several hosts (clienta.com + www.clienta.com), each unique in
+# this instance. The shared content root is intentional (that is what an alias
+# is); domain_add enforces host-uniqueness and reuses the existing directory.
+sub domain_add_alias {
+    my ( $host, $of ) = @_;
+    $of = lc( $of // '' );
+    return { ok => 0, kind => 'invalid', error => 'Invalid canonical host' }
+        unless _valid_host($of);
+
+    my ( undef, $ov, $hosts ) = _parse();
+    return { ok => 0, kind => 'not-found', error => "Not a registered domain: $of" }
+        unless grep { $_ eq $of } @$hosts;
+
+    my $cr = $ov->{$of}{content_root};
+    return { ok => 0, kind => 'invalid',
+        error => "$of has no content_root of its own to alias" }
+        unless defined $cr && length $cr;
+
+    my %opts = ( content_root => $cr );
+    # Carry the canonical's site_url so the alias's canonical link points at the
+    # same site (proper mirror SEO); every other key inherits the base.
+    $opts{site_url} = $ov->{$of}{site_url}
+        if defined $ov->{$of}{site_url} && length $ov->{$of}{site_url};
+    return domain_add( $host, %opts );
 }
 
 # --- public: add -----------------------------------------------------------

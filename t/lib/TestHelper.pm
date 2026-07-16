@@ -2,8 +2,8 @@ package TestHelper;
 # Shared setup + subprocess helpers for the lazysite test suite.
 use strict;
 use warnings;
-use File::Temp qw(tempdir);
-use File::Path qw(make_path);
+use File::Temp  qw(tempdir);
+use File::Path  qw(make_path);
 use Digest::SHA qw(sha256_hex);
 use FindBin;
 use Exporter 'import';
@@ -84,7 +84,7 @@ sub _gc_set_caps {
     my $gs = {};
     if ( open my $fh, '<', $f ) {
         local $/;
-        $gs = eval { JSON::PP::decode_json( <$fh> ) } || {};
+        $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
         close $fh;
     }
     $gs->{$group} ||= { label => $group };
@@ -134,8 +134,8 @@ sub load_processor {
     # Test::Builder stashes its own dup at import time and is unaffected.
     open( my $saved,  '>&', \*STDOUT ) or die "dup STDOUT: $!\n";
     open( my $savede, '>&', \*STDERR ) or die "dup STDERR: $!\n";
-    open( STDOUT, '>&', $null ) or die "redir STDOUT: $!\n";
-    open( STDERR, '>&', $null ) or die "redir STDERR: $!\n";
+    open( STDOUT,     '>&', $null )    or die "redir STDOUT: $!\n";
+    open( STDERR,     '>&', $null )    or die "redir STDERR: $!\n";
 
     {
         # `do` inherits the caller's package. The processor has no
@@ -158,9 +158,9 @@ sub load_processor {
 
 sub silence_stdout(&) {
     my ($code) = @_;
-    open( my $null, '>', '/dev/null' ) or die $!;
-    open( my $saved, '>&', \*STDOUT )  or die $!;
-    open( STDOUT, '>&', $null )        or die $!;
+    open( my $null,  '>',  '/dev/null' ) or die $!;
+    open( my $saved, '>&', \*STDOUT )    or die $!;
+    open( STDOUT,    '>&', $null )       or die $!;
     my $r = eval { $code->() };
     my $e = $@;
     open( STDOUT, '>&', $saved );
@@ -204,7 +204,7 @@ sub setup_test_site {
 
     open my $vf, '>', "$docroot/lazysite/layouts/test/layout.tt" or die $!;
     print $vf '<!DOCTYPE html><html><head><title>[% page_title %]</title></head>'
-           . '<body>[% content %]</body></html>';
+        . '<body>[% content %]</body></html>';
     close $vf;
 
     open my $idx, '>', "$docroot/index.md" or die $!;
@@ -231,7 +231,7 @@ sub setup_auth_site {
 
     open my $uf, '>', "$docroot/lazysite/auth/users" or die $!;
     print $uf "alice:" . sha256_hex('password') . "\n";
-    print $uf "bob:"   . sha256_hex('bobpass')  . "\n";
+    print $uf "bob:" . sha256_hex('bobpass') . "\n";
     close $uf;
 
     open my $gf, '>', "$docroot/lazysite/auth/groups" or die $!;
@@ -288,10 +288,10 @@ sub run_processor {
     my ( $docroot, $uri, %override ) = @_;
     my $proc = processor_path();
     local %ENV = %ENV;
-    $ENV{DOCUMENT_ROOT} = $docroot;
-    $ENV{REDIRECT_URL}  = $uri;
-    $ENV{REQUEST_METHOD} = 'GET'  unless defined $ENV{REQUEST_METHOD};
-    $ENV{QUERY_STRING}   = ''      unless defined $ENV{QUERY_STRING};
+    $ENV{DOCUMENT_ROOT}  = $docroot;
+    $ENV{REDIRECT_URL}   = $uri;
+    $ENV{REQUEST_METHOD} = 'GET' unless defined $ENV{REQUEST_METHOD};
+    $ENV{QUERY_STRING}   = ''    unless defined $ENV{QUERY_STRING};
     # User overrides last
     for my $k ( keys %override ) {
         if ( defined $override{$k} ) {
@@ -342,13 +342,13 @@ sub run_dav {
 
     my $script = repo_root() . "/lazysite-dav.pl";
     local %ENV = %ENV;
-    $ENV{DOCUMENT_ROOT}  = $docroot;
-    $ENV{REQUEST_METHOD} = $method;
-    $ENV{PATH_INFO}      = $path;
-    $ENV{SCRIPT_NAME}            = '/dav'      unless exists $opt{SCRIPT_NAME};
-    $ENV{REMOTE_ADDR}           = '127.0.0.1' unless exists $opt{REMOTE_ADDR};
-    $ENV{LAZYSITE_DAV_FAIL_DELAY} = 0         unless exists $opt{LAZYSITE_DAV_FAIL_DELAY};
-    $ENV{CONTENT_LENGTH} = length($body)
+    $ENV{DOCUMENT_ROOT}           = $docroot;
+    $ENV{REQUEST_METHOD}          = $method;
+    $ENV{PATH_INFO}               = $path;
+    $ENV{SCRIPT_NAME}             = '/dav'      unless exists $opt{SCRIPT_NAME};
+    $ENV{REMOTE_ADDR}             = '127.0.0.1' unless exists $opt{REMOTE_ADDR};
+    $ENV{LAZYSITE_DAV_FAIL_DELAY} = 0 unless exists $opt{LAZYSITE_DAV_FAIL_DELAY};
+    $ENV{CONTENT_LENGTH}          = length($body)
         if length($body) && !exists $opt{CONTENT_LENGTH};
 
     for my $k ( keys %opt ) {
@@ -426,10 +426,12 @@ sub setup_dav_site {
         # pass caps => [...] for a different set, or webdav => 'off' for none.
         if ( ( $o{webdav} // 'on' ) ne 'off' ) {
             my @caps = $o{caps} ? @{ $o{caps} }
-                : qw(webdav manage_content manage_nav manage_forms);
+                :   qw(webdav manage_content manage_nav manage_forms);
             grant_caps( $d, $user, @caps );
         }
-        dav_users_tool( $d, 'set', $user, 'dav_scope', $o{scope} )
+        # SM155: dav_scope is a GROUP setting now. grant_caps() put the user in a
+        # role-<user> group; set the scope there so the member is confined.
+        dav_users_tool( $d, 'group-set', "role-$user", 'dav_scope', $o{scope} )
             if defined $o{scope};
     }
     my $auth = 'Basic ' . MIME::Base64::encode_base64( "$user:$pass", '' );

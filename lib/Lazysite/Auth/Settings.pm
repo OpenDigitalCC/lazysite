@@ -6,12 +6,13 @@ package Lazysite::Auth::Settings;
 
 use strict;
 use warnings;
-use Fcntl qw(:flock);
+use Fcntl          qw(:flock);
 use Lazysite::Util qw(log_event);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     caps_for groups_grant_cap site_grants_manager
+    group_scopes group_home_domain
     read_group_settings write_group_settings @CAP_KEYS);
 
 our $AUTH_DIR;    # "$DOCROOT/lazysite/auth", set by the script
@@ -81,11 +82,48 @@ sub groups_grant_cap {
     return 0;
 }
 
+# SM155: the content-root(s) a set of groups confine their members to. A group
+# may carry a `dav_scope` (a content-root-relative subtree) - the domain binding
+# that moved from the per-account setting to the group. Returns the distinct
+# non-empty scopes across the given groups (0/1/many); empty means unconfined.
+# A member of several scoped groups gets the UNION, consistent with how
+# capabilities union across a user's groups (groups_grant_cap / _group_caps).
+sub group_scopes {
+    my (@groups) = @_;
+    return () unless @groups;
+    my $gs = read_group_settings();
+    my ( %seen, @scopes );
+    for my $g (@groups) {
+        next unless ref $gs->{$g} eq 'HASH';
+        my $s = $gs->{$g}{dav_scope};
+        next unless defined $s && length $s;
+        push @scopes, $s unless $seen{$s}++;
+    }
+    return @scopes;
+}
+
+# SM155: the home_domain (UI pointer) for single-domain rooting - defined only
+# when EXACTLY ONE of the groups is scoped (a one-domain editor roots their file
+# browser there; a multi-domain editor gets a switcher, a tracked follow-up).
+# Returns '' otherwise.
+sub group_home_domain {
+    my (@groups) = @_;
+    my $gs = read_group_settings();
+    my @hd;
+    for my $g (@groups) {
+        next unless ref $gs->{$g} eq 'HASH';
+        my $s = $gs->{$g}{dav_scope};
+        next unless defined $s && length $s;    # only a scoped group carries one
+        push @hd, ( $gs->{$g}{home_domain} // '' );
+    }
+    return ( @hd == 1 && length $hd[0] ) ? $hd[0] : '';
+}
+
 sub write_group_settings {
     require JSON::PP;
     my ($ref) = @_;
-    my $file = _group_settings_file();
-    my $tmp  = "$file.tmp.$$";
+    my $file  = _group_settings_file();
+    my $tmp   = "$file.tmp.$$";
     open my $fh, '>:utf8', $tmp or return 0;
     flock( $fh, LOCK_EX );
     print {$fh} JSON::PP->new->canonical->pretty->encode($ref);
@@ -133,8 +171,8 @@ sub site_grants_manager {
 # wires it to the `ui` capability here.
 sub caps_for {
     my ($user) = @_;
-    my $gc = _group_caps($user);
-    my %c = map { $_ => ( $gc->{$_} ? 1 : 0 ) } @CAP_KEYS;
+    my $gc     = _group_caps($user);
+    my %c      = map { $_ => ( $gc->{$_} ? 1 : 0 ) } @CAP_KEYS;
     return \%c;
 }
 

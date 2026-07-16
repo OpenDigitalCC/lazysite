@@ -106,6 +106,42 @@ grant_caps( $d, 'ed', 'manage_content' );
     ok( !$r->{ok}, 'domain-add over GET is refused' );
 }
 
+# --- SM155: domain-alias-add is manage_config-gated -------------------------
+{
+    my $r = post( $d, 'op', 'role-op', 'action=domain-alias-add',
+        { host => 'www.clienta.com', of => 'clienta.com' } );
+    ok( $r->{ok}, 'operator adds an alias host' ) or diag encode_json($r);
+    like( slurp("$d/lazysite/lazysite.conf"),
+        qr/^alias\.www\.clienta\.com\.content_root: sites\/clienta$/m,
+        'the alias shares the canonical content root' );
+
+    my $e = post( $d, 'ed', 'role-ed', 'action=domain-alias-add',
+        { host => 'evil.com', of => 'clienta.com' } );
+    is( $e->{kind}, 'forbidden', 'content editor cannot add an alias' );
+}
+
+# --- SM155: domain-preview renders a domain under its Host (pre-DNS) ---------
+{
+    require Cwd;
+    my $processor = Cwd::abs_path("$root/lazysite-processor.pl");
+    mkdir "$d/sites";
+    mkdir "$d/sites/clienta";
+    open my $ix, '>', "$d/sites/clienta/index.md" or die $!;
+    print $ix "---\ntitle: Client A\n---\n\nPREVIEW-OF-CLIENTA\n";
+    close $ix;
+    my $r = mapi( $d, REQUEST_METHOD => 'GET',
+        QUERY_STRING       => 'action=domain-preview&host=clienta.com',
+        HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'role-op',
+        LAZYSITE_PROCESSOR => $processor );
+    ok( $r->{ok}, 'operator previews a registered domain' ) or diag encode_json($r);
+    like( $r->{html}, qr/PREVIEW-OF-CLIENTA/, 'preview renders the domain content root' );
+
+    my $ef = mapi( $d, REQUEST_METHOD => 'GET',
+        QUERY_STRING       => 'action=domain-preview&host=clienta.com',
+        HTTP_X_REMOTE_USER => 'ed', HTTP_X_REMOTE_GROUPS => 'role-ed' );
+    ok( !$ef->{ok}, 'content editor cannot preview a domain (manage_config)' );
+}
+
 sub slurp { open my $fh, '<', $_[0] or return ''; local $/; <$fh> }
 
 done_testing();
