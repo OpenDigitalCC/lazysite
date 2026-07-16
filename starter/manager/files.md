@@ -8,6 +8,8 @@ search: false
 
 <div id="status"></div>
 
+<div id="scope-switcher" style="display:none;margin:0 0 8px;"></div>
+
 <div class="mg-breadcrumb" id="breadcrumb"></div>
 
 <div class="mg-file-filter-row">
@@ -952,12 +954,49 @@ function restoreVersion(btn) {
   });
 }
 
+// SM157: every content root the user is scoped to. One entry => single-domain
+// editor (rooted there, no switcher). Several => multi-domain editor: the file
+// browser roots at the ACTIVE one and offers a switcher. Empty => operator.
+var SCOPES = (window.LAZYSITE_DAV_SCOPES || '').split(',')
+  .map(function(s) { return s.replace(/^\/+|\/+$/g, ''); }).filter(Boolean);
+var activeScope = null;
+(function initActiveScope() {
+  if (!SCOPES.length) return;                 // operator - unconfined, no switcher
+  var saved = null;
+  try { saved = localStorage.getItem('lazysite.activeScope'); } catch (e) {}
+  activeScope = (saved && SCOPES.indexOf(saved) !== -1) ? saved : SCOPES[0];
+})();
+
 // SM154 (P3): a domain-bound editor's own content root ('/content/clientA/'),
 // or '/' for an unbound operator. The server confines a bound user regardless;
 // this just gives them a coherent starting view rooted at their own domain.
+// SM157: for a multi-domain editor the root follows the switcher's activeScope.
 function scopeRoot() {
+  if (activeScope) return '/' + activeScope + '/';
   var s = (window.LAZYSITE_SCOPE_ROOT || '').replace(/^\/+|\/+$/g, '');
   return s ? ('/' + s + '/') : '/';
+}
+
+// SM157: render the domain switcher (only when the editor is scoped to several
+// domains) and switch between them.
+function renderScopeSwitcher() {
+  var el = document.getElementById('scope-switcher');
+  if (!el) return;
+  if (SCOPES.length < 2) { el.style.display = 'none'; return; }
+  var opts = SCOPES.map(function (s) {
+    return '<option value="' + escHtml(s) + '"' + (s === activeScope ? ' selected' : '') + '>' + escHtml(s) + '</option>';
+  }).join('');
+  el.innerHTML = '<label class="mg-muted" style="font-size:0.9em;">Domain: '
+    + '<select class="mg-inp" style="max-width:18rem" onchange="switchScope(this.value)">' + opts + '</select></label>'
+    + ' <span class="mg-muted" style="font-size:0.8em;">you manage several &mdash; pick which to browse</span>';
+  el.style.display = '';
+}
+function switchScope(v) {
+  if (SCOPES.indexOf(v) === -1) return;
+  activeScope = v;
+  try { localStorage.setItem('lazysite.activeScope', v); } catch (e) {}
+  renderScopeSwitcher();
+  loadDir(scopeRoot());
 }
 function withinScope(dir) {
   var root = scopeRoot();
@@ -983,6 +1022,7 @@ function readInitDir() {
   return withinScope(want) ? want : scopeRoot();
 }
 
+renderScopeSwitcher();
 loadPrincipals().then(loadGitStatus).then(function() { loadDir(readInitDir()); });
 loadAliases();
 </script>

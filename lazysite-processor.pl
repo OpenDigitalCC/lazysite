@@ -3686,6 +3686,7 @@ sub render_content {
     my $mgr_user = $AUTH_CONTEXT{auth_user} // '';
     my %manager_caps;
     my ( $scope_root, $home_domain ) = ( '', '' );
+    my @my_scopes;
     if ( length $mgr_user ) {
         # An operator (unsecured/dev fallback: no group grants manager) implicitly
         # holds every cap; otherwise resolve manage_config from the user's groups.
@@ -3693,11 +3694,12 @@ sub render_content {
             !_site_grants_manager()
                 || _groups_grant_cap( 'manage_config', split /\s*,\s*/, $groups_str )
         ) ? 1 : 0;
-        # SM155: the domain binding is on the user's GROUPS now. Root the file
-        # browser only when the user has exactly ONE scoped group (a single-domain
-        # editor); a multi-domain editor keeps scope_root empty (a switcher is a
-        # follow-up) - the server-side confinement holds either way.
-        my @my_scopes = _group_scopes( split /\s*,\s*/, $groups_str );
+        # SM155/SM157: the domain binding is on the user's GROUPS. A single-domain
+        # editor is rooted at their one scope; a multi-domain editor keeps
+        # scope_root empty and gets the full scope LIST (dav_scopes) so the file
+        # browser can offer a domain switcher. Server-side confinement (the union
+        # of scopes) holds regardless.
+        @my_scopes   = _group_scopes( split /\s*,\s*/, $groups_str );
         $scope_root  = ( @my_scopes == 1 ) ? $my_scopes[0] : '';
         $home_domain = _group_home_domain( split /\s*,\s*/, $groups_str );
     }
@@ -3738,11 +3740,12 @@ sub render_content {
         },
         query            => $query,
         params           => $query,
-        lazysite_version => _lazysite_version(),    # asset cache-buster (?v=)
-        enabled_plugins  => _enabled_plugins(),     # conditional manager nav
-        manager_caps     => \%manager_caps,         # SM154: gate the Domains nav
-        scope_root       => $scope_root,            # SM154: a bound editor's root
-        home_domain      => $home_domain,           # SM154: a bound editor's domain
+        lazysite_version => _lazysite_version(),       # asset cache-buster (?v=)
+        enabled_plugins  => _enabled_plugins(),        # conditional manager nav
+        manager_caps     => \%manager_caps,            # SM154: gate the Domains nav
+        scope_root       => $scope_root,               # SM154: a bound editor's root
+        home_domain      => $home_domain,              # SM154: a bound editor's domain
+        dav_scopes       => join( ',', @my_scopes ),   # SM157: multi-domain switcher list
         smtp_configured => ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) ? 1 : 0, # gate emailed reset
             # SM099: a cache-safe sign in / out control. BOTH links ship hidden; the
             # injected auth-sync script reveals the right one from the lzs_session

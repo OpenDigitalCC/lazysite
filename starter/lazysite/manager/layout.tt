@@ -30,6 +30,9 @@
   // (a normalised path / a validated hostname), safe to inline in a JS string.
   window.LAZYSITE_SCOPE_ROOT  = '[% scope_root %]';
   window.LAZYSITE_HOME_DOMAIN = '[% home_domain %]';
+  // SM157: every content root the user is scoped to (comma list), for the file
+  // browser's multi-domain switcher. Same charset guarantee as scope_root.
+  window.LAZYSITE_DAV_SCOPES  = '[% dav_scopes %]';
 
   // M-1: manager CSRF wrapper. Must run BEFORE any script inside <main>
   // that calls fetch(), otherwise page-onload calls (loadUsers,

@@ -66,4 +66,21 @@ sub render {
         'an operator (unbound) has an empty scope root (browses everything)' );
 }
 
+# --- SM157: multi-domain editor gets the scope LIST for the switcher ---------
+{
+    my $multi = render(
+        manager_caps => { manage_config => 0 },
+        scope_root   => '',                                    # empty: no single root
+        dav_scopes   => 'content/clientA,content/clientB',
+    );
+    like( $multi, qr/LAZYSITE_DAV_SCOPES\s*=\s*'content\/clientA,content\/clientB'/,
+        'a multi-domain editor gets the full scope list as a JS global (switcher)' );
+    like( $multi, qr/LAZYSITE_SCOPE_ROOT\s*=\s*''/,
+        'their single scope_root stays empty (the switcher picks the active one)' );
+
+    my $single = render( scope_root => 'content/clientA', dav_scopes => 'content/clientA' );
+    like( $single, qr/LAZYSITE_DAV_SCOPES\s*=\s*'content\/clientA'/,
+        'a single-domain editor lists one scope (no switcher shown client-side)' );
+}
+
 done_testing;
