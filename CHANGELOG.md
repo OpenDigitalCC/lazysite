@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.22 - EDGE: domains panel backlog (public-IP field, cert SANs, switcher) (2026-07-16)
+
 Domains: set this server's public IP from the panel (canonical_ip)
 : The domain check's proxy/NAT fallback (`canonical_ip`) is now a field on the
   Domains panel - view/set the server's public IP(s) without the CLI. It may be

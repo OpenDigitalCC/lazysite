@@ -1,3 +1,16 @@
+lazysite (0.7.22-1) unstable; urgency=medium
+
+  * EDGE: canonical_ip (the domain check's public-IP fallback for proxy/NAT) is
+    settable from the Domains panel; it may be cleared (empty = auto-detect).
+  * EDGE: the cert-coverage-gap check detail lists the certificate's SANs, so the
+    operator sees which names it covers and that this host is missing.
+  * EDGE: a multi-domain switcher in the file browser lets an editor scoped to
+    several domains pick which content root to browse (SM157).
+  * test: lock the create-user group-membership contract (the new-user group
+    report was already fixed in v0.7.14).
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Thu, 16 Jul 2026 17:15:00 +0000
+
 lazysite (0.7.21-1) unstable; urgency=medium
 
   * EDGE: the domain check distinguishes a certificate COVERAGE gap (a trusted
