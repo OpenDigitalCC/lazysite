@@ -1,3 +1,12 @@
+lazysite (0.7.23-1) unstable; urgency=medium
+
+  * EDGE: the Files breadcrumb root shows its folder icon again instead of raw
+    "<span ...>" markup. The link callback escaped every label (right for path
+    segments - an XSS guard - wrong for the root's trusted icon HTML); the root
+    label is now passed through un-escaped. Regression since 0.7.16.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Thu, 16 Jul 2026 17:45:00 +0000
+
 lazysite (0.7.22-1) unstable; urgency=medium
 
   * EDGE: canonical_ip (the domain check's public-IP fallback for proxy/NAT) is

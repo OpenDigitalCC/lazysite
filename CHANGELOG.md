@@ -18,6 +18,16 @@ Keying
 
 ## Unreleased
 
+## 0.7.23 - EDGE: Files breadcrumb root icon fix (2026-07-16)
+
+Manager: the Files breadcrumb root shows its folder icon again
+: The site-root breadcrumb rendered its markup as literal text ("<span
+  ...>[folder]</span>") instead of the folder icon. The breadcrumb link callback
+  escaped every label - correct for path segments (directory names, an XSS
+  guard) but wrong for the root item's trusted icon HTML. The root label is now
+  passed through un-escaped (its title is already escaped where the span is
+  built); segment labels stay escaped. Regression since the 0.7.16 XSS hardening.
+
 ## 0.7.22 - EDGE: domains panel backlog (public-IP field, cert SANs, switcher) (2026-07-16)
 
 Domains: set this server's public IP from the panel (canonical_ip)
