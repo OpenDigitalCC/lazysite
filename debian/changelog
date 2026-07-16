@@ -1,3 +1,24 @@
+lazysite (0.7.18-1) unstable; urgency=medium
+
+  * EDGE: SM155 - the domain delegation binding moves from the account to the
+    GROUP. A group carries dav_scope (content root) + home_domain; adding a
+    member to a scoped group both grants editing and confines them to that
+    domain. A member of several scoped groups gets the UNION of their content
+    roots, enforced on every channel (manager UI, control API, MCP, WebDAV).
+    The per-account binding is dropped (single-source); set it on the Groups
+    page or `group-set <group> dav_scope <root>`.
+  * SM155: domain preview - render a domain's home page under its own Host,
+    server-side, so an operator can prepare/debug a new domain before DNS/TLS
+    is live (domain-preview action).
+  * SM155: first-class aliases - a host that serves the same content as an
+    existing domain (clienta.com + www.clienta.com); domain_add_alias, a
+    domain-alias-add action, a `lazysite-domains alias` CLI verb, grouped under
+    the canonical in the list.
+  * Domains add-form grouped (Identity/Presentation); theme field is a picker
+    of installed themes.
+
+ -- Stuart J Mackintosh <sjm@opendigital.cc>  Wed, 16 Jul 2026 09:00:00 +0000
+
 lazysite (0.7.17-1) unstable; urgency=medium
 
   * EDGE: SM154 domains admin - the agency multi-domain management plane on top
