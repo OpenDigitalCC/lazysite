@@ -18,6 +18,39 @@ Keying
 
 ## Unreleased
 
+## 0.7.18 - EDGE: group-level domain delegation (SM155) + preview + aliases (2026-07-16)
+
+Domains: the delegation binding moves from the account to the group (SM155)
+: SM154 confined a delegated editor to a domain via a per-account `dav_scope`;
+  live-testing wanted a *team* to manage a sub-domain in one step. The binding
+  (`dav_scope` content root + `home_domain`) is now a GROUP setting: adding a
+  member to a scoped group both grants editing and confines them to that domain.
+  A member of several scoped groups gets the UNION of their content roots
+  (consistent with how capabilities union across groups), enforced on every
+  channel - manager UI, control API, MCP and WebDAV. The per-account binding is
+  dropped (single-source); set it on the Groups page > Domain binding, or
+  `group-set <group> dav_scope <root>`. Gates:
+  `t/unit/manager/{30-dav-scope,31-domain-confinement}.t`,
+  `t/unit/mcp/02-dav-scope.t`, `t/unit/users/05-settings.t`.
+
+Domains: preview a domain before DNS/TLS is live (SM155)
+: The Domains panel gains a Preview that renders a domain's home page as a
+  public visitor sees it under its own Host - server-side, so an operator can
+  prepare and debug a new domain before pointing DNS at it. New `domain-preview`
+  control-API action (manage_config). `t/unit/manager/33-domains-api.t`.
+
+Domains: first-class aliases (SM155)
+: A host can serve the same content as an existing domain (`clienta.com` +
+  `www.clienta.com`). `domain_add_alias` / a `domain-alias-add` action / a
+  `lazysite-domains alias` CLI verb register an alias host sharing the canonical
+  content root and site_url; the Domains list groups aliases under their
+  canonical with an "alias of X" tag. `t/integration/18-domains-served.t`.
+
+Domains: add-form and theme picker polish
+: The add-domain form is grouped into Identity and Presentation, and the theme
+  field (add form + inline edit) is a dropdown of installed themes rather than a
+  free-text box.
+
 ## 0.7.17 - EDGE: domains admin (agency multi-domain management, SM154) (2026-07-15)
 
 Domains admin: the agency multi-domain management plane (SM154)
