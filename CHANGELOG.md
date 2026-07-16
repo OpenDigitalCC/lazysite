@@ -18,6 +18,77 @@ Keying
 
 ## Unreleased
 
+## 0.7.19 - EDGE: domain config check + domains panel fixes (2026-07-16)
+
+Domains: preview no longer fails on a live (wrapped) deployment
+: The Preview shelled `$LAZYSITE_PROCESSOR`, but the Apache/Hestia rewrite (and
+  the dev server) set that env var to the ORIGINALLY requested CGI - the
+  manager-api itself when a preview runs - so the preview re-entered manager-api
+  with auth stripped and showed `{"error":"Authentication required"}` instead of
+  the page. Both previews (page and domain) now resolve `lazysite-processor.pl`
+  by name in that cgi-bin, never trusting the wrapper's target. A regression
+  test drives the wrapped case (`LAZYSITE_PROCESSOR` pointing at manager-api).
+  `t/unit/manager/33-domains-api.t`.
+
+Domains: an alias mirrors its canonical's presentation (title fix)
+: Aliasing a sub-domain showed the DEFAULT site's title, because
+  `domain_add_alias` copied only `content_root` + `site_url`. An alias now copies
+  every per-host override the canonical set (site title, theme, layout, nav,
+  search), so it presents identically to the domain it aliases.
+  `t/unit/manager/33-domains-api.t`.
+
+Domains: content folder is optional; reserved paths defined once
+: A domain with no content folder now registers and serves the DEFAULT site
+  (the engine already treated an empty content root as the docroot root). The
+  "not the lazysite/ tree" guidance is replaced by an actual server-side block,
+  driven by a single `Lazysite::Manager::Common::path_is_reserved` /
+  `@RESERVED_ROOTS` definition (the "system"-owned areas), which
+  `_clean_content_root` now calls instead of restating the rule.
+  `t/unit/manager/33-domains-api.t`.
+
+Domains: a `domain` template variable for per-host content
+: The render stash exposes `domain` - the sanitised host being served (primary
+  OR alias) - so a single content folder can branch per domain,
+  `[% IF domain == 'clienta.com' %]...[% END %]`. Complements the existing
+  `alias_host` (empty on the primary); cached per host, DNS-alphabet-only so it
+  can never carry markup. `t/integration/16-domain-aliases.t`.
+
+Domains: add/edit panel usability (live-testing feedback)
+: The add panel is full width and table-styled (was a half-width card); Site
+  address auto-derives `https://<host>` as you type the domain; fields carry
+  friendly labels and FQDN guidance instead of raw conf-key names. The domains
+  table shows a curated column set and scrolls inside its own box, so a new
+  domain's action buttons no longer run off the page. The inline edit row is a
+  styled panel with friendly labels that pre-fills each field's current value
+  (inherited values shown as a greyed placeholder).
+
+Domains: check a domain's live configuration (SM156)
+: A Check button (and `lazysite-domains check <host>` / a `domain-check`
+  control-API action) reports whether a registered domain is configured to serve
+  THIS install live, in four ordered steps: DNS resolves, points to this server
+  (the resolved IP is our own), a trusted HTTPS certificate terminates for the
+  host, and an HTTPS request lands on this instance (a new public,
+  CORS-open `/.well-known/lazysite-instance.json` marker echoes a stable
+  per-install id). The server side does the DNS/IP/TLS/marker work a browser
+  cannot; the panel then adds a browser-side probe for the visitor's-eye view.
+  The outbound probe is bound to registered hosts (no SSRF) and manage_config-
+  gated - which also tightened `domain-preview`, whose registered-host check had
+  been a no-op (it matched the ever-present default row). Gates:
+  `t/unit/manager/{33-domains-api,34-domain-check}.t`,
+  `t/integration/16-domain-aliases.t`.
+
+Domains: preview gains an "Open live site" link
+: The preview keeps its in-session server-side render (works pre-DNS) and adds a
+  link that opens the real domain in a new tab, for once it is live.
+
+Hestia: `update-all` discovers by template, not the marker union
+: `lazysite-hestia-update-all.sh` used the lister's default (template UNION
+  install-marker) output, so a domain that had an install marker but had been
+  moved OFF the `lazysite-app` template was still updated. It now uses
+  `lazysite-hestia-list.sh --template-only` (new flag) - the Hestia web template
+  is the sole authority - and reports any marker-only domains it deliberately
+  excluded so the operator can reconcile them. `t/tools/33-hestia-list.t`.
+
 ## 0.7.18 - EDGE: group-level domain delegation (SM155) + preview + aliases (2026-07-16)
 
 Domains: the delegation binding moves from the account to the group (SM155)

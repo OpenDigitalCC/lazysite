@@ -1,3 +1,38 @@
+lazysite (0.7.19-1) unstable; urgency=medium
+
+  * EDGE: SM156 - a domain configuration check. A Check button, a `domain-check`
+    control-API action, and `lazysite-domains check <host>` report whether a
+    registered domain resolves, points to this server, has a trusted HTTPS
+    certificate, and terminates on THIS install (a new public CORS-open
+    /.well-known/lazysite-instance.json marker). Server-side does the DNS/IP/TLS
+    work a browser cannot; the panel adds a browser-side probe. The probe is
+    bound to registered hosts (no SSRF) - which also tightened domain-preview.
+  * EDGE: the preview gains an "Open live site" new-tab link beside its
+    in-session render.
+  * EDGE: domains preview fix - the page/domain preview shelled the wrapper's
+    LAZYSITE_PROCESSOR, which the Apache/Hestia rewrite (and the dev server) set
+    to the ORIGINALLY requested CGI - manager-api itself when a preview runs - so
+    the preview re-entered manager-api with auth stripped and showed
+    {"error":"Authentication required"}. Both previews now resolve
+    lazysite-processor.pl by name in the cgi-bin.
+  * EDGE: a domain alias mirrors its canonical's presentation (site title, theme,
+    layout, nav, search), not just content_root + site_url; aliasing a sub-domain
+    no longer shows the default site's title.
+  * EDGE: the content folder is optional - a domain with none registers and
+    serves the default site; reserved-path enforcement moves to a single
+    Common::path_is_reserved / @RESERVED_ROOTS definition.
+  * EDGE: a `domain` template variable (the sanitised host being served) lets one
+    content folder render differently per domain.
+  * EDGE: domains panel usability - full-width table-styled add form, auto-derived
+    site address, friendly field labels + FQDN guidance, an overflow-safe curated
+    table, and a styled inline edit row that pre-fills current values.
+  * Hestia: lazysite-hestia-update-all.sh discovers by the Hestia web template
+    (lazysite-hestia-list.sh --template-only), not the marker union, so a domain
+    moved off the lazysite-app template is not updated; excluded marker-only
+    domains are reported.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Thu, 16 Jul 2026 10:30:00 +0000
+
 lazysite (0.7.18-1) unstable; urgency=medium
 
   * EDGE: SM155 - the domain delegation binding moves from the account to the
