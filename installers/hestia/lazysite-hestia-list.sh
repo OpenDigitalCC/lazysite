@@ -2,7 +2,7 @@
 # lazysite-hestia-list.sh - list every lazysite site on this Hestia host.
 # RUN AS ROOT (reads Hestia's per-user registry).
 #
-#   lazysite-hestia-list.sh [--plain] [--tpl NAME]
+#   lazysite-hestia-list.sh [--plain] [--template-only] [--tpl NAME]
 #
 # Discovery is Hestia-authoritative: a domain is a lazysite site when its web
 # template is lazysite-app (Hestia's own record of what serves the domain -
@@ -10,14 +10,19 @@
 # than globbing /home for install markers: it cannot miss a site whose tree
 # moved or whose marker was lost, and it cannot pick up a stray copied tree.
 # The install marker (public_html/lazysite/.install-state.json) is still read
-# as a CROSS-CHECK: the listing is the UNION of both signals, with a flag when
-# they disagree, so a template-set-but-never-installed domain and a
+# as a CROSS-CHECK: by default the listing is the UNION of both signals, with a
+# flag when they disagree, so a template-set-but-never-installed domain and a
 # marker-without-template domain are both visible instead of silently skipped.
 #
-#   --plain      machine output for bulk operations, one site per line:
-#                user<TAB>domain<TAB>docroot
-#                (no header, no flags - pipe it into a while read -r loop)
-#   --tpl NAME   web template name to match (default: lazysite-app)
+#   --plain          machine output for bulk operations, one site per line:
+#                    user<TAB>domain<TAB>docroot
+#                    (no header, no flags - pipe it into a while read -r loop)
+#   --template-only  drop the marker union: list ONLY domains whose Hestia web
+#                    template is lazysite-app. Use this when the template is the
+#                    authority (e.g. bulk update), so a marker-without-template
+#                    domain is not acted on. Marker-only domains are then simply
+#                    absent (the default report still flags them for review).
+#   --tpl NAME       web template name to match (default: lazysite-app)
 #
 # Environment (tests / non-standard layouts):
 #   LAZYSITE_HESTIA_USERS   Hestia per-user data dir (default
@@ -30,12 +35,14 @@ set -u
 shopt -s nullglob
 
 PLAIN=0
+TPL_ONLY=0
 TPL='lazysite-app'
 while [ $# -gt 0 ]; do
     case "$1" in
-        --plain) PLAIN=1 ;;
+        --plain)         PLAIN=1 ;;
+        --template-only) TPL_ONLY=1 ;;
         --tpl)   shift; TPL="${1:-}"; [ -n "$TPL" ] || { echo "$0: --tpl needs a name" >&2; exit 1; } ;;
-        -h|--help) sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "$0: unknown argument '$1'" >&2; exit 1 ;;
     esac
     shift
@@ -70,10 +77,13 @@ for state in "$HOME_BASE"/*/web/*/public_html/lazysite/.install-state.json; do
 done
 
 # ---- union, template-declared first, then marker-only -----------------------
+# --template-only drops the marker union: the template is the sole authority.
 ALL=("${TPL_KEYS[@]}")
-for k in "${MARK_KEYS[@]}"; do
-    [ "${SEEN_TPL[$k]:-0}" = 1 ] || ALL+=("$k")
-done
+if [ "$TPL_ONLY" != 1 ]; then
+    for k in "${MARK_KEYS[@]}"; do
+        [ "${SEEN_TPL[$k]:-0}" = 1 ] || ALL+=("$k")
+    done
+fi
 
 ver_of() {    # version from an install-state.json, or "-"
     # (perl -ne exits 0 on a missing file, so test first rather than ||)
@@ -96,7 +106,11 @@ if [ "$PLAIN" = 1 ]; then
     exit 0
 fi
 
-echo "lazysite sites on this host: ${#ALL[@]}   (template: $TPL; union with install markers)"
+if [ "$TPL_ONLY" = 1 ]; then
+    echo "lazysite sites on this host: ${#ALL[@]}   (template: $TPL; template-declared only)"
+else
+    echo "lazysite sites on this host: ${#ALL[@]}   (template: $TPL; union with install markers)"
+fi
 for k in "${ALL[@]}"; do
     u="${k%%/*}"; d="${k#*/}"
     doc="$HOME_BASE/$u/web/$d/public_html"

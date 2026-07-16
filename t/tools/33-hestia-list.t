@@ -82,13 +82,34 @@ sub run_lister {
     unlike( $out, qr/SUSPENDED|NO-/, '--plain: no flags (script-consumable)' );
 }
 
-# --- update-all discovers via the lister --------------------------------------
+# --- template-only: the template is the sole authority ------------------------
+# The marker-only domain (lost.example) must NOT appear; only the two
+# template-declared domains do. This is what a bulk update must discover so it
+# never re-deploys over a domain moved off the lazysite-app template.
+{
+    my $out   = run_lister( '--plain', '--template-only' );
+    my @lines = grep { length } split /\n/, $out;
+    is( scalar @lines, 2, '--plain --template-only: template-declared sites only' );
+    like( $out,   qr/cafe\.example/, 'template-only: template+marker site kept' );
+    like( $out,   qr/firm\.example/, 'template-only: template-only site kept' );
+    unlike( $out, qr/lost\.example/, 'template-only: marker-without-template domain dropped' );
+
+    my $rep = run_lister('--template-only');
+    like( $rep, qr/host: 2\s+\(template: \S+; template-declared only\)/,
+        'template-only report: count + mode banner' );
+    unlike( $rep, qr/lost\.example/, 'template-only report: excludes the marker-only domain' );
+}
+
+# --- update-all discovers template-authoritatively via the lister -------------
 {
     open my $fh, '<', "$ROOT/installers/hestia/lazysite-hestia-update-all.sh" or die $!;
     my $ua = do { local $/; <$fh> };
     close $fh;
     like( $ua, qr/lazysite-hestia-list\.sh/, 'update-all references the lister' );
-    like( $ua, qr/--plain/,                  'update-all consumes the machine output' );
+    like( $ua, qr/--plain --template-only/,
+        'update-all discovers by template, not the marker union' );
+    like( $ua, qr/EXCLUDED/,
+        'update-all surfaces marker-only domains it deliberately skipped' );
     like( $ua, qr/for state in .*\.install-state\.json/,
         'update-all keeps the marker-glob fallback for an older STAGE' );
 }

@@ -4,14 +4,16 @@
 #
 #   lazysite-hestia-update-all.sh [--list] [--templates] [STAGE_DIR]
 #
-# It discovers lazysite sites by their own marker file
-# (public_html/lazysite/.install-state.json) and runs the normal per-site
-# deploy (install.pl + perms) for each - i.e. the code, starter content and
-# permissions are updated everywhere from one release. Because every discovered
-# site already has the install marker, the per-site deploy treats each as an
-# UPGRADE and leaves the Hestia web template assignment untouched (it does not
-# re-run v-change-web-domain-tpl), so a domain whose template was deliberately
-# changed is not silently reverted to lazysite-app.
+# It discovers lazysite sites Hestia-authoritatively, via lazysite-hestia-list.sh
+# --template-only: a domain is updated only when its Hestia web template is
+# lazysite-app. It then runs the normal per-site deploy (install.pl + perms) for
+# each - i.e. the code, starter content and permissions are updated everywhere
+# from one release. The per-site deploy treats each as an UPGRADE and leaves the
+# Hestia web template assignment untouched (it does not re-run
+# v-change-web-domain-tpl). A domain that carries an install marker but is NO
+# longer on the lazysite-app template (template deliberately changed away, or an
+# anomaly) is NOT updated - it is reported as excluded so the operator can
+# reconcile it, never silently deployed to.
 #
 #   --list        discover and report only; make no changes.
 #   --templates   ALSO refresh the shared lazysite-app Hestia web template FILES
@@ -54,18 +56,27 @@ ver_of() {   # print the "version" from an install-state.json, or "?"
 }
 
 # --- discover lazysite sites -------------------------------------------------
-# Preferred: lazysite-hestia-list.sh - Hestia-authoritative (the domain's web
-# template is lazysite-app) unioned with the install markers, so a site whose
-# marker was lost or whose tree moved is still found, and template/marker
-# mismatches are visible in the lister's own report. Fallback (older STAGE
-# without the lister): the original marker glob.
-USERS=(); DOMAINS=(); VERS=()
+# Preferred: lazysite-hestia-list.sh --template-only - the Hestia web template
+# (lazysite-app) is the sole authority for what we update. A marker-only domain
+# (marker present, template changed away) is deliberately excluded here and
+# reported below, so we never re-deploy over a domain the operator has moved off
+# lazysite. Fallback (older STAGE without the lister): the original marker glob,
+# which cannot see the template and so updates every marked tree.
+USERS=(); DOMAINS=(); VERS=(); EXCLUDED=()
 LISTER="$STAGE/installers/hestia/lazysite-hestia-list.sh"
 if [ -f "$LISTER" ]; then
     while IFS=$'\t' read -r u d doc; do
         [ -n "$d" ] || continue
         USERS+=( "$u" ); DOMAINS+=( "$d" )
         VERS+=( "$(ver_of "$doc/lazysite/.install-state.json")" )
+    done < <(bash "$LISTER" --plain --template-only)
+    # Marker-only domains = the union minus the template set: excluded from the
+    # update, but surfaced so the operator can reconcile template vs marker.
+    declare -A _IN_TPL=()
+    for i in "${!DOMAINS[@]}"; do _IN_TPL["${USERS[$i]}/${DOMAINS[$i]}"]=1; done
+    while IFS=$'\t' read -r u d doc; do
+        [ -n "$d" ] || continue
+        [ "${_IN_TPL[$u/$d]:-0}" = 1 ] || EXCLUDED+=( "$d (user $u)" )
     done < <(bash "$LISTER" --plain)
 else
     for state in /home/*/web/*/public_html/lazysite/.install-state.json; do
@@ -83,6 +94,12 @@ echo "lazysite sites on this host: $n   (staged release: $NEWVER)"
 for i in "${!DOMAINS[@]}"; do
     printf '  %-44s user=%-12s %s\n' "${DOMAINS[$i]}" "${USERS[$i]}" "${VERS[$i]}"
 done
+if [ "${#EXCLUDED[@]}" -gt 0 ]; then
+    echo
+    printf 'EXCLUDED %d domain(s): install marker present but NOT on the lazysite-app template - not updated:\n' "${#EXCLUDED[@]}"
+    printf '  %s\n' "${EXCLUDED[@]}"
+    echo '  (run lazysite-hestia-list.sh to review; re-set the template or remove the stale marker to reconcile.)'
+fi
 [ "$LIST" = 1 ] && exit 0
 [ "$n" -gt 0 ] || { echo "Nothing to update."; exit 0; }
 
