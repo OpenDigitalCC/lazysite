@@ -31,6 +31,7 @@ print {$lt} '<!DOCTYPE html><html><head><title>[% page_title %]</title></head>'
     . '<p>SITE=[% site_name %]</p>'
     . '<p>THEME=[% theme_name %]</p>'
     . '<p>ALIAS=[% alias_host %]</p>'
+    . '<p>DOMAIN=[% domain %]</p>'
     . '[% FOREACH item IN nav %]<a href="[% item.url %]">NAV:[% item.label %]</a>[% END %]'
     . '[% content %]</body></html>';
 close $lt;
@@ -94,7 +95,28 @@ sub read_all {
     like( $out, qr/THEME=base/,        'primary gets base theme' );
     like( $out, qr/NAV:PrimaryHome/,   'primary gets base nav' );
     like( $out, qr/<p>ALIAS=<\/p>/,    'alias_host TT var empty on primary' );
+    like( $out, qr/DOMAIN=primary\.example/, 'domain TT var carries the host on the primary' );
     unlink "$docroot/index.html";    # keep later cache assertions independent
+}
+
+# --- SM156: public instance marker (served before auth, CORS-open) ----------
+# The domain-check probe fetches this over a candidate host to confirm it lands
+# on THIS install. It answers on ANY host (even unregistered) and is the same
+# instance id everywhere for one docroot.
+{
+    my $m1 = run_processor( $docroot, '/.well-known/lazysite-instance.json',
+        HTTP_HOST => 'primary.example' );
+    like( $m1, qr/Status: 200 OK/,                'marker returns 200' );
+    like( $m1, qr/Access-Control-Allow-Origin: \*/, 'marker is CORS-open for the browser probe' );
+    like( $m1, qr/"host":"primary\.example"/,     'marker echoes the served host' );
+    my ($id1) = $m1 =~ /"instance":"([0-9a-f]+)"/;
+    ok( $id1, 'marker carries an instance id' );
+
+    my $m2 = run_processor( $docroot, '/.well-known/lazysite-instance.json',
+        HTTP_HOST => 'brand2.example' );
+    my ($id2) = $m2 =~ /"instance":"([0-9a-f]+)"/;
+    is( $id2, $id1, 'the same install returns the same instance id on every host' );
+    like( $m2, qr/"host":"brand2\.example"/, 'marker echoes the alias host too' );
 }
 
 # --- Alias host: whitelisted overrides applied ------------------------------
@@ -107,6 +129,7 @@ sub read_all {
     like( $out, qr/NAV:BrandTwoHome/, 'alias nav_file override applied' );
     unlike( $out, qr/NAV:PrimaryHome/, 'primary nav not shown on alias' );
     like( $out, qr/ALIAS=brand2\.example/, 'alias_host TT var carries the host' );
+    like( $out, qr/DOMAIN=brand2\.example/, 'domain TT var carries the alias host' );
 }
 
 # --- Host matching is sanitised: port stripped, case folded ----------------

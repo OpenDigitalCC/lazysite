@@ -26,6 +26,7 @@ sudo apt-get install \
     libfcgi-perl \
     libfcgi-procmanager-perl \
     libio-socket-ssl-perl \
+    libnet-ssleay-perl \
     libnet-xmpp-perl \
     libtemplate-perl \
     libtext-multimarkdown-perl \
@@ -45,7 +46,8 @@ text: 3
 libarchive-zip-perl | Archive::Zip | theme upload (manager), zip download (manager)
 libfcgi-perl | FCGI | FastCGI accept loop (SM142, optional; lazy-required - plain CGI needs nothing)
 libfcgi-procmanager-perl | FCGI::ProcManager | FastCGI prefork pool (SM142, optional; lazy-required when LAZYSITE_FCGI_WORKERS>0)
-libio-socket-ssl-perl | IO::Socket::SSL | SMTP form delivery over STARTTLS
+libio-socket-ssl-perl | IO::Socket::SSL | SMTP form delivery over STARTTLS; domain-check TLS/cert probe (SM156, lazy-required)
+libnet-ssleay-perl | Net::SSLeay | domain-check certificate expiry read (SM156; also IO::Socket::SSL's own backend)
 libnet-xmpp-perl | Net::XMPP | XMPP notification delivery (notify-xmpp plugin, optional; lazy-required only when enabled)
 libtemplate-perl | Template, Template::Parser | SM071 layout.tt compile validation in the control API (ships with Template); Template Toolkit page rendering (processor core)
 libtext-multimarkdown-perl | Text::MultiMarkdown | Markdown to HTML conversion (processor core)

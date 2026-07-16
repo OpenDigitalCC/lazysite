@@ -992,6 +992,26 @@ sub main {
         return;
     }
 
+    # SM156: public instance marker. A domain-configuration check (the Domains
+    # panel / `lazysite-domains check`) fetches this over the candidate host to
+    # confirm the request TERMINATES on THIS install. Served BEFORE auth so it
+    # answers on a freshly pointed domain with no session; CORS-open so the
+    # manager's browser-side probe (a different origin) can read it. The body is
+    # non-sensitive: a stable per-install id (one-way over the docroot path) and
+    # the host we were asked for. Values are hex / DNS-alphabet only, so the
+    # hand-built JSON needs no escaping.
+    if ( $uri eq '/.well-known/lazysite-instance.json' ) {
+        my $inst  = _instance_id();
+        my $rhost = _request_host();
+        binmode( STDOUT, ':utf8' );
+        print "Status: 200 OK\r\n";
+        print "Content-Type: application/json; charset=utf-8\r\n";
+        print "Access-Control-Allow-Origin: *\r\n";
+        print "Cache-Control: no-store\r\n\r\n";
+        print qq({"ok":1,"instance":"$inst","host":"$rhost"});
+        return;
+    }
+
     # Set log level from conf (env var takes priority). No local needed
     # here - %ENV is already localised at the top of main().
     {
@@ -3020,6 +3040,15 @@ sub resolve_tt_vars {
         # resolve_tt_vars: authoritative, never conf-overridable.
         $vars{alias_host} = $alias_host;
 
+        # SM155: the sanitised host actually being served - primary OR alias -
+        # as a TT var, so a single content_root can render differently per
+        # domain: [% IF domain == 'clienta.com' %]...[% END %]. Unlike
+        # alias_host (empty on the primary), this is always the real host.
+        # Authoritative (never conf-overridable) and DNS-alphabet-only, so it
+        # can never carry markup; cached per host (each alias host has its own
+        # cache slot), so a page served from cache keeps the correct value.
+        $vars{domain} = _request_host();
+
         my $nav_file = $vars{nav_file}
             ? "$DOCROOT/" . $vars{nav_file}
             : "$LAZYSITE_DIR/nav.conf";
@@ -3048,6 +3077,16 @@ sub resolve_tt_vars {
 # is only COMPARED against the operator-declared alias list, never emitted
 # into output, so a hostile Host header can at worst select a rendering the
 # operator explicitly configured.
+# SM156: a stable, non-sensitive per-install identifier. One-way over the
+# realpath of the docroot, so every host of the same install returns the same
+# value and two installs on one server differ. Not derived from any secret, so
+# publishing it via the instance marker leaks nothing usable. manager-api
+# computes the identical value (same docroot) to compare a check result against.
+sub _instance_id {
+    my $base = realpath($DOCROOT) // $DOCROOT;
+    return substr( hmac_sha256_hex( $base, 'lazysite-instance' ), 0, 32 );
+}
+
 sub _request_host {
     my $host = lc( $ENV{HTTP_HOST} // q{} );
     $host =~ s/:\d+\z//;    # strip port

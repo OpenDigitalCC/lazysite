@@ -74,6 +74,11 @@
       "license": "Artistic-1.0-Perl",
       "used_by": "install.pl CLI argument parsing"
     },
+    "HTTP::Tiny": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "domain-check marker fetch over HTTPS (SM156; lazy-required)"
+    },
     "IO::Socket::INET": {
       "core": true,
       "license": "Artistic-1.0-Perl",
@@ -85,7 +90,7 @@
       "debian_pkg": "libio-socket-ssl-perl",
       "rhel_pkg": "perl-IO-Socket-SSL",
       "alpine_pkg": "perl-io-socket-ssl",
-      "used_by": "SMTP form delivery over STARTTLS"
+      "used_by": "SMTP form delivery over STARTTLS; domain-check TLS/cert probe (SM156, lazy-required)"
     },
     "IPC::Open2": {
       "core": true,
@@ -114,6 +119,14 @@
       "core": true,
       "license": "Artistic-1.0-Perl",
       "used_by": "form-to-email delivery plugin"
+    },
+    "Net::SSLeay": {
+      "core": false,
+      "license": "Artistic-2.0",
+      "debian_pkg": "libnet-ssleay-perl",
+      "rhel_pkg": "perl-Net-SSLeay",
+      "alpine_pkg": "perl-net-ssleay",
+      "used_by": "domain-check certificate expiry read (SM156; also IO::Socket::SSL's own backend)"
     },
     "Net::XMPP": {
       "core": false,

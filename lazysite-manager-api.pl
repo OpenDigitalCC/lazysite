@@ -55,7 +55,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
-use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set);
+use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
@@ -334,11 +334,11 @@ if ( !$token_auth ) {
         'git-restore'      => 'manage_content', 'git-status' => 'manage_content',
         'git-history'      => 'manage_content', 'git-show'   => 'manage_content',
         'git-init'         => 'manage_config',
-        'config-set'       => 'manage_config', 'config-read'    => 'manage_config',
-        'domains-list'     => 'manage_config', 'bad-url-blocks' => 'manage_config',
-        'domain-add'       => 'manage_config', 'domain-set'     => 'manage_config',
-        'domain-remove'    => 'manage_config', 'domain-preview' => 'manage_config',
-        'domain-alias-add' => 'manage_config',
+        'config-set'       => 'manage_config',  'config-read'        => 'manage_config',
+        'domains-list'     => 'manage_config',  'bad-url-blocks'     => 'manage_config',
+        'domain-add'       => 'manage_config',  'domain-set'         => 'manage_config',
+        'domain-remove'    => 'manage_config',  'domain-preview'     => 'manage_config',
+        'domain-alias-add' => 'manage_config',  'domain-check'       => 'manage_config',
         'bad-url-unblock'  => 'manage_config',  'rotate-auth-secret' => 'manage_config',
         'backup-create'    => 'manage_config',  'backup-restore'     => 'manage_config',
         'backup-download'  => 'manage_config',  'backup-list'        => 'manage_config',
@@ -457,9 +457,10 @@ if ($token_auth) {
         'domain-add'       => sub { $_[0]->{manage_config} },
         'domain-set'       => sub { $_[0]->{manage_config} },
         'domain-remove'    => sub { $_[0]->{manage_config} },
-        'domain-preview'   => sub { $_[0]->{manage_config} },    # SM155: pre-DNS render
-        'domain-alias-add' => sub { $_[0]->{manage_config} },    # SM155: alias host
-        'bad-url-blocks'   => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
+        'domain-preview'   => sub { $_[0]->{manage_config} },   # SM155: pre-DNS render
+        'domain-alias-add' => sub { $_[0]->{manage_config} },   # SM155: alias host
+        'domain-check'     => sub { $_[0]->{manage_config} },   # SM156: live config check
+        'bad-url-blocks'   => sub { $_[0]->{manage_config} },   # SM128: blocked-IP list
         'bad-url-unblock'  => sub { $_[0]->{manage_config} },
         'pages' => sub { $_[0]->{manage_nav} },  # SM097: page-URL list for the nav editor
             # SM123: a theme/layout manager may list what is installed (was previously
@@ -597,6 +598,9 @@ elsif ( $action eq 'domain-preview' ) {
 elsif ( $action eq 'domain-alias-add' ) {
     my $req = eval { decode_json($body) } // {};
     $result = domain_add_alias( $req->{host}, $req->{of} );
+}
+elsif ( $action eq 'domain-check' ) {
+    $result = action_domain_check( $params{host} );
 }
 elsif ( $action eq 'config-set' ) {
     my $req = eval { decode_json($body) } // {};
@@ -790,7 +794,7 @@ else { $result = { ok => 0, error => "Unknown action: $action" } }
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
         csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
-        cache-invalidate nav-read aliases-list config-read domains-list domain-preview bad-url-blocks recent-changes pages theme-list themes-list-all themes-for-layout
+        cache-invalidate nav-read aliases-list config-read domains-list domain-preview domain-check bad-url-blocks recent-changes pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
@@ -1113,6 +1117,21 @@ sub users_api {
 # checkbox. Keeping this as a distinct action (rather than piggybacking
 # on action_save with an empty body) also makes the log line clearer.
 
+# Resolve the real content processor to shell for a server-side render.
+#
+# We must NOT shell $ENV{LAZYSITE_PROCESSOR} directly: in the wrapped
+# deployment (Apache/Hestia and the dev server) the auth wrapper sets
+# LAZYSITE_PROCESSOR to the ORIGINALLY requested CGI - which is THIS
+# manager-api when a preview action runs - so trusting it re-enters
+# manager-api (auth stripped -> "Authentication required") instead of the
+# processor. Take only the cgi-bin DIRECTORY it names and resolve the
+# processor by its own name there, falling back to the docroot-relative path.
+sub _processor_path {
+    my $lp  = $ENV{LAZYSITE_PROCESSOR};
+    my $dir = ( defined $lp && length $lp ) ? dirname($lp) : "$DOCROOT/../cgi-bin";
+    return "$dir/lazysite-processor.pl";
+}
+
 sub action_preview {
     my ($rel_path) = @_;
 
@@ -1125,9 +1144,8 @@ sub action_preview {
     local $ENV{REDIRECT_URL}     = $uri;
     local $ENV{DOCUMENT_ROOT}    = $DOCROOT;
 
-    my $processor = "$DOCROOT/../cgi-bin/lazysite-processor.pl";
-    $processor = $ENV{LAZYSITE_PROCESSOR} if $ENV{LAZYSITE_PROCESSOR};
-    my $output = qx($^X \Q$processor\E 2>/dev/null);
+    my $processor = _processor_path();
+    my $output    = qx($^X \Q$processor\E 2>/dev/null);
 
     # Strip CGI headers
     $output =~ s/\A.*?\r?\n\r?\n//s;
@@ -1141,6 +1159,25 @@ sub action_preview {
 # server / action_preview, but with HTTP_HOST set (SM151 per-Host routing picks
 # the domain's content_root + theme/layout/nav overrides) and the auth headers
 # cleared (so the render is the public site, no manager admin bar).
+# A host is "known" iff it is a registered alias host OR it is the primary
+# site's own host (derived from its site_url). This BOUNDS the preview render
+# and, more importantly, the domain-check outbound probe to operator-declared
+# hosts - grepping `|| is_primary` matched the ever-present (default) row and so
+# accepted ANY host, which for the SSRF-sensitive check must not happen.
+sub _known_domain_host {
+    my ($host) = @_;
+    my @rows = @{ domains_list()->{domains} || [] };
+    for my $r (@rows) {
+        next     if $r->{is_primary};
+        return 1 if lc( $r->{host} // '' ) eq $host;
+    }
+    my ($prim) = grep { $_->{is_primary} } @rows;
+    if ( $prim && ( $prim->{site_url} // '' ) =~ m{^https?://([^/:]+)}i ) {
+        return 1 if lc($1) eq $host;
+    }
+    return 0;
+}
+
 sub action_domain_preview {
     my ($host) = @_;
     $host = lc( $host // '' );
@@ -1148,11 +1185,9 @@ sub action_domain_preview {
         unless $host =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
             (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
 
-    # Only a registered domain (or the primary/default host) may be previewed.
-    my $dl    = domains_list();
-    my $known = grep { lc( $_->{host} ) eq $host || $_->{is_primary} }
-        @{ $dl->{domains} || [] };
-    return { ok => 0, error => "Not a registered domain: $host" } unless $known;
+    # Only a registered domain (or the primary site's own host) may be previewed.
+    return { ok => 0, error => "Not a registered domain: $host" }
+        unless _known_domain_host($host);
 
     local %ENV = %ENV;
     delete @ENV{ grep { /^(?:HTTP_X_REMOTE_|LAZYSITE_AUTH_)/ } keys %ENV };
@@ -1163,12 +1198,43 @@ sub action_domain_preview {
     $ENV{QUERY_STRING}     = '';
     $ENV{LAZYSITE_NOCACHE} = '1';
 
-    my $processor = "$DOCROOT/../cgi-bin/lazysite-processor.pl";
-    $processor = $ENV{LAZYSITE_PROCESSOR} if $ENV{LAZYSITE_PROCESSOR};
-    my $output = qx($^X \Q$processor\E 2>/dev/null);
+    my $processor = _processor_path();
+    my $output    = qx($^X \Q$processor\E 2>/dev/null);
     $output =~ s/\A.*?\r?\n\r?\n//s;    # strip CGI headers
 
     return { ok => 1, host => $host, html => $output };
+}
+
+# SM156: a stable, non-sensitive per-install id - identical to the processor's
+# (same one-way function over the same docroot), so a domain-check can tell
+# whether an HTTPS request to the candidate host lands back on THIS install.
+sub _instance_id {
+    my $base = realpath($DOCROOT) // $DOCROOT;
+    return substr( hmac_sha256_hex( $base, 'lazysite-instance' ), 0, 32 );
+}
+
+# SM156: check whether a registered domain is configured to serve THIS install
+# live (DNS resolves -> points here -> valid HTTPS cert -> terminates on this
+# instance). The authoritative half of the hybrid check - it does the DNS / IP /
+# TLS / marker work a browser cannot. self_ip is the address Apache accepted the
+# manager request on (SERVER_ADDR); instance_id is our own marker value.
+sub action_domain_check {
+    my ($host) = @_;
+    $host = lc( $host // '' );
+    return { ok => 0, error => 'Invalid domain host' }
+        unless $host =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
+            (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
+
+    # Bound the outbound probe to operator-declared hosts (no SSRF to arbitrary
+    # targets): only a registered domain or the primary site's own host.
+    return { ok => 0, error => "Not a registered domain: $host" }
+        unless _known_domain_host($host);
+
+    return domain_check(
+        $host,
+        self_ip     => ( $ENV{SERVER_ADDR} // '' ),
+        instance_id => _instance_id(),
+    );
 }
 
 # --- Cache actions ---

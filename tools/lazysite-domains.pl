@@ -13,8 +13,11 @@
 #   lazysite-domains.pl --docroot DIR set    --host H --key K --value V
 #   lazysite-domains.pl --docroot DIR remove --host H [--purge]
 #   lazysite-domains.pl --docroot DIR alias  --host H --of CANONICAL_HOST
+#   lazysite-domains.pl --docroot DIR check  --host H [--self-ip IP]
 #
-# Exit 0 on success, 1 on error. --json prints the raw result object.
+# Exit 0 on success, 1 on error. `check` exits 2 when the domain is not yet
+# fully configured (some check failed), so a caller can gate on it. --json
+# prints the raw result object.
 use strict;
 use warnings;
 
@@ -27,7 +30,7 @@ BEGIN {
     }
 }
 use Lazysite::Manager::Domains
-    qw(domains_list domain_add domain_add_alias domain_remove domain_set);
+    qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check);
 
 my %opt;
 my @pos;
@@ -89,9 +92,20 @@ elsif ( $cmd eq 'alias' ) {
         unless defined $opt{host} && defined $opt{of};
     $result = domain_add_alias( $opt{host}, $opt{of} );
 }
+elsif ( $cmd eq 'check' ) {
+    die "lazysite-domains: check requires --host\n" unless defined $opt{host};
+    require Digest::SHA;
+    my $base = Cwd::realpath($docroot) // $docroot;
+    my $instance = substr( Digest::SHA::hmac_sha256_hex( $base, 'lazysite-instance' ), 0, 32 );
+    $result = domain_check(
+        $opt{host},
+        self_ip     => ( $opt{'self-ip'} // '' ),
+        instance_id => $instance,
+    );
+}
 else {
     die "lazysite-domains: unknown command '$cmd' "
-        . "(list|add|alias|set|remove); run with no command for usage.\n";
+        . "(list|add|alias|set|remove|check); run with no command for usage.\n";
 }
 
 if ( $opt{json} ) {
@@ -106,6 +120,14 @@ elsif ( $result->{ok} ) {
                 ( $d->{site_url} // '' );
         }
     }
+    elsif ( $cmd eq 'check' ) {
+        printf "domain %s: %s\n", $result->{host},
+            ( $result->{all_pass} ? 'OK - live' : 'NOT READY' );
+        for my $c ( @{ $result->{checks} } ) {
+            my $mark = !defined $c->{pass} ? '?' : $c->{pass} ? 'PASS' : 'FAIL';
+            printf "  [%-4s] %-24s %s\n", $mark, $c->{label}, $c->{detail};
+        }
+    }
     else {
         print "ok: $cmd ", ( $result->{host} // '' ), "\n";
     }
@@ -114,4 +136,7 @@ else {
     print STDERR "error: ", ( $result->{error} // 'failed' ), "\n";
     exit 1;
 }
+
+# `check` gates on readiness: 0 = fully configured, 2 = something still failing.
+exit( $result->{all_pass} ? 0 : 2 ) if $cmd eq 'check' && $result->{ok};
 exit 0;

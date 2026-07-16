@@ -15,11 +15,12 @@ package Lazysite::Manager::Domains;
 
 use strict;
 use warnings;
-use Cwd            qw(realpath);
-use File::Path     qw(make_path);
-use Lazysite::Util qw(log_event);
+use Cwd                       qw(realpath);
+use File::Path                qw(make_path);
+use Lazysite::Util            qw(log_event);
+use Lazysite::Manager::Common qw(path_is_reserved);
 use Exporter 'import';
-our @EXPORT_OK = qw(domains_list domain_add domain_add_alias domain_remove domain_set);
+our @EXPORT_OK = qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check);
 
 our $DOCROOT;           # set by the caller (manager-api or the CLI)
 our $auth_user = '';    # for log attribution
@@ -47,10 +48,11 @@ sub _valid_host {
     return 1;
 }
 
-# A content root is a docroot-relative directory. Reject traversal and the
-# lazysite/ management tree (parity with the processor's confine_content_root):
-# a domain's content must never be the secrets/auth/ACL tree. Returns the
-# cleaned relative path, or undef.
+# A content root is a docroot-relative directory. Reject traversal and any
+# reserved (system) root - path_is_reserved is the single definition, shared
+# with the manager blocklist and mirrored by the processor's
+# confine_content_root: a domain's content must never be the secrets/auth/ACL
+# tree. Returns the cleaned relative path, or undef.
 sub _clean_content_root {
     my ($rel) = @_;
     return undef unless defined $rel && length $rel;
@@ -58,7 +60,7 @@ sub _clean_content_root {
     return undef unless length $rel;
     return undef if $rel =~ m{(?:^|/)\.\.(?:/|$)};    # traversal
     return undef if $rel =~ m{(?:^|/)\.[^/]};         # dotfile/dotdir segment
-    return undef if $rel =~ m{^lazysite(?:/|$)};      # management tree
+    return undef if path_is_reserved($rel);           # engine-owned (system) area
     return $rel;
 }
 
@@ -189,29 +191,45 @@ sub domain_add_alias {
         error => "$of has no content_root of its own to alias" }
         unless defined $cr && length $cr;
 
-    my %opts = ( content_root => $cr );
-    # Carry the canonical's site_url so the alias's canonical link points at the
-    # same site (proper mirror SEO); every other key inherits the base.
-    $opts{site_url} = $ov->{$of}{site_url}
-        if defined $ov->{$of}{site_url} && length $ov->{$of}{site_url};
+    # An alias must present IDENTICALLY to its canonical - same content root AND
+    # the same presentation. Copy every per-host override the canonical set
+    # (content_root, site_url, site_name/title, theme, layout, nav_file,
+    # search_default); a key the canonical inherits from the base, the alias
+    # inherits from the base too. Copying only content_root+site_url left the
+    # alias showing the DEFAULT host's site_name (title) rather than the
+    # aliased sub-domain's own - the bug this fixes.
+    my %opts;
+    for my $k (@DOMAIN_KEYS) {
+        my $v = $ov->{$of}{$k};
+        $opts{$k} = $v if defined $v && length $v;
+    }
     return domain_add( $host, %opts );
 }
 
 # --- public: add -----------------------------------------------------------
 
-# %opts: content_root (required), and any of site_url/site_name/theme/layout/
-# nav_file/search_default; seed => 1 to write a starter index.md.
+# %opts: content_root (OPTIONAL - empty means the host serves the DEFAULT site,
+# i.e. the docroot root, no per-host content of its own), and any of
+# site_url/site_name/theme/layout/nav_file/search_default; seed => 1 to write a
+# starter index.md (ignored when there is no content root of its own).
 sub domain_add {
     my ( $host, %opts ) = @_;
     $host = lc( $host // '' );
     return { ok => 0, kind => 'invalid', error => 'Invalid domain host' }
         unless _valid_host($host);
 
-    my $rel = _clean_content_root( $opts{content_root} );
-    return { ok => 0, kind => 'invalid',
-        error => 'content_root must be a directory under the docroot, '
-            . 'not a traversal or the lazysite/ tree' }
-        unless defined $rel;
+    # Empty content_root is allowed: the host then serves the default site.
+    # A NON-empty value must clean (under the docroot, not a reserved area).
+    my $raw      = $opts{content_root};
+    my $has_root = defined $raw && $raw =~ /\S/;
+    my $rel      = '';
+    if ($has_root) {
+        $rel = _clean_content_root($raw);
+        return { ok => 0, kind => 'invalid',
+            error => 'The content folder must be inside your site. '
+                . 'The lazysite system area is reserved - pick another folder.' }
+            unless defined $rel;
+    }
 
     my ( $base, $ov, $hosts ) = _parse();
     return { ok => 0, kind => 'exists', error => "Domain already registered: $host" }
@@ -220,8 +238,10 @@ sub domain_add {
     my $content = _slurp();
     return { ok => 0, error => 'Cannot read lazysite.conf' } unless defined $content;
 
-    # content_root first, then any presentation overrides provided.
-    $content = _set_line( $content, $host, 'content_root', $rel );
+    # content_root first (only when the host has its own), then any presentation
+    # overrides. With no content root the host writes no content_root line and
+    # inherits the base - it serves the default site.
+    $content = _set_line( $content, $host, 'content_root', $rel ) if length $rel;
     for my $k (@DOMAIN_KEYS) {
         next if $k eq 'content_root';
         next unless defined $opts{$k} && length $opts{$k};
@@ -234,6 +254,14 @@ sub domain_add {
 
     my ( $ok, $err ) = _write($content);
     return { ok => 0, error => $err } unless $ok;
+
+    # A host with no content root of its own serves the default site - nothing
+    # to provision or seed.
+    unless ( length $rel ) {
+        log_event( 'INFO', $host, 'domain registered (serves the default site)',
+            host => $host, user => $auth_user );
+        return { ok => 1, host => $host, content_root => '' };
+    }
 
     # Provision the content-root directory (+ optional seed). A directory that
     # already exists is fine (adopting an existing tree).
@@ -344,6 +372,159 @@ sub domain_remove {
     log_event( 'INFO', 'domain-remove', 'domain unregistered',
         host => $host, purged => $purged, user => $auth_user );
     return { ok => 1, host => $host, purged => $purged };
+}
+
+# --- public: check a domain's live configuration (SM156) -------------------
+
+# Resolve a host to its distinct IP addresses (v4 + v6). Returns the list, or
+# () when the name does not resolve. Loaded lazily - the network modules must
+# not add to every manager request's startup.
+sub _resolve_ips {
+    my ($host) = @_;
+    require Socket;
+    my ( $err, @res )
+        = Socket::getaddrinfo( $host, '', { socktype => Socket::SOCK_STREAM() } );
+    return () if $err;
+    my ( %seen, @ips );
+    for my $ai (@res) {
+        my ( $e, $ip )
+            = Socket::getnameinfo( $ai->{addr}, Socket::NI_NUMERICHOST(), Socket::NIx_NOSERV() );
+        next if $e;
+        push @ips, $ip unless $seen{$ip}++;
+    }
+    return @ips;
+}
+
+# Open a verified TLS connection to $host:443. A connection only forms when the
+# certificate is valid AND matches the host (SSL_verify_mode PEER + SNI), so a
+# returned {ok=>1} means "trusted HTTPS". Detail carries the CN and expiry when
+# they can be read. Never throws - a bad/absent cert is a {ok=>0} result.
+sub _tls_probe {
+    my ( $host, $timeout ) = @_;
+    require IO::Socket::SSL;
+    my $sock = IO::Socket::SSL->new(
+        PeerHost          => $host,
+        PeerPort          => 443,
+        Timeout           => $timeout,
+        SSL_verify_mode   => IO::Socket::SSL::SSL_VERIFY_PEER(),
+        SSL_hostname      => $host,
+        SSL_verifycn_name => $host,
+    );
+    unless ($sock) {
+        no warnings 'once';    # $SSL_ERROR lives in the lazily-required package
+        my $e = $IO::Socket::SSL::SSL_ERROR || $! || 'connection failed';
+        $e =~ s/\s+/ /g;
+        return { ok => 0, detail => "no trusted HTTPS ($e)" };
+    }
+    my $cn      = eval { $sock->peer_certificate('commonName') } // '';
+    my $expires = eval {
+        require Net::SSLeay;    # IO::Socket::SSL's backend; named for the SBOM
+        my $t = Net::SSLeay::X509_get_notAfter( $sock->peer_certificate );
+        $t ? Net::SSLeay::P_ASN1_TIME_get_isotime($t) : '';
+    } // '';
+    close $sock;
+    my $detail = 'valid certificate';
+    $detail .= " for $cn"           if length $cn;
+    $detail .= ", expires $expires" if length $expires;
+    return { ok => 1, detail => $detail, expires => $expires };
+}
+
+# GET the public instance marker over $host and read back its instance id, so
+# the caller can tell whether the request terminated on THIS install.
+sub _marker_fetch {
+    my ( $host, $timeout ) = @_;
+    require HTTP::Tiny;
+    my $http = HTTP::Tiny->new(
+        timeout    => $timeout,
+        verify_SSL => 1,
+        agent      => 'lazysite-domain-check/1 ',
+    );
+    my $res = $http->get("https://$host/.well-known/lazysite-instance.json");
+    unless ( $res->{success} ) {
+        my $why = $res->{status} == 599 ? ( $res->{content} || 'network error' )
+            :   "HTTP $res->{status}";
+        $why =~ s/\s+/ /g;
+        return { ok => 0, detail => $why };
+    }
+    my ($inst) = ( $res->{content} // '' ) =~ /"instance"\s*:\s*"([0-9a-f]{1,64})"/;
+    return { ok => 1, instance => ( $inst // '' ), detail => 'marker answered' };
+}
+
+# domain_check($host, %opt) - is $host configured to serve THIS install live?
+# Runs four ordered checks and returns them as an array (UI renders in order):
+#   dns        - the name resolves to an address
+#   host       - one of those addresses is THIS server (opt{self_ip})
+#   ssl        - a trusted certificate terminates for the host
+#   terminates - an HTTPS request lands on THIS install (marker id == opt{instance_id})
+# %opt: self_ip, instance_id, timeout; and resolve/tls/fetch code-ref overrides
+# so tests drive every branch without touching the network. A check `pass` is
+# 1, 0, or undef (indeterminate - e.g. this server's own address is unknown).
+sub domain_check {
+    my ( $host, %opt ) = @_;
+    $host = lc( $host // '' );
+    return { ok => 0, kind => 'invalid', error => 'Invalid domain host' }
+        unless _valid_host($host);
+
+    my $self_ip  = $opt{self_ip}     // '';
+    my $instance = $opt{instance_id} // '';
+    my $timeout  = $opt{timeout} || 6;
+    my $resolve  = $opt{resolve} || \&_resolve_ips;
+    my $tls      = $opt{tls}     || \&_tls_probe;
+    my $fetch    = $opt{fetch}   || \&_marker_fetch;
+
+    my @checks;
+
+    # 1. DNS resolution.
+    my @ips    = $resolve->($host);
+    my $dns_ok = @ips ? 1 : 0;
+    push @checks, {
+        id     => 'dns',
+        label  => 'DNS resolves',
+        pass   => $dns_ok,
+        detail => $dns_ok
+        ? ( 'resolves to ' . join( ', ', @ips ) )
+        : 'the host name does not resolve yet - add the DNS record',
+    };
+
+    # 2. Points to this server (one resolved IP is our own).
+    if ( !$dns_ok ) {
+        push @checks, { id => 'host', label => 'Points to this server',
+            pass => 0, detail => 'skipped - the host does not resolve' };
+    }
+    elsif ( !length $self_ip ) {
+        push @checks, { id => 'host', label => 'Points to this server',
+            pass => undef, detail => "cannot read this server's address to compare" };
+    }
+    else {
+        my $match = grep { $_ eq $self_ip } @ips;
+        push @checks, {
+            id     => 'host',
+            label  => 'Points to this server',
+            pass   => $match ? 1 : 0,
+            detail => $match
+            ? "points here ($self_ip)"
+            : ( 'resolves elsewhere (' . join( ', ', @ips ) . "), not $self_ip" ),
+        };
+    }
+
+    # 3. Trusted HTTPS certificate.
+    my $ssl = $tls->( $host, $timeout );
+    push @checks, { id => 'ssl', label => 'HTTPS certificate valid',
+        pass => $ssl->{ok} ? 1 : 0, detail => $ssl->{detail} };
+
+    # 4. Terminates on THIS install (marker id match).
+    my $mk = $fetch->( $host, $timeout );
+    my $term_ok
+        = ( $mk->{ok} && length $instance && ( $mk->{instance} // '' ) eq $instance ) ? 1 : 0;
+    my $tdetail
+        = !$mk->{ok} ? ( 'no reply over HTTPS - ' . ( $mk->{detail} || 'unreachable' ) )
+        : $term_ok   ? 'serves this lazysite instance'
+        :              'reachable, but answered by a different server or instance';
+    push @checks, { id => 'terminates', label => 'Serves this lazysite',
+        pass => $term_ok, detail => $tdetail };
+
+    my $all_pass = ( grep { defined $_->{pass} && !$_->{pass} } @checks ) ? 0 : 1;
+    return { ok => 1, host => $host, all_pass => $all_pass, checks => \@checks };
 }
 
 1;

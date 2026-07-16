@@ -16,7 +16,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
-    _write_conf_key path_out_of_scope outside_all_scopes);
+    _write_conf_key path_out_of_scope outside_all_scopes reserved_roots path_is_reserved);
 
 our $DOCROOT;                         # set by the script
 our $action    = '';                  # current request action (for log attribution)
@@ -29,6 +29,28 @@ our @BLOCKED_PATHS = (
     'lazysite/auth/groups',
     'lazysite/auth/user-settings.json',
 );
+
+# The engine-owned ("system") areas of the docroot: everything under lazysite/
+# (secrets, ACLs, layouts, themes, forms). This is the SINGLE reserved-root
+# definition - a visitor content_root, or any managed path, is "not permitted"
+# when it IS or sits INSIDE one of these. _clean_content_root (Domains) asks
+# path_is_reserved(); the render path keeps a module-free mirror in the
+# processor's confine_content_root() (ADR 0001 - no module loads while
+# rendering). Defined once here so the reserved set is not restated per caller.
+our @RESERVED_ROOTS = ('lazysite');
+
+sub reserved_roots { return @RESERVED_ROOTS }
+
+# 1 if a docroot-relative path IS, or sits INSIDE, a reserved (system) root.
+sub path_is_reserved {
+    my ($rel) = @_;
+    return 0 unless defined $rel && length $rel;
+    $rel =~ s{^/+|/+$}{}g;
+    for my $r (@RESERVED_ROOTS) {
+        return 1 if $rel eq $r || index( $rel, "$r/" ) == 0;
+    }
+    return 0;
+}
 
 # SEC-2026-07: extensions that must never be written or served as site content -
 # they execute (CGI/SSI/PHP) or reconfigure the web server. Case-insensitive.

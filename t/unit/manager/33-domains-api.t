@@ -89,6 +89,28 @@ grant_caps( $d, 'ed', 'manage_content' );
         'domain-add is recorded in the audit trail' );
 }
 
+# --- a host with no content_root serves the DEFAULT site --------------------
+# content_root is optional: an empty one registers the host but writes no
+# content_root line, so it inherits the base (the default site).
+{
+    my $r = post( $d, 'op', 'role-op', 'action=domain-add',
+        { host => 'vanity.example', content_root => '' } );
+    ok( $r->{ok}, 'a domain with no content_root registers (serves the default)' )
+        or diag encode_json($r);
+    like( slurp("$d/lazysite/lazysite.conf"), qr/^alias_hosts:.*vanity\.example/m,
+        'the host is registered in alias_hosts' );
+    unlike( slurp("$d/lazysite/lazysite.conf"), qr/^alias\.vanity\.example\.content_root:/m,
+        'no content_root line is written - the host inherits the default site' );
+}
+
+# --- a reserved (system) content_root is refused ----------------------------
+{
+    my $r = post( $d, 'op', 'role-op', 'action=domain-add',
+        { host => 'bad.example', content_root => 'lazysite/auth' } );
+    ok( !$r->{ok}, 'a content_root inside the reserved lazysite/ area is refused' );
+    is( $r->{kind}, 'invalid', 'reserved content_root is an invalid request' );
+}
+
 # --- content editor (no manage_config) is forbidden -------------------------
 {
     my $r = post( $d, 'ed', 'role-ed', 'action=domain-add',
@@ -120,6 +142,21 @@ grant_caps( $d, 'ed', 'manage_content' );
     is( $e->{kind}, 'forbidden', 'content editor cannot add an alias' );
 }
 
+# --- SM155: an alias mirrors the canonical's OWN presentation (title) --------
+# A sub-domain with its own site_name, then aliased: the alias must carry the
+# sub-domain's site_name, not fall back to the DEFAULT host's (the reported bug).
+{
+    post( $d, 'op', 'role-op', 'action=domain-add',
+        { host => 'shop.clienta.com', content_root => 'sites/shop',
+            site_name => 'Client A Shop', seed => 1 } );
+    my $r = post( $d, 'op', 'role-op', 'action=domain-alias-add',
+        { host => 'www.shop.clienta.com', of => 'shop.clienta.com' } );
+    ok( $r->{ok}, 'alias of a sub-domain is added' ) or diag encode_json($r);
+    like( slurp("$d/lazysite/lazysite.conf"),
+        qr/^alias\.www\.shop\.clienta\.com\.site_name: Client A Shop$/m,
+        'the alias carries the sub-domain site_name (title), not the default host' );
+}
+
 # --- SM155: domain-preview renders a domain under its Host (pre-DNS) ---------
 {
     require Cwd;
@@ -140,6 +177,50 @@ grant_caps( $d, 'ed', 'manage_content' );
         QUERY_STRING       => 'action=domain-preview&host=clienta.com',
         HTTP_X_REMOTE_USER => 'ed', HTTP_X_REMOTE_GROUPS => 'role-ed' );
     ok( !$ef->{ok}, 'content editor cannot preview a domain (manage_config)' );
+
+    # REGRESSION: in the wrapped deployment (Apache/Hestia + dev server) the
+    # auth wrapper sets LAZYSITE_PROCESSOR to the ORIGINALLY requested CGI -
+    # i.e. THIS manager-api - not the processor. Trusting it re-entered
+    # manager-api with auth stripped and the preview showed
+    # {"error":"Authentication required"} instead of the page. The preview must
+    # resolve the processor by name in that cgi-bin, so it still renders.
+    my $wrapped = mapi( $d, REQUEST_METHOD => 'GET',
+        QUERY_STRING       => 'action=domain-preview&host=clienta.com',
+        HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'role-op',
+        LAZYSITE_PROCESSOR => $mapi );    # wrapper points back at manager-api
+    ok( $wrapped->{ok}, 'preview works when the wrapper points LAZYSITE_PROCESSOR at manager-api' )
+        or diag encode_json($wrapped);
+    like( $wrapped->{html}, qr/PREVIEW-OF-CLIENTA/,
+        'wrapped preview renders the processor, not the manager-api auth error' );
+    unlike( $wrapped->{html} // '', qr/Authentication required/,
+        'wrapped preview is not the re-entered auth error' );
+}
+
+# --- SM156: domain-check is manage_config-gated + registered-only -----------
+# Uses a .invalid host (RFC 6761: guaranteed never to resolve), so the real
+# DNS/TLS/HTTP probe fast-fails offline instead of hanging or hitting the net.
+{
+    post( $d, 'op', 'role-op', 'action=domain-add',
+        { host => 'unconfigured.invalid', content_root => 'sites/uc' } );
+
+    my $r = mapi( $d, REQUEST_METHOD => 'GET',
+        QUERY_STRING       => 'action=domain-check&host=unconfigured.invalid',
+        HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'role-op' );
+    ok( $r->{ok}, 'operator runs a domain check' ) or diag encode_json($r);
+    is( scalar @{ $r->{checks} || [] }, 4, 'four checks are reported' );
+    is( $r->{checks}[0]{id}, 'dns', 'first check is DNS' );
+    is( $r->{all_pass}, 0, 'an unconfigured (.invalid) domain is not ready' );
+
+    my $ef = mapi( $d, REQUEST_METHOD => 'GET',
+        QUERY_STRING       => 'action=domain-check&host=unconfigured.invalid',
+        HTTP_X_REMOTE_USER => 'ed', HTTP_X_REMOTE_GROUPS => 'role-ed' );
+    ok( !$ef->{ok}, 'content editor cannot run a domain check (manage_config)' );
+
+    my $un = mapi( $d, REQUEST_METHOD => 'GET',
+        QUERY_STRING       => 'action=domain-check&host=stranger.invalid',
+        HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'role-op' );
+    ok( !$un->{ok}, 'an unregistered host is refused (no SSRF to arbitrary targets)' );
+    like( $un->{error}, qr/Not a registered domain/, 'refusal names the reason' );
 }
 
 sub slurp { open my $fh, '<', $_[0] or return ''; local $/; <$fh> }
