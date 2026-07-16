@@ -443,13 +443,24 @@ sub _tls_probe {
         SSL_verifycn_scheme => 'none',    # verify the chain, NOT the hostname
     );
     if ($chain) {
+        # What the cert DOES cover: its dNSName SANs (type 2), falling back to
+        # the CN - so the operator sees exactly which name is missing.
+        my @san = eval {
+            map  { $_->[1] }
+            grep { ref $_ eq 'ARRAY' && $_->[0] == 2 }
+                $chain->peer_certificate('subjectAltNames');
+        };
         my $cn = eval { $chain->peer_certificate('commonName') } // '';
         close $chain;
+        my ( %seen, @cover );
+        for ( @san, $cn ) { push @cover, $_ if defined && length && !$seen{$_}++ }
+        my $shown
+            = @cover > 6 ? ( join( ', ', @cover[ 0 .. 5 ] ) . ', …' ) : join( ', ', @cover );
         my $detail = 'a certificate is served';
-        $detail .= " (for $cn)" if length $cn;
-        $detail .= ' but it does not cover this host'
+        $detail .= " (covers $shown)" if length $shown;
+        $detail .= ' but not this host'
             . ' - add this host to the certificate (e.g. via Hestia SSL)';
-        return { ok => 0, kind => 'cert-mismatch', detail => $detail };
+        return { ok => 0, kind => 'cert-mismatch', detail => $detail, covers => \@cover };
     }
 
     return { ok => 0, detail => "no trusted HTTPS ($e)" };

@@ -87,14 +87,14 @@ use Lazysite::Manager::Domains qw(domain_check instance_public_ips);
         resolve     => sub { ('203.0.113.5') },
         tls         => sub {
             { ok => 0, kind => 'cert-mismatch',
-                detail => 'a certificate is served (for clienta.com) but it does not '
-                    . 'cover this host - add this host to the certificate (e.g. via Hestia SSL)' };
+                detail => 'a certificate is served (covers clienta.com, www.clienta.com) '
+                    . 'but not this host - add this host to the certificate (e.g. via Hestia SSL)' };
         },
         fetch => sub { { ok => 1, instance => 'abc' } },
     );
     is( $r->{checks}[2]{pass}, 0, 'ssl fails when the cert does not cover the host' );
-    like( $r->{checks}[2]{detail}, qr/does not cover this host/,
-        'ssl detail explains the coverage gap (points at the cert / Hestia SSL)' );
+    like( $r->{checks}[2]{detail}, qr/covers .* but not this host/,
+        'ssl detail names what the cert covers + points at the cert / Hestia SSL' );
     is( $r->{all_pass}, 0, 'a cert coverage gap keeps the domain not-ready' );
 }
 
