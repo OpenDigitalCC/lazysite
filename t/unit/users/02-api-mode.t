@@ -87,6 +87,25 @@ sub api {
     like( $r->{error} // '', qr/Invalid JSON/i, 'error mentions invalid JSON' );
 }
 
+# --- a group assigned at creation time persists + shows in users-page --------
+# Regression for the "new-user group dropped on submit" report: the create flow
+# does add -> group-add, then reloads users-page. The UI derives each user's
+# groups from users-page groups.<name>.members, so that must carry the new
+# member. (The UI-side "typed-but-unstaged pill" drop was fixed in 04a0ce5;
+# this locks the backend contract that display relies on.)
+{
+    api( { action => 'group-create', group => 'editors' } );
+    api( { action => 'add',       username => 'bob' } );
+    my $ga = api( { action => 'group-add', username => 'bob', group => 'editors' } );
+    is( $ga->{ok}, 1, 'group-add at creation time succeeds' );
+
+    my $page = api( { action => 'users-page' } );
+    is( $page->{ok}, 1, 'users-page ok' );
+    my $editors = $page->{groups}{editors} || {};
+    ok( ( grep { $_ eq 'bob' } @{ $editors->{members} || [] } ),
+        'users-page groups.editors.members includes the just-added member (UI reads this)' );
+}
+
 # --- remove via API ---
 {
     my $r = api({ action => 'remove', username => 'alice' });
