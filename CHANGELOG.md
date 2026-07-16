@@ -18,6 +18,31 @@ Keying
 
 ## Unreleased
 
+Domains: set this server's public IP from the panel (canonical_ip)
+: The domain check's proxy/NAT fallback (`canonical_ip`) is now a field on the
+  Domains panel - view/set the server's public IP(s) without the CLI. It may be
+  cleared (empty = auto-detect); IP-literal validation stays. `config-read` now
+  surfaces it. `t/unit/manager/17-config-set.t`.
+
+Domains: the cert-coverage-gap detail names what the certificate covers
+: When a served certificate doesn't cover the checked host, the check now lists
+  the cert's SANs (dNSName), so the operator sees exactly which names are covered
+  and that this one is missing - "a certificate is served (covers *.example.com)
+  but not this host". `t/unit/manager/34-domain-check.t`.
+
+Domains: a multi-domain switcher in the file browser (SM157)
+: An editor scoped to several domains (member of multiple scoped groups) now gets
+  a "Domain:" switcher in the Files page to pick which content root to browse,
+  instead of an empty root that the server then denied outside the union. Single-
+  domain editors and operators are unchanged; union confinement holds regardless.
+  `t/unit/processor/28-domains-nav.t`.
+
+Manager: create-user group membership - regression test
+: The 2026-07-13 "new-user group dropped on submit" report was already fixed in
+  v0.7.14 (the create form flushes a group typed but not staged as a pill). A
+  regression test now locks the backend contract (`users-page` returns the
+  group's members after a create-time group-add). `t/unit/users/02-api-mode.t`.
+
 ## 0.7.21 - EDGE: domain check distinguishes a certificate coverage gap (2026-07-16)
 
 Domains: the check tells a certificate coverage gap from no HTTPS
