@@ -8,10 +8,10 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
-use File::Path qw(make_path);
+use File::Temp   qw(tempdir);
+use File::Path   qw(make_path);
 use MIME::Base64 qw(encode_base64);
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP     qw(encode_json decode_json);
 use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -42,7 +42,8 @@ sub basic { 'Basic ' . encode_base64( "deploy:$_[0]", '' ) }
 # --- provision a publishing account -----------------------------------
 dav_users_tool( $docroot, 'add', 'deploy', 'initial-pw' );
 grant_caps( $docroot, 'deploy', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
-dav_users_tool( $docroot, 'set', 'deploy', 'dav_scope', '/content' );
+# SM155: dav_scope is a GROUP setting now (grant_caps made role-deploy).
+dav_users_tool( $docroot, 'group-set', 'role-deploy', 'dav_scope', '/content' );
 make_path("$docroot/content");
 
 my $tok1 = users_api( { action => 'token', username => 'deploy' } )->{token};
@@ -86,7 +87,7 @@ like( $tok1, qr/^lzs_/, 'generated a credential' );
     is( $no->{code}, 423, 'write without the lock token => 423' );
 
     my $yes = run_dav( $docroot, 'PUT', '/content/page.md',
-        body => "---\ntitle: P\n---\nLOCKED-WRITE\n",
+        body    => "---\ntitle: P\n---\nLOCKED-WRITE\n",
         HTTP_IF => "(<$tok>)", HTTP_AUTHORIZATION => basic($tok1) );
     is( $yes->{code}, 204, 'write carrying the lock token => 204' );
 
