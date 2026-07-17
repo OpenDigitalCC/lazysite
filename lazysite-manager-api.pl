@@ -56,18 +56,20 @@ use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action
     action_backup_restore);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check);
+use Lazysite::Manager::SitePackage qw(package_create);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
-$Lazysite::Auth::Acl::DOCROOT        = $DOCROOT;
-$Lazysite::Manager::Common::DOCROOT  = $DOCROOT;
-$Lazysite::Manager::Upload::DOCROOT  = $DOCROOT;
-$Lazysite::Manager::Plugins::DOCROOT = $DOCROOT;
-$Lazysite::Manager::Files::DOCROOT   = $DOCROOT;
-$Lazysite::Manager::Themes::DOCROOT  = $DOCROOT;
-$Lazysite::Manager::Layouts::DOCROOT = $DOCROOT;
-$Lazysite::Manager::Backups::DOCROOT = $DOCROOT;
-$Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+$Lazysite::Auth::Acl::DOCROOT            = $DOCROOT;
+$Lazysite::Manager::Common::DOCROOT      = $DOCROOT;
+$Lazysite::Manager::Upload::DOCROOT      = $DOCROOT;
+$Lazysite::Manager::Plugins::DOCROOT     = $DOCROOT;
+$Lazysite::Manager::Files::DOCROOT       = $DOCROOT;
+$Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
+$Lazysite::Manager::Layouts::DOCROOT     = $DOCROOT;
+$Lazysite::Manager::Backups::DOCROOT     = $DOCROOT;
+$Lazysite::Manager::Domains::DOCROOT     = $DOCROOT;
+$Lazysite::Manager::SitePackage::DOCROOT = $DOCROOT;
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 $Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Audit::LAZYSITE_DIR            = $LAZYSITE_DIR;
@@ -122,6 +124,9 @@ my $site_secured = site_grants_manager();
 my $auth_user;
 my $token_auth = 0;
 my %token_caps;
+my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
+                       # per-domain content-access checks in actions like
+                       # site-backup-create/apply. Empty => unconfined operator.
 {
     my $hdr = $ENV{HTTP_AUTHORIZATION} // '';
     if ( $hdr =~ /^Basic\s+(\S+)/ ) {
@@ -331,9 +336,10 @@ if ( !$token_auth ) {
         # for the same reason (token clients write over WebDAV). So they are NOT
         # capability-gated here - only POST-gated below (CSRF). Content-history
         # reads/restore ARE gated (they mirror the token %need manage_content).
-        'git-restore'      => 'manage_content', 'git-status' => 'manage_content',
-        'git-history'      => 'manage_content', 'git-show'   => 'manage_content',
-        'git-init'         => 'manage_config',
+        'git-restore'        => 'manage_content', 'git-status' => 'manage_content',
+        'git-history'        => 'manage_content', 'git-show'   => 'manage_content',
+        'site-backup-create' => 'manage_content',    # SM158: package one's own site
+        'git-init'           => 'manage_config',
         'config-set'       => 'manage_config',  'config-read'        => 'manage_config',
         'domains-list'     => 'manage_config',  'bad-url-blocks'     => 'manage_config',
         'domain-add'       => 'manage_config',  'domain-set'         => 'manage_config',
@@ -402,6 +408,7 @@ if ( !$token_auth ) {
         # interactive channel too, so a delegated domain editor cannot reach
         # another domain's content through the manager UI.
         _confine_scope( $caps->{dav_scopes}, 'ui' );
+        @REQUEST_SCOPES = @{ $caps->{dav_scopes} || [] };
     }
 }
 
@@ -485,12 +492,13 @@ if ($token_auth) {
         # SM085: content history. Reads and restore follow the content grant
         # (restore routes through the normal save path); enabling/initialising
         # the repo is a site-configuration act.
-        'git-status'  => sub { $_[0]->{manage_content} },
-        'git-history' => sub { $_[0]->{manage_content} },
-        'git-show'    => sub { $_[0]->{manage_content} },
-        'git-restore' => sub { $_[0]->{manage_content} },
-        'git-init'    => sub { $_[0]->{manage_config} },
-        'whoami'      => sub { 1 }, # any authenticated token may introspect its own grant
+        'git-status'         => sub { $_[0]->{manage_content} },
+        'git-history'        => sub { $_[0]->{manage_content} },
+        'git-show'           => sub { $_[0]->{manage_content} },
+        'git-restore'        => sub { $_[0]->{manage_content} },
+        'site-backup-create' => sub { $_[0]->{manage_content} },    # SM158
+        'git-init'           => sub { $_[0]->{manage_config} },
+        'whoami' => sub { 1 },    # any authenticated token may introspect its own grant
         'describe-capabilities' => sub { 1 },  # SM126: introspection - the capability map
             # Visitor-log analysis over the control API (token clients), same grant as
             # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
@@ -521,6 +529,7 @@ if ($token_auth) {
     # control-API channel too - a scoped partner credential is confined to its
     # content subtree(s) over WebDAV and must be here as well.
     _confine_scope( $token_caps{dav_scopes}, 'api' );
+    @REQUEST_SCOPES = @{ $token_caps{dav_scopes} || [] };
 
     # SM071 Phase 3 (P3.6): per-token volume throttle. 429 + Retry-After
     # so the client can back off per the documented retry contract.
@@ -601,6 +610,10 @@ elsif ( $action eq 'domain-alias-add' ) {
 }
 elsif ( $action eq 'domain-check' ) {
     $result = action_domain_check( $params{host} );
+}
+elsif ( $action eq 'site-backup-create' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_site_backup_create( $req->{host} // $params{host} );
 }
 elsif ( $action eq 'config-set' ) {
     my $req = eval { decode_json($body) } // {};
@@ -1243,6 +1256,34 @@ sub action_domain_check {
         self_ips    => \@self,
         instance_id => _instance_id(),
     );
+}
+
+# SM158: package one domain's SITE (content root + nav + bundled theme/layout +
+# manifest) into a portable .tar.gz alongside the backups, downloadable via
+# backup-download. manage_content-gated (above); additionally the caller must
+# have ACCESS to that domain's content root - a scope-confined editor can only
+# package a domain within their dav_scope union (operators are unconfined).
+sub action_site_backup_create {
+    my ($host) = @_;
+    $host = lc( $host // '' );
+    return { ok => 0, kind => 'invalid', error => 'A domain host is required' }
+        unless length $host;
+
+    # Resolve the domain's own content root, and confine to the caller's scope.
+    my ($row) = grep { lc( $_->{host} // '' ) eq $host } @{ domains_list()->{domains} || [] };
+    return { ok => 0, kind => 'not-found', error => "Not a registered domain: $host" }
+        unless $row;
+    my $croot = $row->{content_root} // '';
+    if ( @REQUEST_SCOPES
+        && length $croot
+        && Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot ) )
+    {
+        return { ok => 0, kind => 'forbidden',
+            error => "You do not have access to the content of $host." };
+    }
+
+    local $Lazysite::Manager::SitePackage::auth_user = $auth_user;
+    return package_create($host);
 }
 
 # --- Cache actions ---

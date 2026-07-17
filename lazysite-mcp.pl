@@ -39,6 +39,8 @@ use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
     action_cache_invalidate _read_active_layout_and_theme action_themes_list_all);
 use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
+use Lazysite::Manager::Domains     ();
+use Lazysite::Manager::SitePackage qw(package_create);
 
 our $VERSION = '0.1';
 my $PROTOCOL = '2025-11-25';
@@ -222,6 +224,8 @@ sub setup_context {
     $Lazysite::Manager::Layouts::auth_user     = $user;
     $Lazysite::Manager::Layouts::action        = 'mcp';
     $Lazysite::Manager::Common::DOCROOT        = $DOCROOT;
+    $Lazysite::Manager::Domains::DOCROOT       = $DOCROOT;
+    $Lazysite::Manager::SitePackage::DOCROOT   = $DOCROOT;
     $Lazysite::Manager::Common::action         = 'mcp';
     $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
     $Lazysite::Auth::Acl::DOCROOT              = $DOCROOT;
@@ -317,6 +321,38 @@ my %TOOLS = (
                 }
             }
             return $r;
+        },
+    },
+    site_backup => {
+        description => 'Package one registered domain\'s SITE - its content, nav, referenced theme + layout, and presentation settings - into a portable .tar.gz stored alongside the backups (download it with the backup tooling). Excludes plugins, instance settings and secrets, so it is safe to hand to a client\'s own instance. Requires manage_content and access to that domain.',
+        cap         => 'manage_content',
+        inputSchema => {
+            type       => 'object',
+            properties => { host => {
+                    type        => 'string',
+                    description => 'The registered domain to package, e.g. shop.clienta.com',
+            } },
+            required             => ['host'],
+            additionalProperties => JSON::PP::false,
+        },
+        run => sub {
+            my ( $a, $user, $caps ) = @_;
+            my $host = lc( $a->{host} // '' );
+            return { ok => 0, error => 'A host is required' } unless length $host;
+            my ($row) = grep { lc( $_->{host} // '' ) eq $host }
+                @{ Lazysite::Manager::Domains::domains_list()->{domains} || [] };
+            return { ok => 0, error => "Not a registered domain: $host" } unless $row;
+            my $croot  = $row->{content_root} // '';
+            my $scopes = $caps->{dav_scopes};
+            if ( ref $scopes eq 'ARRAY'
+                && @$scopes
+                && length $croot
+                && Lazysite::Manager::Common::outside_all_scopes( $scopes, $croot ) )
+            {
+                return { ok => 0, error => "You do not have access to the content of $host." };
+            }
+            local $Lazysite::Manager::SitePackage::auth_user = $user;
+            return package_create($host);
         },
     },
     replace_text => {
