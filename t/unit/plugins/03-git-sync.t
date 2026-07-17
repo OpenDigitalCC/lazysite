@@ -166,7 +166,7 @@ sub head_of {
 
 sub prerestore_count {
     my ($d) = @_;
-    my @s = glob "$d/lazysite/backups/prerestore-*.tar.gz";
+    my @s = glob "$d/lazysite/backups/lazysite-prerestore-*.tar.gz";
     return scalar @s;
 }
 

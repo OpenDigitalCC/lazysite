@@ -31,10 +31,13 @@ sub action_backup_list {
         for my $f ( readdir $dh ) {
             next unless $f =~ /\.tar\.gz\z/ && -f "$dir/$f";
             my @st = stat "$dir/$f";
-            my ($kind) = $f =~ /\A(preinstall|prerestore|manual|full)-/;
+            # Kind from the (now lazysite-prefixed) name; `site` is a per-domain
+            # site package (SM158) that also lives here.
+            my ($kind) = $f =~ /\A(?:lazysite-)?(preinstall|prerestore|manual|full|site)-/;
             $kind //= 'manual';
+            my $scope = $kind eq 'full' ? 'full' : $kind eq 'site' ? 'site' : 'content';
             push @out, { name => $f, size => $st[7] // 0, mtime => $st[9] // 0,
-                kind => $kind, scope => ( $kind eq 'full' ? 'full' : 'content' ) };
+                kind => $kind, scope => $scope };
         }
         closedir $dh;
     }
@@ -47,7 +50,9 @@ sub action_backup_create {
     $kind = 'manual' unless defined $kind && $kind =~ /\A(manual|prerestore|full)\z/;
     my $dir = _dir();
     make_path($dir) unless -d $dir;
-    my $name = "$kind-" . strftime( '%Y%m%dT%H%M%SZ', gmtime ) . '.tar.gz';
+    # All backup artefacts carry the `lazysite-` namespace prefix so they are
+    # unmistakably ours (and sort together): lazysite-<kind>-<UTCstamp>.tar.gz.
+    my $name = "lazysite-$kind-" . strftime( '%Y%m%dT%H%M%SZ', gmtime ) . '.tar.gz';
     my $out  = "$dir/$name";
 
     # 'full' = the whole site including the lazysite/ infra (config, auth,
@@ -90,7 +95,7 @@ sub action_backup_restore {
     return { ok => 0, error => 'A full-system backup is restored by a system user '
             . 'with install.pl --restore (use --domain to migrate to another domain), '
             . 'not from the manager. Download it and restore it from the shell.' }
-        if $name =~ /\Afull-/;
+        if $name =~ /\A(?:lazysite-)?full-/;    # new + legacy (pre-prefix) names
 
     my $full = _dir() . "/$name";
     return { ok => 0, error => 'Backup not found' } unless -f $full;

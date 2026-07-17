@@ -25,7 +25,7 @@ $Lazysite::Manager::Backups::auth_user    = 'op';
 # --- create ---
 my $c = action_backup_create();
 ok( $c->{ok}, 'backup-create ok' );
-like( $c->{name}, qr/^manual-\d{8}T\d{6}Z\.tar\.gz$/, 'manual snapshot name' );
+like( $c->{name}, qr/^lazysite-manual-\d{8}T\d{6}Z\.tar\.gz$/, 'manual snapshot name' );
 ok( -f "$d/lazysite/backups/$c->{name}", 'tarball written under lazysite/backups' );
 
 # --- contents: includes served content, excludes lazysite/ ---
@@ -51,7 +51,7 @@ _put( "$d/lazysite/auth/.secret", "hmac-secret\n" );
 _put( "$d/lazysite/lazysite.conf", "domain: temp.example.com\n" );
 my $full = action_backup_create('full');
 ok( $full->{ok}, 'full backup-create ok' );
-like( $full->{name}, qr/^full-\d{8}T\d{6}Z\.tar\.gz$/, 'full snapshot name' );
+like( $full->{name}, qr/^lazysite-full-\d{8}T\d{6}Z\.tar\.gz$/, 'full snapshot name' );
 is( $full->{scope}, 'full', 'scope reported as full' );
 my @fm = `tar tzf "$d/lazysite/backups/$full->{name}" 2>/dev/null`;
 ok( ( grep { m{lazysite/auth/\.secret} } @fm ), 'full backup includes the auth secret (for migration)' );

@@ -46,7 +46,7 @@ sub list_pkg { my $f = shift; my @l = `tar tzf \Q$f\E 2>/dev/null`; chomp @l; re
     is( $r->{ok}, 1, 'package_create ok for a domain with a content root' ) or diag $r->{error};
     my $pkg = "$d/lazysite/backups/$r->{name}";
     ok( -f $pkg, 'the package tarball is written under lazysite/backups' );
-    like( $r->{name}, qr/^site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'package name carries host + stamp' );
+    like( $r->{name}, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'package name carries host + stamp' );
 
     my %in = map { $_ => 1 } list_pkg($pkg);
     ok( $in{'./site.json'},                 'package has the manifest' );
