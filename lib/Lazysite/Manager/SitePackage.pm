@@ -94,7 +94,7 @@ sub package_create {
 
     my $ts       = strftime( '%Y%m%dT%H%M%SZ', gmtime );
     my $safehost = $row->{is_primary} ? 'default' : ( lc($host) =~ s/[^a-z0-9.-]/_/gr );
-    my $name     = "site-$safehost-$ts.tar.gz";
+    my $name     = "lazysite-site-$safehost-$ts.tar.gz";
     my $dir      = _backups_dir();
     make_path($dir) unless -d $dir;
     my $stage = "$dir/.stage-$safehost-$ts-$$";

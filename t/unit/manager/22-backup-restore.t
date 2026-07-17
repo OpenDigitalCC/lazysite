@@ -69,7 +69,7 @@ spit( "$d/legacy.html", "<html>LEGACY STATIC - not a cache</html>" );
 my $c = op( $d, 'action=backup-create' );
 ok( $c->{ok}, 'backup-create ok' ) or diag explain $c;
 my $snap = $c->{name};
-like( $snap, qr/^manual-.*\.tar\.gz$/, 'manual snapshot named' );
+like( $snap, qr/^lazysite-manual-.*\.tar\.gz$/, 'manual snapshot named' );
 
 # --- mutate: v2 + a new file ---
 sleep 1;    # distinct timestamp for the prerestore snapshot name
@@ -80,7 +80,7 @@ spit( "$d/extra.md", "---\ntitle: X\n---\n\nadded after the snapshot\n" );
 my $r = op( $d, "action=backup-restore&name=$snap" );
 ok( $r->{ok}, 'backup-restore ok' ) or diag explain $r;
 is( $r->{restored}, $snap, 'reports the restored snapshot' );
-like( $r->{safety}, qr/^prerestore-.*\.tar\.gz$/, 'a prerestore safety snapshot was taken' );
+like( $r->{safety}, qr/^lazysite-prerestore-.*\.tar\.gz$/, 'a prerestore safety snapshot was taken' );
 
 like( slurp("$d/page.md"), qr/version ONE/, 'restored file carries the snapshot content' );
 ok( -f "$d/extra.md",   'file added after the snapshot survives (overlay)' );
