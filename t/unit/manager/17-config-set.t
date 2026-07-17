@@ -63,6 +63,10 @@ my $ok = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set'
     body => encode_json( { key => 'site_name', value => 'The Barn by the Ford' } ) );
 ok( $ok->{ok}, 'config-set site_name succeeds with manage_config' );
 like( conf($d), qr/^site_name: The Barn by the Ford$/m, 'lazysite.conf updated in place' );
+{   my $al = do { open my $f, '<', "$d/lazysite/logs/audit.log" or last; local $/; <$f> };
+    like( $al // '', qr/config-set \| site_name \|/,
+        'config-set is audited with the KEY (site_name) as its target' );
+}
 
 # privilege-relevant key refused, and not written
 my $bad = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
