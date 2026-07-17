@@ -863,7 +863,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
 
     # Actions with no path/key but a well-known target (nav-save edits the site
     # navigation) - record that instead of a bare '/'.
-    my $imp = _audit_implicit_target($action);
+    my $imp = _audit_implicit_target( $action, \%params, $body );
     if ( length $imp && ( !length $aud_target || $aud_target eq '/' ) ) {
         $aud_target = $imp;
     }
@@ -1447,12 +1447,36 @@ sub action_notices_seen {
 # Derive a plugin's name for the audit target: the plugin param if present,
 # else the body's script basename (form-handler.pl -> form-handler). Returns ''
 # when neither is available.
-# Well-known audit target for an action that carries no path/key of its own
-# (nav-save edits the site navigation). '' = no implicit target.
+# Audit target for an action that carries no file PATH of its own - so the audit
+# trail names WHAT was acted on (a domain, a config key, a backup) instead of a
+# bare '/'. Derives from the query params / JSON body. '' = no implicit target.
 sub _audit_implicit_target {
-    my ($action) = @_;
-    my %implicit = ( 'nav-save' => 'nav' );
-    return $implicit{ $action // '' } // '';
+    my ( $action, $params, $body ) = @_;
+    $action //= '';
+    $params //= {};
+    return 'nav' if $action eq 'nav-save';    # nav-save edits the site navigation
+
+    my $req = ( defined $body && length $body ) ? ( eval { decode_json($body) } // {} ) : {};
+
+    # Domain + per-site actions act on a HOST (domain-add/set/remove/preview/
+    # check/alias-add, site-backup-create/apply/upload) - name the domain.
+    if ( $action =~ /^(?:domain-|site-backup-)/ ) {
+        my $h = $params->{host} // $req->{host} // '';
+        return $h if length $h;
+    }
+    # config-set: name the KEY that changed (e.g. site_name), not a bare '/'.
+    if ( $action eq 'config-set' ) {
+        my $k = $params->{key} // $req->{key} // '';
+        return $k if length $k;
+    }
+    # Backups: create names the KIND (full/content/manual); restore/download the
+    # backup file.
+    return ( $req->{kind} // $params->{kind} // 'manual' ) if $action eq 'backup-create';
+    if ( $action =~ /^backup-(?:restore|download)\z/ ) {
+        my $n = $params->{name} // $req->{name} // '';
+        return $n if length $n;
+    }
+    return '';
 }
 
 sub _audit_plugin_target {

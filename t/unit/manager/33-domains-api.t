@@ -85,8 +85,8 @@ grant_caps( $d, 'ed', 'manage_content' );
     like( slurp("$d/lazysite/lazysite.conf"), qr/^alias_hosts: clienta\.com/m,
         'the API write reached the conf' );
     ok( -d "$d/sites/clienta", 'the API provisioned the content root' );
-    like( slurp("$d/lazysite/logs/audit.log"), qr/domain-add/,
-        'domain-add is recorded in the audit trail' );
+    like( slurp("$d/lazysite/logs/audit.log"), qr/domain-add \| clienta\.com \|/,
+        'domain-add is audited with the HOST as its target (not a bare /)' );
 }
 
 # --- a host with no content_root serves the DEFAULT site --------------------
@@ -136,6 +136,8 @@ grant_caps( $d, 'ed', 'manage_content' );
     like( slurp("$d/lazysite/lazysite.conf"),
         qr/^alias\.www\.clienta\.com\.content_root: sites\/clienta$/m,
         'the alias shares the canonical content root' );
+    like( slurp("$d/lazysite/logs/audit.log"), qr/domain-alias-add \| www\.clienta\.com \|/,
+        'domain-alias-add is audited with the alias host as its target' );
 
     my $e = post( $d, 'ed', 'role-ed', 'action=domain-alias-add',
         { host => 'evil.com', of => 'clienta.com' } );

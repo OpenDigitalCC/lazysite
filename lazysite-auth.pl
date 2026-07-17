@@ -68,7 +68,12 @@ $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
 # 'ui' (interactive browser); credential-API flows pass 'api'.
 sub _audit_auth {
     my ( $user, $act, $status, $detail, $origin ) = @_;
-    audit_log( $user, $act, '', $ENV{REMOTE_ADDR} // '', $status,
+    # Record WHICH site (Host) the auth event happened on, so the audit says
+    # where a login/logout/claim occurred rather than a bare blank target.
+    my $host = lc( $ENV{HTTP_HOST} // '' );
+    $host =~ s/:\d+\z//;          # strip port
+    $host =~ s/[^a-z0-9.-]//g;    # keep it audit-safe
+    audit_log( $user, $act, $host, $ENV{REMOTE_ADDR} // '', $status,
         $origin // 'ui', $detail // '' );
 }
 
