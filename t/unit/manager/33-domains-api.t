@@ -253,6 +253,28 @@ grant_caps( $d, 'ed', 'manage_content' );
     is( $ca->{locked_users}, 'alice, bob', 'clienta.com surfaces its locked_users' );
 }
 
+# --- SM179: the language keys are settable via domain-set (not conf-only) -----
+# So an operator (or an agent with manage_domains) can configure a language set
+# through the API / CLI / Domains page, not just by hand-editing lazysite.conf.
+{
+    my $ok = post( $d, 'op', 'role-op', 'action=domain-set',
+        { host => 'clienta.com', key => 'lang', value => 'fr' } );
+    ok( $ok->{ok}, 'domain-set accepts lang' ) or diag encode_json($ok);
+    post( $d, 'op', 'role-op', 'action=domain-set',
+        { host => 'clienta.com', key => 'lang_group', value => 'providers' } );
+
+    # A bad language tag is rejected (it lands in <html lang> / names an i18n file).
+    my $bad = post( $d, 'op', 'role-op', 'action=domain-set',
+        { host => 'clienta.com', key => 'lang', value => 'not a lang!' } );
+    ok( !$bad->{ok}, 'domain-set rejects an invalid language tag' );
+
+    my $r = mapi( $d, REQUEST_METHOD => 'GET', QUERY_STRING => 'action=domains-list',
+        HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'role-op' );
+    my ($ca) = grep { $_->{host} eq 'clienta.com' } @{ $r->{domains} };
+    is( $ca->{lang},       'fr',        'domains-list surfaces lang' );
+    is( $ca->{lang_group}, 'providers', 'domains-list surfaces lang_group' );
+}
+
 sub slurp { open my $fh, '<', $_[0] or return ''; local $/; <$fh> }
 
 done_testing();
