@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
 [% FOREACH page IN pages %]
   <url>
     <loc>[% site_url %][% page.url %]</loc>
-  </url>
+[% FOREACH l IN page.alternates %][% IF l.exists %]    <xhtml:link rel="alternate" hreflang="[% l.lang %]" href="[% l.url %]"/>
+[% END %][% END %]  </url>
 [% END %]
 </urlset>
