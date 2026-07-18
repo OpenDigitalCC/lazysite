@@ -89,7 +89,7 @@ my %ACTION_INFO = (
         title   => 'Manage the domains this instance serves, and portable site packages.',
         unlocks => {
             api => [ qw(domains-list domain-add domain-set domain-remove
-                    domain-alias-add domain-preview domain-check
+                    domain-preview domain-check
                     site-backup-create site-backup-upload site-backup-apply) ],
             mcp => [qw(site_backup site_apply)],
         },

@@ -55,7 +55,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
-use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check);
+use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check);
 use Lazysite::Lang                 qw(lang_status);
 use Lazysite::Manager::SitePackage qw(package_create package_apply);
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -349,7 +349,6 @@ if ( !$token_auth ) {
         'domains-list'       => 'manage_domains', 'domain-add'    => 'manage_domains',
         'domain-set'         => 'manage_domains', 'domain-remove' => 'manage_domains',
         'domain-preview'     => 'manage_domains', 'domain-check'  => 'manage_domains',
-        'domain-alias-add'   => 'manage_domains',
         'lang-status' => 'manage_content', # SM179 P6: read-only set coverage (a translation agent's cap)
         'bad-url-unblock' => 'manage_config',  'rotate-auth-secret' => 'manage_config',
         'backup-create'   => 'manage_config',  'backup-restore'     => 'manage_config',
@@ -384,7 +383,7 @@ if ( !$token_auth ) {
         preview-grant preview-clear nav-save handler-save handler-delete
         form-targets-save plugin-enable plugin-disable plugin-save plugin-action
         lock unlock renew-lock notices-seen
-        domain-add domain-set domain-remove domain-alias-add
+        domain-add domain-set domain-remove
     );
 
     if ( $MUTATING{$action} && $method ne 'POST' ) {
@@ -467,13 +466,12 @@ if ($token_auth) {
             # manage_domains capability (carved out of manage_config), so an
             # orchestrating control panel drives the lazysite side of a deploy
             # with a manage_domains token, same as the CLI/UI.
-        'domains-list'     => sub { $_[0]->{manage_domains} },  # read-only domains view
-        'domain-add'       => sub { $_[0]->{manage_domains} },
-        'domain-set'       => sub { $_[0]->{manage_domains} },
-        'domain-remove'    => sub { $_[0]->{manage_domains} },
-        'domain-preview'   => sub { $_[0]->{manage_domains} },  # SM155: pre-DNS render
-        'domain-alias-add' => sub { $_[0]->{manage_domains} },  # SM155: alias host
-        'domain-check'     => sub { $_[0]->{manage_domains} },  # SM156: live config check
+        'domains-list'   => sub { $_[0]->{manage_domains} },    # read-only domains view
+        'domain-add'     => sub { $_[0]->{manage_domains} },
+        'domain-set'     => sub { $_[0]->{manage_domains} },
+        'domain-remove'  => sub { $_[0]->{manage_domains} },
+        'domain-preview' => sub { $_[0]->{manage_domains} },    # SM155: pre-DNS render
+        'domain-check'   => sub { $_[0]->{manage_domains} },    # SM156: live config check
         'lang-status' => sub { $_[0]->{manage_content} }, # SM179 P6: set coverage (translation agent)
         'site-backup-create' => sub { $_[0]->{manage_domains} },  # SM158
         'site-backup-upload' => sub { $_[0]->{manage_domains} },
@@ -613,10 +611,6 @@ elsif ( $action eq 'domain-remove' ) {
 }
 elsif ( $action eq 'domain-preview' ) {
     $result = action_domain_preview( $params{host} );
-}
-elsif ( $action eq 'domain-alias-add' ) {
-    my $req = eval { decode_json($body) } // {};
-    $result = domain_add_alias( $req->{host}, $req->{of} );
 }
 elsif ( $action eq 'domain-check' ) {
     $result = action_domain_check( $params{host} );
@@ -1634,7 +1628,7 @@ sub _audit_implicit_target {
     }
 
     # Domain + per-site actions act on a HOST (domain-add/set/remove/preview/
-    # check/alias-add, site-backup-create/apply/upload) - name the domain.
+    # check, site-backup-create/apply/upload) - name the domain.
     if ( $action =~ /^(?:domain-|site-backup-)/ ) {
         my $h = $params->{host} // $req->{host} // '';
         return $h if length $h;

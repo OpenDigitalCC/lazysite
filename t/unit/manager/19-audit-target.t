@@ -71,8 +71,6 @@ is( main::_audit_implicit_target('save'),     '',    'actions with a real path h
 # SM158/SM159: path-less actions derive a meaningful target from params/body.
 is( main::_audit_implicit_target( 'domain-add', { host => 'clienta.com' } ),
     'clienta.com', 'domain-add audit target is the host' );
-is( main::_audit_implicit_target( 'domain-alias-add', {}, '{"host":"www.clienta.com"}' ),
-    'www.clienta.com', 'domain-alias-add target from the body host' );
 is( main::_audit_implicit_target( 'site-backup-create', { host => 'shop.clienta.com' } ),
     'shop.clienta.com', 'site-backup-create target is the host' );
 is( main::_audit_implicit_target( 'config-set', { key => 'site_name' } ),
