@@ -2,7 +2,7 @@
 title: "SM175 - Content history that follows renames"
 subtitle: "A move carries a file's history; a delete ends its thread; a new file at a used name starts clean"
 brand: plain
-status: candidate
+status: shipped
 status-note: "raised 2026-07-18; targeted at 0.7.26. Builds on SM162 (folder/file move dropdown) and the existing move / rename_page / WebDAV MOVE ops."
 ---
 

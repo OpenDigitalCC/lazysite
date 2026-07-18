@@ -16,7 +16,7 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
-## Unreleased
+## 0.7.26 - EDGE: content history + domain access model + manager batch (2026-07-18)
 
 Content history follows renames, and a delete ends the thread (SM175)
 : Moving a file now carries its version history to the new path, and a delete

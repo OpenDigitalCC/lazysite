@@ -1,3 +1,26 @@
+lazysite (0.7.26-1) unstable; urgency=medium
+
+  * EDGE: SM175 - content history follows renames. A move carries a file's
+    history to the new path; a delete ends the thread (a later file at the same
+    path never inherits it). Recorded as first-class moves (Lazysite-Renamed-From)
+    across the manager, MCP rename_page and WebDAV; the Files history panel lists
+    the full lineage and can view/diff/restore pre-rename versions.
+  * EDGE: SM165 - domain-owned access control. Each domain names the groups
+    allowed to manage it (allowed_groups) and the users locked to it
+    (locked_users); a delegated editor is confined to their domains' content
+    roots, a lock narrows to one, an empty allow-list is operator-only. A
+    sub-user cannot out-reach its creator (scope + capability ceiling up the
+    created_by chain). Enforced on the manager UI, control-API token, MCP and
+    WebDAV. Replaces the per-group dav_scope of SM155.
+  * EDGE: SM121 - compound groups (a group may contain another group; members
+    inherit the parent's capabilities and domain access).
+  * EDGE: manager batch - themes: install no longer auto-activates and an unedited
+    theme is not backed up on switch (SM176); nav: a save publishes immediately
+    (cache refresh) and the editor names the file it edits (SM168, SM169); audit:
+    a sub-user manager sees a scoped view of their team's activity (SM173).
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sat, 18 Jul 2026 16:00:00 +0000
+
 lazysite (0.7.25-1) unstable; urgency=medium
 
   * EDGE: SM161 - native forms are discoverable where an agent acts. create_page/
