@@ -507,7 +507,9 @@ sub _groups_grant_cap {
     local $/;
     my $gs = eval { JSON::PP::decode_json(<$fh>) } || {};
     close $fh;
-    for my $g (@groups) { return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap} }
+    for my $g ( _group_closure(@groups) ) {    # SM121: compound-expanded
+        return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap};
+    }
     return 0;
 }
 
@@ -547,9 +549,57 @@ sub _group_settings {
     return ref $gs eq 'HASH' ? $gs : {};
 }
 
+# SM121: compound groups - a group may list another GROUP as a member, so its
+# members inherit the parent's caps/scope. Module-free copies of
+# Auth::Settings::_group_closure and _groups_membership, kept in step, so the
+# render path expands the request's groups the same way the resolver does
+# (ADR 0001). Without this a member of a compound group would get its inherited
+# caps over the API/dav but be denied at the render path (e.g. manager access).
+sub _group_membership_map {
+    my $f = "$DOCROOT/lazysite/auth/groups";
+    my %g;
+    return %g unless -f $f;
+    open my $fh, '<:utf8', $f or return %g;
+    while (<$fh>) {
+        chomp;
+        s/^\s+|\s+$//g;
+        next if /^#/ || !length;
+        my ( $grp, $mem ) = split /:\s*/, $_, 2;
+        next unless defined $mem;
+        $g{$grp} = [ map { s/^\s+|\s+$//gr } split /,/, $mem ];
+    }
+    close $fh;
+    return %g;
+}
+
+sub _group_closure {
+    my (@seed) = @_;
+    return @seed unless @seed;
+    my %membership = _group_membership_map();
+    my $gs         = _group_settings();
+    my %is_group   = map { $_ => 1 } ( keys %membership, keys %{$gs} );
+    my %parent;
+    for my $g ( keys %membership ) {
+        for my $m ( @{ $membership{$g} } ) {
+            push @{ $parent{$m} }, $g if $is_group{$m} && $m ne $g;
+        }
+    }
+    my %eff   = map { $_ => 1 } grep { defined && length } @seed;
+    my @stack = keys %eff;
+    while ( defined( my $g = pop @stack ) ) {
+        for my $p ( @{ $parent{$g} || [] } ) {
+            next if $eff{$p};
+            $eff{$p} = 1;
+            push @stack, $p;
+        }
+    }
+    return keys %eff;
+}
+
 sub _group_scopes {
     my (@groups) = @_;
     return () unless @groups;
+    @groups = _group_closure(@groups);    # SM121: compound-expanded
     my $gs = _group_settings();
     my ( %seen, @scopes );
     for my $g (@groups) {
@@ -563,6 +613,7 @@ sub _group_scopes {
 
 sub _group_home_domain {
     my (@groups) = @_;
+    @groups = _group_closure(@groups);    # SM121: compound-expanded
     my $gs = _group_settings();
     my @hd;
     for my $g (@groups) {

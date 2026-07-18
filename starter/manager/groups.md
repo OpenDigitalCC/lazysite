@@ -156,7 +156,7 @@ function renderGroups() {
 
     h += '<div class="mg-sec">Members</div>';
     h += '<div class="mg-tokens" id="gm-' + ge + '">' + memberPillsHtml(members, ge) + '</div>';
-    h += '<div class="mg-tokens-pick"><input list="all-users-list" id="add-' + ge + '" class="mg-inp" placeholder="add a user&hellip;" style="max-width:14rem" onkeydown="if(event.key===\'Enter\'){addMember(\'' + ge + '\');event.preventDefault();}">' +
+    h += '<div class="mg-tokens-pick"><input list="all-users-list" id="add-' + ge + '" class="mg-inp" placeholder="add a user or group&hellip;" style="max-width:14rem" onkeydown="if(event.key===\'Enter\'){addMember(\'' + ge + '\');event.preventDefault();}">' +
          ' <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="addMember(\'' + ge + '\')">Add</button>' +
          '<span style="flex:1;"></span>' +
          '<span id="gd-' + ge + '">' + deleteControlHtml(members, ge) + '</span>' +
@@ -210,7 +210,12 @@ function toggleSetting(group, key, el) {
 function memberPillsHtml(members, ge) {
   if (!members.length) return '<span class="mg-tokens-empty">No members yet.</span>';
   return members.map(function(m) {
-    return '<span class="mg-token"><a href="/manager/users?user=' + encodeURIComponent(m) + '">' + escHtml(m) + '</a>' +
+    // SM121: a member may itself be a GROUP (compound groups) - link and tag it
+    // as such so a nested group is not mistaken for a user.
+    var isGroup = Object.prototype.hasOwnProperty.call(allGroups, m);
+    var href = isGroup ? '/manager/groups' : '/manager/users?user=' + encodeURIComponent(m);
+    var tag = isGroup ? ' <span class="mg-muted" title="a nested group — its members inherit this group’s access">(group)</span>' : '';
+    return '<span class="mg-token"><a href="' + href + '">' + escHtml(m) + '</a>' + tag +
       '<button type="button" class="mg-token-x" title="Remove ' + escHtml(m) + '" onclick="removeMember(\'' + escHtml(m) + '\',\'' + ge + '\')">&times;</button></span>';
   }).join('');
 }
@@ -231,17 +236,23 @@ function refreshGroupMembers(group) {
 
 function addMember(group) {
   var inp = document.getElementById('add-' + group);
-  var user = (inp && inp.value || '').trim();
-  if (!user) { showStatus('Type a username to add.', true); return; }
-  apiCall({ action: 'group-add', username: user, group: group })
+  var name = (inp && inp.value || '').trim();
+  if (!name) { showStatus('Type a user or group to add.', true); return; }
+  // SM121: adding a known GROUP nests it (its members inherit this group's
+  // access); anything else is added as a user.
+  var isGroup = Object.prototype.hasOwnProperty.call(allGroups, name) && name !== group;
+  var body = isGroup
+    ? { action: 'group-nest', sub: name, parent: group }
+    : { action: 'group-add', username: name, group: group };
+  apiCall(body)
     .then(function(d) {
       if (!d.ok) { showStatus(d.error || 'Failed.', true); return; }
       // Update the local cache and re-render just this group's members in place.
       var m = allGroups[group].members = allGroups[group].members || [];
-      if (m.indexOf(user) === -1) m.push(user);
+      if (m.indexOf(name) === -1) m.push(name);
       if (inp) inp.value = '';
       refreshGroupMembers(group); refreshGroupSummary(group);
-      showStatus('Added ' + user + ' to ' + group + '.');
+      showStatus((isGroup ? 'Nested group ' + name + ' in ' : 'Added ' + name + ' to ') + group + '.');
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }

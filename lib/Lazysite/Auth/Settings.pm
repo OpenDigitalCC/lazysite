@@ -31,6 +31,44 @@ sub _settings_file       { "$AUTH_DIR/user-settings.json" }
 sub _group_settings_file { "$AUTH_DIR/groups-settings.json" }
 sub _groups_file         { "$AUTH_DIR/groups" }
 
+# SM121 (compound groups): a group may list ANOTHER GROUP among its members, so
+# that group's members inherit the parent's capabilities and scope. Given a set
+# of group names, return them PLUS every group that (transitively) lists one of
+# them as a member. A member is treated as a sub-group only when it is a known
+# group name; a cycle terminates via the seen-set. This is the one place the
+# group graph is walked; the resolvers below all route through it.
+sub _group_closure {
+    my (@seed)     = @_;
+    my %membership = _groups_membership();
+    my $gs         = read_group_settings();
+    my %is_group   = map { $_ => 1 } ( keys %membership, keys %{$gs} );
+    my %parent;    # sub-group => [ groups that list it as a member ]
+    for my $g ( keys %membership ) {
+        for my $m ( @{ $membership{$g} } ) {
+            push @{ $parent{$m} }, $g if $is_group{$m} && $m ne $g;
+        }
+    }
+    my %eff   = map { $_ => 1 } grep { defined && length } @seed;
+    my @stack = keys %eff;
+    while ( defined( my $g = pop @stack ) ) {
+        for my $p ( @{ $parent{$g} || [] } ) {
+            next if $eff{$p};
+            $eff{$p} = 1;
+            push @stack, $p;
+        }
+    }
+    return keys %eff;
+}
+
+# The compound-expanded groups a USER belongs to: the groups that list them
+# directly, closed upward over sub-group membership.
+sub _effective_groups {
+    my ($user)     = @_;
+    my %membership = _groups_membership();
+    my @direct = grep { grep { $_ eq $user } @{ $membership{$_} || [] } } keys %membership;
+    return _group_closure(@direct);
+}
+
 # Membership map { group => [members] } from the plain groups file.
 sub _groups_membership {
     my %g;
@@ -76,7 +114,7 @@ sub groups_grant_cap {
     my ( $cap, @groups ) = @_;
     return 0 unless @groups;
     my $gs = read_group_settings();
-    for my $g (@groups) {
+    for my $g ( _group_closure(@groups) ) {    # SM121: compound-expanded
         return 1 if ref $gs->{$g} eq 'HASH' && $gs->{$g}{$cap};
     }
     return 0;
@@ -91,6 +129,7 @@ sub groups_grant_cap {
 sub group_scopes {
     my (@groups) = @_;
     return () unless @groups;
+    @groups = _group_closure(@groups);    # SM121: compound-expanded
     my $gs = read_group_settings();
     my ( %seen, @scopes );
     for my $g (@groups) {
@@ -108,6 +147,7 @@ sub group_scopes {
 # Returns '' otherwise.
 sub group_home_domain {
     my (@groups) = @_;
+    @groups = _group_closure(@groups);    # SM121: compound-expanded
     my $gs = read_group_settings();
     my @hd;
     for my $g (@groups) {
@@ -137,11 +177,9 @@ sub write_group_settings {
 # Union of capability bools across every group $user belongs to.
 sub _group_caps {
     my ($user) = @_;
-    my %groups = _groups_membership();
-    my $gs     = read_group_settings();
+    my $gs = read_group_settings();
     my %caps;
-    for my $g ( keys %groups ) {
-        next unless grep { $_ eq $user } @{ $groups{$g} || [] };
+    for my $g ( _effective_groups($user) ) {    # SM121: compound-expanded groups
         my $cfg = $gs->{$g} or next;
         for my $k (@CAP_KEYS) { $caps{$k} = 1 if $cfg->{$k} }
     }

@@ -202,6 +202,7 @@ our %CLI_AUDIT_ACTION = (
     cmd_group_settings_set   => 'user-group-settings-set',
     cmd_group_create         => 'user-group-create',
     cmd_group_delete         => 'user-group-delete',
+    cmd_group_nest           => 'user-group-nest',
     cmd_partner_create       => 'user-partner-create',    # + a pairing-key entry
     cmd_onboarding           => 'user-onboarding',
     cmd_key_revoke           => 'user-key-revoke',
@@ -336,6 +337,9 @@ if ($API_MODE) {
         }
         elsif ( $action eq 'group-create' ) {
             $result = cmd_group_create( $req->{group} );
+        }
+        elsif ( $action eq 'group-nest' ) {
+            $result = cmd_group_nest( $req->{sub}, $req->{parent} );
         }
         elsif ( $action eq 'group-delete' ) {
             $result = cmd_group_delete( $req->{group} );
@@ -509,6 +513,7 @@ elsif ( $cmd eq 'remove' )           { cmd_remove(@args) }
 elsif ( $cmd eq 'rename' )           { cmd_rename(@args) }
 elsif ( $cmd eq 'list' )             { cmd_list() }
 elsif ( $cmd eq 'group-add' )        { cmd_group_add(@args) }
+elsif ( $cmd eq 'group-nest' )       { cmd_group_nest(@args) }
 elsif ( $cmd eq 'group-remove' )     { cmd_group_remove(@args) }
 elsif ( $cmd eq 'group-set' )        { cmd_group_set_cli(@args) }
 elsif ( $cmd eq 'groups' )           { cmd_groups() }
@@ -2775,6 +2780,30 @@ sub cmd_group_create {
     write_group_settings($gs);
     log_event( 'INFO', $group, 'group created' );
     cli_audit( 'user-group-create', $group );
+    return { ok => 1 };
+}
+
+# SM121: nest one group inside another (compound groups) - add $sub as a MEMBER
+# of $parent, so $sub's members inherit $parent's capabilities and scope. Both
+# must be existing groups; a direct self-loop is refused (a longer cycle is
+# harmless - the resolver's closure terminates on it). Un-nest with group-remove.
+sub cmd_group_nest {
+    my ( $sub, $parent ) = @_;
+    return { ok => 0, error => 'sub-group and parent group required' }
+        unless defined $sub && length $sub && defined $parent && length $parent;
+    return { ok => 0, error => 'a group cannot contain itself' } if $sub eq $parent;
+    my $gs      = read_group_settings();
+    my %members = read_groups();
+    my $exists  = sub { my $g = shift; $gs->{$g} || $members{$g} };
+    return { ok => 0, error => "group '$sub' does not exist" }    unless $exists->($sub);
+    return { ok => 0, error => "group '$parent' does not exist" } unless $exists->($parent);
+    $members{$parent} //= [];
+    unless ( grep { $_ eq $sub } @{ $members{$parent} } ) {
+        push @{ $members{$parent} }, $sub;
+    }
+    write_groups(%members);
+    cli_audit( 'user-group-nest', "$sub\@$parent" );
+    print "Group '$sub' nested inside '$parent'.\n" unless $API_MODE;
     return { ok => 1 };
 }
 

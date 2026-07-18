@@ -48,4 +48,35 @@ ok( !caps_for('bob')->{analytics}, 'a per-user grant is ignored (groups-only)' )
 my $none = caps_for('nobody');
 ok( !$none->{webdav} && !$none->{manage_content}, 'an ungranted account has no capabilities' );
 
+# --- SM121: compound groups (a group listed as a member of another group) -----
+# 'admins' lists the GROUP 'editors' as a member, so every editor inherits the
+# admin capabilities as well as their own.
+w( "$auth/groups", "editors: ada\nadmins: editors\n" );
+w( "$auth/groups-settings.json",
+    encode_json( { editors => { manage_content => 1 },
+        admins => { manage_config => 1, manage_users => 1 } } ) );
+my $comp = caps_for('ada');
+ok( $comp->{manage_content}, 'compound: keeps its own group capability' );
+ok( $comp->{manage_config} && $comp->{manage_users},
+    'compound: inherits the parent group capabilities (group-of-groups)' );
+
+# Inheritance is transitive: g1 in g2 in g3.
+w( "$auth/groups", "g1: ada\ng2: g1\ng3: g2\n" );
+w( "$auth/groups-settings.json", encode_json( { g3 => { manage_themes => 1 } } ) );
+ok( caps_for('ada')->{manage_themes}, 'compound: capabilities inherit transitively (3 levels)' );
+
+# A membership cycle terminates (no hang) and still resolves both groups.
+w( "$auth/groups", "cyc1: ada, cyc2\ncyc2: cyc1\n" );
+w( "$auth/groups-settings.json",
+    encode_json( { cyc1 => { manage_content => 1 }, cyc2 => { audit => 1 } } ) );
+my $cyc = caps_for('ada');
+ok( $cyc->{manage_content} && $cyc->{audit},
+    'compound: a membership cycle resolves both groups without hanging' );
+
+# A plain username member is still resolved normally (not mistaken for a group).
+w( "$auth/groups", "team: ada, someuser\n" );
+w( "$auth/groups-settings.json", encode_json( { team => { webdav => 1 } } ) );
+ok( caps_for('ada')->{webdav} && caps_for('someuser')->{webdav},
+    'a plain username member still resolves directly' );
+
 done_testing;

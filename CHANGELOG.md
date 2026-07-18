@@ -70,6 +70,18 @@ Saving the navigation now publishes it immediately (SM168)
   published (N pages refreshed)" so it is clear the change is live, not just
   written to the file. Gate: t/unit/manager/34-domain-nav-override.t.
 
+Compound groups: a group can contain another group (SM121)
+: Groups can now nest. Adding a group as a member of another group means that
+  sub-group's members inherit the parent group's capabilities and domain scope -
+  so an operator can compose roles (put "clienta-editors" inside "all-editors")
+  instead of re-granting the same capabilities on many groups. The capability and
+  scope resolvers expand membership transitively - and cycle-safely - on every
+  channel (manager, control API, MCP, WebDAV and the render path). On the Groups
+  page, typing a group's name into a group's member box nests it (nested groups
+  are tagged); from the CLI/API use group-nest, and group-remove to un-nest.
+  Nesting requires full user-management rights. Gate: t/unit/lib/11-caps-resolver.t,
+  t/unit/users/18-group-nest.t.
+
 ## 0.7.25 - EDGE: forms discoverability + manager UI/key/WebDAV fixes (2026-07-18)
 
 Forms: native forms are discoverable where an agent acts (SM161)
