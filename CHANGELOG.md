@@ -16,6 +16,56 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.7.28 - BETA: multilingual completion + cache correctness + domains/manager UX (2026-07-18)
+
+Engine-emitted chrome is localised (SM179 P8)
+: The bare 404, the no-403.md fallback and the auth reject pages now render in the
+  host's language via a new i18n layer (a built-in English table overlaid by an
+  optional `lazysite/i18n/<lang>.json`), fail-closed to English on any miss. The
+  404 fallback also HTML-escapes the request URI (a reflected-markup fix). With
+  P1-P8 in, a language set is complete: language keys, switcher, hreflang,
+  content-root data, layout strings, coverage, agent discoverability, and chrome.
+
+Multilingual configuration is first-class, not conf-only
+: `lang` / `lang_group` are settable through `domain-set`, the CLI, and the
+  Domains **Add** + **Configure** forms (validated, failing closed) - previously
+  they were honoured by the render but could only be hand-edited into the conf.
+  `whoami` and `lang-status` now detect a set even when `lang_group` is declared
+  only on alias hosts (not the base), and `lang-status` is gated on
+  `manage_content` (the capability a translation agent holds), not
+  `manage_domains`. New docs cover language config and the operator + DNS steps
+  to add a language.
+
+Cache correctness under a conf change (and any process model)
+: A cached page render also bakes in the conf (site name, theme, nav, per-host
+  language/alias overrides), so a conf-only edit now invalidates the page cache -
+  previously a stale render (e.g. `Content-Language: en` on a host the conf had
+  since switched) survived until the source changed. Keyed on file mtimes, so it
+  holds under one-shot CGI and a persistent FastCGI worker alike;
+  `resolve_site_vars` is self-invalidating on (conf mtime, host) as a backstop.
+
+Per-host caches are visible and clearable in the manager
+: Sub-domain renders live under `lazysite/cache/hosts/<host>/` and were invisible
+  on the Cache page (and not deletable via Files, correctly). They are now listed
+  with their host and can be cleared per host (or wholesale). The manager preview
+  no longer double-encodes UTF-8 (French/Thai mojibake); the live render was
+  already clean.
+
+Domains: the "alias" concept is retired in favour of clone
+: A domain alias was only ever a domain created as a copy of another, then an
+  independent domain - so the separate alias entity and the "alias of X" grouping
+  are gone. **Add domain** gains a "Copy settings from" pre-fill (the same
+  outcome, as a normal domain you can then edit); every domain is a flat,
+  independent row. The underlying multi-host `alias_hosts` mechanism is unchanged.
+
+Manager UX consistency and editor fixes
+: One group/user picker everywhere (the token picker), one verb for opening
+  settings (Edit), one word for destroying a resource (Delete), and Save buttons
+  are consistently primary. The editor returns to the file's own folder on exit
+  (not the root), and a reserved control-area file shows a clear read-only warning
+  instead of a blank editor. Compatibility-freeze scope for the stable line is
+  recorded in ADR 0008.
+
 ## 0.7.27 - EDGE: multilingual language sets (SM179) + subdomain delete-safety + domains UX (2026-07-18)
 
 Multilingual sites: language sets over the multi-site plane (SM179)

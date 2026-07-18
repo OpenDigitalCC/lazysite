@@ -1,3 +1,26 @@
+lazysite (0.7.28-1) unstable; urgency=medium
+
+  * BETA: SM179 P8 - engine-emitted chrome (bare 404, no-403.md fallback, auth
+    reject pages) is localised via a new i18n layer (English + optional
+    lazysite/i18n/<lang>.json, fail-closed); the 404 fallback HTML-escapes the URI.
+  * BETA: multilingual config is first-class - lang/lang_group settable via
+    domain-set, the CLI and the Domains Add + Configure forms (validated);
+    whoami/lang-status detect a set even when lang_group is only on aliases;
+    lang-status gated on manage_content. Language config + add-a-language docs.
+  * BETA: cache correctness - a cached render also depends on the conf, so a
+    conf-only edit invalidates the page cache (no more stale Content-Language /
+    chrome after a conf change); mtime-based, correct under CGI and FastCGI.
+  * BETA: per-host caches (lazysite/cache/hosts/<host>/) are listed and cleared
+    per host on the Cache page; the manager preview no longer double-encodes UTF-8.
+  * BETA: the domain "alias" concept is retired in favour of a "Copy settings
+    from" pre-fill on Add domain; domains are flat, independent rows. The
+    alias_hosts multi-host mechanism is unchanged.
+  * BETA: manager UX consistency (token picker, Edit/Delete verbs, primary Save);
+    the editor returns to the file's folder on exit and warns on a reserved file.
+    ADR 0008 records the stable compatibility-freeze scope.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sat, 18 Jul 2026 21:30:00 +0000
+
 lazysite (0.7.27-1) unstable; urgency=medium
 
   * EDGE: SM179 - multilingual language sets. Sibling domains (one per language,
