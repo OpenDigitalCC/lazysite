@@ -443,8 +443,26 @@ sub do_put {
     my (%a) = @_;
     my $r = resolve_under_docroot( $a{rel} );
     return send_status( $r->{err}, body => "Error\n" ) if $r->{err};
-    return send_status( 409,       body => "Parent collection missing\n" )
-        unless $r->{parent_ok};
+
+    # SM166: auto-create the missing parent chain (mkdir -p) so a PUT to a deep
+    # path just works, instead of a 409 (one level) / confusing 502 (several) the
+    # agent then has to MKCOL its way out of. Confined to the docroot and refused
+    # for a traversal path; the target is already scope-authorised by the
+    # dispatcher, so the created dirs sit within the caller's allowed subtree.
+    if ( !$r->{parent_ok} ) {
+        my $droot = realpath($DOCROOT);
+        my $p     = $r->{parent};
+        if ( defined $droot
+            && defined $p
+            && $a{rel} !~ m{(?:^|/)\.\.(?:/|$)}
+            && index( "$p/", "$droot/" ) == 0 )
+        {
+            make_path($p);
+            $r = resolve_under_docroot( $a{rel} );
+        }
+        return send_status( 409, body => "Parent collection missing\n" )
+            if $r->{err} || !$r->{parent_ok};
+    }
     return send_status( 405, body => "Cannot PUT a collection\n" )
         if -d $r->{abs};
 
