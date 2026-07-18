@@ -538,3 +538,42 @@ residual risk
 verdict
 : accepted; closes the last serious finding from the 0.8.0 eight-dimension
   audit's security dimension (D6).
+
+### 2026-07-19 - adversarial security-testing breadth pass (0.8.0)
+
+what changed
+: a breadth pass over the manager / MCP / control-API / WebDAV authorization
+  surface before certifying the stable line. Motivated by the trust-gate gap
+  (a sibling CGI consumed an identity header the processor gated) - the concern
+  being that per-action negative tests leave structural gaps no single test
+  guards. Two hardening fixes and a set of guarantee + negative tests.
+
+threat delta
+: Elevation of privilege (an ungated action, a channel-divergent capability
+  gate, a write-guard bypass, a dropped dav_scope, a confused-deputy delegate,
+  a crafted-backup auth overwrite), Tampering (path traversal), Denial of
+  service (a fail-closed rate limiter).
+
+controls
+: fixes - backup restore now excludes `./lazysite` on extraction (a crafted
+  content tarball cannot overwrite the auth/config namespace to escalate);
+  `session-revoke`/`user-revoke`/`key-revoke` are forced to POST so the
+  method-keyed CSRF gate covers them by construction. Structural guarantee
+  tests (fail the build on drift): `14-capability-gate-guarantee` (token
+  default-deny; every action classified/gated; cookie<->token capability
+  parity), `15-write-guard-parity` (every write channel routes through the path
+  guard), `16-scope-enforcement-guarantee` (dav_scope enforced on every
+  channel). Negative tests: `40-subuser-escalation` (delegate confused-deputy
+  confinement), `42-path-traversal-sweep` (every path-taking action), and
+  `04-login-rate-failopen` (the rate limiter fails open, not closed). The
+  existing trust-gate (`13`) and forged-identity (`39`) tests remain.
+
+residual risk
+: deferred as a 0.8.1 fast-follow (not gating this cut): a cross-site token
+  parity test (tokens verify per-docroot, so cross-site is already structurally
+  blocked) and an SSRF review of the `domain-check`/preview fetch paths. No
+  open finding.
+
+verdict
+: accepted; the manager/API authorization surface now has structural backstops
+  against the whole class the trust-gate gap belonged to.

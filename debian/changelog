@@ -1,3 +1,30 @@
+lazysite (0.8.0-1) unstable; urgency=medium
+
+  * STABLE: second stable release, cut from the 0.7.28 beta on completion of the
+    2026-07-18 eight-dimension non-functional review (Commercial signoff on all
+    eight dimensions; every 2026-07-10 refusal verified still cleared).
+  * SECURITY: fixes a serious stored-XSS / response-header-injection path the
+    review surfaced - a page front-matter lang: reached <html lang> and the
+    Content-Language header unescaped, so a content-only partner could run script
+    in every visitor's browser. Now sanitised to a bare language tag; a domain-add
+    CRLF gap closed the same way. Operators on 0.7.27/0.7.28 should upgrade.
+  * SECURITY: further hardening - the manager-API applies the processor's in-app
+    trust gate (forged X-Remote-* identity headers ignored unless the wrapper
+    vouched); a raw/api page cannot declare an HTML/SVG content_type (downgraded
+    to text/plain at serve time); backup restore excludes the lazysite/ control
+    tree (a crafted tarball cannot overwrite auth/config); session/user/key
+    revocation is forced to POST for CSRF completeness.
+  * An adversarial security-testing breadth pass added structural guarantee tests
+    (no ungated action, cookie/token capability parity, write-channel guard
+    routing, cross-channel dav_scope enforcement) and negative tests (sub-user
+    escalation confinement, path-traversal sweep, login-rate-limit fail-open).
+  * Promotes the 0.7.x line to stable: first-class multi-site + domain access
+    model (SM165), content history that follows renames (SM175), the complete
+    multilingual language-set feature (SM179 P1-P8), and conf-aware cache
+    correctness. See the 0.7.x stanzas below for detail.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sat, 18 Jul 2026 22:45:00 +0000
+
 lazysite (0.7.28-1) unstable; urgency=medium
 
   * BETA: SM179 P8 - engine-emitted chrome (bare 404, no-403.md fallback, auth
