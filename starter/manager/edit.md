@@ -128,6 +128,11 @@ var isHtmlFile = filePath && /\.html$/i.test(filePath);
 var readOnly = false;
 var fileMtime = null;
 var isDirty = false;
+// SM170: the CodeMirror change handler fires markDirty() on the INITIAL
+// setValue() during load, which used to set the shared dirty-guard (and reset
+// only isDirty, not the guard) - so leaving the editor always warned "unsaved".
+// markDirty is suppressed until the content has finished loading.
+var editorReady = false;
 var lockRenewTimer = null;
 var yamlCm = null;
 var contentCm = null;
@@ -230,6 +235,7 @@ function updateStatus() {
 
 // --- Dirty state ---
 function markDirty() {
+  if (!editorReady) return;   // SM170: ignore change events from the initial load
   if (!isDirty) {
     isDirty = true;
     document.getElementById('ed-save-btn').classList.add('dirty');
@@ -368,6 +374,7 @@ function loadFile() {
     contentCm.setValue('\n## Content\n\nPage content here.\n');
     populateFmFields('title: New Page\nsubtitle: ');
     document.getElementById('ed-save-btn').disabled = false;
+    editorReady = true;   // SM170
     return;
   }
 
@@ -638,6 +645,7 @@ function loadContent() {
         contentCm.setOption('readOnly', true);
       }
       isDirty = false;
+      editorReady = true;   // SM170: real edits from here on mark dirty
       updateStatus();
       updateJsonPreview(data.content);
       if (isMdFile) setTimeout(refreshPreview, 500);
