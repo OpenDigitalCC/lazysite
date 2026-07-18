@@ -220,6 +220,20 @@ my ( $sha_adopt, $sha_edit );
     ok( ( grep { /^edit page\.md/ } @subj ),      'history followed the rename: the pre-move edit is present' );
     ok( ( grep { /adopt existing site/ } @subj ), 'history followed back to the adoption commit' );
 
+    # View a PRE-MOVE version through the new path: git-show resolves the historic
+    # path (page.md) from the lineage and returns that version's content + a diff.
+    my ($pre) = grep { $_->{subject} =~ /^edit page\.md/ } @{ $h->{entries} };
+    my $sv = op_get( $d, "action=git-show&path=sub/moved.md&sha=$pre->{sha}" );
+    ok( $sv->{ok}, 'git-show opens a pre-move version through the new path' ) or diag explain $sv;
+    is( $sv->{from_path}, 'page.md', 'git-show reports the historic (pre-rename) path' );
+    like( $sv->{content}, qr/version TWO/, 'the pre-move content is returned' );
+
+    # Restore a pre-move version: its content lands at the CURRENT path.
+    my $rs = op_post( $d, "action=git-restore&path=sub/moved.md&sha=$pre->{sha}", '{}' );
+    ok( $rs->{ok}, 'git-restore of a pre-move version into the current path' ) or diag explain $rs;
+    like( op_get( $d, 'action=read&path=sub/moved.md' )->{content}, qr/version TWO/,
+        'the current file now holds the restored pre-move content' );
+
     # A fresh, unrelated page created at the OLD path starts a clean thread.
     my $nw = op_post( $d, 'action=save&path=page.md',
         encode_json( { content => "---\ntitle: New\n---\n\nunrelated\n" } ) );

@@ -21,8 +21,8 @@ use Lazysite::Util qw(log_event);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(enabled initialised git_available git_dir init
-    commit_paths commit_all commit_move file_log file_at file_diff count_commits
-    run_git breadcrumb_path);
+    commit_paths commit_all commit_move file_log file_at file_diff file_diff_across
+    path_at count_commits run_git breadcrumb_path);
 
 sub git_dir { return "$_[0]/lazysite/git" }
 
@@ -362,7 +362,7 @@ sub file_log {
             next unless defined $sha && $sha =~ /\A[0-9a-f]{40}\z/;
             push @entries,
                 { sha => $sha, epoch => ( $at // 0 ) + 0, author => ( $an // '' ),
-                subject => ( $subject // '' ) };
+                subject => ( $subject // '' ), path => $cur };
             if ( defined $add && $sha eq $add ) { $reached_add = 1; last }
             last if @entries >= $limit;
         }
@@ -402,6 +402,35 @@ sub file_diff {
     my $rel = _norm_rel($path);
     return undef unless defined $rel;
     my ( $ok, $out ) = run_git( $docroot, 'diff', $sha, '--', $rel );
+    return $ok ? $out : undef;
+}
+
+# SM175: the path a file had at $sha, resolved through its RECORDED rename
+# lineage (the same walk file_log uses). Returns undef if $sha is not in this
+# file's lineage - so a caller (git-show / git-restore) can only reach content
+# that genuinely belongs to THIS file's history, never an arbitrary $sha:$path.
+# $sha may be a 7-40 char prefix.
+sub path_at {
+    my ( $docroot, $path, $sha ) = @_;
+    return undef unless enabled($docroot);
+    return undef unless defined $sha && $sha =~ /\A[0-9a-f]{7,40}\z/;
+    my $want = lc $sha;
+    for my $e ( @{ file_log( $docroot, $path, 200 ) } ) {
+        return $e->{path} if index( $e->{sha}, $want ) == 0;
+    }
+    return undef;
+}
+
+# SM175: a unified diff of a historic version (at $sha, where the file then
+# lived at $from) against the current committed file at $to - used by git-show
+# when the history crossed a rename, so "version vs current" still works.
+sub file_diff_across {
+    my ( $docroot, $sha, $from, $to ) = @_;
+    return undef unless enabled($docroot) && _valid_sha($sha);
+    my $f = _norm_rel($from);
+    my $t = _norm_rel($to);
+    return undef unless defined $f && defined $t;
+    my ( $ok, $out ) = run_git( $docroot, 'diff', "$sha:$f", "HEAD:$t" );
     return $ok ? $out : undef;
 }
 
