@@ -77,6 +77,10 @@ routing are configured so the domain reaches this instance.
 
 <div id="lang-coverage" style="display:none;margin-top:22px;"></div>
 
+[%# SM165: shared principal datalists backing the domain access token pickers. %]
+<datalist id="dom-groups-list"></datalist>
+<datalist id="dom-users-list"></datalist>
+
 <div id="domain-preview-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
   <div style="background:#fff;width:92%;max-width:1100px;height:86%;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
     <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--mg-border,#ddd);">
@@ -214,8 +218,8 @@ var EDIT_SECTIONS = [
 // Optional grey hint rendered under an edit field where the effect is not obvious.
 var EDIT_HINTS = {
   content_root: 'Blank serves the default site. Changing this repoints the domain to another folder – it does not move existing files.',
-  allowed_groups: 'Tick the groups whose members may manage this domain (and are confined to it). None ticked = only operators.',
-  locked_users: 'Tick accounts that can reach ONLY this domain (of the ones their groups allow) – nothing else.'
+  allowed_groups: 'Add the groups whose members may manage this domain (and are confined to it). None = only operators.',
+  locked_users: 'Add accounts that can reach ONLY this domain (of the ones their groups allow) – nothing else.'
 };
 // Keys whose value comes from a fixed set are edited as a <select> (with an
 // "inherit" blank), not a free-text box - matching the processor's own config UI
@@ -224,10 +228,11 @@ var EDIT_OPTIONS = {
   search_default: ['true', 'false']
 };
 
-// SM165 access fields are comma-lists of existing principals, so they are picked
-// from tick-lists (not typed): allowed_groups from the site's groups, locked_users
-// from its accounts. PRINCIPALS is loaded once (action=principals); PICK_KEYS maps
-// each access key to which list feeds it.
+// SM165 access fields are lists of existing principals, edited with the SAME
+// token-picker widget the Groups and Users pages use - a datalist-backed input +
+// Add button, with removable pills - so the group/user UI is consistent
+// everywhere. allowed_groups picks from the site's groups; locked_users from its
+// accounts. PRINCIPALS feeds the two shared datalists.
 var PICK_KEYS = { allowed_groups: 'groups', locked_users: 'users' };
 var PRINCIPALS = { users: [], groups: [] };
 function loadPrincipals() {
@@ -237,27 +242,42 @@ function loadPrincipals() {
       if (d && d.ok) {
         PRINCIPALS.users = d.users || [];
         PRINCIPALS.groups = d.groups || [];
+        fillDatalist('dom-groups-list', PRINCIPALS.groups);
+        fillDatalist('dom-users-list', PRINCIPALS.users);
       }
     })
     .catch(function () {});
 }
-// A tick-list of principals for one access key; current members pre-ticked. The
-// container id is e-<host>-<key> so saveDomain reads the ticked boxes from it.
-function pickList(host, k, currentCsv) {
-  var chosen = {};
-  (currentCsv || '').split(',').forEach(function (v) { v = v.trim(); if (v) chosen[v] = 1; });
-  var opts = PRINCIPALS[PICK_KEYS[k]] || [];
-  var id = 'e-' + host + '-' + k;
-  if (!opts.length) {
-    return '<div id="' + esc(id) + '" style="font-size:0.85em;color:#999;">'
-      + 'No ' + (PICK_KEYS[k] === 'groups' ? 'groups' : 'accounts') + ' exist yet.</div>';
-  }
-  var boxes = opts.map(function (o) {
-    return '<label style="display:inline-flex;align-items:center;gap:4px;margin:0 12px 4px 0;font-weight:400;color:#333;">'
-      + '<input type="checkbox" value="' + esc(o) + '"' + (chosen[o] ? ' checked' : '') + '> ' + esc(o) + '</label>';
-  }).join('');
-  return '<div id="' + esc(id) + '" style="display:flex;flex-wrap:wrap;max-width:26rem;'
-    + 'border:1px solid var(--mg-border,#e2e2e2);border-radius:4px;padding:6px 8px;">' + boxes + '</div>';
+function fillDatalist(id, items) {
+  var dl = document.getElementById(id);
+  if (dl) dl.innerHTML = (items || []).map(function (v) { return '<option value="' + esc(v) + '">'; }).join('');
+}
+function tokenPill(v) {
+  return '<span class="mg-token" data-val="' + esc(v) + '">' + esc(v)
+    + '<button type="button" class="mg-token-x" title="Remove ' + esc(v) + '" onclick="this.parentNode.remove()">&times;</button></span>';
+}
+// The token picker for one access key: current members as removable pills + a
+// datalist-backed input and Add button. The .mg-tokens container is id
+// e-<host>-<key>, so saveDomain reads the chosen values from its pills.
+function tokenPicker(host, k, currentCsv) {
+  var chosen = (currentCsv || '').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
+  var listId = PICK_KEYS[k] === 'groups' ? 'dom-groups-list' : 'dom-users-list';
+  var noun = PICK_KEYS[k] === 'groups' ? 'a group' : 'a user';
+  var pills = chosen.length ? chosen.map(tokenPill).join('') : '<span class="mg-tokens-empty">None yet.</span>';
+  return '<div class="mg-tokens" id="e-' + esc(host) + '-' + esc(k) + '">' + pills + '</div>'
+    + '<div class="mg-tokens-pick">'
+    + '<input list="' + listId + '" class="mg-inp" style="max-width:14rem" placeholder="add ' + noun + '&hellip;"'
+    + ' onkeydown="if(event.key===\'Enter\'){addToken(this);event.preventDefault();}">'
+    + ' <button type="button" class="mg-btn mg-btn-sm mg-btn-primary" onclick="addToken(this.previousElementSibling)">Add</button></div>';
+}
+function addToken(input) {
+  var name = (input.value || '').trim();
+  if (!name) return;
+  var box = input.closest('.mg-tokens-pick').previousElementSibling;
+  var dup = Array.prototype.some.call(box.querySelectorAll('.mg-token'), function (t) { return t.getAttribute('data-val') === name; });
+  var empty = box.querySelector('.mg-tokens-empty'); if (empty) empty.remove();
+  if (!dup) box.insertAdjacentHTML('beforeend', tokenPill(name));
+  input.value = '';
 }
 
 function post(action, obj) {
@@ -403,9 +423,9 @@ function saveDomain(host) {
     if (!inp) return;
     changed++;
     if (PICK_KEYS[k]) {
-      // A tick-list: the comma-list is whatever is ticked in the container.
+      // Token picker: the comma-list is the pills in the container.
       var picked = [];
-      inp.querySelectorAll('input[type=checkbox]:checked').forEach(function (b) { picked.push(b.value); });
+      Array.prototype.forEach.call(inp.querySelectorAll('.mg-token'), function (t) { picked.push(t.getAttribute('data-val')); });
       setKey(k, picked.join(','));
     } else if (k === 'appearance') {
       // One field, two conf keys: split "layout|theme" and write both.
@@ -441,9 +461,9 @@ function editField(host, k, row) {
       + inner + hint + '</label>';
   };
 
-  // SM165 access keys: a tick-list of principals, not a text box.
+  // SM165 access keys: the shared token picker, not a text box.
   if (PICK_KEYS[k]) {
-    return wrap(pickList(host, k, own), true);
+    return wrap(tokenPicker(host, k, own), true);
   }
   var field;
   if (k === 'appearance') {
