@@ -92,8 +92,12 @@ Template::Plugin::JSON module, which is not bundled; prefer `json:`.)
   `tt_page_var` and `query_params` for dynamic JSON.
 
 `content_type`
-: Overrides the HTTP Content-type header. Example:
-  `content_type: text/html; charset=utf-8`.
+: Overrides the HTTP Content-type header for a raw/api data artifact.
+  Example: `content_type: text/csv; charset=utf-8`. Script-capable types
+  (`text/html`, `application/xhtml+xml`, `image/svg+xml`) are refused on a
+  raw/api page (downgraded to `text/plain` at serve time) because such a
+  page is served verbatim and unescaped - serve HTML through a layout, or
+  as a static file.
 
 `layout`
 : Per-page layout override - names a layout under `lazysite/layouts/`.

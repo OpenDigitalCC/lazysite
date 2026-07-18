@@ -1884,6 +1884,25 @@ sub peek_ttl {
 sub peek_content_type {
     my ($path) = @_;
     my $m = _peek_md($path);
+    # SEC (ADR 0006, mechanical enforcement): a raw/api page is served VERBATIM,
+    # with no layout and no escaping. A script-capable content_type declared by a
+    # content author (text/html, XHTML, SVG) is therefore a stored-XSS vector - a
+    # manage_content-only partner could write a page that runs script in every
+    # visitor's browser. Downgrade any such declared type to text/plain; combined
+    # with the X-Content-Type-Options: nosniff header the response already carries,
+    # the browser cannot execute it. JSON / CSV / XML / plain-text / image / PDF
+    # artifacts are unaffected; genuine HTML/SVG artifacts belong in a layout or a
+    # static file (served by the web server, not the processor).
+    if (   ( $m->{raw} || $m->{api} )
+        && defined $m->{content_type}
+        && $m->{content_type}
+        =~ m{^\s*(?:text/html|application/xhtml\+xml|image/svg\+xml)\b}i )
+    {
+        log_event( 'WARN', $path,
+            'raw/api page declared a script-capable content_type; downgraded to text/plain (serve HTML through a layout, or as a static file)',
+            content_type => $m->{content_type} );
+        return 'text/plain; charset=utf-8';
+    }
     return $m->{content_type} if $m->{content_type};
     return unless $m->{raw} || $m->{api};
     return 'application/json; charset=utf-8' if $m->{api};
