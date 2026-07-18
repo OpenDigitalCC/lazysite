@@ -224,6 +224,19 @@ sub domain_add {
             unless defined $rel;
     }
 
+    # SM179: validate the language keys the same way domain_set does - they land
+    # in <html lang> and name an i18n file, so fail closed on a bad value.
+    if ( defined $opts{lang} && length $opts{lang}
+        && $opts{lang} !~ /^[A-Za-z]+(?:-[A-Za-z0-9]+)*\z/ )
+    {
+        return { ok => 0, kind => 'invalid', error => 'Invalid language tag' };
+    }
+    if ( defined $opts{lang_group} && length $opts{lang_group}
+        && $opts{lang_group} !~ /^[A-Za-z0-9_-]+\z/ )
+    {
+        return { ok => 0, kind => 'invalid', error => 'Invalid lang_group name' };
+    }
+
     my ( $base, $ov, $hosts ) = _parse();
     return { ok => 0, kind => 'exists', error => "Domain already registered: $host" }
         if grep { $_ eq $host } @$hosts;

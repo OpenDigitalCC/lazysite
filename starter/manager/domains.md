@@ -68,6 +68,19 @@ routing are configured so the domain reaches this instance.
         <div style="font-size:0.8em;color:#888;margin-top:2px;">A theme always belongs to a layout, so pick them together.</div>
       </div>
     </div>
+    <div style="flex:1 1 260px;min-width:240px;">
+      <div style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Language <span style="text-transform:none;letter-spacing:0">&mdash; optional, for a multilingual set</span></div>
+      <div class="mg-form-row">
+        <label>Language<br>
+          <input id="f-lang" placeholder="en" style="width:100%;box-sizing:border-box;"></label>
+        <div style="font-size:0.8em;color:#888;margin-top:2px;">This host's language, e.g. <code>en</code>, <code>fr</code>, <code>pt-BR</code>. Sets <code>&lt;html lang&gt;</code> and the Content-Language header.</div>
+      </div>
+      <div class="mg-form-row">
+        <label>Language set<br>
+          <input id="f-lang-group" placeholder="providers" style="width:100%;box-sizing:border-box;"></label>
+        <div style="font-size:0.8em;color:#888;margin-top:2px;">A shared name across the languages of one site. Two&#8239;+ hosts sharing it become a switchable set.</div>
+      </div>
+    </div>
   </div>
   <div class="mg-form-row" style="margin:6px 0 12px;">
     <label><input type="checkbox" id="f-seed" checked> Seed a starter home page (only when a content folder is given)</label>
@@ -307,6 +320,8 @@ function addDomain() {
     site_name: document.getElementById('f-sitename').value.trim(),
     theme: ap.theme,
     layout: ap.layout,
+    lang: document.getElementById('f-lang').value.trim(),
+    lang_group: document.getElementById('f-lang-group').value.trim(),
     seed: document.getElementById('f-seed').checked ? 1 : 0
   }).then(function (d) {
     if (d && d.ok) { showStatus('Registered ' + host); toggleAdd(); loadDomains(); }
@@ -512,6 +527,8 @@ function cloneFrom(host) {
   setV('f-sitename', own('site_name'));
   var ap = document.getElementById('f-appearance');
   if (ap) { var lay = own('layout'), th = own('theme'); ap.value = (lay || th) ? (lay + '|' + th) : ''; }
+  setV('f-lang', own('lang'));
+  setV('f-lang-group', own('lang_group'));
   // site_url is intentionally NOT copied - the new host gets its own address.
 }
 

@@ -598,6 +598,8 @@ elsif ( $action eq 'domain-add' ) {
         layout         => $req->{layout},
         nav_file       => $req->{nav_file},
         search_default => $req->{search_default},
+        lang           => $req->{lang},
+        lang_group     => $req->{lang_group},
         seed           => ( $req->{seed} ? 1 : 0 ),
     );
 }
