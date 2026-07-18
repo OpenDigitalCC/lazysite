@@ -25,12 +25,31 @@ use Lazysite::Git ();
     is( $body, "v2", 'content updated' );
 }
 
-# --- PUT into a missing collection => 409 -----------------------------
+# --- SM166: PUT auto-creates the missing parent chain (mkdir -p) -------
 {
     my $s = setup_dav_site();
+    # One missing level.
     my $r = run_dav( $s->{docroot}, 'PUT', '/content/missing/p.md',
         body => "x", HTTP_AUTHORIZATION => $s->{auth} );
-    is( $r->{code}, 409, 'PUT under missing parent => 409' );
+    ok( $r->{code} == 201 || $r->{code} == 204, 'PUT under a missing parent auto-creates it and writes' )
+        or diag "code=$r->{code}";
+    ok( -f "$s->{docroot}/content/missing/p.md", 'the file was written' );
+
+    # Several missing levels - previously a confusing 502; now just works.
+    my $deep = run_dav( $s->{docroot}, 'PUT', '/content/a/b/c/deep.md',
+        body => "y", HTTP_AUTHORIZATION => $s->{auth} );
+    ok( $deep->{code} == 201 || $deep->{code} == 204, 'PUT several levels deep auto-creates the whole chain' )
+        or diag "code=$deep->{code}";
+    ok( -f "$s->{docroot}/content/a/b/c/deep.md", 'the deep file was written' );
+}
+
+# --- PUT with a traversal parent is still refused (no auto-create escape) ---
+{
+    my $s = setup_dav_site();
+    my $r = run_dav( $s->{docroot}, 'PUT', '/content/../../etc/p.md',
+        body => "x", HTTP_AUTHORIZATION => $s->{auth} );
+    isnt( $r->{code}, 201, 'a traversal PUT is not created' );
+    ok( !-e "$s->{docroot}/../../etc/p.md", 'nothing written outside the docroot' );
 }
 
 # --- oversize CONTENT_LENGTH rejected before reading ------------------
