@@ -84,7 +84,7 @@ function renderSessions(d) {
       ' <em>Log out everyone</em> below still ends them.</div>';
     return;
   }
-  var h = '<table class="audit-table"><thead><tr>' +
+  var h = '<div style="overflow-x:auto"><table class="audit-table"><thead><tr>' +
     '<th>User</th><th>Signed in</th><th>From IP</th><th>Device</th><th></th>' +
     '</tr></thead><tbody>';
   rows.forEach(function(s) {
@@ -102,7 +102,7 @@ function renderSessions(d) {
       '<button class="mg-btn mg-btn-sm" onclick="revokeUser(\'' + escHtml(s.user) + '\')">Sign out everywhere</button>' +
       '</td></tr>';
   });
-  h += '</tbody></table>';
+  h += '</tbody></table></div>';
   box.innerHTML = h;
 }
 
@@ -184,7 +184,7 @@ function renderKeys(d) {
     box.innerHTML = '<div class="mg-empty" style="padding:0.75rem;">No active keys. AI / publishing accounts get a key from the <strong>Connect</strong> or <strong>Generate credential</strong> action on their Users-page card.</div>';
     return;
   }
-  var h = '<table class="audit-table"><thead><tr>' +
+  var h = '<div style="overflow-x:auto"><table class="audit-table"><thead><tr>' +
     '<th>Account</th><th>Key for</th><th>Issued</th><th>Status</th><th></th>' +
     '</tr></thead><tbody>';
   rows.forEach(function(k) {
@@ -213,7 +213,7 @@ function renderKeys(d) {
       '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="revokeKey(\'' + escHtml(k.user) + '\')">Revoke key</button>' +
       '</td></tr>';
   });
-  h += '</tbody></table>';
+  h += '</tbody></table></div>';
   box.innerHTML = h;
 }
 
