@@ -64,8 +64,8 @@ sub sub_bodies {
     return \%body;
 }
 
-my $HOOK_RE = qr/\b_git_commit\s*\(
-    | \bLazysite::Git::(?:commit_paths|commit_all|init)\s*\(/x;
+my $HOOK_RE = qr/\b_git_commit(?:_move)?\s*\(
+    | \bLazysite::Git::(?:commit_paths|commit_all|commit_move|init)\s*\(/x;
 
 # =========================================================================
 # 1a. Structural registry: every write path classified hooked-or-exempt
