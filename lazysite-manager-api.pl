@@ -1333,8 +1333,8 @@ sub action_site_backup_upload {
     print {$fh} $file->{data};
     close $fh;
 
-    audit_log( $auth_user, 'site-backup-upload', $name, $ENV{REMOTE_ADDR} // '',
-        'ok', ( $token_auth ? 'api' : 'ui' ), '' );
+    # Audited by the generic dispatch wrapper (site-backup-upload is not in
+    # %skip), like every other write action.
     my @st = stat $out;
     return { ok => 1, name => $name, size => ( $st[7] // 0 ) };
 }
@@ -1416,8 +1416,8 @@ sub action_site_backup_apply {
     require Lazysite::Util;
     Lazysite::Util::clear_host_cache($DOCROOT) if Lazysite::Util->can('clear_host_cache');
 
-    audit_log( $auth_user, 'site-backup-apply', ( length $host ? $host : '(default)' ),
-        $ENV{REMOTE_ADDR} // '', 'ok', ( $token_auth ? 'api' : 'ui' ), "from $name" );
+    # Audited by the generic dispatch wrapper (target = the host, via
+    # _audit_implicit_target's site-backup- branch).
     return {
         ok               => 1,
         applied_to       => ( length $host ? $host : '(default)' ),
