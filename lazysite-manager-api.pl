@@ -56,6 +56,7 @@ use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action
     action_backup_restore);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check);
+use Lazysite::Lang                 qw(lang_status);
 use Lazysite::Manager::SitePackage qw(package_create package_apply);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
@@ -349,6 +350,7 @@ if ( !$token_auth ) {
         'domain-set'         => 'manage_domains', 'domain-remove' => 'manage_domains',
         'domain-preview'     => 'manage_domains', 'domain-check'  => 'manage_domains',
         'domain-alias-add'   => 'manage_domains',
+        'lang-status'        => 'manage_domains',    # SM179 P6: read-only set coverage
         'bad-url-unblock' => 'manage_config',  'rotate-auth-secret' => 'manage_config',
         'backup-create'   => 'manage_config',  'backup-restore'     => 'manage_config',
         'backup-download' => 'manage_config',  'backup-list'        => 'manage_config',
@@ -472,6 +474,7 @@ if ($token_auth) {
         'domain-preview'   => sub { $_[0]->{manage_domains} },  # SM155: pre-DNS render
         'domain-alias-add' => sub { $_[0]->{manage_domains} },  # SM155: alias host
         'domain-check'     => sub { $_[0]->{manage_domains} },  # SM156: live config check
+        'lang-status'      => sub { $_[0]->{manage_domains} },  # SM179 P6: set coverage
         'site-backup-create' => sub { $_[0]->{manage_domains} },  # SM158
         'site-backup-upload' => sub { $_[0]->{manage_domains} },
         'site-backup-apply'  => sub { $_[0]->{manage_domains} },
@@ -617,6 +620,9 @@ elsif ( $action eq 'domain-alias-add' ) {
 }
 elsif ( $action eq 'domain-check' ) {
     $result = action_domain_check( $params{host} );
+}
+elsif ( $action eq 'lang-status' ) {
+    $result = action_lang_status( $params{group} );
 }
 elsif ( $action eq 'site-backup-create' ) {
     my $req = eval { decode_json($body) } // {};
@@ -1770,6 +1776,29 @@ sub action_domains_list {
         push @domains, \%row;
     }
     return { ok => 1, domains => \@domains, keys => \@keys };
+}
+
+# SM179 P6: translation-coverage status for a language set. Read-only. `group`
+# selects the set; when omitted, the base host's lang_group is used (the common
+# single-set case). Returns the per-root missing/stale/current report from
+# Lazysite::Lang, so an operator or a translation agent sees exactly what still
+# needs doing without any bookkeeping of its own.
+sub action_lang_status {
+    my ($group) = @_;
+    my $conf = '';
+    if ( open my $fh, '<:raw', "$LAZYSITE_DIR/lazysite.conf" ) {
+        local $/;
+        $conf = <$fh>;
+        close $fh;
+    }
+    if ( !defined $group || !length $group ) {
+        $group = ( $conf =~ /^lang_group\h*:\h*(\S+)\h*$/m ) ? $1 : '';
+    }
+    if ( !length $group ) {
+        return { ok => 0, error => 'no language group (set lang_group in the conf, or pass group=)' };
+    }
+    my $status = lang_status( docroot => $DOCROOT, conf_text => $conf, group => $group );
+    return { ok => 1, %$status };
 }
 
 sub action_config_set {

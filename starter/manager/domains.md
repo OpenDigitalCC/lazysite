@@ -75,6 +75,8 @@ routing are configured so the domain reaches this instance.
 
 <div id="domains-list"><div class="mg-status">Loading&hellip;</div></div>
 
+<div id="lang-coverage" style="display:none;margin-top:22px;"></div>
+
 <div id="domain-preview-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
   <div style="background:#fff;width:92%;max-width:1100px;height:86%;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
     <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--mg-border,#ddd);">
@@ -498,5 +500,55 @@ function saveCanonicalIp() {
   });
 }
 
-Promise.all([loadThemes(), loadLayouts(), loadCanonicalIp()]).then(loadDomains);
+// SM179 P6: translation coverage for a language set. Read-only; the panel stays
+// hidden unless this instance actually has a set (two+ hosts sharing a
+// lang_group). Each non-source root shows its current / stale / missing counts
+// so an operator sees at a glance what still needs translating.
+function coverageBar(root) {
+  var total = root.total || 0;
+  var seg = function (n, colour, title) {
+    if (!n) return '';
+    var pct = total ? (n / total * 100) : 0;
+    return '<span title="' + title + ': ' + n + '" style="display:inline-block;height:100%;width:' + pct + '%;background:' + colour + ';"></span>';
+  };
+  return '<span style="display:inline-flex;height:9px;width:120px;border-radius:4px;overflow:hidden;background:#eee;vertical-align:middle;">'
+       + seg(root.current, '#2e9e50', 'current')
+       + seg(root.stale, '#d99a20', 'stale')
+       + seg(root.missing, '#cccccc', 'missing')
+       + '</span>';
+}
+function loadLangStatus() {
+  var box = document.getElementById('lang-coverage');
+  return fetch(API + '?action=lang-status', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok || !d.members || d.members < 2) { box.style.display = 'none'; return; }
+      var s = d.source || {};
+      var html = '<h2 style="font-size:1.05em;margin:0 0 4px;">Language coverage</h2>'
+        + '<p style="font-size:0.82em;color:#888;margin:0 0 10px;">'
+        + 'This is a language set (group <code>' + esc(d.group) + '</code>). The source is <strong>'
+        + esc(s.lang || '?') + '</strong> with ' + (s.files || 0) + ' page(s). '
+        + 'Each other language is compared to it &mdash; '
+        + '<span style="color:#2e9e50">current</span>, '
+        + '<span style="color:#d99a20">stale</span> (source changed since translating) or '
+        + '<span style="color:#999">missing</span>. Translate the sibling root at the same path to fill gaps.</p>';
+      html += '<div style="overflow-x:auto;"><table class="mg-file-table" style="min-width:0;"><thead><tr>'
+        + '<th>Language</th><th>Host</th><th>Coverage</th><th>Current</th><th>Stale</th><th>Missing</th></tr></thead><tbody>';
+      (d.roots || []).forEach(function (root) {
+        html += '<tr><td><strong>' + esc(root.lang || '?') + '</strong></td>'
+          + '<td>' + esc(root.host || '') + '</td>'
+          + '<td>' + coverageBar(root) + '</td>'
+          + '<td>' + (root.current || 0) + '</td>'
+          + '<td' + (root.stale ? ' style="color:#d99a20;font-weight:600"' : '') + '>' + (root.stale || 0) + '</td>'
+          + '<td' + (root.missing ? ' style="color:#b00;font-weight:600"' : '') + '>' + (root.missing || 0) + '</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table></div>';
+      box.innerHTML = html;
+      box.style.display = '';
+    })
+    .catch(function () { box.style.display = 'none'; });
+}
+
+Promise.all([loadThemes(), loadLayouts(), loadCanonicalIp()]).then(loadDomains).then(loadLangStatus);
 </script>
