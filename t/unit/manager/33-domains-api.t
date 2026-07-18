@@ -165,8 +165,11 @@ grant_caps( $d, 'ed', 'manage_content' );
     my $processor = Cwd::abs_path("$root/lazysite-processor.pl");
     mkdir "$d/sites";
     mkdir "$d/sites/clienta";
-    open my $ix, '>', "$d/sites/clienta/index.md" or die $!;
-    print $ix "---\ntitle: Client A\n---\n\nPREVIEW-OF-CLIENTA\n";
+    # Include non-ASCII content (French + Thai) to guard the UTF-8 round-trip:
+    # the preview captures the processor's raw bytes and must decode them before
+    # the JSON layer re-encodes, or they double-encode into mojibake.
+    open my $ix, '>:encoding(UTF-8)', "$d/sites/clienta/index.md" or die $!;
+    print $ix "---\ntitle: Client A\n---\n\nPREVIEW-OF-CLIENTA h\x{e9}bergeurs \x{0e2a}\x{0e33}\n";
     close $ix;
     my $r = mapi( $d, REQUEST_METHOD => 'GET',
         QUERY_STRING       => 'action=domain-preview&host=clienta.com',
@@ -174,6 +177,10 @@ grant_caps( $d, 'ed', 'manage_content' );
         LAZYSITE_PROCESSOR => $processor );
     ok( $r->{ok}, 'operator previews a registered domain' ) or diag encode_json($r);
     like( $r->{html}, qr/PREVIEW-OF-CLIENTA/, 'preview renders the domain content root' );
+    like( $r->{html}, qr/h\x{e9}bergeurs/,
+        'preview preserves UTF-8 (French) - no double-encoding' );
+    unlike( $r->{html}, qr/h\x{c3}\x{a9}bergeurs/,
+        'preview does not mojibake the UTF-8 (no e-acute -> A-tilde-copy)' );
 
     my $ef = mapi( $d, REQUEST_METHOD => 'GET',
         QUERY_STRING       => 'action=domain-preview&host=clienta.com',
