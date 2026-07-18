@@ -6,18 +6,40 @@ search: false
 
 <div id="status" class="mg-status"></div>
 
-<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
-<input type="text" id="add-label" placeholder="Label" class="mg-file-filter" style="flex:none;width:160px;">
-<input type="text" id="add-url" placeholder="/url (blank = group heading)" class="mg-file-filter" style="flex:none;width:220px;" list="page-urls">
-<datalist id="page-urls"></datalist>
-<select id="add-parent" style="padding:4px;font-size:13px;">
-<option value="">Top level</option>
-</select>
-<button class="mg-btn" onclick="addItem()">Add</button>
+<!-- SM159: choose which domain's navigation to edit. Only shown when this
+     instance serves more than one domain; a domain that inherits the shared
+     base nav is flagged. -->
+<div id="nav-domain-row" style="display:none;margin-bottom:10px;align-items:center;gap:8px;flex-wrap:wrap;">
+  <label class="mg-muted" style="font-size:0.9em;">Editing navigation for:
+    <select id="nav-domain" class="mg-inp" style="max-width:20rem" onchange="onDomainChange()"></select>
+  </label>
+  <span id="nav-inherit-note" class="mg-muted" style="display:none;font-size:0.8em;"></span>
+</div>
+
+<div class="mg-toolbar" style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+<button class="mg-btn" id="add-toggle" onclick="toggleAdd()">+ Add menu item</button>
 <span style="flex:1;"></span>
 <span id="nav-dirty" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes &mdash; click Save</span>
 <button class="mg-btn mg-btn-primary" onclick="saveNav()">Save</button>
 <button class="mg-btn" onclick="loadNav()">Reload</button>
+</div>
+
+<!-- Add-item form: hidden until "Add menu item" is clicked, so the fields are
+     clearly a distinct "add new" box rather than loose inputs in the toolbar. -->
+<div id="add-panel" style="display:none;border:1px solid var(--mg-border,#ddd);border-radius:6px;padding:12px;margin-bottom:14px;">
+  <div style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Add a menu item</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+    <label style="display:flex;flex-direction:column;gap:2px;font-size:0.85em;color:#555;">Label
+      <input type="text" id="add-label" placeholder="e.g. About" class="mg-inp" style="width:180px;" onkeydown="if(event.key==='Enter'){addItem();event.preventDefault();}"></label>
+    <label style="display:flex;flex-direction:column;gap:2px;font-size:0.85em;color:#555;">Link
+      <input type="text" id="add-url" placeholder="/about (blank = group heading)" class="mg-inp" style="width:240px;" list="page-urls" onkeydown="if(event.key==='Enter'){addItem();event.preventDefault();}"></label>
+    <datalist id="page-urls"></datalist>
+    <label style="display:flex;flex-direction:column;gap:2px;font-size:0.85em;color:#555;">Under
+      <select id="add-parent" class="mg-inp" style="padding:4px;"><option value="">Top level</option></select></label>
+    <button class="mg-btn mg-btn-primary" onclick="addItem()">Add to menu</button>
+    <button class="mg-btn" onclick="toggleAdd()">Done</button>
+  </div>
+  <div style="font-size:0.8em;color:#888;margin-top:6px;">A blank link makes a group heading (its children drop down under it). Items are added to the list below &mdash; reorder by dragging, then <strong>Save</strong>.</div>
 </div>
 
 <div id="nav-list">Loading...</div>
@@ -51,11 +73,62 @@ function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 function markNavDirty()  { mgDirtyGuard.set('nav', 'nav-dirty'); }
 function clearNavDirty() { mgDirtyGuard.clear('nav'); }
 
+// SM159: which domain's nav is being edited ('' = the default/base nav).
+var navHost = '';
+function navQuery(extra) {
+  return navHost ? (extra + '&host=' + encodeURIComponent(navHost)) : extra;
+}
+function toggleAdd() {
+  var p = document.getElementById('add-panel');
+  var show = (p.style.display === 'none');
+  p.style.display = show ? 'block' : 'none';
+  if (show) { var l = document.getElementById('add-label'); if (l) l.focus(); }
+}
+
+// Populate the domain picker from the registered domains. Only domains that can
+// have their OWN nav are listed: the default site, plus each domain (a domain
+// inheriting the base nav is still selectable, with a note explaining that
+// editing it changes the shared base until it is given its own nav_file on the
+// Domains page).
+function loadNavDomains() {
+  return fetch(API + '?action=domains-list', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok) return;
+      var rows = (d.domains || []).filter(function (r) { return !r.alias_of; });
+      if (rows.length <= 1) return;            // single-site: no picker needed
+      var sel = document.getElementById('nav-domain');
+      sel.innerHTML = rows.map(function (r) {
+        var val = r.is_primary ? '' : r.host;
+        var lbl = r.is_primary ? 'Default site' : r.host;
+        return '<option value="' + esc(val) + '">' + esc(lbl) + '</option>';
+      }).join('');
+      document.getElementById('nav-domain-row').style.display = 'flex';
+    })
+    .catch(function () {});
+}
+function onDomainChange() {
+  if (mgDirtyGuard && mgDirtyGuard.isDirty && mgDirtyGuard.isDirty('nav')) {
+    if (!window.confirm('You have unsaved nav changes. Switch domain and discard them?')) {
+      document.getElementById('nav-domain').value = navHost; return;
+    }
+  }
+  navHost = document.getElementById('nav-domain').value || '';
+  loadNav();
+}
+
 function loadNav() {
-  fetch(API + '?action=nav-read')
+  fetch(API + '?' + navQuery('action=nav-read'))
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
+      var note = document.getElementById('nav-inherit-note');
+      if (note) {
+        if (navHost && data.inherited) {
+          note.textContent = 'ℹ This domain currently shares the default site’s menu. Editing here changes the shared menu; to give it its own, set a nav file for it on the Domains page.';
+          note.style.display = '';
+        } else { note.style.display = 'none'; }
+      }
       navItems = [];
       (data.items || []).forEach(function(item) {
         navItems.push({ label: item.label, url: item.url || '', indent: 0 });
@@ -247,7 +320,7 @@ function saveNav() {
   fetch(API + '?action=nav-save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items: items })
+    body: JSON.stringify({ items: items, host: navHost })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
@@ -270,6 +343,6 @@ function loadPageUrls() {
   }).catch(function () {});
 }
 
-loadNav();
+loadNavDomains().then(loadNav);
 loadPageUrls();
 </script>
