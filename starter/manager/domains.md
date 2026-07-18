@@ -217,6 +217,42 @@ var EDIT_OPTIONS = {
   search_default: ['true', 'false']
 };
 
+// SM165 access fields are comma-lists of existing principals, so they are picked
+// from tick-lists (not typed): allowed_groups from the site's groups, locked_users
+// from its accounts. PRINCIPALS is loaded once (action=principals); PICK_KEYS maps
+// each access key to which list feeds it.
+var PICK_KEYS = { allowed_groups: 'groups', locked_users: 'users' };
+var PRINCIPALS = { users: [], groups: [] };
+function loadPrincipals() {
+  return fetch(API + '?action=principals', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d && d.ok) {
+        PRINCIPALS.users = d.users || [];
+        PRINCIPALS.groups = d.groups || [];
+      }
+    })
+    .catch(function () {});
+}
+// A tick-list of principals for one access key; current members pre-ticked. The
+// container id is e-<host>-<key> so saveDomain reads the ticked boxes from it.
+function pickList(host, k, currentCsv) {
+  var chosen = {};
+  (currentCsv || '').split(',').forEach(function (v) { v = v.trim(); if (v) chosen[v] = 1; });
+  var opts = PRINCIPALS[PICK_KEYS[k]] || [];
+  var id = 'e-' + host + '-' + k;
+  if (!opts.length) {
+    return '<div id="' + esc(id) + '" style="font-size:0.85em;color:#999;">'
+      + 'No ' + (PICK_KEYS[k] === 'groups' ? 'groups' : 'accounts') + ' exist yet.</div>';
+  }
+  var boxes = opts.map(function (o) {
+    return '<label style="display:inline-flex;align-items:center;gap:4px;margin:0 12px 4px 0;font-weight:400;color:#333;">'
+      + '<input type="checkbox" value="' + esc(o) + '"' + (chosen[o] ? ' checked' : '') + '> ' + esc(o) + '</label>';
+  }).join('');
+  return '<div id="' + esc(id) + '" style="display:flex;flex-wrap:wrap;max-width:26rem;'
+    + 'border:1px solid var(--mg-border,#e2e2e2);border-radius:4px;padding:6px 8px;">' + boxes + '</div>';
+}
+
 function post(action, obj) {
   return fetch(API + '?action=' + action, {
     method: 'POST', credentials: 'same-origin',
@@ -359,7 +395,12 @@ function saveDomain(host) {
     var inp = document.getElementById('e-' + host + '-' + k);
     if (!inp) return;
     changed++;
-    if (k === 'appearance') {
+    if (PICK_KEYS[k]) {
+      // A tick-list: the comma-list is whatever is ticked in the container.
+      var picked = [];
+      inp.querySelectorAll('input[type=checkbox]:checked').forEach(function (b) { picked.push(b.value); });
+      setKey(k, picked.join(','));
+    } else if (k === 'appearance') {
       // One field, two conf keys: split "layout|theme" and write both.
       var ap = splitAppearance(inp.value);
       setKey('layout', ap.layout);
@@ -379,6 +420,16 @@ function saveDomain(host) {
 function editField(host, k, row) {
   var own = row[k + '_inherited'] ? '' : (row[k] || '');
   var effective = row[k] || '';
+  // SM165 access keys: a tick-list of principals, not a text box. Rendered as a
+  // fieldset-style block (not wrapped in a <label>, so its own labels nest cleanly).
+  if (PICK_KEYS[k]) {
+    var hintP = EDIT_HINTS[k]
+      ? '<div style="font-weight:400;color:#999;font-size:0.85em;margin-top:3px;max-width:26rem;">' + esc(EDIT_HINTS[k]) + '</div>'
+      : '';
+    return '<div style="margin:0 14px 12px 0;font-size:0.85em;color:#555;">'
+      + '<div style="margin-bottom:3px;">' + esc(label(k)) + '</div>'
+      + pickList(host, k, own) + hintP + '</div>';
+  }
   var field;
   if (k === 'appearance') {
     // The domain's OWN layout + theme (blank when inherited); one dropdown.
@@ -550,5 +601,5 @@ function loadLangStatus() {
     .catch(function () { box.style.display = 'none'; });
 }
 
-Promise.all([loadThemes(), loadLayouts(), loadCanonicalIp()]).then(loadDomains).then(loadLangStatus);
+Promise.all([loadThemes(), loadLayouts(), loadCanonicalIp(), loadPrincipals()]).then(loadDomains).then(loadLangStatus);
 </script>

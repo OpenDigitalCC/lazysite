@@ -225,6 +225,27 @@ grant_caps( $d, 'ed', 'manage_content' );
     like( $un->{error}, qr/Not a registered domain/, 'refusal names the reason' );
 }
 
+# --- SM165 access keys surface in domains-list (feeds the tick-list pickers) --
+# The Domains edit form picks allowed_groups / locked_users from tick-lists, so
+# domains-list must report the domain's current values to pre-tick them.
+{
+    post( $d, 'op', 'role-op', 'action=domain-set',
+        { host => 'clienta.com', key => 'allowed_groups', value => 'clienta-editors' } );
+    post( $d, 'op', 'role-op', 'action=domain-set',
+        { host => 'clienta.com', key => 'locked_users', value => 'alice,bob' } );
+    my $r = mapi( $d, REQUEST_METHOD => 'GET', QUERY_STRING => 'action=domains-list',
+        HTTP_X_REMOTE_USER => 'op', HTTP_X_REMOTE_GROUPS => 'role-op' );
+    ok( ( grep { $_ eq 'allowed_groups' } @{ $r->{keys} } ),
+        'domains-list advertises allowed_groups' );
+    ok( ( grep { $_ eq 'locked_users' } @{ $r->{keys} } ),
+        'domains-list advertises locked_users' );
+    my ($ca) = grep { $_->{host} eq 'clienta.com' } @{ $r->{domains} };
+    is( $ca->{allowed_groups}, 'clienta-editors', 'clienta.com surfaces its allowed_groups' );
+    # domain_set normalises the list separator to ', '; the tick-list splits on
+    # comma and trims, so either spelling round-trips.
+    is( $ca->{locked_users}, 'alice, bob', 'clienta.com surfaces its locked_users' );
+}
+
 sub slurp { open my $fh, '<', $_[0] or return ''; local $/; <$fh> }
 
 done_testing();
