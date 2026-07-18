@@ -418,7 +418,14 @@ if ( !$token_auth ) {
         form-targets-save plugin-enable plugin-disable plugin-save plugin-action
         lock unlock renew-lock notices-seen
         domain-add domain-set domain-remove
+        session-revoke user-revoke key-revoke
     );
+    # NB: 'users' is deliberately NOT listed - it is dual-mode (GET reads
+    # list/groups; writes self-enforce POST inside action_users). session/user/
+    # key revocation are pure writes, so forcing POST here (SEC-2026-07, CSRF
+    # completeness) makes the method-keyed CSRF gate above cover them by
+    # construction, rather than relying on their target param arriving in the
+    # POST body.
 
     if ( $MUTATING{$action} && $method ne 'POST' ) {
         respond( { ok => 0, error => "This action must be sent as POST." } );
