@@ -872,15 +872,23 @@ sub action_git_show {
     require Lazysite::Git;
     return { ok => 0, error => 'Content history is not enabled' }
         unless Lazysite::Git::enabled($DOCROOT);
-    my $content = Lazysite::Git::file_at( $DOCROOT, $sha, $r->{rel} );
+    # SM175: history may have crossed a rename - read from the path this file
+    # HAD at $sha (resolved server-side through its own lineage, never a
+    # client-supplied path), and diff that historic blob against the current one.
+    my $read    = Lazysite::Git::path_at( $DOCROOT, $r->{rel}, $sha ) // $r->{rel};
+    my $content = Lazysite::Git::file_at( $DOCROOT, $sha, $read );
     return { ok => 0, error => 'No such version of this file' }
         unless defined $content;
+    my $diff = ( $read eq $r->{rel} )
+        ? Lazysite::Git::file_diff( $DOCROOT, $sha, $r->{rel} )
+        : Lazysite::Git::file_diff_across( $DOCROOT, $sha, $read, $r->{rel} );
     return {
-        ok      => 1,
-        path    => $r->{rel},
+        ok   => 1,
+        path => $r->{rel},
+        ( $read ne $r->{rel} ? ( from_path => $read ) : () ),
         sha     => $sha,
         content => $content,
-        diff    => ( Lazysite::Git::file_diff( $DOCROOT, $sha, $r->{rel} ) // '' ),
+        diff    => ( $diff // '' ),
     };
 }
 
@@ -898,7 +906,10 @@ sub action_git_restore {
     require Lazysite::Git;
     return { ok => 0, error => 'Content history is not enabled' }
         unless Lazysite::Git::enabled($DOCROOT);
-    my $content = Lazysite::Git::file_at( $DOCROOT, $sha, $r->{rel} );
+    # SM175: read from the path this file HAD at $sha (lineage-resolved), so a
+    # pre-rename version restores into the CURRENT path rather than 404ing.
+    my $read    = Lazysite::Git::path_at( $DOCROOT, $r->{rel}, $sha ) // $r->{rel};
+    my $content = Lazysite::Git::file_at( $DOCROOT, $sha, $read );
     return { ok => 0, error => 'No such version of this file' }
         unless defined $content;
     my $sha7 = substr $sha, 0, 7;

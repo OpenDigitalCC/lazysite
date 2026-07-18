@@ -16,6 +16,22 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## Unreleased
+
+Content history follows renames, and a delete ends the thread (SM175)
+: Moving a file now carries its version history to the new path, and a delete
+  ends that file's history: a later file created at the same path starts clean
+  and never inherits the deleted one's past (previously a moved file's history
+  looked lost, while a recreated path leaked the old file's timeline - because
+  the log was keyed on the pathname). Renames are recorded as first-class moves
+  (a Lazysite-Renamed-From trailer) across every channel - the manager Move, the
+  MCP rename_page, and WebDAV MOVE - so the Files "History" panel lists the full
+  lineage and can view, diff and restore even pre-rename versions. Agent tool
+  guidance now steers connectors to rename_page / move_file rather than
+  recreating-and-deleting (which would break the history). Gate:
+  t/unit/lib/19-git-rename-history.t, plus move-history cases in
+  t/unit/manager/25-git-actions.t and t/unit/dav/05-copy-move.t.
+
 ## 0.7.25 - EDGE: forms discoverability + manager UI/key/WebDAV fixes (2026-07-18)
 
 Forms: native forms are discoverable where an agent acts (SM161)

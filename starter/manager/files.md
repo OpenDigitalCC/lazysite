@@ -947,11 +947,13 @@ function showVersion(btn, mode) {
       if (!out) return;
       out.style.display = '';
       if (!d.ok) { out.textContent = d.error || 'Cannot load this version'; return; }
+      // SM175: a version from before a rename notes the path it then lived at.
+      var moved = d.from_path ? ' (was ' + d.from_path + ')' : '';
       if (mode === 'diff') {
-        out.textContent = '# ' + sha.slice(0, 7) + ' vs current\n\n'
+        out.textContent = '# ' + sha.slice(0, 7) + moved + ' vs current\n\n'
                         + (d.diff || '(identical to the current version)');
       } else {
-        out.textContent = '# content at ' + sha.slice(0, 7) + ' (read-only)\n\n' + d.content;
+        out.textContent = '# content at ' + sha.slice(0, 7) + moved + ' (read-only)\n\n' + d.content;
       }
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
