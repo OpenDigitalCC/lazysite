@@ -1,15 +1,15 @@
 ---
 title: "lazysite - Declaration of Conformity"
-subtitle: "EU declaration of conformity per Regulation (EU) 2024/2847 (Cyber Resilience Act) - draft for the 0.7.0 stable release"
+subtitle: "EU declaration of conformity per Regulation (EU) 2024/2847 (Cyber Resilience Act) - draft for the 0.8.0 stable release"
 brand: plain
 ---
 
 # Status
 
-This is the Declaration of Conformity for the first stable release of
+This is the Declaration of Conformity for the 0.8.0 stable release of
 lazysite, prepared in draft ahead of the cut. It becomes the declaration
 of record when the version and dates are finalised and the responsible
-person signs at the 0.7.0 stable release; legal review is required
+person signs at the 0.8.0 stable release; legal review is required
 before any external use. Until signed, `docs/POLICY.md` remains the
 posture of record and this document claims no conformity not yet in
 place.
@@ -23,8 +23,8 @@ bold: 1
 tone: medium
 ---
 Product | lazysite - static site builder with authenticated authoring (web manager, WebDAV, control API/MCP)
-Version | 0.7.0 - placeholder, to be finalised at the 0.7.0 stable cut
-Unique identification | git tag `v0.7.0`; release tarball `dist/lazysite-0.7.0.tar.gz` with `.sha256` sidecar; embedded `release-manifest.json` and `sbom.json` (CycloneDX)
+Version | 0.8.0 - placeholder, to be finalised at the 0.8.0 stable cut
+Unique identification | git tag `v0.8.0`; release tarball `dist/lazysite-0.8.0.tar.gz` with `.sha256` sidecar; embedded `release-manifest.json` and `sbom.json` (CycloneDX)
 Release channel | stable (`release.sh --final`)
 ```
 
@@ -100,6 +100,6 @@ tone: medium
 ---
 Name | Stuart J Mackintosh
 Function | Responsible person, Open Digital CC
-Place and date of issue | To be completed at the 0.7.0 stable cut
+Place and date of issue | To be completed at the 0.8.0 stable cut
 Signature | (unsigned draft)
 ```

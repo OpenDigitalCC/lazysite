@@ -415,3 +415,89 @@ residual risk
 
 verdict
 : accepted.
+
+### 2026-07-18 - SM165: domain-owned access-control model (0.7.26)
+
+what changed
+: access confinement moved from a per-user/per-group `dav_scope` to a
+  domain-owned model - each domain names `allowed_groups` (who may manage it)
+  and `locked_users` (accounts confined to it), resolved through
+  `Lazysite::Auth::DomainAccess` and the shared `resolve_user_scopes` (domain
+  access intersected with the sub-user ceiling up the `created_by` chain). A
+  new authorisation surface enforced on the manager UI, control-API token, MCP
+  and WebDAV.
+
+threat delta
+: Elevation of privilege, Information disclosure.
+
+controls
+: a `DENY_ALL_SCOPE` sentinel so a locked user with no allowed domain is
+  denied everywhere (never silently unconfined); scope intersection up the
+  created_by chain so a sub-user can never out-reach its creator; enforcement
+  code unchanged (only the SOURCE of `dav_scopes` moved). Verified by
+  reproduction and `t/unit/lib/20-domain-access.t` (deny-all, empty allow-list,
+  lock-narrowing, disjoint-intersection -> deny-all).
+
+residual risk
+: operators define the domain->group mapping; a misconfiguration is an
+  operator error, not an engine bypass.
+
+verdict
+: accepted.
+
+### 2026-07-18 - SM175: content history follows renames (0.7.26)
+
+what changed
+: git-backed content history now records renames as first-class moves (a
+  `Lazysite-Renamed-From` commit trailer) and walks an incarnation-bounded
+  lineage, so history follows a move but a delete truly ends the thread (a
+  later file at the same path cannot inherit the deleted one's timeline). Adds
+  `commit_move` on the git write path.
+
+threat delta
+: Information disclosure (history leakage across a delete/recreate).
+
+controls
+: the lineage walk follows explicit trailers (not git's `--follow` heuristic,
+  which was shown to leak across delete/recreate) with a cycle guard and clean
+  limit handling; the git write path keeps the existing `EVAL_PERL=0` /
+  checked-write posture; the `18-git-guarantee` HOOK_RE covers `commit_move`.
+
+residual risk
+: none beyond the existing content-history trust model (an operator with
+  content access already sees all versions).
+
+verdict
+: accepted.
+
+### 2026-07-18 - SM179: multilingual language sets + engine i18n (0.7.27-0.7.28)
+
+what changed
+: a new content-partner-controllable input surface - a page's front-matter
+  `lang:`, per-host `lang`/`lang_group` conf/`domain-set` keys, per-language
+  content roots, `json:` content-root resolution, layout `strings/<lang>.json`,
+  an engine i18n layer (`lazysite/i18n/<lang>.json`), and the `lang-status`
+  control-API action.
+
+threat delta
+: Tampering (stored XSS / header injection), Information disclosure, path
+  traversal.
+
+controls
+: `Lazysite::I18n` fails closed to English on any miss and never affects an
+  auth decision; the i18n/lang file paths are lang-code validated (no
+  traversal); `json:`/content-root resolution stays confined under the docroot
+  (SM151); the 404 fallback HTML-escapes the request URI; `lang`/`lang_group`
+  are validated at `domain-set`/`domain-add` and CR/LF-guarded (F6.11);
+  `lang-status` is a read-only report gated on `manage_content`. FIXED during
+  this assessment (F6.10, serious): the front-matter `lang:` flowed unescaped
+  into `<html lang>` and `Content-Language` - now sanitised at the render point
+  to a bare tag (`s/[^A-Za-z-]//g`), with regression test
+  `t/integration/26-lang-injection.t`.
+
+residual risk
+: none identified after the F6.10 fix; the cross-host page cache is host-keyed
+  (no cross-host poisoning).
+
+verdict
+: accepted (contingent on the F6.10 fix, which shipped in this cut).
