@@ -12,7 +12,6 @@
 #       [--nav-file F] [--search-default S] [--seed]
 #   lazysite-domains.pl --docroot DIR set    --host H --key K --value V
 #   lazysite-domains.pl --docroot DIR remove --host H [--purge]
-#   lazysite-domains.pl --docroot DIR alias  --host H --of CANONICAL_HOST
 #   lazysite-domains.pl --docroot DIR check  --host H [--self-ip PUBLIC_IP]
 #     (--self-ip overrides this server's public IP; otherwise it is discovered
 #      from the canonical_ip config key or the install's own domain)
@@ -32,7 +31,7 @@ BEGIN {
     }
 }
 use Lazysite::Manager::Domains
-    qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check);
+    qw(domains_list domain_add domain_remove domain_set domain_check);
 
 my %opt;
 my @pos;
@@ -89,11 +88,6 @@ elsif ( $cmd eq 'remove' ) {
     die "lazysite-domains: remove requires --host\n" unless defined $opt{host};
     $result = domain_remove( $opt{host}, purge => ( $opt{purge} ? 1 : 0 ) );
 }
-elsif ( $cmd eq 'alias' ) {
-    die "lazysite-domains: alias requires --host and --of\n"
-        unless defined $opt{host} && defined $opt{of};
-    $result = domain_add_alias( $opt{host}, $opt{of} );
-}
 elsif ( $cmd eq 'check' ) {
     die "lazysite-domains: check requires --host\n" unless defined $opt{host};
     require Digest::SHA;
@@ -111,7 +105,7 @@ elsif ( $cmd eq 'check' ) {
 }
 else {
     die "lazysite-domains: unknown command '$cmd' "
-        . "(list|add|alias|set|remove|check); run with no command for usage.\n";
+        . "(list|add|set|remove|check); run with no command for usage.\n";
 }
 
 if ( $opt{json} ) {

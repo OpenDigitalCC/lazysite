@@ -128,36 +128,11 @@ grant_caps( $d, 'ed', 'manage_content' );
     ok( !$r->{ok}, 'domain-add over GET is refused' );
 }
 
-# --- SM155: domain-alias-add is manage_config-gated -------------------------
-{
-    my $r = post( $d, 'op', 'role-op', 'action=domain-alias-add',
-        { host => 'www.clienta.com', of => 'clienta.com' } );
-    ok( $r->{ok}, 'operator adds an alias host' ) or diag encode_json($r);
-    like( slurp("$d/lazysite/lazysite.conf"),
-        qr/^alias\.www\.clienta\.com\.content_root: sites\/clienta$/m,
-        'the alias shares the canonical content root' );
-    like( slurp("$d/lazysite/logs/audit.log"), qr/domain-alias-add \| www\.clienta\.com \|/,
-        'domain-alias-add is audited with the alias host as its target' );
-
-    my $e = post( $d, 'ed', 'role-ed', 'action=domain-alias-add',
-        { host => 'evil.com', of => 'clienta.com' } );
-    is( $e->{kind}, 'forbidden', 'content editor cannot add an alias' );
-}
-
-# --- SM155: an alias mirrors the canonical's OWN presentation (title) --------
-# A sub-domain with its own site_name, then aliased: the alias must carry the
-# sub-domain's site_name, not fall back to the DEFAULT host's (the reported bug).
-{
-    post( $d, 'op', 'role-op', 'action=domain-add',
-        { host => 'shop.clienta.com', content_root => 'sites/shop',
-            site_name => 'Client A Shop', seed => 1 } );
-    my $r = post( $d, 'op', 'role-op', 'action=domain-alias-add',
-        { host => 'www.shop.clienta.com', of => 'shop.clienta.com' } );
-    ok( $r->{ok}, 'alias of a sub-domain is added' ) or diag encode_json($r);
-    like( slurp("$d/lazysite/lazysite.conf"),
-        qr/^alias\.www\.shop\.clienta\.com\.site_name: Client A Shop$/m,
-        'the alias carries the sub-domain site_name (title), not the default host' );
-}
+# The alias-as-clone concept was retired: an "alias" was just a domain created as
+# a copy of another (same content root + presentation), which is now the "Copy
+# settings from" pre-fill on Add domain - a second domain-add, no separate action.
+# Two domains sharing a content_root still both serve it (that is the SM110
+# alias_hosts mechanism, exercised in t/integration/16-domain-aliases.t).
 
 # --- SM155: domain-preview renders a domain under its Host (pre-DNS) ---------
 {

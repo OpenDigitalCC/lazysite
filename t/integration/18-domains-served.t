@@ -13,7 +13,7 @@ use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
 use TestHelper                 qw(run_processor);
-use Lazysite::Manager::Domains qw(domain_add domain_add_alias domain_remove);
+use Lazysite::Manager::Domains qw(domain_add domain_remove);
 
 my $docroot = tempdir( CLEANUP => 1 );
 make_path("$docroot/lazysite");
@@ -51,14 +51,16 @@ close $ch;
     unlike( $out, qr/CLIENT-A-CONTENT/, 'the default host does not serve a client subtree' );
 }
 
-# --- SM155: an alias host serves the canonical domain's content -------------
+# --- a second domain on the SAME content root serves the same content -------
+# (What used to be a domain "alias" is now just another domain-add pointing at an
+# existing content root - the "Copy settings from" pre-fill in the UI.)
 {
-    my $al = domain_add_alias( 'www.clienta.com', 'clienta.com' );
-    ok( $al->{ok}, 'engine added www.clienta.com as an alias of clienta.com' )
+    my $al = domain_add( 'www.clienta.com', content_root => 'sites/clienta' );
+    ok( $al->{ok}, 'engine added www.clienta.com on the same content root' )
         or diag explain $al;
     my $out = run_processor( $docroot, '/index', HTTP_HOST => 'www.clienta.com' );
-    like( $out, qr/CLIENT-A-CONTENT/, 'the alias host serves the canonical content' );
-    unlike( $out, qr/AGENCY-PRIMARY/, 'the alias does not serve the primary content' );
+    like( $out, qr/CLIENT-A-CONTENT/, 'the second host serves the shared content' );
+    unlike( $out, qr/AGENCY-PRIMARY/, 'it does not serve the primary content' );
     domain_remove('www.clienta.com');
 }
 

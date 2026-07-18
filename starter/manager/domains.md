@@ -44,6 +44,11 @@ routing are configured so the domain reaches this instance.
           <input id="f-croot" placeholder="sites/clienta" style="width:100%;box-sizing:border-box;"></label>
         <div style="font-size:0.8em;color:#888;margin-top:2px;">The folder inside your site that holds this domain's pages (created if missing). Leave empty to show your <strong>default site</strong>. The lazysite system area is reserved &mdash; pick any other folder.</div>
       </div>
+      <div class="mg-form-row">
+        <label>Copy settings from <span style="color:#aaa;font-weight:400">&mdash; optional</span><br>
+          <select id="f-clone-from" onchange="cloneFrom(this.value)" style="width:100%;box-sizing:border-box;"><option value="">Start blank</option></select></label>
+        <div style="font-size:0.8em;color:#888;margin-top:2px;">Pre-fill this form from an existing domain (its content folder, title and appearance) &mdash; a quick way to stand up another domain like one you already have. You can change anything before saving.</div>
+      </div>
     </div>
     <div style="flex:1 1 260px;min-width:240px;">
       <div style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Presentation <span style="text-transform:none;letter-spacing:0">&mdash; optional, inherits the default site</span></div>
@@ -309,18 +314,6 @@ function addDomain() {
   });
 }
 
-// SM155: add an alias host that serves the same content as a canonical domain
-// (e.g. www.clienta.com for clienta.com). Unique host, shared content + look.
-function addAlias(canonical) {
-  var host = window.prompt('Alias host for ' + canonical + ' (serves the same content):', 'www.' + canonical);
-  if (!host) return;
-  host = host.trim();
-  if (!host) return;
-  post('domain-alias-add', { host: host, of: canonical }).then(function (d) {
-    if (d && d.ok) { showStatus('Added alias ' + host + ' -> ' + canonical); loadDomains(); }
-    else { showStatus((d && d.error) || 'Could not add the alias.', true); }
-  });
-}
 
 function removeDomain(host) {
   if (!window.confirm('Delete ' + host + '? The domain is de-registered; its content files are kept.')) return;
@@ -504,6 +497,24 @@ function editSection(host, section, row) {
     + cells + '</div></div>';
 }
 
+// The last-loaded domain rows, so the Add form can pre-fill from an existing one.
+var DOMAINS = [];
+// "Copy settings from": pre-fill the Add form from an existing domain's OWN
+// values (a create-time convenience - once created the new domain is unrelated).
+function cloneFrom(host) {
+  if (!host) return;
+  var src = null;
+  for (var i = 0; i < DOMAINS.length; i++) { if (DOMAINS[i].host === host) { src = DOMAINS[i]; break; } }
+  if (!src) return;
+  var own = function (k) { return src[k + '_inherited'] ? '' : (src[k] || ''); };
+  var setV = function (id, v) { var e = document.getElementById(id); if (e) e.value = v || ''; };
+  setV('f-croot', own('content_root'));
+  setV('f-sitename', own('site_name'));
+  var ap = document.getElementById('f-appearance');
+  if (ap) { var lay = own('layout'), th = own('theme'); ap.value = (lay || th) ? (lay + '|' + th) : ''; }
+  // site_url is intentionally NOT copied - the new host gets its own address.
+}
+
 function loadDomains() {
   fetch(API + '?action=domains-list', { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
@@ -511,18 +522,21 @@ function loadDomains() {
       var listEl = document.getElementById('domains-list');
       if (!d || !d.ok) { listEl.innerHTML = '<div class="mg-status">Could not load domains.</div>'; return; }
       var rows = d.domains || [];
+      DOMAINS = rows;    // for the Add form's "Copy settings from" pre-fill
+      var cf = document.getElementById('f-clone-from');
+      if (cf) {
+        var opts = '<option value="">Start blank</option>';
+        rows.forEach(function (r) { if (!r.is_primary) opts += '<option value="' + esc(r.host) + '">' + esc(r.host) + '</option>'; });
+        cf.innerHTML = opts;
+      }
       // Table scrolls inside its own box (overflow-x) so a wide row never pushes
       // the page sideways; the column set is curated (DISPLAY_KEYS) to stay slim.
       var html = '<div style="overflow-x:auto;"><table class="mg-file-table" style="min-width:0;"><thead><tr><th>Domain</th>';
       DISPLAY_KEYS.forEach(function (k) { html += '<th>' + esc(label(k)) + '</th>'; });
       html += '<th>Actions</th></tr></thead><tbody>';
       rows.forEach(function (row) {
-        // SM155: an alias row is indented and tagged under its canonical domain.
-        var tag = row.is_primary ? ' <span style="color:#888;font-weight:400">default site</span>'
-                : row.alias_of ? ' <span style="color:#888;font-weight:400" title="serves the same content as ' + esc(row.alias_of) + '">&#8627; alias of ' + esc(row.alias_of) + '</span>'
-                : '';
-        var pad = row.alias_of ? ' style="padding-left:1.6rem"' : '';
-        html += '<tr><td class="mg-file-name"' + pad + '><strong>' + esc(row.host) + '</strong>' + tag + '</td>';
+        var tag = row.is_primary ? ' <span style="color:#888;font-weight:400">default site</span>' : '';
+        html += '<tr><td class="mg-file-name"><strong>' + esc(row.host) + '</strong>' + tag + '</td>';
         DISPLAY_KEYS.forEach(function (k) {
           var v = row[k], inherited = row[k + '_inherited'], cell;
           if (k === 'content_root' && !v) {
@@ -539,18 +553,11 @@ function loadDomains() {
         // Actions - buttons may wrap on a narrow screen (no nowrap).
         if (row.is_primary) {
           html += '<td></td></tr>';
-        } else if (row.alias_of) {
-          html += '<td>'
-                + '<button class="mg-btn mg-btn-sm" onclick="previewDomain(' + esc(JSON.stringify(row.host)) + ')">Preview</button> '
-                + '<button class="mg-btn mg-btn-sm" onclick="checkDomain(' + esc(JSON.stringify(row.host)) + ')">Check</button> '
-                + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Delete</button>'
-                + '</td></tr>';
         } else {
           html += '<td>'
                 + '<button class="mg-btn mg-btn-sm" onclick="previewDomain(' + esc(JSON.stringify(row.host)) + ')">Preview</button> '
                 + '<button class="mg-btn mg-btn-sm" onclick="checkDomain(' + esc(JSON.stringify(row.host)) + ')">Check</button> '
                 + '<button class="mg-btn mg-btn-sm" onclick="editDomain(' + esc(JSON.stringify(row.host)) + ')">Edit</button> '
-                + '<button class="mg-btn mg-btn-sm" onclick="addAlias(' + esc(JSON.stringify(row.host)) + ')">Alias</button> '
                 + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Delete</button>'
                 + '</td></tr>';
           // Hidden inline edit panel - sectioned (Identity / Presentation /
