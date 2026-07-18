@@ -108,4 +108,25 @@ sub dest { "http://host/dav$_[0]" }
         'COPY indexed the duplicate (last writer wins)' );
 }
 
+# --- SM175: a WebDAV MOVE carries the file's content history to the new path -
+SKIP: {
+    require Lazysite::Git;
+    skip 'git not installed on this host', 4 unless Lazysite::Git::git_available();
+    my $s = setup_dav_site( conf => "webdav_enabled: true\ngit_history: enabled\n" );
+    my $d = $s->{docroot};
+    ok( Lazysite::Git::init( $d, 'installer' )->{ok}, 'content history initialised' );
+
+    run_dav( $d, 'PUT', '/content/orig.md', body => "v1", HTTP_AUTHORIZATION => $s->{auth} );
+    run_dav( $d, 'PUT', '/content/orig.md', body => "v2", HTTP_AUTHORIZATION => $s->{auth} );
+    my $mv = run_dav( $d, 'MOVE', '/content/orig.md',
+        HTTP_DESTINATION => dest('/content/renamed.md'), HTTP_AUTHORIZATION => $s->{auth} );
+    ok( $mv->{code} == 201 || $mv->{code} == 204, 'MOVE ok' );
+
+    my @subj = map { $_->{subject} } @{ Lazysite::Git::file_log( $d, 'content/renamed.md' ) };
+    ok( ( grep { /^move content\/orig\.md/ } @subj ),
+        'the DAV MOVE is recorded as a move on the new path' );
+    ok( ( grep { /^(?:create|edit) content\/orig\.md/ } @subj ),
+        'the new path shows the pre-move history (followed the rename)' );
+}
+
 done_testing();
