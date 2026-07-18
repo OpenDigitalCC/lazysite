@@ -16,7 +16,7 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
-## Unreleased
+## 0.7.25 - EDGE: forms discoverability + manager UI/key/WebDAV fixes (2026-07-18)
 
 Forms: native forms are discoverable where an agent acts (SM161)
 : Agents hand-wrote dead `<form>` HTML instead of the native `:::form` + bind_form

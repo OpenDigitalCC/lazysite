@@ -1,3 +1,26 @@
+lazysite (0.7.25-1) unstable; urgency=medium
+
+  * EDGE: SM161 - native forms are discoverable where an agent acts. create_page/
+    write_file descriptions and the MCP initialize instructions forbid hand-written
+    forms and point at the native :::form + bind_form flow; a new create_form tool
+    scaffolds a form; validate_page warns on hand-authored/mailto:/third-party
+    (data-governance leak) and unbound forms; audit_site gains broken_forms. Fixes
+    the :::form (no-space) fence rendering as literal text.
+  * EDGE: SM163 - a machine key records its use over every credential path
+    (control-API token, WebDAV Basic auth, MCP), throttled, so a key in active use
+    no longer shows "not used yet".
+  * EDGE: SM166 - WebDAV PUT auto-creates the missing parent chain (mkdir -p),
+    confined to the docroot and refused for a traversal path, instead of 409/502.
+  * EDGE: manager UI fixes from 0.7.24 testing - the file editor no longer
+    false-warns on load (SM170); the Sessions/Keys tables scroll within their box
+    on narrow screens (SM171); the audit page gains a 10s auto-refresh checkbox
+    (SM172); the Domains form uses one Layout/theme selector (SM167); folders get
+    an actions dropdown like files (SM162); and the Domains edit row exposes every
+    add-form field, with an editable content root and a true/false searchable
+    select (SM174).
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sat, 18 Jul 2026 12:00:00 +0000
+
 lazysite (0.7.24-1) unstable; urgency=medium
 
   * EDGE: SM158 - portable per-domain site packages. Package one domain's site
