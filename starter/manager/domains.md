@@ -58,8 +58,9 @@ routing are configured so the domain reaches this instance.
         <div style="font-size:0.8em;color:#888;margin-top:2px;">Shown in the page header and the browser tab.</div>
       </div>
       <div class="mg-form-row">
-        <label>Theme<br>
-          <select id="f-theme" style="width:100%;box-sizing:border-box;"><option value="">Inherit the default</option></select></label>
+        <label>Appearance (layout &amp; theme)<br>
+          <select id="f-appearance" style="width:100%;box-sizing:border-box;"><option value="">Inherit the default</option></select></label>
+        <div style="font-size:0.8em;color:#888;margin-top:2px;">A theme always belongs to a layout, so pick them together.</div>
       </div>
     </div>
   </div>
@@ -98,15 +99,14 @@ routing are configured so the domain reaches this instance.
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
-var THEMES = [];    // installed theme names, loaded once (see loadThemes)
-var LAYOUTS = [];   // installed layout names, loaded once (see loadLayouts)
 var siteUrlEdited = false;   // true once the operator types in the Site URL field
 
 // Friendly labels for the per-domain keys - the table headers and the edit row
 // use these instead of the raw conf key names (site_url, nav_file, ...).
 var LABELS = {
   content_root: 'Content folder', site_url: 'Site address', site_name: 'Site title',
-  theme: 'Theme', layout: 'Layout', nav_file: 'Navigation menu', search_default: 'Search'
+  theme: 'Theme', layout: 'Layout', appearance: 'Appearance (layout & theme)',
+  nav_file: 'Navigation menu', search_default: 'Search'
 };
 function label(k) { return LABELS[k] || k; }
 
@@ -140,52 +140,53 @@ function onHostInput() {
 // A <select> of installed themes, with an "(inherit)" first option and, for an
 // edit row, the domain's current theme pre-selected. This is a picker over what
 // is already installed - not the theme installer (that lives on Appearance).
-function themeSelect(id, current) {
+// SM167: layout and theme are ONE choice - a theme always belongs to a layout,
+// so a theme-without-layout is meaningless. APPEARANCE holds the installed
+// { layout, theme } pairs; the value "layout|theme" carries both.
+var APPEARANCE = [];   // [{ layout, theme }]
+function appearanceSelect(id, curLayout, curTheme) {
+  var cur = (curLayout || '') + '|' + (curTheme || '');
   var html = '<select id="' + esc(id) + '"><option value="">Inherit the default</option>';
-  THEMES.forEach(function (name) {
-    html += '<option value="' + esc(name) + '"' + (name === current ? ' selected' : '') + '>' + esc(name) + '</option>';
+  APPEARANCE.forEach(function (a) {
+    var val = a.layout + '|' + a.theme;
+    html += '<option value="' + esc(val) + '"' + (val === cur ? ' selected' : '') + '>'
+          + esc(a.layout + ' / ' + a.theme) + '</option>';
   });
   return html + '</select>';
 }
+// Split an appearance value into { layout, theme } (both '' when inheriting).
+function splitAppearance(v) {
+  var p = (v || '').split('|');
+  return { layout: p[0] || '', theme: p[1] || '' };
+}
 
 function loadThemes() {
+  // themes-list-all returns every installed theme with the layout it belongs to.
   return fetch(API + '?action=themes-list-all', { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
       if (!d || !d.ok) return;
       var seen = {};
       (d.themes || []).forEach(function (t) {
-        if (t.name && !seen[t.name]) { seen[t.name] = 1; THEMES.push(t.name); }
+        if (!t.name || !t.layout) return;
+        var key = t.layout + '|' + t.name;
+        if (!seen[key]) { seen[key] = 1; APPEARANCE.push({ layout: t.layout, theme: t.name }); }
       });
-      THEMES.sort();
-      var sel = document.getElementById('f-theme');   // populate the add-form select
+      APPEARANCE.sort(function (a, b) {
+        return (a.layout + '/' + a.theme).localeCompare(b.layout + '/' + b.theme);
+      });
+      var sel = document.getElementById('f-appearance');   // populate the add-form select
       if (sel) {
-        THEMES.forEach(function (name) {
+        APPEARANCE.forEach(function (a) {
           var o = document.createElement('option');
-          o.value = name; o.textContent = name;
+          o.value = a.layout + '|' + a.theme; o.textContent = a.layout + ' / ' + a.theme;
           sel.appendChild(o);
         });
       }
     })
     .catch(function () {});
 }
-
-// A <select> of installed layouts (like themeSelect) - the edit row uses it so
-// layout is chosen from what is installed, not typed.
-function layoutSelect(id, current) {
-  var html = '<select id="' + esc(id) + '"><option value="">Inherit the default</option>';
-  LAYOUTS.forEach(function (name) {
-    html += '<option value="' + esc(name) + '"' + (name === current ? ' selected' : '') + '>' + esc(name) + '</option>';
-  });
-  return html + '</select>';
-}
-
-function loadLayouts() {
-  return fetch(API + '?action=layouts-available', { credentials: 'same-origin' })
-    .then(function (r) { return r.json(); })
-    .then(function (d) { if (d && d.ok) { LAYOUTS = (d.layouts || []).slice().sort(); } })
-    .catch(function () {});
-}
+function loadLayouts() { return Promise.resolve(); }   // folded into loadThemes (appearance pairs)
 
 // Columns shown in the domains table - a curated set, so the table stays narrow
 // and never runs off the page. Every editable key still appears in the inline
@@ -193,7 +194,9 @@ function loadLayouts() {
 var DISPLAY_KEYS = ['content_root', 'site_name', 'theme'];
 // Presentation keys an existing domain can override (content_root is set at
 // creation - changing where content lives is a move, done via Files).
-var EDIT_KEYS = ['site_url', 'site_name', 'theme', 'layout', 'nav_file', 'search_default'];
+// SM167: theme + layout are edited as one 'appearance' field (a layout/theme
+// pair); saveDomain splits it back into the two conf keys.
+var EDIT_KEYS = ['site_url', 'site_name', 'appearance', 'nav_file', 'search_default'];
 
 function post(action, obj) {
   return fetch(API + '?action=' + action, {
@@ -206,12 +209,14 @@ function post(action, obj) {
 function addDomain() {
   var host = document.getElementById('f-host').value.trim();
   if (!host) { showStatus('A full domain name is required.', true); return; }
+  var ap = splitAppearance(document.getElementById('f-appearance').value);
   post('domain-add', {
     host: host,
     content_root: document.getElementById('f-croot').value.trim(),   // empty = default site
     site_url: document.getElementById('f-siteurl').value.trim(),
     site_name: document.getElementById('f-sitename').value.trim(),
-    theme: document.getElementById('f-theme').value,
+    theme: ap.theme,
+    layout: ap.layout,
     seed: document.getElementById('f-seed').checked ? 1 : 0
   }).then(function (d) {
     if (d && d.ok) { showStatus('Registered ' + host); toggleAdd(); loadDomains(); }
@@ -328,11 +333,21 @@ function closePreview() { document.getElementById('domain-preview-overlay').styl
 function saveDomain(host) {
   var chain = Promise.resolve();
   var changed = 0;
+  var setKey = function (key, value) {
+    chain = chain.then(function () { return post('domain-set', { host: host, key: key, value: value }); });
+  };
   EDIT_KEYS.forEach(function (k) {
     var inp = document.getElementById('e-' + host + '-' + k);
     if (!inp) return;
     changed++;
-    chain = chain.then(function () { return post('domain-set', { host: host, key: k, value: inp.value.trim() }); });
+    if (k === 'appearance') {
+      // One field, two conf keys: split "layout|theme" and write both.
+      var ap = splitAppearance(inp.value);
+      setKey('layout', ap.layout);
+      setKey('theme', ap.theme);
+    } else {
+      setKey(k, inp.value.trim());
+    }
   });
   chain.then(function () {
     if (changed) { showStatus('Saved ' + host); loadDomains(); }
@@ -346,10 +361,11 @@ function editField(host, k, row) {
   var own = row[k + '_inherited'] ? '' : (row[k] || '');
   var effective = row[k] || '';
   var field;
-  if (k === 'theme') {
-    field = themeSelect('e-' + host + '-' + k, own);
-  } else if (k === 'layout') {
-    field = layoutSelect('e-' + host + '-' + k, own);
+  if (k === 'appearance') {
+    // The domain's OWN layout + theme (blank when inherited); one dropdown.
+    var curLayout = row.layout_inherited ? '' : (row.layout || '');
+    var curTheme  = row.theme_inherited  ? '' : (row.theme  || '');
+    field = appearanceSelect('e-' + host + '-appearance', curLayout, curTheme);
   } else {
     var ph = (row[k + '_inherited'] && effective)
       ? ' placeholder="' + esc(effective) + ' (inherited)"' : '';
