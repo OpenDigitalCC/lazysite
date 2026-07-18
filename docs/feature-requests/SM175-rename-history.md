@@ -70,25 +70,16 @@ operator delete-then-recreate (bypassing the move op)
 
 ## Design
 
-Two tiers. Tier 1 is most of the value at low risk; Tier 2 makes the guarantee
-independent of git's rename *heuristic*.
+**Empirical finding (git 2.47.3), which settled the approach:** `git log
+--follow` follows a rename backward, so it fixes the "moved file lost its
+history" half - but it does **not** stop the delete/recreate leak. Both
+`git log -- path` and `git log --follow -- path` still list *every* commit that
+ever touched the pathname, so a fresh file at a previously-deleted path still
+shows the deleted file's timeline. `--follow` is therefore insufficient on its
+own; the explicit-lineage mechanism below is the core, not an optional hardening.
+(The original two-tier framing collapsed into one.)
 
-### Tier 1 - the view follows renames
-
-- `file_log` uses `git log --follow` for the single-file case (valid only for one
-  pathspec, which `file_log` always is).
-- Guarantee every move is a **pure, single-commit rename** (identical content) so
-  detection is reliable. A move that also edits content is done as rename-first,
-  then edit - two commits - so the rename stays detectable.
-- Because `--follow` stops at the commit that *added* a file as new, a fresh
-  create at a previously-deleted path shows only its own history - the common-case
-  leak closes for free.
-
-Residual: an identical-content recreate could be mis-detected by git's similarity
-scoring as a rename of the deleted file, re-opening the leak in a narrow case.
-Tier 2 removes the heuristic entirely.
-
-### Tier 2 - explicit lineage (deterministic)
+### The mechanism - explicit lineage (deterministic)
 
 - Every move commit carries a machine-readable trailer
   `Lazysite-Renamed-From: <old rel path>` (the terse subject stays
@@ -136,16 +127,17 @@ link - which defeats history however clever the log walk is.
 History is **never leakable into the future across a delete/recreate boundary.**
 Only a rename link carries a thread forward, and a delete writes no rename link.
 A recreate at a used name therefore always starts clean. This holds by
-construction under Tier 2, and under Tier 1 for every case except an
-identical-content recreate.
+construction for every case (including an identical-content recreate), because
+the walk follows the explicit trailer, never git's content-similarity guess.
 
 ## Storage and compatibility
 
 - Nothing new is stored in content - only commit trailers, which live in the git
   log and never appear in a file.
-- Existing repos benefit from `--follow` immediately (their atomic-move commits
-  are already rename-detectable). The explicit-trailer walk applies to moves made
-  after the upgrade; older moves fall back to `--follow`. No migration.
+- The lineage walk applies to moves made after the upgrade (they carry the
+  trailer). A move made by an older version has no trailer, so its history simply
+  starts at the move commit - the pre-SM175 behaviour, and never a leak. No
+  migration.
 - `git-history` output shape is unchanged (a list of versions); it simply returns
   the correct set.
 
@@ -200,7 +192,8 @@ Limit / performance
 
 ## Rollout
 
-- **Tier 1** (`file_log --follow`, the Files history panel, agent steering) is the
-  bulk of the value at low risk - target 0.7.26.
-- **Tier 2** (explicit `Lazysite-Renamed-From` trailer + deterministic walk) can
-  land in the same release or immediately after; note in the CHANGELOG if split.
+Landed as one mechanism for 0.7.26 (branch claude/rename-history): the
+`Lazysite-Renamed-From` trailer + lineage walk in `Lazysite::Git`, the move ops
+routed through it (manager Move, MCP rename_page, WebDAV MOVE), the agent
+steering, and the Files history panel following renames (including view / diff /
+restore of pre-rename versions via a server-resolved historic path).
