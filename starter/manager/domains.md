@@ -204,11 +204,18 @@ var DISPLAY_KEYS = ['content_root', 'site_name', 'theme'];
 // pair); saveDomain splits it back into the two conf keys.
 var EDIT_KEYS = ['content_root', 'site_url', 'site_name', 'appearance', 'nav_file', 'search_default',
   'allowed_groups', 'locked_users'];
+// The edit panel groups the keys into labelled sections so it reads top-to-bottom
+// like the Add form, rather than one ragged row of mixed-width fields.
+var EDIT_SECTIONS = [
+  { title: 'Identity',     note: '',                                  keys: ['content_root'] },
+  { title: 'Presentation', note: 'optional – inherits the default',   keys: ['site_url', 'site_name', 'appearance', 'nav_file', 'search_default'] },
+  { title: 'Access',       note: 'who may manage this domain',        keys: ['allowed_groups', 'locked_users'] }
+];
 // Optional grey hint rendered under an edit field where the effect is not obvious.
 var EDIT_HINTS = {
   content_root: 'Blank serves the default site. Changing this repoints the domain to another folder – it does not move existing files.',
-  allowed_groups: 'Comma-separated group names. A member of any of these groups may manage this domain (and is confined to it). Empty = only operators.',
-  locked_users: 'Comma-separated account names. A locked user can reach ONLY this domain (of the ones their groups allow) – nothing else.'
+  allowed_groups: 'Tick the groups whose members may manage this domain (and are confined to it). None ticked = only operators.',
+  locked_users: 'Tick accounts that can reach ONLY this domain (of the ones their groups allow) – nothing else.'
 };
 // Keys whose value comes from a fixed set are edited as a <select> (with an
 // "inherit" blank), not a free-text box - matching the processor's own config UI
@@ -416,46 +423,62 @@ function saveDomain(host) {
 
 // One inline edit field: friendly label, the domain's OWN value pre-filled; an
 // inherited value is shown as a greyed placeholder so the current effective
-// value is always visible without overwriting the inherit.
+// value is always visible without overwriting the inherit. Each field fills its
+// grid cell (width:100%) so columns line up regardless of content.
 function editField(host, k, row) {
   var own = row[k + '_inherited'] ? '' : (row[k] || '');
   var effective = row[k] || '';
-  // SM165 access keys: a tick-list of principals, not a text box. Rendered as a
-  // fieldset-style block (not wrapped in a <label>, so its own labels nest cleanly).
+  var hint = EDIT_HINTS[k]
+    ? '<span style="font-weight:400;color:#999;font-size:0.92em;margin-top:2px;">' + esc(EDIT_HINTS[k]) + '</span>'
+    : '';
+  var full = 'width:100%;box-sizing:border-box;';
+  var wrap = function (inner, span) {
+    // A field cell: label above, control below. `span` makes a wide control (the
+    // tick-lists) claim the full grid width so it doesn't squeeze the columns.
+    return '<label style="display:flex;flex-direction:column;gap:3px;font-size:0.85em;color:#555;'
+      + (span ? 'grid-column:1/-1;' : '') + '">'
+      + '<span style="font-weight:600;color:#444;">' + esc(label(k)) + '</span>'
+      + inner + hint + '</label>';
+  };
+
+  // SM165 access keys: a tick-list of principals, not a text box.
   if (PICK_KEYS[k]) {
-    var hintP = EDIT_HINTS[k]
-      ? '<div style="font-weight:400;color:#999;font-size:0.85em;margin-top:3px;max-width:26rem;">' + esc(EDIT_HINTS[k]) + '</div>'
-      : '';
-    return '<div style="margin:0 14px 12px 0;font-size:0.85em;color:#555;">'
-      + '<div style="margin-bottom:3px;">' + esc(label(k)) + '</div>'
-      + pickList(host, k, own) + hintP + '</div>';
+    return wrap(pickList(host, k, own), true);
   }
   var field;
   if (k === 'appearance') {
-    // The domain's OWN layout + theme (blank when inherited); one dropdown.
     var curLayout = row.layout_inherited ? '' : (row.layout || '');
     var curTheme  = row.theme_inherited  ? '' : (row.theme  || '');
-    field = appearanceSelect('e-' + host + '-appearance', curLayout, curTheme);
+    // appearanceSelect builds a <select id=...>; widen it to fill the cell.
+    field = appearanceSelect('e-' + host + '-appearance', curLayout, curTheme)
+      .replace('<select ', '<select style="' + full + '" ');
   } else if (EDIT_OPTIONS[k]) {
-    // Fixed-choice key: a <select>. The blank "inherit" option names the
-    // effective inherited value so it stays visible without overwriting it.
     var blank = (row[k + '_inherited'] && effective)
       ? 'Inherit the default (' + effective + ')' : 'Inherit the default';
     var opts = '<option value="">' + esc(blank) + '</option>';
     EDIT_OPTIONS[k].forEach(function (o) {
       opts += '<option value="' + esc(o) + '"' + (o === own ? ' selected' : '') + '>' + esc(o) + '</option>';
     });
-    field = '<select id="e-' + esc(host) + '-' + esc(k) + '">' + opts + '</select>';
+    field = '<select id="e-' + esc(host) + '-' + esc(k) + '" style="' + full + '">' + opts + '</select>';
   } else {
     var ph = (row[k + '_inherited'] && effective)
       ? ' placeholder="' + esc(effective) + ' (inherited)"' : '';
-    field = '<input id="e-' + esc(host) + '-' + esc(k) + '" value="' + esc(own) + '"' + ph + ' style="width:14rem;max-width:100%;box-sizing:border-box;">';
+    field = '<input id="e-' + esc(host) + '-' + esc(k) + '" value="' + esc(own) + '"' + ph + ' style="' + full + '">';
   }
-  var hint = EDIT_HINTS[k]
-    ? '<span style="font-weight:400;color:#999;max-width:16rem;margin-top:2px;">' + esc(EDIT_HINTS[k]) + '</span>'
+  return wrap(field, false);
+}
+
+// The fields of one edit section, laid out in an aligned responsive grid.
+function editSection(host, section, row) {
+  var cells = section.keys.map(function (k) { return editField(host, k, row); }).join('');
+  var note = section.note
+    ? ' <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#aaa;">&mdash; ' + esc(section.note) + '</span>'
     : '';
-  return '<label style="display:inline-flex;flex-direction:column;gap:2px;margin:0 14px 10px 0;font-size:0.85em;color:#555;">'
-       + esc(label(k)) + field + hint + '</label>';
+  return '<div style="margin-top:12px;">'
+    + '<div style="font-size:0.72em;color:#999;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">'
+    + esc(section.title) + note + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px;align-items:start;">'
+    + cells + '</div></div>';
 }
 
 function loadDomains() {
@@ -507,16 +530,15 @@ function loadDomains() {
                 + '<button class="mg-btn mg-btn-sm" onclick="addAlias(' + esc(JSON.stringify(row.host)) + ')">Alias</button> '
                 + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Remove</button>'
                 + '</td></tr>';
-          // Hidden inline edit row for the presentation keys - styled panel,
-          // friendly labels, current values pre-filled (editField).
+          // Hidden inline edit panel - sectioned (Identity / Presentation /
+          // Access), each a grid of aligned fields (editSection/editField).
           html += '<tr id="edit-' + esc(row.host) + '" style="display:none"><td colspan="' + (DISPLAY_KEYS.length + 2) + '">'
-                + '<div style="background:var(--mg-panel,#fafafa);border:1px solid var(--mg-border,#e2e2e2);border-radius:5px;padding:12px 14px;">'
-                + '<div style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Edit ' + esc(row.host) + '</div>'
-                + '<div style="display:flex;flex-wrap:wrap;align-items:flex-end;">';
-          EDIT_KEYS.forEach(function (k) { html += editField(row.host, k, row); });
-          html += '</div>'
+                + '<div style="background:var(--mg-panel,#fafafa);border:1px solid var(--mg-border,#e2e2e2);border-radius:6px;padding:14px 16px;max-width:760px;">'
+                + '<div style="font-size:0.9em;font-weight:600;color:#444;border-bottom:1px solid var(--mg-border,#e2e2e2);padding-bottom:8px;margin-bottom:4px;">Edit ' + esc(row.host) + '</div>';
+          EDIT_SECTIONS.forEach(function (s) { html += editSection(row.host, s, row); });
+          html += '<div style="margin-top:16px;">'
                 + '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveDomain(' + esc(JSON.stringify(row.host)) + ')">Save changes</button>'
-                + '</div></td></tr>';
+                + '</div></div></td></tr>';
         }
       });
       html += '</tbody></table></div>';
