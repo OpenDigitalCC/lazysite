@@ -18,6 +18,39 @@ Keying
 
 ## Unreleased
 
+Sites: portable per-domain site packages - create / export / import / apply (SM158)
+: An agency demo can be handed to a client's own instance, or a site moved
+  between domains/instances, without the whole-docroot backup (which carries
+  every client and the auth secrets, so it is system-user only). A package holds
+  ONE domain's site - its content root, its nav override, the referenced layout
+  pruned to its one theme, and a manifest of the presentation keys - and
+  deliberately excludes plugins, instance settings and secrets, so it is
+  self-service. Apply extracts to an isolated staging dir (M-TAR hardening, drops
+  symlinks, rejects path escapes), safety-snapshots the target first, copies the
+  content into the target content root, installs the theme/layout only if
+  missing, places the nav, and writes the target domain's keys. Surfaces:
+  control-API `site-backup-create/upload/apply`, MCP `site_backup` / `site_apply`,
+  CLI `lazysite-site backup|apply` - all manage_content + scope. `site-backup-upload`
+  is the first backup upload (backups were server-only). Gate:
+  `t/unit/manager/35-site-package.t`.
+
+Nav: domain-aware editor + a clearer "add menu item" affordance (SM159)
+: The nav editor is now domain-aware - a picker chooses which domain's nav to
+  edit (its `nav_file` override, or the shared base with an "inherits" note); the
+  add-item inputs move behind an "+ Add menu item" button that expands a labelled
+  box. `nav-read`/`nav-save` take a host. Gate:
+  `t/unit/manager/10-control-api.t`.
+
+Backups: every artefact carries a `lazysite-` prefix
+: Backup files are now `lazysite-<kind>-<UTCstamp>.tar.gz` (site packages
+  `lazysite-site-<host>-...`), so they sort together and are unmistakably ours.
+
+Audit: path-less actions record a meaningful target
+: The audit trail named a bare `/` for actions that act on something other than
+  a file. Now domain-*/site-backup-* record the host, `config-set` the key that
+  changed, `backup-create` the kind, and login/logout the site host. Gate:
+  `t/unit/manager/19-audit-target.t`.
+
 ## 0.7.23 - EDGE: Files breadcrumb root icon fix (2026-07-16)
 
 Manager: the Files breadcrumb root shows its folder icon again
