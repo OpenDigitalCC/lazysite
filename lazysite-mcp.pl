@@ -303,7 +303,7 @@ my %TOOLS = (
         },
     },
     write_file => {
-        description => 'Create or overwrite a text file with the given content.',
+        description => 'Create or overwrite a text file with the given content. FOR A FORM: never hand-write <form>/<input> HTML or point at a third-party form service (Formspree, Google Forms) - that has no operator-vetted handler and routes visitor data off-instance. Use create_form, or a native :::form block + bind_form.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' }, content => { type => 'string' } },
@@ -545,6 +545,70 @@ my %TOOLS = (
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _list_form_handlers() },
     },
+    create_form => {
+        description => 'THE way to add a form to a page - never hand-write <form>/<input> HTML (it has no delivery handler and ships dead). Inserts a native :::form block into the page and sets its "form: NAME" front matter. Give fields as "name | Label | rules" strings (rules: required, email, textarea, select:A,B,C, max:N); omit to scaffold a name/email/message contact form. The form RENDERS after this but does NOT deliver until you bind it: next call list_form_handlers, then bind_form(form: NAME, handler: ID).',
+        cap         => 'manage_content', path_aware => 1,
+        inputSchema => {
+            type       => 'object',
+            properties => {
+                path => { type => 'string', description => 'Page to add the form to (created if absent)' },
+                name => { type => 'string', description => 'Form name (a-z0-9_-), used in front matter + bind_form' },
+                fields => { type => 'array', items => { type => 'string' },
+                    description => 'Field lines "name | Label | rules"; omit for a contact form' },
+                submit => { type => 'string', description => 'Submit button label (default "Send")' },
+            },
+            required             => [ 'path', 'name' ],
+            additionalProperties => JSON::PP::false,
+        },
+        run => sub {
+            my ( $a, $user ) = @_;
+            my $name = lc( $a->{name} // '' );
+            return { ok => 0, error => 'A form name (a-z0-9_-) is required' }
+                unless $name =~ /\A[a-z0-9][a-z0-9_-]*\z/;
+            return { ok => 0, error => 'A page path is required' }
+                unless defined $a->{path} && length $a->{path};
+
+            my @fields = ( ref $a->{fields} eq 'ARRAY' && @{ $a->{fields} } )
+                ? @{ $a->{fields} }
+                : ( 'name | Your name | required max:200',
+                'email | Email | required email',
+                'message | Message | required textarea' );
+            my $submit = $a->{submit} // 'Send';
+            my $block = ":::form\n" . join( "\n", @fields ) . "\nsubmit | $submit\n:::\n";
+
+            # Read the page if it exists; ensure front matter carries form: NAME,
+            # then append the block. A page with a different form already bound is
+            # left alone (do not silently rebind).
+            my $rd      = action_read( $a->{path}, $user );
+            my $content = ( ref $rd eq 'HASH' && $rd->{ok} ) ? ( $rd->{content} // '' ) : '';
+            if ( length $content && $content =~ /\A---\s*\n(.*?)\n---\s*\n/s ) {
+                my $fm = $1;
+                if ( $fm =~ /^\s*form\s*:\s*(\S+)/m && lc($1) ne $name ) {
+                    return { ok => 0, error => "Page already has a different form ('$1'); "
+                            . 'edit it directly or pick that name.' };
+                }
+                $content =~ s/\A(---\s*\n)/$1form: $name\n/ unless $fm =~ /^\s*form\s*:/m;
+                $content =~ s/\s*\z/\n/;
+                $content .= "\n$block";
+            }
+            else {
+                # No usable front matter - create a fresh page.
+                my $title = ucfirst($name) =~ s/[-_]+/ /gr;
+                $content = "---\ntitle: $title\nform: $name\n---\n\n$block";
+            }
+
+            my $save = action_save( $a->{path}, $user, $content, undef );
+            return $save unless ref $save eq 'HASH' && $save->{ok};
+            return {
+                ok       => 1,
+                path     => $a->{path},
+                form     => $name,
+                delivers => JSON::PP::false,
+                next => "Form scaffolded but NOT delivering yet. Call list_form_handlers, "
+                    . "then bind_form(form: '$name', handler: <id>) to wire delivery.",
+            };
+        },
+    },
     bind_form => {
         description => 'Wire a form to delivery. FULL FLOW to build a working form natively (do not just copy an existing page): (1) in the page Markdown add front matter "form: NAME" and a :::form block - each field is a "field_name | Label | rules" line; rules include required, email, textarea, select:A,B,C, max:N; end with "submit | Button label". Example: ":::form\\nname | Your name | required max:200\\nemail | Email | required email\\nmessage | Message | required textarea\\nsubmit | Send\\n:::". See /docs/forms for the full reference. (2) call list_form_handlers to see the operator-vetted delivery handlers. (3) call bind_form(form: NAME, handler: ID). A :::form renders but does NOT deliver until bound. You never set a destination or credential (operator-only). Writes lazysite/forms/<form>.conf.',
         cap         => 'manage_forms',
@@ -557,7 +621,7 @@ my %TOOLS = (
         run => sub { _bind_form( $_[0]->{form}, $_[0]->{handler} ) },
     },
     audit_site => {
-        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), and duplicate content blocks (the same paragraph on multiple pages, e.g. repeated reviews). Returns lists per category.',
+        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), and broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler). Returns lists per category.',
         cap => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _audit_site() },
@@ -611,7 +675,7 @@ my %TOOLS = (
         run => sub { _submit_feedback( $_[0], $_[1], $_[2] ) },
     },
     create_page => {
-        description => 'Create a new page from front-matter fields (title, subtitle, register list) + Markdown body. Errors if the page already exists (use write_file to overwrite). Higher-level than assembling front matter by hand.',
+        description => 'Create a new page from front-matter fields (title, subtitle, register list) + Markdown body. Errors if the page already exists (use write_file to overwrite). Higher-level than assembling front matter by hand. FOR A FORM: never hand-write <form>/<input> HTML (it ships with no delivery handler - a dead form). Use the create_form tool, or put a native :::form block in the body (fields as "name | Label | rules" lines) plus "form: NAME" front matter, then wire delivery with bind_form.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
@@ -973,6 +1037,51 @@ sub _validate_page {
         }
     }
 
+    # SM161: forms must be native (a :::form block bound to an operator-vetted
+    # handler), never hand-written HTML or a third-party form service.
+    my $has_fenced_form = $content =~ /^:::[ \t]*form\b/m;
+    if ( $body =~ /<form\b/i || $body =~ /<input\b/i || $body =~ /<textarea\b/i ) {
+        push @warnings, { kind => 'hand-authored-form',
+            message => 'hand-written <form>/<input> HTML detected - it has no delivery '
+                . 'handler and ships DEAD. Use a native :::form block (fields as '
+                . '"name | Label | rules" lines) and wire delivery with bind_form.' };
+    }
+    if ( $body =~ /action\s*=\s*["']\s*mailto:/i ) {
+        push @warnings, { kind => 'form-mailto',
+            message => 'a mailto: form action exposes an address and routes visitor '
+                . 'data around the operator-vetted handlers - use a :::form + bind_form.' };
+    }
+    if ( $body =~ m{
+            action \s* = \s* ["'] \s* https?://
+            (?:[\w.-]*\.)?
+            (?: formspree\.io | docs\.google\.com | forms\.gle | jotform\.
+              | typeform\. | wufoo\. | getform\. | form\.io )
+        }ix )
+    {
+        push @warnings, { kind => 'form-third-party',
+            message => 'a third-party form endpoint routes visitor data OFF this '
+                . 'instance, around the operator-vetted handlers (a data-governance '
+                . 'leak, not a style choice) - use a :::form + bind_form instead.' };
+    }
+    # A native :::form that renders but was never bound to a handler does not
+    # deliver. It is bound by front matter "form: NAME" + a lazysite/forms/NAME.conf
+    # (written by bind_form); warn when the block is present but unbound.
+    if ($has_fenced_form) {
+        my $fname = $h->{form};
+        if ( !defined $fname || !length $fname ) {
+            push @warnings, { kind => 'form-unnamed',
+                message => 'a :::form block has no "form: NAME" in the front matter, so '
+                    . 'it cannot be bound to a handler and will not deliver - add it, then bind_form.' };
+        }
+        elsif ( defined $path && length $path ) {
+            my $conf = "$DOCROOT/lazysite/forms/$fname.conf";
+            push @warnings, { kind => 'form-unbound',
+                message => "the form '$fname' is not bound to a delivery handler yet "
+                    . '(it renders but does not deliver) - call bind_form(form, handler).' }
+                unless -f $conf;
+        }
+    }
+
     # Public-data warnings - private/operational details that should not be
     # published accidentally (guest-instruction uploads carry these).
     my $ln = 0;
@@ -995,7 +1104,7 @@ sub _validate_page {
 
 # --- SM087 Tier 2: whole-site audit ---------------------------------------
 sub _audit_site {
-    my ( %exists, %inbound, %para, @info, @links );
+    my ( %exists, %inbound, %para, @info, @links, @forms );
     _each_page( sub {
             my ( $rel, $full ) = @_;
             ( my $slug = "/$rel" ) =~ s/\.md$//;
@@ -1005,6 +1114,25 @@ sub _audit_site {
             my ( $fm, $body ) = _split_front_matter($c);
             my $h = _parse_fm($fm);
             push @info, { slug => $slug, title => ( $h->{title} // '' ) };
+
+            # SM161: forms that ship broken - a hand-authored <form>/<input>
+            # (no delivery handler), or a native :::form that was never bound to
+            # a handler (renders but does not deliver).
+            if ( $body =~ /<form\b/i || $body =~ /<input\b/i ) {
+                push @forms, { page => $slug, kind => 'hand-authored',
+                    message => 'hand-written form HTML with no handler - use a :::form + bind_form' };
+            }
+            if ( $c =~ /^:::[ \t]*form\b/m ) {
+                my $fname = $h->{form};
+                if ( !defined $fname || !length $fname ) {
+                    push @forms, { page => $slug, kind => 'unnamed',
+                        message => ':::form block with no "form: NAME" - cannot be bound' };
+                }
+                elsif ( !-f "$LAZYSITE_DIR/forms/$fname.conf" ) {
+                    push @forms, { page => $slug, kind => 'unbound', form => $fname,
+                        message => "form '$fname' is not bound to a handler - it will not deliver" };
+                }
+            }
             while ( $body =~ /\]\(([^)\s]+)\)/g )     { push @links, [ $slug, $1 ] }
             while ( $body =~ /href=["']([^"'#?]+)/g ) { push @links, [ $slug, $1 ] }
             for my $p ( split /\n\s*\n/, $body ) {
@@ -1055,7 +1183,8 @@ sub _audit_site {
 
     return { ok => 1, pages => scalar @info,
         broken_links  => \@broken,   orphan_pages => \@orphans,
-        missing_title => \@no_title, stale_html => \@stale, duplicate_blocks => \@dups };
+        missing_title => \@no_title, stale_html   => \@stale, duplicate_blocks => \@dups,
+        broken_forms  => \@forms };
 }
 
 # --- SM088: bind a form to an operator-vetted delivery handler ------------
@@ -1372,7 +1501,10 @@ if ( $method eq 'initialize' ) {
                 . 'creating or restructuring pages, read the site briefing '
                 . '/docs/ai-briefing-building-sites: keep content (Markdown), layout and '
                 . 'theme separate, and never put ordinary pages in raw mode (api:true / '
-                . 'raw:true) or hand-author HTML into /lazysite-assets/. For content rules '
+                . 'raw:true) or hand-author HTML into /lazysite-assets/. Forms are native: '
+                . 'use the create_form tool (or a :::form block bound to an operator-vetted '
+                . 'handler via bind_form) - never hand-written form HTML or a third-party '
+                . 'form service. For content rules '
                 . 'see /docs/ai-briefing-authoring; for layouts and themes '
                 . '/docs/ai-briefing-layouts. When you screenshot or QA the live site, set '
                 . 'your User-Agent to lazysite-agent/<partner-id> so your hits stay out of '

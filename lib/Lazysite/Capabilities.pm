@@ -48,7 +48,7 @@ my %ACTION_INFO = (
             mcp => [ qw(list_files read_file write_file replace_text copy_file
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files
-                    validate_page invalidate_cache read_nav audit_site
+                    validate_page invalidate_cache read_nav audit_site create_form
                     get_permissions set_permissions
                     list_versions view_version restore_version) ],
             webdav => ['write anywhere in the content namespace (within dav_scope)'],
