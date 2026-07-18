@@ -111,7 +111,15 @@ function auditUserLink(u) {
 function auditTargetLink(e) {
   var t = e.target || '';
   if (!t) return '';
-  if (/^user-/.test(e.action || '')) return auditUserLink(t);
+  var action = e.action || '';
+  if (/^user-/.test(action)) return auditUserLink(t);
+  // SM178: a domain action's target is a HOST, not a file. A host such as
+  // "www.foo.lazysite.io" ends in a dot-suffix that the file heuristic below
+  // would mistake for a filename and open in the editor. Guard by action: point
+  // domain targets at the Domains page instead.
+  if (/^domain/.test(action) || /^lang-/.test(action)) {
+    return '<a href="/manager/domains" title="Manage domains">' + aesc(t) + '</a>';
+  }
   // A move logs "from -> to"; point the link at the destination.
   var fileT = t, arrow = t.indexOf(' -> ');
   if (arrow >= 0) fileT = t.slice(arrow + 4);
