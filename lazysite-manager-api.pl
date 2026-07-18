@@ -350,7 +350,7 @@ if ( !$token_auth ) {
         'domain-set'         => 'manage_domains', 'domain-remove' => 'manage_domains',
         'domain-preview'     => 'manage_domains', 'domain-check'  => 'manage_domains',
         'domain-alias-add'   => 'manage_domains',
-        'lang-status'        => 'manage_domains',    # SM179 P6: read-only set coverage
+        'lang-status' => 'manage_content', # SM179 P6: read-only set coverage (a translation agent's cap)
         'bad-url-unblock' => 'manage_config',  'rotate-auth-secret' => 'manage_config',
         'backup-create'   => 'manage_config',  'backup-restore'     => 'manage_config',
         'backup-download' => 'manage_config',  'backup-list'        => 'manage_config',
@@ -474,7 +474,7 @@ if ($token_auth) {
         'domain-preview'   => sub { $_[0]->{manage_domains} },  # SM155: pre-DNS render
         'domain-alias-add' => sub { $_[0]->{manage_domains} },  # SM155: alias host
         'domain-check'     => sub { $_[0]->{manage_domains} },  # SM156: live config check
-        'lang-status'      => sub { $_[0]->{manage_domains} },  # SM179 P6: set coverage
+        'lang-status' => sub { $_[0]->{manage_content} }, # SM179 P6: set coverage (translation agent)
         'site-backup-create' => sub { $_[0]->{manage_domains} },  # SM158
         'site-backup-upload' => sub { $_[0]->{manage_domains} },
         'site-backup-apply'  => sub { $_[0]->{manage_domains} },
@@ -1248,7 +1248,15 @@ sub action_domain_preview {
 
     my $processor = _processor_path();
     my $output    = qx($^X \Q$processor\E 2>/dev/null);
-    $output =~ s/\A.*?\r?\n\r?\n//s;    # strip CGI headers
+    $output =~ s/\A.*?\r?\n\r?\n//s;    # strip CGI headers (ASCII, byte-safe)
+
+    # qx() returns the processor's raw UTF-8 BYTES. respond() emits the JSON via
+    # encode_json, which UTF-8-encodes CHARACTER strings - so bytes handed to it
+    # get double-encoded (e => é -> Ã©, Thai -> mojibake). Decode to characters
+    # here so the round-trip is clean. (Same raw-bytes-vs-characters trap the
+    # resolve_json path fixed on the render side.)
+    require Encode;
+    $output = Encode::decode( 'UTF-8', $output );
 
     return { ok => 1, host => $host, html => $output };
 }
