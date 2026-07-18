@@ -88,6 +88,31 @@ subtest 'missing layout' => sub {
     like( $r->{error}, qr/not found/i, 'error mentions not found' );
 };
 
+# SM177: a non-active layout that a sub-domain pins must NOT be deletable out
+# from under it - sub-domains are first-class peers of the primary here.
+subtest 'refuses to delete a layout a sub-domain uses' => sub {
+    write_layout_theme( 'promo', 'promo' );
+    # A sub-domain pins layout=promo; the primary stays on the active 'default'.
+    open my $c, '>', "$docroot/lazysite/lazysite.conf" or die $!;
+    print $c "layout: default\ntheme: default\n"
+        . "alias_hosts: promo.example\nalias.promo.example.layout: promo\n";
+    close $c;
+
+    my $r = main::action_layout_delete('promo');
+    ok( !$r->{ok}, 'delete refused while a sub-domain uses it' );
+    like( $r->{error}, qr/in use by/i,     'error says it is in use' );
+    like( $r->{error}, qr/promo\.example/, 'error names the sub-domain' );
+    ok( -d "$docroot/lazysite/layouts/promo", 'the layout is still present' );
+
+    # Repoint the sub-domain away; the layout becomes deletable.
+    open my $c2, '>', "$docroot/lazysite/lazysite.conf" or die $!;
+    print $c2 "layout: default\ntheme: default\n";
+    close $c2;
+    my $ok = main::action_layout_delete('promo');
+    ok( $ok->{ok}, 'delete succeeds once no domain uses it' ) or diag explain $ok;
+    ok( !-d "$docroot/lazysite/layouts/promo", 'the layout dir is gone' );
+};
+
 subtest 'artifact-backups-delete purges layout + theme backups, spares the active layout' => sub {
     make_path("$docroot/lazysite/layouts/old-backup-20260101T000000Z/themes/x");
     make_path("$docroot/lazysite/layouts/default/themes/default-backup-20260101T000000Z");

@@ -20,7 +20,7 @@ use File::Path                qw(make_path);
 use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved);
 use Exporter 'import';
-our @EXPORT_OK = qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check instance_public_ips);
+our @EXPORT_OK = qw(domains_list domains_using domain_add domain_add_alias domain_remove domain_set domain_check instance_public_ips);
 
 our $DOCROOT;           # set by the caller (manager-api or the CLI)
 our $auth_user = '';    # for log attribution
@@ -170,6 +170,40 @@ sub domains_list {
         push @domains, \%row;
     }
     return { ok => 1, domains => \@domains, keys => \@DOMAIN_KEYS };
+}
+
+# SM177: which registered domains (base + every alias/sub-domain) currently
+# depend on a given layout - or a given theme UNDER a given layout. Sub-domains
+# are first-class peers here: a theme/layout one of them uses must block its
+# deletion just as the primary's active one does. Effective values resolve the
+# same way the engine serves them - a per-host override wins, else the base value
+# is inherited - so an alias that inherits the base layout but pins its own theme
+# is matched correctly. Returns the list of host labels ('(default)' for the
+# primary) that use it, most useful hosts first. Pass (layout => L) to find
+# layout users; (theme => T, layout => L) to find theme users under layout L.
+sub domains_using {
+    my (%q) = @_;
+    my ( $base, $ov, $hosts ) = _parse();
+
+    my $eff = sub {
+        my ( $h, $k ) = @_;
+        return $base->{$k} // '' if $h eq '';
+        return defined $ov->{$h}{$k} ? $ov->{$h}{$k} : ( $base->{$k} // '' );
+    };
+
+    my @using;
+    for my $h ( '', @$hosts ) {
+        my $layout = $eff->( $h, 'layout' );
+        if ( defined $q{theme} ) {
+            next unless $layout eq ( $q{layout} // '' );
+            next unless $eff->( $h, 'theme' ) eq $q{theme};
+        }
+        else {
+            next unless $layout eq ( $q{layout} // '' );
+        }
+        push @using, ( $h eq '' ? '(default)' : $h );
+    }
+    return @using;
 }
 
 # --- public: add an alias --------------------------------------------------
