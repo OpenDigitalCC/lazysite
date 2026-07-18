@@ -18,6 +18,8 @@ Keying
 
 ## Unreleased
 
+## 0.7.24 - EDGE: site packages, manage_domains, nav domain-awareness (2026-07-18)
+
 Capabilities: a `manage_domains` capability, carved out of `manage_config` (SM160)
 : `manage_config` was a grab-bag. Domain management and the portable site-package
   family now have their own `manage_domains` capability, so a delegated domain/
