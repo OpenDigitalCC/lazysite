@@ -656,11 +656,13 @@ sub do_copy_move {
         else       { Lazysite::Aliases::reindex_copy( $DOCROOT, $drel ) }
     }
     # SM085: a batched MOVE/COPY (a whole collection included) is ONE commit.
+    # SM175: a MOVE records the rename (Lazysite-Renamed-From) so content history
+    # follows it; a COPY is a fresh file and starts its own thread (no trailer).
     {
         require Lazysite::Git;
         if ($move) {
-            Lazysite::Git::commit_paths( $DOCROOT, $a{user},
-                "move $a{rel} -> $drel", $a{rel}, $drel );
+            Lazysite::Git::commit_move( $DOCROOT, $a{user},
+                "move $a{rel} -> $drel", $a{rel}, $a{rel}, $drel );
         }
         else {
             Lazysite::Git::commit_paths( $DOCROOT, $a{user},

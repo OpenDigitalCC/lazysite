@@ -448,7 +448,7 @@ my %TOOLS = (
         run => sub { action_acl_get( $_[0]->{path}, $_[1] ) },
     },
     move_file => {
-        description => 'Rename or move a file (carries its .brief and re-keys its ACL).',
+        description => 'Rename or move a file: carries its .brief, re-keys its ACL, and PRESERVES its content history across the move. Always use this (or rename_page for a page) to relocate a file - never write a new file at the destination and delete the old one, which starts a fresh history and loses the past.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { from => { type => 'string' }, to => { type => 'string' } },
@@ -456,7 +456,7 @@ my %TOOLS = (
         run => sub { action_move( $_[0]->{from}, $_[0]->{to}, $_[1] ) },
     },
     delete_file => {
-        description => 'Delete a file by site-relative path.',
+        description => 'Delete a file by site-relative path. A delete ends the file\'s content history thread (a later file at the same path starts clean). To RELOCATE a file, use move_file, not delete-then-recreate, so its history follows.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { path => { type => 'string' } },
@@ -689,7 +689,7 @@ my %TOOLS = (
         run => sub { _create_page( $_[0], $_[1] ) },
     },
     delete_page => {
-        description => 'Delete a page and its .brief, and report where its slug is still referenced (nav, other pages) so you can clean up. Generated indexes (sitemap/llms/feeds) refresh automatically.',
+        description => 'Delete a page and its .brief, and report where its slug is still referenced (nav, other pages) so you can clean up. Generated indexes (sitemap/llms/feeds) refresh automatically. A delete ends the page content history thread; to RELOCATE a page use rename_page (not delete-then-recreate) so its history follows.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => { slug => { type => 'string' } },
@@ -697,7 +697,7 @@ my %TOOLS = (
         run => sub { _delete_page( $_[0], $_[1] ) },
     },
     rename_page => {
-        description => 'Rename / move a page (carries its .brief + ACL). With update_links:true, rewrites internal links to the old path across pages (best-effort - verify with preview_page; nav.conf is not rewritten).',
+        description => 'Rename / move a page: carries its .brief + ACL and PRESERVES its content history across the rename. Always use this to relocate a page - never write a new page at the new path and delete the old one, which loses the history. With update_links:true, rewrites internal links to the old path across pages (best-effort - verify with preview_page; nav.conf is not rewritten).',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
@@ -1504,7 +1504,10 @@ if ( $method eq 'initialize' ) {
                 . 'raw:true) or hand-author HTML into /lazysite-assets/. Forms are native: '
                 . 'use the create_form tool (or a :::form block bound to an operator-vetted '
                 . 'handler via bind_form) - never hand-written form HTML or a third-party '
-                . 'form service. For content rules '
+                . 'form service. To rename or move a page, use rename_page (or move_file) - '
+                . 'never write a new file at the new path and delete the old one, which '
+                . 'breaks the page content history (a move keeps it; a delete ends it). '
+                . 'For content rules '
                 . 'see /docs/ai-briefing-authoring; for layouts and themes '
                 . '/docs/ai-briefing-layouts. When you screenshot or QA the live site, set '
                 . 'your User-Agent to lazysite-agent/<partner-id> so your hits stay out of '
