@@ -1751,7 +1751,7 @@ sub action_config_read {
 # manager only displays them, never edits them.
 sub action_domains_list {
     my @keys = qw(site_name site_url content_root theme layout nav_file search_default
-        allowed_groups locked_users);
+        allowed_groups locked_users lang lang_group);
     my %base;
     my %ov;    # host => { key => value }
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {

@@ -207,17 +207,20 @@ var DISPLAY_KEYS = ['content_root', 'site_name', 'theme'];
 // SM167: theme + layout are edited as one 'appearance' field (a layout/theme
 // pair); saveDomain splits it back into the two conf keys.
 var EDIT_KEYS = ['content_root', 'site_url', 'site_name', 'appearance', 'nav_file', 'search_default',
-  'allowed_groups', 'locked_users'];
+  'allowed_groups', 'locked_users', 'lang', 'lang_group'];
 // The edit panel groups the keys into labelled sections so it reads top-to-bottom
 // like the Add form, rather than one ragged row of mixed-width fields.
 var EDIT_SECTIONS = [
   { title: 'Identity',     note: '',                                  keys: ['content_root'] },
   { title: 'Presentation', note: 'optional – inherits the default',   keys: ['site_url', 'site_name', 'appearance', 'nav_file', 'search_default'] },
+  { title: 'Language',     note: 'for a multilingual set',            keys: ['lang', 'lang_group'] },
   { title: 'Access',       note: 'who may manage this domain',        keys: ['allowed_groups', 'locked_users'] }
 ];
 // Optional grey hint rendered under an edit field where the effect is not obvious.
 var EDIT_HINTS = {
   content_root: 'Blank serves the default site. Changing this repoints the domain to another folder – it does not move existing files.',
+  lang: 'This host’s language (e.g. en, fr, pt-BR). Sets <html lang> and the Content-Language header.',
+  lang_group: 'The language set this host belongs to (a shared name across the languages, e.g. providers). Two+ hosts sharing it become a switchable set.',
   allowed_groups: 'Add the groups whose members may manage this domain (and are confined to it). None = only operators.',
   locked_users: 'Add accounts that can reach ONLY this domain (of the ones their groups allow) – nothing else.'
 };

@@ -26,12 +26,15 @@ our $DOCROOT;           # set by the caller (manager-api or the CLI)
 our $auth_user = '';    # for log attribution
 
 # Per-host presentation/routing keys that may be overridden for an alias. Same
-# set the read-only view (action_domains_list) surfaces. content_root is the one
-# that actually roots a domain's content; the rest are presentation. SM165 adds
-# the two ACCESS keys: allowed_groups (comma list of groups that may manage this
-# domain) and locked_users (comma list of accounts confined to it).
+# set the read-only view (action_domains_list) surfaces and domain_set accepts.
+# content_root is the one that actually roots a domain's content; the rest are
+# presentation. SM165 adds the two ACCESS keys: allowed_groups (comma list of
+# groups that may manage this domain) and locked_users (comma list of accounts
+# confined to it). SM179 adds the language keys: lang (this host's language) and
+# lang_group (the language set it belongs to) - so a language set is configurable
+# through the Domains page / control API / CLI, not only by hand-editing the conf.
 my @DOMAIN_KEYS = qw(content_root site_url site_name theme layout nav_file
-    search_default allowed_groups locked_users);
+    search_default allowed_groups locked_users lang lang_group);
 my %IS_KEY = map { $_ => 1 } @DOMAIN_KEYS;
 
 sub _conf_path { return "$DOCROOT/lazysite/lazysite.conf" }
@@ -350,6 +353,20 @@ sub domain_set {
         }
         my %seen;
         $value = join ', ', grep { !$seen{$_}++ } @toks;
+    }
+    elsif ( $key eq 'lang' ) {
+        # SM179: a BCP-47-ish language tag (en, fr, pt-BR). Strict - it lands in
+        # <html lang> and names the i18n override file. Empty clears it.
+        $value =~ s/^\s+|\s+$//g;
+        return { ok => 0, kind => 'invalid', error => 'Invalid language tag' }
+            unless $value eq '' || $value =~ /^[A-Za-z]+(?:-[A-Za-z0-9]+)*\z/;
+    }
+    elsif ( $key eq 'lang_group' ) {
+        # SM179: the language-set name, shared across the set's hosts. A plain
+        # name token; empty clears it.
+        $value =~ s/^\s+|\s+$//g;
+        return { ok => 0, kind => 'invalid', error => 'Invalid lang_group name' }
+            unless $value eq '' || $value =~ /^[A-Za-z0-9_-]+\z/;
     }
     # Values are single-line conf values: no newlines.
     return { ok => 0, kind => 'invalid', error => 'Value must be a single line' }
