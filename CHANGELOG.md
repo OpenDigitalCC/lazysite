@@ -16,6 +16,56 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.8.0 - STABLE: multilingual + domain access + cache correctness, certified (2026-07-18)
+
+The second stable release, cut from the 0.7.28 beta on completion of the
+2026-07-18 eight-dimension non-functional review (`docs/review/2026-07-18-eight-dimension/`).
+It promotes the whole 0.7.x line to the stable channel: first-class multi-site
+(many domains, one instance, per-host content roots and confinement), a
+domain-owned access-control model with per-user locks (SM165), content history
+that follows renames and never leaks across delete/recreate (SM175), the
+complete multilingual language-set feature (SM179 P1-P8: switcher, hreflang,
+per-language roots, layout strings, engine-chrome i18n, coverage, agent
+discoverability), and conf-aware cache correctness.
+
+Certification and the security fix it surfaced
+: All eight dimensions clear a Commercial signoff (every 2026-07-10 refusal -
+  reliability SLOs, the pentest gate, documentation currency, the DoC and SBOM
+  licence - verified still cleared). The review caught and this release fixes a
+  **serious stored-XSS / response-header-injection** path: a page's front-matter
+  `lang:` reached `<html lang>` and the `Content-Language` header unescaped, so a
+  content-only partner could execute script in every visitor's browser - now
+  sanitised to a bare language tag (regression: t/integration/26-lang-injection.t).
+  A `domain-add` CRLF gap was closed the same way. Two further hardening fixes
+  landed in the same cut: the manager-API now applies the same in-app trust gate
+  as the processor, so client-supplied `X-Remote-*` identity headers are ignored
+  unless the auth wrapper vouched for them (a backstop for an edge that fails to
+  strip them; guarantee test t/lint/13-trust-gate-guarantee.t, adversarial test
+  t/unit/manager/39-forged-identity.t); and a raw/api page may no longer declare a
+  script-capable `content_type` (`text/html`, XHTML, SVG) - such a type is
+  downgraded to `text/plain` at serve time, closing a stored-XSS path a
+  content-only delegate could otherwise reach (regression:
+  t/integration/27-raw-content-type.t). Operators on 0.7.27/0.7.28 should upgrade
+  for these fixes.
+
+Adversarial security-testing breadth pass
+: Before certifying the stable line, the manager / MCP / control-API / WebDAV
+  attack surface was swept for the gaps that per-action coverage leaves. Two more
+  hardening fixes landed: backup restore now excludes the `lazysite/` control tree
+  on extraction (a crafted content tarball can no longer overwrite the auth/config
+  namespace to escalate - defence-in-depth on top of the create-time exclude and
+  the full-backup refusal); and `session-revoke` / `user-revoke` / `key-revoke`
+  are forced to POST so the method-keyed CSRF gate covers them by construction.
+  New structural guarantee tests fail the build if a dispatched action ships
+  ungated, if the cookie and token capability maps diverge, if a file-write
+  channel bypasses the path guard, or if any channel drops dav_scope confinement;
+  new negative tests pin sub-user privilege-escalation confinement, a
+  path-traversal sweep across every path-taking action, and login-rate-limit
+  fail-open (a broken limiter must not lock everyone out).
+
+Everything in 0.7.28 (below) is included. The Declaration of Conformity is
+finalised for 0.8.0 and signed at the cut.
+
 ## 0.7.28 - BETA: multilingual completion + cache correctness + domains/manager UX (2026-07-18)
 
 Engine-emitted chrome is localised (SM179 P8)
