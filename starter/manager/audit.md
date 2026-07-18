@@ -151,10 +151,14 @@ function loadAudit() {
     populateAuditFilters(d);
     var note = document.getElementById('audit-scope');
     if (note) {
-      note.innerHTML = auditTarget
+      // SM173: a sub-user manager sees only their own team's activity.
+      var scopeMsg = d.scoped
+        ? '<span title="You see your own activity and that of the accounts you manage.">Showing your team’s activity.</span> '
+        : '';
+      note.innerHTML = scopeMsg + (auditTarget
         ? 'History for <code>' + aesc(auditTarget) + '</code> '
           + '<a href="#" onclick="document.getElementById(\'audit-target-f\').value=\'\';auditPage=1;loadAudit();return false;">(show all)</a>'
-        : '';
+        : '');
     }
     if (!d.entries.length) { el.textContent = 'No audit entries yet.'; return; }
     var h = '<table class="audit-table"><thead><tr>' +

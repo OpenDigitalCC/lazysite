@@ -54,6 +54,14 @@ Nav editor shows which file it edits, so an inactive override is obvious (SM169)
   bypasses this system - that is a theme fix, not a core one. Gate:
   t/unit/manager/34-domain-nav-override.t.
 
+Audit trail: a sub-user manager sees their team's activity (SM173)
+: A user who manages sub-users (the create_sub_users permission) but does not
+  hold the full Audit-trail permission now gets a scoped audit view - their own
+  actions plus those of the accounts beneath them in the managed_by / created_by
+  tree - instead of being denied entirely. The user filter lists only that team,
+  and the view is labelled "Showing your team's activity". A full Audit-trail
+  holder still sees the whole log. Gate: t/unit/manager/35-audit-subusers.t.
+
 ## 0.7.25 - EDGE: forms discoverability + manager UI/key/WebDAV fixes (2026-07-18)
 
 Forms: native forms are discoverable where an agent acts (SM161)
