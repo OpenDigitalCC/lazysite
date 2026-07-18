@@ -47,8 +47,11 @@ Manager: UI fixes from 0.7.24 testing
   Sessions/Keys tables scroll within their box on narrow screens (SM171); the
   audit page gains an auto-refresh (10s) checkbox (SM172); the Domains form uses
   one "Layout / theme" selector instead of two (so you can't pick a theme without
-  a layout) (SM167); and folders get an actions dropdown (rename/move, delete)
-  like files (SM162).
+  a layout) (SM167); folders get an actions dropdown (rename/move, delete) like
+  files (SM162); and the Domains edit row now exposes every per-domain field the
+  add form does - content_root is editable (repoint a domain, with a hint that it
+  does not move files) and searchable-by-default is a true/false select rather
+  than a free-text box (SM174).
 
 ## 0.7.24 - EDGE: site packages, manage_domains, nav domain-awareness (2026-07-18)
 

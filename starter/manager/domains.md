@@ -192,11 +192,24 @@ function loadLayouts() { return Promise.resolve(); }   // folded into loadThemes
 // and never runs off the page. Every editable key still appears in the inline
 // edit row (EDIT_KEYS) below.
 var DISPLAY_KEYS = ['content_root', 'site_name', 'theme'];
-// Presentation keys an existing domain can override (content_root is set at
-// creation - changing where content lives is a move, done via Files).
+// Every per-domain key an existing domain can override, so the edit row is the
+// superset of the add form (SM174 - content_root was settable at creation but
+// not afterwards, leaving a wrong folder unfixable except by re-adding). The
+// backend (domain_set / _clean_content_root) validates content_root the same way
+// as at creation, so repointing is safe; it does not move existing files.
 // SM167: theme + layout are edited as one 'appearance' field (a layout/theme
 // pair); saveDomain splits it back into the two conf keys.
-var EDIT_KEYS = ['site_url', 'site_name', 'appearance', 'nav_file', 'search_default'];
+var EDIT_KEYS = ['content_root', 'site_url', 'site_name', 'appearance', 'nav_file', 'search_default'];
+// Optional grey hint rendered under an edit field where the effect is not obvious.
+var EDIT_HINTS = {
+  content_root: 'Blank serves the default site. Changing this repoints the domain to another folder – it does not move existing files.'
+};
+// Keys whose value comes from a fixed set are edited as a <select> (with an
+// "inherit" blank), not a free-text box - matching the processor's own config UI
+// (SM174). search_default is a true/false choice there, so it is here too.
+var EDIT_OPTIONS = {
+  search_default: ['true', 'false']
+};
 
 function post(action, obj) {
   return fetch(API + '?action=' + action, {
@@ -366,13 +379,26 @@ function editField(host, k, row) {
     var curLayout = row.layout_inherited ? '' : (row.layout || '');
     var curTheme  = row.theme_inherited  ? '' : (row.theme  || '');
     field = appearanceSelect('e-' + host + '-appearance', curLayout, curTheme);
+  } else if (EDIT_OPTIONS[k]) {
+    // Fixed-choice key: a <select>. The blank "inherit" option names the
+    // effective inherited value so it stays visible without overwriting it.
+    var blank = (row[k + '_inherited'] && effective)
+      ? 'Inherit the default (' + effective + ')' : 'Inherit the default';
+    var opts = '<option value="">' + esc(blank) + '</option>';
+    EDIT_OPTIONS[k].forEach(function (o) {
+      opts += '<option value="' + esc(o) + '"' + (o === own ? ' selected' : '') + '>' + esc(o) + '</option>';
+    });
+    field = '<select id="e-' + esc(host) + '-' + esc(k) + '">' + opts + '</select>';
   } else {
     var ph = (row[k + '_inherited'] && effective)
       ? ' placeholder="' + esc(effective) + ' (inherited)"' : '';
     field = '<input id="e-' + esc(host) + '-' + esc(k) + '" value="' + esc(own) + '"' + ph + ' style="width:14rem;max-width:100%;box-sizing:border-box;">';
   }
+  var hint = EDIT_HINTS[k]
+    ? '<span style="font-weight:400;color:#999;max-width:16rem;margin-top:2px;">' + esc(EDIT_HINTS[k]) + '</span>'
+    : '';
   return '<label style="display:inline-flex;flex-direction:column;gap:2px;margin:0 14px 10px 0;font-size:0.85em;color:#555;">'
-       + esc(label(k)) + field + '</label>';
+       + esc(label(k)) + field + hint + '</label>';
 }
 
 function loadDomains() {
