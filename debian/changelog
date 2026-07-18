@@ -1,3 +1,21 @@
+lazysite (0.7.24-1) unstable; urgency=medium
+
+  * EDGE: SM158 - portable per-domain site packages. Package one domain's site
+    (content + nav + its theme/layout + presentation) and apply it to another
+    domain or instance; the agency-demo-to-client hand-off. Control API
+    (site-backup-create/upload/apply), MCP (site_backup/site_apply + a
+    migrate-site recipe) and CLI (lazysite-site). Excludes plugins/settings/
+    secrets; apply extracts safely, snapshots first, and commits to history.
+  * EDGE: SM160 - a manage_domains capability, carved out of manage_config, for
+    domain management and the site-package family.
+  * EDGE: SM159 - the navigation editor is domain-aware (pick which domain's nav)
+    with a clearer "+ Add menu item" box.
+  * EDGE: backup files carry a lazysite- prefix; the audit trail records a
+    meaningful target (host / config key / backup kind / login site); the Users
+    page account name expands the row (Configure opens the editor).
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Fri, 18 Jul 2026 08:00:00 +0000
+
 lazysite (0.7.23-1) unstable; urgency=medium
 
   * EDGE: the Files breadcrumb root shows its folder icon again instead of raw
