@@ -739,13 +739,15 @@ sub serve_403 {
         print "Status: 403 Forbidden\r\n";
         print "Content-type: text/html; charset=utf-8\r\n";
         print "Cache-Control: no-store, private\r\n\r\n";
-        print "<!DOCTYPE html><html><head><title>403 Forbidden</title></head><body>";
-        print "<h1>Access Denied</h1>";
+        my $lang = _chrome_lang();
+        print qq{<!DOCTYPE html><html lang="$lang"><head><meta charset="utf-8">};
+        print "<title>403 Forbidden</title></head><body>";
+        print '<h1>' . _chrome('forbidden.title') . '</h1>';
         if ( ( $auth_result->{auth_denied_reason} // '' ) eq 'insufficient_groups' ) {
-            print "<p>You do not have permission to view this page.</p>";
+            print '<p>' . _chrome('forbidden.insufficient') . '</p>';
         }
         else {
-            print "<p>Authentication required.</p>";
+            print '<p>' . _chrome('auth.required') . '</p>';
         }
         print "</body></html>";
     }
@@ -1819,6 +1821,33 @@ sub process_url {
 # fetch_url is a cold, network-bound path (never the hot cache-hit render), so the
 # module is loaded lazily here on first use - the page-serving hot path stays
 # module-free (ADR 0001), exactly as LWP::UserAgent was already deferred.
+# SM179 P8: a localised engine-chrome string (the bare 403/404 fallbacks and the
+# "authentication required" text). Loaded lazily - these paths are rare relative
+# to cache-hit traffic - and keyed off the host language, with an English
+# fallback. Args are HTML-escaped by chrome_string. See Lazysite::I18n.
+# The host's language, sanitised to a bare code (safe for an <html lang> attr and
+# for naming an i18n file); 'en' when unset. See _chrome.
+sub _chrome_lang {
+    my %sv   = resolve_site_vars();
+    my $lang = $sv{lang} || 'en';
+    $lang =~ s/[^A-Za-z-]//g;
+    return length $lang ? $lang : 'en';
+}
+
+sub _chrome {
+    my ( $key, @args ) = @_;
+    unless ( $INC{'Lazysite/I18n.pm'} ) {
+        require Cwd;
+        require File::Basename;
+        my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+        for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+            if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+        }
+        require Lazysite::I18n;
+    }
+    return Lazysite::I18n::chrome_string( $DOCROOT, _chrome_lang(), $key, @args );
+}
+
 sub fetch_url {
     my ($url) = @_;
     unless ( $INC{'Lazysite/Fetch.pm'} ) {
@@ -4899,10 +4928,11 @@ sub not_found {
         return;
     }
 
-    # Bare fallback if no 404.md exists yet
+    # Bare fallback if no 404.md exists yet. chrome_string HTML-escapes $uri (it
+    # was interpolated raw before - a reflected-markup vector on the 404 path).
     print "Status: 404 Not Found\n";
     print "Content-type: text/html; charset=utf-8\n\n";
-    print "<p>Page not found: <code>$uri</code></p>\n";
+    print '<p>' . _chrome( 'notfound.body', $uri ) . "</p>\n";
 }
 
 # --- Utilities ---

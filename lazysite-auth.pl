@@ -25,6 +25,7 @@ use Lazysite::Util             qw(log_event const_eq);
 use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Credential qw(generate_random_hex hash_password verify_password);
 use Lazysite::Auth::Settings   qw(groups_grant_cap);
+use Lazysite::I18n             qw(chrome_string);    # SM179 P8: engine-chrome i18n
 $Lazysite::Util::COMPONENT = 'auth';
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
@@ -1248,16 +1249,43 @@ sub redirect {
     print "Location: $url\r\n\r\n";
 }
 
+# SM179 P8: the requesting host's language (conf `lang:`, or alias.<host>.lang),
+# sanitised to a bare code; 'en' when unset. Display-only - it selects the text
+# of the reject pages below and NEVER gates an auth decision.
+sub _host_lang {
+    my $host = lc( $ENV{HTTP_HOST} // '' );
+    $host =~ s/:.*//;    # strip any port
+    my ( $base, $alias ) = ( '', '' );
+    if ( open my $fh, '<:raw', "$LAZYSITE_DIR/lazysite.conf" ) {
+        while ( my $line = <$fh> ) {
+            if    ( $line =~ /^lang\h*:\h*(\S+)/ ) { $base = $1 }
+            elsif ( length $host
+                && $line =~ /^alias\.\Q$host\E\.lang\h*:\h*(\S+)/ )
+            {
+                $alias = $1;
+            }
+        }
+        close $fh;
+    }
+    my $lang = length $alias ? $alias : $base;
+    $lang =~ s/[^A-Za-z-]//g;
+    return length $lang ? $lang : 'en';
+}
+
 sub reject_no_password {
     binmode( STDOUT, ':utf8' );
+    my $lang  = _host_lang();
+    my $pt    = chrome_string( $DOCROOT, $lang, 'signin.title' );
+    my $title = chrome_string( $DOCROOT, $lang, 'auth.nopw.title' );
+    my $body  = chrome_string( $DOCROOT, $lang, 'auth.nopw.body' );
     print "Status: 403 Forbidden\r\n";
     print "Content-Type: text/html; charset=utf-8\r\n\r\n";
-    print <<'HTML';
+    print <<"HTML";
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>Sign in</title></head>
+<html lang="$lang"><head><meta charset="utf-8"><title>$pt</title></head>
 <body style="font-family:system-ui,sans-serif;max-width:480px;margin:3em auto;padding:0 1em;">
-<h1 style="font-size:1.3rem;">Sign in unavailable</h1>
-<p>Password not configured - contact your administrator.</p>
+<h1 style="font-size:1.3rem;">$title</h1>
+<p>$body</p>
 </body></html>
 HTML
 }
@@ -1268,15 +1296,18 @@ HTML
 # WebDAV / automation; point the operator there.
 sub reject_ui_disabled {
     binmode( STDOUT, ':utf8' );
+    my $lang  = _host_lang();
+    my $pt    = chrome_string( $DOCROOT, $lang, 'signin.title' );
+    my $title = chrome_string( $DOCROOT, $lang, 'auth.uidisabled.title' );
+    my $body  = chrome_string( $DOCROOT, $lang, 'auth.uidisabled.body' );
     print "Status: 403 Forbidden\r\n";
     print "Content-Type: text/html; charset=utf-8\r\n\r\n";
-    print <<'HTML';
+    print <<"HTML";
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>Sign in</title></head>
+<html lang="$lang"><head><meta charset="utf-8"><title>$pt</title></head>
 <body style="font-family:system-ui,sans-serif;max-width:480px;margin:3em auto;padding:0 1em;">
-<h1 style="font-size:1.3rem;">Interactive login is disabled for this account</h1>
-<p>This account does not have interactive (browser) access. If it is
-used for publishing, connect over WebDAV instead.</p>
+<h1 style="font-size:1.3rem;">$title</h1>
+<p>$body</p>
 </body></html>
 HTML
 }
