@@ -1043,10 +1043,43 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
-- **Unreleased** - Session registry + revocation (SM141 phase 1): the cookie
-  payload gains a session id, live sessions are listed on the new manager
-  **Sessions** page, and single sessions or all of a user's sessions can be
-  signed out via `lazysite/auth/revoked.json` - enforced in the auth wrapper.
+- **0.7.28** (2026-07-18, BETA) - Multilingual completion + cache correctness +
+  domains/manager UX. Engine-emitted chrome is localised (SM179 P8: the bare 404,
+  the no-403.md fallback and the auth reject pages, via a built-in English table
+  overlaid by `lazysite/i18n/<lang>.json`, fail-closed; the 404 fallback escapes
+  the request URI). Language config is first-class - `lang`/`lang_group` settable
+  via `domain-set`, the CLI and the Domains Add + Configure forms;
+  `whoami`/`lang-status` detect a set even when `lang_group` is only on aliases;
+  `lang-status` gated on `manage_content`. A conf-only change now invalidates the
+  page cache (no more stale `Content-Language`/chrome under any process model);
+  per-host caches are listed and cleared per host on the Cache page; the manager
+  preview UTF-8 double-encode is fixed. The domain "alias" concept is retired for a
+  "Copy settings from" pre-fill on Add domain. Manager UX consistency (token
+  picker, Edit/Delete verbs, primary Save) and editor fixes (exit-to-folder,
+  reserved-file warning). ADR 0008 records the stable compatibility-freeze scope.
+- **0.7.27** (2026-07-18) - Multilingual language sets (SM179 P1-P7): sibling
+  per-language content roots linked by a shared `lang_group`, with engine-supplied
+  `[% languages %]` switcher data, `hreflang`/`x-default` (layout + sitemap),
+  `<html lang>`/`Content-Language`, content-root-first `json:`, layout chrome
+  strings (`[% t %]`), a `lang-status` coverage report, and whoami/MCP
+  discoverability. Theme/layout delete-safety accounts for every domain
+  (sub-domains as first-class peers, SM177); an audit-log domain target no longer
+  opens in Files (SM178).
+- **0.7.26** (2026-07-18) - Content history follows renames and never leaks across
+  delete/recreate (SM175); a domain-owned access-control model with per-user locks
+  (SM165); compound groups (group-of-groups, SM121); and a manager batch - theme
+  install no longer auto-activates (SM176), nav-refresh signalling (SM168), the
+  nav editor names its file (SM169), sub-user audit view (SM173).
+- **0.7.24-0.7.25** (2026-07-18) - Site packages + `manage_domains` + nav
+  domain-awareness (SM139 family); forms discoverability for agents (SM161); and a
+  run of manager UI / key / WebDAV fixes (SM162-172).
+- **0.7.18-0.7.23** (2026-07-16) - Group-level domain delegation (SM155) with a
+  pre-DNS domain preview and first-class aliases; the domain config check +
+  domains panel (public-IP, cert SANs, proxy-aware); Files breadcrumb fix.
+- **0.7.3-0.7.17** (2026-07-10 to 2026-07-16) - First-class multi-site: many
+  domains on one instance with per-host content roots and confinement (SM110 /
+  SM151); WebDAV theme/layout authoring (SM071); session registry + revocation
+  (SM141); and the run of edge fixes across auth, WebDAV, themes and the manager.
 - **0.7.2** (2026-07-10) - Packaged distribution (SM139): the
   `lazysite-common` + `lazysite-hestia` debs, the `lazysite` CLI
   (provision/upgrade/sites, root-refusal by design, the site registry), fleet
