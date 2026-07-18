@@ -248,6 +248,16 @@ grant_caps( $d, 'ed', 'manage_content' );
     my ($ca) = grep { $_->{host} eq 'clienta.com' } @{ $r->{domains} };
     is( $ca->{lang},       'fr',        'domains-list surfaces lang' );
     is( $ca->{lang_group}, 'providers', 'domains-list surfaces lang_group' );
+
+    # The language keys can also be set at CREATION (Add domain form).
+    my $add = post( $d, 'op', 'role-op', 'action=domain-add',
+        { host => 'de.clienta.com', content_root => 'sites/de',
+            lang => 'de', lang_group => 'providers' } );
+    ok( $add->{ok}, 'domain-add accepts lang / lang_group at creation' )
+        or diag encode_json($add);
+    my $bad = post( $d, 'op', 'role-op', 'action=domain-add',
+        { host => 'x.clienta.com', lang => 'bad lang' } );
+    ok( !$bad->{ok}, 'domain-add rejects an invalid language tag' );
 }
 
 sub slurp { open my $fh, '<', $_[0] or return ''; local $/; <$fh> }
