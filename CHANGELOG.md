@@ -41,6 +41,19 @@ Themes: install no longer auto-activates, and an unedited theme is not backed up
   up (previously the first switch always copied it, cluttering the backups).
   Gate: t/unit/manager/13-theme-pristine-backup.t.
 
+Nav editor shows which file it edits, so an inactive override is obvious (SM169)
+: When editing a domain's menu, the nav editor now always states the exact file
+  it is editing and whether it is the domain's own nav or the shared default -
+  e.g. "Editing this domain's own menu: lazysite/nav-2.conf" versus "shares the
+  default site's menu (lazysite/nav.conf)". A domain whose nav_file override is
+  not actually in effect (so the editor is really editing the base file) is now
+  visible instead of a silent surprise. The underlying resolve/read/write path is
+  confirmed correct end to end (a per-domain override is read from its own file;
+  an empty override shows an empty menu, never the base menu). Note: a theme that
+  hard-codes its own navigation instead of rendering the standard [% nav %] menu
+  bypasses this system - that is a theme fix, not a core one. Gate:
+  t/unit/manager/34-domain-nav-override.t.
+
 ## 0.7.25 - EDGE: forms discoverability + manager UI/key/WebDAV fixes (2026-07-18)
 
 Forms: native forms are discoverable where an agent acts (SM161)

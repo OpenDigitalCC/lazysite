@@ -122,12 +122,21 @@ function loadNav() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
+      // SM169: always show WHICH file is being edited, and whether it is this
+      // domain's own nav or the shared default - so a domain whose nav_file
+      // override is not actually in effect is obvious (you see the base file,
+      // not the one you set), instead of silently editing a different file.
       var note = document.getElementById('nav-inherit-note');
       if (note) {
+        var f = data.nav_file || 'lazysite/nav.conf';
         if (navHost && data.inherited) {
-          note.textContent = 'ℹ This domain currently shares the default site’s menu. Editing here changes the shared menu; to give it its own, set a nav file for it on the Domains page.';
-          note.style.display = '';
-        } else { note.style.display = 'none'; }
+          note.textContent = 'ℹ This domain has no nav file of its own, so it shares the default site’s menu (' + f + '). Editing here changes the shared menu; to give this domain its own, set a nav file for it on the Domains page.';
+        } else if (navHost) {
+          note.textContent = 'Editing this domain’s own menu: ' + f + '.';
+        } else {
+          note.textContent = 'Editing the default site menu: ' + f + '.';
+        }
+        note.style.display = '';
       }
       navItems = [];
       (data.items || []).forEach(function(item) {
