@@ -44,6 +44,17 @@ load_processor($docroot);
     like( $out, qr/class="form-status"/,       'status live region' );
 }
 
+# --- SM161: ":::form" with NO space is accepted (the bind_form docs write it
+# without a space; it used to render as literal text) ---
+{
+    my $out = main::convert_fenced_form(
+        ":::form\nname | Name | required\nsubmit | Send\n:::\n",
+        { form => 'contact' },
+    );
+    like(   $out, qr/<form\b/,     ':::form (no space) renders a real form' );
+    unlike( $out, qr/:::form/,     'the no-space fence is consumed, not left literal' );
+}
+
 # --- new HTML5 field types + validation (date/tel/number/url/pattern) ---
 {
     my $out = main::convert_fenced_form(

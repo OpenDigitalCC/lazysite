@@ -2081,8 +2081,12 @@ sub convert_fenced_form {
     my ( $text, $meta ) = @_;
     $meta //= {};
 
+    # SM161: accept BOTH ":::form" and "::: form" as the opening fence. The
+    # space used to be required ([ \t]+), but the bind_form tool's own example
+    # (and pandoc's own fenced-div convention) writes ":::form" with no space, so
+    # an agent following the docs shipped a form that rendered as literal text.
     $text =~ s{
-        ^:::[ \t]+form[ \t]*\n    # opening ::: form
+        ^:::[ \t]*form[ \t]*\n    # opening :::form  OR  ::: form
         (.*?)                      # field definitions
         ^:::[ \t]*\n               # closing :::
     }{
