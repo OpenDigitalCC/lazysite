@@ -909,7 +909,11 @@ sub action_layout_install {
     $theme =~ s/[^A-Za-z0-9_-]//g if defined $theme;
     my $all      = $req->{all}      ? 1 : 0;
     my $update   = $req->{update}   ? 1 : 0;
-    my $activate = exists $req->{activate} ? ( $req->{activate} ? 1 : 0 ) : 1;
+    # SM176: install NEVER auto-activates - not even on a fresh site. Activation
+    # is a separate, explicit operator choice (the Activate button), so installing
+    # a layout/theme never switches away from the one currently in use. Only an
+    # explicit activate:true opts in.
+    my $activate = $req->{activate} ? 1 : 0;
     return { ok => 0, error => 'layout required' } unless length $layout;
 
     my $repo = _layouts_repo();

@@ -32,6 +32,15 @@ Content history follows renames, and a delete ends the thread (SM175)
   t/unit/lib/19-git-rename-history.t, plus move-history cases in
   t/unit/manager/25-git-actions.t and t/unit/dav/05-copy-move.t.
 
+Themes: install no longer auto-activates, and an unedited theme is not backed up (SM176)
+: Installing a layout or theme from the catalogue no longer switches the live
+  site to it - install and activate are separate steps (use the theme's Activate
+  button), so installing several themes in a row no longer keeps flipping the
+  active one. And switching away from a theme now snapshots it only when you have
+  actually edited it since install; a pristine, never-edited theme is not backed
+  up (previously the first switch always copied it, cluttering the backups).
+  Gate: t/unit/manager/13-theme-pristine-backup.t.
+
 ## 0.7.25 - EDGE: forms discoverability + manager UI/key/WebDAV fixes (2026-07-18)
 
 Forms: native forms are discoverable where an agent acts (SM161)
