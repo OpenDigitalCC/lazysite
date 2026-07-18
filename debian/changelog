@@ -1,3 +1,28 @@
+lazysite (0.7.27-1) unstable; urgency=medium
+
+  * EDGE: SM179 - multilingual language sets. Sibling domains (one per language,
+    each its own content root) linked by a shared lang_group; the engine supplies
+    every layout with [% languages %] switcher data (per-page sibling URLs, current
+    flag, exists flag), and the built-in layout emits a switcher, hreflang
+    alternates + x-default. Per-domain sitemaps gain xhtml:link hreflang alternates.
+    A page's lang: surfaces as <html lang> + Content-Language (front-matter
+    override). json: resolves content-root-first then docroot. Layouts localise
+    chrome via layouts/<layout>/strings/<lang>.json into [% t %] (English fallback).
+    A read-only lang-status action + Domains coverage panel report current/stale/
+    missing per language root; whoami and the MCP announcement expose the set and
+    the translate-values-not-keys rule. Engine-chrome localisation deferred.
+  * EDGE: SM177 - theme/layout delete-safety scans every registered domain (base +
+    sub-domains), resolving effective values, and refuses while any domain uses the
+    artifact (previously only the primary's active choice was considered).
+  * EDGE: SM178 - a domain audit-log target (a host) no longer opens in the file
+    editor; domain/language actions link to the Domains page.
+  * EDGE: Domains UX - the access lists (allowed_groups, locked_users) are picked
+    from tick-lists of real principals rather than typed; the domain edit panel is
+    grouped into aligned Identity / Presentation / Access sections; the group editor
+    drops the "set on the Domains page" pointer.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sat, 18 Jul 2026 17:00:00 +0000
+
 lazysite (0.7.26-1) unstable; urgency=medium
 
   * EDGE: SM175 - content history follows renames. A move carries a file's
