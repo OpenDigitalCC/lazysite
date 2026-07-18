@@ -25,6 +25,11 @@
       "bucket": "code"
     },
     {
+      "pattern": "^tools/lazysite-site\\.pl$",
+      "install_to": "{DOCROOT}/../tools/lazysite-site.pl",
+      "bucket": "code"
+    },
+    {
       "pattern": "^tools/lazysite-server\\.pl$",
       "install_to": "{DOCROOT}/../tools/lazysite-server.pl",
       "bucket": "code"

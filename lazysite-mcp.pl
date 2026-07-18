@@ -40,7 +40,7 @@ use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
 use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
 use Lazysite::Manager::Domains     ();
-use Lazysite::Manager::SitePackage qw(package_create);
+use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
 
 our $VERSION = '0.1';
 my $PROTOCOL = '2025-11-25';
@@ -353,6 +353,52 @@ my %TOOLS = (
             }
             local $Lazysite::Manager::SitePackage::auth_user = $user;
             return package_create($host);
+        },
+    },
+    site_apply => {
+        description => 'Apply a previously created/uploaded site package (a lazysite-site-*.tar.gz already in the backups area) onto a target domain on this instance: copies its content into the domain content root, installs the bundled theme/layout if missing, places the nav, and sets the domain presentation. Omit host to apply to the default site. Requires manage_content + access to the target. A safety snapshot is NOT taken here - create a backup first if you want a rollback point.',
+        cap         => 'manage_content',
+        inputSchema => {
+            type       => 'object',
+            properties => {
+                name => { type => 'string', description => 'The package file name in the backups area (lazysite-site-*.tar.gz)' },
+                host => { type => 'string', description => 'Target registered domain; omit for the default site' },
+                clean => { type => 'boolean', description => 'Remove existing content under the target root first' },
+            },
+            required             => ['name'],
+            additionalProperties => JSON::PP::false,
+        },
+        run => sub {
+            my ( $a, $user, $caps ) = @_;
+            my $name = $a->{name} // '';
+            return { ok => 0, error => 'A package name is required' }
+                unless $name =~ /\Alazysite-site-[A-Za-z0-9._-]+\.tar\.gz\z/ && $name !~ /\.\./;
+            my $pkg = "$DOCROOT/lazysite/backups/$name";
+            return { ok => 0, error => "Package not found: $name" } unless -f $pkg;
+
+            my $host = lc( $a->{host} // '' );
+            $host = '' if $host eq '(default)';
+
+            # Resolve the target content root + enforce the scope union.
+            my $croot = '';
+            if ( length $host ) {
+                my ($row) = grep { lc( $_->{host} // '' ) eq $host }
+                    @{ Lazysite::Manager::Domains::domains_list()->{domains} || [] };
+                return { ok => 0, error => "Not a registered domain: $host" } unless $row;
+                $croot = $row->{content_root} // '';
+                return { ok => 0, error => "$host has no content folder of its own" }
+                    unless length $croot;
+            }
+            my $scopes = $caps->{dav_scopes};
+            if ( ref $scopes eq 'ARRAY'
+                && @$scopes
+                && length $croot
+                && Lazysite::Manager::Common::outside_all_scopes( $scopes, $croot ) )
+            {
+                return { ok => 0, error => 'Target is outside your assigned scope.' };
+            }
+            local $Lazysite::Manager::SitePackage::auth_user = $user;
+            return apply_and_configure( $pkg, host => $host, clean => ( $a->{clean} ? 1 : 0 ) );
         },
     },
     replace_text => {

@@ -34,7 +34,7 @@ use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checke
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key);
 use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download
-    check_upload_rate is_editable_text);
+    check_upload_rate is_editable_text parse_multipart_body);
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action action_handler_list
     action_handler_save action_handler_delete action_form_targets_read action_form_targets_save);
@@ -56,7 +56,7 @@ use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action
     action_backup_restore);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_add_alias domain_remove domain_set domain_check);
-use Lazysite::Manager::SitePackage qw(package_create);
+use Lazysite::Manager::SitePackage qw(package_create package_apply);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
@@ -339,6 +339,8 @@ if ( !$token_auth ) {
         'git-restore'        => 'manage_content', 'git-status' => 'manage_content',
         'git-history'        => 'manage_content', 'git-show'   => 'manage_content',
         'site-backup-create' => 'manage_content',    # SM158: package one's own site
+        'site-backup-upload' => 'manage_content',    # SM158: upload a package
+        'site-backup-apply'  => 'manage_content',    # SM158: apply a package to a domain
         'git-init'           => 'manage_config',
         'config-set'       => 'manage_config',  'config-read'        => 'manage_config',
         'domains-list'     => 'manage_config',  'bad-url-blocks'     => 'manage_config',
@@ -497,6 +499,8 @@ if ($token_auth) {
         'git-show'           => sub { $_[0]->{manage_content} },
         'git-restore'        => sub { $_[0]->{manage_content} },
         'site-backup-create' => sub { $_[0]->{manage_content} },    # SM158
+        'site-backup-upload' => sub { $_[0]->{manage_content} },    # SM158
+        'site-backup-apply'  => sub { $_[0]->{manage_content} },    # SM158
         'git-init'           => sub { $_[0]->{manage_config} },
         'whoami' => sub { 1 },    # any authenticated token may introspect its own grant
         'describe-capabilities' => sub { 1 },  # SM126: introspection - the capability map
@@ -614,6 +618,13 @@ elsif ( $action eq 'domain-check' ) {
 elsif ( $action eq 'site-backup-create' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_site_backup_create( $req->{host} // $params{host} );
+}
+elsif ( $action eq 'site-backup-upload' ) {
+    $result = action_site_backup_upload($body);
+}
+elsif ( $action eq 'site-backup-apply' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_site_backup_apply($req);
 }
 elsif ( $action eq 'config-set' ) {
     my $req = eval { decode_json($body) } // {};
@@ -1284,6 +1295,128 @@ sub action_site_backup_create {
 
     local $Lazysite::Manager::SitePackage::auth_user = $auth_user;
     return package_create($host);
+}
+
+# SM158: upload a site package (a multipart file) into lazysite/backups/, so it
+# can then be applied. This is the "import" step - the one thing the old backup
+# tooling could not do (backups were server-only). The stored name is forced to
+# the lazysite-site- namespace and .tar.gz; content is written raw (a package is
+# a gzip blob, never executed). manage_content-gated (above) + upload rate limit.
+sub action_site_backup_upload {
+    my ($raw) = @_;
+    my $ct = $ENV{CONTENT_TYPE} // '';
+    return { ok => 0, error => 'Expected a multipart file upload' }
+        unless $ct =~ m{multipart/form-data}i;
+
+    my $rate = check_upload_rate($DOCROOT);
+    return { ok => 0, kind => 'rate', error => $rate->{error} }
+        if ref $rate eq 'HASH' && !$rate->{ok};
+
+    my ($file) = grep { defined $_->{filename} && length $_->{filename} }
+        parse_multipart_body( $raw, $ct );
+    return { ok => 0, error => 'No file in the upload' } unless $file;
+    return { ok => 0, error => 'A site package is a .tar.gz file' }
+        unless $file->{filename} =~ /\.tar\.gz\z/;
+    return { ok => 0, error => 'Empty upload' } unless length( $file->{data} // '' );
+
+    # A stored package always carries the namespace prefix + a UTC stamp; the
+    # uploaded filename is never trusted for the on-disk name.
+    my $stamp = strftime( '%Y%m%dT%H%M%SZ', gmtime );
+    my $name  = "lazysite-site-uploaded-$stamp.tar.gz";
+    my $dir   = "$DOCROOT/lazysite/backups";
+    make_path($dir) unless -d $dir;
+    my $out = "$dir/$name";
+    open my $fh, '>:raw', $out or return { ok => 0, error => "Cannot store the upload: $!" };
+    print {$fh} $file->{data};
+    close $fh;
+
+    audit_log( $auth_user, 'site-backup-upload', $name, $ENV{REMOTE_ADDR} // '',
+        'ok', ( $token_auth ? 'api' : 'ui' ), '' );
+    my @st = stat $out;
+    return { ok => 1, name => $name, size => ( $st[7] // 0 ) };
+}
+
+# SM158: apply a site package (already in lazysite/backups/) to a TARGET domain
+# on this instance. Safety-snapshots the whole docroot first, extracts + copies
+# the vetted content into the target content root, installs the bundled
+# theme/layout if missing, places the nav override, then writes the target
+# domain's presentation keys. Requires manage_content + access (scope) to the
+# target content root. $req: { name, host, clean }.
+#   host present + registered => apply into that domain (its content_root);
+#   host omitted / '(default)' => apply to the PRIMARY/base site.
+sub action_site_backup_apply {
+    my ($req) = @_;
+    $req ||= {};
+    my $name = $req->{name} // '';
+    my $host = lc( $req->{host} // '' );
+    $host = '' if $host eq '(default)';
+
+    return { ok => 0, kind => 'invalid', error => 'A package name is required' }
+        unless $name =~ /\Alazysite-site-[A-Za-z0-9._-]+\.tar\.gz\z/ && $name !~ /\.\./;
+    my $pkg = "$DOCROOT/lazysite/backups/$name";
+    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
+
+    # Resolve the TARGET content root.
+    my $croot;
+    if ( length $host ) {
+        my ($row) = grep { lc( $_->{host} // '' ) eq $host }
+            @{ domains_list()->{domains} || [] };
+        return { ok => 0, kind => 'not-found', error => "Not a registered domain: $host" }
+            unless $row;
+        $croot = $row->{content_root} // '';
+        return { ok => 0, kind => 'invalid',
+            error => "$host has no content folder of its own - set one on the Domains "
+                . 'page (or apply to the default site) first.' }
+            unless length $croot;
+    }
+    else {
+        # Primary/base: use the base content_root, else adopt the package's.
+        my ($base) = grep { $_->{is_primary} } @{ domains_list()->{domains} || [] };
+        $croot = $base->{content_root} // '';
+        $croot = ( $req->{content_root} // '' ) unless length $croot;
+    }
+    $croot =~ s{^/+|/+$}{}g;
+
+    # Scope: the caller must have access to the target content root.
+    if ( @REQUEST_SCOPES
+        && length $croot
+        && Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot ) )
+    {
+        return { ok => 0, kind => 'forbidden',
+            error => 'You do not have access to the target content root.' };
+    }
+
+    # Safety snapshot BEFORE any write, so an apply is always reversible.
+    my $safety = action_backup_create('prerestore');
+    return { ok => 0, error => 'Refusing to apply: safety snapshot failed' }
+        unless $safety->{ok};
+
+    local $Lazysite::Manager::SitePackage::auth_user = $auth_user;
+    my $ap = Lazysite::Manager::SitePackage::apply_and_configure(
+        $pkg,
+        host         => $host,
+        content_root => ( length $croot ? $croot : ( $req->{content_root} // '' ) ),
+        clean        => ( $req->{clean} ? 1      : 0 ) );
+    unless ( $ap->{ok} ) {
+        $ap->{safety} = $safety->{name};
+        return $ap;
+    }
+
+    # Drop caches so the applied site renders fresh.
+    require Lazysite::Util;
+    Lazysite::Util::clear_host_cache($DOCROOT) if Lazysite::Util->can('clear_host_cache');
+
+    audit_log( $auth_user, 'site-backup-apply', ( length $host ? $host : '(default)' ),
+        $ENV{REMOTE_ADDR} // '', 'ok', ( $token_auth ? 'api' : 'ui' ), "from $name" );
+    return {
+        ok               => 1,
+        applied_to       => ( length $host ? $host : '(default)' ),
+        content_root     => $ap->{content_root},
+        nav              => $ap->{nav},
+        layout_installed => $ap->{layout_installed},
+        safety           => $safety->{name},
+        source_host      => $ap->{source_host},
+    };
 }
 
 # --- Cache actions ---

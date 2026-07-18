@@ -22,15 +22,17 @@ package Lazysite::Manager::SitePackage;
 use strict;
 use warnings;
 use POSIX                      qw(strftime);
+use Cwd                        qw(realpath);
 use File::Path                 qw(make_path remove_tree);
 use File::Copy                 qw(copy);
 use File::Basename             qw(dirname basename);
 use File::Find                 ();
-use JSON::PP                   qw(encode_json);
+use JSON::PP                   qw(encode_json decode_json);
 use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Domains ();
+use Lazysite::Manager::Common  qw(_write_conf_key);
 use Exporter 'import';
-our @EXPORT_OK = qw(package_create);
+our @EXPORT_OK = qw(package_create package_apply apply_and_configure);
 
 our $DOCROOT   = '';
 our $auth_user = '';
@@ -175,6 +177,194 @@ sub package_create {
         host     => ( $row->{is_primary} ? '(default)' : lc $host ),
         manifest => $manifest,
     };
+}
+
+# --- public: apply a package to a target content root ----------------------
+
+# Safely extract a site package to a staging dir and return its path + manifest,
+# or ( undef, $err ). Uses the SEC-2026-07 M-TAR flags (no setuid/owner from the
+# archive) AND extracts to an ISOLATED staging dir - never straight onto the
+# docroot - so a hostile `../` member cannot escape; the caller copies only the
+# vetted subtrees across. Rejects a member whose resolved path leaves the stage.
+sub _extract_package {
+    my ( $pkg, $stage ) = @_;
+    make_path($stage);
+    my $rc = system( 'tar', 'xzf', $pkg, '-C', $stage,
+        '--no-same-owner', '--no-same-permissions' );
+    return ( undef, 'Could not read the package (bad archive)' ) if $rc != 0;
+
+    # Belt-and-braces: no extracted path may resolve outside the stage, and no
+    # symlinks are honoured (a package is data, not links).
+    my $real_stage = realpath($stage) // $stage;
+    my $escaped    = 0;
+    File::Find::find(
+        { no_chdir => 1,
+            wanted => sub {
+                my $p = $File::Find::name;
+                if ( -l $p ) { unlink $p; return }    # drop any symlink outright
+                my $rp = realpath($p) // return;
+                $escaped = 1
+                    unless $rp eq $real_stage || index( $rp, "$real_stage/" ) == 0;
+            },
+        },
+        $stage
+    );
+    return ( undef, 'Package contains an unsafe path' ) if $escaped;
+
+    my $mf = "$stage/site.json";
+    return ( undef, 'Not a lazysite site package (no manifest)' ) unless -f $mf;
+    my $manifest = eval {
+        open my $fh, '<:utf8', $mf or die;
+        local $/;
+        decode_json(<$fh>);
+    };
+    return ( undef, 'Package manifest is unreadable' )
+        unless ref $manifest eq 'HASH' && $manifest->{site_package};
+    return ( $manifest, undef );
+}
+
+# package_apply($pkg_path, %opt) - apply an (already-safe-located) site package
+# to a TARGET content root on this instance. The CALLER is responsible for access
+# control (manage_content + scope) and for taking a safety snapshot first; this
+# does the extraction, the confined content copy, the theme/layout install, and
+# the nav placement, then RETURNS the manifest keys so the caller writes the
+# per-domain presentation config (content_root/site_url/... via domain_set or a
+# base config write - a policy decision that lives with the caller).
+#
+# %opt:
+#   content_root  (required) - docroot-relative dir to receive the content
+#   clean         (bool) - remove existing files under content_root first
+sub package_apply {
+    my ( $pkg, %opt ) = @_;
+    return { ok => 0, error => 'Package not found' } unless defined $pkg && -f $pkg;
+
+    my $croot = $opt{content_root} // '';
+    $croot =~ s{^/+|/+$}{}g;
+    return { ok => 0, kind => 'invalid', error => 'A target content_root is required' }
+        unless length $croot;
+    return { ok => 0, kind => 'invalid', error => 'Invalid target content_root' }
+        if $croot =~ m{(?:^|/)\.\.(?:/|$)} || $croot =~ m{^lazysite(?:/|$)};
+
+    my $stage = "$DOCROOT/lazysite/backups/.apply-$$-" . strftime( '%H%M%S', gmtime );
+    remove_tree($stage) if -e $stage;
+    my ( $manifest, $err ) = _extract_package( $pkg, $stage );
+    unless ($manifest) {
+        remove_tree($stage) if -d $stage;
+        return { ok => 0, kind => 'invalid', error => $err };
+    }
+    my $cleanup = sub { remove_tree($stage) if -d $stage };
+
+    # 1. content -> target content_root (confined). Optionally clear first.
+    my $target = "$DOCROOT/$croot";
+    if ( $opt{clean} && -d $target ) {
+        my $rt = realpath($target)  // '';
+        my $rd = realpath($DOCROOT) // '';
+        if ( length $rt
+            && length $rd
+            && $rt ne $rd
+            && index( $rt, "$rd/" ) == 0
+            && $rt !~ m{/lazysite(?:/|$)} )
+        {
+            remove_tree($target);
+        }
+    }
+    make_path($target) unless -d $target;
+    _copy_tree( "$stage/content", $target ) if -d "$stage/content";
+
+    # 2. theme + layout: install the bundled layout/<...>/themes/<theme> if the
+    # target does not already have that layout. Never overwrite an existing
+    # layout (another site may share it) - only fill a gap.
+    my $layout = $manifest->{layout} // '';
+    my $theme  = $manifest->{theme}  // '';
+    my $layout_installed;
+    if ( length $layout
+        && $layout =~ /^[A-Za-z0-9_-]+$/
+        && -d "$stage/layout" )
+    {
+        my $ldst = "$DOCROOT/lazysite/layouts/$layout";
+        if ( !-d $ldst ) {
+            _copy_tree( "$stage/layout", $ldst );
+            $layout_installed = $layout;
+        }
+        elsif ( length $theme
+            && $theme =~ /^[A-Za-z0-9_-]+$/
+            && !-d "$ldst/themes/$theme"
+            && -d "$stage/layout/themes/$theme" )
+        {
+            # Layout present but missing this theme - add just the theme.
+            _copy_tree( "$stage/layout/themes/$theme", "$ldst/themes/$theme" );
+            $layout_installed = "$layout/$theme";
+        }
+    }
+
+    # 3. nav override -> a nav file inside the target content root (only when the
+    # package carried an override). The caller points the domain's nav_file at it.
+    my $nav_rel;
+    if ( $manifest->{nav} && $manifest->{nav} eq 'override' && -f "$stage/nav" ) {
+        copy( "$stage/nav", "$target/nav.conf" );
+        $nav_rel = "$croot/nav.conf";
+    }
+
+    $cleanup->();
+    log_event( 'INFO', 'site-package-apply', 'site package applied',
+        content_root => $croot, user => $auth_user );
+
+    # Presentation keys the caller should write for the target domain - taken
+    # from the manifest but with content_root/nav_file rewritten to the TARGET's
+    # actual locations (the source paths do not apply on this instance).
+    my %keys = %{ $manifest->{keys} || {} };
+    $keys{content_root} = $croot;
+    if ( defined $nav_rel ) { $keys{nav_file} = $nav_rel }
+    else                    { delete $keys{nav_file} }    # inherit base nav
+
+    return {
+        ok               => 1,
+        content_root     => $croot,
+        keys             => \%keys,
+        nav              => ( $nav_rel ? 'override' : 'base-inherited' ),
+        layout_installed => $layout_installed,
+        source_host      => ( $manifest->{source_host} // '' ),
+    };
+}
+
+# apply_and_configure($pkg, %opt) - package_apply PLUS write the target domain's
+# presentation keys from the applied manifest, so a caller (CLI/MCP) gets the
+# full "apply a site onto a domain" operation in one call. The manager-api does
+# this inline (it also does the scope check + safety snapshot); this is the
+# shared version for callers that manage those concerns themselves.
+#   %opt: host (target registered domain; '' or '(default)' = primary/base),
+#         content_root (target dir; for a host it defaults to that domain's
+#         content_root), clean.
+sub apply_and_configure {
+    my ( $pkg, %opt ) = @_;
+    my $host = lc( $opt{host} // '' );
+    $host = '' if $host eq '(default)';
+
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    my $croot = $opt{content_root} // '';
+    if ( length $host && !length $croot ) {
+        my ($row) = grep { lc( $_->{host} // '' ) eq $host }
+            @{ Lazysite::Manager::Domains::domains_list()->{domains} || [] };
+        return { ok => 0, kind => 'not-found', error => "Not a registered domain: $host" }
+            unless $row;
+        $croot = $row->{content_root} // '';
+        return { ok => 0, kind => 'invalid',
+            error => "$host has no content folder of its own; pass --content-root" }
+            unless length $croot;
+    }
+
+    my $ap = package_apply( $pkg, content_root => $croot, clean => $opt{clean} );
+    return $ap unless $ap->{ok};
+
+    my $keys = $ap->{keys} || {};
+    for my $k ( sort keys %$keys ) {
+        my $v = $keys->{$k};
+        next unless defined $v && length $v;
+        if ( length $host ) { Lazysite::Manager::Domains::domain_set( $host, $k, $v ) }
+        else                { _write_conf_key( $k, $v ) }
+    }
+    $ap->{applied_to} = length $host ? $host : '(default)';
+    return $ap;
 }
 
 1;
