@@ -16,6 +16,54 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.7.27 - EDGE: multilingual language sets (SM179) + subdomain delete-safety + domains UX (2026-07-18)
+
+Multilingual sites: language sets over the multi-site plane (SM179)
+: A set of sibling domains - one per language, each its own content root - can be
+  linked as one language set (a shared `lang_group`). The engine knows the
+  siblings, so every layout receives ready-made switcher data in `[% languages %]`
+  (each language's URL for the current page, the current one flagged, and whether
+  that translation exists); the built-in layout renders a switcher plus
+  `<link rel="alternate" hreflang>` alternates and an `x-default`, and per-domain
+  sitemaps gain `xhtml:link` hreflang alternates for pages whose counterparts
+  exist. A page's language is declared with `lang:` (site-wide or per host),
+  overridable in front matter, and surfaces as `<html lang>` and a
+  `Content-Language` header. A `json:` source resolves against the content root
+  first - so a translated page reads its own root's data - then the docroot.
+  Layouts localise their own chrome via `layouts/<layout>/strings/<lang>.json`
+  loaded into `[% t %]`, with per-key English fallback. A read-only `lang-status`
+  control-API action and a Domains "Language coverage" panel report each sibling
+  root's current / stale / missing pages (mtime-based, or exact via a
+  `translated_from` content hash) so a translator re-does exactly what changed;
+  `whoami` and the MCP connector announcement tell an agent the set exists, where
+  each language's files live, and the rule (translate values, never keys, paths or
+  structure; never hand-build a switcher or hreflang). Engine-chrome localisation
+  (login, validation, 404) is deferred. Gate: t/unit/lib/40-lang.t,
+  t/integration/19..23-*, t/unit/manager/35,36-*, t/unit/mcp/06-lang-note.t.
+
+Theme/layout deletion accounts for every domain, not just the primary (SM177)
+: Delete-safety previously considered only the primary's active theme/layout, so a
+  theme or layout a sub-domain depended on could be deleted out from under it.
+  Deletion now scans every registered domain (base plus aliases/sub-domains),
+  resolving each host's effective layout/theme the way the engine serves it, and
+  refuses - naming the domains - while any of them use the artifact. Sub-domains
+  are first-class peers of the primary here. Gate:
+  t/unit/manager/37-theme-delete-domains.t and a case in 08-layout-delete.t.
+
+Audit log: a domain target no longer opens in the file editor (SM178)
+: A domain action's target is a host, not a file - and a host ending in a
+  dot-suffix (`.io`, `.com`) was mistaken for a filename, so clicking it tried to
+  open the host in Files. Domain and language actions now link to the Domains page
+  instead.
+
+Domains: access lists are picked, not typed, and the edit panel is organised
+: "Groups allowed to manage" and "Users locked to this domain" are now tick-lists
+  of the site's real groups and accounts (previously free text, easy to mistype a
+  name that never matches); the domains list surfaces both so they pre-tick. The
+  domain edit panel is grouped into aligned Identity / Presentation / Access
+  sections rather than one ragged row. The "Domain access - set on the Domains
+  page" pointer is removed from the group editor.
+
 ## 0.7.26 - EDGE: content history + domain access model + manager batch (2026-07-18)
 
 Content history follows renames, and a delete ends the thread (SM175)
