@@ -26,9 +26,12 @@ find(
 plan tests => scalar @files;
 
 for my $file ( sort @files ) {
-    # Capture child TAP so it doesn't leak into our stream.
+    # Capture child TAP so it doesn't leak into our stream. Run with -Ilib so the
+    # repo module tree is on @INC exactly as `prove -l` (the certifying gate) puts
+    # it - otherwise a test that `use`s a Lazysite:: module directly fails here but
+    # passes under prove, a false aggregate failure.
     my $qfile = quotemeta $file;
-    qx($^X $qfile >/dev/null 2>&1);
+    qx($^X -Ilib $qfile >/dev/null 2>&1);
     my $rc = $?;
     is( $rc, 0, "pass: $file" );
 }
