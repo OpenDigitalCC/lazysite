@@ -1061,7 +1061,17 @@ sub try_serve_cache {
     my ( $base, $md_path, $html_path, $html_stat, $md_stat ) = @_;
     return 0 unless @$md_stat && @$html_stat;
 
-    if ( $html_stat->[9] >= $md_stat->[9] ) {
+    # A cached render also depends on lazysite.conf: site_name, theme, layout,
+    # nav, per-host alias overrides (site_url, lang, ...) all bake into the HTML.
+    # A conf change that doesn't touch the .md must still invalidate the cache, or
+    # a stale page is served - the reported "content-language: en / English chrome
+    # on a French host after the conf declared alias.<host>.lang". So the cache is
+    # fresh only when it post-dates BOTH its source AND the conf. This holds under
+    # one-shot CGI and any persistent (FastCGI) worker alike - it is keyed on file
+    # mtimes, not on a process's memory.
+    my $conf_mtime = ( stat $CONF_FILE )[9] // 0;
+
+    if ( $html_stat->[9] >= $md_stat->[9] && $html_stat->[9] >= $conf_mtime ) {
         $ACCESS_REC{c} = 1;    # SM140: served from the page cache
         log_event( 'DEBUG', $ENV{REDIRECT_URL} // '-', 'cache hit' );
         my $ct  = read_ct($base);
@@ -1071,9 +1081,13 @@ sub try_serve_cache {
         return 1;
     }
 
-    # mtime stale but page-level TTL may still keep the cache valid
+    # mtime stale but page-level TTL may still keep the cache valid - still gated
+    # on the conf being no newer than the cache.
     my $ttl = peek_ttl($md_path);
-    if ( defined $ttl && is_fresh_ttl_val_stat( $html_stat, $ttl ) ) {
+    if ( defined $ttl
+        && $html_stat->[9] >= $conf_mtime
+        && is_fresh_ttl_val_stat( $html_stat, $ttl ) )
+    {
         my $ct = read_ct($base);
         output_page( _inject_admin_bar_live( read_file($html_path), $md_path ),
             $ct, $ttl );
@@ -1899,7 +1913,11 @@ sub is_fresh {
     my ( $html_path, $md_path ) = @_;
     return 0 unless -f $html_path;
     return 0 unless -f $md_path;
-    return ( stat($html_path) )[9] >= ( stat($md_path) )[9];
+    my $h = ( stat($html_path) )[9];
+    return 0 if $h < ( stat($md_path) )[9];
+    # A render also depends on the conf (see try_serve_cache); a cache that
+    # predates a conf change is stale even if its source is unchanged.
+    return $h >= ( ( stat $CONF_FILE )[9] // 0 );
 }
 
 # --- D035 Phase 3: minimal nested-YAML for front-matter `sections:` -----------
@@ -3214,15 +3232,24 @@ sub resolve_tt_vars {
     # the cache is request-scoped automatically.
     #
     # *** FastCGI / D016 note ***
-    # Under a persistent-process model the cache MUST be reset at the
-    # start of every request iteration. The FastCGI wrapper should call
-    # reset_request_state() (below) before dispatching.
+    # Under a persistent-process model the cache MUST be reset at the start of
+    # every request iteration; handle_one_request() calls reset_request_state()
+    # for exactly that. Belt-and-suspenders, the cache is ALSO self-invalidating:
+    # it is keyed on (conf mtime, request host), so a conf edit or a different
+    # host on the next request re-resolves even if a runner never calls reset.
+    # This makes the resolver correct under any process model, not just ones that
+    # remember to reset - the durable fix for "conf change invisible to a
+    # persistent worker".
     my %_site_vars_cache;
     my $_site_vars_loaded = 0;
+    my $_site_vars_sig    = '';
 
     sub resolve_site_vars {
-        return %_site_vars_cache if $_site_vars_loaded;
         return () unless -f $CONF_FILE;
+        my $sig
+            = ( ( stat $CONF_FILE )[9] // 0 ) . "\0" . ( _request_host() // '' );
+        return %_site_vars_cache if $_site_vars_loaded && $sig eq $_site_vars_sig;
+        $_site_vars_sig = $sig;
 
         my $text = read_file($CONF_FILE);
         my %defs;
@@ -3296,6 +3323,7 @@ sub resolve_tt_vars {
     sub reset_request_state {
         %_site_vars_cache  = ();
         $_site_vars_loaded = 0;
+        $_site_vars_sig    = '';
         undef $REQUEST_CROOT;    # SM151: recomputed per request in main()
         _reset_peek_cache();
     }
