@@ -123,6 +123,10 @@ query_params:
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var filePath = '[% query.path | html %]';
 var isNew = '[% query.new | html %]' === '1';
+// Exiting the editor should return to the file's OWN folder, not the Files root.
+var backFolder = filePath ? filePath.replace(/\/?[^\/]*$/, '') : '';
+var backUrl = '/manager/files' + (backFolder ? '?path=' + encodeURIComponent(backFolder) : '');
+(function () { var b = document.querySelector('.mg-editor-back'); if (b) b.setAttribute('href', backUrl); })();
 var isMdFile = filePath && /\.md$/i.test(filePath);
 var isHtmlFile = filePath && /\.html$/i.test(filePath);
 var readOnly = false;
@@ -816,7 +820,7 @@ document.addEventListener('keydown', function(e) {
 // Esc returns to Files (the sidebar is hidden behind the full-screen editor),
 // but only when there is nothing unsaved - a dirty editor stays put.
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape' && !isDirty) { location.href = '/manager/files'; }
+  if (e.key === 'Escape' && !isDirty) { location.href = backUrl; }
 });
 
 loadFile();
