@@ -142,11 +142,9 @@ function renderGroups() {
     h += '<div class="mg-sec">Actions <span style="font-weight:400;color:#888">— what they may do</span></div>';
     h += '<div class="mg-checks">' + ACTIONS.map(row).join('') + '</div>';
 
-    // SM165: access moved to the DOMAIN. A group no longer carries a scope; each
-    // domain names the groups allowed to manage it (and the users locked to it),
-    // set on the Domains page. Shown here as a pointer only.
-    h += '<div class="mg-sec">Domain access <span style="font-weight:400;color:#888">— set on the Domains page</span></div>';
-    h += '<div class="mg-line" style="font-size:0.85em;color:#666;line-height:1.4">To let this group manage a domain, add it to that domain’s “Groups allowed to manage” on the <a href="/manager/domains">Domains</a> page. Confinement and per-user locks live there now, so access is visible on the domain it applies to.</div>';
+    // SM165: domain access lives on the DOMAIN (each domain names the groups
+    // allowed to manage it, on the Domains page), so the group editor no longer
+    // shows it here.
 
     h += '<div class="mg-sec">Members</div>';
     h += '<div class="mg-tokens" id="gm-' + ge + '">' + memberPillsHtml(members, ge) + '</div>';
