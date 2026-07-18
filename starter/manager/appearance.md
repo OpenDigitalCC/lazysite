@@ -411,7 +411,7 @@ function toggleCat(id) { var el = document.getElementById(id); if (el) el.hidden
 function installLayout(layout, theme, update) {
   var label = 'layout "' + layout + '"' + (theme ? ' / theme "' + theme + '"' : ' (default theme)');
   var verb = update ? 'Update' : 'Install';
-  mgConfirm(verb + ' ' + label + ' and activate it?', { ok: verb }).then(function(ok) {
+  mgConfirm(verb + ' ' + label + '? It will be installed but not activated - use its Activate button when you want to switch to it.', { ok: verb }).then(function(ok) {
     if (!ok) return;
     showStatus(verb + 'ing ' + label + '...');
     fetch(API + '?action=layout-install', {
@@ -424,7 +424,7 @@ function installLayout(layout, theme, update) {
       if (d.theme_errors && d.theme_errors.length) {
         showStatus(msg + ' - ' + d.theme_errors.join('; '), true);
       } else {
-        showStatus(msg + (d.activated ? ' and activated.' : '.'));
+        showStatus(msg + (d.activated ? ' and activated.' : ' - use Activate to switch to it.'));
       }
       loadAll(); loadCatalogue();
     }).catch(function(e){ showStatus('Install failed: ' + e.message, true); });

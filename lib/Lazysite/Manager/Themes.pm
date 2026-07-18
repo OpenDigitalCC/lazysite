@@ -271,18 +271,51 @@ sub _latest_backup_dir {
     return @b ? "$parent/$b[-1]" : undef;    # timestamps sort lexically; last = newest
 }
 
+# SM176: a per-theme "pristine" baseline - the artifact digest captured at
+# install. Stored as a dotfile in the themes dir (skipped by the theme listing
+# and by the backup scan) and OUTSIDE the theme dir, so it never perturbs the
+# theme's own digest. A theme whose current digest still equals this baseline has
+# no operator edits, so switching away from it must not spawn a backup.
+sub _pristine_path { return "$_[0]/.pristine-$_[1]" }
+
+sub _write_pristine {
+    my ( $parent, $name, $digest ) = @_;
+    return unless defined $digest && $digest =~ /\A[0-9a-f]{64}\z/;
+    if ( open my $fh, '>', _pristine_path( $parent, $name ) ) {
+        print {$fh} "$digest\n";
+        close $fh;
+    }
+    return;
+}
+
+sub _read_pristine {
+    my ( $parent, $name ) = @_;
+    open my $fh, '<', _pristine_path( $parent, $name ) or return undef;
+    my $d = <$fh>;
+    close $fh;
+    chomp $d if defined $d;
+    return ( defined $d && $d =~ /\A[0-9a-f]{64}\z/ ) ? $d : undef;
+}
+
 sub _snapshot_artifact {
     my ( $parent, $name ) = @_;
     my $src = "$parent/$name";
     return unless -d $src;
     my $base = _backup_base($name);
+    my $cur  = _artifact_digest($src);
+    # SM176: a theme unchanged since it was installed (still at its pristine
+    # baseline) has no edits worth preserving - switching away from it must not
+    # snapshot it. Themes installed before this baseline existed fall through to
+    # the last-backup check below (unchanged pre-SM176 behaviour).
+    my $pristine = _read_pristine( $parent, $name );
+    return if defined $pristine && $pristine eq $cur;
     # Only snapshot when something actually CHANGED since the last backup. Just
     # trying themes on and off (which edits nothing) must not spawn a pile of
     # identical snapshots.
     if ( my $latest = _latest_backup_dir( $parent, $base ) ) {
         # $latest ne $src: when the source IS itself a backup dir, don't compare
         # it to itself (that would always "match" and wrongly skip).
-        return if $latest ne $src && _artifact_digest($src) eq _artifact_digest($latest);
+        return if $latest ne $src && $cur eq _artifact_digest($latest);
     }
     my $dst = "$parent/$base-backup-" . strftime( '%Y%m%dT%H%M%SZ', gmtime );
     return if -e $dst;
@@ -666,6 +699,11 @@ sub _install_theme_from_dir {
                     path => $assets_dest, rc => ( $rc >> 8 ) );
             }
         }
+
+        # SM176: record the pristine baseline so switching away from this theme
+        # later, if the operator never edited it, does not spawn a pointless backup.
+        _write_pristine( "$DOCROOT/lazysite/layouts/$l/themes",
+            $install_name, _artifact_digest($dest) );
 
         push @installed, $l;
     }
