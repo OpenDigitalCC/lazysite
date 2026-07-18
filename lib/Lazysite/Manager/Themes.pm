@@ -12,16 +12,17 @@ use strict;
 use warnings;
 use JSON::PP qw(encode_json decode_json);
 use File::Find;
-use File::Path qw(make_path remove_tree);
-use File::Copy qw(copy);
-use File::Basename qw(basename dirname);
-use Cwd qw(realpath);
-use POSIX qw(strftime);
-use Digest::SHA qw(sha256_hex);
-use Lazysite::Util qw(log_event);
-use Lazysite::Manager::Common qw(write_file_checked _write_conf_key);
-use Lazysite::Manager::Files qw(acquire_lock release_lock);
+use File::Path                  qw(make_path remove_tree);
+use File::Copy                  qw(copy);
+use File::Basename              qw(basename dirname);
+use Cwd                         qw(realpath);
+use POSIX                       qw(strftime);
+use Digest::SHA                 qw(sha256_hex);
+use Lazysite::Util              qw(log_event);
+use Lazysite::Manager::Common   qw(write_file_checked _write_conf_key);
+use Lazysite::Manager::Files    qw(acquire_lock release_lock);
 use Lazysite::Manager::Artifact qw(_artifact_dir _compute_manifest _artifact_digest);
+use Lazysite::Manager::Domains  ();    # SM177: domains_using (delete-safety scan)
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
@@ -68,7 +69,7 @@ sub action_theme_list {
                 next unless -d "$themes_dir/$name";
                 push @themes, {
                     name   => $name,
-                    active => $name eq $active_theme ? 1 : 0,
+                    active => $name eq $active_theme            ? 1 : 0,
                     valid  => -f "$themes_dir/$name/theme.json" ? 1 : 0,
                 };
             }
@@ -92,7 +93,7 @@ sub action_themes_list_all {
 
     if ( -d $layouts_dir ) {
         opendir my $ld, $layouts_dir or return {
-            ok => 1, themes => [], active => $active_theme,
+            ok            => 1, themes => [], active => $active_theme,
             active_layout => $active_layout,
         };
         for my $layout_name ( sort readdir $ld ) {
@@ -107,7 +108,7 @@ sub action_themes_list_all {
 
                 my $valid  = -f "$themes_path/$name/theme.json" ? 1 : 0;
                 my $active = ( $layout_name eq $active_layout
-                            && $name         eq $active_theme ) ? 1 : 0;
+                        && $name eq $active_theme ) ? 1 : 0;
                 push @themes, {
                     layout => $layout_name,
                     name   => $name,
@@ -145,10 +146,10 @@ sub action_theme_activate {
 
     # Artifact-level lock across validate -> snapshot -> flip.
     my $lock_rel = "lazysite/layouts/$active_layout/themes/$theme_name";
-    my $lk = acquire_lock( $lock_rel, $auth_user );
+    my $lk       = acquire_lock( $lock_rel, $auth_user );
     unless ( $lk->{ok} ) {
         return { ok => 0, locked => 1, error => "Theme is locked by "
-            . ( $lk->{locked_by} // 'another session' ) };
+                . ( $lk->{locked_by} // 'another session' ) };
     }
 
     my $out = eval {
@@ -183,9 +184,9 @@ sub _set_theme_pointer {
     open my $fh, '<:utf8', $conf_path or return { ok => 0, error => "Cannot read conf" };
     my $conf = do { local $/; <$fh> };
     close $fh;
-    if    ( $theme_name eq '' )         { $conf =~ s/^theme\s*:.*\n?//m }
-    elsif ( $conf =~ /^theme\s*:/m )    { $conf =~ s/^theme\s*:.*$/theme: $theme_name/m }
-    else                                { $conf .= "\ntheme: $theme_name\n" }
+    if    ( $theme_name eq '' )      { $conf =~ s/^theme\s*:.*\n?//m }
+    elsif ( $conf =~ /^theme\s*:/m ) { $conf =~ s/^theme\s*:.*$/theme: $theme_name/m }
+    else                             { $conf .= "\ntheme: $theme_name\n" }
     open my $o, '>:utf8', $conf_path or return { ok => 0, error => "Cannot write conf" };
     print $o $conf;
     close $o;
@@ -195,16 +196,16 @@ sub _set_theme_pointer {
 
 sub _invalidate_html_cache {
     find( sub {
-        return unless /\.html$/;
-        my $rel = $File::Find::name;
-        $rel =~ s{^\Q$DOCROOT\E/?}{/};
-        return if $rel =~ m{^/lazysite/};
-        # Only delete a GENERATED cache file: a <page>.html whose <page>.md or
-        # <page>.url source exists. An author-supplied .html with no such
-        # source (e.g. an include partial) is content, not cache - never
-        # delete it (deleting author partials gutted pages, SM072 report).
-        ( my $base = $File::Find::name ) =~ s/\.html$//;
-        unlink $_ if -f "$base.md" || -f "$base.url";
+            return unless /\.html$/;
+            my $rel = $File::Find::name;
+            $rel =~ s{^\Q$DOCROOT\E/?}{/};
+            return if $rel =~ m{^/lazysite/};
+            # Only delete a GENERATED cache file: a <page>.html whose <page>.md or
+            # <page>.url source exists. An author-supplied .html with no such
+            # source (e.g. an include partial) is content, not cache - never
+            # delete it (deleting author partials gutted pages, SM072 report).
+            ( my $base = $File::Find::name ) =~ s/\.html$//;
+            unlink $_ if -f "$base.md" || -f "$base.url";
     }, $DOCROOT );
     # SM110: a theme/layout change re-chromes every page of every host -
     # drop the per-alias-host cache tree wholesale too.
@@ -238,13 +239,13 @@ sub _validate_theme_dir {
     return { valid => 0, errors => ['theme.json missing'] } unless -f $tj;
     open my $fh, '<:utf8', $tj
         or return { valid => 0, errors => ['theme.json unreadable'] };
-    my $raw  = do { local $/; <$fh> };
+    my $raw = do { local $/; <$fh> };
     close $fh;
     my $data = eval { decode_json($raw) };
     my @err;
     if ( ref $data ne 'HASH' ) {
         my $why = $@ ? do { ( my $e = $@ ) =~ s/\s+at \S+ line \d+.*//s; $e =~ s/\s+$//; $e }
-                     : 'top level is not a JSON object';
+            :   'top level is not a JSON object';
         push @err, "theme.json invalid: $why";
     }
     elsif ( ref $data->{layouts} ne 'ARRAY' || !@{ $data->{layouts} } ) {
@@ -325,7 +326,7 @@ sub _snapshot_artifact {
 sub _prune_backups {
     my ( $parent, $name ) = @_;
     my $keep = _backup_retention();
-    return if $keep <= 0;   # 0 (or negative) = keep all
+    return if $keep <= 0;    # 0 (or negative) = keep all
     my $base = _backup_base($name);
     opendir my $dh, $parent or return;
     my @backups = sort grep { /^\Q$base\E-backup-/ && -d "$parent/$_" } readdir $dh;
@@ -355,7 +356,7 @@ sub _default_theme_for_layout {
         my $raw = do { local $/; <$jf> };
         close $jf;
         my $meta = eval { decode_json($raw) };
-        my $dt = ( ref $meta eq 'HASH' ) ? ( $meta->{default_theme} // '' ) : '';
+        my $dt   = ( ref $meta eq 'HASH' ) ? ( $meta->{default_theme} // '' ) : '';
         return $dt if length $dt && _theme_declares_layout( $layout, $dt );
     }
     if ( opendir my $dh, "$ldir/themes" ) {
@@ -386,10 +387,10 @@ sub action_layout_activate {
     my $theme_specified = ( defined $params->{theme} && length $params->{theme} ) ? 1 : 0;
 
     my $lock_rel = "lazysite/layouts/$layout_name";
-    my $lk = acquire_lock( $lock_rel, $auth_user );
+    my $lk       = acquire_lock( $lock_rel, $auth_user );
     unless ( $lk->{ok} ) {
         return { ok => 0, locked => 1, error => "Layout is locked by "
-            . ( $lk->{locked_by} // 'another session' ) };
+                . ( $lk->{locked_by} // 'another session' ) };
     }
 
     my $out = eval {
@@ -406,9 +407,9 @@ sub action_layout_activate {
             if ($theme_specified) {
                 return { ok => 0, incompatible => 1,
                     error => "Theme '$theme' is not declared for layout '$layout_name'"
-                           . " - name a compatible theme to switch to" };
+                        . " - name a compatible theme to switch to" };
             }
-            $theme = _default_theme_for_layout($layout_name);
+            $theme           = _default_theme_for_layout($layout_name);
             $theme_specified = 1 if length $theme;
         }
 
@@ -496,6 +497,21 @@ sub action_theme_delete {
     return { ok => 0, error => "No active layout set" }
         unless length $active_layout;
 
+    # SM177: a sub-domain is a first-class peer - if any registered domain uses
+    # this theme (under the active layout, where it lives), deleting it would
+    # break that domain. Block and name them, just as the active-theme guard does
+    # for the primary. domains_using resolves effective per-host values, so an
+    # alias that inherits the active layout but pins this theme is caught.
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    my @in_use = Lazysite::Manager::Domains::domains_using(
+        theme => $theme_name, layout => $active_layout );
+    if (@in_use) {
+        return { ok => 0,
+            error => "Theme '$theme_name' is in use by "
+                . join( ', ', @in_use )
+                . ". Repoint or remove those domains first." };
+    }
+
     # D013: delete only from the active layout's themes dir. A theme
     # installed under multiple layouts (via theme.json's layouts[])
     # has copies elsewhere — those remain, and the operator can remove
@@ -510,16 +526,16 @@ sub action_theme_delete {
 
     my $rc = system( "rm", "-rf", $theme_dir );
     if ( $rc != 0 ) {
-        log_event('ERROR', 'theme-delete', 'rm failed',
-            path => $theme_dir, rc => ( $rc >> 8 ));
+        log_event( 'ERROR', 'theme-delete', 'rm failed',
+            path => $theme_dir, rc => ( $rc >> 8 ) );
         return { ok => 0, error => "Delete failed" };
     }
     my $assets_dir = "$DOCROOT/lazysite-assets/$active_layout/$theme_name";
     if ( -d $assets_dir ) {
         $rc = system( "rm", "-rf", $assets_dir );
         if ( $rc != 0 ) {
-            log_event('WARN', 'theme-delete', 'rm assets failed',
-                path => $assets_dir, rc => ( $rc >> 8 ));
+            log_event( 'WARN', 'theme-delete', 'rm assets failed',
+                path => $assets_dir, rc => ( $rc >> 8 ) );
         }
     }
 
@@ -534,7 +550,7 @@ sub action_theme_rename {
 
     return { ok => 0, error => "Invalid name" } unless $old_name && $new_name;
 
-    my ( $active_layout ) = _read_active_layout_and_theme();
+    my ($active_layout) = _read_active_layout_and_theme();
     return { ok => 0, error => "No active layout set" }
         unless length $active_layout;
 
@@ -662,7 +678,7 @@ sub _install_theme_from_dir {
     }
     if (@missing) {
         return { ok => 0,
-            error => "Theme targets missing layout(s): " . join(', ', @missing) };
+            error => "Theme targets missing layout(s): " . join( ', ', @missing ) };
     }
 
     # Resolve the on-disk install name once, using the first layout
@@ -743,8 +759,8 @@ sub action_cache_list {
         sub {
             return unless /\.html$/;
             my $rel = $File::Find::name;
-            $rel =~ s{^\Q$DOCROOT\E/?}{/};
-            return if $rel =~ m{^/lazysite/};
+            $rel                            =~ s{^\Q$DOCROOT\E/?}{/};
+            return if $rel                  =~ m{^/lazysite/};
             ( my $src = $File::Find::name ) =~ s/\.html$/.md/;
             push @cached, {
                 path       => $rel,
@@ -797,7 +813,7 @@ sub action_cache_invalidate {
     unlink $real if -f $real;
     # SM110: drop the per-alias-host copies of this page's render too.
     Lazysite::Util::unlink_host_copies( $DOCROOT, $real );
-    log_event('INFO', $action, 'cache invalidated', path => $rel_path, user => $auth_user);
+    log_event( 'INFO', $action, 'cache invalidated', path => $rel_path, user => $auth_user );
     return { ok => 1, path => $rel_path };
 }
 
@@ -809,15 +825,15 @@ sub action_cache_invalidate {
 sub action_artifact_manifest {
     my ($p) = @_;
     my $a = _artifact_dir($p);
-    return $a unless $a->{ok};
+    return $a                                         unless $a->{ok};
     return { ok => 0, error => 'artifact not found' } unless -d $a->{dir};
 
     my $manifest = _compute_manifest( $a->{dir} );
     # digest is the optimistic-concurrency token: the client passes it back
     # as `base` to activate, which 409s if the artifact drifted since.
     return { ok => 1, layout => $a->{layout}, theme => $a->{theme},
-             manifest => $manifest,
-             digest   => sha256_hex( JSON::PP->new->canonical->encode($manifest) ) };
+        manifest => $manifest,
+        digest   => sha256_hex( JSON::PP->new->canonical->encode($manifest) ) };
 }
 
 sub action_artifact_validate {
@@ -833,11 +849,11 @@ sub action_artifact_validate {
         if ( !-f $tj ) { push @err, 'theme.json missing' }
         else {
             open my $fh, '<:utf8', $tj or push @err, 'theme.json unreadable';
-            if (@err == 0) {
-                my $raw  = do { local $/; <$fh> };
+            if ( @err == 0 ) {
+                my $raw = do { local $/; <$fh> };
                 close $fh;
                 my $data = eval { decode_json($raw) };
-                if ( ref $data ne 'HASH' ) { push @err, 'theme.json invalid' }
+                if    ( ref $data ne 'HASH' ) { push @err, 'theme.json invalid' }
                 elsif ( ref $data->{layouts} ne 'ARRAY' || !@{ $data->{layouts} } ) {
                     push @err, 'theme.json layouts[] missing or empty';
                 }

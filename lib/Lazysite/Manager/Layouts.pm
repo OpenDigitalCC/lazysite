@@ -8,15 +8,16 @@ package Lazysite::Manager::Layouts;
 
 use strict;
 use warnings;
-use JSON::PP qw(encode_json decode_json);
-use File::Path qw(make_path remove_tree);
-use File::Copy qw(copy);
-use File::Basename qw(basename dirname);
-use Cwd qw(realpath);
-use POSIX qw(strftime);
-use Lazysite::Util qw(log_event);
-use Lazysite::Manager::Common qw(write_file_checked _write_conf_key);
-use Lazysite::Manager::Themes qw(_install_theme_from_dir _read_active_layout_and_theme
+use JSON::PP                   qw(encode_json decode_json);
+use File::Path                 qw(make_path remove_tree);
+use File::Copy                 qw(copy);
+use File::Basename             qw(basename dirname);
+use Cwd                        qw(realpath);
+use POSIX                      qw(strftime);
+use Lazysite::Util             qw(log_event);
+use Lazysite::Manager::Common  qw(write_file_checked _write_conf_key);
+use Lazysite::Manager::Domains ();    # SM177: domains_using (delete-safety scan)
+use Lazysite::Manager::Themes  qw(_install_theme_from_dir _read_active_layout_and_theme
     _snapshot_artifact _prune_backups _mirror_theme_assets action_layout_activate);
 use Exporter 'import';
 
@@ -45,7 +46,7 @@ sub _layouts_repo {
     # Sensible default so the release browser works out of the box; a
     # layouts_repo key in lazysite.conf overrides it for a custom repo.
     return ( defined $repo && length $repo ) ? $repo
-                                             : 'OpenDigitalCC/lazysite-layouts';
+        :                                      'OpenDigitalCC/lazysite-layouts';
 }
 
 sub action_layouts_releases {
@@ -53,10 +54,10 @@ sub action_layouts_releases {
     return { ok => 0,
         error => 'Unable to fetch releases. Check the Layouts repo setting above.' }
         unless defined $repo && length $repo
-            && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+        && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
 
     require LWP::UserAgent;
-    my $ua = LWP::UserAgent->new( timeout => 10, agent => 'lazysite/1.0' );
+    my $ua  = LWP::UserAgent->new( timeout => 10, agent => 'lazysite/1.0' );
     my $url = "https://api.github.com/repos/$repo/releases";
     my $res = $ua->get( $url, 'Accept' => 'application/vnd.github+json' );
 
@@ -83,21 +84,21 @@ sub action_layouts_releases {
 
 sub action_layouts_install {
     my ($request_body) = @_;
-    my $req = eval { decode_json( $request_body // '{}' ) } // {};
-    my $tag = $req->{tag} // '';
+    my $req            = eval { decode_json( $request_body // '{}' ) } // {};
+    my $tag            = $req->{tag}                                   // '';
 
     # Tags can hold versioned names like v1.2.0 or release-2026-04-01
     # (and optionally refs/tags-style slashes). Reject any ".." sequence
     # to stop URL traversal into other GitHub API endpoints.
     return { ok => 0, error => 'Invalid tag' }
         unless length $tag
-            && $tag =~ m{^[A-Za-z0-9._/-]+$}
-            && $tag !~ m{\.\.};
+        && $tag =~ m{^[A-Za-z0-9._/-]+$}
+        && $tag !~ m{\.\.};
 
     my $repo = _layouts_repo();
     return { ok => 0, error => 'layouts_repo not set or invalid in lazysite.conf' }
         unless defined $repo && length $repo
-            && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+        && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
 
     my $have_azip = eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)); 1 };
     return { ok => 0,
@@ -184,7 +185,7 @@ sub action_layouts_install {
         _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0,
             error => 'Release does not contain a layouts/ directory '
-                   . '(repo must follow D013 nested shape: layouts/LAYOUT/themes/THEME/)' };
+                . '(repo must follow D013 nested shape: layouts/LAYOUT/themes/THEME/)' };
     }
 
     my @results;
@@ -209,7 +210,7 @@ sub action_layouts_install {
             my $layout_ok      = 1;
             if ($layout_had_tt) {
                 my $lr = _install_layout_from_dir(
-                    $layout_path, $layout_name,
+                    $layout_path,      $layout_name,
                     'layouts-install', $auth_user );
                 push @layout_results,
                     { source => $layout_src_rel, %$lr };
@@ -237,7 +238,7 @@ sub action_layouts_install {
                             source => "layouts/$layout_name/themes/$theme_name",
                             ok     => JSON::PP::false(),
                             error  => "Skipped: layout $layout_name install did "
-                                   . "not succeed",
+                                . "not succeed",
                         };
                     }
                     closedir $th_skip;
@@ -278,7 +279,7 @@ sub action_layouts_install {
                         unless ( grep { $_ eq $layout_name } @{ $meta->{layouts} } ) {
                             $mismatch = sprintf(
                                 "Theme %s under %s declares layouts: [%s], "
-                                . "mismatching source path",
+                                    . "mismatching source path",
                                 $theme_name, $source_rel,
                                 join( ', ', @{ $meta->{layouts} } )
                             );
@@ -324,11 +325,11 @@ sub action_layouts_install {
     my ( $layout_auto_set, $layout_auto_set_name ) = ( 0, '' );
     my ( $theme_auto_set,  $theme_auto_set_name )  = ( 0, '' );
     if ( $layouts_installed >= 1 ) {
-        my ($cur_layout, $cur_theme) = _read_active_layout_and_theme();
+        my ( $cur_layout, $cur_theme ) = _read_active_layout_and_theme();
 
         unless ( length $cur_layout ) {
-            my ($first_layout) = map  { $_->{source} =~ m{^layouts/([^/]+)$} ? $1 : () }
-                                 grep { $_->{ok} } @layout_results;
+            my ($first_layout) = map { $_->{source} =~ m{^layouts/([^/]+)$} ? $1 : () }
+                grep { $_->{ok} } @layout_results;
             if ( defined $first_layout && length $first_layout ) {
                 if ( _write_conf_key( 'layout', $first_layout ) ) {
                     $layout_auto_set      = 1;
@@ -344,11 +345,11 @@ sub action_layouts_install {
         # Theme auto-set only when we now have a layout AND theme is
         # unset AND at least one theme installed under that layout.
         if ( length $cur_layout && !length $cur_theme
-             && $themes_installed >= 1 ) {
-            my ($first_theme) = map  {
-                    $_->{source} =~ m{^layouts/\Q$cur_layout\E/themes/([^/]+)$}
-                        ? $1 : ()
-                } grep { $_->{ok} } @results;
+            && $themes_installed >= 1 ) {
+            my ($first_theme) = map {
+                $_->{source} =~ m{^layouts/\Q$cur_layout\E/themes/([^/]+)$}
+                    ? $1 : ()
+            } grep { $_->{ok} } @results;
             if ( defined $first_theme && length $first_theme ) {
                 if ( _write_conf_key( 'theme', $first_theme ) ) {
                     $theme_auto_set      = 1;
@@ -362,14 +363,14 @@ sub action_layouts_install {
     }
 
     log_event( 'INFO', 'layouts-install', 'release installed',
-        repo             => $repo, tag => $tag,
-        layouts_total    => scalar @layout_results,
-        layouts_ok       => $layouts_installed,
-        themes_total     => scalar @results,
-        themes_ok        => $themes_installed,
-        layout_auto_set  => $layout_auto_set,
-        theme_auto_set   => $theme_auto_set,
-        user             => $auth_user );
+        repo            => $repo, tag => $tag,
+        layouts_total   => scalar @layout_results,
+        layouts_ok      => $layouts_installed,
+        themes_total    => scalar @results,
+        themes_ok       => $themes_installed,
+        layout_auto_set => $layout_auto_set,
+        theme_auto_set  => $theme_auto_set,
+        user            => $auth_user );
 
     return {
         ok              => 1,
@@ -378,9 +379,9 @@ sub action_layouts_install {
         layouts         => \@layout_results,
         themes          => \@results,
         layout_auto_set => $layout_auto_set
-                            ? JSON::PP::true() : JSON::PP::false(),
-        theme_auto_set  => $theme_auto_set
-                            ? JSON::PP::true() : JSON::PP::false(),
+        ? JSON::PP::true() : JSON::PP::false(),
+        theme_auto_set => $theme_auto_set
+        ? JSON::PP::true() : JSON::PP::false(),
         layout_auto_set_name => $layout_auto_set_name,
         theme_auto_set_name  => $theme_auto_set_name,
     };
@@ -397,13 +398,13 @@ sub action_layouts_release_contents {
 
     return { ok => 0, error => 'Invalid tag' }
         unless length $tag
-            && $tag =~ m{^[A-Za-z0-9._/-]+$}
-            && $tag !~ m{\.\.};
+        && $tag =~ m{^[A-Za-z0-9._/-]+$}
+        && $tag !~ m{\.\.};
 
     my $repo = _layouts_repo();
     return { ok => 0, error => 'layouts_repo not set or invalid in lazysite.conf' }
         unless defined $repo && length $repo
-            && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+        && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
 
     my $have_azip = eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)); 1 };
     return { ok => 0,
@@ -475,7 +476,7 @@ sub action_layouts_release_contents {
         _cleanup_tmp_layouts($tmp_dir);
         return { ok => 0,
             error => 'Release does not contain a layouts/ directory '
-                   . '(repo must follow D013 nested shape)' };
+                . '(repo must follow D013 nested shape)' };
     }
 
     # Walk layouts/LAYOUT/themes/THEME/theme.json. Any parse errors
@@ -495,7 +496,7 @@ sub action_layouts_release_contents {
                 my $theme_path = "$themes_path/$theme_name";
                 next unless -d $theme_path;
 
-                my $tj = "$theme_path/theme.json";
+                my $tj          = "$theme_path/theme.json";
                 my $description = '';
                 if ( -f $tj && open my $jf, '<:utf8', $tj ) {
                     my $raw = do { local $/; <$jf> };
@@ -571,8 +572,8 @@ sub action_themes_for_layout {
             close $jf;
             my $meta = eval { decode_json($raw) };
             next unless ref $meta eq 'HASH'
-                     && ref $meta->{layouts} eq 'ARRAY'
-                     && grep { $_ eq $layout } @{ $meta->{layouts} };
+                && ref $meta->{layouts} eq 'ARRAY'
+                && grep { $_ eq $layout } @{ $meta->{layouts} };
 
             push @themes, $name;
         }
@@ -596,6 +597,19 @@ sub action_layout_delete {
             . 'then delete this one.' }
         if length $active_layout && $layout_name eq $active_layout;
 
+    # SM177: sub-domains are first-class peers - a layout any registered domain
+    # uses must not be deletable out from under it. Block and name the domains,
+    # mirroring the active-layout guard for the primary. domains_using resolves
+    # each host's effective layout (a per-host override, else the inherited base).
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    my @in_use = Lazysite::Manager::Domains::domains_using( layout => $layout_name );
+    if (@in_use) {
+        return { ok => 0,
+            error => "Layout '$layout_name' is in use by "
+                . join( ', ', @in_use )
+                . ". Repoint or remove those domains first." };
+    }
+
     my $layouts_dir = "$DOCROOT/lazysite/layouts";
     my $layout_dir  = "$layouts_dir/$layout_name";
     return { ok => 0, error => 'Layout not found' } unless -d $layout_dir;
@@ -611,7 +625,7 @@ sub action_layout_delete {
     my @themes;
     if ( opendir my $th, "$layout_dir/themes" ) {
         @themes = sort grep { !/^\./ && !/-backup-\d/
-            && -f "$layout_dir/themes/$_/theme.json" } readdir $th;
+                && -f "$layout_dir/themes/$_/theme.json" } readdir $th;
         closedir $th;
     }
 
@@ -640,8 +654,8 @@ sub action_layout_delete {
     }
 
     log_event( 'INFO', 'layout-delete', 'layout deleted',
-        name => $layout_name, themes => join( ',', @themes ),
-        theme_count => scalar @themes, user => $auth_user );
+        name        => $layout_name,   themes => join( ',', @themes ),
+        theme_count => scalar @themes, user   => $auth_user );
 
     return {
         ok             => 1,
@@ -667,7 +681,7 @@ sub action_artifact_backups_delete {
         $rel =~ s{^/+}{};
         return { ok => 0, error => 'Not a backup path' }
             unless $rel =~ m{^lazysite/layouts/[^/]+(?:/themes/[^/]+)?$}
-                && $rel =~ /-backup-\d{8}T\d{6}Z\z/;
+            && $rel =~ /-backup-\d{8}T\d{6}Z\z/;
         my $real = realpath("$DOCROOT/$rel");
         return { ok => 0, error => 'Invalid path' }
             unless $real && index( $real, "$root/" ) == 0 && -d $real;
@@ -681,7 +695,7 @@ sub action_artifact_backups_delete {
 
     my ( $deleted, $skipped ) = ( 0, 0 );
     for my $t (@targets) {
-        if ( length $active_real && $t eq $active_real ) { $skipped++; next }  # never the active layout
+        if ( length $active_real && $t eq $active_real ) { $skipped++; next } # never the active layout
         $deleted++ if system( 'rm', '-rf', $t ) == 0;
     }
     log_event( 'INFO', 'artifact-backups-delete', 'removed layout/theme backups',
@@ -781,7 +795,7 @@ sub _http_get {
 # Returns (1, $extract_dir) or (0, $error).
 sub _download_extract {
     my ( $url, $extract_dir ) = @_;
-    my ( $ok, $content ) = _http_get($url);
+    my ( $ok,  $content )     = _http_get($url);
     return ( 0, "fetch failed ($content)" ) unless $ok;
 
     make_path($extract_dir);
@@ -851,12 +865,12 @@ sub action_layouts_manifest {
     my $repo = _layouts_repo();
     return { ok => 0, error => 'layouts_repo not set or invalid in lazysite.conf' }
         unless defined $repo && length $repo
-            && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+        && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
 
     my ( $ok, $body ) = _http_get( _raw_base() . '/manifest.json' );
     return { ok => 0,
         error => "Could not fetch manifest.json ($body). The repo must ship a "
-               . "manifest.json on the '" . _layouts_ref() . "' branch." }
+            . "manifest.json on the '" . _layouts_ref() . "' branch." }
         unless $ok;
 
     my $data = eval { decode_json($body) };
@@ -880,14 +894,14 @@ sub action_layouts_manifest {
             version       => $l->{version}       // '',
             default_theme => $l->{default_theme} // '',
             installed     => $inst_layout{$name}
-                ? JSON::PP::true() : JSON::PP::false(),
+            ? JSON::PP::true() : JSON::PP::false(),
             themes => [
                 map {
                     {
                         name      => $_->{name},
                         version   => $_->{version} // '',
                         installed => $inst_theme{ $_->{name} // '' }
-                            ? JSON::PP::true() : JSON::PP::false(),
+                        ? JSON::PP::true() : JSON::PP::false(),
                     }
                 } ( ref $l->{themes} eq 'ARRAY' ? @{ $l->{themes} } : () )
             ],
@@ -907,8 +921,8 @@ sub action_layout_install {
     $layout =~ s/[^A-Za-z0-9_-]//g;
     my $theme = $req->{theme};
     $theme =~ s/[^A-Za-z0-9_-]//g if defined $theme;
-    my $all      = $req->{all}      ? 1 : 0;
-    my $update   = $req->{update}   ? 1 : 0;
+    my $all    = $req->{all}    ? 1 : 0;
+    my $update = $req->{update} ? 1 : 0;
     # SM176: install NEVER auto-activates - not even on a fresh site. Activation
     # is a separate, explicit operator choice (the Activate button), so installing
     # a layout/theme never switches away from the one currently in use. Only an
@@ -919,7 +933,7 @@ sub action_layout_install {
     my $repo = _layouts_repo();
     return { ok => 0, error => 'layouts_repo not set or invalid in lazysite.conf' }
         unless defined $repo && length $repo
-            && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
+        && $repo =~ m{^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$};
 
     my $have_azip =
         eval { require Archive::Zip; Archive::Zip->import(qw(:ERROR_CODES)); 1 };
@@ -931,7 +945,7 @@ sub action_layout_install {
     return { ok => 0, error => "Could not fetch manifest.json ($mbody)" }
         unless $mok;
     my $manifest = eval { decode_json($mbody) };
-    my $plan = _resolve_manifest_install( $manifest, $layout,
+    my $plan     = _resolve_manifest_install( $manifest, $layout,
         ( $all ? undef : $theme ), $all );
     return $plan unless $plan->{ok};
 
@@ -978,9 +992,9 @@ sub action_layout_install {
 
     # 3. Activate (atomic; rebuilds the mirror + busts the cache).
     my $primary = ( defined $theme && length $theme ) ? $theme
-                : ( $plan->{layout}{name} && grep { $_ eq $layout } @themes_installed )
-                    ? $layout
-                : ( @themes_installed ? $themes_installed[0] : '' );
+        : ( $plan->{layout}{name} && grep { $_ eq $layout } @themes_installed )
+        ? $layout
+        : ( @themes_installed ? $themes_installed[0] : '' );
     my $activated = JSON::PP::false();
     if ( $activate && @themes_installed ) {
         my $ar = action_layout_activate( $layout, { theme => $primary } );
@@ -988,9 +1002,9 @@ sub action_layout_install {
     }
 
     log_event( 'INFO', 'layout-install', 'manifest install',
-        repo => $repo, ref => _layouts_ref(), layout => $layout,
-        themes => join( ',', @themes_installed ),
-        errors => join( '; ', @theme_errors ),
+        repo      => $repo, ref => _layouts_ref(), layout => $layout,
+        themes    => join( ',',  @themes_installed ),
+        errors    => join( '; ', @theme_errors ),
         activated => ( $activate ? 1 : 0 ), user => $auth_user );
 
     return {
@@ -1055,8 +1069,8 @@ sub _install_layout_from_dir {
             unless ($force) {
                 return { ok => 0,
                     error => 'already installed and differs; refusing to overwrite ('
-                           . join( ', ', @differs ) . '). Re-install with update to '
-                           . 'overwrite.' };
+                        . join( ', ', @differs ) . '). Re-install with update to '
+                        . 'overwrite.' };
             }
             # update: snapshot the existing layout (recoverable), then overwrite
             # the layout files. themes/ is left untouched.
@@ -1108,7 +1122,7 @@ sub _list_files_rel {
     for my $e ( sort readdir $dh ) {
         next if $e =~ /^\./;
         my $full = "$base/$e";
-        my $rel = length $prefix ? "$prefix/$e" : $e;
+        my $rel  = length $prefix ? "$prefix/$e" : $e;
         if    ( -f $full ) { push @out, $rel }
         elsif ( -d $full ) { push @out, _list_files_rel( $full, $rel ) }
     }
