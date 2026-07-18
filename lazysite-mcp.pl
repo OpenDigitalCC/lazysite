@@ -41,6 +41,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
 use Lazysite::Manager::Domains     ();
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
+use Lazysite::Lang                 qw(set_members);
 
 our $VERSION = '0.1';
 my $PROTOCOL = '2025-11-25';
@@ -1491,6 +1492,36 @@ if ( !defined $id ) {
     send_status( 202, 'Accepted' );
 }
 
+# SM179 P7: when this instance is a language set, append a paragraph to the
+# connector instructions stating the invariant, the rule, the pointer and the
+# prohibition - so an agent translates the right way instead of inventing a
+# convention (hand-built switchers, translated keys/paths). Empty string when
+# there is no set, so a monolingual instance's instructions are unchanged.
+sub _mcp_language_note {
+    my $conf = '';
+    if ( open my $fh, '<:raw', "$LAZYSITE_DIR/lazysite.conf" ) {
+        local $/;
+        $conf = <$fh>;
+        close $fh;
+    }
+    my $group = ( $conf =~ /^lang_group\h*:\h*(\S+)\h*$/m ) ? $1 : '';
+    return '' unless length $group;
+    my @members = set_members( $conf, $group );
+    return '' unless @members;
+    return
+        ' This instance is a LANGUAGE SET (group '
+        . $group
+        . '): the same site in several languages, each language rooted at its own '
+        . 'content folder that MIRRORS the source-language folder file-for-file. To '
+        . 'translate, copy a source file to the sibling root at the IDENTICAL path and '
+        . 'translate only the language-bearing values (front-matter strings, JSON '
+        . 'values, Markdown prose) - never the keys, paths or structure. Call whoami '
+        . 'to see the set and which root is the source; call lang-status (control API) '
+        . 'to see exactly which files are missing or stale, and re-translate that set. '
+        . 'Do NOT hand-build a language switcher or hreflang tags: the layout receives '
+        . 'the language set from the engine and renders them itself.';
+}
+
 if ( $method eq 'initialize' ) {
     rpc_result( $id, {
             protocolVersion => $PROTOCOL,
@@ -1511,7 +1542,8 @@ if ( $method eq 'initialize' ) {
                 . 'see /docs/ai-briefing-authoring; for layouts and themes '
                 . '/docs/ai-briefing-layouts. When you screenshot or QA the live site, set '
                 . 'your User-Agent to lazysite-agent/<partner-id> so your hits stay out of '
-                . 'the visitor analytics.',
+                . 'the visitor analytics.'
+                . _mcp_language_note(),
     } );
 }
 elsif ( $method eq 'ping' ) {
