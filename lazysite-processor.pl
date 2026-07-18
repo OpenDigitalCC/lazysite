@@ -3701,6 +3701,27 @@ sub resolve_scan {
                 grep { $_ eq $registry_name } @{ $page->{register} || [] }
             } @pages;
 
+            # SM179 P3: for a language set, attach each page's hreflang alternates
+            # so the sitemap can advertise its siblings (xhtml:link). Copy each
+            # page hash before augmenting - @pages is shared across registries and
+            # only the sitemap consumes `alternates`. A member whose counterpart is
+            # absent carries exists=0 and the template omits it.
+            if ( $registry_name eq 'sitemap.xml'
+                && length( $site_vars{lang_group} // '' ) )
+            {
+                @registered = map {
+                    +{
+                        %$_,
+                        alternates => [
+                            _language_set(
+                                ( $site_vars{alias_host} // '' ),
+                                $site_vars{lang_group}, $_->{url}
+                            )
+                        ],
+                    }
+                } @registered;
+            }
+
             my $vars = {
                 %site_vars,
                 pages => \@registered,
