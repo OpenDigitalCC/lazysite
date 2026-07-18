@@ -3991,6 +3991,7 @@ sub render_content {
         site_lang        => $site_lang,                # SM179: the host's language
         page_lang        => $page_lang,                # SM179: per-page override
         languages        => \@languages,               # SM179 P2: switcher/hreflang
+        t                => {},                        # SM179 P5: layout chrome strings
         smtp_configured => ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) ? 1 : 0, # gate emailed reset
             # SM099: a cache-safe sign in / out control. BOTH links ship hidden; the
             # injected auth-sync script reveals the right one from the lzs_session
@@ -4126,6 +4127,37 @@ sub resolve_theme {
         theme_data => $data,
         is_active  => 1,
     };
+}
+
+# SM179 P5: chrome strings for a layout. layouts/<layout>/strings/<lang>.json,
+# when present, overlays strings/en.json (the English base) so a layout writes
+# [% t.footer_credit %] and any key missing from the site language falls back to
+# English rather than vanishing. Layout-dir confined (name + lang code both
+# validated); an absent strings/ directory yields {} and changes nothing.
+sub _layout_strings {
+    my ( $layout, $lang ) = @_;
+    return {} unless defined $layout && $layout =~ /^[A-Za-z0-9_-]+$/;
+    my $dir = "$LAYOUT_DIR/$layout/strings";
+    return {} unless -d $dir;
+
+    my $load = sub {
+        my ($code) = @_;
+        return {} unless defined $code && $code =~ /^[A-Za-z-]+$/;
+        my $path = "$dir/$code.json";
+        return {} unless -f $path;
+        open my $fh, '<:raw', $path or return {};
+        my $raw = do { local $/; <$fh> };
+        close $fh;
+        my $data = eval { decode_json($raw) };
+        return ( ref $data eq 'HASH' ) ? $data : {};
+    };
+
+    my %t = %{ $load->('en') };    # English base supplies the fallback keys
+    if ( defined $lang && length $lang && lc $lang ne 'en' ) {
+        my $over = $load->($lang);
+        @t{ keys %$over } = values %$over;    # the site language wins per key
+    }
+    return \%t;
 }
 
 # SM: the layout's declared default theme (from its layout.json), used as the
@@ -4283,6 +4315,10 @@ sub render_template {
         # an empty hash so [% theme.config.foo %] renders empty rather
         # than trying to index into the raw conf string.
         $vars->{layout_name} = $layout_key;
+        # SM179 P5: load this layout's chrome strings for the site language into
+        # [% t %] (English base overlaid by the site language). No strings/ dir =>
+        # {}; layouts that don't localise are unaffected.
+        $vars->{t} = _layout_strings( $layout_key, $vars->{site_lang} // 'en' );
         # SM120: a page may pin a theme via front matter (theme:), preview-only and
         # sanitised the same way as layout:; falls back to the active/site theme.
         # resolve_theme still gates on layout compatibility, so an incompatible pin
