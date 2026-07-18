@@ -2023,20 +2023,16 @@ sub cmd_verify_credential {
     my $aexp = $eff->{expires_at};    # SM072: account-level expiry
     return { ok => 0 } if $aexp && time() > $aexp;
 
-    # SM076: when the caller asks (the MCP connector path), record the first use
-    # of this credential since issuance - one write per issuance cycle - so the
-    # connector setup flow can confirm the connection works.
-    my $first_use = 0;
-    if ($touch) {
-        my $all = read_settings();
-        my $u   = $all->{$user} ||= {};
-        my $iss = $u->{cred_issued_at} || 0;
-        if ( !$u->{cred_used_at} || $u->{cred_used_at} < $iss ) {
-            $u->{cred_used_at} = time();
-            write_settings($all);
-            $first_use = 1;    # first use of this credential since issuance
-        }
-    }
+    # SM163: record credential USE on every successful verify (throttled by
+    # touch_credential), not just the connector path - so a key used over the
+    # control-API token or WebDAV shows as in-use with a recent time. first_use
+    # still reports the first use since issuance (the connector's "connected"
+    # signal), computed from the pre-touch state. ($touch is now vestigial - use
+    # is always recorded - kept for caller compatibility.)
+    my $before    = read_settings()->{$user}  || {};
+    my $iss       = $before->{cred_issued_at} || 0;
+    my $first_use = ( ( $before->{cred_used_at} || 0 ) < $iss ) ? 1 : 0;
+    Lazysite::Auth::Settings::touch_credential($user);
 
     return { ok => 1, username => $user, settings => $eff, first_use => $first_use };
 }

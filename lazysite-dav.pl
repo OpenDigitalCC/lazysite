@@ -187,6 +187,11 @@ sub main {
         return send_status( 403, body => "WebDAV not enabled for this account\n" );
     }
 
+    # SM163: record that this machine key was used (throttled), so the Sessions &
+    # Keys view shows it in-use - WebDAV verifies the credential directly here, so
+    # without this a key used only over /dav would read "not used yet".
+    Lazysite::Auth::Settings::touch_credential($user);
+
     # OPTIONS advertises capabilities and touches no files.
     if ( $method eq 'OPTIONS' ) {
         return do_options();

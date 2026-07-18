@@ -12,7 +12,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     caps_for groups_grant_cap site_grants_manager
-    group_scopes group_home_domain
+    group_scopes group_home_domain touch_credential
     read_group_settings write_group_settings @CAP_KEYS);
 
 our $AUTH_DIR;    # "$DOCROOT/lazysite/auth", set by the script
@@ -224,6 +224,37 @@ sub _consume_lock {
     open my $lk, '>', $path or return undef;
     flock( $lk, LOCK_EX ) or do { close $lk; return undef };
     return $lk;
+}
+
+# SM163: record that an account's machine credential was USED - so the Sessions &
+# Keys view shows an active key as in-use with a recent time, not "not used yet".
+# Called from EVERY credential path (control-API token verify, WebDAV Basic auth,
+# MCP verify), not just the connector, since a key is typically used over api/dav
+# and never touched the connector. THROTTLED: writes at most once per window
+# (default 300s), so a key hammering DAV does not rewrite user-settings.json per
+# request - one cheap read, a write only when the stamp is stale. Best-effort:
+# any failure is swallowed (never block a request to record telemetry).
+our $TOUCH_WINDOW = 300;
+
+sub touch_credential {
+    my ( $user, $now ) = @_;
+    return 0 unless defined $user && length $user;
+    $now ||= time();
+    my $ok = eval {
+        my $all  = read_settings();
+        my $u    = $all->{$user}        || {};
+        my $last = $u->{cred_used_at}   || 0;
+        my $iss  = $u->{cred_issued_at} || 0;
+
+        # Write when never used since the current issuance, or the last stamp is
+        # older than the throttle window (keeps "last used" reasonably current).
+        return 0 if $last >= $iss && ( $now - $last ) < $TOUCH_WINDOW;
+
+        $all->{$user}{cred_used_at} = $now;
+        write_settings($all);
+        1;
+    };
+    return $ok ? 1 : 0;
 }
 
 1;
