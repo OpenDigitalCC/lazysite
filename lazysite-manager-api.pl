@@ -56,7 +56,7 @@ use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action
     action_backup_restore);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check);
-use Lazysite::Lang                 qw(lang_status);
+use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
@@ -1795,7 +1795,7 @@ sub action_lang_status {
         close $fh;
     }
     if ( !defined $group || !length $group ) {
-        $group = ( $conf =~ /^lang_group\h*:\h*(\S+)\h*$/m ) ? $1 : '';
+        $group = sole_group($conf);
     }
     if ( !length $group ) {
         return { ok => 0, error => 'no language group (set lang_group in the conf, or pass group=)' };
@@ -1986,7 +1986,7 @@ sub _language_context {
         $conf = <$fh>;
         close $fh;
     }
-    my $group = ( $conf =~ /^lang_group\h*:\h*(\S+)\h*$/m ) ? $1 : '';
+    my $group = sole_group($conf);
     return undef unless length $group;
     my @members = Lazysite::Lang::set_members( $conf, $group );
     return undef unless @members;

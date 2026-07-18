@@ -106,11 +106,22 @@ grant_caps( $d, 'ed', 'manage_content' );
     is( $de->{total},   2,    'de: total matches the source page count' );
 }
 
-# --- a content editor without manage_domains is forbidden ---------------------
+# --- a content editor CAN read the coverage report (manage_content-gated) -----
+# lang-status is a read-only report a translation agent needs, so it is gated on
+# manage_content (the cap a translating agent holds), not manage_domains.
 {
     my $r = get( $d, 'ed', 'role-ed', 'action=lang-status' );
-    ok( !$r->{ok}, 'a non-domains editor cannot read lang-status' );
-    is( $r->{kind}, 'forbidden', 'lang-status is forbidden without manage_domains' );
+    ok( $r->{ok}, 'a content editor reads lang-status' ) or diag encode_json($r);
+    is( $r->{members}, 2, 'the editor sees the set' );
+}
+
+# --- an account WITHOUT manage_content is forbidden ---------------------------
+{
+    uapi( $d, { action => 'add', username => 'nc', password => 'z' } );
+    grant_caps( $d, 'nc', 'manage_themes' );
+    my $r = get( $d, 'nc', 'role-nc', 'action=lang-status' );
+    ok( !$r->{ok}, 'an account without manage_content cannot read lang-status' );
+    is( $r->{kind}, 'forbidden', 'lang-status is forbidden without manage_content' );
 }
 
 done_testing;

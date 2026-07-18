@@ -8,7 +8,7 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use Lazysite::Lang qw(set_members lang_status);
+use Lazysite::Lang qw(set_members lang_status sole_group);
 
 my $conf = <<'CONF';
 site_name: T
@@ -33,6 +33,16 @@ is( $src->{host}, '',   'the base host is the source' );
 is( $src->{lang}, 'en', 'source language is en' );
 is( scalar( grep { $_->{source} } @m ), 1, 'exactly one source member' );
 is_deeply( [ sort map { $_->{lang} } @m ], [qw(de en fr)], 'languages de/en/fr' );
+
+# --- sole_group: find "the" group without assuming it is on the base ----------
+is( sole_group($conf), 'providers', 'sole_group finds the base-declared group' );
+is( sole_group( "site_name: T\n"
+        . "alias.fr.example.lang_group: providers\n"
+        . "alias.de.example.lang_group: providers\n" ),
+    'providers', 'sole_group finds a group declared ONLY on alias hosts' );
+is( sole_group("site_name: T\n"),                              '', 'no lang_group => empty' );
+is( sole_group("lang_group: a\nalias.x.example.lang_group: b\n"), '',
+    'two distinct groups => empty (ambiguous, caller must name one)' );
 
 is( scalar( () = set_members( $conf, 'nosuch' ) ), 0, 'unknown group => no set' );
 is( scalar( () = set_members( "site_name: T\nlang: en\n", 'providers' ) ),

@@ -16,7 +16,22 @@ use strict;
 use warnings;
 use Digest::SHA qw(sha256_hex);
 use Exporter 'import';
-our @EXPORT_OK = qw(set_members lang_status);
+our @EXPORT_OK = qw(set_members lang_status sole_group);
+
+# sole_group($conf_text) -> the single distinct lang_group declared anywhere in
+# the conf (base `lang_group:` OR any `alias.<host>.lang_group:`), or '' if there
+# is none or more than one. Callers use it to find "the" language set without
+# assuming the group is declared on the base host - a set can be declared purely
+# across alias hosts (the base host need not be a set member).
+sub sole_group {
+    my ($text) = @_;
+    my %g;
+    while ( ( $text // '' ) =~ /^(?:alias\.\S+\.)?lang_group\h*:\h*(\S+)/mg ) {
+        $g{$1} = 1;
+    }
+    my @k = keys %g;
+    return @k == 1 ? $k[0] : '';
+}
 
 # Content pages whose translations lang_status tracks. Generated registries
 # (sitemap.xml, llms.txt, feed.*) and assets are deliberately excluded.
