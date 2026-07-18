@@ -18,6 +18,22 @@ Keying
 
 ## Unreleased
 
+Capabilities: a `manage_domains` capability, carved out of `manage_config` (SM160)
+: `manage_config` was a grab-bag. Domain management and the portable site-package
+  family now have their own `manage_domains` capability, so a delegated domain/
+  site operator no longer needs the broad `manage_config` (which also covers
+  auth-secret rotation, the bad-URL blocker, backups and plugins). It unlocks
+  `domains-list`, `domain-add/set/remove/alias-add/preview/check` and
+  `site-backup-create/upload/apply` (API) + `site_backup`/`site_apply` (MCP); the
+  Domains nav and Groups editor reflect it. Edge-only, so no migration - new
+  installs' manager groups get it automatically. Gate:
+  `t/unit/lib/05-capabilities.t`.
+
+Users: the account name expands the row; Configure opens the editor
+: Clicking an account name opened the configure modal (confusing next to the
+  disclosure triangle). The name now expands/collapses the row like the triangle;
+  the Configure button is the only way into the editor sheet.
+
 Sites: portable per-domain site packages - create / export / import / apply (SM158)
 : An agency demo can be handed to a client's own instance, or a site moved
   between domains/instances, without the whole-docroot backup (which carries
@@ -30,7 +46,7 @@ Sites: portable per-domain site packages - create / export / import / apply (SM1
   content into the target content root, installs the theme/layout only if
   missing, places the nav, and writes the target domain's keys. Surfaces:
   control-API `site-backup-create/upload/apply`, MCP `site_backup` / `site_apply`,
-  CLI `lazysite-site backup|apply` - all manage_content + scope. `site-backup-upload`
+  CLI `lazysite-site backup|apply` - all manage_domains + scope. `site-backup-upload`
   is the first backup upload (backups were server-only). Gate:
   `t/unit/manager/35-site-package.t`.
 
