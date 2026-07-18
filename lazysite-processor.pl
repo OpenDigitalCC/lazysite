@@ -136,14 +136,14 @@ my $LAYOUT_CACHE_DIR = "$CACHE_BASE/layouts";
 my $CT_CACHE_DIR     = "$CACHE_BASE/ct";
 my $TT_COMPILE_DIR   = "$CACHE_BASE/tt";       # P-4 TT on-disk compile cache
 my $HOST_CACHE_DIR   = "$CACHE_BASE/hosts";    # SM110 phase 2: per-alias-host page cache
-my %AUTH_CONTEXT;     # populated by main() auth check, read by render_content()
-my %ACCESS_REC;       # SM140: per-request outcome for the first-party access log
-my $RESPONSE_LANG = 'en';    # SM179 (P1): the rendered page's language, set per
-                             # request from page_lang; emitted as Content-Language.
-my $REQUEST_CROOT;    # SM151: the request's confined content root (undef => docroot),
-                      # set by main(), read by resolve_scan() so per-domain search is
-                      # boxed to the requesting domain's subtree without re-entering
-                      # resolve_site_vars (which calls resolve_scan for conf directives)
+my %AUTH_CONTEXT;         # populated by main() auth check, read by render_content()
+my %ACCESS_REC;           # SM140: per-request outcome for the first-party access log
+my $RESPONSE_LANG = 'en'; # SM179 (P1): the rendered page's language, set per
+                          # request from page_lang; emitted as Content-Language.
+my $REQUEST_CROOT;        # SM151: the request's confined content root (undef => docroot),
+                          # set by main(), read by resolve_scan() so per-domain search is
+                          # boxed to the requesting domain's subtree without re-entering
+    # resolve_site_vars (which calls resolve_scan for conf directives)
 
 # Built-in fallback template - used when no layout.tt is found
 my $FALLBACK_LAYOUT = <<'END_FALLBACK';
@@ -154,6 +154,10 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     [% IF page_subtitle %]<meta name="description" content="[% page_subtitle %]">[% END %]
     <title>[% page_title %][% IF site_name %]  -  [% site_name %][% END %]</title>
+    [%# SM179 P2: hreflang alternates for a language set, plus x-default on the source (first) language %]
+    [% FOREACH l IN languages %][% IF l.exists %]<link rel="alternate" hreflang="[% l.lang %]" href="[% l.url %]">
+    [% END %][% END %][% IF languages.size %]<link rel="alternate" hreflang="x-default" href="[% languages.0.url %]">
+    [% END %]
     <style>
         body { font-family: system-ui, sans-serif; max-width: 800px;
                margin: 2rem auto; padding: 0 1rem; color: #333; }
@@ -206,6 +210,11 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
         <button type="submit">Go</button>
     </form>
 </div>
+[%# SM179 P2: language switcher, rendered from the engine-supplied `languages`.
+    Only shown for a language set; only lists languages whose counterpart exists. %]
+[% IF languages.size %]<nav class="lang-switcher" aria-label="Language" style="font-size:0.85rem;margin:0.4rem 0;color:#888;">
+  [% FOREACH l IN languages %][% IF l.exists %][% IF l.current %]<strong lang="[% l.lang %]">[% l.lang %]</strong>[% ELSE %]<a href="[% l.url %]" hreflang="[% l.lang %]" lang="[% l.lang %]">[% l.lang %]</a>[% END %] [% END %][% END %]</nav>
+[% END %]
 <hr class="site-rule" id="site-rule">
 <script>if(window!==window.top){var b=document.getElementById('site-bar');var r=document.getElementById('site-rule');if(b)b.style.display='none';if(r)r.style.display='none';}</script>
 [% IF nav.size %]
@@ -3054,6 +3063,52 @@ sub _resolve_content_path {
     return undef;
 }
 
+# SM179 P2: the language-set members for the current request - the ordered
+# [% languages %] list. For every host that shares the current host's lang_group:
+# { lang, url, current, exists } where url is the sibling's site_url + the same
+# request path, current marks the active host, and exists stats the counterpart
+# page in the sibling's content root. Empty unless the current host is in a
+# language set (a lang_group with >= 2 members). A layout renders a switcher and
+# hreflang from this; the engine supplies it so nobody hand-rolls either.
+sub _language_set {
+    my ( $cur_host, $cur_group, $req_path ) = @_;
+    return () unless defined $cur_group && length $cur_group;
+    my $text = eval { read_file($CONF_FILE) } // '';
+
+    my ( %base, %alias );
+    while ( $text =~ /^(\w+)\h*:\h*(.+)$/mg ) { $base{$1} = $2 }
+    while ( $text =~ /^alias\.(\S+)\.(\w+)\h*:\h*(.+)$/mg ) { $alias{ lc $1 }{$2} = $3 }
+
+    my @members;
+    push @members, { host => '', %base }
+        if ( $base{lang_group} // '' ) eq $cur_group;
+    for my $h ( sort keys %alias ) {
+        push @members, { host => $h, %{ $alias{$h} } }
+            if ( $alias{$h}{lang_group} // '' ) eq $cur_group;
+    }
+    return () unless @members >= 2;
+
+    ( my $rel = ( $req_path // '/' ) ) =~ s/\?.*$//;    # drop any query string
+    $rel                               =~ s{^/+}{};
+    $rel                               =~ s{/+$}{};     # 'compare', or '' for home
+    my @langs;
+    for my $m (@members) {
+        ( my $url = $m->{site_url} // '' ) =~ s{/+$}{};
+        $url .= length $rel ? "/$rel" : '/';
+        my $cr = length( $m->{content_root} // '' ) ? "$DOCROOT/$m->{content_root}" : $DOCROOT;
+        my $stem   = length $rel                    ? "$cr/$rel" : "$cr/index";
+        my $exists = ( -f "$stem.md" || -f "$stem.url" || -f "$stem.html" ) ? 1 : 0;
+        push @langs,
+            {
+            lang    => ( $m->{lang} // '' ),
+            url     => $url,
+            current => ( $m->{host} eq $cur_host ? 1 : 0 ),
+            exists  => $exists,
+            };
+    }
+    return @langs;
+}
+
 sub resolve_json {
     my ($src) = @_;
     my $real = _resolve_content_path($src);
@@ -3861,6 +3916,14 @@ sub render_content {
     my $site_lang = $site_vars{lang} || 'en';
     my $page_lang = $meta->{lang}    || $site_lang;
     $RESPONSE_LANG = $page_lang;
+    # SM179 P2: the language-set switcher data ({ lang, url, current, exists }),
+    # empty unless this host is in a lang_group with siblings. Layouts render a
+    # switcher and hreflang from it.
+    my @languages = _language_set(
+        ( $site_vars{alias_host} // '' ),
+        ( $site_vars{lang_group} // '' ),
+        ( $ENV{REDIRECT_URL}     // $ENV{REQUEST_URI} // '/' ),
+    );
 
     my $vars = {
         %site_vars,
@@ -3906,6 +3969,7 @@ sub render_content {
         dav_scopes       => join( ',', @my_scopes ),   # SM157: multi-domain switcher list
         site_lang        => $site_lang,                # SM179: the host's language
         page_lang        => $page_lang,                # SM179: per-page override
+        languages        => \@languages,               # SM179 P2: switcher/hreflang
         smtp_configured => ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) ? 1 : 0, # gate emailed reset
             # SM099: a cache-safe sign in / out control. BOTH links ship hidden; the
             # injected auth-sync script reveals the right one from the lzs_session
