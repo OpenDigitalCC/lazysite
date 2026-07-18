@@ -16,7 +16,7 @@ query_params:
 <div class="mg-form-row" style="margin:0;">
 <label for="layouts-repo-input">Repo</label>
 <input type="text" id="layouts-repo-input" placeholder="OpenDigitalCC/lazysite-layouts" style="flex:1;" oninput="markRepoDirty()">
-<button class="mg-btn mg-btn-outline mg-btn-sm" onclick="saveLayoutsRepo()">Save</button>
+<button class="mg-btn mg-btn-primary mg-btn-sm" onclick="saveLayoutsRepo()">Save</button>
 <span id="repo-dirty" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes &mdash; click Save</span>
 </div>
 </div>
