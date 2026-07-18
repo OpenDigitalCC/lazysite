@@ -258,6 +258,15 @@ grant_caps( $d, 'ed', 'manage_content' );
     my $bad = post( $d, 'op', 'role-op', 'action=domain-add',
         { host => 'x.clienta.com', lang => 'bad lang' } );
     ok( !$bad->{ok}, 'domain-add rejects an invalid language tag' );
+
+    # SEC (F6.11): a CR/LF in any value must be refused, or it could smuggle a
+    # second conf directive on the next line.
+    my $crlf = post( $d, 'op', 'role-op', 'action=domain-add',
+        { host => 'y.clienta.com',
+            site_name => "Y\ncontent_root: ../lazysite/auth" } );
+    ok( !$crlf->{ok}, 'domain-add rejects a CR/LF-bearing value (no conf-line injection)' );
+    unlike( slurp("$d/lazysite/lazysite.conf"), qr{content_root: \.\./lazysite/auth},
+        'the smuggled directive did not reach the conf' );
 }
 
 sub slurp { open my $fh, '<', $_[0] or return ''; local $/; <$fh> }
