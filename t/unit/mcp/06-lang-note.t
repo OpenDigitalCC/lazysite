@@ -63,6 +63,8 @@ like( $with, qr/lang-status/,           'set: points at lang-status' );
 like( $with, qr/never.*keys.*paths|keys, paths/i, 'set: forbids translating keys/paths' );
 like( $with, qr/hand-build a language switcher|switcher or hreflang/i,
     'set: forbids hand-building switchers/hreflang' );
+like( $with, qr/operator act|creating a NEW language/i,
+    'set: creating a new language is flagged as an operator act (domain + DNS)' );
 
 # --- a monolingual instance: no note ------------------------------------------
 my $mono = init_instructions("site_name: T\nlang: en\n");

@@ -223,6 +223,42 @@ username: webforms@example.com
 password_file: lazysite/forms/.smtp-password
 ```
 
+## Multilingual sites (language sets)
+
+A multilingual lazysite is a **language set**: two or more hosts that share a
+`lang_group`, each a first-class domain with its *own* content root - one host
+per language. The engine links them, so a layout gets a ready-made `languages`
+variable (the sibling URLs for the current page) and renders a switcher plus
+`hreflang` automatically.
+
+```yaml
+lang: en                 # the primary's language
+lang_group: providers    # the set this host belongs to
+content_root: sites/en
+
+alias_hosts: fr.example.com
+alias.fr.example.com.lang: fr
+alias.fr.example.com.lang_group: providers
+alias.fr.example.com.content_root: sites/fr
+```
+
+What an agent can and cannot do:
+
+- **You translate content** into an *existing* sibling content root: copy the
+  source language's files to the identical paths under the other language's
+  root and translate the language-bearing *values* - never the keys, paths, or
+  structure. Call `whoami` to see the set (its `siblings` list gives each
+  language's host and content root, and which is the source); call the
+  `lang-status` control-API action to see exactly which pages are missing or
+  stale, and re-translate that set.
+- **You do not create a new language on your own.** Adding a language needs an
+  operator: DNS + TLS for the new host (outside lazysite) and registering the
+  host as a domain with its own `content_root` + `lang` + the shared
+  `lang_group`. Only once that plane exists can you populate it.
+- **Do not hand-build a language switcher or `hreflang`.** The layout receives
+  `languages` from the engine and renders them; authoring your own would
+  duplicate and drift.
+
 ## Plugins
 
 Plugins are CGI scripts and tools that register themselves with the

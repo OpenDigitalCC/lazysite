@@ -1519,7 +1519,12 @@ sub _mcp_language_note {
         . 'to see the set and which root is the source; call lang-status (control API) '
         . 'to see exactly which files are missing or stale, and re-translate that set. '
         . 'Do NOT hand-build a language switcher or hreflang tags: the layout receives '
-        . 'the language set from the engine and renders them itself.';
+        . 'the language set from the engine and renders them itself. You translate into '
+        . 'the EXISTING sibling roots only - creating a NEW language is an operator act '
+        . '(it needs a domain registered with its own content_root plus DNS/TLS for the '
+        . 'host, which are outside this tool surface), so if a target language has no '
+        . 'sibling root yet, ask the operator to add the domain rather than trying to '
+        . 'create the language plane yourself.';
 }
 
 if ( $method eq 'initialize' ) {

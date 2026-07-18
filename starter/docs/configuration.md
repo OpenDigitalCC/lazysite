@@ -172,11 +172,11 @@ layout), and navigation. Declare the hosts, then override per host:
 
 Rules:
 
-- Only these keys may be overridden per host: `site_name`, `theme`,
-  `layout`, `nav_file`, `search_default`. Anything else (notably
-  `manager`, `auth_*`, `webdav_*`) is ignored with a logged warning -
-  the Host header is request-supplied, so security settings must never
-  vary by host.
+- Only whitelisted keys may be overridden per host: `site_name`, `theme`,
+  `layout`, `nav_file`, `search_default`, `content_root`, `site_url`,
+  `lang`, `lang_group`. Anything else (notably `manager`, `auth_*`,
+  `webdav_*`) is ignored with a logged warning - the Host header is
+  request-supplied, so security settings must never vary by host.
 - The request's Host header is matched case-insensitively against
   `alias_hosts` (port stripped). The primary host, undeclared hosts, and
   malformed Host headers all get the base configuration unchanged.
@@ -187,12 +187,61 @@ Rules:
   Cache page - clears every host's copy.
 - The active alias host is available to layouts as the `alias_host` TT
   variable (empty on the primary), e.g. to mark canonical links.
-- Aliases are configured in the conf file only - they are not editable
-  through the manager UI or the control API.
+- Domains are managed from the manager's **Domains** page or the control
+  API (add, configure, remove, and per-domain access). The language keys
+  (`lang`, `lang_group`) are set in the conf or via the `domain-set`
+  control-API action.
 
 The web server must route the alias hosts to the same docroot (an
-Apache/nginx server alias). See the SM110 scoping document in the
-lazysite repository for design details and planned phases.
+Apache/nginx server alias). Registering the domain in lazysite is only the
+lazysite half; DNS, the server alias and TLS are a precondition handled
+outside lazysite (your control panel / Hestia).
+
+### Multilingual language sets
+
+A multilingual site is a *set* of hosts - one per language - linked by a
+shared `lang_group`. Each language is a first-class domain with its **own
+content root**, so the languages are authored and served independently under
+their own hosts.
+
+    lang: en
+    lang_group: providers
+    content_root: sites/en
+
+    alias_hosts: fr.example.com, th.example.com
+    alias.fr.example.com.lang: fr
+    alias.fr.example.com.lang_group: providers
+    alias.fr.example.com.content_root: sites/fr
+    alias.th.example.com.lang: th
+    alias.th.example.com.lang_group: providers
+    alias.th.example.com.content_root: sites/th
+
+- `lang` sets a host's language - emitted as `<html lang>` and the
+  `Content-Language` header; a page may override it in front matter with
+  `lang:`. On its own it is useful for any single-language non-English site.
+- `lang_group` joins two or more hosts into a *set*. The engine then hands
+  every layout a `languages` variable (each sibling's URL for the current
+  page, which one is current, and whether that translation exists yet), and
+  the built-in layout renders a language switcher plus `hreflang` alternates.
+  Per-domain sitemaps gain `hreflang` alternates too.
+
+Adding a new language is an **operator + DNS** act - not something an agent
+can do on its own:
+
+1. Point DNS (and TLS) for the new host at this server and add the
+   web-server server-alias. This is **outside lazysite** (control panel /
+   Hestia; a wildcard record + certificate covers every sub-domain at once).
+2. Register the host as a domain with its **own** `content_root` (a new
+   folder - the Domains page or `lazysite-domains add`), and set its `lang`
+   plus the shared `lang_group`.
+3. Populate that content root: copy the source language's files to the same
+   paths and translate the *values* (never the keys, paths, or structure).
+   The `lang-status` control-API action reports what is missing or stale per
+   language, so a re-run translates exactly the gap.
+
+A content-capable AI agent can do step 3 (the translation) on its own; steps
+1-2 need the operator, because DNS and domain registration sit outside the
+translation surface.
 
 ## Navigation (nav.conf)
 
