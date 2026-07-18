@@ -75,8 +75,18 @@ sub post {
 
 my $d = tempdir( CLEANUP => 1 );
 make_path( "$d/lazysite/auth", "$d/content/clientA", "$d/content/clientB" );
+# SM165: access lives on the DOMAIN. clienta.com is rooted at content/clientA and
+# managed by the role-client group; clientb.com is managed by clientb-team;
+# clientc.com has no allow-list (operator-only). A member of role-client is thus
+# confined to content/clientA.
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print $cf "site_name: Agency\n";
+print $cf "alias_hosts: clienta.com, clientb.com, clientc.com\n";
+print $cf "alias.clienta.com.content_root: content/clientA\n";
+print $cf "alias.clienta.com.allowed_groups: role-client\n";
+print $cf "alias.clientb.com.content_root: content/clientB\n";
+print $cf "alias.clientb.com.allowed_groups: clientb-team\n";
+print $cf "alias.clientc.com.content_root: content/clientC\n";
 close $cf;
 open my $sf, '>', "$d/lazysite/auth/.secret" or die $!;
 print $sf $secret;
@@ -84,16 +94,13 @@ close $sf;
 open my $a, '>', "$d/content/clientA/ok.md"     or die $!; print $a "A\n"; close $a;
 open my $b, '>', "$d/content/clientB/secret.md" or die $!; print $b "B\n"; close $b;
 
-# op = operator (manage_users secures the site, so non-operators are gated);
-# client = a domain-bound editor confined to content/clientA. SM155: the binding
-# is on the GROUP now - grant_caps makes a role-<user> group, so set its
-# dav_scope; the member inherits it.
+# op = operator (manage_users secures the site, so non-operators are gated) whose
+# groups match no domain allow-list => unconfined. client is in role-client,
+# which clienta.com allows => confined to content/clientA.
 uapi( $d, { action => 'add', username => 'op', password => 'x' } );
 grant_caps( $d, 'op', 'manage_users', 'manage_content' );
 uapi( $d, { action => 'add', username => 'client', password => 'y' } );
 grant_caps( $d, 'client', 'manage_content' );
-uapi( $d, { action => 'group-settings-set', group => 'role-client',
-        key => 'dav_scope', value => 'content/clientA' } );
 
 # --- the bound client works INSIDE its scope --------------------------------
 {
@@ -125,26 +132,24 @@ uapi( $d, { action => 'group-settings-set', group => 'role-client',
     ok( $r->{ok}, 'operator (unbound) reads any domain' ) or diag encode_json($r);
 }
 
-# --- SM155: a member of TWO scoped groups gets the UNION ---------------------
-# Add 'client' to a second scoped group (clientB). Now clientA AND clientB are
-# reachable, but a third domain is still denied.
+# --- SM165: a member of groups that allow TWO domains gets the UNION ----------
+# Add 'client' to clientb-team, which clientb.com allows. Now clientA AND clientB
+# are reachable, but clientC (no allow-list, operator-only) is still denied.
 {
     uapi( $d, { action => 'group-add', username => 'client', group => 'clientb-team' } );
     uapi( $d, { action => 'group-settings-set', group => 'clientb-team',
             key => 'manage_content', value => 'on' } );
-    uapi( $d, { action => 'group-settings-set', group => 'clientb-team',
-            key => 'dav_scope', value => 'content/clientB' } );
     mkdir "$d/content/clientC";
     open my $c, '>', "$d/content/clientC/z.md" or die $!; print $c "C\n"; close $c;
 
     my $ga = 'role-client,clientb-team';   # the client's groups, as the wrapper sets them
     ok( get( $d, 'client', $ga, 'action=read&path=/content/clientA/ok.md' )->{ok},
-        'union: still reads clientA (first scoped group)' );
+        'union: still reads clientA (allowed by role-client)' );
     ok( get( $d, 'client', $ga, 'action=read&path=/content/clientB/secret.md' )->{ok},
-        'union: now reads clientB (second scoped group)' );
+        'union: now reads clientB (allowed by clientb-team)' );
     my $c3 = get( $d, 'client', $ga, 'action=read&path=/content/clientC/z.md' );
-    ok( !$c3->{ok}, 'union: a third domain is still denied' );
-    is( $c3->{kind}, 'forbidden', 'union: the third domain read is forbidden' );
+    ok( !$c3->{ok}, 'union: clientC (operator-only, empty allow-list) is still denied' );
+    is( $c3->{kind}, 'forbidden', 'union: the operator-only domain read is forbidden' );
 }
 
 done_testing();

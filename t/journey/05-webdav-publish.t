@@ -42,8 +42,15 @@ sub basic { 'Basic ' . encode_base64( "deploy:$_[0]", '' ) }
 # --- provision a publishing account -----------------------------------
 dav_users_tool( $docroot, 'add', 'deploy', 'initial-pw' );
 grant_caps( $docroot, 'deploy', 'webdav', 'manage_content', 'manage_nav', 'manage_forms' );
-# SM155: dav_scope is a GROUP setting now (grant_caps made role-deploy).
-dav_users_tool( $docroot, 'group-set', 'role-deploy', 'dav_scope', '/content' );
+# SM165: access is on the DOMAIN now. Register a domain rooted at content/ that
+# role-deploy (grant_caps made it) may manage; deploy is then confined to it.
+{
+    open my $ap, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
+    print $ap "alias_hosts: pub.example\n";
+    print $ap "alias.pub.example.content_root: content\n";
+    print $ap "alias.pub.example.allowed_groups: role-deploy\n";
+    close $ap;
+}
 make_path("$docroot/content");
 
 my $tok1 = users_api( { action => 'token', username => 'deploy' } )->{token};

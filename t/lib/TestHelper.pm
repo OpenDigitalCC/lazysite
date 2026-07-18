@@ -429,10 +429,19 @@ sub setup_dav_site {
                 :   qw(webdav manage_content manage_nav manage_forms);
             grant_caps( $d, $user, @caps );
         }
-        # SM155: dav_scope is a GROUP setting now. grant_caps() put the user in a
-        # role-<user> group; set the scope there so the member is confined.
-        dav_users_tool( $d, 'group-set', "role-$user", 'dav_scope', $o{scope} )
-            if defined $o{scope};
+        # SM165: confinement is on the DOMAIN now. Register a domain rooted at the
+        # requested content root and allowed to this user's role group, so the
+        # member is confined to it (replaces the SM155 group dav_scope). The
+        # scope value is normalised to a docroot-relative content root.
+        if ( defined $o{scope} ) {
+            ( my $cr = $o{scope} ) =~ s{^/+}{};
+            $cr =~ s{/+$}{};
+            open my $ap, '>>', "$d/lazysite/lazysite.conf" or die "conf: $!";
+            print $ap "alias_hosts: scoped.test\n";
+            print $ap "alias.scoped.test.content_root: $cr\n";
+            print $ap "alias.scoped.test.allowed_groups: role-$user\n";
+            close $ap;
+        }
     }
     my $auth = 'Basic ' . MIME::Base64::encode_base64( "$user:$pass", '' );
     return { docroot => $d, user => $user, password => $pass, auth => $auth };

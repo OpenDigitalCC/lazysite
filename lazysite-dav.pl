@@ -39,7 +39,7 @@ use Lazysite::Util             qw(log_event const_eq);
 use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Acl        qw(_acl_allows);
 use Lazysite::Auth::Credential qw(verify_password);
-use Lazysite::Auth::Settings   qw(read_settings caps_for group_scopes);
+use Lazysite::Auth::Settings   qw(read_settings caps_for resolve_user_scopes);
 $Lazysite::Util::COMPONENT = 'dav';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT};
@@ -1357,12 +1357,13 @@ sub token_expired {
     return time() > $s->{token_expires_at} ? 1 : 0;
 }
 
-# SM155: the content-root scope(s) the user is confined to, resolved from their
-# GROUPS (the binding moved off the account). Returns an arrayref (possibly empty
-# = unconfined); a member of several scoped groups gets the union.
+# SM165: the content-root scope(s) the user is confined to, resolved from DOMAIN
+# access (allowed_groups + locked_users) and capped by the sub-user ceiling - the
+# ONE shared resolver every channel uses, so a lock holds identically over WebDAV.
+# Returns an arrayref (empty = unconfined; a DENY_ALL_SCOPE element = nothing).
 sub scope_for {
     my ($user) = @_;
-    return [ group_scopes( user_groups_for($user) ) ];
+    return [ resolve_user_scopes( $DOCROOT, $user ) ];
 }
 
 # ---------------------------------------------------------------------

@@ -12,7 +12,8 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     caps_for groups_grant_cap site_grants_manager
-    group_scopes group_home_domain touch_credential
+    group_scopes group_home_domain effective_groups touch_credential
+    resolve_user_scopes resolve_home_domain
     read_group_settings write_group_settings @CAP_KEYS);
 
 our $AUTH_DIR;    # "$DOCROOT/lazysite/auth", set by the script
@@ -67,6 +68,48 @@ sub _effective_groups {
     my %membership = _groups_membership();
     my @direct = grep { grep { $_ eq $user } @{ $membership{$_} || [] } } keys %membership;
     return _group_closure(@direct);
+}
+
+# Public: the compound-expanded groups a user belongs to (SM121/SM165). The
+# domain-access resolver needs the same expanded set the capability resolver uses.
+sub effective_groups { return _effective_groups(@_) }
+
+# SM165: THE shared scope resolver for every enforcement channel (manager cookie,
+# control-API token, WebDAV - all route here, directly or via effective_settings).
+# A user's effective content-root scopes come from DOMAIN access (each domain's
+# allowed_groups + locked_users), then are capped by the sub-user ceiling
+# (intersected with every ancestor's own scope up the created_by chain, at
+# resolve time so config drift cannot lift the ceiling). Cycle-guarded. Returns
+# the scope list; empty = unconfined, a DENY_ALL_SCOPE element = confined to
+# nothing.
+sub resolve_user_scopes {
+    my ( $docroot, $user ) = @_;
+    require Lazysite::Auth::DomainAccess;
+    my $domains = Lazysite::Auth::DomainAccess::read_domains("$docroot/lazysite/lazysite.conf");
+    my @scopes = Lazysite::Auth::DomainAccess::effective_scopes(
+        $domains, $user, [ _effective_groups($user) ] );
+    my $all  = read_settings();
+    my %seen = ( defined $user ? ( $user => 1 ) : () );
+    my $anc  = ( $all->{ $user // '' } || {} )->{created_by};
+    while ( defined $anc && length $anc && !$seen{$anc}++ ) {
+        my @as = Lazysite::Auth::DomainAccess::effective_scopes(
+            $domains, $anc, [ _effective_groups($anc) ] );
+        @scopes = Lazysite::Auth::DomainAccess::intersect_scopes( \@scopes, \@as );
+        $anc    = ( $all->{$anc} || {} )->{created_by};
+    }
+    return @scopes;
+}
+
+# SM165: the single domain a user's file browser roots at (host), or '' for
+# none/several. '' when the ceiling denies everything.
+sub resolve_home_domain {
+    my ( $docroot, $user ) = @_;
+    require Lazysite::Auth::DomainAccess;
+    my $domains = Lazysite::Auth::DomainAccess::read_domains("$docroot/lazysite/lazysite.conf");
+    my $hd = Lazysite::Auth::DomainAccess::effective_home_domain(
+        $domains, $user, [ _effective_groups($user) ] );
+    my $DA = Lazysite::Auth::DomainAccess::DENY_ALL_SCOPE();
+    return ( grep { $_ eq $DA } resolve_user_scopes( $docroot, $user ) ) ? '' : $hd;
 }
 
 # Membership map { group => [members] } from the plain groups file.

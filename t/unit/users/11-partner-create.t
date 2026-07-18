@@ -62,13 +62,21 @@ is( $s->{created_by}, 'boss', 'provenance recorded' );
 
 # --- extras: layouts, config, scope -----------------------------------
 api( $d, { action => 'partner-create', username => 'builder', created_by => 'boss',
-        manage_layouts => 1, manage_config => 1, dav_scope => '/content' } );
+        manage_layouts => 1, manage_config => 1 } );
 my $s2 = settings( $d, 'builder' );
 ok( $s2->{manage_layouts}, 'builder: manage_layouts on' );
 ok( $s2->{manage_config},  'builder: manage_config on' );
-# SM155: partner scope lands on the account's role group; effective settings
-# surface it as the group-derived dav_scopes union.
-is_deeply( $s2->{dav_scopes}, ['/content'], 'builder: scope set (via role group)' );
+# SM165: a partner's confinement comes from DOMAIN access. Register a domain the
+# builder's role group may manage; the effective scope derives from it.
+{
+    open my $ap, '>>', "$d/lazysite/lazysite.conf" or die $!;
+    print $ap "alias_hosts: build.example\n";
+    print $ap "alias.build.example.content_root: content\n";
+    print $ap "alias.build.example.allowed_groups: role-builder\n";
+    close $ap;
+}
+is_deeply( settings( $d, 'builder' )->{dav_scopes}, ['content'],
+    'builder: scope derives from the domain its role group may manage (SM165)' );
 
 # --- the pairing key actually works -----------------------------------
 my $ex = api( $d, { action => 'token-exchange',
