@@ -2,8 +2,8 @@
 title: "SM165 - Domain access-control model (allow-list + user locks)"
 subtitle: "Domains own who may manage them; per-user locks confine; sub-users never exceed their creator"
 brand: plain
-status: signed-off
-status-note: "signed off 2026-07-18 for 0.7.25; re-architects SM155 domain binding. Edge-only, no migration."
+status: candidate
+status-note: "signed off 2026-07-18; targeted at 0.7.26. Re-architects SM155 domain binding. Edge-only, no migration."
 ---
 
 # SM165 - Domain access-control model
