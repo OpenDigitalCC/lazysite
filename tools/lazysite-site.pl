@@ -11,8 +11,14 @@
 #
 # Usage:
 #   lazysite-site.pl --docroot DIR backup --host H [--json]
-#     Writes lazysite/backups/site-<host>-<UTCstamp>.tar.gz (download it with the
-#     ordinary backup tooling). Exit 0 on success, 1 on error.
+#     Package one domain's site into lazysite/backups/lazysite-site-<host>-<UTC>.
+#   lazysite-site.pl --docroot DIR apply --package FILE [--host H] [--clean] [--json]
+#     Apply a package (a path, or a name already in lazysite/backups/) to a target
+#     domain's content root - or the default site when --host is omitted. Writes
+#     the target domain's presentation keys from the package manifest. This is a
+#     system/operator operation (no manager scope check); take a backup first if
+#     you want a rollback point.
+# Exit 0 on success, 1 on error.
 use strict;
 use warnings;
 
@@ -33,8 +39,8 @@ my ( %opt, @pos );
         my $t = shift @a;
         if ( $t =~ /^--([\w-]+)$/ ) {
             my $k = $1;
-            if   ( $k eq 'json' ) { $opt{$k} = 1 }
-            else                  { $opt{$k} = shift @a }
+            if   ( $k eq 'json' || $k eq 'clean' ) { $opt{$k} = 1 }
+            else                                   { $opt{$k} = shift @a }
         }
         else { push @pos, $t }
     }
@@ -53,17 +59,36 @@ if ( $cmd eq 'backup' ) {
     die "lazysite-site: backup requires --host\n" unless defined $opt{host};
     $result = package_create( $opt{host} );
 }
+elsif ( $cmd eq 'apply' ) {
+    die "lazysite-site: apply requires --package FILE\n" unless defined $opt{package};
+    # --package may be a path, or a bare name already in lazysite/backups/.
+    my $pkg = $opt{package};
+    $pkg = "$docroot/lazysite/backups/$pkg" if !-f $pkg && -f "$docroot/lazysite/backups/$pkg";
+    die "lazysite-site: package not found: $opt{package}\n" unless -f $pkg;
+    $result = Lazysite::Manager::SitePackage::apply_and_configure(
+        $pkg,
+        host         => ( $opt{host}           // '' ),
+        content_root => ( $opt{'content-root'} // '' ),
+        clean        => ( exists $opt{clean} ? 1 : 0 ) );
+}
 else {
-    die "lazysite-site: unknown command '$cmd' (backup); run with no command for usage.\n";
+    die "lazysite-site: unknown command '$cmd' (backup|apply); "
+        . "run with no command for usage.\n";
 }
 
 if ( $opt{json} ) {
     require JSON::PP;
     print JSON::PP->new->canonical->encode($result), "\n";
 }
-elsif ( $result->{ok} ) {
+elsif ( $result->{ok} && $cmd eq 'backup' ) {
     printf "packaged %s -> lazysite/backups/%s (%d bytes)\n",
         ( $result->{host} // '' ), $result->{name}, ( $result->{size} // 0 );
+}
+elsif ( $result->{ok} && $cmd eq 'apply' ) {
+    printf "applied to %s (content root %s, nav %s%s)\n",
+        ( $result->{applied_to} // '' ), ( $result->{content_root} // '' ),
+        ( $result->{nav}        // '' ),
+        ( $result->{layout_installed} ? ", layout $result->{layout_installed} installed" : '' );
 }
 else {
     print STDERR "error: ", ( $result->{error} // 'failed' ), "\n";

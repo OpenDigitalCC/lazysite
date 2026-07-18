@@ -11,7 +11,7 @@ use JSON::PP   qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use Lazysite::Manager::SitePackage qw(package_create);
+use Lazysite::Manager::SitePackage qw(package_create package_apply apply_and_configure);
 
 # --- fixture: an agency instance with a client sub-domain -------------------
 my $d = tempdir( CLEANUP => 1 );
@@ -90,6 +90,71 @@ sub list_pkg { my $f = shift; my @l = `tar tzf \Q$f\E 2>/dev/null`; chomp @l; re
     is( $r->{manifest}{nav}, 'base-inherited', 'a base nav is recorded as inherited, not packaged' );
     my %in = map { $_ => 1 } list_pkg("$d/lazysite/backups/$r->{name}");
     ok( !$in{'./nav'}, 'no nav file is bundled when it is base-inherited (infra untouched)' );
+}
+
+# --- round-trip: create on A, apply to a fresh domain on B ------------------
+{
+    my $src = package_create('shop.clienta.com');
+    my $pkg = "$d/lazysite/backups/$src->{name}";
+
+    my $b = tempdir( CLEANUP => 1 );
+    make_path( "$b/lazysite/backups", "$b/lazysite/layouts" );
+    spit( "$b/lazysite/lazysite.conf",
+        "site_name: Fresh\nalias_hosts: client.example\n"
+            . "alias.client.example.content_root: sites/dest\n" );
+
+    local $Lazysite::Manager::SitePackage::DOCROOT = $b;
+    my $ap = apply_and_configure( $pkg, host => 'client.example', clean => 1 );
+    is( $ap->{ok}, 1, 'apply_and_configure ok' ) or diag $ap->{error};
+    is( $ap->{applied_to}, 'client.example', 'reports the target domain' );
+    ok( -f "$b/sites/dest/index.md",      'content copied into the target content root' );
+    ok( -f "$b/sites/dest/nav.conf",      'nav override placed in the target' );
+    ok( -f "$b/lazysite/layouts/base/layout.tt", 'bundled layout installed on the target' );
+    ok( -d "$b/lazysite/layouts/base/themes/blue", 'bundled theme installed' );
+    ok( !-d "$b/lazysite/layouts/base/themes/red", 'the pruned sibling theme is not present' );
+
+    my $conf = do { open my $fh, '<', "$b/lazysite/lazysite.conf" or die $!; local $/; <$fh> };
+    like( $conf, qr/^alias\.client\.example\.theme: blue$/m,       'target theme key written' );
+    like( $conf, qr/^alias\.client\.example\.site_name: Client A Shop$/m, 'target title written' );
+    like( $conf, qr/^alias\.client\.example\.nav_file: sites\/dest\/nav\.conf$/m, 'target nav_file repointed' );
+}
+
+# --- SECURITY: a package cannot escape the target via a ../ member ----------
+{
+    my $b = tempdir( CLEANUP => 1 );
+    make_path( "$b/lazysite/backups", "$b/sites/dest" );
+    spit( "$b/lazysite/lazysite.conf", "site_name: T\n" );
+
+    # Hand-build a hostile package: a manifest + a content/ file whose path
+    # tries to traverse out of the stage.
+    my $eviltmp = tempdir( CLEANUP => 1 );
+    make_path("$eviltmp/content");
+    spit( "$eviltmp/site.json", '{"site_package":1,"keys":{"content_root":"sites/dest"},"nav":"base-inherited"}' );
+    spit( "$eviltmp/content/ok.md", "safe\n" );
+    # a traversal member
+    system( 'ln', '-s', '/etc/passwd', "$eviltmp/content/link" );
+    my $evil = "$b/lazysite/backups/lazysite-site-evil.tar.gz";
+    system( 'tar', 'czf', $evil, '-C', $eviltmp, '.' );
+
+    local $Lazysite::Manager::SitePackage::DOCROOT = $b;
+    my $r = package_apply( $evil, content_root => 'sites/dest' );
+    # The symlink must never survive into the target.
+    ok( !-e "$b/sites/dest/link" || !-l "$b/sites/dest/link",
+        'a symlink member is not materialised as a link in the target' );
+    ok( !-e "$b/sites/dest/../escaped", 'no traversal escape from the target' );
+}
+
+# --- an unregistered target host is refused ---------------------------------
+{
+    my $src = package_create('shop.clienta.com');
+    my $pkg = "$d/lazysite/backups/$src->{name}";
+    my $b   = tempdir( CLEANUP => 1 );
+    make_path("$b/lazysite/backups");
+    spit( "$b/lazysite/lazysite.conf", "site_name: T\n" );
+    local $Lazysite::Manager::SitePackage::DOCROOT = $b;
+    my $r = apply_and_configure( $pkg, host => 'nope.example' );
+    ok( !$r->{ok}, 'apply to an unregistered domain is refused' );
+    is( $r->{kind}, 'not-found', 'refusal is not-found' );
 }
 
 done_testing();
