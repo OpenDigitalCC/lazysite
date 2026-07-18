@@ -207,4 +207,26 @@ my ( $sha_adopt, $sha_edit );
     ok( $ni2->{ok} && $ni2->{already}, 'git-init allowed with manage_config (idempotent)' );
 }
 
+# --- SM175: a move carries the page's history; a recreate at the old path does
+#     not inherit it (end to end through action=move + git-history) ------------
+{
+    my $mv = op_post( $d, 'action=move&path=page.md&to=sub/moved.md', '{}' );
+    ok( $mv->{ok}, 'move page.md -> sub/moved.md' ) or diag explain $mv;
+
+    my $h = op_get( $d, 'action=git-history&path=sub/moved.md' );
+    ok( $h->{ok} && $h->{enabled}, 'git-history on the moved path' );
+    my @subj = map { $_->{subject} } @{ $h->{entries} };
+    ok( ( grep { m{^move page\.md -> sub/moved\.md} } @subj ), 'shows the move commit' );
+    ok( ( grep { /^edit page\.md/ } @subj ),      'history followed the rename: the pre-move edit is present' );
+    ok( ( grep { /adopt existing site/ } @subj ), 'history followed back to the adoption commit' );
+
+    # A fresh, unrelated page created at the OLD path starts a clean thread.
+    my $nw = op_post( $d, 'action=save&path=page.md',
+        encode_json( { content => "---\ntitle: New\n---\n\nunrelated\n" } ) );
+    ok( $nw->{ok}, 'a new page created at the old path' );
+    my @s2 = map { $_->{subject} } @{ op_get( $d, 'action=git-history&path=page.md' )->{entries} };
+    ok( ( !grep { /^edit page\.md/ } @s2 ),
+        'the recreated old path does NOT inherit the moved file history (no leak)' );
+}
+
 done_testing();

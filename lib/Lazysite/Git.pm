@@ -21,8 +21,8 @@ use Lazysite::Util qw(log_event);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(enabled initialised git_available git_dir init
-    commit_paths commit_all file_log file_at file_diff count_commits run_git
-    breadcrumb_path);
+    commit_paths commit_all commit_move file_log file_at file_diff count_commits
+    run_git breadcrumb_path);
 
 sub git_dir { return "$_[0]/lazysite/git" }
 
@@ -244,7 +244,7 @@ sub _mark_commit_failed {
 # 0 otherwise; NEVER dies past the eval - a git failure must not break the
 # save that triggered it (it leaves the breadcrumb above instead).
 sub _stage_and_commit {
-    my ( $docroot, $user, $message, @specs ) = @_;
+    my ( $docroot, $user, $message, $trailers, @specs ) = @_;
     my $made = eval {
         my $staged = 0;
         for my $spec (@specs) {
@@ -257,8 +257,12 @@ sub _stage_and_commit {
         return 0 unless $staged;
         my ($clean) = run_git( $docroot, 'diff', '--cached', '--quiet' );
         return 0 if $clean;    # exit 0 = nothing staged, nothing to commit
+            # Optional structured trailers (SM175: Lazysite-Renamed-From) - git's
+            # own --trailer keeps them well-formed at the end of the message, which
+            # _clean_message (control chars -> space) could not preserve inline.
+        my @tr = $trailers ? map { ( '--trailer', $_ ) } @{$trailers} : ();
         my ($cok) = run_git( $docroot, 'commit', '-q', '-m', _clean_message($message),
-            '--author', _author($user) );
+            @tr, '--author', _author($user) );
         die "git commit failed\n" unless $cok;
         1;
     };
@@ -288,7 +292,7 @@ sub commit_paths {
     return 0 unless enabled($docroot);
     my @specs = grep { defined } map { _norm_rel($_) } @paths;
     return 0 unless @specs;
-    return _stage_and_commit( $docroot, $user, $message, @specs );
+    return _stage_and_commit( $docroot, $user, $message, undef, @specs );
 }
 
 # commit_all: stage the whole versioned set (the backup-restore hook - a
@@ -296,12 +300,38 @@ sub commit_paths {
 sub commit_all {
     my ( $docroot, $user, $message ) = @_;
     return 0 unless enabled($docroot);
-    return _stage_and_commit( $docroot, $user, $message, '.' );
+    return _stage_and_commit( $docroot, $user, $message, undef, '.' );
+}
+
+# commit_move($docroot, $user, $message, $from, @paths): a rename recorded as a
+# first-class move (SM175). Stages @paths - the source deletion, the destination
+# add and any sidecars - as ONE commit, and records the rename source $from in a
+# Lazysite-Renamed-From trailer. file_log follows history across the rename via
+# that trailer (not git's rename heuristic), and because the link is explicit a
+# later unrelated file at the old or new path never inherits this thread. The
+# caller performs the on-disk rename first (as it does today); this only records
+# it. Instant no-op when the feature is off; invalid paths are dropped.
+sub commit_move {
+    my ( $docroot, $user, $message, $from, @paths ) = @_;
+    return 0 unless enabled($docroot);
+    my $from_rel = _norm_rel($from);
+    my @specs    = grep { defined } map { _norm_rel($_) } @paths;
+    return 0 unless @specs && defined $from_rel;
+    return _stage_and_commit( $docroot, $user, $message,
+        ["Lazysite-Renamed-From:$from_rel"], @specs );
 }
 
 # --- reads (repo-absent / disabled = empty or undef, never an error) --------------
 
 # Per-file timeline: [ { sha, epoch, author, subject }, ... ] newest first.
+# SM175: the history follows the file's IDENTITY, not merely its path. It walks
+# the current incarnation - back to the most recent commit that added this path
+# (--diff-filter=A) - and then, ONLY if that commit is a recorded move (carries a
+# Lazysite-Renamed-From trailer), continues into the source path's lineage,
+# recursively. So a rename keeps its history, while a delete ends the thread: a
+# later file created at the same path starts clean and never inherits the deleted
+# file's past. Plain `git log -- path` (and even `git log --follow`) leak that
+# past because they list every commit that ever touched the pathname.
 sub file_log {
     my ( $docroot, $path, $limit ) = @_;
     return [] unless enabled($docroot);
@@ -309,16 +339,48 @@ sub file_log {
     return [] unless defined $rel;
     $limit = ( defined $limit && $limit =~ /\A\d+\z/ && $limit > 0 ) ? $limit : 50;
     $limit = 200 if $limit > 200;
-    my ( $ok, $out ) = run_git( $docroot, 'log', "-n$limit",
-        '--format=%H%x09%at%x09%an%x09%s', '--', $rel );
-    return [] unless $ok && defined $out;
+
     my @entries;
-    for my $line ( split /\n/, $out ) {
-        my ( $sha, $at, $an, $subject ) = split /\t/, $line, 4;
-        next unless defined $sha && $sha =~ /\A[0-9a-f]{40}\z/;
-        push @entries,
-            { sha => $sha, epoch => ( $at // 0 ) + 0, author => ( $an // '' ),
-            subject => ( $subject // '' ) };
+    my $cur   = $rel;
+    my $start = 'HEAD';
+    my %seen;    # "$path\@$start" - guard against a pathological trailer cycle
+    while ( @entries < $limit && defined $cur && !$seen{"$cur\@$start"}++ ) {
+        # This incarnation begins at the most recent commit that ADDED $cur
+        # at-or-before $start - the boundary we must not read past (reading past
+        # it would leak an earlier, deleted file that reused the path).
+        my ( undef, $aout ) = run_git( $docroot, 'log', '--diff-filter=A',
+            '-n1', '--format=%H', $start, '--', $cur );
+        my ($add) = ( $aout // '' ) =~ /\A([0-9a-f]{40})/;
+
+        my ( $lok, $lout ) = run_git( $docroot, 'log',
+            '--format=%H%x09%at%x09%an%x09%s', $start, '--', $cur );
+        last unless $lok && defined $lout;
+
+        my $reached_add = 0;
+        for my $line ( split /\n/, $lout ) {
+            my ( $sha, $at, $an, $subject ) = split /\t/, $line, 4;
+            next unless defined $sha && $sha =~ /\A[0-9a-f]{40}\z/;
+            push @entries,
+                { sha => $sha, epoch => ( $at // 0 ) + 0, author => ( $an // '' ),
+                subject => ( $subject // '' ) };
+            if ( defined $add && $sha eq $add ) { $reached_add = 1; last }
+            last if @entries >= $limit;
+        }
+        # A limit cut-off mid-incarnation must not jump lineage; stop unless we
+        # cleanly reached this incarnation's add commit.
+        last unless $reached_add && defined $add;
+
+        # Follow ONLY a recorded rename. No trailer => the thread ends here.
+        my ( undef, $tout ) = run_git( $docroot, 'log', '-n1',
+            '--format=%(trailers:key=Lazysite-Renamed-From,valueonly)', $add );
+        my $from = defined $tout ? $tout : '';
+        $from =~ s/\A\s+//;
+        $from =~ s/\s+\z//;
+        $from = _norm_rel($from);
+        last unless defined $from;
+
+        $cur   = $from;
+        $start = "$add~1";
     }
     return \@entries;
 }

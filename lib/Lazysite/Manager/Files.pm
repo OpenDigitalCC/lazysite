@@ -50,6 +50,17 @@ sub _git_commit {
     return;
 }
 
+# SM175: a rename/move recorded as a first-class move - one commit staging the
+# source deletion + the destination (+ sidecars), with a Lazysite-Renamed-From
+# trailer naming $from, so content history follows the file across the rename and
+# a later file at either path never inherits this one's past.
+sub _git_commit_move {
+    my ( $user, $message, $from, @paths ) = @_;
+    require Lazysite::Git;
+    Lazysite::Git::commit_move( $DOCROOT, ( $user // $auth_user ), $message, $from, @paths );
+    return;
+}
+
 # === moved from lazysite-manager-api.pl (SM079a) ===
 
 sub action_list {
@@ -475,8 +486,9 @@ sub action_move {
     log_event( 'INFO', $action, 'file moved',
         from => $src_rel, to => $dst_rel, user => $auth_user );
     # SM085: a move (and its sidecar) is ONE commit; the source deletion and
-    # the destination are staged together.
-    _git_commit( $username, "move $s->{rel} -> $d->{rel}",
+    # the destination are staged together. SM175: recorded as a first-class move
+    # (Lazysite-Renamed-From: $s->{rel}) so content history follows the rename.
+    _git_commit_move( $username, "move $s->{rel} -> $d->{rel}", $s->{rel},
         $s->{rel}, $d->{rel},
         ( -e "$dst_full.brief" ? ( "$s->{rel}.brief", "$d->{rel}.brief" ) : () ) );
     _invalidate_registries();
