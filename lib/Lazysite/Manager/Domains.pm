@@ -236,6 +236,14 @@ sub domain_add {
     {
         return { ok => 0, kind => 'invalid', error => 'Invalid lang_group name' };
     }
+    # SEC (F6.11): every override value is written as a single conf line via
+    # _set_line, so reject CR/LF in ANY of them - matching domain_set - so a value
+    # cannot smuggle a second conf directive (e.g. a reserved content_root).
+    for my $k (@DOMAIN_KEYS) {
+        next unless defined $opts{$k};
+        return { ok => 0, kind => 'invalid', error => 'Value must be a single line' }
+            if $opts{$k} =~ /[\r\n]/;
+    }
 
     my ( $base, $ov, $hosts ) = _parse();
     return { ok => 0, kind => 'exists', error => "Domain already registered: $host" }

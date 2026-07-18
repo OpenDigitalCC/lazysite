@@ -3991,8 +3991,17 @@ sub render_content {
     # SM179 (P1): language awareness. site_lang is the host's language (conf
     # `lang:` or the alias override); page_lang lets a page override it via front
     # matter; both default to 'en'. $RESPONSE_LANG feeds the Content-Language header.
+    # SEC: page_lang is CONTENT-PARTNER controllable (a page's front-matter `lang:`),
+    # and lands in <html lang="..."> and the Content-Language header. TT does not
+    # auto-escape and this var is outside the SEC-2026-07 stash-escape block, so
+    # sanitise to a bare BCP-47-ish tag (letters + hyphen) - no quotes, angle
+    # brackets or CR/LF - closing a stored-XSS / header-injection path where a
+    # content-only write could otherwise execute script in every visitor's browser.
     my $site_lang = $site_vars{lang} || 'en';
     my $page_lang = $meta->{lang}    || $site_lang;
+    s/[^A-Za-z-]//g for $site_lang, $page_lang;
+    $site_lang ||= 'en';
+    $page_lang ||= 'en';
     $RESPONSE_LANG = $page_lang;
     # SM179 P2: the language-set switcher data ({ lang, url, current, exists }),
     # empty unless this host is in a lang_group with siblings. Layouts render a
