@@ -50,6 +50,9 @@ A partner's grant (visible in `whoami.capabilities`) gates the tools:
   Defaults to the `webdav` grant; set off for a theme-only partner.
 - `manage_themes` - activate themes.
 - `manage_layouts` - activate layouts.
+- `manage_domains` - manage the domains this instance serves, and move whole
+  sites between them (the `site_backup` / `site_apply` tools; the `domain-*`
+  control-API actions).
 - `webdav` - the WebDAV transport / file-API mechanism flag.
 - `manage_config` - site configuration (control API, not exposed as MCP tools).
 - `analytics` - read the visitor-log analysis. Off by default; an explicit grant,
@@ -264,6 +267,34 @@ submit_feedback `{ summary, good, bad, rating, context }`
 invalidate_cache `{ path }`
 : Drop a page's cached HTML so it re-renders (`"*"` for all). A normal write
   already clears its own page; use this for pages that embed another.
+
+### Site migration (move a whole site between domains or instances)
+
+A **site package** is a portable snapshot of ONE domain's site: its content, its
+navigation, the theme and layout it uses, and its presentation settings. It
+deliberately excludes plugins, instance settings and any secrets, so it is safe
+to hand to another instance. Use it to turn an agency demo into a client's live
+site, or to copy a site to another domain. Both tools need `manage_domains` and
+access to the domain.
+
+site_backup `{ host }`
+: Package the named registered domain's site into
+  `lazysite-site-<host>-<stamp>.tar.gz` in the backups area (fetch it with the
+  backup download if you need to move it to another instance). Returns the
+  package `name`.
+
+site_apply `{ name, host, clean }`
+: Apply a package (already in this instance's backups area) onto a target: copies
+  its content into the target domain's content root, installs the bundled
+  theme/layout if the target lacks it, places the nav, and sets the domain's
+  presentation. Omit `host` to apply to the default site; `clean: true` clears
+  the target content first. **Apply overwrites the target - take a backup first
+  if you want a rollback point.** The target domain must already be registered
+  (`domain-add` on the control API) unless you are applying to the default site.
+
+The end-to-end recipe (`migrate-site`) is in `describe_capabilities` under
+`tasks`: **site_backup on the source -> (download + site-backup-upload if a
+different instance) -> site_apply on the target -> verify.**
 
 ## Error model
 

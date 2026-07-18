@@ -87,6 +87,7 @@ my %HOOKED = map { $_ => 1 } qw(
     Plugins::action_plugin_save
     API::action_config_set
     API::action_nav_save
+    API::action_site_backup_apply
     DAV::do_put
     DAV::do_delete
     DAV::do_copy_move
@@ -116,6 +117,10 @@ my %EXEMPT = (
     'Backups::action_backup_download' => 'read-only',
     'Backups::action_backup_create'   =>
         'writes only under lazysite/backups/ - excluded from the versioned set',
+    'API::action_site_backup_create' =>
+        'writes only a package under lazysite/backups/ - excluded from the versioned set',
+    'API::action_site_backup_upload' =>
+        'stores an uploaded package under lazysite/backups/ - not versioned content',
     # --- Plugins ---
     'Plugins::action_plugin_list'   => 'read-only',
     'Plugins::action_plugin_read'   => 'read-only',

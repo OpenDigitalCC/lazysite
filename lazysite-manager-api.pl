@@ -1405,6 +1405,13 @@ sub action_site_backup_apply {
         return $ap;
     }
 
+    # SM158: applying a site is a bulk content change - like a restore, commit it
+    # so it is visible in content history and recoverable (instant no-op when the
+    # Content history plugin is off). Parity with backup-restore.
+    require Lazysite::Git;
+    Lazysite::Git::commit_all( $DOCROOT, $auth_user,
+        "apply site package $name" . ( length $host ? " to $host" : '' ) );
+
     # Drop caches so the applied site renders fresh.
     require Lazysite::Util;
     Lazysite::Util::clear_host_cache($DOCROOT) if Lazysite::Util->can('clear_host_cache');
