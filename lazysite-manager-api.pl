@@ -748,19 +748,34 @@ elsif ( $action eq 'analyse_visitors' ) { $result = action_analyse_visitors( $pa
 elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
 elsif ( $action eq 'audit' ) {
-    # Strict gate: the audit trail requires the 'audit' capability (separate from
-    # visitor analytics). Token clients are already gated by %need above; a cookie
-    # (manager) request is checked here against the user's own grant.
-    if ( !$token_auth && !_user_audit($auth_user) ) {
-        audit_log( $auth_user, 'audit', '', $ENV{REMOTE_ADDR} // '', 'fail', 'ui', 'denied: needs audit' );
-        $result = { ok => 0, kind => 'forbidden',
-            error => "The audit trail requires the 'Audit trail' permission. An "
-                . "administrator can grant it on the Groups page: give a group the "
-                . "'Audit trail' action, and add the user to it." };
+    # Strict gate: the FULL audit trail requires the 'audit' capability (separate
+    # from visitor analytics). Token clients are already gated by %need above (a
+    # token still needs 'audit' for the full log). SM173: a cookie (manager) user
+    # who holds create_sub_users but NOT 'audit' gets a SCOPED view - their own
+    # activity plus that of the accounts beneath them in the managed_by tree.
+    my $scope;    # undef = full log; hashref of usernames = restrict to these
+    my $denied = 0;
+    if ( !$token_auth ) {
+        my $caps = _user_caps($auth_user);
+        if ( !$caps->{audit} ) {
+            if ( $caps->{create_sub_users} ) {
+                my $sc = users_api( { action => 'audit-scope', username => $auth_user } ) || {};
+                $scope = { map { $_ => 1 } @{ $sc->{users} || [] }, $auth_user };
+            }
+            else {
+                audit_log( $auth_user, 'audit', '', $ENV{REMOTE_ADDR} // '', 'fail', 'ui', 'denied: needs audit' );
+                $result = { ok => 0, kind => 'forbidden',
+                    error => "The audit trail requires the 'Audit trail' permission. An "
+                        . "administrator can grant it on the Groups page: give a group the "
+                        . "'Audit trail' action, and add the user to it." };
+                $denied = 1;
+            }
+        }
     }
-    else {
-        $result = action_audit( user => $params{user}, target => $params{target}, start => $params{start}, end => $params{end}, page => $params{page}, per_page => $params{per_page} );
-    }
+    $result = action_audit( user => $params{user}, target => $params{target},
+        start    => $params{start},    end   => $params{end}, page => $params{page},
+        per_page => $params{per_page}, scope => $scope )
+        unless $denied;
 }
 elsif ( $action eq 'recent-changes' ) { $result = action_recent_changes( $params{window} ) }
 elsif ( $action eq 'handler-save' ) {
@@ -2067,10 +2082,14 @@ sub action_audit {
         }
         else { $$ref = undef }
     }
+    my $scope = $opt{scope};    # SM173: hashref of visible actors, or undef
     my @entries;
     my ( %fusers, %ftargets );          # SM119: distinct values for the filter dropdowns
     for my $e ( reverse @$cached ) {    # newest first
         my ( $ts, $u, $target ) = ( $e->{ts}, $e->{user}, $e->{target} );
+        # SM173: a scoped (sub-user-manager) view sees only its team's activity -
+        # applied before the facets so the dropdowns list only that team.
+        next if $scope && !$scope->{ $u // '' };
         $fusers{ defined $u        ? $u      : '' } = 1;    # facets from all entries
         $ftargets{ defined $target ? $target : '' } = 1;
         # SM119: a "__none" filter matches blank-valued entries; else exact match.
@@ -2101,6 +2120,7 @@ sub action_audit {
 
     return { ok => 1, entries => \@slice,
         total   => $total, page => $page, per_page => $per, pages => $pages,
+        scoped  => ( $scope ? JSON::PP::true() : JSON::PP::false() ),    # SM173
         users   => [ sort keys %fusers ],       # SM119: filter dropdown options
         targets => [ sort keys %ftargets ] };
 }

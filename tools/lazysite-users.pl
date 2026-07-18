@@ -351,6 +351,31 @@ if ($API_MODE) {
                 force => ( $req->{force} ? 1 : 0 ) );
             $result = { ok => 1, message => "Setting updated" };
         }
+        elsif ( $action eq 'audit-scope' ) {
+            # SM173: the accounts a sub-user manager may see in the audit trail -
+            # themselves plus every account beneath them in the managed_by (else
+            # created_by) tree. Used to scope the audit view for a delegate who
+            # holds create_sub_users but not the full 'audit' capability.
+            my $who = $req->{username} // '';
+            die "username required\n" unless length $who;
+            my $all = read_settings();
+            my %child;    # parent => [ children ]
+            for my $u ( keys %$all ) {
+                my $p = $all->{$u}{managed_by};
+                $p = $all->{$u}{created_by} unless defined $p && length $p;
+                push @{ $child{$p} }, $u if defined $p && length $p && $p ne $u;
+            }
+            my %seen  = ( $who => 1 );
+            my @stack = ($who);
+            while ( defined( my $p = pop @stack ) ) {
+                for my $c ( @{ $child{$p} || [] } ) {
+                    next if $seen{$c};
+                    $seen{$c} = 1;
+                    push @stack, $c;
+                }
+            }
+            $result = { ok => 1, users => [ sort keys %seen ] };
+        }
         elsif ( $action eq 'token' ) {
             my $token = cmd_token( $req->{username} );
             $result = { ok => 1, token => $token };
