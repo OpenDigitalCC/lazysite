@@ -106,7 +106,8 @@ var siteUrlEdited = false;   // true once the operator types in the Site URL fie
 var LABELS = {
   content_root: 'Content folder', site_url: 'Site address', site_name: 'Site title',
   theme: 'Theme', layout: 'Layout', appearance: 'Appearance (layout & theme)',
-  nav_file: 'Navigation menu', search_default: 'Search'
+  nav_file: 'Navigation menu', search_default: 'Search',
+  allowed_groups: 'Groups allowed to manage', locked_users: 'Users locked to this domain'
 };
 function label(k) { return LABELS[k] || k; }
 
@@ -199,10 +200,13 @@ var DISPLAY_KEYS = ['content_root', 'site_name', 'theme'];
 // as at creation, so repointing is safe; it does not move existing files.
 // SM167: theme + layout are edited as one 'appearance' field (a layout/theme
 // pair); saveDomain splits it back into the two conf keys.
-var EDIT_KEYS = ['content_root', 'site_url', 'site_name', 'appearance', 'nav_file', 'search_default'];
+var EDIT_KEYS = ['content_root', 'site_url', 'site_name', 'appearance', 'nav_file', 'search_default',
+  'allowed_groups', 'locked_users'];
 // Optional grey hint rendered under an edit field where the effect is not obvious.
 var EDIT_HINTS = {
-  content_root: 'Blank serves the default site. Changing this repoints the domain to another folder – it does not move existing files.'
+  content_root: 'Blank serves the default site. Changing this repoints the domain to another folder – it does not move existing files.',
+  allowed_groups: 'Comma-separated group names. A member of any of these groups may manage this domain (and is confined to it). Empty = only operators.',
+  locked_users: 'Comma-separated account names. A locked user can reach ONLY this domain (of the ones their groups allow) – nothing else.'
 };
 // Keys whose value comes from a fixed set are edited as a <select> (with an
 // "inherit" blank), not a free-text box - matching the processor's own config UI

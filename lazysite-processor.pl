@@ -625,6 +625,71 @@ sub _group_home_domain {
     return ( @hd == 1 && length $hd[0] ) ? $hd[0] : '';
 }
 
+# SM165: the module-free render-path copy of the DOMAIN-access scope resolution
+# (a local copy of Auth::DomainAccess, kept in step, ADR 0001). Roots the file
+# browser at the domains a user's groups allow (narrowed by any lock). The
+# AUTHORITATIVE confinement - including the sub-user ceiling - is applied
+# SERVER-SIDE by the manager API / WebDAV via resolve_user_scopes; this render
+# copy is only the UI rooting hint, so it omits the ceiling (a sub-user still
+# cannot ACT outside its ceiling).
+sub _read_domain_access {
+    my $f   = "$LAZYSITE_DIR/lazysite.conf";
+    my %dom = ( '' => { content_root => '', allowed_groups => [], locked_users => [] } );
+    open my $fh, '<:utf8', $f or return %dom;
+    while ( my $l = <$fh> ) {
+        chomp $l;
+        $l =~ s/^\s+|\s+$//g;
+        next if $l =~ /^#/ || !length $l;
+        if ( $l =~ /^content_root\s*:\s*(.+)/ ) {
+            ( $dom{''}{content_root} = $1 ) =~ s/^\s+|\s+$//g;
+        }
+        elsif ( $l =~ /^alias\.(.+)\.(content_root|allowed_groups|locked_users)\s*:\s*(.+)/x ) {
+            my ( $h, $k, $v ) = ( $1, $2, $3 );
+            $v =~ s/^\s+|\s+$//g;
+            $dom{$h} ||= { content_root => '', allowed_groups => [], locked_users => [] };
+            if ( $k eq 'content_root' ) { $dom{$h}{content_root} = $v }
+            else { $dom{$h}{$k} = [ grep { length } map { s/^\s+|\s+$//gr } split /,/, $v ] }
+        }
+    }
+    close $fh;
+    return %dom;
+}
+
+sub _domain_eff {
+    my ( $user, @groups ) = @_;
+    @groups = _group_closure(@groups);
+    my %g   = map { $_ => 1 } @groups;
+    my %dom = _read_domain_access();
+    my ( %allowed, %locked );
+    for my $h ( keys %dom ) {
+        my @ag = @{ $dom{$h}{allowed_groups} || [] };
+        if ( $h eq '' ) { $allowed{$h} = 1 if !@ag || grep { $g{$_} } @ag }
+        else            { $allowed{$h} = 1 if @ag && grep { $g{$_} } @ag }
+        $locked{$h} = 1
+            if defined $user && grep { $_ eq $user } @{ $dom{$h}{locked_users} || [] };
+    }
+    my @eff = %locked ? ( grep { $allowed{$_} } keys %locked ) : ( keys %allowed );
+    return ( \%dom, \@eff );
+}
+
+sub _domain_scopes {
+    my ( $dom, $eff ) = _domain_eff(@_);
+    return () unless @{$eff};
+    my ( %seen, @sc );
+    for my $h ( @{$eff} ) {
+        my $cr = $dom->{$h}{content_root} // '';
+        next unless length $cr;
+        push @sc, $cr unless $seen{$cr}++;
+    }
+    return @sc;
+}
+
+sub _domain_home {
+    my ( $dom, $eff ) = _domain_eff(@_);
+    my @rooted = grep { length( $dom->{$_}{content_root} // '' ) } @{$eff};
+    return ( @rooted == 1 ) ? $rooted[0] : '';
+}
+
 sub _is_manager {
     my ( $site_vars, $auth_user, $auth_groups ) = @_;
     return 0 unless $auth_user;
@@ -3752,14 +3817,14 @@ sub render_content {
             $manager_caps{$cap}
                 = ( $all || _groups_grant_cap( $cap, split /\s*,\s*/, $groups_str ) ) ? 1 : 0;
         }
-        # SM155/SM157: the domain binding is on the user's GROUPS. A single-domain
-        # editor is rooted at their one scope; a multi-domain editor keeps
-        # scope_root empty and gets the full scope LIST (dav_scopes) so the file
-        # browser can offer a domain switcher. Server-side confinement (the union
-        # of scopes) holds regardless.
-        @my_scopes   = _group_scopes( split /\s*,\s*/, $groups_str );
+        # SM165/SM157: access lives on the DOMAIN (allowed_groups + locked_users).
+        # A single-domain editor is rooted at their one scope; a multi-domain
+        # editor keeps scope_root empty and gets the full scope LIST (dav_scopes)
+        # so the file browser can offer a domain switcher. Server-side confinement
+        # (with the sub-user ceiling) holds regardless of this rooting hint.
+        @my_scopes   = _domain_scopes( $mgr_user, split /\s*,\s*/, $groups_str );
         $scope_root  = ( @my_scopes == 1 ) ? $my_scopes[0] : '';
-        $home_domain = _group_home_domain( split /\s*,\s*/, $groups_str );
+        $home_domain = _domain_home( $mgr_user, split /\s*,\s*/, $groups_str );
     }
 
     my $vars = {

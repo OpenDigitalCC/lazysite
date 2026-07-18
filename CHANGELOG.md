@@ -82,6 +82,22 @@ Compound groups: a group can contain another group (SM121)
   Nesting requires full user-management rights. Gate: t/unit/lib/11-caps-resolver.t,
   t/unit/users/18-group-nest.t.
 
+Domain access control: domains own who may manage them, with per-user locks (SM165)
+: Access now lives ON the domain. Each domain names the GROUPS allowed to manage
+  it (allowed_groups) and the USERS locked to it (locked_users), edited on the
+  Domains page - the single place a domain's access is set. A delegated editor is
+  confined to the content roots of the domains their groups allow; a lock narrows
+  them to just that domain; a domain with no allowed groups is operator-only. A
+  created sub-user (e.g. a delegated MCP agent) can never out-reach its creator:
+  its scope is intersected up the created_by chain at resolve time, and it cannot
+  hold a capability the creator lacks. The same resolution feeds every channel
+  (manager UI, control-API token, MCP, WebDAV), so a lock holds identically
+  everywhere; this replaces the per-group dav_scope of SM155 (whose binding fields
+  leave the Groups page). Compound groups (SM121) expand before the allow-check,
+  so a group-of-groups grants domain access too. Gate: t/unit/lib/20-domain-access.t
+  (resolver + sub-user ceiling, including the deny-all edge where a lock narrows to
+  nothing) and t/unit/manager/31-domain-confinement.t (end-to-end, every channel).
+
 ## 0.7.25 - EDGE: forms discoverability + manager UI/key/WebDAV fixes (2026-07-18)
 
 Forms: native forms are discoverable where an agent acts (SM161)

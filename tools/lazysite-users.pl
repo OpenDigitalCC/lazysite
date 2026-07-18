@@ -113,7 +113,7 @@ use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
 use Lazysite::Auth::Settings qw(read_settings write_settings _consume_lock
-    caps_for write_group_settings group_scopes group_home_domain @CAP_KEYS);
+    caps_for write_group_settings resolve_user_scopes resolve_home_domain @CAP_KEYS);
 $Lazysite::Util::COMPONENT = 'users';
 
 # SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
@@ -925,11 +925,12 @@ sub effective_settings {
         my %g = read_groups();
         sort grep { grep { $_ eq $user } @{ $g{$_} || [] } } keys %g;
     };
-    # SM155: the domain binding is now on the GROUP - the user's effective scope
-    # is the union of their scoped groups' content roots (empty = unconfined);
-    # home_domain is the UI pointer when exactly one group is scoped.
-    my @scopes = group_scopes(@mygroups);
-    my $hd     = group_home_domain(@mygroups);
+    # SM165: the effective scope comes from DOMAIN access (each domain's
+    # allowed_groups + locked_users), resolved against the user's COMPOUND-expanded
+    # groups - replacing SM155's per-group dav_scope. The domain owns access; a
+    # lock narrows; an empty result for a locked user is deny-all (not unconfined).
+    my @scopes = Lazysite::Auth::Settings::resolve_user_scopes( $DOCROOT, $user );
+    my $hd     = Lazysite::Auth::Settings::resolve_home_domain( $DOCROOT, $user );
     return {
         groups => \@mygroups,
         webdav => $caps->{webdav}                  ? JSON::PP::true() : JSON::PP::false(),

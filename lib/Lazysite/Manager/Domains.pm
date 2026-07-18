@@ -27,9 +27,12 @@ our $auth_user = '';    # for log attribution
 
 # Per-host presentation/routing keys that may be overridden for an alias. Same
 # set the read-only view (action_domains_list) surfaces. content_root is the one
-# that actually roots a domain's content; the rest are presentation.
-my @DOMAIN_KEYS = qw(content_root site_url site_name theme layout nav_file search_default);
-my %IS_KEY      = map { $_ => 1 } @DOMAIN_KEYS;
+# that actually roots a domain's content; the rest are presentation. SM165 adds
+# the two ACCESS keys: allowed_groups (comma list of groups that may manage this
+# domain) and locked_users (comma list of accounts confined to it).
+my @DOMAIN_KEYS = qw(content_root site_url site_name theme layout nav_file
+    search_default allowed_groups locked_users);
+my %IS_KEY = map { $_ => 1 } @DOMAIN_KEYS;
 
 sub _conf_path { return "$DOCROOT/lazysite/lazysite.conf" }
 
@@ -301,6 +304,18 @@ sub domain_set {
         return { ok => 0, kind => 'invalid', error => 'Invalid content_root' }
             unless defined $rel;
         $value = $rel;
+    }
+    elsif ( $key eq 'allowed_groups' || $key eq 'locked_users' ) {
+        # SM165: a comma list of group / account names. Normalise (trim, drop
+        # blanks, dedupe) and reject any token that is not a plain name - this is
+        # access-control config, so it fails closed rather than storing garbage.
+        my @toks = grep { length } map { s/^\s+|\s+$//gr } split /,/, $value;
+        for my $t (@toks) {
+            return { ok => 0, kind => 'invalid', error => "Invalid name in $key: $t" }
+                unless $t =~ /^[A-Za-z0-9_-]+\z/;
+        }
+        my %seen;
+        $value = join ', ', grep { !$seen{$_}++ } @toks;
     }
     # Values are single-line conf values: no newlines.
     return { ok => 0, kind => 'invalid', error => 'Value must be a single line' }

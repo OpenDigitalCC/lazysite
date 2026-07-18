@@ -9,9 +9,10 @@ use Test::More;
 use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
-use Lazysite::Auth::DomainAccess qw(read_domains effective_scopes DENY_ALL_SCOPE);
+use Lazysite::Auth::DomainAccess qw(read_domains effective_scopes intersect_scopes DENY_ALL_SCOPE);
 
 sub scopes { [ sort( effective_scopes(@_) ) ] }
+sub isect  { [ sort( intersect_scopes(@_) ) ] }
 
 # A domain map fixture: default site + two client domains.
 my $D = {
@@ -85,5 +86,19 @@ is_deeply( $parsed->{'clienta.com'}{locked_users}, [ 'alice', 'clienta-bot' ],
 # End to end: parsed domains feed the resolver.
 is_deeply( scopes( $parsed, 'alice', ['clienta-editors'] ), ['sites/clienta'],
     'parsed config resolves alice (locked) to her one domain' );
+
+# --- SM165 sub-user ceiling: intersect_scopes --------------------------------
+is_deeply( isect( [], ['sites/a'] ), ['sites/a'], 'own unconfined => bounded by the creator' );
+is_deeply( isect( ['sites/a'], [] ), ['sites/a'], 'creator unconfined => own scope stands' );
+is_deeply( isect( [ 'sites/a', 'sites/b' ], ['sites/a'] ), ['sites/a'],
+    'intersection keeps only the shared scope' );
+is_deeply( isect( ['sites'], ['sites/a'] ), ['sites/a'], 'the tighter (contained) scope wins' );
+is_deeply( isect( ['sites/a'], ['sites'] ), ['sites/a'], 'the tighter scope wins in either order' );
+is_deeply( isect( ['sites/a'], ['sites/b'] ), [DENY_ALL_SCOPE],
+    'disjoint scopes intersect to deny-all, never unconfined' );
+is_deeply( isect( ['sites/a'], [DENY_ALL_SCOPE] ), [DENY_ALL_SCOPE],
+    'a deny-all creator caps the sub-user to nothing' );
+is_deeply( isect( [], [DENY_ALL_SCOPE] ), [DENY_ALL_SCOPE],
+    'even an unconfined sub-user is capped by a deny-all creator' );
 
 done_testing;

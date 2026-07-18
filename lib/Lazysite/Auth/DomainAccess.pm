@@ -12,7 +12,8 @@ use strict;
 use warnings;
 use Exporter 'import';
 
-our @EXPORT_OK = qw(read_domains effective_scopes DENY_ALL_SCOPE);
+our @EXPORT_OK = qw(read_domains effective_scopes effective_home_domain
+    intersect_scopes DENY_ALL_SCOPE);
 
 # A scope string no real content path can match, so a LOCKED user whose lock
 # excludes every domain they may manage is confined to NOTHING (deny-all) -
@@ -20,6 +21,47 @@ our @EXPORT_OK = qw(read_domains effective_scopes DENY_ALL_SCOPE);
 sub DENY_ALL_SCOPE { return "\0sm165-locked-nowhere" }
 
 sub _trim { my $v = shift // ''; $v =~ s/^\s+|\s+$//g; return $v }
+
+# Is scope $x within (under or equal to) scope $y? Slash-normalised, same test
+# the enforcement uses.
+sub _within {
+    my ( $x, $y ) = @_;
+    ( my $a = $x // '' ) =~ s{^/+|/+$}{}g;
+    ( my $b = $y // '' ) =~ s{^/+|/+$}{}g;
+    return 0 unless length $a && length $b;
+    return ( $a eq $b || index( $a, "$b/" ) == 0 ) ? 1 : 0;
+}
+
+# intersect_scopes(\@own, \@creator) -> the scope list a path must satisfy BOTH.
+# The sub-user ceiling (SM165): a created account can never out-reach its
+# creator. Semantics, with the empty-list = unconfined convention:
+#   - either side empty (unconfined) => the other side stands;
+#   - deny-all on either side dominates (=> deny-all);
+#   - otherwise the intersection keeps, for each overlapping pair, the TIGHTER
+#     scope (the one contained in the other); two disjoint scopes contribute
+#     nothing, and if NOTHING overlaps the result is deny-all (access nothing) -
+#     never an empty list, which would wrongly mean unconfined.
+sub intersect_scopes {
+    my ( $own, $creator ) = @_;
+    my @o = @{ $own     || [] };
+    my @c = @{ $creator || [] };
+    return @c unless @o;    # own unconfined => bounded only by the creator
+    return @o unless @c;    # creator unconfined => own stands
+    my $DA = DENY_ALL_SCOPE();
+    return ($DA) if grep { $_ eq $DA } ( @o, @c );
+    my ( %seen, @out );
+    for my $a (@o) {
+        for my $b (@c) {
+            my $keep =
+                _within( $a, $b )   ? $a
+                : _within( $b, $a ) ? $b
+                :                     undef;
+            next unless defined $keep;
+            push @out, $keep unless $seen{$keep}++;
+        }
+    }
+    return @out ? @out : ($DA);    # disjoint => confined to nothing
+}
 
 # Parse the domain records from a lazysite.conf path:
 #   { host => { content_root, allowed_groups => [...], locked_users => [...] } }
@@ -60,7 +102,10 @@ sub read_domains {
 # An empty list (unconfined) is returned ONLY for a user with no lock and no
 # allow-entry - a general editor, as today. A LOCKED user whose effective set is
 # empty is confined to DENY_ALL_SCOPE (nothing), never left unconfined.
-sub effective_scopes {
+# The effective domain HOSTS for a user, and whether the user is locked
+# anywhere: allowed(U) [INTERSECT locked(U) when locked]. Shared by the two
+# public resolvers so the allow/lock logic lives in ONE place.
+sub _effective_hosts {
     my ( $dom, $user, $groups ) = @_;
     my %g = map { $_ => 1 } @{ $groups || [] };
 
@@ -82,13 +127,19 @@ sub effective_scopes {
     my @eff       = $is_locked
         ? ( grep { $allowed{$_} } keys %locked )    # allowed INTERSECT locked
         : ( keys %allowed );
+    return ( \@eff, $is_locked );
+}
 
-    if ( !@eff ) {
+sub effective_scopes {
+    my ( $dom, $user, $groups ) = @_;
+    my ( $eff, $is_locked ) = _effective_hosts( $dom, $user, $groups );
+
+    if ( !@{$eff} ) {
         return $is_locked ? (DENY_ALL_SCOPE) : ();
     }
 
     my ( %seen, @scopes );
-    for my $host (@eff) {
+    for my $host ( @{$eff} ) {
         my $cr = $dom->{$host}{content_root} // '';
         next unless length $cr;    # a docroot-rooted domain does not confine
         push @scopes, $cr unless $seen{$cr}++;
@@ -96,6 +147,16 @@ sub effective_scopes {
     # Every effective domain roots at the docroot => the user manages the whole
     # site (e.g. locked only to the default site): unconfined, as intended.
     return @scopes;
+}
+
+# The single domain HOST a user is effectively rooted at (for UI file-browser
+# rooting), or '' when they have zero or several. Unconfined and deny-all both
+# yield '' (no single home).
+sub effective_home_domain {
+    my ( $dom, $user, $groups ) = @_;
+    my ($eff) = _effective_hosts( $dom, $user, $groups );
+    my @rooted = grep { length( $dom->{$_}{content_root} // '' ) } @{$eff};
+    return ( @rooted == 1 ) ? $rooted[0] : '';
 }
 
 1;
