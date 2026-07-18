@@ -753,8 +753,30 @@ sub _cleanup_tmp {
 
 
 
+# The content root a host serves (its alias.<host>.content_root override, else
+# the base content_root, else the docroot) - used to check whether a host cache
+# entry still has a source page.
+sub _host_content_root {
+    my ($host) = @_;
+    my ( $base, $override ) = ( '', undef );
+    if ( open my $fh, '<:raw', "$DOCROOT/lazysite/lazysite.conf" ) {
+        while ( my $l = <$fh> ) {
+            if    ( $l =~ /^content_root\s*:\s*(\S+)/ ) { $base = $1 }
+            elsif ( length $host
+                && $l =~ /^alias\.\Q$host\E\.content_root\s*:\s*(\S+)/ )
+            {
+                $override = $1;
+            }
+        }
+        close $fh;
+    }
+    my $cr = defined $override ? $override : $base;
+    return length $cr ? "$DOCROOT/$cr" : $DOCROOT;
+}
+
 sub action_cache_list {
     my @cached;
+    # Primary host: the .html mirror sits beside its .md in the content tree.
     find(
         sub {
             return unless /\.html$/;
@@ -770,11 +792,53 @@ sub action_cache_list {
         },
         $DOCROOT
     );
+
+    # SM110: per-alias-host renders live in host-keyed slots under the cache dir
+    # (lazysite/cache/hosts/<host>/<page>.html), NOT beside the .md, so the walk
+    # above never sees them and the reserved-/lazysite/ skip excludes them. List
+    # them too, tagged with their host, so a sub-domain's cached pages are visible
+    # and clearable here (rather than an operator resorting to a Files delete under
+    # the reserved lazysite/ tree, which is correctly blocked).
+    my $cache_base = $ENV{LAZYSITE_CACHE_DIR} || "$DOCROOT/lazysite/cache";
+    my $hosts_dir  = "$cache_base/hosts";
+    if ( -d $hosts_dir ) {
+        find(
+            sub {
+                return unless /\.html$/;
+                ( my $rel = $File::Find::name ) =~ s{^\Q$hosts_dir\E/}{};
+                my ( $host, $page ) = ( $rel =~ m{\A([^/]+)/(.+)\z} );
+                return unless defined $host && defined $page;
+                my $url = "/$page";    # keep .html, matching the primary entries
+                ( my $src_rel = $page ) =~ s/\.html\z/.md/;
+                my $croot = _host_content_root($host);
+                push @cached, {
+                    path       => $url,
+                    host       => $host,
+                    mtime      => ( stat $_ )[9],
+                    has_source => -f "$croot/$src_rel" ? 1 : 0,
+                };
+            },
+            $hosts_dir
+        );
+    }
+
     return { ok => 1, cached => \@cached };
 }
 
 sub action_cache_invalidate {
-    my ($rel_path) = @_;
+    my ( $rel_path, $host ) = @_;
+
+    # Per-host invalidation: clear only THIS host's copy of the page, so one
+    # language/domain sub-site's cache can be dropped from the Cache page without
+    # touching its siblings. (The Cache list tags each host entry with its host.)
+    if ( defined $host && length $host && $rel_path ne '*' ) {
+        ( my $rel = $rel_path ) =~ s{^/+}{};
+        $rel =~ s/\.(?:md|html)\z//;
+        my $n = Lazysite::Util::unlink_host_page( $DOCROOT, $host, "$rel.html" );
+        log_event( 'INFO', $action, 'host cache invalidated',
+            path => $rel_path, host => $host, user => $auth_user );
+        return { ok => 1, path => $rel_path, host => $host, cleared => $n };
+    }
 
     if ( $rel_path eq '*' ) {
         my $count = 0;

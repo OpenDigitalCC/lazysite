@@ -12,7 +12,7 @@ use warnings;
 use POSIX ();
 use Exporter 'import';
 
-our @EXPORT_OK = qw(log_event const_eq unlink_host_copies clear_host_cache forward_line);
+our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line);
 
 our $COMPONENT = 'lazysite';
 
@@ -45,9 +45,9 @@ sub _json_str {
 sub log_event {
     my ( $level, $context, $message, %extra ) = @_;
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
-    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    my %rank      = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
     return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
-    my $ts = POSIX::strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $ts     = POSIX::strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
     no warnings 'uninitialized';    # helper subs in unit tests may pass undef
     my $line;
@@ -64,7 +64,7 @@ sub log_event {
     }
     else {
         my $extras = join ' ', map { "$_=" . ( $extra{$_} // '' ) } keys %extra;
-        my $ctx = $context // '';
+        my $ctx    = $context // '';
         $line = "[$ts] [$level] [$COMPONENT] [$ctx] $message";
         $line .= " $extras" if $extras;
     }
@@ -196,6 +196,22 @@ sub unlink_host_copies {
     }
     closedir $dh;
     return $n;
+}
+
+# unlink_host_page($docroot, $host, $rel_html): remove ONE host's copy of a page
+# (lazysite/cache/hosts/<host>/<rel>.html), so a per-host cache entry can be
+# cleared surgically without touching the other language/domain siblings.
+# Returns 1 if a file was removed. Host must be DNS-shaped; the rel path is
+# traversal-guarded (callers pass operator/user-derived values).
+sub unlink_host_page {
+    my ( $docroot, $host, $rel ) = @_;
+    return 0 unless defined $docroot && length $docroot;
+    return 0 unless defined $host && $host =~ /\A[A-Za-z0-9.-]+\z/ && $host !~ /\.\./;
+    ( my $r = ( $rel // '' ) ) =~ s{^/+}{};
+    return 0 unless length $r && $r =~ /\.html\z/;
+    return 0 if $r =~ m{(?:^|/)\.\.(?:/|$)} || $r =~ /\0/;
+    my $copy = "$docroot/lazysite/cache/hosts/$host/$r";
+    return ( -f $copy && unlink $copy ) ? 1 : 0;
 }
 
 # clear_host_cache($docroot): remove the whole hosts tree. Used where a sweep
