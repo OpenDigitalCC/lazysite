@@ -111,6 +111,48 @@ my $nn = mapi( $d, QUERY_STRING => 'action=nav-read',
 ok( !$nn->{ok} && $nn->{error} =~ /capability/i,
     'nav-read denied to a token without manage_nav' );
 
+# SM159: nav-read/nav-save are domain-aware - a host selects that domain's
+# nav_file override; a domain with no override reads (and edits) the base nav.
+{
+    open my $cf, '>>', "$d/lazysite/lazysite.conf" or die $!;
+    print {$cf} "alias_hosts: shop.example\n";
+    print {$cf} "alias.shop.example.nav_file: sites/shop/nav.conf\n";
+    close $cf;
+    make_path("$d/sites/shop");
+    open my $sn, '>', "$d/sites/shop/nav.conf" or die $!;
+    print {$sn} "Shop | /\n";
+    close $sn;
+
+    my $base = mapi( $d, QUERY_STRING => 'action=nav-read',
+        HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+    is( $base->{items}[0]{label}, 'Home', 'base nav-read returns the base menu' );
+    is( $base->{inherited}, 0, 'the default host is never marked inherited' );
+
+    my $dom = mapi( $d, QUERY_STRING => 'action=nav-read&host=shop.example',
+        HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+    is( $dom->{items}[0]{label}, 'Shop', 'domain nav-read returns that domain override menu' );
+    like( $dom->{nav_file}, qr{sites/shop/nav\.conf}, 'domain nav-read resolves the override file' );
+
+    # A domain with NO nav_file override reads the base and is flagged inherited.
+    open my $cf2, '>>', "$d/lazysite/lazysite.conf" or die $!;
+    print {$cf2} "alias.plain.example.content_root: sites/plain\n";
+    close $cf2;
+    my $inh = mapi( $d, QUERY_STRING => 'action=nav-read&host=plain.example',
+        HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+    is( $inh->{inherited}, 1, 'a domain with no nav override is marked inherited (shares the base)' );
+
+    # nav-save with a host writes the domain override, not the base.
+    my $save = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=nav-save',
+        HTTP_AUTHORIZATION => basic( 'partner', $tok ),
+        body => encode_json( { host => 'shop.example',
+                items => [ { label => 'Cart', url => '/cart', children => [] } ] } ) );
+    ok( $save->{ok}, 'domain nav-save ok' ) or diag $save->{error};
+    my $shop = do { open my $f, '<', "$d/sites/shop/nav.conf" or die $!; local $/; <$f> };
+    like( $shop, qr/Cart \| \/cart/, 'domain nav-save wrote the override file' );
+    my $basenav = do { open my $f, '<', "$d/lazysite/nav.conf" or die $!; local $/; <$f> };
+    like( $basenav, qr/Home/, 'the base nav is untouched by a domain-scoped save' );
+}
+
 # --- SM134 follow-ups: aliases-list is a token action gated by manage_content --
 open my $af, '>', "$d/lazysite/aliases.json" or die $!;
 print $af '{"/old":"/new","/soon":{"target":"/new","code":302}}';

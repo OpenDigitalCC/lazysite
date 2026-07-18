@@ -709,7 +709,7 @@ elsif ( $action eq 'plugin-action' ) {
     $result = action_plugin_action( $params{plugin}, $req->{script}, $req->{action_id},
         $req->{params} );
 }
-elsif ( $action eq 'nav-read' ) { $result = action_nav_read() }
+elsif ( $action eq 'nav-read' ) { $result = action_nav_read( $params{host} ) }
 elsif ( $action eq 'pages' )    { $result = action_pages() }
 elsif ( $action eq 'notices' || $action eq 'notices-seen' ) {
     # Operator notifications require the 'notifications' capability (granted via
@@ -726,7 +726,7 @@ elsif ( $action eq 'notices' || $action eq 'notices-seen' ) {
 }
 elsif ( $action eq 'nav-save' ) {
     my $req = eval { decode_json($body) } // {};
-    $result = action_nav_save( $req->{items} // [] );
+    $result = action_nav_save( $req->{items} // [], $req->{host} );
 }
 elsif ( $action eq 'handler-list' ) { $result = action_handler_list() }
 elsif ( $action eq 'version' )      { $result = action_version() }
@@ -1454,9 +1454,12 @@ sub _audit_implicit_target {
     my ( $action, $params, $body ) = @_;
     $action //= '';
     $params //= {};
-    return 'nav' if $action eq 'nav-save';    # nav-save edits the site navigation
-
     my $req = ( defined $body && length $body ) ? ( eval { decode_json($body) } // {} ) : {};
+
+    if ( $action eq 'nav-save' ) {    # nav-save edits the site navigation
+        my $h = $params->{host} // $req->{host} // '';
+        return length $h ? "nav ($h)" : 'nav';
+    }
 
     # Domain + per-site actions act on a HOST (domain-add/set/remove/preview/
     # check/alias-add, site-backup-create/apply/upload) - name the domain.
@@ -2187,25 +2190,47 @@ sub action_rotate_auth_secret {
 
 # --- Nav actions ---
 
-sub _nav_conf_path {
-    # Read nav_file from lazysite.conf, default to lazysite/nav.conf
-    my $nav_file = 'lazysite/nav.conf';
-    my $conf     = "$DOCROOT/lazysite/lazysite.conf";
+# Resolve which nav file to edit. SM159: domain-aware - a $host selects that
+# domain's nav_file OVERRIDE (alias.<host>.nav_file) when it has one; otherwise
+# (no host, the primary/default host, or a domain with no override) the BASE
+# nav_file applies. Returns ( absolute-path, rel-path, inherited, base-rel ) so a
+# caller can tell an override apart from the shared base nav. The nav editor
+# never writes the config pointer - giving a domain its own nav is a nav_file
+# override set on the Domains page (manage_config).
+sub _nav_conf_info {
+    my ($host) = @_;
+    $host = lc( $host // '' );
+    $host = '' if $host eq '(default)';
+
+    my $base = 'lazysite/nav.conf';
+    my $over;
+    my $conf = "$DOCROOT/lazysite/lazysite.conf";
     if ( -f $conf and open my $fh, '<:utf8', $conf ) {
         while (<$fh>) {
-            if (/^nav_file\s*:\s*(.+)/) {
-                $nav_file = $1;
-                $nav_file =~ s/^\s+|\s+$//g;
-                last;
+            if (/^nav_file\s*:\s*(.+)/) { ( my $v = $1 ) =~ s/^\s+|\s+$//g; $base = $v if length $v }
+            elsif ( length $host
+                && /^alias\.\Q$host\E\.nav_file\s*:\s*(.+)/ )
+            {
+                ( my $v = $1 ) =~ s/^\s+|\s+$//g;
+                $over = $v if length $v;
             }
         }
         close $fh;
     }
-    return "$DOCROOT/$nav_file";
+    my $rel       = defined $over ? $over : $base;
+    my $inherited = defined $over ? 0     : ( length $host ? 1 : 0 );
+    return ( "$DOCROOT/$rel", $rel, $inherited, $base );
+}
+
+sub _nav_conf_path {
+    my ($host) = @_;
+    my ($path) = _nav_conf_info($host);
+    return $path;
 }
 
 sub action_nav_read {
-    my $path = _nav_conf_path();
+    my ($host) = @_;
+    my ( $path, $rel, $inherited ) = _nav_conf_info($host);
     my @items;
 
     if ( -f $path ) {
@@ -2236,12 +2261,13 @@ sub action_nav_read {
         close $fh;
     }
 
-    return { ok => 1, items => \@items, path => $path };
+    return { ok => 1, items => \@items, path => $path,
+        nav_file => $rel, inherited => $inherited };
 }
 
 sub action_nav_save {
-    my ($items) = @_;
-    my $path = _nav_conf_path();
+    my ( $items, $host ) = @_;
+    my $path = _nav_conf_path($host);
 
     my $content = "# lazysite navigation\n";
     $content .= "# Format: Label | /url\n";
