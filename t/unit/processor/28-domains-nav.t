@@ -41,18 +41,18 @@ sub render {
 
 # --- nav gating -------------------------------------------------------------
 {
-    my $op = render( manager_caps => { manage_config => 1 } );
-    like( $op, qr{/manager/domains}, 'operator (manage_config): Domains nav present' );
+    my $op = render( manager_caps => { manage_domains => 1 } );
+    like( $op, qr{/manager/domains}, 'operator (manage_domains): Domains nav present' );
 
-    my $client = render( manager_caps => { manage_config => 0 } );
-    unlike( $client, qr{/manager/domains}, 'bound client (no manage_config): Domains nav hidden' );
+    my $client = render( manager_caps => { manage_domains => 0 } );
+    unlike( $client, qr{/manager/domains}, 'bound client (no manage_domains): Domains nav hidden' );
     like( $client, qr{/manager/files}, 'the rest of the nav is unaffected' );
 }
 
 # --- scope globals for a bound editor ---------------------------------------
 {
     my $bound = render(
-        manager_caps => { manage_config => 0 },
+        manager_caps => { manage_domains => 0 },
         scope_root   => 'content/clientA',
         home_domain  => 'clienta.com',
     );
@@ -61,7 +61,7 @@ sub render {
     like( $bound, qr/LAZYSITE_HOME_DOMAIN\s*=\s*'clienta\.com'/,
         'a bound editor gets their domain as a JS global' );
 
-    my $op = render( manager_caps => { manage_config => 1 } );
+    my $op = render( manager_caps => { manage_domains => 1 } );
     like( $op, qr/LAZYSITE_SCOPE_ROOT\s*=\s*''/,
         'an operator (unbound) has an empty scope root (browses everything)' );
 }
@@ -69,7 +69,7 @@ sub render {
 # --- SM157: multi-domain editor gets the scope LIST for the switcher ---------
 {
     my $multi = render(
-        manager_caps => { manage_config => 0 },
+        manager_caps => { manage_domains => 0 },
         scope_root   => '',                                    # empty: no single root
         dav_scopes   => 'content/clientA,content/clientB',
     );

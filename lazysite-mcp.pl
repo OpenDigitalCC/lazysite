@@ -324,8 +324,8 @@ my %TOOLS = (
         },
     },
     site_backup => {
-        description => 'Package one registered domain\'s SITE - its content, nav, referenced theme + layout, and presentation settings - into a portable .tar.gz stored alongside the backups (download it with the backup tooling). Excludes plugins, instance settings and secrets, so it is safe to hand to a client\'s own instance. Requires manage_content and access to that domain.',
-        cap         => 'manage_content',
+        description => 'Package one registered domain\'s SITE - its content, nav, referenced theme + layout, and presentation settings - into a portable .tar.gz stored alongside the backups (download it with the backup tooling). Excludes plugins, instance settings and secrets, so it is safe to hand to a client\'s own instance. Requires manage_domains and access to that domain.',
+        cap         => 'manage_domains',
         inputSchema => {
             type       => 'object',
             properties => { host => {
@@ -356,8 +356,8 @@ my %TOOLS = (
         },
     },
     site_apply => {
-        description => 'Apply a previously created/uploaded site package (a lazysite-site-*.tar.gz already in the backups area) onto a target domain on this instance: copies its content into the domain content root, installs the bundled theme/layout if missing, places the nav, and sets the domain presentation. Omit host to apply to the default site. Requires manage_content + access to the target. A safety snapshot is NOT taken here - create a backup first if you want a rollback point.',
-        cap         => 'manage_content',
+        description => 'Apply a previously created/uploaded site package (a lazysite-site-*.tar.gz already in the backups area) onto a target domain on this instance: copies its content into the domain content root, installs the bundled theme/layout if missing, places the nav, and sets the domain presentation. Omit host to apply to the default site. Requires manage_domains + access to the target. A safety snapshot is NOT taken here - create a backup first if you want a rollback point.',
+        cap         => 'manage_domains',
         inputSchema => {
             type       => 'object',
             properties => {

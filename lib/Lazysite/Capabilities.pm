@@ -85,6 +85,15 @@ my %ACTION_INFO = (
             webdav => ['lazysite/layouts/<layout>/ (active layout read-only)'],
         },
     },
+    manage_domains => {
+        title   => 'Manage the domains this instance serves, and portable site packages.',
+        unlocks => {
+            api => [ qw(domains-list domain-add domain-set domain-remove
+                    domain-alias-add domain-preview domain-check
+                    site-backup-create site-backup-upload site-backup-apply) ],
+            mcp => [qw(site_backup site_apply)],
+        },
+    },
     manage_config => {
         title   => 'Read and set safe site configuration.',
         unlocks => {

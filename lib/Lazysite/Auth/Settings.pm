@@ -23,7 +23,7 @@ our $AUTH_DIR;    # "$DOCROOT/lazysite/auth", set by the script
 our @CAP_KEYS = qw(
     ui webdav api mcp
     manage_content manage_nav manage_forms
-    manage_themes manage_layouts manage_config
+    manage_themes manage_layouts manage_domains manage_config
     manage_users analytics audit notifications
     create_sub_users delegate_sub_user_creation);
 
