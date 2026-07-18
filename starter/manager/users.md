@@ -323,14 +323,15 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
   if (s.expires_at && s.expires_at < Date.now() / 1000) flags += ' <span class="mg-tag mg-tag-off">expired</span>';
   var isSub    = !!parentName;
 
-  // The single row. Clicking the NAME opens the editor (consistent for parents
-  // and leaves); the expand disclosure (the accent triangle, for parents only)
-  // toggles the sub-tree. stopPropagation keeps a name/Configure click from
-  // also toggling a parent's subtree.
-  var nameBtn = '<button type="button" class="mg-acc-name mg-acc-namebtn" title="Configure ' + ue + '" ' +
-    'onclick="event.stopPropagation();configureUser(\'' + ue + '\')">' + ue + '</button>';
+  // The single row. Clicking the NAME EXPANDS/collapses the row - the same as
+  // the disclosure triangle - because it is a plain span inside the parent's
+  // <summary> (a leaf has nothing to expand, so its name is inert). Opening the
+  // editor is ONLY the Configure button; the name no longer doubles as it (field
+  // report: name-opens-modal was confusing). Configure stopPropagation keeps its
+  // click from also toggling a parent's subtree.
+  var nameEl = '<span class="mg-acc-name" title="' + ue + '">' + ue + '</span>';
   var line =
-    nameBtn + recentDot(u) + roleTag + lineChip + note +
+    nameEl + recentDot(u) + roleTag + lineChip + note +
     '<span class="mg-acc-spacer"></span>' + flags +
     '<button type="button" class="mg-btn mg-btn-sm mg-configbtn" data-cfg="' + ue + '" ' +
     'onclick="event.stopPropagation();configureUser(\'' + ue + '\')">Configure</button>';
