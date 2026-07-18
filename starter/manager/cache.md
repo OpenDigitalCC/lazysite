@@ -12,7 +12,7 @@ search: false
 </div>
 
 <!-- SM110: alias-host copies are invalidated alongside, not listed. -->
-<p style="font-size:0.85em;color:#888;margin:0 0 12px;">The list shows primary-host renders. If domain aliases are configured (<code>alias_hosts</code>), each alias host's cached copies are cleared together with a page's Invalidate and by Clear All.</p>
+<p style="font-size:0.85em;color:#888;margin:0 0 12px;">The list shows every cached render &mdash; the primary site and each domain / sub&#8209;domain host (tagged with its host). A host's renders live in <code>lazysite/cache/hosts/&lt;host&gt;/</code>, not beside the content, so manage them here rather than in Files. <strong>Invalidate</strong> clears that entry (a host entry clears just that host); <strong>Clear All</strong> clears everything.</p>
 
 <div class="mg-status" id="cache-stats"></div>
 
@@ -87,22 +87,29 @@ function renderCache(files) {
     var age = now - (f.mtime || 0);
     var statusClass = f.has_source ? 'mg-badge-success' : 'mg-badge-muted';
     var statusLabel = f.has_source ? 'Has source' : 'Orphan';
+    // Per-alias-host renders are tagged with their host (subdomain); primary
+    // renders have no host. hostArg passes it through to a surgical invalidate.
+    var hostTag = f.host ? '<span class="mg-badge mg-badge-muted" title="cached render for the ' + escHtml(f.host) + ' host">' + escHtml(f.host) + '</span>' : '';
+    var hostArg = f.host ? ",'" + escHtml(f.host) + "'" : '';
     html += '<div class="mg-file-item">';
     html += '<span class="mg-file-name" style="font-family:var(--mg-mono);font-size:0.8rem;">' + escHtml(f.path) + '</span>';
+    html += hostTag;
     html += '<span class="mg-badge ' + statusClass + '">' + statusLabel + '</span>';
     html += '<span class="mg-file-meta">' + formatAge(age) + ' ago</span>';
-    html += '<button class="mg-btn mg-btn-sm" onclick="invalidate(\'' + escHtml(f.path) + '\')">Invalidate</button>';
+    html += '<button class="mg-btn mg-btn-sm" onclick="invalidate(\'' + escHtml(f.path) + '\'' + hostArg + ')">Invalidate</button>';
     html += '</div>';
   }
   list.innerHTML = html;
 }
 
-function invalidate(path) {
-  fetch(API + '?action=cache-invalidate&path=' + encodeURIComponent(path), { method: 'POST' })
+function invalidate(path, host) {
+  var url = API + '?action=cache-invalidate&path=' + encodeURIComponent(path);
+  if (host) url += '&host=' + encodeURIComponent(host);
+  fetch(url, { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok) { showStatus(data.error, true); return; }
-      showStatus('Cache invalidated: ' + path);
+      showStatus('Cache invalidated: ' + path + (host ? ' (' + host + ')' : ''));
       loadCache();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
