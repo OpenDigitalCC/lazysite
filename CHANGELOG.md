@@ -18,6 +18,38 @@ Keying
 
 ## Unreleased
 
+Forms: native forms are discoverable where an agent acts (SM161)
+: Agents hand-wrote dead `<form>` HTML instead of the native `:::form` + bind_form
+  flow, because the good docs lived on bind_form (the finish line). The
+  create_page/write_file tool descriptions and the MCP initialize instructions now
+  say "never hand-write a form; use create_form or a :::form + bind_form"; a new
+  create_form tool scaffolds a native form and points at bind_form; validate_page
+  warns on hand-authored/`mailto:`/third-party forms (the last a data-governance
+  leak) and on unbound `:::form`s; audit_site gains a broken_forms category. Also
+  fixes the fence bug where `:::form` (no space, as the docs wrote it) rendered as
+  literal text. Gate: `t/unit/mcp/05-forms.t`,
+  `t/unit/processor/07-convert-fenced-form.t`.
+
+Keys: a machine key records use over the API and WebDAV (SM163)
+: A key showed "not used yet" while actively reading over WebDAV, because use was
+  stamped only on the MCP connector path. Every credential path (control-API
+  token, WebDAV Basic auth, MCP) now records use, throttled to at most one write
+  per window. Gate: `t/unit/users/17-keys.t`.
+
+WebDAV: PUT auto-creates the missing parent chain (SM166)
+: A PUT under a missing collection returned 409 (one level) or a confusing 502
+  (several). It now mkdir -p's the parent chain, confined to the docroot and
+  refused for a traversal path, so a deep PUT just works. Gate:
+  `t/unit/dav/04-put-delete-mkcol.t`.
+
+Manager: UI fixes from 0.7.24 testing
+: The file editor no longer false-warns "unsaved changes" on load (SM170); the
+  Sessions/Keys tables scroll within their box on narrow screens (SM171); the
+  audit page gains an auto-refresh (10s) checkbox (SM172); the Domains form uses
+  one "Layout / theme" selector instead of two (so you can't pick a theme without
+  a layout) (SM167); and folders get an actions dropdown (rename/move, delete)
+  like files (SM162).
+
 ## 0.7.24 - EDGE: site packages, manage_domains, nav domain-awareness (2026-07-18)
 
 Capabilities: a `manage_domains` capability, carved out of `manage_config` (SM160)
