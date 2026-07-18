@@ -108,4 +108,16 @@ is( $r2->{nav_file}, 'lazysite/nav-2.conf', 'still resolves the override file wh
 is( scalar @{ $r2->{items} }, 0,
     'an empty override yields an empty menu (no base-nav leak)' );
 
+# SM168: saving the nav invalidates the rendered HTML cache, so the new menu is
+# published immediately instead of lingering behind stale page caches.
+{
+    spit( "$d/index.md",   "# Home\n" );
+    spit( "$d/index.html", "<html>stale cache</html>" );    # a fake render cache
+    my $sv = post( $d, 'op', 'role-op', 'action=nav-save',
+        { items => [ { label => 'Home', url => '/', children => [] } ] } );
+    ok( $sv->{ok}, 'nav-save ok' ) or diag encode_json($sv);
+    ok( !-f "$d/index.html", 'the stale page cache is invalidated by the nav save' );
+    ok( ( $sv->{cache_cleared} // 0 ) >= 1, 'nav-save reports the pages it refreshed' );
+}
+
 done_testing();

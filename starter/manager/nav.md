@@ -333,7 +333,14 @@ function saveNav() {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    if (data.ok) { clearNavDirty(); showStatus('Navigation saved.'); }
+    if (data.ok) {
+      clearNavDirty();
+      // SM168: the save also refreshes the page cache, so the new menu is live
+      // immediately - tell the operator it is published, not just saved.
+      var n = data.cache_cleared || 0;
+      showStatus('Navigation saved and published' +
+        (n ? ' (' + n + ' page' + (n === 1 ? '' : 's') + ' refreshed)' : '') + '.');
+    }
     else { showStatus(data.error || 'Save failed', true); }
   })
   .catch(function(e) { showStatus('Error: ' + e.message, true); });

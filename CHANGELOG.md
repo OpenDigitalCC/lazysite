@@ -62,6 +62,14 @@ Audit trail: a sub-user manager sees their team's activity (SM173)
   and the view is labelled "Showing your team's activity". A full Audit-trail
   holder still sees the whole log. Gate: t/unit/manager/35-audit-subusers.t.
 
+Saving the navigation now publishes it immediately (SM168)
+: The menu is baked into every page's rendered HTML, so a nav change used to sit
+  invisible behind stale page caches until each page happened to re-render -
+  saved, but not live. A nav save now refreshes the page cache the same way a
+  theme or layout change does, and the editor confirms "Navigation saved and
+  published (N pages refreshed)" so it is clear the change is live, not just
+  written to the file. Gate: t/unit/manager/34-domain-nav-override.t.
+
 ## 0.7.25 - EDGE: forms discoverability + manager UI/key/WebDAV fixes (2026-07-18)
 
 Forms: native forms are discoverable where an agent acts (SM161)

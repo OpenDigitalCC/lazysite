@@ -2470,7 +2470,13 @@ sub action_nav_save {
     require Lazysite::Git;
     Lazysite::Git::commit_paths( $DOCROOT, $auth_user, "edit $nav_rel", $nav_rel );
 
-    return { ok => 1 };
+    # SM168: the nav is baked into every page's rendered HTML, so a nav change is
+    # invisible on the live site until each page re-renders. Theme/layout changes
+    # already bust the render cache; do the same here so the new menu takes effect
+    # right away, and report how many cached pages were refreshed so the UI can
+    # confirm the change is published (not just saved to the file).
+    my $inv = action_cache_invalidate('*');
+    return { ok => 1, cache_cleared => ( ref $inv eq 'HASH' ? ( $inv->{count} // 0 ) : 0 ) };
 }
 
 
