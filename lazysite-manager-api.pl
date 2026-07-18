@@ -336,24 +336,26 @@ if ( !$token_auth ) {
         # for the same reason (token clients write over WebDAV). So they are NOT
         # capability-gated here - only POST-gated below (CSRF). Content-history
         # reads/restore ARE gated (they mirror the token %need manage_content).
-        'git-restore'        => 'manage_content', 'git-status' => 'manage_content',
-        'git-history'        => 'manage_content', 'git-show'   => 'manage_content',
-        'site-backup-create' => 'manage_content',    # SM158: package one's own site
-        'site-backup-upload' => 'manage_content',    # SM158: upload a package
-        'site-backup-apply'  => 'manage_content',    # SM158: apply a package to a domain
+        'git-restore' => 'manage_content', 'git-status' => 'manage_content',
+        'git-history' => 'manage_content', 'git-show'   => 'manage_content',
+        # SM160: domains + the portable site-package family are their own
+        # capability (manage_domains), carved out of the broad manage_config.
+        'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
+        'site-backup-apply'  => 'manage_domains',
         'git-init'           => 'manage_config',
-        'config-set'       => 'manage_config',  'config-read'        => 'manage_config',
-        'domains-list'     => 'manage_config',  'bad-url-blocks'     => 'manage_config',
-        'domain-add'       => 'manage_config',  'domain-set'         => 'manage_config',
-        'domain-remove'    => 'manage_config',  'domain-preview'     => 'manage_config',
-        'domain-alias-add' => 'manage_config',  'domain-check'       => 'manage_config',
-        'bad-url-unblock'  => 'manage_config',  'rotate-auth-secret' => 'manage_config',
-        'backup-create'    => 'manage_config',  'backup-restore'     => 'manage_config',
-        'backup-download'  => 'manage_config',  'backup-list'        => 'manage_config',
-        'theme-activate'   => 'manage_themes',  'theme-delete'       => 'manage_themes',
-        'theme-rename'     => 'manage_themes',  'theme-upload'       => 'manage_themes',
-        'layout-activate'  => 'manage_layouts', 'layout-delete'      => 'manage_layouts',
-        'layout-install'   => 'manage_layouts', 'layouts-install'    => 'manage_layouts',
+        'config-set'         => 'manage_config', 'config-read' => 'manage_config',
+        'bad-url-blocks'     => 'manage_config',
+        'domains-list'       => 'manage_domains', 'domain-add'    => 'manage_domains',
+        'domain-set'         => 'manage_domains', 'domain-remove' => 'manage_domains',
+        'domain-preview'     => 'manage_domains', 'domain-check'  => 'manage_domains',
+        'domain-alias-add'   => 'manage_domains',
+        'bad-url-unblock' => 'manage_config',  'rotate-auth-secret' => 'manage_config',
+        'backup-create'   => 'manage_config',  'backup-restore'     => 'manage_config',
+        'backup-download' => 'manage_config',  'backup-list'        => 'manage_config',
+        'theme-activate'  => 'manage_themes',  'theme-delete'       => 'manage_themes',
+        'theme-rename'    => 'manage_themes',  'theme-upload'       => 'manage_themes',
+        'layout-activate' => 'manage_layouts', 'layout-delete'      => 'manage_layouts',
+        'layout-install'  => 'manage_layouts', 'layouts-install'    => 'manage_layouts',
         'layouts-repo-set'        => 'manage_layouts',
         'preview-grant'           => 'manage_themes|manage_layouts',
         'preview-clear'           => 'manage_themes|manage_layouts',
@@ -458,19 +460,23 @@ if ($token_auth) {
         'layout-activate'   => sub { $_[0]->{manage_layouts} },
         'preview-grant'     => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'config-set'        => sub { $_[0]->{manage_config} },
-        'config-read'  => sub { $_[0]->{manage_config} },  # SM122: read a safe subset
-        'domains-list' => sub { $_[0]->{manage_config} },  # SM151: read-only domains view
-            # SM154: domain registration is a site-configuration act (manage_config),
-            # so an orchestrating control panel with a manage_config token can drive
-            # the lazysite side of a deploy over the API, same as the CLI/UI.
-        'domain-add'       => sub { $_[0]->{manage_config} },
-        'domain-set'       => sub { $_[0]->{manage_config} },
-        'domain-remove'    => sub { $_[0]->{manage_config} },
-        'domain-preview'   => sub { $_[0]->{manage_config} },   # SM155: pre-DNS render
-        'domain-alias-add' => sub { $_[0]->{manage_config} },   # SM155: alias host
-        'domain-check'     => sub { $_[0]->{manage_config} },   # SM156: live config check
-        'bad-url-blocks'   => sub { $_[0]->{manage_config} },   # SM128: blocked-IP list
-        'bad-url-unblock'  => sub { $_[0]->{manage_config} },
+        'config-read'       => sub { $_[0]->{manage_config} }, # SM122: read a safe subset
+            # SM160: domain management + the portable site-package family are the
+            # manage_domains capability (carved out of manage_config), so an
+            # orchestrating control panel drives the lazysite side of a deploy
+            # with a manage_domains token, same as the CLI/UI.
+        'domains-list'     => sub { $_[0]->{manage_domains} },  # read-only domains view
+        'domain-add'       => sub { $_[0]->{manage_domains} },
+        'domain-set'       => sub { $_[0]->{manage_domains} },
+        'domain-remove'    => sub { $_[0]->{manage_domains} },
+        'domain-preview'   => sub { $_[0]->{manage_domains} },  # SM155: pre-DNS render
+        'domain-alias-add' => sub { $_[0]->{manage_domains} },  # SM155: alias host
+        'domain-check'     => sub { $_[0]->{manage_domains} },  # SM156: live config check
+        'site-backup-create' => sub { $_[0]->{manage_domains} },  # SM158
+        'site-backup-upload' => sub { $_[0]->{manage_domains} },
+        'site-backup-apply'  => sub { $_[0]->{manage_domains} },
+        'bad-url-blocks'     => sub { $_[0]->{manage_config} },   # SM128: blocked-IP list
+        'bad-url-unblock'    => sub { $_[0]->{manage_config} },
         'pages' => sub { $_[0]->{manage_nav} },  # SM097: page-URL list for the nav editor
             # SM123: a theme/layout manager may list what is installed (was previously
             # unavailable to token clients, so they activated each in turn to discover).
@@ -494,15 +500,12 @@ if ($token_auth) {
         # SM085: content history. Reads and restore follow the content grant
         # (restore routes through the normal save path); enabling/initialising
         # the repo is a site-configuration act.
-        'git-status'         => sub { $_[0]->{manage_content} },
-        'git-history'        => sub { $_[0]->{manage_content} },
-        'git-show'           => sub { $_[0]->{manage_content} },
-        'git-restore'        => sub { $_[0]->{manage_content} },
-        'site-backup-create' => sub { $_[0]->{manage_content} },    # SM158
-        'site-backup-upload' => sub { $_[0]->{manage_content} },    # SM158
-        'site-backup-apply'  => sub { $_[0]->{manage_content} },    # SM158
-        'git-init'           => sub { $_[0]->{manage_config} },
-        'whoami' => sub { 1 },    # any authenticated token may introspect its own grant
+        'git-status'  => sub { $_[0]->{manage_content} },
+        'git-history' => sub { $_[0]->{manage_content} },
+        'git-show'    => sub { $_[0]->{manage_content} },
+        'git-restore' => sub { $_[0]->{manage_content} },
+        'git-init'    => sub { $_[0]->{manage_config} },
+        'whoami'      => sub { 1 }, # any authenticated token may introspect its own grant
         'describe-capabilities' => sub { 1 },  # SM126: introspection - the capability map
             # Visitor-log analysis over the control API (token clients), same grant as
             # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.

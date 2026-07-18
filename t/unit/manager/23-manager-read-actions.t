@@ -229,13 +229,13 @@ open my $p2, '>', "$d/blog/post.md"  or die $!; print $p2 "# Post\n";  close $p2
     like( $page, qr/action=domains-list/, 'Domains page fetches domains-list' );
 
     # Token gating: like config-read, domains-list is a benign conf read - open
-    # to any cookie manager, but a token client needs manage_config (%need). The
+    # to any cookie manager, but a token client needs manage_domains (%need). The
     # action is registered in the token %need map so a capless token is refused.
     open my $api, '<', TestHelper::repo_root() . '/lazysite-manager-api.pl' or die $!;
     my $api_src = do { local $/; <$api> };
     close $api;
-    like( $api_src, qr/'domains-list'\s*=>\s*sub\s*\{\s*\$_\[0\]->\{manage_config\}/,
-        'domains-list is gated to manage_config for token clients' );
+    like( $api_src, qr/'domains-list'\s*=>\s*sub\s*\{\s*\$_\[0\]->\{manage_domains\}/,
+        'domains-list is gated to manage_domains for token clients (SM160)' );
 }
 
 done_testing();

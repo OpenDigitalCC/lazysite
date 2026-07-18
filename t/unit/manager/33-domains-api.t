@@ -73,7 +73,7 @@ print $sf $secret;
 close $sf;
 
 uapi( $d, { action => 'add', username => 'op', password => 'x' } );
-grant_caps( $d, 'op', 'manage_users', 'manage_config' );
+grant_caps( $d, 'op', 'manage_users', 'manage_domains' );
 uapi( $d, { action => 'add', username => 'ed', password => 'y' } );
 grant_caps( $d, 'ed', 'manage_content' );
 

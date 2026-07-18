@@ -3689,11 +3689,14 @@ sub render_content {
     my @my_scopes;
     if ( length $mgr_user ) {
         # An operator (unsecured/dev fallback: no group grants manager) implicitly
-        # holds every cap; otherwise resolve manage_config from the user's groups.
-        $manager_caps{manage_config} = (
-            !_site_grants_manager()
-                || _groups_grant_cap( 'manage_config', split /\s*,\s*/, $groups_str )
-        ) ? 1 : 0;
+        # holds every cap; otherwise resolve the nav-gating caps from the groups.
+        # SM160: the Domains page is gated by manage_domains (carved out of
+        # manage_config); both are surfaced so the manager UI can gate each area.
+        my $all = !_site_grants_manager();
+        for my $cap (qw(manage_config manage_domains)) {
+            $manager_caps{$cap}
+                = ( $all || _groups_grant_cap( $cap, split /\s*,\s*/, $groups_str ) ) ? 1 : 0;
+        }
         # SM155/SM157: the domain binding is on the user's GROUPS. A single-domain
         # editor is rooted at their one scope; a multi-domain editor keeps
         # scope_root empty and gets the full scope LIST (dav_scopes) so the file
