@@ -127,6 +127,13 @@ var isNew = '[% query.new | html %]' === '1';
 var backFolder = filePath ? filePath.replace(/\/?[^\/]*$/, '') : '';
 var backUrl = '/manager/files' + (backFolder ? '?path=' + encodeURIComponent(backFolder) : '');
 (function () { var b = document.querySelector('.mg-editor-back'); if (b) b.setAttribute('href', backUrl); })();
+// Reserved control-area files (the lazysite/ tree, CGI scripts) are not editable
+// via Files by design - manage them through their dedicated manager pages. The
+// editor warns rather than opening a blank box on a blocked read.
+function isReservedPath(p) {
+  p = String(p || '').replace(/^\/+/, '');
+  return /^lazysite\//i.test(p) || /^cgi-bin\//i.test(p) || /\.(?:pl|cgi)$/i.test(p);
+}
 var isMdFile = filePath && /\.md$/i.test(filePath);
 var isHtmlFile = filePath && /\.html$/i.test(filePath);
 var readOnly = false;
@@ -350,6 +357,27 @@ function loadFile() {
       '# No file selected\n\nOpen a file from the Files page to edit it.\n');
     var nb = document.getElementById('ed-save-btn'); if (nb) nb.disabled = true;
     var nf = document.getElementById('ed-fm-section'); if (nf) nf.style.display = 'none';
+    return;
+  }
+  // A reserved control-area file: warn and stop, don't open the editor / take a
+  // lock / attempt a (blocked) read.
+  if (isReservedPath(filePath)) {
+    document.getElementById('ed-filepath').innerHTML = buildBreadcrumb(filePath)
+      + ' <span style="color:var(--mg-danger,#b00);font-weight:600;"> &mdash; system file (read-only)</span>';
+    if (contentCm) {
+      contentCm.setValue(
+        'This file is part of the lazysite control area (lazysite/) and cannot be edited here.\n\n'
+        + 'Manage these settings through their dedicated manager pages instead:\n'
+        + '  • lazysite.conf  →  Config / Domains\n'
+        + '  • nav.conf       →  Navigation\n'
+        + '  • users, groups  →  Users\n\n'
+        + 'The reserved lazysite/ tree is not editable via Files by design.');
+      if (contentCm.setOption) contentCm.setOption('readOnly', true);
+    }
+    var sb = document.getElementById('ed-save-btn'); if (sb) sb.disabled = true;
+    var fm = document.getElementById('ed-fm-section'); if (fm) fm.style.display = 'none';
+    var pv = document.getElementById('ed-preview-pane'); if (pv) pv.style.display = 'none';
+    var dv = document.getElementById('ed-divider'); if (dv) dv.style.display = 'none';
     return;
   }
   document.getElementById('ed-filepath').innerHTML = buildBreadcrumb(filePath);
