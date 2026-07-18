@@ -108,8 +108,18 @@ sub action_backup_restore {
     # --no-same-owner) so a hostile or ancient tarball cannot restore setuid/
     # setgid bits or world-writable/over-permissive modes onto the docroot;
     # extracted files take the process umask instead of the archived mode.
+    #
+    # SEC-2026-07 (M-TAR-AUTH): defence-in-depth against a privilege-escalation
+    # chain - a crafted content tarball whose members include lazysite/auth/*
+    # (accounts, group grants, the HMAC secret) or lazysite.conf would, on plain
+    # extraction, overwrite the auth/config namespace and let a manage_config
+    # delegate promote itself to operator. A legitimate CONTENT snapshot never
+    # contains ./lazysite (action_backup_create excludes it for every non-full
+    # kind), and a FULL snapshot is refused above - so excluding ./lazysite here
+    # is a no-op for real archives and neutralises the escalation for a hostile
+    # one. tar --exclude drops matching members at extraction time.
     my $rc = system( 'tar', 'xzf', $full, '-C', $DOCROOT,
-        '--no-same-owner', '--no-same-permissions' );
+        '--no-same-owner', '--no-same-permissions', '--exclude=./lazysite' );
     return { ok => 0, error => 'Restore extraction failed (safety snapshot kept: '
             . $safety->{name} . ')' }
         if $rc != 0;

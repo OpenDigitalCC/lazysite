@@ -127,4 +127,34 @@ SKIP: {
             $mode & 0o7777 ) );
 }
 
+# --- SEC-2026-07 (M-TAR-AUTH): a crafted CONTENT tarball whose members reach
+# into lazysite/auth/* or lazysite.conf must NOT overwrite the auth/config
+# namespace on restore - otherwise a manage_config delegate who can plant a
+# tarball in the backups dir could rewrite group grants / the HMAC secret and
+# escalate to operator. Restore excludes ./lazysite, so the auth files stay put
+# while the benign content member is still restored (proving restore ran).
+{
+    my $stage = tempdir( CLEANUP => 1 );
+    make_path("$stage/lazysite/auth");
+    spit( "$stage/lazysite/auth/.secret", 'ATTACKERSECRET' x 4 );
+    spit( "$stage/lazysite/auth/groups-settings.json",
+        encode_json( { 'lazysite-admins' => { members => ['attacker'] } } ) );
+    spit( "$stage/lazysite/lazysite.conf", "auth_proxy_trusted: true\n" );
+    spit( "$stage/benign.md", "---\ntitle: B\n---\n\nrestored content\n" );
+    my $tb = "$d/lazysite/backups/manual-authclobber.tar.gz";
+    system( 'tar', 'czf', $tb, '-C', $stage, '.' ) == 0
+        or die 'tar create failed';
+
+    my $er = op( $d, 'action=backup-restore&name=manual-authclobber.tar.gz' );
+    ok( $er->{ok}, 'restore of the auth-clobber tarball runs' );
+    is( slurp("$d/lazysite/auth/.secret"), $secret,
+        'M-TAR-AUTH: the HMAC secret was NOT overwritten by the crafted archive' );
+    ok( !-e "$d/lazysite/auth/groups-settings.json",
+        'M-TAR-AUTH: no forged group grant was written into auth/' );
+    unlike( slurp("$d/lazysite/lazysite.conf") // '', qr/auth_proxy_trusted/,
+        'M-TAR-AUTH: lazysite.conf was NOT overwritten (no trust-proxy flip)' );
+    ok( -f "$d/benign.md",
+        'the benign content member WAS restored (restore ran; only lazysite/ excluded)' );
+}
+
 done_testing();
