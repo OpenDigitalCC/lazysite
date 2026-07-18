@@ -20,11 +20,25 @@ Raw mode (`api: true` / `raw: true`, with `content_type:`) is reserved for
 **genuinely self-contained artifacts**: JSON/API endpoints, embed fragments,
 one-off interactive widgets. Ordinary pages are Markdown rendered through the
 active layout + theme, with structure in `layout.tt`/components and visual
-identity in theme tokens. This is enforced editorially, not mechanically: the
-agent pack's building-sites briefing (`/docs/ai-briefing-building-sites`,
-also delivered via the MCP initialize instructions and the WebDAV onboarding
-brief) names raw-mode misuse as the root cause of monoliths, and the
-close-out checklist includes "no content page uses raw mode".
+identity in theme tokens. The *doctrine* (raw mode is for artifacts, not
+pages) is enforced editorially: the agent pack's building-sites briefing
+(`/docs/ai-briefing-building-sites`, also delivered via the MCP initialize
+instructions and the WebDAV onboarding brief) names raw-mode misuse as the
+root cause of monoliths, and the close-out checklist includes "no content
+page uses raw mode".
+
+The *security boundary* within raw mode is, since 0.8.0, enforced
+mechanically: a raw/api page is served verbatim and unescaped, so a
+script-capable `content_type` (`text/html`, `application/xhtml+xml`,
+`image/svg+xml`) would be a stored-XSS vector reachable by a
+`manage_content`-only delegate. Such a declared type is downgraded to
+`text/plain` at serve time (`peek_content_type`) and logged; with the
+response's `nosniff` header the body cannot execute. Editorial-only proved
+insufficient here precisely because content authorship is delegated
+separately from layout authorship (SM082) - a content author must not be able
+to smuggle an HTML content type. HTML/SVG output belongs in a layout (escaped)
+or a static file. See `docs/SECURITY.md` (2026-07-18) and
+`t/integration/27-raw-content-type.t`.
 
 ## Rationale
 
@@ -40,5 +54,7 @@ exception from swallowing the rule.
   new sites stop manufacturing monoliths.
 - Inherited monoliths are refactored by the documented recipe (tokenise the
   look, lift structure to the layout, re-home the words as Markdown).
-- A future mechanical lint (flag `api: true` pages with large HTML bodies) is
-  possible if editorial enforcement proves insufficient.
+- The script-capable-content_type refusal (0.8.0) mechanically closes the
+  stored-XSS path within raw mode; the anti-monolith doctrine remains
+  editorial (a large HTML body under a permitted data content type is a design
+  smell caught at close-out, not a security bug).

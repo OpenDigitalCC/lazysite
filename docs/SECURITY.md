@@ -501,3 +501,40 @@ residual risk
 
 verdict
 : accepted (contingent on the F6.10 fix, which shipped in this cut).
+
+### 2026-07-18 - raw/api script-capable content_type refusal (0.8.0)
+
+what changed
+: mechanical enforcement of ADR 0006. A `raw:`/`api:` page is served
+  verbatim, with no layout and no output escaping, but a content author could
+  set `content_type: text/html` (or `application/xhtml+xml`, `image/svg+xml`)
+  and thereby have arbitrary page content executed as script in every
+  visitor's browser - a stored-XSS vector that a `manage_content`-only
+  delegate (who cannot author layouts) could reach. ADR 0006 had stated this
+  was "enforced editorially, not mechanically"; a live-authoring review showed
+  editorial-only is insufficient once content authorship is delegated.
+
+threat delta
+: Tampering (stored XSS) via the content-authoring surface, under the
+  content/layout capability split (SM082).
+
+controls
+: at serve time (`peek_content_type`, the single content-type choke point for
+  both the process and cache-serve paths) a raw/api page declaring a
+  script-capable type is downgraded to `text/plain; charset=utf-8` and the
+  attempt is logged (WARN). Combined with the `X-Content-Type-Options:
+  nosniff` header the response already carries, the browser cannot execute or
+  MIME-sniff the body back to HTML. Safe data artifacts (JSON, CSV, XML,
+  plain text, images, PDF) are unaffected. Regression test
+  `t/integration/27-raw-content-type.t`; authoring docs (raw-mode, frontmatter,
+  ai-briefing-authoring) rewritten to use data examples and to state the
+  refusal. Genuine HTML/SVG belongs in a layout (which escapes content) or a
+  static file served by the web server.
+
+residual risk
+: none identified; HTML still reaches visitors only via a layout (escaped) or
+  a web-server-served static file, neither of which passes through raw/api.
+
+verdict
+: accepted; closes the last serious finding from the 0.8.0 eight-dimension
+  audit's security dimension (D6).

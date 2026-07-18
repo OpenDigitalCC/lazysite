@@ -88,7 +88,7 @@ Everything below the closing `---` is the page body. All keys are optional unles
 : `api: true` serves the body as data, with no Markdown pipeline and no layout. Default content type is `application/json`. Combine with `tt_page_var` and `query_params` for dynamic JSON.
 
 `content_type`
-: A custom `Content-type` header, used with `raw:` or `api:`. Example: `content_type: text/html; charset=utf-8`.
+: A custom `Content-type` header, used with `raw:` or `api:`, for a data artifact. Example: `content_type: text/csv; charset=utf-8`. Script-capable types (`text/html`, `application/xhtml+xml`, `image/svg+xml`) are not allowed on a raw/api page - they are downgraded to `text/plain` at serve time, because a verbatim, unescaped page served as HTML would be a cross-site-scripting vector. Publish HTML through a layout, or as a static file.
 
 ## Access keys
 
