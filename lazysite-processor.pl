@@ -138,6 +138,8 @@ my $TT_COMPILE_DIR   = "$CACHE_BASE/tt";       # P-4 TT on-disk compile cache
 my $HOST_CACHE_DIR   = "$CACHE_BASE/hosts";    # SM110 phase 2: per-alias-host page cache
 my %AUTH_CONTEXT;     # populated by main() auth check, read by render_content()
 my %ACCESS_REC;       # SM140: per-request outcome for the first-party access log
+my $RESPONSE_LANG = 'en';    # SM179 (P1): the rendered page's language, set per
+                             # request from page_lang; emitted as Content-Language.
 my $REQUEST_CROOT;    # SM151: the request's confined content root (undef => docroot),
                       # set by main(), read by resolve_scan() so per-domain search is
                       # boxed to the requesting domain's subtree without re-entering
@@ -146,7 +148,7 @@ my $REQUEST_CROOT;    # SM151: the request's confined content root (undef => doc
 # Built-in fallback template - used when no layout.tt is found
 my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 <!DOCTYPE html>
-<html lang="en">
+<html lang="[% page_lang || 'en' %]">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -285,7 +287,8 @@ my %ENV_ALLOWLIST = map { $_ => 1 } qw(
 # still presentation/routing only - they move no auth, management or update
 # surface, so they stay safe to select via a declared Host.
 my %ALIAS_OVERRIDE_KEYS = map { $_ => 1 }
-    qw(site_name theme layout nav_file search_default content_root site_url);
+    qw(site_name theme layout nav_file search_default content_root site_url
+    lang lang_group);    # SM179: per-host language + language-set membership
 
 # SM151 P6: content-type by extension for per-domain static files served by the
 # processor (_serve_content_static). Kept small - the SEO artefacts
@@ -3827,6 +3830,13 @@ sub render_content {
         $home_domain = _domain_home( $mgr_user, split /\s*,\s*/, $groups_str );
     }
 
+    # SM179 (P1): language awareness. site_lang is the host's language (conf
+    # `lang:` or the alias override); page_lang lets a page override it via front
+    # matter; both default to 'en'. $RESPONSE_LANG feeds the Content-Language header.
+    my $site_lang = $site_vars{lang} || 'en';
+    my $page_lang = $meta->{lang}    || $site_lang;
+    $RESPONSE_LANG = $page_lang;
+
     my $vars = {
         %site_vars,
         %page_vars,
@@ -3869,6 +3879,8 @@ sub render_content {
         scope_root       => $scope_root,               # SM154: a bound editor's root
         home_domain      => $home_domain,              # SM154: a bound editor's domain
         dav_scopes       => join( ',', @my_scopes ),   # SM157: multi-domain switcher list
+        site_lang        => $site_lang,                # SM179: the host's language
+        page_lang        => $page_lang,                # SM179: per-page override
         smtp_configured => ( -f "$LAZYSITE_DIR/forms/smtp.conf" ) ? 1 : 0, # gate emailed reset
             # SM099: a cache-safe sign in / out control. BOTH links ship hidden; the
             # injected auth-sync script reveals the right one from the lzs_session
@@ -4699,6 +4711,7 @@ sub output_page {
     print "X-Content-Type-Options: nosniff\n";
     print "X-Frame-Options: SAMEORIGIN\n";
     print "Referrer-Policy: strict-origin-when-cross-origin\n";
+    print "Content-Language: $RESPONSE_LANG\n" if $RESPONSE_LANG;    # SM179 (P1)
     if ($auth_protected) {
         print "Cache-Control: no-store, private\n";
     }
