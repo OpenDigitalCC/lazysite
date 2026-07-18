@@ -92,4 +92,44 @@ sub keymap {
         'key-revoke refuses an interactive account (would be a lockout, not a key revoke)' );
 }
 
+# --- SM163: a plain verify-credential (the control-API token path, no touch
+# flag) now RECORDS use - so an api/dav key shows as used, not "not used yet".
+# Checked directly against the stored setting (keys-list's in_use derives from
+# cred_used_at >= cred_issued_at). Throttled so a hot key does not rewrite.
+{
+    my $d = docroot();
+    cli( $d, 'add', 'kbot', 'x' );
+    cli( $d, 'group-add', 'kbot', 'agent-ai' );          # api/mcp machine account
+    my $tok = api( $d, { action => 'token', username => 'kbot' } )->{token};
+    ok( $tok, 'minted a key for kbot' );
+
+    my $before = read_kbot_settings($d);
+    ok( ( $before->{cred_used_at} // 0 ) < ( $before->{cred_issued_at} // 0 ),
+        'not-yet-used before any verify (used < issued)' );
+
+    # A verify WITHOUT a touch flag must now stamp cred_used_at.
+    my $v = api( $d, { action => 'verify-credential', username => 'kbot', secret => $tok } );
+    ok( $v->{ok}, 'verify-credential succeeds' );
+    is( $v->{first_use}, 1, 'first_use reported on the first verify since issuance' );
+
+    my $after = read_kbot_settings($d);
+    ok( $after->{cred_used_at}, 'cred_used_at is recorded after a token verify (SM163)' );
+    ok( $after->{cred_used_at} >= $after->{cred_issued_at},
+        'in-use: used >= issued (what keys-list derives in_use from)' );
+
+    # A second verify inside the throttle window: still succeeds, not first_use,
+    # and does not move the stamp.
+    my $v2 = api( $d, { action => 'verify-credential', username => 'kbot', secret => $tok } );
+    is( $v2->{first_use}, 0, 'a subsequent verify is not first_use' );
+    is( read_kbot_settings($d)->{cred_used_at}, $after->{cred_used_at},
+        'throttled: the stamp does not move within the window' );
+}
+
+sub read_kbot_settings {
+    my ($d) = @_;
+    open my $fh, '<', "$d/lazysite/auth/user-settings.json" or return {};
+    my $all = eval { decode_json( do { local $/; <$fh> } ) } || {};
+    return $all->{kbot} || {};
+}
+
 done_testing();
