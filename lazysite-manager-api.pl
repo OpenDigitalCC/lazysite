@@ -1963,6 +1963,50 @@ sub action_whoami {
         plugins => ( action_plugin_list() || {} )->{plugins} || [],
         # SM072: site-level capabilities from enabled plugins (e.g. email-send).
         site_capabilities => site_capabilities(),
+        # SM179 P7: when the bound site is a language-set member, tell the agent
+        # its language, the group, and where every sibling's files live - so it
+        # knows immediately a translation counterpart exists without probing.
+        %{ _language_context($s) // {} },
+    };
+}
+
+# SM179 P7: the language context for a partner's whoami. Returns { language =>
+# { lang, lang_group, siblings => [ { host, lang, content_root, source } ] } }
+# when this instance has a language set, else undef (the block is omitted). The
+# partner's `lang` is that of their bound home_domain (else the source). `source`
+# marks the source-of-truth root a translation agent copies FROM.
+sub _language_context {
+    my ($s) = @_;
+    my $conf = '';
+    if ( open my $fh, '<:raw', "$LAZYSITE_DIR/lazysite.conf" ) {
+        local $/;
+        $conf = <$fh>;
+        close $fh;
+    }
+    my $group = ( $conf =~ /^lang_group\h*:\h*(\S+)\h*$/m ) ? $1 : '';
+    return undef unless length $group;
+    my @members = Lazysite::Lang::set_members( $conf, $group );
+    return undef unless @members;
+
+    my $bool = sub { $_[0] ? JSON::PP::true() : JSON::PP::false() };
+    my $home = $s->{home_domain} // '';
+    my ($me) = grep { $_->{host} eq $home } @members;
+    ($me) = grep { $_->{source} } @members unless $me;
+
+    return {
+        language => {
+            lang       => ( $me ? $me->{lang} : '' ),
+            lang_group => $group,
+            siblings   => [
+                map {
+                    { host => $_->{host},
+                        lang         => $_->{lang},
+                        content_root => $_->{content_root},
+                        source       => $bool->( $_->{source} ),
+                    }
+                } @members
+            ],
+        },
     };
 }
 
