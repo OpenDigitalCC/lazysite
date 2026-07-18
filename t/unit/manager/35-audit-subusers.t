@@ -43,6 +43,9 @@ sub get {
     $ENV{HTTP_X_REMOTE_GROUPS} = $groups;
     my ( $w, $r );
     my $e   = gensym;
+    # The auth wrapper sets X-Remote-* AND LAZYSITE_AUTH_TRUSTED together; a test that
+    # simulates the authenticated path must too, or the trust gate strips the header.
+    $ENV{LAZYSITE_AUTH_TRUSTED} = 1 if length( $ENV{HTTP_X_REMOTE_USER} // '' );
     my $pid = open3( $w, $r, $e, $^X, $mapi_s );
     close $w;
     my $out = do { local $/; <$r> };

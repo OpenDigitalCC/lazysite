@@ -109,6 +109,40 @@ my $PREVIEW_TTL    = 3600;            # 1 hour
 # without spawning a subprocess. Has no effect in normal CGI use.
 return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
 
+# --- Trust gate (in-app backstop for the identity headers) -------------------
+#
+# SEC (advisory 2026-07): the identity headers X-Remote-* are trusted ONLY when
+# they come from our auth wrapper, which sets them from the HMAC-verified cookie
+# and flags LAZYSITE_AUTH_TRUSTED=1 (lazysite-auth.pl). A client must never assert
+# its own identity by sending the headers. The web-server edge is meant to strip
+# them, but that is not guaranteed (the dev server, a hand-written vhost, or a
+# proxy that forwards them), so - exactly as lazysite-processor.pl's
+# apply_trust_gate does - the manager-API (the most sensitive endpoint: user
+# management, config, file read/write) deletes any client-supplied X-Remote-*
+# unless the wrapper vouched for them (LAZYSITE_AUTH_TRUSTED=1) or the operator
+# opted into a trusted reverse proxy (auth_proxy_trusted: true). A forged header
+# is thus ignored - and logged - rather than granting operator access.
+{
+    my $trusted = ( $ENV{LAZYSITE_AUTH_TRUSTED} // '' ) eq '1';
+    my $proxy   = 'false';
+    if ( !$trusted && open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
+        while ( my $l = <$fh> ) {
+            if ( $l =~ /^auth_proxy_trusted\s*:\s*(\S+)/ ) { $proxy = lc $1; last }
+        }
+        close $fh;
+    }
+    unless ( $trusted || $proxy eq 'true' ) {
+        if ( length( $ENV{HTTP_X_REMOTE_USER} // '' ) ) {
+            log_event( 'WARN', 'manager-api',
+                'untrusted auth header ignored - set auth_proxy_trusted: true to enable proxy auth',
+                header => 'X-Remote-User',
+                value  => substr( $ENV{HTTP_X_REMOTE_USER}, 0, 32 ) );
+        }
+        delete @ENV{
+            qw(HTTP_X_REMOTE_USER HTTP_X_REMOTE_GROUPS HTTP_X_REMOTE_NAME HTTP_X_REMOTE_EMAIL)};
+    }
+}
+
 # --- Auth check ---
 
 # SM138: is the site secured? A site where some group grants manager access

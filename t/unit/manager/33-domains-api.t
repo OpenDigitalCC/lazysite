@@ -45,6 +45,10 @@ sub mapi {
     $ENV{$_} = $o{$_} for grep { defined $o{$_} } keys %o;
     my ( $w, $r );
     my $e   = gensym;
+    # The auth wrapper sets X-Remote-* AND LAZYSITE_AUTH_TRUSTED together; a test that
+    # simulates the authenticated path must do the same, or the manager-API trust
+    # gate (correctly) strips the header as forged.
+    $ENV{LAZYSITE_AUTH_TRUSTED} = 1 if length( $ENV{HTTP_X_REMOTE_USER} // '' );
     my $pid = open3( $w, $r, $e, $^X, $mapi );
     print $w( defined $body ? $body : '' );
     close $w;
