@@ -445,14 +445,35 @@ function rowHtml(f) {
     html += '<td class="mg-col-check"></td>';
   }
   if (isDir) {
-    html += '<td class="mg-col-exp"></td>';
+    // SM162: folders get an actions dropdown too (rename/move, delete) - the
+    // subset that applies to a directory (no per-file ACL / history / download).
+    html += '<td class="mg-col-exp"><a href="#" class="mg-chev" onclick="togglePerms(this); return false;" title="Folder actions">&#9662;</a></td>';
   } else {
     html += '<td class="mg-col-exp">' + lockGlyph(f)
           + '<a href="#" class="mg-chev" onclick="togglePerms(this); return false;" title="File settings &amp; permissions">&#9662;</a></td>';
   }
   html += '</tr>';
-  if (!isDir) html += permsCard(f);
+  html += isDir ? folderCard(f) : permsCard(f);
   return html;
+}
+
+// SM162: the folder actions card - a hidden row (toggled by the folder's chevron)
+// mirroring permsCard's shape so moveFile / deleteOneFile find the folder row via
+// closest('tr').previousElementSibling. Only the folder-applicable actions:
+// Rename/Move (a path move) and Delete (the server removes an EMPTY directory and
+// reports a clear error for a non-empty one). No ACL editor, history, or download
+// - those are file concepts.
+function folderCard(f) {
+  return '<tr class="mg-perms-row" style="display:none"><td colspan="5" class="mg-perms-cell">'
+    + '<div class="mg-perms-card">'
+    +   '<div class="mg-perms-head"><span class="mg-perms-title">' + escHtml(f.name) + '/</span></div>'
+    +   '<div class="mg-perms-hint">Folder actions. Delete removes an <b>empty</b> folder; empty its contents first otherwise.</div>'
+    +   '<div class="mg-perms-actions">'
+    +     '<button class="mg-btn" onclick="moveFile(this)">&#8644; Rename / Move&hellip;</button> '
+    +     '<button class="mg-btn mg-btn-danger" onclick="deleteOneFile(this)">&#128465; Delete</button>'
+    +   '</div>'
+    + '</div>'
+    + '</td></tr>';
 }
 
 function setSort(col) {
