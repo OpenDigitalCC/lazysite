@@ -3025,14 +3025,39 @@ sub interpolate_env {
 # the body can [% FOREACH row IN data.rows %]. Docroot-contained only; returns ''
 # (a falsey scalar, so FOREACH/IF degrade quietly) on missing / invalid / out-of-
 # tree, with a WARN. No remote fetch - use a local data file.
+# SM179 P4: resolve a content path against the request's content root FIRST, then
+# the docroot (shared files) - so a page's json:/include source is byte-identical
+# across per-language roots instead of needing a docroot-absolute path into its own
+# root. Every candidate stays under the docroot and outside the lazysite/
+# management tree (no wider than the docroot-only resolution it replaces). Returns
+# the realpath of the first existing candidate, or undef.
+sub _resolve_content_path {
+    my ($src) = @_;
+    my $croot = $REQUEST_CROOT // $DOCROOT;
+    my @cands;
+    if ( index( $src, $DOCROOT ) == 0 ) {
+        @cands = ($src);    # already a full docroot filesystem path
+    }
+    else {
+        ( my $rel = $src ) =~ s{^/+}{};
+        @cands = $croot ne $DOCROOT ? ( "$croot/$rel", "$DOCROOT/$rel" ) : ("$DOCROOT/$rel");
+    }
+    for my $c (@cands) {
+        my $real = realpath($c);
+        next
+            unless $real
+            && _path_under( $real,  $DOCROOT )
+            && !_path_under( $real, "$DOCROOT/lazysite" )
+            && -f $real;
+        return $real;
+    }
+    return undef;
+}
+
 sub resolve_json {
     my ($src) = @_;
-    my $path =
-        index( $src, $DOCROOT ) == 0 ? $src
-        : $src =~ m{^/}              ? $DOCROOT . $src
-        :                              "$DOCROOT/$src";
-    my $real = realpath($path);
-    if ( !_path_under( $real, $DOCROOT ) || !-f $real ) {
+    my $real = _resolve_content_path($src);
+    if ( !defined $real ) {
         log_event( "WARN", $ENV{REDIRECT_URL} // "-",
             "tt json source not found or outside docroot", src => $src );
         return '';
