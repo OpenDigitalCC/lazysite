@@ -334,7 +334,7 @@ function renderUserRow(row, kidsHtml, subCount, parentName) {
     nameEl + recentDot(u) + roleTag + lineChip + note +
     '<span class="mg-acc-spacer"></span>' + flags +
     '<button type="button" class="mg-btn mg-btn-sm mg-configbtn" data-cfg="' + ue + '" ' +
-    'onclick="event.stopPropagation();configureUser(\'' + ue + '\')">Configure</button>';
+    'onclick="event.stopPropagation();configureUser(\'' + ue + '\')">Edit</button>';
 
   if (kidsHtml) {
     // A parent: collapsible subtree (starts collapsed), row stays one line.
@@ -416,12 +416,12 @@ function accountSettingsHtml(row) {
   gen += '<div class="mg-line"><span class="mg-line-lbl">Note</span>' +
     '<input type="text" class="mg-inp mg-inp-wide" autocomplete="off" id="note-' + ue + '" value="' + escHtml(comment) +
     '" placeholder="what this account is for (e.g. Claude dav publisher)">' +
-    '<button class="mg-btn mg-btn-sm" onclick="saveComment(\'' + ue + '\')">Save</button>' +
+    '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveComment(\'' + ue + '\')">Save</button>' +
     '<span class="mg-inline-msg" id="notemsg-' + ue + '"></span></div>';
   gen += '<div class="mg-line"><span class="mg-line-lbl">Email</span>' +
     '<input type="email" class="mg-inp" id="email-' + ue + '" value="' + escHtml(s.email || '') +
     '" placeholder="for emailed setup / reset links">' +
-    '<button class="mg-btn mg-btn-sm" onclick="saveEmail(\'' + ue + '\')">Save</button>' +
+    '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveEmail(\'' + ue + '\')">Save</button>' +
     '<span class="mg-inline-msg" id="emailmsg-' + ue + '"></span></div>';
   h += sec('General', gen);
 
@@ -431,7 +431,7 @@ function accountSettingsHtml(row) {
   if (ui) {
     var cred = '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
       '<input type="password" class="mg-inp" id="pw-' + ue + '" placeholder="new password" autocomplete="new-password">' +
-      '<button class="mg-btn mg-btn-sm" onclick="savePassword(\'' + ue + '\')">Save</button>' +
+      '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="savePassword(\'' + ue + '\')">Save</button>' +
       '<span class="mg-inline-msg" id="pwmsg-' + ue + '"></span></div>';
     cred += '<div class="mg-line"><span class="mg-line-lbl">Setup link</span>' +
       '<button class="mg-btn mg-btn-sm" onclick="setupLink(\'' + ue + '\',false)">Generate setup link</button>' +

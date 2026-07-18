@@ -53,7 +53,7 @@ function renderPluginRegistry(plugins) {
         + ' onchange="togglePlugin(this,' + esc(JSON.stringify(p._script))
         + ',' + esc(JSON.stringify(p.name)) + ')">';
       if (p._enabled) {
-        html += '<a class="mg-plugin-row-config" href="/manager/plugin-config">Configure</a>';
+        html += '<a class="mg-plugin-row-config" href="/manager/plugin-config">Edit</a>';
       }
     }
     html += '</div>';

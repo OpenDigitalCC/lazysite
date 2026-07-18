@@ -22,7 +22,7 @@ routing are configured so the domain reaches this instance.
 <div style="border:1px solid var(--mg-border,#e2e2e2);border-radius:5px;padding:10px 12px;margin-bottom:12px;">
   <label style="font-size:0.9em;">This server's public IP address(es) <span style="color:#aaa;font-weight:400">&mdash; optional</span><br>
     <input id="f-canonical-ip" placeholder="e.g. 203.0.113.5" style="width:16rem;max-width:100%;box-sizing:border-box;">
-    <button class="mg-btn mg-btn-sm" onclick="saveCanonicalIp()">Save</button></label>
+    <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveCanonicalIp()">Save</button></label>
   <div style="font-size:0.8em;color:#888;margin-top:2px;">Used by <strong>Check</strong> to confirm a domain points to this server. Comma&#8209;separate several. Leave blank to auto&#8209;detect (from your site address, or the server's own address) &mdash; set it when this server sits behind a proxy or NAT.</div>
 </div>
 
@@ -320,10 +320,10 @@ function addAlias(canonical) {
 }
 
 function removeDomain(host) {
-  if (!window.confirm('Unregister ' + host + '? Its content files are kept.')) return;
+  if (!window.confirm('Delete ' + host + '? The domain is de-registered; its content files are kept.')) return;
   post('domain-remove', { host: host }).then(function (d) {
-    if (d && d.ok) { showStatus('Removed ' + host); loadDomains(); }
-    else { showStatus((d && d.error) || 'Could not remove the domain.', true); }
+    if (d && d.ok) { showStatus('Deleted ' + host); loadDomains(); }
+    else { showStatus((d && d.error) || 'Could not delete the domain.', true); }
   });
 }
 
@@ -540,7 +540,7 @@ function loadDomains() {
           html += '<td>'
                 + '<button class="mg-btn mg-btn-sm" onclick="previewDomain(' + esc(JSON.stringify(row.host)) + ')">Preview</button> '
                 + '<button class="mg-btn mg-btn-sm" onclick="checkDomain(' + esc(JSON.stringify(row.host)) + ')">Check</button> '
-                + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Remove</button>'
+                + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Delete</button>'
                 + '</td></tr>';
         } else {
           html += '<td>'
@@ -548,7 +548,7 @@ function loadDomains() {
                 + '<button class="mg-btn mg-btn-sm" onclick="checkDomain(' + esc(JSON.stringify(row.host)) + ')">Check</button> '
                 + '<button class="mg-btn mg-btn-sm" onclick="editDomain(' + esc(JSON.stringify(row.host)) + ')">Edit</button> '
                 + '<button class="mg-btn mg-btn-sm" onclick="addAlias(' + esc(JSON.stringify(row.host)) + ')">Alias</button> '
-                + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Remove</button>'
+                + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Delete</button>'
                 + '</td></tr>';
           // Hidden inline edit panel - sectioned (Identity / Presentation /
           // Access), each a grid of aligned fields (editSection/editField).

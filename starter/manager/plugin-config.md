@@ -114,7 +114,7 @@ function renderPluginCard(plugin) {
     html += '</div>';
   }
   if (plugin.config_schema && plugin.config_schema.length) {
-    html += '<button class="mg-btn" onclick="loadConfig(window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'}))">Configure</button>';
+    html += '<button class="mg-btn" onclick="loadConfig(window._plugins.find(function(x){return x.id===\'' + plugin.id + '\'}))">Edit</button>';
     html += '<div class="mg-card-body" id="config-' + plugin.id + '" style="display:none"></div>';
   }
   if (plugin.child_configs) {
@@ -176,7 +176,7 @@ function renderForm(plugin, values) {
     }
     html += '</div>';
   });
-  html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-outline">Save</button>'
+  html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'
        +  ' <span id="dirty-' + plugin.id + '" class="mg-dirty-note" style="display:none">&#9679; Unsaved changes &mdash; click Save</span></div></form>';
   return html;
 }
@@ -1008,7 +1008,7 @@ function renderFormTargets(formName, currentTargets) {
   html += '</div>';
   html += '<div class="mg-wizard-actions">';
   html += '<button class="mg-btn mg-btn-sm mg-btn-outline" onclick="addTarget(\'' + esc(formName) + '\')">+ Add target</button>';
-  html += '<button class="mg-btn mg-btn-sm mg-btn-outline" onclick="saveFormTargets(\'' + esc(formName) + '\')">Save</button>';
+  html += '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveFormTargets(\'' + esc(formName) + '\')">Save</button>';
   // Re-rendered on every mutation, so seed the note from the guard's state.
   var dirtyNow = mgDirtyGuard.isDirty('targets-' + formName);
   html += ' <span id="targets-dirty-' + esc(formName) + '" class="mg-dirty-note"'
