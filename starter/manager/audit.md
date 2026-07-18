@@ -26,6 +26,7 @@ query_params:
   <input type="date" id="audit-to" class="mg-inp" style="max-width:10rem" onchange="filterAudit()">
   <button class="mg-btn mg-btn-sm" onclick="clearAuditFilter()">Clear</button>
   <button class="mg-btn mg-btn-sm" onclick="loadAudit()">Refresh</button>
+  <label style="font-size:0.85rem;color:#666;margin-left:0.5rem;"><input type="checkbox" id="audit-auto" onchange="toggleAuditAuto(this.checked)"> Auto-refresh (10s)</label>
 </div>
 
 <div id="audit-scope" style="margin-top:0.4rem;font-size:0.85rem;color:#666;"></div>
@@ -184,6 +185,22 @@ function loadAudit() {
     el.innerHTML = h + paginationHtml(d);
   }).catch(function (e) { document.getElementById('audit-table').textContent = 'Error: ' + e.message; });
 }
+
+// SM172: optional live view - poll the audit every 10s while the box is ticked
+// and the tab is visible; stops on untick, page-hide, or navigation.
+var auditAutoTimer = null;
+function toggleAuditAuto(on) {
+  if (auditAutoTimer) { clearInterval(auditAutoTimer); auditAutoTimer = null; }
+  if (on) {
+    auditAutoTimer = setInterval(function () {
+      if (!document.hidden) loadAudit();
+    }, 10000);
+  }
+}
+document.addEventListener('visibilitychange', function () {
+  // Refresh immediately when returning to a tab with auto-refresh on.
+  if (!document.hidden && auditAutoTimer) loadAudit();
+});
 
 (function () {
   var mu = location.search.match(/[?&]user=([^&]+)/);
