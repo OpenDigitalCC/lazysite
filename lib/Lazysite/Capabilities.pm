@@ -184,6 +184,16 @@ my @TASKS = (
             'call bind_form (MCP), or PUT lazysite/forms/<name>.conf over WebDAV, naming an operator-defined handler',
         ],
     },
+    { id => 'migrate-site', title => 'Migrate a site (package one domain and apply it elsewhere)',
+        requires => ['manage_domains'],
+        steps    => [
+            'ON THE SOURCE: call site_backup (MCP) or POST action=site-backup-create (control API) with the domain host - this writes a portable package (lazysite-site-<host>-<stamp>.tar.gz) holding that domain\'s content + nav + its theme/layout + a manifest. It excludes plugins, instance settings and secrets, so it is safe to hand over',
+            'MOVE THE PACKAGE to the target instance if different: GET action=backup-download to fetch it, then POST action=site-backup-upload (multipart) on the target to import it into that instance\'s backups area. Same-instance moves skip this - the package is already there',
+            'BEFORE APPLYING, make sure the target domain exists (register it with domain-add if needed) and, if you want a rollback point, take a backup - apply overwrites the target content root',
+            'ON THE TARGET: call site_apply (MCP) or POST action=site-backup-apply (control API) with the package name and the target host (omit host to apply to the default site; pass clean:true to clear the target content first). This copies the content in, installs the bundled theme/layout if the target lacks it, places the nav, and sets the target domain\'s presentation. The control-API action also takes a safety snapshot automatically',
+            'verify with a domain preview (domain-preview) or by loading the target host',
+        ],
+    },
 );
 
 # Build the map. Pass caps => { cap => 0|1 } (the caller's resolved grant) and,
