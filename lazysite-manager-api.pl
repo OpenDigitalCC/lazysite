@@ -1793,7 +1793,8 @@ sub action_pages {
 sub action_config_read {
     my %out = map { $_ => '' }
         qw(site_name site_url layout theme nav_file webdav_enabled manager
-        search_default manager_path canonical_ip);
+        search_default manager_path canonical_ip
+        mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
             next unless $line =~ /^(\w+)\s*:\s*(.*?)\s*$/;
@@ -1875,10 +1876,17 @@ sub action_config_set {
     # SM122: a small, injection-safe subset settable via the API (with manage_config).
     my %allow = map { $_ => 1 }
         qw(site_name site_url search_default webdav_enabled layout theme nav_file
-        update_channel canonical_ip);
+        update_channel canonical_ip
+        mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     $key = '' unless defined $key;
     return { ok => 0, error => "Config key '$key' is not settable via the API" }
         unless $allow{$key};
+    # 0.9.0 service killswitches: enabled/disabled, same shape as webdav_enabled.
+    if ( $key =~ /^(?:mcp|oauth|control_api|token_exchange)_enabled$/
+        && defined $value && $value !~ /^(?:enabled|disabled)$/ )
+    {
+        return { ok => 0, error => "$key must be 'enabled' or 'disabled'" };
+    }
     # SM156: canonical_ip is a comma list of this server's PUBLIC IPs (for the
     # domain-check "points here" check behind a proxy/NAT). Validate as IPv4/IPv6
     # literals, comma-separated - no hostnames, no shell/markup metacharacters.

@@ -45,6 +45,21 @@ var SITE_SCHEMA = [
   { key: 'webdav_enabled', label: 'WebDAV publishing', type: 'toggle',
     on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
     note: 'The /dav publishing endpoint (files, themes, layouts) for partner tools and agents. Off by default; when off, /dav returns 404 to every request.' },
+  // 0.9.0 service killswitches: every remote surface is OFF until the operator
+  // enables it here (the WebDAV posture, extended to the rest). When off, each
+  // endpoint returns 404 / refuses and discloses nothing.
+  { key: 'mcp_enabled', label: 'MCP connector', type: 'toggle',
+    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
+    note: 'The Model Context Protocol server exposing site tools to AI agents (Claude, ChatGPT). Off by default; when off the endpoint returns 404 and lists no tools. Enable to let an agent connect.' },
+  { key: 'oauth_enabled', label: 'OAuth authorization server', type: 'toggle',
+    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
+    note: 'The OAuth2 server for web AI connectors (dynamic client registration, authorize, token). Off by default; when off every OAuth endpoint returns 404. Enable only if a connector requires OAuth.' },
+  { key: 'control_api_enabled', label: 'Control API (token access)', type: 'toggle',
+    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
+    note: 'The token-authenticated control API for partner tools and scripts (lzs_ tokens). Off by default; when off token requests are refused - the manager UI you are using now is unaffected. Enable to let API / agent tokens drive the site.' },
+  { key: 'token_exchange_enabled', label: 'AI-partner token exchange', type: 'toggle',
+    on: 'enabled', off: 'disabled', default: 'disabled', group: 'Services',
+    note: 'Pairing-key exchange and token rotation - how an AI partner turns a one-time pairing key into a working token. Off by default. Enable while provisioning AI partners, then it can be turned off again.' },
   { key: 'update_channel', label: 'Update channel', type: 'select',
     options: ['all', 'beta', 'stable'], default: 'all', group: 'Updates',
     note: 'The minimum release maturity this site accepts, on the edge < beta < stable ladder. "all" installs every release (early testing); "beta" takes beta and stable builds (tested, bedding in); "stable" takes only certified stable releases. Out-of-channel upgrades are skipped and logged in the audit trail. Use "stable" for customer sites.' },

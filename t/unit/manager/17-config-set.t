@@ -107,6 +107,26 @@ my $cipbad = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-
     body => encode_json( { key => 'canonical_ip', value => 'evil.example.com' } ) );
 ok( !$cipbad->{ok}, 'a hostname is refused as canonical_ip (IP literals only)' );
 
+# 0.9.0 service killswitches are settable from the Services section of the
+# config page (config-set, manage_config) and surfaced by config-read.
+{
+    my $svc = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+        HTTP_AUTHORIZATION => basic( 'p', $tok ),
+        body => encode_json( { key => 'mcp_enabled', value => 'enabled' } ) );
+    ok( $svc->{ok}, 'config-set mcp_enabled=enabled succeeds (Services toggle)' );
+    like( conf($d), qr/^mcp_enabled: enabled$/m, 'mcp_enabled written to lazysite.conf' );
+
+    my $bad = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+        HTTP_AUTHORIZATION => basic( 'p', $tok ),
+        body => encode_json( { key => 'oauth_enabled', value => 'sorta' } ) );
+    ok( !$bad->{ok}, 'an invalid service value is refused (enabled/disabled only)' );
+
+    my $cr = mapi( $d, REQUEST_METHOD => 'GET', QUERY_STRING => 'action=config-read',
+        HTTP_AUTHORIZATION => basic( 'p', $tok ) );
+    is( $cr->{config}{mcp_enabled}, 'enabled', 'config-read surfaces the service state for the Services panel' );
+    is( $cr->{config}{oauth_enabled}, '', 'an unset service reads as blank (defaults off)' );
+}
+
 my $cipclear = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
     HTTP_AUTHORIZATION => basic( 'p', $tok ),
     body => encode_json( { key => 'canonical_ip', value => '' } ) );
