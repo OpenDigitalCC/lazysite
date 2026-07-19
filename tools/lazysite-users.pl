@@ -2077,10 +2077,14 @@ sub cmd_verify_credential {
 
     my $eff = effective_settings($user);
     return { ok => 0 } if $eff->{disabled};
+    # The secret has ALREADY verified above, so the caller genuinely holds this
+    # credential - distinguishing "expired" from "wrong secret" leaks nothing and
+    # lets the token-lifecycle endpoints give actionable guidance (re-exchange a
+    # pairing key) rather than a bare "invalid".
     my $exp = $eff->{token_expires_at};
-    return { ok => 0 } if $exp && time() > $exp;
+    return { ok => 0, reason => 'expired' } if $exp && time() > $exp;
     my $aexp = $eff->{expires_at};    # SM072: account-level expiry
-    return { ok => 0 } if $aexp && time() > $aexp;
+    return { ok => 0, reason => 'expired' } if $aexp && time() > $aexp;
 
     # SM163: record credential USE on every successful verify (throttled by
     # touch_credential), not just the connector path - so a key used over the

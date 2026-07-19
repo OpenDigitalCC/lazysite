@@ -593,6 +593,20 @@ sub handle_rotate {
     my $v = users_tool_api( { action => 'verify-credential', username => $u, secret => $token } );
     unless ( ref $v eq 'HASH' && $v->{ok} ) {
         sleep $LOGIN_DELAY;
+        # An EXPIRED (but correct) token can't rotate itself - the agent must
+        # re-exchange a fresh pairing key. Give that guidance instead of a bare
+        # "Invalid token" (the diagnosis a partner agent had to do by hand).
+        if ( ref $v eq 'HASH' && ( $v->{reason} // '' ) eq 'expired' ) {
+            log_event( 'INFO', $u, 'token rotation: token expired', ip => $ip );
+            json_response( {
+                    ok     => 0,
+                    reason => 'expired',
+                    error  => 'Your access token has expired and cannot be rotated. '
+                        . 'Ask the operator for a new pairing key and exchange it '
+                        . '(POST action=exchange with the pairing key).',
+            }, 401 );
+            return;
+        }
         log_event( 'WARN', $u, 'token rotation: invalid current token', ip => $ip );
         json_response( { ok => 0, error => 'Invalid token' }, 401 );
         return;
