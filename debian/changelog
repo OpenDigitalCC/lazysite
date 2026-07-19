@@ -1,3 +1,13 @@
+lazysite (0.9.5-1) unstable; urgency=medium
+
+  * BETA: in-manager form-submissions viewer (SM182) - render a form's
+    submissions as a safe escaped table in plugin-config; new manage_forms read
+    action form-submissions (docroot-confined, .jsonl only, row-capped,
+    client-escaped). Recorded proposals SM180 (dormant-capability indicators)
+    and SM181 (folder / URL-prefix protection), docs only.
+
+ -- OpenDigital <sjm@opendigital.cc>  Sun, 19 Jul 2026 17:18:15 +0100
+
 lazysite (0.9.4-1) unstable; urgency=medium
 
   * STABLE: promotes the 0.9.x security-hardening line to stable - a channel

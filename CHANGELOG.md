@@ -16,6 +16,30 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.5 - BETA: in-manager form-submissions viewer (SM182) (2026-07-19)
+
+A small, low-risk feature increment on the 0.9.4 stable security line. One
+functional change plus two recorded proposals; no BREAKING changes, no migration.
+Cut to beta to bed in ahead of a stable promotion.
+
+- SM182 - in-manager form-submissions viewer. Submissions live at
+  lazysite/forms/submissions/<form>.jsonl, in the reserved lazysite/ tree the
+  file editor refuses to open, so the data was unreachable from the UI. The
+  plugin-config "View submissions" button now renders an inline, escaped table.
+  A new read action form-submissions (manage_forms) parses the store server-side
+  (docroot-confined, .jsonl only, no traversal), unions keys into columns, caps
+  at the most-recent 500 rows, and returns values verbatim; the client escapes
+  every cell, so a hostile submission renders as inert text. Gated at parity on
+  both channels and covered by the audit-skip, write-path, capability-gate and
+  cookie-read drift guards, plus a backend parse/confinement test.
+
+Recorded proposals (feature-request docs only, not yet built):
+
+- SM180 - dormant-capability indicators: warn (never block) when a granted
+  channel capability cannot work because its site service is off.
+- SM181 - folder / URL-prefix protection: put a whole folder/URL-prefix behind
+  auth or hold it as a draft, beyond today's per-page control.
+
 ## 0.9.4 - STABLE: security-hardening line, certified (2026-07-19)
 
 Promotes the 0.9.x security-hardening line to stable. This is a channel promotion
