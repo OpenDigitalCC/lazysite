@@ -444,25 +444,16 @@ sub do_put {
     my $r = resolve_under_docroot( $a{rel} );
     return send_status( $r->{err}, body => "Error\n" ) if $r->{err};
 
-    # SM166: auto-create the missing parent chain (mkdir -p) so a PUT to a deep
-    # path just works, instead of a 409 (one level) / confusing 502 (several) the
-    # agent then has to MKCOL its way out of. Confined to the docroot and refused
-    # for a traversal path; the target is already scope-authorised by the
-    # dispatcher, so the created dirs sit within the caller's allowed subtree.
-    if ( !$r->{parent_ok} ) {
-        my $droot = realpath($DOCROOT);
-        my $p     = $r->{parent};
-        if ( defined $droot
-            && defined $p
-            && $a{rel} !~ m{(?:^|/)\.\.(?:/|$)}
-            && index( "$p/", "$droot/" ) == 0 )
-        {
-            make_path($p);
-            $r = resolve_under_docroot( $a{rel} );
-        }
-        return send_status( 409, body => "Parent collection missing\n" )
-            if $r->{err} || !$r->{parent_ok};
-    }
+    # RFC 4918 §9.7.1: a PUT to a URL whose parent collection does not exist MUST
+    # fail with 409 (Conflict) - the client MKCOLs the parent(s) first. 0.9.x
+    # briefly auto-created the parent chain (SM166) for agent convenience, but
+    # that silently deviated from the standard AND from the publishing brief
+    # (which teaches MKCOL-parents-first); 0.9.3 restores the compliant, documented
+    # behaviour so strict WebDAV clients interoperate and a typo'd parent is an
+    # error, not a silent create-in-the-wrong-place.
+    return send_status( 409,
+        body => "Parent collection missing - MKCOL the parent(s) first (RFC 4918 9.7.1)\n" )
+        unless $r->{parent_ok};
     return send_status( 405, body => "Cannot PUT a collection\n" )
         if -d $r->{abs};
 

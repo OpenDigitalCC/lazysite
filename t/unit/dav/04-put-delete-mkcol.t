@@ -25,22 +25,29 @@ use Lazysite::Git ();
     is( $body, "v2", 'content updated' );
 }
 
-# --- SM166: PUT auto-creates the missing parent chain (mkdir -p) -------
+# --- RFC 4918 9.7.1: PUT under a MISSING parent => 409 (MKCOL it first) --------
+# 0.9.3 restored the standard: the 0.9.x SM166 auto-mkcol (201) silently deviated
+# from RFC 4918 and from the publishing brief (which teaches MKCOL-parents-first).
 {
     my $s = setup_dav_site();
-    # One missing level.
+    # One missing level -> 409, nothing written.
     my $r = run_dav( $s->{docroot}, 'PUT', '/content/missing/p.md',
         body => "x", HTTP_AUTHORIZATION => $s->{auth} );
-    ok( $r->{code} == 201 || $r->{code} == 204, 'PUT under a missing parent auto-creates it and writes' )
-        or diag "code=$r->{code}";
-    ok( -f "$s->{docroot}/content/missing/p.md", 'the file was written' );
+    is( $r->{code}, 409, 'PUT under a missing parent => 409 (RFC 4918 9.7.1)' );
+    ok( !-e "$s->{docroot}/content/missing/p.md", 'nothing written under the missing parent' );
 
-    # Several missing levels - previously a confusing 502; now just works.
+    # Several missing levels -> also 409, no partial chain (not a confusing 502).
     my $deep = run_dav( $s->{docroot}, 'PUT', '/content/a/b/c/deep.md',
         body => "y", HTTP_AUTHORIZATION => $s->{auth} );
-    ok( $deep->{code} == 201 || $deep->{code} == 204, 'PUT several levels deep auto-creates the whole chain' )
-        or diag "code=$deep->{code}";
-    ok( -f "$s->{docroot}/content/a/b/c/deep.md", 'the deep file was written' );
+    is( $deep->{code}, 409, 'PUT several levels deep => 409' );
+    ok( !-e "$s->{docroot}/content/a", 'no partial parent chain was created' );
+
+    # MKCOL the parent, THEN the PUT succeeds - the documented workflow.
+    run_dav( $s->{docroot}, 'MKCOL', '/content/missing', HTTP_AUTHORIZATION => $s->{auth} );
+    my $ok = run_dav( $s->{docroot}, 'PUT', '/content/missing/p.md',
+        body => "x", HTTP_AUTHORIZATION => $s->{auth} );
+    ok( $ok->{code} == 201 || $ok->{code} == 204, 'PUT succeeds once the parent exists' );
+    ok( -f "$s->{docroot}/content/missing/p.md", 'the file is written after MKCOL' );
 }
 
 # --- PUT with a traversal parent is still refused (no auto-create escape) ---
