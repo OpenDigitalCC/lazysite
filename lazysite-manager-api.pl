@@ -419,6 +419,7 @@ if ( !$token_auth ) {
         lock unlock renew-lock notices-seen
         domain-add domain-set domain-remove
         session-revoke user-revoke key-revoke
+        site-backup-create site-backup-upload site-backup-apply
     );
     # NB: 'users' is deliberately NOT listed - it is dual-mode (GET reads
     # list/groups; writes self-enforce POST inside action_users). session/user/

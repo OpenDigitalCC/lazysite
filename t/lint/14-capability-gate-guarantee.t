@@ -123,6 +123,26 @@ is( "@divergent", '',
     'actions gated on both channels require the same capability set (no weaker door)' )
     or diag "CHANNEL DIVERGENCE: @divergent";
 
+# --- 3b. every capability-gated cookie MUTATOR is also POST-forced -------------
+# A cookie action in %COOKIE_CAP that changes state must also be in %MUTATING, or
+# it is reachable via a CSRF-free GET (the method-keyed CSRF gate only covers
+# POST). Reads are exempt via an explicit reviewed allowlist. This catches the
+# 0.8.1 site-backup-* gap class: capability-gated, state-changing, but not
+# POST-forced.
+my %COOKIE_READ = map { $_ => 1 } qw(
+    domains-list domain-preview domain-check config-read bad-url-blocks
+    backup-list backup-download lang-status git-status git-history git-show
+    analyse_visitors plugin-read
+);
+# 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
+# action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed
+# exception rather than a read.
+$COOKIE_READ{users} = 1;
+my @cookie_mut_gap = sort grep { !$COOKIE_READ{$_} && !$mutating{$_} } keys %cookie_caps;
+is( "@cookie_mut_gap", '',
+    'every capability-gated cookie action that is not a reviewed read is POST-forced (in %MUTATING)' )
+    or diag "COOKIE MUTATORS MISSING FROM %MUTATING (CSRF-free GET risk): @cookie_mut_gap";
+
 # --- 4. known escalation-sensitive actions really are gated -------------------
 for my $act ( qw(domain-add domain-set domain-remove config-set rotate-auth-secret
     backup-restore theme-activate layout-activate) ) {

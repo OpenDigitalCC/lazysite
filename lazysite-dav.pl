@@ -1053,28 +1053,34 @@ sub authorise {
     my ( $rel, $scope, $is_write, $conf, $user ) = @_;
     $DENY_REASON = undef;    # cleared here; set by _deny(), read by the caller
 
-    # SM072: lazysite/nav.conf is agent-editable over WebDAV, gated by
-    # manage_config. Nav is benign structure - no more powerful than the
-    # content pages a webdav account can already publish - and carries no
-    # privilege-escalation keys, unlike lazysite.conf which stays denied.
+    # SM072: lazysite/nav.conf is agent-editable over WebDAV, gated by the
+    # dedicated `manage_nav` capability - the SAME capability the control-API
+    # (nav-save) and MCP (set_nav) require for the same file, and the one
+    # Capabilities.pm documents as owning nav.conf (cross-plane consistency,
+    # 0.8.1: WebDAV previously used the coarser manage_config here). Nav is
+    # benign structure and carries no privilege-escalation keys, unlike
+    # lazysite.conf which stays denied.
     if ( $rel eq 'lazysite/nav.conf' ) {
-        return undef if manage_config_for($user);
-        return _deny( 403, 'editing lazysite/nav.conf requires the manage_config capability' );
+        return undef if manage_nav_for($user);
+        return _deny( 403, 'editing lazysite/nav.conf requires the manage_nav capability' );
     }
 
     # A per-form dispatch config (lazysite/forms/<name>.conf) is agent-editable
-    # over WebDAV, gated by manage_config: it only names which operator-defined
-    # handlers a form dispatches to, never credentials. The secret files -
-    # smtp.conf (SMTP creds), handlers.conf (handler definitions, addresses,
-    # webhook URLs), .smtp-password - and the submissions store stay denied,
-    # so an agent can wire a form to file storage but cannot read creds, add
-    # handlers, or read submissions.
+    # over WebDAV, gated by `manage_forms` - the same capability the control-API
+    # (handler-save / form-targets-save) and MCP (bind_form) require, and the one
+    # Capabilities.pm documents as owning lazysite/forms/<name>.conf (cross-plane
+    # consistency, 0.8.1: WebDAV previously used manage_config). It only names
+    # which operator-defined handlers a form dispatches to, never credentials.
+    # The secret files - smtp.conf (SMTP creds), handlers.conf (handler
+    # definitions, addresses, webhook URLs), .smtp-password - and the submissions
+    # store stay denied, so an agent can wire a form to file storage but cannot
+    # read creds, add handlers, or read submissions.
     if ( $rel =~ m{^lazysite/forms/([A-Za-z0-9_-]+)\.conf$} ) {
         my $name = $1;
         return _deny( 403, "lazysite/forms/$name.conf is protected (it holds credentials/handler definitions) and is not editable over WebDAV" )
             if $name eq 'smtp' || $name eq 'handlers';
-        return undef if manage_config_for($user);
-        return _deny( 403, "editing lazysite/forms/$name.conf requires the manage_config capability" );
+        return undef if manage_forms_for($user);
+        return _deny( 403, "editing lazysite/forms/$name.conf requires the manage_forms capability" );
     }
 
     # SM071 Phase 3: the one carve-out from the whole-lazysite/ denial is
@@ -1193,6 +1199,8 @@ sub manage_themes_for  { return caps_for( $_[0] )->{manage_themes}  ? 1 : 0 }
 sub manage_layouts_for { return caps_for( $_[0] )->{manage_layouts} ? 1 : 0 }
 sub manage_config_for  { return caps_for( $_[0] )->{manage_config}  ? 1 : 0 }
 sub manage_content_for { return caps_for( $_[0] )->{manage_content} ? 1 : 0 }
+sub manage_nav_for     { return caps_for( $_[0] )->{manage_nav}     ? 1 : 0 }
+sub manage_forms_for   { return caps_for( $_[0] )->{manage_forms}   ? 1 : 0 }
 
 # SEC-2026-07: extensions that must never be written/served (execute or
 # reconfigure the server). Always blocked, case-insensitive, in addition to the
