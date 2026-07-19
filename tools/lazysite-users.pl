@@ -265,6 +265,34 @@ if ($API_MODE) {
     my $action = $req->{action} // '';
     my $result;
 
+    # SEC-2026-07 (C1 defence-in-depth, 0.8.1): the capability/group-mutating
+    # verbs are confined at the manager-API CGI by omission from %DELEGABLE, so a
+    # delegated sub-manager never reaches them. This backstop makes the TOOL
+    # self-defending regardless of caller: if any surface drives one of these
+    # verbs with a NON-OPERATOR actor, refuse here rather than trust the caller's
+    # filter. A verb invoked with no actor (direct CLI / operator context) stays
+    # unconfined, as today.
+    {
+        my %ACTOR_FORBIDDEN = map { $_ => 1 } qw(
+            add remove group-add group-remove group-settings-set
+            group-create group-delete group-nest settings-set token
+        );
+        my $actor = $req->{actor};
+        if (   $ACTOR_FORBIDDEN{$action}
+            && defined $actor
+            && length $actor
+            && $actor ne 'local' )
+        {
+            my $ac = eval { caps_for($actor) } || {};
+            unless ( $ac->{manage_users} ) {
+                print encode_json( { ok => 0, kind => 'forbidden',
+                        error => "actor '$actor' is not authorised for '$action' "
+                            . "(the manage_users capability is required)" } );
+                exit 0;
+            }
+        }
+    }
+
     eval {
         if ( $action eq 'add' ) {
             cmd_add( $req->{username}, $req->{password} );
