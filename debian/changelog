@@ -1,3 +1,15 @@
+lazysite (0.9.4-1) unstable; urgency=medium
+
+  * STABLE: promotes the 0.9.x security-hardening line to stable - a channel
+    promotion of the bedded-in 0.9.3 beta (same code, validated on edge + beta
+    with a live partner-agent sweep; full suite + bench + coverage gate). No new
+    functional change at the stable step.
+  * BREAKING (unchanged from 0.9.x, operator-recoverable): remote surfaces are
+    OFF by default (enable in Settings -> Services); WebDAV nav/form editing needs
+    manage_nav / manage_forms; MCP feedback needs the `feedback` capability.
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sun, 19 Jul 2026 13:30:00 +0000
+
 lazysite (0.9.3-1) unstable; urgency=medium
 
   * BETA: continues the 0.9.x beta line (two partner-site-agent findings).
