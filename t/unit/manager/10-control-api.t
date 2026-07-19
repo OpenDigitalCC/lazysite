@@ -196,19 +196,38 @@ ok( @{ $dcap->{tasks} || [] } >= 3, 'map carries task recipes' );
 ok( exists $dcap->{holds}{capabilities}{delegate_sub_user_creation},
     'holds carries the full @CAP_KEYS incl. delegate_sub_user_creation (drift fix)' );
 
-# --- SM127: a manager (ui) account is refused on the api channel outright -----
-# Even with a token and the api cap, a ui account cannot be driven remotely.
+# --- SM127: an INTERACTIVE manager account (ui capability + login enabled) is
+# refused on the api channel - but introspection stays open (SM126/SM072). -----
 uapi( $d, { action => 'add', username => 'mgr', password => 'x' } );
-grant_caps( $d, 'mgr', 'ui', 'api', 'manage_content' );   # combined via direct write
+grant_caps( $d, 'mgr', 'ui', 'api', 'manage_content' );   # ui cap + login enabled (default)
 my $mtok = uapi( $d, { action => 'token', username => 'mgr' } )->{token};
 my $mg = mapi( $d, QUERY_STRING => 'action=theme-list',
     HTTP_AUTHORIZATION => basic( 'mgr', $mtok ) );
 ok( !$mg->{ok} && $mg->{error} =~ /manager|interactive/i,
-    'a manager (ui) account is refused on the api channel' );
-# ...even introspection (the ui guard is absolute for manager accounts).
+    'an interactive manager (ui) account is refused on the api channel' );
+# ...but whoami (introspection) stays OPEN even for it - the previous ordering
+# wrongly refused it (SM126 guarantees introspection is always reachable).
 my $mgw = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'mgr', $mtok ) );
-ok( !$mgw->{ok}, 'a manager (ui) account is refused even whoami on api' );
+ok( $mgw->{ok}, 'a manager account: whoami still allowed (introspection open)' );
+
+# --- an AGENT account has the manager `ui` CAPABILITY (from a group) but its
+# interactive login is DISABLED (ui:false) - a deliberate agent, as SM127's own
+# message advises. Its token must honour its own api-channel capabilities and
+# NOT be blocked by the manager-UI gate (the reported 0.8.0 regression). --------
+uapi( $d, { action => 'add', username => 'agent', password => 'x' } );
+grant_caps( $d, 'agent', 'ui', 'api', 'analytics' );   # manager ui cap + api + analytics
+uapi( $d, { action => 'settings-set', username => 'agent', key => 'ui', value => 0 } );
+my $atok = uapi( $d, { action => 'token', username => 'agent' } )->{token};
+my $aw = mapi( $d, QUERY_STRING => 'action=whoami',
+    HTTP_AUTHORIZATION => basic( 'agent', $atok ) );
+ok( $aw->{ok}, 'agent account (login disabled): whoami works' );
+ok( !$aw->{capabilities}{ui},
+    '...and reports ui:false (interactive login disabled)' );
+my $av = mapi( $d, QUERY_STRING => 'action=analyse_visitors',
+    HTTP_AUTHORIZATION => basic( 'agent', $atok ) );
+unlike( $av->{error} // '', qr/manager|interactive/i,
+    'agent account is NOT blocked by the manager-UI gate (its analytics cap governs)' );
 
 # --- CSRF exemption: token POST needs no CSRF token ----------------------
 my $pa = mapi( $d, REQUEST_METHOD => 'POST',

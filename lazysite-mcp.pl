@@ -1566,19 +1566,28 @@ elsif ( $method eq 'tools/call' ) {
     my ( $user, $caps ) = verify_bearer();
     send_401($id) unless defined $user;
 
-    # SM127: manager/UI-remote separation. An account with manager UI access (the
-    # `ui` capability, resolved as the union across its groups) is interactive-only
-    # and must never be reachable over MCP - so a leaked/misissued connector on a
-    # manager account cannot drive the site remotely. Refused outright (even
-    # introspection) and audited.
-    if ( $caps->{manager_ui} ) {
+    # Introspection tools (whoami, describe_capabilities) stay open to ANY
+    # authenticated session, per the SM072/SM126 contract. Declared here so BOTH
+    # gates below honour it (the SM127 gate previously ran ahead of it and wrongly
+    # refused whoami on a manager-linked account).
+    my %introspection = ( 'whoami' => 1, 'describe_capabilities' => 1 );
+
+    # SM127: manager/UI-remote separation. An account that can ACTUALLY use the
+    # interactive manager UI must not drive the site over MCP (a leaked connector
+    # on a live manager account is the accidental-grant vector). "Can use the UI" =
+    # the `ui` capability from a group (manager_ui) AND interactive login enabled
+    # (the account-level `ui` flag). An account with ui:false is a deliberate agent
+    # account - as this message advises - so its connector honours its own mcp/api
+    # capabilities regardless of any manager group it also sits in; per the partner
+    # contract the token path is capability-based. Introspection is exempt.
+    if ( $caps->{manager_ui} && $caps->{ui} && !$introspection{$name} ) {
         my $a = $params->{arguments} || {};
         audit_log( $user, $name, ( $a->{path} // '' ), $ENV{REMOTE_ADDR} // '',
-            'fail', 'mcp', 'denied: manager (ui) account on the mcp channel' );
+            'fail', 'mcp', 'denied: interactive manager account on the mcp channel' );
         rpc_error( $id, -32002,
-            "This account has manager UI access, which is interactive-only: manager "
-                . "accounts cannot be used over MCP. Use a dedicated agent account "
-                . "(mcp capability, no ui) instead. Do not retry." );
+            "This account can use the interactive manager UI, which is interactive-only: "
+                . "it cannot be driven over MCP. Use a dedicated agent account (mcp "
+                . "capability, interactive login disabled) instead. Do not retry." );
     }
 
     # SM126: strict channel gate. An MCP session operates on the `mcp` channel and
@@ -1588,7 +1597,6 @@ elsif ( $method eq 'tools/call' ) {
     # Introspection tools (whoami, describe_capabilities) stay open to any
     # authenticated session so a capless agent can self-diagnose and learn it
     # lacks the channel, per the SM072 introspection contract.
-    my %introspection = ( 'whoami' => 1, 'describe_capabilities' => 1 );
     unless ( $caps->{mcp} || $introspection{$name} ) {
         my $a = $params->{arguments} || {};
         audit_log( $user, $name, ( $a->{path} // '' ), $ENV{REMOTE_ADDR} // '',

@@ -25,9 +25,10 @@ use strict; use warnings; use JSON::PP qw(encode_json decode_json);
 my $in = do { local $/; <STDIN> };
 my $r = eval { decode_json($in) } || {};
 my $u = $r->{username} // '';
-my %caps = (webdav=>1, manage_content=>1, manage_nav=>1, manage_forms=>1);
+my %caps = (webdav=>1, manage_content=>1, manage_nav=>1, manage_forms=>1, ui=>1);
 $caps{mcp} = 1 unless $u =~ /nomcp/;
-$caps{manager_ui} = 1 if $u =~ /mgr/;   # SM127: a group-granted manager (ui) account
+$caps{manager_ui} = 1 if $u =~ /mgr/;   # SM127: the group-granted `ui` capability
+$caps{ui} = 0 if $u =~ /agent/;         # interactive login DISABLED => a dedicated agent account
 print encode_json({ ok => 1, settings => \%caps });
 STUB
 close $sf;
@@ -58,12 +59,22 @@ sub sc { my $r = shift; $r && $r->{result} ? $r->{result}{structuredContent} : u
 my $nomcp = 'Bearer clientnomcp:lzs_tok';   # webdav+content, NO mcp channel
 my $ok    = 'Bearer clientok:lzs_tok';      # has mcp
 
-# --- SM127: a manager (ui) account is refused on mcp even WITH the mcp cap ---
+# --- SM127: an INTERACTIVE manager account (ui capability + login enabled) is
+#     refused on mcp even WITH the mcp cap ---
 my $mgr = call( 'list_files', { path => '/' }, 'Bearer clientmgr:lzs_tok' );
-is( $mgr->{error}{code}, -32002, 'manager (ui) account refused on mcp' );
+is( $mgr->{error}{code}, -32002, 'interactive manager account refused on mcp' );
 like( $mgr->{error}{message}, qr/manager|interactive/i, 'denial explains the manager-remote rule' );
-my $mgrw = call( 'whoami', {}, 'Bearer clientmgr:lzs_tok' );
-ok( $mgrw->{error}, 'manager (ui) account refused even whoami on mcp' );
+
+# ...but INTROSPECTION stays open even for a manager account (SM126/SM072) -
+# whoami must never be refused (the previous ordering wrongly blocked it).
+my $mgrw = sc( call( 'whoami', {}, 'Bearer clientmgr:lzs_tok' ) );
+ok( $mgrw->{ok}, 'manager account: whoami still allowed (introspection open)' );
+
+# --- an AGENT account (has the manager ui capability from a group, but its
+#     interactive login is disabled, ui:false) is a deliberate agent - NOT blocked ---
+my $agent = call( 'list_files', { path => '/' }, 'Bearer clientagentmgr:lzs_tok' );
+isnt( ( $agent->{error} && $agent->{error}{code} ) // 0, -32002,
+    'agent account (manager caps, login disabled) is NOT blocked on mcp' );
 
 # --- A session without the mcp cap is refused on a real tool ----------------
 my $r = call( 'list_files', { path => '/' }, $nomcp );

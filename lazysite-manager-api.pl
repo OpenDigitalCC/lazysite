@@ -462,19 +462,30 @@ if ( !$token_auth ) {
 # and gated by capability. Cookie (manager) requests are unaffected and
 # keep their existing manager-group authorisation.
 if ($token_auth) {
-    # SM127: manager/UI-remote separation. An account with manager UI access
-    # (the `ui` capability) must NEVER be reachable over a remote channel - manager
-    # access is interactive-only, so a misissued or leaked token on a manager
-    # account cannot drive the site remotely (the reported accidental-grant vector).
-    # Enforced on the EFFECTIVE caps (the union across groups), so it also catches
-    # an account that gets `ui` from one group and a token from another. Refused
-    # outright, ahead of everything (even introspection), and audited.
-    if ( $token_caps{manager_ui} ) {
+    # Introspection (whoami, describe-capabilities) stays open to ANY authenticated
+    # token - a capless or manager-linked agent must still be able to ask "what am
+    # I / what may I do", per the SM072/SM126 contract. Declared here so BOTH gates
+    # below honour it (the SM127 gate previously ran ahead of it and wrongly refused
+    # whoami on a manager-linked account).
+    my %introspection = ( 'whoami' => 1, 'describe-capabilities' => 1 );
+
+    # SM127: manager/UI-remote separation. An account that can ACTUALLY use the
+    # interactive manager UI must not drive the site over a remote token (a leaked
+    # token on a live manager account is the accidental-grant vector). "Can use the
+    # UI" = the `ui` capability from a group (manager_ui) AND interactive login
+    # enabled (the account-level `ui` flag). An account with ui:false is a
+    # deliberate agent account - as this message itself advises - so its token
+    # honours its own api-channel capabilities regardless of any manager group it
+    # also sits in; per the partner contract the token path is capability-based and
+    # manager/operator status neither adds nor removes access here. Introspection is
+    # exempt (see above). Audited when it fires.
+    if ( $token_caps{manager_ui} && $token_caps{ui} && !$introspection{$action} ) {
         audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
-            'fail', 'api', 'denied: manager (ui) account on the api channel' );
-        respond( { ok => 0, error => "This account has manager UI access, which is "
-                    . "interactive-only: manager accounts cannot be used over the API or MCP. "
-                    . "Use a dedicated agent account (api/mcp capabilities, no ui) instead." } );
+            'fail', 'api', 'denied: interactive manager account on the api channel' );
+        respond( { ok => 0, error => "This account can use the interactive manager UI, "
+                    . "which is interactive-only: it cannot be driven over the API or MCP. "
+                    . "Use a dedicated agent account (api/mcp capabilities, interactive login "
+                    . "disabled) instead." } );
         exit 0;
     }
 
@@ -486,7 +497,6 @@ if ($token_auth) {
     # (whoami, describe-capabilities) stay open to any authenticated token - a
     # capless agent must still be able to ask "what am I / what may I do" and learn
     # it lacks the channel, per the SM072 introspection contract.
-    my %introspection = ( 'whoami' => 1, 'describe-capabilities' => 1 );
     unless ( $token_caps{api} || $introspection{$action} ) {
         audit_log( $auth_user, $action, ( $path // '' ), $ENV{REMOTE_ADDR} // '',
             'fail', 'api', 'denied: api channel capability' );
