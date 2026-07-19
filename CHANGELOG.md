@@ -16,6 +16,29 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.4 - STABLE: security-hardening line, certified (2026-07-19)
+
+Promotes the 0.9.x security-hardening line to stable. This is a channel promotion
+of the bedded-in 0.9.3 beta - the SAME code, validated on edge (0.9.0/0.9.1) and
+beta (0.9.2/0.9.3) with a full partner-surface sweep by a live site agent; no new
+functional change enters at the stable step. Full gate: suite + bench + coverage
+(every production CGI above floors).
+
+The 0.9.x line delivers: cross-plane capability consistency; default-off service
+killswitches (MCP / OAuth / control-API / token exchange) with an operator
+Services panel; the SM042 Config-page save migration off the legacy pseudo-plugin
+onto config-set (with a parity guard); the SM127 token-path fix; the domain-check
+SSRF guard; tenant-token isolation; the capability-grid grantability fix (feedback
+/ notifications) with a parity guard; the form-targets data-loss fix; the nav-read
+path-leak fix; WebDAV PUT RFC-4918 409 compliance; and expired-token rotation
+guidance. See the 0.9.0-0.9.3 stanzas below for detail.
+
+BREAKING (unchanged from 0.9.x; operator-recoverable, documented): remote surfaces
+are OFF by default - enable in Settings -> Services; WebDAV nav/form editing needs
+manage_nav / manage_forms; MCP feedback needs the `feedback` capability. An
+existing site restores each from the manager UI; nothing is auto-migrated by
+design.
+
 ## 0.9.3 - BETA: WebDAV RFC-compliance + token-rotation guidance (2026-07-19)
 
 Two partner-site-agent findings resolved on the 0.9.x beta line, ahead of the
