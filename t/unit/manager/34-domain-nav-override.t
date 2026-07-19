@@ -100,6 +100,9 @@ spit( "$d/lazysite/nav-2.conf", "Sub Home | /welcome\n" );
 my $r = get( $d, 'op', 'role-op', 'action=nav-read&host=sub.example.com' );
 ok( $r->{ok}, 'nav-read for the subdomain' ) or diag encode_json($r);
 is( $r->{nav_file},        'lazysite/nav-2.conf', 'resolves the domain override file' );
+is( $r->{path},            'lazysite/nav-2.conf',
+    'nav-read returns a DOCROOT-RELATIVE path (not the server-absolute one - no filesystem/username leak to token clients)' );
+unlike( $r->{path}, qr{^/|/home/}, 'the returned path is not server-absolute' );
 is( $r->{inherited},       0,                     'the domain nav is its own, not inherited' );
 is( $r->{items}[0]{label}, 'Sub Home',            'reads the override file, not the base' );
 
