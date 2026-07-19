@@ -42,6 +42,7 @@ my %caps = $u =~ /full/  ? (webdav=>1, manage_content=>1, manage_themes=>1, mana
          :                 (webdav=>1, manage_content=>1);
 $caps{manage_nav} = $caps{manage_forms} = 1 if $caps{manage_content};   # SM105/SM106: inherit from content
 $caps{mcp} = 1 unless $u =~ /nomcp/;   # SM126: an MCP client holds the mcp channel cap (a 'nomcp' user is refused by the gate)
+$caps{feedback} = 1 if $u =~ /fb/;     # feedback is OPT-IN: only a granted group holds it (default off)
 print encode_json({ ok => 1, settings => \%caps });
 STUB
 close $sf;
@@ -291,13 +292,22 @@ is( $r->{error}{code}, -32602, 'unknown tool -> invalid params' );
 ( $st, $r ) = mcp( { jsonrpc => '2.0', id => 9, method => 'no/such/method' } );
 is( $r->{error}{code}, -32601, 'unknown method -> method not found' );
 
-# --- SM102: submit_feedback writes a stamped report and requires a summary ---
+# --- SM102: submit_feedback writes a stamped report and requires a summary -----
+# Feedback is OPT-IN (the `feedback` capability, off by default). A holder
+# ('claudefb') succeeds; a non-holder ('claudelim') is refused by the cap gate.
+my $bearer_fb = 'Bearer claudefb:lzs_tok';    # /fb/ -> holds the feedback cap + mcp
 ( $st, $r ) = call( 'submit_feedback',
-    { summary => 'good run', good => 'fast', bad => 'forms tricky', rating => 4 }, $bearer_lim );
-ok( $r->{result}{structuredContent}{ok}, 'submit_feedback succeeds' ) or diag( encode_json($r) );
-like( $r->{result}{structuredContent}{id}, qr/^\d{8}-\d{6}-claudelim\z/, 'feedback id is stamped with the user' );
+    { summary => 'good run', good => 'fast', bad => 'forms tricky', rating => 4 }, $bearer_fb );
+ok( $r->{result}{structuredContent}{ok}, 'submit_feedback succeeds with the feedback cap' ) or diag( encode_json($r) );
+like( $r->{result}{structuredContent}{id}, qr/^\d{8}-\d{6}-claudefb\z/, 'feedback id is stamped with the user' );
 ok( -f "$d/lazysite/feedback/$r->{result}{structuredContent}{id}.json", 'feedback report written under lazysite/feedback/' );
-( $st, $r ) = call( 'submit_feedback', { good => 'no summary given' }, $bearer_lim );
+( $st, $r ) = call( 'submit_feedback', { good => 'no summary given' }, $bearer_fb );
 ok( !$r->{result}{structuredContent}{ok}, 'submit_feedback requires a summary' );
+
+# opt-in gate: an mcp agent WITHOUT the feedback capability cannot submit (and
+# thus cannot spend the operator's disk / notifications) - default is off.
+( $st, $r ) = call( 'submit_feedback', { summary => 'let me in' }, $bearer_lim );
+is( $r->{error}{code}, -32002, 'submit_feedback is refused without the feedback capability (opt-in)' );
+like( $r->{error}{message}, qr/feedback/, 'denial names the feedback capability' );
 
 done_testing();

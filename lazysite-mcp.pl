@@ -673,6 +673,14 @@ my %TOOLS = (
                 context => { type => 'string', description => 'what you were doing when this applied' },
             },
             required => ['summary'], additionalProperties => JSON::PP::false },
+        # Opt-in: feedback is OFF by default (no capability), so an agent cannot
+        # write to lazysite/feedback/ or ping the operator until the operator
+        # grants the `feedback` capability to the agent's group - transparency +
+        # operator control, rather than default-on-and-invisible. The write path
+        # itself is safe (server-generated .json filename, JSON-encoded content -
+        # no traversal, no code execution); the capability bounds who may spend
+        # the operator's disk + notifications.
+        cap => 'feedback',
         run => sub { _submit_feedback( $_[0], $_[1], $_[2] ) },
     },
     create_page => {

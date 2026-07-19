@@ -117,6 +117,10 @@ my %ACTION_INFO = (
         title => 'See operator notifications (the manager bell: new form submissions, requests awaiting a response).',
         unlocks => { ui => ['the notifications bell + unread badge in the manager header'] },
     },
+    feedback => {
+        title => 'Submit agent feedback over MCP. Off by default: the operator opts a group in so an agent may write to lazysite/feedback/ and notify the operator.',
+        unlocks => { mcp => [qw(submit_feedback)] },
+    },
     create_sub_users => {
         title   => 'Create sub-accounts under your own account.',
         unlocks => { ui => ['sub-user creation'] },
