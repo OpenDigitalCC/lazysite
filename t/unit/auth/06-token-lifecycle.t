@@ -110,6 +110,32 @@ sub build_docroot {
     ok( !$bad->{ok}, 'rotation with a stale token is refused' );
 }
 
+# --- rotate with an EXPIRED (but correct) token gives actionable guidance -----
+# 0.9.3: an expired token can't rotate itself; the agent must re-exchange a
+# pairing key. The refusal must SAY so (reason=expired + guidance), not be a bare
+# "Invalid token" the next agent has to diagnose by hand.
+{
+    my $d = build_docroot();
+    users_api( $d, { action => 'add', username => 'agent', password => 'pw' } );
+    my $pk    = users_api( $d, { action => 'pairing-key', username => 'agent' } );
+    my $tok   = run_auth( 'exchange', $d, _body => "username=agent&pairing_key=$pk->{pairing_key}" )->{token};
+    my $basic = 'Basic ' . encode_base64( "agent:$tok", '' );
+
+    # Force the (correct) token past its expiry in the store.
+    my $sf = "$d/lazysite/auth/user-settings.json";
+    my $s  = decode_json( do { open my $f, '<', $sf or die $!; local $/; <$f> } );
+    $s->{agent}{token_expires_at} = time() - 1;
+    open my $w, '>', $sf or die $!;
+    print $w encode_json($s);
+    close $w;
+
+    my $r = run_auth( 'rotate', $d, HTTP_AUTHORIZATION => $basic );
+    ok( !$r->{ok}, 'an expired token cannot rotate' );
+    is( $r->{reason}, 'expired', 'the refusal names reason=expired (not a generic invalid)' );
+    like( $r->{error}, qr/expired/i, 'the body explains the token expired' );
+    like( $r->{error}, qr/pairing key/i, 'and tells the agent to exchange a new pairing key' );
+}
+
 # --- a bogus pairing key is rejected ----------------------------------
 {
     my $d = build_docroot();
