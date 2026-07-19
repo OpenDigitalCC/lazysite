@@ -16,6 +16,22 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.3 - BETA: WebDAV RFC-compliance + token-rotation guidance (2026-07-19)
+
+Two partner-site-agent findings resolved on the 0.9.x beta line, ahead of the
+stable promotion:
+
+- **WebDAV PUT to a missing parent restores the RFC 4918 409** (MKCOL first).
+  0.9.x's SM166 auto-created the parent chain and returned 201 - convenient, but
+  it silently broke both the standard and the publishing brief (which teaches
+  MKCOL-parents-first). The server now matches the brief again; strict WebDAV
+  clients interoperate and a typo'd parent is a 409, not a silent create.
+- **Expired-token rotation gives actionable guidance.** Rotating an expired token
+  returned a bare "Invalid token"; it now returns reason=expired plus a message
+  telling the agent to re-exchange a pairing key. A wrong token stays a generic
+  invalid (the expired signal is only given once the secret has verified, so it
+  leaks nothing).
+
 ## 0.9.2 - BETA: manager-UI grantability + data-loss + info-leak fixes (2026-07-19)
 
 The beta candidate for the 0.9.x security-hardening line, promoting the work
