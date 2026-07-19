@@ -501,6 +501,7 @@ function renderHandlerList() {
       html += '<button class="mg-btn mg-btn-danger" onclick="deleteHandler(\'' + esc(h.id) + '\')">Delete</button>';
       html += '</div></div>';
       html += '<div class="mg-handler-edit-form" id="handler-edit-' + h.id + '" style="display:none"></div>';
+      html += '<div class="mg-submissions-panel" id="submissions-panel-' + esc(h.id) + '" style="display:none"></div>';
       html += '</div>';
     });
 
@@ -544,11 +545,12 @@ function checkSubmissionsDir(handler) {
     .then(function(data) {
       var html;
       if (data.ok) {
-        // Directory exists: link into the file browser. The files page
-        // reads its current directory from location.hash, so use # (not
-        // a query param) for the path.
-        html = '<a href="/manager/files#' + encodeURIComponent(path)
-             + '" class="mg-btn mg-btn-sm">View submissions</a>';
+        // SM182: open an inline, escaped submissions TABLE. (The raw .jsonl
+        // store lives in the reserved lazysite/ tree and can't be opened in the
+        // file editor, so we render it here instead of deep-linking to Files.)
+        html = '<button class="mg-btn mg-btn-sm" onclick="toggleSubmissions('
+             + JSON.stringify(handler.id) + ',' + JSON.stringify(path)
+             + ')">View submissions</button>';
       } else {
         html = '<span style="font-size:0.8rem;color:var(--mg-text-light)">No submissions yet</span>';
       }
@@ -558,6 +560,93 @@ function checkSubmissionsDir(handler) {
       slots.forEach(function(el) {
         el.innerHTML = '<span style="font-size:0.8rem;color:var(--mg-text-light)">No submissions yet</span>';
       });
+    });
+}
+
+// --- SM182: inline submissions viewer ---------------------------------------
+// The raw .jsonl store lives in the reserved lazysite/ tree, so it can't be
+// opened in the file editor. Render it here as a table instead. Every value is
+// user-supplied, so EVERY cell/header/label goes through esc() - the server
+// returns values verbatim (row-capped, parsed) and the client escapes.
+
+function toggleSubmissions(handlerId, dirPath) {
+  var panel = document.getElementById('submissions-panel-' + handlerId);
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  panel.innerHTML = '<p style="color:var(--mg-text-light)">Loading submissions&hellip;</p>';
+  fetch(API + '?action=list&path=' + encodeURIComponent(dirPath))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var files = (data.ok && data.entries ? data.entries : []).filter(function(f) {
+        return f.type === 'file' && /\.jsonl$/.test(f.name || '');
+      });
+      if (!files.length) {
+        panel.innerHTML = '<p style="color:var(--mg-text-light)">No submissions yet.</p>';
+        return;
+      }
+      var html = '';
+      if (files.length > 1) {
+        html += '<div class="mg-submissions-forms" style="margin-bottom:0.5rem">';
+        files.forEach(function(f) {
+          var form = (f.name || '').replace(/\.jsonl$/, '');
+          html += '<button class="mg-btn mg-btn-sm" onclick="showSubmissionTable('
+               + JSON.stringify(handlerId) + ',' + JSON.stringify(f.path) + ','
+               + JSON.stringify(form) + ')">' + esc(form) + '</button> ';
+        });
+        html += '</div>';
+      }
+      html += '<div id="submission-table-' + esc(handlerId) + '"></div>';
+      panel.innerHTML = html;
+      showSubmissionTable(handlerId, files[0].path,
+        (files[0].name || '').replace(/\.jsonl$/, ''));
+    })
+    .catch(function() {
+      panel.innerHTML = '<p style="color:var(--mg-danger,#c00)">Could not list submissions.</p>';
+    });
+}
+
+function showSubmissionTable(handlerId, filePath, formName) {
+  var out = document.getElementById('submission-table-' + handlerId);
+  if (!out) return;
+  out.innerHTML = '<p style="color:var(--mg-text-light)">Loading ' + esc(formName) + '&hellip;</p>';
+  fetch(API + '?action=form-submissions&file=' + encodeURIComponent(filePath))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) {
+        out.innerHTML = '<p style="color:var(--mg-danger,#c00)">'
+          + esc(d.error || 'Could not read submissions') + '</p>';
+        return;
+      }
+      var cols = d.columns || [];
+      if (!d.rows || !d.rows.length || !cols.length) {
+        out.innerHTML = '<p style="color:var(--mg-text-light)">No submissions in '
+          + esc(formName) + ' yet.</p>';
+        return;
+      }
+      var h = '<div style="overflow-x:auto"><table class="mg-table mg-submissions-table"><thead><tr>';
+      cols.forEach(function(c) { h += '<th>' + esc(c) + '</th>'; });
+      h += '</tr></thead><tbody>';
+      d.rows.forEach(function(row) {
+        h += '<tr>';
+        cols.forEach(function(c) {
+          var v = row[c];
+          h += '<td>' + esc(v == null ? '' : v) + '</td>';
+        });
+        h += '</tr>';
+      });
+      h += '</tbody></table></div>';
+      var note = 'Showing ' + d.shown + ' of ' + d.total
+        + ' submission' + (d.total === 1 ? '' : 's');
+      if (d.truncated) note += ' (most recent ' + d.shown + ')';
+      if (d.malformed) note += '; ' + d.malformed + ' unreadable line'
+        + (d.malformed === 1 ? '' : 's') + ' skipped';
+      h += '<p style="font-size:0.8rem;color:var(--mg-text-light);margin-top:0.4rem">'
+        + esc(note) + '</p>';
+      out.innerHTML = h;
+    })
+    .catch(function() {
+      out.innerHTML = '<p style="color:var(--mg-danger,#c00)">Could not read submissions.</p>';
     });
 }
 

@@ -37,7 +37,8 @@ use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_
     check_upload_rate is_editable_text parse_multipart_body);
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action action_handler_list
-    action_handler_save action_handler_delete action_form_targets_read action_form_targets_save);
+    action_handler_save action_handler_delete action_form_targets_read action_form_targets_save
+    action_form_submissions);
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
@@ -410,6 +411,7 @@ if ( !$token_auth ) {
         'nav-save'                => 'manage_nav',
         'handler-save'            => 'manage_forms', 'handler-delete' => 'manage_forms',
         'form-targets-save'       => 'manage_forms',
+        'form-submissions'        => 'manage_forms',   # SM182: read PII submissions (GET)
         'plugin-enable' => 'manage_config', 'plugin-disable'   => 'manage_config',
         'plugin-read'   => 'manage_config', 'plugin-save'      => 'manage_config',
         'plugin-action' => 'manage_config', 'analyse_visitors' => 'analytics',
@@ -855,6 +857,9 @@ elsif ( $action eq 'handler-delete' ) {
 elsif ( $action eq 'form-targets-read' ) {
     $result = action_form_targets_read( $params{form} );
 }
+elsif ( $action eq 'form-submissions' ) {
+    $result = action_form_submissions( $params{file} );
+}
 elsif ( $action eq 'form-targets-save' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_form_targets_save( $params{form}, $req->{targets} // [] );
@@ -904,7 +909,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
         cache-invalidate nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
-        handler-list plugin-list plugin-read form-targets-read artifact-manifest
+        handler-list plugin-list plugin-read form-targets-read form-submissions artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
         backup-list sessions-list keys-list git-status git-history git-show );
 

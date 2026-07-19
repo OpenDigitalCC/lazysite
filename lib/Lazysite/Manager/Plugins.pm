@@ -18,7 +18,8 @@ our @EXPORT_OK = qw(
     action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action
     action_handler_list action_handler_save action_handler_delete
-    action_form_targets_read action_form_targets_save resolve_plugin_script
+    action_form_targets_read action_form_targets_save action_form_submissions
+    resolve_plugin_script
 );
 
 our $DOCROOT;
@@ -642,6 +643,65 @@ sub action_form_targets_save {
         unless $wok;
 
     return { ok => 1, form => $form_name };
+}
+
+# SM182: read a form-submissions store (<dir>/<form>.jsonl, one JSON record per
+# line, as written by the form-handler local-storage target) and return it as a
+# STRUCTURED table - columns + rows - so the manager can render it safely.
+# Submissions are user-supplied, so values are returned verbatim (stringified)
+# and the CLIENT escapes every cell; nothing is interpolated here. The store is a
+# reserved lazysite/ file the raw editor refuses, which is why this dedicated,
+# read-only, capability-gated view exists. Rows are capped (most recent) so a
+# large store never floods the browser.
+sub action_form_submissions {
+    my ($file) = @_;
+    $file //= '';
+    $file =~ s{^/+}{};
+    # Confine: a .jsonl file, no traversal, resolving under the docroot.
+    return { ok => 0, error => 'Invalid submissions file' }
+        unless $file =~ /\.jsonl\z/ && $file !~ m{(?:^|/)\.\.(?:/|$)};
+    my $abs  = "$DOCROOT/$file";
+    my $real = realpath( -e $abs ? $abs : dirname($abs) );
+    return { ok => 0, error => 'Invalid submissions file' }
+        unless defined $real
+        && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 );
+    return { ok => 1, file => $file, columns => [], rows => [], total => 0, shown => 0 }
+        unless -f $abs;
+
+    open my $fh, '<:utf8', $abs
+        or return { ok => 0, error => 'Cannot read submissions' };
+    my $CAP = 500;
+    my ( @rows, @cols, %seen, $total, $malformed );
+    while ( my $line = <$fh> ) {
+        $line =~ s/\s+\z//;
+        next unless length $line;
+        $total++;
+        my $rec = eval { decode_json($line) };
+        if ( ref $rec ne 'HASH' ) { $malformed++; next }
+        push @cols, $_ for grep { !$seen{$_}++ } keys %$rec;
+        push @rows, $rec;
+    }
+    close $fh;
+
+    @rows = @rows[ -$CAP .. -1 ] if @rows > $CAP;    # keep the most recent
+    # Stringify every value (a nested ref is JSON-encoded); the client escapes.
+    my @out = map {
+        my $r = $_;
+        +{ map { $_ => ( !defined $r->{$_} ? ''
+                : ref $r->{$_} ? encode_json( $r->{$_} )
+                : "$r->{$_}" ) } @cols }
+    } @rows;
+
+    return {
+        ok        => 1,
+        file      => $file,
+        columns   => \@cols,
+        rows      => \@out,
+        total     => ( $total   || 0 ),
+        shown     => scalar(@out),
+        truncated => ( $total > $CAP ? 1 : 0 ),
+        malformed => ( $malformed || 0 ),
+    };
 }
 
 1;

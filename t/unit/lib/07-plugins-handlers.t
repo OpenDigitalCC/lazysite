@@ -12,7 +12,7 @@ use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Plugins qw(
     action_plugin_enable action_plugin_disable action_handler_save
     action_handler_list action_handler_delete action_form_targets_save
-    action_form_targets_read resolve_plugin_script);
+    action_form_targets_read action_form_submissions resolve_plugin_script);
 
 # SM152: a real install layout - base holds plugins/, docroot is base/public_html
 # - so the plugin registry (base/plugins/*.pl + core) resolves. enable/disable
@@ -123,5 +123,40 @@ ok( !defined resolve_plugin_script('sample-plugin.pl'),
 ok( !defined resolve_plugin_script('../sample-plugin.pl'),
     'a traversal path is NOT resolvable' );
 unlink "$base/sample-plugin.pl";
+
+# --- SM182: read a submissions store as a structured table -------------------
+{
+    make_path("$d/lazysite/forms/submissions");
+    my $sub = "$d/lazysite/forms/submissions/contact.jsonl";
+    open my $sf, '>', $sub or die $!;
+    # Mixed keys, a nested value, an XSS-y value (must survive verbatim for the
+    # client to escape), a blank line, and a malformed line.
+    print $sf qq({"ts":"2026-07-19","name":"Jo","msg":"hi"}\n);
+    print $sf qq({"ts":"2026-07-19","name":"<script>x</script>","tags":["a","b"]}\n);
+    print $sf qq(\n);
+    print $sf qq(not json\n);
+    close $sf;
+
+    my $r = action_form_submissions('lazysite/forms/submissions/contact.jsonl');
+    ok( $r->{ok}, 'form-submissions reads the store' );
+    is( $r->{total},     3, 'counts non-blank records (incl. the malformed one)' );
+    is( $r->{malformed}, 1, 'reports the malformed line' );
+    is( $r->{shown},     2, 'returns the 2 parseable rows' );
+    is_deeply( [ sort @{ $r->{columns} } ], [qw(msg name tags ts)],
+        'columns are the union of all record keys' );
+    is( $r->{rows}[1]{name}, '<script>x</script>',
+        'a hostile value is returned VERBATIM (server does not escape; the client does)' );
+    is( $r->{rows}[1]{tags}, '["a","b"]', 'a nested value is JSON-stringified' );
+
+    # Path confinement: traversal + non-.jsonl are refused.
+    ok( !action_form_submissions('lazysite/forms/submissions/../../auth/.secret')->{ok},
+        'a traversal path is refused' );
+    ok( !action_form_submissions('lazysite/forms/submissions/contact.txt')->{ok},
+        'a non-.jsonl path is refused' );
+
+    # A missing file is an empty table, not an error (form with no submissions).
+    my $empty = action_form_submissions('lazysite/forms/submissions/none.jsonl');
+    ok( $empty->{ok} && $empty->{total} == 0, 'a form with no submissions yields an empty table' );
+}
 
 done_testing();

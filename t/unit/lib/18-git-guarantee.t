@@ -129,6 +129,7 @@ my %EXEMPT = (
         . 'and snapshots before any apply)',
     'Plugins::action_handler_list'      => 'read-only',
     'Plugins::action_form_targets_read' => 'read-only',
+    'Plugins::action_form_submissions'  => 'read-only',
     'Plugins::action_plugin_enable'     => 'rewrites the plugins: list in lazysite.conf '
         . 'without a commit (pre-existing; folded into the next capture sweep)',
     'Plugins::action_plugin_disable' => 'as action_plugin_enable',
