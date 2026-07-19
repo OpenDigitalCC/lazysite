@@ -608,8 +608,23 @@ sub action_form_targets_save {
     my $dir  = dirname($path);
     make_path($dir) unless -d $dir;
 
+    # DATA-LOSS GUARD: the manager UI ("Edit targets") only represents HANDLER
+    # targets - it collapses each target to its handler id. A form may also carry
+    # LEGACY INLINE targets (type/url/format/path) authored by hand or over
+    # WebDAV, which the UI cannot show and would therefore erase on save. Preserve
+    # any inline target already in the file, UNLESS this submission itself carries
+    # inline targets (a future UI that manages them). The manager only ever
+    # rewrites the handler set; inline targets survive verbatim.
+    my $submission_has_inline = grep { !$_->{handler} } @$targets;
+    my @preserved_inline;
+    unless ($submission_has_inline) {
+        my $existing = action_form_targets_read($form_name);
+        @preserved_inline = grep { !$_->{handler} } @{ $existing->{targets} || [] }
+            if $existing->{ok};
+    }
+
     my $content = "targets:\n";
-    for my $t (@$targets) {
+    for my $t ( @$targets, @preserved_inline ) {
         if ( $t->{handler} ) {
             $content .= "  - handler: $t->{handler}\n";
         }
