@@ -16,12 +16,22 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
-## 0.9.0 - STABLE: cross-plane permission consistency + service killswitches (2026-07-19)
+## 0.9.0 - EDGE: cross-plane permission consistency + service killswitches (2026-07-19)
 
 A security-hardening release building on 0.8.0. It fixes a reported token-path
 regression, aligns capability enforcement across all access planes, and puts
-every remote surface behind an operator killswitch (default off). Stable
-customers should upgrade; note the BREAKING changes below.
+every remote surface behind an operator killswitch (default off). Cut to the
+EDGE channel first: it carries BREAKING changes (below) and a manager-UI
+migration that must bed in on edge/beta before promotion to stable.
+
+Config page save migrated to the control API (SM042)
+: the site-settings page previously persisted through a legacy "processor as a
+  pseudo-plugin" path (plugin-save), which silently dropped any key not in that
+  plugin's schema - the reason the new service-killswitch toggles rendered but
+  never saved. The whole page now loads via config-read and saves each key via
+  config-set (validated + audited per key), the pseudo-plugin schema is retired,
+  and a parity guarantee test fails the build if the page's keys ever drift from
+  the API's read/write sets again.
 
 BREAKING - opt-in required after upgrade
 : Every network surface beyond the public page render is now OFF by default and
