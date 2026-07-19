@@ -1791,9 +1791,14 @@ sub action_pages {
 }
 
 sub action_config_read {
+    # SM042: the Config page loads via config-read (not the retired lazysite
+    # pseudo-plugin), so this subset must surface EVERY key the page shows -
+    # settable ones and the readonly_with_link ones (layout/theme/layouts_repo,
+    # managed on Appearance). Kept in lock-step with config.md SITE_SCHEMA and
+    # config-set's allow-list by t/lint/18-config-key-parity.t.
     my %out = map { $_ => '' }
-        qw(site_name site_url layout theme nav_file webdav_enabled manager
-        search_default manager_path canonical_ip
+        qw(site_name site_url layout theme layouts_repo nav_file webdav_enabled
+        manager manager_path search_default update_channel canonical_ip
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     if ( open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $line = <$fh> ) {
@@ -1876,16 +1881,26 @@ sub action_config_set {
     # SM122: a small, injection-safe subset settable via the API (with manage_config).
     my %allow = map { $_ => 1 }
         qw(site_name site_url search_default webdav_enabled layout theme nav_file
-        update_channel canonical_ip
+        update_channel canonical_ip manager manager_path
         mcp_enabled oauth_enabled control_api_enabled token_exchange_enabled);
     $key = '' unless defined $key;
     return { ok => 0, error => "Config key '$key' is not settable via the API" }
         unless $allow{$key};
-    # 0.9.0 service killswitches: enabled/disabled, same shape as webdav_enabled.
+    # 0.9.0 service killswitches + the manager toggle: enabled/disabled, same
+    # shape as webdav_enabled (SM042: the whole site-settings page now saves via
+    # config-set, not the lazysite pseudo-plugin, so config-set owns their rules).
     if ( $key =~ /^(?:mcp|oauth|control_api|token_exchange)_enabled$/
         && defined $value && $value !~ /^(?:enabled|disabled)$/ )
     {
         return { ok => 0, error => "$key must be 'enabled' or 'disabled'" };
+    }
+    if ( $key eq 'manager' && defined $value && $value !~ /^(?:enabled|disabled)$/ ) {
+        return { ok => 0, error => "manager must be 'enabled' or 'disabled'" };
+    }
+    if ( $key eq 'manager_path' && defined $value && length $value
+        && $value !~ m{^/[A-Za-z0-9_./-]*$} )
+    {
+        return { ok => 0, error => 'manager_path must be an absolute URL path (e.g. /manager)' };
     }
     # SM156: canonical_ip is a comma list of this server's PUBLIC IPs (for the
     # domain-check "points here" check behind a proxy/NAT). Validate as IPv4/IPv6

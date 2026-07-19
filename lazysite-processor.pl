@@ -24,71 +24,20 @@ my $LOG_COMPONENT = 'processor';
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
     require JSON::PP;
-    # SM110: the domain-alias keys (alias_hosts, alias.<host>.<key>) are
-    # DELIBERATELY absent from config_keys and config_schema below.
-    # Aliases are operator conf-file territory in phase 1 - not editable
-    # (or listed) through the manager UI / control API.
+    # SM042: the processor stays a registered CORE plugin (the registry probes
+    # lazysite-processor.pl + lazysite-auth.pl via --describe), but it no longer
+    # carries the site-config schema. Site settings are now read and written
+    # directly through the control API (config-read / config-set); config.md's
+    # SITE_SCHEMA is the sole form definition, and config-set's allow-list is the
+    # sole write gate. The old config_keys / config_schema here (mirrored by
+    # config.md, a standing drift hazard) are retired.
     print JSON::PP::encode_json( {
             id   => 'lazysite',
             name => 'Site Configuration',
-            description => 'Core lazysite.conf settings: site identity, layout, theme, search, and manager',
+            description => 'Core lazysite.conf settings, managed on the Config page via the control API (config-read / config-set).',
             version     => '1.0',
             config_file => '',
-            # SM044: layouts_repo is in config_keys so action_plugin_save
-            # treats it as write-allowed for the site plugin.
-            #
-            # SM068: layouts_repo now also appears in config_schema as
-            # a readonly_with_link entry — the operator sees its current
-            # value on Config with a link to /manager/themes where it's
-            # editable. SITE_SCHEMA in config.md duplicates this; they
-            # must stay in sync until SM042 unifies them.
-            config_keys => [ qw(site_name site_url layout theme layouts_repo
-                    nav_file search_default webdav_enabled
-                    manager manager_path update_channel) ],
-            config_schema => [
-                { key => 'site_name', label => 'Site name', type => 'text',
-                    default => 'My Site', required => JSON::PP::true() },
-                { key => 'site_url', label => 'Site URL', type => 'text',
-                    default => '${REQUEST_SCHEME}://${SERVER_NAME}' },
-                # SM044: dropdown_layouts / dropdown_themes_for_active_layout
-                # are dynamically-populated selects rendered by config.md's
-                # JS. Options come from manager-api endpoints
-                # (layouts-available / themes-for-layout). The 'text' fallback
-                # in renderSiteForm keeps these sensible on older UIs.
-                # The active layout/theme switcher lives on /manager/appearance;
-                # Config shows them read-only with a link there (was inline
-                # dropdowns here pre-Appearance).
-                { key => 'layout', label => 'Active layout',
-                    type       => 'readonly_with_link', default => '',
-                    link_href  => '/manager/appearance',
-                    link_label => 'Manage on Appearance' },
-                { key => 'theme', label => 'Active theme',
-                    type       => 'readonly_with_link', default => '',
-                    link_href  => '/manager/appearance',
-                    link_label => 'Manage on Appearance' },
-                { key => 'layouts_repo', label => 'Layouts repo',
-                    type       => 'readonly_with_link', default => '',
-                    link_href  => '/manager/appearance',
-                    link_label => 'Edit on Appearance' },
-                { key => 'nav_file', label => 'Navigation file', type => 'text',
-                    default => 'lazysite/nav.conf' },
-                { key => 'search_default', label => 'Pages searchable by default', type => 'select',
-                    options => [ 'true', 'false' ], default => 'true' },
-                { key => 'manager', label => 'Manager', type => 'select',
-                    options => [ 'disabled', 'enabled' ], default => 'disabled' },
-                { key => 'manager_path', label => 'Manager URL path', type => 'text',
-                    default   => '/manager',
-                    show_when => { key => 'manager', value => ['enabled'] } },
-                { key => 'webdav_enabled', label => 'WebDAV publishing', type => 'select',
-                    options => [ 'disabled', 'enabled' ], default => 'disabled' },
-                { key => 'update_channel', label => 'Update channel', type => 'select',
-                    options => [ 'all', 'stable' ], default => 'all',
-                    note => 'Which lazysite upgrades this site accepts. "all" installs '
-                        . 'every release (default); "stable" refuses non-stable (edge) '
-                        . 'upgrades - a deploy of an edge build is skipped and logged in '
-                        . 'the audit trail. Use "stable" for customer sites.' },
-            ],
-            actions => [],
+            actions     => [],
     } );
     exit 0;
 }

@@ -13,14 +13,12 @@ search: false
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
-var SITE_PLUGIN_ID = 'lazysite';
-// SM028: script path is discovered from plugin-list (processor exposes
-// --describe with id="lazysite") rather than hardcoded, so the manager
-// keeps working if the processor is ever moved.
-var sitePluginScript = null;
 
-// NOTE: this mirrors lazysite-processor.pl's config_schema.
-// Keep them in sync until SM042 unifies them.
+// SM042: SITE_SCHEMA is the SOLE source of truth for the site-settings form.
+// (It no longer mirrors the processor's config_schema - that pseudo-plugin path
+// is retired. Every settable key here MUST also be in the control API's
+// config-set allow-list and config-read subset; the guarantee test
+// t/lint/18-config-key-parity.t fails the build if they drift.)
 var SITE_SCHEMA = [
   { key: 'site_name',      label: 'Site name',             type: 'text',   required: true,
     default: 'My Site', group: 'Identity' },
@@ -73,17 +71,16 @@ function esc(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/<
 
 // --- Site settings ---
 
+// Snapshot of the last-loaded values, so save only writes what CHANGED.
+var loadedValues = {};
+
 function loadSiteSettings() {
-  if (!sitePluginScript) return;
-  // SM044: fetch settings and the layouts-available list in parallel,
-  // so the layout dropdown can render with real options on first paint.
-  // Theme dropdown is populated afterwards once we know the layout.
-  var readPromise = fetch(
-    API + '?action=plugin-read&plugin=' + encodeURIComponent(SITE_PLUGIN_ID), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ script: sitePluginScript })
-    }
-  ).then(function(r) { return r.json(); });
+  // SM042: site settings are read via the control API's config-read (a safe,
+  // per-key subset) - NOT the lazysite pseudo-plugin. SM044: fetch settings and
+  // the layouts-available list in parallel so the layout dropdown renders with
+  // real options on first paint; the theme dropdown follows once the layout is known.
+  var readPromise = fetch(API + '?action=config-read')
+    .then(function(r) { return r.json(); });
 
   var layoutsPromise = fetch(API + '?action=layouts-available')
     .then(function(r) { return r.json(); });
@@ -104,7 +101,8 @@ function loadSiteSettings() {
         ? layoutsResp.layouts
         : [];
 
-      var values = data.values || {};
+      var values = data.config || {};
+      loadedValues = values;
       container.innerHTML = renderSiteForm(values);
       applyShowWhen(container);
       // Now that layout is known, populate theme dropdown for it.
@@ -299,66 +297,67 @@ function saveSiteSettings_go(values) {
   var status = document.getElementById('site-status');
   status.className = 'mg-status';
   status.textContent = 'Saving...';
-  fetch(API + '?action=plugin-save&plugin=' + encodeURIComponent(SITE_PLUGIN_ID), {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ script: sitePluginScript, values: values })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    if (data.ok) {
-      mgClearWarning();
-      clearSiteDirty();
-      status.className = 'mg-status mg-status-success';
-      status.textContent = 'Saved.';
-      setTimeout(function() { status.textContent = ''; status.className = 'mg-status'; }, 3000);
-    } else {
-      mgShowWarning('Error: ' + (data.error || 'unknown'), true);
-      status.textContent = '';
-      status.className = 'mg-status';
+
+  // SM042: the whole site-settings page now persists via the control API's
+  // per-key config-set (each key validated + audited by the API) - NOT the
+  // lazysite pseudo-plugin's plugin-save. Only CHANGED, settable keys are
+  // written; readonly_with_link fields (layout/theme/layouts_repo, managed on
+  // Appearance) are never sent. CSRF is added by the manager's fetch wrapper.
+  var settable = {};
+  SITE_SCHEMA.forEach(function(f) { if (f.type !== 'readonly_with_link') settable[f.key] = true; });
+
+  var writes = [];
+  Object.keys(values).forEach(function(k) {
+    if (!settable[k]) return;
+    var was = (loadedValues[k] == null ? '' : String(loadedValues[k]));
+    if (String(values[k]) === was) return;   // unchanged - skip
+    writes.push(
+      fetch(API + '?action=config-set', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: k, value: values[k] })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { return { key: k, ok: !!d.ok, error: d.error }; })
+    );
+  });
+
+  if (!writes.length) {
+    clearSiteDirty();
+    status.className = 'mg-status mg-status-success';
+    status.textContent = 'No changes.';
+    setTimeout(function() { status.textContent = ''; status.className = 'mg-status'; }, 3000);
+    return;
+  }
+
+  Promise.all(writes).then(function(results) {
+    var failed = results.filter(function(r) { return !r.ok; });
+    if (failed.length) {
+      mgShowWarning('Could not save ' + failed.map(function(r) { return r.key; }).join(', ')
+        + ': ' + (failed[0].error || 'unknown'), true);
+      status.textContent = ''; status.className = 'mg-status';
+      return;
     }
-  })
-  .catch(function(e) {
+    // Advance the snapshot so a re-save doesn't rewrite unchanged keys.
+    results.forEach(function(r) { loadedValues[r.key] = values[r.key]; });
+    mgClearWarning();
+    clearSiteDirty();
+    status.className = 'mg-status mg-status-success';
+    status.textContent = 'Saved.';
+    setTimeout(function() { status.textContent = ''; status.className = 'mg-status'; }, 3000);
+  }).catch(function(e) {
     mgShowWarning('Error: ' + e.message, true);
-    status.textContent = '';
-    status.className = 'mg-status';
+    status.textContent = ''; status.className = 'mg-status';
   });
 }
 
-// --- Plugin registry ---
+// --- Load ---
 
-// Discover the site-config plugin (the processor, id 'lazysite') to drive the
-// settings form. Plugin enable/disable lives on the Plugin Manager page now.
-function loadSiteConfig() {
-  fetch(API + '?action=plugin-list')
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var siteContainer = document.getElementById('site-settings');
-      if (!data.ok) {
-        mgShowWarning(data.error || 'Failed to load configuration', true);
-        siteContainer.textContent = '';
-        return;
-      }
-      mgClearWarning();
-      var plugins = data.plugins || [];
-      var core;
-      for (var i = 0; i < plugins.length; i++) {
-        if (plugins[i].id === SITE_PLUGIN_ID) { core = plugins[i]; break; }
-      }
-      if (core) {
-        sitePluginScript = core._script;
-        loadSiteSettings();
-      } else {
-        siteContainer.textContent = '';
-        mgShowWarning('Site configuration plugin not discovered.', true);
-      }
-    })
-    .catch(function(e) {
-      mgShowWarning('Error: ' + e.message, true);
-      document.getElementById('site-settings').textContent = '';
-    });
-}
-
-loadSiteConfig();
+// SM042: site settings load (config-read) and save (per-key config-set) go
+// straight through the control API. The old indirection - discovering the
+// processor as a pseudo-plugin (id 'lazysite') via plugin-list, then
+// plugin-read/plugin-save - is retired; SITE_SCHEMA below is now the sole source
+// of truth for the form, and config-set's allow-list is the sole gate on writes.
+loadSiteSettings();
 </script>
 
 <!-- config styles consolidated into manager.css (SM109 phase 3) -->

@@ -50,40 +50,22 @@ sub write_theme {
 
 # --- 1. Processor --describe shape (SM044 + SM068) ---
 
-subtest 'processor --describe includes SM044 + SM068 fields' => sub {
-    my $out = qx($^X \Q$root/lazysite-processor.pl\E --describe 2>/dev/null);
+subtest 'site-config schema retired from the processor (SM042)' => sub {
+    # SM042: the site-config schema is no longer carried by the processor's
+    # --describe pseudo-plugin. config.md's SITE_SCHEMA is the sole form
+    # definition; the page loads via config-read and saves via config-set. The
+    # active layout/theme/layouts_repo live on /manager/appearance and are only
+    # READ here (config-read surfaces layout+theme for the theme dropdown).
+    my $out  = qx($^X \Q$root/lazysite-processor.pl\E --describe 2>/dev/null);
     my $desc = decode_json($out);
+    ok( !exists $desc->{config_schema} && !exists $desc->{config_keys},
+        'processor --describe no longer carries the retired config schema/keys' );
+    is( $desc->{id}, 'lazysite', 'processor is still a valid core plugin (id present)' );
 
-    ok( ( grep { $_ eq 'layouts_repo' } @{ $desc->{config_keys} } ),
-        'layouts_repo in config_keys' );
-
-    my ($layout_entry) = grep { $_->{key} eq 'layout' }
-        @{ $desc->{config_schema} };
-    # The active layout/theme switcher moved to /manager/appearance; Config
-    # now shows both read-only with a link there.
-    is( $layout_entry->{type}, 'readonly_with_link',
-        'layout entry is readonly_with_link (managed on Appearance)' );
-    is( $layout_entry->{link_href}, '/manager/appearance',
-        'layout entry links to Appearance' );
-
-    my ($theme_entry) = grep { $_->{key} eq 'theme' }
-        @{ $desc->{config_schema} };
-    is( $theme_entry->{type}, 'readonly_with_link',
-        'theme entry is readonly_with_link (managed on Appearance)' );
-    is( $theme_entry->{link_href}, '/manager/appearance',
-        'theme entry links to Appearance' );
-
-    # SM068: layouts_repo is now displayed on Config as a
-    # read-only entry linking to /manager/themes.
-    my ($lr_entry) = grep { $_->{key} eq 'layouts_repo' }
-        @{ $desc->{config_schema} };
-    ok( $lr_entry, 'layouts_repo now IN config_schema' );
-    is( $lr_entry->{type}, 'readonly_with_link',
-        'layouts_repo is readonly_with_link' );
-    is( $lr_entry->{link_href}, '/manager/appearance',
-        'layouts_repo link points at /manager/appearance' );
-    ok( $lr_entry->{link_label},
-        'layouts_repo has a link_label for the UI button' );
+    my $api = do { open my $f, '<', "$root/lazysite-manager-api.pl" or die $!; local $/; <$f> };
+    my ($read_blk) = $api =~ /sub action_config_read \{.*?qw\((.*?)\)/s;
+    like( $read_blk // '', qr/\blayout\b/, 'config-read surfaces layout (page theme dropdown)' );
+    like( $read_blk // '', qr/\btheme\b/,  'config-read surfaces theme' );
 };
 
 # --- Load the manager-api after setting DOCROOT ---

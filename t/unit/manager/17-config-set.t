@@ -127,6 +127,32 @@ ok( !$cipbad->{ok}, 'a hostname is refused as canonical_ip (IP literals only)' )
     is( $cr->{config}{oauth_enabled}, '', 'an unset service reads as blank (defaults off)' );
 }
 
+# SM042: the whole site-settings page saves via config-set now, so manager +
+# manager_path (previously written by the pseudo-plugin's plugin-save) are
+# settable here too.
+{
+    my $m = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+        HTTP_AUTHORIZATION => basic( 'p', $tok ),
+        body => encode_json( { key => 'manager', value => 'enabled' } ) );
+    ok( $m->{ok}, 'config-set manager=enabled succeeds' );
+    like( conf($d), qr/^manager: enabled$/m, 'manager written to lazysite.conf' );
+
+    my $mp = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+        HTTP_AUTHORIZATION => basic( 'p', $tok ),
+        body => encode_json( { key => 'manager_path', value => '/admin' } ) );
+    ok( $mp->{ok}, 'config-set manager_path=/admin succeeds' );
+
+    my $bad = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+        HTTP_AUTHORIZATION => basic( 'p', $tok ),
+        body => encode_json( { key => 'manager_path', value => 'no-leading-slash' } ) );
+    ok( !$bad->{ok}, 'a manager_path without a leading slash is refused' );
+
+    my $bm = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
+        HTTP_AUTHORIZATION => basic( 'p', $tok ),
+        body => encode_json( { key => 'manager', value => 'maybe' } ) );
+    ok( !$bm->{ok}, 'an invalid manager value is refused (enabled/disabled only)' );
+}
+
 my $cipclear = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=config-set',
     HTTP_AUTHORIZATION => basic( 'p', $tok ),
     body => encode_json( { key => 'canonical_ip', value => '' } ) );
