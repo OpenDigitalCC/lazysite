@@ -16,6 +16,36 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.8.1 - STABLE: token-path fix + SSRF guard + tenant-token isolation (2026-07-19)
+
+A security and correctness patch on 0.8.0. Stable customers should upgrade.
+
+Token-path regression fixed (reported on 0.8.0)
+: the SM127 "manager accounts are interactive-only" gate wrongly refused two
+  things on the control-API and MCP token paths. (1) Introspection - whoami and
+  describe-capabilities were refused for any manager-linked account, because the
+  gate ran ahead of the introspection exemption (contradicting the SM126/SM072
+  contract that introspection stays open). (2) Agent accounts - it keyed on the
+  group-granted `ui` capability alone, so an account with that capability but its
+  interactive login DISABLED (`ui:false`) - a deliberate agent account - was
+  refused despite holding api/mcp + the relevant action capability. The gate now
+  blocks only accounts that can ACTUALLY use the interactive UI (`manager_ui` AND
+  login enabled) and never blocks introspection, restoring the documented
+  capability-based token contract. A normal interactive manager is still refused
+  on the remote channels.
+
+SSRF guard on domain-check
+: `domain-check` (manage_domains) opens outbound TLS + HTTPS probes to a
+  caller-influenced host; it now refuses them unless every RESOLVED address is
+  public - blocking loopback, RFC1918, the cloud metadata endpoint
+  (169.254.169.254), CGNAT, and IPv6 ULA/link-local, and closing the
+  DNS-rebinding and IP-literal/localhost paths. `domain-preview` was unaffected
+  (it renders server-side, no outbound request).
+
+Tenant-token isolation
+: pinned by test - a control-API token is a per-site credential and cannot
+  authenticate against another site's docroot.
+
 ## 0.8.0 - STABLE: multilingual + domain access + cache correctness, certified (2026-07-18)
 
 The second stable release, cut from the 0.7.28 beta on completion of the

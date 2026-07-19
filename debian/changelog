@@ -1,3 +1,22 @@
+lazysite (0.8.1-1) unstable; urgency=high
+
+  * SECURITY/FIX: SM127 token-path regression (reported on 0.8.0). The
+    manager-UI-remote gate wrongly refused introspection (whoami /
+    describe-capabilities) for any manager-linked account, and refused agent
+    accounts (an account with the manager `ui` capability from a group but
+    interactive login disabled, ui:false) despite them holding api/mcp + the
+    action capability. The gate now blocks only accounts that can actually use
+    the interactive UI (manager_ui AND login enabled) and never blocks
+    introspection. Fixed on both the control-API and MCP channels.
+  * SECURITY: SSRF guard on domain-check. Its outbound TLS/HTTPS probes are
+    refused unless every RESOLVED address is public (blocks loopback, RFC1918,
+    169.254.169.254 metadata, CGNAT, IPv6 ULA/link-local; closes DNS rebinding
+    and IP-literal/localhost). domain-preview unaffected.
+  * Tenant-token isolation pinned by test (a token is per-site; it cannot
+    authenticate against another site's docroot).
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sun, 19 Jul 2026 08:30:00 +0000
+
 lazysite (0.8.0-1) unstable; urgency=medium
 
   * STABLE: second stable release, cut from the 0.7.28 beta on completion of the
