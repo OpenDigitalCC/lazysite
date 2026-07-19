@@ -1,3 +1,14 @@
+lazysite (0.9.3-1) unstable; urgency=medium
+
+  * BETA: continues the 0.9.x beta line (two partner-site-agent findings).
+  * FIX: WebDAV PUT to a missing parent restores the RFC 4918 409 (MKCOL first);
+    0.9.x's SM166 auto-mkcol (201) silently broke the standard + the publishing
+    brief. Server now matches the brief.
+  * FIX: expired-token rotation returns reason=expired + guidance (re-exchange a
+    pairing key) instead of a bare "Invalid token".
+
+ -- Stuart J. Mackintosh <sjm@opendigital.cc>  Sun, 19 Jul 2026 12:30:00 +0000
+
 lazysite (0.9.2-1) unstable; urgency=high
 
   * BETA: beta candidate for the 0.9.x line (validated on edge 0.9.0/0.9.1).
