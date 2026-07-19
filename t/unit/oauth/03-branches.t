@@ -29,6 +29,7 @@ sub _enc { my $s = shift; $s =~ s/([^A-Za-z0-9_.~-])/sprintf '%%%02X', ord $1/ge
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth");
+{ open my $oc, '>', "$d/lazysite/lazysite.conf" or die $!; print $oc "oauth_enabled: true\n"; close $oc; }
 $Lazysite::Auth::OAuth::LAZYSITE_DIR = "$d/lazysite";
 
 sub run {

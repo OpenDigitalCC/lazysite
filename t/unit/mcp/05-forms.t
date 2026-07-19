@@ -15,7 +15,7 @@ my $root = "$FindBin::Bin/../../..";
 my $mcp  = "$root/lazysite-mcp.pl";
 my $d    = tempdir( CLEANUP => 1 );
 make_path( "$d/lazysite/auth", "$d/lazysite/forms" );
-open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!; print {$cf} "site_name: X\n"; close $cf;
+open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!; print {$cf} "site_name: X\nmcp_enabled: true\n"; close $cf;
 
 my $stub = "$d/users-stub.pl";
 open my $sf, '>', $stub or die $!;

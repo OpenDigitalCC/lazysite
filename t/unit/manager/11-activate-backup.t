@@ -50,7 +50,7 @@ for my $t (qw(live new broken)) {
     make_path("$d/lazysite/layouts/base/themes/$t");
 }
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "layout: base\ntheme: live\nbackup_retention: 3\n";
+print $cf "layout: base\ntheme: live\nbackup_retention: 3\ncontrol_api_enabled: true\n";
 close $cf;
 # live + new declare base; broken declares a different layout (invalid here)
 _theme( 'live', '["base"]' );

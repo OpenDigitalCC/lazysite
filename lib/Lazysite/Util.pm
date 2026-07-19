@@ -12,7 +12,7 @@ use warnings;
 use POSIX ();
 use Exporter 'import';
 
-our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line);
+our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled);
 
 our $COMPONENT = 'lazysite';
 
@@ -98,6 +98,24 @@ my $syslog_open;
 sub _conf_bool {
     my $v = lc( $_[0] // '' );
     return $v =~ /^(?:1|on|yes|true|enabled)$/ ? 1 : 0;
+}
+
+# Service killswitches (0.9.0): a network surface (MCP, OAuth, the control-API
+# token path, token exchange) is OFF unless the operator explicitly enables it in
+# lazysite.conf - the same posture WebDAV already has (webdav_enabled, default
+# off). $docroot is DOCUMENT_ROOT (lazysite.conf is at $docroot/lazysite/). Absent
+# / blank / false value => 0 (disabled). Cheap single-pass read; each surface
+# calls this once at request entry.
+sub service_enabled {
+    my ( $docroot, $key ) = @_;
+    return 0 unless defined $docroot && length $docroot && defined $key && length $key;
+    open my $fh, '<', "$docroot/lazysite/lazysite.conf" or return 0;
+    my $val = '';
+    while ( my $l = <$fh> ) {
+        if ( $l =~ /^\Q$key\E\s*:\s*(\S+)/ ) { $val = $1; last }
+    }
+    close $fh;
+    return _conf_bool($val);
 }
 
 sub _forward_conf {

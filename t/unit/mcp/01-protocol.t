@@ -24,7 +24,7 @@ open my $hc, '>', "$d/lazysite/forms/handlers.conf" or die $!;
 print $hc "handlers:\n  - id: local-storage\n    enabled: true\n    name: Local file storage\n    type: file\n";
 close $hc;
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "layout: base\ntheme: sky\n";
+print $cf "layout: base\ntheme: sky\nmcp_enabled: true\n";
 close $cf;
 open my $pg, '>', "$d/content/page.md" or die $!; print $pg "hello\n"; close $pg;
 

@@ -26,7 +26,7 @@ my $mcp  = "$root/lazysite-mcp.pl";
 my $d = tempdir( CLEANUP => 1 );
 make_path( "$d/content", "$d/lazysite/manager/locks", "$d/lazysite/auth", "$d/lazysite/forms" );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "layout: base\ntheme: sky\n";
+print $cf "layout: base\ntheme: sky\nmcp_enabled: true\n";
 close $cf;
 open my $pg, '>', "$d/content/page.md" or die $!; print $pg "version one\n"; close $pg;
 

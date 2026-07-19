@@ -26,6 +26,7 @@ sub b64url { my $d = encode_base64( $_[0], '' ); $d =~ tr{+/}{-_}; $d =~ s/=+$//
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth");
+{ open my $oc, '>', "$d/lazysite/lazysite.conf" or die $!; print $oc "oauth_enabled: true\nmcp_enabled: true\n"; close $oc; }
 $Lazysite::Auth::OAuth::LAZYSITE_DIR = "$d/lazysite";
 
 sub run {

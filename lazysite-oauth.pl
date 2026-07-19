@@ -148,6 +148,17 @@ my %q      = parse_form( $ENV{QUERY_STRING} );
 my $action = $q{action} // '';
 my $method = $ENV{REQUEST_METHOD} // 'GET';
 
+# Service killswitch (0.9.0): the OAuth surface (dynamic client registration,
+# authorize, token) is OFF unless the operator enables it in lazysite.conf
+# (oauth_enabled: true), mirroring webdav_enabled. Runs before every action,
+# including the open registration endpoint, so a disabled instance exposes
+# nothing. Default off; opt in from the Services page.
+unless ( Lazysite::Util::service_enabled( $DOCROOT, 'oauth_enabled' ) ) {
+    print "Status: 404 Not Found\r\nContent-Type: text/plain\r\n\r\n"
+        . "The OAuth service is not enabled on this site.\n";
+    exit 0;
+}
+
 if ( $action eq 'register' ) {
     my $req  = eval { decode_json( read_body() ) } || {};
     my @uris = ref $req->{redirect_uris} eq 'ARRAY' ? @{ $req->{redirect_uris} } : ();

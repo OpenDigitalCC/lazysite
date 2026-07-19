@@ -153,9 +153,11 @@ elsif ( $action eq 'claim' && $method eq 'POST' ) {
     handle_claim();
 }
 elsif ( $action eq 'exchange' && $method eq 'POST' ) {
+    _require_token_exchange();
     handle_exchange();
 }
 elsif ( $action eq 'rotate' && $method eq 'POST' ) {
+    _require_token_exchange();
     handle_rotate();
 }
 elsif ( $action eq 'forgot' && $method eq 'POST' ) {
@@ -505,6 +507,17 @@ sub users_tool_api {
     close $out;
     waitpid $pid, 0;
     return eval { JSON::PP::decode_json( $resp // '{}' ) };
+}
+
+# Service killswitch (0.9.0): the AI-partner token surface (pairing-key exchange
+# + token rotation) is OFF unless the operator enables it in lazysite.conf
+# (token_exchange_enabled: true), mirroring webdav_enabled. Default off; opt in
+# from the Services page.
+sub _require_token_exchange {
+    return if Lazysite::Util::service_enabled( $DOCROOT, 'token_exchange_enabled' );
+    json_response( { ok => 0, error => 'Token exchange is not enabled on this site '
+            . '(ask the operator to enable it: Services -> AI partner tokens).' }, 404 );
+    exit 0;
 }
 
 # Emit a JSON body with an HTTP status (the control token-lifecycle paths).

@@ -175,6 +175,18 @@ my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
                 respond( { ok => 0, error => 'Do not combine cookie and token auth' } );
                 exit 0;
             }
+            # Service killswitch (0.9.0): the control-API token surface is OFF
+            # unless the operator enables it in lazysite.conf
+            # (control_api_enabled: true), mirroring webdav_enabled. Checked as
+            # soon as a token is presented - before verification - so a disabled
+            # instance does no token processing at all. The cookie manager UI
+            # reaches the same endpoint and is unaffected (it is gated by
+            # `manager:`). Default off; opt in from the Services page.
+            unless ( Lazysite::Util::service_enabled( $DOCROOT, 'control_api_enabled' ) ) {
+                respond( { ok => 0, error => 'The control API (token access) is not '
+                        . 'enabled on this site. Ask the operator to enable it (Services -> Control API).' } );
+                exit 0;
+            }
             my $v = users_api( { action => 'verify-credential',
                     username => $u, secret => $secret } );
             unless ( $v && $v->{ok} ) {

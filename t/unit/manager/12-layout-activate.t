@@ -51,7 +51,7 @@ make_path("$d/lazysite/layouts/alt/themes/shared");
 make_path("$d/lazysite/layouts/bad");
 
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "layout: base\ntheme: baseonly\nbackup_retention: 3\n";
+print $cf "layout: base\ntheme: baseonly\nbackup_retention: 3\ncontrol_api_enabled: true\n";
 close $cf;
 _w( "layouts/base/layout.tt",   '<html>[% content %]</html>' );
 _w( "layouts/alt/layout.tt",    '<html><main>[% content %]</main></html>' );

@@ -17,6 +17,7 @@ my $oauth = "$root/lazysite-oauth.pl";
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth");
+{ open my $oc, '>', "$d/lazysite/lazysite.conf" or die $!; print $oc "oauth_enabled: true\n"; close $oc; }
 
 sub oauth {
     my ( $qs, $body ) = @_;

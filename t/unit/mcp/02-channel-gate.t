@@ -15,6 +15,10 @@ my $root = "$FindBin::Bin/../../..";
 my $mcp  = "$root/lazysite-mcp.pl";
 my $d    = tempdir( CLEANUP => 1 );
 mkdir "$d/lazysite"; mkdir "$d/lazysite/auth";
+# MCP surface must be enabled (0.9.0 killswitch, default off).
+open my $mcpcf, '>', "$d/lazysite/lazysite.conf" or die $!;
+print $mcpcf "site_name: T\nmcp_enabled: true\n";
+close $mcpcf;
 
 # Stub users-tool: an mcp cap for everyone EXCEPT a /nomcp/ username.
 my $stub = "$d/users-stub.pl";

@@ -55,7 +55,7 @@ my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth"); make_path("$d/content"); make_path("$d/lazysite/forms");
 # Deliberately UNSECURED: no manager_groups - this is the case where the bug
 # made every token client an "operator".
-open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!; print $cf "webdav_enabled: yes\n"; close $cf;
+open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!; print $cf "webdav_enabled: yes\ncontrol_api_enabled: true\n"; close $cf;
 open my $sm, '>', "$d/lazysite/forms/smtp.conf" or die $!; print $sm "password: hunter2\n"; close $sm;
 open my $af, '>', "$d/lazysite/auth/acls.json" or die $!;
 print $af '{"content/x.md":{"owner":"alice","write":["alice"]}}'; close $af;

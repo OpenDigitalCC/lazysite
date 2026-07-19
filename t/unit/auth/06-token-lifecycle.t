@@ -65,7 +65,7 @@ sub build_docroot {
     mkdir "$d/lazysite";
     mkdir "$d/lazysite/auth";
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print $cf "site_name: T\n";
+    print $cf "site_name: T\ntoken_exchange_enabled: true\n";
     close $cf;
     return $d;
 }

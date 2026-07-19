@@ -66,7 +66,7 @@ open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 # cookie user is a delegated sub-manager (confined to its tree) unless a group
 # grants it manage_users. With NO such group, _is_operator treats any user as
 # an unrestricted operator (unsecured/dev).
-print $cf "layout: base\ntheme: live\nwebdav_enabled: enabled\n";
+print $cf "layout: base\ntheme: live\nwebdav_enabled: enabled\ncontrol_api_enabled: true\n";
 close $cf;
 open my $gsf, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
 print $gsf '{"admins":{"label":"Admins","ui":1,"manage_users":1}}';

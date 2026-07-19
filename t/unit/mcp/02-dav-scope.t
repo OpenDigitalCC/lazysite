@@ -22,7 +22,7 @@ my $d = tempdir( CLEANUP => 1 );
 make_path( "$d/content/clientA", "$d/content/clientB",
     "$d/lazysite/manager/locks", "$d/lazysite/auth" );
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print $cf "layout: base\ntheme: sky\n";
+print $cf "layout: base\ntheme: sky\nmcp_enabled: true\n";
 close $cf;
 open my $a, '>', "$d/content/clientA/ok.md"     or die $!; print $a "A\n"; close $a;
 open my $b, '>', "$d/content/clientB/secret.md" or die $!; print $b "B\n"; close $b;

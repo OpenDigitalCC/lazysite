@@ -45,7 +45,7 @@ sub mraw {
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth");
 make_path("$d/lazysite/layouts/base/themes/live");
-open my $cf, '>', "$d/lazysite/lazysite.conf"; print $cf "layout: base\ntheme: live\n"; close $cf;
+open my $cf, '>', "$d/lazysite/lazysite.conf"; print $cf "layout: base\ntheme: live\ncontrol_api_enabled: true\n"; close $cf;
 open my $tj, '>', "$d/lazysite/layouts/base/themes/live/theme.json";
 print $tj '{"name":"live","layouts":["base"]}'; close $tj;
 uapi( $d, { action => 'add', username => 'p', password => 'x' } );

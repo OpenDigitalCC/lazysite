@@ -23,7 +23,7 @@ sub init_instructions {
     my $d = tempdir( CLEANUP => 1 );
     make_path( "$d/lazysite/manager/locks", "$d/lazysite/auth" );
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print $cf $conf;
+    print $cf $conf . "\nmcp_enabled: true\n";
     close $cf;
 
     my $body = encode_json(

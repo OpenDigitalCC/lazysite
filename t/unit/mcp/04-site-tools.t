@@ -20,7 +20,7 @@ make_path( "$d/lazysite/auth", "$d/lazysite/backups", "$d/lazysite/layouts/base/
 # A registered domain with its own content root + theme/layout, so site_backup
 # has something real to package.
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-print {$cf} "site_name: Agency\nalias_hosts: shop.clienta.com\n"
+print {$cf} "site_name: Agency\nmcp_enabled: true\nalias_hosts: shop.clienta.com\n"
     . "alias.shop.clienta.com.content_root: sites/clienta\n"
     . "alias.shop.clienta.com.theme: blue\n"
     . "alias.shop.clienta.com.layout: base\n";

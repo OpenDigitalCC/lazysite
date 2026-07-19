@@ -84,7 +84,7 @@ sub spit  { open my $fh, '>', $_[0] or die $!; print $fh $_[1]; close $fh }
 
 my $d = tempdir( CLEANUP => 1 );
 make_path( "$d/lazysite/auth", "$d/lazysite/logs", "$d/lazysite/cache/hosts/alias.example" );
-spit( "$d/lazysite/lazysite.conf", "manager: enabled\nsite_name: T\n" );
+spit( "$d/lazysite/lazysite.conf", "manager: enabled\nsite_name: T\ncontrol_api_enabled: true\n" );
 spit( "$d/lazysite/auth/.secret",  $secret );
 spit( "$d/lazysite/auth/users",    "admin:hash\n" );
 spit( "$d/page.md",                "---\ntitle: P\n---\n\nversion ONE\n" );

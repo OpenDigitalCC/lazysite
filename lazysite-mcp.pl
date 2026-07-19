@@ -1479,6 +1479,24 @@ sub tool_list {
 
 # --- request handling -----------------------------------------------------
 
+# Service killswitch (0.9.0): the MCP surface is OFF unless the operator enables
+# it in lazysite.conf (mcp_enabled: true), mirroring webdav_enabled. This runs
+# BEFORE any handling - including the unauthenticated discovery (GET,
+# initialize, tools/list) - so a disabled instance discloses nothing. Default
+# off; the operator opts it in from the Services page.
+unless ( Lazysite::Util::service_enabled( $DOCROOT, 'mcp_enabled' ) ) {
+    if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
+        my $b   = '';
+        my $len = $ENV{CONTENT_LENGTH} || 0;
+        read( STDIN, $b, $len ) if $len > 0;
+        my $parsed = eval { decode_json($b) };
+        my $rid = ( ref $parsed eq 'HASH' ) ? $parsed->{id} : undef;
+        rpc_error( $rid, -32601,
+            'The MCP service is not enabled on this site. Ask the operator to enable it (Services -> MCP).' );
+    }
+    send_status( 404, 'Not Found' );
+}
+
 # GET has no SSE stream in v1.
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'GET' ) {
     send_status( 405, 'Method Not Allowed' );

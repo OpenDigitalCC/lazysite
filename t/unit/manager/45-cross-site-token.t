@@ -64,7 +64,7 @@ sub make_site {
     my $d = tempdir( CLEANUP => 1 );
     make_path("$d/lazysite/auth");
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
-    print $cf "site_name: $name\n";
+    print $cf "site_name: $name\ncontrol_api_enabled: true\n";
     close $cf;
     uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
     grant_caps( $d, 'partner', 'api', 'manage_content' );
