@@ -2,7 +2,7 @@
 title: "SM181 - Folder / URL-prefix protection (hold a section back, release in one go)"
 subtitle: "Gate a whole subtree behind auth or as a draft, without touching every page - and publish it atomically"
 brand: plain
-status: proposed
+status: candidate
 status-note: "proposed 2026-07-19, target 0.9.5. Extends the per-page auth: front-matter to folder/prefix scope. Content/engine feature; a static-asset caveat needs a decision."
 ---
 
