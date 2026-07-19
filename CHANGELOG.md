@@ -16,7 +16,12 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
-## 0.9.0 - EDGE: cross-plane permission consistency + service killswitches (2026-07-19)
+## 0.9.1 - EDGE: cross-plane permission consistency + service killswitches (2026-07-19)
+
+Supersedes 0.9.0, which was withdrawn: it was cut straight to stable and shipped
+with a Config-page save bug (the new service-killswitch toggles rendered but did
+not persist - see SM042 below). 0.9.0 is not reissued; this is the corrected
+release, cut to EDGE first.
 
 A security-hardening release building on 0.8.0. It fixes a reported token-path
 regression, aligns capability enforcement across all access planes, and puts
