@@ -16,6 +16,29 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.2 - BETA: manager-UI grantability + data-loss + info-leak fixes (2026-07-19)
+
+The beta candidate for the 0.9.x security-hardening line, promoting the work
+validated on edge (0.9.0/0.9.1). 0.9.1 (edge) fixed the Config-page save bug
+(SM042: the service-killswitch toggles now persist). 0.9.2 adds three fixes a
+validation sweep + a partner site agent surfaced, before the stable promotion:
+
+- **Capabilities were enforced but ungrantable in the UI** (same drift class as
+  the config-save bug): `feedback` (gates MCP submit_feedback) and
+  `notifications` were missing from the Groups capability grid, so no operator
+  could grant them from the manager UI. Both grids (Groups + Users) now list the
+  full capability set, and a parity test (t/lint/19) fails the build if either
+  ever drifts from @CAP_KEYS (it immediately caught a stale `manage_domains`).
+- **Form "Edit targets" silently erased legacy inline targets** (data loss): the
+  panel only represents handler targets and dropped hand/WebDAV-authored inline
+  targets on save. The save now preserves them (backend-enforced).
+- **nav-read leaked the server-absolute path** (filesystem layout + system
+  username) to api/MCP token clients; it now returns the docroot-relative path.
+
+Deferred to a 0.9.2 iteration / stable-window decision (from the site-agent
+sweep): the WebDAV PUT auto-mkcol vs RFC-4918 409 behaviour (deliberate call +
+doc), and a JSON guidance body on expired-token rotation (currently a bare 401).
+
 ## 0.9.0 - EDGE: cross-plane permission consistency + service killswitches (2026-07-19)
 
 A security-hardening release building on 0.8.0. It fixes a reported token-path
