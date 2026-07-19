@@ -2589,7 +2589,11 @@ sub action_nav_read {
         close $fh;
     }
 
-    return { ok => 1, items => \@items, path => $path,
+    # Return the DOCROOT-RELATIVE path only - never the server-absolute one. The
+    # absolute path leaked the filesystem layout + the system username to token
+    # clients (e.g. /home/<user>/web/.../nav.conf). $rel is the relative form,
+    # same value already carried in nav_file.
+    return { ok => 1, items => \@items, path => $rel,
         nav_file => $rel, inherited => $inherited };
 }
 
