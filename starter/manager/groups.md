@@ -53,6 +53,8 @@ var ACTIONS = [
   ['manage_users', 'Users & groups'],
   ['analytics', 'Analytics (visitor stats)'],
   ['audit', 'Audit trail'],
+  ['notifications', 'Notifications (bell)'],
+  ['feedback', 'Agent feedback (MCP submit_feedback)'],
   ['create_sub_users', 'Create sub-users'],
   ['delegate_sub_user_creation', 'Delegate sub-users']
 ];
