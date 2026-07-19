@@ -85,6 +85,30 @@ is_deeply( action_form_targets_read('mixed')->{targets},
     [ { handler => 'email1' }, { type => 'file' } ],
     'SM081 fixed: mixed-format read preserves both targets in order' );
 
+# DATA-LOSS GUARD: the manager "Edit targets" UI only knows HANDLER targets. When
+# it re-saves a form that has a legacy inline target, it sends only the handlers -
+# the inline target must NOT be erased (it was, before this fix).
+{
+    # A form authored (by hand / WebDAV) with a handler AND an inline target.
+    open my $fc, '>', "$d/lazysite/forms/legacymix.conf" or die $!;
+    print $fc "targets:\n  - handler: email1\n  - type: webhook\n    url: https://hook.example/x\n";
+    close $fc;
+    # The UI re-saves sending ONLY the handler set (its view of the world).
+    ok( action_form_targets_save( 'legacymix', [ { handler => 'email1' } ] )->{ok},
+        'save with only the handler succeeds' );
+    is_deeply( action_form_targets_read('legacymix')->{targets},
+        [ { handler => 'email1' }, { type => 'webhook', url => 'https://hook.example/x' } ],
+        'the legacy inline target is PRESERVED (not erased by a handler-only UI save)' );
+
+    # But a submission that DOES carry inline targets replaces wholesale (a future
+    # UI that manages them) - no duplication of the preserved set.
+    action_form_targets_save( 'legacymix',
+        [ { handler => 'email1' }, { type => 'file', path => 'submissions' } ] );
+    is_deeply( action_form_targets_read('legacymix')->{targets},
+        [ { handler => 'email1' }, { type => 'file', path => 'submissions' } ],
+        'a submission carrying inline targets replaces wholesale (no double-write)' );
+}
+
 # --- resolve_plugin_script (SM152: registry-only) ---
 is( resolve_plugin_script('plugins/log.pl'), "$base/plugins/log.pl",
     'a registered plugin resolves to its canonical path' );
