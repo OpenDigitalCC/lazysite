@@ -435,6 +435,40 @@ sub _resolve_ips {
     return @ips;
 }
 
+# SSRF guard (SEC-2026-07, 0.8.1): domain-check opens outbound TLS + HTTPS
+# connections to a caller-influenced host. A manage_domains delegate could point
+# that at the server's own internal network - loopback, RFC1918, the cloud
+# metadata endpoint (169.254.169.254), CGNAT, an IPv6 ULA/link-local - directly
+# (an IP-literal or 'localhost' host, both of which pass _valid_host) or via DNS
+# rebinding (a public name that resolves to an internal address). The connection
+# is refused unless every RESOLVED address is public, so the guard holds for the
+# rebinding case too (it keys on the resolved IPs, not the name). Returns 1 for a
+# routable public address, 0 for anything internal/reserved/malformed.
+sub _ip_is_public {
+    my ($ip) = @_;
+    return 0 unless defined $ip && length $ip;
+    $ip =~ s/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)//i;    # IPv4-mapped IPv6 -> test the v4
+    if ( $ip =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/ ) {
+        my @o = ( $1, $2, $3, $4 );
+        return 0 if grep { $_ > 255 } @o;                          # malformed
+        return 0 if $o[0] == 0;                                    # 0.0.0.0/8 this-host
+        return 0 if $o[0] == 10;                                   # 10/8 private
+        return 0 if $o[0] == 127;                                  # 127/8 loopback
+        return 0 if $o[0] == 169 && $o[1] == 254;                  # 169.254/16 link-local + metadata
+        return 0 if $o[0] == 172 && $o[1] >= 16 && $o[1] <= 31;    # 172.16/12 private
+        return 0 if $o[0] == 192 && $o[1] == 168;                  # 192.168/16 private
+        return 0 if $o[0] == 100 && $o[1] >= 64 && $o[1] <= 127;   # 100.64/10 CGNAT
+        return 0 if $o[0] >= 224;                                  # 224/4 multicast, 240/4 reserved
+        return 1;
+    }
+    my $l = lc $ip;
+    $l =~ s/%.*$//;                          # strip an IPv6 zone id (fe80::1%eth0)
+    return 0 if $l eq '::' || $l eq '::1';   # unspecified / loopback
+    return 0 if $l =~ /^fe[89ab]/;           # fe80::/10 link-local
+    return 0 if $l =~ /^f[cd]/;              # fc00::/7 unique-local
+    return 1;                                # global unicast
+}
+
 # Open a verified TLS connection to $host:443. A connection only forms when the
 # certificate is valid AND matches the host (SSL_verify_mode PEER + SNI), so a
 # returned {ok=>1} means "trusted HTTPS". When full verification fails we probe
@@ -626,6 +660,13 @@ sub domain_check {
         : 'the host name does not resolve yet - add the DNS record',
     };
 
+    # SSRF guard: if ANY resolved address is non-public, refuse the outbound TLS
+    # and marker connections below. Keying on the resolved IPs (not the host name)
+    # closes the DNS-rebinding path too. A public domain legitimately never
+    # resolves to an internal address, so this only ever fires on abuse.
+    my @nonpublic = grep { !_ip_is_public($_) } @ips;
+    my $ssrf_block = @nonpublic ? 1 : 0;
+
     # 2. Points to this server (a resolved IP is one of ours). Behind a proxy or
     # NAT the server cannot know its own public IP, so when none was discovered
     # this is INDETERMINATE (undef), not a failure - the "Serves this lazysite"
@@ -657,21 +698,36 @@ sub domain_check {
         };
     }
 
-    # 3. Trusted HTTPS certificate.
-    my $ssl = $tls->( $host, $timeout );
-    push @checks, { id => 'ssl', label => 'HTTPS certificate valid',
-        pass => $ssl->{ok} ? 1 : 0, detail => $ssl->{detail} };
+    # 3. Trusted HTTPS certificate. Refused (not probed) when the host resolves
+    # to a non-public address - see the SSRF guard above.
+    if ($ssrf_block) {
+        push @checks, { id => 'ssl', label => 'HTTPS certificate valid', pass => 0,
+            detail => 'refused - the host resolves to a non-public address ('
+                . join( ', ', @nonpublic ) . '); not probed (SSRF guard)' };
+    }
+    else {
+        my $ssl = $tls->( $host, $timeout );
+        push @checks, { id => 'ssl', label => 'HTTPS certificate valid',
+            pass => $ssl->{ok} ? 1 : 0, detail => $ssl->{detail} };
+    }
 
-    # 4. Terminates on THIS install (marker id match).
-    my $mk = $fetch->( $host, $timeout );
-    my $term_ok
-        = ( $mk->{ok} && length $instance && ( $mk->{instance} // '' ) eq $instance ) ? 1 : 0;
-    my $tdetail
-        = !$mk->{ok} ? ( 'no reply over HTTPS - ' . ( $mk->{detail} || 'unreachable' ) )
-        : $term_ok   ? 'serves this lazysite instance'
-        :              'reachable, but answered by a different server or instance';
-    push @checks, { id => 'terminates', label => 'Serves this lazysite',
-        pass => $term_ok, detail => $tdetail };
+    # 4. Terminates on THIS install (marker id match). Also refused under the guard.
+    if ($ssrf_block) {
+        push @checks, { id => 'terminates', label => 'Serves this lazysite', pass => 0,
+            detail => 'refused - the host resolves to a non-public address ('
+                . join( ', ', @nonpublic ) . '); not fetched (SSRF guard)' };
+    }
+    else {
+        my $mk = $fetch->( $host, $timeout );
+        my $term_ok
+            = ( $mk->{ok} && length $instance && ( $mk->{instance} // '' ) eq $instance ) ? 1 : 0;
+        my $tdetail
+            = !$mk->{ok} ? ( 'no reply over HTTPS - ' . ( $mk->{detail} || 'unreachable' ) )
+            : $term_ok   ? 'serves this lazysite instance'
+            :              'reachable, but answered by a different server or instance';
+        push @checks, { id => 'terminates', label => 'Serves this lazysite',
+            pass => $term_ok, detail => $tdetail };
+    }
 
     my $all_pass = ( grep { defined $_->{pass} && !$_->{pass} } @checks ) ? 0 : 1;
     return { ok => 1, host => $host, all_pass => $all_pass, checks => \@checks };

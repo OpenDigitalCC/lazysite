@@ -577,3 +577,42 @@ residual risk
 verdict
 : accepted; the manager/API authorization surface now has structural backstops
   against the whole class the trust-gate gap belonged to.
+
+### 2026-07-19 - 0.8.1 fast-follow: SSRF guard, tenant-token isolation, SM127 fix
+
+what changed
+: the two 0.8.1 items deferred above, plus a control-API/MCP regression the
+  0.8.0 upgrade surfaced.
+
+threat delta
+: Server-Side Request Forgery (domain-check outbound probes), tenant
+  cross-talk (a token used against another site), and an availability/usability
+  regression on the token path (introspection + agent accounts wrongly refused).
+
+controls
+: (1) SSRF - `domain_check` (manage_domains) opens outbound TLS + HTTPS
+  connections to a caller-influenced host. It now refuses the probes unless
+  EVERY resolved address is public (`_ip_is_public`: blocks loopback, RFC1918,
+  169.254/16 incl. the cloud metadata endpoint, CGNAT 100.64/10, IPv6
+  ULA/link-local, v4-mapped equivalents, unspecified/reserved). Keying on the
+  RESOLVED IPs closes the DNS-rebinding path and IP-literal/`localhost` hosts
+  alike (both pass `_valid_host`). `domain-preview` shells the processor
+  server-side and makes no outbound request. Test
+  `t/unit/manager/44-domain-check-ssrf.t` (network-free via the resolve/tls/
+  fetch hooks) asserts no connection is attempted for any internal range and
+  that a public host is still probed. (2) Tenant isolation - a token is a
+  credential in one site's per-docroot auth store, so it cannot authenticate
+  against another site's docroot; pinned end-to-end by
+  `t/unit/manager/45-cross-site-token.t`. (3) SM127 fix - see the commit; the
+  manager-UI-remote gate now blocks only accounts that can ACTUALLY use the
+  interactive UI (`manager_ui && ui`) and never blocks introspection, restoring
+  the documented capability-based token contract for agent accounts.
+
+residual risk
+: none identified. The SSRF guard blocks by default; a self-hosted install
+  whose legitimate domains resolve to RFC1918 would see domain-check refuse the
+  reachability probes - acceptable (that deployment does not use public DNS/TLS
+  checks), and revisitable behind a config opt-out if a real deployment needs it.
+
+verdict
+: accepted.
