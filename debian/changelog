@@ -1,5 +1,19 @@
-lazysite (0.8.1-1) unstable; urgency=high
+lazysite (0.9.0-1) unstable; urgency=high
 
+  * BREAKING: every remote surface is now OFF by default and must be enabled in
+    Site settings -> Services (or lazysite.conf): mcp_enabled, oauth_enabled,
+    control_api_enabled, token_exchange_enabled = enabled. WebDAV nav/form-config
+    editing now needs manage_nav / manage_forms (not manage_config). Agent
+    feedback over MCP is now the `feedback` capability (off by default). The
+    manager UI, page render, and content/theme/layout grants are unaffected.
+  * SECURITY: service killswitches. MCP, OAuth, the control-API token path and
+    token exchange each gain a conf killswitch (default off), read through one
+    shared helper; a disabled surface refuses before doing any work and discloses
+    nothing. Toggles surfaced in the Services section of the config page.
+  * SECURITY: cross-plane capability consistency. WebDAV nav.conf -> manage_nav,
+    form configs -> manage_forms (was manage_config, matching API/MCP);
+    site-backup-create/upload/apply POST-forced (CSRF gap); WebDAV drift-guard
+    test; in-tool actor backstop for the users tool's group/cap-mutating verbs.
   * SECURITY/FIX: SM127 token-path regression (reported on 0.8.0). The
     manager-UI-remote gate wrongly refused introspection (whoami /
     describe-capabilities) for any manager-linked account, and refused agent

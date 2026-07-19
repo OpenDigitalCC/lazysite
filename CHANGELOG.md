@@ -16,7 +16,45 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
-## 0.8.1 - STABLE: token-path fix + SSRF guard + tenant-token isolation (2026-07-19)
+## 0.9.0 - STABLE: cross-plane permission consistency + service killswitches (2026-07-19)
+
+A security-hardening release building on 0.8.0. It fixes a reported token-path
+regression, aligns capability enforcement across all access planes, and puts
+every remote surface behind an operator killswitch (default off). Stable
+customers should upgrade; note the BREAKING changes below.
+
+BREAKING - opt-in required after upgrade
+: Every network surface beyond the public page render is now OFF by default and
+  must be enabled in Site settings -> Services (or in lazysite.conf). Set
+  `mcp_enabled`, `oauth_enabled`, `control_api_enabled`, `token_exchange_enabled`
+  to `enabled` for the surfaces you use (WebDAV was already opt-in). And WebDAV
+  nav/form-config editing now needs the fine-grained `manage_nav` / `manage_forms`
+  capability (matching the API/MCP planes), not `manage_config`; grant those to
+  any account that edited nav/forms over WebDAV. Agent feedback over MCP is now a
+  `feedback` capability (off by default). The manager UI, page render, and
+  existing content/theme/layout grants are unaffected.
+
+Service killswitches
+: a surface-exposure audit found only WebDAV had the intended dual control (a
+  conf killswitch, default off, plus a capability). The MCP server, OAuth server,
+  control-API token path, and auth token-exchange were always-on and invisible,
+  gated by a capability only. Each now has a conf killswitch (default off), read
+  through one shared helper so the gates cannot drift, and surfaced as a toggle in
+  the Services section of the config page (the manager landing page). A disabled
+  surface refuses before doing any work and discloses nothing (MCP/OAuth refuse
+  pre-auth incl. discovery; the control API refuses before verifying a token).
+  Verified on every build by t/integration/28-service-killswitches.t.
+
+Cross-plane capability consistency
+: an audit of the cookie / control-API / MCP / WebDAV planes found the same
+  resource gated by different capabilities per plane. WebDAV now uses `manage_nav`
+  for nav.conf and `manage_forms` for form configs (was `manage_config`), matching
+  the other planes and Capabilities.pm. `site-backup-create/upload/apply` were
+  capability-gated but not POST-forced (a CSRF-free-GET gap) - now in %MUTATING.
+  A drift-guard test pins the WebDAV @DANGEROUS_EXT copy to its canonical source,
+  and the users tool now self-defends its group/capability-mutating verbs against
+  a non-operator actor. The capability-gate guarantee test additionally fails the
+  build if a capability-gated cookie mutator is ever left off the CSRF force-list.
 
 A security and correctness patch on 0.8.0. Stable customers should upgrade.
 
