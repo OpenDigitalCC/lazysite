@@ -1247,12 +1247,21 @@ sub main {
             no_password   => $ENV{LAZYSITE_AUTH_NO_PASSWORD} ? 1 : 0,
         );
 
-        # Mark as protected if auth required or group-restricted
+        # Mark as protected if the page requires ANY auth (not just 'required')
+        # or is group-restricted. A protected page is never served from - nor
+        # written to - the global .html cache. This must cover EVERY non-public
+        # auth level, notably `auth: manager`: a manager page's server-rendered
+        # shell embeds per-user, capability-gated chrome (the nav menu gated on
+        # manager_caps), so caching it would (a) serve a stale menu that ignores a
+        # just-granted capability until the cache is busted - the "I granted the
+        # cap but the Domains link never appeared without a re-login" bug - and
+        # (b) leak one user's capability-gated menu to another via the shared
+        # cache. Only `auth: none` (public) stays cacheable.
         my $auth_level = $auth_peek->{auth}
             || $site_vars_peek{auth_default}
             || 'none';
         $auth_protected = 1
-            if $auth_level eq 'required'
+            if $auth_level ne 'none'
             || ( $auth_peek->{groups} && @{ $auth_peek->{groups} } );
     }
 
@@ -3942,7 +3951,10 @@ sub render_content {
         # SM160: the Domains page is gated by manage_domains (carved out of
         # manage_config); both are surfaced so the manager UI can gate each area.
         my $all = !_site_grants_manager();
-        for my $cap (qw(manage_config manage_domains)) {
+        # manage_users is surfaced too so the nav can offer a "grant this to
+        # enable" hint (SM186) for capability-gated areas, but only to a user who
+        # can actually grant it.
+        for my $cap (qw(manage_config manage_domains manage_users)) {
             $manager_caps{$cap}
                 = ( $all || _groups_grant_cap( $cap, split /\s*,\s*/, $groups_str ) ) ? 1 : 0;
         }

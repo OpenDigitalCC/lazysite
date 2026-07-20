@@ -328,7 +328,7 @@
       <a href="/manager/sessions" [% IF request_uri.match('^/manager/sessions') %]class="active" aria-current="page"[% END %]>Sessions &amp; keys</a>
       <div class="mg-nav-group">System</div>
       <a href="/manager" [% IF request_uri == '/manager' || request_uri == '/manager/' || request_uri.match('^/manager/config') %]class="active" aria-current="page"[% END %]>Site settings</a>
-      [% IF manager_caps.manage_domains %]<a href="/manager/domains" [% IF request_uri.match('^/manager/domains') %]class="active" aria-current="page"[% END %]>Domains</a>[% END %]
+      [% IF manager_caps.manage_domains %]<a href="/manager/domains" [% IF request_uri.match('^/manager/domains') %]class="active" aria-current="page"[% END %]>Domains</a>[% ELSIF manager_caps.manage_users %]<a href="/manager/groups" style="opacity:0.55;font-style:italic" title="Serve additional domains from this instance. To enable it, grant 'Domains &amp; site packages' to a group on the Groups page.">Domains &#128274;</a>[% END %]
       <a href="/manager/cache" [% IF request_uri.match('^/manager/cache') %]class="active" aria-current="page"[% END %]>Cache</a>
       <a href="/manager/backups" [% IF request_uri.match('^/manager/backups') %]class="active" aria-current="page"[% END %]>Backups</a>
       <a href="/manager/audit" [% IF request_uri.match('^/manager/audit') %]class="active" aria-current="page"[% END %]>Audit log</a>

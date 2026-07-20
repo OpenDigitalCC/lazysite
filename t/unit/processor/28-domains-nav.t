@@ -49,6 +49,22 @@ sub render {
     like( $client, qr{/manager/files}, 'the rest of the nav is unaffected' );
 }
 
+# --- SM186: grant-to-enable discoverability hint ----------------------------
+{
+    # A user who can grant caps (manage_users) but lacks manage_domains sees a
+    # muted, actionable hint pointing at the Groups page - not the real link.
+    my $hint = render( manager_caps => { manage_domains => 0, manage_users => 1 } );
+    like( $hint, qr/Domains &#128274;/, 'grant-capable user sees the locked Domains hint' );
+    like( $hint, qr/grant 'Domains/, 'the hint says how to enable it' );
+    unlike( $hint, qr{href="/manager/domains"},
+        'the hint is NOT a link to the gated Domains page' );
+
+    # A bound client (no manage_users) sees no Domains entry at all - the hint is
+    # pointless to someone who cannot grant the capability.
+    my $client = render( manager_caps => { manage_domains => 0, manage_users => 0 } );
+    unlike( $client, qr/Domains &#128274;/, 'a non-granting user sees no Domains hint' );
+}
+
 # --- scope globals for a bound editor ---------------------------------------
 {
     my $bound = render(
