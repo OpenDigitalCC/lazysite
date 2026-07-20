@@ -1,3 +1,14 @@
+lazysite (0.9.8-1) unstable; urgency=medium
+
+  * BETA: fix SM186 - a granted capability did not appear until re-login because
+    manager pages (auth: manager) were cached; they are now uncached so grants
+    reflect within the session, plus a Domains grant-to-enable nav hint. SM187 -
+    submissions viewer v2: scrollable modal, per-row delete (manage_forms), and a
+    least-privilege read_submissions capability + read_form_submissions MCP tool
+    for agent read. Groups capability toggles aligned in a grid. No migration.
+
+ -- OpenDigital <sjm@opendigital.cc>  Mon, 20 Jul 2026 19:34:23 +0100
+
 lazysite (0.9.7-1) unstable; urgency=medium
 
   * BETA: fix the plugin-config "View submissions" button (SM182 regression - an

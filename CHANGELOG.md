@@ -16,6 +16,27 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.8 - BETA: caps-within-session fix + submissions viewer v2 + grid polish (2026-07-20)
+
+Fixes and manager-UI improvements on the 0.9.x beta line. No BREAKING changes,
+no migration.
+
+- FIX (SM186): a granted capability did not appear until re-login. A page with
+  `auth: manager` was not flagged protected, so its server-rendered shell - which
+  embeds the capability-gated nav - was cached and served stale (also a latent
+  cross-user capability-leak via the shared cache). Any non-public auth level is
+  now protected: manager pages never cache, so a grant reflects within the
+  session, no re-login. Plus a "Domains" grant-to-enable nav hint for users who
+  can grant capabilities.
+- SM187 - submissions viewer v2: the form-submissions table opens in a scrollable
+  modal; a handled row can be deleted (manage_forms, UI, audited, atomic rewrite
+  by a stable per-row id); and a new least-privilege `read_submissions` capability
+  plus a `read_form_submissions` MCP tool let an agent read submissions over
+  API/MCP without the broader manage_forms. form-submissions is gated
+  manage_forms OR read_submissions on both channels.
+- FIX: the Groups capability toggles are laid out in an aligned CSS grid instead
+  of a ragged flex-wrap.
+
 ## 0.9.7 - BETA: submissions-button fix + domains/site-package UX pass (2026-07-20)
 
 A bug fix plus a UX polish pass on the 0.9.5/0.9.6 beta line. No BREAKING
