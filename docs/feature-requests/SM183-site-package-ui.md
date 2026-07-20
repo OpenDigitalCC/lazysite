@@ -2,8 +2,8 @@
 title: "SM183 - Site-package migration in the manager UI (surface parity)"
 subtitle: "Let a human perform the agency demo -> client hand-off without MCP or the CLI; make the package the interface across every surface"
 brand: plain
-status: candidate
-status-note: "candidate 2026-07-20, backlog. Extends SM158 (site packages, shipped 0.7.24) with UI exposure. Mostly front-end: the create/upload/apply actions and the kind=site list marker already exist; no new engine, no migration."
+status: partial
+status-note: "v1 built on claude/sm183-site-package-ui for 0.9.6 (UI-only): Export on Domains; a Site packages panel on Backups (list/download/upload/apply/delete) with an apply preview + confirm; new read action site-backup-inspect + site-backup-delete (manage_domains + scope + lazysite-site- name confinement). DEFERRED: dry-run content diff, one-click rollback + MCP site_apply snapshot parity, target-readiness (domain Check) in the apply flow, integrity sha display, and presentation-key remap override."
 ---
 
 # SM183 - Site-package migration in the manager UI
@@ -43,6 +43,30 @@ This is already structurally true - every surface reads and writes the same
 `lazysite/backups/` directory, and `backup-list` already tags a package
 `kind => 'site'`. SM183 makes it visible and operable for humans, and pins the
 parity with tests.
+
+## v1 as built (0.9.6, UI-only)
+
+Delivered on `claude/sm183-site-package-ui`:
+
+- **Domains page:** an *Export site* button per domain (with its own content
+  root) calling `site-backup-create`.
+- **Backups page:** a *Site packages* panel that lists `kind: site` entries
+  (fixing a prior mis-bucketing that put them in the content list with a wrong
+  Restore), with *Download*, *Apply* and *Delete*, plus an *Upload* control.
+  Apply opens an inline panel with a manifest **preview** (source host, file
+  count, theme/layout/nav), a target picker (a registered domain, or the primary
+  site), a *clean* option, and a confirmation naming the target and the
+  presentation keys it will rewrite.
+- **Backend:** two new actions - `site-backup-inspect` (read the manifest without
+  applying; `package_inspect` reuses the M-TAR-safe extractor) and
+  `site-backup-delete` - both `manage_domains` + scope + confined to the
+  `lazysite-site-` namespace (a full/content backup or an arbitrary path is
+  unreachable). Fixed the `action_site_backup_apply` comment/gate drift.
+
+Deferred (tracked in the status note, and detailed under *Related features*):
+the dry-run content diff, one-click rollback + MCP `site_apply` snapshot parity,
+the target-readiness (domain Check) hook in apply, an integrity `sha`, and the
+presentation-key remap override.
 
 ## Design (mostly front-end; the backend already exists)
 

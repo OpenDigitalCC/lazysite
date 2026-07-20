@@ -32,7 +32,7 @@ use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Common  qw(_write_conf_key);
 use Exporter 'import';
-our @EXPORT_OK = qw(package_create package_apply apply_and_configure);
+our @EXPORT_OK = qw(package_create package_apply apply_and_configure package_inspect);
 
 our $DOCROOT   = '';
 our $auth_user = '';
@@ -221,6 +221,37 @@ sub _extract_package {
     return ( undef, 'Package manifest is unreadable' )
         unless ref $manifest eq 'HASH' && $manifest->{site_package};
     return ( $manifest, undef );
+}
+
+# package_inspect($pkg_path) - read a site package's manifest WITHOUT applying it
+# (SM183). Reuses the M-TAR-safe extractor into a THROWAWAY staging dir, reads the
+# manifest, counts the content files, then drops the stage. Read-only: nothing on
+# the live docroot changes. The CALLER enforces access (manage_domains + scope).
+# Returns { ok, manifest, content_files, has_nav, has_layout } or { ok=>0, error }.
+sub package_inspect {
+    my ($pkg) = @_;
+    return { ok => 0, error => 'Package not found' } unless defined $pkg && -f $pkg;
+
+    my $stage = "$DOCROOT/lazysite/backups/.inspect-$$-" . strftime( '%H%M%S', gmtime );
+    remove_tree($stage) if -e $stage;
+    my ( $manifest, $err ) = _extract_package( $pkg, $stage );
+    unless ($manifest) {
+        remove_tree($stage) if -d $stage;
+        return { ok => 0, error => $err };
+    }
+
+    my $files = 0;
+    if ( -d "$stage/content" ) {
+        File::Find::find(
+            { no_chdir => 1, wanted => sub { $files++ if -f $File::Find::name } },
+            "$stage/content" );
+    }
+    my $has_nav    = -f "$stage/nav" ? 1 : 0;
+    my $has_layout = -d "$stage/layout" ? 1 : 0;
+    remove_tree($stage) if -d $stage;
+
+    return { ok => 1, manifest => $manifest, content_files => $files,
+        has_nav => $has_nav, has_layout => $has_layout };
 }
 
 # package_apply($pkg_path, %opt) - apply an (already-safe-located) site package

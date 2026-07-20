@@ -34,6 +34,31 @@ snapshot first, and clears the affected page caches.
 </div>
 
 <div class="mg-card">
+<div class="mg-card-header"><span class="mg-card-title">Site packages</span>
+<button class="mg-btn mg-btn-sm" onclick="loadBackups()">Refresh</button></div>
+<div class="mg-card-body">
+<p class="mg-muted">
+A <b>site package</b> is one domain's site &mdash; its content, nav, the referenced
+theme/layout and presentation settings &mdash; and <b>nothing else</b>: no plugins,
+no instance settings, <b>no secrets</b>. That is what makes it safe to hand to a
+client's own instance (an agency demo &rarr; client hand-off). Create one from
+<b>Domains &rarr; Export site</b>; the package appears here to download, apply or
+delete. To move between instances, download it, then <b>Upload</b> it on the target
+and <b>Apply</b> it to a domain there.
+</p>
+<div style="margin-bottom:12px;">
+<label class="mg-btn mg-btn-primary" style="cursor:pointer;">
+&#11014; Upload a package
+<input type="file" accept=".tar.gz,application/gzip" style="display:none;" onchange="uploadPackage(this)">
+</label>
+</div>
+<div class="mg-file-list" id="package-list">
+<div class="mg-file-item"><span class="mg-file-name">Loading&hellip;</span></div>
+</div>
+</div>
+</div>
+
+<div class="mg-card">
 <div class="mg-card-header"><span class="mg-card-title">Full-system backups</span></div>
 <div class="mg-card-body">
 <p class="mg-muted">
@@ -95,7 +120,10 @@ function loadBackups() {
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); return; }
       var all = d.backups || [];
-      renderBackups(all.filter(function(b) { return b.scope !== 'full'; }), 'content-list', true);
+      // Three distinct kinds: content snapshots (in-app restore), site packages
+      // (SM183: apply to a domain), and full-system backups (CLI restore only).
+      renderBackups(all.filter(function(b) { return b.scope === 'content'; }), 'content-list', true);
+      renderPackages(all.filter(function(b) { return b.scope === 'site'; }));
       renderBackups(all.filter(function(b) { return b.scope === 'full'; }), 'full-list', false);
     })
     .catch(function(e) { showStatus('Failed to load backups: ' + e.message, true); });
@@ -173,6 +201,143 @@ function _create(btn, extra, okMsg) {
       loadBackups();
     })
     .catch(function(e) { if (btn) btn.disabled = false; showStatus('Error: ' + e.message, true); });
+}
+
+// --- SM183: site packages (create is on the Domains page; here: list, upload,
+// apply, delete). The global CSRF wrapper (manager layout M-1) adds the token to
+// every POST, so these follow the same fetch pattern as the content backups. ---
+
+// The source host is encoded in the package name: lazysite-site-<host>-<UTCstamp>.
+function pkgHost(name) {
+  var m = /^lazysite-site-(.+)-\d{8}T\d{6}Z\.tar\.gz$/.exec(name || '');
+  return m ? m[1] : '';
+}
+
+function renderPackages(list) {
+  var el = document.getElementById('package-list');
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML = '<div class="mg-file-item"><span class="mg-file-name mg-empty">No site packages yet &mdash; create one from Domains &rarr; Export site.</span></div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < list.length; i++) {
+    var b = list[i];
+    var host = pkgHost(b.name);
+    var uploaded = host === 'uploaded';
+    var id = 'pkg-' + i;
+    html += '<div class="mg-file-item" style="flex-wrap:wrap;">';
+    html += '<span class="mg-file-name" style="font-family:var(--mg-mono);font-size:0.8rem;">' + escHtml(b.name) + '</span>';
+    html += '<span class="mg-badge ' + (uploaded ? 'mg-badge-muted' : 'mg-badge-success') + '">' + (uploaded ? 'uploaded' : escHtml(host || 'site')) + '</span>';
+    html += '<span class="mg-file-meta">' + fmtSize(b.size) + ' &middot; ' + fmtDate(b.mtime) + '</span>';
+    html += '<a class="mg-btn mg-btn-sm" href="' + API + '?action=backup-download&name=' + encodeURIComponent(b.name) + '">&#11015; Download</a>';
+    html += '<button class="mg-btn mg-btn-sm" onclick="showApply(\'' + escHtml(b.name) + '\', \'' + id + '\')">Apply&hellip;</button>';
+    html += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="deletePackage(\'' + escHtml(b.name) + '\', this)">Delete</button>';
+    html += '<div class="mg-apply-panel" id="' + id + '" style="display:none;width:100%;margin-top:8px;"></div>';
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function uploadPackage(input) {
+  if (!input.files || !input.files.length) return;
+  var file = input.files[0];
+  var fd = new FormData();
+  fd.append('file', file, file.name);
+  showStatus('Uploading ' + file.name + '…');
+  // No explicit Content-Type: the browser sets the multipart boundary; the CSRF
+  // wrapper still adds X-CSRF-Token.
+  fetch(API + '?action=site-backup-upload', { method: 'POST', credentials: 'same-origin', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      input.value = '';
+      if (!d.ok) { showStatus(d.error || 'Upload failed', true); return; }
+      showStatus('Uploaded ' + d.name + '. Apply it to a domain below.');
+      loadBackups();
+    })
+    .catch(function(e) { input.value = ''; showStatus('Upload error: ' + e.message, true); });
+}
+
+function showApply(name, panelId) {
+  var panel = document.getElementById(panelId);
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  panel.innerHTML = '<span class="mg-muted">Loading&hellip;</span>';
+  Promise.all([
+    fetch(API + '?action=site-backup-inspect&name=' + encodeURIComponent(name), { credentials: 'same-origin' }).then(function(r) { return r.json(); }),
+    fetch(API + '?action=domains-list', { credentials: 'same-origin' }).then(function(r) { return r.json(); })
+  ]).then(function(res) {
+    var info = res[0], dl = res[1];
+    if (!info.ok) { panel.innerHTML = '<span class="mg-warn">' + escHtml(info.error || 'Cannot read package') + '</span>'; return; }
+    var m = info.manifest || {};
+    var doms = (dl.ok && dl.domains) ? dl.domains : [];
+    var opts = '<option value="">(default) &mdash; primary site</option>';
+    for (var i = 0; i < doms.length; i++) {
+      if (!doms[i].content_root) continue;   // only domains with their own content root
+      opts += '<option value="' + escHtml(doms[i].host) + '">' + escHtml(doms[i].host) + '</option>';
+    }
+    var selId = panelId + '-target', clnId = panelId + '-clean';
+    var html = '';
+    html += '<div style="font-size:0.85rem;margin-bottom:8px;"><b>Package</b>: source '
+          + escHtml(m.source_host || '(default)') + ' &middot; ' + (info.content_files || 0)
+          + ' file(s) &middot; theme ' + escHtml(m.theme || '(none)') + ' &middot; layout '
+          + escHtml(m.layout || '(none)') + ' &middot; nav '
+          + (info.has_nav ? 'override' : escHtml(m.nav || 'base-inherited')) + '.</div>';
+    html += '<div style="margin-bottom:6px;"><label>Apply to: <select id="' + selId + '">' + opts + '</select></label></div>';
+    html += '<div style="margin-bottom:6px;"><label><input type="checkbox" id="' + clnId + '"> Remove existing content under the target first (clean)</label></div>';
+    html += '<div class="mg-muted" style="font-size:0.8rem;margin-bottom:8px;">Apply overwrites the target domain\'s content and rewrites its presentation (site_url / site_name / theme / layout / nav) to the package\'s. A safety snapshot is taken first and the change is recorded in content history. DNS/TLS for the target stay the operator\'s job.</div>';
+    html += '<button class="mg-btn mg-btn-primary mg-btn-sm" onclick="doApply(\'' + escHtml(name) + '\', \'' + selId + '\', \'' + clnId + '\', this)">Apply package</button> ';
+    html += '<button class="mg-btn mg-btn-sm" onclick="document.getElementById(\'' + panelId + '\').style.display=\'none\';">Cancel</button>';
+    panel.innerHTML = html;
+  }).catch(function(e) { panel.innerHTML = '<span class="mg-warn">Error: ' + escHtml(e.message) + '</span>'; });
+}
+
+function doApply(name, selId, clnId, btn) {
+  var sel = document.getElementById(selId), cln = document.getElementById(clnId);
+  var host = sel ? sel.value : '';
+  var clean = cln ? cln.checked : false;
+  var where = host ? ('"' + host + '"') : 'the primary site';
+  var msg = 'Apply "' + name + '" to ' + where + '?'
+          + (clean ? '\n\nCLEAN is on: existing content under the target is removed first.' : '')
+          + '\n\nA safety snapshot is taken and the change is recorded in content history.';
+  var go = function(ok) {
+    if (!ok) return;
+    if (btn) btn.disabled = true;
+    showStatus('Applying ' + name + '…');
+    fetch(API + '?action=site-backup-apply', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, host: host, clean: clean })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (btn) btn.disabled = false;
+      if (!d.ok) { showStatus(d.error || 'Apply failed', true); return; }
+      showStatus('Applied ' + name + (host ? ' to ' + host : ' to the primary site') + '.');
+      loadBackups();
+    }).catch(function(e) { if (btn) btn.disabled = false; showStatus('Apply error: ' + e.message, true); });
+  };
+  if (typeof mgConfirm === 'function') { mgConfirm(msg, { danger: clean, ok: 'Apply' }).then(go); }
+  else { go(window.confirm(msg)); }
+}
+
+function deletePackage(name, btn) {
+  var msg = 'Delete the site package "' + name + '"?\n\nThis removes the portable copy only; live sites are unaffected.';
+  var go = function(ok) {
+    if (!ok) return;
+    if (btn) btn.disabled = true;
+    fetch(API + '?action=site-backup-delete', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (btn) btn.disabled = false;
+      if (!d.ok) { showStatus(d.error || 'Delete failed', true); return; }
+      showStatus('Deleted ' + name + '.');
+      loadBackups();
+    }).catch(function(e) { if (btn) btn.disabled = false; showStatus('Delete error: ' + e.message, true); });
+  };
+  if (typeof mgConfirm === 'function') { mgConfirm(msg, { danger: true, ok: 'Delete' }).then(go); }
+  else { go(window.confirm(msg)); }
 }
 
 loadBackups();

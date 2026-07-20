@@ -58,7 +58,7 @@ use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check);
 use Lazysite::Lang                 qw(lang_status sole_group);
-use Lazysite::Manager::SitePackage qw(package_create package_apply);
+use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
 $Lazysite::Util::COMPONENT = 'manager-api';
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} // die "No DOCUMENT_ROOT\n";
@@ -390,6 +390,8 @@ if ( !$token_auth ) {
         # capability (manage_domains), carved out of the broad manage_config.
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
+        'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
+        'site-backup-delete'  => 'manage_domains', # SM183: remove a package
         'git-init'           => 'manage_config',
         'config-set'         => 'manage_config', 'config-read' => 'manage_config',
         'bad-url-blocks'     => 'manage_config',
@@ -433,7 +435,7 @@ if ( !$token_auth ) {
         lock unlock renew-lock notices-seen
         domain-add domain-set domain-remove
         session-revoke user-revoke key-revoke
-        site-backup-create site-backup-upload site-backup-apply
+        site-backup-create site-backup-upload site-backup-apply site-backup-delete
     );
     # NB: 'users' is deliberately NOT listed - it is dual-mode (GET reads
     # list/groups; writes self-enforce POST inside action_users). session/user/
@@ -542,6 +544,8 @@ if ($token_auth) {
         'site-backup-create' => sub { $_[0]->{manage_domains} },  # SM158
         'site-backup-upload' => sub { $_[0]->{manage_domains} },
         'site-backup-apply'  => sub { $_[0]->{manage_domains} },
+        'site-backup-inspect' => sub { $_[0]->{manage_domains} }, # SM183
+        'site-backup-delete'  => sub { $_[0]->{manage_domains} }, # SM183
         'bad-url-blocks'     => sub { $_[0]->{manage_config} },   # SM128: blocked-IP list
         'bad-url-unblock'    => sub { $_[0]->{manage_config} },
         'pages' => sub { $_[0]->{manage_nav} },  # SM097: page-URL list for the nav editor
@@ -696,6 +700,13 @@ elsif ( $action eq 'site-backup-upload' ) {
 elsif ( $action eq 'site-backup-apply' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_site_backup_apply($req);
+}
+elsif ( $action eq 'site-backup-inspect' ) {
+    $result = action_site_backup_inspect( $params{name} );
+}
+elsif ( $action eq 'site-backup-delete' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_site_backup_delete( $req->{name} // $params{name} );
 }
 elsif ( $action eq 'config-set' ) {
     my $req = eval { decode_json($body) } // {};
@@ -911,7 +922,8 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read form-submissions artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
-        backup-list sessions-list keys-list git-status git-history git-show );
+        backup-list sessions-list keys-list git-status git-history git-show
+        site-backup-inspect );
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
@@ -1394,6 +1406,61 @@ sub action_site_backup_create {
     return package_create($host);
 }
 
+# SM183: resolve a site-package name to its path under lazysite/backups/, confined
+# to the lazysite-site- namespace - a full/content backup or any other file (or a
+# traversal) is unreachable. Returns the abs path, or undef for an invalid name.
+sub _site_package_path {
+    my ($name) = @_;
+    $name //= '';
+    return undef
+        unless $name =~ /\Alazysite-site-[A-Za-z0-9._-]+\.tar\.gz\z/ && $name !~ /\.\./;
+    return "$DOCROOT/lazysite/backups/$name";
+}
+
+# SM183: read a package's manifest WITHOUT applying it. manage_domains-gated
+# (above) + read-only. A scope-confined caller may only inspect a package whose
+# (source) content root lies within their dav_scope union - so one client's
+# manager cannot read another client's package metadata (or the primary site's)
+# on a shared instance. Operators (no scope) are unconfined.
+sub action_site_backup_inspect {
+    my ($name) = @_;
+    my $pkg = _site_package_path($name)
+        or return { ok => 0, kind => 'invalid', error => 'A site package name is required' };
+    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
+
+    my $info = package_inspect($pkg);
+    return $info unless $info->{ok};
+
+    if (@REQUEST_SCOPES) {
+        my $croot = $info->{manifest}{keys}{content_root} // '';
+        return { ok => 0, kind => 'forbidden', error => 'You do not have access to this package.' }
+            if !length $croot
+            || Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot );
+    }
+    return $info;
+}
+
+# SM183: remove a site package from the backups area. manage_domains-gated;
+# name-confined to the lazysite-site- namespace; scope-confined to the package's
+# content root like inspect. Audited via the generic dispatch wrapper.
+sub action_site_backup_delete {
+    my ($name) = @_;
+    my $pkg = _site_package_path($name)
+        or return { ok => 0, kind => 'invalid', error => 'A site package name is required' };
+    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
+
+    if (@REQUEST_SCOPES) {
+        my $info  = package_inspect($pkg);
+        my $croot = $info->{ok} ? ( $info->{manifest}{keys}{content_root} // '' ) : '';
+        return { ok => 0, kind => 'forbidden', error => 'You do not have access to this package.' }
+            if !length $croot
+            || Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot );
+    }
+
+    unlink $pkg or return { ok => 0, error => "Could not delete the package: $!" };
+    return { ok => 1, name => $name };
+}
+
 # SM158: upload a site package (a multipart file) into lazysite/backups/, so it
 # can then be applied. This is the "import" step - the one thing the old backup
 # tooling could not do (backups were server-only). The stored name is forced to
@@ -1437,7 +1504,7 @@ sub action_site_backup_upload {
 # on this instance. Safety-snapshots the whole docroot first, extracts + copies
 # the vetted content into the target content root, installs the bundled
 # theme/layout if missing, places the nav override, then writes the target
-# domain's presentation keys. Requires manage_content + access (scope) to the
+# domain's presentation keys. Requires manage_domains + access (scope) to the
 # target content root. $req: { name, host, clean }.
 #   host present + registered => apply into that domain (its content_root);
 #   host omitted / '(default)' => apply to the PRIMARY/base site.
@@ -1703,6 +1770,9 @@ sub _audit_implicit_target {
     if ( $action =~ /^(?:domain-|site-backup-)/ ) {
         my $h = $params->{host} // $req->{host} // '';
         return $h if length $h;
+        # SM183: site-backup-delete acts on a package NAME, not a host.
+        my $n = $params->{name} // $req->{name} // '';
+        return $n if length $n && $action =~ /^site-backup-/;
     }
     # config-set: name the KEY that changed (e.g. site_name), not a bare '/'.
     if ( $action eq 'config-set' ) {

@@ -338,6 +338,22 @@ function removeDomain(host) {
   });
 }
 
+// SM183: package this domain's site (content + nav + referenced theme/layout +
+// presentation, no secrets) into a portable .tar.gz. It lands under "Site
+// packages" on the Backups page, to download, apply or hand to a client. The
+// server gates this on manage_domains + scope access to the content root.
+function exportSite(host) {
+  showStatus('Packaging ' + host + '…');
+  post('site-backup-create', { host: host }).then(function (d) {
+    if (d && d.ok) {
+      showStatus('Exported ' + host + ' → ' + d.name
+        + '. Open the Backups page (Site packages) to download or apply it.');
+    } else {
+      showStatus((d && d.error) || 'Could not export the site.', true);
+    }
+  });
+}
+
 function editDomain(host) {
   var row = document.getElementById('edit-' + host);
   if (row) row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
@@ -575,6 +591,7 @@ function loadDomains() {
                 + '<button class="mg-btn mg-btn-sm" onclick="previewDomain(' + esc(JSON.stringify(row.host)) + ')">Preview</button> '
                 + '<button class="mg-btn mg-btn-sm" onclick="checkDomain(' + esc(JSON.stringify(row.host)) + ')">Check</button> '
                 + '<button class="mg-btn mg-btn-sm" onclick="editDomain(' + esc(JSON.stringify(row.host)) + ')">Edit</button> '
+                + (row.content_root ? '<button class="mg-btn mg-btn-sm" onclick="exportSite(' + esc(JSON.stringify(row.host)) + ')">Export site</button> ' : '')
                 + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Delete</button>'
                 + '</td></tr>';
           // Hidden inline edit panel - sectioned (Identity / Presentation /

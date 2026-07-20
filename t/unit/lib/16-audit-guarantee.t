@@ -207,7 +207,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         key-revoke plugin-action plugin-disable plugin-enable plugin-save
         rotate-auth-secret save session-revoke theme-activate theme-delete
         theme-rename theme-upload user-revoke users
-        site-backup-create site-backup-upload site-backup-apply
+        site-backup-create site-backup-upload site-backup-apply site-backup-delete
     );
 
     my @unclassified;

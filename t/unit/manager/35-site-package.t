@@ -11,7 +11,7 @@ use JSON::PP   qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use Lazysite::Manager::SitePackage qw(package_create package_apply apply_and_configure);
+use Lazysite::Manager::SitePackage qw(package_create package_apply apply_and_configure package_inspect);
 
 # --- fixture: an agency instance with a client sub-domain -------------------
 my $d = tempdir( CLEANUP => 1 );
@@ -117,6 +117,31 @@ sub list_pkg { my $f = shift; my @l = `tar tzf \Q$f\E 2>/dev/null`; chomp @l; re
     like( $conf, qr/^alias\.client\.example\.theme: blue$/m,       'target theme key written' );
     like( $conf, qr/^alias\.client\.example\.site_name: Client A Shop$/m, 'target title written' );
     like( $conf, qr/^alias\.client\.example\.nav_file: sites\/dest\/nav\.conf$/m, 'target nav_file repointed' );
+}
+
+# --- SM183: package_inspect reads the manifest WITHOUT applying -------------
+{
+    my $src = package_create('shop.clienta.com');
+    my $pkg = "$d/lazysite/backups/$src->{name}";
+
+    # A marker file on the live docroot must be untouched by an inspect.
+    spit( "$d/sites/clienta/UNTOUCHED", "keep\n" );
+
+    my $info = package_inspect($pkg);
+    is( $info->{ok}, 1, 'package_inspect ok' ) or diag $info->{error};
+    is( $info->{manifest}{source_host}, 'shop.clienta.com', 'inspect returns the source host' );
+    is( $info->{manifest}{keys}{content_root}, 'sites/clienta', 'inspect exposes the content_root for scoping' );
+    ok( $info->{content_files} >= 1, 'inspect counts the content files' );
+    is( $info->{has_nav},    1, 'inspect reports the nav override' );
+    is( $info->{has_layout}, 1, 'inspect reports the bundled layout' );
+    ok( -f "$d/sites/clienta/UNTOUCHED", 'inspect is read-only (live content untouched)' );
+
+    # No staging directory is left behind under backups/.
+    my @stage = glob("$d/lazysite/backups/.inspect-*");
+    is( scalar(@stage), 0, 'inspect leaves no staging dir behind' );
+
+    my $miss = package_inspect("$d/lazysite/backups/lazysite-site-nope.tar.gz");
+    ok( !$miss->{ok}, 'inspect of a missing package fails cleanly' );
 }
 
 # --- SECURITY: a package cannot escape the target via a ../ member ----------
