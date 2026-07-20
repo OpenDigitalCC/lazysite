@@ -548,9 +548,10 @@ function checkSubmissionsDir(handler) {
         // SM182: open an inline, escaped submissions TABLE. (The raw .jsonl
         // store lives in the reserved lazysite/ tree and can't be opened in the
         // file editor, so we render it here instead of deep-linking to Files.)
-        html = '<button class="mg-btn mg-btn-sm" onclick="toggleSubmissions('
-             + JSON.stringify(handler.id) + ',' + JSON.stringify(path)
-             + ')">View submissions</button>';
+        html = '<button class="mg-btn mg-btn-sm" onclick=\'toggleSubmissions('
+             + JSON.stringify(handler.id).replace(/'/g, '&#39;') + ', '
+             + JSON.stringify(path).replace(/'/g, '&#39;')
+             + ')\'>View submissions</button>';
       } else {
         html = '<span style="font-size:0.8rem;color:var(--mg-text-light)">No submissions yet</span>';
       }
@@ -590,9 +591,10 @@ function toggleSubmissions(handlerId, dirPath) {
         html += '<div class="mg-submissions-forms" style="margin-bottom:0.5rem">';
         files.forEach(function(f) {
           var form = (f.name || '').replace(/\.jsonl$/, '');
-          html += '<button class="mg-btn mg-btn-sm" onclick="showSubmissionTable('
-               + JSON.stringify(handlerId) + ',' + JSON.stringify(f.path) + ','
-               + JSON.stringify(form) + ')">' + esc(form) + '</button> ';
+          html += '<button class="mg-btn mg-btn-sm" onclick=\'showSubmissionTable('
+               + JSON.stringify(handlerId).replace(/'/g, '&#39;') + ', '
+               + JSON.stringify(f.path).replace(/'/g, '&#39;') + ', '
+               + JSON.stringify(form).replace(/'/g, '&#39;') + ')\'>' + esc(form) + '</button> ';
         });
         html += '</div>';
       }
