@@ -16,6 +16,34 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.7 - BETA: submissions-button fix + domains/site-package UX pass (2026-07-20)
+
+A bug fix plus a UX polish pass on the 0.9.5/0.9.6 beta line. No BREAKING
+changes, no migration.
+
+- FIX (regression from 0.9.5): the plugin-config "View submissions" button did
+  nothing and logged a SyntaxError. Its onclick was built as a double-quoted
+  attribute with a raw JSON.stringify inside, so the double quotes terminated the
+  attribute early and the handler became a broken fragment. Rebuilt on the file's
+  safe single-quoted-attribute pattern.
+- SM185 - domains + site-package UX pass:
+  - Language (lang/lang_group, SM179) now travels in a site package and is written
+    to the target on apply.
+  - The DEFAULT/primary site is exportable without the domains feature: a new
+    Backups > Site packages "Export this site" (manage_content) packages the
+    docroot-root content, excluding lazysite/ infra + secrets and every other
+    domain's content.
+  - The Domains page lists only ADDITIONAL domains (the default site lives in Site
+    settings); per-row actions are folded into an Actions dropdown; intro copy
+    reframed.
+  - Site settings: the service killswitch toggles sit under a single "Services"
+    heading instead of one per toggle.
+- SM184 (publish pages by email) recorded as a candidate proposal (doc only).
+
+Note: the Domains area is gated on the manage_domains capability (split out of
+manage_config by SM160); if it is missing from the menu, grant manage_domains to
+the group on the Groups page.
+
 ## 0.9.6 - BETA: site-package migration in the manager UI (SM183) (2026-07-20)
 
 A UI-only feature increment on the 0.9.5 beta line. It exposes SM158's portable

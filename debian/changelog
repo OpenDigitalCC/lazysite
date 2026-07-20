@@ -1,3 +1,14 @@
+lazysite (0.9.7-1) unstable; urgency=medium
+
+  * BETA: fix the plugin-config "View submissions" button (SM182 regression - an
+    onclick quote collision left the handler broken). Plus SM185, a domains +
+    site-package UX pass: language travels in packages; a default-site "Export
+    this site" (manage_content) that needs no domains feature; the Domains page
+    lists additional domains only, with an actions dropdown; a single Services
+    heading in site settings. UI-plus-small-backend; no migration.
+
+ -- OpenDigital <sjm@opendigital.cc>  Mon, 20 Jul 2026 14:49:44 +0100
+
 lazysite (0.9.6-1) unstable; urgency=medium
 
   * BETA: site-package migration in the manager UI (SM183 v1) - Export a domain's
