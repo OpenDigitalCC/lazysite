@@ -16,6 +16,28 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.6 - BETA: site-package migration in the manager UI (SM183) (2026-07-20)
+
+A UI-only feature increment on the 0.9.5 beta line. It exposes SM158's portable
+per-domain site packages in the manager UI, so a human holding manage_domains can
+perform the agency demo -> client hand-off without MCP or the CLI. No BREAKING
+changes, no migration.
+
+- SM183 (v1) - site-package migration in the UI. Domains gains an "Export site"
+  button per domain; Backups gains a "Site packages" panel (list / download /
+  upload / apply / delete) with an apply preview + a confirmation naming the
+  target and the presentation keys it rewrites. Two new actions -
+  site-backup-inspect (read the manifest without applying) and
+  site-backup-delete - both manage_domains + scope and confined to the
+  lazysite-site- namespace (a full/content backup or a traversal path is
+  unreachable). The package file is the interface: a package created by MCP is
+  applied by a human and vice versa. Also fixes a mis-bucketing that dropped
+  site packages into the content-backups list with a wrong Restore button.
+
+Deferred to a later release (SM183 is partial): dry-run content diff, one-click
+rollback + MCP site_apply snapshot parity, a target-readiness (domain Check) step
+in apply, an integrity sha, and the presentation-key remap override.
+
 ## 0.9.5 - BETA: in-manager form-submissions viewer (SM182) (2026-07-19)
 
 A small, low-risk feature increment on the 0.9.4 stable security line. One

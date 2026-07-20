@@ -1,3 +1,13 @@
+lazysite (0.9.6-1) unstable; urgency=medium
+
+  * BETA: site-package migration in the manager UI (SM183 v1) - Export a domain's
+    site from Domains; list/download/upload/apply/delete site packages on
+    Backups, with an apply preview + confirmation. New manage_domains actions
+    site-backup-inspect (read) + site-backup-delete, name-confined to the
+    lazysite-site- namespace. UI-only; no migration.
+
+ -- OpenDigital <sjm@opendigital.cc>  Mon, 20 Jul 2026 10:27:22 +0100
+
 lazysite (0.9.5-1) unstable; urgency=medium
 
   * BETA: in-manager form-submissions viewer (SM182) - render a form's
