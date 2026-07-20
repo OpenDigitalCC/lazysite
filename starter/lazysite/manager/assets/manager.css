@@ -1465,8 +1465,12 @@ body.mg-sheet-open { overflow:hidden; }
 /* Section label + rows + fields */
 .mg-sec { font-size:var(--mg-text-sm); text-transform:uppercase; letter-spacing:0.04em;
   color:var(--mg-text-muted); margin:0.7rem 0 0.3rem; }
-.mg-checks { display:flex; flex-wrap:wrap; gap:0.4rem 1rem; }
-.mg-chk { font-size:var(--mg-text-sm); display:inline-flex; align-items:center; gap:0.4rem; cursor:pointer; }
+/* A true grid so the capability toggles line up in aligned columns/rows instead
+   of a ragged flex-wrap where each varying-width label shifts the next. */
+.mg-checks { display:grid; grid-template-columns:repeat(auto-fill, minmax(15rem, 1fr));
+  gap:0.35rem 1rem; align-items:start; }
+.mg-chk { font-size:var(--mg-text-sm); display:inline-flex; align-items:center; gap:0.4rem;
+  cursor:pointer; }
 .mg-line { display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; margin:0.3rem 0; }
 .mg-line-lbl { width:5.5rem; color:var(--mg-text-muted); font-size:var(--mg-text-sm); }
 .mg-inp { font-size:var(--mg-text-sm); padding:0.25rem 0.45rem; min-width:11rem;
