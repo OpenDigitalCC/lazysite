@@ -124,6 +124,8 @@ my %EXEMPT = (
     'API::action_site_backup_inspect' => 'read-only',
     'API::action_site_backup_delete'  =>
         'removes a package under lazysite/backups/ - not versioned content',
+    'API::action_site_export_primary' =>
+        'writes only a package under lazysite/backups/ - not versioned content',
     # --- Plugins ---
     'Plugins::action_plugin_list'   => 'read-only',
     'Plugins::action_plugin_read'   => 'read-only',

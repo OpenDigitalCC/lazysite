@@ -28,7 +28,9 @@ spit( "$d/lazysite/lazysite.conf",
         . "alias.shop.clienta.com.site_name: Client A Shop\n"
         . "alias.shop.clienta.com.theme: blue\n"
         . "alias.shop.clienta.com.layout: base\n"
-        . "alias.shop.clienta.com.nav_file: sites/clienta/nav.conf\n" );
+        . "alias.shop.clienta.com.nav_file: sites/clienta/nav.conf\n"
+        . "alias.shop.clienta.com.lang: fr\n"
+        . "alias.shop.clienta.com.lang_group: providers\n" );
 spit( "$d/sites/clienta/index.md",     "# Client A\n" );
 spit( "$d/sites/clienta/nav.conf",     "Home | /\n" );
 spit( "$d/lazysite/layouts/base/layout.tt",               '[% content %]' );
@@ -61,6 +63,8 @@ sub list_pkg { my $f = shift; my @l = `tar tzf \Q$f\E 2>/dev/null`; chomp @l; re
     is( $r->{manifest}{keys}{content_root}, 'sites/clienta', 'manifest carries the content_root key' );
     is( $r->{manifest}{keys}{site_name},    'Client A Shop', 'manifest carries the per-domain site title' );
     is( $r->{manifest}{source_host},        'shop.clienta.com', 'manifest names the source host' );
+    is( $r->{manifest}{keys}{lang},         'fr',        'SM185: manifest carries the language' );
+    is( $r->{manifest}{keys}{lang_group},   'providers', 'SM185: manifest carries the language set' );
 }
 
 # --- a domain with NO content root of its own is refused --------------------
@@ -117,6 +121,25 @@ sub list_pkg { my $f = shift; my @l = `tar tzf \Q$f\E 2>/dev/null`; chomp @l; re
     like( $conf, qr/^alias\.client\.example\.theme: blue$/m,       'target theme key written' );
     like( $conf, qr/^alias\.client\.example\.site_name: Client A Shop$/m, 'target title written' );
     like( $conf, qr/^alias\.client\.example\.nav_file: sites\/dest\/nav\.conf$/m, 'target nav_file repointed' );
+    like( $conf, qr/^alias\.client\.example\.lang: fr$/m,               'SM185: language applied to the target' );
+    like( $conf, qr/^alias\.client\.example\.lang_group: providers$/m,  'SM185: language set applied to the target' );
+}
+
+# --- SM185: the DEFAULT site (docroot root) packages, excluding infra + others -
+{
+    make_path("$d/lazysite/auth");
+    spit( "$d/index.md",              "# Home root\n" );   # the default site's own content
+    spit( "$d/lazysite/auth/.secret", "TOPSECRET" );       # infra - must NOT travel
+
+    my $r = package_create('(default)');
+    is( $r->{ok}, 1, 'the default/primary site packages (no content_root of its own)' )
+        or diag $r->{error};
+    is( $r->{manifest}{source_host}, '(default)', 'source host is (default)' );
+    my @members = list_pkg("$d/lazysite/backups/$r->{name}");
+    my %in      = map { $_ => 1 } @members;
+    ok( $in{'./content/index.md'},                     'root content is packaged' );
+    ok( !( grep {m{lazysite}} @members ),              'lazysite/ infra + secrets are excluded' );
+    ok( !( grep {m{content/sites/clienta}} @members ), "another domain's content is excluded" );
 }
 
 # --- SM183: package_inspect reads the manifest WITHOUT applying -------------

@@ -392,6 +392,7 @@ if ( !$token_auth ) {
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
         'site-backup-delete'  => 'manage_domains', # SM183: remove a package
+        'site-export-primary' => 'manage_content', # SM185: package the DEFAULT site (no domains feature needed)
         'git-init'           => 'manage_config',
         'config-set'         => 'manage_config', 'config-read' => 'manage_config',
         'bad-url-blocks'     => 'manage_config',
@@ -436,6 +437,7 @@ if ( !$token_auth ) {
         domain-add domain-set domain-remove
         session-revoke user-revoke key-revoke
         site-backup-create site-backup-upload site-backup-apply site-backup-delete
+        site-export-primary
     );
     # NB: 'users' is deliberately NOT listed - it is dual-mode (GET reads
     # list/groups; writes self-enforce POST inside action_users). session/user/
@@ -546,6 +548,7 @@ if ($token_auth) {
         'site-backup-apply'  => sub { $_[0]->{manage_domains} },
         'site-backup-inspect' => sub { $_[0]->{manage_domains} }, # SM183
         'site-backup-delete'  => sub { $_[0]->{manage_domains} }, # SM183
+        'site-export-primary' => sub { $_[0]->{manage_content} }, # SM185
         'bad-url-blocks'     => sub { $_[0]->{manage_config} },   # SM128: blocked-IP list
         'bad-url-unblock'    => sub { $_[0]->{manage_config} },
         'pages' => sub { $_[0]->{manage_nav} },  # SM097: page-URL list for the nav editor
@@ -700,6 +703,9 @@ elsif ( $action eq 'site-backup-upload' ) {
 elsif ( $action eq 'site-backup-apply' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_site_backup_apply($req);
+}
+elsif ( $action eq 'site-export-primary' ) {
+    $result = action_site_export_primary();
 }
 elsif ( $action eq 'site-backup-inspect' ) {
     $result = action_site_backup_inspect( $params{name} );
@@ -1406,6 +1412,19 @@ sub action_site_backup_create {
     return package_create($host);
 }
 
+# SM185: package the DEFAULT/primary site as a self-contained site package,
+# independent of the domains feature (manage_content-gated, so a site owner who
+# does not use additional domains can still export/hand off their site). A
+# scope-confined editor (bound to a sub-area) may NOT export the whole default
+# site. The package excludes lazysite/ and every other domain's content.
+sub action_site_export_primary {
+    return { ok => 0, kind => 'forbidden',
+        error => 'Exporting the default site needs full content access (you are confined to an area).' }
+        if @REQUEST_SCOPES;
+    local $Lazysite::Manager::SitePackage::auth_user = $auth_user;
+    return package_create('(default)');
+}
+
 # SM183: resolve a site-package name to its path under lazysite/backups/, confined
 # to the lazysite-site- namespace - a full/content backup or any other file (or a
 # traversal) is unreachable. Returns the abs path, or undef for an invalid name.
@@ -1767,6 +1786,7 @@ sub _audit_implicit_target {
 
     # Domain + per-site actions act on a HOST (domain-add/set/remove/preview/
     # check, site-backup-create/apply/upload) - name the domain.
+    return 'default' if $action eq 'site-export-primary';    # SM185
     if ( $action =~ /^(?:domain-|site-backup-)/ ) {
         my $h = $params->{host} // $req->{host} // '';
         return $h if length $h;

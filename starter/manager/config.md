@@ -177,8 +177,14 @@ function onLayoutChange(select) {
 
 function renderSiteForm(values) {
   var html = '<form id="site-form" onsubmit="saveSiteSettings(event)" oninput="markSiteDirty()" onchange="markSiteDirty()">';
+  // Emit a group heading only when the group CHANGES, so consecutive fields in
+  // one group (e.g. the Services toggles) sit under a single heading.
+  var lastGroup = null;
   SITE_SCHEMA.forEach(function(f) {
-    if (f.group) html += '<h3 class="mg-config-group">' + esc(f.group) + '</h3>';
+    if (f.group && f.group !== lastGroup) {
+      html += '<h3 class="mg-config-group">' + esc(f.group) + '</h3>';
+    }
+    if (f.group) lastGroup = f.group;
     var v = values[f.key] !== undefined ? values[f.key] : (f.default || '');
     var sw = f.show_when;
     var da = sw ? ' data-show-key="'+sw.key+'" data-show-val="'+sw.value.join(',')+'"' : '';

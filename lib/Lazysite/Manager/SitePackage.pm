@@ -38,7 +38,11 @@ our $DOCROOT   = '';
 our $auth_user = '';
 
 # The 7 presentation keys that define a site (mirrors Domains @DOMAIN_KEYS).
-my @KEYS = qw(content_root site_url site_name theme layout nav_file search_default);
+# SM158 + SM185: the presentation keys that travel in a package. lang/lang_group
+# (SM179) are carried so an exported/migrated site keeps its language - a package
+# is a faithful copy of the source's presentation, and language is part of it.
+my @KEYS = qw(content_root site_url site_name theme layout nav_file search_default
+    lang lang_group);
 
 sub _backups_dir { return "$DOCROOT/lazysite/backups" }
 
@@ -56,6 +60,48 @@ sub _domain_row {
 
 # Recursive copy of regular files + dirs only (skips symlinks/specials, so a
 # content tree cannot smuggle a link out). Core Perl, no external cp.
+# SM185: copy the DEFAULT site's content (the docroot root) into $dst, excluding
+# lazysite/ (infra + secrets), every registered ADDITIONAL domain's content root
+# (those belong to other sites), and the generated .html render caches that sit
+# beside a .md source. Used only for the primary/default-site package.
+sub _copy_base_content {
+    my ($dst) = @_;
+    my %skip = ( lazysite => 1 );
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    my $dl = Lazysite::Manager::Domains::domains_list();
+    for my $r ( @{ $dl->{domains} || [] } ) {
+        next if $r->{is_primary};
+        ( my $cr = $r->{content_root} // '' ) =~ s{^/+|/+$}{}g;
+        $skip{$cr} = 1 if length $cr;
+    }
+    my $src = $DOCROOT;
+    File::Find::find(
+        { no_chdir => 1,
+            wanted => sub {
+                my $p   = $File::Find::name;
+                my $rel = ( $p eq $src ) ? '' : substr( $p, length($src) + 1 );
+                if ( length $rel ) {
+                    for my $ex ( keys %skip ) {
+                        next unless $rel eq $ex || index( $rel, "$ex/" ) == 0;
+                        $File::Find::prune = 1 if -d $p;
+                        return;
+                    }
+                }
+                my $target = length $rel ? "$dst/$rel" : $dst;
+                if    ( -l $p ) { return }
+                elsif ( -d $p ) { make_path($target) }
+                elsif ( -f $p ) {
+                    return if $p =~ /\.html\z/ && -f ( $p =~ s/\.html\z/.md/r );
+                    make_path( dirname($target) );
+                    copy( $p, $target );
+                }
+            },
+        },
+        $src
+    );
+    return;
+}
+
 sub _copy_tree {
     my ( $src, $dst ) = @_;
     $src =~ s{/+$}{};
@@ -86,11 +132,18 @@ sub package_create {
 
     my %keys  = map { $_ => ( $row->{$_} // '' ) } @KEYS;
     my $croot = $keys{content_root};
+
+    # SM185: the DEFAULT/primary site served at the docroot ROOT (no content_root
+    # of its own) is still packageable - its content is the docroot minus
+    # lazysite/ (infra + secrets) and minus every OTHER domain's content root. An
+    # ADDITIONAL domain with no content root just mirrors the default, so there is
+    # nothing site-specific to package.
+    my $primary_base = ( !length $croot && $row->{is_primary} ) ? 1 : 0;
     return { ok => 0, kind => 'invalid',
         error => "$host serves the default site (no content root of its own) - nothing to package" }
-        unless length $croot;
+        unless length $croot || $primary_base;
 
-    my $content_src = "$DOCROOT/$croot";
+    my $content_src = $primary_base ? $DOCROOT : "$DOCROOT/$croot";
     return { ok => 0, kind => 'not-found', error => "Content folder not found: $croot" }
         unless -d $content_src;
 
@@ -105,8 +158,10 @@ sub package_create {
 
     my $cleanup = sub { remove_tree($stage) if -d $stage };
 
-    # 1. content_root subtree -> content/
-    _copy_tree( $content_src, "$stage/content" );
+    # 1. content -> content/. For the primary/default site that means the docroot
+    # root with the infra + other domains excluded; for a domain, its subtree.
+    if ($primary_base) { _copy_base_content("$stage/content") }
+    else               { _copy_tree( $content_src, "$stage/content" ) }
 
     # 2. nav: package the OVERRIDE only. A base-inherited nav (nav_file unset or
     # pointing at the infra lazysite/nav.conf) is NOT packaged - the target's

@@ -4,12 +4,20 @@ auth: manager
 search: false
 ---
 
+<style>
+.mg-rowmenu { display: inline-block; }
+.mg-rowmenu > summary { list-style: none; cursor: pointer; }
+.mg-rowmenu > summary::-webkit-details-marker { display: none; }
+.mg-rowmenu-items { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; align-items: flex-start; }
+</style>
+
 <div id="status" class="mg-status"></div>
 
 <p style="font-size:0.85em;color:#888;margin:0 0 12px;">
-This instance can serve several domains at once. Each domain can be a
-first&#8209;class site &mdash; its own home page, sitemap, feeds and search &mdash;
-by giving it a content folder; or it can simply show your default site. Point
+Your site is always served at its default address. This page is for the
+<strong>additional domains</strong> you serve from this one instance. Each can be
+a first&#8209;class site &mdash; its own home page, sitemap, feeds and search &mdash;
+by giving it a content folder; or it can mirror your default site. Point
 DNS, the web&#8209;server domain alias and TLS at this server first (your
 control&#8209;panel / Hestia's job &mdash; a wildcard record + wildcard
 certificate covers every sub&#8209;domain at once), then register the lazysite
@@ -568,8 +576,8 @@ function loadDomains() {
       DISPLAY_KEYS.forEach(function (k) { html += '<th>' + esc(label(k)) + '</th>'; });
       html += '<th>Actions</th></tr></thead><tbody>';
       rows.forEach(function (row) {
-        var tag = row.is_primary ? ' <span style="color:#888;font-weight:400">default site</span>' : '';
-        html += '<tr><td class="mg-file-name"><strong>' + esc(row.host) + '</strong>' + tag + '</td>';
+        if (row.is_primary) return;   // the default site lives in Site settings, not this list
+        html += '<tr><td class="mg-file-name"><strong>' + esc(row.host) + '</strong></td>';
         DISPLAY_KEYS.forEach(function (k) {
           var v = row[k], inherited = row[k + '_inherited'], cell;
           if (k === 'content_root' && !v) {
@@ -583,27 +591,26 @@ function loadDomains() {
           }
           html += '<td>' + cell + '</td>';
         });
-        // Actions - buttons may wrap on a narrow screen (no nowrap).
-        if (row.is_primary) {
-          html += '<td></td></tr>';
-        } else {
-          html += '<td>'
-                + '<button class="mg-btn mg-btn-sm" onclick="previewDomain(' + esc(JSON.stringify(row.host)) + ')">Preview</button> '
-                + '<button class="mg-btn mg-btn-sm" onclick="checkDomain(' + esc(JSON.stringify(row.host)) + ')">Check</button> '
-                + '<button class="mg-btn mg-btn-sm" onclick="editDomain(' + esc(JSON.stringify(row.host)) + ')">Edit</button> '
-                + (row.content_root ? '<button class="mg-btn mg-btn-sm" onclick="exportSite(' + esc(JSON.stringify(row.host)) + ')">Export site</button> ' : '')
-                + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Delete</button>'
-                + '</td></tr>';
-          // Hidden inline edit panel - sectioned (Identity / Presentation /
-          // Access), each a grid of aligned fields (editSection/editField).
-          html += '<tr id="edit-' + esc(row.host) + '" style="display:none"><td colspan="' + (DISPLAY_KEYS.length + 2) + '">'
-                + '<div style="background:var(--mg-panel,#fafafa);border:1px solid var(--mg-border,#e2e2e2);border-radius:6px;padding:14px 16px;max-width:760px;">'
-                + '<div style="font-size:0.9em;font-weight:600;color:#444;border-bottom:1px solid var(--mg-border,#e2e2e2);padding-bottom:8px;margin-bottom:4px;">Edit ' + esc(row.host) + '</div>';
-          EDIT_SECTIONS.forEach(function (s) { html += editSection(row.host, s, row); });
-          html += '<div style="margin-top:16px;">'
-                + '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveDomain(' + esc(JSON.stringify(row.host)) + ')">Save changes</button>'
-                + '</div></div></td></tr>';
-        }
+        // Actions folded into a per-row dropdown (Edit + the domain actions) so
+        // the row stays uncluttered; it expands inline (no clipping inside the
+        // table's overflow-x box).
+        html += '<td><details class="mg-rowmenu"><summary class="mg-btn mg-btn-sm">Actions &#9662;</summary>'
+              + '<div class="mg-rowmenu-items">'
+              + '<button class="mg-btn mg-btn-sm" onclick="editDomain(' + esc(JSON.stringify(row.host)) + ')">Edit</button>'
+              + '<button class="mg-btn mg-btn-sm" onclick="previewDomain(' + esc(JSON.stringify(row.host)) + ')">Preview</button>'
+              + '<button class="mg-btn mg-btn-sm" onclick="checkDomain(' + esc(JSON.stringify(row.host)) + ')">Check</button>'
+              + (row.content_root ? '<button class="mg-btn mg-btn-sm" onclick="exportSite(' + esc(JSON.stringify(row.host)) + ')">Export site</button>' : '')
+              + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Delete</button>'
+              + '</div></details></td></tr>';
+        // Hidden inline edit panel - sectioned (Identity / Presentation /
+        // Access), each a grid of aligned fields (editSection/editField).
+        html += '<tr id="edit-' + esc(row.host) + '" style="display:none"><td colspan="' + (DISPLAY_KEYS.length + 2) + '">'
+              + '<div style="background:var(--mg-panel,#fafafa);border:1px solid var(--mg-border,#e2e2e2);border-radius:6px;padding:14px 16px;max-width:760px;">'
+              + '<div style="font-size:0.9em;font-weight:600;color:#444;border-bottom:1px solid var(--mg-border,#e2e2e2);padding-bottom:8px;margin-bottom:4px;">Edit ' + esc(row.host) + '</div>';
+        EDIT_SECTIONS.forEach(function (s) { html += editSection(row.host, s, row); });
+        html += '<div style="margin-top:16px;">'
+              + '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveDomain(' + esc(JSON.stringify(row.host)) + ')">Save changes</button>'
+              + '</div></div></td></tr>';
       });
       html += '</tbody></table></div>';
       if (rows.length <= 1) {

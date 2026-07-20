@@ -47,6 +47,7 @@ delete. To move between instances, download it, then <b>Upload</b> it on the tar
 and <b>Apply</b> it to a domain there.
 </p>
 <div style="margin-bottom:12px;">
+<button class="mg-btn mg-btn-primary" onclick="exportPrimarySite(this)">Export this site</button>
 <label class="mg-btn mg-btn-primary" style="cursor:pointer;">
 &#11014; Upload a package
 <input type="file" accept=".tar.gz,application/gzip" style="display:none;" onchange="uploadPackage(this)">
@@ -237,6 +238,22 @@ function renderPackages(list) {
     html += '</div>';
   }
   el.innerHTML = html;
+}
+
+// SM185: export the DEFAULT/primary site as a self-contained package, without
+// needing the domains feature. Gated server-side on manage_content.
+function exportPrimarySite(btn) {
+  if (btn) btn.disabled = true;
+  showStatus('Packaging this site…');
+  fetch(API + '?action=site-export-primary', { method: 'POST', credentials: 'same-origin' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (btn) btn.disabled = false;
+      if (!d.ok) { showStatus(d.error || 'Export failed', true); return; }
+      showStatus('Exported this site → ' + d.name + '. Download or apply it below.');
+      loadBackups();
+    })
+    .catch(function(e) { if (btn) btn.disabled = false; showStatus('Export error: ' + e.message, true); });
 }
 
 function uploadPackage(input) {
