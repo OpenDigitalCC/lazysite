@@ -141,7 +141,9 @@ my %EXEMPT = (
     'Plugins::action_handler_save'   =>
         'writes under lazysite/forms/ - excluded from the versioned set',
     'Plugins::action_handler_delete'    => 'as action_handler_save',
-    'Plugins::action_form_targets_save' => 'as action_handler_save',
+    'Plugins::action_form_targets_save'      => 'as action_handler_save',
+    'Plugins::action_form_submission_delete' =>
+        'rewrites a submissions store under lazysite/forms/ - excluded from the versioned set',
     # --- Layouts / Themes (artifact trees: captured wholesale by the
     #     commit_all sweeps, not per-action hooks - pre-existing design) ---
     'Layouts::action_layouts_releases'         => 'read-only',

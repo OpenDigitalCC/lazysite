@@ -25,7 +25,7 @@ our @CAP_KEYS = qw(
     ui webdav api mcp
     manage_content manage_nav manage_forms
     manage_themes manage_layouts manage_domains manage_config
-    manage_users analytics audit notifications feedback
+    manage_users analytics audit notifications feedback read_submissions
     create_sub_users delegate_sub_user_creation);
 
 sub _settings_file       { "$AUTH_DIR/user-settings.json" }

@@ -55,6 +55,7 @@ var ACTIONS = [
   ['audit', 'Audit trail'],
   ['notifications', 'Notifications (bell)'],
   ['feedback', 'Agent feedback (MCP submit_feedback)'],
+  ['read_submissions', 'Read form submissions (agent, API/MCP)'],
   ['create_sub_users', 'Create sub-users'],
   ['delegate_sub_user_creation', 'Delegate sub-users']
 ];

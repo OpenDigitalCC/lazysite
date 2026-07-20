@@ -12,7 +12,8 @@ use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Plugins qw(
     action_plugin_enable action_plugin_disable action_handler_save
     action_handler_list action_handler_delete action_form_targets_save
-    action_form_targets_read action_form_submissions resolve_plugin_script);
+    action_form_targets_read action_form_submissions action_form_submission_delete
+    resolve_plugin_script);
 
 # SM152: a real install layout - base holds plugins/, docroot is base/public_html
 # - so the plugin registry (base/plugins/*.pl + core) resolves. enable/disable
@@ -157,6 +158,26 @@ unlink "$base/sample-plugin.pl";
     # A missing file is an empty table, not an error (form with no submissions).
     my $empty = action_form_submissions('lazysite/forms/submissions/none.jsonl');
     ok( $empty->{ok} && $empty->{total} == 0, 'a form with no submissions yields an empty table' );
+
+    # SM187: every row carries a stable _id (raw-line hash) for deletion.
+    like( $r->{rows}[0]{_id}, qr/\A[0-9a-f]{16}\z/, 'each row has a stable 16-hex _id' );
+    isnt( $r->{rows}[0]{_id}, $r->{rows}[1]{_id}, 'distinct rows get distinct ids' );
+
+    # SM187: delete one handled row by its _id; the store shrinks by exactly one.
+    my $del = action_form_submission_delete(
+        'lazysite/forms/submissions/contact.jsonl', $r->{rows}[0]{_id} );
+    ok( $del->{ok} && $del->{deleted}, 'delete removes the identified row' );
+    my $after = action_form_submissions('lazysite/forms/submissions/contact.jsonl');
+    is( $after->{shown}, 1, 'one parseable row remains after the delete' );
+    is( $after->{rows}[0]{_id}, $r->{rows}[1]{_id}, 'the OTHER row survived (right one deleted)' );
+
+    # A bad / unknown id and a traversal are refused.
+    ok( !action_form_submission_delete('lazysite/forms/submissions/contact.jsonl', 'nope')->{ok},
+        'a malformed row id is refused' );
+    ok( !action_form_submission_delete('lazysite/forms/submissions/contact.jsonl', '0' x 16)->{ok},
+        'an unknown row id is a not-found, not a silent success' );
+    ok( !action_form_submission_delete('lazysite/forms/submissions/../../auth/.secret', '0' x 16)->{ok},
+        'delete refuses a traversal path' );
 }
 
 done_testing();

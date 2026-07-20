@@ -38,7 +38,7 @@ use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action action_handler_list
     action_handler_save action_handler_delete action_form_targets_read action_form_targets_save
-    action_form_submissions);
+    action_form_submissions action_form_submission_delete);
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
@@ -414,7 +414,8 @@ if ( !$token_auth ) {
         'nav-save'                => 'manage_nav',
         'handler-save'            => 'manage_forms', 'handler-delete' => 'manage_forms',
         'form-targets-save'       => 'manage_forms',
-        'form-submissions'        => 'manage_forms',   # SM182: read PII submissions (GET)
+        'form-submissions' => 'manage_forms|read_submissions', # SM182/SM187: read PII submissions (GET)
+        'form-submission-delete' => 'manage_forms', # SM187: remove a handled submission row
         'plugin-enable' => 'manage_config', 'plugin-disable'   => 'manage_config',
         'plugin-read'   => 'manage_config', 'plugin-save'      => 'manage_config',
         'plugin-action' => 'manage_config', 'analyse_visitors' => 'analytics',
@@ -432,7 +433,7 @@ if ( !$token_auth ) {
         theme-delete theme-rename theme-upload layout-activate layout-delete
         layout-install layouts-install layouts-repo-set artifact-backups-delete
         preview-grant preview-clear nav-save handler-save handler-delete
-        form-targets-save plugin-enable plugin-disable plugin-save plugin-action
+        form-targets-save form-submission-delete plugin-enable plugin-disable plugin-save plugin-action
         lock unlock renew-lock notices-seen
         domain-add domain-set domain-remove
         session-revoke user-revoke key-revoke
@@ -549,6 +550,9 @@ if ($token_auth) {
         'site-backup-inspect' => sub { $_[0]->{manage_domains} }, # SM183
         'site-backup-delete'  => sub { $_[0]->{manage_domains} }, # SM183
         'site-export-primary' => sub { $_[0]->{manage_content} }, # SM185
+            # SM187: agents read form submissions with a least-privilege read_submissions
+            # cap OR the operator's manage_forms - parity with the cookie channel.
+        'form-submissions' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} },
         'bad-url-blocks'     => sub { $_[0]->{manage_config} },   # SM128: blocked-IP list
         'bad-url-unblock'    => sub { $_[0]->{manage_config} },
         'pages' => sub { $_[0]->{manage_nav} },  # SM097: page-URL list for the nav editor
@@ -876,6 +880,10 @@ elsif ( $action eq 'form-targets-read' ) {
 }
 elsif ( $action eq 'form-submissions' ) {
     $result = action_form_submissions( $params{file} );
+}
+elsif ( $action eq 'form-submission-delete' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_form_submission_delete( $req->{file} // $params{file}, $req->{id} );
 }
 elsif ( $action eq 'form-targets-save' ) {
     my $req = eval { decode_json($body) } // {};
@@ -1787,6 +1795,10 @@ sub _audit_implicit_target {
     # Domain + per-site actions act on a HOST (domain-add/set/remove/preview/
     # check, site-backup-create/apply/upload) - name the domain.
     return 'default' if $action eq 'site-export-primary';    # SM185
+    if ( $action eq 'form-submission-delete' ) {             # SM187: name the store
+        my $f = $params->{file} // $req->{file} // '';
+        return $f if length $f;
+    }
     if ( $action =~ /^(?:domain-|site-backup-)/ ) {
         my $h = $params->{host} // $req->{host} // '';
         return $h if length $h;

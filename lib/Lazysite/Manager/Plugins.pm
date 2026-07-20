@@ -10,6 +10,7 @@ use JSON::PP qw(encode_json decode_json);
 use File::Basename qw(basename dirname);
 use File::Path qw(make_path);
 use Cwd qw(realpath);
+use Digest::SHA               qw(sha256_hex);
 use Lazysite::Util qw(log_event);
 use Lazysite::Manager::Common qw(write_file_checked);
 use Exporter 'import';
@@ -19,6 +20,7 @@ our @EXPORT_OK = qw(
     action_plugin_read action_plugin_save action_plugin_action
     action_handler_list action_handler_save action_handler_delete
     action_form_targets_read action_form_targets_save action_form_submissions
+    action_form_submission_delete
     resolve_plugin_script
 );
 
@@ -653,48 +655,65 @@ sub action_form_targets_save {
 # reserved lazysite/ file the raw editor refuses, which is why this dedicated,
 # read-only, capability-gated view exists. Rows are capped (most recent) so a
 # large store never floods the browser.
-sub action_form_submissions {
+# SM182/SM187: confine a submissions-file argument to a .jsonl under the docroot.
+# Returns ( $abs_path, $rel, undef ) or ( undef, undef, $error ).
+sub _submissions_path {
     my ($file) = @_;
-    $file //= '';
-    $file =~ s{^/+}{};
-    # Confine: a .jsonl file, no traversal, resolving under the docroot.
-    return { ok => 0, error => 'Invalid submissions file' }
-        unless $file =~ /\.jsonl\z/ && $file !~ m{(?:^|/)\.\.(?:/|$)};
-    my $abs  = "$DOCROOT/$file";
+    ( my $rel = $file // '' ) =~ s{^/+}{};
+    return ( undef, undef, 'Invalid submissions file' )
+        unless $rel =~ /\.jsonl\z/ && $rel !~ m{(?:^|/)\.\.(?:/|$)};
+    my $abs  = "$DOCROOT/$rel";
     my $real = realpath( -e $abs ? $abs : dirname($abs) );
-    return { ok => 0, error => 'Invalid submissions file' }
+    return ( undef, undef, 'Invalid submissions file' )
         unless defined $real
         && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 );
-    return { ok => 1, file => $file, columns => [], rows => [], total => 0, shown => 0 }
+    return ( $abs, $rel, undef );
+}
+
+# A stable per-row id: a short hash of the raw JSONL line, so the UI can ask to
+# delete a specific record without a line number that shifts as rows are removed.
+sub _submission_row_id { substr( sha256_hex( $_[0] ), 0, 16 ) }
+
+sub action_form_submissions {
+    my ($file) = @_;
+    my ( $abs, $rel, $err ) = _submissions_path($file);
+    return { ok => 0, error => $err } if $err;
+    return { ok => 1, file => $rel, columns => [], rows => [], total => 0, shown => 0 }
         unless -f $abs;
 
     open my $fh, '<:utf8', $abs
         or return { ok => 0, error => 'Cannot read submissions' };
     my $CAP = 500;
-    my ( @rows, @cols, %seen, $total, $malformed );
+    my ( @rows, @raw, @cols, %seen, $total, $malformed );
     while ( my $line = <$fh> ) {
-        $line =~ s/\s+\z//;
-        next unless length $line;
+        ( my $trim = $line ) =~ s/\s+\z//;
+        next unless length $trim;
         $total++;
-        my $rec = eval { decode_json($line) };
+        my $rec = eval { decode_json($trim) };
         if ( ref $rec ne 'HASH' ) { $malformed++; next }
         push @cols, $_ for grep { !$seen{$_}++ } keys %$rec;
         push @rows, $rec;
+        push @raw,  $trim;
     }
     close $fh;
 
-    @rows = @rows[ -$CAP .. -1 ] if @rows > $CAP;    # keep the most recent
+    if ( @rows > $CAP ) { @rows = @rows[ -$CAP .. -1 ]; @raw = @raw[ -$CAP .. -1 ] }
     # Stringify every value (a nested ref is JSON-encoded); the client escapes.
+    # Each row carries a stable _id (raw-line hash) so it can be deleted.
     my @out = map {
-        my $r = $_;
-        +{ map { $_ => ( !defined $r->{$_} ? ''
-                : ref $r->{$_} ? encode_json( $r->{$_} )
-                : "$r->{$_}" ) } @cols }
-    } @rows;
+        my ( $r, $raw ) = ( $rows[$_], $raw[$_] );
+        +{  _id => _submission_row_id($raw),
+            map {
+                $_ => ( !defined $r->{$_} ? ''
+                    : ref $r->{$_} ? encode_json( $r->{$_} )
+                    : "$r->{$_}" )
+            } @cols
+        }
+    } 0 .. $#rows;
 
     return {
         ok        => 1,
-        file      => $file,
+        file      => $rel,
         columns   => \@cols,
         rows      => \@out,
         total     => ( $total   || 0 ),
@@ -702,6 +721,40 @@ sub action_form_submissions {
         truncated => ( $total > $CAP ? 1 : 0 ),
         malformed => ( $malformed || 0 ),
     };
+}
+
+# SM187: delete ONE handled submission row from a store, identified by the stable
+# _id (raw-line hash) that action_form_submissions returns. Rewrites the .jsonl
+# without the matched line, atomically (temp + rename). manage_forms-gated +
+# audited by the dispatch wrapper. Returns { ok, deleted } or { ok=>0, error }.
+sub action_form_submission_delete {
+    my ( $file, $id ) = @_;
+    my ( $abs, $rel, $err ) = _submissions_path($file);
+    return { ok => 0, error => $err } if $err;
+    return { ok => 0, error => 'A row id is required' }
+        unless defined $id && $id =~ /\A[0-9a-f]{16}\z/;
+    return { ok => 0, error => 'No such submissions store' } unless -f $abs;
+
+    open my $fh, '<:utf8', $abs or return { ok => 0, error => 'Cannot read submissions' };
+    my ( @keep, $deleted );
+    while ( my $line = <$fh> ) {
+        ( my $trim = $line ) =~ s/\s+\z//;
+        if ( !$deleted && length $trim && _submission_row_id($trim) eq $id ) {
+            $deleted = 1;
+            next;
+        }
+        push @keep, $line;
+    }
+    close $fh;
+    return { ok => 0, error => 'Row not found' } unless $deleted;
+
+    my $tmp = "$abs.tmp.$$";
+    open my $out, '>:utf8', $tmp or return { ok => 0, error => 'Cannot write submissions' };
+    print {$out} @keep;
+    close $out;
+    rename $tmp, $abs
+        or do { unlink $tmp; return { ok => 0, error => 'Cannot replace submissions' } };
+    return { ok => 1, file => $rel, deleted => 1 };
 }
 
 1;

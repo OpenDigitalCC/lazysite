@@ -564,92 +564,111 @@ function checkSubmissionsDir(handler) {
     });
 }
 
-// --- SM182: inline submissions viewer ---------------------------------------
+// --- SM182/SM187: submissions viewer (scrollable modal + per-row delete) -----
 // The raw .jsonl store lives in the reserved lazysite/ tree, so it can't be
-// opened in the file editor. Render it here as a table instead. Every value is
-// user-supplied, so EVERY cell/header/label goes through esc() - the server
-// returns values verbatim (row-capped, parsed) and the client escapes.
+// opened in the file editor. Show it in a scrollable MODAL table instead. Values
+// are user-supplied, so EVERY cell/header/label goes through esc(). A handled row
+// can be deleted by its stable _id (server rewrites the store).
 
 function toggleSubmissions(handlerId, dirPath) {
-  var panel = document.getElementById('submissions-panel-' + handlerId);
-  if (!panel) return;
-  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
-  panel.style.display = 'block';
-  panel.innerHTML = '<p style="color:var(--mg-text-light)">Loading submissions&hellip;</p>';
+  openSubsModal();
+  setSubsBody('<p style="color:var(--mg-text-light)">Loading submissions&hellip;</p>', 'Submissions');
   fetch(API + '?action=list&path=' + encodeURIComponent(dirPath))
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var files = (data.ok && data.entries ? data.entries : []).filter(function(f) {
         return f.type === 'file' && /\.jsonl$/.test(f.name || '');
       });
-      if (!files.length) {
-        panel.innerHTML = '<p style="color:var(--mg-text-light)">No submissions yet.</p>';
-        return;
-      }
-      var html = '';
-      if (files.length > 1) {
-        html += '<div class="mg-submissions-forms" style="margin-bottom:0.5rem">';
+      if (!files.length) { setSubsBody('<p style="color:var(--mg-text-light)">No submissions yet.</p>', 'Submissions'); return; }
+      // A form selector in the modal header when the store holds more than one.
+      var fsel = document.getElementById('subs-modal-forms');
+      if (files.length > 1 && fsel) {
+        var sel = '<select onchange="showSubmissionTable(this.value, this.options[this.selectedIndex].text)">';
         files.forEach(function(f) {
           var form = (f.name || '').replace(/\.jsonl$/, '');
-          html += '<button class="mg-btn mg-btn-sm" onclick=\'showSubmissionTable('
-               + JSON.stringify(handlerId).replace(/'/g, '&#39;') + ', '
-               + JSON.stringify(f.path).replace(/'/g, '&#39;') + ', '
-               + JSON.stringify(form).replace(/'/g, '&#39;') + ')\'>' + esc(form) + '</button> ';
+          sel += '<option value="' + esc(f.path) + '">' + esc(form) + '</option>';
         });
-        html += '</div>';
+        fsel.innerHTML = sel + '</select>';
       }
-      html += '<div id="submission-table-' + esc(handlerId) + '"></div>';
-      panel.innerHTML = html;
-      showSubmissionTable(handlerId, files[0].path,
-        (files[0].name || '').replace(/\.jsonl$/, ''));
+      showSubmissionTable(files[0].path, (files[0].name || '').replace(/\.jsonl$/, ''));
     })
-    .catch(function() {
-      panel.innerHTML = '<p style="color:var(--mg-danger,#c00)">Could not list submissions.</p>';
-    });
+    .catch(function() { setSubsBody('<p style="color:var(--mg-danger,#c00)">Could not list submissions.</p>', 'Submissions'); });
 }
 
-function showSubmissionTable(handlerId, filePath, formName) {
-  var out = document.getElementById('submission-table-' + handlerId);
-  if (!out) return;
-  out.innerHTML = '<p style="color:var(--mg-text-light)">Loading ' + esc(formName) + '&hellip;</p>';
+function showSubmissionTable(filePath, formName) {
+  setSubsBody('<p style="color:var(--mg-text-light)">Loading ' + esc(formName) + '&hellip;</p>', 'Submissions: ' + formName);
   fetch(API + '?action=form-submissions&file=' + encodeURIComponent(filePath))
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (!d.ok) {
-        out.innerHTML = '<p style="color:var(--mg-danger,#c00)">'
-          + esc(d.error || 'Could not read submissions') + '</p>';
-        return;
-      }
+      if (!d.ok) { setSubsBody('<p style="color:var(--mg-danger,#c00)">' + esc(d.error || 'Could not read submissions') + '</p>', 'Submissions'); return; }
       var cols = d.columns || [];
       if (!d.rows || !d.rows.length || !cols.length) {
-        out.innerHTML = '<p style="color:var(--mg-text-light)">No submissions in '
-          + esc(formName) + ' yet.</p>';
+        setSubsBody('<p style="color:var(--mg-text-light)">No submissions in ' + esc(formName) + ' yet.</p>', 'Submissions: ' + formName);
         return;
       }
       var h = '<div style="overflow-x:auto"><table class="mg-table mg-submissions-table"><thead><tr>';
       cols.forEach(function(c) { h += '<th>' + esc(c) + '</th>'; });
-      h += '</tr></thead><tbody>';
+      h += '<th></th></tr></thead><tbody>';
       d.rows.forEach(function(row) {
         h += '<tr>';
-        cols.forEach(function(c) {
-          var v = row[c];
-          h += '<td>' + esc(v == null ? '' : v) + '</td>';
-        });
-        h += '</tr>';
+        cols.forEach(function(c) { h += '<td>' + esc(row[c] == null ? '' : row[c]) + '</td>'; });
+        h += '<td><button class="mg-btn mg-btn-sm mg-btn-danger" onclick=\'deleteSubmissionRow('
+           + JSON.stringify(filePath).replace(/'/g, '&#39;') + ', '
+           + JSON.stringify(row._id).replace(/'/g, '&#39;') + ', '
+           + JSON.stringify(formName).replace(/'/g, '&#39;') + ')\'>Delete</button></td></tr>';
       });
       h += '</tbody></table></div>';
-      var note = 'Showing ' + d.shown + ' of ' + d.total
-        + ' submission' + (d.total === 1 ? '' : 's');
+      var note = 'Showing ' + d.shown + ' of ' + d.total + ' submission' + (d.total === 1 ? '' : 's');
       if (d.truncated) note += ' (most recent ' + d.shown + ')';
-      if (d.malformed) note += '; ' + d.malformed + ' unreadable line'
-        + (d.malformed === 1 ? '' : 's') + ' skipped';
-      h += '<p style="font-size:0.8rem;color:var(--mg-text-light);margin-top:0.4rem">'
-        + esc(note) + '</p>';
-      out.innerHTML = h;
+      if (d.malformed) note += '; ' + d.malformed + ' unreadable line' + (d.malformed === 1 ? '' : 's') + ' skipped';
+      h += '<p style="font-size:0.8rem;color:var(--mg-text-light);margin-top:0.4rem">' + esc(note) + '</p>';
+      setSubsBody(h, 'Submissions: ' + formName);
     })
-    .catch(function() {
-      out.innerHTML = '<p style="color:var(--mg-danger,#c00)">Could not read submissions.</p>';
-    });
+    .catch(function() { setSubsBody('<p style="color:var(--mg-danger,#c00)">Could not read submissions.</p>', 'Submissions'); });
+}
+
+function deleteSubmissionRow(filePath, rowId, formName) {
+  var go = function(ok) {
+    if (!ok) return;
+    fetch(API + '?action=form-submission-delete', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: filePath, id: rowId })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Delete failed', true); return; }
+      showSubmissionTable(filePath, formName);   // reload the table in place
+    }).catch(function(e) { showStatus('Delete error: ' + e.message, true); });
+  };
+  var msg = 'Delete this submission? It is permanently removed from "' + formName + '".';
+  if (typeof mgConfirm === 'function') { mgConfirm(msg, { danger: true, ok: 'Delete' }).then(go); }
+  else { go(window.confirm(msg)); }
+}
+
+// The submissions modal shell: a fixed overlay with a scrollable body.
+function openSubsModal() {
+  if (document.getElementById('subs-modal')) return;
+  var ov = document.createElement('div');
+  ov.id = 'subs-modal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
+  ov.innerHTML =
+      '<div style="background:var(--mg-bg,#fff);color:var(--mg-text,inherit);width:92%;max-width:1000px;max-height:86vh;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">'
+    + '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--mg-border,#ddd);">'
+    + '<strong id="subs-modal-title" style="flex:1">Submissions</strong>'
+    + '<span id="subs-modal-forms"></span>'
+    + '<button class="mg-btn mg-btn-sm" onclick="closeSubsModal()">Close</button></div>'
+    + '<div id="subs-modal-body" style="flex:1;overflow:auto;padding:12px 14px;"></div></div>';
+  ov.addEventListener('click', function(e) { if (e.target === ov) closeSubsModal(); });
+  document.body.appendChild(ov);
+}
+function closeSubsModal() {
+  var ov = document.getElementById('subs-modal');
+  if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+}
+function setSubsBody(html, title) {
+  var b = document.getElementById('subs-modal-body');
+  var t = document.getElementById('subs-modal-title');
+  if (t && title) t.textContent = title;
+  if (b) b.innerHTML = html;
 }
 
 // --- Wizard: add handler ---

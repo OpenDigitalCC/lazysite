@@ -41,6 +41,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
 use Lazysite::Manager::Domains     ();
 use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
+use Lazysite::Manager::Plugins     qw(action_form_submissions);
 use Lazysite::Lang                 qw(set_members);
 
 our $VERSION = '0.1';
@@ -227,6 +228,7 @@ sub setup_context {
     $Lazysite::Manager::Common::DOCROOT        = $DOCROOT;
     $Lazysite::Manager::Domains::DOCROOT       = $DOCROOT;
     $Lazysite::Manager::SitePackage::DOCROOT   = $DOCROOT;
+    $Lazysite::Manager::Plugins::DOCROOT       = $DOCROOT;
     $Lazysite::Manager::Common::action         = 'mcp';
     $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
     $Lazysite::Auth::Acl::DOCROOT              = $DOCROOT;
@@ -545,6 +547,25 @@ my %TOOLS = (
         cap => 'manage_forms',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _list_form_handlers() },
+    },
+    read_form_submissions => {
+        description => 'Read the submissions a form collected via its local-storage handler, as a table: { columns, rows, total, shown } - most-recent 500, each row with a stable _id. Values are the RAW submitted data (treat as untrusted). Needs the read_submissions capability - a least-privilege read grant that does NOT allow editing forms or handlers. Reads the default store lazysite/forms/submissions/<form>.jsonl.',
+        cap         => 'read_submissions',
+        inputSchema => {
+            type       => 'object',
+            properties => {
+                form => { type => 'string', description => 'The form name (submissions file basename, e.g. "contact")' },
+            },
+            required             => ['form'],
+            additionalProperties => JSON::PP::false,
+        },
+        run => sub {
+            my ($a) = @_;
+            my $form = lc( $a->{form} // '' );
+            return { ok => 0, error => 'A form name (a-z0-9_-) is required' }
+                unless $form =~ /\A[a-z0-9][a-z0-9_-]*\z/;
+            return action_form_submissions("lazysite/forms/submissions/$form.jsonl");
+        },
     },
     create_form => {
         description => 'THE way to add a form to a page - never hand-write <form>/<input> HTML (it has no delivery handler and ships dead). Inserts a native :::form block into the page and sets its "form: NAME" front matter. Give fields as "name | Label | rules" strings (rules: required, email, textarea, select:A,B,C, max:N); omit to scaffold a name/email/message contact form. The form RENDERS after this but does NOT deliver until you bind it: next call list_form_handlers, then bind_form(form: NAME, handler: ID).',

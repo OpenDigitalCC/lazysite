@@ -121,6 +121,10 @@ my %ACTION_INFO = (
         title => 'Submit agent feedback over MCP. Off by default: the operator opts a group in so an agent may write to lazysite/feedback/ and notify the operator.',
         unlocks => { mcp => [qw(submit_feedback)] },
     },
+    read_submissions => {
+        title => 'Read form submissions over the API/MCP. A least-privilege, read-only grant for an agent that processes form leads - it does NOT include managing form configs (that is manage_forms). Off by default.',
+        unlocks => { api => [qw(form-submissions)], mcp => [qw(read_form_submissions)] },
+    },
     create_sub_users => {
         title   => 'Create sub-accounts under your own account.',
         unlocks => { ui => ['sub-user creation'] },
