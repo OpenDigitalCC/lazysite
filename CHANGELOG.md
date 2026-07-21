@@ -16,6 +16,21 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.10 - STABLE: promotes the hardened 0.9.x line to stable (2026-07-21)
+
+A channel promotion of the bedded-in 0.9.9 beta - the SAME code, certified for
+the stable customer-rollout channel. Supersedes 0.9.4 as STABLE. No new
+functional change at the stable step; no BREAKING change and no migration from
+the 0.9.x betas.
+
+Carries forward 0.9.5-0.9.9, most importantly 0.9.9's data-loss hardening (atomic
+config + auth-store writes, every auth-store mutation serialised on a store lock)
+and security hardening (manager file-path confinement, download read-ACL/scope,
+principals capability-gating, dormant-capability resolution - see the private
+advisory). Operators on 0.9.4-0.9.8 should upgrade. From 0.9.4 STABLE the 0.9.0
+posture is unchanged (remote surfaces off by default; enable in Settings ->
+Services).
+
 ## 0.9.9 - BETA: data-loss + security hardening, disabled-service messaging, dormant-capability hints (2026-07-21)
 
 Reliability and security hardening on the 0.9.x beta line, plus a manager-UI

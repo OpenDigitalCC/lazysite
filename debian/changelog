@@ -1,3 +1,17 @@
+lazysite (0.9.10-1) unstable; urgency=high
+
+  * STABLE: promotes the bedded-in 0.9.9 beta to the stable channel - the same
+    code, certified for customer rollout; supersedes 0.9.4 as STABLE. No new
+    functional change, no BREAKING change, no migration from the 0.9.x betas.
+  * Carries 0.9.9's data-loss hardening (atomic config + auth-store writes; every
+    auth-store mutation serialised on a store lock) and security hardening
+    (manager file-path confinement, download read-ACL/scope, principals
+    capability-gating, dormant-capability resolution; details in the private
+    advisory). Operators on 0.9.4-0.9.8 should upgrade. From 0.9.4 STABLE the
+    0.9.0 posture (remote surfaces off by default) is unchanged.
+
+ -- OpenDigital <sjm@opendigital.cc>  Tue, 21 Jul 2026 14:58:45 +0100
+
 lazysite (0.9.9-1) unstable; urgency=high
 
   * BETA: data-loss + security hardening. Concurrent config saves could truncate
