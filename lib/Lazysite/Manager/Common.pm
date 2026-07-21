@@ -9,7 +9,7 @@ use strict;
 use warnings;
 use Cwd            qw(realpath);
 use Errno          ();                # %! (errno names) for the permission-failure hint
-use File::Basename qw(dirname);
+use File::Basename qw(dirname basename);
 use Fcntl          qw(:flock);
 use JSON::PP       qw(encode_json);
 use Lazysite::Util qw(log_event);
@@ -70,6 +70,18 @@ sub validate_path {
 
     $rel_path =~ s{^/+}{};
 
+    # SEC-2026-07 (F1): reject any ".." path segment outright. A legitimate
+    # manager path is always docroot-relative and forward; a spelling like
+    # "blog/../lazysite/auth/.secret" otherwise resolves (via the OS / realpath)
+    # INTO a blocklisted subtree while the RAW string matched as unblocked -
+    # is_blocked_path / is_blocked_config string-match on rel. That was a
+    # blocklist bypass to the auth store (cookie-signing secret + password hashes
+    # -> operator-cookie forgery, and writes into lazysite/). Rejecting ".." here
+    # closes it at the source; deriving the canonical rel from the resolved path
+    # below is the belt-and-braces that also collapses symlink pivots.
+    return { ok => 0, error => "Invalid path" }
+        if $rel_path =~ m{(?:\A|/)\.\.(?:/|\z)};
+
     my $full  = "$DOCROOT/$rel_path";
     my $check = -e $full ? $full : dirname($full);
     my $real  = realpath($check);
@@ -81,7 +93,15 @@ sub validate_path {
     return { ok => 0, error => "Invalid path" }
         unless $real && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 );
 
-    return { ok => 1, full => $full, rel => $rel_path };
+    # The blocklist string-matches on rel, so rel MUST be the CANONICAL in-docroot
+    # path, never the request spelling. Derive it from the resolved realpath
+    # ($real is the file itself, or its parent dir when the file does not exist
+    # yet); re-attach the basename in that case. Callers get a full that is the
+    # resolved absolute path too, so a symlink can't point a write elsewhere.
+    my $canon = ( -e $full ) ? $real : "$real/" . basename($full);
+    ( my $rel = $canon ) =~ s{\A\Q$DOCROOT\E/?}{};
+
+    return { ok => 1, full => $canon, rel => $rel };
 }
 
 # SEC-2026-07 (M2): dav_scope confines a token/partner credential to one content

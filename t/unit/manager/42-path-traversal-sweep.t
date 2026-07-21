@@ -116,6 +116,34 @@ my $still = do { local $/; <$rf> };
 close $rf;
 like( $still, qr/\Q$SENT\E/, 'the out-of-tree secret is unmodified (nothing overwrote it)' );
 
+# --- F1 (2026-07 audit): ".." that RE-ENTERS a blocklisted IN-docroot subtree.
+# realpath keeps these inside the docroot (so the H3 boundary check passes), but
+# the raw request string starts with "sub/", not "lazysite/", so the blocklist -
+# which string-matches on rel - used to miss it. That was the bypass that read
+# lazysite/auth/.secret (cookie-signing secret -> operator-cookie forgery) and
+# wrote into lazysite/auth. validate_path now rejects any ".." segment AND
+# canonicalises rel, so every handler refuses it.
+{
+    for my $p ( 'sub/../lazysite/auth/.secret', 'sub/../lazysite/lazysite.conf' ) {
+        for my $act (qw(read file-download file-zip-download)) {
+            my $out = call( $d, QUERY_STRING => "action=$act&path=" . _enc($p) );
+            unlike( $out, qr/\Q$secret\E/,
+                "$act '$p' does not leak an in-docroot secret ('..' re-entry blocked)" );
+        }
+    }
+    # the read action returns an explicit refusal, not the file
+    my $r = json_of( call( $d, QUERY_STRING => "action=read&path=" . _enc('sub/../lazysite/auth/.secret') ) );
+    ok( !$r->{ok}, "read 'sub/../lazysite/auth/.secret' is refused" );
+
+    # WRITE into the protected tree via '..' is refused, and nothing lands there
+    my $w = json_of(
+        call( $d, REQUEST_METHOD => 'POST',
+            QUERY_STRING => "action=save&path=" . _enc('sub/../lazysite/canary.txt'),
+            body => encode_json( { content => 'PWNED-INTO-LAZYSITE' } ) ) );
+    ok( !$w->{ok}, "save 'sub/../lazysite/canary.txt' is refused (no write into lazysite/)" );
+    ok( !-e "$d/lazysite/canary.txt", 'no canary written into the protected lazysite/ tree' );
+}
+
 sub _enc {
     my $s = shift;
     $s =~ s/([^A-Za-z0-9._~-])/sprintf '%%%02X', ord $1/ge;
