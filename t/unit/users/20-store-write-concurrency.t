@@ -77,8 +77,12 @@ for my $u (@seed) {
     like( $final, qr/^\Q$u\E:/m, "seed account $u intact after concurrent adds" );
 }
 
-# NOTE: the complementary lost-update assertion - that ALL $K concurrent adds
-# survive - depends on the store lock that serialises read-modify-write across
-# mutating commands; it is asserted in this file once that lock is in place.
+# Every concurrent add survives (no lost update): each `add` holds the exclusive
+# store lock across its whole read-modify-write, so two adds cannot both read the
+# old store and clobber each other's new account. Without the lock, some of these
+# adds are silently lost.
+for my $id ( 1 .. $K ) {
+    like( $final, qr/^extra$id:/m, "concurrent add extra$id survived (no lost update)" );
+}
 
 done_testing();

@@ -160,6 +160,20 @@ my $GROUP_SETTINGS_FILE = "$AUTH_DIR/groups-settings.json";
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
 $Lazysite::Audit::LAZYSITE_DIR      = "$DOCROOT/lazysite";
 
+# Verbs (API actions and CLI commands) that ONLY read the auth store - they take
+# NO store lock, so the hot per-request read (verify-credential) never serialises
+# against anything. Every OTHER verb is treated as a MUTATION and the dispatcher
+# holds an exclusive store lock across it (see the dispatch sites below). Default
+# is therefore "lock": a new mutating verb is protected automatically; only a new
+# READ verb needs adding here. verify-credential's only write is a last-used
+# timestamp, which write_settings makes atomic, so a lost timestamp under a race
+# is harmless - it stays lock-free deliberately.
+my %STORE_READONLY = map { $_ => 1 } qw(
+    list groups users-detail users-page group-settings-get settings-get settings
+    permissions-grid permissions credential-status keys-list partner-caps
+    audit-scope audit-registry totp-code verify-credential
+);
+
 # --- CLI audit trail (audit-completeness round) ------------------------------
 #
 # Every state-MUTATING command records ONE audit entry: origin 'cli', user =
@@ -292,6 +306,14 @@ if ($API_MODE) {
             }
         }
     }
+
+    # Serialise auth-store MUTATIONS across the concurrent CGI subprocesses that
+    # run this tool (manager API, CLI, and lazysite-auth's token flows). The lock
+    # is held for the whole command below, so its read-modify-write can't lose an
+    # update or double-spend a single-use secret; a fresh process = a fresh flock,
+    # so nested sub-calls never re-lock (no self-deadlock). Reads skip it.
+    my $store_lk;
+    $store_lk = _consume_lock() unless $STORE_READONLY{$action};
 
     eval {
         if ( $action eq 'add' ) {
@@ -534,6 +556,11 @@ if ($API_MODE) {
 # --- CLI mode ---
 
 my $cmd = shift @args // '';
+
+# Same store-mutation lock as the API path: a mutating CLI command holds it for
+# its duration (released at process exit); read-only commands skip it.
+my $cli_store_lk;
+$cli_store_lk = _consume_lock() unless $STORE_READONLY{$cmd};
 
 if    ( $cmd eq 'add' )              { cmd_add(@args) }
 elsif ( $cmd eq 'passwd' )           { cmd_passwd(@args) }
@@ -1422,8 +1449,9 @@ sub cmd_token_exchange {
     die "Username and pairing key required\n"
         unless defined $user && length $user && defined $key && length $key;
 
-    my $lk = _consume_lock();    # single-use: serialise verify-consume
-
+    # The read-verify-consume below is serialised by the store lock the
+    # dispatcher holds for this mutating verb (see %STORE_READONLY) - so a
+    # single-use secret cannot be double-spent across concurrent processes.
     my %users = read_users();
     die "User '$user' not found\n" unless exists $users{$user};
 
@@ -1580,8 +1608,9 @@ sub cmd_claim_redeem {
     die $GENERIC unless defined $user && length $user
         && defined $claim && length $claim;
 
-    my $lk = _consume_lock();    # single-use: serialise verify-consume
-
+    # The read-verify-consume below is serialised by the store lock the
+    # dispatcher holds for this mutating verb (see %STORE_READONLY) - so a
+    # single-use secret cannot be double-spent across concurrent processes.
     my %users = read_users();
     die $GENERIC unless exists $users{$user};
 
@@ -1737,11 +1766,11 @@ sub cmd_mfa_confirm {
 sub cmd_mfa_verify {
     my ( $user, $code ) = @_;
     return { ok => 0 } unless defined $user && length $user && defined $code && length $code;
-    my $lk     = _consume_lock();              # serialise verify-consume across processes
+    # Serialised by the dispatcher's store lock for this mutating verb.
     my $all    = read_settings();
     my $s      = $all->{$user} || {};
     my $secret = $s->{totp_secret};
-    return { ok => 0 } unless $secret;         # not enrolled
+    return { ok => 0 } unless $secret;    # not enrolled
 
     if ( $code =~ /^\d{6}$/ ) {
         my $step = totp_verify( $secret, $code );
