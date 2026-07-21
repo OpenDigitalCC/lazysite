@@ -292,7 +292,7 @@ if ($API_MODE) {
             group-create group-delete group-nest settings-set token
         );
         my $actor = $req->{actor};
-        if (   $ACTOR_FORBIDDEN{$action}
+        if ( $ACTOR_FORBIDDEN{$action}
             && defined $actor
             && length $actor
             && $actor ne 'local' )
@@ -1012,6 +1012,15 @@ sub effective_settings {
         manage_themes  => $caps->{manage_themes}  ? JSON::PP::true() : JSON::PP::false(),
         manage_layouts => $caps->{manage_layouts} ? JSON::PP::true() : JSON::PP::false(),
         manage_config  => $caps->{manage_config}  ? JSON::PP::true() : JSON::PP::false(),
+        # SEC-2026-07 (F3): manage_domains / feedback / read_submissions were in
+        # @CAP_KEYS + resolved by caps_for, but MISSING from this hand-maintained
+        # list - so those grants were dormant on every surface that reads
+        # effective_settings (the cookie manager gate _user_caps, the Users page).
+        # A non-operator read_submissions or manage_domains grant silently did
+        # nothing. Surfaced now; t/unit/users/21 pins @CAP_KEYS <-> this map.
+        manage_domains => $caps->{manage_domains} ? JSON::PP::true() : JSON::PP::false(),
+        feedback       => $caps->{feedback}       ? JSON::PP::true() : JSON::PP::false(),
+        read_submissions => $caps->{read_submissions} ? JSON::PP::true() : JSON::PP::false(),
         analytics      => $caps->{analytics}      ? JSON::PP::true() : JSON::PP::false(),
         audit          => $caps->{audit}          ? JSON::PP::true() : JSON::PP::false(),
         notifications  => $caps->{notifications}  ? JSON::PP::true() : JSON::PP::false(),

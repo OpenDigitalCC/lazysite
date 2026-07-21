@@ -98,6 +98,8 @@ sub zip_members {
     print $fh $body;
     close $fh;
     my $zip = Archive::Zip->new();
+    # A denied request returns a JSON refusal, not a zip; read() warns on that.
+    local $SIG{__WARN__} = sub { };
     return ( $zip->read($tmp) == 0 ) ? $zip->memberNames() : ();
 }
 

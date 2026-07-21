@@ -186,7 +186,7 @@ my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
             unless ( Lazysite::Util::service_enabled( $DOCROOT, 'control_api_enabled' ) ) {
                 respond( { ok => 0, code => 'service_disabled',
                         error => 'The control API (token access) is not '
-                        . 'enabled on this site. Ask the operator to enable it (Services -> Control API).' } );
+                            . 'enabled on this site. Ask the operator to enable it (Services -> Control API).' } );
                 exit 0;
             }
             my $v = users_api( { action => 'verify-credential',
@@ -393,15 +393,20 @@ if ( !$token_auth ) {
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
-        'site-backup-delete'  => 'manage_domains', # SM183: remove a package
+        'site-backup-delete' => 'manage_domains',    # SM183: remove a package
         'site-export-primary' => 'manage_content', # SM185: package the DEFAULT site (no domains feature needed)
-        'git-init'           => 'manage_config',
-        'config-set'         => 'manage_config', 'config-read' => 'manage_config',
-        'bad-url-blocks'     => 'manage_config',
-        'domains-list'       => 'manage_domains', 'domain-add'    => 'manage_domains',
-        'domain-set'         => 'manage_domains', 'domain-remove' => 'manage_domains',
-        'domain-preview'     => 'manage_domains', 'domain-check'  => 'manage_domains',
+        'git-init'            => 'manage_config',
+        'config-set'     => 'manage_config', 'config-read' => 'manage_config',
+        'bad-url-blocks' => 'manage_config',
+        'domains-list'   => 'manage_domains', 'domain-add'    => 'manage_domains',
+        'domain-set'     => 'manage_domains', 'domain-remove' => 'manage_domains',
+        'domain-preview' => 'manage_domains', 'domain-check'  => 'manage_domains',
         'lang-status' => 'manage_content', # SM179 P6: read-only set coverage (a translation agent's cap)
+            # F3 audit: the account/group roster backs the ACL "grant to whom" picker
+            # (Files, manage_content) and the domain-groups picker (Domains,
+            # manage_domains). Gate it to those callers so a user with no
+            # grant-related capability cannot enumerate every username/group.
+        'principals'      => 'manage_content|manage_domains',
         'bad-url-unblock' => 'manage_config',  'rotate-auth-secret' => 'manage_config',
         'backup-create'   => 'manage_config',  'backup-restore'     => 'manage_config',
         'backup-download' => 'manage_config',  'backup-list'        => 'manage_config',
@@ -546,17 +551,17 @@ if ($token_auth) {
         'domain-preview' => sub { $_[0]->{manage_domains} },    # SM155: pre-DNS render
         'domain-check'   => sub { $_[0]->{manage_domains} },    # SM156: live config check
         'lang-status' => sub { $_[0]->{manage_content} }, # SM179 P6: set coverage (translation agent)
-        'site-backup-create' => sub { $_[0]->{manage_domains} },  # SM158
-        'site-backup-upload' => sub { $_[0]->{manage_domains} },
-        'site-backup-apply'  => sub { $_[0]->{manage_domains} },
-        'site-backup-inspect' => sub { $_[0]->{manage_domains} }, # SM183
-        'site-backup-delete'  => sub { $_[0]->{manage_domains} }, # SM183
-        'site-export-primary' => sub { $_[0]->{manage_content} }, # SM185
+        'site-backup-create'  => sub { $_[0]->{manage_domains} },    # SM158
+        'site-backup-upload'  => sub { $_[0]->{manage_domains} },
+        'site-backup-apply'   => sub { $_[0]->{manage_domains} },
+        'site-backup-inspect' => sub { $_[0]->{manage_domains} },    # SM183
+        'site-backup-delete'  => sub { $_[0]->{manage_domains} },    # SM183
+        'site-export-primary' => sub { $_[0]->{manage_content} },    # SM185
             # SM187: agents read form submissions with a least-privilege read_submissions
             # cap OR the operator's manage_forms - parity with the cookie channel.
         'form-submissions' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} },
-        'bad-url-blocks'     => sub { $_[0]->{manage_config} },   # SM128: blocked-IP list
-        'bad-url-unblock'    => sub { $_[0]->{manage_config} },
+        'bad-url-blocks'   => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
+        'bad-url-unblock'  => sub { $_[0]->{manage_config} },
         'pages' => sub { $_[0]->{manage_nav} },  # SM097: page-URL list for the nav editor
             # SM123: a theme/layout manager may list what is installed (was previously
             # unavailable to token clients, so they activated each in turn to discover).
@@ -1488,7 +1493,7 @@ sub action_site_backup_delete {
     }
 
     unlink $pkg or return { ok => 0, error => "Could not delete the package: $!" };
-    return { ok => 1, name => $name };
+    return                { ok => 1, name  => $name };
 }
 
 # SM158: upload a site package (a multipart file) into lazysite/backups/, so it
