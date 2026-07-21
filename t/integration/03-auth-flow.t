@@ -16,6 +16,10 @@ setup_auth_site($docroot);
     my $out = run_processor( $docroot, '/protected' );
     like( $out, qr/Status: 302/,       'no auth → 302' );
     like( $out, qr{Location:[^\n]*login}, 'redirects toward login' );
+    # SM188: the bounce clears the JS lzs_session marker, so a stale marker cannot
+    # trap the user on a "you are already signed in" login screen (redirect loop).
+    like( $out, qr/Set-Cookie:\s*lzs_session=;[^\n]*Max-Age=0/,
+        'SM188: no-auth bounce clears the lzs_session marker' );
 }
 
 # --- protected with valid user header → 200 ---
@@ -25,6 +29,8 @@ setup_auth_site($docroot);
         HTTP_X_REMOTE_GROUPS => 'members',
     );
     like( $out, qr/Status: 200/, 'valid auth → 200' );
+    unlike( $out, qr/Set-Cookie:\s*lzs_session=;/,
+        'SM188: a valid session is NOT cleared (marker kept)' );
 }
 
 # --- admins-only with wrong group → 403 ---

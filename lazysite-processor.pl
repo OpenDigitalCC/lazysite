@@ -989,6 +989,16 @@ sub handle_manager_path {
         my $redirect = $sv{auth_redirect} || '/login';
         binmode( STDOUT, ':utf8' );
         print "Status: 302 Found\r\n";
+        # SM188: when the user is NOT authenticated (a stale/invalid session -
+        # e.g. the cookie-signing secret changed, or the session was revoked),
+        # clear the JS lzs_session marker so /login shows the sign-in form instead
+        # of a marker-driven "you are already signed in" screen that hides the
+        # form and traps them in a redirect loop. An AUTHENTICATED non-manager
+        # keeps their marker - they are legitimately signed in, just not an admin.
+        if ( $auth_user eq '' ) {
+            print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0"
+                . ( $ENV{HTTPS} ? "; Secure" : "" ) . "\r\n";
+        }
         print "Location: $redirect?next=" . uri_encode($uri) . "\r\n\r\n";
         return 1;
     }
@@ -1221,6 +1231,12 @@ sub main {
         if ( $auth_result->{redirect} ) {
             binmode( STDOUT, ':utf8' );
             print "Status: 302 Found\r\n";
+            # SM188: check_auth only returns a redirect for an UNauthenticated
+            # request, so this bounce always means "no valid session" - clear the
+            # stale lzs_session marker (see the manager bounce above) so the login
+            # page shows the form rather than trapping the user.
+            print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0"
+                . ( $ENV{HTTPS} ? "; Secure" : "" ) . "\r\n";
             print "Location: " . $auth_result->{redirect} . "\r\n\r\n";
             return;
         }
