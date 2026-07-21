@@ -58,6 +58,48 @@ sub post {
 }
 sub save_as { post( $_[0], $_[1], $_[2], "action=save&path=$_[3]", { content => $_[4], mtime => undef } ) }
 sub aclset  { post( $_[0], $_[1], $_[2], "action=acl-set&path=$_[3]", $_[4] ) }
+sub get_as {
+    mapi( $_[0], REQUEST_METHOD => 'GET', HTTP_X_REMOTE_USER => $_[1],
+        HTTP_X_REMOTE_GROUPS => $_[2], QUERY_STRING => $_[3] );
+}
+
+# Raw GET (download surfaces stream file bytes, not JSON) - return the whole
+# response so a test can assert the protected content is or is not present.
+sub get_raw {
+    my ( $d, $user, $groups, $qs ) = @_;
+    local %ENV = %ENV;
+    $ENV{DOCUMENT_ROOT}         = $d;
+    $ENV{REQUEST_METHOD}        = 'GET';
+    $ENV{CONTENT_LENGTH}        = 0;
+    $ENV{HTTP_X_REMOTE_USER}    = $user;
+    $ENV{HTTP_X_REMOTE_GROUPS}  = $groups;
+    $ENV{LAZYSITE_AUTH_TRUSTED} = 1;
+    $ENV{QUERY_STRING}          = $qs;
+    my ( $w, $r );
+    my $e   = gensym;
+    my $pid = open3( $w, $r, $e, $^X, $mapi );
+    close $w;
+    my $out = do { local $/; <$r> };
+    close $r;
+    waitpid $pid, 0;
+    return $out // '';
+}
+
+# Parse a zip-download response body and return its member names (a zip is
+# compressed, so a plaintext regex on the bytes cannot tell if a file is inside).
+sub zip_members {
+    my ($raw) = @_;
+    my ($body) = $raw =~ /\r?\n\r?\n(.*)/s;
+    return () unless defined $body && length $body;
+    require Archive::Zip;
+    require File::Temp;
+    my ( $fh, $tmp ) = File::Temp::tempfile( UNLINK => 1 );
+    binmode $fh;
+    print $fh $body;
+    close $fh;
+    my $zip = Archive::Zip->new();
+    return ( $zip->read($tmp) == 0 ) ? $zip->memberNames() : ();
+}
 
 my $d = tempdir( CLEANUP => 1 );
 make_path("$d/lazysite/auth");
@@ -120,5 +162,34 @@ my ($entry) = grep { $_->{name} eq 'moved.md' } @{ $list->{entries} || [] };
 ok( $entry, 'moved.md is listed at the new path' );
 is( $entry->{owner}, 'alice', 'ACL re-keyed: owner preserved + surfaced in the listing' );
 is_deeply( $entry->{write}, ['@editors'], 'listing surfaces the @group write list' );
+
+# --- F2 (2026-07 audit): READ ACL also enforced on download / zip-download -----
+# The download surfaces skipped the read ACL that `read` enforces, so a
+# non-operator could grab a file restricted away from them. A read-restricted
+# file is now unreachable by all three surfaces for a denied user.
+open my $secf, '>', "$d/content/secret.md" or die $!;
+print $secf "TOP-SECRET-CONTENT\n";
+close $secf;
+ok( aclset( $d, 'admin', 'managers', '/content/secret.md',
+        { read => ['alice'], write => ['alice'], owner => 'alice' } )->{ok},
+    'operator restricts READ of secret.md to alice' );
+
+ok( !get_as( $d, 'bob', 'authors', 'action=read&path=/content/secret.md' )->{ok},
+    'bob is denied by read (baseline)' );
+unlike( get_raw( $d, 'bob', 'authors', 'action=file-download&path=/content/secret.md' ),
+    qr/TOP-SECRET-CONTENT/, 'bob cannot file-download a read-restricted file (F2)' );
+my @bob_zip = zip_members( get_raw( $d, 'bob', 'authors',
+    'action=file-zip-download&paths=/content/secret.md' ) );
+ok( !( grep {m{secret\.md}} @bob_zip ),
+    'bob\'s zip excludes the read-restricted file (F2)' ) or diag "members: @bob_zip";
+my @alice_zip = zip_members( get_raw( $d, 'alice', 'authors',
+    'action=file-zip-download&paths=/content/secret.md' ) );
+ok( ( grep {m{secret\.md}} @alice_zip ),
+    'alice\'s zip includes it (she may read it)' );
+
+like( get_raw( $d, 'alice', 'authors', 'action=file-download&path=/content/secret.md' ),
+    qr/TOP-SECRET-CONTENT/, 'alice (read-allowed) can still download it' );
+like( get_raw( $d, 'admin', 'managers', 'action=file-download&path=/content/secret.md' ),
+    qr/TOP-SECRET-CONTENT/, 'operator can still download it' );
 
 done_testing();

@@ -254,6 +254,7 @@ $Lazysite::Auth::Acl::token_auth        = $token_auth;
 # namespace is outside scope's remit (governed by manage_themes/manage_layouts).
 my %SCOPED_ACTION = map { $_ => 1 } qw(
     list read save delete mkdir move copy migrate-to-local file-upload
+    file-download file-zip-download
     acl-get acl-set acl-remove git-status git-history git-show git-restore
     cache-invalidate preview lock unlock renew-lock
 );
@@ -912,7 +913,7 @@ elsif ( $action eq 'backup-download' ) {
     exit 0;
 }
 elsif ( $action eq 'file-zip-download' ) {
-    action_file_zip_download();
+    action_file_zip_download( \@REQUEST_SCOPES );    # F2: confine each path to scope
     exit 0;
 }
 elsif ( $action eq 'preview-grant' ) {

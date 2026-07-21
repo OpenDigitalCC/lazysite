@@ -14,7 +14,8 @@ use File::Path qw(make_path);
 use Cwd qw(realpath);
 use Lazysite::Util qw(log_event);
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config respond upload_limits);
+    qw(validate_path is_blocked_path is_blocked_config respond upload_limits outside_all_scopes);
+use Lazysite::Auth::Acl qw(_acl_denied);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
@@ -367,6 +368,14 @@ sub action_file_download {
         respond({ ok => 0, error => "Path is blocked by config" });
         return;
     }
+    # SEC-2026-07 (F2 audit): download bypassed the read ACL that action_read
+    # enforces, so a non-operator could grab a file another owner restricted to
+    # someone else. Enforce the same read gate here. (dav_scope confinement for
+    # this single-path action is applied at dispatch via %SCOPED_ACTION.)
+    if ( my $d = _acl_denied( $result->{rel}, 'read', $auth_user ) ) {
+        respond($d);
+        return;
+    }
 
     my $full = $result->{full};
 
@@ -423,6 +432,7 @@ sub collect_zip_paths {
 }
 
 sub action_file_zip_download {
+    my ($scopes) = @_;    # SEC-2026-07 (F2): the request's resolved dav_scopes
     my @requested = collect_zip_paths();
     unless (@requested) {
         respond({ ok => 0, error => "No files selected" });
@@ -457,6 +467,23 @@ sub action_file_zip_download {
         if ( is_blocked_config( $vr->{rel} ) ) {
             log_event( 'WARN', 'file-zip-download',
                 'skipped (blocked by config)',
+                path => $rel, user => $auth_user );
+            next;
+        }
+        # SEC-2026-07 (F2 audit): the read ACL and dav_scope confinement that
+        # action_read applies were skipped here, so a non-operator (or a
+        # scope-confined editor) could bulk-download files they may not read.
+        # Skip any path the caller cannot read, or that lies outside their scope.
+        if ( _acl_denied( $vr->{rel}, 'read', $auth_user ) ) {
+            log_event( 'WARN', 'file-zip-download', 'skipped (read ACL denied)',
+                path => $rel, user => $auth_user );
+            next;
+        }
+        if (   ref $scopes eq 'ARRAY'
+            && @$scopes
+            && outside_all_scopes( $scopes, $vr->{rel} ) )
+        {
+            log_event( 'WARN', 'file-zip-download', 'skipped (outside dav_scope)',
                 path => $rel, user => $auth_user );
             next;
         }
