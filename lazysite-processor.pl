@@ -1115,6 +1115,20 @@ sub main {
         return;
     }
 
+    # SM190: the OAuth discovery metadata (.well-known/oauth-authorization-server
+    # and oauth-protected-resource) ship as api: content pages, so they render and
+    # cache like any page - but they must not advertise an OAuth AS that
+    # lazysite-oauth.pl 404s while oauth_enabled is off (the default). Gate them on
+    # the killswitch here, BEFORE the render/cache path: a disabled service is not
+    # advertised, and no stale "advertising" page is cached (a 404 is not cached).
+    if ( $uri
+        =~ m{^ /\.well-known/oauth-(?:authorization-server|protected-resource) (?:\.\w+)? \z}x
+        && !_conf_flag_enabled('oauth_enabled') )
+    {
+        not_found($uri);
+        return;
+    }
+
     # Set log level from conf (env var takes priority). No local needed
     # here - %ENV is already localised at the top of main().
     {
@@ -4940,6 +4954,24 @@ sub forbidden {
     print "Status: 403 Forbidden\n";
     print "Content-type: text/plain; charset=utf-8\n\n";
     print "403 Forbidden\n";
+}
+
+# SM190: is a lazysite.conf service flag enabled? A tiny standalone reader - the
+# processor loads no Lazysite modules - mirroring Lazysite::Util::service_enabled:
+# default OFF; enabled / true / yes / on / 1 = on.
+sub _conf_flag_enabled {
+    my ($key) = @_;
+    open my $fh, '<', "$DOCROOT/lazysite/lazysite.conf" or return 0;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^\Q$key\E\s*:\s*(\S+)/;
+        close $fh;
+        my $v = lc $1;
+        return ( $v eq 'enabled' || $v eq 'true' || $v eq 'yes' || $v eq 'on' || $v eq '1' )
+            ? 1
+            : 0;
+    }
+    close $fh;
+    return 0;
 }
 
 sub not_found {
