@@ -16,6 +16,44 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.9 - BETA: data-loss + security hardening, disabled-service messaging, dormant-capability hints (2026-07-21)
+
+Reliability and security hardening on the 0.9.x beta line, plus a manager-UI
+improvement. No BREAKING changes, no migration. Operators should upgrade.
+
+- FIX (data loss): concurrent config saves could truncate `lazysite.conf` to a
+  single line (a non-atomic truncate-before-lock writer racing the Services
+  page's parallel saves). `write_file_checked` is now atomic (temp + rename,
+  never unlinking the real file) and `_write_conf_key` holds a lock across its
+  read-modify-write.
+- FIX (data loss): the same class in the AUTH STORE - `write_users`,
+  `write_groups`, `update_user_hash`, the MCP form-bind, and the bad-URL caches
+  now write atomically, and every auth-store mutation serialises on a store lock
+  held across the whole read-modify-write, so a reader never sees a truncated
+  credential store and two concurrent edits cannot lose an update. Reads stay
+  lock-free.
+- SECURITY: manager file-path confinement - the file-editor path blocklist is
+  now matched against the canonical resolved path, closing a traversal by which
+  a content-authoring account could reach engine-owned files under `lazysite/`.
+  Reported privately (advisory to follow); operators should upgrade.
+- SECURITY: `file-download` / `file-zip-download` now enforce the same per-file
+  read ACL and `dav_scope` confinement as `read` (previously neither), so a
+  delegated editor cannot pull a file restricted away from them.
+- SECURITY: the account/group roster (`principals`) is now capability-gated
+  (`manage_content` or `manage_domains`) - a user with no grant-related
+  capability can no longer enumerate every account and group.
+- FIX: `manage_domains` / `feedback` / `read_submissions` grants were resolved
+  but not surfaced to the cookie-manager capability gate, so a non-operator
+  grant of any silently did nothing (`read_submissions` shipped inert in 0.9.8).
+  All three now take effect; a parity test pins the capability set.
+- FIX: a switched-off service (token exchange) answered HTTP 404 - read as
+  "endpoint not deployed", misdirecting diagnosis. It now answers 200 with
+  `{ok:0, code:"service_disabled"}`, matching the control API.
+- SM180: dormant-capability indicators. The Groups and Users capability grids
+  flag a channel capability granted while its site service is switched off, so a
+  dormant grant is visible rather than silently doing nothing. Indicate, don't
+  block - no migration.
+
 ## 0.9.8 - BETA: caps-within-session fix + submissions viewer v2 + grid polish (2026-07-20)
 
 Fixes and manager-UI improvements on the 0.9.x beta line. No BREAKING changes,

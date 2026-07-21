@@ -1,3 +1,25 @@
+lazysite (0.9.9-1) unstable; urgency=high
+
+  * BETA: data-loss + security hardening. Concurrent config saves could truncate
+    lazysite.conf to one line (non-atomic truncate-before-lock writer racing the
+    Services page's parallel saves); writes are now atomic (temp+rename) and
+    config-set locks its read-modify-write. Same class fixed across the auth
+    store (users/groups/update_user_hash/MCP form-bind/bad-URL caches atomic;
+    every mutation serialised on a store lock; reads lock-free).
+  * SECURITY: manager file-path confinement - the file-editor blocklist now
+    matches the canonical resolved path, closing a traversal that could reach
+    engine-owned files under lazysite/ (reported privately; advisory to follow).
+    file-download/zip now enforce the read-ACL + dav_scope that read applies. The
+    account/group roster (principals) is capability-gated. Operators should
+    upgrade.
+  * FIX: manage_domains/feedback/read_submissions grants were not surfaced to the
+    cookie-manager gate, so a non-operator grant did nothing (read_submissions
+    inert in 0.9.8); now effective. A switched-off service (token exchange) now
+    answers 200 {ok:0, code:service_disabled} instead of a misleading 404. SM180:
+    Groups/Users grids flag a channel granted while its service is off. No migration.
+
+ -- OpenDigital <sjm@opendigital.cc>  Tue, 21 Jul 2026 13:26:43 +0100
+
 lazysite (0.9.8-1) unstable; urgency=medium
 
   * BETA: fix SM186 - a granted capability did not appear until re-login because
