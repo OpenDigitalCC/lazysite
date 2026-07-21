@@ -178,6 +178,12 @@ other stays flat.
     `--user-agent "lazysite-agent/claude-dhcf"`). The visitor-stats classifier
     treats that token - and the legacy `claude-code-agent` - as tooling, not a
     human visitor, so your QA hits stay out of the audience numbers.
+11. **Give the site a favicon.** A site with no favicon looks unfinished in the
+    browser tab, so add one when you build a site. Create a small bundled icon
+    and reference it in the layout `<head>` (e.g.
+    `<link rel="icon" href="/favicon.svg">`, served from the site root or an
+    asset path) - never a hotlinked / CDN icon (same rule as fonts). Put the
+    `<link>` in the layout so every page inherits it; one favicon per site.
 
 ## Decision guide: page, component, layout, or theme?
 

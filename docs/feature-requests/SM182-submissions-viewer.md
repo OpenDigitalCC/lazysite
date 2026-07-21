@@ -2,8 +2,8 @@
 title: "SM182 - In-manager form-submissions viewer (safe escaped table)"
 subtitle: "Read form submissions from the reserved lazysite/ store without the raw file editor"
 brand: plain
-status: candidate
-status-note: "candidate 2026-07-19, target 0.9.5. Implemented on claude/sm182-submissions-viewer; awaiting vcs-review. Backend + UI complete, no migration."
+status: shipped
+status-note: "SHIPPED 0.9.5 (2026-07-19): in-manager form-submissions viewer (the form-submissions control-API action + an escaped table in plugin-config). Extended by SM187 (submissions viewer v2) in 0.9.8."
 ---
 
 # SM182 - In-manager submissions viewer

@@ -3,7 +3,7 @@ title: "SM190 - Discovery documents must reflect the live service state"
 subtitle: "The .well-known/ discovery docs advertise endpoints regardless of whether the service is enabled - so they name endpoints that 404, and get render-cached. Gate them on their service flag and serve them live."
 brand: plain
 status: candidate
-status-note: "two field findings 2026-07-21: the ai-partner well-known advertised the token-exchange endpoint while the service was off (misdiagnosed as a deploy gap); the OAuth well-known api-pages advertise the AS regardless of oauth_enabled and are render-cached. Same class."
+status-note: "PARTIAL - core IMPLEMENTED on claude/sm188-190-field-fixes (2026-07-21, commit 0a300ff): the processor 404s .well-known/oauth-* when oauth_enabled is off (not advertised, not cached). DEFERRED: making ai-partner code-served from live config, and a lazysite-check probe of advertised endpoints. Awaiting gate + vcs-review + release."
 ---
 
 # SM190 - Discovery documents must reflect the live service state

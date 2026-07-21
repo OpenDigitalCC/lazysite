@@ -3,7 +3,7 @@ title: "SM188 - Session-marker desync causes a login redirect loop"
 subtitle: "The JS lzs_session marker can outlive the real session, trapping a user: every page bounces to /login, which shows 'already signed in' and hides the form"
 brand: plain
 status: candidate
-status-note: "reported from the field 2026-07-21. A user - or every user, if the cookie-signing secret changed - is locked out and cannot re-authenticate; clearing the cache does not help. Pre-existing; affects 0.9.x and earlier."
+status-note: "IMPLEMENTED on claude/sm188-190-field-fixes (2026-07-21, commit ddf6f45): both processor login-bounce points clear the lzs_session marker when the request is unauthenticated (an authenticated non-manager keeps it). Awaiting gate + vcs-review + release. Reported from the field 2026-07-21; pre-existing, affects 0.9.x and earlier."
 ---
 
 # SM188 - Session-marker desync causes a login redirect loop
