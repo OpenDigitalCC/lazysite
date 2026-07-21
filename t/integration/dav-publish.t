@@ -121,4 +121,20 @@ my $auth = 'Basic ' . encode_base64( 'deploy:secret', '' );
     is( $get->{code}, 403, 'and refused a content read' );
 }
 
+# --- SM189: a raw HTML content page PUT is refused (415), nothing written ------
+{
+    my $evil = "---\ntitle: UNITED\napi: true\ncontent_type: text/html; charset=utf-8\n---\n"
+        . qq{<!DOCTYPE html><html><head><link href="https://fonts.googleapis.com/x"></head></html>};
+    my $put = run_dav( $docroot, 'PUT', '/raw-index.md',
+        body => $evil, HTTP_AUTHORIZATION => $auth );
+    is( $put->{code}, 415, 'SM189: raw HTML content page PUT => 415 refused' );
+    ok( !-e "$docroot/raw-index.md", 'SM189: nothing written to disk' );
+
+    # a genuine JSON artifact (non-script content_type) still publishes
+    my $art = run_dav( $docroot, 'PUT', '/data.json',
+        body => "---\napi: true\ncontent_type: application/json\n---\n{}\n",
+        HTTP_AUTHORIZATION => $auth );
+    ok( $art->{code} == 201 || $art->{code} == 204, 'SM189: JSON artifact still allowed' );
+}
+
 done_testing();

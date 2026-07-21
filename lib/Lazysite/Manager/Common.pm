@@ -17,7 +17,8 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
-    _write_conf_key path_out_of_scope outside_all_scopes reserved_roots path_is_reserved);
+    _write_conf_key path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
+    raw_html_page_refusal);
 
 our $DOCROOT;                         # set by the script
 our $action    = '';                  # current request action (for log attribution)
@@ -384,6 +385,35 @@ sub is_blocked_upload_target {
 }
 
 sub _reset_upload_limits_cache { $_upload_limits_cache = undef }
+
+# SM189: reject a content page that ships script-capable RAW output. A page whose
+# front matter declares `api: true` or `raw: true` together with a script-capable
+# content_type (text/html, XHTML, SVG) bypasses the layout + theme and is served
+# as text/plain by peek_content_type (ADR 0006) - so it is a broken page, not an
+# artifact, and it evades the no-CDN theme guard. Every content write (manager
+# save, MCP, WebDAV PUT) calls this and refuses on a non-undef return. A genuine
+# artifact (a non-script content_type, e.g. application/json / text/csv) passes.
+# The api/raw/content_type matching mirrors the processor's front-matter parse and
+# peek_content_type, so write-refusal and serve-time downgrade agree.
+sub raw_html_page_refusal {
+    my ($content) = @_;
+    return undef unless defined $content;
+    return undef unless $content =~ /\A---\s*\n(.*?)\n---\s*\n/s;    # front-matter block
+    my $fm = $1;
+    return undef
+        unless $fm =~ /^api\s*:\s*true\b/mi || $fm =~ /^raw\s*:\s*true\b/mi;
+    my ($ct) = $fm =~ /^content_type\s*:\s*(.+?)\s*$/mi;
+    return undef
+        unless defined $ct
+        && $ct =~ m{^\s*(?:text/html|application/xhtml\+xml|image/svg\+xml)\b}i;
+    return
+          "This page declares a raw HTML content type ($ct), which a content page "
+        . "may not use: raw HTML/SVG bypasses the layout and theme and is served "
+        . "as plain text (ADR 0006), and external CSS/font/CDN links are refused. "
+        . "Author the page as Markdown (styled by the site's layout and theme); for "
+        . "a genuine self-contained artifact, use a non-script content type such as "
+        . "application/json.";
+}
 
 sub _write_conf_key {
     my ( $key, $value ) = @_;

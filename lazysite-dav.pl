@@ -497,6 +497,23 @@ sub do_put {
         unlink $tmp;
         return send_status( 500, body => "Write failed\n" );
     }
+    # SM189: refuse a content page that ships raw HTML/SVG (api:/raw: front matter
+    # + a script-capable content_type) - the same guard the manager/MCP save path
+    # applies (Lazysite::Manager::Common::raw_html_page_refusal). The front matter
+    # sits at the file head, so a bounded read is enough; refuse before the rename
+    # so nothing lands on disk.
+    {
+        require Lazysite::Manager::Common;
+        if ( open my $hf, '<:raw', $tmp ) {
+            my $head = '';
+            read( $hf, $head, 16384 );
+            close $hf;
+            if ( my $err = Lazysite::Manager::Common::raw_html_page_refusal($head) ) {
+                unlink $tmp;
+                return send_status( 415, body => "$err\n" );
+            }
+        }
+    }
     unless ( rename $tmp, $r->{abs} ) {
         unlink $tmp;
         return send_status( 500, body => "Rename failed\n" );

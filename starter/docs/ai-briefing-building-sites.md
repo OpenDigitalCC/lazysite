@@ -140,6 +140,14 @@ other stays flat.
    body verbatim with no layout and no theme, and is the usual source of monolith
    pages. Reserve raw mode for a genuinely self-contained artifact. If you are
    writing paragraphs of HTML in a page, stop - it belongs in the layout.
+   **This is now enforced (SM189):** the write path - manager save, MCP write,
+   and WebDAV `PUT` - **refuses** a page that declares `api:`/`raw:` with a
+   script-capable `content_type` (`text/html`, XHTML, SVG). You get a clear error,
+   not a silently-broken page (raw mode is served as plain text, ADR 0006). That
+   also closes the route by which such a page smuggled in external CSS/font links;
+   fonts and CSS must be **bundled** (OFL/Apache), never loaded from a CDN such as
+   `fonts.googleapis.com`. A genuine artifact (a non-script `content_type` like
+   `application/json`) is still allowed.
 2. **Structure is the layout.** Header, nav, footer, hero, section scaffolding
    live in `layout.tt`. Build them once; every page inherits them.
 3. **Style is the theme, as tokens.** Use `var(--theme-*)`; never hardcode a

@@ -16,7 +16,7 @@ use Fcntl qw(:flock);
 use POSIX qw(strftime);
 use Lazysite::Util qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal);
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Manager::Upload qw(is_editable_text);
@@ -210,6 +210,15 @@ sub action_save {
         if is_blocked_path( $result->{rel} );
     return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
         if is_blocked_config( $result->{rel} );
+
+    # SM189: refuse a content page that ships raw HTML/SVG (api:/raw: front matter
+    # + a script-capable content_type). It bypasses the layout/theme, is served as
+    # plain text (ADR 0006), and evades the no-CDN guard. Because MCP write_file /
+    # create_page route through action_save, this covers the manager save AND MCP;
+    # the WebDAV PUT path enforces the same guard in lazysite-dav.pl.
+    if ( my $err = raw_html_page_refusal($content) ) {
+        return { ok => 0, error => $err, kind => 'raw-content-refused' };
+    }
 
     my $full = $result->{full};
 
