@@ -1256,9 +1256,17 @@ sub _bind_form {
     }
     my $dir = "$LAZYSITE_DIR/forms";
     return { ok => 0, error => 'forms directory is missing' } unless -d $dir;
-    open my $fh, '>', "$dir/$form.conf" or return { ok => 0, error => "cannot write the form config: $!" };
+    # Atomic: temp + rename, so a racing binder of the same form never leaves a
+    # partial/empty .conf, and a reader always sees a complete binding.
+    my $conf = "$dir/$form.conf";
+    my $tmp  = "$conf.tmp.$$";
+    open my $fh, '>', $tmp or return { ok => 0, error => "cannot write the form config: $!" };
     print {$fh} "targets:\n  - handler: $handler\n";
-    close $fh;
+    unless ( close $fh ) { unlink $tmp; return { ok => 0, error => "cannot write the form config: $!" } }
+    unless ( rename $tmp, $conf ) {
+        unlink $tmp;
+        return { ok => 0, error => "cannot write the form config: $!" };
+    }
     return { ok => 1, form => $form, handler => $handler, path => "/lazysite/forms/$form.conf" };
 }
 

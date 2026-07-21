@@ -2443,18 +2443,22 @@ sub read_users {
 
 sub write_users {
     my (%users) = @_;
-    open( my $fh, '>:utf8', $USERS_FILE ) or die "Cannot write $USERS_FILE: $!\n";
-    flock( $fh, LOCK_EX );
+    # Atomic: write a temp sibling then rename(2) it over the store. A concurrent
+    # reader (verify-credential runs on every authenticated request, lock-free)
+    # therefore never sees a half-written or empty users file, and a crash
+    # mid-write cannot truncate the credential store. The temp is created in the
+    # setgid AUTH_DIR, so it inherits the auth group; mode 0660 keeps it writable
+    # by BOTH this CLI tool (the domain user) and the web manager (www-data). RMW
+    # serialisation against other mutators is the caller's store lock.
+    my $tmp = "$USERS_FILE.tmp.$$";
+    open( my $fh, '>:utf8', $tmp ) or die "Cannot write $USERS_FILE: $!\n";
     for my $u ( sort keys %users ) {
         print $fh "$u:$users{$u}\n";
     }
-    flock( $fh, LOCK_UN );
-    close $fh;
-    # 0660, not 0640: the auth store is managed by BOTH this CLI tool (as the
-    # domain user) and the web manager (as www-data, the setgid auth-dir
-    # group). Owner-write-only locks www-data out of a file the CLI wrote -
-    # the auth dir is 02770 so there is no world access regardless.
-    chmod 0660, $USERS_FILE;
+    close $fh or do { unlink $tmp; die "Cannot write $USERS_FILE: $!\n" };
+    chmod 0660, $tmp;
+    rename $tmp, $USERS_FILE
+        or do { unlink $tmp; die "Cannot replace $USERS_FILE: $!\n" };
 }
 
 # SM095: per-group capabilities + manager flag. JSON keyed by group name:
@@ -2881,15 +2885,19 @@ sub read_groups {
 
 sub write_groups {
     my (%groups) = @_;
-    open( my $fh, '>:utf8', $GROUPS_FILE ) or die "Cannot write $GROUPS_FILE: $!\n";
-    flock( $fh, LOCK_EX );
+    # Atomic temp+rename, same rationale as write_users: a lock-free reader never
+    # sees a truncated groups file and a crash cannot wipe memberships. Temp in
+    # the setgid AUTH_DIR, mode 0660 so CLI + www-data both keep write access.
+    my $tmp = "$GROUPS_FILE.tmp.$$";
+    open( my $fh, '>:utf8', $tmp ) or die "Cannot write $GROUPS_FILE: $!\n";
     for my $g ( sort keys %groups ) {
         next unless @{ $groups{$g} };
         print $fh "$g: " . join( ', ', @{ $groups{$g} } ) . "\n";
     }
-    flock( $fh, LOCK_UN );
-    close $fh;
-    chmod 0660, $GROUPS_FILE;    # group-writable: CLI + www-data both manage it
+    close $fh or do { unlink $tmp; die "Cannot write $GROUPS_FILE: $!\n" };
+    chmod 0660, $tmp;
+    rename $tmp, $GROUPS_FILE
+        or do { unlink $tmp; die "Cannot replace $GROUPS_FILE: $!\n" };
 }
 
 # Returns an exclusive lock handle held until it goes out of scope (the

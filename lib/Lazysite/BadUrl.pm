@@ -14,7 +14,7 @@ package Lazysite::BadUrl;
 use strict;
 use warnings;
 use JSON::PP ();
-use Fcntl    qw(:flock SEEK_SET);
+use Fcntl    qw(:flock);
 use Exporter 'import';
 our @EXPORT_OK = qw(is_bad_url is_blocked record_and_check list_blocks unblock);
 
@@ -73,30 +73,22 @@ sub record_and_check {
     my $cache = "$docroot/lazysite/cache";
     return 0 unless -d $cache || mkdir $cache;
 
-    # --- rolling-window hit counter (locked read-modify-write) ---
-    my $hf = _hits_path($docroot);
-    open my $fh, '+>>', $hf or return 0;
-    flock $fh, LOCK_EX or do { close $fh; return 0 };
-    seek $fh, 0, SEEK_SET;
-    my $raw  = do { local $/; <$fh> };
-    my $hits = ( defined $raw && length $raw ) ? eval { JSON::PP::decode_json($raw) } : {};
-    $hits = {} unless ref $hits eq 'HASH';
+    # --- rolling-window hit counter (locked, atomic read-modify-write) ---
+    my $count = 0;
+    _locked_rmw( $docroot, _hits_path($docroot), sub {
+            my ($hits) = @_;
+            my @recent = grep { $_ > $now - $window } @{ $hits->{$ip} || [] };
+            push @recent, $now;
+            $hits->{$ip} = \@recent;
+            $count = scalar @recent;
 
-    my @recent = grep { $_ > $now - $window } @{ $hits->{$ip} || [] };
-    push @recent, $now;
-    $hits->{$ip} = \@recent;
-    my $count = scalar @recent;
-
-    # Bound the store: drop IPs whose most-recent hit is oldest.
-    if ( keys %{$hits} > $HIT_CAP ) {
-        my @by_age = sort { ( $hits->{$b}[-1] || 0 ) <=> ( $hits->{$a}[-1] || 0 ) } keys %{$hits};
-        delete $hits->{$_} for @by_age[ $HIT_CAP .. $#by_age ];
-    }
-
-    seek $fh, 0, SEEK_SET;
-    truncate $fh, 0;
-    print {$fh} JSON::PP::encode_json($hits);
-    close $fh;
+            # Bound the store: drop IPs whose most-recent hit is oldest.
+            if ( keys %{$hits} > $HIT_CAP ) {
+                my @by_age = sort { ( $hits->{$b}[-1] || 0 ) <=> ( $hits->{$a}[-1] || 0 ) } keys %{$hits};
+                delete $hits->{$_} for @by_age[ $HIT_CAP .. $#by_age ];
+            }
+            return $hits;
+    } );
 
     return 0 if $count < $threshold;
 
@@ -146,21 +138,35 @@ sub _read_json {
 # Locked read-modify-write of the blocked store via a callback.
 sub _update_blocked {
     my ( $docroot, $mutate ) = @_;
+    return _locked_rmw( $docroot, _blocked_path($docroot), $mutate );
+}
+
+# Serialised, atomic read-modify-write of a cache JSON store. The exclusive lock
+# lives on a stable sidecar lockfile (NOT the data file) so it still serialises
+# writers across the temp+rename - flock on the data file itself would not,
+# because rename swaps the inode out from under the lock. temp+rename means a
+# lock-free reader (_read_json) never catches a half-written store, and a crash
+# mid-write leaves the previous store intact rather than truncated. $mutate gets
+# the decoded hashref (or {}) and returns the hashref to persist.
+sub _locked_rmw {
+    my ( $docroot, $data, $mutate ) = @_;
     my $cache = "$docroot/lazysite/cache";
     return unless -d $cache || mkdir $cache;
-    my $f = _blocked_path($docroot);
-    open my $fh, '+>>', $f or return;
-    flock $fh, LOCK_EX or do { close $fh; return };
-    seek $fh, 0, SEEK_SET;
-    my $raw = do { local $/; <$fh> };
-    my $b   = ( defined $raw && length $raw ) ? eval { JSON::PP::decode_json($raw) } : {};
-    $b = {} unless ref $b eq 'HASH';
-    $b = $mutate->($b);
-    seek $fh, 0, SEEK_SET;
-    truncate $fh, 0;
-    print {$fh} JSON::PP::encode_json($b);
-    close $fh;
-    return;
+    open my $lk, '>', "$cache/.bad-url.lock" or return;
+    flock $lk, LOCK_EX or do { close $lk; return };
+
+    my $cur = _read_json($data);
+    $cur = {} unless ref $cur eq 'HASH';
+    my $new = $mutate->($cur);
+
+    my $tmp = "$data.tmp.$$";
+    if ( open my $fh, '>', $tmp ) {
+        print {$fh} JSON::PP::encode_json($new);
+        if ( close $fh ) { rename $tmp, $data or unlink $tmp }
+        else { unlink $tmp }
+    }
+    close $lk;    # release after the rename, so the RMW is fully serialised
+    return $new;
 }
 
 1;

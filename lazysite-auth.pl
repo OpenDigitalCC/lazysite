@@ -1137,25 +1137,32 @@ sub update_user_hash {
     my ( $user, $new_hash ) = @_;
     my $path = "$AUTH_DIR/users";
     return 0 unless -f $path;
-    open my $fh, '<:utf8', $path or return 0;
-    flock( $fh, LOCK_EX );
+
+    # Hold ONE exclusive lock across the whole read-modify-write. The old code
+    # released the read lock before reopening for write, so a concurrent writer
+    # (another password change, or the users tool) could slip in and be clobbered
+    # by our stale copy. The shared store lock (.consume.lock) also makes us
+    # mutually exclusive with lazysite-users.pl's mutations. Write atomically
+    # (temp + rename) so a login reading the store never sees it truncated; mode
+    # 0660 in the setgid auth dir keeps CLI + www-data both able to write.
+    open my $lk, '>', "$AUTH_DIR/.consume.lock" or return 0;
+    flock( $lk, LOCK_EX ) or do { close $lk; return 0 };
+
+    open my $fh, '<:utf8', $path or do { close $lk; return 0 };
     my @lines = <$fh>;
+    close $fh;
     for my $line (@lines) {
         next unless $line =~ /^\Q$user\E:/;
         $line = "$user:$new_hash\n";
     }
-    seek $fh, 0, 0;
-    # Reopen for write: the read-lock pattern here is a read handle; use a
-    # separate write to avoid races with readers using the same handle.
-    flock( $fh, LOCK_UN );
-    close $fh;
 
-    open my $wfh, '>:utf8', $path or return 0;
-    flock( $wfh, LOCK_EX );
+    my $tmp = "$path.tmp.$$";
+    open my $wfh, '>:utf8', $tmp or do { close $lk; return 0 };
     print $wfh @lines;
-    flock( $wfh, LOCK_UN );
-    close $wfh;
-    chmod 0o640, $path;
+    unless ( close $wfh ) { unlink $tmp; close $lk; return 0 }
+    chmod 0o660, $tmp;
+    unless ( rename $tmp, $path ) { unlink $tmp; close $lk; return 0 }
+    close $lk;    # release the store lock
     return 1;
 }
 
