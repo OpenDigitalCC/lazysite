@@ -57,6 +57,27 @@ subtest 'unicode content round-trips through utf8 layer' => sub {
     is( do { local $/; <$fh> }, $txt, 'unicode round-trip' );
 };
 
+subtest 'atomic overwrite preserves mode and leaves no temp' => sub {
+    my $path = "$dir/keep.txt";
+    open my $fh, '>', $path or die $!;
+    print $fh "original\n";
+    close $fh;
+    chmod 0o640, $path;
+
+    my ( $ok, $err ) = main::write_file_checked( $path, "replaced\n" );
+    is( $ok, 1, 'overwrite ok' );
+    open my $r, '<', $path or die $!;
+    is( do { local $/; <$r> }, "replaced\n", 'content replaced via temp+rename' );
+
+    ok( !-e "$path.$$.tmp", 'no temp sibling left behind' );
+
+  SKIP: {
+        skip 'running as root - mode bits not enforced', 1 if $> == 0;
+        is( ( stat $path )[2] & 0o777, 0o640,
+            'existing file mode preserved across the atomic rename' );
+    }
+};
+
 # --- Integration-level: action_save surfaces helper errors ---
 
 # Build a throwaway docroot where the target directory is

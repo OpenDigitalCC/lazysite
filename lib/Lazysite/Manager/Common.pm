@@ -10,6 +10,7 @@ use warnings;
 use Cwd            qw(realpath);
 use Errno          ();                # %! (errno names) for the permission-failure hint
 use File::Basename qw(dirname);
+use Fcntl          qw(:flock);
 use JSON::PP       qw(encode_json);
 use Lazysite::Util qw(log_event);
 use Exporter 'import';
@@ -160,23 +161,39 @@ sub _perm_hint {
         : '';
 }
 
-# Write a file, cleaning up the partial on any failure. Returns (ok, error).
+# Write a file ATOMICALLY: write a temp sibling, then rename(2) it over the
+# target (atomic on POSIX). A concurrent reader therefore always sees either the
+# old complete file or the new complete file - never a truncated or half-written
+# one, which is how two racing config-set saves once truncated lazysite.conf to a
+# single key. Any failure removes the TEMP only; the existing file is never
+# unlinked (the old in-place open '>' both truncated up-front and unlinked the
+# real file on error). Returns (ok, error).
 sub write_file_checked {
     my ( $path, $content ) = @_;
-    open my $fh, '>:utf8', $path
+    my $tmp = "$path.$$.tmp";
+    open my $fh, '>:utf8', $tmp
         or return ( 0, "Cannot write file: $!" . _perm_hint() );
     unless ( print {$fh} $content ) {
         my $err  = "$!";
         my $hint = _perm_hint();
         close $fh;
-        unlink $path;
+        unlink $tmp;
         return ( 0, "Write failed: $err$hint" );
     }
     unless ( close $fh ) {
         my $err  = "$!";
         my $hint = _perm_hint();
-        unlink $path;
+        unlink $tmp;
         return ( 0, "Close failed: $err$hint" );
+    }
+    # rename adopts the temp's mode, so carry the target's existing mode across
+    # (a fresh file keeps the umask default the direct-open path would have set).
+    if     ( my @st = stat $path ) { chmod $st[2] & 07777, $tmp }
+    unless ( rename $tmp, $path ) {
+        my $err  = "$!";
+        my $hint = _perm_hint();
+        unlink $tmp;
+        return ( 0, "Rename failed: $err$hint" );
     }
     return ( 1, undef );
 }
@@ -357,9 +374,27 @@ sub _write_conf_key {
     return 0 unless $key =~ /^[A-Za-z_][A-Za-z0-9_-]*$/;
 
     my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
-    my $content   = '';
+
+    # Serialise concurrent writers. The Services page saves every changed key as
+    # its own config-set, fired in parallel (Promise.all), so several processes
+    # reach this read-modify-write at once. Without a lock, the second saver's
+    # write drops the first's change (lost update); combined with the old
+    # non-atomic write it truncated the whole file. Hold an exclusive lock on a
+    # sidecar lockfile across the read-modify-write so the writes serialise;
+    # write_file_checked keeps each write atomic. Readers stay lock-free - the
+    # atomic rename means they always see a complete file.
+    open my $lock, '>', "$conf_path.lock"
+        or return wantarray ? ( 0, "Cannot lock lazysite.conf: $!" . _perm_hint() ) : 0;
+    unless ( flock $lock, LOCK_EX ) {
+        my $err = "$!";
+        close $lock;
+        return wantarray ? ( 0, "Cannot lock lazysite.conf: $err" ) : 0;
+    }
+
+    my $content = '';
     if ( -f $conf_path ) {
-        open my $fh, '<:utf8', $conf_path or return 0;
+        open my $fh, '<:utf8', $conf_path
+            or do { close $lock; return wantarray ? ( 0, "Cannot read lazysite.conf: $!" ) : 0 };
         $content = do { local $/; <$fh> };
         close $fh;
     }
@@ -373,8 +408,9 @@ sub _write_conf_key {
     }
 
     my ( $ok, $err ) = write_file_checked( $conf_path, $content );
-    # Scalar callers keep the boolean contract; a list caller (config-set)
-    # also gets the underlying error, incl. the permission hint.
+    close $lock;    # releases the exclusive flock
+                    # Scalar callers keep the boolean contract; a list caller (config-set)
+                    # also gets the underlying error, incl. the permission hint.
     return wantarray ? ( $ok ? 1 : 0, $err ) : ( $ok ? 1 : 0 );
 }
 
