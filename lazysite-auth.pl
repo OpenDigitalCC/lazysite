@@ -515,8 +515,14 @@ sub users_tool_api {
 # from the Services page.
 sub _require_token_exchange {
     return if Lazysite::Util::service_enabled( $DOCROOT, 'token_exchange_enabled' );
-    json_response( { ok => 0, error => 'Token exchange is not enabled on this site '
-            . '(ask the operator to enable it: Services -> AI partner tokens).' }, 404 );
+    # NOT 404: a 404 reads as "endpoint absent / not deployed" and sent a real
+    # field diagnosis down the wrong path (redeploy, re-check routing) when the
+    # feature was merely switched off. Match the control API's shape - a 200 body
+    # with ok:0 + a stable machine-readable code - so a client branches on the
+    # payload, never on a misleading status.
+    json_response( { ok => 0, code => 'service_disabled',
+            error => 'Token exchange is not enabled on this site '
+                . '(ask the operator to enable it: Services -> AI partner tokens).' }, 200 );
     exit 0;
 }
 

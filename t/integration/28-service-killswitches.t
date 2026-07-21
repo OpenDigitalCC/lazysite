@@ -86,6 +86,8 @@ my $tokauth = 'Basic ' . encode_base64( 'someone:lzs_faketoken', '' );
     like( $off, qr/control API.*not.*enabled/i,
         'control-API: OFF by default -> a token is refused before it is even verified' );
     unlike( $off, qr/Invalid credentials/i, 'control-API: OFF short-circuits before credential verification' );
+    like( $off, qr/"code"\s*:\s*"service_disabled"/,
+        'control-API: OFF -> same structured code:service_disabled' );
 
     my $on = cgi( 'lazysite-manager-api.pl',
         { DOCUMENT_ROOT => site("control_api_enabled: true\n"), REQUEST_METHOD => 'GET',
@@ -109,6 +111,13 @@ my $ex = 'pairing_key=lzp_nope';
         { DOCUMENT_ROOT => site(''), REQUEST_METHOD => 'POST',
             QUERY_STRING => 'action=exchange', CONTENT_LENGTH => length $ex }, $ex );
     like( $off, qr/not enabled/i, 'token exchange: OFF by default -> refused' );
+    # A disabled service must NOT look "not deployed": the old 404 sent a real
+    # field diagnosis down a redeploy/routing path. It now answers a clear 200
+    # with a machine-readable code, matching the control API.
+    unlike( $off, qr{Status:\s*404},
+        'token exchange: OFF -> not a 404 (avoids the "not deployed" misread)' );
+    like( $off, qr/"code"\s*:\s*"service_disabled"/,
+        'token exchange: OFF -> structured code:service_disabled for clients' );
 
     my $on = cgi( 'lazysite-auth.pl',
         { DOCUMENT_ROOT => site("token_exchange_enabled: true\n"), REQUEST_METHOD => 'POST',

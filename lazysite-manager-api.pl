@@ -184,7 +184,8 @@ my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
             # reaches the same endpoint and is unaffected (it is gated by
             # `manager:`). Default off; opt in from the Services page.
             unless ( Lazysite::Util::service_enabled( $DOCROOT, 'control_api_enabled' ) ) {
-                respond( { ok => 0, error => 'The control API (token access) is not '
+                respond( { ok => 0, code => 'service_disabled',
+                        error => 'The control API (token access) is not '
                         . 'enabled on this site. Ask the operator to enable it (Services -> Control API).' } );
                 exit 0;
             }
