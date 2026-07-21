@@ -13,6 +13,7 @@ use strict;
 use warnings;
 use Test::More;
 use MIME::Base64 qw(encode_base64);
+use JSON::PP      qw(decode_json);
 use IPC::Open3   qw(open3);
 use Symbol       qw(gensym);
 use File::Path   qw(make_path);
@@ -124,6 +125,22 @@ my $ex = 'pairing_key=lzp_nope';
             QUERY_STRING => 'action=exchange', CONTENT_LENGTH => length $ex }, $ex );
     unlike( $on, qr/not enabled/i,
         'token exchange: ON -> the endpoint runs (a bad key fails for its own reason, not the killswitch)' );
+}
+
+# ---- SM180: channel-services reports each channel's service state -------------
+# The Groups/Users grids cross-reference this to flag a granted-but-dormant
+# capability (the channel is granted, but its site service is switched off).
+{
+    my $out = cgi( 'lazysite-manager-api.pl',
+        { DOCUMENT_ROOT => site("webdav_enabled: enabled\nmanager: enabled\n"),
+            REQUEST_METHOD => 'GET', QUERY_STRING => 'action=channel-services' }, '' );
+    my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
+    my $d = eval { decode_json( $jb // '' ) } || {};
+    ok( $d->{ok}, 'channel-services answers' );
+    is( $d->{services}{webdav}, 1, 'webdav service ON (webdav_enabled set)' );
+    is( $d->{services}{ui},     1, 'ui service ON (manager set)' );
+    is( $d->{services}{api},    0, 'api service OFF (control_api_enabled unset)' );
+    is( $d->{services}{mcp},    0, 'mcp service OFF (mcp_enabled unset)' );
 }
 
 done_testing();

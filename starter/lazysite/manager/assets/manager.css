@@ -1483,6 +1483,8 @@ body.mg-sheet-open { overflow:hidden; }
   border-radius:var(--mg-radius); word-break:break-all; }
 .mg-muted { color:var(--mg-text-muted); font-size:var(--mg-text-sm); }
 .mg-help { cursor:help; color:var(--mg-text-light); }
+/* SM180: a granted channel whose site service is switched off - inert until enabled. */
+.mg-cap-dormant { cursor:help; color:#b45309; font-size:0.9em; font-weight:600; }
 .mg-prov { color:var(--mg-text-muted); font-size:var(--mg-text-sm); margin-top:0.4rem; }
 .mg-inline-msg { font-size:var(--mg-text-sm); }
 .mg-inline-msg.mg-ok  { color:var(--mg-success); }

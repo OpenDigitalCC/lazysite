@@ -25,7 +25,7 @@ BEGIN {
 }
 use Lazysite::Util           qw(log_event const_eq);
 use Lazysite::Audit          qw(audit_log);
-use Lazysite::Capabilities   qw(describe capability_keys);
+use Lazysite::Capabilities   qw(describe capability_keys channel_service);
 use Lazysite::BadUrl         qw(list_blocks unblock);
 use Lazysite::Auth::Settings qw(site_grants_manager);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
@@ -868,6 +868,7 @@ elsif ( $action eq 'audit' ) {
         unless $denied;
 }
 elsif ( $action eq 'recent-changes' ) { $result = action_recent_changes( $params{window} ) }
+elsif ( $action eq 'channel-services' ) { $result = action_channel_services() }
 elsif ( $action eq 'handler-save' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_handler_save($req);
@@ -933,7 +934,7 @@ else { $result = { ok => 0, error => "Unknown action: $action" } }
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
         csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
-        cache-invalidate nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes pages theme-list themes-list-all themes-for-layout
+        cache-invalidate nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read form-submissions artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
@@ -1782,6 +1783,21 @@ sub action_notices_seen {
 # Audit target for an action that carries no file PATH of its own - so the audit
 # trail names WHAT was acted on (a domain, a config key, a backup) instead of a
 # bare '/'. Derives from the query params / JSON body. '' = no implicit target.
+# SM180: the per-channel service state for the Groups/Users capability grids.
+# A CHANNEL capability is DORMANT - granted but inert - when its site service is
+# switched off. Returns { channel => 0|1 } for ui/webdav/api/mcp, read from the
+# killswitches named by Lazysite::Capabilities::channel_service (the single
+# source of truth). A cheap read of non-sensitive on/off booleans; the grids
+# cross-reference it to show a "granted but the service is off" hint.
+sub action_channel_services {
+    my $map = channel_service();
+    my %svc;
+    for my $ch ( keys %$map ) {
+        $svc{$ch} = Lazysite::Util::service_enabled( $DOCROOT, $map->{$ch} ) ? 1 : 0;
+    }
+    return { ok => 1, services => \%svc };
+}
+
 sub _audit_implicit_target {
     my ( $action, $params, $body ) = @_;
     $action //= '';

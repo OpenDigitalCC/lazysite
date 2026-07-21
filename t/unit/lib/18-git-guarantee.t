@@ -191,6 +191,7 @@ my %EXEMPT = (
     'API::action_describe_capabilities' => 'read-only',
     'API::action_whoami'                => 'read-only',
     'API::action_recent_changes'        => 'read-only',
+    'API::action_channel_services'      => 'read-only', # SM180: reports killswitch state, no write
     'API::action_audit'                 => 'read-only',
     'API::action_analyse_visitors'      => 'read-only',
     'API::action_version'               => 'read-only',

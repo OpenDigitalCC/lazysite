@@ -16,7 +16,7 @@ use warnings;
 use JSON::PP                 ();
 use Lazysite::Auth::Settings qw(@CAP_KEYS);
 use Exporter 'import';
-our @EXPORT_OK = qw(describe capability_keys channel_keys action_keys);
+our @EXPORT_OK = qw(describe capability_keys channel_keys action_keys channel_service);
 
 # The four channels (WHERE you operate). Fixed concept; the rest of @CAP_KEYS are
 # actions (WHAT you may do).
@@ -36,6 +36,21 @@ my %CHANNEL_INFO = (
     api    => 'The token-authenticated control API (structured actions).',
     mcp    => 'The MCP connector (Claude.ai / ChatGPT / Code tools).',
 );
+
+# SM180: each CHANNEL capability only DOES anything while its site service is
+# enabled - the two planes (per-principal grant, per-site killswitch) are
+# independent, so a grant can be dormant. This is the map from a channel to the
+# lazysite.conf key that gates it: 'ui' by the `manager` key, the three remote
+# channels by their *_enabled flags. The manager consults it to flag a
+# granted-but-dormant capability (service off) in the Groups/Users grids. Single
+# source of truth: surfaced in describe() and read by the control API.
+my %CHANNEL_SERVICE = (
+    ui     => 'manager',
+    webdav => 'webdav_enabled',
+    api    => 'control_api_enabled',
+    mcp    => 'mcp_enabled',
+);
+sub channel_service { return {%CHANNEL_SERVICE} }
 
 # Action capabilities: a title and what holding it unlocks, per channel. The
 # lists name real MCP tools, control-API actions, or WebDAV path shapes; the
@@ -213,7 +228,8 @@ sub describe {
     my $F     = JSON::PP::false();
 
     my %channels;
-    $channels{$_} = { enforced => $T, note => $CHANNEL_INFO{$_} } for @CHANNELS;
+    $channels{$_} = { enforced => $T, note => $CHANNEL_INFO{$_},
+        service => $CHANNEL_SERVICE{$_} } for @CHANNELS;
 
     my %capabilities;
     for my $a ( action_keys() ) {

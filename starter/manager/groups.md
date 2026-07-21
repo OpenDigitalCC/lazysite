@@ -33,6 +33,7 @@ the <a href="/manager/users">Users</a> page. Access to this Manager UI is the
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var allGroups = {};   // {group: {label, manager, caps:{}, members:[]}}
 var allUsers  = [];   // [username]
+var channelServices = {};   // SM180: {channel: 0|1} - is each channel's SITE service enabled
 
 // The capability bools a group can carry (must match @CAP_KEYS in the users tool).
 // Channels = WHERE you may operate; Actions = WHAT you may do. You need both.
@@ -89,9 +90,16 @@ function loadGroups() {
   var up = apiCall({ action: 'list' })
     .then(function(d) { return (d.ok && d.users) ? d.users : []; })
     .catch(function() { return []; });
-  Promise.all([gp, up]).then(function(res) {
+  // SM180: which channel services are enabled site-wide, so a granted channel
+  // whose service is OFF can be flagged dormant. Top-level action (not a users
+  // sub-action), fetched alongside; a failure just yields no hints.
+  var cs = fetch(API + '?action=channel-services').then(function(r) { return r.json(); })
+    .then(function(d) { return (d.ok && d.services) ? d.services : {}; })
+    .catch(function() { return {}; });
+  Promise.all([gp, up, cs]).then(function(res) {
     allGroups = res[0] || {};
     allUsers  = res[1] || [];
+    channelServices = res[2] || {};
     var dl = document.getElementById('all-users-list');
     if (dl) dl.innerHTML = allUsers.map(function(u){ return '<option value="' + escHtml(u) + '">'; }).join('');
     renderGroups();
@@ -136,14 +144,23 @@ function renderGroups() {
        + '<input type="text" class="mg-inp" style="flex:1" value="' + escHtml(info.description || '') + '" '
        + 'onchange="setDescription(\'' + ge + '\', this.value)" placeholder="what this role is for"></div>';
 
-    var row = function(c) {
+    var row = function(c, isChannel) {
+      // SM180: a channel that IS granted but whose SITE service is switched off
+      // is dormant - it does nothing until an admin enables the service. Flag it
+      // so the grant is not silently inert.
+      var warn = '';
+      if (isChannel && caps[c[0]] && channelServices[c[0]] === 0) {
+        warn = ' <span class="mg-cap-dormant" title="Granted, but the ' + escHtml(c[1])
+          + ' service is switched OFF site-wide — a site admin must enable it in '
+          + 'Settings → Services for this grant to take effect.">&#9888;</span>';
+      }
       return '<label class="mg-chk"><input type="checkbox"' + (caps[c[0]] ? ' checked' : '') +
-        ' onchange="toggleSetting(\'' + ge + '\',\'' + c[0] + '\',this)"> ' + escHtml(c[1]) + '</label>';
+        ' onchange="toggleSetting(\'' + ge + '\',\'' + c[0] + '\',this)"> ' + escHtml(c[1]) + warn + '</label>';
     };
     h += '<div class="mg-sec">Channels <span style="font-weight:400;color:#888">— where members may operate</span></div>';
-    h += '<div class="mg-checks">' + CHANNELS.map(row).join('') + '</div>';
+    h += '<div class="mg-checks">' + CHANNELS.map(function(c) { return row(c, true); }).join('') + '</div>';
     h += '<div class="mg-sec">Actions <span style="font-weight:400;color:#888">— what they may do</span></div>';
-    h += '<div class="mg-checks">' + ACTIONS.map(row).join('') + '</div>';
+    h += '<div class="mg-checks">' + ACTIONS.map(function(c) { return row(c, false); }).join('') + '</div>';
 
     // SM165: domain access lives on the DOMAIN (each domain names the groups
     // allowed to manage it, on the Domains page), so the group editor no longer

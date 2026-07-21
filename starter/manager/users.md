@@ -87,6 +87,7 @@ var groupLabels = {}; // {group: description-or-label} - for the add-user picker
 var parentList = [];  // [username] - accounts that can own sub-users (create_sub_users)
 var parentOf = {};    // {username: parent} - the managed_by/created_by hierarchy
 var ME = '';          // the current operator's username (from whoami) - a valid owner
+var channelServices = {};   // SM180: {channel: 0|1} - is each channel's SITE service enabled
 
 // SM109 phase 2: route all status to the global toast.
 function showStatus(msg, isError) {
@@ -127,6 +128,11 @@ function recentDot(key) {
 }
 
 function loadUsers() {
+  // SM180: load which channel services are enabled site-wide, so the per-user
+  // capability grid can flag a granted channel whose service is OFF as dormant.
+  // Fires in parallel; resolves well before a grid is opened on demand.
+  fetch(API + '?action=channel-services').then(function(r) { return r.json(); })
+    .then(function(d) { channelServices = (d.ok && d.services) || {}; }, function() { channelServices = {}; });
   // recent-changes is a TOP-LEVEL api action (as the Files page calls it) -
   // not a users sub-action; tunnelling it through action=users made the
   // sub-dispatcher reject it (field report: audit noise
@@ -197,7 +203,13 @@ function renderPermGrid(d, user) {
   if (!d.groups || !d.groups.length) return recheck + '<p class="mg-empty">In no groups, so no capabilities.</p>';
   var h = recheck + '<table class="audit-table" style="font-size:12px"><thead><tr><th>Capability \\ Channel</th>';
   chans.forEach(function(c) {
-    h += '<th style="text-align:center" title="' + (by(c) ? 'granted by: ' + by(c).join(', ') : 'not granted') + '">' + escHtml(lbl(c)) + '</th>';
+    // SM180: a channel the user HAS but whose site service is off is dormant.
+    var dormant = by(c) && channelServices[c] === 0;
+    var warn = dormant ? ' <span class="mg-cap-dormant" title="The ' + escHtml(lbl(c))
+      + ' service is switched OFF site-wide — this channel is granted but inert until an '
+      + 'admin enables it in Settings → Services.">&#9888;</span>' : '';
+    var title = by(c) ? (dormant ? 'granted, but the service is OFF site-wide' : 'granted by: ' + by(c).join(', ')) : 'not granted';
+    h += '<th style="text-align:center" title="' + escHtml(title) + '">' + escHtml(lbl(c)) + warn + '</th>';
   });
   h += '</tr></thead><tbody>';
   acts.forEach(function(a) {

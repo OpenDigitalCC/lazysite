@@ -75,7 +75,7 @@ cmp_ok( scalar keys %mutating,    '>=', 30, '%MUTATING parsed non-trivially' );
 # before/around the auth boundary. Adding a NEW action means consciously placing
 # it in a cap map or one of these buckets - which is the whole point.
 my %READ = map { $_ => 1 } qw(
-    list read cache-list recent-changes principals version preview
+    list read cache-list recent-changes channel-services principals version preview
     file-download file-zip-download handler-list form-targets-read plugin-list
     layouts-releases layouts-release-contents layouts-repo-get
 );
