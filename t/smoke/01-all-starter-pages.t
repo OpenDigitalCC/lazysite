@@ -33,6 +33,14 @@ unless ( -f "$docroot/lazysite/nav.conf" ) {
         system( "cp", "$docroot/nav.conf.example", "$docroot/lazysite/nav.conf" );
     }
 }
+# SM190: the OAuth discovery pages (.well-known/oauth-*) are gated on
+# oauth_enabled - enable it so this render smoke exercises them. A disabled site
+# correctly 404s them (covered by t/integration/29-wellknown-oauth-gate.t).
+{
+    open my $cf, '>>', "$docroot/lazysite/lazysite.conf" or die $!;
+    print $cf "\noauth_enabled: enabled\n";
+    close $cf;
+}
 
 # Collect .md files to render.
 my @md;
