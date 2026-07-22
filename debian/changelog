@@ -1,3 +1,19 @@
+lazysite (0.9.11-1) unstable; urgency=medium
+
+  * BETA: field-issue fixes on top of 0.9.10 STABLE. No BREAKING change, no
+    migration; stable-channel sites are unaffected until promotion.
+  * FIX (login loop): the JS session marker (lzs_session) could outlive the real
+    signed session (e.g. after an auth-secret rotation), so /login reported
+    "already signed in" and hid the form while every page re-bounced; both bounce
+    points now clear the marker (SM188).
+  * HARDENING: the write path refuses raw-mode content pages (api:/raw: forcing an
+    HTML/XHTML/SVG content_type) on manager save and WebDAV PUT (415), keeping
+    pages themed and on the no-CDN policy; defence in depth (SM189).
+  * FIX (discovery): .well-known/oauth-* return 404 when oauth_enabled is off and
+    serve normally when on (SM190, partial).
+
+ -- OpenDigital <sjm@opendigital.cc>  Wed, 22 Jul 2026 10:15:00 +0100
+
 lazysite (0.9.10-1) unstable; urgency=high
 
   * STABLE: promotes the bedded-in 0.9.9 beta to the stable channel - the same
