@@ -42,6 +42,14 @@ my @lines = (
     # --- noise: infra fetches ride along with real visits but are not page views
     qq{1.2.3.4 - - [$D] "GET /favicon.ico HTTP/1.1" 200 100 "-" "Mozilla/5.0 (X11; Linux) Gecko Firefox/120"},
     qq{1.2.3.9 - - [$D] "GET /robots.txt HTTP/1.1" 200 50 "-" "Mozilla/5.0 (Windows) Chrome/120"},
+    # --- SM192: build-manifest probe that 404s -> noise (was inflating human)
+    qq{12.1.1.1 - - [$D] "GET /asset-manifest.json HTTP/1.1" 404 0 "-" "Mozilla/5.0 (Windows) Chrome/120"},
+    # --- SM192: secret-fishing wearing an AI UA -> noise (path beats UA), not ai
+    qq{13.1.1.1 - - [$D] "GET /secrets.json HTTP/1.1" 404 0 "-" "GPTBot/1.2"},
+    # --- SM192: a genuine 200 manifest.json is legitimate (404-gated) -> human
+    qq{15.1.1.1 - - [$D] "GET /manifest.json HTTP/1.1" 200 300 "-" "Mozilla/5.0 (Macintosh) Safari/17"},
+    # --- SM192: human hit carrying a referrer-spam Referer -> human, referrer dropped
+    qq{14.1.1.1 - - [$D] "GET /about HTTP/1.1" 200 800 "https://www.binance.com/en" "Mozilla/5.0 (Windows) Chrome/120"},
     # --- logged-in operator: manager surface + manager-api from a real browser
     qq{10.0.0.1 - - [$D] "GET /manager/files HTTP/1.1" 200 1000 "-" "Mozilla/5.0 (Windows) Chrome/120"},
     qq{10.0.0.1 - - [$D] "POST /cgi-bin/lazysite-manager-api.pl?action=files-list HTTP/1.1" 200 200 "-" "Mozilla/5.0 (Windows) Chrome/120"},
@@ -66,21 +74,23 @@ my $r = eval { decode_json($json) };
 ok( $r && $r->{ok}, 'scan ok' ) or diag $json;
 
 my $c = $r->{classes};
-is( $c->{human}{hits},     3, 'human hits' );
-is( $c->{human}{visitors}, 3, 'human unique visitors' );
-is( $c->{ai}{hits},        2, 'ai hits (UA + connector endpoint)' );
+is( $c->{human}{hits},     5, 'human hits (+ 200 manifest.json + binance-referrer hit; SM192)' );
+is( $c->{human}{visitors}, 5, 'human unique visitors' );
+is( $c->{ai}{hits},        2, 'ai hits (UA + connector endpoint; secrets.json+GPTBot is now noise, SM192)' );
 is( $c->{bot}{hits},       4, 'bot hits (Googlebot + HeadlessChrome + 2 self-identified agents)' );
-is( $c->{noise}{hits},     4, 'noise hits (wp-login + .php + favicon + robots)' );
+is( $c->{noise}{hits},     6, 'noise hits (wp-login + .php + favicon + robots + asset-manifest 404 + secrets.json; SM192)' );
 is( $c->{logged_in}{hits}, 2, 'logged-in operator hits' );
 is( $c->{logged_in}{visitors}, 1, 'logged-in one IP' );
 
-is( $r->{hits},            3, 'headline hits = human only' );
-is( $r->{unique_visitors}, 3, 'headline visitors = human only' );
+is( $r->{hits},            5, 'headline hits = human only' );
+is( $r->{unique_visitors}, 5, 'headline visitors = human only' );
 
 is( $r->{referrers}{internal}, 1, 'one self-referrer' );
-is( $r->{referrers}{direct},   1, 'one direct hit' );
-is( scalar @{ $r->{referrers}{external} }, 1, 'one external referrer' );
+is( $r->{referrers}{direct},   2, 'two direct hits (+ the 200 manifest.json)' );
+is( scalar @{ $r->{referrers}{external} }, 1, 'one external referrer (binance spam dropped; SM192)' );
 like( $r->{referrers}{external}[0]{key}, qr/example\.com/, 'external referrer is example.com' );
+ok( !( grep { $_->{key} =~ /binance/i } @{ $r->{referrers}{external} } ),
+    'referrer-spam host (binance) is NOT in the external referrers (SM192)' );
 
 my %pages = map { $_->{key} => 1 } @{ $r->{top_pages} };
 ok( $pages{'/about'} && $pages{'/contact'} && $pages{'/'}, 'human pages listed' );

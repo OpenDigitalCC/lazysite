@@ -74,6 +74,46 @@ my $INFRA_RE = qr{
         | \.well-known/ | feed(?:\.xml|/|$) | rss(?:\.xml|/|$) | atom\.xml )
 }xi;
 
+# SM192: SPA / build-tool manifest probes. A lazysite site serves no SPA build, so
+# a request for a framework build-manifest is a scanner probe - but only when it
+# 404s (a site that genuinely serves a PWA /manifest.json at 200 is legitimate, so
+# classify() applies this gated on the response status, unlike the always-noise
+# INFRA_RE). These names inflated the `human` count in the field.
+my $SPA_MANIFEST_RE = qr{
+    (?: ^|/ )
+    (?: asset-manifest\.json | build-manifest\.json | manifest\.json | config\.json )
+    (?: $|\? )
+  | /_next/ | /\.vite/
+}xi;
+
+# SM192: credential / secret fishing. These never exist on a lazysite site, so a
+# request is a probe REGARDLESS of the client's user-agent - path noise must win
+# over the AI-UA classification (a scanner spoofing an assistant UA to fish for
+# /secrets.json is noise, not an AI reader; it inflated the `ai` count in the
+# field). Not status-gated: there is no legitimate 200 for these.
+my $SECRET_RE = qr{
+    (?: ^|/ )
+    (?: secrets?\.json | credentials?\.json | secrets?\.ya?ml
+      | \.npmrc | \.dockercfg | \.pem | id_rsa )
+    (?: $|[?/] )
+}xi;
+
+# SM192: referrer-spam hosts - a faked Referer header pointed at a site so the
+# spammer's host shows up in the site's public stats/logs (SEO spam). Dropped from
+# the external-referrers report. Small, well-known built-in denylist (the twin of
+# the noise_paths escape hatch, kept minimal). Matches a host that equals or ends
+# with one of these domains.
+my @REF_SPAM = qw(
+    binance.com buttons-for-website.com semalt.com darodar.com
+    ilovevitaly.com econom.co success-seo.com 4webmasters.org
+    free-social-buttons.com social-buttons.com trafficmonetizer.org
+);
+my $REF_SPAM_RE = do {
+    my $alt = join '|', map { ( my $d = $_ ) =~ s/\./\\./g; $d } @REF_SPAM;
+    qr{ (?: ^|\. ) (?: $alt ) $ }xi;
+};
+sub _ref_is_spam { my ($host) = @_; return ( defined $host && $host =~ $REF_SPAM_RE ) ? 1 : 0; }
+
 # AI assistants / model fetchers + the lazysite automation surface.
 my $AI_RE = qr{
     GPTBot | ChatGPT | OAI-SearchBot | ClaudeBot | Claude-User | anthropic
@@ -287,11 +327,14 @@ sub _is_browser {
 
 # Returns one of: noise, ai, bot, logged_in, human. First match wins.
 sub classify {
-    my ( $path, $ua, $extra_ai, $extra_noise ) = @_;
+    my ( $path, $ua, $extra_ai, $extra_noise, $status ) = @_;
 
     return 'noise' if $path =~ $NOISE_RE;
     return 'noise' if $path =~ $INFRA_RE;                # favicon/robots/sitemap/feed
     return 'noise' if $path =~ m{\.php(?:[?/]|$)}i;      # PHP-less site: any .php is a probe
+    return 'noise' if $path =~ $SECRET_RE;               # SM192: secret-fishing (UA-independent)
+    return 'noise'                                       # SM192: 404 SPA/build-manifest probe
+        if defined $status && $status == 404 && $path =~ $SPA_MANIFEST_RE;
     if ($extra_noise) {
         for my $p (@$extra_noise) { return 'noise' if length $p && index( $path, $p ) == 0 }
     }
@@ -407,7 +450,7 @@ FILE: for my $f (@files) {
             my $ua   = $r->{ua} // '';
             my $v    = $r->{v}  // '';
 
-            my $class = classify( $path, $ua, $extra_ai, $extra_noise );
+            my $class = classify( $path, $ua, $extra_ai, $extra_noise, $st );
             $cls_hits{$class}++;
             $cls_vis{$class}{$v} = 1 if length $v;
 
@@ -434,7 +477,7 @@ FILE: for my $f (@files) {
                 {
                     $ref_internal++;    # self-referrer (on-site navigation)
                 }
-                else { $ref_ext{$ref}++ }
+                else { $ref_ext{$ref}++ unless _ref_is_spam($rh) }   # SM192: drop referrer-spam
             }
         }
         close $fh;
@@ -531,7 +574,7 @@ sub scan_stats {
         my $epoch = eval { POSIX::mktime( $S, $Mi, $H, $d, $mon{$mo}, $y - 1900 ) };
         next unless defined $epoch && $epoch >= $cutoff;
 
-        my $class = classify( $path, $ua, $extra_ai, $extra_noise );
+        my $class = classify( $path, $ua, $extra_ai, $extra_noise, $st );
         ( my $ipk = $ip ) =~ s/\.\d+$/.0/ if $anon && $ip =~ /\./;   # zero last IPv4 octet
         my $ipkey = $anon ? $ipk : $ip;
 
@@ -558,7 +601,7 @@ sub scan_stats {
             if ( length $site_host && ( lc $rh eq lc $site_host || $rh =~ /\Q$site_host\E$/i ) ) {
                 $ref_internal++;   # self-referrer (on-site navigation)
             }
-            else { $ref_ext{$ref}++ }
+            else { $ref_ext{$ref}++ unless _ref_is_spam($rh) }   # SM192: drop referrer-spam
         }
     }
     close $fh;
@@ -729,7 +772,7 @@ sub export_stats {
             last unless $line =~ /\n\z/;   # incomplete final line: process next time
             $pos += length $line;          # advance only past COMPLETE lines
             my $p = _parse_line($line) or next;
-            my $class = classify( $p->{path}, $p->{ua}, $extra_ai, $extra_noise );
+            my $class = classify( $p->{path}, $p->{ua}, $extra_ai, $extra_noise, $p->{status} );
             my $b = $cache->{days}{ $p->{day} } ||= {
                 cls => {}, ips => {}, hits => 0, pages => {}, status => {},
                 ref_ext => {}, ref_internal => 0, ref_direct => 0,
@@ -753,7 +796,7 @@ sub export_stats {
                     {
                         $b->{ref_internal}++;
                     }
-                    else { $b->{ref_ext}{$rh}++ }
+                    else { $b->{ref_ext}{$rh}++ unless _ref_is_spam($rh) }   # SM192: drop referrer-spam
                 }
             }
 
@@ -812,7 +855,7 @@ sub _export_ingest_first_party {
             my $st    = ( $r->{s} // 0 ) + 0;
             my $ua    = $r->{ua} // '';
             my $v     = $r->{v}  // '';
-            my $class = classify( $path, $ua, $extra_ai, $extra_noise );
+            my $class = classify( $path, $ua, $extra_ai, $extra_noise, $st );
             my @dt    = gmtime( $r->{t} );
             my $day   = sprintf '%04d-%02d-%02d', $dt[5] + 1900, $dt[4] + 1, $dt[3];
             my $b     = $cache->{days}{$day} ||= {
@@ -837,7 +880,7 @@ sub _export_ingest_first_party {
                     {
                         $b->{ref_internal}++;
                     }
-                    else { $b->{ref_ext}{$rh}++ }
+                    else { $b->{ref_ext}{$rh}++ unless _ref_is_spam($rh) }   # SM192: drop referrer-spam
                 }
             }
 
