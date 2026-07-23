@@ -818,7 +818,13 @@ function revealPrompt(user) {
       '<div class="mg-onb-head"><strong>Step 2 &mdash; paste this to the agent</strong> ' +
       '<span class="mg-muted">(no secret &mdash; safe in chat)</span></div>' +
       '<textarea class="mg-onb" readonly rows="7">' + escHtml(box._prompt) + '</textarea>' +
-      '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copyPrompt(\'' + escHtml(user) + '\')">Copy prompt</button></div></div>';
+      '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copyPrompt(\'' + escHtml(user) + '\')">Copy prompt</button></div>' +
+      // SM200: the agent's tool list is fixed when a chat opens, so a connector
+      // finished mid-conversation only surfaces in a fresh chat.
+      '<div class="mg-muted" style="font-size:12px;margin-top:0.4rem">&#128161; If the agent ' +
+      'doesn\'t see this site\'s tools, start a <b>new chat</b> and paste the prompt there - the ' +
+      'tool list is fixed when a chat opens, so a connector finished mid-conversation only ' +
+      'appears in a fresh chat.</div></div>';
   }
   showStatus('Connector authenticated - the agent is connected.');
 }

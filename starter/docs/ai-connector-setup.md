@@ -58,6 +58,19 @@ list_files, read_file). **Business/Enterprise** get the write tools (write_file,
 activate_theme, …) with a per-call approval card. ChatGPT is also noticeably
 slower than Claude per tool call.
 
+## If the connector is added but the tools do not appear
+
+The most common cause is **not** the server - it is that the assistant's tool list
+is fixed when a chat opens. A connector you finished authorising *during* a
+conversation will not surface until you **start a new chat**. So: complete the
+sign-in, confirm the Users panel shows *connected*, then open a **fresh chat** and
+ask for `whoami`.
+
+If a tool call is refused, the error's `reason` names the cause precisely:
+`sign-in-incomplete` (the connect code was never pasted - redo the sign-in with a
+fresh code), `token-expired` (reconnect, or let the client refresh), or
+`token-invalid` (the token was revoked or the site secret was rotated - reconnect).
+
 ## Claude Desktop / Claude Code / scripts (static bearer)
 
 1. Users page → the partner → **Generate agent brief** (gives a pairing key) or

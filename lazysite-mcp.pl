@@ -100,21 +100,42 @@ sub send_401 {
     my ($id) = @_;
     my $host = $ENV{HTTP_HOST} // $ENV{SERVER_NAME} // '';
     my $meta = "https://$host/.well-known/oauth-protected-resource";
-    # Disambiguate the cause: no credential reached us (connector not yet signed
-    # in / authorisation incomplete) vs a credential that didn't verify (expired
-    # or revoked - reconnect). Points the agent + operator at the right fix.
-    my $had_cred = ( $ENV{HTTP_AUTHORIZATION} || $ENV{REDIRECT_HTTP_AUTHORIZATION} ) ? 1 : 0;
-    my $msg      = $had_cred
-        ? 'Credential did not verify (expired or revoked) - reconnect the connector.'
-        : 'Connector sign-in incomplete - finish authorising the connector before calling tools (this is not a missing-header you can fix in the prompt).';
+    # SM200: a DISTINCT reason per failure so an agent (and the operator reading
+    # the audit) goes straight to the cause instead of one opaque
+    # sign-in-incomplete. sign-in-incomplete (no bearer at all - authorise / paste
+    # the connect code) | credential-invalid (a static user:token bearer that did
+    # not verify) | token-expired (a known OAuth token past its expiry - reconnect
+    # or refresh) | token-invalid (an OAuth token we do not recognise - revoked, or
+    # the site secret was rotated).
+    my $hdr = $ENV{HTTP_AUTHORIZATION} || $ENV{REDIRECT_HTTP_AUTHORIZATION} || '';
+    my ( $reason, $msg );
+    if ( $hdr !~ /^Bearer\s+(\S+)/ ) {
+        $reason = 'sign-in-incomplete';
+        $msg    = 'Connector sign-in incomplete - finish authorising the connector '
+            . "(paste the operator's one-time connect code at the sign-in prompt) before "
+            . 'calling tools. This is not a missing header you can fix in the prompt.';
+    }
+    elsif ( index( $1, ':' ) >= 0 ) { # static user:token bearer (Code / Desktop / a script)
+        $reason = 'credential-invalid';
+        $msg = 'Credential did not verify (expired or revoked) - reissue the token / reconnect.';
+    }
+    elsif ( Lazysite::Auth::OAuth::token_status($1) eq 'expired' ) {
+        $reason = 'token-expired';
+        $msg    = 'The connector access token has EXPIRED - reconnect, or let the client '
+            . 'refresh it (the OAuth session is short-lived).';
+    }
+    else {
+        $reason = 'token-invalid';
+        $msg = 'The connector access token is not recognised (revoked, or the site auth '
+            . 'secret was rotated, invalidating existing tokens) - reconnect the connector.';
+    }
     binmode STDOUT;    # encode_json emits UTF-8 bytes; do not re-encode
     print "Status: 401 Unauthorized\r\n";
     print "WWW-Authenticate: Bearer resource_metadata=\"$meta\"\r\n";
     print "Content-Type: application/json\r\n";
     print "MCP-Protocol-Version: $PROTOCOL\r\n\r\n";
     print encode_json( { jsonrpc => '2.0', id => $id,
-            error => { code => -32001, message => $msg,
-                data => { reason => ( $had_cred ? 'credential-invalid' : 'sign-in-incomplete' ) } } } );
+            error => { code => -32001, message => $msg, data => { reason => $reason } } } );
     exit 0;
 }
 

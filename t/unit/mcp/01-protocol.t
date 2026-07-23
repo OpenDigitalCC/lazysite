@@ -142,6 +142,14 @@ like( $raw,
 is( $r->{error}{code}, -32001, 'body is a JSON-RPC unauthorized error' );
 is( $r->{error}{data}{reason}, 'sign-in-incomplete', '401 distinguishes sign-in-incomplete (no credential reached the server)' );
 
+# SM200: an opaque OAuth bearer we do not recognise gets a DISTINCT reason
+# (token-invalid), not the generic sign-in-incomplete - so an agent can tell
+# "revoked / secret rotated" from "never signed in".
+( $st, $r ) = call( 'list_files', { path => '/content' }, 'Bearer bogus-opaque-token' );
+is( $st, 401, 'an unknown OAuth token -> 401' );
+is( $r->{error}{data}{reason}, 'token-invalid',
+    'an unrecognised OAuth token reports reason token-invalid (SM200)' );
+
 ( $st, $r ) = call( 'list_files', { path => '/content' }, $bearer_lim );
 ok( !$r->{error}, 'authenticated tools/call succeeds' );
 ok( !$r->{result}{isError}, 'list_files is not an error' );

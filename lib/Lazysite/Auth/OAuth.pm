@@ -169,6 +169,17 @@ sub token_expiry {
     return $rec->{exp};
 }
 
+# SM200: WHY a token failed to validate, so the 401 can say a distinct reason
+# instead of the generic sign-in-incomplete. 'valid' | 'expired' (the record
+# exists but is past its exp - reconnect / refresh) | 'unknown' (no such token -
+# revoked, malformed, or the site HMAC secret was rotated).
+sub token_status {
+    my ($access) = @_;
+    return 'unknown' unless defined $access && length $access;
+    my $rec = load_store()->{tokens}{ _hash($access) } or return 'unknown';
+    return ( ( $rec->{exp} || 0 ) < _now() ) ? 'expired' : 'valid';
+}
+
 # Exchange a refresh token for a fresh access (+ rotated refresh) token.
 sub refresh_access {
     my ($refresh) = @_;
