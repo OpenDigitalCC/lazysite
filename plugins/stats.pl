@@ -332,8 +332,8 @@ sub classify {
     return 'noise' if $path =~ $NOISE_RE;
     return 'noise' if $path =~ $INFRA_RE;                # favicon/robots/sitemap/feed
     return 'noise' if $path =~ m{\.php(?:[?/]|$)}i;      # PHP-less site: any .php is a probe
-    return 'noise' if $path =~ $SECRET_RE;               # SM192: secret-fishing (UA-independent)
-    return 'noise'                                       # SM192: 404 SPA/build-manifest probe
+    return 'noise' if $path =~ $SECRET_RE;    # SM192: secret-fishing (UA-independent)
+    return 'noise'                            # SM192: 404 SPA/build-manifest probe
         if defined $status && $status == 404 && $path =~ $SPA_MANIFEST_RE;
     if ($extra_noise) {
         for my $p (@$extra_noise) { return 'noise' if length $p && index( $path, $p ) == 0 }
@@ -477,7 +477,7 @@ FILE: for my $f (@files) {
                 {
                     $ref_internal++;    # self-referrer (on-site navigation)
                 }
-                else { $ref_ext{$ref}++ unless _ref_is_spam($rh) }   # SM192: drop referrer-spam
+                else { $ref_ext{$ref}++ unless _ref_is_spam($rh) } # SM192: drop referrer-spam
             }
         }
         close $fh;
@@ -601,7 +601,7 @@ sub scan_stats {
             if ( length $site_host && ( lc $rh eq lc $site_host || $rh =~ /\Q$site_host\E$/i ) ) {
                 $ref_internal++;   # self-referrer (on-site navigation)
             }
-            else { $ref_ext{$ref}++ unless _ref_is_spam($rh) }   # SM192: drop referrer-spam
+            else { $ref_ext{$ref}++ unless _ref_is_spam($rh) } # SM192: drop referrer-spam
         }
     }
     close $fh;
@@ -796,7 +796,7 @@ sub export_stats {
                     {
                         $b->{ref_internal}++;
                     }
-                    else { $b->{ref_ext}{$rh}++ unless _ref_is_spam($rh) }   # SM192: drop referrer-spam
+                    else { $b->{ref_ext}{$rh}++ unless _ref_is_spam($rh) } # SM192: drop referrer-spam
                 }
             }
 
@@ -880,7 +880,7 @@ sub _export_ingest_first_party {
                     {
                         $b->{ref_internal}++;
                     }
-                    else { $b->{ref_ext}{$rh}++ unless _ref_is_spam($rh) }   # SM192: drop referrer-spam
+                    else { $b->{ref_ext}{$rh}++ unless _ref_is_spam($rh) } # SM192: drop referrer-spam
                 }
             }
 

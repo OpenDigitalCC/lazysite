@@ -1498,9 +1498,9 @@ my %INTROSPECTION_TOOLS = ( whoami => 1, describe_capabilities => 1 );
 sub _tool_callable {
     my ( $name, $tool, $caps ) = @_;
     return 1 if $INTROSPECTION_TOOLS{$name};
-    return 0 unless $caps->{mcp};                       # mcp channel required
-    return 0 if $caps->{manager_ui} && $caps->{ui};     # interactive manager account: mcp-refused
-    return 1 unless defined $tool->{cap};               # channel-only tool
+    return 0 unless $caps->{mcp};                   # mcp channel required
+    return 0 if $caps->{manager_ui} && $caps->{ui}; # interactive manager account: mcp-refused
+    return 1 unless defined $tool->{cap};           # channel-only tool
     return 1 if $caps->{ $tool->{cap} };
     return 1
         if $tool->{path_aware} && ( $caps->{manage_themes} || $caps->{manage_layouts} );
