@@ -813,6 +813,44 @@ sub run_checks {
         report( 'OK', 'system pages (login/claim/40x) all resolve via the fallback chain (SM201)' )
             if !@dead && !@root_only;
     }
+
+    # --- 11. OAuth/remote discovery coherence (SM190 / SM200 lever 4) -------------
+    # The .well-known discovery docs advertise every endpoint from site_url. If a
+    # remote service is enabled but site_url is unset or not https, the docs hand a
+    # connecting agent a broken/wrong endpoint (the token exchange then fails with a
+    # confusing sign-in-incomplete - the outsourcify onboarding incident). Catch it
+    # here at deploy time, before onboarding, without an HTTP round-trip.
+    {
+        my @remote =
+            grep { ( conf_value( $conf, $_ ) // '' ) =~ /^(?:enabled|true|yes|on|1)$/i }
+            qw(oauth_enabled token_exchange_enabled control_api_enabled webdav_enabled mcp_enabled);
+        if (@remote) {
+            my $site_url = conf_value( $conf, 'site_url' ) // '';
+            if ( !length $site_url ) {
+                report( 'FAIL',
+                    'a remote service is enabled (' . join( ', ', @remote )
+                        . ') but site_url is UNSET - the .well-known discovery docs will '
+                        . 'advertise endpoints with no host, so an agent connect fails',
+                    'set site_url: https://<this-host> in lazysite.conf' );
+            }
+            elsif ( $site_url !~ m{^https://} ) {
+                report( 'WARN',
+                    "site_url is '$site_url' (not https://) while a remote service is "
+                        . 'enabled - OAuth connectors require https advertised endpoints',
+                    'set site_url to the https:// URL of this host' );
+            }
+            elsif ( $site_url =~ m{/$} ) {
+                report( 'WARN',
+                    "site_url '$site_url' has a trailing slash - advertised endpoints get a "
+                        . 'double slash; trim it',
+                    'remove the trailing / from site_url' );
+            }
+            else {
+                report( 'OK', "OAuth/remote discovery: site_url ($site_url) is coherent for the "
+                        . 'enabled service(s)' );
+            }
+        }
+    }
     return;
 }
 

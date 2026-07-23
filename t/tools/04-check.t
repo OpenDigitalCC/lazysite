@@ -302,4 +302,34 @@ subtest 'handover_mode: owner bits replicated onto the group' => sub {
     }
 };
 
+# SM190 / SM200 lever 4: a remote service enabled with a bad/absent site_url is
+# flagged (the .well-known docs would advertise broken endpoints - the outsourcify
+# onboarding class of failure).
+subtest 'OAuth/remote discovery coherence check (SM190/SM200)' => sub {
+    my $b   = tempdir( CLEANUP => 1 );
+    my $c   = "$b/lazysite";
+    my $sp  = sub { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1]; close $fh };
+    make_path("$c/templates/system");
+    $sp->( "$c/templates/system/$_.md", "x\n" ) for qw(login claim 402 403 404);
+
+    my $w   = sub { $sp->( "$c/lazysite.conf", $_[0] ) };
+    my $run = sub { qx($^X $script --docroot $b 2>&1) };
+
+    $w->("site_name: t\noauth_enabled: enabled\n");    # remote service on, NO site_url
+    like( $run->(), qr/site_url is UNSET.*discovery/s,
+        'oauth on + no site_url -> FAIL naming the discovery breakage' );
+
+    $w->("site_name: t\noauth_enabled: enabled\nsite_url: http://x.example\n");   # not https
+    like( $run->(), qr/not https/, 'oauth on + http site_url -> WARN (https required)' );
+
+    $w->("site_name: t\nmcp_enabled: enabled\nsite_url: https://x.example/\n");   # trailing slash
+    like( $run->(), qr/trailing slash/, 'trailing-slash site_url -> WARN (double slash)' );
+
+    $w->("site_name: t\noauth_enabled: enabled\nsite_url: https://x.example\n");  # coherent
+    like( $run->(), qr/discovery: site_url .*is coherent/, 'a clean https site_url -> OK' );
+
+    $w->("site_name: t\n");    # no remote service -> the check is silent
+    unlike( $run->(), qr/discovery/, 'no remote service enabled -> no discovery finding' );
+};
+
 done_testing();

@@ -3,7 +3,7 @@ title: "SM190 - Discovery documents must reflect the live service state"
 subtitle: "The .well-known/ discovery docs advertise endpoints regardless of whether the service is enabled - so they name endpoints that 404, and get render-cached. Gate them on their service flag and serve them live."
 brand: plain
 status: candidate
-status-note: "PARTIAL - core IMPLEMENTED on claude/sm188-190-field-fixes (2026-07-21, commit 0a300ff): the processor 404s .well-known/oauth-* when oauth_enabled is off (not advertised, not cached). DEFERRED: making ai-partner code-served from live config, and a lazysite-check probe of advertised endpoints. Awaiting gate + vcs-review + release."
+status-note: "MOSTLY IMPLEMENTED. (1) oauth-* discovery 404s when oauth_enabled off - shipped in 0.9.12 (commit 0a300ff). (2) The endpoint-coherence PROBE is done on claude/batch-site-integrity (2026-07-23): lazysite-check #11 flags a remote service enabled with an unset/non-https/trailing-slash site_url - which is what would make the .well-known docs advertise broken endpoints (the outsourcify onboarding class), caught at deploy time without HTTP; test in 04-check.t. Shared with SM200 lever 4. STILL DEFERRED: making .well-known/ai-partner code-served from live config so it advertises only enabled endpoints (cosmetic drift - a disabled endpoint answers a clean 200 {ok:0,code:service_disabled} since 0.9.9, not a hard break; needs the service flags exposed to the TT context)."
 ---
 
 # SM190 - Discovery documents must reflect the live service state
