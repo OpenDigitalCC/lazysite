@@ -116,8 +116,15 @@ function groupSummaryInner(g) {
   var caps = info.caps || {};
   var ge = escHtml(g);
   var nOn = CAPS.filter(function(c) { return caps[c[0]]; }).length;
+  // SM198: a group that grants capabilities but has NO members is inert - it
+  // applies to no one (caps resolve only through membership). Flag it so the
+  // create-group-then-forget-members trap is visible without opening the group.
+  var inert = (nOn > 0 && members.length === 0)
+    ? ' <span class="mg-badge mg-badge-muted" title="This group grants capabilities but has no members, so it applies to no one. Add a member to put its access into effect.">no members</span>'
+    : '';
   return '<span class="mg-acc-name">' + ge + '</span>' +
     (info.manager ? ' <span class="mg-badge mg-badge-success">manager</span>' : '') +
+    inert +
     '<span class="mg-acc-spacer"></span>' +
     '<span class="mg-acc-tags">' +
     nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies') + ' &middot; ' +
@@ -126,6 +133,24 @@ function groupSummaryInner(g) {
 function refreshGroupSummary(g) {
   var s = document.getElementById('gsum-' + escHtml(g));
   if (s) s.innerHTML = groupSummaryInner(g);
+}
+
+// SM198: inline warning HTML for an inert group (grants capabilities but has no
+// members, so it applies to no one), or '' when the group is fine. Recomputed in
+// place on add/remove-member so it appears/clears without a full reload.
+function inertWarnHtml(g) {
+  var info = allGroups[g] || {};
+  var members = Array.isArray(info.members) ? info.members : [];
+  var caps = info.caps || {};
+  var nOn = CAPS.filter(function(c) { return caps[c[0]]; }).length;
+  if (!(nOn > 0 && members.length === 0)) return '';
+  return '<div class="mg-cap-dormant" style="margin:0.25rem 0 0.4rem;">&#9888; '
+    + 'This group grants ' + nOn + ' capabilit' + (nOn === 1 ? 'y' : 'ies')
+    + ' but has no members, so it applies to no one. Add a member below to put its access into effect.</div>';
+}
+function refreshGroupInert(g) {
+  var iw = document.getElementById('ginert-' + escHtml(g));
+  if (iw) iw.innerHTML = inertWarnHtml(g);
 }
 
 function renderGroups() {
@@ -166,7 +191,11 @@ function renderGroups() {
     // allowed to manage it, on the Domains page), so the group editor no longer
     // shows it here.
 
+    // SM198: capabilities apply only through membership, so a group with caps
+    // but no members does nothing. Warn inline, right where the fix is (Members).
+    // Always-present container so add/remove-member can refresh it in place.
     h += '<div class="mg-sec">Members</div>';
+    h += '<div id="ginert-' + ge + '">' + inertWarnHtml(g) + '</div>';
     h += '<div class="mg-tokens" id="gm-' + ge + '">' + memberPillsHtml(members, ge) + '</div>';
     h += '<div class="mg-tokens-pick"><input list="all-users-list" id="add-' + ge + '" class="mg-inp" placeholder="add a user or group&hellip;" style="max-width:14rem" onkeydown="if(event.key===\'Enter\'){addMember(\'' + ge + '\');event.preventDefault();}">' +
          ' <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="addMember(\'' + ge + '\')">Add</button>' +
@@ -214,6 +243,7 @@ function toggleSetting(group, key, el) {
       // Update just this group's summary counts / manager badge in place - no
       // list reload (the checkbox already reflects the new state).
       refreshGroupSummary(group);
+      refreshGroupInert(group);   // SM198: caps changed -> inert status may change
     })
     .catch(function(e) { el.checked = !on; showStatus('Error: ' + e.message, true); });
 }
@@ -244,6 +274,7 @@ function refreshGroupMembers(group) {
   var gd = document.getElementById('gd-' + group);
   if (gm) gm.innerHTML = memberPillsHtml(members, group);
   if (gd) gd.innerHTML = deleteControlHtml(members, group);
+  refreshGroupInert(group);   // SM198: membership changed -> inert status may change
 }
 
 function addMember(group) {
