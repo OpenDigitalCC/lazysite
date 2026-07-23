@@ -196,6 +196,7 @@ function loadPermGrid(user, det) {
 
 function renderPermGrid(d, user) {
   var chans = d.channels || [], acts = d.actions || [], gb = d.granted_by || {};
+  var surf = d.surface || {};   // SM197: cap -> { channel: 1 } where the cap has a real surface
   var lbl = function(k) { return PERM_LABELS[k] || k; };
   var by  = function(cap) { return (gb[cap] && gb[cap].length) ? gb[cap] : null; };
   var recheck = '<button class="mg-btn mg-btn-sm" style="margin-bottom:0.4rem" '
@@ -215,18 +216,32 @@ function renderPermGrid(d, user) {
   acts.forEach(function(a) {
     h += '<tr><td title="' + (by(a) ? 'granted by: ' + by(a).join(', ') : 'not granted') + '">' + escHtml(lbl(a)) + '</td>';
     chans.forEach(function(c) {
-      var ok = by(a) && by(c);
-      var tip = '';
-      if (by(a)) tip += lbl(a) + ' via ' + by(a).join(', ');
-      if (by(c)) tip += (tip ? '; ' : '') + lbl(c) + ' via ' + by(c).join(', ');
-      h += '<td style="text-align:center;color:' + (ok ? '#1a7f37' : '#ccc') + '" title="'
-        + escHtml(tip || 'not granted') + '">' + (ok ? '✓' : '·') + '</td>';
+      // SM197: a cell is a real "can do this here" only when the capability is
+      // granted (by a group), the channel is held, AND the capability actually
+      // has a surface on that channel. Granted-but-no-surface is shown distinctly
+      // (a muted dash) rather than a green tick it never earned.
+      var granted  = by(a) && by(c);
+      var surfaced = !!(surf[a] && surf[a][c]);
+      var by_tip = '';
+      if (by(a)) by_tip += lbl(a) + ' via ' + by(a).join(', ');
+      if (by(c)) by_tip += (by_tip ? '; ' : '') + lbl(c) + ' via ' + by(c).join(', ');
+      var glyph, color, tip;
+      if (granted && surfaced) { glyph = '✓'; color = '#1a7f37'; tip = by_tip; }
+      else if (granted && !surfaced) {
+        glyph = '–'; color = '#c9a227';
+        tip = lbl(a) + ' has no ' + lbl(c) + ' surface — nothing to do through this channel'
+            + (by_tip ? ' (' + by_tip + ')' : '');
+      } else { glyph = '·'; color = '#ccc'; tip = by_tip || 'not granted'; }
+      h += '<td style="text-align:center;color:' + color + '" title="'
+        + escHtml(tip) + '">' + glyph + '</td>';
     });
     h += '</tr>';
   });
   h += '</tbody></table>';
-  h += '<p class="mg-muted" style="font-size:11px;margin-top:0.3rem">&#10003; = has the action AND the channel; '
-    + 'hover a cell or header for the granting group(s). Groups: ' + d.groups.map(escHtml).join(', ')
+  h += '<p class="mg-muted" style="font-size:11px;margin-top:0.3rem">&#10003; = the capability is granted, '
+    + 'the channel is held, and the capability has a real surface on that channel; &ndash; = granted and the '
+    + 'channel is held, but this capability does nothing on that channel; &middot; = not granted. '
+    + 'Hover a cell or header for the granting group(s). Groups: ' + d.groups.map(escHtml).join(', ')
     + '. Manager-UI access is the <b>Manager UI</b> channel capability, granted through a group.</p>';
   return h;
 }

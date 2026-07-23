@@ -161,6 +161,15 @@ sub api {
     ok( ( grep { $_ eq 'mcp-ai' } @{ $g->{granted_by}{manage_content} || [] } ),
         'content action granted by mcp-ai' );
     ok( !@{ $g->{granted_by}{ui} || [] }, 'mcp-ai does not grant the ui channel' );
+
+    # SM197: the grid payload carries the per-capability channel SURFACE, so the
+    # UI can tick a cell only where the capability actually does something on that
+    # channel - not merely granted + channel held.
+    ok( $g->{surface}, 'permissions-grid payload includes the channel surface' );
+    ok( $g->{surface}{manage_content}{webdav}, 'manage_content HAS a webdav surface' );
+    ok( $g->{surface}{manage_domains}{mcp},    'manage_domains HAS an mcp surface' );
+    ok( !$g->{surface}{manage_domains}{webdav}, 'manage_domains has NO webdav surface' );
+    ok( !$g->{surface}{notifications}{mcp},     'notifications has NO mcp surface' );
 }
 
 # A group carries a free-text description (round-trips via the view).

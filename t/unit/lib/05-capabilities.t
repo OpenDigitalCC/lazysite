@@ -9,7 +9,7 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";      # t/lib
 use lib "$FindBin::Bin/../../../lib";   # repo lib
 use TestHelper qw(repo_root);
-use Lazysite::Capabilities qw(describe capability_keys channel_keys action_keys);
+use Lazysite::Capabilities qw(describe capability_keys channel_keys action_keys action_channel_surface);
 
 my $root = repo_root();
 
@@ -67,6 +67,30 @@ for my $act ( sort keys %api_named ) {
 # describe_capabilities itself is a real MCP tool and control-API action.
 like( $mcp_src, qr/^\s+describe_capabilities\s*=>\s*\{/m, 'describe_capabilities is an MCP tool' );
 like( $api_src, qr/'describe-capabilities'/, 'describe-capabilities is a control-API action' );
+
+# --- SM197: per-action channel surface (drives the manager permission grid) -
+{
+    my $surf = action_channel_surface();
+    ok( $surf->{manage_content}{webdav}, 'manage_content HAS a webdav surface' );
+    ok( $surf->{manage_domains}{mcp},    'manage_domains HAS an mcp surface' );
+    ok( $surf->{manage_domains}{api},    'manage_domains HAS an api surface' );
+    ok( !$surf->{manage_domains}{webdav}, 'manage_domains has NO webdav surface' );
+    ok( !$surf->{notifications}{mcp},     'notifications has NO mcp surface' );
+    ok( !$surf->{notifications}{webdav},  'notifications has NO webdav surface' );
+    ok( $surf->{notifications}{ui},       'notifications HAS a ui surface' );
+    ok( !$surf->{feedback}{webdav},       'feedback has NO webdav surface' );
+    ok( $surf->{feedback}{mcp},           'feedback HAS an mcp surface' );
+    ok( !$surf->{read_submissions}{webdav}, 'read_submissions has NO webdav surface' );
+
+    # Coverage + honesty: every action is present, every named channel is real.
+    my %is_chan = map { $_ => 1 } channel_keys();
+    for my $a ( action_keys() ) {
+        ok( exists $surf->{$a}, "surface map covers action '$a'" );
+        for my $c ( keys %{ $surf->{$a} } ) {
+            ok( $is_chan{$c}, "surface channel '$c' for '$a' is a real channel" );
+        }
+    }
+}
 
 done_testing();
 

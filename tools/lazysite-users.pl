@@ -2628,6 +2628,11 @@ sub cmd_permissions_grid {
     my @channels   = qw(ui webdav api mcp);
     my %is_channel = map  { $_ => 1 } @channels;
     my @actions    = grep { !$is_channel{$_} } @CAP_KEYS;
+    # SM197: the per-action channel SURFACE (which channels each capability
+    # actually exposes something on), so the grid ticks a cell only where the
+    # capability has a real surface on that channel - not merely granted + channel
+    # held. Derived from Lazysite::Capabilities `unlocks` (single source of truth).
+    require Lazysite::Capabilities;
     return {
         ok         => 1,
         user       => $user,
@@ -2635,6 +2640,7 @@ sub cmd_permissions_grid {
         channels   => \@channels,
         actions    => \@actions,
         granted_by => \%granted_by,
+        surface    => Lazysite::Capabilities::action_channel_surface(),
     };
 }
 

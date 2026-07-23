@@ -16,7 +16,7 @@ use warnings;
 use JSON::PP                 ();
 use Lazysite::Auth::Settings qw(@CAP_KEYS);
 use Exporter 'import';
-our @EXPORT_OK = qw(describe capability_keys channel_keys action_keys channel_service);
+our @EXPORT_OK = qw(describe capability_keys channel_keys action_keys channel_service action_channel_surface);
 
 # The four channels (WHERE you operate). Fixed concept; the rest of @CAP_KEYS are
 # actions (WHAT you may do).
@@ -149,6 +149,21 @@ my %ACTION_INFO = (
         unlocks => { ui => ['onward delegation of sub-user creation'] },
     },
 );
+
+# SM197: the per-action channel SURFACE - which channels a capability actually
+# exposes something on, derived from the keys of its `unlocks` map. The manager's
+# permission grid consults this so a capability x channel cell is ticked only
+# where the capability has a REAL surface on that channel (e.g. manage_domains on
+# api+mcp, not webdav), rather than merely "granted AND channel held". Same single
+# source of truth as describe(); a new capability's surface appears automatically.
+sub action_channel_surface {
+    my %surface;
+    for my $cap ( action_keys() ) {
+        my $u = $ACTION_INFO{$cap}{unlocks} || {};
+        $surface{$cap} = { map { $_ => 1 } grep { @{ $u->{$_} || [] } } keys %{$u} };
+    }
+    return \%surface;
+}
 
 # Engine-owned paths: protected surface an agent must NOT try to write (the DAV
 # blocklist / whole-lazysite denial already enforce this - this list makes the
