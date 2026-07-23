@@ -122,6 +122,7 @@ my %EXEMPT = (
     'API::action_site_backup_upload' =>
         'stores an uploaded package under lazysite/backups/ - not versioned content',
     'API::action_site_backup_inspect' => 'read-only',
+    'API::action_site_backup_download' => 'read-only (streams a package; no content write)',
     'API::action_site_backup_delete'  =>
         'removes a package under lazysite/backups/ - not versioned content',
     'API::action_site_export_primary' =>

@@ -37,7 +37,7 @@ manage_nav | Edit site navigation. | webdav: lazysite/nav.conf; api: nav-read, n
 manage_forms | Wire forms to delivery handlers. | webdav: lazysite/forms/<name>.conf (not smtp.conf / handlers.conf); mcp: list_form_handlers, bind_form
 manage_themes | Install and activate themes. | webdav: lazysite/layouts/<layout>/themes/<theme>/ (active theme read-only); api: theme-activate, theme-list, themes-for-layout, themes-list-all; mcp: list_themes, activate_theme
 manage_layouts | Install, author and activate layouts. | webdav: lazysite/layouts/<layout>/ (active layout read-only); api: layout-activate, layout-install, layout-delete, layouts-available, layouts-manifest; mcp: activate_layout, install_layout, delete_layout, list_layout_catalogue
-manage_domains | Manage the domains this instance serves, and portable site packages. | api: domains-list, domain-add, domain-set, domain-remove, domain-preview, domain-check, site-backup-create, site-backup-upload, site-backup-apply; mcp: site_backup, site_apply
+manage_domains | Manage the domains this instance serves, and portable site packages. | api: domains-list, domain-add, domain-set, domain-remove, domain-preview, domain-check, site-backup-create, site-backup-download, site-backup-upload, site-backup-apply; mcp: site_backup, site_apply
 manage_config | Read and set safe site configuration. | webdav: lazysite/nav.conf, lazysite/forms/<name>.conf; api: config-read, config-set, git-init
 manage_users | Manage user accounts and group membership. | ui: the manager Users and Groups pages
 analytics | Read sanitised, IP-anonymised visitor analytics. | api: analyse_visitors; mcp: analyse_visitors
