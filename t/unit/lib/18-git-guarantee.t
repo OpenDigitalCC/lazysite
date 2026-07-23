@@ -269,7 +269,12 @@ if ( !Lazysite::Git::git_available() ) {
 
 sub mksite {
     my $d = tempdir( CLEANUP => 1 );
-    make_path( "$d/lazysite/manager/locks", "$d/lazysite/cache" );
+    make_path( "$d/lazysite/manager/locks", "$d/lazysite/cache",
+        "$d/lazysite/templates/system" );
+    # SM201: a real install ships the protected system-page defaults; lazysite-check
+    # verifies they exist, so a bare docroot would (correctly) FAIL that probe.
+    t_spit( "$d/lazysite/templates/system/$_.md", "---\ntitle: $_\n---\n\n$_\n" )
+        for qw(login claim 402 403 404);
     t_spit( "$d/lazysite/lazysite.conf", "site_name: T\ngit_history: enabled\n" );
     t_spit( "$d/lazysite/nav.conf",      "Home | /\n" );
     t_spit( "$d/index.md",               "home\n" );
