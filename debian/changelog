@@ -1,3 +1,22 @@
+lazysite (0.9.13-1) unstable; urgency=medium
+
+  * BETA: site integrity, capability clarity + connector reliability on top of
+    0.9.12. No BREAKING change, no migration; stable-channel sites unaffected until
+    promotion.
+  * SM201: engine-served system pages (login/claim/40x) with a content-root ->
+    docroot-root -> protected-default fallback, so a deleted/missing copy self-heals
+    instead of 404ing and multi-root subdomains resolve.
+  * SM193: token-client site-backup-download completes the migration loop; apply
+    keeps the target identity by default and mirrors layout assets on install.
+  * SM200: distinct connector sign-in reasons; connect code valid 30 min; fresh-chat
+    guidance; lazysite-check flags a bad/absent site_url when a remote service is on.
+  * SM196/197/198/191/192 + content-history health probe: connector detection +
+    capability-aware tools/list; permissions grid channel-surface; inert-group
+    warning; grant-to-enable hints; stats noise reclassification; content-history
+    health verdict.
+
+ -- OpenDigital <sjm@opendigital.cc>  Thu, 23 Jul 2026 12:34:19 +0100
+
 lazysite (0.9.12-1) unstable; urgency=medium
 
   * BETA: supersedes the withdrawn 0.9.11 (identical code, renumbered - the 0.9.11

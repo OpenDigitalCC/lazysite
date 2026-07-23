@@ -16,6 +16,36 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.13 - BETA: site integrity, capability clarity + connector reliability (2026-07-23)
+
+A broad reliability + clarity beta on top of 0.9.12. No BREAKING change, no
+migration; stable-channel sites are unaffected until promotion.
+
+- SM201: engine-served system pages - login/claim/402/403/404 moved to the
+  protected lazysite/templates/system/ tree and served with a three-tier fallback
+  (content root -> docroot root -> protected default). A deleted or never-seeded
+  copy self-heals (no /claim 404); content-rooted subdomains resolve; a content
+  copy still overrides. lazysite-check verifies each route resolves.
+- SM193: site-package migration completeness - a token-client site-backup-download
+  (manage_domains, namespace + scope confined) completes the create/download/
+  upload/apply loop; apply KEEPS the target's site_url/site_name by default
+  (adopt_identity opts into the source's); apply mirrors the layout's theme assets
+  so an applied site is styled immediately.
+- SM200: connector reliability - distinct 401 data.reason (sign-in-incomplete /
+  credential-invalid / token-expired / token-invalid); connect code valid 30 min
+  (was 15) with its expiry surfaced; fresh-chat onboarding guidance; and a
+  lazysite-check probe that flags a remote service enabled with a bad/absent
+  site_url (the broken-discovery-endpoint class). SM190 shares the probe.
+- SM196: connector connected-detection flips at authorise time; agent-neutral
+  onboarding copy; an authenticated tools/list filtered to invocable tools.
+- SM197 permissions grid ticks only where a capability has a channel surface;
+  SM198 flags a capabilities-but-no-members group as inert; SM191 shows
+  grant-to-enable hints on capability-gated areas.
+- Content-history status is a real health probe (enabled/healthy vs inconsistent
+  vs degraded/paused). SM192 stats classifier drops SPA/secret-probe noise +
+  referrer spam.
+- build: exclude inbox/ from the release manifest.
+
 ## 0.9.12 - BETA: field-issue fixes; supersedes the withdrawn 0.9.11 (2026-07-23)
 
 Renumbered supersession of the withdrawn 0.9.11 beta - identical code, retired
