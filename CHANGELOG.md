@@ -16,7 +16,28 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
-## 0.9.11 - BETA: field-issue fixes (login loop, raw-content write guard, discovery gating) (2026-07-22)
+## 0.9.12 - BETA: field-issue fixes; supersedes the withdrawn 0.9.11 (2026-07-23)
+
+Renumbered supersession of the withdrawn 0.9.11 beta - identical code, retired
+unused because the version number was consumed in handling (0.9.11 is burned and
+will not be reused). Reliability and correctness fixes on the 0.9.x line from field
+reports, on top of 0.9.10 STABLE. No BREAKING change, no migration; stable-channel
+sites are unaffected until promotion.
+
+- FIX (login loop): the JS session marker (`lzs_session`) could outlive the real
+  signed session (e.g. after an auth-secret rotation), so `/login` reported
+  "already signed in" and hid the form while every page re-bounced. Both bounce
+  points now clear the marker (`Set-Cookie ... Max-Age=0`). (SM188, ddf6f45)
+- HARDENING (content integrity): the write path refuses raw-mode content pages
+  (front matter forcing an HTML/XHTML/SVG `content_type` via `api:`/`raw:`) on the
+  manager save and WebDAV PUT (415) - keeping content pages themed and on the
+  no-CDN policy; defence in depth (the sniffing vector was already contained).
+  Extends ADR 0006 to the write path. (SM189, 7f6409c)
+- FIX (discovery): `.well-known/oauth-*` return 404 when `oauth_enabled` is off
+  (not advertised, not render-cached) and serve normally when on. (SM190 partial,
+  0a300ff)
+
+## 0.9.11 - BETA [WITHDRAWN - superseded by 0.9.12, never deployed] (2026-07-22)
 
 Reliability and correctness fixes on the 0.9.x line from field reports, on top of
 0.9.10 STABLE. No BREAKING change, no migration; stable-channel sites are
