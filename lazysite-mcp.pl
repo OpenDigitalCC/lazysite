@@ -1486,9 +1486,32 @@ my %ANNOTATE = (
 
 sub _tool_names { return [ sort keys %TOOLS ] }
 
+# SM196: which tools an AUTHENTICATED session may invoke - the same gate as
+# tools/call (mcp channel + per-tool capability; path-aware tools are also
+# unlocked by manage_themes/manage_layouts; an interactive manager account is
+# refused on the mcp channel), minus the path argument (listing is
+# path-independent). Introspection is always allowed. Used only to FILTER a
+# tools/list for a session that presents a valid bearer - enforcement stays at
+# tools/call.
+my %INTROSPECTION_TOOLS = ( whoami => 1, describe_capabilities => 1 );
+
+sub _tool_callable {
+    my ( $name, $tool, $caps ) = @_;
+    return 1 if $INTROSPECTION_TOOLS{$name};
+    return 0 unless $caps->{mcp};                       # mcp channel required
+    return 0 if $caps->{manager_ui} && $caps->{ui};     # interactive manager account: mcp-refused
+    return 1 unless defined $tool->{cap};               # channel-only tool
+    return 1 if $caps->{ $tool->{cap} };
+    return 1
+        if $tool->{path_aware} && ( $caps->{manage_themes} || $caps->{manage_layouts} );
+    return 0;
+}
+
 sub tool_list {
+    my ($caps) = @_;    # SM196: when defined, filter to the tools this session may invoke
     my @list;
     for my $name ( sort keys %TOOLS ) {
+        next if defined $caps && !_tool_callable( $name, $TOOLS{$name}, $caps );
         my $a = $ANNOTATE{$name} || [ 0, 0, 1 ];
         push @list, {
             name         => $name,
@@ -1610,7 +1633,14 @@ elsif ( $method eq 'ping' ) {
     rpc_result( $id, {} );
 }
 elsif ( $method eq 'tools/list' ) {
-    rpc_result( $id, { tools => tool_list() } );
+    # SM196: discovery stays OPEN (no 401), but when a valid bearer is present,
+    # filter to the tools this session can actually invoke - so an agent is not
+    # advertised tools it will only be denied (e.g. submit_feedback without the
+    # feedback capability). An anonymous caller still receives the full surface.
+    # Enforcement is unchanged (tools/call still gates); this only aligns the
+    # advertised set with the caller's grants.
+    my ( $lu, $lcaps ) = verify_bearer();
+    rpc_result( $id, { tools => tool_list( defined $lu ? $lcaps : undef ) } );
 }
 elsif ( $method eq 'tools/call' ) {
     my $params = $req->{params} || {};

@@ -780,10 +780,10 @@ function showConnector(user) {
         '<span class="mg-muted">Single-use, expires in 15&nbsp;min. If it expires before you use it, ' +
         '<a href="#" onclick="showConnector(\'' + ue + '\');return false;">get a fresh code</a>.</span></li>' +
         '</ol>' +
-        '<div class="mg-onb-wait" id="conn-wait-' + ue + '">&#8987; waiting for Claude to connect&hellip;</div>' +
+        '<div class="mg-onb-wait" id="conn-wait-' + ue + '">&#8987; waiting for the AI agent to connect&hellip;</div>' +
         '</div>' +
         '<div id="conn-step2-' + ue + '"></div>';
-      showStatus('Connect code ready - follow Step 1 to connect Claude.ai.');
+      showStatus('Connect code ready - follow Step 1 to connect the agent.');
       pollConnector(user, box._poll, Date.now());
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
@@ -815,12 +815,12 @@ function revealPrompt(user) {
   var s2 = document.getElementById('conn-step2-' + user);
   if (s2) {
     s2.innerHTML = '<div class="mg-onb-card mg-onb-card-go">' +
-      '<div class="mg-onb-head"><strong>Step 2 &mdash; paste this to Claude</strong> ' +
+      '<div class="mg-onb-head"><strong>Step 2 &mdash; paste this to the agent</strong> ' +
       '<span class="mg-muted">(no secret &mdash; safe in chat)</span></div>' +
       '<textarea class="mg-onb" readonly rows="7">' + escHtml(box._prompt) + '</textarea>' +
       '<div class="mg-line"><button class="mg-btn mg-btn-sm" onclick="copyPrompt(\'' + escHtml(user) + '\')">Copy prompt</button></div></div>';
   }
-  showStatus('Connector authenticated - Claude is connected.');
+  showStatus('Connector authenticated - the agent is connected.');
 }
 
 function copyConnectCode(user) {

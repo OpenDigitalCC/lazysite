@@ -90,6 +90,36 @@ ok( $names{whoami} && $names{list_files} && $names{write_file} && $names{activat
 ok( $names{invalidate_cache}, 'tools/list advertises invalidate_cache' );
 ok( $names{write_file}{inputSchema}{required}, 'a tool carries a JSON-Schema inputSchema' );
 ok( $names{whoami}{annotations}{readOnlyHint}, 'whoami is annotated read-only' );
+
+# --- SM196: an AUTHENTICATED tools/list is filtered to invocable tools ---------
+{
+    ok( $names{submit_feedback},
+        'anonymous tools/list shows the full surface (submit_feedback present)' );
+
+    # Full caps but NO feedback grant: content/theme tools present, submit_feedback
+    # filtered out (it would only be denied at call time).
+    my ( undef, $rf ) = mcp( { jsonrpc => '2.0', id => 20, method => 'tools/list' },
+        auth => $bearer_full );
+    my %fn = map { $_->{name} => 1 } @{ $rf->{result}{tools} };
+    ok( $fn{whoami},          'authed list keeps whoami (introspection)' );
+    ok( $fn{write_file},      'full caps: write_file present' );
+    ok( $fn{activate_theme},  'full caps: activate_theme present (manage_themes)' );
+    ok( !$fn{submit_feedback}, 'full caps, no feedback: submit_feedback filtered out (SM196)' );
+
+    # A session that DOES hold feedback sees submit_feedback.
+    my ( undef, $rfb ) = mcp( { jsonrpc => '2.0', id => 21, method => 'tools/list' },
+        auth => 'Bearer claudefullfb:lzs_tok' );
+    my %fbn = map { $_->{name} => 1 } @{ $rfb->{result}{tools} };
+    ok( $fbn{submit_feedback}, 'feedback held: submit_feedback advertised (SM196)' );
+
+    # A content/webdav-only session: no theme/layout tools.
+    my ( undef, $rl ) = mcp( { jsonrpc => '2.0', id => 22, method => 'tools/list' },
+        auth => $bearer_lim );
+    my %ln = map { $_->{name} => 1 } @{ $rl->{result}{tools} };
+    ok( $ln{write_file},      'content session: write_file present' );
+    ok( !$ln{activate_theme}, 'content-only session: activate_theme filtered (no manage_themes) (SM196)' );
+    ok( $ln{whoami},          'content session: whoami present (introspection)' );
+}
 ok( !$names{write_file}{annotations}{readOnlyHint} && $names{write_file}{annotations}{openWorldHint},
     'write_file: not read-only, open-world (publishes to the site)' );
 ok( $names{delete_file}{annotations}{destructiveHint}, 'delete_file is annotated destructive' );

@@ -2177,6 +2177,18 @@ sub cmd_redeem_connect_code {
         my $exp = $s->{connect_code_expires} || 0;
         delete $s->{connect_code_hash};
         delete $s->{connect_code_expires};
+        # SM196: redeeming the connect code IS the connect (it happens during the
+        # OAuth authorize step, before any tool call). Stamp first-use NOW so the
+        # connector-setup "connected" indicator flips at authorize time - the field
+        # failure was a connection that completed (audit: authorize + connect ok)
+        # while credential-status.used stayed false because cred_used_at is only
+        # stamped by cmd_partner_caps on a LATER tool call. Mirrors that stamp; only
+        # on a valid (non-expired) redemption.
+        if ( $exp >= time() ) {
+            my $iss = $s->{cred_issued_at} || 0;
+            $s->{cred_used_at} = time()
+                if !$s->{cred_used_at} || $s->{cred_used_at} < $iss;
+        }
         write_settings($all);
         return { ok => 0, error    => 'expired' } if $exp < time();
         return { ok => 1, username => $user };

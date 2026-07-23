@@ -3,7 +3,7 @@ title: "SM196 - Connector 'waiting to connect' never flips; generic AI-agent cop
 subtitle: "The pairing panel stays on 'waiting for Claude to connect' though the OAuth/MCP connection completes (audit: oauth-authorize + mcp connect both ok) - the connected-detection stamp is not being hit. Also make the status copy generic 'AI agent', not Claude-specific."
 brand: plain
 status: candidate
-status-note: "field reports 2026-07-22. Three parts: (1) BUG - connected-detection regression; (2) copy - genericness; (3) capability-aware tools/list for an authenticated session. For the next batch."
+status-note: "IMPLEMENTED on claude/cluster-a-plus-sm192 (2026-07-23). (1) cmd_redeem_connect_code stamps cred_used_at at redemption, so the connected indicator flips at authorize time not on a later tool call (test in oauth/02-flow.t). (2) the connector-onboarding status copy is agent-neutral in users.md ('the AI agent', 'the agent is connected'); product buttons unchanged. (3) tools/list filters by the session's caps when a valid bearer is present (introspection always; channel + per-tool cap; interactive-manager refused), anonymous discovery unchanged (test in mcp/01-protocol.t). Enforcement unchanged. Awaiting gate + vcs-review."
 ---
 
 # SM196 - Connector "waiting to connect" never flips; generic AI-agent copy

@@ -94,6 +94,13 @@ ok( $tok->{refresh_token}, 'refresh token issued' );
 # the access token resolves to the partner
 is( validate_token( $tok->{access_token} ), 'claude.ai', 'access token maps to the partner' );
 
+# SM196: the connect-code redemption (during authorize, above) already stamped the
+# credential used, so the connector-setup "connected" indicator flips at authorize
+# time - it no longer waits for a first tool call (the field failure was a
+# connection that completed while the widget stayed on "waiting").
+ok( uapi( { action => 'credential-status', username => 'claude.ai' } )->{used},
+    'SM196: connect-code redemption marks the connector connected, before any tool call' );
+
 # the OAuth connect is a MATERIAL audit event ("X connected") - this is what the
 # operator wants to see when an AI authenticates.
 {
