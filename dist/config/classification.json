@@ -165,6 +165,7 @@
     "^\\.rsyncignore$",
     "^dist/",
     "^cover_db/",
+    "^inbox/",
     "^docs/adr/",
     "^docs/architecture/",
     "^docs/development\\.md$",
