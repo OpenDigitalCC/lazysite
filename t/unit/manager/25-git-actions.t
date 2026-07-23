@@ -109,6 +109,9 @@ spit( "$d/page.md",                "---\ntitle: P\n---\n\nversion ONE\n" );
     ok( $s->{ok} && $s->{enabled}, 'git-status: enabled after init' );
     ok( $s->{git_available},       'git-status: reports the git binary' );
     ok( $s->{commits} >= 1,        'git-status: commit count' );
+    # the action now reports a real health verdict, not just the conf flag
+    is( $s->{verdict}, 'ok',  'git-status: verdict ok on a healthy repo' );
+    ok( $s->{healthy},        'git-status: healthy flag set on a good repo' );
 }
 
 # --- a manager save auto-commits; git-history lists the timeline ---------------

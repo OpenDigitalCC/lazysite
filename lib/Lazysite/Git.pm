@@ -22,7 +22,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(enabled initialised git_available git_dir init
     commit_paths commit_all commit_move file_log file_at file_diff file_diff_across
-    path_at count_commits run_git breadcrumb_path);
+    path_at count_commits run_git breadcrumb_path health);
 
 sub git_dir { return "$_[0]/lazysite/git" }
 
@@ -440,6 +440,50 @@ sub count_commits {
     my ( $ok, $out ) = run_git( $docroot, 'rev-list', '--count', 'HEAD' );
     return 0 unless $ok && defined $out && $out =~ /(\d+)/;
     return $1 + 0;
+}
+
+# A genuine health probe for the content-history repo - not just "is the conf key
+# set" (enabled()) but "is the repository ACTUALLY there and usable". This exists
+# to catch the masked failure mode where enabling wrote git_history: enabled to
+# lazysite.conf but the git init did not complete (an interrupted / failed
+# request), leaving the config saying ON with no usable repo behind it. Returns a
+# structured hash with a single-word `verdict` the status surfaces consume:
+#   no-git       - the git binary is not installed
+#   disabled     - not enabled and no repo (the normal off state)
+#   paused       - recording is off but an initialised repo (earlier versions) is kept
+#   inconsistent - conf says ENABLED but the repo is missing or unusable  <-- the bug
+#   degraded     - usable repo, but the last record FAILED or a stale lock is present
+#   ok           - enabled, initialised, HEAD is a real commit, and the repo reads
+sub health {
+    my ($docroot) = @_;
+    my %h = (
+        git_available    => git_available()         ? 1 : 0,
+        conf_enabled     => _conf_enabled($docroot) ? 1 : 0,
+        initialised      => initialised($docroot)   ? 1 : 0,
+        head_ok          => 0,
+        readable         => 0,
+        lock_present     => ( -e git_dir($docroot) . '/index.lock' ) ? 1 : 0,
+        recording_failed => ( -e breadcrumb_path($docroot) )         ? 1 : 0,
+        commits          => 0,
+    );
+    if ( $h{git_available} && $h{initialised} ) {
+        my ( $ok_head, $sha ) = run_git( $docroot, 'rev-parse', '--verify', 'HEAD' );
+        $h{head_ok} = ( $ok_head && defined $sha && $sha =~ /[0-9a-f]{7,40}/ ) ? 1 : 0;
+        my ($ok_st) = run_git( $docroot, 'status', '--porcelain' );
+        $h{readable} = $ok_st ? 1 : 0;
+        $h{commits}  = count_commits($docroot) if $h{head_ok};
+    }
+    my $usable = $h{git_available} && $h{initialised} && $h{head_ok} && $h{readable};
+    $h{verdict} =
+        !$h{git_available} ? 'no-git'
+        : $h{conf_enabled} ? (
+        !$usable                                       ? 'inconsistent'
+        : ( $h{recording_failed} || $h{lock_present} ) ? 'degraded'
+        : 'ok'
+        )
+        : ( $h{initialised} ? 'paused' : 'disabled' );
+    $h{healthy} = ( $h{verdict} eq 'ok' ) ? 1 : 0;
+    return \%h;
 }
 
 1;

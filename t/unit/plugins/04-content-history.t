@@ -240,4 +240,54 @@ SKIP: {
         or diag explain $plain;
 }
 
+# --- health verdict: the config says ENABLED but the repo never initialised -----
+# The masked failure the operator hit: a network-interrupted enable wrote the
+# git_history: enabled conf key, but git init did not complete - so it "looked
+# enabled" while nothing was being recorded. Status must catch this, not report a
+# reassuring "enabled".
+SKIP: {
+    skip 'git not installed', 5 unless Lazysite::Git::git_available();
+    my $d = mksite();
+    t_spit( "$d/lazysite/lazysite.conf",
+        "site_name: T\nmanager: enabled\ngit_history: enabled\n" );
+    my $s = run_plugin( '--scan', '--docroot', $d );
+    is( $s->{verdict}, 'inconsistent',
+        'conf says enabled but no repo -> verdict inconsistent' );
+    ok( !$s->{healthy},     'the inconsistent state is NOT reported healthy' );
+    ok( !$s->{enabled},     'it does not claim to be enabled (nothing is recorded)' );
+    ok( !$s->{initialised}, 'the repo is genuinely not initialised' );
+    like( $s->{message}, qr/did not complete|repair|check --fix/i,
+        'the message explains the repo is missing and how to repair it' );
+}
+
+# --- health verdict: disabled -> ok -> paused -----------------------------------
+SKIP: {
+    skip 'git not installed', 6 unless Lazysite::Git::git_available();
+    my $d = mksite();
+    is( run_plugin( '--scan', '--docroot', $d )->{verdict}, 'disabled',
+        'fresh site -> verdict disabled' );
+
+    run_plugin( '--action', 'enable', '--docroot', $d );
+    my $ok = run_plugin( '--scan', '--docroot', $d );
+    is( $ok->{verdict}, 'ok', 'after a completed enable -> verdict ok' );
+    ok( $ok->{healthy}, 'enabled + initialised + a real HEAD -> healthy' );
+    like( $ok->{message}, qr/healthy/i, 'the ok message says it is healthy' );
+
+    run_plugin( '--action', 'disable', '--docroot', $d );
+    my $p = run_plugin( '--scan', '--docroot', $d );
+    is( $p->{verdict}, 'paused', 'disable with a repo present -> verdict paused' );
+    ok( !$p->{healthy}, 'paused is not the healthy (actively-recording) state' );
+}
+
+# --- health verdict: degraded (a recording-failed breadcrumb) -------------------
+SKIP: {
+    skip 'git not installed', 2 unless Lazysite::Git::git_available();
+    my $d = mksite();
+    run_plugin( '--action', 'enable', '--docroot', $d );
+    t_spit( Lazysite::Git::breadcrumb_path($d), "1\n" );    # the engine's failure marker
+    my $s = run_plugin( '--scan', '--docroot', $d );
+    is( $s->{verdict}, 'degraded', 'a COMMIT_FAILED breadcrumb -> verdict degraded' );
+    like( $s->{message}, qr/FAILED/, 'degraded message flags the failed recording' );
+}
+
 done_testing();

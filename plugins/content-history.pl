@@ -127,41 +127,47 @@ sub do_status {
     my ($docroot) = @_;
     return { ok => 0, error => 'No site directory given.' }
         unless defined $docroot && length $docroot && -d $docroot;
-    my $git         = Lazysite::Git::git_available();
-    my $initialised = Lazysite::Git::initialised($docroot);
-    my $enabled     = Lazysite::Git::enabled($docroot);
-    my $commits     = $enabled ? Lazysite::Git::count_commits($docroot)               : 0;
-    my $failing = ( $initialised && -e Lazysite::Git::breadcrumb_path($docroot) ) ? 1 : 0;
 
-    my $message;
-    if ($enabled) {
-        $message = "Content history is enabled: $commits recorded version"
-            . ( $commits == 1 ? '' : 's' )
-            . '. Each file has History, Diff and Restore on the Files page.';
-        $message .= ' ATTENTION: the last attempt to record a version FAILED, so '
-            . 'recent changes may be missing from the history. Run "lazysite check '
-            . '--fix" on the server; the next successful save clears this.'
-            if $failing;
-    }
-    elsif ( !$git ) {
-        $message = 'git is not installed on this host. Ask your system '
-            . 'administrator to install the git package, then enable '
-            . 'content history here.';
-    }
-    else {
-        $message = 'Content history is not enabled. Enabling takes an initial '
-            . 'snapshot of the current site and then records every save as a '
-            . 'version.';
-        $message .= ' The versions recorded earlier are kept.' if $initialised;
-    }
+    # A REAL health probe (not just "is the conf key set"): it verifies the repo
+    # actually exists and reads, and flags the masked failure where enabling wrote
+    # the conf key but the git init never completed (a network-interrupted enable
+    # that "looked enabled"). The verdict drives the message + a healthy flag.
+    my $h       = Lazysite::Git::health($docroot);
+    my $v       = $h->{verdict};
+    my $commits = $h->{commits};
+    my $s       = ( $commits == 1 ) ? '' : 's';
+
+    my %message = (
+        'no-git' => 'git is not installed on this host. Ask your system '
+            . 'administrator to install the git package, then enable content history here.',
+        'disabled' => 'Content history is not enabled. Enabling takes an initial snapshot '
+            . 'of the current site and then records every save as a version.',
+        'paused' => "Content history recording is switched off, but $commits earlier "
+            . "version$s are kept. Re-enable here to resume recording.",
+        'inconsistent' => 'Content history is switched ON in the configuration, but its '
+            . 'repository is missing or unusable - the last attempt to enable it did not '
+            . 'complete (e.g. a network-interrupted request), so nothing is being '
+            . 'recorded. Re-enable it here, or run "lazysite check --fix" on the server, '
+            . 'to repair it.',
+        'degraded' => "Content history is enabled ($commits recorded version$s), but the "
+            . 'last attempt to record a version FAILED or a stale lock is present, so '
+            . 'recent changes may be missing. Run "lazysite check --fix" on the server; '
+            . 'the next successful save clears this.',
+        'ok' => "Content history is enabled and healthy: $commits recorded version$s. "
+            . 'Each file has History, Diff and Restore on the Files page.',
+    );
+
     return {
         ok               => 1,
-        enabled          => _bool($enabled),
-        initialised      => _bool($initialised),
-        git_available    => _bool($git),
-        recording_failed => _bool($failing),
+        verdict          => $v,
+        healthy          => _bool( $h->{healthy} ),
+        enabled          => _bool( $v eq 'ok' || $v eq 'degraded' ),
+        initialised      => _bool( $h->{initialised} ),
+        git_available    => _bool( $h->{git_available} ),
+        recording_failed => _bool( $h->{recording_failed} ),
+        lock_present     => _bool( $h->{lock_present} ),
         commits          => $commits,
-        message          => $message,
+        message          => ( $message{$v} // 'Content history status is unknown.' ),
     };
 }
 

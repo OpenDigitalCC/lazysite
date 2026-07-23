@@ -841,13 +841,20 @@ sub _git_target {
 # Lazysite::Git machinery).
 sub action_git_status {
     require Lazysite::Git;
-    my $enabled = Lazysite::Git::enabled($DOCROOT);
+    # A real health probe, not just the conf flag: verdict catches the state where
+    # the config says enabled but the repo is missing/unusable (an interrupted
+    # enable), so a caller can tell "actually in good shape" from "looks enabled".
+    my $h = Lazysite::Git::health($DOCROOT);
     return {
-        ok            => 1,
-        enabled       => _git_bool($enabled),
-        initialised   => _git_bool( Lazysite::Git::initialised($DOCROOT) ),
-        git_available => _git_bool( Lazysite::Git::git_available() ),
-        commits       => ( $enabled ? Lazysite::Git::count_commits($DOCROOT) : 0 ),
+        ok          => 1,
+        verdict     => $h->{verdict},
+        healthy     => _git_bool( $h->{healthy} ),
+        enabled     => _git_bool( $h->{verdict} eq 'ok' || $h->{verdict} eq 'degraded' ),
+        initialised => _git_bool( $h->{initialised} ),
+        git_available    => _git_bool( $h->{git_available} ),
+        recording_failed => _git_bool( $h->{recording_failed} ),
+        lock_present     => _git_bool( $h->{lock_present} ),
+        commits          => $h->{commits},
     };
 }
 
