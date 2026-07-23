@@ -92,7 +92,8 @@ mkdir -p /var/www/example.com/public_html/lazysite/layouts
 mkdir -p /var/www/example.com/public_html/lazysite-assets
 cp starter/lazysite.conf.example   /var/www/example.com/public_html/lazysite/lazysite.conf
 cp starter/registries/*.tt         /var/www/example.com/public_html/lazysite/templates/registries/
-cp starter/404.md                  /var/www/example.com/public_html/
+mkdir -p /var/www/example.com/public_html/lazysite/templates/system
+cp starter/lazysite/templates/system/*.md  /var/www/example.com/public_html/lazysite/templates/system/
 cp starter/index.md                /var/www/example.com/public_html/
 ```
 

@@ -68,6 +68,12 @@
       "bucket": "code"
     },
     {
+      "_comment": "SM201: engine-required system pages (login/claim/402/403/404) served with a fallback - a content-root or docroot-root copy overrides, else this protected default. Code bucket (refreshed every upgrade, DAV-blocklisted so an agent cannot delete it). Precedes the general starter/*.md seed rule so it is NOT seeded as an editable root page.",
+      "pattern": "^starter/lazysite/templates/system/(.+)$",
+      "install_to": "{DOCROOT}/lazysite/templates/system/$1",
+      "bucket": "code"
+    },
+    {
       "pattern": "^starter/manager/(.+)$",
       "install_to": "{DOCROOT}/manager/$1",
       "bucket": "code"

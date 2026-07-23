@@ -66,7 +66,7 @@ setup_auth_site($docroot);
 # in both the visible message AND the hidden input, with no literal
 # [% query.next %] anywhere in the output.
 {
-    my $src = repo_root() . '/starter/login.md';
+    my $src = repo_root() . '/starter/lazysite/templates/system/login.md';    # SM201: moved to the protected tree
     # setup_auth_site writes a minimal stub login.md; overwrite with
     # the real shipped copy for this subtest.
     copy( $src, "$docroot/login.md" ) or die "copy login.md: $!";

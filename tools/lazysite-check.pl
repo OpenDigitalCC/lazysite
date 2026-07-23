@@ -783,6 +783,36 @@ sub run_checks {
         report( 'OK', '  operator-authored (not ours, never touched by upgrades): ' . join( ', ', $cap->(@operator) ) )
             if @operator;
     }
+
+    # --- 10. system pages resolve (SM201) ----------------------------------------
+    # login/claim/402/403/404 are served with a fallback: a content-root or
+    # docroot-root copy overrides, else the protected engine default under
+    # lazysite/templates/system/. Verify each route resolves - so /login and /claim
+    # never 404 even after an agent deletes a root copy - and that the protected
+    # defaults (which make the fallback self-healing) are present.
+    {
+        my ( @dead, @root_only );
+        for my $name (qw(login claim 402 403 404)) {
+            my $has_default = -f "$LZ/templates/system/$name.md";
+            my $has_root    = -f "$DOC/$name.md";
+            push @dead,      $name if !$has_default && !$has_root;
+            push @root_only, $name if !$has_default && $has_root;
+        }
+        if (@dead) {
+            report( 'FAIL',
+                'system page(s) with neither an engine default nor a root copy - these '
+                    . 'routes will 404: ' . join( ', ', @dead ),
+                'reinstall/upgrade to restore lazysite/templates/system/ (SM201)' );
+        }
+        if (@root_only) {
+            report( 'WARN',
+                'system page(s) served only from a root copy - the protected default is '
+                    . 'missing (an agent-proof fallback): ' . join( ', ', @root_only ),
+                'run an upgrade to install lazysite/templates/system/ (SM201)' );
+        }
+        report( 'OK', 'system pages (login/claim/40x) all resolve via the fallback chain (SM201)' )
+            if !@dead && !@root_only;
+    }
     return;
 }
 

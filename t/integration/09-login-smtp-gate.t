@@ -19,7 +19,7 @@ make_path("$docroot/lazysite/forms");
 open my $c, '>', "$docroot/lazysite/lazysite.conf" or die $!;
 print $c "site_name: Test\n";
 close $c;
-copy( "$root/starter/login.md", "$docroot/login.md" ) or die $!;
+copy( "$root/starter/lazysite/templates/system/login.md", "$docroot/login.md" ) or die $!;    # SM201: moved
 open my $nf, '>', "$docroot/404.md" or die $!;
 print $nf "---\ntitle: NF\n---\nNF.\n";
 close $nf;

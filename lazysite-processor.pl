@@ -51,6 +51,27 @@ my $LAZYSITE_DIR   = "$DOCROOT/lazysite";
 my $LAZYSITE_URI   = "/lazysite";
 my $PREVIEW_COOKIE = 'lzs_preview';         # SM071: theme/layout preview cookie
 
+# SM201: engine-required system pages (auth + error) are served with a fallback so
+# a deleted or never-seeded content copy never 404s the sign-in / sign-up flow,
+# and a content-rooted subdomain without its own copy still serves them.
+# Resolution order: the per-domain content root, then the primary docroot root,
+# then the protected engine default under lazysite/templates/system/ (code-
+# shipped, DAV-blocklisted - an agent cannot delete it). The set is FIXED so an
+# arbitrary missing page can never trigger the fallback.
+my %SYSTEM_PAGES = map { $_ => 1 } qw(login claim 402 403 404);
+
+sub _system_page_md {
+    my ( $base, $croot ) = @_;
+    return undef unless defined $base && $SYSTEM_PAGES{$base};
+    $croot = $DOCROOT unless defined $croot && length $croot;
+    for my $cand ( "$croot/$base.md", "$DOCROOT/$base.md",
+        "$LAZYSITE_DIR/templates/system/$base.md" )
+    {
+        return $cand if -f $cand;
+    }
+    return undef;
+}
+
 # F0003: lazysite.conf path override
 # Priority: --conf arg > LAZYSITE_CONF env var > default
 my $CONF_OVERRIDE;
@@ -671,7 +692,7 @@ sub _is_manager {
 
 sub serve_403 {
     my ($auth_result) = @_;
-    my $md_path = "$DOCROOT/403.md";
+    my $md_path = _system_page_md('403') // "$DOCROOT/403.md";          # SM201 fallback
 
     $ACCESS_REC{s} //= 403;    # SM140
     binmode( STDOUT, ':utf8' );
@@ -792,7 +813,7 @@ sub serve_402 {
 
     binmode( STDOUT, ':utf8' );
 
-    my $md_path = "$DOCROOT/402.md";
+    my $md_path = _system_page_md('402') // "$DOCROOT/402.md";    # SM201 fallback
     if ( -f $md_path ) {
         # Set payment context for TT rendering
         %PAYMENT_CONTEXT = (
@@ -1204,6 +1225,12 @@ sub main {
     $REQUEST_CROOT = $croot;
 
     my $md_path   = "$croot/$base.md";
+    # SM201: a system page (login / claim / error) whose content-root copy is
+    # absent falls back to the docroot root, then the protected engine default -
+    # so a deleted or never-seeded copy self-heals instead of 404ing.
+    if ( !-f $md_path && ( my $sys = _system_page_md( $base, $croot ) ) ) {
+        $md_path = $sys;
+    }
     my $url_path  = "$croot/$base.url";
     my $html_path = "$croot/$base.html";
 
@@ -4983,7 +5010,7 @@ sub not_found {
     my ($uri) = @_;
     $ACCESS_REC{s} //= 404;    # SM140
 
-    my $md_path   = "$DOCROOT/404.md";
+    my $md_path   = _system_page_md('404') // "$DOCROOT/404.md";    # SM201 fallback
     my $html_path = "$DOCROOT/404.html";
 
     binmode( STDOUT, ':utf8' );

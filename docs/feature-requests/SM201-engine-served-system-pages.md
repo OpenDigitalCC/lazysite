@@ -3,7 +3,7 @@ title: "SM201 - Engine-served system pages (fall back to protected defaults)"
 subtitle: "The auth/error pages (login, claim, 402/403/404) live in the deletable content root - an agent can delete one and break sign-in, and on a multi-root site subdomains have no copy. Serve them with a three-tier fallback so a missing copy is harmless."
 brand: plain
 status: candidate
-status-note: "SPEC for review, 2026-07-23. Field incident: a sign-up link (/claim) returned 404 - most likely the site agent deleted claim.md as stray boilerplate. Root cause is architectural: engine-required pages sit in the content root, indistinguishable from operator content. Models the existing lazysite/templates/components fallback."
+status-note: "IMPLEMENTED on claude/batch-site-integrity (2026-07-23). The five system pages moved to starter/lazysite/templates/system/ (code bucket, DAV-blocklisted, no longer seeded to the root); the processor resolves login/claim via the three-tier chain (content root -> docroot root -> protected default) and the 402/403/404 handlers fall back to the default before the bare page; lazysite-check gained a system-page probe. Tests in t/integration/30-system-page-fallback.t (incl. the subdomain case). Supersedes the SM201 spec branch. Original: field incident - a site agent likely deleted claim.md, and /claim 404'd; multi-root subdomains also had no copy."
 ---
 
 # SM201 - Engine-served system pages (fall back to protected defaults)
