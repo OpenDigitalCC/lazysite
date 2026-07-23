@@ -86,6 +86,8 @@ ok( !uapi( $d, { action => 'credential-status', username => 'partner' } )->{used
 
 # The connect code redeems once.
 my $cc = uapi( $d, { action => 'connect-code', username => 'partner' } );
+is( $cc->{expires_in}, 1800, 'SM200: connect code valid 30 min (was 15)' );
+ok( $cc->{expires_at} && $cc->{expires_at} > time(), 'SM200: connect code surfaces its absolute expiry' );
 ok( uapi( $d, { action => 'redeem-connect-code', code => $cc->{code} } )->{ok}, 'connect code redeems' );
 ok( !uapi( $d, { action => 'redeem-connect-code', code => $cc->{code} } )->{ok}, 'connect code is single-use' );
 

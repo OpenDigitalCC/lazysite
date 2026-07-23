@@ -120,6 +120,8 @@ $Lazysite::Util::COMPONENT = 'users';
 # exchanged for a short-lived access token that the client rotates before
 # it expires. TTLs in seconds.
 my $PAIRING_TTL      = 900;       # 15 minutes
+my $CONNECT_CODE_TTL = 1_800;     # SM200: 30 min (was 15) - the connect code often
+                                  # expired mid-authorise while the operator pasted it
 my $ACCESS_TOKEN_TTL = 86_400;    # 24 hours
 my $CLAIM_TTL        = 86_400;    # SM072 setup/reset claim: 24 hours
 
@@ -2156,13 +2158,16 @@ sub cmd_connect_code {
     my $code = 'lzo_' . generate_random_hex(18);
     my $all  = read_settings();
     my $u    = $all->{$user} ||= {};
+    my $exp  = time() + $CONNECT_CODE_TTL;
     $u->{connect_code_hash}    = sha256_hex($code);
-    $u->{connect_code_expires} = time() + 900;        # 15 min
+    $u->{connect_code_expires} = $exp;
     $u->{cred_issued_at}       = time();
     delete $u->{cred_used_at};
     write_settings($all);
     log_event( 'INFO', $user, 'oauth connect code issued' );
-    return { code => $code, expires_in => 900 };
+    # SM200: surface the absolute expiry too, so the setup panel can show the
+    # remaining validity (an operator no longer authorises with a lapsed code).
+    return { code => $code, expires_in => $CONNECT_CODE_TTL, expires_at => $exp };
 }
 
 # Validate + consume a connect code; returns the partner it authorizes.
@@ -2264,7 +2269,7 @@ In Claude.ai: Settings -> Connectors -> Add custom connector
     URL:   $base/cgi-bin/lazysite-mcp.pl
 
 Enable it for a chat. When Claude.ai opens the authorisation page, enter this
-single-use connect code (valid 15 minutes) on that page - not in a chat:
+single-use connect code (valid 30 minutes) on that page - not in a chat:
 
     $code
 

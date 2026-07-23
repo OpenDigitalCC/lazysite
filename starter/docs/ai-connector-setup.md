@@ -91,7 +91,7 @@ and run the connect-code flow. If it supports a static header, use the
 
 - **Tools call back "unauthorized" / `invalid_client`**: remove and re-add the
   connector so the app does a fresh registration + sign-in.
-- **Connect code expired** (15 min): click **Connect an AI assistant** again for
+- **Connect code expired** (30 min): click **Connect an AI assistant** again for
   a fresh one - it supersedes the old.
 - **Tools aren't in the assistant's toolset**: connectors load at the start of a
   turn; enable it for the chat and send one more message. Don't fall back to raw

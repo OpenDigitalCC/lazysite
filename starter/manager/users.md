@@ -777,7 +777,7 @@ function showConnector(user) {
         '<li>When it asks you to sign in, paste this one-time connect code:' +
         '<div class="mg-code-box mg-code-token"><code id="cc-' + ue + '">' + code + '</code>' +
         '<button class="mg-btn mg-btn-sm" onclick="copyConnectCode(\'' + ue + '\')">Copy</button></div>' +
-        '<span class="mg-muted">Single-use, expires in 15&nbsp;min. If it expires before you use it, ' +
+        '<span class="mg-muted">Single-use, expires in 30&nbsp;min. If it expires before you use it, ' +
         '<a href="#" onclick="showConnector(\'' + ue + '\');return false;">get a fresh code</a>.</span></li>' +
         '</ol>' +
         '<div class="mg-onb-wait" id="conn-wait-' + ue + '">&#8987; waiting for the AI agent to connect&hellip;</div>' +
