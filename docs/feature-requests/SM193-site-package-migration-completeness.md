@@ -3,7 +3,7 @@ title: "SM193 - Site-package migration completeness (download, target identity, 
 subtitle: "create/inspect/upload/apply work end-to-end for demo handoff; three gaps break agent-driven migration to a NEW domain"
 brand: plain
 status: candidate
-status-note: "field end-to-end test 2026-07-21 (edge -> lazysite.io). Core works well (packaging, inspect-before-apply, the pre-restore safety snapshot). Three gaps, each worked around by hand; follow-ups to SM183 / SM158."
+status-note: "GAPS 2+3 IMPLEMENTED on claude/batch-site-integrity (2026-07-23); gap 1 DEFERRED. Gap 2 (identity): apply_and_configure keeps the TARGET domain's site_url/site_name by default (a migration), and only stamps the package's with adopt_identity => 1 (--adopt-source-identity handoff); the manager-api threads req.adopt_identity. Gap 3 (asset mirror): package_apply now mirrors the installed layout's theme assets to /lazysite-assets/ (via Themes::_mirror_theme_assets) so an applied site renders styled immediately. Tests in 35-site-package.t. DEFERRED gap 1: a token-client site-backup-download action (manage_domains, confined to the lazysite-site-* namespace) - a new download action + %need entry, larger and independent; token clients can still create/upload/apply. Field end-to-end test 2026-07-21."
 ---
 
 # SM193 - Site-package migration completeness

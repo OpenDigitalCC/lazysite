@@ -16,7 +16,7 @@ use Lazysite::Manager::SitePackage qw(package_create package_apply apply_and_con
 # --- fixture: an agency instance with a client sub-domain -------------------
 my $d = tempdir( CLEANUP => 1 );
 make_path(
-    "$d/lazysite/layouts/base/themes/blue",
+    "$d/lazysite/layouts/base/themes/blue/assets",    # SM193: a theme asset to mirror
     "$d/lazysite/layouts/base/themes/red",     # a sibling theme that must be pruned
     "$d/sites/clienta",
 );
@@ -35,6 +35,7 @@ spit( "$d/sites/clienta/index.md",     "# Client A\n" );
 spit( "$d/sites/clienta/nav.conf",     "Home | /\n" );
 spit( "$d/lazysite/layouts/base/layout.tt",               '[% content %]' );
 spit( "$d/lazysite/layouts/base/themes/blue/theme.json",  '{"name":"blue"}' );
+spit( "$d/lazysite/layouts/base/themes/blue/assets/style.css", "body{margin:0}" );   # SM193
 spit( "$d/lazysite/layouts/base/themes/red/theme.json",   '{"name":"red"}' );
 
 $Lazysite::Manager::SitePackage::DOCROOT   = $d;
@@ -119,10 +120,44 @@ sub list_pkg { my $f = shift; my @l = `tar tzf \Q$f\E 2>/dev/null`; chomp @l; re
 
     my $conf = do { open my $fh, '<', "$b/lazysite/lazysite.conf" or die $!; local $/; <$fh> };
     like( $conf, qr/^alias\.client\.example\.theme: blue$/m,       'target theme key written' );
-    like( $conf, qr/^alias\.client\.example\.site_name: Client A Shop$/m, 'target title written' );
     like( $conf, qr/^alias\.client\.example\.nav_file: sites\/dest\/nav\.conf$/m, 'target nav_file repointed' );
     like( $conf, qr/^alias\.client\.example\.lang: fr$/m,               'SM185: language applied to the target' );
     like( $conf, qr/^alias\.client\.example\.lang_group: providers$/m,  'SM185: language set applied to the target' );
+
+    # SM193 gap 2: by default the target KEEPS its own identity - the source
+    # package's site_url / site_name are NOT stamped onto it (a migration, not a
+    # handoff). The portable presentation keys (theme/layout/nav/lang) still apply.
+    unlike( $conf, qr/^alias\.client\.example\.site_name:/m,
+        'SM193: source site_name is NOT stamped on the target by default' );
+    unlike( $conf, qr/^alias\.client\.example\.site_url:/m,
+        'SM193: source site_url is NOT stamped on the target by default' );
+    is( $ap->{identity_kept}, 1, 'SM193: apply reports it kept the target identity' );
+
+    # SM193 gap 3: the layout theme assets are mirrored to /lazysite-assets/ on
+    # apply, so the applied site renders styled immediately (no activation needed).
+    ok( -f "$b/lazysite-assets/base/blue/style.css",
+        'SM193: theme assets mirrored to /lazysite-assets on apply' );
+}
+
+# --- SM193 gap 2: adopt_identity DOES take the package's site_name --------------
+{
+    my $src = package_create('shop.clienta.com');
+    my $pkg = "$d/lazysite/backups/$src->{name}";
+
+    my $b = tempdir( CLEANUP => 1 );
+    make_path( "$b/lazysite/backups", "$b/lazysite/layouts" );
+    spit( "$b/lazysite/lazysite.conf",
+        "site_name: Fresh\nalias_hosts: client.example\n"
+            . "alias.client.example.content_root: sites/dest\n" );
+
+    local $Lazysite::Manager::SitePackage::DOCROOT = $b;
+    my $ap = apply_and_configure( $pkg, host => 'client.example', clean => 1,
+        adopt_identity => 1 );
+    is( $ap->{ok}, 1, 'apply with adopt_identity ok' ) or diag $ap->{error};
+    is( $ap->{identity_kept}, 0, 'apply reports it did NOT keep the target identity' );
+    my $conf = do { open my $fh, '<', "$b/lazysite/lazysite.conf" or die $!; local $/; <$fh> };
+    like( $conf, qr/^alias\.client\.example\.site_name: Client A Shop$/m,
+        'SM193: adopt_identity stamps the package site_name onto the target' );
 }
 
 # --- SM185: the DEFAULT site (docroot root) packages, excluding infra + others -

@@ -1595,7 +1595,10 @@ sub action_site_backup_apply {
         $pkg,
         host         => $host,
         content_root => ( length $croot ? $croot : ( $req->{content_root} // '' ) ),
-        clean        => ( $req->{clean} ? 1      : 0 ) );
+        clean        => ( $req->{clean} ? 1      : 0 ),
+        # SM193: keep the TARGET domain's site_url/site_name by default; opt into
+        # taking the package's identity with adopt_identity (a migration vs handoff).
+        adopt_identity => ( $req->{adopt_identity} ? 1 : 0 ) );
     unless ( $ap->{ok} ) {
         $ap->{safety} = $safety->{name};
         return $ap;

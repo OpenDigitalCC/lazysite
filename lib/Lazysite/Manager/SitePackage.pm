@@ -31,6 +31,7 @@ use JSON::PP                   qw(encode_json decode_json);
 use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Common  qw(_write_conf_key);
+use Lazysite::Manager::Themes  qw(_mirror_theme_assets);      # SM193: mirror on apply
 use Exporter 'import';
 our @EXPORT_OK = qw(package_create package_apply apply_and_configure package_inspect);
 
@@ -383,6 +384,24 @@ sub package_apply {
         }
     }
 
+    # SM193: mirror the installed layout's theme assets to /lazysite-assets/ so the
+    # applied site renders STYLED immediately - the same mirror step layout
+    # activation performs. Previously an applied site was unstyled until a later
+    # activation hand-built the mirror (mirror-at-activation gotcha). Best-effort:
+    # a mirror failure must not fail the apply.
+    if ( length $layout
+        && length $theme
+        && $layout =~ /^[A-Za-z0-9_-]+$/
+        && $theme  =~ /^[A-Za-z0-9_-]+$/
+        && -d "$DOCROOT/lazysite/layouts/$layout/themes/$theme" )
+    {
+        local $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
+        local $Lazysite::Manager::Themes::LAZYSITE_DIR = "$DOCROOT/lazysite";
+        eval { _mirror_theme_assets( $layout, $theme ); 1 }
+            or log_event( 'WARN', 'site-package-apply',
+            'asset mirror failed after apply', layout => $layout, theme => $theme );
+    }
+
     # 3. nav override -> a nav file inside the target content root (only when the
     # package carried an override). The caller points the domain's nav_file at it.
     my $nav_rel;
@@ -443,13 +462,23 @@ sub apply_and_configure {
     return $ap unless $ap->{ok};
 
     my $keys = $ap->{keys} || {};
+    # SM193: by DEFAULT keep the target domain's own identity - do not stamp the
+    # source package's site_url / site_name onto it. That is right for cloning a
+    # site as-is (a handoff) but wrong for migrating a package onto a NEW domain
+    # (it would set the target's URL/name to the source's). Pass
+    # adopt_identity => 1 (--adopt-source-identity) to take the package's instead.
+    # The portable presentation keys (theme/layout/nav/content_root) are unaffected.
+    unless ( $opt{adopt_identity} ) {
+        delete @{$keys}{qw(site_url site_name)};
+    }
     for my $k ( sort keys %$keys ) {
         my $v = $keys->{$k};
         next unless defined $v && length $v;
         if ( length $host ) { Lazysite::Manager::Domains::domain_set( $host, $k, $v ) }
         else                { _write_conf_key( $k, $v ) }
     }
-    $ap->{applied_to} = length $host ? $host : '(default)';
+    $ap->{applied_to}    = length $host         ? $host : '(default)';
+    $ap->{identity_kept} = $opt{adopt_identity} ? 0     : 1;
     return $ap;
 }
 
