@@ -46,7 +46,7 @@ sub render {
 
     my $client = render( manager_caps => { manage_domains => 0 } );
     unlike( $client, qr{/manager/domains}, 'bound client (no manage_domains): Domains nav hidden' );
-    like( $client, qr{/manager/files}, 'the rest of the nav is unaffected' );
+    like( $client, qr{/manager/cache}, 'the rest of the nav is unaffected' );
 }
 
 # --- SM186: grant-to-enable discoverability hint ----------------------------
@@ -97,6 +97,35 @@ sub render {
     my $single = render( scope_root => 'content/clientA', dav_scopes => 'content/clientA' );
     like( $single, qr/LAZYSITE_DAV_SCOPES\s*=\s*'content\/clientA'/,
         'a single-domain editor lists one scope (no switcher shown client-side)' );
+}
+
+# --- SM191: grant-to-enable hints generalised to content areas + audit --------
+{
+    # Holder of an area's capability sees the real link.
+    my $ed = render( manager_caps =>
+            { manage_content => 1, manage_nav => 1, manage_themes => 1, audit => 1 } );
+    like( $ed, qr{href="/manager/files"},      'manage_content: Files link present' );
+    like( $ed, qr{href="/manager/nav"},        'manage_nav: Navigation link present' );
+    like( $ed, qr{href="/manager/appearance"}, 'manage_themes: Appearance link present' );
+    like( $ed, qr{href="/manager/audit"},      'audit: Audit log link present' );
+
+    # A grant-capable operator (manage_users) lacking those caps sees muted hints.
+    my $adm = render( manager_caps => { manage_users => 1 } );
+    like( $adm, qr/Files &#128274;/,      'grant-capable, no content: locked Files hint' );
+    like( $adm, qr/Navigation &#128274;/, 'locked Navigation hint' );
+    like( $adm, qr/Appearance &#128274;/, 'locked Appearance hint' );
+    like( $adm, qr/Audit log &#128274;/,  'locked Audit hint' );
+    unlike( $adm, qr{href="/manager/files"}, 'the hint is not a link to the gated page' );
+
+    # Appearance unlocks on EITHER themes or layouts.
+    my $lay = render( manager_caps => { manage_layouts => 1 } );
+    like( $lay, qr{href="/manager/appearance"}, 'manage_layouts alone unlocks Appearance' );
+
+    # A user who cannot grant (no manage_users) and lacks the caps sees neither
+    # the area nor a hint.
+    my $none = render( manager_caps => {} );
+    unlike( $none, qr/Files &#128274;/,       'no manage_users: no Files hint' );
+    unlike( $none, qr{href="/manager/files"}, 'no manage_content: no Files link' );
 }
 
 done_testing;

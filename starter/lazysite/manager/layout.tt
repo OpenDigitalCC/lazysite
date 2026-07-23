@@ -317,9 +317,9 @@
   <aside class="mg-sidebar">
     <nav class="mg-nav" aria-label="Manager navigation">
       <div class="mg-nav-group">Content</div>
-      <a href="/manager/files" [% IF request_uri.match('^/manager/files') %]class="active" aria-current="page"[% END %]>Files</a>
-      <a href="/manager/nav" [% IF request_uri.match('^/manager/nav') %]class="active" aria-current="page"[% END %]>Navigation</a>
-      <a href="/manager/appearance" [% IF request_uri.match('^/manager/(appearance|themes)') %]class="active" aria-current="page"[% END %]>Appearance</a>
+      [% IF manager_caps.manage_content %]<a href="/manager/files" [% IF request_uri.match('^/manager/files') %]class="active" aria-current="page"[% END %]>Files</a>[% ELSIF manager_caps.manage_users %]<a href="/manager/groups" style="opacity:0.55;font-style:italic" title="Read and write site content. To enable it, grant 'Content' to a group on the Groups page.">Files &#128274;</a>[% END %]
+      [% IF manager_caps.manage_nav %]<a href="/manager/nav" [% IF request_uri.match('^/manager/nav') %]class="active" aria-current="page"[% END %]>Navigation</a>[% ELSIF manager_caps.manage_users %]<a href="/manager/groups" style="opacity:0.55;font-style:italic" title="Edit the site navigation menu. To enable it, grant 'Navigation' to a group on the Groups page.">Navigation &#128274;</a>[% END %]
+      [% IF manager_caps.manage_themes || manager_caps.manage_layouts %]<a href="/manager/appearance" [% IF request_uri.match('^/manager/(appearance|themes)') %]class="active" aria-current="page"[% END %]>Appearance</a>[% ELSIF manager_caps.manage_users %]<a href="/manager/groups" style="opacity:0.55;font-style:italic" title="Choose themes and layouts. To enable it, grant 'Themes' or 'Layouts' to a group on the Groups page.">Appearance &#128274;</a>[% END %]
       <a href="/manager/plugins" [% IF request_uri.match('^/manager/plugins$') %]class="active" aria-current="page"[% END %]>Plugin Manager</a>
       <a href="/manager/plugin-config" [% IF request_uri.match('^/manager/plugin-config') %]class="active" aria-current="page"[% END %]>Plugin Config</a>
       <div class="mg-nav-group">Access</div>
@@ -331,7 +331,7 @@
       [% IF manager_caps.manage_domains %]<a href="/manager/domains" [% IF request_uri.match('^/manager/domains') %]class="active" aria-current="page"[% END %]>Domains</a>[% ELSIF manager_caps.manage_users %]<a href="/manager/groups" style="opacity:0.55;font-style:italic" title="Serve additional domains from this instance. To enable it, grant 'Domains &amp; site packages' to a group on the Groups page.">Domains &#128274;</a>[% END %]
       <a href="/manager/cache" [% IF request_uri.match('^/manager/cache') %]class="active" aria-current="page"[% END %]>Cache</a>
       <a href="/manager/backups" [% IF request_uri.match('^/manager/backups') %]class="active" aria-current="page"[% END %]>Backups</a>
-      <a href="/manager/audit" [% IF request_uri.match('^/manager/audit') %]class="active" aria-current="page"[% END %]>Audit log</a>
+      [% IF manager_caps.audit %]<a href="/manager/audit" [% IF request_uri.match('^/manager/audit') %]class="active" aria-current="page"[% END %]>Audit log</a>[% ELSIF manager_caps.manage_users %]<a href="/manager/groups" style="opacity:0.55;font-style:italic" title="Read the append-only audit trail. To enable it, grant 'Audit trail' to a group on the Groups page.">Audit log &#128274;</a>[% END %]
       [% IF enabled_plugins.stats %]<a href="/manager/stats" [% IF request_uri.match('^/manager/stats') %]class="active" aria-current="page"[% END %]>Visitor statistics</a>[% END %]
     </nav>
   </aside>

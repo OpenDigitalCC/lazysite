@@ -3983,8 +3983,13 @@ sub render_content {
         my $all = !_site_grants_manager();
         # manage_users is surfaced too so the nav can offer a "grant this to
         # enable" hint (SM186) for capability-gated areas, but only to a user who
-        # can actually grant it.
-        for my $cap (qw(manage_config manage_domains manage_users)) {
+        # can actually grant it. SM191 generalises that hint, so the content-area
+        # caps (content/nav/themes/layouts) and audit are surfaced as well.
+        for my $cap (
+            qw(manage_config manage_domains manage_users
+            manage_content manage_nav manage_themes manage_layouts audit)
+            )
+        {
             $manager_caps{$cap}
                 = ( $all || _groups_grant_cap( $cap, split /\s*,\s*/, $groups_str ) ) ? 1 : 0;
         }
