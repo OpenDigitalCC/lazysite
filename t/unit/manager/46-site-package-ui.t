@@ -114,6 +114,21 @@ like( $pkg, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'packa
     is( $r->{has_layout}, 1, 'inspect reports the bundled layout' );
 }
 
+# --- SM193 gap 1: download streams the package (manage_domains, token-accessible) -
+{
+    my $r   = get( $d, 'op', 'role-op', "action=site-backup-download&name=$pkg" );
+    my $raw = $r->{_raw} // '';
+    like( $raw, qr/Content-Disposition:\s*attachment; filename="\Q$pkg\E"/,
+        'site-backup-download streams the package as an attachment' );
+    like( $raw, qr{Content-Type:\s*application/gzip}, 'served as gzip' );
+    my ($bodyb) = $raw =~ /\r?\n\r?\n(.*)/s;
+    is( substr( $bodyb // '', 0, 2 ), "\x1f\x8b", 'the body is a real gzip stream (magic bytes)' );
+
+    my $missing = get( $d, 'op', 'role-op',
+        'action=site-backup-download&name=lazysite-site-nope-20260101T000000Z.tar.gz' );
+    is( $missing->{kind}, 'not-found', 'download of an unknown site package is a clean not-found' );
+}
+
 # --- NAME CONFINEMENT: neither action escapes the lazysite-site- namespace ---
 {
     # A full backup must be unreachable by inspect or delete.
@@ -127,6 +142,12 @@ like( $pkg, qr/^lazysite-site-shop\.clienta\.com-\d{8}T\d{6}Z\.tar\.gz$/, 'packa
     ok( !$del->{ok}, 'delete refuses a non-site (full) backup name' );
     ok( -f "$d/lazysite/backups/lazysite-full-20260101T000000Z.tar.gz",
         'the full backup is untouched' );
+
+    # SM193: download must not reach a full-system backup either.
+    my $dl = get( $d, 'op', 'role-op',
+        'action=site-backup-download&name=lazysite-full-20260101T000000Z.tar.gz' );
+    ok( !$dl->{ok}, 'download refuses a non-site (full) backup name' );
+    is( $dl->{kind}, 'invalid', 'the refusal is an invalid-name error, nothing streamed' );
 
     # Traversal is refused too.
     my $trav = post( $d, 'op', 'role-op', 'action=site-backup-delete',

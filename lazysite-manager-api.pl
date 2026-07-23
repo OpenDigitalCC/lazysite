@@ -394,6 +394,7 @@ if ( !$token_auth ) {
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
         'site-backup-delete' => 'manage_domains',    # SM183: remove a package
+        'site-backup-download' => 'manage_domains', # SM193: token-client package download
         'site-export-primary' => 'manage_content', # SM185: package the DEFAULT site (no domains feature needed)
         'git-init'            => 'manage_config',
         'config-set'     => 'manage_config', 'config-read' => 'manage_config',
@@ -556,6 +557,7 @@ if ($token_auth) {
         'site-backup-apply'   => sub { $_[0]->{manage_domains} },
         'site-backup-inspect' => sub { $_[0]->{manage_domains} },    # SM183
         'site-backup-delete'  => sub { $_[0]->{manage_domains} },    # SM183
+        'site-backup-download' => sub { $_[0]->{manage_domains} },    # SM193
         'site-export-primary' => sub { $_[0]->{manage_content} },    # SM185
             # SM187: agents read form submissions with a least-privilege read_submissions
             # cap OR the operator's manage_forms - parity with the cookie channel.
@@ -724,6 +726,12 @@ elsif ( $action eq 'site-backup-inspect' ) {
 elsif ( $action eq 'site-backup-delete' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_site_backup_delete( $req->{name} // $params{name} );
+}
+elsif ( $action eq 'site-backup-download' ) {
+    my $req = eval { decode_json($body) } // {};
+    my $r   = action_site_backup_download( $req->{name} // $params{name} );
+    exit 0 if $r->{streamed}; # the tarball was streamed; a pre-stream error falls through
+    $result = $r;
 }
 elsif ( $action eq 'config-set' ) {
     my $req = eval { decode_json($body) } // {};
@@ -1494,6 +1502,49 @@ sub action_site_backup_delete {
 
     unlink $pkg or return { ok => 0, error => "Could not delete the package: $!" };
     return                { ok => 1, name  => $name };
+}
+
+# SM193 gap 1: stream a SITE PACKAGE for download. manage_domains-gated and so
+# TOKEN-accessible (unlike the manage_config full-system backup-download),
+# name-confined to the lazysite-site- namespace and scope-confined to the
+# package's content root - so a token client (an agent) can DOWNLOAD a package it
+# created, completing the create -> download -> upload -> apply cross-instance
+# migration loop, without reaching the full-system backups. Streams like
+# action_backup_download; returns {streamed=>1} after the body, or a hash error
+# before any output.
+sub action_site_backup_download {
+    my ($name) = @_;
+    my $pkg = _site_package_path($name)
+        or return { ok => 0, kind => 'invalid', error => 'A site package name is required' };
+    return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
+
+    if (@REQUEST_SCOPES) {
+        my $info  = package_inspect($pkg);
+        my $croot = $info->{ok} ? ( $info->{manifest}{keys}{content_root} // '' ) : '';
+        return { ok => 0, kind => 'forbidden', error => 'You do not have access to this package.' }
+            if !length $croot
+            || Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $croot );
+    }
+
+    my $size = ( stat $pkg )[7] // 0;
+    ( my $safe = $name ) =~ s/[\r\n"\\]//g;
+    log_event( 'INFO', 'site-backup-download', 'site package downloaded',
+        file => $name, user => $auth_user );
+
+    binmode STDOUT;
+    local $| = 1;
+    print "Status: 200 OK\r\n";
+    print "Content-Type: application/gzip\r\n";
+    print "Content-Length: $size\r\n";
+    print "Content-Disposition: attachment; filename=\"$safe\"\r\n";
+    print "Cache-Control: no-store, private\r\n";
+    print "\r\n";
+    open my $fh, '<', $pkg or return { ok => 0, error => 'Cannot read the package' };
+    binmode $fh;
+    my $buf;
+    while ( my $n = sysread $fh, $buf, 65536 ) { syswrite STDOUT, $buf, $n }
+    close $fh;
+    return { ok => 1, streamed => 1 };
 }
 
 # SM158: upload a site package (a multipart file) into lazysite/backups/, so it

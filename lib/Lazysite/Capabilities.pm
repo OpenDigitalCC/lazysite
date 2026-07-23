@@ -105,7 +105,7 @@ my %ACTION_INFO = (
         unlocks => {
             api => [ qw(domains-list domain-add domain-set domain-remove
                     domain-preview domain-check
-                    site-backup-create site-backup-upload site-backup-apply) ],
+                    site-backup-create site-backup-download site-backup-upload site-backup-apply) ],
             mcp => [qw(site_backup site_apply)],
         },
     },
