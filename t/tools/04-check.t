@@ -328,6 +328,17 @@ subtest 'OAuth/remote discovery coherence check (SM190/SM200)' => sub {
     $w->("site_name: t\noauth_enabled: enabled\nsite_url: https://x.example\n");  # coherent
     like( $run->(), qr/discovery: site_url .*is coherent/, 'a clean https site_url -> OK' );
 
+    # The house-standard dynamic value resolves to https under TLS - it must NOT
+    # be flagged "not https" (the 0.9.13 fleet-wide false positive).
+    $w->("site_name: t\noauth_enabled: enabled\nsite_url: \${REQUEST_SCHEME}://\${SERVER_NAME}\n");
+    my $dyn = $run->();
+    unlike( $dyn, qr/not https/, 'dynamic ${REQUEST_SCHEME} site_url -> no "not https" warn' );
+    like( $dyn, qr/discovery: site_url .*is coherent/, 'dynamic ${REQUEST_SCHEME} site_url -> OK' );
+
+    # ...but a trailing slash on the dynamic form is still caught.
+    $w->("site_name: t\noauth_enabled: enabled\nsite_url: \${REQUEST_SCHEME}://\${SERVER_NAME}/\n");
+    like( $run->(), qr/trailing slash/, 'dynamic site_url with trailing slash -> WARN' );
+
     $w->("site_name: t\n");    # no remote service -> the check is silent
     unlike( $run->(), qr/discovery/, 'no remote service enabled -> no discovery finding' );
 };

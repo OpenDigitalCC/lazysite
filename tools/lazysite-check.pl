@@ -826,6 +826,15 @@ sub run_checks {
             qw(oauth_enabled token_exchange_enabled control_api_enabled webdav_enabled mcp_enabled);
         if (@remote) {
             my $site_url = conf_value( $conf, 'site_url' ) // '';
+
+            # The recommended house value is the dynamic
+            # ${REQUEST_SCHEME}://${SERVER_NAME}, which the processor expands
+            # per-request; behind TLS (every deployed vhost terminates it) the
+            # scheme resolves to https, so the advertised endpoints are https.
+            # Treat that form as acceptable instead of warning "not https" on
+            # every site - that literal-prefix test was 0.9.13 field noise.
+            my $dynamic_scheme = $site_url =~ m{^\$\{REQUEST_SCHEME\}://};
+
             if ( !length $site_url ) {
                 report( 'FAIL',
                     'a remote service is enabled (' . join( ', ', @remote )
@@ -833,7 +842,7 @@ sub run_checks {
                         . 'advertise endpoints with no host, so an agent connect fails',
                     'set site_url: https://<this-host> in lazysite.conf' );
             }
-            elsif ( $site_url !~ m{^https://} ) {
+            elsif ( $site_url !~ m{^https://} && !$dynamic_scheme ) {
                 report( 'WARN',
                     "site_url is '$site_url' (not https://) while a remote service is "
                         . 'enabled - OAuth connectors require https advertised endpoints',
