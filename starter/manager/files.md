@@ -27,8 +27,15 @@ search: false
 <button class="mg-btn" onclick="triggerUpload()">Upload</button>
 </div>
 <div class="mg-file-actions-right">
+<button class="mg-btn" id="hist-overview-btn" style="display:none" onclick="openHistoryOverview()" title="All files under content history, with per-file revision statistics">&#128337; History overview</button>
 <button class="mg-btn" id="zip-btn" style="display:none" onclick="zipSelected()">Download selected</button>
 <button class="mg-btn mg-btn-danger" id="del-btn" style="display:none" onclick="deleteSelected()">Delete selected</button>
+</div>
+
+<div id="hist-overview" class="mg-git-overview" style="display:none">
+<div class="mg-card-header"><span class="mg-card-title">Content history &mdash; all files</span>
+<button class="mg-btn mg-btn-sm" onclick="closeHistoryOverview()">Close</button></div>
+<div id="hist-overview-body" class="mg-card-body"><p class="mg-muted">Loading&hellip;</p></div>
 </div>
 </div>
 
@@ -887,8 +894,82 @@ var GIT = { enabled: false };
 function loadGitStatus() {
   return fetch(API + '?action=git-status')
     .then(function(r) { return r.json(); })
-    .then(function(d) { if (d && d.ok) GIT.enabled = !!d.enabled; })
+    .then(function(d) {
+      if (d && d.ok) GIT.enabled = !!d.enabled;
+      // SM199: the site-level History overview button appears with the feature.
+      var hb = document.getElementById('hist-overview-btn');
+      if (hb) hb.style.display = GIT.enabled ? '' : 'none';
+    })
     .catch(function() { /* control stays hidden */ });
+}
+
+// SM199: the file-list / table-of-contents over the whole history. Fetches
+// per-file statistics (revisions, first + latest date, last author) and a
+// site-level summary, rendered as a table sortable by revisions and latest.
+var HIST_OVERVIEW = { rows: [], sort: 'latest', dir: -1 };
+function openHistoryOverview() {
+  var box = document.getElementById('hist-overview');
+  var body = document.getElementById('hist-overview-body');
+  if (!box || !body) return;
+  box.style.display = '';
+  body.innerHTML = '<p class="mg-muted">Loading&hellip;</p>';
+  fetch(API + '?action=git-history-summary')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { body.innerHTML = '<p class="mg-muted">' + escHtml(d.error || 'No history available') + '</p>'; return; }
+      if (!d.enabled) { body.innerHTML = '<p class="mg-muted">Content history is not enabled.</p>'; return; }
+      HIST_OVERVIEW.rows = d.files || [];
+      HIST_OVERVIEW.summary = d.summary || { files: 0, revisions: 0 };
+      renderHistoryOverview();
+    })
+    .catch(function(e) { body.innerHTML = '<p class="mg-muted">Error: ' + escHtml(e.message) + '</p>'; });
+}
+function closeHistoryOverview() {
+  var box = document.getElementById('hist-overview');
+  if (box) box.style.display = 'none';
+}
+function sortHistoryOverview(col) {
+  if (HIST_OVERVIEW.sort === col) { HIST_OVERVIEW.dir = -HIST_OVERVIEW.dir; }
+  else { HIST_OVERVIEW.sort = col; HIST_OVERVIEW.dir = (col === 'path') ? 1 : -1; }
+  renderHistoryOverview();
+}
+function renderHistoryOverview() {
+  var body = document.getElementById('hist-overview-body');
+  if (!body) return;
+  var rows = HIST_OVERVIEW.rows.slice();
+  var col = HIST_OVERVIEW.sort, dir = HIST_OVERVIEW.dir;
+  rows.sort(function(a, b) {
+    var av = a[col === 'first' ? 'first' : col === 'latest' ? 'latest' : col === 'revisions' ? 'revisions' : 'path'];
+    var bv = b[col === 'first' ? 'first' : col === 'latest' ? 'latest' : col === 'revisions' ? 'revisions' : 'path'];
+    if (col === 'path' || col === 'last_author') { av = String(a[col] || ''); bv = String(b[col] || ''); return av < bv ? -dir : av > bv ? dir : 0; }
+    return (av - bv) * dir;
+  });
+  var s = HIST_OVERVIEW.summary || { files: 0, revisions: 0 };
+  if (!rows.length) {
+    body.innerHTML = '<p class="mg-muted">No files under content history yet.</p>';
+    return;
+  }
+  var html = '<p class="mg-muted">' + s.files + ' file' + (s.files === 1 ? '' : 's')
+           + ' under history, ' + s.revisions + ' revision' + (s.revisions === 1 ? '' : 's') + ' in total.</p>'
+           + '<table class="mg-file-table"><thead><tr>'
+           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'path\')">Path</th>'
+           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'revisions\')">Revisions</th>'
+           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'first\')">First</th>'
+           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'latest\')">Latest</th>'
+           + '<th class="mg-sortable" onclick="sortHistoryOverview(\'last_author\')">Last author</th>'
+           + '</tr></thead><tbody>';
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    html += '<tr>'
+          + '<td>' + escHtml(r.path) + '</td>'
+          + '<td>' + escHtml(String(r.revisions)) + '</td>'
+          + '<td>' + escHtml(absTime(r.first)) + '</td>'
+          + '<td>' + escHtml(absTime(r.latest)) + '</td>'
+          + '<td>' + escHtml(r.last_author || '') + '</td>'
+          + '</tr>';
+  }
+  html += '</tbody></table>';
+  body.innerHTML = html;
 }
 
 // Expand/collapse the per-file history panel; loads the commit list on open.

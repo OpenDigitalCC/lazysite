@@ -34,7 +34,7 @@ use Lazysite::Capabilities   qw(describe);
 use Lazysite::Auth::OAuth    ();
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
     action_move action_acl_get action_acl_set action_acl_remove
-    action_git_history action_git_show action_git_restore);
+    action_git_history action_git_history_summary action_git_show action_git_restore);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
     action_cache_invalidate _read_active_layout_and_theme action_themes_list_all
     action_theme_tokens action_create_theme theme_config_issues
@@ -881,6 +881,24 @@ my %TOOLS = (
             required => ['path'], additionalProperties => JSON::PP::false },
         run => sub { action_git_history( $_[0]->{path}, $_[1], $_[0]->{limit} ) },
     },
+    # SM199: the file-list / table-of-contents over the whole history - every
+    # path under version control with per-file statistics (revision count, first
+    # + latest date, last author) and a site-level summary (total files, total
+    # revisions). The report/overview complement of list_versions (per file):
+    # an agent can see at a glance which content is churning and which is stable.
+    # Works when Content history is enabled; enabled:false means nothing recorded.
+    list_content_history => {
+        description => 'List every file under content history with per-file statistics: '
+            . 'number of recorded versions, date of the first and latest version, and the '
+            . 'last author - plus a site-level summary (total files, total revisions). This '
+            . 'is the overview complement of list_versions (which lists one file\'s versions): '
+            . 'use it to see where change is happening across the site. Works when the site\'s '
+            . 'Content history plugin is enabled - if enabled:false, nothing is being recorded.',
+        cap         => 'manage_content',
+        inputSchema => { type => 'object', properties => {},
+            additionalProperties => JSON::PP::false },
+        run => sub { action_git_history_summary() },
+    },
     view_version => {
         description => 'View one recorded version of a file: its full content at that version plus a unified diff against the current file. Get the version id from list_versions first.',
         cap         => 'manage_content', path_aware => 1,
@@ -1591,6 +1609,7 @@ my %ANNOTATE = (
     delete_layout         => [ 0, 1, 1 ],
     invalidate_cache      => [ 0, 0, 0 ],
     list_versions         => [ 1, 0, 0 ],
+    list_content_history  => [ 1, 0, 0 ],
     view_version          => [ 1, 0, 0 ],
     restore_version       => [ 0, 0, 1 ],
 );
@@ -1867,7 +1886,7 @@ elsif ( $method eq 'tools/call' ) {
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
     my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
         page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, theme_tokens => 1, analyse_visitors => 1,
-        list_versions => 1, view_version => 1 ); # history reads: audit-skipped like the API's git-history/show
+        list_versions => 1, list_content_history => 1, view_version => 1 ); # history reads: audit-skipped like the API's git-history/show
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme}
             // $args->{name} // $args->{layout} // '';

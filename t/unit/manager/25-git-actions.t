@@ -250,4 +250,42 @@ my ( $sha_adopt, $sha_edit );
         'the recreated old path does NOT inherit the moved file history (no leak)' );
 }
 
+# --- SM199: git-history-summary (site-level file list + revision statistics) --
+{
+    my $s = op_get( $d, 'action=git-history-summary' );
+    ok( $s->{ok} && $s->{enabled}, 'git-history-summary ok + enabled' ) or diag explain $s;
+    ok( ref $s->{files} eq 'ARRAY' && @{ $s->{files} }, 'a non-empty file list' );
+    ok( ref $s->{summary} eq 'HASH', 'a site-level summary hash' );
+
+    my %by = map { $_->{path} => $_ } @{ $s->{files} };
+    # sub/moved.md carries its lineage (adopt + edit + restore + move + restore...)
+    ok( $by{'sub/moved.md'}, 'the moved page appears in the file list' );
+    ok( $by{'sub/moved.md'}{revisions} >= 2,
+        'the moved page counts its lineage revisions (rename followed)' );
+    ok( defined $by{'sub/moved.md'}{first} && $by{'sub/moved.md'}{first} > 0,
+        'a first-revision date is reported' );
+    ok( defined $by{'sub/moved.md'}{latest}
+            && $by{'sub/moved.md'}{latest} >= $by{'sub/moved.md'}{first},
+        'latest date is at or after first' );
+    like( $by{'sub/moved.md'}{last_author}, qr/\S/, 'a last author is reported' );
+
+    # site totals are internally consistent with the rows
+    is( $s->{summary}{files}, scalar @{ $s->{files} },
+        'summary file count equals the number of rows' );
+    my $rev = 0;
+    $rev += $_->{revisions} for @{ $s->{files} };
+    is( $s->{summary}{revisions}, $rev,
+        'summary revision total equals the sum of per-file counts' );
+
+    # token gating: exactly like git-history (manage_content), refused without it
+    my $ok = mapi( $d, QUERY_STRING => 'action=git-history-summary',
+        HTTP_AUTHORIZATION => basic( 'partner', uapi( $d, { action => 'token', username => 'partner' } )->{token} ) );
+    ok( $ok->{ok}, 'git-history-summary available to a token with manage_content' );
+
+    my $no = mapi( $d, QUERY_STRING => 'action=git-history-summary',
+        HTTP_AUTHORIZATION => basic( 'nocap', uapi( $d, { action => 'token', username => 'nocap' } )->{token} ) );
+    ok( !$no->{ok} && $no->{error} =~ /capability/i,
+        'git-history-summary denied to a token without manage_content' );
+}
+
 done_testing();

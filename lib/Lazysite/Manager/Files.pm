@@ -27,7 +27,8 @@ our @EXPORT_OK = qw(
     action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove
-    action_git_status action_git_history action_git_show action_git_restore action_git_init
+    action_git_status action_git_history action_git_history_summary
+    action_git_show action_git_restore action_git_init
 );
 
 our $DOCROOT;
@@ -870,6 +871,28 @@ sub action_git_history {
         path    => $r->{rel},
         enabled => _git_bool($enabled),
         entries => ( $enabled ? Lazysite::Git::file_log( $DOCROOT, $r->{rel}, $limit ) : [] ),
+    };
+}
+
+# SM199: the file-list / table-of-contents over the history - every path under
+# version control with per-file revision stats (count, first/latest date, last
+# author) plus a site-level summary (total files, total revisions). A read-only,
+# site-level view (the complement of the per-file action_git_history); gated on
+# manage_content at the dispatch layer exactly like git-history. Disabled / no
+# repo = enabled:false with empty rows, never an error. Reuses the lineage-aware
+# engine (SM175), so counts follow renames and never leak across a recreate.
+sub action_git_history_summary {
+    require Lazysite::Git;
+    my $enabled = Lazysite::Git::enabled($DOCROOT);
+    my $s =
+        $enabled
+        ? Lazysite::Git::files_summary($DOCROOT)
+        : { files => [], summary => { files => 0, revisions => 0 } };
+    return {
+        ok      => 1,
+        enabled => _git_bool($enabled),
+        files   => $s->{files},
+        summary => $s->{summary},
     };
 }
 

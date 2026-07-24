@@ -101,6 +101,7 @@ my %EXEMPT = (
     'Files::action_acl_get'      => 'read-only',
     'Files::action_git_status'   => 'read-only',
     'Files::action_git_history'  => 'read-only',
+    'Files::action_git_history_summary' => 'read-only',    # SM199: site-level stats view
     'Files::action_git_show'     => 'read-only',
     'Files::action_mkdir'        => 'creates an empty directory - git cannot track one',
     'Files::action_acl_set'      => 'ACL sidecar store (permissions metadata, not page '

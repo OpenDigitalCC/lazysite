@@ -133,8 +133,31 @@ cmp_ok( scalar @{ sc($r)->{entries} }, '>=', 4, 'the restore itself is the newes
 like( sc($r)->{entries}[0]{subject}, qr/restore/i, 'named as a restore' )
     or diag encode_json( sc($r)->{entries} );
 
+# --- SM199: list_content_history (site-level file list + statistics) ------------
+( $st, $r ) = mcp( { jsonrpc => '2.0', id => 1, method => 'tools/list' } );
+%names = map { $_->{name} => $_ } @{ $r->{result}{tools} };
+ok( $names{list_content_history}, 'tools/list advertises list_content_history' );
+ok( $names{list_content_history}{annotations}{readOnlyHint},
+    'list_content_history annotated read-only' );
+
+( $st, $r ) = call( 'list_content_history', {}, $agent );
+my $sum = sc($r);
+ok( $sum->{ok} && $sum->{enabled}, 'list_content_history: ok + enabled' ) or diag encode_json($r);
+ok( ref $sum->{files} eq 'ARRAY' && @{ $sum->{files} }, 'a non-empty file list' );
+my ($pg) = grep { $_->{path} eq 'content/page.md' } @{ $sum->{files} };
+ok( $pg, 'the edited page appears in the summary' );
+cmp_ok( $pg->{revisions}, '>=', 3, 'its revision count includes the connector writes + restore' );
+ok( defined $pg->{first} && defined $pg->{latest} && defined $pg->{last_author},
+    'per-file first/latest/last_author present' );
+is( $sum->{summary}{files}, scalar @{ $sum->{files} },
+    'summary file count matches the rows' );
+
 # --- capability gate ------------------------------------------------------------
 ( $st, $r ) = call( 'list_versions', { path => '/content/page.md' }, $nocap );
 is( $r->{error}{code}, -32002, 'a partner without manage_content is refused' );
+
+( $st, $r ) = call( 'list_content_history', {}, $nocap );
+is( $r->{error}{code}, -32002,
+    'list_content_history refused to a partner without manage_content' );
 
 done_testing();

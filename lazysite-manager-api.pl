@@ -43,7 +43,8 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_move action_copy action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove
-    action_git_status action_git_history action_git_show action_git_restore action_git_init);
+    action_git_status action_git_history action_git_history_summary
+    action_git_show action_git_restore action_git_init);
 use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action_theme_activate
     action_layout_activate action_theme_delete action_theme_rename action_theme_upload
     action_cache_list action_cache_invalidate _read_active_layout_and_theme
@@ -388,6 +389,7 @@ if ( !$token_auth ) {
         # reads/restore ARE gated (they mirror the token %need manage_content).
         'git-restore' => 'manage_content', 'git-status' => 'manage_content',
         'git-history' => 'manage_content', 'git-show'   => 'manage_content',
+        'git-history-summary' => 'manage_content',   # SM199: site-level file list + stats
         # SM160: domains + the portable site-package family are their own
         # capability (manage_domains), carved out of the broad manage_config.
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
@@ -589,6 +591,7 @@ if ($token_auth) {
         # the repo is a site-configuration act.
         'git-status'  => sub { $_[0]->{manage_content} },
         'git-history' => sub { $_[0]->{manage_content} },
+        'git-history-summary' => sub { $_[0]->{manage_content} },    # SM199
         'git-show'    => sub { $_[0]->{manage_content} },
         'git-restore' => sub { $_[0]->{manage_content} },
         'git-init'    => sub { $_[0]->{manage_config} },
@@ -662,6 +665,7 @@ elsif ( $action eq 'migrate-to-local' ) { $result = action_migrate_to_local( $pa
 elsif ( $action eq 'aliases-list' ) { $result = action_aliases_list() }
 elsif ( $action eq 'git-status' )   { $result = action_git_status() }
 elsif ( $action eq 'git-history' ) { $result = action_git_history( $path, $auth_user, $params{limit} ) }
+elsif ( $action eq 'git-history-summary' ) { $result = action_git_history_summary() }
 elsif ( $action eq 'git-show' ) { $result = action_git_show( $path, $auth_user, $params{sha} ) }
 elsif ( $action eq 'git-restore' ) { $result = action_git_restore( $path, $auth_user, $params{sha} ) }
 elsif ( $action eq 'git-init' )   { $result = action_git_init($auth_user) }
@@ -952,7 +956,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read form-submissions artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
-        backup-list sessions-list keys-list git-status git-history git-show
+        backup-list sessions-list keys-list git-status git-history git-history-summary git-show
         site-backup-inspect );
 
     my ( $aud_action, $aud_target ) =

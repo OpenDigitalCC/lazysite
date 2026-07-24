@@ -22,7 +22,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(enabled initialised git_available git_dir init
     commit_paths commit_all commit_move file_log file_at file_diff file_diff_across
-    path_at count_commits run_git breadcrumb_path health);
+    path_at count_commits run_git breadcrumb_path health files_summary);
 
 sub git_dir { return "$_[0]/lazysite/git" }
 
@@ -383,6 +383,65 @@ sub file_log {
         $start = "$add~1";
     }
     return \@entries;
+}
+
+# SM199: the file-list / table-of-contents over the history. Enumerates the
+# content paths currently under version control (git ls-files at HEAD - the
+# tracked set is exactly the versioned content, since info/exclude keeps
+# secrets, caches and generated *.html out), then aggregates each path's
+# lineage-aware timeline (file_log, SM175 semantics) into per-file statistics.
+# Because it reuses file_log, a rename's pre-rename revisions are counted under
+# the CURRENT path and a delete-then-recreate at a reused path starts clean -
+# no leak across the boundary, the same guarantee the per-file view gives.
+#
+# Returns { files => [ { path, revisions, first, latest, last_author }, ... ]
+# (sorted by path), summary => { files, revisions } }. Dates are commit epochs
+# (first = oldest in the lineage, latest = newest); last_author is the author of
+# the most recent revision. Disabled / no repo = empty, never an error. Each
+# path's history is bounded by the file_log limit (200), so a pathological
+# thousand-revision file counts up to that bound - the same cap the per-file
+# view honours.
+sub files_summary {
+    my ($docroot) = @_;
+    return { files => [], summary => { files => 0, revisions => 0 } }
+        unless enabled($docroot);
+
+    # The tracked content set AT HEAD (what the history covers) - ls-tree of the
+    # committed tree, recursive, NUL-delimited so unusual bytes stay intact.
+    # (git ls-files lists the index/worktree; the committed tree is the right set
+    # for a history overview, and it is exactly what info/exclude has kept clean.)
+    my ( $ok, $out ) = run_git( $docroot, 'ls-tree', '-r', '--name-only', '-z', 'HEAD' );
+    return { files => [], summary => { files => 0, revisions => 0 } }
+        unless $ok && defined $out;
+
+    my @files;
+    my $total_rev = 0;
+    for my $rel ( split /\0/, $out ) {
+        next unless length $rel;
+        my $norm = _norm_rel($rel);
+        next unless defined $norm;
+        my $log = file_log( $docroot, $norm, 200 );
+        next unless @{$log};    # a path with no readable lineage is skipped
+        my $revisions = scalar @{$log};
+
+        # file_log is newest-first: [0] is the latest revision, [-1] the oldest
+        # in this incarnation's lineage.
+        my $latest = $log->[0];
+        my $first  = $log->[-1];
+        push @files, {
+            path        => $norm,
+            revisions   => $revisions,
+            first       => $first->{epoch},
+            latest      => $latest->{epoch},
+            last_author => $latest->{author},
+        };
+        $total_rev += $revisions;
+    }
+    @files = sort { $a->{path} cmp $b->{path} } @files;
+    return {
+        files   => \@files,
+        summary => { files => scalar @files, revisions => $total_rev },
+    };
 }
 
 # The file's content at a version. undef on any refusal or miss.
