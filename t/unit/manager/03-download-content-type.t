@@ -42,9 +42,13 @@ subtest 'no extension returns octet-stream' => sub {
 # --- is_editable_text ---
 
 subtest 'common text extensions are editable' => sub {
-    for my $ext (qw(md txt html css js json yaml conf log pl pm)) {
+    # SM202: .tt (Template Toolkit layouts) must be editable text - the
+    # copy-nearest-layout-then-adapt workflow reads layout.tt over read_file.
+    for my $ext (qw(md txt html css js json yaml conf log pl pm tt)) {
         ok( is_editable_text("f.$ext"), ".$ext editable" );
     }
+    ok( is_editable_text('layouts/foo/layout.tt'),
+        'SM202: a layout.tt path is editable text (was refused as binary)' );
 };
 
 subtest 'binary extensions are not editable' => sub {
