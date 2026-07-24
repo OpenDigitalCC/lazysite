@@ -46,6 +46,17 @@ Requires: `manage_content`
 1. create the page with the MCP create_page tool, or PUT the .md over WebDAV in the content namespace
 2. optionally preview_page (MCP) to confirm the render before it goes live
 
+## Build or restyle a site from a Figma design
+
+Requires: `manage_themes`, `manage_layouts`, `manage_content`
+
+1. Read /docs/integrations/figma for the extraction + translation sequence
+2. Connect the Figma MCP server alongside the lazysite connection; run whoami on both
+3. Extract tokens/structure/screenshots via the Figma MCP (get_metadata, get_variable_defs, get_screenshot)
+4. Map design tokens onto the layout vocabulary (theme_tokens) and rebuild rhythm/scale in CSS
+5. Adapt the nearest layout (copy-and-stage) or scaffold a theme (create_theme)
+6. Verify with preview_page before activating
+
 ## Wire a form to a handler
 
 Requires: `manage_forms`
