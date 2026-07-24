@@ -893,7 +893,13 @@ sub action_layouts_manifest {
             name          => $name,
             version       => $l->{version}       // '',
             default_theme => $l->{default_theme} // '',
-            installed     => $inst_layout{$name}
+            # SM206: pass the catalogue's per-layout purpose through so an agent
+            # (or the design pipeline) can choose a base layout without installing
+            # and inspecting each. Both are optional in the manifest and degrade
+            # to empty; the manifest tolerates their absence.
+            description => $l->{description} // '',
+            tags        => ( ref $l->{tags} eq 'ARRAY' ? $l->{tags} : [] ),
+            installed   => $inst_layout{$name}
             ? JSON::PP::true() : JSON::PP::false(),
             themes => [
                 map {

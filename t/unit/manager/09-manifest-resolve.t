@@ -93,4 +93,34 @@ subtest 'malformed manifest' => sub {
     ok( !$p->{ok}, 'no layouts[] rejected' );
 };
 
+# SM206: the catalogue passes a per-layout description + tags through so an agent
+# can choose a base layout without installing each. Optional; absence degrades to
+# ''/[]. Mock the manifest fetch (no network) and assert the passthrough.
+subtest 'SM206 catalogue surfaces description + tags' => sub {
+    my $fixture = {
+        schema  => 1,
+        layouts => [
+            { name => 'folio', version => '1.0.0', default_theme => 'folio',
+                description => 'Portfolio layout for a visual maker.',
+                tags        => [ 'portfolio', 'visual' ],
+                themes      => [ { name => 'folio', version => '1.0.0' } ] },
+            { name => 'plain', version => '1.0.0', default_theme => 'plain',
+                themes => [ { name => 'plain', version => '1.0.0' } ] },
+        ],
+    };
+    require JSON::PP;
+    no warnings 'redefine';
+    local *Lazysite::Manager::Layouts::_http_get =
+        sub { return ( 1, JSON::PP::encode_json($fixture) ) };
+
+    my $cat = Lazysite::Manager::Layouts::action_layouts_manifest();
+    ok( $cat->{ok}, 'catalogue ok' );
+    my %by = map { $_->{name} => $_ } @{ $cat->{layouts} };
+    is( $by{folio}{description}, 'Portfolio layout for a visual maker.',
+        'description passes through' );
+    is_deeply( $by{folio}{tags}, [ 'portfolio', 'visual' ], 'tags pass through' );
+    is( $by{plain}{description}, '', 'missing description degrades to empty string' );
+    is_deeply( $by{plain}{tags}, [], 'missing tags degrade to empty array' );
+};
+
 done_testing;
