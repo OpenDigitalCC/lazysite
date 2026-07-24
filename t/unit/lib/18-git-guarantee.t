@@ -161,6 +161,8 @@ my %EXEMPT = (
         . 'folded into the next capture sweep)',
     'Themes::action_theme_list'        => 'read-only',
     'Themes::action_themes_list_all'   => 'read-only',
+    'Themes::action_theme_tokens'      => 'read-only',    # SM204: token-vocabulary discovery
+    'Themes::action_create_theme'      => 'layout/theme artifact write (capture-swept)',    # SM205
     'Themes::action_cache_list'        => 'read-only',
     'Themes::action_artifact_manifest' => 'read-only',
     'Themes::action_artifact_validate' => 'read-only',

@@ -27,7 +27,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(
     action_theme_list action_themes_list_all action_theme_activate
-    action_theme_tokens
+    action_theme_tokens action_create_theme theme_config_issues
     _layout_declared_tokens _theme_config_tokens _token_mismatch
     _token_warning_list
     action_layout_activate action_theme_delete action_theme_rename
@@ -254,6 +254,41 @@ sub _token_warning_list {
     return \@w;
 }
 
+# SM205: eager value/name validation for a theme scaffold. Returns a list of
+# specific rule-failure strings (empty = valid). The value rule mirrors the
+# render-time emitter generate_theme_css, which strips ; { } < > and any
+# non-ASCII from every value; catching those up front tells the author before a
+# write rather than letting them be silently stripped at render. Kept in sync
+# with that emitter by design (SM205 spec).
+sub theme_config_issues {
+    my ( $config, $name ) = @_;
+    my @issues;
+    if ( !defined $name || $name !~ /^[A-Za-z0-9_-]+$/ ) {
+        push @issues, "name '" . ( defined $name ? $name : '' )
+            . "' must match [A-Za-z0-9_-]+";
+    }
+    if ( ref $config eq 'HASH' ) {
+        for my $group ( sort keys %{$config} ) {
+            my $gv = $config->{$group};
+            next unless ref $gv eq 'HASH';
+            for my $key ( sort keys %{$gv} ) {
+                my $v = $gv->{$key};
+                next if ref $v;
+                next unless defined $v;
+                if ( $v =~ /[^\x00-\x7f]/ ) {
+                    push @issues,
+                        "config value at '$group.$key' contains non-ASCII characters";
+                }
+                if ( $v =~ /[;{}<>]/ ) {
+                    push @issues,
+                        "config value at '$group.$key' contains a forbidden character (one of ; { } < >)";
+                }
+            }
+        }
+    }
+    return @issues;
+}
+
 # SM204 (feature theme_tokens): token-vocabulary discovery. A READ tool
 # (manage_themes, not audited). Resolves a (layout, theme) pair, then returns
 # the theme's config as the token vocabulary plus exemplar values.
@@ -403,6 +438,148 @@ sub action_theme_activate {
     release_lock( $lock_rel, $auth_user );
     die $err if $err;
     return $out;
+}
+
+# SM205: validated theme scaffolding. Creates
+# lazysite/layouts/LAYOUT/themes/NAME/ with a theme.json (layouts:[LAYOUT],
+# name, version, author, config) and assets/main.css, optionally activating.
+# EAGER validation (name + config value rules, layout installed) returns
+# { ok => 0, kind => 'validation', ... } BEFORE writing anything. The
+# declared-token coverage check (SM203) is warn-only.
+sub action_create_theme {
+    my ($params) = @_;
+    $params ||= {};
+
+    my $layout = $params->{layout};
+    my $name   = $params->{name};
+    my $config = $params->{config};
+    $config = {} unless ref $config eq 'HASH';
+
+    return { ok => 0, kind => 'validation', error => 'layout is required.' }
+        unless defined $layout && length $layout;
+    return { ok => 0, kind => 'validation', error => 'name is required.' }
+        unless defined $name && length $name;
+
+    # Eager name + value validation (before any write).
+    my @issues = theme_config_issues( $config, $name );
+    if ( defined $layout && $layout !~ /^[A-Za-z0-9_-]+$/ ) {
+        push @issues, "layout '$layout' must match [A-Za-z0-9_-]+";
+    }
+    return { ok => 0, kind => 'validation',
+        error  => 'theme validation failed: ' . join( '; ', @issues ),
+        issues => \@issues }
+        if @issues;
+
+    my $layout_dir = "$LAZYSITE_DIR/layouts/$layout";
+    return { ok => 0, kind => 'validation',
+        error => "layout '$layout' is not installed." }
+        unless -f "$layout_dir/layout.tt";
+
+    my $theme_dir = "$layout_dir/themes/$name";
+    return { ok => 0, kind => 'exists',
+        error => "a theme named '$name' already exists under layout '$layout'." }
+        if -d $theme_dir;
+
+    # SM203 coverage check (warn, never reject).
+    my $declared = _layout_declared_tokens($layout);
+    my $tw = _token_mismatch( $declared, _theme_config_tokens( { config => $config } ) );
+    my @warnings = $tw ? @{ _token_warning_list($tw) } : ();
+
+    # Scaffold. theme.json + assets/main.css (never a root-level main.css - it
+    # 404s after the asset mirror). CSS: caller-supplied, else copy the layout
+    # default theme's main.css as the copy-nearest-and-adapt starting point.
+    make_path("$theme_dir/assets");
+
+    my $author = ( defined $auth_user && length $auth_user ) ? $auth_user : 'unknown';
+    my $meta   = {
+        name    => $name,
+        version => ( defined $params->{version} && length $params->{version} )
+        ? $params->{version}
+        : '1.0.0',
+        layouts => [$layout],
+        author  => $author,
+        config  => $config,
+        ( defined $params->{description} && length $params->{description}
+            ? ( description => $params->{description} ) : () ),
+        ( ref $params->{tags} eq 'ARRAY' ? ( tags => $params->{tags} ) : () ),
+    };
+
+    my @created;
+    {
+        my $tj  = "$theme_dir/theme.json";
+        my $enc = JSON::PP->new->utf8->pretty->canonical->encode($meta);
+        open my $fh, '>:raw', $tj
+            or return { ok => 0, error => "Cannot write theme.json" };
+        print {$fh} $enc;
+        close $fh;
+        push @created, "lazysite/layouts/$layout/themes/$name/theme.json";
+    }
+
+    {
+        my $css_path = "$theme_dir/assets/main.css";
+        if ( defined $params->{css} ) {
+            open my $fh, '>:utf8', $css_path
+                or return { ok => 0, error => "Cannot write main.css" };
+            print {$fh} $params->{css};
+            close $fh;
+        }
+        else {
+            # Copy the layout default theme's main.css as the starting point.
+            my $ljson = _read_layout_json($layout);
+            my $dt    = ( ref $ljson eq 'HASH' ) ? ( $ljson->{default_theme} // '' ) : '';
+            $dt = '' unless $dt =~ /^[A-Za-z0-9_-]+$/;
+            my $src =
+                length $dt
+                ? "$layout_dir/themes/$dt/assets/main.css"
+                : '';
+            if ( length $src && -f $src ) {
+                copy( $src, $css_path );
+            }
+            else {
+                # No default CSS to copy - leave a minimal placeholder so the
+                # asset exists (a missing main.css would 404 after the mirror).
+                open my $fh, '>:utf8', $css_path
+                    or return { ok => 0, error => "Cannot write main.css" };
+                print {$fh} "/* $name theme for $layout - starting point */\n";
+                close $fh;
+            }
+        }
+        push @created, "lazysite/layouts/$layout/themes/$name/assets/main.css";
+    }
+
+    # SM176: record a pristine baseline so an unedited theme does not spawn a
+    # pointless backup when switched away from.
+    _write_pristine( "$layout_dir/themes", $name, _artifact_digest($theme_dir) );
+
+    log_event( 'INFO', $action, 'theme created',
+        layout => $layout, theme => $name, user => $author );
+
+    my %out = ( ok => 1, layout => $layout, theme => $name, created => \@created );
+    $out{warnings} = \@warnings if @warnings;
+
+    # Preview guidance: pre-activation, the theme is served from its SOURCE
+    # assets path; post-activation (activate:true) from the mirror.
+    my $activated = 0;
+    if ( $params->{activate} ) {
+        my $act = action_theme_activate( $name, {} );
+        $out{activation} = $act;
+        if ( $act && $act->{ok} ) {
+            $activated = 1;
+            # Fold activation-time token warnings in too.
+            if ( ref $act->{token_warnings} eq 'ARRAY' && @{ $act->{token_warnings} } ) {
+                push @{ $out{warnings} }, @{ $act->{token_warnings} };
+            }
+        }
+    }
+
+    $out{preview} = $activated
+        ? "Activated. The theme's assets are served from "
+        . "/lazysite-assets/$layout/$name/main.css (mirror)."
+        : "Not activated. Preview the source CSS at "
+        . "/lazysite/layouts/$layout/themes/$name/assets/main.css, "
+        . "or call activate_theme to make it live.";
+
+    return \%out;
 }
 
 sub _set_theme_pointer {

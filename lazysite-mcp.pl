@@ -37,7 +37,9 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_git_history action_git_show action_git_restore);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
     action_cache_invalidate _read_active_layout_and_theme action_themes_list_all
-    action_theme_tokens);
+    action_theme_tokens action_create_theme theme_config_issues
+    _layout_declared_tokens _theme_config_tokens _token_mismatch
+    _token_warning_list);
 use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
 use Lazysite::Manager::Domains     ();
@@ -339,10 +341,20 @@ my %TOOLS = (
             # Validate-on-write: surface front-matter / form / public-data issues
             # in the write result so the agent sees them without a second call.
             if ( ref $r eq 'HASH' && $r->{ok} ) {
-                my $v = _validate_page( undef, $a->{content}, $user );
-                if ( ref $v eq 'HASH' ) {
-                    $r->{warnings} = $v->{warnings} if $v->{warnings} && @{ $v->{warnings} };
-                    $r->{issues} = $v->{issues}     if $v->{issues} && @{ $v->{issues} };
+                # SM205: a theme.json written this way is validated EAGERLY too
+                # (mirroring the page validator), so an agent editing a theme.json
+                # sees name/value/coverage warnings without needing to re-activate.
+                if ( ( $a->{path} // '' ) =~ m{(?:^|/)theme\.json$}
+                    && ( $a->{path} // '' ) =~ m{lazysite/layouts/} ) {
+                    my $tw = _validate_theme_json( $a->{path}, $a->{content} );
+                    $r->{warnings} = $tw if @{$tw};
+                }
+                else {
+                    my $v = _validate_page( undef, $a->{content}, $user );
+                    if ( ref $v eq 'HASH' ) {
+                        $r->{warnings} = $v->{warnings} if $v->{warnings} && @{ $v->{warnings} };
+                        $r->{issues} = $v->{issues} if $v->{issues} && @{ $v->{issues} };
+                    }
                 }
             }
             return $r;
@@ -532,6 +544,35 @@ my %TOOLS = (
             properties => { theme => { type => 'string' } },
             required   => ['theme'], additionalProperties => JSON::PP::false },
         run => sub { action_theme_activate( $_[0]->{theme}, {} ) },
+    },
+    create_theme => {
+        description => 'Scaffold a validated theme under a layout in ONE step (instead of the five-step create-dirs / write theme.json / remember assets/ / write CSS / activate sequence). Give layout + name + a config (group->key->value of design tokens). Omit css to copy the layout default theme\'s main.css as the starting point (the config restyles it via the var(--theme-*) fallback chain). Validates the name and config values EAGERLY (rejects with kind:"validation" before writing anything). If the layout declares a token vocabulary (SM203), returns coverage warnings (never rejects). activate:true makes it live (mirror build + cache clear), same as activate_theme. Returns created paths, warnings, and a preview URL.',
+        cap         => 'manage_themes',
+        inputSchema => {
+            type       => 'object',
+            properties => {
+                layout => { type => 'string', description => 'the installed layout to create the theme under' },
+                name => { type => 'string', description => 'theme name ([A-Za-z0-9_-]+)' },
+                config => { type => 'object',
+                    description => 'design tokens as group->key->value, e.g. {"colours":{"primary":"#0044CC"}}' },
+                css => { type => 'string', description => 'optional main.css; omit to copy the layout default theme CSS' },
+                activate => { type => 'boolean', description => 'activate the theme after creating it (default false)' },
+                description => { type => 'string' },
+                tags        => { type => 'array', items => { type => 'string' } },
+            },
+            required             => [ 'layout', 'name' ],
+            additionalProperties => JSON::PP::false,
+        },
+        run => sub {
+            my $a = $_[0];
+            my %p = ( layout => $a->{layout}, name => $a->{name} );
+            $p{config}      = $a->{config}      if defined $a->{config};
+            $p{css}         = $a->{css}         if defined $a->{css};
+            $p{activate}    = $a->{activate}    if defined $a->{activate};
+            $p{description} = $a->{description} if defined $a->{description};
+            $p{tags}        = $a->{tags}        if defined $a->{tags};
+            action_create_theme( \%p );
+        },
     },
     activate_layout => {
         description => 'Activate a layout (optionally naming a compatible theme).',
@@ -1066,6 +1107,35 @@ sub _list_pages {
 # --- SM087 Tier 2: validate a page (incl. public-data warnings) ------------
 my %FORM_FLAGS = map { $_ => 1 }
     qw(required optional email tel date time number url password textarea);
+# SM205: eager validation of a theme.json written via write_file. Mirrors how
+# _validate_page runs for page writes: parse the JSON, apply the shared
+# name/value rules (theme_config_issues) and the SM203 declared-token coverage
+# check, and return a flat list of warning strings. Warn-only - never rejects
+# (the write already happened; this surfaces issues so a fix does not need a
+# re-activation cycle).
+sub _validate_theme_json {
+    my ( $path, $content ) = @_;
+    my @w;
+    my $data = eval { decode_json($content) };
+    if ( ref $data ne 'HASH' ) {
+        return ['theme.json does not parse as a JSON object'];
+    }
+    my $name   = $data->{name};
+    my $config = ( ref $data->{config} eq 'HASH' ) ? $data->{config} : {};
+    push @w, theme_config_issues( $config, $name );
+
+    # Coverage against the layout declared tokens, derived from the path
+    # (lazysite/layouts/<layout>/themes/<theme>/theme.json).
+    if ( $path =~ m{lazysite/layouts/([A-Za-z0-9_-]+)/themes/} ) {
+        my $layout   = $1;
+        my $declared = _layout_declared_tokens($layout);
+        my $supplied = _theme_config_tokens( { config => $config } );
+        my $tw       = _token_mismatch( $declared, $supplied );
+        push @w, @{ _token_warning_list($tw) } if $tw;
+    }
+    return \@w;
+}
+
 sub _validate_page {
     my ( $path, $content, $user ) = @_;
     if ( !defined $content ) {
@@ -1514,6 +1584,7 @@ my %ANNOTATE = (
     list_themes           => [ 1, 0, 0 ],
     theme_tokens          => [ 1, 0, 0 ],
     activate_theme        => [ 0, 0, 1 ],
+    create_theme          => [ 0, 0, 1 ],
     activate_layout       => [ 0, 0, 1 ],
     list_layout_catalogue => [ 1, 0, 0 ],
     install_layout        => [ 0, 0, 1 ],
@@ -1798,13 +1869,15 @@ elsif ( $method eq 'tools/call' ) {
         page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, theme_tokens => 1, analyse_visitors => 1,
         list_versions => 1, view_version => 1 ); # history reads: audit-skipped like the API's git-history/show
     unless ( $READ{$name} ) {
-        my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';
+        my $target = $args->{path} // $args->{from} // $args->{theme}
+            // $args->{name} // $args->{layout} // '';
         # Meaningful file-event labels (create/edit/delete/move) to match the
         # manager UI + WebDAV audit vocabulary.
         my $act =
             $name eq 'write_file' ? ( ( ref $out eq 'HASH' && $out->{created} ) ? 'create' : 'edit' )
             : $name eq 'replace_text'    ? 'edit'
             : $name eq 'create_page'     ? 'create'
+            : $name eq 'create_theme'    ? 'theme-create'
             : $name eq 'delete_file'     ? 'delete'
             : $name eq 'delete_page'     ? 'delete'
             : $name eq 'rename_page'     ? 'move'
