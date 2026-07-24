@@ -108,6 +108,22 @@ sub run_cli {
     like( $out, qr/not found/i, 'passwd on missing user reports error' );
 }
 
+# --- a PASSWORDLESS (token-only) account can be removed ---
+# Regression: cmd_remove used `unless delete $users{$user}`, and delete returns
+# the deleted VALUE - '' for a passwordless account - so the empty-string hash
+# read as false and the account was wrongly reported "not found" / undeletable.
+{
+    my $out = run_cli( 'add', 'tokonly', '' );    # empty password => token-only
+    like( $out, qr/added/i, 'passwordless account added' );
+
+    my $rm = run_cli( 'remove', 'tokonly' );
+    like( $rm, qr/removed/i, 'passwordless account can be removed (not "not found")' );
+    unlike( $rm, qr/not found/i, 'no spurious not-found for a passwordless account' );
+
+    my $list = run_cli('list');
+    unlike( $list, qr/^tokonly\b/m, 'passwordless account gone from the list' );
+}
+
 # --- setup-manager: one-command first-run bootstrap ---
 {
     open my $cf, '>', "$docroot/lazysite/lazysite.conf" or die $!;

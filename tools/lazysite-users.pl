@@ -699,7 +699,13 @@ sub cmd_remove {
     die "Username required\n" unless $user;
 
     my %users = read_users();
-    die "User '$user' not found\n" unless delete $users{$user};
+
+    # Use exists, not the return value of delete: a passwordless account (created
+    # without a password - cmd_account_create stores '') has an empty-string hash,
+    # which delete returns as a FALSE value, so `unless delete` wrongly reported
+    # "not found" and left the account undeletable. Test existence, then delete.
+    die "User '$user' not found\n" unless exists $users{$user};
+    delete $users{$user};
 
     write_users(%users);
     log_event( 'INFO', $user, 'user removed' );
