@@ -88,6 +88,7 @@ var groupLabels = {}; // {group: description-or-label} - for the add-user picker
 var parentList = [];  // [username] - accounts that can own sub-users (create_sub_users)
 var parentOf = {};    // {username: parent} - the managed_by/created_by hierarchy
 var ME = '';          // the current operator's username (from whoami) - a valid owner
+var amOperator = false; // SM194: is the current user a FULL operator (manage_users)? - gates the operator-only promote / scope-independent controls (the API enforces it regardless)
 var channelServices = {};   // SM180: {channel: 0|1} - is each channel's SITE service enabled
 
 // SM109 phase 2: route all status to the global toast.
@@ -148,12 +149,18 @@ function loadUsers() {
     // Groups: {group: members}, plus the add-user picker's purpose labels.
     var g = {};
     uiGroups = {};
+    amOperator = false;
     if (d.groups) Object.keys(d.groups).forEach(function(name) {
       var info = d.groups[name] || {};
       g[name] = info.members || [];
       // Track which groups grant `ui` (manager/web-login access) so a group
       // change that would remove an account's last one can warn before it commits.
       if (info.caps && info.caps.ui) uiGroups[name] = true;
+      // SM194: am I a full operator? - true if I'm in any group granting manage_users
+      // (the same caps the payload already carries). Gates the operator-only controls.
+      if (ME && info.caps && info.caps.manage_users && (info.members || []).indexOf(ME) !== -1) {
+        amOperator = true;
+      }
       groupLabels[name] = info.description
         || (info.label && info.label !== name ? info.label : '');
     });
@@ -582,6 +589,25 @@ function accountSettingsHtml(row) {
       '<code class="mg-code">' + escHtml(owner) + '</code>' +
       '<select class="mg-inp" id="reassign-' + ue + '">' + ropts + '</select>' +
       '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Move</button></div>';
+    // SM194: operator-only promotion + scope emancipation. Two DELIBERATELY separate
+    // controls: "Promote" clears the managing parent (managed_by); it does NOT lift
+    // the immutable created_by scope ceiling. "Independent of creator" is the explicit,
+    // separate opt-out of that ceiling. Shown only to a full operator (the API refuses
+    // a delegate regardless). Promote is offered only when the account is not already
+    // top-level.
+    if (amOperator) {
+      if (!s.top_level) {
+        ac += '<div class="mg-line"><span class="mg-line-lbl">Promote</span>' +
+          '<button class="mg-btn mg-btn-sm" onclick="promoteUser(\'' + ue + '\')">Promote to top level</button>' +
+          '<span class="mg-help" title="Clears the managing parent (managed_by) so this account is managed at the top level. It does NOT lift the creator scope ceiling - use Independent of creator for that.">&#9432;</span>' +
+          '<span class="mg-inline-msg" id="promsg-' + ue + '"></span></div>';
+      }
+      ac += '<div class="mg-line"><span class="mg-line-lbl">Scope</span>' +
+        '<label class="mg-chk"><input type="checkbox"' + (s.scope_independent ? ' checked' : '') +
+        ' onchange="toggleScopeIndependent(\'' + ue + '\', this.checked)"> Independent of creator</label>' +
+        '<span class="mg-help" title="On: this account is not scope-capped by whoever created it (the created_by walk stops here). Off keeps the deliberate ceiling. created_by itself is never changed.">&#9432;</span>' +
+        '<span class="mg-inline-msg" id="scimsg-' + ue + '"></span></div>';
+    }
   }
   h += sec('Account configuration', ac);
 
@@ -926,6 +952,34 @@ function reassignUser(user) {
       loadUsers();
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM194: promote to top level (clears managed_by). Operator-only; the created_by
+// scope ceiling is unaffected - that is emancipated separately below.
+function promoteUser(user) {
+  mgConfirm('Promote "' + user + '" to top level? This clears its managing parent. '
+    + 'It does NOT lift the creator scope ceiling - use "Independent of creator" for that.',
+    { ok: 'Promote' }).then(function(__ok) {
+    if (!__ok) { return; }
+    apiCall({ action: 'account-promote', username: user })
+      .then(function(d) {
+        if (!d.ok) { showStatus(d.error, true); return; }
+        showStatus('Promoted "' + user + '" to top level.');
+        loadUsers();
+      })
+      .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
+}
+
+// SM194: toggle scope emancipation (the explicit, separate lift of the created_by
+// ceiling). Operator-only. created_by is never rewritten.
+function toggleScopeIndependent(user, on) {
+  apiCall({ action: 'account-scope-independent', username: user, value: on ? 1 : 0 })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error, true); loadUsers(); return; }  // reload to revert the checkbox
+      showStatus('"' + user + '" is ' + (on ? 'now independent of its creator’s scope.' : 'back under its creator’s scope ceiling.'));
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); loadUsers(); });
 }
 
 function deleteUser(user) {
