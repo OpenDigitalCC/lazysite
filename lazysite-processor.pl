@@ -690,6 +690,38 @@ sub _is_manager {
     return 0;
 }
 
+# login-loop fix: an authenticated account without the `ui` capability that
+# reaches /manager/ gets this terminal 403 - a clear explanation instead of a
+# redirect back to /login (which, seeing the valid session, would loop). Names
+# the likely cause (an API/MCP-only account) and the remedy (the connector, or an
+# operator granting `ui`). Self-contained so it renders even if a layout/theme is
+# broken.
+sub _serve_manager_forbidden {
+    my ( $sv, $auth_user ) = @_;
+    my $manager_path = $sv->{manager_path} || '/manager';
+    my $site         = _esc_html( $sv->{site_name} // 'this site' );
+    my $who          = _esc_html($auth_user);
+    $ACCESS_REC{s} //= 403;    # SM140
+    binmode( STDOUT, ':utf8' );
+    print "Status: 403 Forbidden\r\n";
+    print "Content-Type: text/html; charset=utf-8\r\n\r\n";
+    print <<"HTML";
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Manager access not permitted</title></head>
+<body style="font-family:system-ui,sans-serif;max-width:520px;margin:3em auto;padding:0 1em;line-height:1.5;">
+<h1 style="font-size:1.3rem;">Manager access not permitted</h1>
+<p>You are signed in to $site as <strong>$who</strong>, but this account is not
+permitted to use the manager interface.</p>
+<p>This is normal for an API / MCP account: connect your AI assistant through the
+<em>connector</em> rather than the browser manager.</p>
+<p>If you should have manager access, ask an operator to grant your group the
+<strong>ui</strong> capability on the Groups page. You can
+<a href="/logout">sign out</a> in the meantime.</p>
+</body></html>
+HTML
+    return;
+}
+
 sub serve_403 {
     my ($auth_result) = @_;
     my $md_path = _system_page_md('403') // "$DOCROOT/403.md";          # SM201 fallback
@@ -1007,19 +1039,27 @@ sub handle_manager_path {
     my $auth_groups = $ENV{HTTP_X_REMOTE_GROUPS} // '';
 
     unless ( _is_manager( \%sv, $auth_user, $auth_groups ) ) {
+        # An AUTHENTICATED account that lacks the `ui` capability (an MCP/API-only
+        # account, or one whose groups were changed to drop manager access) must
+        # NOT be redirected to /login: /login sees the still-valid session and
+        # bounces straight back here - the login LOOP the field hit after an
+        # account was moved into the mcp group. Serve a clear terminal message
+        # naming the cause instead of looping. (SM127 separation is working; this
+        # is the missing UX for it.)
+        if ( $auth_user ne '' ) {
+            _serve_manager_forbidden( \%sv, $auth_user );
+            return 1;
+        }
+        # UNAUTHENTICATED (a stale/invalid session - e.g. the cookie-signing secret
+        # changed, or the session was revoked): clear the JS lzs_session marker so
+        # /login shows the sign-in form instead of a marker-driven "you are already
+        # signed in" screen that would itself trap a loop (SM188), then send them
+        # to the login form.
         my $redirect = $sv{auth_redirect} || '/login';
         binmode( STDOUT, ':utf8' );
         print "Status: 302 Found\r\n";
-        # SM188: when the user is NOT authenticated (a stale/invalid session -
-        # e.g. the cookie-signing secret changed, or the session was revoked),
-        # clear the JS lzs_session marker so /login shows the sign-in form instead
-        # of a marker-driven "you are already signed in" screen that hides the
-        # form and traps them in a redirect loop. An AUTHENTICATED non-manager
-        # keeps their marker - they are legitimately signed in, just not an admin.
-        if ( $auth_user eq '' ) {
-            print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0"
-                . ( $ENV{HTTPS} ? "; Secure" : "" ) . "\r\n";
-        }
+        print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0"
+            . ( $ENV{HTTPS} ? "; Secure" : "" ) . "\r\n";
         print "Location: $redirect?next=" . uri_encode($uri) . "\r\n\r\n";
         return 1;
     }
