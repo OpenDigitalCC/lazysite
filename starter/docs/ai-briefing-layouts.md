@@ -293,6 +293,7 @@ If `theme.json.layouts` does NOT contain the active layout:
 
 ## Related
 
+- [Integrations](/docs/integrations) - bring an external design into a site
 - [Layouts reference](/docs/features/configuration/layouts)
 - [Themes reference](/docs/features/configuration/themes)
 - [theme.json reference](/docs/features/configuration/theme-json)

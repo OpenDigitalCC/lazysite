@@ -16,8 +16,9 @@ site-building like generating a single web page.
 This is the "how to think about a lazysite site" briefing. For the mechanics see
 its siblings: [content authoring](/docs/ai-briefing-authoring),
 [layouts and themes](/docs/ai-briefing-layouts),
-[publishing over WebDAV / the control API](/docs/ai-briefing-publishing), and
-[configuration](/docs/ai-briefing-configuration).
+[publishing over WebDAV / the control API](/docs/ai-briefing-publishing),
+[configuration](/docs/ai-briefing-configuration), and - for importing an external
+design - [integrations / Figma](/docs/integrations/figma).
 
 ## The one principle: three layers that never touch
 
