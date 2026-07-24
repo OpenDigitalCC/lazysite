@@ -3,7 +3,7 @@ title: "SM202 - read_file refuses layout.tt as binary (text-extension allowlist 
 subtitle: "Template Toolkit templates (.tt) are plain text but absent from the editable-text allowlist, so read_file / git-show / git-restore refuse them as binary - which blocks the sanctioned copy-nearest-layout-then-adapt authoring workflow over the connector."
 brand: plain
 status: candidate
-status-note: "PROPOSED 2026-07-24, scoped from the theme-authoring / Figma design-transfer briefing (item 1). Audited: root cause confirmed as an extension-allowlist gap, NOT file corruption - all 23 shipped layout.tt files are clean UTF-8. Small, self-contained."
+status-note: "IMPLEMENTED on main 2026-07-24 (unreleased, 0.9.14 line); scoped from the theme-authoring / Figma design-transfer briefing (item 1). Audited: root cause confirmed as an extension-allowlist gap, NOT file corruption - all 23 shipped layout.tt files are clean UTF-8. Small, self-contained."
 ---
 
 # SM202 - read_file refuses layout.tt as binary (text-extension allowlist gap)

@@ -3,7 +3,7 @@ title: "SM204 - theme_tokens MCP tool (token-vocabulary discovery)"
 subtitle: "The first thing any restyling or theme-authoring task needs is the token vocabulary; today that means path-knowledge + read_file + mental CSS parsing. One read tool returns the parsed vocabulary and exemplar values."
 brand: plain
 status: candidate
-status-note: "PROPOSED 2026-07-24, scoped from the theme-authoring / Figma design-transfer briefing (item 3). Audited: registration checklist confirmed; reuses existing theme readers. Works standalone in a derived mode; richer once SM203 (declared tokens) lands. Highest-leverage single item for the design pipeline."
+status-note: "IMPLEMENTED on main 2026-07-24 (unreleased, 0.9.14 line); scoped from the theme-authoring / Figma design-transfer briefing (item 3). Audited: registration checklist confirmed; reuses existing theme readers. Works standalone in a derived mode; richer once SM203 (declared tokens) lands. Highest-leverage single item for the design pipeline."
 ---
 
 # SM204 - theme_tokens MCP tool (token-vocabulary discovery)
