@@ -16,6 +16,30 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.14 - EDGE: theme-authoring API + Figma design ingestion, operator features (2026-07-24)
+
+A large feature release on top of 0.9.13. No BREAKING change, no migration; beta
+and stable sites are unaffected until it promotes.
+
+- Theme authoring + Figma ingestion: theme_tokens (SM204) MCP read tool for token
+  vocabulary discovery; create_theme (SM205) MCP write tool - a validated one-call
+  theme scaffold + eager theme.json validation on the write_file path; SM203
+  optional layout.json tokens block + a non-fatal activation warning; SM206 layout
+  catalogue description/tags; SM202 read_file / history / WebDAV read layout.tt as
+  text; SM208 a /docs/integrations namespace + a Figma dual-MCP helper (registered
+  for llms.txt/sitemap, cross-linked, with a build-from-figma recipe).
+- Operator features: SM194 promote a sub-user to top level (operator-only clear of
+  managed_by) + a separate explicit scope_independent lift of the created_by
+  ceiling, with Users-page controls; SM199 content-history file list + revision
+  statistics (a git-history-summary action + a list_content_history MCP tool + a
+  Files-page History overview), rename-aware and leak-safe.
+- Manager + connector fixes: the discovery check accepts the dynamic
+  ${REQUEST_SCHEME}://${SERVER_NAME} site_url (ends the fleet-wide false not-https
+  warning); a passwordless / token-only account can be removed; an authenticated
+  no-ui account at /manager/ gets a clear terminal message instead of a login loop,
+  and the Users page warns before a group change removes an account's last
+  manager-access group.
+
 ## 0.9.13 - BETA: site integrity, capability clarity + connector reliability (2026-07-23)
 
 A broad reliability + clarity beta on top of 0.9.12. No BREAKING change, no

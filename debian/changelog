@@ -1,3 +1,21 @@
+lazysite (0.9.14-1) unstable; urgency=medium
+
+  * EDGE: theme-authoring API + Figma design ingestion + operator features on top
+    of 0.9.13. No BREAKING change, no migration; beta/stable sites unaffected until
+    promotion.
+  * Theme authoring + Figma: theme_tokens (SM204) + create_theme (SM205) MCP tools;
+    SM203 layout.json declared tokens + activation warning; SM206 catalogue
+    description/tags; SM202 layout.tt readable; SM208 /docs/integrations + Figma
+    dual-MCP helper.
+  * Operator: SM194 promote sub-user to top level + scope_independent (Users-page
+    controls); SM199 content-history file list + revision statistics
+    (git-history-summary + list_content_history + History overview panel).
+  * Fixes: dynamic ${REQUEST_SCHEME} site_url accepted by the discovery check;
+    passwordless account removable; no-ui manager access ends in a clear message,
+    not a loop; group-change disable-web-login warning.
+
+ -- OpenDigital <sjm@opendigital.cc>  Fri, 24 Jul 2026 09:42:24 +0100
+
 lazysite (0.9.13-1) unstable; urgency=medium
 
   * BETA: site integrity, capability clarity + connector reliability on top of
