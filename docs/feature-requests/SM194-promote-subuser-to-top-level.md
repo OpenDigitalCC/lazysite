@@ -2,8 +2,8 @@
 title: "SM194 - Promote a sub-user to top level"
 subtitle: "account-reassign can only move a user to another EXISTING parent, never to top level; a user who becomes independent is stuck under someone. Allow promotion - operator-only, and honest about the immutable created_by scope ceiling."
 brand: plain
-status: candidate
-status-note: "field request 2026-07-21. Cheap for the management tree (managed_by); the created_by scope ceiling is the deliberate conflict this write-up resolves."
+status: partial
+status-note: "field request 2026-07-21. Engine implemented on branch claude/edge-sm194 (2026-07-24); pending review + integration. All three parts landed as separate choices: (1) `account-promote USER` clears managed_by (stored as an explicit empty sentinel so _managed_by does not fall back to created_by); (2) operator-only - refused for any present --actor in the tool, and omitted from %DELEGABLE at the manager-api; (3) `account-scope-independent USER on|off` sets scope_independent, which resolve_user_scopes honours by stopping its created_by walk at that user (created_by itself never rewritten). CLI verbs + --api actions + audit events wired; tests t/unit/users/22-account-promote.t and t/unit/manager/51-account-promote-operator.t. REMAINING: the manager Users-page UI affordance (a Promote / Make-independent control) is deferred - API + tests are solid and the fields (top_level, scope_independent) are surfaced by effective_settings for the UI to consume."
 ---
 
 # SM194 - Promote a sub-user to top level

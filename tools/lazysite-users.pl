@@ -194,34 +194,36 @@ my %STORE_READONLY = map { $_ => 1 } qw(
 # t/unit/lib/16-audit-guarantee.t cross-checks the two - so a new command
 # cannot ship unclassified (and therefore unaudited by omission).
 our %CLI_AUDIT_ACTION = (
-    cmd_add                  => 'user-add',
-    cmd_passwd               => 'user-passwd',
-    cmd_remove               => 'user-remove',
-    cmd_rename               => 'user-rename',
-    cmd_group_add            => 'user-group-add',
-    cmd_group_remove         => 'user-group-remove',
-    cmd_set                  => 'user-settings-set',
-    cmd_token                => 'user-token',
-    cmd_setup_manager        => 'setup-manager',         # + a credential entry (see sub)
-    cmd_account_create       => 'user-account-create',
-    cmd_account_set_disabled => 'user-account-disable|user-account-enable',
-    cmd_account_reassign     => 'user-account-reassign',
-    cmd_pairing_key          => 'user-pairing-key',
-    cmd_token_exchange       => 'user-token-exchange',
-    cmd_token_rotate         => 'user-token-rotate',
-    cmd_claim_create         => 'user-claim-create',
-    cmd_claim_cancel         => 'user-claim-cancel',
-    cmd_claim_redeem         => 'user-claim-redeem',
-    cmd_mfa_enroll           => 'user-mfa-enroll',
-    cmd_mfa_disable          => 'user-mfa-disable',
-    cmd_mfa_confirm          => 'user-mfa-confirm',
-    cmd_group_settings_set   => 'user-group-settings-set',
-    cmd_group_create         => 'user-group-create',
-    cmd_group_delete         => 'user-group-delete',
-    cmd_group_nest           => 'user-group-nest',
-    cmd_partner_create       => 'user-partner-create',    # + a pairing-key entry
-    cmd_onboarding           => 'user-onboarding',
-    cmd_key_revoke           => 'user-key-revoke',
+    cmd_add            => 'user-add',
+    cmd_passwd         => 'user-passwd',
+    cmd_remove         => 'user-remove',
+    cmd_rename         => 'user-rename',
+    cmd_group_add      => 'user-group-add',
+    cmd_group_remove   => 'user-group-remove',
+    cmd_set            => 'user-settings-set',
+    cmd_token          => 'user-token',
+    cmd_setup_manager  => 'setup-manager',         # + a credential entry (see sub)
+    cmd_account_create => 'user-account-create',
+    cmd_account_set_disabled      => 'user-account-disable|user-account-enable',
+    cmd_account_reassign          => 'user-account-reassign',
+    cmd_account_promote           => 'user-account-promote',
+    cmd_account_scope_independent => 'user-account-scope-independent',
+    cmd_pairing_key               => 'user-pairing-key',
+    cmd_token_exchange            => 'user-token-exchange',
+    cmd_token_rotate              => 'user-token-rotate',
+    cmd_claim_create              => 'user-claim-create',
+    cmd_claim_cancel              => 'user-claim-cancel',
+    cmd_claim_redeem              => 'user-claim-redeem',
+    cmd_mfa_enroll                => 'user-mfa-enroll',
+    cmd_mfa_disable               => 'user-mfa-disable',
+    cmd_mfa_confirm               => 'user-mfa-confirm',
+    cmd_group_settings_set        => 'user-group-settings-set',
+    cmd_group_create              => 'user-group-create',
+    cmd_group_delete              => 'user-group-delete',
+    cmd_group_nest                => 'user-group-nest',
+    cmd_partner_create            => 'user-partner-create',    # + a pairing-key entry
+    cmd_onboarding                => 'user-onboarding',
+    cmd_key_revoke                => 'user-key-revoke',
 );
 our %CLI_NO_DIRECT_AUDIT = (
     # read-only commands
@@ -234,16 +236,18 @@ our %CLI_NO_DIRECT_AUDIT = (
     cmd_keys_list         => 'read-only',
     cmd_audit_registry    => 'read-only (audit introspection itself)',
     # thin CLI wrappers - the audited core command writes the entry
-    cmd_set_cli              => 'delegates to cmd_set',
-    cmd_group_set_cli        => 'delegates to cmd_group_settings_set',
-    cmd_brief_cli            => 'delegates to cmd_onboarding',
-    cmd_account_create_cli   => 'delegates to cmd_account_create',
-    cmd_account_disable_cli  => 'delegates to cmd_account_set_disabled',
-    cmd_account_enable_cli   => 'delegates to cmd_account_set_disabled',
-    cmd_account_reassign_cli => 'delegates to cmd_account_reassign',
-    cmd_claim_create_cli     => 'delegates to cmd_claim_create',
-    cmd_claim_redeem_cli     => 'delegates to cmd_claim_redeem',
-    cmd_partner_create_cli   => 'delegates to cmd_partner_create',
+    cmd_set_cli                       => 'delegates to cmd_set',
+    cmd_group_set_cli                 => 'delegates to cmd_group_settings_set',
+    cmd_brief_cli                     => 'delegates to cmd_onboarding',
+    cmd_account_create_cli            => 'delegates to cmd_account_create',
+    cmd_account_disable_cli           => 'delegates to cmd_account_set_disabled',
+    cmd_account_enable_cli            => 'delegates to cmd_account_set_disabled',
+    cmd_account_reassign_cli          => 'delegates to cmd_account_reassign',
+    cmd_account_promote_cli           => 'delegates to cmd_account_promote',
+    cmd_account_scope_independent_cli => 'delegates to cmd_account_scope_independent',
+    cmd_claim_create_cli              => 'delegates to cmd_claim_create',
+    cmd_claim_redeem_cli              => 'delegates to cmd_claim_redeem',
+    cmd_partner_create_cli            => 'delegates to cmd_partner_create',
     # verification / --api-only surfaces: the calling web surface audits
     cmd_verify_credential   => 'verification stamp; audited by the caller',
     cmd_partner_caps        => 'verification stamp; audited by the caller',
@@ -417,8 +421,13 @@ if ($API_MODE) {
             my $all = read_settings();
             my %child;    # parent => [ children ]
             for my $u ( keys %$all ) {
-                my $p = $all->{$u}{managed_by};
-                $p = $all->{$u}{created_by} unless defined $p && length $p;
+                # SM194: an EXPLICIT empty managed_by means top-level (promoted) -
+                # honour it as "no parent" rather than falling back to created_by,
+                # so a promoted account is not shown under its old creator's tree.
+                my $p =
+                    exists $all->{$u}{managed_by}
+                    ? $all->{$u}{managed_by}
+                    : $all->{$u}{created_by};
                 push @{ $child{$p} }, $u if defined $p && length $p && $p ne $u;
             }
             my %seen  = ( $who => 1 );
@@ -457,6 +466,15 @@ if ($API_MODE) {
             cmd_account_reassign( $req->{username}, $req->{to},
                 actor => $req->{actor} );
             $result = { ok => 1, message => "Account reassigned" };
+        }
+        elsif ( $action eq 'account-promote' ) {
+            cmd_account_promote( $req->{username}, actor => $req->{actor} );
+            $result = { ok => 1, message => "Account promoted to top level" };
+        }
+        elsif ( $action eq 'account-scope-independent' ) {
+            cmd_account_scope_independent( $req->{username},
+                ( $req->{value} ? 1 : 0 ), actor => $req->{actor} );
+            $result = { ok => 1, message => "Scope independence updated" };
         }
         elsif ( $action eq 'pairing-key' ) {
             my $key = cmd_pairing_key( $req->{username} );
@@ -564,35 +582,37 @@ my $cmd = shift @args // '';
 my $cli_store_lk;
 $cli_store_lk = _consume_lock() unless $STORE_READONLY{$cmd};
 
-if    ( $cmd eq 'add' )              { cmd_add(@args) }
-elsif ( $cmd eq 'passwd' )           { cmd_passwd(@args) }
-elsif ( $cmd eq 'remove' )           { cmd_remove(@args) }
-elsif ( $cmd eq 'rename' )           { cmd_rename(@args) }
-elsif ( $cmd eq 'list' )             { cmd_list() }
-elsif ( $cmd eq 'group-add' )        { cmd_group_add(@args) }
-elsif ( $cmd eq 'group-nest' )       { cmd_group_nest(@args) }
-elsif ( $cmd eq 'group-remove' )     { cmd_group_remove(@args) }
-elsif ( $cmd eq 'group-set' )        { cmd_group_set_cli(@args) }
-elsif ( $cmd eq 'groups' )           { cmd_groups() }
-elsif ( $cmd eq 'setup-manager' )    { cmd_setup_manager(@args) }
-elsif ( $cmd eq 'settings' )         { cmd_settings(@args) }
-elsif ( $cmd eq 'set' )              { cmd_set_cli(@args) }
-elsif ( $cmd eq 'token' )            { cmd_token(@args) }
-elsif ( $cmd eq 'brief' )            { cmd_brief_cli(@args) }
-elsif ( $cmd eq 'account-create' )   { cmd_account_create_cli(@args) }
-elsif ( $cmd eq 'account-disable' )  { cmd_account_disable_cli(@args) }
-elsif ( $cmd eq 'account-enable' )   { cmd_account_enable_cli(@args) }
-elsif ( $cmd eq 'account-reassign' ) { cmd_account_reassign_cli(@args) }
-elsif ( $cmd eq 'pairing-key' )      { cmd_pairing_key(@args) }
-elsif ( $cmd eq 'token-exchange' )   { cmd_token_exchange(@args) }
-elsif ( $cmd eq 'token-rotate' )     { cmd_token_rotate(@args) }
-elsif ( $cmd eq 'claim-create' )     { cmd_claim_create_cli(@args) }
-elsif ( $cmd eq 'claim-redeem' )     { cmd_claim_redeem_cli(@args) }
-elsif ( $cmd eq 'mfa-enroll' )       { cmd_mfa_enroll(@args) }
-elsif ( $cmd eq 'mfa-disable' )      { cmd_mfa_disable(@args) }
-elsif ( $cmd eq 'partner-create' )   { cmd_partner_create_cli(@args) }
-elsif ( $cmd eq 'permissions' )      { cmd_permissions_cli(@args) }
-elsif ( $cmd eq 'audit-registry' )   { cmd_audit_registry() }
+if    ( $cmd eq 'add' )                       { cmd_add(@args) }
+elsif ( $cmd eq 'passwd' )                    { cmd_passwd(@args) }
+elsif ( $cmd eq 'remove' )                    { cmd_remove(@args) }
+elsif ( $cmd eq 'rename' )                    { cmd_rename(@args) }
+elsif ( $cmd eq 'list' )                      { cmd_list() }
+elsif ( $cmd eq 'group-add' )                 { cmd_group_add(@args) }
+elsif ( $cmd eq 'group-nest' )                { cmd_group_nest(@args) }
+elsif ( $cmd eq 'group-remove' )              { cmd_group_remove(@args) }
+elsif ( $cmd eq 'group-set' )                 { cmd_group_set_cli(@args) }
+elsif ( $cmd eq 'groups' )                    { cmd_groups() }
+elsif ( $cmd eq 'setup-manager' )             { cmd_setup_manager(@args) }
+elsif ( $cmd eq 'settings' )                  { cmd_settings(@args) }
+elsif ( $cmd eq 'set' )                       { cmd_set_cli(@args) }
+elsif ( $cmd eq 'token' )                     { cmd_token(@args) }
+elsif ( $cmd eq 'brief' )                     { cmd_brief_cli(@args) }
+elsif ( $cmd eq 'account-create' )            { cmd_account_create_cli(@args) }
+elsif ( $cmd eq 'account-disable' )           { cmd_account_disable_cli(@args) }
+elsif ( $cmd eq 'account-enable' )            { cmd_account_enable_cli(@args) }
+elsif ( $cmd eq 'account-reassign' )          { cmd_account_reassign_cli(@args) }
+elsif ( $cmd eq 'account-promote' )           { cmd_account_promote_cli(@args) }
+elsif ( $cmd eq 'account-scope-independent' ) { cmd_account_scope_independent_cli(@args) }
+elsif ( $cmd eq 'pairing-key' )               { cmd_pairing_key(@args) }
+elsif ( $cmd eq 'token-exchange' )            { cmd_token_exchange(@args) }
+elsif ( $cmd eq 'token-rotate' )              { cmd_token_rotate(@args) }
+elsif ( $cmd eq 'claim-create' )              { cmd_claim_create_cli(@args) }
+elsif ( $cmd eq 'claim-redeem' )              { cmd_claim_redeem_cli(@args) }
+elsif ( $cmd eq 'mfa-enroll' )                { cmd_mfa_enroll(@args) }
+elsif ( $cmd eq 'mfa-disable' )               { cmd_mfa_disable(@args) }
+elsif ( $cmd eq 'partner-create' )            { cmd_partner_create_cli(@args) }
+elsif ( $cmd eq 'permissions' )               { cmd_permissions_cli(@args) }
+elsif ( $cmd eq 'audit-registry' )            { cmd_audit_registry() }
 else {
     print STDERR "Unknown command: $cmd\n\n" if $cmd;
     usage();
@@ -1014,6 +1034,10 @@ sub effective_settings {
         created_by => $s->{created_by},
         created_at => $s->{created_at},
         managed_by => ( defined $s->{managed_by} ? $s->{managed_by} : $s->{created_by} ),
+        # SM194: top-level-managed (managed_by cleared) and scope-emancipated
+        # (created_by ceiling lifted) - two distinct operator decisions.
+        top_level => ( defined $s->{managed_by} && length $s->{managed_by} ) ? JSON::PP::false() : JSON::PP::true(),
+        scope_independent => $s->{scope_independent} ? JSON::PP::true() : JSON::PP::false(),
         create_sub_users => $caps->{create_sub_users} ? JSON::PP::true() : JSON::PP::false(),
         delegate_sub_user_creation => $caps->{delegate_sub_user_creation} ? JSON::PP::true() : JSON::PP::false(),
         disabled       => $s->{disabled}          ? JSON::PP::true() : JSON::PP::false(),
@@ -1372,6 +1396,69 @@ sub cmd_account_reassign {
     print "Reassigned '$user' to '$new_parent'.\n" unless $API_MODE;
 }
 
+# SM194: promote an account to TOP LEVEL of the management tree - clear
+# managed_by so it is independently managed (a member who leaves a team). The
+# sub-tree follows, as it does for reassign. OPERATOR-ONLY: unlike reassign
+# (which _authorise_manage confines to the actor's own sub-tree), promotion is
+# refused for any actor - a mid-tree delegate promoting their own child out from
+# under themselves would defeat the confinement spine. The manager-api injects
+# actor=$auth_user only for a NON-operator caller, so a present actor here means
+# "delegate" and is refused; an operator / direct CLI passes no actor.
+#
+# Promotion is management provenance ONLY: it does NOT lift the created_by scope
+# ceiling (resolve_user_scopes walks created_by, not managed_by). Scope
+# emancipation is the separate account-scope-independent verb below.
+sub cmd_account_promote {
+    my ( $user, %opt ) = @_;    # opt: actor
+    die "Username required\n" unless defined $user && length $user;
+    die "Not authorised: promotion to top level requires a full operator "
+        . "(manage_users)\n"
+        if defined $opt{actor} && length $opt{actor};
+
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+
+    my $all = read_settings();
+    $all->{$user} ||= {};
+    # An EXPLICIT empty managed_by (not delete) means "top level". _managed_by
+    # keys on `defined`, so an absent managed_by falls back to created_by (the
+    # SM071 default) - deleting would wrongly re-parent a promoted sub-user under
+    # its creator. Empty-but-present roots it at no parent; created_by untouched.
+    $all->{$user}{managed_by} = '';
+    write_settings($all);
+    log_event( 'INFO', $user, 'account promoted to top level' );
+    cli_audit( 'user-account-promote', $user, 'to top level' );
+    print "Promoted '$user' to top level.\n" unless $API_MODE;
+}
+
+# SM194: scope emancipation - an explicit, operator-audited toggle that lifts the
+# created_by scope ceiling for an account (resolve_user_scopes stops its
+# created_by walk at a scope_independent user). Deliberately DISTINCT from
+# promotion: management provenance and reachable scope stay two decisions.
+# created_by itself is NEVER rewritten (immutable audit provenance). OPERATOR-
+# ONLY, same rationale and mechanism as promotion.
+sub cmd_account_scope_independent {
+    my ( $user, $on, %opt ) = @_;    # opt: actor
+    die "Username required\n" unless defined $user && length $user;
+    die "Not authorised: scope emancipation requires a full operator "
+        . "(manage_users)\n"
+        if defined $opt{actor} && length $opt{actor};
+
+    my %users = read_users();
+    die "User '$user' not found\n" unless exists $users{$user};
+
+    my $all = read_settings();
+    $all->{$user} ||= {};
+    if ($on) { $all->{$user}{scope_independent} = JSON::PP::true() }
+    else     { delete $all->{$user}{scope_independent} }
+    write_settings($all);
+    log_event( 'INFO', $user,
+        $on ? 'scope emancipated from creator' : 'scope ceiling reinstated' );
+    cli_audit( 'user-account-scope-independent', $user, $on ? 'on' : 'off' );
+    print( ( $on ? "Emancipated" : "Re-confined" ) . " scope for '$user'.\n" )
+        unless $API_MODE;
+}
+
 # CLI wrappers: pull --actor / --cascade / --to out of positional args.
 sub cmd_account_disable_cli {
     my ( @pos, $actor, $cascade );
@@ -1407,6 +1494,29 @@ sub cmd_account_reassign_cli {
         else                      { push @pos, $x }
     }
     cmd_account_reassign( $pos[0], $to, actor => $actor );
+}
+
+sub cmd_account_promote_cli {
+    my ( @pos, $actor );
+    my @a = @_;
+    while (@a) {
+        my $x = shift @a;
+        if ( $x eq '--actor' ) { $actor = shift @a }
+        else                   { push @pos, $x }
+    }
+    cmd_account_promote( $pos[0], actor => $actor );
+}
+
+sub cmd_account_scope_independent_cli {
+    my ( @pos, $actor );
+    my @a = @_;
+    while (@a) {
+        my $x = shift @a;
+        if ( $x eq '--actor' ) { $actor = shift @a }
+        else                   { push @pos, $x }
+    }
+    my $on = parse_onoff( defined $pos[1] ? $pos[1] : 'on' );
+    cmd_account_scope_independent( $pos[0], $on, actor => $actor );
 }
 
 # SM071 Phase 2: token lifecycle (model A).
@@ -3042,6 +3152,17 @@ Commands:
                               Move USER (and its sub-tree) to a new parent.
                               --actor restricts to the actor's own sub-tree
                               (omit for unrestricted operator use).
+  account-promote USER        Promote USER to TOP LEVEL of the management tree
+                              (clear managed_by; the sub-tree follows).
+                              OPERATOR-ONLY: refused if --actor is given.
+                              Does NOT lift the created_by scope ceiling - use
+                              account-scope-independent for that.
+  account-scope-independent USER [on|off]
+                              Lift (on) or reinstate (off) the created_by scope
+                              ceiling for USER, so resolve_user_scopes stops
+                              walking created_by at USER. OPERATOR-ONLY. A
+                              distinct, audited decision from promotion;
+                              created_by (provenance) is never rewritten.
 
 Options:
   --docroot PATH              Path to web document root (required)

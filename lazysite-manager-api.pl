@@ -2592,6 +2592,11 @@ sub action_users {
             # top-level add - require full manage_users, or a delegate could add
             # itself to an admin group / reset another account. Operators and
             # 'local' bypass. passwd is now actor-confined (below + in the tool).
+            # SM194: account-promote (managed_by clear) and
+            # account-scope-independent (created_by ceiling lift) are OPERATOR-
+            # ONLY by omission from %DELEGABLE - a delegate promoting its own
+            # child out from under itself would defeat confinement. The tool
+            # refuses them for any present actor too (defence in depth).
             if ( $auth_user ne 'local' && !_is_operator() && !_user_manage_users($auth_user) ) {
                 my %DELEGABLE = map { $_ => 1 } qw(
                     account-create account-disable account-enable account-reassign

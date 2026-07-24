@@ -82,6 +82,16 @@ sub effective_groups { return _effective_groups(@_) }
 # resolve time so config drift cannot lift the ceiling). Cycle-guarded. Returns
 # the scope list; empty = unconfined, a DENY_ALL_SCOPE element = confined to
 # nothing.
+#
+# SM194 (scope emancipation): an operator may set `scope_independent: 1` on an
+# account to genuinely unconfine it from its CREATOR. Management promotion
+# (managed_by = none) alone does NOT do this - the walk below follows created_by,
+# not managed_by, so a promoted user stays scope-capped by whoever created them
+# (the deliberate confinement spine). When the flag is set, the created_by walk
+# STOPS at that user: their own domain scope stands, uncapped by ancestors. The
+# flag is honoured on the STARTING user only - it is that account's emancipation,
+# a distinct operator-audited decision; created_by itself is never rewritten
+# (immutable provenance; audit integrity depends on it).
 sub resolve_user_scopes {
     my ( $docroot, $user ) = @_;
     require Lazysite::Auth::DomainAccess;
@@ -90,7 +100,8 @@ sub resolve_user_scopes {
         $domains, $user, [ _effective_groups($user) ] );
     my $all  = read_settings();
     my %seen = ( defined $user ? ( $user => 1 ) : () );
-    my $anc  = ( $all->{ $user // '' } || {} )->{created_by};
+    my $self = $all->{ $user // '' } || {};
+    my $anc  = $self->{scope_independent} ? undef : $self->{created_by};
     while ( defined $anc && length $anc && !$seen{$anc}++ ) {
         my @as = Lazysite::Auth::DomainAccess::effective_scopes(
             $domains, $anc, [ _effective_groups($anc) ] );
