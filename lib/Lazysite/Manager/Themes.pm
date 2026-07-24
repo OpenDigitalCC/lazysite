@@ -28,6 +28,8 @@ use Exporter 'import';
 our @EXPORT_OK = qw(
     action_theme_list action_themes_list_all action_theme_activate
     action_theme_tokens
+    _layout_declared_tokens _theme_config_tokens _token_mismatch
+    _token_warning_list
     action_layout_activate action_theme_delete action_theme_rename
     action_theme_upload action_cache_list action_cache_invalidate
     _read_active_layout_and_theme _install_theme_from_dir
@@ -182,6 +184,76 @@ sub _theme_config_tokens {
     return \%tokens;
 }
 
+# SM203: the declared token vocabulary of a layout as GROUP -> { key => 1 }.
+# Reads the OPTIONAL `tokens` block of layout.json (via _read_layout_json).
+# Returns an empty hash when the block is absent - callers treat "no declared
+# block" as "nothing to compare against" and skip the coverage check.
+sub _layout_declared_tokens {
+    my ($layout) = @_;
+    my $ljson    = _read_layout_json($layout);
+    my $decl     = ( ref $ljson eq 'HASH' ) ? $ljson->{tokens} : undef;
+    my %declared;
+    return \%declared unless ref $decl eq 'HASH';
+    for my $group ( sort keys %{$decl} ) {
+        my $keys = $decl->{$group};
+        my @list =
+            ( ref $keys eq 'ARRAY' )  ? @{$keys}
+            : ( ref $keys eq 'HASH' ) ? ( sort keys %{$keys} )
+            :                           ();
+        $declared{$group} = { map { $_ => 1 } @list };
+    }
+    return \%declared;
+}
+
+# SM203/SM205: compare a layout's declared token vocabulary against a theme's
+# supplied config. Returns undef when the layout declares no `tokens` block (the
+# check is skipped); otherwise a hashref with:
+#   declared => 1
+#   missing  => [ "group.key", ... ]  # declared but the config omits them
+#   extra    => [ "group.key", ... ]  # config supplies them, undeclared
+# Warn-only by contract; never used to reject.
+sub _token_mismatch {
+    my ( $declared, $supplied ) = @_;
+    return undef unless ref $declared eq 'HASH' && %{$declared};
+    $supplied ||= {};
+    my ( @missing, @extra );
+    for my $group ( sort keys %{$declared} ) {
+        for my $key ( sort keys %{ $declared->{$group} } ) {
+            push @missing, "$group.$key"
+                unless ref $supplied->{$group} eq 'HASH'
+                && exists $supplied->{$group}{$key};
+        }
+    }
+    for my $group ( sort keys %{$supplied} ) {
+        next unless ref $supplied->{$group} eq 'HASH';
+        for my $key ( sort keys %{ $supplied->{$group} } ) {
+            push @extra, "$group.$key" unless $declared->{$group}{$key};
+        }
+    }
+    return { declared => 1, missing => \@missing, extra => \@extra };
+}
+
+# SM203: mismatch between a layout's declared tokens and an ON-DISK theme's
+# config (used at activation). Returns undef when there is no declared block.
+sub _declared_token_mismatch {
+    my ( $layout, $theme ) = @_;
+    my $declared = _layout_declared_tokens($layout);
+    return undef unless %{$declared};
+    my $td = _read_theme_json( $layout, $theme );
+    return _token_mismatch( $declared, _theme_config_tokens($td) );
+}
+
+# SM203/SM205: render a mismatch hashref as a flat list of human-readable
+# warning strings for the action's return payload.
+sub _token_warning_list {
+    my ($tw) = @_;
+    my @w;
+    push @w, "theme omits declared token '$_' (layout CSS fallback applies)"
+        for @{ $tw->{missing} };
+    push @w, "config supplies undeclared token '$_'" for @{ $tw->{extra} };
+    return \@w;
+}
+
 # SM204 (feature theme_tokens): token-vocabulary discovery. A READ tool
 # (manage_themes, not audited). Resolves a (layout, theme) pair, then returns
 # the theme's config as the token vocabulary plus exemplar values.
@@ -307,7 +379,24 @@ sub action_theme_activate {
             _prune_backups( $themes_dir, $old_theme );
         }
         my $res = _set_theme_pointer($theme_name);
-        _mirror_theme_assets( $active_layout, $theme_name ) if $res->{ok};
+        if ( $res->{ok} ) {
+            _mirror_theme_assets( $active_layout, $theme_name );
+            # SM203: warn (never reject) when the just-activated theme does not
+            # match the layout's declared token vocabulary. The layout.json
+            # `tokens` block is OPTIONAL; the check is skipped entirely when it
+            # is absent. The fallback chain (var(--theme-*, <fallback>)) makes a
+            # mismatch survivable by design, so this is documentation-grade
+            # signal only.
+            my $tw = _declared_token_mismatch( $active_layout, $theme_name );
+            if ( $tw && ( @{ $tw->{missing} } || @{ $tw->{extra} } ) ) {
+                log_event( 'WARN', 'theme-activate', 'declared token mismatch',
+                    layout     => $active_layout,
+                    theme      => $theme_name,
+                    missing    => join( ',', @{ $tw->{missing} } ),
+                    undeclared => join( ',', @{ $tw->{extra} } ) );
+                $res->{token_warnings} = _token_warning_list($tw);
+            }
+        }
         return $res;
     };
     my $err = $@;
