@@ -82,6 +82,7 @@ groups from each user's card below.
 var API = '/cgi-bin/lazysite-manager-api.pl';
 var DAV_BASE = location.origin + '/dav';
 var allGroups = {};   // {group: [members]}
+var uiGroups  = {};   // {group: true} - groups that grant the `ui` (manager) capability
 var allUsers  = [];   // [username]
 var groupLabels = {}; // {group: description-or-label} - for the add-user picker
 var parentList = [];  // [username] - accounts that can own sub-users (create_sub_users)
@@ -146,9 +147,13 @@ function loadUsers() {
     if (d.partner || d.me) ME = d.partner || d.me;
     // Groups: {group: members}, plus the add-user picker's purpose labels.
     var g = {};
+    uiGroups = {};
     if (d.groups) Object.keys(d.groups).forEach(function(name) {
       var info = d.groups[name] || {};
       g[name] = info.members || [];
+      // Track which groups grant `ui` (manager/web-login access) so a group
+      // change that would remove an account's last one can warn before it commits.
+      if (info.caps && info.caps.ui) uiGroups[name] = true;
       groupLabels[name] = info.description
         || (info.label && info.label !== name ? info.label : '');
     });
@@ -667,6 +672,25 @@ function setUserType(user, value) {
 
 function toggleGroup(user, group, el) {
   var checked = el.checked;
+
+  // Proactive warning: removing an account from its LAST `ui`-granting group
+  // takes away its manager interface / web login - it will only be reachable via
+  // the API/MCP connector, and a browser sign-in lands on the "not permitted"
+  // page. Confirm before committing a change that disables web login.
+  if (!checked && uiGroups[group]) {
+    var keepsUi = Object.keys(uiGroups).some(function(gg) {
+      if (gg === group) return false;
+      return (allGroups[gg] || []).indexOf(user) !== -1;
+    });
+    if (!keepsUi) {
+      var go = window.confirm('Removing "' + user + '" from "' + group +
+        '" will disable their manager interface (web login): "' + group +
+        '" is their only group with Manager UI access. They will still be able to '
+        + 'connect via the API / MCP connector. Continue?');
+      if (!go) { el.checked = true; return; }   // operator cancelled - revert, no change
+    }
+  }
+
   var act = checked ? 'group-add' : 'group-remove';
   apiCall({ action: act, username: user, group: group })
     .then(function(d) {

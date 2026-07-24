@@ -104,6 +104,15 @@ sub api {
     my $editors = $page->{groups}{editors} || {};
     ok( ( grep { $_ eq 'bob' } @{ $editors->{members} || [] } ),
         'users-page groups.editors.members includes the just-added member (UI reads this)' );
+
+    # The Users page warns before a group change removes an account's last
+    # `ui`-granting group (its manager/web-login access), so the payload must
+    # expose each group's caps.ui. Lock that contract here.
+    ok( exists $editors->{caps} && exists $editors->{caps}{ui},
+        'users-page groups.<g>.caps.ui is present (drives the disable-web-login warning)' );
+    api( { action => 'group-settings-set', group => 'editors', key => 'ui', value => 'on' } );
+    my $withui = ( api( { action => 'users-page' } )->{groups}{editors} || {} )->{caps} || {};
+    ok( $withui->{ui}, 'a group granted ui reports caps.ui true in users-page' );
 }
 
 # --- remove via API ---
