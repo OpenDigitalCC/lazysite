@@ -27,6 +27,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(
     action_theme_list action_themes_list_all action_theme_activate
+    action_theme_tokens
     action_layout_activate action_theme_delete action_theme_rename
     action_theme_upload action_cache_list action_cache_invalidate
     _read_active_layout_and_theme _install_theme_from_dir
@@ -127,6 +128,144 @@ sub action_themes_list_all {
         active        => $active_theme,
         active_layout => $active_layout,
     };
+}
+
+# SM204: read a layout.json under a given layout and return its decoded hash
+# (or {} if absent/unparseable). Used by the token-vocabulary tool to read
+# default_theme and the optional (SM203) declared `tokens` block.
+sub _read_layout_json {
+    my ($layout) = @_;
+    return {} unless defined $layout && $layout =~ /^[A-Za-z0-9_-]+$/;
+    open my $jf, '<:utf8', "$LAZYSITE_DIR/layouts/$layout/layout.json"
+        or return {};
+    my $raw = do { local $/; <$jf> };
+    close $jf;
+    my $meta = eval { decode_json($raw) };
+    return ( ref $meta eq 'HASH' ) ? $meta : {};
+}
+
+# SM204: decode a theme's theme.json under a layout. Returns the parsed hash or
+# undef when the theme is missing / unnamed / unparseable.
+sub _read_theme_json {
+    my ( $layout, $theme ) = @_;
+    return undef
+        unless defined $layout
+        && $layout =~ /^[A-Za-z0-9_-]+$/
+        && defined $theme
+        && $theme =~ /^[A-Za-z0-9_-]+$/;
+    my $path = "$LAZYSITE_DIR/layouts/$layout/themes/$theme/theme.json";
+    open my $jf, '<:utf8', $path or return undef;
+    my $raw = do { local $/; <$jf> };
+    close $jf;
+    my $meta = eval { decode_json($raw) };
+    return ( ref $meta eq 'HASH' ) ? $meta : undef;
+}
+
+# SM204: the config (GROUP->KEY->value) map of a theme.json, keeping only
+# scalar leaf values (mirrors generate_theme_css: nested objects under a group
+# key are a shape error and skipped).
+sub _theme_config_tokens {
+    my ($theme_data) = @_;
+    my %tokens;
+    my $config = ( ref $theme_data eq 'HASH' ) ? $theme_data->{config} : undef;
+    return \%tokens unless ref $config eq 'HASH';
+    for my $group ( sort keys %{$config} ) {
+        next unless ref $config->{$group} eq 'HASH';
+        my %kv;
+        for my $key ( sort keys %{ $config->{$group} } ) {
+            my $val = $config->{$group}{$key};
+            next if ref $val;
+            $kv{$key} = $val;
+        }
+        $tokens{$group} = \%kv;
+    }
+    return \%tokens;
+}
+
+# SM204 (feature theme_tokens): token-vocabulary discovery. A READ tool
+# (manage_themes, not audited). Resolves a (layout, theme) pair, then returns
+# the theme's config as the token vocabulary plus exemplar values.
+#
+#   theme given  -> that theme's config (under its layout, else the active one)
+#   layout only  -> the layout's declared `tokens` block (SM203, if present)
+#                   PLUS its default theme's config as exemplar values; when no
+#                   block is declared the vocabulary is DERIVED from that config
+#                   (derived => 1).
+#   neither      -> the active layout + active theme.
+sub action_theme_tokens {
+    my ($params) = @_;
+    $params ||= {};
+
+    my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
+
+    my $req_layout = $params->{layout};
+    my $req_theme  = $params->{theme};
+    $req_layout = undef unless defined $req_layout && length $req_layout;
+    $req_theme  = undef unless defined $req_theme  && length $req_theme;
+
+    for my $v ( $req_layout, $req_theme ) {
+        next unless defined $v;
+        return { ok => 0, error => 'Invalid layout/theme name.' }
+            unless $v =~ /^[A-Za-z0-9_-]+$/;
+    }
+
+    # Explicit theme wins: report that theme's own config verbatim.
+    if ( defined $req_theme ) {
+        my $layout = defined $req_layout ? $req_layout : $active_layout;
+        return { ok => 0, error => 'No layout to resolve the theme under.' }
+            unless length $layout;
+        my $td = _read_theme_json( $layout, $req_theme );
+        return { ok => 0, error => "No such theme: $req_theme (layout $layout)." }
+            unless $td;
+        return {
+            ok      => 1,
+            layout  => $layout,
+            theme   => $req_theme,
+            derived => JSON::PP::false,
+            tokens  => _theme_config_tokens($td),
+        };
+    }
+
+    # Layout-scoped (or the active pair): resolve the exemplar theme.
+    my $layout = defined $req_layout ? $req_layout : $active_layout;
+    return { ok => 0, error => 'No layout is active or named.' }
+        unless length $layout;
+
+    my $ljson = _read_layout_json($layout);
+
+    # The exemplar theme: the active theme when it is THIS layout's, else the
+    # layout's declared default_theme.
+    my $exemplar =
+        ( $layout eq $active_layout && length $active_theme )
+        ? $active_theme
+        : ( $ljson->{default_theme} // '' );
+    $exemplar = '' unless $exemplar =~ /^[A-Za-z0-9_-]+$/;
+
+    my $td            = length $exemplar ? _read_theme_json( $layout, $exemplar ) : undef;
+    my $config_tokens = _theme_config_tokens($td);
+
+    # SM203 declared `tokens` block (GROUP -> [keys]); optional and may be absent.
+    my %declared;
+    my $decl = $ljson->{tokens};
+    if ( ref $decl eq 'HASH' ) {
+        for my $group ( sort keys %{$decl} ) {
+            my $keys = $decl->{$group};
+            $declared{$group} =
+                ( ref $keys eq 'ARRAY' )  ? [ @{$keys} ]
+                : ( ref $keys eq 'HASH' ) ? [ sort keys %{$keys} ]
+                :                           [];
+        }
+    }
+
+    my %out = (
+        ok      => 1,
+        layout  => $layout,
+        theme   => $exemplar,
+        derived => ( %declared ? JSON::PP::false : JSON::PP::true ),
+        tokens  => $config_tokens,
+    );
+    $out{declared} = \%declared if %declared;
+    return \%out;
 }
 
 sub action_theme_activate {

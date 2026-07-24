@@ -36,7 +36,8 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     action_move action_acl_get action_acl_set action_acl_remove
     action_git_history action_git_show action_git_restore);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
-    action_cache_invalidate _read_active_layout_and_theme action_themes_list_all);
+    action_cache_invalidate _read_active_layout_and_theme action_themes_list_all
+    action_theme_tokens);
 use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
 use Lazysite::Manager::Domains     ();
@@ -506,6 +507,23 @@ my %TOOLS = (
         cap => 'manage_themes',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { action_themes_list_all() },
+    },
+    theme_tokens => {
+        description => 'Discover a layout or theme\'s design-token vocabulary WITHOUT activating anything: give theme for that theme\'s parsed config (group->key->value); give layout for its declared token block (if any) plus its default theme\'s config as exemplar values (derived:true when nothing is declared); give neither for the active layout+theme.',
+        cap         => 'manage_themes',
+        inputSchema => { type => 'object',
+            properties => {
+                theme => { type => 'string', description => 'theme name (resolved under its layout, or the active one)' },
+                layout => { type => 'string', description => 'layout name; without theme, returns its token vocabulary + exemplar values' },
+            },
+            additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            my %p;
+            $p{theme}  = $a->{theme}  if defined $a->{theme};
+            $p{layout} = $a->{layout} if defined $a->{layout};
+            action_theme_tokens( \%p );
+        },
     },
     activate_theme => {
         description => 'Activate a theme for the current layout (clears the HTML cache).',
@@ -1494,6 +1512,7 @@ my %ANNOTATE = (
     delete_file           => [ 0, 1, 1 ],
     set_permissions       => [ 0, 0, 0 ],
     list_themes           => [ 1, 0, 0 ],
+    theme_tokens          => [ 1, 0, 0 ],
     activate_theme        => [ 0, 0, 1 ],
     activate_layout       => [ 0, 0, 1 ],
     list_layout_catalogue => [ 1, 0, 0 ],
@@ -1776,7 +1795,7 @@ elsif ( $method eq 'tools/call' ) {
 
     # Audit state-changing tools (origin = mcp) alongside the manager UI / API.
     my %READ = ( whoami => 1, list_files => 1, read_file => 1, search_files => 1,
-        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, analyse_visitors => 1,
+        page_status => 1, list_pages => 1, read_page => 1, validate_page => 1, audit_site => 1, list_form_handlers => 1, get_permissions => 1, preview_page => 1, read_nav => 1, list_themes => 1, theme_tokens => 1, analyse_visitors => 1,
         list_versions => 1, view_version => 1 ); # history reads: audit-skipped like the API's git-history/show
     unless ( $READ{$name} ) {
         my $target = $args->{path} // $args->{from} // $args->{theme} // $args->{layout} // '';

@@ -88,7 +88,7 @@ my %ACTION_INFO = (
         title   => 'Install and activate themes.',
         unlocks => {
             api    => [qw(theme-activate theme-list themes-for-layout themes-list-all)],
-            mcp    => [qw(list_themes activate_theme)],
+            mcp    => [qw(list_themes theme_tokens activate_theme)],
             webdav => ['lazysite/layouts/<layout>/themes/<theme>/ (active theme read-only)'],
         },
     },
