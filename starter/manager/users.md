@@ -585,25 +585,22 @@ function accountSettingsHtml(row) {
     // visible in the dropdown (was a flat alphabetical list). Top-level first,
     // then each account's sub-tree beneath it; the account itself and its own
     // descendants are excluded (they would form a cycle).
+    // SM194: "promote to top level" (clear managed_by) is an operator-only choice
+    // IN this dropdown - not a separate button - offered only when the account is
+    // not already top-level. reassignUser routes the sentinel to promoteUser.
     var ropts = '<option value="">move under&hellip;</option>' +
+      ( (amOperator && !s.top_level)
+        ? '<option value="__promote_top__">&uarr; top level (no parent)</option>' : '' ) +
       orderedParentOptions(u, desc);
     ac += '<div class="mg-line"><span class="mg-line-lbl">Parent</span>' +
       '<code class="mg-code">' + escHtml(owner) + '</code>' +
       '<select class="mg-inp" id="reassign-' + ue + '">' + ropts + '</select>' +
       '<button class="mg-btn mg-btn-sm" onclick="reassignUser(\'' + ue + '\')">Move</button></div>';
-    // SM194: operator-only promotion + scope emancipation. Two DELIBERATELY separate
-    // controls: "Promote" clears the managing parent (managed_by); it does NOT lift
-    // the immutable created_by scope ceiling. "Independent of creator" is the explicit,
-    // separate opt-out of that ceiling. Shown only to a full operator (the API refuses
-    // a delegate regardless). Promote is offered only when the account is not already
-    // top-level.
+    // SM194: scope emancipation (operator-only, the API refuses a delegate regardless).
+    // Deliberately SEPARATE from the parent move: "Independent of creator" lifts the
+    // immutable created_by scope ceiling; promotion (clearing managed_by) does not,
+    // and is the "top level (no parent)" choice in the Parent dropdown above.
     if (amOperator) {
-      if (!s.top_level) {
-        ac += '<div class="mg-line"><span class="mg-line-lbl">Promote</span>' +
-          '<button class="mg-btn mg-btn-sm" onclick="promoteUser(\'' + ue + '\')">Promote to top level</button>' +
-          '<span class="mg-help" title="Clears the managing parent (managed_by) so this account is managed at the top level. It does NOT lift the creator scope ceiling - use Independent of creator for that.">&#9432;</span>' +
-          '<span class="mg-inline-msg" id="promsg-' + ue + '"></span></div>';
-      }
       ac += '<div class="mg-line"><span class="mg-line-lbl">Scope</span>' +
         '<label class="mg-chk"><input type="checkbox"' + (s.scope_independent ? ' checked' : '') +
         ' onchange="toggleScopeIndependent(\'' + ue + '\', this.checked)"> Independent of creator</label>' +
@@ -946,6 +943,7 @@ function toggleDisabled(user, disabled) {
 function reassignUser(user) {
   var inp = document.getElementById('reassign-' + user);
   var to = ((inp && inp.value) || '').trim();
+  if (to === '__promote_top__') { promoteUser(user); return; }  // SM194: the top-level choice
   if (!to) { showStatus('Enter a parent username to reassign to.', true); return; }
   apiCall({ action: 'account-reassign', username: user, to: to })
     .then(function(d) {
