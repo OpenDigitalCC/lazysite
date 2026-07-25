@@ -509,7 +509,9 @@ function accountSettingsHtml(row) {
       '<button class="mg-btn mg-btn-sm" onclick="copyText(\'dav-' + ue + '\')">Copy</button></div>';
     wd += '<div class="mg-line"><span class="mg-line-lbl">Username</span><code class="mg-code">' + ue + '</code></div>';
     wd += '<div class="mg-line"><span class="mg-line-lbl">Password</span>' +
-      '<span class="mg-muted">use a <strong>Generate credential</strong> token (above) &mdash; far faster than the account password</span></div>';
+      '<span class="mg-muted">authenticate with an <strong>access token</strong> &mdash; generate one under <em>Connect an AI assistant</em> below' +
+      (ui ? '; WebDAV also accepts this account&rsquo;s password, but a token is simpler'
+          : ' (an AI account has no password)') + '</span></div>';
     // SM155: scope is a GROUP setting now (the domain binding). Show the
     // effective scope(s) read-only and point to Groups to change it.
     var scopeTxt = scopes.length ? scopes.join(', ') : 'whole site (minus denied paths)';
