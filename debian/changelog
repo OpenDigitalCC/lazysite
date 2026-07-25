@@ -1,3 +1,18 @@
+lazysite (0.9.15-1) unstable; urgency=medium
+
+  * BETA: manager UI polish + documentation on top of 0.9.14. No engine change, no
+    BREAKING change, no migration; UI, copy and docs only.
+  * Domains page: one Configure modal per domain (account-configuration sheet)
+    replacing the Actions dropdown + inline edit panel; grouped Identity /
+    Presentation / Access / Language, Tools footer (Preview/Check/Export), separated
+    Delete; Add-domain placeholder drops the stale sites/ prefix.
+  * Users page: promote-to-top-level moved into the Parent "move under" dropdown
+    (operator-only); WebDAV password hint corrected for AI (no-password) accounts.
+  * Docs: docs/FEATURES.md current to 0.9.14; backlog SM210 logged, SM211 parked
+    (WebDAV guard is correct).
+
+ -- Stuart Mackintosh <sjm@opendigital.cc>  Sat, 25 Jul 2026 15:54:38 +0100
+
 lazysite (0.9.14-1) unstable; urgency=medium
 
   * EDGE: theme-authoring API + Figma design ingestion + operator features on top

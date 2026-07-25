@@ -16,6 +16,26 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.15 - BETA: manager UI polish (domains configure-modal, promote-in-dropdown, hints) + docs (2026-07-25)
+
+A low-risk manager-UI and documentation release on top of the 0.9.14 edge line. No
+engine change, no BREAKING change and no migration; UI, copy and documentation only.
+
+- Domains page: one Configure modal per domain (the account-configuration sheet),
+  replacing the per-row Actions dropdown + inline edit panel; controls grouped as
+  Identity / Presentation / Access / Language with a Tools footer (Preview, Check,
+  Export) and a separated Delete. The Add-domain content-folder placeholder drops the
+  stale `sites/` prefix.
+- Users page: promote-to-top-level is now a choice in the Parent "move under"
+  dropdown (operator-only, when not already top-level), not a standalone button; the
+  scope_independent toggle is unchanged. The WebDAV password hint reads correctly for
+  an AI (no-password) account, pointing at the access token under "Connect an AI
+  assistant".
+- Docs: docs/FEATURES.md brought current to 0.9.14 (theme-authoring + Figma, the
+  whole 0.8/0.9 line, version timeline) - the source the public feature page is
+  summarised from. Backlog SM210 (tools/list unauth discovery subset) logged; SM211
+  (WebDAV lazysite/ write-guard) investigated and parked - the guard is correct.
+
 ## 0.9.14 - EDGE: theme-authoring API + Figma design ingestion, operator features (2026-07-24)
 
 A large feature release on top of 0.9.13. No BREAKING change, no migration; beta
