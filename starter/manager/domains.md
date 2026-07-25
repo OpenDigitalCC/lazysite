@@ -5,10 +5,12 @@ search: false
 ---
 
 <style>
-.mg-rowmenu { display: inline-block; }
-.mg-rowmenu > summary { list-style: none; cursor: pointer; }
-.mg-rowmenu > summary::-webkit-details-marker { display: none; }
-.mg-rowmenu-items { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; align-items: flex-start; }
+/* SM144-style config sheet reuses the shared .mg-sheet / .mg-box machinery from
+   manager.css (same as the Users page). The domain editor sections keep their
+   own grid layout, so a small scope wrapper is all that is added here. */
+.mg-dom-chip { display:inline-block; font-size:0.72em; padding:0.05em 0.5em; border-radius:999px;
+  background:var(--mg-surface-alt,#f0f0f0); color:var(--mg-text-muted,#777); margin-left:6px; vertical-align:middle; }
+.mg-dom-tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 </style>
 
 <div id="status" class="mg-status"></div>
@@ -49,7 +51,7 @@ routing are configured so the domain reaches this instance.
       </div>
       <div class="mg-form-row">
         <label>Content folder <span style="color:#aaa;font-weight:400">&mdash; optional</span><br>
-          <input id="f-croot" placeholder="sites/clienta" style="width:100%;box-sizing:border-box;"></label>
+          <input id="f-croot" placeholder="clienta" style="width:100%;box-sizing:border-box;"></label>
         <div style="font-size:0.8em;color:#888;margin-top:2px;">The folder inside your site that holds this domain's pages (created if missing). Leave empty to show your <strong>default site</strong>. The lazysite system area is reserved &mdash; pick any other folder.</div>
       </div>
       <div class="mg-form-row">
@@ -102,6 +104,20 @@ routing are configured so the domain reaches this instance.
 <div id="domains-list"><div class="mg-status">Loading&hellip;</div></div>
 
 <div id="lang-coverage" style="display:none;margin-top:22px;"></div>
+
+<!-- The full-width domain editor sheet (Users-style, SM144). One consistent
+     surface for configuring ANY domain, opened by a row's Configure button - the
+     same size and position for every domain. A coloured header names the domain.
+     Click the backdrop or press Esc to close. -->
+<div id="cfg-sheet" class="mg-sheet" hidden onclick="if(event.target===this)closeConfig()">
+  <div class="mg-sheet-panel" role="dialog" aria-modal="true" aria-label="Domain settings" tabindex="-1">
+    <div class="mg-sheet-head">
+      <span id="cfg-sheet-title" class="mg-sheet-title"></span>
+      <button type="button" class="mg-sheet-close" onclick="closeConfig()" aria-label="Close settings">&times;</button>
+    </div>
+    <div class="mg-sheet-body" id="cfg-sheet-body"></div>
+  </div>
+</div>
 
 [%# SM165: shared principal datalists backing the domain access token pickers. %]
 <datalist id="dom-groups-list"></datalist>
@@ -222,10 +238,10 @@ function loadThemes() {
 function loadLayouts() { return Promise.resolve(); }   // folded into loadThemes (appearance pairs)
 
 // Columns shown in the domains table - a curated set, so the table stays narrow
-// and never runs off the page. Every editable key still appears in the inline
-// edit row (EDIT_KEYS) below.
+// and never runs off the page. Every editable key appears in the config sheet
+// (EDIT_KEYS) below.
 var DISPLAY_KEYS = ['content_root', 'site_name', 'theme'];
-// Every per-domain key an existing domain can override, so the edit row is the
+// Every per-domain key an existing domain can override, so the editor is the
 // superset of the add form (SM174 - content_root was settable at creation but
 // not afterwards, leaving a wrong folder unfixable except by re-adding). The
 // backend (domain_set / _clean_content_root) validates content_root the same way
@@ -234,13 +250,15 @@ var DISPLAY_KEYS = ['content_root', 'site_name', 'theme'];
 // pair); saveDomain splits it back into the two conf keys.
 var EDIT_KEYS = ['content_root', 'site_url', 'site_name', 'appearance', 'nav_file', 'search_default',
   'allowed_groups', 'locked_users', 'lang', 'lang_group'];
-// The edit panel groups the keys into labelled sections so it reads top-to-bottom
-// like the Add form, rather than one ragged row of mixed-width fields.
+// The editor groups the keys into labelled sections so the sheet reads
+// top-to-bottom like the Add form, rather than one ragged row of mixed-width
+// fields. Identity holds the site address / title / content folder; Presentation
+// the appearance + nav + search; then Access and Language.
 var EDIT_SECTIONS = [
-  { title: 'Identity',     note: '',                                  keys: ['content_root'] },
-  { title: 'Presentation', note: 'optional – inherits the default',   keys: ['site_url', 'site_name', 'appearance', 'nav_file', 'search_default'] },
-  { title: 'Language',     note: 'for a multilingual set',            keys: ['lang', 'lang_group'] },
-  { title: 'Access',       note: 'who may manage this domain',        keys: ['allowed_groups', 'locked_users'] }
+  { title: 'Identity',     note: '',                                  keys: ['site_url', 'site_name', 'content_root'] },
+  { title: 'Presentation', note: 'optional – inherits the default',   keys: ['appearance', 'nav_file', 'search_default'] },
+  { title: 'Access',       note: 'who may manage this domain',        keys: ['allowed_groups', 'locked_users'] },
+  { title: 'Language',     note: 'for a multilingual set',            keys: ['lang', 'lang_group'] }
 ];
 // Optional grey hint rendered under an edit field where the effect is not obvious.
 var EDIT_HINTS = {
@@ -362,10 +380,99 @@ function exportSite(host) {
   });
 }
 
-function editDomain(host) {
-  var row = document.getElementById('edit-' + host);
-  if (row) row.style.display = (row.style.display === 'none') ? 'table-row' : 'none';
+// --- The full-width domain editor sheet (Users-style, SM144) ---------------
+// One consistent surface for configuring a domain, the same size and position
+// for every host. Driven by whichever Configure button was pressed. Only one
+// domain's controls exist in the DOM at a time, so the per-field ids (e-<host>-*)
+// stay unique - exactly as the inline edit row relied on.
+var DOMAINS_BY_HOST = {};       // host -> row, refreshed each render
+var currentConfigHost = null;   // host whose sheet is open (null = closed)
+
+// Wrap a sheet section in a bounded box with an uppercase heading, matching the
+// Users editor's sec() helper (uses the shared .mg-box / .mg-sec classes).
+function sec(title, inner) {
+  return '<div class="mg-box"><div class="mg-sec">' + title + '</div>' + inner + '</div>';
 }
+
+// Open the editor sheet for a domain, or toggle it shut if already open.
+function configureDomain(host) {
+  if (currentConfigHost === host) { closeConfig(); return; }
+  currentConfigHost = host;
+  renderConfigSheet(host);
+}
+
+// The body of the sheet: the grouped sections (Identity / Presentation / Access
+// / Language) built from the SHARED editSection/editField, plus a Tools footer
+// with the domain actions. This is a RE-HOST of the proven inline editor into one
+// modal - the field machinery, validation, token picker and datalists are unchanged.
+// Each section is boxed (mg-box) to match the Users sheet's card look.
+function domainSettingsHtml(row) {
+  var host = row.host;
+  var h = '';
+  EDIT_SECTIONS.forEach(function (s) {
+    h += '<div class="mg-box">' + editSection(host, s, row) + '</div>';
+  });
+  // Save is the primary action, sitting under the field groups.
+  h += '<div class="mg-line" style="margin-top:4px;">'
+     + '<button class="mg-btn mg-btn-primary" onclick="saveDomain(' + esc(JSON.stringify(host)) + ')">Save changes</button></div>';
+
+  // --- Tools (a footer group): the domain actions as buttons. Export appears
+  // only when a content folder is set (as before); Delete is the danger action,
+  // set apart in its own row. ---
+  var tools = '<div class="mg-dom-tools">'
+    + '<button class="mg-btn mg-btn-sm" onclick="previewDomain(' + esc(JSON.stringify(host)) + ')">Preview</button>'
+    + '<button class="mg-btn mg-btn-sm" onclick="checkDomain(' + esc(JSON.stringify(host)) + ')">Check</button>'
+    + (row.content_root ? '<button class="mg-btn mg-btn-sm" onclick="exportSite(' + esc(JSON.stringify(host)) + ')">Export site</button>' : '')
+    + '</div>';
+  h += sec('Tools', tools);
+  h += '<div class="mg-box mg-box-danger"><div class="mg-sec">Danger zone</div>'
+     + '<div class="mg-line"><button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(host)) + ')">Delete domain</button></div></div>';
+  return h;
+}
+
+// (Re)fill the sheet for the open domain - also called after a reload so the
+// editor reflects fresh data (a save reloads the list underneath).
+function renderConfigSheet(host) {
+  var row = DOMAINS_BY_HOST[host];
+  if (!row) { closeConfig(); return; }
+  var croot = row.content_root
+    ? (row.content_root_inherited ? row.content_root + ' (inherited)' : row.content_root)
+    : 'default site';
+  document.getElementById('cfg-sheet-title').innerHTML =
+    'Configuring ' + esc(host) + ' <span class="mg-sheet-sub">' + esc(croot) + '</span>';
+  document.getElementById('cfg-sheet-body').innerHTML = domainSettingsHtml(row);
+  var sheet = document.getElementById('cfg-sheet');
+  sheet.hidden = false;
+  document.body.classList.add('mg-sheet-open');
+  var b = document.getElementById('cfg-sheet-body'); if (b) b.scrollTop = 0;
+  // Move focus into the sheet so keyboard users land inside it (and Esc/Tab work
+  // against the dialog, not the page behind).
+  var panel = sheet.querySelector('.mg-sheet-panel');
+  if (panel) { try { panel.focus(); } catch (e) {} }
+  markConfiguring(host);
+}
+
+function closeConfig() {
+  currentConfigHost = null;
+  var sheet = document.getElementById('cfg-sheet');
+  if (sheet) sheet.hidden = true;
+  var body = document.getElementById('cfg-sheet-body'); if (body) body.innerHTML = '';
+  document.body.classList.remove('mg-sheet-open');
+  markConfiguring(null);
+}
+
+// Highlight the Configure button of the domain whose sheet is open.
+function markConfiguring(host) {
+  var btns = document.querySelectorAll('.mg-configbtn');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.toggle('active', !!host && btns[i].getAttribute('data-cfg') === host);
+  }
+}
+
+// Esc closes the sheet (a click on the backdrop closes via the onclick above).
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && currentConfigHost) closeConfig();
+});
 
 // SM155: preview a domain's home page as a public visitor would see it under its
 // own Host - rendered server-side, so it works BEFORE DNS/TLS is live (to
@@ -564,20 +671,30 @@ function loadDomains() {
       if (!d || !d.ok) { listEl.innerHTML = '<div class="mg-status">Could not load domains.</div>'; return; }
       var rows = d.domains || [];
       DOMAINS = rows;    // for the Add form's "Copy settings from" pre-fill
+      DOMAINS_BY_HOST = {};
+      rows.forEach(function (r) { DOMAINS_BY_HOST[r.host] = r; });   // the editor sheet reads domains by host from here
       var cf = document.getElementById('f-clone-from');
       if (cf) {
         var opts = '<option value="">Start blank</option>';
         rows.forEach(function (r) { if (!r.is_primary) opts += '<option value="' + esc(r.host) + '">' + esc(r.host) + '</option>'; });
         cf.innerHTML = opts;
       }
-      // Table scrolls inside its own box (overflow-x) so a wide row never pushes
-      // the page sideways; the column set is curated (DISPLAY_KEYS) to stay slim.
+      // Each domain is a slim single-line row - host, content folder, active
+      // theme and a state chip - with ONE Configure button. Everything else
+      // (edit + the domain actions) lives in the config sheet, so the row never
+      // sprouts a dropdown or an inline edit panel. The table scrolls inside its
+      // own box (overflow-x) so a wide value never pushes the page sideways.
       var html = '<div style="overflow-x:auto;"><table class="mg-file-table" style="min-width:0;"><thead><tr><th>Domain</th>';
       DISPLAY_KEYS.forEach(function (k) { html += '<th>' + esc(label(k)) + '</th>'; });
-      html += '<th>Actions</th></tr></thead><tbody>';
+      html += '<th></th></tr></thead><tbody>';
       rows.forEach(function (row) {
         if (row.is_primary) return;   // the default site lives in Site settings, not this list
-        html += '<tr><td class="mg-file-name"><strong>' + esc(row.host) + '</strong></td>';
+        // A small state chip where the data exposes one: an alias (no content
+        // folder = mirrors the default site) or membership of a language set.
+        var chip = '';
+        if (!row.content_root) chip += '<span class="mg-dom-chip" title="mirrors your default site">alias</span>';
+        if (row.lang_group && !row.lang_group_inherited) chip += '<span class="mg-dom-chip" title="part of a language set">set: ' + esc(row.lang_group) + '</span>';
+        html += '<tr><td class="mg-file-name"><strong>' + esc(row.host) + '</strong>' + chip + '</td>';
         DISPLAY_KEYS.forEach(function (k) {
           var v = row[k], inherited = row[k + '_inherited'], cell;
           if (k === 'content_root' && !v) {
@@ -591,26 +708,11 @@ function loadDomains() {
           }
           html += '<td>' + cell + '</td>';
         });
-        // Actions folded into a per-row dropdown (Edit + the domain actions) so
-        // the row stays uncluttered; it expands inline (no clipping inside the
-        // table's overflow-x box).
-        html += '<td><details class="mg-rowmenu"><summary class="mg-btn mg-btn-sm">Actions &#9662;</summary>'
-              + '<div class="mg-rowmenu-items">'
-              + '<button class="mg-btn mg-btn-sm" onclick="editDomain(' + esc(JSON.stringify(row.host)) + ')">Edit</button>'
-              + '<button class="mg-btn mg-btn-sm" onclick="previewDomain(' + esc(JSON.stringify(row.host)) + ')">Preview</button>'
-              + '<button class="mg-btn mg-btn-sm" onclick="checkDomain(' + esc(JSON.stringify(row.host)) + ')">Check</button>'
-              + (row.content_root ? '<button class="mg-btn mg-btn-sm" onclick="exportSite(' + esc(JSON.stringify(row.host)) + ')">Export site</button>' : '')
-              + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="removeDomain(' + esc(JSON.stringify(row.host)) + ')">Delete</button>'
-              + '</div></details></td></tr>';
-        // Hidden inline edit panel - sectioned (Identity / Presentation /
-        // Access), each a grid of aligned fields (editSection/editField).
-        html += '<tr id="edit-' + esc(row.host) + '" style="display:none"><td colspan="' + (DISPLAY_KEYS.length + 2) + '">'
-              + '<div style="background:var(--mg-panel,#fafafa);border:1px solid var(--mg-border,#e2e2e2);border-radius:6px;padding:14px 16px;max-width:760px;">'
-              + '<div style="font-size:0.9em;font-weight:600;color:#444;border-bottom:1px solid var(--mg-border,#e2e2e2);padding-bottom:8px;margin-bottom:4px;">Edit ' + esc(row.host) + '</div>';
-        EDIT_SECTIONS.forEach(function (s) { html += editSection(row.host, s, row); });
-        html += '<div style="margin-top:16px;">'
-              + '<button class="mg-btn mg-btn-sm mg-btn-primary" onclick="saveDomain(' + esc(JSON.stringify(row.host)) + ')">Save changes</button>'
-              + '</div></div></td></tr>';
+        // ONE control: Configure opens the full-width editor sheet. data-cfg lets
+        // markConfiguring() highlight the button of the open domain.
+        html += '<td style="text-align:right;white-space:nowrap;">'
+              + '<button type="button" class="mg-btn mg-btn-sm mg-configbtn" data-cfg="' + esc(row.host) + '"'
+              + ' onclick="configureDomain(' + esc(JSON.stringify(row.host)) + ')">Configure</button></td></tr>';
       });
       html += '</tbody></table></div>';
       if (rows.length <= 1) {
@@ -619,6 +721,12 @@ function loadDomains() {
               + 'first-class sites from this one instance.</p>';
       }
       listEl.innerHTML = html;
+      // Keep an open editor in sync with the fresh data (a save reloads the list),
+      // or close it if its domain is gone (deleted).
+      if (currentConfigHost) {
+        if (DOMAINS_BY_HOST[currentConfigHost]) renderConfigSheet(currentConfigHost);
+        else closeConfig();
+      }
     })
     .catch(function () {
       document.getElementById('domains-list').innerHTML = '<div class="mg-status">Error loading domains.</div>';
