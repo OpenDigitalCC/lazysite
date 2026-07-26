@@ -182,14 +182,26 @@ sub _stats_tool {
 # JSON the agent reasons over - aggregates + a capped event stream, never the raw
 # log, log path, filesystem path, or visitor IP.
 sub _stats_export {
-    my ($window) = @_;
+    my ($opt) = @_;
+    $opt = { window => $opt } unless ref $opt eq 'HASH';    # back-compat: scalar window
     my $tool = _stats_tool()
         or return { ok => 0, error => 'stats plugin not found' };
-    $window = ( defined $window && $window =~ /^\d+$/ ) ? $window : 30;
+    my $window = ( defined $opt->{window} && $opt->{window} =~ /^\d+$/ ) ? $opt->{window} : 30;
+
+    # SM213: durable-store selectors, validated + passed as exec args (no shell).
+    my @sel;
+    if    ( $opt->{index} ) { @sel = ('--index') }
+    elsif ( defined $opt->{day} && $opt->{day} =~ /^\d{4}-\d{2}-\d{2}$/ ) {
+        @sel = ( '--day', $opt->{day} );
+    }
+    elsif ( defined $opt->{month} && $opt->{month} =~ /^\d{4}-\d{2}$/ ) {
+        @sel = ( '--month', $opt->{month} );
+    }
+
     my ( $out, $in );
     my $pid = eval {
         open2( $out, $in, $^X, $tool, '--export',
-            '--docroot', $DOCROOT, '--window', $window );
+            '--docroot', $DOCROOT, '--window', $window, @sel );
     } or return { ok => 0, error => 'could not run the stats plugin' };
     close $in;
     my $resp = do { local $/; <$out> };
@@ -729,14 +741,17 @@ my %TOOLS = (
         run => sub { _audit_site() },
     },
     analyse_visitors => {
-        description => 'Visitor-log analysis for trend reporting (read-only). Returns a SANITISED JSON: per-day totals, a people/AI-assistant/bot/noise traffic breakdown, top pages, referrers, status codes, and a capped recent event stream - never the raw log, any filesystem path, or a visitor IP (IPs are anonymised; events carry only a network-level visitor token). Aggregated from the web-server access log via an incremental cache. Read the site briefing /docs/ai-briefing-stats to interpret the fields and the traffic taxonomy, then answer the operator\'s question (trends, rising/falling pages, AI-crawler share, 404 spikes). Heuristic and not authenticated.',
+        description => 'Visitor-log analysis for trend reporting (read-only). Returns a SANITISED JSON: per-day and per-month totals, a people/AI-assistant/bot/noise/scanner traffic breakdown (scanner = a visitor that probed a non-existent path, so its whole session - including a spoofed referrer - is excluded from people), top pages, referrers, status codes, a not_found split (plausible missing pages vs a junk scanner-chorus count), and a bounded recent event SAMPLE - never the raw log, any filesystem path, or a visitor IP (IPs are anonymised; events carry only a network-level visitor token). The aggregates are complete over data_from..window.to and durably stored one file per day (SM213); "events"/"sample" is a recent sample, not the dataset - use data_from and the sample.{from,to,count} fields to tell them apart. Selectors: index (the days+months index), day=YYYY-MM-DD (one day\'s rollup), month=YYYY-MM (one month\'s rollup); otherwise a windowed view. Read /docs/ai-briefing-stats to interpret the fields, then answer the operator\'s question (trends, month-on-month, rising/falling pages, AI-crawler share). Heuristic and not authenticated.',
         cap         => 'analytics',
         inputSchema => { type => 'object',
             properties => {
-                window => { type => 'integer', description => 'Days to report over (1-365, default 30).' },
+                window => { type => 'integer', description => 'Days for the windowed view (1-365, default 30).' },
+                index => { type => 'boolean', description => 'Return the days + months index instead of a window.' },
+                day => { type => 'string', description => 'A specific day (YYYY-MM-DD) - returns that day\'s durable rollup.' },
+                month => { type => 'string', description => 'A specific month (YYYY-MM) - returns that month\'s durable rollup.' },
             },
             additionalProperties => JSON::PP::false },
-        run => sub { _stats_export( $_[0]->{window} ) },
+        run => sub { _stats_export( $_[0] ) },
     },
     validate_page => {
         description => 'Check page content before saving: malformed/unterminated front matter, missing title, invalid form-field rules, and a PUBLIC-DATA warning (Wi-Fi passwords, postcodes/addresses, phone numbers) so private operational details are not published by accident. Pass content to check a draft, or path to check a saved file.',
@@ -1683,7 +1698,7 @@ unless ( Lazysite::Util::service_enabled( $DOCROOT, 'mcp_enabled' ) ) {
         my $len = $ENV{CONTENT_LENGTH} || 0;
         read( STDIN, $b, $len ) if $len > 0;
         my $parsed = eval { decode_json($b) };
-        my $rid = ( ref $parsed eq 'HASH' ) ? $parsed->{id} : undef;
+        my $rid    = ( ref $parsed eq 'HASH' ) ? $parsed->{id} : undef;
         rpc_error( $rid, -32601,
             'The MCP service is not enabled on this site. Ask the operator to enable it (Services -> MCP).' );
     }

@@ -2,8 +2,8 @@
 title: "SM213 - durable per-day stats store + month-on-month trends (no cap, no operator knob)"
 subtitle: "The visitor-stats cache keeps aggregates plus a 5000-event ring in one JSON blob; at real volume the ring covers about a week and an operator sees an events_capped flag that reads like data loss. Replace the single blob with a durable per-day rollup file the dashboard indicates from and an AI can read or download per day, add per-day filtering and month-on-month trends, and make the cap an invisible implementation detail - never an operator setting, because needing to set it presumes you are losing data."
 brand: plain
-status: candidate
-status-note: "PROPOSED 2026-07-27, target 0.9.17 beta. Origin: an operator report that the stats event cap (5000) is hit, plus the lazysite.io site agent's analytics proposal (inbox archive 2026-07-27-goals-and-privacy-analytics-proposal.md). Scoped deliberately to the STORAGE + TRENDS + ACCESS foundation - a durable per-day rollup store, month-on-month trends, per-day filtering, AI-readable/downloadable day+month index files, dashboard kept as a lightweight indicator - and NOT a full analytics platform. The brief's richer items (goals, redirect: outbound goals, sessionised flow, access-log ingestion, passive-header device/language mix) are captured as phased follow-ups that build on this foundation, not bundled here. UPDATED 2026-07-27 with the site agent's validation follow-up (inbox archive 2026-07-27-analytics-validation-and-notes.md): confirmed in source that aggregates were never capped (only the events ring is), so SM213 adds two self-describing horizon fields (data_from + sample) to retire events_capped, and folds in the referrer-spoofing diagnosis (visitor-level scanner classing is the clean catch; a per-class referrer split would NOT help since referrer buckets are already human-only + SM192 spam-listed)."
+status: shipped
+status-note: "SHIPPED core in 0.9.17 (durable per-day + monthly store, self-describing horizons data_from + sample, index/day/month selectors through control API + MCP, month-on-month + dashboard indicator, privacy commitment in FEATURES). ALSO folded in (per operator direction, so testing focuses on stats in one release): the 404 junk/plausible split and visitor-level scanner classification (shared two-pass _tally_batch; scanner-token set held transiently in the cache, salt-obsoleting, never in a durable day file). Still the phased roadmap: goals, redirect: outbound goals, sessionisation, access-log ingestion, passive-header mixes. PROPOSED 2026-07-27, target 0.9.17 beta. Origin: an operator report that the stats event cap (5000) is hit, plus the lazysite.io site agent's analytics proposal (inbox archive 2026-07-27-goals-and-privacy-analytics-proposal.md). Scoped deliberately to the STORAGE + TRENDS + ACCESS foundation - a durable per-day rollup store, month-on-month trends, per-day filtering, AI-readable/downloadable day+month index files, dashboard kept as a lightweight indicator - and NOT a full analytics platform. The brief's richer items (goals, redirect: outbound goals, sessionised flow, access-log ingestion, passive-header device/language mix) are captured as phased follow-ups that build on this foundation, not bundled here. UPDATED 2026-07-27 with the site agent's validation follow-up (inbox archive 2026-07-27-analytics-validation-and-notes.md): confirmed in source that aggregates were never capped (only the events ring is), so SM213 adds two self-describing horizon fields (data_from + sample) to retire events_capped, and folds in the referrer-spoofing diagnosis (visitor-level scanner classing is the clean catch; a per-class referrer split would NOT help since referrer buckets are already human-only + SM192 spam-listed)."
 ---
 
 # SM213 - durable per-day stats store + trends
@@ -173,13 +173,31 @@ IP ranges / reverse DNS.
 
 ## What ships in 0.9.17 (this FR)
 
-The foundation: the durable per-day + monthly store, retention, the index files,
-per-day filtering, month-on-month trends, the dashboard reworked to indicate from
-the rollups, the `analyse_visitors` day/range/month selector + downloadable index
-files (additive, schema bump), the self-describing horizon fields (`data_from` +
-`sample`, replacing `events_capped`), the 404 junk/plausible split, the
-visitor-level `scanner` classification (which also removes spoofed referrals from
-the human buckets), and the privacy commitment codified + published wording.
+SHIPPED (targeted at 0.9.17 beta): the durable per-day + monthly store under
+`lazysite/stats/` (`_persist_durable`/`_day_rollup`/`_month_rollup` in
+`plugins/stats.pl`, classified as a runtime path), the days + months `index.json`,
+per-day + per-month selectors (`--day`/`--month`/`--index`, threaded through the
+control API and the MCP `analyse_visitors` tool as validated args), the
+self-describing horizon fields (`data_from` + `sample:{from,to,count}`, schema bump
+to 2, `events_capped` kept only for back-compat), the month-on-month series, the
+manager Stats-page month-on-month indicator (best-effort from the index), and the
+privacy commitment codified in FEATURES.md.
+
+Also SHIPPED (folded in so testing focuses on the stats functions in one release):
+- The **404 junk/plausible split** - the ingesters retain 404 paths per day in a
+  bounded `nf_plausible` map (a human hitting a missing page) and a `nf_junk` count
+  (the scanner chorus, counted only), surfaced as `not_found` in the export and the
+  day/month rollups.
+- **Visitor-level `scanner` classification** - both ingesters now feed a shared
+  two-pass `_tally_batch`: pass 1 flags every visitor token that hit a probe path as
+  a scanner for the window (a set persisted in the CACHE - transient working state,
+  salt-obsoleting, never in a durable day file, so the privacy stance holds); pass 2
+  reclasses ALL of a scanner token's events to a distinct `scanner` class. This
+  removes a referrer-spoofer's homepage hit from the human/referrer buckets (its
+  whole session, not just the probe) - the clean catch the site agent identified.
+  Residual: a spoofer whose probe and homepage hit land in different ingest batches
+  (rare - a scanner session is seconds apart, ingests minutes apart) is caught going
+  forward by the persistent set but not retroactively for the pre-probe batch.
 
 ## Roadmap - phased follow-ups (captured from the brief, NOT bundled here)
 

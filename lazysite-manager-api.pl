@@ -387,15 +387,15 @@ if ( !$token_auth ) {
         # for the same reason (token clients write over WebDAV). So they are NOT
         # capability-gated here - only POST-gated below (CSRF). Content-history
         # reads/restore ARE gated (they mirror the token %need manage_content).
-        'git-restore' => 'manage_content', 'git-status' => 'manage_content',
-        'git-history' => 'manage_content', 'git-show'   => 'manage_content',
+        'git-restore'         => 'manage_content', 'git-status' => 'manage_content',
+        'git-history'         => 'manage_content', 'git-show'   => 'manage_content',
         'git-history-summary' => 'manage_content',   # SM199: site-level file list + stats
-        # SM160: domains + the portable site-package family are their own
-        # capability (manage_domains), carved out of the broad manage_config.
+            # SM160: domains + the portable site-package family are their own
+            # capability (manage_domains), carved out of the broad manage_config.
         'site-backup-create' => 'manage_domains', 'site-backup-upload' => 'manage_domains',
         'site-backup-apply'  => 'manage_domains',
         'site-backup-inspect' => 'manage_domains', # SM183: read a package manifest (no apply)
-        'site-backup-delete' => 'manage_domains',    # SM183: remove a package
+        'site-backup-delete'   => 'manage_domains', # SM183: remove a package
         'site-backup-download' => 'manage_domains', # SM193: token-client package download
         'site-export-primary' => 'manage_content', # SM185: package the DEFAULT site (no domains feature needed)
         'git-init'            => 'manage_config',
@@ -554,13 +554,13 @@ if ($token_auth) {
         'domain-preview' => sub { $_[0]->{manage_domains} },    # SM155: pre-DNS render
         'domain-check'   => sub { $_[0]->{manage_domains} },    # SM156: live config check
         'lang-status' => sub { $_[0]->{manage_content} }, # SM179 P6: set coverage (translation agent)
-        'site-backup-create'  => sub { $_[0]->{manage_domains} },    # SM158
-        'site-backup-upload'  => sub { $_[0]->{manage_domains} },
-        'site-backup-apply'   => sub { $_[0]->{manage_domains} },
-        'site-backup-inspect' => sub { $_[0]->{manage_domains} },    # SM183
-        'site-backup-delete'  => sub { $_[0]->{manage_domains} },    # SM183
+        'site-backup-create'   => sub { $_[0]->{manage_domains} },    # SM158
+        'site-backup-upload'   => sub { $_[0]->{manage_domains} },
+        'site-backup-apply'    => sub { $_[0]->{manage_domains} },
+        'site-backup-inspect'  => sub { $_[0]->{manage_domains} },    # SM183
+        'site-backup-delete'   => sub { $_[0]->{manage_domains} },    # SM183
         'site-backup-download' => sub { $_[0]->{manage_domains} },    # SM193
-        'site-export-primary' => sub { $_[0]->{manage_content} },    # SM185
+        'site-export-primary'  => sub { $_[0]->{manage_content} },    # SM185
             # SM187: agents read form submissions with a least-privilege read_submissions
             # cap OR the operator's manage_forms - parity with the cookie channel.
         'form-submissions' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} },
@@ -589,13 +589,13 @@ if ($token_auth) {
         # SM085: content history. Reads and restore follow the content grant
         # (restore routes through the normal save path); enabling/initialising
         # the repo is a site-configuration act.
-        'git-status'  => sub { $_[0]->{manage_content} },
-        'git-history' => sub { $_[0]->{manage_content} },
+        'git-status'          => sub { $_[0]->{manage_content} },
+        'git-history'         => sub { $_[0]->{manage_content} },
         'git-history-summary' => sub { $_[0]->{manage_content} },    # SM199
-        'git-show'    => sub { $_[0]->{manage_content} },
-        'git-restore' => sub { $_[0]->{manage_content} },
-        'git-init'    => sub { $_[0]->{manage_config} },
-        'whoami'      => sub { 1 }, # any authenticated token may introspect its own grant
+        'git-show'            => sub { $_[0]->{manage_content} },
+        'git-restore'         => sub { $_[0]->{manage_content} },
+        'git-init'            => sub { $_[0]->{manage_config} },
+        'whoami' => sub { 1 },    # any authenticated token may introspect its own grant
         'describe-capabilities' => sub { 1 },  # SM126: introspection - the capability map
             # Visitor-log analysis over the control API (token clients), same grant as
             # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
@@ -852,8 +852,12 @@ elsif ( $action eq 'nav-save' ) {
 }
 elsif ( $action eq 'handler-list' ) { $result = action_handler_list() }
 elsif ( $action eq 'version' )      { $result = action_version() }
-elsif ( $action eq 'analyse_visitors' ) { $result = action_analyse_visitors( $params{window} ) }
-elsif ( $action eq 'whoami' )           { $result = action_whoami($auth_user) }
+elsif ( $action eq 'analyse_visitors' ) {
+    $result = action_analyse_visitors(
+        window => $params{window}, day   => $params{day},
+        month  => $params{month},  index => $params{index} );
+}
+elsif ( $action eq 'whoami' )                { $result = action_whoami($auth_user) }
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
 elsif ( $action eq 'audit' ) {
     # Strict gate: the FULL audit trail requires the 'audit' capability (separate
@@ -2495,13 +2499,25 @@ sub _stats_tool_path {
 # MCP analyse_visitors tool). Returns the stats plugin's sanitised, cached export -
 # aggregates + a capped event stream; never the raw log, a path, or a visitor IP.
 sub action_analyse_visitors {
-    my ($window) = @_;
+    my (%opt) = @_;
     my $tool = _stats_tool_path()
         or return { ok => 0, error => 'Visitor stats plugin not found' };
-    $window = ( defined $window && $window =~ /^\d+$/ ) ? $window : 30;
+    my $window = ( defined $opt{window} && $opt{window} =~ /^\d+$/ ) ? $opt{window} : 30;
+
+    # SM213: durable-store selectors. Validated to strict shapes and passed as exec
+    # args (open2 list form - no shell), so they cannot inject.
+    my @sel;
+    if    ( $opt{index} ) { @sel = ('--index') }
+    elsif ( defined $opt{day} && $opt{day} =~ /^\d{4}-\d{2}-\d{2}$/ ) {
+        @sel = ( '--day', $opt{day} );
+    }
+    elsif ( defined $opt{month} && $opt{month} =~ /^\d{4}-\d{2}$/ ) {
+        @sel = ( '--month', $opt{month} );
+    }
+
     my ( $out, $in );
     my $pid = eval {
-        open2( $out, $in, $^X, $tool, '--export', '--docroot', $DOCROOT, '--window', $window );
+        open2( $out, $in, $^X, $tool, '--export', '--docroot', $DOCROOT, '--window', $window, @sel );
     } or return { ok => 0, error => 'Cannot run the stats plugin' };
     close $in;
     my $resp = do { local $/; <$out> };

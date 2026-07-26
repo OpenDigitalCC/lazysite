@@ -840,6 +840,32 @@ diagnostics/enrichment - with a `source` field saying which tier answered, and
 an existing-but-unreadable server log reported as exactly that rather than
 "not found".
 
+**Durable per-day store + trends** (SM213, 0.9.16+): the aggregates are stored
+long-term as one small JSON file per day under `lazysite/stats/` (outside the
+clearable cache), with monthly rollups and an index - so the data is durable,
+per-day addressable and downloadable, with **no cap to hit and nothing for an
+operator to configure**. The export distinguishes its two horizons explicitly so
+the complete aggregates are never mistaken for the bounded recent event sample:
+`data_from` states how far the aggregates reach, and `sample: {from, to, count}`
+states what the raw event sample covers. `analyse_visitors` gains selectors -
+`index` (the days + months index), `day=YYYY-MM-DD`, `month=YYYY-MM` - and the
+Stats page shows a **month-on-month** trend. The raw event ring is now just a
+recent-activity sample, not a limit on analysis. Classification is **visitor-level**:
+a token that probes a non-existent path is marked a `scanner` and its whole session
+(including a spoofed referrer) is pulled out of the people/referrer figures, not just
+the probe; 404s split into plausible missing pages (kept by path) vs a junk
+scanner-chorus count.
+
+**Privacy commitment.** lazysite **installs no trackers**: no analytics
+JavaScript, no beacons, no analytics cookies, no fingerprinting, no third-party
+requests. Analytics are derived only from data the server already receives while
+serving a page, aggregated and IP-anonymised at write. The durable day files hold
+**aggregates only, never per-visitor records**, and visitor keys are daily-salted
+so they cannot become long-term identifiers (returning-visitor signal exists only
+within a salt period - the accepted cost). The scope of the assurance is precise:
+lazysite ships nothing that instruments a visitor; a site owner remains free to add
+their own scripts to their own pages, which lazysite cannot and does not control.
+
 ## Backups and overlay install
 
 The manager Backups page (and the installer) take `tar.gz` snapshots of served

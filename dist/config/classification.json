@@ -188,6 +188,7 @@
     "^CLAUDE\\.md$",
     "^starter/lazysite/cache/",
     "^starter/lazysite/logs/",
+    "^starter/lazysite/stats/",
     "^starter/lazysite/auth/users$",
     "^starter/lazysite/auth/groups$",
     "^starter/lazysite/auth/\\.",
@@ -242,6 +243,11 @@
       "path": "{DOCROOT}/lazysite/logs",
       "mode": "2775",
       "purpose": "application log output - setgid + group-writable by www-data"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/stats",
+      "mode": "2775",
+      "purpose": "SM213 durable per-day visitor-stats rollups (aggregates only) - setgid + group-writable by www-data (the stats plugin writes it), not served publicly (under the protected lazysite/ tree)"
     },
     {
       "path": "{DOCROOT}/lazysite/manager/locks",

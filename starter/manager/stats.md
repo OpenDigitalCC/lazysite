@@ -129,6 +129,9 @@ function renderStats(d) {
     h += '</div>';
   }
 
+  // SM213: month-on-month trend (filled async from the durable stats index).
+  h += '<div id="mom-block"></div>';
+
   h += '<div class="mg-stat-cols">';
   h += pageTable('Top pages', d.top_pages);
   h += refBlock(d.referrers);
@@ -162,6 +165,40 @@ function renderStats(d) {
   h += '<p class="mg-muted" style="margin-top:1rem">' + fmtNum(d.scanned_lines)
      + ' log lines scanned' + (d.capped ? ' (capped)' : '') + '.</p>';
   body.innerHTML = h;
+  loadMonthly();
+}
+
+// SM213: best-effort month-on-month indicator from the durable per-day store's
+// index. Silent if the operator lacks the analytics capability or there is no
+// data yet - the dashboard is an indicator, not a full analytics view.
+function loadMonthly() {
+  var el = document.getElementById('mom-block');
+  if (!el) return;
+  fetch(API + '?action=analyse_visitors&index=1')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok || !d.months || !d.months.length) return;
+      var m = d.months.slice(-12);
+      var max = m.reduce(function (a, x) { return x.pageviews > a ? x.pageviews : a; }, 0) || 1;
+      var h = '<div class="mg-sec">Month on month <span class="mg-muted">(people pageviews)</span></div>';
+      if (d.data_from) h += '<p class="mg-muted" style="margin:0 0 0.4rem">Aggregates held since ' + sesc(d.data_from) + '.</p>';
+      h += '<div class="mg-bars">';
+      m.forEach(function (x) {
+        var pct = Math.round((x.pageviews || 0) / max * 100);
+        var delta = '';
+        if (x.delta_pageviews != null) {
+          var up = x.delta_pageviews >= 0;
+          delta = ' <span style="color:' + (up ? '#2e8b57' : '#b03a3a') + '">'
+                + (up ? '▲' : '▼') + ' ' + fmtNum(Math.abs(x.delta_pageviews)) + '</span>';
+        }
+        h += '<div class="mg-bar-row"><span class="mg-bar-label">' + sesc(x.month) + '</span>'
+           + '<span class="mg-bar"><span class="mg-bar-fill" style="width:' + pct + '%"></span></span>'
+           + '<span class="mg-bar-val">' + fmtNum(x.pageviews) + delta + '</span></div>';
+      });
+      h += '</div>';
+      el.innerHTML = h;
+    })
+    .catch(function () { /* best-effort: leave the block empty */ });
 }
 
 function tile(label, value) {
