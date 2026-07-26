@@ -1,3 +1,18 @@
+lazysite (0.9.16-1) unstable; urgency=medium
+
+  * BETA: token-lifetime control + live-config AI discovery + discovery hygiene on
+    top of 0.9.15. No BREAKING change, no migration; secure defaults unchanged.
+  * SM212: operator-set access-token lifetime (token_ttl, 1h floor / hard 30d
+    ceiling) for the lzs_ machine token, with sliding renewal on use; default stays
+    a hard 24h with no sliding. Sessions & keys Lifetime control + set token_ttl.
+  * SM190 (final part): .well-known/ai-partner is code-served from live config -
+    advertises only enabled endpoints, no-store, cannot drift.
+  * SM210: tools/list returns only the introspection subset to an unidentified
+    caller, not the full tool vocabulary (enforcement unchanged).
+  * SM207 closed out as superseded by SM208.
+
+ -- Stuart Mackintosh <sjm@opendigital.cc>  Sun, 26 Jul 2026 23:15:42 +0100
+
 lazysite (0.9.15-1) unstable; urgency=medium
 
   * BETA: manager UI polish + documentation on top of 0.9.14. No engine change, no

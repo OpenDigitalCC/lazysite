@@ -16,6 +16,28 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.16 - BETA: token-lifetime control + live-config AI discovery + discovery hygiene (2026-07-26)
+
+A small, focused release on top of 0.9.15. No BREAKING change, no migration; secure
+defaults unchanged.
+
+- SM212: operator-set access-token lifetime with renew-on-use. A per-account
+  `token_ttl` (hard 30-day ceiling, 1h floor) governs the lzs_ machine token; an
+  account that carries one also gets sliding renewal (an in-use token never lapses,
+  only a full idle window expires it). Default is unchanged - no token_ttl means the
+  hard 24h-from-issue window and no sliding. Set from the Sessions & keys page
+  (per-key Lifetime: 24h/7d/30d) or `set <user> token_ttl 30d`. Shared TTL policy +
+  resolver in Lazysite::Auth::Settings; sliding folded into the throttled
+  touch_credential.
+- SM190 (final part): `.well-known/ai-partner` is code-served from the live config -
+  it advertises only the endpoints whose service killswitch is on and is served
+  no-store, so it cannot drift or name a disabled endpoint. Shadows the legacy static
+  page (now a registration stub).
+- SM210: `tools/list` returns only the introspection subset to an unidentified caller
+  (anonymous or an unrecognised/revoked token), not the full tool vocabulary.
+  Enforcement unchanged; discovery hygiene.
+- SM207 closed out as superseded by SM208.
+
 ## 0.9.15 - BETA: manager UI polish (domains configure-modal, promote-in-dropdown, hints) + docs (2026-07-25)
 
 A low-risk manager-UI and documentation release on top of the 0.9.14 edge line. No
