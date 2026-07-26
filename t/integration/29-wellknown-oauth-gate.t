@@ -42,4 +42,39 @@ for my $n (@wk) {
     like( $out, qr/issuer/, "SM190: /$n renders the discovery JSON when on" );
 }
 
+# SM190 part 2: the ai-partner bootstrap is CODE-SERVED from the live config - it
+# is always served (200, no-store) but lists ONLY the endpoints whose service is
+# enabled, so it cannot advertise an endpoint that 404s.
+{
+    my $d2 = tempdir( CLEANUP => 1 );
+    setup_minimal_site($d2);
+
+    # Everything off (default): served, but no machine endpoints advertised.
+    # Assert on the endpoint URL values, which are unambiguous (the scope object
+    # also has a "webdav" KEY, so key-name regexes would false-match).
+    my $out = run_processor( $d2, '/.well-known/ai-partner' );
+    like( $out, qr/Status:\s*200/, 'SM190: ai-partner is always served (200)' );
+    like( $out, qr/no-store/, 'SM190: ai-partner is no-store (a later toggle shows at once)' );
+    unlike( $out, qr{/dav/},              'SM190: no webdav endpoint while webdav_enabled is off' );
+    unlike( $out, qr{lazysite-mcp\.pl},   'SM190: no mcp endpoint while mcp_enabled is off' );
+    unlike( $out, qr{action=exchange},    'SM190: no exchange endpoint while token_exchange_enabled is off' );
+
+    # Enable webdav + mcp only.
+    open my $c2, '>>', "$d2/lazysite/lazysite.conf" or die $!;
+    print $c2 "webdav_enabled: enabled\nmcp_enabled: enabled\n";
+    close $c2;
+    $out = run_processor( $d2, '/.well-known/ai-partner' );
+    like( $out, qr{/dav/},            'SM190: webdav endpoint appears when webdav_enabled is on' );
+    like( $out, qr{lazysite-mcp\.pl}, 'SM190: mcp endpoint appears when mcp_enabled is on' );
+    unlike( $out, qr{action=exchange}, 'SM190: exchange still absent (token_exchange_enabled off)' );
+
+    # Enable token exchange -> exchange + rotate appear.
+    open my $c3, '>>', "$d2/lazysite/lazysite.conf" or die $!;
+    print $c3 "token_exchange_enabled: enabled\n";
+    close $c3;
+    $out = run_processor( $d2, '/.well-known/ai-partner' );
+    like( $out, qr{action=exchange}, 'SM190: exchange endpoint appears when token_exchange_enabled is on' );
+    like( $out, qr{action=rotate},   'SM190: rotate endpoint appears too' );
+}
+
 done_testing();

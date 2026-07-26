@@ -25,20 +25,24 @@ my @CANONICAL = sort qw(
 
 sub slurp { open my $fh, '<', $_[0] or die "$_[0]: $!"; local $/; <$fh> }
 
-# Pull the quoted entries out of a `deny: [ ... ]` / `"deny": [ ... ]` array.
+# Pull the quoted entries (single- or double-quoted) out of a `deny: [ ... ]` /
+# `"deny": [ ... ]` / `deny => [ ... ]` array.
 sub deny_set {
     my ( $file, $marker ) = @_;
     my $text = slurp($file);
     $text =~ /$marker\s*\[(.*?)\]/s or die "no deny array in $file";
-    my @items = $1 =~ /"([^"]+)"/g;
+    my $body = $1;
+    my @items = ( $body =~ /"([^"]+)"/g, $body =~ /'([^']+)'/g );
     return [ sort @items ];
 }
 
-my $wk = deny_set( "$root/starter/.well-known/ai-partner.md", qr/"deny"\s*:/ );
-my $br = deny_set( "$root/tools/lazysite-users.pl",           qr/\bdeny:/ );
+# SM190: the .well-known/ai-partner deny list is now CODE-SERVED from
+# lazysite-processor.pl (_ai_partner_doc), not the static page - read it there.
+my $wk = deny_set( "$root/lazysite-processor.pl", qr/deny\s*=>/ );
+my $br = deny_set( "$root/tools/lazysite-users.pl", qr/\bdeny:/ );
 
 is_deeply( $wk, \@CANONICAL,
-    '.well-known/ai-partner deny list matches the canonical set' );
+    'ai-partner (code-served) deny list matches the canonical set' );
 is_deeply( $br, \@CANONICAL,
     'onboarding-brief deny list matches the canonical set' );
 is_deeply( $wk, $br,

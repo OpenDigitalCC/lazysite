@@ -1190,6 +1190,25 @@ sub main {
         return;
     }
 
+    # SM190: the AI-partner bootstrap (.well-known/ai-partner) is CODE-SERVED from
+    # the live config so it advertises ONLY the endpoints whose service killswitch
+    # is on - it cannot drift the way a static page can (which named endpoints that
+    # 404 and got render-cached). Served BEFORE the render/cache path (so it also
+    # shadows any legacy static ai-partner.md) and no-store, so an operator's later
+    # service toggle is reflected immediately. CORS-open like the instance marker,
+    # for a browser-side onboarding probe. Body is JSON::PP-encoded, always valid.
+    if ( $uri =~ m{^ /\.well-known/ai-partner (?:\.\w+)? \z}x ) {
+        my %sv  = resolve_site_vars();
+        my $doc = _ai_partner_doc( $sv{site_url} // '' );
+        binmode( STDOUT, ':utf8' );
+        print "Status: 200 OK\r\n";
+        print "Content-Type: application/json; charset=utf-8\r\n";
+        print "Access-Control-Allow-Origin: *\r\n";
+        print "Cache-Control: no-store\r\n\r\n";
+        print JSON::PP->new->canonical->pretty->encode($doc);
+        return;
+    }
+
     # Set log level from conf (env var takes priority). No local needed
     # here - %ENV is already localised at the top of main().
     {
@@ -5044,6 +5063,83 @@ sub _conf_flag_enabled {
     }
     close $fh;
     return 0;
+}
+
+# SM190: build the .well-known/ai-partner discovery document from the LIVE config.
+# Each machine endpoint is listed only when its service killswitch is on, so the
+# doc can never advertise an endpoint that would 404 (webdav_enabled / mcp_enabled
+# / control_api_enabled / token_exchange_enabled). The descriptive fields (auth /
+# capabilities / scope / docs) are stable and non-config-driven. Returns a hashref
+# for JSON::PP to encode - always valid JSON, no template comma hazards.
+sub _ai_partner_doc {
+    my ($site_url) = @_;
+    ( my $base = $site_url // '' ) =~ s{/+$}{};
+
+    my $webdav   = _conf_flag_enabled('webdav_enabled');
+    my $mcp      = _conf_flag_enabled('mcp_enabled');
+    my $control  = _conf_flag_enabled('control_api_enabled');
+    my $exchange = _conf_flag_enabled('token_exchange_enabled');
+
+    my %endpoints;
+    $endpoints{webdav}  = "$base/dav/"                            if $webdav;
+    $endpoints{control} = "$base/cgi-bin/lazysite-manager-api.pl" if $control;
+    $endpoints{mcp}     = "$base/cgi-bin/lazysite-mcp.pl"         if $mcp;
+    if ($exchange) {
+        $endpoints{exchange} = "$base/cgi-bin/lazysite-auth.pl?action=exchange";
+        $endpoints{rotate}   = "$base/cgi-bin/lazysite-auth.pl?action=rotate";
+    }
+
+    my %modes;
+    $modes{api} =
+        'WebDAV (file ops, bulk) + control API (theme/layout/acl/config) over Basic auth; '
+        . 'the full surface, best for scripted builds.'
+        if $webdav || $control;
+    $modes{mcp} =
+        'Remote MCP server at the mcp endpoint exposing the maintenance verbs as tools; '
+        . "add as a connector with bearer auth '<partner-id>:<lzs_ token>'. Best for an "
+        . 'MCP-capable agent; one file per write call.'
+        if $mcp;
+
+    return {
+        site      => $base,
+        endpoints => \%endpoints,
+        modes     => \%modes,
+        auth      => {
+            scheme       => 'basic',
+            token_prefix => 'lzs_',
+            note         =>
+                'Basic auth: username = your partner id from your onboarding brief, password = '
+                . 'the lzs_ access token. Exchange the operator-issued pairing key (lzp_) at the '
+                . 'exchange endpoint for {token, expires_at}; rotate before expiry. One live '
+                . 'credential per account.',
+        },
+        capabilities => [qw(webdav manage_themes manage_layouts manage_config analytics)],
+        scope        => {
+            webdav =>
+                'content, assets, layout/theme files under lazysite/layouts/, and lazysite/nav.conf (the last with manage_config)',
+            control_api =>
+                'config keys, theme/layout activation, HTML-cache clear (manage_config / manage_themes / manage_layouts)',
+            analytics =>
+                'read-only visitor-log analysis via the analyse_visitors MCP tool - sanitised + IP-anonymised, never the raw log or a path. Off by default; explicit grant. Raw logs under lazysite/logs/ stay denied.',
+            audit =>
+                'read the audit trail (in-page Audit view + control-API audit action). A separate capability from analytics; off by default.',
+            deny => [
+                '/cgi-bin/',                     '/manager/',
+                '/lazysite/auth/',               '/lazysite/forms/smtp.conf',
+                '/lazysite/forms/handlers.conf', '/lazysite/forms/submissions/',
+                '/lazysite/cache/',              '/lazysite/logs/',
+                '/lazysite/manager/',            '/lazysite/templates/',
+                '/lazysite/lazysite.conf',       '*.pl',
+            ],
+        },
+        docs => [
+            map { "$base/$_" } qw(
+                docs/ai-briefing-building-sites docs/ai-briefing-publishing
+                docs/reference docs/ai-briefing-authoring docs/ai-briefing-configuration
+                docs/ai-briefing-layouts docs/ai-briefing-stats docs/ai-connector-tools llms.txt
+            )
+        ],
+    };
 }
 
 sub not_found {
