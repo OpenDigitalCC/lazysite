@@ -36,6 +36,21 @@ sub parse_when {
     die "Invalid date '$v' (use YYYY-MM-DD, YYYY-MM-DD HH:MM, or an epoch)\n";
 }
 
+# SM212: parse a friendly duration into SECONDS - '30d', '24h', '90m', '3600s',
+# or a bare number of seconds. undef when empty/blank (the caller clears the
+# setting); dies on an unparseable value so a typo is not silently ignored.
+sub parse_duration {
+    my ($v) = @_;
+    return undef unless defined $v;
+    $v =~ s/^\s+|\s+$//g;
+    return undef unless length $v;
+    if ( $v =~ /^(\d+)\s*([dhms]?)$/i ) {
+        my %mult = ( d => 86_400, h => 3_600, m => 60, s => 1, '' => 1 );
+        return $1 * $mult{ lc $2 };
+    }
+    die "Invalid duration '$v' (use e.g. 30d, 24h, 90m, or seconds)\n";
+}
+
 # --- SM072 batch 4: TOTP (RFC 6238), self-contained (Digest::SHA) ------
 my @B32 = split //, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
@@ -113,17 +128,22 @@ use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
 use Lazysite::Auth::Settings qw(read_settings write_settings _consume_lock
-    caps_for write_group_settings resolve_user_scopes resolve_home_domain @CAP_KEYS);
+    caps_for write_group_settings resolve_user_scopes resolve_home_domain
+    resolve_token_ttl @CAP_KEYS);
 $Lazysite::Util::COMPONENT = 'users';
 
 # SM071 Phase 2: token lifecycle (model A). A single-use pairing key is
 # exchanged for a short-lived access token that the client rotates before
 # it expires. TTLs in seconds.
-my $PAIRING_TTL      = 900;       # 15 minutes
-my $CONNECT_CODE_TTL = 1_800;     # SM200: 30 min (was 15) - the connect code often
-                                  # expired mid-authorise while the operator pasted it
-my $ACCESS_TOKEN_TTL = 86_400;    # 24 hours
-my $CLAIM_TTL        = 86_400;    # SM072 setup/reset claim: 24 hours
+my $PAIRING_TTL      = 900;      # 15 minutes
+my $CONNECT_CODE_TTL = 1_800;    # SM200: 30 min (was 15) - the connect code often
+                                 # expired mid-authorise while the operator pasted it
+# SM212: the default machine-token lifetime and its operator-set cap live in
+# Lazysite::Auth::Settings (shared with the sliding renewer). resolve_token_ttl()
+# gives the effective per-account TTL; the floor/ceiling gate an operator's set.
+my $TOKEN_TTL_MIN = $Lazysite::Auth::Settings::TOKEN_TTL_MIN;
+my $TOKEN_TTL_MAX = $Lazysite::Auth::Settings::TOKEN_TTL_MAX;
+my $CLAIM_TTL     = 86_400;    # SM072 setup/reset claim: 24 hours
 
 my $DOCROOT;
 my $API_MODE = 0;
@@ -1066,6 +1086,9 @@ sub effective_settings {
         # SM071 Phase 2: access-token expiry (null = no expiry, e.g. a
         # human password or an operator-minted permanent credential).
         token_expires_at => $s->{token_expires_at},
+        # SM212: operator-set machine-token lifetime (seconds; null = the 24h
+        # default). When set, the token also renews on use (sliding).
+        token_ttl => $s->{token_ttl},
         # Free-text operator annotation (what this account is for).
         comment => $s->{comment},
         # SM072: an outstanding setup/reset claim (the hash is never exposed).
@@ -1112,7 +1135,7 @@ sub cmd_set_cli {
 
 sub cmd_set {
     my ( $user, $key, $value, %opt ) = @_;
-    die "Usage: set USERNAME (ui|comment|email|expires_at) VALUE\n"
+    die "Usage: set USERNAME (ui|comment|email|expires_at|token_ttl) VALUE\n"
         unless defined $user && length $user && defined $key && length $key;
 
     my %users = read_users();
@@ -1156,6 +1179,20 @@ sub cmd_set {
         if ( defined $epoch ) { $all->{$user}{expires_at} = $epoch }
         else                  { delete $all->{$user}{expires_at} }
     }
+    elsif ( $key eq 'token_ttl' ) {
+        # SM212: how long a freshly issued/rotated machine token (lzs_) lives, and
+        # (because it is set) the account gets sliding renewal - an in-use token
+        # never lapses. A friendly duration (30d / 24h / 90m) or bare seconds.
+        # Empty clears back to the 24h default (and turns sliding off). Bounded to
+        # [TOKEN_TTL_MIN, TOKEN_TTL_MAX] so a long-lived secret cannot exceed 30d.
+        my $secs = parse_duration($value);
+        if ( !defined $secs ) { delete $all->{$user}{token_ttl} }
+        else {
+            die "token_ttl must be at least 1h\n" if $secs < $TOKEN_TTL_MIN;
+            die "token_ttl must not exceed 30d\n" if $secs > $TOKEN_TTL_MAX;
+            $all->{$user}{token_ttl} = $secs;
+        }
+    }
     elsif ( $key eq 'email' ) {
         # SM072: contact email (for emailed setup/reset links). Empty clears.
         my $e = defined $value ? "$value" : '';
@@ -1168,9 +1205,9 @@ sub cmd_set {
         else { delete $all->{$user}{email} }
     }
     else {
-        die "Unknown setting '$key' (expected ui, comment, email, or "
-            . "expires_at; dav_scope/home_domain are group settings - see "
-            . "group-set)\n";
+        die "Unknown setting '$key' (expected ui, comment, email, "
+            . "expires_at, or token_ttl; dav_scope/home_domain are group "
+            . "settings - see group-set)\n";
     }
 
     write_settings($all);
@@ -1595,14 +1632,15 @@ sub cmd_token_exchange {
     my $token = generate_token();
     $users{$user} = hash_token($token);
     write_users(%users);
-    $all->{$user}{token_expires_at} = time() + $ACCESS_TOKEN_TTL;
+    my $ttl = resolve_token_ttl( $all->{$user} );    # SM212: per-account TTL
+    $all->{$user}{token_expires_at} = time() + $ttl;
     write_settings($all);
     log_event( 'INFO', $user, 'access token issued via pairing exchange' );
     cli_audit( 'user-token-exchange', $user, 'access token issued' );
 
     unless ($API_MODE) {
         print "Access token for '$user' (expires in "
-            . int( $ACCESS_TOKEN_TTL / 3600 ) . "h; shown once):\n$token\n";
+            . int( $ttl / 3600 ) . "h; shown once):\n$token\n";
     }
     return { token => $token, expires_at => $all->{$user}{token_expires_at} };
 }
@@ -1622,14 +1660,15 @@ sub cmd_token_rotate {
     write_users(%users);
     my $all = read_settings();
     $all->{$user} ||= {};
-    $all->{$user}{token_expires_at} = time() + $ACCESS_TOKEN_TTL;
+    my $ttl = resolve_token_ttl( $all->{$user} );    # SM212: per-account TTL
+    $all->{$user}{token_expires_at} = time() + $ttl;
     write_settings($all);
     log_event( 'INFO', $user, 'access token rotated' );
     cli_audit( 'user-token-rotate', $user );
 
     unless ($API_MODE) {
         print "Rotated access token for '$user' (expires in "
-            . int( $ACCESS_TOKEN_TTL / 3600 ) . "h; shown once):\n$token\n";
+            . int( $ttl / 3600 ) . "h; shown once):\n$token\n";
     }
     return { token => $token, expires_at => $all->{$user}{token_expires_at} };
 }
@@ -2182,6 +2221,7 @@ sub cmd_keys_list {
             used_at   => $used,
             in_use => ( $used && $used >= $iss ) ? JSON::PP::true() : JSON::PP::false(),
             token_expires_at => $s->{token_expires_at},
+            token_ttl        => $s->{token_ttl},  # SM212: null = 24h default + no sliding
             expires_at       => $s->{expires_at},
             disabled         => $eff->{disabled} ? JSON::PP::true() : JSON::PP::false(),
             interactive      => $eff->{ui}       ? JSON::PP::true() : JSON::PP::false(),

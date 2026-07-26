@@ -185,7 +185,7 @@ function renderKeys(d) {
     return;
   }
   var h = '<div style="overflow-x:auto"><table class="audit-table"><thead><tr>' +
-    '<th>Account</th><th>Key for</th><th>Issued</th><th>Status</th><th></th>' +
+    '<th>Account</th><th>Key for</th><th>Issued</th><th>Status</th><th>Lifetime</th><th></th>' +
     '</tr></thead><tbody>';
   rows.forEach(function(k) {
     var chans = (k.channels || []).map(function(c) {
@@ -204,17 +204,54 @@ function renderKeys(d) {
         ? ' <span class="mg-tag mg-tag-off">token expired</span>'
         : ' <span class="mg-tag mg-tag-auto">expires ' + escHtml(new Date(k.token_expires_at * 1000).toLocaleDateString()) + '</span>';
     }
+    // SM212: token lifetime. Default (24h) is a hard window from issue; a longer
+    // TTL (max 30d) also RENEWS ON USE, so an actively-used key never lapses.
+    var cur = k.token_ttl ? String(k.token_ttl) : '';
+    var known = { '': 1, '604800': 1, '2592000': 1 };
+    var ttlSel = '<select class="mg-inp" style="width:auto;padding:2px 4px" ' +
+      'onchange="setTokenTtl(\'' + escHtml(k.user) + '\', this.value)">' +
+      '<option value=""' + (!cur ? ' selected' : '') + '>24h (default)</option>' +
+      '<option value="7d"' + (cur === '604800' ? ' selected' : '') + '>7 days</option>' +
+      '<option value="30d"' + (cur === '2592000' ? ' selected' : '') + '>30 days</option>' +
+      (cur && !known[cur]
+        ? '<option value="' + cur + 's" selected>' + Math.round(cur / 86400) + ' days (custom)</option>'
+        : '') +
+      '</select>';
+    var slides = k.token_ttl
+      ? '<div class="mg-muted" style="font-size:0.8em" title="An in-use token has its expiry renewed on each use, so it never lapses while the key is active. Revoke to end it.">renews on use</div>'
+      : '';
     h += '<tr>' +
       '<td><a href="/manager/users?user=' + encodeURIComponent(k.user) + '">' + escHtml(k.user) + '</a></td>' +
       '<td>' + chans + '</td>' +
       '<td>' + when + '</td>' +
       '<td>' + status + '</td>' +
+      '<td style="white-space:nowrap">' + ttlSel + slides + '</td>' +
       '<td style="white-space:nowrap">' +
       '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="revokeKey(\'' + escHtml(k.user) + '\')">Revoke key</button>' +
       '</td></tr>';
   });
   h += '</tbody></table></div>';
   box.innerHTML = h;
+}
+
+// SM212: set an account's machine-token lifetime (token_ttl). Empty = 24h
+// default (hard window); a longer value also enables sliding renewal. Takes
+// effect on the NEXT exchange/rotate and (for the sliding part) on next use.
+function setTokenTtl(user, value) {
+  fetch(API + '?action=settings-set', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: user, key: 'token_ttl', value: value })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not set the token lifetime', true); loadKeys(); return; }
+      showStatus(value
+        ? 'Token lifetime for "' + user + '" set (renews on use). Applies on the next credential issue/rotate.'
+        : 'Token lifetime for "' + user + '" reset to the 24h default.');
+      loadKeys();
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
 }
 
 function revokeKey(user) {

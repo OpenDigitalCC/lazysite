@@ -2,8 +2,8 @@
 title: "SM212 - operator-set, ceiling-capped access-token TTL with sliding renewal"
 subtitle: "The lzs_ machine token (pairing exchange, used for WebDAV + control-API Basic auth) expires at a hardcoded 24h and has no refresh concept, so an automation account must re-rotate daily - a field agent proposed a daily cron. Make the TTL an operator-set per-account setting capped at 30 days, and renew it on use, so an active token never lapses and only genuine inactivity expires it. No cron, better security posture than one."
 brand: plain
-status: candidate
-status-note: "LOGGED 2026-07-26 - the lazysite-sites agent found its lzs_ token expires every 24h and proposed a cron to rotate daily to keep access alive for when the site is not edited daily. This FR is the more elegant answer: a bounded configurable TTL + sliding (renew-on-use) expiry, both built on machinery that already exists (SM071 token_expires_at, SM163 touch_credential). Small-to-medium, security-positive, no client changes."
+status: shipped
+status-note: "SHIPPED 2026-07-26 (targeted at 0.9.16). Origin: the lazysite-sites agent's lzs_ token expired every 24h and it proposed a daily cron. Implemented as designed: a per-account token_ttl (Lazysite::Auth::Settings, floor 1h / hard ceiling 30d, resolve_token_ttl clamps even a hand-edited record), applied at exchange/rotate; sliding renewal folded into the already-throttled SM163 touch_credential (an account WITH a token_ttl renews on use so an in-use token never lapses; a default-TTL token is unchanged - hard 24h from issue); cmd_set token_ttl branch + parse_duration + effective_settings/keys-list surfacing; a Lifetime control (24h/7d/30d) on the manager Sessions & keys page. Tests in t/unit/users/10-token-lifecycle.t (ceiling/floor, 30d issue, resolver clamp, sliding-extends, default-no-slide)."
 ---
 
 # SM212 - access-token TTL: operator-set, ceiling-capped, sliding

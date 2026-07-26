@@ -13,10 +13,30 @@ use Exporter 'import';
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     caps_for groups_grant_cap site_grants_manager
     group_scopes group_home_domain effective_groups touch_credential
-    resolve_user_scopes resolve_home_domain
+    resolve_user_scopes resolve_home_domain resolve_token_ttl
     read_group_settings write_group_settings @CAP_KEYS);
 
 our $AUTH_DIR;    # "$DOCROOT/lazysite/auth", set by the script
+
+# SM212: machine-token (lzs_) lifetime policy. The default is short; an operator
+# may set a per-account `token_ttl` up to a hard ceiling, and an account that
+# carries one also gets sliding renewal (see touch_credential). One home for the
+# numbers, shared by the users tool (issue/rotate/validate) and touch_credential.
+our $ACCESS_TOKEN_TTL_DEFAULT = 86_400;         # 24h - default when no token_ttl set
+our $TOKEN_TTL_MIN            = 3_600;          # 1h floor for an operator-set TTL
+our $TOKEN_TTL_MAX            = 30 * 86_400;    # 30d hard ceiling (OAuth refresh horizon)
+
+# The effective TTL (seconds) for an account's settings hashref: the operator-set
+# token_ttl clamped to the ceiling, else the default. Never returns > the ceiling,
+# so even a hand-edited/legacy record cannot mint a longer-lived token.
+sub resolve_token_ttl {
+    my ($settings) = @_;
+    my $ttl = ref $settings eq 'HASH' ? $settings->{token_ttl} : undef;
+    return $ACCESS_TOKEN_TTL_DEFAULT
+        unless defined $ttl && $ttl =~ /^\d+$/ && $ttl > 0;
+    $ttl = $TOKEN_TTL_MAX if $ttl > $TOKEN_TTL_MAX;
+    return $ttl;
+}
 
 # SM095: the capability bools a group can carry. Channel caps (where you may
 # operate) + action caps (what you may do). `ui` (Manager-UI login) converges from
@@ -343,6 +363,23 @@ sub touch_credential {
         return 0 if $last >= $iss && ( $now - $last ) < $TOUCH_WINDOW;
 
         $all->{$user}{cred_used_at} = $now;
+
+        # SM212: sliding renewal. An account the operator gave a token_ttl is a
+        # managed long-lived credential - renew its expiry on use, so an in-use
+        # token never lapses and only genuine inactivity (a full token_ttl) does.
+        # Piggybacks this already-throttled write (at most one slide per window).
+        # Guards: only a live token (expiry present and not yet past); never a
+        # default-TTL token (no token_ttl -> unchanged 24h-from-issuance posture);
+        # never shorten; never resurrect an expired one.
+        if ( $u->{token_ttl}
+            && $u->{token_expires_at}
+            && $u->{token_expires_at} > $now )
+        {
+            my $slid = $now + resolve_token_ttl($u);
+            $all->{$user}{token_expires_at} = $slid
+                if $slid > $u->{token_expires_at};
+        }
+
         write_settings($all);
         1;
     };
