@@ -2,8 +2,8 @@
 title: "SM207 - ai-briefing-design-transfer.md (external-design -> theme/layout)"
 subtitle: "The briefing set (authoring / layouts / publishing / configuration / building-sites) has no doc for the task shape the design-transfer work defined: bringing an EXTERNAL design (Figma, an existing site, a brand document) into the theme/layout system."
 brand: plain
-status: candidate
-status-note: "SUPERSEDED by SM208 (2026-07-24). The integrations briefing chose a scalable /docs/integrations/ namespace over a single flat ai-briefing-design-transfer.md; this doc's content (identity-as-tokens, role-based naming, rebuild-don't-copy, the what-NOT-to-ask list) is absorbed into SM208's figma.md translation section + the integrations index. Kept for history; implement via SM208, not this."
+status: superseded
+status-note: "SUPERSEDED by SM208 (2026-07-24), closed out 2026-07-26. The integrations briefing chose a scalable /docs/integrations/ namespace over a single flat ai-briefing-design-transfer.md; this doc's content (identity-as-tokens, role-based naming, rebuild-don't-copy, the what-NOT-to-ask list) is absorbed into SM208's figma.md translation section + the integrations index. Kept for history; implement via SM208, not this."
 ---
 
 # SM207 - ai-briefing-design-transfer.md
