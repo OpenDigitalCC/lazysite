@@ -82,7 +82,9 @@ my $agent = 'Bearer historian:lzs_tok';    # webdav + manage_content
 my $nocap = 'Bearer themebot:lzs_tok';     # theme-only: no manage_content
 
 # --- advertised + annotated ---------------------------------------------------
-my ( $st, $r ) = mcp( { jsonrpc => '2.0', id => 1, method => 'tools/list' } );
+# SM210: the write/history surface is advertised to a resolved session; use the
+# manage_content agent so tools/list includes the history tools.
+my ( $st, $r ) = mcp( { jsonrpc => '2.0', id => 1, method => 'tools/list' }, auth => $agent );
 my %names = map { $_->{name} => $_ } @{ $r->{result}{tools} };
 ok( $names{list_versions} && $names{view_version} && $names{restore_version},
     'tools/list advertises the three history tools' );
@@ -134,7 +136,7 @@ like( sc($r)->{entries}[0]{subject}, qr/restore/i, 'named as a restore' )
     or diag encode_json( sc($r)->{entries} );
 
 # --- SM199: list_content_history (site-level file list + statistics) ------------
-( $st, $r ) = mcp( { jsonrpc => '2.0', id => 1, method => 'tools/list' } );
+( $st, $r ) = mcp( { jsonrpc => '2.0', id => 1, method => 'tools/list' }, auth => $agent );
 %names = map { $_->{name} => $_ } @{ $r->{result}{tools} };
 ok( $names{list_content_history}, 'tools/list advertises list_content_history' );
 ok( $names{list_content_history}{annotations}{readOnlyHint},

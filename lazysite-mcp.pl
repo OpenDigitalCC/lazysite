@@ -1638,10 +1638,21 @@ sub _tool_callable {
 }
 
 sub tool_list {
-    my ($caps) = @_;    # SM196: when defined, filter to the tools this session may invoke
+    my ($caps) = @_;
+
+    # SM196: when $caps is defined (a resolved session), filter to the tools this
+    # session may invoke. SM210: when $caps is undef there is NO resolved identity
+    # (anonymous, or an unrecognised/revoked/rotated-out token) - advertise only
+    # the introspection subset, not the full tool vocabulary. Enforcement is
+    # unchanged either way (tools/call still gates); this only aligns discovery.
     my @list;
     for my $name ( sort keys %TOOLS ) {
-        next if defined $caps && !_tool_callable( $name, $TOOLS{$name}, $caps );
+        if ( defined $caps ) {
+            next unless _tool_callable( $name, $TOOLS{$name}, $caps );
+        }
+        else {
+            next unless $INTROSPECTION_TOOLS{$name};
+        }
         my $a = $ANNOTATE{$name} || [ 0, 0, 1 ];
         push @list, {
             name         => $name,
@@ -1766,9 +1777,10 @@ elsif ( $method eq 'tools/list' ) {
     # SM196: discovery stays OPEN (no 401), but when a valid bearer is present,
     # filter to the tools this session can actually invoke - so an agent is not
     # advertised tools it will only be denied (e.g. submit_feedback without the
-    # feedback capability). An anonymous caller still receives the full surface.
-    # Enforcement is unchanged (tools/call still gates); this only aligns the
-    # advertised set with the caller's grants.
+    # feedback capability). SM210: an unidentified caller (no bearer, or an
+    # unrecognised/revoked token) gets only the introspection subset, not the full
+    # surface. Enforcement is unchanged (tools/call still gates); this only aligns
+    # the advertised set with the caller's identity.
     my ( $lu, $lcaps ) = verify_bearer();
     rpc_result( $id, { tools => tool_list( defined $lu ? $lcaps : undef ) } );
 }

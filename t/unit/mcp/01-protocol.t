@@ -83,28 +83,36 @@ is( $st, 200, 'initialize: 200' );
 is( $r->{result}{protocolVersion}, '2025-11-25', 'initialize: protocol version' );
 is( $r->{result}{serverInfo}{name}, 'lazysite-mcp', 'initialize: serverInfo' );
 
+# SM210: an unidentified caller (no bearer, or an unrecognised/revoked token -
+# both resolve to no identity and share this tool_list(undef) path) sees only the
+# introspection subset, not the full tool vocabulary. Enforcement is unchanged
+# (tools/call still gates); this is discovery hygiene.
 ( $st, $r ) = mcp( { jsonrpc => '2.0', id => 2, method => 'tools/list' } );
 my %names = map { $_->{name} => $_ } @{ $r->{result}{tools} };
-ok( $names{whoami} && $names{list_files} && $names{write_file} && $names{activate_theme},
-    'tools/list advertises the maintenance tools' );
-ok( $names{invalidate_cache}, 'tools/list advertises invalidate_cache' );
-ok( $names{write_file}{inputSchema}{required}, 'a tool carries a JSON-Schema inputSchema' );
+ok( $names{whoami} && $names{describe_capabilities},
+    'anonymous tools/list shows the introspection subset (SM210)' );
+ok( !$names{write_file} && !$names{activate_theme} && !$names{list_files}
+        && !$names{invalidate_cache} && !$names{submit_feedback},
+    'anonymous tools/list withholds the write/management surface (SM210)' );
 ok( $names{whoami}{annotations}{readOnlyHint}, 'whoami is annotated read-only' );
 
 # --- SM196: an AUTHENTICATED tools/list is filtered to invocable tools ---------
 {
-    ok( $names{submit_feedback},
-        'anonymous tools/list shows the full surface (submit_feedback present)' );
-
     # Full caps but NO feedback grant: content/theme tools present, submit_feedback
     # filtered out (it would only be denied at call time).
     my ( undef, $rf ) = mcp( { jsonrpc => '2.0', id => 20, method => 'tools/list' },
         auth => $bearer_full );
-    my %fn = map { $_->{name} => 1 } @{ $rf->{result}{tools} };
+    my %fn = map { $_->{name} => $_ } @{ $rf->{result}{tools} };
     ok( $fn{whoami},          'authed list keeps whoami (introspection)' );
     ok( $fn{write_file},      'full caps: write_file present' );
     ok( $fn{activate_theme},  'full caps: activate_theme present (manage_themes)' );
     ok( !$fn{submit_feedback}, 'full caps, no feedback: submit_feedback filtered out (SM196)' );
+
+    # Tool schema + annotation shape (asserted on the authed list, where the write
+    # surface is visible - SM210 keeps it out of the anonymous list).
+    ok( $fn{write_file}{inputSchema}{required}, 'a tool carries a JSON-Schema inputSchema' );
+    ok( !$fn{write_file}{annotations}{readOnlyHint} && $fn{write_file}{annotations}{openWorldHint},
+        'write_file: not read-only, open-world (publishes to the site)' );
 
     # A session that DOES hold feedback sees submit_feedback.
     my ( undef, $rfb ) = mcp( { jsonrpc => '2.0', id => 21, method => 'tools/list' },
@@ -119,11 +127,12 @@ ok( $names{whoami}{annotations}{readOnlyHint}, 'whoami is annotated read-only' )
     ok( $ln{write_file},      'content session: write_file present' );
     ok( !$ln{activate_theme}, 'content-only session: activate_theme filtered (no manage_themes) (SM196)' );
     ok( $ln{whoami},          'content session: whoami present (introspection)' );
+
+    # Annotation + output-schema shape (authed list; SM210 keeps these tools out
+    # of the anonymous surface).
+    ok( $fn{delete_file}{annotations}{destructiveHint}, 'delete_file is annotated destructive' );
+    ok( $fn{write_file}{outputSchema}, 'tools carry an output schema (ChatGPT validates results)' );
 }
-ok( !$names{write_file}{annotations}{readOnlyHint} && $names{write_file}{annotations}{openWorldHint},
-    'write_file: not read-only, open-world (publishes to the site)' );
-ok( $names{delete_file}{annotations}{destructiveHint}, 'delete_file is annotated destructive' );
-ok( $names{write_file}{outputSchema}, 'tools carry an output schema (ChatGPT validates results)' );
 
 ( $st, $r ) = mcp( { jsonrpc => '2.0', id => 3, method => 'ping' } );
 is_deeply( $r->{result}, {}, 'ping: empty result' );

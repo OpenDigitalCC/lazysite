@@ -2,7 +2,7 @@
 title: "SM210 - tools/list over-shares to an unrecognised token (SM196 discovery follow-up)"
 subtitle: "SM196 filters tools/list to a session's capabilities, but only when the token RESOLVES to an identity. An unrecognised / revoked / wrong-secret token passes undef caps and gets the FULL tool list instead of the public subset. Enforcement is intact (every tools/call gates on caps); this is discovery hygiene."
 brand: plain
-status: candidate
+status: shipped
 status-note: "LOGGED 2026-07-25 - observed live on edge.explore.lazysite.io while smoke-testing 0.9.14: a bogus/unrecognised Bearer token still gets all 44 tools from tools/list, though whoami and every real tools/call correctly reject it (SM200 'token not recognised'). Discovery-only; NOT a security hole. Small."
 ---
 
