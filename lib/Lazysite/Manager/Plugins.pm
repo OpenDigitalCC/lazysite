@@ -21,6 +21,7 @@ our @EXPORT_OK = qw(
     action_handler_list action_handler_save action_handler_delete action_form_list
     action_form_targets_read action_form_targets_save action_form_submissions
     action_form_submission_delete action_form_submission_confirm
+    action_form_submissions_delete_bulk
     resolve_plugin_script
 );
 
@@ -854,6 +855,44 @@ sub action_form_submission_confirm {
     rename $tmp, $abs
         or do { unlink $tmp; return { ok => 0, error => 'Cannot replace submissions' } };
     return { ok => 1, file => $rel, confirmed => 1 };
+}
+
+# SM187 v2: delete several rows in ONE atomic rewrite - bulk cleanup, e.g.
+# clearing a spam batch out of a store. Same path confinement + stable-id
+# matching as the single delete; UI-only (destructive PII). Unknown ids are
+# simply not matched; the result reports how many requested ids were removed.
+sub action_form_submissions_delete_bulk {
+    my ( $file, $ids ) = @_;
+    my ( $abs, $rel, $err ) = _submissions_path($file);
+    return { ok => 0, error => $err } if $err;
+    return { ok => 0, error => 'No row ids given' }
+        unless ref $ids eq 'ARRAY' && @$ids;
+    my %want;
+    for my $id (@$ids) {
+        return { ok => 0, error => 'A row id is malformed' }
+            unless defined $id && $id =~ /\A[0-9a-f]{16}\z/;
+        $want{$id} = 1;
+    }
+    return { ok => 0, error => 'No such submissions store' } unless -f $abs;
+
+    open my $fh, '<:utf8', $abs or return { ok => 0, error => 'Cannot read submissions' };
+    my ( @keep, $deleted );
+    $deleted = 0;
+    while ( my $line = <$fh> ) {
+        ( my $trim = $line ) =~ s/\s+\z//;
+        if ( length $trim && $want{ _submission_row_id($trim) } ) { $deleted++; next; }
+        push @keep, $line;
+    }
+    close $fh;
+    return { ok => 0, error => 'No matching rows' } unless $deleted;
+
+    my $tmp = "$abs.tmp.$$";
+    open my $out, '>:utf8', $tmp or return { ok => 0, error => 'Cannot write submissions' };
+    print {$out} @keep;
+    close $out;
+    rename $tmp, $abs
+        or do { unlink $tmp; return { ok => 0, error => 'Cannot replace submissions' } };
+    return { ok => 1, file => $rel, deleted => $deleted };
 }
 
 1;

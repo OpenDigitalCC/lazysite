@@ -13,7 +13,7 @@ use Lazysite::Manager::Plugins qw(
     action_plugin_enable action_plugin_disable action_handler_save
     action_handler_list action_handler_delete action_form_targets_save
     action_form_targets_read action_form_submissions action_form_submission_delete
-    action_form_list action_form_submission_confirm
+    action_form_list action_form_submission_confirm action_form_submissions_delete_bulk
     resolve_plugin_script);
 
 # SM152: a real install layout - base holds plugins/, docroot is base/public_html
@@ -233,6 +233,39 @@ unlink "$base/sample-plugin.pl";
         'confirm of an unknown id is a not-found, not a silent success' );
     ok( !action_form_submission_confirm( 'lazysite/forms/submissions/../../auth/.secret', '0' x 16 )->{ok},
         'confirm refuses a traversal path' );
+}
+
+# --- SM187: bulk delete - drop several rows in one atomic rewrite ------------
+{
+    my $bf = "$d/lazysite/forms/submissions/bulk.jsonl";
+    open my $sf, '>', $bf or die $!;
+    print $sf qq({"name":"a","msg":"1"}\n);
+    print $sf qq({"name":"b","msg":"2"}\n);
+    print $sf qq({"name":"c","msg":"3"}\n);
+    close $sf;
+
+    my $r   = action_form_submissions('lazysite/forms/submissions/bulk.jsonl');
+    my @ids = map { $_->{_id} } @{ $r->{rows} };
+    is( scalar @ids, 3, 'three rows to start' );
+
+    # delete the first and third by id; the middle survives.
+    my $del = action_form_submissions_delete_bulk(
+        'lazysite/forms/submissions/bulk.jsonl', [ $ids[0], $ids[2] ] );
+    ok( $del->{ok} && $del->{deleted} == 2, 'bulk delete removes exactly the two selected rows' );
+    my $after = action_form_submissions('lazysite/forms/submissions/bulk.jsonl');
+    is( $after->{total}, 1, 'one row remains' );
+    is( $after->{rows}[0]{_id}, $ids[1], 'the unselected middle row is the survivor' );
+
+    ok( !action_form_submissions_delete_bulk( 'lazysite/forms/submissions/bulk.jsonl', [] )->{ok},
+        'an empty id list is refused, not a silent no-op success' );
+    ok( !action_form_submissions_delete_bulk( 'lazysite/forms/submissions/bulk.jsonl', ['nope'] )->{ok},
+        'a malformed id in the batch is refused' );
+    ok( !action_form_submissions_delete_bulk(
+            'lazysite/forms/submissions/../../auth/.secret', [ '0' x 16 ] )->{ok},
+        'bulk delete refuses a traversal path' );
+    ok( !action_form_submissions_delete_bulk(
+            'lazysite/forms/submissions/bulk.jsonl', [ '0' x 16 ] )->{ok},
+        'a batch matching no rows is a clean not-found' );
 }
 
 done_testing();

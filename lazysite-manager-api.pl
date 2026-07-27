@@ -39,7 +39,7 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
     action_plugin_read action_plugin_save action_plugin_action action_handler_list
     action_handler_save action_handler_delete action_form_targets_read action_form_targets_save
     action_form_submissions action_form_submission_delete action_form_list
-    action_form_submission_confirm);
+    action_form_submission_confirm action_form_submissions_delete_bulk);
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
@@ -429,6 +429,7 @@ if ( !$token_auth ) {
         'form-list' => 'manage_forms|read_submissions',   # SM214: PII-free form discovery
         'form-submission-delete' => 'manage_forms', # SM187: remove a handled submission row
         'form-submission-confirm' => 'manage_forms', # SM216: clear a row's quarantine flag
+        'form-submissions-delete-bulk' => 'manage_forms', # SM187: delete several rows at once
         'plugin-enable' => 'manage_config', 'plugin-disable'   => 'manage_config',
         'plugin-read'   => 'manage_config', 'plugin-save'      => 'manage_config',
         'plugin-action' => 'manage_config', 'analyse_visitors' => 'analytics',
@@ -451,7 +452,7 @@ if ( !$token_auth ) {
         theme-delete theme-rename theme-upload layout-activate layout-delete
         layout-install layouts-install layouts-repo-set artifact-backups-delete
         preview-grant preview-clear nav-save handler-save handler-delete
-        form-targets-save form-submission-delete form-submission-confirm plugin-enable plugin-disable plugin-save plugin-action
+        form-targets-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action
         lock unlock renew-lock notices-seen
         domain-add domain-set domain-remove
         session-revoke user-revoke key-revoke
@@ -924,6 +925,10 @@ elsif ( $action eq 'form-submission-delete' ) {
 elsif ( $action eq 'form-submission-confirm' ) {    # SM216: un-quarantine a row
     my $req = eval { decode_json($body) } // {};
     $result = action_form_submission_confirm( $req->{file} // $params{file}, $req->{id} );
+}
+elsif ( $action eq 'form-submissions-delete-bulk' ) {    # SM187: delete several rows
+    my $req = eval { decode_json($body) } // {};
+    $result = action_form_submissions_delete_bulk( $req->{file} // $params{file}, $req->{ids} );
 }
 elsif ( $action eq 'form-targets-save' ) {
     my $req = eval { decode_json($body) } // {};
@@ -1896,7 +1901,9 @@ sub _audit_implicit_target {
     # Domain + per-site actions act on a HOST (domain-add/set/remove/preview/
     # check, site-backup-create/apply/upload) - name the domain.
     return 'default' if $action eq 'site-export-primary';    # SM185
-    if ( $action eq 'form-submission-delete' || $action eq 'form-submission-confirm' ) { # SM187/SM216: name the store
+    if ( $action eq 'form-submission-delete'
+        || $action eq 'form-submission-confirm'
+        || $action eq 'form-submissions-delete-bulk' ) {     # SM187/SM216: name the store
         my $f = $params->{file} // $req->{file} // '';
         return $f if length $f;
     }

@@ -3,7 +3,7 @@ title: "SM187 - Submissions viewer v2 (modal, row delete, agent read)"
 subtitle: "Scrollable modal for the form-submissions table; delete a handled row; a least-privilege read_submissions capability so an agent can read submissions over API/MCP"
 brand: plain
 status: partial
-status-note: "v2 built on claude/submissions-viewer-v2. Done: scrollable modal viewer; per-row delete (manage_forms, UI); new read_submissions capability + form-submissions on the token channel + a read_form_submissions MCP tool. FOLLOW-UP: bulk delete / export; a discover-forms helper for agents."
+status-note: "v2 built on claude/submissions-viewer-v2. Done: scrollable modal viewer; per-row delete (manage_forms, UI); new read_submissions capability + form-submissions on the token channel + a read_form_submissions MCP tool. FOLLOW-UP SHIPPED in 0.10.1 edge (branch claude/sm187-submissions-viewer): bulk delete (row checkboxes + select-all + Delete-selected -> new form-submissions-delete-bulk action, manage_forms, %MUTATING, audited, one atomic rewrite, UI-only) and client-side CSV export (Download CSV, built from the loaded rows, RFC-4180 quoted, no new server surface). The discover-forms helper is delivered by SM214's form_list (name/handlers/has_store/rows), so it is not duplicated here. Remaining: nothing outstanding."
 ---
 
 # SM187 - Submissions viewer v2
@@ -52,8 +52,18 @@ removes the identified row (the other survives); malformed/unknown id and a
 traversal path are refused. The cap-gate parity, grid-parity, audit and
 write-path guards classify the new action and capability.
 
-## Follow-up
+## Follow-up (shipped in 0.10.1 edge)
 
-Bulk delete / CSV export of a store; an agent-facing "which forms have
-submissions" discovery helper (today `read_form_submissions` takes a known form
-name and reads the default store path).
+- **Bulk delete.** The viewer gains a checkbox per row + a select-all header box
+  and a "Delete selected" button. A new `form-submissions-delete-bulk` action
+  (`manage_forms`, `%MUTATING`, audited, UI-only) takes a list of row ids and
+  drops all matched rows in ONE atomic rewrite (temp + rename), same path
+  confinement and stable-id matching as the single delete. Unknown ids are not
+  matched; the result reports how many were removed; an empty list, a malformed
+  id, a traversal path, or a batch matching nothing are all clean refusals.
+- **CSV export.** A "Download CSV" button builds the file client-side from the
+  rows already loaded (visible columns + `quarantined`/`spam_reason`, every cell
+  RFC-4180 quoted) - no new server surface, so no extra PII endpoint.
+- **Discover-forms.** Delivered by SM214's `form_list` (enumerates forms with
+  their handlers, `has_store` and submission `rows` count over API + MCP), so it
+  is not duplicated here.

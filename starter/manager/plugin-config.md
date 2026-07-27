@@ -598,6 +598,7 @@ function toggleSubmissions(handlerId, dirPath) {
 // SM216: a quarantine filter, kept per-open so a reload keeps the view.
 var subsFilter  = 'all';   // 'all' | 'quarantined'
 var subsCurrent = null;
+var subsLoaded  = null;    // SM187: last-loaded {file,form,cols,rows} for CSV/bulk
 function setSubsFilter(f) { subsFilter = f; if (subsCurrent) showSubmissionTable(subsCurrent.file, subsCurrent.form); }
 
 function showSubmissionTable(filePath, formName) {
@@ -618,21 +619,29 @@ function showSubmissionTable(filePath, formName) {
       }
       var qcount = rows.filter(function(r) { return r._quarantined; }).length;
       var view = (subsFilter === 'quarantined') ? rows.filter(function(r) { return r._quarantined; }) : rows;
+      subsLoaded = { file: filePath, form: formName, cols: cols, rows: rows };   // SM187
 
-      var h = '';
+      // SM187: a toolbar - quarantine filter (if any) on the left, CSV export and
+      // bulk delete (of the checked rows) on the right.
+      var h = '<div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;margin:0 0 0.5rem;font-size:0.85rem">';
       if (qcount) {
-        h += '<div style="margin:0 0 0.5rem;font-size:0.85rem">'
-           + '<strong>' + qcount + '</strong> quarantined (suspected spam, kept out of notifications). '
+        h += '<span><strong>' + qcount + '</strong> quarantined (suspected spam, kept out of notifications).</span> '
            + '<button class="mg-btn mg-btn-sm" onclick="setSubsFilter(\'all\')"' + (subsFilter === 'all' ? ' disabled' : '') + '>All</button> '
-           + '<button class="mg-btn mg-btn-sm" onclick="setSubsFilter(\'quarantined\')"' + (subsFilter === 'quarantined' ? ' disabled' : '') + '>Quarantine only</button>'
-           + '</div>';
+           + '<button class="mg-btn mg-btn-sm" onclick="setSubsFilter(\'quarantined\')"' + (subsFilter === 'quarantined' ? ' disabled' : '') + '>Quarantine only</button>';
       }
-      h += '<div style="overflow-x:auto"><table class="mg-table mg-submissions-table"><thead><tr><th>Status</th>';
+      h += '<span style="margin-left:auto"></span>'
+         + '<button class="mg-btn mg-btn-sm" onclick="downloadSubmissionsCsv()">Download CSV</button> '
+         + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="bulkDeleteSubmissions()">Delete selected</button>'
+         + '</div>';
+
+      h += '<div style="overflow-x:auto"><table class="mg-table mg-submissions-table"><thead><tr>'
+         + '<th><input type="checkbox" title="Select all" onclick="subsToggleAll(this)"></th><th>Status</th>';
       cols.forEach(function(c) { h += '<th>' + esc(c) + '</th>'; });
       h += '<th></th></tr></thead><tbody>';
       view.forEach(function(row) {
         var q = row._quarantined;
         h += '<tr' + (q ? ' style="background:var(--mg-warn-bg,#fff8e1)"' : '') + '>';
+        h += '<td><input type="checkbox" class="mg-sub-cb" value="' + esc(row._id) + '"></td>';
         h += '<td>' + (q ? '<span class="mg-tag mg-tag-off" title="' + esc(row._spam_reason || '') + '">quarantined</span>' : '') + '</td>';
         cols.forEach(function(c) { h += '<td>' + esc(row[c] == null ? '' : row[c]) + '</td>'; });
         var args = JSON.stringify(filePath).replace(/'/g, '&#39;') + ', '
@@ -682,6 +691,64 @@ function deleteSubmissionRow(filePath, rowId, formName) {
   var msg = 'Delete this submission? It is permanently removed from "' + formName + '".';
   if (typeof mgConfirm === 'function') { mgConfirm(msg, { danger: true, ok: 'Delete' }).then(go); }
   else { go(window.confirm(msg)); }
+}
+
+// SM187: select-all toggle for the row checkboxes.
+function subsToggleAll(master) {
+  var boxes = document.querySelectorAll('.mg-sub-cb');
+  for (var i = 0; i < boxes.length; i++) { boxes[i].checked = master.checked; }
+}
+
+// SM187: delete every checked row in one atomic server-side rewrite.
+function bulkDeleteSubmissions() {
+  if (!subsLoaded) return;
+  var ids = [];
+  var boxes = document.querySelectorAll('.mg-sub-cb');
+  for (var i = 0; i < boxes.length; i++) { if (boxes[i].checked) ids.push(boxes[i].value); }
+  if (!ids.length) { showStatus('No rows selected.', true); return; }
+  var filePath = subsLoaded.file, formName = subsLoaded.form;
+  var go = function(ok) {
+    if (!ok) return;
+    fetch(API + '?action=form-submissions-delete-bulk', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: filePath, ids: ids })
+    }).then(function(r) { return r.json(); }).then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Bulk delete failed', true); return; }
+      showStatus(d.deleted + ' submission' + (d.deleted === 1 ? '' : 's') + ' deleted.');
+      showSubmissionTable(filePath, formName);   // reload in place
+    }).catch(function(e) { showStatus('Bulk delete error: ' + e.message, true); });
+  };
+  var msg = 'Delete ' + ids.length + ' selected submission' + (ids.length === 1 ? '' : 's')
+          + '? They are permanently removed from "' + formName + '".';
+  if (typeof mgConfirm === 'function') { mgConfirm(msg, { danger: true, ok: 'Delete' }).then(go); }
+  else { go(window.confirm(msg)); }
+}
+
+// SM187: download the loaded store as a CSV, built client-side from the rows
+// already in hand (no new server surface). Columns are the visible fields plus
+// the quarantine status/reason; every cell is RFC-4180 quoted.
+function downloadSubmissionsCsv() {
+  if (!subsLoaded || !subsLoaded.rows.length) { showStatus('Nothing to export.', true); return; }
+  var cols = subsLoaded.cols.concat(['quarantined', 'spam_reason']);
+  var q = function(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+  var lines = [cols.map(q).join(',')];
+  subsLoaded.rows.forEach(function(row) {
+    lines.push(cols.map(function(c) {
+      if (c === 'quarantined') return q(row._quarantined ? 'yes' : '');
+      if (c === 'spam_reason') return q(row._spam_reason || '');
+      return q(row[c]);
+    }).join(','));
+  });
+  var blob = new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = (subsLoaded.form || 'submissions').replace(/[^A-Za-z0-9_-]/g, '_') + '-submissions.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
 }
 
 // The submissions modal shell: a fixed overlay with a scrollable body.
