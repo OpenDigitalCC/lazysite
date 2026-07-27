@@ -1,3 +1,28 @@
+lazysite (0.10.1-1) unstable; urgency=medium
+
+  * EDGE build on 0.10.0 stable. No BREAKING change, no migration (the form-event
+    log and quarantine flags are created on demand). Edge sites take it next
+    update; beta/stable stay on their channel until it promotes.
+  * SM216 form spam controls: submissions are scored server-side at accept time
+    (URLs over a per-form threshold, default 2; an optional keyword list) and a
+    suspect one is QUARANTINED - stored but flagged, held out of the notification
+    bell, shown under a Quarantine filter in the viewer with one-click Confirm /
+    Delete. Holds the privacy stance (no third-party anti-spam/CAPTCHA, no
+    fingerprinting, no JS requirement, no accessibility regression). Every outcome
+    (delivered / quarantined / blocked by honeypot / token / too-fast / expired /
+    rate) is counted into the durable per-day stats store - counts only, no content,
+    no IPs.
+  * SM187 submissions viewer: multi-row select + Delete-selected (one atomic,
+    audited, operator-only rewrite) and a client-side Download CSV.
+  * SM214 form discovery: a form-list control-API action + a form_list MCP tool
+    return names/handler-types/has-store/row-counts under read_submissions
+    (least-privilege, PII-free).
+  * SM103: recent-change marker extended to the Groups page.
+  * Fix (SM212 follow-up): extending an access-token lifetime routes through the
+    correct control-API action instead of an "Unknown action" audit fail.
+
+ -- Stuart Mackintosh <sjm@opendigital.cc>  Mon, 27 Jul 2026 12:30:00 +0000
+
 lazysite (0.10.0-1) unstable; urgency=high
 
   * STABLE: promotes the bedded-in 0.9.11-0.9.17 beta line to the stable channel -

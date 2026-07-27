@@ -16,6 +16,39 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.10.1 - EDGE: form spam controls, submissions tooling, and fixes (2026-07-27)
+
+An edge build on 0.10.0 stable - operator-facing form/submissions features, an
+agent-facing read action, a recent-change marker, and one fix. No BREAKING change,
+no migration (the form-event log and quarantine flags are created on demand). Edge
+sites take it next update; beta/stable stay put until it promotes.
+
+- **SM216 - form spam controls (quarantine, not sharper reject).** The form
+  handler scores each submission server-side at accept time (URLs over a per-form
+  threshold, default 2; an optional per-form keyword list) and QUARANTINES a
+  suspect one: it is stored but flagged, held out of the notification bell, and
+  shown under a Quarantine filter in the Submissions viewer with one-click Confirm
+  (un-quarantine) / Delete. A false positive still arrives, just unannounced - so
+  the heuristics are safe on by default. Holds the published stance in full (no
+  third-party anti-spam/CAPTCHA, no fingerprinting, no JS requirement, no
+  accessibility regression). Part 2: every outcome (delivered / quarantined /
+  blocked by honeypot / token / too-fast / expired / rate) is counted into the
+  durable per-day stats store (SM213) so the report shows blocked-vs-stored -
+  counts only, no submission content, no IPs. Parts 3-5 remain roadmap.
+- **SM187 - submissions viewer bulk cleanup + export.** Row checkboxes + select-all
+  + Delete-selected (one atomic server rewrite, operator-only, audited), and a
+  client-side Download CSV of the loaded rows.
+- **SM214 - form discovery for agents.** A `form-list` control-API action and a
+  `form_list` MCP tool return a site's forms (names, handler types, has-store, row
+  counts) under `read_submissions` - least-privilege, PII-free.
+- **SM103 - recent-change marker on the Groups page.** The dot (already on Files /
+  Users) now marks a group whose settings or capabilities changed in the window.
+- **Fix (SM212 follow-up):** extending an access-token lifetime routes through the
+  correct control-API action, so it applies instead of an "Unknown action" audit
+  fail.
+- Housekeeping: SM185 and SM186 marked shipped (follow-ups already delivered);
+  SM217 (first-class domain aliases) captured as a candidate. No code change.
+
 ## 0.10.0 - STABLE: promotes the 0.9.11-0.9.17 beta line to stable (2026-07-27)
 
 Pure channel/version promotion of the bedded-in beta line - the same code as 0.9.17,
