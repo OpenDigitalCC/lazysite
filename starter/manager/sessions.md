@@ -238,10 +238,13 @@ function renderKeys(d) {
 // default (hard window); a longer value also enables sliding renewal. Takes
 // effect on the NEXT exchange/rotate and (for the sliding part) on next use.
 function setTokenTtl(user, value) {
-  fetch(API + '?action=settings-set', {
+  // settings-set is a 'users' SUB-action, not a top-level API action: route it
+  // through action=users (as the Users page does). Calling it as a top-level
+  // action is rejected by the dispatcher ("Unknown action: settings-set").
+  fetch(API + '?action=users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: user, key: 'token_ttl', value: value })
+    body: JSON.stringify({ action: 'settings-set', username: user, key: 'token_ttl', value: value })
   })
     .then(function(r) { return r.json(); })
     .then(function(d) {
