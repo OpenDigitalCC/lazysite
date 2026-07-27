@@ -132,7 +132,7 @@ is( "@divergent", '',
 my %COOKIE_READ = map { $_ => 1 } qw(
     domains-list domain-preview domain-check config-read bad-url-blocks
     backup-list backup-download lang-status git-status git-history git-history-summary git-show
-    analyse_visitors plugin-read form-submissions site-backup-inspect
+    analyse_visitors plugin-read form-submissions form-list site-backup-inspect
     site-backup-download
     principals
 );

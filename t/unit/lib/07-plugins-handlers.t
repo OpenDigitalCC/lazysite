@@ -13,7 +13,7 @@ use Lazysite::Manager::Plugins qw(
     action_plugin_enable action_plugin_disable action_handler_save
     action_handler_list action_handler_delete action_form_targets_save
     action_form_targets_read action_form_submissions action_form_submission_delete
-    resolve_plugin_script);
+    action_form_list resolve_plugin_script);
 
 # SM152: a real install layout - base holds plugins/, docroot is base/public_html
 # - so the plugin registry (base/plugins/*.pl + core) resolves. enable/disable
@@ -178,6 +178,32 @@ unlink "$base/sample-plugin.pl";
         'an unknown row id is a not-found, not a silent success' );
     ok( !action_form_submission_delete('lazysite/forms/submissions/../../auth/.secret', '0' x 16)->{ok},
         'delete refuses a traversal path' );
+}
+
+# --- SM214: form-list (PII-free form discovery for token clients) ------------
+{
+    action_handler_save( { id => 'local-storage', type => 'file', name => 'Local' } );
+    open my $fc, '>', "$d/lazysite/forms/feedback.conf" or die $!;
+    print {$fc} "targets:\n  - handler: local-storage\n";
+    close $fc;
+    make_path("$d/lazysite/forms/submissions");
+    open my $st, '>', "$d/lazysite/forms/submissions/feedback.jsonl" or die $!;
+    print {$st} qq({"name":"alice"}\n{"name":"bob"}\n);
+    close $st;
+
+    my $fl = action_form_list();
+    ok( $fl->{ok}, 'form-list ok' );
+    my ($fb) = grep { $_->{name} eq 'feedback' } @{ $fl->{forms} };
+    ok( $fb, 'the feedback form is listed' );
+    is_deeply( $fb->{handler_types}, ['file'], 'handler type resolved from handlers.conf (file)' );
+    ok( $fb->{has_store}, 'the submissions store is detected' );
+    is( $fb->{rows}, 2, 'row count is correct' );
+    ok( !( grep { $_->{name} eq 'handlers' || $_->{name} eq 'smtp' } @{ $fl->{forms} } ),
+        'handlers.conf / smtp.conf are not listed as forms' );
+    is_deeply(
+        [ sort keys %$fb ],
+        [ sort qw(name handlers handler_types has_store rows) ],
+        'a form entry carries only names + counts - no submission content (PII-free)' );
 }
 
 done_testing();

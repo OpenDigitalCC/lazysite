@@ -38,7 +38,7 @@ use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action action_handler_list
     action_handler_save action_handler_delete action_form_targets_read action_form_targets_save
-    action_form_submissions action_form_submission_delete);
+    action_form_submissions action_form_submission_delete action_form_list);
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
@@ -425,6 +425,7 @@ if ( !$token_auth ) {
         'handler-save'            => 'manage_forms', 'handler-delete' => 'manage_forms',
         'form-targets-save'       => 'manage_forms',
         'form-submissions' => 'manage_forms|read_submissions', # SM182/SM187: read PII submissions (GET)
+        'form-list' => 'manage_forms|read_submissions',   # SM214: PII-free form discovery
         'form-submission-delete' => 'manage_forms', # SM187: remove a handled submission row
         'plugin-enable' => 'manage_config', 'plugin-disable'   => 'manage_config',
         'plugin-read'   => 'manage_config', 'plugin-save'      => 'manage_config',
@@ -436,6 +437,11 @@ if ( !$token_auth ) {
         # the actor logic in the users tool.
         'users' => 'manage_users|create_sub_users|delegate_sub_user_creation',
     );
+    # Mutating actions are cookie-manager-only; a token client gets "not available".
+    # SM214: form-submission-delete is in this set DELIBERATELY - deleting a stored
+    # submission is a destructive PII operation, so it stays interactive-only. A
+    # token client discovers forms (form-list) and reads submissions (form-submissions),
+    # but a human confirms deletions in the manager.
     my %MUTATING = map { $_ => 1 } qw(
         save delete mkdir move copy migrate-to-local file-upload git-restore
         git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
@@ -564,8 +570,9 @@ if ($token_auth) {
             # SM187: agents read form submissions with a least-privilege read_submissions
             # cap OR the operator's manage_forms - parity with the cookie channel.
         'form-submissions' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} },
-        'bad-url-blocks'   => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
-        'bad-url-unblock'  => sub { $_[0]->{manage_config} },
+        'form-list' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} }, # SM214: read-only, PII-free
+        'bad-url-blocks'  => sub { $_[0]->{manage_config} },    # SM128: blocked-IP list
+        'bad-url-unblock' => sub { $_[0]->{manage_config} },
         'pages' => sub { $_[0]->{manage_nav} },  # SM097: page-URL list for the nav editor
             # SM123: a theme/layout manager may list what is installed (was previously
             # unavailable to token clients, so they activated each in turn to discover).
@@ -905,6 +912,9 @@ elsif ( $action eq 'form-targets-read' ) {
 elsif ( $action eq 'form-submissions' ) {
     $result = action_form_submissions( $params{file} );
 }
+elsif ( $action eq 'form-list' ) { # SM214: PII-free form discovery (names + types + row counts)
+    $result = action_form_list();
+}
 elsif ( $action eq 'form-submission-delete' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_form_submission_delete( $req->{file} // $params{file}, $req->{id} );
@@ -958,7 +968,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
         cache-invalidate nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
-        handler-list plugin-list plugin-read form-targets-read form-submissions artifact-manifest
+        handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
         backup-list sessions-list keys-list git-status git-history git-history-summary git-show
         site-backup-inspect );

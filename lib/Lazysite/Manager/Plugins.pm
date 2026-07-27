@@ -18,7 +18,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(
     action_plugin_list action_plugin_enable action_plugin_disable
     action_plugin_read action_plugin_save action_plugin_action
-    action_handler_list action_handler_save action_handler_delete
+    action_handler_list action_handler_save action_handler_delete action_form_list
     action_form_targets_read action_form_targets_save action_form_submissions
     action_form_submission_delete
     resolve_plugin_script
@@ -513,6 +513,66 @@ sub _write_handlers_conf {
 sub action_handler_list {
     my $handlers = _parse_handlers_conf();
     return { ok => 1, handlers => $handlers };
+}
+
+# SM214: enumerate the site's forms for a token client (or the manager) that can
+# read submissions but cannot list plugins/handlers (those are cookie-only). A
+# "form" is a lazysite/forms/<name>.conf, excluding the special handlers.conf and
+# smtp.conf. Read-only and PII-free (names + handler types + row COUNTS only, never
+# submission content), so it is safe on the read_submissions gate. Answers "what
+# forms exist?" and "which deliver to email vs storage, and did any come in?".
+sub action_form_list {
+    my $dir      = "$DOCROOT/lazysite/forms";
+    my $handlers = _parse_handlers_conf();
+    my %by_id    = map { $_->{id} => $_ } @$handlers;
+
+    my @forms;
+    opendir my $dh, $dir or return { ok => 1, forms => [] };
+    for my $f ( sort readdir $dh ) {
+        next unless $f =~ /^(.+)\.conf\z/;
+        my $name = $1;
+        next if $name eq 'handlers' || $name eq 'smtp';
+
+        # handler ids this form's targets reference
+        my @hids;
+        if ( open my $cf, '<:utf8', "$dir/$f" ) {
+            local $/;
+            my $t = <$cf>;
+            close $cf;
+            while ( $t =~ /^\s*-\s*handler:\s*(\S+)/mg ) { push @hids, $1 }
+        }
+        my %seen;
+        my @types = grep { !$seen{$_}++ }
+            map { ( $by_id{$_} && $by_id{$_}{type} ) || 'unknown' } @hids;
+
+        # submissions store: the file-target handler's path (default submissions/)
+        # + <name>.jsonl. Count non-blank lines; never read the content.
+        my $store_dir = 'lazysite/forms/submissions';
+        for my $id (@hids) {
+            my $h = $by_id{$id} or next;
+            next unless ( $h->{type} // 'file' ) eq 'file';
+            $store_dir = $h->{path} if defined $h->{path} && length $h->{path};
+            last;
+        }
+        my $store = "$DOCROOT/$store_dir/$name.jsonl";
+        my ( $has, $rows ) = ( JSON::PP::false, 0 );
+        if ( -f $store && open my $sf, '<', $store ) {
+            $has = JSON::PP::true;
+            while ( my $l = <$sf> ) { $rows++ if $l =~ /\S/ }
+            close $sf;
+        }
+
+        push @forms,
+            {
+            name          => $name,
+            handlers      => \@hids,
+            handler_types => \@types,
+            has_store     => $has,
+            rows          => $rows,
+            };
+    }
+    closedir $dh;
+    return { ok => 1, forms => \@forms };
 }
 
 sub action_handler_save {
