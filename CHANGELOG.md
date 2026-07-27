@@ -16,6 +16,26 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.10.0 - STABLE: promotes the 0.9.11-0.9.17 beta line to stable (2026-07-27)
+
+Pure channel/version promotion of the bedded-in beta line - the same code as 0.9.17,
+certified for the stable channel, superseding 0.9.10. No new functional change, no
+BREAKING change, no migration. A stable build is accepted by every channel, so it
+rolls out fleet-wide.
+
+Carries everything accrued since 0.9.10 stable:
+- 0.9.11-0.9.13: login-loop fixes, raw-mode write guard, engine-served system pages
+  with a self-healing fallback (SM201 - clears the "system page missing" warnings on
+  0.9.10 sites), site-integrity + connector reliability, and the 0.9.x F1 security
+  hardening.
+- 0.9.14-0.9.15: theme-authoring API + Figma ingestion, sub-user promotion,
+  content-history stats, Domains configure-modal + manager-UI polish.
+- 0.9.16-0.9.17: operator-set token lifetime with sliding renewal, code-served
+  AI-partner discovery, tools/list hygiene; the durable per-day stats store with
+  month-on-month trends + scanner class + 404 split + codified privacy commitment;
+  and sudo-safe permissions with the lazysite-check --fix / lazysite-fix-perms repair
+  tool (run once on any drifted 0.9.10 site).
+
 ## 0.9.17 - BETA: durable stats store + trends, sudo-safe permissions + repair (2026-07-27)
 
 Two features on top of 0.9.16. No BREAKING change, no migration (the stats store

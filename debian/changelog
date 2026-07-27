@@ -1,3 +1,19 @@
+lazysite (0.10.0-1) unstable; urgency=high
+
+  * STABLE: promotes the bedded-in 0.9.11-0.9.17 beta line to the stable channel -
+    the same code as 0.9.17, certified for customer rollout; supersedes 0.9.10. No
+    new functional change, no BREAKING change, no migration. Accepted by every
+    channel, so it rolls out fleet-wide.
+  * Carries since 0.9.10: login-loop fixes + raw-mode write guard + engine-served
+    system pages with a self-healing fallback (SM201) + the 0.9.x F1 security
+    hardening (0.9.11-0.9.13); theme-authoring/Figma, sub-user promotion,
+    content-history stats, manager-UI polish (0.9.14-0.9.15); token-lifetime sliding
+    renewal, live-config AI discovery, durable per-day stats store + trends + scanner
+    class + privacy commitment, and sudo-safe permissions + the lazysite-check --fix /
+    lazysite-fix-perms repair tool (0.9.16-0.9.17).
+
+ -- Stuart Mackintosh <sjm@opendigital.cc>  Mon, 27 Jul 2026 04:54:23 +0100
+
 lazysite (0.9.17-1) unstable; urgency=medium
 
   * BETA: durable per-day stats store + trends, and sudo-safe permissions + a repair
