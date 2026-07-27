@@ -16,6 +16,29 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.9.17 - BETA: durable stats store + trends, sudo-safe permissions + repair (2026-07-27)
+
+Two features on top of 0.9.16. No BREAKING change, no migration (the stats store
+rebuilds from existing data on first run).
+
+- SM213: durable per-day visitor-stats store under lazysite/stats/ (aggregates only,
+  outside the clearable cache) with monthly rollups + an index; self-describing
+  horizon fields (data_from, sample:{from,to,count}) retire the misleading
+  events_capped flag; analyse_visitors gains index/day/month selectors + a
+  month-on-month series (control API + MCP), surfaced on the Stats page; visitor-level
+  scanner classification (a probe marks the whole session scanner, excluding a spoofed
+  referrer) + a 404 plausible/junk split; privacy commitment codified in FEATURES
+  ("lazysite installs no trackers"; day files hold aggregates only; daily-salted keys).
+  No cap, no operator knob.
+- SM215: sudo-safe permissions. secure_write_perms makes a just-written file inherit
+  its dir's owner+group and, as root, set the owner too (never leaves a root-owned
+  file the CGI cannot access) - applied across the credential/settings/groups writers
+  and install.pl's config-replace (updater) path. lazysite-check --fix is the
+  canonical repairer (now also covering lazysite/stats/); lazysite-fix-perms is a
+  dry-run-by-default front-end to it (--apply to repair).
+- Backlog docs (not shipped): SM214 (form-list read action), SM216 (form spam
+  controls).
+
 ## 0.9.16 - BETA: token-lifetime control + live-config AI discovery + discovery hygiene (2026-07-26)
 
 A small, focused release on top of 0.9.15. No BREAKING change, no migration; secure

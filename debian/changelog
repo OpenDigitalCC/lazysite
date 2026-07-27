@@ -1,3 +1,20 @@
+lazysite (0.9.17-1) unstable; urgency=medium
+
+  * BETA: durable per-day stats store + trends, and sudo-safe permissions + a repair
+    tool, on top of 0.9.16. No BREAKING change, no migration.
+  * SM213: durable per-day visitor-stats store (lazysite/stats/, aggregates only,
+    outside the cache) + monthly rollups + index; self-describing horizons
+    (data_from, sample) retire events_capped; analyse_visitors index/day/month
+    selectors + month-on-month; visitor-level scanner class + 404 plausible/junk
+    split; privacy commitment codified. No cap, no operator knob.
+  * SM215: secure_write_perms keeps sudo/root writes owner-safe (credential/settings/
+    groups writers + install.pl updater path); lazysite-check --fix is the canonical
+    repairer (now covering lazysite/stats/); lazysite-fix-perms front-ends it
+    (dry-run; --apply to repair).
+  * Backlog docs (not shipped): SM214, SM216.
+
+ -- Stuart Mackintosh <sjm@opendigital.cc>  Mon, 27 Jul 2026 01:40:30 +0100
+
 lazysite (0.9.16-1) unstable; urgency=medium
 
   * BETA: token-lifetime control + live-config AI discovery + discovery hygiene on
