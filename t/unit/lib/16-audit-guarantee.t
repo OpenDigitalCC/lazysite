@@ -210,6 +210,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
         site-backup-create site-backup-upload site-backup-apply site-backup-delete
         site-backup-download
         site-export-primary form-submission-delete
+        form-submission-confirm form-submissions-delete-bulk
     );
 
     my @unclassified;

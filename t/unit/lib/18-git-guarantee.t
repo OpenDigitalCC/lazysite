@@ -137,6 +137,7 @@ my %EXEMPT = (
     'Plugins::action_handler_list'      => 'read-only',
     'Plugins::action_form_targets_read' => 'read-only',
     'Plugins::action_form_submissions'  => 'read-only',
+    'Plugins::action_form_list'         => 'read-only',
     'Plugins::action_plugin_enable'     => 'rewrites the plugins: list in lazysite.conf '
         . 'without a commit (pre-existing; folded into the next capture sweep)',
     'Plugins::action_plugin_disable' => 'as action_plugin_enable',
@@ -146,6 +147,12 @@ my %EXEMPT = (
     'Plugins::action_form_targets_save'      => 'as action_handler_save',
     'Plugins::action_form_submission_delete' =>
         'rewrites a submissions store under lazysite/forms/ - excluded from the versioned set',
+    'Plugins::action_form_submission_confirm' =>
+        'clears a row\'s quarantine flags in a submissions store under lazysite/forms/ - '
+        . 'excluded from the versioned set (as action_form_submission_delete)',
+    'Plugins::action_form_submissions_delete_bulk' =>
+        'rewrites a submissions store under lazysite/forms/ (bulk row delete) - '
+        . 'excluded from the versioned set (as action_form_submission_delete)',
     # --- Layouts / Themes (artifact trees: captured wholesale by the
     #     commit_all sweeps, not per-action hooks - pre-existing design) ---
     'Layouts::action_layouts_releases'         => 'read-only',
