@@ -141,4 +141,44 @@ ok( $msel->{ok} && $msel->{month}{month} eq $this_mon, 'SM213: --month returns t
 my $bad = run_sel( '--day', '2000-01-01' );
 ok( !$bad->{ok}, 'SM213: an absent day is a clean not-found, not a crash' );
 
+# --- SM216-2: form delivery outcomes fold into the day-buckets + report ------
+# The form handler appends outcome lines to stats/form-events/<day>.jsonl; the
+# export folds them per form (stored / quarantined / blocked-by-reason) so the
+# report shows "controls stopped N" beside "N delivered".
+{
+    my $fe_dir = "$d/lazysite/stats/form-events";
+    make_path($fe_dir);
+    open my $fe, '>', "$fe_dir/$today.jsonl" or die $!;
+    print $fe encode_json( { t => time, day => $today, form => 'contact', outcome => 'stored' } ) . "\n"
+        for 1 .. 3;
+    print $fe encode_json( { t => time, day => $today, form => 'contact', outcome => 'quarantined' } ) . "\n";
+    print $fe encode_json(
+        { t => time, day => $today, form => 'contact', outcome => 'blocked', reason => 'honeypot' } ) . "\n";
+    print $fe encode_json(
+        { t => time, day => $today, form => 'contact', outcome => 'blocked', reason => 'rate' } ) . "\n";
+    close $fe;
+
+    my $rf = run_export();
+    my ($fd) = grep { $_->{form} eq 'contact' } @{ $rf->{form_delivery} || [] };
+    ok( $fd, 'SM216-2: form_delivery carries the contact form' );
+    is( $fd->{stored},            3, 'SM216-2: three delivered submissions counted' );
+    is( $fd->{quarantined},       1, 'SM216-2: one quarantined submission counted' );
+    is( $fd->{blocked_total},     2, 'SM216-2: two blocked POSTs counted' );
+    is( $fd->{blocked}{honeypot}, 1, 'SM216-2: a honeypot block is attributed by reason' );
+    is( $fd->{blocked}{rate},     1, 'SM216-2: a rate-limit block is attributed by reason' );
+
+    # Folded into the durable day file too, as counts only.
+    my $dayf = decode_json(
+        do { open my $f, '<', "$d/lazysite/stats/daily/$today.json" or die $!; local $/; <$f> } );
+    is( $dayf->{forms}{contact}{stored}, 3, 'SM216-2: durable day file carries per-form counts' );
+
+    # Idempotent: a second export (byte-offset tracked) does not double-count.
+    my $rf2 = run_export();
+    my ($fd2) = grep { $_->{form} eq 'contact' } @{ $rf2->{form_delivery} || [] };
+    is( $fd2->{stored}, 3, 'SM216-2: re-running export does not double-count folded events' );
+
+    unlike( encode_json( $rf->{form_delivery} ), qr/\b\d+\.\d+\.\d+\.\d+\b/,
+        'SM216-2: the form-delivery summary is counts only - no IPs' );
+}
+
 done_testing;

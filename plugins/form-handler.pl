@@ -76,12 +76,13 @@ my $MAX_POST_BYTES = 64 * 1024 * 1024;
 
 # --- Main ---
 
+my $name = '';    # hoisted so the catch below can attribute a block to its form
 eval {
     reject('Method not allowed')
         unless ( $ENV{REQUEST_METHOD} // '' ) eq 'POST';
 
-    my %form    = parse_post();
-    my $name    = $form{_form} // '';
+    my %form = parse_post();
+    $name = $form{_form} // '';
     $name =~ s/[^a-zA-Z0-9_-]//g;
     reject('Missing form name') unless $name;
 
@@ -144,13 +145,16 @@ eval {
     # SM216: a quarantined (suspect) submission is stored but does NOT ring the
     # bell - the operator finds it under the Submissions Quarantine filter.
     _notify_submission($name) unless $form{_quarantined};    # SM113 badge
+    _record_form_event( $name, $form{_quarantined} ? 'quarantined' : 'stored' ); # SM216-2
     respond_ok('Thank you - your message has been sent.');
 };
 if ($@) {
     my $err = $@;
     $err =~ s/\s+$//;
-    my $fname = '';
-    log_event( 'ERROR', $fname, 'processing failed', error => $err, ip => $ENV{REMOTE_ADDR} // 'unknown' );
+    log_event( 'ERROR', $name, 'processing failed', error => $err, ip => $ENV{REMOTE_ADDR} // 'unknown' );
+    # SM216-2: an anti-spam control blocked this POST - count it (per form, by
+    # reason) so the report shows "controls stopped N", not silence.
+    if ( my $reason = _block_reason($err) ) { _record_form_event( $name, 'blocked', $reason ); }
     # USER: messages (e.g. upload too large / wrong type) are safe to show the
     # submitter; everything else gets a generic message.
     if ( $err =~ /^USER:(.*)/s ) { respond_error($1); }
@@ -329,6 +333,43 @@ sub _audit_submission {
     open my $fh, '>>', "$logdir/audit.log" or return;
     print {$fh} "$ts | $user | submit | $form | $ip | ok | form\n";
     close $fh;
+    return;
+}
+
+# SM216-2: map an anti-spam reject message to a stable reason code, or '' if the
+# failure was not a spam control (method / validation / delivery - not counted).
+sub _block_reason {
+    my ($err) = @_;
+    return 'honeypot' if $err =~ /Spam detected/;
+    return 'too_fast' if $err =~ /Submission too fast/;
+    return 'expired'  if $err =~ /Submission expired/;
+    return 'token'    if $err =~ /Invalid submission/;
+    return 'rate'     if $err =~ /Rate limit exceeded/;
+    return '';
+}
+
+# SM216-2: append one outcome line so the stats plugin can fold blocked-vs-stored
+# counts into its day-buckets. Append-only, one line per event, so concurrent
+# POSTs never race (O_APPEND under a lock). Counts only - the form name, an
+# outcome (stored|quarantined|blocked) and, for a block, a reason code; never any
+# submitted field. Best-effort: a stats hiccup must never fail a submission.
+sub _record_form_event {
+    my ( $form, $outcome, $reason ) = @_;
+    ( my $f = defined $form ? "$form" : '' ) =~ s/[^a-zA-Z0-9_-]//g;
+    return unless length $f;
+    my $dir = "$DOCROOT/lazysite/stats/form-events";
+    eval {
+        make_path($dir) unless -d $dir;
+        my $day = strftime( '%Y-%m-%d', localtime );
+        my %ev  = ( t => time(), day => $day, form => $f, outcome => "$outcome" );
+        $ev{reason} = "$reason" if defined $reason && length $reason;
+        if ( open my $fh, '>>', "$dir/$day.jsonl" ) {
+            flock $fh, LOCK_EX;
+            print {$fh} encode_json( \%ev ) . "\n";
+            close $fh;
+        }
+        1;
+    };
     return;
 }
 

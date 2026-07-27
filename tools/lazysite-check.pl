@@ -260,6 +260,7 @@ sub run_checks {
         'lazysite/cache'         => 02775,
         'lazysite/logs'          => 02775,
         'lazysite/stats'         => 02775,    # SM213 durable per-day stats store
+        'lazysite/stats/form-events' => 02775,    # SM216-2 form-outcome log (PII-free)
         'lazysite/manager/locks' => 02775,
         'lazysite/layouts'       => 02775,
         'lazysite-assets'        => 02775,

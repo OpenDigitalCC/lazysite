@@ -804,6 +804,9 @@ sub _day_rollup {
             internal => ( $bucket->{ref_internal} // 0 ),
             external => _topn( $bucket->{ref_ext} || {}, $top_n ),
         },
+        # SM216-2: per-form delivery outcomes - stored vs quarantined vs blocked
+        # (by reason). Counts only; form names + reason codes, no submission data.
+        forms => ( $bucket->{forms} || {} ),
     };
 }
 
@@ -811,7 +814,7 @@ sub _day_rollup {
 # period) and sum the rest, across the days that fall in the month.
 sub _month_rollup {
     my ( $mon, $days,  $top_n ) = @_;
-    my ( %cls, %pages, %ips, %status, %nf_pl );
+    my ( %cls, %pages, %ips, %status, %nf_pl, %forms );
     my ( $pv,  $ndays, $nf_junk ) = ( 0, 0, 0 );
     for my $day ( grep { index( $_, $mon ) == 0 } keys %$days ) {
         my $b = $days->{$day};
@@ -823,6 +826,12 @@ sub _month_rollup {
         $status{$_} += $b->{status}{$_}       for keys %{ $b->{status}       || {} };
         $nf_pl{$_}  += $b->{nf_plausible}{$_} for keys %{ $b->{nf_plausible} || {} };
         $ips{$_} = 1 for keys %{ $b->{ips} || {} };
+        for my $fn ( keys %{ $b->{forms} || {} } ) {    # SM216-2
+            my $fb = $b->{forms}{$fn};
+            $forms{$fn}{stored}      += $fb->{stored}      // 0;
+            $forms{$fn}{quarantined} += $fb->{quarantined} // 0;
+            $forms{$fn}{blocked}{$_} += $fb->{blocked}{$_} for keys %{ $fb->{blocked} || {} };
+        }
     }
     return {
         month           => $mon,
@@ -833,6 +842,7 @@ sub _month_rollup {
         top_pages    => _topn( \%pages, $top_n ),
         status_codes => \%status,
         not_found    => { plausible => _topn( \%nf_pl, $top_n ), junk_count => $nf_junk },
+        forms        => \%forms,    # SM216-2: per-form delivery outcomes
     };
 }
 
@@ -1111,11 +1121,78 @@ sub _export_ingest_first_party {
     return;
 }
 
+# SM216-2: fold the form-handler's append-only outcome log into the SAME
+# day-buckets, so the durable rollups (and the report) show blocked-vs-stored
+# per form. The form handler appends one JSON line per submission to
+# lazysite/stats/form-events/<day>.jsonl {day,form,outcome[,reason]}; we track a
+# per-file byte offset in the cache exactly as the first-party ingester does.
+# The offset lives in the cache, so a cache reset (rotation / shape change) drops
+# it alongside {days} and the events re-fold from zero into the rebuilt buckets -
+# the aggregate stays idempotent. Counts only; no submission content is read.
+sub _ingest_form_events {
+    my ( $cache, $cfg ) = @_;
+    my $dir = _stats_dir() . '/form-events';
+    return unless -d $dir;
+    opendir my $dh, $dir or return;
+    my @files = sort grep { /^\d{4}-\d{2}-\d{2}\.jsonl\z/ } readdir $dh;
+    closedir $dh;
+
+    $cache->{form_files} ||= {};
+    my %live = map { $_ => 1 } @files;
+    delete @{ $cache->{form_files} }{ grep { !$live{$_} } keys %{ $cache->{form_files} } };
+
+    for my $base (@files) {
+        my $f      = "$dir/$base";
+        my $size   = ( -s $f )                   // 0;
+        my $offset = $cache->{form_files}{$base} // 0;
+        $offset = 0 if $offset > $size;    # rewritten/truncated: reprocess
+        next unless $size > $offset;
+        open my $fh, '<', $f or next;
+        seek $fh, $offset, 0;
+        my $pos = $offset;
+        while ( my $line = <$fh> ) {
+            last unless $line =~ /\n\z/;    # incomplete final line: next time
+            $pos += length $line;
+            my $r = eval { JSON::PP::decode_json($line) } or next;
+            next unless ref $r eq 'HASH';
+            my $day = $r->{day} // '';
+            next unless $day =~ /^\d{4}-\d{2}-\d{2}\z/;
+            my $form = $r->{form} // '';
+            $form =~ s/[^a-zA-Z0-9_-]//g;
+            next unless length $form;
+
+            # Create the day-bucket with the full shape _tally_batch uses, so a
+            # form-only day (blocks but no page traffic) is still safe for the
+            # window loop and rollups.
+            my $b = $cache->{days}{$day} ||= {
+                cls          => {}, ips     => {}, hits         => 0, pages      => {},
+                status       => {}, ref_ext => {}, ref_internal => 0, ref_direct => 0,
+                nf_plausible => {}, nf_junk => 0,
+            };
+            my $fb = $b->{forms}{$form} ||= { stored => 0, quarantined => 0, blocked => {} };
+            my $out = $r->{outcome} // '';
+            if ( $out eq 'blocked' ) {
+                my $reason = lc( $r->{reason} // 'other' );
+                $reason =~ s/[^a-z_]//g;
+                $reason ||= 'other';
+                $fb->{blocked}{$reason}++;
+            }
+            elsif ( $out eq 'quarantined' ) { $fb->{quarantined}++; }
+            elsif ( $out eq 'stored' )      { $fb->{stored}++; }
+        }
+        close $fh;
+        $cache->{form_files}{$base} = $pos;
+    }
+    return;
+}
+
 # Shared tail: cache retention + save, then assemble the window view from the
 # day-buckets. Identical for both ingestion sources.
 sub _export_assemble {
     my ( $cfg, $cache, $window, $source ) = @_;
     my $EVENT_CAP = 5000;    # matches both ingesters' event-stream cap
+
+    _ingest_form_events( $cache, $cfg );    # SM216-2: fold form outcomes in
 
     my $keep_from = _day_str( time() - 400 * 86400 );
     delete $cache->{days}{$_} for grep { $_ lt $keep_from } keys %{ $cache->{days} };
@@ -1125,12 +1202,18 @@ sub _export_assemble {
     # --- assemble the window view from the day-buckets ---
     my $from_day  = _day_str( time() - ( $window - 1 ) * 86400 );
     my $cutoff_ep = time() - $window * 86400;
-    my ( %cls, %uips, %pages, %status, %ref_ext, %nf_pl, @by_day );
+    my ( %cls, %uips, %pages, %status, %ref_ext, %nf_pl, %forms, @by_day );
     my ( $hits, $ref_internal, $ref_direct, $nf_junk ) = ( 0, 0, 0, 0 );
 
     for my $day ( sort keys %{ $cache->{days} } ) {
         next if $day lt $from_day;
         my $b = $cache->{days}{$day};
+        for my $fn ( keys %{ $b->{forms} || {} } ) {    # SM216-2
+            my $fb = $b->{forms}{$fn};
+            $forms{$fn}{stored}      += $fb->{stored}      // 0;
+            $forms{$fn}{quarantined} += $fb->{quarantined} // 0;
+            $forms{$fn}{blocked}{$_} += $fb->{blocked}{$_} for keys %{ $fb->{blocked} || {} };
+        }
         $cls{$_} += $b->{cls}{$_} for keys %{ $b->{cls} };
         $uips{$_} = 1 for keys %{ $b->{ips} };
         $pages{$_}    += $b->{pages}{$_}        for keys %{ $b->{pages} };
@@ -1197,6 +1280,22 @@ sub _export_assemble {
         $ev_to   = $t if !defined $ev_to   || $t > $ev_to;
     }
 
+    # SM216-2: per-form delivery outcomes over the window - stored (delivered),
+    # quarantined (stored but held from the bell), blocked (spam controls, by
+    # reason). Lets the report say "controls stopped N" vs "nobody attacks us".
+    my @form_delivery = map {
+        my $fb = $forms{$_};
+        my $bl = $fb->{blocked} || {};
+        my $bt = 0;
+        $bt += $_ for values %$bl;
+        { form => $_,
+            stored        => ( $fb->{stored}      // 0 ),
+            quarantined   => ( $fb->{quarantined} // 0 ),
+            blocked_total => $bt,
+            blocked       => $bl,
+        };
+    } sort keys %forms;
+
     return {
         ok             => JSON::PP::true,
         schema_version => '2',
@@ -1215,7 +1314,8 @@ sub _export_assemble {
             plausible  => $top->( \%nf_pl, $top_n ),    # a human hit a missing page
             junk_count => $nf_junk,                     # scanner-chorus 404s (count only)
         },
-        events => \@events,
+        events        => \@events,
+        form_delivery => \@form_delivery,    # SM216-2: blocked vs stored per form
         sample => {
             from  => ( defined $ev_from ? _day_str($ev_from) : undef ),
             to    => ( defined $ev_to   ? _day_str($ev_to)   : undef ),
