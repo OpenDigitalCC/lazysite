@@ -2,8 +2,8 @@
 title: "SM186 - Capabilities apply within the session + capability discoverability"
 subtitle: "Fix: a manager page was cached, so a just-granted capability didn't reflect until re-login; plus a grant-to-enable hint for gated areas"
 brand: plain
-status: partial
-status-note: "v1 built on claude/manager-cache-and-discoverability. Done: auth: manager pages are never cached (caps reflect within the session, no re-login); a Domains grant-to-enable nav hint. FOLLOW-UP: extend the grant-to-enable hint to other capability-gated areas beyond Domains."
+status: shipped
+status-note: "v1 built on claude/manager-cache-and-discoverability (auth: manager pages never cached; a Domains grant-to-enable nav hint). The FOLLOW-UP - generalise the grant-to-enable hint beyond Domains - was delivered by SM191: starter/lazysite/manager/layout.tt now shows a muted locked hint (linking to Groups, with an enable-it tooltip) for EVERY capability-gated nav area a grant-capable operator lacks - Files (manage_content), Navigation (manage_nav), Appearance (manage_themes/manage_layouts), Domains (manage_domains) and Audit log (audit); the processor surfaces all those caps in manager_caps. Covered by t/unit/processor/28-domains-nav.t (locked Files/Navigation/Appearance/Audit hints + the non-granting user sees none). Nothing outstanding."
 ---
 
 # SM186 - Capabilities apply within the session
@@ -56,8 +56,13 @@ capabilities sees nothing (the hint would be pointless). `manager_caps` now also
 surfaces `manage_users` so the nav can gate the hint. Covered by
 `t/unit/processor/28-domains-nav.t`.
 
-## Follow-up
+## Follow-up (delivered by SM191)
 
-Generalise the grant-to-enable hint to other capability-gated areas (it is
-Domains-specific today), so any area a grant-capable operator could unlock is
-discoverable rather than silently missing.
+The grant-to-enable hint is no longer Domains-specific. `manager_caps` surfaces
+`manage_content`, `manage_nav`, `manage_themes`, `manage_layouts`,
+`manage_domains` and `audit`, and `starter/lazysite/manager/layout.tt` renders a
+muted, locked entry - linking to the Groups page with an "how to enable it"
+tooltip - for every one of those areas a grant-capable operator (`manage_users`)
+currently lacks. A user who cannot grant capabilities still sees nothing. So any
+area a grant-capable operator could unlock is discoverable rather than silently
+missing. Covered by `t/unit/processor/28-domains-nav.t`.
