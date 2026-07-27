@@ -2,8 +2,8 @@
 title: "SM185 - Domains + site-package UX pass (default-site framing, self-contained export, language)"
 subtitle: "Frame Domains as additional-domains-only; export the default site without the domains feature; carry language in packages; declutter the row actions"
 brand: plain
-status: partial
-status-note: "v1 built on claude/manager-domains-ux for 0.9.7. Done: lang/lang_group in packages; default-site export (manage_content) on Backups; Domains actions dropdown + default row removed + copy; single Services heading. DEFERRED: none tracked yet - follow-ups will attach here."
+status: shipped
+status-note: "v1 built on claude/manager-domains-ux for 0.9.7 and complete: lang/lang_group in packages; default-site export (manage_content) on Backups; Domains actions dropdown + default row removed + copy; single Services heading; all covered by t/unit/manager/35-site-package.t. No follow-up was ever tracked against SM185, so it is marked shipped. One ADJACENT enhancement remains un-built in this area (NOT part of SM185): first-class domain aliases (several hosts -> one content_root, exposed as a domain-alias-add action + an alias_of marker in the Domains list). The engine already supports a shared content_root; only the first-class UI/API affordance is missing. Captured from the earlier SM155 plan; open a fresh item if wanted."
 ---
 
 # SM185 - Domains + site-package UX pass
