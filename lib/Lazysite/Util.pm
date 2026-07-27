@@ -12,9 +12,30 @@ use warnings;
 use POSIX ();
 use Exporter 'import';
 
-our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled);
+our @EXPORT_OK = qw(log_event const_eq unlink_host_copies unlink_host_page clear_host_cache forward_line service_enabled secure_write_perms);
 
 our $COMPONENT = 'lazysite';
+
+# SM215: make a just-written file owner/group/mode-safe so a helper run under sudo
+# (as root) never leaves a file the web-server (www-data) CGI cannot access. The
+# parent directory is provisioned <site-user>:<web-group> (and is setgid), so we
+# INHERIT owner+group from it rather than hard-code www-data: as root, chown both
+# (only root can); unprivileged, set the group only (best-effort - a non-root CLI
+# is normally already the file's owner, and chown-to-another-user would just fail).
+# Call on the temp file BEFORE rename (same directory), or on the final path. Mode
+# is applied explicitly. Best-effort throughout: never dies on a chown/chmod fail.
+sub secure_write_perms {
+    my ( $path, $mode ) = @_;
+    return unless defined $path && length $path;
+    chmod $mode, $path if defined $mode;
+    ( my $dir = $path ) =~ s{/[^/]+\z}{};
+    $dir = '.' unless length $dir;
+    my @ds = stat $dir or return;
+    my ( $duid, $dgid ) = @ds[ 4, 5 ];
+    if ( $> == 0 ) { chown $duid, $dgid, $path }    # root: match the provisioned dir
+    else           { chown -1, $dgid, $path }       # non-root: group only, best-effort
+    return;
+}
 
 # Constant-time string compare for timing-safe credential/token checks.
 sub const_eq {

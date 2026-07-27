@@ -7,7 +7,7 @@ package Lazysite::Auth::Settings;
 use strict;
 use warnings;
 use Fcntl          qw(:flock);
-use Lazysite::Util qw(log_event);
+use Lazysite::Util qw(log_event secure_write_perms);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
@@ -243,7 +243,7 @@ sub write_group_settings {
     print {$fh} JSON::PP->new->canonical->pretty->encode($ref);
     flock( $fh, LOCK_UN );
     close $fh;
-    chmod 0660, $tmp;
+    secure_write_perms( $tmp, 0660 );
     rename $tmp, $file or return 0;
     return 1;
 }
@@ -323,7 +323,7 @@ sub write_settings {
     print {$fh} $json;
     flock( $fh, LOCK_UN );
     close $fh;
-    chmod 0660, $tmp;
+    secure_write_perms( $tmp, 0660 );
     rename $tmp, $file
         or die "Cannot rename settings file into place: $!\n";
 }

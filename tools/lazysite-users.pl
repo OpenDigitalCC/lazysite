@@ -123,7 +123,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util  qw(log_event const_eq);
+use Lazysite::Util  qw(log_event const_eq secure_write_perms);
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential
     qw(generate_random_hex hash_password hash_token verify_secret generate_token);
@@ -2667,7 +2667,7 @@ sub write_users {
         print $fh "$u:$users{$u}\n";
     }
     close $fh or do { unlink $tmp; die "Cannot write $USERS_FILE: $!\n" };
-    chmod 0660, $tmp;
+    secure_write_perms( $tmp, 0660 );
     rename $tmp, $USERS_FILE
         or do { unlink $tmp; die "Cannot replace $USERS_FILE: $!\n" };
 }
@@ -3112,7 +3112,7 @@ sub write_groups {
         print $fh "$g: " . join( ', ', @{ $groups{$g} } ) . "\n";
     }
     close $fh or do { unlink $tmp; die "Cannot write $GROUPS_FILE: $!\n" };
-    chmod 0660, $tmp;
+    secure_write_perms( $tmp, 0660 );
     rename $tmp, $GROUPS_FILE
         or do { unlink $tmp; die "Cannot replace $GROUPS_FILE: $!\n" };
 }

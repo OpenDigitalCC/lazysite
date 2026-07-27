@@ -344,7 +344,10 @@ sub set_conf_line {
     close $out;
     if (@orig_stat) {
         chmod $orig_stat[2] & 07777, $tmp;
-        chown -1, $orig_stat[5], $tmp;    # group only; may fail as non-root
+        # SM215: as root (a sudo-driven update), preserve the file's OWNER too -
+        # not just the group - so an upgrade never leaves a root-owned conf the web
+        # user cannot rewrite. Non-root: group only (owner chown would just fail).
+        chown( ( $> == 0 ? $orig_stat[4] : -1 ), $orig_stat[5], $tmp );
     }
     unless ( rename $tmp, $conf ) {
         warn "Cannot replace $conf: $!\n";
@@ -458,7 +461,10 @@ sub _set_conf_key {
     close $out;
     if (@orig_stat) {
         chmod $orig_stat[2] & 07777, $tmp;
-        chown -1, $orig_stat[5], $tmp;    # group only; may fail as non-root
+        # SM215: as root (a sudo-driven update), preserve the file's OWNER too -
+        # not just the group - so an upgrade never leaves a root-owned conf the web
+        # user cannot rewrite. Non-root: group only (owner chown would just fail).
+        chown( ( $> == 0 ? $orig_stat[4] : -1 ), $orig_stat[5], $tmp );
     }
     return rename( $tmp, $conf ) ? 1 : do { unlink $tmp; 0 };
 }
