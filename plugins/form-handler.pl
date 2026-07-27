@@ -116,6 +116,14 @@ eval {
     }
     reject_user('Please fill in the form before submitting.') unless $has_content;
 
+    # SM216: score the (valid) submission; a suspect one is STORED but flagged so
+    # it stays out of the notification bell and lands under the Quarantine filter.
+    my ( $quarantined, $spam_reason ) = _spam_assessment( \%form, $conf );
+    if ($quarantined) {
+        $form{_quarantined} = 1;
+        $form{_spam_reason} = $spam_reason;
+    }
+
     my $delivered = 0;
     for my $target ( @{ $conf->{targets} } ) {
         $delivered += ( dispatch( $target, \%form, \%handlers ) ? 1 : 0 );
@@ -133,7 +141,9 @@ eval {
 
     log_event( 'INFO', $name, 'form received', ip => $ENV{REMOTE_ADDR} // 'unknown' );
     _audit_submission( $name, $auth_user, $ENV{REMOTE_ADDR} // '' );
-    _notify_submission($name);   # SM113: operator notification badge
+    # SM216: a quarantined (suspect) submission is stored but does NOT ring the
+    # bell - the operator finds it under the Submissions Quarantine filter.
+    _notify_submission($name) unless $form{_quarantined};    # SM113 badge
     respond_ok('Thank you - your message has been sent.');
 };
 if ($@) {
@@ -223,7 +233,54 @@ sub load_form_conf {
         };
     }
 
-    return { targets => \@targets, upload => $upload };
+    # SM216: per-form quarantine scoring config. quarantine defaults ON - a false
+    # positive still arrives (just unannounced, under the Quarantine filter), so
+    # cheap heuristics are safe on by default. spam_keywords is a comma-separated
+    # operator list; spam_url_threshold is the min URL count that flags (default 2).
+    my ($q)  = $text =~ /^\s*quarantine\s*:\s*(\S+)/m;
+    my ($kw) = $text =~ /^\s*spam_keywords\s*:\s*(.+?)\s*$/m;
+    my ($ut) = $text =~ /^\s*spam_url_threshold\s*:\s*(\d+)/m;
+
+    return {
+        targets            => \@targets,
+        upload             => $upload,
+        quarantine         => ( defined $q  ? $q      : 'on' ),
+        spam_keywords      => ( defined $kw ? $kw     : '' ),
+        spam_url_threshold => ( defined $ut ? $ut + 0 : 2 ),
+    };
+}
+
+# SM216: quarantine scoring - store-but-flag a suspect submission (kept out of the
+# notification bell, shown under the Submissions Quarantine filter) rather than
+# reject it. A false positive costs nothing (the message still arrives, just
+# unannounced), which is what makes cheap content heuristics safe on by default.
+# Signals: >= spam_url_threshold URLs in the visible text, and any operator keyword.
+# Returns (0|1, reason). Content-based and server-side - no tracker, no CAPTCHA.
+sub _spam_assessment {
+    my ( $form, $conf ) = @_;
+    return ( 0, '' )
+        if lc( $conf->{quarantine} // 'on' ) =~ /^(?:0|off|no|false|disabled)$/;
+
+    my $text = '';
+    for my $k ( keys %$form ) {
+        next if $k =~ /^_/;
+        $text .= ' ' . $form->{$k}
+            if defined $form->{$k} && !ref $form->{$k};
+    }
+
+    my @reasons;
+    my $threshold = ( $conf->{spam_url_threshold} // 2 ) + 0;
+    my $urls      = () = $text =~ m{https?://}gi;
+    push @reasons, "$urls urls" if $threshold > 0 && $urls >= $threshold;
+
+    if ( defined $conf->{spam_keywords} && length $conf->{spam_keywords} ) {
+        for my $kw ( split /\s*,\s*/, $conf->{spam_keywords} ) {
+            next unless length $kw;
+            if ( $text =~ /\Q$kw\E/i ) { push @reasons, "keyword '$kw'"; last }
+        }
+    }
+
+    return @reasons ? ( 1, join( ' + ', @reasons ) ) : ( 0, '' );
 }
 
 # --- Dispatch ---
@@ -337,6 +394,14 @@ sub dispatch_file {
     $record{_submitted} = strftime( '%Y-%m-%dT%H:%M:%S', localtime );
     $record{_ip}        = $ENV{REMOTE_ADDR} // 'unknown';
     $record{_form}      = $form_name;
+
+    # SM216: carry the quarantine flag + reason onto the stored record so the
+    # Submissions viewer can surface and triage it. (The dispatch loop's own copy
+    # of %form set these; _-prefixed keys are otherwise dropped above.)
+    if ( $form->{_quarantined} ) {
+        $record{_quarantined} = JSON::PP::true;
+        $record{_spam_reason} = $form->{_spam_reason} // '';
+    }
 
     # Binary uploads: store the files in a per-submission subdir next to the
     # <form>.jsonl, and record the (sanitised) filenames + their dir in the record.

@@ -20,7 +20,7 @@ our @EXPORT_OK = qw(
     action_plugin_read action_plugin_save action_plugin_action
     action_handler_list action_handler_save action_handler_delete action_form_list
     action_form_targets_read action_form_targets_save action_form_submissions
-    action_form_submission_delete
+    action_form_submission_delete action_form_submission_confirm
     resolve_plugin_script
 );
 
@@ -815,6 +815,45 @@ sub action_form_submission_delete {
     rename $tmp, $abs
         or do { unlink $tmp; return { ok => 0, error => 'Cannot replace submissions' } };
     return { ok => 1, file => $rel, deleted => 1 };
+}
+
+# SM216: confirm a quarantined submission as legitimate - clear its _quarantined /
+# _spam_reason flags on the stored row (by stable id), so it leaves the Quarantine
+# filter. The row content is untouched; a false positive is recovered in one click.
+# (Deleting a genuine spam row stays action_form_submission_delete.)
+sub action_form_submission_confirm {
+    my ( $file, $id ) = @_;
+    my ( $abs, $rel, $err ) = _submissions_path($file);
+    return { ok => 0, error => $err } if $err;
+    return { ok => 0, error => 'A row id is required' }
+        unless defined $id && $id =~ /\A[0-9a-f]{16}\z/;
+    return { ok => 0, error => 'No such submissions store' } unless -f $abs;
+
+    open my $fh, '<:utf8', $abs or return { ok => 0, error => 'Cannot read submissions' };
+    my ( @out, $confirmed );
+    while ( my $line = <$fh> ) {
+        ( my $trim = $line ) =~ s/\s+\z//;
+        if ( !$confirmed && length $trim && _submission_row_id($trim) eq $id ) {
+            my $rec = eval { decode_json($trim) };
+            if ( ref $rec eq 'HASH' ) {
+                delete @{$rec}{qw(_quarantined _spam_reason)};
+                push @out, encode_json($rec) . "\n";
+                $confirmed = 1;
+                next;
+            }
+        }
+        push @out, $line;
+    }
+    close $fh;
+    return { ok => 0, error => 'Row not found' } unless $confirmed;
+
+    my $tmp = "$abs.tmp.$$";
+    open my $w, '>:utf8', $tmp or return { ok => 0, error => 'Cannot write submissions' };
+    print {$w} @out;
+    close $w;
+    rename $tmp, $abs
+        or do { unlink $tmp; return { ok => 0, error => 'Cannot replace submissions' } };
+    return { ok => 1, file => $rel, confirmed => 1 };
 }
 
 1;

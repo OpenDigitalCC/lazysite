@@ -146,6 +146,45 @@ sleep 4;
     ok( $n->{ts} && $n->{ts} =~ /^\d+$/, 'notice carries an epoch ts' );
 }
 
+# --- 3c. SM216: a spammy submission is STORED but quarantined (not rejected),
+#         and does NOT ring the notification bell ---
+{
+    my $body = join '&',
+        "_form=contact", "_ts=$ts", "_tk=$tk", "_hp=",
+        "name=Spammer", "email=seo\@x.com",
+        "message=Great+site+visit+https://a.example+and+https://b.example+for+backlinks";
+    local %ENV = (
+        DOCUMENT_ROOT  => $docroot,
+        REQUEST_METHOD => 'POST',
+        CONTENT_LENGTH => length($body),
+        CONTENT_TYPE   => 'application/x-www-form-urlencoded',
+        REMOTE_ADDR    => '127.0.0.9',
+        QUERY_STRING   => '',
+    );
+    require IPC::Open2;
+    my ( $cout, $cin );
+    my $pid = IPC::Open2::open2( $cout, $cin, $^X, "$root/plugins/form-handler.pl" );
+    print $cin $body;
+    close $cin;
+    my $out = do { local $/; <$cout> };
+    close $cout;
+    waitpid $pid, 0;
+    like( $out, qr/Status: 200 OK/, 'spammy submission still 200 (stored, not rejected)' );
+
+    open my $fh, '<', "$docroot/form-submissions/contact.jsonl" or die $!;
+    my @lines = <$fh>;
+    close $fh;
+    my $spam = decode_json( $lines[-1] );
+    ok( $spam->{_quarantined}, 'the spammy submission is flagged _quarantined' );
+    like( $spam->{_spam_reason}, qr/urls/, 'reason names the URL count (2 urls >= threshold 2)' );
+    ok( !decode_json( $lines[0] )->{_quarantined}, 'the earlier clean submission is not quarantined' );
+
+    open my $nf, '<', "$docroot/lazysite/logs/notices.jsonl" or die $!;
+    my @notices = <$nf>;
+    close $nf;
+    is( scalar @notices, 1, 'a quarantined submission does NOT ring the bell (still just the 1 clean notice)' );
+}
+
 # --- 4. Replay the same _ts/_tk pair (would pass age check again,
 #        but token-lockout is not enforced - this test just documents
 #        current behaviour, not a claim about idempotency) ---

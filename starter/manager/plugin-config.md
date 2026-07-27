@@ -595,27 +595,53 @@ function toggleSubmissions(handlerId, dirPath) {
     .catch(function() { setSubsBody('<p style="color:var(--mg-danger,#c00)">Could not list submissions.</p>', 'Submissions'); });
 }
 
+// SM216: a quarantine filter, kept per-open so a reload keeps the view.
+var subsFilter  = 'all';   // 'all' | 'quarantined'
+var subsCurrent = null;
+function setSubsFilter(f) { subsFilter = f; if (subsCurrent) showSubmissionTable(subsCurrent.file, subsCurrent.form); }
+
 function showSubmissionTable(filePath, formName) {
+  subsCurrent = { file: filePath, form: formName };
   setSubsBody('<p style="color:var(--mg-text-light)">Loading ' + esc(formName) + '&hellip;</p>', 'Submissions: ' + formName);
   fetch(API + '?action=form-submissions&file=' + encodeURIComponent(filePath))
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) { setSubsBody('<p style="color:var(--mg-danger,#c00)">' + esc(d.error || 'Could not read submissions') + '</p>', 'Submissions'); return; }
-      var cols = d.columns || [];
-      if (!d.rows || !d.rows.length || !cols.length) {
+      // SM216: _quarantined / _spam_reason are status meta, not form fields - drive
+      // the row marking, not a data column.
+      var META = { _quarantined: 1, _spam_reason: 1 };
+      var cols = (d.columns || []).filter(function(c) { return !META[c]; });
+      var rows = d.rows || [];
+      if (!rows.length || !cols.length) {
         setSubsBody('<p style="color:var(--mg-text-light)">No submissions in ' + esc(formName) + ' yet.</p>', 'Submissions: ' + formName);
         return;
       }
-      var h = '<div style="overflow-x:auto"><table class="mg-table mg-submissions-table"><thead><tr>';
+      var qcount = rows.filter(function(r) { return r._quarantined; }).length;
+      var view = (subsFilter === 'quarantined') ? rows.filter(function(r) { return r._quarantined; }) : rows;
+
+      var h = '';
+      if (qcount) {
+        h += '<div style="margin:0 0 0.5rem;font-size:0.85rem">'
+           + '<strong>' + qcount + '</strong> quarantined (suspected spam, kept out of notifications). '
+           + '<button class="mg-btn mg-btn-sm" onclick="setSubsFilter(\'all\')"' + (subsFilter === 'all' ? ' disabled' : '') + '>All</button> '
+           + '<button class="mg-btn mg-btn-sm" onclick="setSubsFilter(\'quarantined\')"' + (subsFilter === 'quarantined' ? ' disabled' : '') + '>Quarantine only</button>'
+           + '</div>';
+      }
+      h += '<div style="overflow-x:auto"><table class="mg-table mg-submissions-table"><thead><tr><th>Status</th>';
       cols.forEach(function(c) { h += '<th>' + esc(c) + '</th>'; });
       h += '<th></th></tr></thead><tbody>';
-      d.rows.forEach(function(row) {
-        h += '<tr>';
+      view.forEach(function(row) {
+        var q = row._quarantined;
+        h += '<tr' + (q ? ' style="background:var(--mg-warn-bg,#fff8e1)"' : '') + '>';
+        h += '<td>' + (q ? '<span class="mg-tag mg-tag-off" title="' + esc(row._spam_reason || '') + '">quarantined</span>' : '') + '</td>';
         cols.forEach(function(c) { h += '<td>' + esc(row[c] == null ? '' : row[c]) + '</td>'; });
-        h += '<td><button class="mg-btn mg-btn-sm mg-btn-danger" onclick=\'deleteSubmissionRow('
-           + JSON.stringify(filePath).replace(/'/g, '&#39;') + ', '
-           + JSON.stringify(row._id).replace(/'/g, '&#39;') + ', '
-           + JSON.stringify(formName).replace(/'/g, '&#39;') + ')\'>Delete</button></td></tr>';
+        var args = JSON.stringify(filePath).replace(/'/g, '&#39;') + ', '
+                 + JSON.stringify(row._id).replace(/'/g, '&#39;') + ', '
+                 + JSON.stringify(formName).replace(/'/g, '&#39;');
+        h += '<td style="white-space:nowrap">';
+        if (q) h += '<button class="mg-btn mg-btn-sm" onclick=\'confirmSubmissionRow(' + args + ')\'>Confirm</button> ';
+        h += '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick=\'deleteSubmissionRow(' + args + ')\'>Delete</button>';
+        h += '</td></tr>';
       });
       h += '</tbody></table></div>';
       var note = 'Showing ' + d.shown + ' of ' + d.total + ' submission' + (d.total === 1 ? '' : 's');
@@ -625,6 +651,20 @@ function showSubmissionTable(filePath, formName) {
       setSubsBody(h, 'Submissions: ' + formName);
     })
     .catch(function() { setSubsBody('<p style="color:var(--mg-danger,#c00)">Could not read submissions.</p>', 'Submissions'); });
+}
+
+// SM216: confirm a quarantined row as legitimate (clears the flag; the message
+// stays in the store, just no longer flagged). Reloads the table in place.
+function confirmSubmissionRow(filePath, rowId, formName) {
+  fetch(API + '?action=form-submission-confirm', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file: filePath, id: rowId })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (!d.ok) { showStatus(d.error || 'Confirm failed', true); return; }
+    showStatus('Submission confirmed - moved out of quarantine.');
+    showSubmissionTable(filePath, formName);
+  }).catch(function(e) { showStatus('Confirm error: ' + e.message, true); });
 }
 
 function deleteSubmissionRow(filePath, rowId, formName) {

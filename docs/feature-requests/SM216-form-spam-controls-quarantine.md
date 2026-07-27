@@ -2,8 +2,8 @@
 title: "SM216 - form spam controls for the low-volume human/agentic case (quarantine, not sharper reject)"
 subtitle: "The existing form controls (honeypot, HMAC dwell token, per-IP rate limit) stop bulk dumb automation and demonstrably do, but hand-typed and LLM-browser-agent spam that loads the page, waits, and posts once sits outside the model. Add server-side, content-based, no-JS spam scoring that QUARANTINES rather than rejects - so cheap heuristics are safe on by default - plus reject-counter visibility, all consistent with the no-tracker/no-CAPTCHA stance."
 brand: plain
-status: candidate
-status-note: "PROPOSED 2026-07-27 by the lazysite.io site agent (inbox note, prompted by one SEO-spam row on cloudient.net that passed every control because it behaved like a human). A multi-part program, NOT for 0.9.17 - captured for the roadmap with the agent's suggested order. Highest-value first item (quarantine + url-count + keyword list) is small; later parts (cross-signal with scanner/bad-URL data, reject counters into the stats day-buckets) pair with SM213 stats and the goals work. Holds the published stance: no third-party anti-spam/CAPTCHA, no fingerprinting, no JS requirement, no accessibility regression."
+status: in-progress
+status-note: "PART 1 (quarantine keystone) SHIPPED in 0.10.1 edge (branch claude/sm216-spam-controls): server-side content scoring at accept time (>= spam_url_threshold URLs in visible text, default 2, plus a per-form spam_keywords list), a suspect submission is STORED but flagged _quarantined + _spam_reason and held OUT of the notification bell; the Submissions viewer marks quarantined rows, offers a Quarantine-only filter, and a per-row Confirm (un-quarantine, keeps the row) beside Delete; new control-API action form-submission-confirm (gate manage_forms, audited). Defaults ON - a false positive still arrives, just unannounced. Parts 2-5 remain per the order below. Original proposal: PROPOSED 2026-07-27 by the lazysite.io site agent (inbox note, prompted by one SEO-spam row on cloudient.net that passed every control because it behaved like a human). A multi-part program, NOT for 0.9.17 - captured for the roadmap with the agent's suggested order. Highest-value first item (quarantine + url-count + keyword list) is small; later parts (cross-signal with scanner/bad-URL data, reject counters into the stats day-buckets) pair with SM213 stats and the goals work. Holds the published stance: no third-party anti-spam/CAPTCHA, no fingerprinting, no JS requirement, no accessibility regression."
 ---
 
 # SM216 - form spam controls (quarantine + content signals)
@@ -76,7 +76,7 @@ Optional hard modes, OFF by default (documented with trade-offs)
 ## Suggested order (from the agent)
 
 1. Quarantine + URL-count + keyword list (ends silent spam delivery at near-zero
-   false-positive cost).
+   false-positive cost). DONE - 0.10.1 edge.
 2. Reject counters into the stats day-buckets (visibility).
 3. Cross-signal with scanner/bad-URL data; network-bucket rate limit.
 4. Dwell config + rotating field names.

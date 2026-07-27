@@ -13,7 +13,8 @@ use Lazysite::Manager::Plugins qw(
     action_plugin_enable action_plugin_disable action_handler_save
     action_handler_list action_handler_delete action_form_targets_save
     action_form_targets_read action_form_submissions action_form_submission_delete
-    action_form_list resolve_plugin_script);
+    action_form_list action_form_submission_confirm
+    resolve_plugin_script);
 
 # SM152: a real install layout - base holds plugins/, docroot is base/public_html
 # - so the plugin registry (base/plugins/*.pl + core) resolves. enable/disable
@@ -204,6 +205,34 @@ unlink "$base/sample-plugin.pl";
         [ sort keys %$fb ],
         [ sort qw(name handlers handler_types has_store rows) ],
         'a form entry carries only names + counts - no submission content (PII-free)' );
+}
+
+# --- SM216: confirm (un-quarantine) a flagged row - keeps it, clears the flag -
+{
+    my $qf = "$d/lazysite/forms/submissions/quar.jsonl";
+    open my $sf, '>', $qf or die $!;
+    print $sf qq({"ts":"2026-07-26","name":"Real","msg":"hello"}\n);
+    print $sf
+        qq({"ts":"2026-07-26","name":"Spam","msg":"buy https://a https://b","_quarantined":true,"_spam_reason":"2 urls"}\n);
+    close $sf;
+
+    my $r = action_form_submissions('lazysite/forms/submissions/quar.jsonl');
+    my ($qrow) = grep { $_->{_quarantined} } @{ $r->{rows} };
+    ok( $qrow, 'the quarantined row is surfaced carrying its flag' );
+
+    my $ok = action_form_submission_confirm(
+        'lazysite/forms/submissions/quar.jsonl', $qrow->{_id} );
+    ok( $ok->{ok} && $ok->{confirmed}, 'confirm reports success' );
+
+    my $after = action_form_submissions('lazysite/forms/submissions/quar.jsonl');
+    is( $after->{total}, 2, 'confirm keeps the row - store size unchanged' );
+    my @still = grep { $_->{_quarantined} } @{ $after->{rows} };
+    is( scalar @still, 0, 'no row remains quarantined after the confirm' );
+
+    ok( !action_form_submission_confirm( 'lazysite/forms/submissions/quar.jsonl', '0' x 16 )->{ok},
+        'confirm of an unknown id is a not-found, not a silent success' );
+    ok( !action_form_submission_confirm( 'lazysite/forms/submissions/../../auth/.secret', '0' x 16 )->{ok},
+        'confirm refuses a traversal path' );
 }
 
 done_testing();
