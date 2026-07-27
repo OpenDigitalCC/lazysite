@@ -192,18 +192,29 @@ function renderKeys(d) {
       return '<span class="mg-tag mg-tag-auto">' + escHtml(c) + '</span>';
     }).join(' ');
     var when = k.issued_at ? new Date(k.issued_at * 1000).toLocaleString() : '<span class="mg-muted">unknown</span>';
-    // Status: in use vs never used since issue; plus disabled / expiry flags.
-    var status = k.in_use
-      ? '<span class="mg-tag mg-tag-on">in use</span>'
-      : '<span class="mg-tag mg-tag-auto">not used yet</span>';
-    if (k.disabled) status += ' <span class="mg-tag mg-tag-off">account disabled</span>';
+    // Status. "in use" means the key has been used at least once SINCE issue -
+    // a historical fact, not "live right now". For an EXPIRED token that use is
+    // in the past, so showing a green "in use" beside "token expired" (and
+    // "renews on use" in the Lifetime column) reads as a contradiction. When the
+    // token has lapsed, lead with that and say when it was last used instead of
+    // claiming it is in use. SM212: a renew-on-use token lapses only after a full
+    // token_ttl of INACTIVITY (the slide never resurrects an expired token).
     var now = Date.now() / 1000;
-    if (k.expires_at && k.expires_at < now) status += ' <span class="mg-tag mg-tag-off">account expired</span>';
-    if (k.token_expires_at) {
-      status += (k.token_expires_at < now)
-        ? ' <span class="mg-tag mg-tag-off">token expired</span>'
-        : ' <span class="mg-tag mg-tag-auto">expires ' + escHtml(new Date(k.token_expires_at * 1000).toLocaleDateString()) + '</span>';
+    var tokenExpired = k.token_expires_at && k.token_expires_at < now;
+    var status;
+    if (tokenExpired) {
+      status = '<span class="mg-tag mg-tag-off">token expired</span>';
+      if (k.used_at) status += ' <span class="mg-muted" style="font-size:0.85em">last used '
+        + escHtml(new Date(k.used_at * 1000).toLocaleDateString()) + '</span>';
+    } else {
+      status = k.in_use
+        ? '<span class="mg-tag mg-tag-on">in use</span>'
+        : '<span class="mg-tag mg-tag-auto">not used yet</span>';
+      if (k.token_expires_at) status += ' <span class="mg-tag mg-tag-auto">expires '
+        + escHtml(new Date(k.token_expires_at * 1000).toLocaleDateString()) + '</span>';
     }
+    if (k.disabled) status += ' <span class="mg-tag mg-tag-off">account disabled</span>';
+    if (k.expires_at && k.expires_at < now) status += ' <span class="mg-tag mg-tag-off">account expired</span>';
     // SM212: token lifetime. Default (24h) is a hard window from issue; a longer
     // TTL (max 30d) also RENEWS ON USE, so an actively-used key never lapses.
     var cur = k.token_ttl ? String(k.token_ttl) : '';
@@ -218,7 +229,9 @@ function renderKeys(d) {
         : '') +
       '</select>';
     var slides = k.token_ttl
-      ? '<div class="mg-muted" style="font-size:0.8em" title="An in-use token has its expiry renewed on each use, so it never lapses while the key is active. Revoke to end it.">renews on use</div>'
+      ? (tokenExpired
+          ? '<div class="mg-muted" style="font-size:0.8em" title="This key renews its lifetime on each use, but it went unused for longer than that lifetime, so it has lapsed. Rotate the key to issue a fresh token.">lapsed after inactivity</div>'
+          : '<div class="mg-muted" style="font-size:0.8em" title="An in-use token has its expiry renewed on each use, so it never lapses while the key is active. Revoke to end it.">renews on use</div>')
       : '';
     h += '<tr>' +
       '<td><a href="/manager/users?user=' + encodeURIComponent(k.user) + '">' + escHtml(k.user) + '</a></td>' +
