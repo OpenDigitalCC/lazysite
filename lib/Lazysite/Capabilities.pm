@@ -138,7 +138,7 @@ my %ACTION_INFO = (
     },
     read_submissions => {
         title => 'Read form submissions over the API/MCP. A least-privilege, read-only grant for an agent that processes form leads - it does NOT include managing form configs (that is manage_forms). Off by default.',
-        unlocks => { api => [qw(form-submissions)], mcp => [qw(read_form_submissions)] },
+        unlocks => { api => [qw(form-submissions form-list)], mcp => [qw(read_form_submissions form_list)] },
     },
     create_sub_users => {
         title   => 'Create sub-accounts under your own account.',

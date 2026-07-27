@@ -23,7 +23,7 @@ print $sf <<'STUB';
 #!/usr/bin/perl
 use strict; use warnings; use JSON::PP qw(encode_json decode_json);
 my $in = do { local $/; <STDIN> }; my $r = eval { decode_json($in) } || {};
-print encode_json({ ok=>1, settings=>{ mcp=>1, manage_content=>1, manage_forms=>1 } });
+print encode_json({ ok=>1, settings=>{ mcp=>1, manage_content=>1, manage_forms=>1, read_submissions=>1 } });
 STUB
 close $sf;
 chmod 0755, $stub;
@@ -94,6 +94,34 @@ sub call { my $r = mcp( { jsonrpc => '2.0', id => 1, method => 'tools/call',
     ok( $a && $a->{ok}, 'audit_site ok' );
     ok( ( grep { $_->{kind} eq 'unbound' && $_->{form} eq 'contact' } @{ $a->{broken_forms} || [] } ),
         'audit_site flags the unbound contact form' );
+}
+
+# --- SM214: form_list (MCP) discovers forms + submission counts, PII-free -------
+{
+    # a file handler + a form referencing it + a 2-row store
+    open my $hc, '>', "$d/lazysite/forms/handlers.conf" or die $!;
+    print {$hc} "handlers:\n  - id: local-storage\n    type: file\n    name: Local\n";
+    close $hc;
+    open my $fc, '>', "$d/lazysite/forms/feedback.conf" or die $!;
+    print {$fc} "targets:\n  - handler: local-storage\n";
+    close $fc;
+    make_path("$d/lazysite/forms/submissions");
+    open my $st, '>', "$d/lazysite/forms/submissions/feedback.jsonl" or die $!;
+    print {$st} qq({"name":"alice"}\n{"name":"bob"}\n);
+    close $st;
+
+    my $r = mcp( { jsonrpc => '2.0', id => 3, method => 'tools/list' } );
+    my @names = map { $_->{name} } @{ $r->{result}{tools} || [] };
+    ok( ( grep { $_ eq 'form_list' } @names ), 'form_list appears in tools/list' );
+
+    my $fl = call( 'form_list', {} );
+    ok( $fl && $fl->{ok}, 'form_list ok' ) or diag encode_json( $fl || {} );
+    my ($fb) = grep { $_->{name} eq 'feedback' } @{ $fl->{forms} || [] };
+    ok( $fb, 'the feedback form is listed' );
+    is_deeply( $fb->{handler_types}, ['file'], 'handler type resolved (file)' );
+    ok( $fb->{has_store}, 'a submissions store is detected' );
+    is( $fb->{rows}, 2, 'row count is correct (a count, not content)' );
+    unlike( encode_json($fl), qr/alice|bob/, 'form_list carries no submission content (PII-free)' );
 }
 
 done_testing();

@@ -44,7 +44,7 @@ analytics | Read sanitised, IP-anonymised visitor analytics. | api: analyse_visi
 audit | Read the append-only audit trail. | api: audit
 notifications | See operator notifications (the manager bell: new form submissions, requests awaiting a response). | ui: the notifications bell + unread badge in the manager header
 feedback | Submit agent feedback over MCP. Off by default: the operator opts a group in so an agent may write to lazysite/feedback/ and notify the operator. | mcp: submit_feedback
-read_submissions | Read form submissions over the API/MCP. A least-privilege, read-only grant for an agent that processes form leads - it does NOT include managing form configs (that is manage_forms). Off by default. | api: form-submissions; mcp: read_form_submissions
+read_submissions | Read form submissions over the API/MCP. A least-privilege, read-only grant for an agent that processes form leads - it does NOT include managing form configs (that is manage_forms). Off by default. | api: form-submissions, form-list; mcp: read_form_submissions, form_list
 create_sub_users | Create sub-accounts under your own account. | ui: sub-user creation
 delegate_sub_user_creation | Grant sub-accounts the ability to create their own sub-users. | ui: onward delegation of sub-user creation
 ```
