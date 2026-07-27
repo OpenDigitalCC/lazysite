@@ -48,13 +48,24 @@ notifying operators live when another user (or an agent) changes something.
 
 ## Status
 
-**Phase 1 done (0.6.1).** A `recent-changes` control-API action returns
-`{ target -> { ts, user, action } }` for changes within a window (default 24h),
-aggregated latest-per-target from the audit-log tail (`_audit_cached_entries`), ok
-entries with a non-empty target only. The Files page and the Users page fetch it on
-load and show a small dot next to a recently-changed row, with a tooltip of when /
-who / what. The redirect target matching is exact: a file row's `path` is the audit
-target for its save, and a user row's name is the audit target for `user-*` events.
+**Phase 1 done (0.6.1; Groups surface added in 0.10.1 edge).** A `recent-changes`
+control-API action returns `{ target -> { ts, user, action } }` for changes within a
+window (default 24h), aggregated latest-per-target from the audit-log tail
+(`_audit_cached_entries`), ok entries with a non-empty target only. The Files page
+and the Users page fetch it on load and show a small dot next to a recently-changed
+row, with a tooltip of when / who / what. The redirect target matching is exact: a
+file row's `path` is the audit target for its save, and a user row's name is the
+audit target for `user-*` events.
+
+0.10.1 edge (branch claude/sm103-recent-change-markers) extends the same marker to
+the **Groups page**: a group's settings / capability change audits under the group
+name (a membership change audits as `user@group` and shows on that user's row
+instead), so a dot by the group name catches it - the exact `recentDot` helper the
+Users page uses, wired through `loadGroups`. The **nav editor** remains the one
+Phase-1 surface named in the spec that is not yet decorated (its target is per-host,
+`nav` / `nav (host)`), a small further extension.
 
 Phases 2-3 (SSE live stream, then WebRTC presence) remain a larger real-time
-programme to scope separately.
+programme to scope separately - and a true SSE stream is a poor fit for the CGI
+model (a long-lived stream holds a web-server worker per open page), so it needs its
+own transport design rather than a quick add.

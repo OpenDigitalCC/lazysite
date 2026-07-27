@@ -96,14 +96,35 @@ function loadGroups() {
   var cs = fetch(API + '?action=channel-services').then(function(r) { return r.json(); })
     .then(function(d) { return (d.ok && d.services) ? d.services : {}; })
     .catch(function() { return {}; });
-  Promise.all([gp, up, cs]).then(function(res) {
+  // SM103: recent-change markers - a change to a group's settings/capabilities
+  // audits under the group name (a membership change audits as user@group and
+  // shows on that user's row instead), so a dot by the group name catches it.
+  var rc = fetch(API + '?action=recent-changes').then(function(r) { return r.json(); })
+    .then(function(d) { return (d.ok && d.changes) ? d.changes : {}; })
+    .catch(function() { return {}; });
+  Promise.all([gp, up, cs, rc]).then(function(res) {
     allGroups = res[0] || {};
     allUsers  = res[1] || [];
     channelServices = res[2] || {};
+    recentChanges = res[3] || {};
     var dl = document.getElementById('all-users-list');
     if (dl) dl.innerHTML = allUsers.map(function(u){ return '<option value="' + escHtml(u) + '">'; }).join('');
     renderGroups();
   }).catch(function(e) { showStatus('Failed to load groups: ' + e.message, true); });
+}
+
+// SM103: recent-change marker - a small dot next to a group changed within the
+// recent-changes window (default 24h), with a who/when/what tooltip.
+var recentChanges = {};
+function recentDot(key) {
+  var c = recentChanges[key];
+  if (!c) return '';
+  var when = c.ts ? new Date(c.ts).toLocaleString() : '';
+  var title = 'Changed ' + when + (c.user ? ' by ' + c.user : '')
+            + (c.action ? ' (' + c.action + ')' : '');
+  return ' <span class="mg-recent-dot" title="' + escHtml(title) + '" aria-label="'
+       + escHtml(title) + '" style="display:inline-block;width:8px;height:8px;'
+       + 'border-radius:50%;background:var(--mg-accent,#3a7bd5);vertical-align:middle;"></span>';
 }
 
 // One accordion per group: channel + action capability toggles, then a
@@ -122,7 +143,7 @@ function groupSummaryInner(g) {
   var inert = (nOn > 0 && members.length === 0)
     ? ' <span class="mg-badge mg-badge-muted" title="This group grants capabilities but has no members, so it applies to no one. Add a member to put its access into effect.">no members</span>'
     : '';
-  return '<span class="mg-acc-name">' + ge + '</span>' +
+  return '<span class="mg-acc-name">' + ge + '</span>' + recentDot(g) +
     (info.manager ? ' <span class="mg-badge mg-badge-success">manager</span>' : '') +
     inert +
     '<span class="mg-acc-spacer"></span>' +
