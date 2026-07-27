@@ -259,6 +259,7 @@ sub run_checks {
     my %want_dir = (
         'lazysite/cache'         => 02775,
         'lazysite/logs'          => 02775,
+        'lazysite/stats'         => 02775,    # SM213 durable per-day stats store
         'lazysite/manager/locks' => 02775,
         'lazysite/layouts'       => 02775,
         'lazysite-assets'        => 02775,

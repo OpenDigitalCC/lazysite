@@ -69,6 +69,15 @@ owner. Today it preserves the group and mode of an *existing* file but can creat
 *new* root-owned file. This closes the "an upgrade under sudo re-introduces the
 drift" path, so that once a site is clean a rollout keeps it clean.
 
+> Wiring note (as built): `lazysite-check --fix` was already the canonical,
+> tested repairer (it applies chmod always + chown as root via a handover mode
+> that preserves the CGI's access, then re-runs every check). So the standalone
+> `lazysite-fix-perms` is a thin front-end that delegates to `lazysite-check`
+> (dry-run) / `lazysite-check --fix` (`--apply`) - one implementation, not two -
+> and `lazysite-check`'s runtime-dir map gained `lazysite/stats` (the SM213 store)
+> so the repair also covers it. This is the "wire --fix to the repair tool"
+> increment.
+
 ### 3. A repair tool for drift that already happened
 
 `lazysite-fix-perms <docroot>` (a standalone tool, and wired as
