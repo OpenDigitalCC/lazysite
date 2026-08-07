@@ -304,6 +304,36 @@ sub _scan_docs {
     };
 }
 
+# SM226: why each entry in `holds` reads the way it does. A false is always the
+# same story - the capability exists and was not granted - and saying so is what
+# stops a reader treating it as absence. The case worth real explanation is the
+# opposite one: a channel capability that IS granted while its site service is
+# off, which today renders as a bare true and does nothing. `capabilities` and
+# `holds` disagreeing with observable behaviour is exactly the confusion this
+# block exists to remove. Needs a docroot to read the killswitches; without one
+# the dormancy answer is simply omitted rather than guessed.
+sub _holds_why {
+    my ( $caps, $docroot ) = @_;
+    my %why;
+    for my $k (@CAP_KEYS) {
+        if ( !$caps->{$k} ) {
+            $why{$k} = 'not granted to this account. The capability exists in '
+                . 'lazysite - ask the operator to grant it.';
+            next;
+        }
+        next unless $IS_CHANNEL{$k};
+        my $svc = $CHANNEL_SERVICE{$k};
+        next unless defined $svc;
+        next unless defined $docroot && length $docroot;
+        require Lazysite::Util;
+        next if Lazysite::Util::service_enabled( $docroot, $svc );
+        $why{$k} = "granted, but DORMANT: this site's `$svc` service is off, so "
+            . 'the channel refuses regardless of the grant. Ask the operator to '
+            . 'enable the service.';
+    }
+    return \%why;
+}
+
 # Build the map. Pass caps => { cap => 0|1 } (the caller's resolved grant) and,
 # optionally, groups => [...] and account => "name" to include the "holds" block;
 # docroot => "..." adds the SM225 documentation index. Omit caps for the static
@@ -334,10 +364,22 @@ sub describe {
 
     if ( $opt{caps} ) {
         my $caps = $opt{caps};
+        # SM226: `capabilities` above is what lazysite OFFERS; `holds` is what THIS
+        # account was GRANTED. Readers flatten the two and read a false as absence -
+        # a partner tabulated read_submissions:false, concluded submissions could not
+        # be read at all, and specified a replacement store. The scope line is prose
+        # in the payload deliberately: the consumer is a language model and the
+        # misreading is a language misreading.
         $map{holds} = {
             ( defined $opt{account} ? ( account => $opt{account} ) : () ),
             ( $opt{groups}          ? ( groups  => $opt{groups} )  : () ),
+            scope =>
+                'What THIS account has been granted. A false value means "not '
+                . 'granted to this account", never "not available in lazysite" - see '
+                . '"capabilities" for what the platform offers, and ask the operator '
+                . 'for a grant. See "why" for the reason each false is false.',
             capabilities => { map { $_ => ( $caps->{$_} ? $T : $F ) } @CAP_KEYS },
+            why          => _holds_why( $caps, $opt{docroot} ),
         };
     }
 

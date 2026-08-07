@@ -74,6 +74,37 @@ is( describe( caps => {}, docroot => "$FindBin::Bin/no-such-docroot-$$" )->{docs
 ok(  $map->{holds}{capabilities}{manage_themes}, 'holds shows a granted cap true' );
 ok( !$map->{holds}{capabilities}{mcp},           'holds shows an ungranted cap false' );
 is( $map->{holds}{account}, 'p', 'holds carries the account' );
+
+# --- SM226: holds states its own scope, and why each false is false ----------
+like( $map->{holds}{scope}, qr/not granted to this account/,
+    'holds carries a scope statement' );
+like( $map->{holds}{scope}, qr/never "not available in lazysite"/,
+    'scope statement rules out the absence reading' );
+like( $map->{holds}{why}{mcp}, qr/not granted/,
+    'an ungranted cap says it was not granted' );
+like( $map->{holds}{why}{mcp}, qr/exists in\s+lazysite/,
+    'and says the capability exists' );
+ok( !exists $map->{holds}{why}{manage_themes},
+    'a granted cap with nothing wrong carries no why entry' );
+{
+    # A granted CHANNEL whose site service is off is dormant: true, and does
+    # nothing. That disagreement is the one worth explaining.
+    my $tmp = "$FindBin::Bin/sm226-dormant-$$";
+    mkdir $tmp or die "mkdir $tmp: $!";
+    mkdir "$tmp/lazysite" or die "mkdir $tmp/lazysite: $!";
+    open my $cf, '>', "$tmp/lazysite/lazysite.conf" or die $!;
+    print {$cf} "mcp_enabled: yes\ncontrol_api_enabled: no\n";
+    close $cf;
+    my $h = describe( caps => { mcp => 1, api => 1 }, docroot => $tmp )->{holds};
+    ok( !exists $h->{why}{mcp}, 'a granted channel with its service on is not flagged' );
+    like( $h->{why}{api}, qr/DORMANT/,
+        'a granted channel with its service off is flagged dormant' );
+    like( $h->{why}{api}, qr/control_api_enabled/,
+        'and names the killswitch to turn on' );
+    unlink "$tmp/lazysite/lazysite.conf";
+    rmdir "$tmp/lazysite";
+    rmdir $tmp;
+}
 # every @CAP_KEYS key is present under holds (no drift - this is what the old
 # whoami block got wrong by omitting delegate_sub_user_creation)
 ok( exists $map->{holds}{capabilities}{$_}, "holds includes $_" ) for capability_keys();
