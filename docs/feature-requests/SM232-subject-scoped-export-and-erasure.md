@@ -3,7 +3,7 @@ title: "SM232 - Subject-scoped export and erasure"
 subtitle: "Gathering everything associated with one identifier and removing it is retention management for a document store, and lazysite is not one. Parked, with the reasoning recorded."
 brand: plain
 status: parked
-status-note: "Raised and parked 2026-08-07. The operator's position: submissions are a transient capture surface, not a record store; a client that needs material to persist should extract it and hold it where retention is properly managed. Building erasure would legitimise using lazysite as a document store, which is not its purpose. Retained as a record because the analysis - particularly the history-versus-erasure conflict - remains true and should not be rediscovered."
+status-note: "Raised and parked 2026-08-07. The operator's position: submissions are a capture surface, not a record store, and lazysite takes NO position on retention in either direction - any facility, including one built to dissuade, becomes retention workflow the moment it exists. Building erasure would legitimise using lazysite as a document store, which is not its purpose. Retained as a record because the analysis - particularly the history-versus-erasure conflict - remains true and should not be rediscovered."
 ---
 
 # SM232 - subject-scoped export and erasure
@@ -42,9 +42,9 @@ persists, for how long, and under what obligation are questions about the
 client's business rather than about publishing. A partner who owns that decision
 can meet an obligation lazysite could only ever approximate.
 
-The residual concern is real and is narrower than this request: PII does
-accumulate in JSON submission stores as a matter of course. That is housekeeping,
-and the answer is extraction and transience rather than an erasure function.
+PII does accumulate in JSON submission stores as a matter of course. That is a
+consequence of collecting it, the client is the party who decided to collect it,
+and the client is the party who carries the obligation that follows.
 
 ## The conflict worth keeping
 
@@ -61,20 +61,34 @@ This is also why the append-only submissions store is the only place erasure
 could ever have been straightforward - it carries no competing guarantee - and
 why that convenience should not be mistaken for a reason to keep material there.
 
-## If this is ever revisited
+## No position on retention, in either direction
 
-The narrower question that would deserve its own request is **transience**: a
-retention window on a submissions store, after which rows age out
-automatically. That manages a capture surface as a capture surface, keeps
-material from accumulating in the first place, and needs no concept of a subject,
-an export or an erasure.
+An earlier draft of this document proposed a narrower alternative: a retention
+window after which submission rows age out. That is also wrong, and for a reason
+worth stating because it is not obvious.
 
-It is not requested here. Filing it would need a real operator want rather than
-an anticipated one.
+**Any retention facility becomes retention workflow.** A window that expires rows
+is a retention policy engine. A scan that reports old material is a retention
+report. Even a mechanism built explicitly to discourage accumulation teaches
+operators that lazysite is the place where retention is decided, and from there
+the requests are inevitable: exempt this form, extend that window, notify before
+expiry, prove what was removed. The dissuading design and the enabling design
+converge on the same product.
+
+So lazysite offers nothing in either direction. It does not help material
+persist, and it does not help material expire. Where records live, for how long,
+and under what obligation are questions for whoever collected them, and there are
+mature tools that exist to answer them.
+
+This is not an evasion of the problem. It is a statement about which product
+solves it.
 
 ## Not to be built
 
 - Subject-scoped export.
 - Subject-scoped erasure.
-- Any function whose effect is to make lazysite a durable store for material the
-  client should be holding elsewhere.
+- Retention windows, expiry, ageing-out, or scheduled removal.
+- Retention reporting, scanning, or any mechanism that surfaces how long material
+  has been held - including one intended to discourage holding it.
+- Any function whose effect is to make lazysite the place where retention is
+  decided.
