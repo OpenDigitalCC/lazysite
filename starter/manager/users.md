@@ -601,11 +601,24 @@ function accountSettingsHtml(row) {
     // immutable created_by scope ceiling; promotion (clearing managed_by) does not,
     // and is the "top level (no parent)" choice in the Parent dropdown above.
     if (amOperator) {
-      ac += '<div class="mg-line"><span class="mg-line-lbl">Scope</span>' +
+      // SM233: the row label names the SUBJECT (what the control governs) and the
+      // checkbox names the EFFECT. "Independent of creator" named a relationship
+      // and left the reader to guess what it was independent FOR. The ceiling line
+      // below is what actually makes the control legible - it shows whether the
+      // toggle would change anything at all.
+      var ceil = s.scope_ceiling || [];
+      var ceilNote = s.scope_independent
+        ? '<span class="mg-muted" style="font-size:0.85em">Nothing caps this account.</span>'
+        : (ceil.length
+            ? '<span class="mg-muted" style="font-size:0.85em">Currently capped by: '
+              + ceil.map(escHtml).join(' &rarr; ') + '</span>'
+            : '<span class="mg-muted" style="font-size:0.85em">Nothing caps this account (no creator).</span>');
+      ac += '<div class="mg-line"><span class="mg-line-lbl">Content access</span>' +
         '<label class="mg-chk"><input type="checkbox"' + (s.scope_independent ? ' checked' : '') +
-        ' onchange="toggleScopeIndependent(\'' + ue + '\', this.checked)"> Independent of creator</label>' +
-        '<span class="mg-help" title="On: this account is not scope-capped by whoever created it (the created_by walk stops here). Off keeps the deliberate ceiling. created_by itself is never changed.">&#9432;</span>' +
-        '<span class="mg-inline-msg" id="scimsg-' + ue + '"></span></div>';
+        ' onchange="toggleScopeIndependent(\'' + ue + '\', this.checked)"> Set by its own grants alone</label>' +
+        '<span class="mg-help" title="Off: this account can reach at most what the account that created it can reach, and that limit follows the whole chain of creators. On: its access is decided by its own domain grants alone, so it may reach content its creator cannot. The record of who created it is unchanged either way. This is separate from the Parent setting above - moving an account to top level does not affect it.">&#9432;</span>' +
+        '<span class="mg-inline-msg" id="scimsg-' + ue + '"></span></div>' +
+        '<div class="mg-line"><span class="mg-line-lbl"></span>' + ceilNote + '</div>';
     }
   }
   h += sec('Account configuration', ac);
@@ -958,7 +971,8 @@ function reassignUser(user) {
 // scope ceiling is unaffected - that is emancipated separately below.
 function promoteUser(user) {
   mgConfirm('Promote "' + user + '" to top level? This clears its managing parent. '
-    + 'It does NOT lift the creator scope ceiling - use "Independent of creator" for that.',
+    + 'Its content access is unchanged - that is the "Content access" setting, which '
+    + 'is separate.',
     { ok: 'Promote' }).then(function(__ok) {
     if (!__ok) { return; }
     apiCall({ action: 'account-promote', username: user })
@@ -977,7 +991,10 @@ function toggleScopeIndependent(user, on) {
   apiCall({ action: 'account-scope-independent', username: user, value: on ? 1 : 0 })
     .then(function(d) {
       if (!d.ok) { showStatus(d.error, true); loadUsers(); return; }  // reload to revert the checkbox
-      showStatus('"' + user + '" is ' + (on ? 'now independent of its creator’s scope.' : 'back under its creator’s scope ceiling.'));
+      showStatus('"' + user + '" content access is ' + (on
+        ? 'now set by its own grants alone.'
+        : 'limited again by the account that created it.'));
+      loadUsers();   // SM233: refresh so the ceiling line reflects the new state
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); loadUsers(); });
 }

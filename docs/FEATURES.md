@@ -342,7 +342,10 @@ it only consumes the header contract.
   escalation). An operator can **promote a sub-user to top level** (an
   operator-only clear of `managed_by`) and can separately set an explicit
   `scope_independent` flag that lifts the `created_by` scope ceiling; the
-  provenance stamp is never rewritten (SM194).
+  provenance stamp is never rewritten (SM194). In the manager this is the
+  **Content access** control - "Set by its own grants alone" - which also shows
+  the chain of ancestors currently capping the account, so an operator can see
+  whether the toggle would change anything (SM233).
 
 Every gate runs *after* credential verification, so disabled/expired/MFA states
 never act as an oracle for valid usernames or passwords. All randomness is CSPRNG

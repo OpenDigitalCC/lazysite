@@ -1034,6 +1034,22 @@ sub effective_settings {
     # lock narrows; an empty result for a locked user is deny-all (not unconfined).
     my @scopes = Lazysite::Auth::Settings::resolve_user_scopes( $DOCROOT, $user );
     my $hd     = Lazysite::Auth::Settings::resolve_home_domain( $DOCROOT, $user );
+
+    # SM233: the chain of ancestors currently capping this account's content
+    # access, walked exactly as resolve_user_scopes walks it (created_by, stopping
+    # at a scope_independent account, cycle-guarded). Empty means nothing caps it.
+    # Without this the operator cannot see whether the emancipation toggle would
+    # change anything, and no amount of tooltip wording substitutes for showing
+    # the answer.
+    my @ceiling;
+    unless ( $s->{scope_independent} ) {
+        my %seen = ( $user => 1 );
+        my $anc  = $s->{created_by};
+        while ( defined $anc && length $anc && !$seen{$anc}++ ) {
+            push @ceiling, $anc;
+            $anc = ( $all->{$anc} || {} )->{created_by};
+        }
+    }
     return {
         groups => \@mygroups,
         webdav => $caps->{webdav}                  ? JSON::PP::true() : JSON::PP::false(),
@@ -1058,6 +1074,7 @@ sub effective_settings {
         # (created_by ceiling lifted) - two distinct operator decisions.
         top_level => ( defined $s->{managed_by} && length $s->{managed_by} ) ? JSON::PP::false() : JSON::PP::true(),
         scope_independent => $s->{scope_independent} ? JSON::PP::true() : JSON::PP::false(),
+        scope_ceiling     => \@ceiling,    # SM233: who is capping, in walk order
         create_sub_users => $caps->{create_sub_users} ? JSON::PP::true() : JSON::PP::false(),
         delegate_sub_user_creation => $caps->{delegate_sub_user_creation} ? JSON::PP::true() : JSON::PP::false(),
         disabled       => $s->{disabled}          ? JSON::PP::true() : JSON::PP::false(),
