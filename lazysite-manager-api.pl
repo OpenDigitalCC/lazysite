@@ -154,6 +154,43 @@ return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
 # Replaces the retired lazysite.conf manager_groups signal.
 my $site_secured = site_grants_manager();
 
+# SM237: every action name the dispatch chain below recognises, whichever channel
+# serves it. Needed because the token-client gate runs BEFORE dispatch and only
+# knows %need (the token subset), so without this it cannot tell "exists, but
+# cookie-only" from "no such action" - and reported both as the former.
+#
+# This is a literal because the dispatch is an if/elsif chain rather than a
+# table, so there is no runtime set to consult. That is the underlying issue and
+# it deserves its own request; a guarded list fixes the misreport now without a
+# 108-branch refactor in a copy-and-discoverability release. Drift is impossible:
+# t/lint/22-known-action-parity.t extracts the chain's action names and asserts
+# this set matches exactly.
+my %KNOWN_ACTION = map { $_ => 1 } qw(
+    acl-get acl-remove acl-set aliases-list analyse_visitors
+    artifact-backups-delete artifact-manifest artifact-validate audit
+    backup-create backup-download backup-list backup-restore bad-url-blocks
+    bad-url-unblock cache-invalidate cache-list channel-services
+    config-read config-set copy csrf-token delete describe-capabilities
+    domain-add domain-check domain-preview domain-remove domain-set
+    domains-list file-download file-upload file-zip-download form-list
+    form-submission-confirm form-submission-delete form-submissions
+    form-submissions-delete-bulk form-targets-read form-targets-save
+    git-history git-history-summary git-init git-restore git-show
+    git-status handler-delete handler-list handler-save key-revoke
+    keys-list lang-status layout-activate layout-delete layout-install
+    layouts-available layouts-install layouts-manifest
+    layouts-release-contents layouts-releases layouts-repo-get
+    layouts-repo-set list lock migrate-to-local mkdir move nav-read
+    nav-save notices notices-seen pages plugin-action plugin-disable
+    plugin-enable plugin-list plugin-read plugin-save preview preview-clear
+    preview-grant principals read recent-changes renew-lock
+    rotate-auth-secret save session-revoke sessions-list site-backup-apply
+    site-backup-create site-backup-delete site-backup-download
+    site-backup-inspect site-backup-upload site-export-primary
+    theme-activate theme-delete theme-list theme-rename themes-for-layout
+    themes-list-all theme-upload unlock user-revoke users version whoami
+);
+
 # SM230: the control API is not callable from a browser page, by design. Its
 # authenticated surfaces are for agents, scripts and the manager, all of which
 # hold operator-issued credentials; a page on an arbitrary origin holds none, and
@@ -653,7 +690,29 @@ if ($token_auth) {
     );
     my $check = $need{$action};
     unless ($check) {
-        respond( { ok => 0, error => "Action not available to token clients: $action" } );
+        # SM237: "not available to token clients" answered BOTH an action that
+        # exists and that token clients may not call, AND an action name the
+        # server does not recognise at all. Those point in opposite directions -
+        # ask the operator for a grant, versus fix your request - and an agent
+        # that mis-sent a query string read the first and reported a capability
+        # problem that did not exist. %need is only the token-client subset, so it
+        # cannot tell them apart; %KNOWN_ACTION is the full recognised set and
+        # t/lint/22-known-action-parity.t pins it to the dispatch chain.
+        if ( $KNOWN_ACTION{$action} ) {
+            respond( { ok => 0,
+                    error => "Action not available to token clients: $action. It "
+                        . 'exists, but is served only to the manager UI over a cookie '
+                        . 'session. Call describe-capabilities to see what this '
+                        . 'account can do over the API.' } );
+        }
+        else {
+            respond( { ok => 0,
+                    error => "Unrecognised action name: '$action'. This is not an "
+                        . 'action - check the spelling and the query string (a '
+                        . 'doubled "action=" is the usual cause). Call '
+                        . 'describe-capabilities for the actions this account can '
+                        . 'use.' } );
+        }
         exit 0;
     }
     unless ( $check->( \%token_caps ) ) {
