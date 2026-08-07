@@ -78,7 +78,11 @@ my %ACTION_INFO = (
         },
     },
     manage_forms => {
-        title   => 'Wire forms to delivery handlers.',
+        title => 'Wire forms to delivery handlers. A submitted form also raises an '
+            . 'operator notification of its own accord (the manager bell, plus chat '
+            . 'where notify-xmpp is configured) naming the form and the time but '
+            . 'never the content - so nothing needs to poll to learn that something '
+            . 'arrived. See /docs/forms.',
         unlocks => {
             mcp    => [qw(list_form_handlers bind_form)],
             webdav => ['lazysite/forms/<name>.conf (not smtp.conf / handlers.conf)'],

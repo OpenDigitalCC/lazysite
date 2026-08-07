@@ -174,6 +174,50 @@ Handlers with `enabled: false` are skipped.
 : POSTs form data to an HTTP URL. Set `format: json` for a plain JSON
   body, or `format: slack` for Slack-compatible `{"text": "..."}`.
 
+## What happens when a submission arrives
+
+Once a submission is stored, the site raises a notification. You do not need to
+poll for one, and nothing is required to make this happen - it is automatic.
+
+The notification appears in the manager's notification bell, which is the
+record. Where the `notify-xmpp` plugin is configured, the same notice is also
+delivered as a chat message, so you hear about it without being logged in.
+
+The message names the form and when it arrived. It deliberately carries **none
+of the submitted content**, so it is safe to receive on a phone in a public
+place. To see what was submitted, follow it up with the actions in the next
+section.
+
+Delivery is best-effort by design: the chat send is time-boxed so a slow or
+unreachable server can never delay the visitor's submission, and if it fails the
+stored notice is still there. The bell is authoritative; chat is a convenience.
+
+Quarantined submissions do not notify. A submission held back by the spam
+controls is recorded but does not raise a notice, so a spam run cannot flood you.
+
+### Configuring chat delivery
+
+Chat delivery needs the `notify-xmpp` plugin enabled (the manager's Plugins page,
+or the `plugins:` list in `lazysite.conf`) and a client config at
+`lazysite/notify-xmpp.conf`:
+
+```yaml
+jid: site-bot@example.com      # required - the account the site sends AS
+password: secret               # required
+to: you@example.com            # required - an individual JID, or a room
+host: xmpp.example.com         # optional - defaults to the jid's domain
+port: 5222                     # optional - defaults to 5222
+tls: 1                         # optional - defaults to on
+muc: 0                         # set 1 when `to` is a group chat room
+nick: My-Site                  # optional - defaults to the site name
+```
+
+All three of `jid`, `password` and `to` must be present or delivery is skipped
+silently. One client and one recipient per site; use a room (`muc: 1`) when
+several people should see the notices.
+
+The connector needs `Net::XMPP` - on Debian, the `libnet-xmpp-perl` package.
+
 ## Reading what a form collected
 
 A form with a `file` handler writes each submission to a store under

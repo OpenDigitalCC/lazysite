@@ -438,6 +438,23 @@ A `2xx` is not proof the page is right. After publishing, confirm:
   `404`; the receiver is a server CGI (`/cgi-bin/form-handler.pl`) the operator
   installs - if it `404`s, report it rather than trying to fix it.
 
+## Submissions announce themselves - do not poll
+
+When a form is submitted, the site raises a notification of its own accord: into
+the manager's notification bell, and - where the operator has configured the
+`notify-xmpp` plugin - as a chat message to them. It names the form and the time
+and carries none of the submitted content.
+
+So there is no need to build a polling loop to discover that a questionnaire has
+been completed, and no need to ask the operator for a webhook. If a workflow
+needs to react when material arrives, the notification is the trigger that
+already exists; ask the operator to point it wherever the reacting component
+listens.
+
+To read what was submitted, use `read_form_submissions` (MCP) or
+`form-submissions` (control API), both under the least-privilege
+`read_submissions` capability. See [Forms](/docs/forms).
+
 ## Tasks
 
 ### Connecting
