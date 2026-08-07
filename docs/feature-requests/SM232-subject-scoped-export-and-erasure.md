@@ -1,113 +1,80 @@
 ---
 title: "SM232 - Subject-scoped export and erasure"
-subtitle: "Gather everything associated with one identifier, hand it over as an archive, and remove it - the shape of an erasure request, which any site collecting form submissions can receive."
+subtitle: "Gathering everything associated with one identifier and removing it is retention management for a document store, and lazysite is not one. Parked, with the reasoning recorded."
 brand: plain
-status: candidate
-status-note: "Raised 2026-08-07. LOW PRIORITY and deliberately speculative: nobody has yet made an erasure request of a lazysite site. Filed now because the generic framing was reached while scoping a partner's bespoke want, and because both halves of the machinery already exist. Should not be built until something real pulls on it."
+status: parked
+status-note: "Raised and parked 2026-08-07. The operator's position: submissions are a transient capture surface, not a record store; a client that needs material to persist should extract it and hold it where retention is properly managed. Building erasure would legitimise using lazysite as a document store, which is not its purpose. Retained as a record because the analysis - particularly the history-versus-erasure conflict - remains true and should not be rediscovered."
 ---
 
 # SM232 - subject-scoped export and erasure
 
-## Why
+## Why this was raised
 
 A partner asked for a way to hand a finished programme back: everything for one
-participant gathered, delivered as a zip, and then removed from the site. Framed
-that way it is bespoke - it needs participants, which lazysite does not have and
-should not learn.
+participant gathered, delivered as an archive, and then removed from the site.
 
-Framed generically it stops being bespoke. **Everything associated with one
-identifier, exported and then removed** is the shape of an erasure request, and
-any site that collects form submissions can receive one. It sits naturally with
-the privacy commitments the platform already makes - no visitor tracking,
-PII-free event logs, submission quarantine - and it is the one piece of that
-posture with no mechanism behind it.
+Framed generically that becomes **everything associated with one identifier,
+exported and then removed** - the shape of an erasure request, which on the face
+of it any site collecting form submissions could receive. Both halves of the
+machinery already exist: `Lazysite::Manager::Backups` archives and streams, and
+the SM216 bulk delete rewrites a submissions store atomically. The missing piece
+looked small.
 
-Today an operator facing such a request has the tools to do it wrongly: read the
-submissions store by hand, edit a JSONL file, hope nothing else holds a copy.
+## Why it is parked
 
-## What exists already
+The generic framing is sound and the conclusion it leads to is wrong, because it
+answers the wrong question.
 
-Both halves are built, for other reasons.
+**Submissions are a capture surface, not a store.** A form collects something and
+hands it on. Material that matters should be extracted and held where it can be
+managed properly - with a retention policy, a backup regime, an access model and
+an owner. Lazysite provides none of those for submission data and should not
+begin to, because providing them is what a document store does.
 
-- `Lazysite::Manager::Backups` creates tarballs of the docroot and streams them
-  as a `Content-Disposition` attachment. Archive-and-download is solved; what it
-  lacks is selection.
-- The SM216 bulk delete rewrites a submissions store atomically through a
-  temporary file and a rename, having validated every row id. Safe removal from
-  an append-only store is solved; what it lacks is a subject.
-- Submissions carry a stable `_id` per row, and forms are field-defined, so a
-  field value is available as a selector.
+**Building erasure would legitimise the misuse.** A well-built export-and-erase
+function is an invitation to leave material in the submissions store
+indefinitely, on the basis that it can always be removed later. That is precisely
+the pattern to discourage. The honest answer to "how do I erase a participant's
+data" is that it should not have been accumulating there.
 
-The missing piece is small: select by subject across the places material can
-sit, then reuse both.
+**Retention is the client's decision, and it should stay theirs.** Where material
+persists, for how long, and under what obligation are questions about the
+client's business rather than about publishing. A partner who owns that decision
+can meet an obligation lazysite could only ever approximate.
 
-## What to build
+The residual concern is real and is narrower than this request: PII does
+accumulate in JSON submission stores as a matter of course. That is housekeeping,
+and the answer is extraction and transience rather than an erasure function.
 
-### Selection
+## The conflict worth keeping
 
-Given an identifier - a value in a named field - find every submission row
-carrying it, across every form store, plus any files uploaded with those
-submissions.
+Recorded because it is true regardless of what is built, and because it will
+otherwise be rediscovered.
 
-### Export
+**Content history exists to make change recoverable. Erasure exists to make
+content unrecoverable.** Those guarantees are directly opposed. Any future work
+touching erasure of material that has ever been a page must decide what content
+history means in the presence of an erasure request, and that decision is larger
+than any convenience function that provokes it.
 
-Produce an archive of what was found, in a form a person can read without
-lazysite: the rows as CSV or JSON, the uploaded files as themselves, and a
-manifest saying what was gathered and when.
+This is also why the append-only submissions store is the only place erasure
+could ever have been straightforward - it carries no competing guarantee - and
+why that convenience should not be mistaken for a reason to keep material there.
 
-### Erasure
+## If this is ever revisited
 
-Remove exactly what was exported, through the existing atomic rewrite, and
-**record that an erasure happened** - who requested it, which subject, how many
-rows, when - without recording what was erased. An erasure that leaves no trace
-is indistinguishable from data loss, and the trace must not reintroduce the data.
+The narrower question that would deserve its own request is **transience**: a
+retention window on a submissions store, after which rows age out
+automatically. That manages a capture surface as a capture surface, keeps
+material from accumulating in the first place, and needs no concept of a subject,
+an export or an erasure.
 
-### Order
+It is not requested here. Filing it would need a real operator want rather than
+an anticipated one.
 
-Export must succeed before erasure begins, and erasure must be a separate,
-explicit action rather than a flag on the export. Handing someone their data and
-destroying it in the same unreviewable step is how the wrong subject gets erased.
+## Not to be built
 
-## The genuine conflict
-
-Content history versions content and is designed to make change recoverable.
-Erasure is designed to make content unrecoverable. If material subject to an
-erasure request has ever been a page, those two guarantees are in direct
-opposition, and no amount of care in this request resolves it.
-
-The honest scope is therefore **submissions and their uploads**, where the
-append-only store has no competing guarantee, with content pages explicitly
-excluded and the reason stated. Extending to content would require deciding what
-content history means in the presence of erasure, which is a larger question and
-should be its own request if it ever arises.
-
-## Open decisions
-
-1. **What is a subject?** A field value on one named field is the simplest and
-   covers the motivating case. Matching across several fields, or fuzzy matching,
-   invites erasing the wrong person and should be resisted.
-2. **Which capability?** It reads submissions and destroys them, so it is
-   strictly more powerful than `read_submissions` and than the existing bulk
-   delete. It probably wants its own grant, and it should be interactive and
-   UI-only in the way `form-submission-delete` already is.
-3. **Does export alone need the same grant?** Export without erasure is a read,
-   and there is a reasonable case for it sitting under `read_submissions`.
-4. **Retention of the archive.** If the export is written to the docroot before
-   download, it is a second copy of exactly the material being erased. Streaming
-   without ever landing it is the safer construction.
-
-## Not in scope
-
-- Content pages and content history, per the conflict above.
-- Backups. A tarball taken before an erasure still contains the material, and
-  reconciling that is an operator procedure rather than a feature. It should be
-  documented alongside this, not solved by it.
-- Any automatic or scheduled erasure. Every erasure is a deliberate act.
-
-## Priority
-
-Low, and deliberately so. This is filed because the generic framing is right and
-the design is cheap to capture while it is fresh, not because anything is
-waiting on it. Build it when a real request arrives, and revisit the open
-decisions then - the answers may be obvious once there is a concrete demand
-rather than an anticipated one.
+- Subject-scoped export.
+- Subject-scoped erasure.
+- Any function whose effect is to make lazysite a durable store for material the
+  client should be holding elsewhere.
