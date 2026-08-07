@@ -90,6 +90,31 @@ Everything below the closing `---` is the page body. All keys are optional unles
 `content_type`
 : A custom `Content-type` header, used with `raw:` or `api:`, for a data artifact. Example: `content_type: text/csv; charset=utf-8`. Script-capable types (`text/html`, `application/xhtml+xml`, `image/svg+xml`) are not allowed on a raw/api page - they are downgraded to `text/plain` at serve time, because a verbatim, unescaped page served as HTML would be a cross-site-scripting vector. Publish HTML through a layout, or as a static file.
 
+### Choosing between raw, api and a static file
+
+These three are easy to confuse, and `raw:` is the one whose name misleads - it
+does not mean "serve this file unchanged".
+
+`raw: true`
+: The Markdown pipeline still runs; only the layout wrapper is dropped. Use it
+  for a fragment or partial that something else embeds.
+
+`api: true`
+: No Markdown pipeline and no layout. Use it for a data artifact - JSON, CSV,
+  plain text. Not for HTML.
+
+A static file
+: A `.html` (or `.js`, or any asset) with **no `.md` source** is served
+  byte-for-byte: no Markdown pipeline, no layout, no theme, no front matter
+  involved at all. This is how you publish a self-contained HTML file, a
+  single-file application, or a JavaScript library you want served from your own
+  origin. `.html` and `.js` are writable over WebDAV, MCP and the manager, so no
+  special permission is needed.
+
+If you want an HTML file served exactly as you wrote it, the answer is the static
+file - not `raw:`. A raw or api page declaring an HTML content type is refused
+when you write it, and downgraded to `text/plain` if one already exists.
+
 ## Access keys
 
 `auth`

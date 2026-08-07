@@ -747,7 +747,7 @@ my %TOOLS = (
         run => sub { _bind_form( $_[0]->{form}, $_[0]->{handler} ) },
     },
     audit_site => {
-        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), and broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler). Returns lists per category.',
+        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), and raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text). Returns lists per category.',
         cap => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _audit_site() },
@@ -1202,6 +1202,16 @@ sub _validate_page {
     push @warnings, { kind => 'no-title', message => 'page has no title in front matter' }
         unless length( $h->{title} // '' );
 
+    # SM228: a raw/api page declaring a script-capable content_type is refused at
+    # write time and downgraded to text/plain at serve time (ADR 0006). Pages
+    # written before that refusal existed are still on disk, still serving as
+    # plain text, and nothing told their author why. Report them here with the
+    # same remedy the write path gives, so an existing page can be found without
+    # loading each one.
+    if ( my $raw = Lazysite::Manager::Common::raw_html_page_refusal($content) ) {
+        push @issues, { kind => 'raw-html-page', message => $raw };
+    }
+
     # Form-field rules (catch typos/unsupported rules before publish).
     if ( $content =~ /:::\s*form\b(.*?):::/s ) {
         for my $line ( split /\n/, $1 ) {
@@ -1288,7 +1298,7 @@ sub _validate_page {
 
 # --- SM087 Tier 2: whole-site audit ---------------------------------------
 sub _audit_site {
-    my ( %exists, %inbound, %para, @info, @links, @forms );
+    my ( %exists, %inbound, %para, @info, @links, @forms, @rawpages );
     _each_page( sub {
             my ( $rel, $full ) = @_;
             ( my $slug = "/$rel" ) =~ s/\.md$//;
@@ -1305,6 +1315,16 @@ sub _audit_site {
             if ( $body =~ /<form\b/i || $body =~ /<input\b/i ) {
                 push @forms, { page => $slug, kind => 'hand-authored',
                     message => 'hand-written form HTML with no handler - use a :::form + bind_form' };
+            }
+            # SM228: a raw/api page with a script-capable content_type serves as
+            # plain text and always will. Surfacing it in the site audit is how an
+            # operator finds the ones written before the write-time refusal, and
+            # how they find them all at once rather than a page at a time.
+            if ( Lazysite::Manager::Common::raw_html_page_refusal($c) ) {
+                push @rawpages, { page => $slug,
+                    message => 'raw/api page declares an HTML content type - it is '
+                        . 'served as plain text (ADR 0006). Publish it as a static '
+                        . '.html file to serve it unchanged, or author it as Markdown.' };
             }
             if ( $c =~ /^:::[ \t]*form\b/m ) {
                 my $fname = $h->{form};
@@ -1368,7 +1388,7 @@ sub _audit_site {
     return { ok => 1, pages => scalar @info,
         broken_links  => \@broken,   orphan_pages => \@orphans,
         missing_title => \@no_title, stale_html   => \@stale, duplicate_blocks => \@dups,
-        broken_forms  => \@forms };
+        broken_forms  => \@forms,    raw_html_pages => \@rawpages };
 }
 
 # --- SM088: bind a form to an operator-vetted delivery handler ------------

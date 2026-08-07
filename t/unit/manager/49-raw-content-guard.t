@@ -47,6 +47,19 @@ subtest 'raw_html_page_refusal condition' => sub {
     ok( !raw_html_page_refusal(undef), 'undef -> allowed (no content)' );
 };
 
+# SM228: the refusal must name the ALTERNATIVE, not only the prohibition. The
+# reader is usually someone who wants a self-contained HTML file served
+# unchanged, and `raw:` is the key whose name invites exactly that - so the
+# message has to point at the static-file route, which is a different mechanism.
+subtest 'the refusal names the static-file alternative' => sub {
+    my $msg = raw_html_page_refusal(
+        "---\ntitle: X\napi: true\ncontent_type: text/html\n---\n<!DOCTYPE html>" );
+    like( $msg, qr/static file/i, 'names the static-file route' );
+    like( $msg, qr/byte-for-byte/i, 'and says a static file is served unchanged' );
+    like( $msg, qr/\.html/, 'and names the extension to use' );
+    like( $msg, qr/ADR 0006/, 'still cites the decision it enforces' );
+};
+
 # --- action_save wiring (manager save + MCP write_file/create_page) -----------
 subtest 'action_save refuses a raw HTML content page' => sub {
     my $docroot = tempdir( CLEANUP => 1 );

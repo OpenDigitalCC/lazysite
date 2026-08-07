@@ -406,12 +406,22 @@ sub raw_html_page_refusal {
     return undef
         unless defined $ct
         && $ct =~ m{^\s*(?:text/html|application/xhtml\+xml|image/svg\+xml)\b}i;
+    # SM228: name the alternative, not only the prohibition. The reader here is
+    # usually someone who wants a self-contained HTML file served unchanged, and
+    # `raw:` is the front-matter key whose name invites exactly that. The answer -
+    # publish it as a STATIC FILE, which lazysite serves byte-for-byte and which
+    # accepts .html/.js on every authoring channel - is a different mechanism, and
+    # nothing previously connected the two.
     return
           "This page declares a raw HTML content type ($ct), which a content page "
         . "may not use: raw HTML/SVG bypasses the layout and theme and is served "
         . "as plain text (ADR 0006), and external CSS/font/CDN links are refused. "
-        . "Author the page as Markdown (styled by the site's layout and theme); for "
-        . "a genuine self-contained artifact, use a non-script content type such as "
+        . "What to do instead: to publish a self-contained HTML file unchanged, "
+        . "write it as a STATIC FILE (e.g. app/index.html) - a .html with no .md "
+        . "source is served byte-for-byte, with no Markdown pipeline, layout or "
+        . "theme, and .html/.js are writable on every authoring channel. For an "
+        . "ordinary page, author Markdown and let the layout and theme style it. "
+        . "For a genuine data artifact, use a non-script content type such as "
         . "application/json.";
 }
 
