@@ -2213,7 +2213,8 @@ sub action_describe_capabilities {
     my @groups = sort grep {
         ref $allg->{$_} eq 'ARRAY' && ( grep { $_ eq $user } @{ $allg->{$_} } )
     } keys %$allg;
-    my $map = describe( caps => $s, account => $user, groups => \@groups );
+    my $map = describe( caps => $s, account => $user, groups => \@groups,
+        docroot => $DOCROOT );    # SM225: include the documentation index
     $map->{ok} = 1;
     return $map;
 }

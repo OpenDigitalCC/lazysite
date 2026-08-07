@@ -30,6 +30,46 @@ for my $a ( action_keys() ) {
 ok( @{ $map->{tasks} } >= 3, 'task recipes present' );
 ok( @{ $map->{engine_owned} } >= 3, 'engine-owned boundary present' );
 
+# --- SM225: the documentation index -----------------------------------------
+# Derived from what the site publishes, so the test builds a docroot rather than
+# asserting against a curated list. Absent docroot => absent index (the static
+# model must still build for the generated doc).
+ok( !exists $map->{docs}, 'no docs index without a docroot' );
+{
+    my $tmp = "$FindBin::Bin/sm225-docs-$$";
+    mkdir $tmp or die "mkdir $tmp: $!";
+    mkdir "$tmp/docs" or die "mkdir $tmp/docs: $!";
+    my %pages = (
+        'ai-briefing-publishing.md' =>
+            "---\ntitle: AI briefing - publishing\nsubtitle: How a partner publishes.\n---\nbody\n",
+        'forms.md'    => "---\ntitle: \"Forms\"\nsubtitle: \"Collecting things.\"\n---\nbody\n",
+        'notitle.md'  => "no front matter here\n",
+        'ignored.txt' => "not markdown\n",
+    );
+    for my $f ( sort keys %pages ) {
+        open my $fh, '>', "$tmp/docs/$f" or die $!;
+        print {$fh} $pages{$f};
+        close $fh;
+    }
+    my $d = describe( caps => {}, docroot => $tmp )->{docs};
+    ok( $d, 'docs index present when the docroot has a docs dir' );
+    is_deeply( [ map { $_->{path} } @{ $d->{briefings} } ],
+        ['/docs/ai-briefing-publishing'], 'briefings grouped separately' );
+    is_deeply( [ map { $_->{path} } @{ $d->{reference} } ],
+        ['/docs/forms'], 'reference holds the rest; untitled and non-md skipped' );
+    is( $d->{reference}[0]{title}, 'Forms', 'quoted title unquoted' );
+    is( $d->{reference}[0]{answers}, 'Collecting things.', 'subtitle becomes answers' );
+    is( $d->{briefings}[0]{answers}, 'How a partner publishes.', 'briefing subtitle read' );
+    ok( length( $d->{note} // '' ), 'index carries a note about reading the briefings' );
+
+    unlink glob("$tmp/docs/*");
+    rmdir "$tmp/docs";
+    rmdir $tmp;
+}
+# A docroot with no docs dir must not invent an index.
+is( describe( caps => {}, docroot => "$FindBin::Bin/no-such-docroot-$$" )->{docs},
+    undef, 'no docs index when the docroot has no docs dir' );
+
 # holds reflects the caller's grant
 ok(  $map->{holds}{capabilities}{manage_themes}, 'holds shows a granted cap true' );
 ok( !$map->{holds}{capabilities}{mcp},           'holds shows an ungranted cap false' );

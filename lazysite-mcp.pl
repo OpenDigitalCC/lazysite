@@ -302,13 +302,19 @@ my %TOOLS = (
         description => 'Return the full capability map: the four channels (all '
             . 'enforced), every capability and what it unlocks (which MCP tools, '
             . 'control-API actions and WebDAV paths), task recipes for common jobs, '
-            . 'the engine-owned paths you must not write, and - under "holds" - what '
-            . 'THIS account currently has. Call this first to learn what you may do.',
+            . 'the engine-owned paths you must not write, under "docs" an index of '
+            . 'the documentation this site publishes, and - under "holds" - what '
+            . 'THIS account currently has. Call this first to learn what you may do, '
+            . 'then READ THE BRIEFINGS listed under docs.briefings before designing '
+            . 'anything: "capabilities" is what lazysite offers and "holds" is only '
+            . 'what you were granted, so a capability you lack is a grant to ask the '
+            . 'operator for, never a feature that is missing.',
         cap => undef,    # introspection: exempt from the mcp channel gate
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub {
             my ( $args, $user, $caps ) = @_;
-            my $map = describe( caps => $caps, account => $user );
+            my $map = describe( caps => $caps, account => $user,
+                docroot => $DOCROOT );    # SM225: include the documentation index
             $map->{ok} = JSON::PP::true;
             return $map;
         },
@@ -1786,7 +1792,11 @@ if ( $method eq 'initialize' ) {
                 . 'breaks the page content history (a move keeps it; a delete ends it). '
                 . 'For content rules '
                 . 'see /docs/ai-briefing-authoring; for layouts and themes '
-                . '/docs/ai-briefing-layouts. When you screenshot or QA the live site, set '
+                . '/docs/ai-briefing-layouts. This site publishes around thirty '
+                . 'documentation pages - call describe_capabilities for the full index '
+                . '(under "docs") or read /docs/ rather than assuming a feature is '
+                . 'absent because no tool advertises it. '
+                . 'When you screenshot or QA the live site, set '
                 . 'your User-Agent to lazysite-agent/<partner-id> so your hits stay out of '
                 . 'the visitor analytics.'
                 . _mcp_language_note(),

@@ -242,9 +242,72 @@ my @TASKS = (
     },
 );
 
+# SM225: the documentation index. A partner told to "call this first" learns the
+# capability model and nothing about the ~30 documentation pages the site
+# publishes, so it reasons from the tool surface alone and reinvents documented
+# behaviour (or concludes a feature is absent). The index is DERIVED, not curated:
+# a scan of {DOCROOT}/docs reading each page's own `title:` / `subtitle:` front
+# matter, so a site that adds or removes a doc reports the truth instead of a
+# hard-coded list going stale. Briefings are listed first because an agent should
+# read those before designing anything; everything else is reference.
+#
+# Top-level pages only. Subtrees (docs/features/, docs/integrations/) are reached
+# from the pages that cite them, and enumerating them here would bury the entry
+# points the index exists to surface.
+sub _doc_meta {
+    my ($path) = @_;
+    open my $fh, '<', $path or return;
+    my ( $title, $subtitle );
+    my $n = 0;
+    while ( my $line = <$fh> ) {
+        last if ++$n > 20;
+        if ( $line =~ /^title\s*:\s*(.+?)\s*$/ )    { $title    = $1 }
+        if ( $line =~ /^subtitle\s*:\s*(.+?)\s*$/ ) { $subtitle = $1 }
+        last if defined $title && defined $subtitle;
+    }
+    close $fh;
+    for ( $title, $subtitle ) {
+        next unless defined;
+        s/\A(["'])(.*)\1\z/$2/;    # front matter may quote the value
+    }
+    return ( $title, $subtitle );
+}
+
+sub _scan_docs {
+    my ($docroot) = @_;
+    return unless defined $docroot && length $docroot;
+    my $dir = "$docroot/docs";
+    return unless -d $dir;
+    opendir my $dh, $dir or return;
+    my ( @briefings, @reference );
+    for my $f ( sort readdir $dh ) {
+        next unless $f =~ /\A([A-Za-z0-9][A-Za-z0-9._-]*)\.md\z/;
+        my $slug = $1;
+        next unless -f "$dir/$f";
+        my ( $title, $subtitle ) = _doc_meta("$dir/$f");
+        next unless defined $title && length $title;
+        my %entry = ( path => "/docs/$slug", title => $title );
+        $entry{answers} = $subtitle if defined $subtitle && length $subtitle;
+        push @{ $slug =~ /^ai-briefing-/ ? \@briefings : \@reference }, \%entry;
+    }
+    closedir $dh;
+    return unless @briefings || @reference;
+    return {
+        note =>
+            'The site publishes its own documentation. Read the briefings before '
+            . 'designing anything - they answer most questions about what lazysite '
+            . 'can do, and a capability you cannot see may be documented rather '
+            . 'than absent. Every path below is a public page you can fetch '
+            . 'without a credential.',
+        briefings => \@briefings,
+        reference => \@reference,
+    };
+}
+
 # Build the map. Pass caps => { cap => 0|1 } (the caller's resolved grant) and,
 # optionally, groups => [...] and account => "name" to include the "holds" block;
-# omit caps for the static model only (e.g. the generated doc).
+# docroot => "..." adds the SM225 documentation index. Omit caps for the static
+# model only (e.g. the generated doc).
 sub describe {
     my (%opt) = @_;
     my $T     = JSON::PP::true();
@@ -266,6 +329,8 @@ sub describe {
         tasks        => \@TASKS,
         engine_owned => \@ENGINE_OWNED,
     );
+
+    if ( my $docs = _scan_docs( $opt{docroot} ) ) { $map{docs} = $docs }
 
     if ( $opt{caps} ) {
         my $caps = $opt{caps};
