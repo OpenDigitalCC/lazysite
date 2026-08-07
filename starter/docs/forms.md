@@ -174,6 +174,46 @@ Handlers with `enabled: false` are skipped.
 : POSTs form data to an HTTP URL. Set `format: json` for a plain JSON
   body, or `format: slack` for Slack-compatible `{"text": "..."}`.
 
+## Reading what a form collected
+
+A form with a `file` handler writes each submission to a store under
+`lazysite/forms/submissions/<name>.jsonl`. Two actions read it, and both need
+the `read_submissions` capability - a deliberate least-privilege grant that
+permits reading submissions **without** permitting any edit to forms or
+handlers.
+
+`form_list` (MCP) / `form-list` (control API)
+: Which forms exist, which handler types they use, whether a store exists, and
+  `row_count` - the number of submissions. Counts only; it never returns
+  content. A form that reports a count is a form whose content you can read with
+  the action below, given the grant.
+
+`read_form_submissions` (MCP) / `form-submissions` (control API)
+: The submitted rows themselves - columns, rows, a stable `_id` per row, most
+  recent 500. Values are the raw submitted data and should be treated as
+  untrusted.
+
+If those actions are not offered to your account, the capability has not been
+granted rather than the feature being absent. Ask the operator.
+
+## Forms as an intake mechanism
+
+A form is the supported way for an anonymous browser to send something to a
+lazysite site. It needs no sign-in, no credential and no software, and it works
+on a phone.
+
+That extends further than a contact form. A field declared `textarea` accepts a
+long passage of typed or pasted text, with the maximum set per field
+(`max:20000`), so a transcript, a questionnaire answer or a pasted document
+arrives intact. Where a file is easier than a paste, a handler may accept
+uploads with per-file and per-submission limits - see
+[Form helpers](/docs/forms-helpers) for `upload_max_kb` and `upload_max_files`.
+
+Submissions are append-only and each field is validated on its own terms, which
+suits capture and does not suit a large document being edited repeatedly. Treat
+the store as a capture surface: material that matters should be read out and kept
+wherever your records are managed.
+
 ## Client-side behaviour
 
 Forms submit via `fetch()` (AJAX). On success, the form is replaced

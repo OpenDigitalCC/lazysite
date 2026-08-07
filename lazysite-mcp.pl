@@ -647,7 +647,7 @@ my %TOOLS = (
         run => sub { _list_form_handlers() },
     },
     form_list => {
-        description => 'List the site\'s FORMS (not handlers) so you can answer "which forms exist?" and "were any submitted?" without guessing store names. Returns per form: name, handler_types (smtp/file/webhook), has_store, and rows (the submission COUNT only, never content). Needs read_submissions (a least-privilege read; the control API also accepts manage_forms). Pairs with read_form_submissions (read one form\'s rows) and list_form_handlers (the delivery handlers).',
+        description => 'List the site\'s FORMS (not handlers) so you can answer "which forms exist?" and "were any submitted?" without guessing store names. Returns per form: name, handler_types (smtp/file/webhook), has_store, and row_count (the submission COUNT only, never content; the "rows" key is a deprecated alias for that count, NOT the rows themselves). Needs read_submissions (a least-privilege read; the control API also accepts manage_forms). Counts-only is deliberate, not a limitation: to read the submitted content call read_form_submissions, which needs the same capability. Pairs with list_form_handlers (the delivery handlers).',
         cap => 'read_submissions',
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { action_form_list() },

@@ -203,8 +203,18 @@ unlink "$base/sample-plugin.pl";
         'handlers.conf / smtp.conf are not listed as forms' );
     is_deeply(
         [ sort keys %$fb ],
-        [ sort qw(name handlers handler_types has_store rows) ],
+        [ sort qw(name handlers handler_types has_store rows row_count) ],
         'a form entry carries only names + counts - no submission content (PII-free)' );
+
+    # SM227: `rows` means a COUNT here and an ARRAY OF ROWS in
+    # action_form_submissions. row_count is the unambiguous spelling; rows stays
+    # one release as a deprecated alias, so they must agree.
+    is( $fb->{row_count}, 2, 'row_count is the submission count' );
+    is( $fb->{row_count}, $fb->{rows}, 'the deprecated rows alias agrees with it' );
+    like( $fl->{note}, qr/read_form_submissions/,
+        'the response names the companion action' );
+    like( $fl->{note}, qr/read_submissions/,
+        'and the capability that unlocks it' );
 }
 
 # --- SM216: confirm (un-quarantine) a flagged row - keeps it, clears the flag -
