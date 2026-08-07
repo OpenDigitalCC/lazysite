@@ -438,6 +438,17 @@ A `2xx` is not proof the page is right. After publishing, confirm:
   `404`; the receiver is a server CGI (`/cgi-bin/form-handler.pl`) the operator
   installs - if it `404`s, report it rather than trying to fix it.
 
+## Do not design a browser-origin integration
+
+The control API is not callable from a page. It sends no CORS headers and
+refuses a preflight explicitly, because it serves callers that hold
+operator-issued credentials and a browser cannot hold one safely.
+
+If you are designing something where a page talks to the site, the answer is a
+form POST for anything the visitor sends, a static file for the page itself, and
+a credentialled component - you, over MCP or this API - for the privileged work.
+See [API and raw mode](/docs/api) for the reasoning and the alternatives.
+
 ## Submissions announce themselves - do not poll
 
 When a form is submitted, the site raises a notification of its own accord: into

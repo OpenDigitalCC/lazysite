@@ -102,6 +102,38 @@ query_params:
 
 Query requests to API pages are not cached.
 
+## The control API is not callable from a browser page
+
+This is a design position, not an omission, and it will not change.
+
+The control API sends no CORS headers and answers a preflight with an explicit
+`405`. Its authenticated surfaces serve agents, scripts and the manager - all of
+which hold operator-issued credentials. A page running on an arbitrary origin
+holds none, and a credential a browser could hold is a credential that is
+exposed.
+
+Understanding the reason matters more than the rule, because a variant design
+with the same problem will meet the same answer.
+
+What to do instead, depending on what you actually need:
+
+**A browser needs to send something to the site.** Use a form. It is
+same-origin, needs no sign-in, validates per field, stores the submission, and
+raises a notification - see [Forms](/docs/forms). This is the supported path,
+and it covers questionnaires, long pasted text and file uploads.
+
+**A browser application needs privileged work done.** Serve the application as a
+static file from the site, and do the privileged work from somewhere that holds a
+credential - an agent over MCP, or a script calling this API. The page asks; the
+credentialled component acts.
+
+**A browser needs to read published content.** It already can. Anything served on
+the public read path is same-origin and involves no CORS at all.
+
+The two `/.well-known/` discovery documents are deliberately open to any origin.
+They carry no account data and exist so a browser-side onboarding probe can find
+an instance. They are the only exception, and a test pins that.
+
 ## Caching behaviour summary
 
 | Mode | Query params | Cached |

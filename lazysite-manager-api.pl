@@ -154,6 +154,40 @@ return 1 if $ENV{LAZYSITE_API_LOAD_ONLY};
 # Replaces the retired lazysite.conf manager_groups signal.
 my $site_secured = site_grants_manager();
 
+# SM230: the control API is not callable from a browser page, by design. Its
+# authenticated surfaces are for agents, scripts and the manager, all of which
+# hold operator-issued credentials; a page on an arbitrary origin holds none, and
+# a credential a browser could hold is a credential that is exposed.
+#
+# That position was previously expressed only by the ABSENCE of CORS headers,
+# which fails opaquely: the browser reports a generic CORS error naming no cause,
+# and the server logs nothing an operator could correlate. Answer the preflight
+# explicitly instead - refuse, say why, and record the origin that tried. This
+# grants nothing: no Access-Control-Allow-* header is emitted here or anywhere on
+# this surface, and 405 is the honest status because OPTIONS is not a method this
+# API serves. Handled BEFORE auth, because a preflight carries no credentials and
+# would otherwise 401 into the same opaque failure.
+if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
+    my $origin = $ENV{HTTP_ORIGIN} // '';
+    log_event( 'INFO', 'cors', 'browser-origin preflight refused',
+        origin => ( length $origin ? $origin : '(none)' ) );
+    binmode(STDOUT);
+    print "Status: 405 Method Not Allowed\r\n";
+    print "Allow: GET, POST\r\n";
+    print "Content-Type: application/json; charset=utf-8\r\n\r\n";
+    print encode_json( {
+            ok    => 0,
+            error => 'The control API is not callable from a browser page. It '
+                . 'serves agents, scripts and the manager, which hold '
+                . 'operator-issued credentials; a page cannot hold one safely. To '
+                . 'send something from a browser, use a form POST (same-origin, '
+                . 'validated, stored, and it raises a notification). To do '
+                . 'privileged work, call this API from somewhere that holds a '
+                . 'credential. See /docs/api.',
+    } );
+    exit 0;
+}
+
 # SM071 Phase 3: control-API token front-path. A request authenticated by
 # Authorization: Basic <user>:<lzs_ token> carries no session cookie; it is
 # verified against the user database (via the users tool, which owns the
