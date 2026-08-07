@@ -59,8 +59,19 @@ sub _read_active_layout_and_theme {
     return ( $layout, $theme );
 }
 
+# SM234: which domains resolve to each theme/layout. The delete guard already
+# consults this (a theme a registered domain depends on cannot be removed) but the
+# LISTING did not, so a theme pinned only by a sub-domain showed a Delete button
+# and the operator learned it was protected from the error that followed. One
+# parse for the whole listing - see Domains::domain_usage.
+sub _usage {
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    return Lazysite::Manager::Domains::domain_usage();
+}
+
 sub action_theme_list {
     my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
+    my $use = _usage();
 
     my @themes;
     if ( length $active_layout ) {
@@ -70,10 +81,13 @@ sub action_theme_list {
             for my $name ( sort readdir $dh ) {
                 next if $name =~ /^\./;
                 next unless -d "$themes_dir/$name";
+                my $by = $use->{themes}{"$active_layout\0$name"} || [];
                 push @themes, {
                     name   => $name,
                     active => $name eq $active_theme            ? 1 : 0,
                     valid  => -f "$themes_dir/$name/theme.json" ? 1 : 0,
+                    used_by => $by,           # SM234: domains that resolve to it
+                    in_use  => scalar @$by,
                 };
             }
             closedir $dh;
@@ -90,6 +104,7 @@ sub action_theme_list {
 
 sub action_themes_list_all {
     my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
+    my $use = _usage();
 
     my $layouts_dir = "$DOCROOT/lazysite/layouts";
     my @themes;
@@ -112,11 +127,14 @@ sub action_themes_list_all {
                 my $valid  = -f "$themes_path/$name/theme.json" ? 1 : 0;
                 my $active = ( $layout_name eq $active_layout
                         && $name eq $active_theme ) ? 1 : 0;
+                my $by = $use->{themes}{"$layout_name\0$name"} || [];
                 push @themes, {
-                    layout => $layout_name,
-                    name   => $name,
-                    active => $active,
-                    valid  => $valid,
+                    layout  => $layout_name,
+                    name    => $name,
+                    active  => $active,
+                    valid   => $valid,
+                    used_by => $by,            # SM234
+                    in_use  => scalar @$by,
                 };
             }
             closedir $th;

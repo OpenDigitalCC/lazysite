@@ -20,7 +20,7 @@ use File::Path                qw(make_path);
 use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved);
 use Exporter 'import';
-our @EXPORT_OK = qw(domains_list domains_using domain_add domain_remove domain_set domain_check instance_public_ips);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check instance_public_ips);
 
 our $DOCROOT;           # set by the caller (manager-api or the CLI)
 our $auth_user = '';    # for log attribution
@@ -174,6 +174,32 @@ sub domains_list {
 # is matched correctly. Returns the list of host labels ('(default)' for the
 # primary) that use it, most useful hosts first. Pass (layout => L) to find
 # layout users; (theme => T, layout => L) to find theme users under layout L.
+# SM234: the whole usage picture in ONE parse. domains_using() re-reads and
+# re-parses the domain config on every call, so asking it per theme costs a parse
+# per row; a listing needs the inverse mapping anyway. Returns
+# { layouts => { <layout> => [hosts] }, themes => { "<layout>\0<theme>" => [hosts] } }
+# with '(default)' standing for the base site, matching domains_using's own
+# vocabulary. Effective per-host values, so an alias inheriting the active layout
+# but pinning its own theme is counted against that theme.
+sub domain_usage {
+    my ( $base, $ov, $hosts ) = _parse();
+    my %use = ( layouts => {}, themes => {} );
+    for my $h ( '', @$hosts ) {
+        my $eff = sub {
+            my ($k) = @_;
+            return $base->{$k} // '' if $h eq '';
+            return defined $ov->{$h}{$k} ? $ov->{$h}{$k} : ( $base->{$k} // '' );
+        };
+        my $layout = $eff->('layout');
+        my $theme  = $eff->('theme');
+        my $who    = ( $h eq '' ? '(default)' : $h );
+        next unless length $layout;
+        push @{ $use{layouts}{$layout} },          $who;
+        push @{ $use{themes}{"$layout\0$theme"} }, $who if length $theme;
+    }
+    return \%use;
+}
+
 sub domains_using {
     my (%q) = @_;
     my ( $base, $ov, $hosts ) = _parse();

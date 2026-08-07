@@ -541,7 +541,18 @@ sub action_layouts_available {
         }
         closedir $dh;
     }
-    return { ok => 1, layouts => \@layouts };
+    # SM234: which domains resolve to each layout. Returned ALONGSIDE the name
+    # list rather than folded into it - `layouts` is consumed elsewhere as a plain
+    # array of names, and changing its shape to carry usage would break those
+    # callers for no gain. Same gap as themes: a layout used only by a sub-domain
+    # showed a Delete button and was then refused by the guard.
+    my %usage;
+    {
+        local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+        my $use = Lazysite::Manager::Domains::domain_usage();
+        %usage = map { $_ => ( $use->{layouts}{$_} || [] ) } @layouts;
+    }
+    return { ok => 1, layouts => \@layouts, layout_usage => \%usage };
 }
 
 sub action_themes_for_layout {
