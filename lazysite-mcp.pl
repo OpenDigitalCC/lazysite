@@ -1558,7 +1558,17 @@ sub _audit_site {
     my @no_title = map { $_->{slug} } grep { !length $_->{title} } @info;
 
     # Stale generated HTML: a rendered .html with no .md source.
-    my ( @stale, @stack ) = ( (), $DOCROOT );
+    #
+    # SM260: this was `my ( @stale, @stack ) = ( (), $DOCROOT );`, which does not
+    # do what it reads like. The FIRST array in a list assignment slurps every
+    # remaining value, so @stale started as ($DOCROOT) and @stack empty - the
+    # scan below never ran even once, and the docroot the walk was supposed to
+    # START from was reported to the caller as a finding. Two defects in one
+    # line: an audit that has never worked, and the server's absolute filesystem
+    # path (including the hosting account name) handed to every token and MCP
+    # partner. Declared separately so the shape cannot mislead again.
+    my @stale;
+    my @stack = ($DOCROOT);
     while (@stack) {
         my $dir = pop @stack;
         opendir my $dh, $dir or next;

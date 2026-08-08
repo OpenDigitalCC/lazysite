@@ -104,6 +104,48 @@ multi-domain as a group rather than three separate fixes, and that is worth
 taking seriously: two of the three now share one root cause in the vhost, which
 no amount of per-symptom fixing would have surfaced.
 
+## Narrowing, 2026-08-08 (site agent, testing 0.10.3)
+
+**The registry half could not be reproduced on 0.10.3.** It still reproduces on
+theunited.fund (0.10.0), where `harmony2050.org/llms.txt` returns `# UNITED`. On
+`edge2.explore.lazysite.io` the domain serves its own `llms.txt` and `sitemap.xml`.
+
+That result proves less than it looks, and the reporter says so: edge's PRIMARY
+has no `llms.txt` or `sitemap.xml` at all (both 404), so there was nothing for
+the secondary to fall through TO. **Establish which of "already fixed" and "edge
+does not exercise the path" is true before doing any work** - if it is already
+fixed, the remaining action is only that 0.10.0 sites carry it until they
+upgrade. The clean confirmation needs a 0.10.3 instance whose primary DOES have
+registries and whose secondary has its own content root.
+
+**The favicon half stands unchanged**, and is the easier reproduction: a
+secondary domain with no favicon of its own serves the primary's byte-for-byte.
+
+### A lookalike that is NOT this defect
+
+`fr|th|ru.providers.explore.lazysite.io` serve sitemaps listing the PARENT's
+URLs, which looks exactly like this bug. It is not: the file is wrong on disk as
+well (fetched over WebDAV from the domain's own content root), and generation was
+correct - those domains have `site_url: "https://providers.explore.lazysite.io"`
+explicitly set, `site_url_inherited: 0`. The generator used the configured value
+faithfully.
+
+That is an operator configuration matter, recorded here only so it is not
+mistaken for evidence. It is a real problem for that site though: three language
+domains advertising the parent's URLs are invisible to search engines as distinct
+sites, and `lang_group` is empty on all three, so they are not a configured
+language set either.
+
+### The distinguishing test
+
+For the real defect, all three must hold at once:
+
+1. the domain's `site_url` is its own,
+2. the on-disk registry under its content root is correct,
+3. the served response is nonetheless the primary's file.
+
+Anything failing (1) or (2) is a different problem.
+
 ## Verification
 
 - A content-rooted secondary domain serves its OWN sitemap, llms.txt and feeds.
@@ -111,6 +153,8 @@ no amount of per-symptom fixing would have surfaced.
 - The primary site is unchanged.
 - Whatever the mechanism, it works on a production Apache front, not only on the
   dev server - which is the specific failure this request exists to correct.
+- The reproduction is done against an instance whose PRIMARY has registries, per
+  the narrowing above - otherwise a pass proves nothing.
 
 ## Not in scope
 
