@@ -1,136 +1,114 @@
 ---
-title: "SM245 - Move .brief sidecars into an optional plugin"
-subtitle: "Every site pays for the brief system whether or not it uses it: the render path checks it, the file manager reports it, move/copy/convert carry it, and the indexer skips it. Make it opt-in."
+title: "SM245 - Briefs move out of band, into an optional plugin"
+subtitle: "The sidecar FILE is the problem, not the feature. Hold briefs in a store the plugin owns, reached over the API, MCP and the manager - and the render path stops needing to know briefs exist at all."
 brand: plain
 status: candidate
-status-note: "Raised by the operator 2026-08-08. SM073 shipped briefs in 0.4.0 as an always-on convention. The proposal is not to remove them but to make the whole system a plugin, so a site that does not author briefs has no brief behaviour at all. Touches the render path, the files app, the manager, MCP and the docs - the audit of who notices .brief is the first work item and is largely done below."
+status-note: "Raised by the operator 2026-08-08 as 'move .brief to a plugin', then redirected the same day: stop using sidecar files and hold briefs out of band, still bound to the file they describe. That redirection dissolves both hard problems the first draft identified - the engine no longer needs a safety rule for a disabled plugin, and move/copy/convert no longer carry anything. SM073 shipped briefs in 0.4.0; this does not remove them."
 ---
 
-# SM245 - .brief sidecars become an optional plugin
+# SM245 - briefs move out of band
 
 ## Why
 
-SM073 (0.4.0) gave every meaningful file an author-maintained sidecar: a short,
-append-only record of why a file exists and what each edit changed. Good idea,
-and on a site that uses it, valuable.
+SM073 (0.4.0) gave every meaningful file a sidecar: `<file>.brief`, an
+append-only record of why the file exists and what each edit changed. The record
+is worth keeping. **The sidecar file is not.**
 
-It is also unconditional. A site that has never written a brief still carries the
-behaviour on every surface that touches a file. The cost is small per site and
-paid by every site, and - more to the point - it is a **convention baked into the
-engine** rather than a feature an operator chooses. The engine should own what
-every site needs; a documentation practice that some sites keep should be a
-plugin.
+Because a brief is a file in the content tree, the engine has to know briefs
+exist in order to keep them from behaving like content:
 
-There is a second reason, visible in the audit below: `.brief` is special-cased
-in six different places by three different rules (never served, never indexed,
-carried on move, carried on copy, carried on convert, reported in listings). Each
-is correct and none of them is discoverable from the others. Concentrating that
-in one enable-able unit makes the whole behaviour legible.
+| Where | Rule | Why it exists |
+|---|---|---|
+| `lazysite-processor.pl` ~1249 | Refuse to serve `*.brief` | It is in the content tree, so it would otherwise be public |
+| `lazysite-processor.pl` ~3913 | Skip `*.brief` when indexing | Same - it would otherwise reach sitemap / llms / feeds |
+| `Manager/Files.pm` | Mark sidecars, report `has_brief` | It appears in listings as a file |
+| `Manager/Files.pm` | Carry on move, copy, and url-to-md convert | It must follow its file or it orphans |
+| `lazysite-mcp.pl` | Exclude `*.md.brief` from the `.md` scan | It looks like a page |
 
-## Where .brief is noticed today
+Every one of those is a consequence of the storage choice. None is a consequence
+of the feature. A brief does not need to be a file: it is never edited directly,
+it is never served, and everything that reads or writes it goes through the API,
+MCP or the manager - all of which can reach a store just as easily as a path.
 
-Verified by reading the source. This is the surface the plugin has to take over
-or the removal has to account for.
+## What changes
 
-### Render / serve path (`lazysite-processor.pl`)
+**The plugin owns a brief store, outside the content tree**, keyed by the content
+path it describes. `lazysite/briefs/` is the natural home - engine-owned,
+DAV-blocklisted and never served, the same shape as the submissions store.
 
-| Line | Behaviour |
-|---|---|
-| ~1249 | A request for `<file>.brief` is **refused** - briefs are private and never served publicly |
-| ~3913 | Briefs are **skipped by the indexer**, so they never reach sitemap / llms / feeds |
+Access stays exactly where it is today: read and write over the control API and
+MCP, and the manager showing a file's brief beside the file. The binding to the
+file is preserved; only the storage moves.
 
-Both are safety properties, and this is the important asymmetry: **if the plugin
-is disabled, "never served" must still hold.** A site that once used briefs and
-later disabled the plugin must not begin serving its brief files. Whatever else
-moves, the refusal stays in the engine, or disabling the plugin becomes a
-disclosure event.
+### What this removes
 
-### Files app / manager (`lib/Lazysite/Manager/Files.pm`)
+This is the point of the redirection, and it is worth being explicit about how
+much falls away:
 
-| Behaviour | Detail |
-|---|---|
-| Listing | A `.brief` entry is marked as a sidecar; every other file reports `has_brief` |
-| Move | `rename` carries `<file>.brief` alongside, and re-keys its ACL |
-| Copy | `copy` carries `<file>.brief` |
-| Convert (`.url` to local `.md`) | carries `<file>.brief` |
+- **The processor stops knowing briefs exist.** Both rules go. Not moved into
+  the plugin - *deleted*, because there is nothing in the content tree to serve
+  or to index.
+- **The first draft's hard problem dissolves.** That draft had to keep
+  "never served" in the engine unconditionally, because a site that disabled the
+  plugin must not start serving the `.brief` files it already had. With no files,
+  disabling the plugin cannot expose anything. The asymmetry disappears rather
+  than being managed.
+- **Move, copy and convert stop carrying anything.** A move re-keys an entry
+  instead of renaming a second file. And the failure mode softens from *a private
+  file left somewhere unexpected* to *an orphaned record* - untidy, not a
+  disclosure. The open decision in the first draft is answered by the storage
+  change.
+- **The files app stops filtering.** No sidecar rows to recognise, no
+  `has_brief` derived from a stat on a neighbouring path.
 
-`starter/manager/files.md` renders the brief affordance (10 references).
-`starter/manager/audit.md` names `.brief` among the editable file types.
-
-### MCP surface (`lazysite-mcp.pl`)
-
-- `page_status` returns `has_brief`.
-- The `.md` scan excludes `*.md.brief`.
-- Three tool descriptions (`move_file`, `delete_page`, `rename_page`) promise
-  that the operation "carries its `.brief`".
-
-### Documentation
-
-`ai-briefing-authoring` (2), `ai-briefing-publishing` (5), `ai-connector-tools`
-(3), `docs/FEATURES.md` (7), `docs/USER.md` (1), plus the webserver-wiring
-reference.
+The plugin boundary becomes real: with sidecars, the engine had to know about
+briefs in order to protect them. Out of band, it does not know they exist.
 
 ## What to build
 
-### The plugin owns the convention
+**The store.** One entry per content path, append-only, under `lazysite/briefs/`.
+Per-path entries rather than one shared file, so two authors briefing two
+different pages never contend.
 
-A `brief` plugin, enabled per site, owning: the listing affordance, the
-`has_brief` reporting, the manager editor integration, and the tool-description
-promises. Disabled, none of it appears - `has_brief` is absent rather than false,
-the files app shows no brief column, and the tool descriptions do not promise
-something the site will not do.
+**The read/write surface.** Control-API actions and MCP tools to read a path's
+brief and append to it, plus the manager's existing brief affordance repointed at
+them. Gated by `manage_content` - a brief is authoring intent about a content
+file, and anyone who may edit the file may record why.
 
-### The engine keeps the two safety properties
+**Re-keying on move.** When a content file moves, its brief should follow. This
+is the one place the plugin needs to hear about an engine operation. If no hook
+exists, an orphaned entry is a tolerable interim - it is invisible rather than
+harmful - and a reconcile pass can adopt or prune it.
 
-**Never served** stays in the processor unconditionally, for the reason above.
-**Never indexed** should also stay: indexing a `.brief` on a site that disabled
-the plugin would publish exactly the private content the refusal protects.
+**Migration.** Existing sites have `.brief` files. Import each into the store,
+then remove the sidecar. Must be idempotent, and must never delete a sidecar it
+did not successfully import. This is the first real migration briefs have needed,
+and it is the main risk in the whole request.
 
-Both are cheap - two pattern checks - and neither depends on the plugin being
-loaded. The rule to state plainly: *the engine keeps every rule whose failure
-would expose a brief; the plugin owns every rule that merely makes briefs
-useful.*
+## Back-compat and enablement
 
-### Move / copy / convert: the open question
-
-Carrying the sidecar on a move is not a safety property - it is data integrity
-for a feature that may be off. Two defensible answers, and this is the request's
-main decision:
-
-**The plugin hooks the operations.** Correct in principle, and it needs a hook
-point that does not exist yet: `Files.pm` would have to offer "after a move,
-these paths changed" for a plugin to act on. That hook is worth having for other
-reasons.
-
-**The engine keeps carrying them.** A stray `<file>.brief` left behind by a move
-is a small mess, and orphaned sidecars accumulate silently. Keeping three
-`rename`/`copy` calls costs almost nothing and cannot leave debris.
-
-Recommend the second for the first cut, on the grounds that a disabled feature
-should not be able to corrupt data authored while it was enabled - and revisit
-if the hook point materialises for other work.
-
-## Back-compat
-
-Sites that use briefs today must keep working. The plugin ships **enabled on
-upgrade for any site that already has at least one `.brief`**, and disabled for
-everyone else - detectable in one scan at upgrade time. A site with no briefs
-gets the new default (off) and notices nothing.
+The plugin ships **enabled on upgrade for any site that already has at least one
+brief** (detectable before migration, from the sidecars themselves) and disabled
+for everyone else. A site that never used briefs loses a feature it never used
+and gains nothing to configure.
 
 ## Verification
 
-- A site without the plugin: no `has_brief` anywhere, no brief column, no tool
-  description promising brief handling.
-- A site with the plugin: identical behaviour to today.
-- With the plugin **disabled** on a site that has existing `.brief` files: they
-  are still refused publicly, still skipped by the indexer, and still carried by
-  move/copy/convert.
-- Upgrade leaves a brief-using site enabled and a brief-free site disabled.
-- Documentation describes briefs as an optional plugin, not a convention.
+- The processor contains no `.brief` handling, and the tests that covered those
+  two rules are removed with them rather than left asserting dead behaviour.
+- A site with the plugin disabled has no brief surface anywhere - no `has_brief`,
+  no manager affordance, no tool descriptions promising brief handling.
+- With the plugin enabled, reading and appending work over the API, MCP and the
+  manager, bound to the same files as before.
+- Migration imports every existing sidecar, removes only what it imported, and
+  running it twice changes nothing.
+- Moving a content file keeps its brief reachable, or leaves an entry that the
+  reconcile pass resolves - and in neither case is anything served.
 
 ## Not in scope
 
-- Removing the brief system, or migrating existing sidecars.
-- Changing the brief format or its append-only discipline.
-- The generic post-operation plugin hook, if the recommendation above stands -
-  that becomes its own request if the alternative is chosen.
+- Removing briefs as a feature, or changing the append-only discipline.
+- Editing a brief as a file. That affordance goes with the sidecars, and nothing
+  used it - the API, MCP and manager are how briefs are written.
+- A general post-operation plugin hook. Wanted for re-keying, but an orphaned
+  entry is survivable, so this request does not block on it.
