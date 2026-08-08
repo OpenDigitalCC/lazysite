@@ -174,6 +174,21 @@ Handlers with `enabled: false` are skipped.
 : POSTs form data to an HTTP URL. Set `format: json` for a plain JSON
   body, or `format: slack` for Slack-compatible `{"text": "..."}`.
 
+## Where a submission is POSTed
+
+Only `/cgi-bin/form-handler.pl` accepts a submission. The generated form carries
+it in its `action` attribute, so a visitor's browser does the right thing without
+anyone thinking about it.
+
+It matters when you are testing a form by hand, or driving it from a script.
+POSTing the fields to the **page** URL instead - `/contact`, say - returns
+**HTTP 200 and the rendered page**, and stores nothing. A 200 with a page body is
+indistinguishable from success to anything checking status codes, so a test can
+report a form working when nothing was ever stored.
+
+Confirm a submission by what the store holds, not by the status code: `form_list`
+shows the row count, and `read_form_submissions` reads the rows back.
+
 ## What happens when a submission arrives
 
 Once a submission is stored, the site raises a notification. You do not need to

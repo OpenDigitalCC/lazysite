@@ -40,6 +40,36 @@ So the control is simultaneously too weak for the case it exists to catch and to
 strict for the case it should let through - which is the signature of a check
 measuring the wrong interval.
 
+## Measured on a live 0.10.3 instance, 2026-08-08
+
+The filing above was reasoned from the code. A site agent then measured it on
+edge.explore.lazysite.io, which turns the argument into a demonstration.
+
+Three fetches of `/contact`, two seconds apart, all returned the same token - and
+it was already **363 seconds older than the moment it was served**:
+
+```
+fetch 1   _ts = 1786211775
+fetch 2   _ts = 1786211775
+fetch 3   _ts = 1786211775
+wall clock at fetch 3 = 1786212138
+```
+
+Posting that token straight to the handler, having never loaded the page in a
+browser, was **accepted**: `{"ok":1,"message":"Thank you - your message has been
+sent."}`, and `form_list` went from 2 rows to 3. There was no dwell to measure at
+all. The check passed because the arithmetic is `now - last_render`, already six
+minutes, rather than `now - visitor_received_page`, which was zero.
+
+That is the defect exactly: **the check cannot distinguish a visitor who read the
+page from a client that never fetched it.**
+
+The store carried the proof historically too. Two rows from 2026-07-27 were
+already present, the second reading *"TEST 3 of 3: submitted under the minimum
+dwell - should be rejected."* It was stored. The control was inert on the
+previous release, under a deliberate test, and the row recording that has been
+sitting in the store ever since.
+
 ## Why it matters more than its size
 
 The handler has two automated-submission defences that need no configuration: the
