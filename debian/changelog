@@ -37,6 +37,12 @@ lazysite (0.10.3-1) unstable; urgency=medium
     commits that file outside the single writer.
   * Removes a literal NUL byte from a shipped appearance page, which had made git
     treat it as binary, and adds a lint barring control characters in pages.
+  * Behaviour coverage for the new MCP tools. The four above shipped with tests
+    that read the source rather than running the code, so lazysite-mcp.pl branch
+    coverage fell below its floor and the gate refused the build; the new test
+    drives them through the real entry point (58.5% -> 62.6% branch). It turned
+    up SM256 and SM257, two cases of an operation reporting success for work it
+    did not do, both filed for a later release.
 
  -- Stuart Mackintosh <sjm@opendigital.cc>  Sat, 08 Aug 2026 12:00:00 +0000
 

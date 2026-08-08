@@ -72,8 +72,18 @@ consequence of every write to the site config being recorded.
   it as binary - no reviewable diff, and no grep would match inside it. Removed,
   with a lint test barring control characters in shipped pages; the "in use"
   marker on that page is stated once rather than twice.
+- Tests (c2870f8) behaviour coverage for the tools this release adds to the MCP
+  surface. SM238, SM240, SM243 and SM244 each shipped with tests that read the
+  source - a warning string is present, a tool is declared, a parameter exists -
+  which execute none of the code, so `lazysite-mcp.pl` branch coverage fell to
+  58.5% against its 60% floor and the release gate refused the build. The new
+  test drives the tools through the real JSON-RPC entry point over a real
+  docroot and asserts what changed on disk: 62.6% branch, 88.6% statement.
 - Docs: SM224 analyses the two access-control models; SM231, SM245, SM246 and
-  SM248-SM254 recorded in the backlog.
+  SM248-SM254 recorded in the backlog, plus SM256 and SM257 - two cases of an
+  operation reporting success for work it did not do, found by the coverage work
+  above and filed rather than fixed here (`add_alias` on a page with no front
+  matter; `preview_domain` on a render that produced nothing).
 
 ## 0.10.2 - EDGE: what the platform knew and did not say (2026-08-08)
 
