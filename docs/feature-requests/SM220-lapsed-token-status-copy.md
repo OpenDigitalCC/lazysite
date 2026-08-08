@@ -2,8 +2,8 @@
 title: "SM220 - A lapsed renew-on-use token reported itself as 'in use'"
 subtitle: "Sessions & keys showed 'in use' + 'token expired' + 'renews on use' on the same row - three true signals that together read as a contradiction; the status now leads with the lapse and says when the key was last used"
 brand: plain
-status: candidate
-status-note: "Field-reported 2026-07-27 ('in use token expired ... renews on use - this is confusing'). Root-caused as a COPY/semantics defect, not a broken token: the underlying behaviour is correct and deliberate. Fix built on branch claude/fix-sessions-token-status-copy (frontend only, starter/manager/sessions.md), smoke-green, AWAITING vcs-review; channel/release to be decided with the batch it lands in."
+status: shipped
+status-note: "FIXED on main (commit ee18e06), releasing in the 0.10.2 edge line. Field-reported 2026-07-27 ('in use token expired ... renews on use - this is confusing'). Root-caused as a COPY/semantics defect, not a broken token: the underlying behaviour is correct and deliberate. Fix built on branch claude/fix-sessions-token-status-copy (frontend only, starter/manager/sessions.md), smoke-green, AWAITING vcs-review; channel/release to be decided with the batch it lands in."
 ---
 
 # SM220 - lapsed token reported as "in use"

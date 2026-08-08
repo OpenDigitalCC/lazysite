@@ -2,7 +2,7 @@
 title: "SM206 - Layout catalogue descriptions and tags"
 subtitle: "list_layout_catalogue returns name/version/default_theme/themes only. 25 layouts with evident personalities, but nothing machine-readable expresses purpose - an agent choosing a base layout must guess from names or install-and-inspect."
 brand: plain
-status: candidate
+status: shipped
 status-note: "IMPLEMENTED on main 2026-07-24 (unreleased, 0.9.14 line); scoped from the theme-authoring / Figma design-transfer briefing (item 5). Audited: trivial code (manifest field + one passthrough loop); the backfill is a reviewed writing pass. Independent - can land any time."
 ---
 

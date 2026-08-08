@@ -2,11 +2,30 @@
 title: "SM209 - Service/plugin lifecycle: a mini-init with independent start/stop/status"
 subtitle: "enabled/disabled conflates DECLARED INTENT (config) with RUNTIME AVAILABILITY. Separate the two: give each service/plugin an init-style start/stop/status lifecycle, managed by a controlling process, so a plugin can be literally stopped (or never started) independently of its enabled config."
 brand: plain
-status: candidate
-status-note: "LOGGED 2026-07-24 at user request - concept capture for later scoping, NOT implementation. Grounded in the current code (config-flag-only gating, no runtime lifecycle) but deliberately not fully designed; the stateless-CGI question (what 'running' means) is the first thing to resolve at scoping."
+status: superseded
+status-note: "SUPERSEDED by SM222 (2026-08-08). SM222 is the full design of the same feature, written after verifying the code, and it now carries this note's distinct contribution: the split between declared intent (config, durable) and runtime availability (transient, pausable without rewriting config), as a desired/runtime pair with paused defaulting to up so existing sites need no migration. SM209's controlling-process proposal is recorded in SM222 as considered and declined - a supervisor owning units that are mostly per-request CGI has nothing to own, and for the one real process it would compete with systemd. The dependency question SM209 raised is recorded there as open. Nothing is lost by reading SM222 alone."
 ---
 
 # SM209 - Service/plugin lifecycle: a mini-init with independent start/stop/status
+
+**This request is superseded by [SM222](SM222-service-lifecycle-mini-init.md).**
+Read that instead - it is the same feature, designed against the verified code,
+and it carries everything below that still stands. This document is kept only so
+the reasoning that led here is not lost.
+
+## What of this survives, and where
+
+The intent-versus-availability split - the core of this note - is now SM222's
+"Intent and availability are two surfaces, not one", including the back-compat
+default and the requirement that a paused unit says why.
+
+The controlling-process proposal is recorded in SM222 under "What this must NOT
+become", as considered and declined with the reason.
+
+The dependency question is recorded in SM222 as open, deliberately unanswered.
+
+## Original note (2026-07-24), retained
+
 
 ## Why
 

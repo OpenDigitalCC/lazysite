@@ -2,7 +2,7 @@
 title: "SM189 - Prevent raw-mode (api:/raw:) on ordinary content pages"
 subtitle: "An agent can replace a Markdown page + theme with a raw HTML document via content_type; the XSS downgrade contains the security risk, but the theme is lost and CDN links slip past the no-CDN guard"
 brand: plain
-status: candidate
+status: shipped
 status-note: "IMPLEMENTED on claude/sm188-190-field-fixes (2026-07-21, commit 7f6409c): Common::raw_html_page_refusal refuses api:/raw: + a script-capable content_type via action_save (manager + MCP) and WebDAV PUT (415), plus the building-sites briefing note. Awaiting gate + vcs-review + release. Extends ADR 0006 from editorial-only to a boundary; not an XSS gap (already downgraded)."
 ---
 

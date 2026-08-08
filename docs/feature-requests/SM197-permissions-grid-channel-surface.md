@@ -2,7 +2,7 @@
 title: "SM197 - Permissions grid over-claims channel coverage (ignores per-capability surface)"
 subtitle: "The Users-page capability x channel grid shows a tick wherever a group grants the capability AND the account holds the channel - without checking whether the capability has any surface on that channel. So it advertises reach the engine never implements (manage_domains on WebDAV, notifications on MCP, ...)."
 brand: plain
-status: candidate
+status: shipped
 status-note: "IMPLEMENTED on claude/cluster-a-plus-sm192 (2026-07-23): Capabilities::action_channel_surface (from unlocks), carried in the permissions-grid payload; renderPermGrid ticks a cell only when granted+held+surfaced, with a muted dash for granted-but-no-surface. Tests in t/unit/lib/05-capabilities.t + t/unit/users/14-group-capabilities.t. Awaiting gate + vcs-review. Original: a compliance-surface DISPLAY defect (enforcement unaffected) - the cell was by(action) && by(channel) without requiring a surface on that channel."
 ---
 

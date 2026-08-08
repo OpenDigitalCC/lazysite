@@ -2,8 +2,8 @@
 title: "SM233 - The 'Independent of creator' control does not say what it does"
 subtitle: "A checkbox labelled with an adjective and a tooltip written in engine vocabulary. An operator cannot tell what the toggle governs, what turning it on would change, or whether it is already changing anything."
 brand: plain
-status: candidate
-status-note: "Reported by the operator 2026-08-07 from live use of the manager: 'really confusing - the information provides no clue as to what this does'. Copy and presentation only; the underlying SM194 behaviour is correct and unchanged."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit 97fd1a8). Reported by the operator 2026-08-07 from live use of the manager: 'really confusing - the information provides no clue as to what this does'. Copy and presentation only; the underlying SM194 behaviour is correct and unchanged."
 ---
 
 # SM233 - the scope-independence control is unreadable

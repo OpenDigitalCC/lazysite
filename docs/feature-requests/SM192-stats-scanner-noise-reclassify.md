@@ -2,7 +2,7 @@
 title: "SM192 - Stats classifier: reclassify SPA/scanner probe noise (manifest + secret fishing)"
 subtitle: "Build-manifest and secret-probe 404s inflate the human and AI counts; add them to the noise taxonomy, and drop referrer spam from the reports"
 brand: plain
-status: candidate
+status: shipped
 status-note: "IMPLEMENTED on claude/cluster-a-plus-sm192 (2026-07-23): classify() gains a status arg; SPA/build-manifest names -> noise when 404 (a genuine 200 manifest.json stays human), SECRET_RE -> noise UA-independently (path beats UA), and a built-in REF_SPAM_RE drops referrer-spam hosts (binance et al.) from the external-referrers report. Tests in 01-stats-classify.t. NOT done: an operator config key for referrer-spam (built-in list only, mirroring the design's 'optional'). Report accuracy only; no migration. Awaiting gate + vcs-review."
 ---
 

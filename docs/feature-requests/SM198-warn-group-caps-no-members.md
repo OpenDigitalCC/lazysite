@@ -2,7 +2,7 @@
 title: "SM198 - Warn when a group grants capabilities but has no members"
 subtitle: "A group can carry capabilities yet have zero members - so it grants nothing to anyone, silently. Create-then-forget and remove-last-member both hit it; a live operator lost time to exactly this. Surface it in the Groups UI."
 brand: plain
-status: candidate
+status: shipped
 status-note: "IMPLEMENTED (UI) on claude/cluster-a-plus-sm192 (2026-07-23): groups.md shows a muted 'no members' badge in the group summary and an inline amber warning by the Members section when a group has >=1 capability and 0 members; both refresh in place on cap-toggle / add / remove-member. Client-side only (manager pages are excluded from the render smoke; no JS harness), same as the SM180 dormant badge. Optional API/CLI echo not done. Awaiting gate + vcs-review."
 ---
 

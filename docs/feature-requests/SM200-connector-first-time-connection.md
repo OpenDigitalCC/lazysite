@@ -2,7 +2,7 @@
 title: "SM200 - Connector first-time-connection reliability + diagnostics"
 subtitle: "The OAuth/MCP server side is proven reliable end-to-end, yet operators repeatedly need several attempts and a fresh chat to connect an agent. Sharpen the levers lazysite owns: distinct sign-in failure reasons, connect-code robustness, and onboarding guidance for the fresh-chat reality."
 brand: plain
-status: candidate
+status: shipped
 status-note: "LEVERS 1+2+3+4 IMPLEMENTED on claude/batch-site-integrity (2026-07-23). Lever 1: send_401 now returns distinct data.reason values - sign-in-incomplete / credential-invalid / token-expired / token-invalid (via Auth::OAuth::token_status) - instead of one opaque reason (test in mcp/01-protocol.t). Lever 3: the connector-setup panel + ai-connector-setup doc tell the operator to open a NEW chat if the tools do not appear (the tool list is frozen per chat). Lever 4: lazysite-check #11 flags a remote service enabled with a bad/absent site_url (the outsourcify class), at deploy time without HTTP (shared with SM190; test in 04-check.t). Only in-place connect-code REGENERATE (a UI nicety) remains open. From the 2026-07-23 outsourcify session; server side proven working (oauth/02-flow.t)."
 ---
 

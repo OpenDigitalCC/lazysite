@@ -2,7 +2,7 @@
 title: "SM191 - Discoverability hints for capability-gated areas (grant X to enable)"
 subtitle: "The inverse of SM180: when a manager area is hidden because a capability is not granted, tell the operator which capability unlocks it and where to grant it - instead of it silently not appearing"
 brand: plain
-status: candidate
+status: shipped
 status-note: "IMPLEMENTED on claude/cluster-a-plus-sm192 (2026-07-23): the processor surfaces the content-area caps (content/nav/themes/layouts) + audit in manager_caps; layout.tt gates the Files / Navigation / Appearance / Audit-log nav entries with the SM186 3-way pattern (real link if held, muted grant-to-enable hint if the operator holds manage_users, nothing otherwise). Tests in 28-domains-nav.t. SCOPE for review: applied to the content group + audit; left the access-admin (Users/Groups/Sessions), config/system (Site settings/Cache/Backups/Plugins) and plugin-gated (stats) entries as-is - extending to those is a UX judgement for the reviewer. Awaiting gate + vcs-review."
 ---
 

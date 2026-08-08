@@ -2,7 +2,7 @@
 title: "SM205 - create_theme MCP tool (validated theme scaffolding) + eager theme.json validation"
 subtitle: "Creating a theme over the connector is a five-step sequence with three documented sharp edges (nested dirs, validation only at activation, assets-must-live-under-assets/). Collapse it into one validated write; and make theme.json writes validate eagerly like page writes do."
 brand: plain
-status: candidate
+status: shipped
 status-note: "IMPLEMENTED on main 2026-07-24 (unreleased, 0.9.14 line); scoped from the theme-authoring / Figma design-transfer briefing (item 4). Audited: the activation validator is STRUCTURAL-ONLY, so eager value-validation is new (mirror the render-time strip rule); the terminus of the Figma pipeline lands here. Moderate. Best after SM203 (coverage check) but not blocked by it."
 ---
 

@@ -2,8 +2,8 @@
 title: "SM225 - Publish a documentation index to AI partners"
 subtitle: "A site ships around thirty documentation pages including seven AI briefings. An MCP partner is told about three of them, and describe_capabilities names none. Make the documentation discoverable from the surface partners actually read."
 brand: plain
-status: candidate
-status-note: "Raised 2026-08-06 and marked IMPORTANT by the operator. Root cause of most of SM226-SM230: a partner reasoning carefully from the tool surface alone reinvents documented behaviour and concludes absent features. Implementation targeted for the next release."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit 1138b6e). Raised 2026-08-06 and marked IMPORTANT by the operator. Root cause of most of SM226-SM230: a partner reasoning carefully from the tool surface alone reinvents documented behaviour and concludes absent features. Implementation targeted for the next release."
 ---
 
 # SM225 - a documentation index for AI partners

@@ -36,6 +36,24 @@ for my $f (@files) {
         ok( defined $note && length $note,
             "$rel: a '$status' item says what remains / what replaced it" );
     }
+
+    # A status that contradicts its own note. The header guarantee above only
+    # checks that a status EXISTS and is spelled legally - it cannot notice a
+    # `candidate` whose note opens "IMPLEMENTED ...". In August 2026 sixteen of
+    # forty candidates were in exactly that state, all of them shipped and
+    # CHANGELOG'd, so tools/backlog.pl (which treats candidate as OPEN) reported
+    # two in five entries as work still to do. Releases were being chosen from
+    # that list. The note is the author's own account of where the item stands,
+    # so disagreeing with it is always an error in one of the two.
+    next unless defined $note;
+    if ( $status eq 'candidate' || $status eq 'parked' ) {
+        unlike( $note, qr/\b(?:IMPLEMENTED|FIXED and shipped|shipped in \d)\b/i,
+            "$rel: a '$status' item's note does not claim it is done" );
+    }
+    if ( $status eq 'shipped' ) {
+        unlike( $note, qr/\bNOT\s+(?:built|implemented)\b/i,
+            "$rel: a 'shipped' item's note does not say it was never built" );
+    }
 }
 
 done_testing();

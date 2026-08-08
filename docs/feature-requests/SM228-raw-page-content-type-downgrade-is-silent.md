@@ -2,8 +2,8 @@
 title: "SM228 - The raw-page content-type downgrade is silent, and 'raw' points the wrong way"
 subtitle: "A raw or api page declaring text/html is downgraded to text/plain at serve time. The security reasoning is right; the author is told nothing, and the key's name invites exactly the design that fails."
 brand: plain
-status: candidate
-status-note: "Raised 2026-08-06 from the Golden Link partner review, which proposed raw: true to serve a single-file HTML application - a design that would have been accepted at write time and silently downgraded at serve time. Implementation targeted for the next release. Does NOT propose weakening ADR 0006."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit e2bbe18). Raised 2026-08-06 from the Golden Link partner review, which proposed raw: true to serve a single-file HTML application - a design that would have been accepted at write time and silently downgraded at serve time. Implementation targeted for the next release. Does NOT propose weakening ADR 0006."
 ---
 
 # SM228 - the raw-page downgrade is silent

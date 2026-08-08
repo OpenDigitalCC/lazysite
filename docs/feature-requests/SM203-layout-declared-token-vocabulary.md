@@ -2,7 +2,7 @@
 title: "SM203 - Declared token vocabulary in layout.json"
 subtitle: "Which theme tokens a layout's reference CSS consumes is discoverable only by grepping an existing theme's main.css. Add an OPTIONAL, declarative tokens block to layout.json so the layout<->theme contract is explicit and machine-readable - documentation-as-data, never enforced at render."
 brand: plain
-status: candidate
+status: shipped
 status-note: "IMPLEMENTED on main 2026-07-24 (unreleased, 0.9.14 line); scoped from the theme-authoring / Figma design-transfer briefing (item 2). Audited: layout.json already tolerates unknown keys (harmless to add), the render-time --theme-* emission is settled and untouched, backfill is a straightforward grep across the 25 layouts. Enables SM204/SM205."
 ---
 

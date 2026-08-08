@@ -2,8 +2,8 @@
 title: "SM227 - The submission store reads as write-only"
 subtitle: "form_list returns row counts and never content, by design. Combined with an ungranted read_submissions, a partner concludes submissions cannot be read at all and builds a replacement store."
 brand: plain
-status: candidate
-status-note: "Raised 2026-08-06 from the Golden Link partner review, where forms were rejected as an intake mechanism on this basis and a private JSON store was specified instead. Implementation targeted for the next release. Compounds with SM226; both should ship together."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit e1f6481). Raised 2026-08-06 from the Golden Link partner review, where forms were rejected as an intake mechanism on this basis and a private JSON store was specified instead. Implementation targeted for the next release. Compounds with SM226; both should ship together."
 ---
 
 # SM227 - the submission store reads as write-only

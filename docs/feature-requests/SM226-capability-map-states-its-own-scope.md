@@ -2,8 +2,8 @@
 title: "SM226 - A capability map should say what question it answers"
 subtitle: "describe_capabilities returns both what the platform can do and what this account holds. Readers flatten the two and conclude a capability they were not granted is a capability that does not exist."
 brand: plain
-status: candidate
-status-note: "Raised 2026-08-06 from the Golden Link partner review, where a tabulated 'no' in the holds block was read as a platform limitation and designed around. Small change, high leverage. Implementation targeted for the next release."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit cfa2a4b). Raised 2026-08-06 from the Golden Link partner review, where a tabulated 'no' in the holds block was read as a platform limitation and designed around. Small change, high leverage. Implementation targeted for the next release."
 ---
 
 # SM226 - the capability map should state its own scope

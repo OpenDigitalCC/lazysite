@@ -2,8 +2,8 @@
 title: "SM230 - State the position on browser-origin calls"
 subtitle: "The control API has no CORS and no preflight handling, by design. Silence reads as an oversight, and every browser-side integrator re-derives it the expensive way."
 brand: plain
-status: candidate
-status-note: "Raised 2026-08-06. Documentation plus a small diagnostic. A partner in August 2026 listed 'does the control API accept a browser origin?' among three questions only the maintainer could answer; the answer is a firm no and has always been. Implementation targeted for the next release."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit dbde225). Raised 2026-08-06. Documentation plus a small diagnostic. A partner in August 2026 listed 'does the control API accept a browser origin?' among three questions only the maintainer could answer; the answer is a firm no and has always been. Implementation targeted for the next release."
 ---
 
 # SM230 - state the position on browser-origin calls

@@ -3,7 +3,7 @@ title: "SM222 - Mini init: a uniform start / stop / status contract for services
 subtitle: "Make 'off' actually off rather than a refusal from a process that still ran, give every service and plugin the same lifecycle verbs, and make status report enough to act on"
 brand: plain
 status: candidate
-status-note: "Design + analysis written 2026-07-27 at the operator's request. NOT built. Key finding: a disabled service is NOT fully off today - the web server still routes to it and the CGI still spawns, reads the conf and only then refuses (404), and the refusal contract is inconsistent (token-exchange answers 200 {ok:0,code:service_disabled} where the others 404). Recommends generalising the content-history health verdict vocabulary, which already proves the model. Explicitly does NOT propose a process supervisor - systemd keeps that job."
+status-note: "Design + analysis written 2026-07-27 at the operator's request. NOT built. SUPERSEDES SM209 (merged 2026-08-08): SM209's intent-versus-availability split is absorbed as a third state (desired/runtime, paused defaulting to up so back-compat is free), and its controlling-process proposal is recorded as considered and declined. Key finding: a disabled service is NOT fully off today - the web server still routes to it and the CGI still spawns, reads the conf and only then refuses (404), and the refusal contract is inconsistent (token-exchange answers 200 {ok:0,code:service_disabled} where the others 404). Recommends generalising the content-history health verdict vocabulary, which already proves the model. Explicitly does NOT propose a process supervisor - systemd keeps that job."
 ---
 
 # SM222 - mini init (service + plugin lifecycle)
@@ -146,6 +146,58 @@ the disagreement between them** - which is precisely what content-history's
 `inconsistent` verdict already captures and what nothing else in the system
 does.
 
+### Intent and availability are two surfaces, not one
+
+Absorbed from SM209, which this request supersedes, and it changes the contract
+above rather than decorating it.
+
+`start` / `stop` as described writes the killswitch - which makes them the same
+act as enable / disable. That conflates two things an operator genuinely needs
+apart:
+
+Declared intent
+: "This site offers MCP." A durable decision, edited in Settings, surviving
+  restarts and upgrades.
+
+Runtime availability
+: "The MCP surface is up right now." An operational condition an operator wants
+  to change **without rewriting configuration** - pause a service during
+  maintenance, hold a misbehaving plugin down until it is fixed, keep a unit down
+  until a dependency is ready.
+
+Collapsing them means the only way to pause something is to disable it, and a
+disabled unit is indistinguishable from one the operator never wanted. The
+operator who paused MCP for twenty minutes and the operator who does not offer
+MCP leave identical configuration behind, and the audit trail is the only place
+the difference survives.
+
+So availability is a third state, not a second spelling of intent:
+
+```
+desired:   "on" | "off"        # config. Durable. What the operator wants offered.
+runtime:   "up" | "paused"     # transient. Defaults to "up" when absent.
+```
+
+Effective availability is `desired == on AND runtime == up`. `paused` is already
+in the verdict vocabulary this design borrows from `Git::health`, so it costs
+nothing to express.
+
+Two consequences worth stating:
+
+- **Back-compat is free.** Existing sites carry only the killswitch. Absent
+  runtime state means "up", so an enabled service on an upgraded site behaves
+  exactly as before and nothing needs migrating.
+- **A paused unit says why.** The `message` and `remedy` fields already exist;
+  a pause should carry a reason, because "paused" without one is the same
+  mystery as "off" without one - which is the defect this whole request exists
+  to fix.
+
+Whether a unit may be started only once its dependencies are up (a form plugin
+needing SMTP configuration, say) is a real question SM209 raised and this design
+does not answer. It is a strictly better problem to have once `paused` carries a
+reason, because "paused: waiting on smtp.conf" is a dependency check with no
+dependency engine behind it. Resist building one until something demands it.
+
 ### Making "off" actually off
 
 Three layers, which should be named explicitly because they are commonly
@@ -218,6 +270,14 @@ One resolver, three consumers - no second source of truth:
   units.
 
 ### What this must NOT become
+
+**Not a controlling process.** SM209 proposed a supervisor owning every unit's
+lifecycle and being the single authority for what is running. Considered and
+declined: it is the same objection as below, one level up. A controlling process
+that owns units which are mostly per-request CGI has nothing to own, and for the
+one unit that IS a real process it would compete with systemd. The state file
+plus an observed verdict gives the same operator answer without a daemon whose
+own liveness then becomes a question.
 
 **Not a process supervisor.** systemd already supervises the one real process
 lazysite runs (`lazysite@.service`, the FastCGI pool) and would supervise

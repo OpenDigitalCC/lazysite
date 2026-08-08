@@ -2,7 +2,7 @@
 title: "SM199 - Content history: file list and revision statistics"
 subtitle: "A table-of-contents view over the history, with per-file revision counts and dates"
 brand: plain
-status: candidate
+status: shipped
 status-note: "Implemented on branch claude/edge-sm199 (2026-07-24), pending review + integration. Engine: Lazysite::Git::files_summary. Read surface: control-API action git-history-summary + MCP tool list_content_history, both gated on manage_content exactly like git-history / list_versions. Manager: the Files page gained a 'History overview' button opening a sortable all-files table (path, revisions, first, latest, last author). Move to shipped on release."
 ---
 

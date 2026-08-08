@@ -2,8 +2,8 @@
 title: "SM229 - Document submission notification"
 subtitle: "Every form submission raises a notification, delivered to the manager and optionally over XMPP. It is undocumented outside the source, and it is the feature that makes human-in-the-loop workflows viable."
 brand: plain
-status: candidate
-status-note: "Raised 2026-08-06. Documentation-only. SM136 shipped the capability; nothing outside the codebase describes it, and a partner designing an intake workflow in August 2026 specified polling because they did not know it existed. Implementation targeted for the next release."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit 7b537fd). Raised 2026-08-06. Documentation-only. SM136 shipped the capability; nothing outside the codebase describes it, and a partner designing an intake workflow in August 2026 specified polling because they did not know it existed. Implementation targeted for the next release."
 ---
 
 # SM229 - document submission notification

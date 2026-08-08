@@ -2,8 +2,8 @@
 title: "SM234 - A theme in use by a sub-domain looks deletable until you press Delete"
 subtitle: "The Appearance list marks only the site-wide active theme. A theme pinned by a registered domain gets a Delete button, and the operator learns it is protected only from the error that follows."
 brand: plain
-status: candidate
-status-note: "Reported by the operator 2026-08-07 for the next release. The SM177 delete protection is correct and unchanged - the gap is that the same knowledge is absent from the list, so the UI offers an action it will then refuse. The identical gap exists for layouts, and the helper that answers it is already in the codebase."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit 0b47a07). Reported by the operator 2026-08-07 for the next release. The SM177 delete protection is correct and unchanged - the gap is that the same knowledge is absent from the list, so the UI offers an action it will then refuse. The identical gap exists for layouts, and the helper that answers it is already in the codebase."
 ---
 
 # SM234 - theme usage by a sub-domain is invisible until refusal
