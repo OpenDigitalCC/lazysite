@@ -16,6 +16,18 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+Shipped versus mentioned
+: An item that SHIPPED in a release **begins its own bullet and names the commit
+  that implemented it** - `- SM238 (37e7c37) per-domain tools over MCP`. The
+  commit ref is what marks it as built rather than merely written down, so a
+  bullet like `- SM184 (publish pages by email) recorded as a candidate proposal`
+  is a filing, not a ship. An SM number appearing anywhere else in an entry, such
+  as inside a `Docs:` bullet, is likewise a reference: newly filed backlog items
+  are routinely listed that way while still open.
+  `t/lint/26-backlog-status-matches-changelog.t` relies on this distinction to
+  check that everything a release claims to have shipped is marked accordingly
+  in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
+
 ## 0.10.3 - EDGE: MCP surface parity, and instructions that are no longer accepted quietly (2026-08-08)
 
 An edge build on 0.10.2. The MCP surface gains the actions a token client already
