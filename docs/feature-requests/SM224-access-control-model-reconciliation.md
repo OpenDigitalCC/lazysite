@@ -2,8 +2,8 @@
 title: "SM224 - Analysis: reconcile the two access-control models before documenting either"
 subtitle: "lazysite has a per-file ACL for the authoring channels and a per-page auth level for the public read path. They share no vocabulary and no enforcement point. Decide whether they should merge, before writing documentation that cements the split."
 brand: plain
-status: candidate
-status-note: "ANALYSIS ACTIVITY, not a build. Raised 2026-08-06. Deliberately blocks the documentation work in SM229/SM230's family: documenting the current split would make it permanent, and an experienced reviewer has already drawn a wrong and privacy-relevant conclusion from it. Output is a recommendation plus a truth table, not code."
+status: shipped
+status-note: "ANALYSIS DELIVERED 2026-08-08 as docs/architecture/access-control-model.md - truth table, four findings, an argued recommendation (keep separate, make legible), a position on static files that resolves SM223 decision 4, and a naming recommendation. No code changed. ANALYSIS ACTIVITY, not a build. Raised 2026-08-06. Deliberately blocks the documentation work in SM229/SM230's family: documenting the current split would make it permanent, and an experienced reviewer has already drawn a wrong and privacy-relevant conclusion from it. Output is a recommendation plus a truth table, not code."
 ---
 
 # SM224 - reconciling the two access-control models
