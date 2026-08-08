@@ -20,6 +20,24 @@ use Fcntl       qw(O_WRONLY O_APPEND O_CREAT);    # SM140: first-party access lo
 
 my $LOG_COMPONENT = 'processor';
 
+# SM252: what stands in for the form timing token inside the CACHED html, until
+# output_page mints a real pair on each response.
+#
+# These MUST be compile-time constants, not `our $X = '...'` further down the
+# file. This script runs its main flow BEFORE the sub definitions below it, so a
+# runtime assignment at the point of use has not executed yet and the variable is
+# still empty when output_page reads it - and an empty pattern in s///g reuses
+# the last successful match and fires at every position, which turned one page
+# into 600KB of repeated HMAC. Found by probing the rendered page rather than by
+# a test, because every assertion was reading an empty string and simply failing.
+# (BEGIN rather than `use constant`, which the perlcritic profile rejects.)
+our ( $FORM_TS_PLACEHOLDER, $FORM_TK_PLACEHOLDER );
+
+BEGIN {
+    $FORM_TS_PLACEHOLDER = '__LAZYSITE_FORM_TS__';
+    $FORM_TK_PLACEHOLDER = '__LAZYSITE_FORM_TK__';
+}
+
 # --- Plugin descriptor ---
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
@@ -726,7 +744,7 @@ sub serve_403 {
     my ($auth_result) = @_;
     my $md_path = _system_page_md('403') // "$DOCROOT/403.md";          # SM201 fallback
 
-    $ACCESS_REC{s} //= 403;    # SM140
+    $ACCESS_REC{s} //= 403;                                             # SM140
     binmode( STDOUT, ':utf8' );
 
     if ( -f $md_path ) {
@@ -1283,7 +1301,7 @@ sub main {
     # boxes its glob to this domain's subtree. Set here, after confinement.
     $REQUEST_CROOT = $croot;
 
-    my $md_path   = "$croot/$base.md";
+    my $md_path = "$croot/$base.md";
     # SM201: a system page (login / claim / error) whose content-root copy is
     # absent falls back to the docroot root, then the protected engine default -
     # so a deleted or never-seeded copy self-heals instead of 404ing.
@@ -1967,7 +1985,7 @@ sub peek_content_type {
     # the browser cannot execute it. JSON / CSV / XML / plain-text / image / PDF
     # artifacts are unaffected; genuine HTML/SVG artifacts belong in a layout or a
     # static file (served by the web server, not the processor).
-    if (   ( $m->{raw} || $m->{api} )
+    if ( ( $m->{raw} || $m->{api} )
         && defined $m->{content_type}
         && $m->{content_type}
         =~ m{^\s*(?:text/html|application/xhtml\+xml|image/svg\+xml)\b}i )
@@ -2373,9 +2391,20 @@ sub _render_form {
         return "<!-- lazysite: form: key required in front matter -->\n";
     }
 
-    my $ts     = time();
-    my $secret = load_form_secret();
-    my $tk     = hmac_sha256_hex( $ts, $secret );
+    # SM252: the timing token is PER-VISITOR data and this is a PER-PAGE cache,
+    # which is the whole mismatch. Minting here bakes one timestamp into the
+    # cached HTML and hands it to every visitor until the page next renders, so
+    # the minimum-dwell check passes unconditionally (the interval elapsed before
+    # anyone loaded the page) and the two-hour expiry can be spent before a
+    # visitor arrives - too weak for what it exists to catch and too strict for
+    # what it should let through, at the same time.
+    #
+    # So emit a PLACEHOLDER and let output_page mint the real token on every
+    # response. The expensive part of the render still caches; only these two
+    # values are per-request. No JavaScript, no extra request, no cookie - the
+    # published stance is that forms work without any of them.
+    my $ts = $FORM_TS_PLACEHOLDER;
+    my $tk = $FORM_TK_PLACEHOLDER;
 
     # SM098: a '--- step ---' line (optionally '--- step: Title ---') splits the
     # form into wizard steps. Fields accumulate into the current step; without any
@@ -5011,9 +5040,25 @@ sub write_html {
 
 sub output_page {
     my ( $content, $content_type, $ttl, $auth_protected ) = @_;
-    $content_type  //= 'text/html; charset=utf-8';
-    $ACCESS_REC{s} //= 200;                          # SM140
-    $ACCESS_REC{b} = length( $content // '' );       # SM140
+    $content_type //= 'text/html; charset=utf-8';
+
+    # SM252: mint the form timing token HERE, per response, rather than at render
+    # time where it would be baked into the cached page and shared by every
+    # visitor. This is the single choke point every path reaches - fresh render,
+    # cache hit and the TTL path alike - so there is nowhere for a stale token to
+    # get out.
+    my $ph_ts    = $FORM_TS_PLACEHOLDER;
+    my $ph_tk    = $FORM_TK_PLACEHOLDER;
+    my $has_form = defined $content && index( $content, $ph_ts ) >= 0;
+    if ($has_form) {
+        my $ts = time();
+        my $tk = hmac_sha256_hex( $ts, load_form_secret() );
+        $content =~ s/\Q$ph_ts\E/$ts/g;
+        $content =~ s/\Q$ph_tk\E/$tk/g;
+    }
+
+    $ACCESS_REC{s} //= 200;                       # SM140
+    $ACCESS_REC{b} = length( $content // '' );    # SM140
     binmode( STDOUT, ':utf8' );
     print "Status: 200 OK\n";
     print "Content-type: $content_type\n";
@@ -5026,6 +5071,13 @@ sub output_page {
     print "Referrer-Policy: strict-origin-when-cross-origin\n";
     print "Content-Language: $RESPONSE_LANG\n" if $RESPONSE_LANG;    # SM179 (P1)
     if ($auth_protected) {
+        print "Cache-Control: no-store, private\n";
+    }
+    elsif ($has_form) {
+        # SM252, second half: minting per response fixes the SERVER cache and
+        # achieves nothing if a shared HTTP cache then hands one response to
+        # everyone. A page carrying a form is per-visitor by definition, so it
+        # must not be publicly cacheable however generous its page TTL.
         print "Cache-Control: no-store, private\n";
     }
     elsif ( defined $ttl && $ttl > 0 ) {
