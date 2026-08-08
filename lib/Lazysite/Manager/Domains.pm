@@ -20,7 +20,7 @@ use File::Path                qw(make_path);
 use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview instance_public_ips);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview known_domain_host instance_public_ips);
 
 our $DOCROOT;           # set by the caller (manager-api or the CLI)
 our $auth_user = '';    # for log attribution
@@ -184,7 +184,10 @@ sub domains_list {
 # Shells the processor exactly as the dev server does: no auth headers, the
 # target Host, and cache bypassed - so what comes back is the real per-Host
 # render, with that domain's content root, layout, theme and nav all applied.
-sub _known_domain_host {
+# SM238 follow-up: shared by domain_preview here and action_domain_check in the
+# control API, so it carries a public name. Both bound an outbound probe or a
+# render to operator-declared hosts - never an arbitrary target.
+sub known_domain_host {
     my ($host) = @_;
     my @rows = @{ domains_list()->{domains} || [] };
     for my $r (@rows) {
@@ -207,7 +210,7 @@ sub domain_preview {
 
     # Only a registered domain (or the primary site's own host) may be previewed.
     return { ok => 0, error => "Not a registered domain: $host" }
-        unless _known_domain_host($host);
+        unless known_domain_host($host);
 
     local %ENV = %ENV;
     delete @ENV{ grep { /^(?:HTTP_X_REMOTE_|LAZYSITE_AUTH_)/ } keys %ENV };

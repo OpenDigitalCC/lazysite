@@ -519,6 +519,43 @@ sub action_create_theme {
     my $tw = _token_mismatch( $declared, _theme_config_tokens( { config => $config } ) );
     my @warnings = $tw ? @{ _token_warning_list($tw) } : ();
 
+    # SM243/SM250: a theme that hides the layout's chrome, or hides content until
+    # a script reveals it, is a silent and total failure - and it survives casual
+    # checking, because the part above the fold is usually unaffected. Both were
+    # paid for on live sites: one left a site's navigation unreachable while
+    # looking correct, the other left every section below the hero invisible
+    # through four successive visual checks. Warn, never reject: both patterns are
+    # legitimate with a fallback, and a platform that refused them would be wrong
+    # more often than the authors it protected.
+    if ( defined $params->{css} && length $params->{css} ) {
+        my $css = $params->{css};
+        if ( $css =~ m{ (?:\.site-header|\.site-footer|\bheader\b|\bfooter\b)
+                        [^{}]* \{ [^{}]*? display \s*:\s* none }six )
+        {
+            push @warnings,
+                'this theme hides the layout\'s header or footer. If the page '
+                . 'content carries its own, the site navigation becomes '
+                . 'unreachable - an operator can set nav items that never appear '
+                . 'anywhere. Remove the chrome from the content instead.';
+        }
+        # opacity:0 (or visibility:hidden) revealed by a class a script adds. A
+        # rule inside prefers-reduced-motion is NOT a neutraliser - it applies to
+        # a minority of visitors, and reading it as one is exactly what caused
+        # the reported outage.
+        if ( $css =~ m{ opacity \s*:\s* 0 \b }six
+            || $css =~ m{ visibility \s*:\s* hidden \b }six )
+        {
+            push @warnings,
+                'this theme sets content invisible by default (opacity:0 / '
+                . 'visibility:hidden). If only a script reveals it, then visitors '
+                . 'without JavaScript and most crawlers see nothing - and removing '
+                . 'that script later hides the site silently. Start from a visible '
+                . 'state, or provide a non-script fallback. A rule inside '
+                . '@media(prefers-reduced-motion) does NOT count: it applies only '
+                . 'to visitors who asked for reduced motion.';
+        }
+    }
+
     # Scaffold. theme.json + assets/main.css (never a root-level main.css - it
     # 404s after the asset mirror). CSS: caller-supplied, else copy the layout
     # default theme's main.css as the copy-nearest-and-adapt starting point.

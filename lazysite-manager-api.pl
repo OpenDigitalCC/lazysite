@@ -58,7 +58,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
-use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview);
+use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview known_domain_host);
 use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -1458,7 +1458,7 @@ sub action_domain_check {
     # Bound the outbound probe to operator-declared hosts (no SSRF to arbitrary
     # targets): only a registered domain or the primary site's own host.
     return { ok => 0, error => "Not a registered domain: $host" }
-        unless _known_domain_host($host);
+        unless known_domain_host($host);
 
     # Self-discover this install's PUBLIC address(es): SERVER_ADDR is the private
     # inbound IP behind a proxy/NAT, so instance_public_ips prefers the operator's

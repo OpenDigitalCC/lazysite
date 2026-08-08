@@ -885,7 +885,25 @@ sub action_acl_set {
     $acls->{$rel} = \%rec;
     save_acls($acls) or return { ok => 0, error => "Cannot write the ACL store" };
     log_event( 'INFO', 'acl-set', 'acl set', path => $rel, user => $auth_user );
-    return { ok => 1, path => $r->{rel}, acl => \%rec };
+
+    # SM243/SM224: an @group entry can NEVER match a token, MCP or WebDAV
+    # partner. Those channels deliberately carry no groups (mcp.pl sets
+    # user_groups = () and calls it "the safe default", which it is), so a rule
+    # granting @editors applies to cookie users and silently to nobody on a
+    # remote channel. An agent setting this has no way to discover that its rule
+    # is inert, so say it here rather than let it be found the hard way.
+    my @warnings;
+    my @grp = grep { defined && /\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
+    if (@grp) {
+        push @warnings,
+            'this ACL names ' . join( ', ', @grp ) . '. A @group entry matches '
+            . 'only a signed-in manager user: token, MCP and WebDAV partners carry '
+            . 'no groups, so the rule does NOT apply to them. Name those accounts '
+            . 'individually if they need access.';
+    }
+
+    return { ok => 1, path => $r->{rel}, acl => \%rec,
+        ( @warnings ? ( warnings => \@warnings ) : () ) };
 }
 
 sub action_acl_remove {

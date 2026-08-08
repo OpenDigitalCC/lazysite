@@ -857,7 +857,7 @@ my %TOOLS = (
         run => sub { _bind_form( $_[0]->{form}, $_[0]->{handler} ) },
     },
     audit_site => {
-        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), and raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text). Returns lists per category.',
+        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count.',
         cap => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _audit_site() },
@@ -944,12 +944,14 @@ my %TOOLS = (
         run => sub { _delete_page( $_[0], $_[1] ) },
     },
     rename_page => {
-        description => 'Rename / move a page: carries its .brief + ACL and PRESERVES its content history across the rename. Always use this to relocate a page - never write a new page at the new path and delete the old one, which loses the history. With update_links:true, rewrites internal links to the old path across pages (best-effort - verify with preview_page; nav.conf is not rewritten).',
+        description => 'Rename / move a page: carries its .brief + ACL and PRESERVES its content history across the rename. Always use this to relocate a page - never write a new page at the new path and delete the old one, which loses the history. With update_links:true, rewrites internal links to the old path across pages (best-effort - verify with preview_page; nav.conf is not rewritten). The result always reports alias_suggested - the old URL, which should be added to the new page so the retired URL keeps working; pass add_alias:true to have it written for you. A published URL that starts 404ing is the most common avoidable cost of a rename.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
                 old          => { type => 'string' }, new => { type => 'string' },
                 update_links => { type => 'boolean' },
+                add_alias    => { type => 'boolean',
+                    description => 'Add the old URL to the new page\'s aliases: so the retired URL keeps working' },
             },
             required => [ 'old', 'new' ], additionalProperties => JSON::PP::false },
         run => sub { _rename_page( $_[0], $_[1] ) },
@@ -1341,6 +1343,55 @@ sub _validate_page {
         }
     }
 
+    # SM243: warn at the moment of writing, not only in a briefing the agent read
+    # once. The site briefings already say all of this; the problem is that an
+    # agent reads them at the start and then works through a tool surface that
+    # cheerfully accepts the thing the briefing warned against. write_file and
+    # create_page already surface these warnings from here, so a check added here
+    # reaches the write path for free.
+    #
+    # WARN, never refuse. A hand-written HTML page is occasionally the right
+    # answer and the platform should not pretend otherwise - the complaint is
+    # silence, not permissiveness. (SM228's REFUSAL is different in kind: it
+    # catches a page that would be served as plain text, which is always broken.)
+    if ( $body =~ /<!DOCTYPE\b/i || $body =~ /<html\b/i || $body =~ /<head\b/i ) {
+        push @warnings, { kind => 'document-in-page',
+            message => 'this page body contains a whole HTML document. The layout '
+                . 'is then bypassed, the processor mangles the block tags, and the '
+                . 'page cannot be maintained as content. Author the body as Markdown '
+                . 'and let the layout and theme supply the structure and styling; if '
+                . 'you genuinely need a self-contained HTML file served unchanged, '
+                . 'publish it as a STATIC FILE (a .html with no .md source is served '
+                . 'byte-for-byte).' };
+    }
+    if ( $body =~ /<style[\s>]/i ) {
+        push @warnings, { kind => 'style-block-in-page',
+            message => 'a <style> block in page content styles one page and leaves '
+                . 'the rest of the site inconsistent. Put the rules in the theme, '
+                . 'where every page gets them and a restyle is one change.' };
+    }
+    # A raw/api page carrying a document is the shape SM228 refuses only when it
+    # also declares an HTML content type; without that it is merely wrong, so it
+    # warns here.
+    if ( ( $h->{api} // '' ) =~ /^true$/i
+        && ( $body =~ /<!DOCTYPE\b/i || $body =~ /<html\b/i ) )
+    {
+        push @warnings, { kind => 'api-page-is-a-document',
+            message => 'api: true marks this page as a DATA artifact, but the body '
+                . 'is an HTML document. api: is for JSON/CSV/text endpoints; a page '
+                . 'for people belongs in the layout, and a self-contained HTML file '
+                . 'belongs in a static file.' };
+    }
+    # Page-baked chrome plus a theme that hides the layout's is how a site ends up
+    # with unreachable navigation: the operator sets nav items that never appear.
+    if ( $body =~ m{<nav[\s>]}i || $body =~ m{<footer[\s>]}i ) {
+        push @warnings, { kind => 'chrome-in-page',
+            message => 'this page carries its own <nav> or <footer>. Those are the '
+                . 'layout\'s job - a page that bakes its own chrome duplicates the '
+                . 'layout\'s, and hiding one with CSS is what makes site navigation '
+                . 'unreachable while looking fine.' };
+    }
+
     # SM161: forms must be native (a :::form block bound to an operator-vetted
     # handler), never hand-written HTML or a third-party form service.
     my $has_fenced_form = $content =~ /^:::[ \t]*form\b/m;
@@ -1426,7 +1477,7 @@ sub _domain_presentation_set {
 }
 
 sub _audit_site {
-    my ( %exists, %inbound, %para, @info, @links, @forms, @rawpages );
+    my ( %exists, %inbound, %para, @info, @links, @forms, @rawpages, @starter );
     _each_page( sub {
             my ( $rel, $full ) = @_;
             ( my $slug = "/$rel" ) =~ s/\.md$//;
@@ -1436,6 +1487,23 @@ sub _audit_site {
             my ( $fm, $body ) = _split_front_matter($c);
             my $h = _parse_fm($fm);
             push @info, { slug => $slug, title => ( $h->{title} // '' ) };
+
+            # SM244: starter pages carry `provenance: lazysite-starter` in their
+            # front matter and NOTHING has ever read it. On a live fund's domain
+            # 28 of 31 sitemap URLs were starter scaffolding, and one of them was
+            # publishing demo credentials. Registration is the sharp end: a demo
+            # page nobody links to is untidy, a demo page advertised to search
+            # engines from a client's domain is a different matter.
+            if ( ( $h->{provenance} // '' ) eq 'lazysite-starter' ) {
+                my @regs = ref $h->{register} eq 'ARRAY' ? @{ $h->{register} }
+                    : ( $h->{register} ? ( $h->{register} ) : () );
+                push @starter, { page => $slug, registered => \@regs,
+                    message => @regs
+                    ? 'starter demo page, still advertised in '
+                        . join( ', ', @regs )
+                        . ' - remove it or unregister it before this domain is public'
+                    : 'starter demo page still published (not registered)' };
+            }
 
             # SM161: forms that ship broken - a hand-authored <form>/<input>
             # (no delivery handler), or a native :::form that was never bound to
@@ -1516,7 +1584,11 @@ sub _audit_site {
     return { ok => 1, pages => scalar @info,
         broken_links  => \@broken,   orphan_pages => \@orphans,
         missing_title => \@no_title, stale_html   => \@stale, duplicate_blocks => \@dups,
-        broken_forms  => \@forms,    raw_html_pages => \@rawpages };
+        broken_forms  => \@forms,    raw_html_pages => \@rawpages,
+        starter_pages => \@starter,
+        # The ratio is what makes the problem obvious - no single page does.
+        starter_in_sitemap => scalar( grep { grep { $_ eq 'sitemap.xml' } @{ $_->{registered} } } @starter ),
+    };
 }
 
 # --- SM088: bind a form to an operator-vetted delivery handler ------------
@@ -1742,6 +1814,44 @@ sub _rename_page {
     my $r = action_move( "/$old.md", "/$new.md", $user );
     return $r unless ref $r eq 'HASH' && $r->{ok};
     $r->{links_updated} = _rewrite_links( $old, $new, $user ) if $a->{update_links};
+
+    # SM243: a rename retires a URL. Every old URL is supposed to get an
+    # `aliases:` entry on its successor, and today that rule is enforced by a
+    # person remembering it - twenty legacy URLs were recovered by hand on one
+    # site after a conversion dropped them.
+    #
+    # Reported by DEFAULT and written only on request. Adding the alias means
+    # editing the successor page's front matter, which is a write with its own
+    # failure modes; doing it silently on every rename would surprise anyone who
+    # moved a page they had never published. So the result always says what the
+    # alias should be, and add_alias => 1 makes it so.
+    my $alias = "/$old";
+    $r->{alias_suggested} = $alias;
+    if ( $a->{add_alias} ) {
+        my $rd = action_read( "/$new.md", $user );
+        if ( ref $rd eq 'HASH' && $rd->{ok} ) {
+            my $c = $rd->{content} // '';
+            if ( $c =~ m{\A---\s*\n(.*?)\n---\s*\n}s && index( $1, $alias ) < 0 ) {
+                my $fm = $1;
+                # Extend an existing aliases: list, else add the key.
+                if ( $fm =~ /^aliases\s*:/m ) {
+                    $c =~ s/^(aliases\s*:[^\n]*\n)/$1  - $alias\n/m;
+                }
+                else {
+                    $c =~ s/\A(---\s*\n)/$1aliases:\n  - $alias\n/;
+                }
+                my $w = action_save( "/$new.md", $user, $c, undef );
+                $r->{alias_added} =
+                    ( ref $w eq 'HASH' && $w->{ok} ) ? JSON::PP::true : JSON::PP::false;
+                $r->{alias_error} = $w->{error}
+                    if ref $w eq 'HASH' && !$w->{ok} && $w->{error};
+            }
+            else {
+                # Already listed, or no front matter to extend.
+                $r->{alias_added} = JSON::PP::false;
+            }
+        }
+    }
     return $r;
 }
 
