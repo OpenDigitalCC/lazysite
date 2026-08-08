@@ -306,6 +306,51 @@ my $GIF = pack 'H*',
     ok( $r2 && $r2->{ok}, 'rename_page with add_alias renames' ) or diag encode_json( $r2 // {} );
     like( slurp("$d/content/final-name.md") // '', qr/aliases:/,
         'and writes the alias when asked' );
+    ok( $r2->{alias_added}, 'and SAYS it wrote it' );
+}
+
+# --- SM256: a page with NO front matter still gets its alias -----------------
+# Front matter is optional in lazysite. This branch used to do nothing at all and
+# still return ok:1 with alias_suggested set, which reads as "added" - so the
+# retired URL 404s and the caller has been told the opposite. An old
+# hand-written page is if anything the MOST likely to have no front matter and
+# the most likely to have a published URL worth keeping.
+{
+    my $mk = sc( call( 'write_file',
+        { path => 'content/bare.md', content => "# Bare\n\nNo front matter here.\n" }, $ok ) );
+    ok( $mk && $mk->{ok}, 'a page with no front matter' );
+
+    my $r = sc( call( 'rename_page',
+        { old => 'content/bare.md', new => 'content/bare-moved.md',
+            add_alias => JSON::PP::true() }, $ok ) );
+    ok( $r && $r->{ok}, 'rename_page renames it' ) or diag encode_json( $r // {} );
+    ok( $r->{alias_added}, 'and reports the alias as ADDED' );
+
+    my $c = slurp("$d/content/bare-moved.md") // '';
+    like( $c, qr/\A---\s*\naliases:\n  - \/content\/bare\n---\s*\n/,
+        'a front-matter block was created carrying the alias' );
+    like( $c, qr/# Bare/,        'and the body survived' );
+    like( $c, qr/No front matter here/, 'intact' );
+}
+
+# --- SM256: an alias already present is success, not failure ----------------
+# Renaming back and forth must not report a problem the second time. This is the
+# case that shared a signal with "could not add it" before.
+{
+    my $there = sc( call( 'rename_page',
+        { old => 'content/bare-moved.md', new => 'content/bare-again.md',
+            add_alias => JSON::PP::true() }, $ok ) );
+    ok( $there && $there->{ok}, 'a second rename works' );
+    ok( $there->{alias_added}, 'the NEW old-url is added' );
+
+    # Now rename back: the alias for this path is already listed.
+    my $back = sc( call( 'rename_page',
+        { old => 'content/bare-again.md', new => 'content/bare-moved.md',
+            add_alias => JSON::PP::true() }, $ok ) );
+    ok( $back && $back->{ok}, 'renaming back works' );
+    my $c = slurp("$d/content/bare-moved.md") // '';
+    my @dupes = $c =~ m{- /content/bare-again}g;
+    is( scalar @dupes, 1, 'and the alias is not duplicated' );
 }
 
 done_testing();

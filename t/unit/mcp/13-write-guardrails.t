@@ -108,8 +108,15 @@ unlike( $vp, qr/push \@issues,\s*\{\s*kind\s*=>\s*'(?:document-in-page|style-blo
     # front matter, which would surprise anyone moving an unpublished page.
     like( $rp, qr/if \( \$a->\{add_alias\} \)/,
         'the WRITE is opt-in, not automatic' );
-    like( $rp, qr/index\( \$1, \$alias \) < 0/,
-        'and is idempotent - an alias already present is not duplicated' );
+    # Idempotence and the no-front-matter case are asserted BEHAVIOURALLY in
+    # t/unit/mcp/14-new-tool-behaviour.t, by renaming a page back and forth and
+    # counting the entries. This file only checks the alias logic consults what
+    # is already there - the previous assertion pinned the exact expression
+    # (`index( $1, $alias ) < 0`) and broke on SM256 purely because the same
+    # check moved into a named variable, which is the brittleness a source scan
+    # buys you.
+    like( $rp, qr/index\(\s*\$\w+,\s*\$alias\s*\)/,
+        'the existing aliases are consulted before one is added' );
     like( $src, qr/add_alias\s*=> \{ type => 'boolean'/,
         'add_alias is a declared tool parameter' );
 }

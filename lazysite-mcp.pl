@@ -951,7 +951,7 @@ my %TOOLS = (
                 old          => { type => 'string' }, new => { type => 'string' },
                 update_links => { type => 'boolean' },
                 add_alias    => { type => 'boolean',
-                    description => 'Add the old URL to the new page\'s aliases: so the retired URL keeps working' },
+                    description => 'Add the old URL to the new page\'s aliases: so the retired URL keeps working. Creates the front-matter block if the page has none. The result reports alias_added (it was written), or alias_present (it was already there), so you can tell the two apart.' },
             },
             required => [ 'old', 'new' ], additionalProperties => JSON::PP::false },
         run => sub { _rename_page( $_[0], $_[1] ) },
@@ -1829,26 +1829,45 @@ sub _rename_page {
     $r->{alias_suggested} = $alias;
     if ( $a->{add_alias} ) {
         my $rd = action_read( "/$new.md", $user );
-        if ( ref $rd eq 'HASH' && $rd->{ok} ) {
+        if ( ref $rd ne 'HASH' || !$rd->{ok} ) {
+            # SM256: this used to fall out of the `if` silently, leaving
+            # alias_added unset - indistinguishable from never having asked.
+            $r->{alias_added} = JSON::PP::false;
+            $r->{alias_error} = 'could not read the renamed page to add the alias'
+                . ( ref $rd eq 'HASH' && $rd->{error} ? ": $rd->{error}" : '' );
+        }
+        else {
             my $c = $rd->{content} // '';
-            if ( $c =~ m{\A---\s*\n(.*?)\n---\s*\n}s && index( $1, $alias ) < 0 ) {
-                my $fm = $1;
-                # Extend an existing aliases: list, else add the key.
-                if ( $fm =~ /^aliases\s*:/m ) {
+            my ($fm) = $c =~ m{\A---\s*\n(.*?)\n---\s*\n}s;
+
+            if ( defined $fm && index( $fm, $alias ) >= 0 ) {
+                # Already listed. That is the DESIRED end state, not a failure -
+                # a second rename back and forth must not report a problem.
+                $r->{alias_added}   = JSON::PP::false;
+                $r->{alias_present} = JSON::PP::true;
+            }
+            else {
+                if ( !defined $fm ) {
+                    # SM256: front matter is OPTIONAL in lazysite, and a page
+                    # without it is ordinary - if anything it is more likely to
+                    # be an old hand-written page whose URL has been published
+                    # for years, which is exactly when the alias matters most.
+                    # This branch used to do nothing at all and still report
+                    # ok:1 with alias_suggested set, which reads as "added".
+                    $c = "---\naliases:\n  - $alias\n---\n" . $c;
+                }
+                elsif ( $fm =~ /^aliases\s*:/m ) {
                     $c =~ s/^(aliases\s*:[^\n]*\n)/$1  - $alias\n/m;
                 }
                 else {
                     $c =~ s/\A(---\s*\n)/$1aliases:\n  - $alias\n/;
                 }
+
                 my $w = action_save( "/$new.md", $user, $c, undef );
                 $r->{alias_added} =
                     ( ref $w eq 'HASH' && $w->{ok} ) ? JSON::PP::true : JSON::PP::false;
                 $r->{alias_error} = $w->{error}
                     if ref $w eq 'HASH' && !$w->{ok} && $w->{error};
-            }
-            else {
-                # Already listed, or no front matter to extend.
-                $r->{alias_added} = JSON::PP::false;
             }
         }
     }
