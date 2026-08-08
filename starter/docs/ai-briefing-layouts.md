@@ -250,8 +250,15 @@ activation the server builds a flattened mirror served at
   `layout-activate`), so after activating, `GET`
   `/lazysite-assets/<layout>/<theme>/main.css` returns `200` - a
   copied-then-activated layout is drop-in, with no CSS-path edits needed. If it
-  ever `404`s, re-activate to rebuild it (or, as a fallback, write the mirror
-  files directly over WebDAV).
+  ever `404`s **on a single-site instance**, re-activate to rebuild it. On an
+  instance serving more than one domain, do NOT re-activate - see
+  [Multi-domain instances](#multi-domain-instances) below, where re-activating
+  changes a different site.
+- As a fallback you can write the mirror files directly over WebDAV, to
+  `/lazysite-assets/<layout>/<theme>/`. That path is writable and this works -
+  but it is a **copy that will not track later edits to the theme source**, so
+  treat a hand-written mirror as a repair to be replaced, not a state to leave a
+  site in.
 - Before activation, the theme SOURCE css is web-served at
   `/lazysite/layouts/<layout>/themes/<theme>/main.css` - use that for preview;
   switch links to the `/lazysite-assets/` mirror once active.
@@ -266,6 +273,60 @@ Author `.html` files in the content tree (include partials with no matching
 `.md`/`.url` source) are **content, not cache** - the activation cache-clear
 leaves them alone. Generated cache (`<page>.html` beside `<page>.md`) is what
 gets cleared.
+
+## Multi-domain instances
+
+Everything above describes one site. An instance can serve **several first-class
+domains**, each with its own content root, and each carrying its own layout,
+theme, nav and presentation settings. If you have been given a task about "a
+domain" rather than "the site", read this section first - the instructions above
+are not wrong, but they operate instance-wide and will change a site you were not
+asked to touch.
+
+A domain's own layout and theme are set with `domain-set` (control API) against
+that host. `domains-list` shows what is registered, each with its `content_root`,
+`layout` and `theme` - call it first to see the shape of what you are working on.
+
+### Do not use `theme-activate` to fix a secondary domain
+
+`theme-activate` and `layout-activate` are **instance-wide**. They rewrite the
+`theme:` and `layout:` keys in `lazysite/lazysite.conf`, which is the *primary*
+site's presentation. Re-activating to repair a secondary domain's stylesheet
+switches the primary site's theme - on a real instance that moved a live site
+from its own theme to a client's.
+
+They also only see the active layout: `theme-activate` looks for the theme under
+`lazysite/layouts/<active-layout>/themes/`, so a theme belonging to a secondary
+domain's *different* layout is simply not found, and the activation refuses. The
+remedy fails in both directions.
+
+### The right way to publish a secondary domain's assets
+
+Binding the layout and theme with `domain-set` publishes the theme's assets to
+`/lazysite-assets/<layout>/<theme>/` as part of the binding, under **that
+domain's** layout. Bind it and the mirror is there.
+
+`site_apply` (applying a site package to a target `host`) also mirrors on apply,
+and is the right tool when you are moving a whole site rather than changing its
+presentation.
+
+### If a domain renders unstyled
+
+The usual cause is a missing mirror, and the symptom is misleading: the layout
+*is* applied and renders its header, nav and footer correctly, but with no CSS
+the chrome is invisible, so it reads as "no layout".
+
+1. `GET /lazysite-assets/<layout>/<theme>/main.css` for that domain's pair. A
+   `404` confirms it.
+2. Check the source is where it belongs:
+   `lazysite/layouts/<layout>/themes/<theme>/assets/main.css`.
+3. Re-bind with `domain-set` to publish it. Do not re-activate.
+
+### Cache
+
+`/lazysite-assets/` is served with a ten-year cache header. A layout linking
+`main.css?v=1` must **bump `v` on every CSS change** or browsers keep serving the
+old file - including yours while you are checking your work.
 
 ## Theme incompatibility
 
