@@ -49,12 +49,25 @@ consequence of every write to the site config being recorded.
   alias its retired URL needs, and writes it on request with `add_alias`.
 - SM244 (5615e62) `audit_site` reports the starter pages still present and how
   many are in the sitemap, reading a provenance marker nothing had ever read.
-- SM255 (fc03cd5) one write path for `lazysite.conf`: two mechanisms wrote the
-  same file and only one recorded the write, so a config change appeared in
-  content history and a domain registration did not. The commit now lives inside
-  the single shared writer. Layout installs gain a history entry as a result, and
-  a site-package apply records one entry rather than none. `Manager::Domains`
-  joins the git-guarantee scan, which is the coverage gap that hid this.
+- SM255 (fc03cd5, e73c65b) one write path for `lazysite.conf`: SEVEN write sites
+  across five modules wrote the same file by their own mechanisms and only one
+  recorded the write, so a config change appeared in content history while a
+  domain registration, a plugin toggle, a theme activation, a `layouts_repo`
+  change and a `setup-manager` run did not. Two were unsafe as well as
+  unrecorded: the theme and layout pointer setters wrote the live `layout:` and
+  `theme:` keys with a non-atomic, unlocked write, which a lock-free reader can
+  observe truncated. All seven now go through the one writer - locked, atomic,
+  recorded - so installing a layout, activating a theme or layout, setting
+  `layouts_repo`, toggling or configuring a plugin and `setup-manager` all gain
+  content-history entries; a site-package apply records one entry rather than
+  none. Commits raised from a plugin hook were authored `unknown` (the hook runs
+  as a subprocess, where the acting user is in the environment, not the request)
+  and are now attributed. `Manager::Domains` joins the git-guarantee scan and
+  three actions move from exempt to hooked - `action_layouts_repo_set`'s
+  exemption had read "conf write without a commit", a defect recorded in a
+  registry as an accepted fact. New lint `t/lint/25-one-conf-writer.t` asserts
+  the property instead of a commit message claiming it; it found two of the seven
+  on its first run.
 - (070d00a) an `appearance` page shipped with a literal NUL byte, making git treat
   it as binary - no reviewable diff, and no grep would match inside it. Removed,
   with a lint test barring control characters in shipped pages; the "in use"

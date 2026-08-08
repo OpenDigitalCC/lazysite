@@ -23,10 +23,18 @@ lazysite (0.10.3-1) unstable; urgency=medium
     All warn, none refuse. A rename also reports the alias its retired URL needs.
   * SM244 audit_site reports the starter pages still present and how many are in
     the sitemap, reading a provenance marker nothing had ever read.
-  * SM255 one write path for lazysite.conf. Two mechanisms wrote the same file
-    and only one recorded the write, so a config change appeared in content
-    history and a domain registration did not. Installing a layout now appears in
-    content history as a consequence.
+  * SM255 one write path for lazysite.conf. Seven write sites across five modules
+    wrote the same file by their own mechanisms and only one recorded the write,
+    so a config change appeared in content history while a domain registration, a
+    plugin toggle, a theme activation, a layouts_repo change and a setup-manager
+    run did not. Two were unsafe as well as unrecorded: the theme and layout
+    pointer setters wrote the live layout:/theme: keys non-atomically and
+    unlocked, which a lock-free reader can observe truncated. All seven now use
+    the one writer, so installing a layout, activating a theme or layout, setting
+    layouts_repo, toggling or configuring a plugin, and setup-manager all gain
+    content-history entries. Commits raised from a plugin hook were authored
+    "unknown" and are now attributed. A new lint asserts that nothing writes or
+    commits that file outside the single writer.
   * Removes a literal NUL byte from a shipped appearance page, which had made git
     treat it as binary, and adds a lint barring control characters in pages.
 
