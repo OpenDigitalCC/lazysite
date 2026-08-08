@@ -1,3 +1,37 @@
+lazysite (0.10.3-1) unstable; urgency=medium
+
+  * EDGE build on 0.10.2. No BREAKING change and no migration. Edge sites take it
+    next update; beta/stable stay on their channel until it promotes.
+  * SM238 per-domain tools over MCP: list_domains, domain_set and preview_domain,
+    plus a host parameter on activate_theme/activate_layout that scopes the
+    instance-wide call to a single domain. A partner previously needed an API
+    token issued purely to reach domain-set.
+  * SM239 MCP/control-API action parity is now enforced by a lint mapping every
+    API action to its MCP tool, with API-only and MCP-only entries carrying
+    reasons. It found 13 API actions missing from the capability model's unlocks
+    lists, so describe_capabilities had been under-reporting every one of those
+    capabilities.
+  * SM240 upload_file writes binary content over MCP through the same locks,
+    content history and ACL checks as every other write.
+  * SM247 a missing parameter is no longer a destructive instruction:
+    theme-activate with the name in the wrong parameter sanitised to the empty
+    string, which meant deactivate, and returned ok:1 after stripping a live
+    site's theme. Empty is now an error; deactivation needs deactivate=1.
+  * SM243 warnings at the point of writing rather than only in the briefing:
+    document bodies, style blocks and baked chrome in pages; chrome-hiding or
+    default-transparent themes; and @group ACLs, which match manager users only.
+    All warn, none refuse. A rename also reports the alias its retired URL needs.
+  * SM244 audit_site reports the starter pages still present and how many are in
+    the sitemap, reading a provenance marker nothing had ever read.
+  * SM255 one write path for lazysite.conf. Two mechanisms wrote the same file
+    and only one recorded the write, so a config change appeared in content
+    history and a domain registration did not. Installing a layout now appears in
+    content history as a consequence.
+  * Removes a literal NUL byte from a shipped appearance page, which had made git
+    treat it as binary, and adds a lint barring control characters in pages.
+
+ -- Stuart Mackintosh <sjm@opendigital.cc>  Sat, 08 Aug 2026 12:00:00 +0000
+
 lazysite (0.10.2-1) unstable; urgency=medium
 
   * EDGE build on 0.10.1. No BREAKING change and no migration. Edge sites take it

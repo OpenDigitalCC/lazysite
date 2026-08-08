@@ -16,6 +16,52 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.10.3 - EDGE: MCP surface parity, and instructions that are no longer accepted quietly (2026-08-08)
+
+An edge build on 0.10.2. The MCP surface gains the actions a token client already
+had, and a lint now holds the two surfaces together. Three changes close cases
+where lazysite accepted a wrong instruction and reported success. No BREAKING
+change and no migration; installing a layout now appears in content history, as a
+consequence of every write to the site config being recorded.
+
+- SM238 (37e7c37) per-domain tools over MCP: `list_domains`, `domain_set` and
+  `preview_domain`, plus a `host` parameter on `activate_theme` and
+  `activate_layout` that scopes the instance-wide call to one domain. A partner
+  previously needed an API token issued purely to reach `domain-set`.
+- SM239 (0dd587f) MCP/control-API action parity, enforced: every API action is
+  mapped to its MCP tool, with 24 API-only and 13 MCP-only entries each carrying
+  a reason, and stale entries failing too. Running it found 13 API actions absent
+  from the capability model's `unlocks`, so `describe_capabilities` had been
+  under-reporting what every one of those capabilities grants.
+- SM240 (1a51f26) `upload_file` writes binary content over MCP through the same
+  locks, content history and ACL checks as every other write. Replacing a logo or
+  favicon no longer requires falling back to WebDAV with a separate credential.
+- SM247 (1b8834a) a missing parameter is no longer read as a destructive
+  instruction: `theme-activate` with the name in the wrong parameter sanitised to
+  the empty string, which meant DEACTIVATE, and returned ok:1 after stripping a
+  live site's theme. An empty name is now an error naming the right parameter;
+  deactivation requires `deactivate=1`.
+- SM243 (5615e62) warnings arrive where the mistake is made, not only in the
+  briefing: page bodies carrying a full HTML document, a `<style>` block or baked
+  chrome; themes hiding layout chrome or setting content transparent by default;
+  and an `@group` ACL, which matches manager users only - token, MCP and WebDAV
+  partners carry no groups. All warn, none refuse. A rename also reports the
+  alias its retired URL needs, and writes it on request with `add_alias`.
+- SM244 (5615e62) `audit_site` reports the starter pages still present and how
+  many are in the sitemap, reading a provenance marker nothing had ever read.
+- SM255 (fc03cd5) one write path for `lazysite.conf`: two mechanisms wrote the
+  same file and only one recorded the write, so a config change appeared in
+  content history and a domain registration did not. The commit now lives inside
+  the single shared writer. Layout installs gain a history entry as a result, and
+  a site-package apply records one entry rather than none. `Manager::Domains`
+  joins the git-guarantee scan, which is the coverage gap that hid this.
+- (070d00a) an `appearance` page shipped with a literal NUL byte, making git treat
+  it as binary - no reviewable diff, and no grep would match inside it. Removed,
+  with a lint test barring control characters in shipped pages; the "in use"
+  marker on that page is stated once rather than twice.
+- Docs: SM224 analyses the two access-control models; SM231, SM245, SM246 and
+  SM248-SM254 recorded in the backlog.
+
 ## 0.10.2 - EDGE: what the platform knew and did not say (2026-08-08)
 
 An edge build on 0.10.1. Every change closes a gap between what lazysite knows
