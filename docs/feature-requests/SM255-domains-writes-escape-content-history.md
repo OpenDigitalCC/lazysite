@@ -3,7 +3,7 @@ title: "SM255 - Domain writes escape content history, and the guarantee cannot s
 subtitle: "config-set commits lazysite.conf; domain-set writes the same file and commits nothing. The write-path guarantee does not scan Manager::Domains, so neither the omission nor a future one fails the build."
 brand: plain
 status: candidate
-status-note: "Found 2026-08-08 while repairing a stale entry in the git-guarantee registry after SM238 moved a function. Predates that work - Manager::Domains has NEVER been in the scanner's module list. Two questions, one mechanical and one a real decision: extending the scanner is easy, deciding whether domain configuration belongs in content history is not."
+status-note: "DECIDED 2026-08-08 by the operator: any write to lazysite.conf must use the same mechanism whatever its source, because the distinction is invisible to the person the history is for - so the commit belongs INSIDE one unified write path, not at each caller. Not yet built. Found 2026-08-08 while repairing a stale entry in the git-guarantee registry after SM238 moved a function. Predates that work - Manager::Domains has NEVER been in the scanner's module list. Two questions, one mechanical and one a real decision: extending the scanner is easy, deciding whether domain configuration belongs in content history is not."
 ---
 
 # SM255 - domain writes escape content history
@@ -49,50 +49,61 @@ That is the more important half of this request. A guarantee that does not cover
 a surface is worse than an absent one, because the green build is read as
 assurance.
 
-## The decision underneath
+## The decision, taken 2026-08-08
 
-Extending the scanner is mechanical. Deciding what the domain writes *should* do
-is not, and the answer is not obvious:
+The operator's answer reframes the question, and is better than the way it was
+put:
 
-**They should commit.** `lazysite.conf` is declared versioned, the file is the
-same file, and an operator asking "when did this domain's content root change?"
-has nowhere else to look. Domain configuration is exactly the kind of change
-whose history matters after an incident.
+> A user won't distinguish - so they should behave the same. Any write to the
+> conf file should use the same mechanism, irrespective of the source of the
+> write.
 
-**They should not.** Content history is for *content*, and the argument that
-`config-set` commits is an argument about one key at a time, not about bulk
-domain registration. A `site_apply` already commits the content it writes
-(SM158); domain registration might reasonably be audit-trail work rather than
-content-history work - and the audit trail does already record these actions.
+That is not "should domain writes commit?" but "why are there two mechanisms
+writing one file?" The commit is a property of **writing lazysite.conf**, not a
+property of the action that happened to do it. An operator does not know or care
+whether a change arrived through `config-set`, `domain-set` or the CLI; they know
+the file changed, and it should be recorded once, the same way, every time.
 
-The second reading is weaker than it first appears, because the audit trail
-records *that* a change happened and content history records *what changed*. For
-a conf file they are not substitutes. But it is a real position and it should be
-argued rather than assumed.
+So the target is **one write path for `lazysite.conf`**, and the commit belongs
+inside it rather than at each caller. `Manager::Common::_write_conf_key` is the
+existing candidate; `Domains::_write` is the divergent one. Whichever survives,
+the rule is that no caller commits and no caller may skip committing, because
+neither is a decision a caller should be making.
+
+That also disposes of the "should not" argument recorded earlier: it turned on
+domain registration being a different KIND of act from a config edit, and the
+operator's point is that the distinction is invisible to the person the history
+is for.
 
 ## What to do
 
-1. **Answer the question above**, and record the answer in the registry as either
-   a hook or an exemption with its reason - the registry's exemption entries are
-   the right place for "domain config is deliberately not versioned, because …".
+1. **Unify the conf write.** One function writes `lazysite.conf`, commits it, and
+   every caller - `config-set`, the domain verbs, the CLI - goes through it.
+   `Domains::_write` rewrites the whole file while `_write_conf_key` sets one
+   key, so the unified path needs both shapes; that is a refactor, not a
+   one-line move, and it is the substance of this request.
 
 2. **Extend the guarantee to cover `Manager::Domains`.** The scanner keys on
    `^action_`, and these subs are named `domain_*`, so it needs a per-module
    pattern rather than one shared regex. Worth checking at the same time whether
    any other module escapes for the same reason.
 
-3. **If they should commit**, they should commit *once* per operation. `domain_add`
-   writes several keys through repeated `_set_line`/`_write` calls; a commit per
-   key would produce a misleading history of a single act.
+3. **Commit once per operation, not once per key.** `domain_add` writes several
+   keys through repeated `_set_line`/`_write` calls. With the commit inside the
+   write path that becomes a real risk - a single registration would produce
+   several history entries and read as several acts. The unified path needs a way
+   to batch, or the domain verbs need to compose one write.
 
 ## Verification
 
 - Every write path in `Manager::Domains` is classified in the guarantee registry.
 - Adding a new one without classifying it fails the build.
-- If hooked: registering a domain produces exactly one content-history entry, and
-  the conf change is visible in it.
-- If exempt: the reason is recorded, and `config-set`'s differing behaviour on the
-  same file is explained rather than left as an inconsistency.
+- Registering a domain produces exactly ONE content-history entry, and the conf
+  change is visible in it.
+- A `config-set` and a `domain-set` produce the same kind of entry - an operator
+  reading the history cannot tell which surface made the change, because it does
+  not matter to them.
+- No caller of the conf write decides whether to commit.
 - No other module is missing from the scanner for the same reason.
 
 ## Not in scope
