@@ -39,7 +39,12 @@ my %BASELINE = (
     # The control API has no twin and does not need one - a script or an agent on
     # the API channel already has WebDAV, which is the right tool for bulk bytes.
     manage_content             => 'api=6 mcp=27 ui=0 dav=1',
-    manage_domains             => 'api=10 mcp=2 ui=0 dav=0',
+    # SM238 added list_domains, domain_set and preview_domain (2 -> 5). The
+    # remaining API-only domain actions are domain-add, domain-remove and
+    # domain-check: creating and destroying a domain has DNS and certificate
+    # consequences beyond this instance, so those stay a deliberate operator act
+    # rather than something an agent reaches for mid-task.
+    manage_domains             => 'api=10 mcp=5 ui=0 dav=0',
     manage_forms               => 'api=0 mcp=2 ui=0 dav=1',
     manage_layouts             => 'api=5 mcp=4 ui=0 dav=1',
     manage_nav                 => 'api=3 mcp=1 ui=0 dav=1',

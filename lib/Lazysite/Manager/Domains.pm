@@ -18,9 +18,9 @@ use warnings;
 use Cwd                       qw(realpath);
 use File::Path                qw(make_path);
 use Lazysite::Util            qw(log_event);
-use Lazysite::Manager::Common qw(path_is_reserved);
+use Lazysite::Manager::Common qw(path_is_reserved processor_path);
 use Exporter 'import';
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check instance_public_ips);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview instance_public_ips);
 
 our $DOCROOT;           # set by the caller (manager-api or the CLI)
 our $auth_user = '';    # for log attribution
@@ -174,6 +174,65 @@ sub domains_list {
 # is matched correctly. Returns the list of host labels ('(default)' for the
 # primary) that use it, most useful hosts first. Pass (layout => L) to find
 # layout users; (theme => T, layout => L) to find theme users under layout L.
+
+# SM238: render a registered domain as an anonymous visitor would see it, under
+# its own Host - so a domain can be prepared and checked before DNS or TLS point
+# at it. Moved here from lazysite-manager-api.pl so the control API and the MCP
+# connector share ONE implementation rather than the connector growing a copy;
+# that shared-module shape is also what SM239 asks for across the two surfaces.
+#
+# Shells the processor exactly as the dev server does: no auth headers, the
+# target Host, and cache bypassed - so what comes back is the real per-Host
+# render, with that domain's content root, layout, theme and nav all applied.
+sub _known_domain_host {
+    my ($host) = @_;
+    my @rows = @{ domains_list()->{domains} || [] };
+    for my $r (@rows) {
+        next     if $r->{is_primary};
+        return 1 if lc( $r->{host} // '' ) eq $host;
+    }
+    my ($prim) = grep { $_->{is_primary} } @rows;
+    if ( $prim && ( $prim->{site_url} // '' ) =~ m{^https?://([^/:]+)}i ) {
+        return 1 if lc($1) eq $host;
+    }
+    return 0;
+}
+
+sub domain_preview {
+    my ($host) = @_;
+    $host = lc( $host // '' );
+    return { ok => 0, error => 'Invalid domain host' }
+        unless $host =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
+            (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
+
+    # Only a registered domain (or the primary site's own host) may be previewed.
+    return { ok => 0, error => "Not a registered domain: $host" }
+        unless _known_domain_host($host);
+
+    local %ENV = %ENV;
+    delete @ENV{ grep { /^(?:HTTP_X_REMOTE_|LAZYSITE_AUTH_)/ } keys %ENV };
+    $ENV{DOCUMENT_ROOT}    = $DOCROOT;
+    $ENV{HTTP_HOST}        = $host;
+    $ENV{REDIRECT_URL}     = '/';
+    $ENV{REQUEST_METHOD}   = 'GET';
+    $ENV{QUERY_STRING}     = '';
+    $ENV{LAZYSITE_NOCACHE} = '1';
+
+    my $processor = processor_path();
+    my $output    = qx($^X \Q$processor\E 2>/dev/null);
+    $output =~ s/\A.*?\r?\n\r?\n//s;    # strip CGI headers (ASCII, byte-safe)
+
+    # qx() returns the processor's raw UTF-8 BYTES. respond() emits the JSON via
+    # encode_json, which UTF-8-encodes CHARACTER strings - so bytes handed to it
+    # get double-encoded (e => é -> Ã©, Thai -> mojibake). Decode to characters
+    # here so the round-trip is clean. (Same raw-bytes-vs-characters trap the
+    # resolve_json path fixed on the render side.)
+    require Encode;
+    $output = Encode::decode( 'UTF-8', $output );
+
+    return { ok => 1, host => $host, html => $output };
+}
+
 # SM234: the whole usage picture in ONE parse. domains_using() re-reads and
 # re-parses the domain config on every call, so asking it per theme costs a parse
 # per row; a listing needs the inverse mapping anyway. Returns

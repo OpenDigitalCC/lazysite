@@ -32,7 +32,7 @@ use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _i
 use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
-    _write_conf_key);
+    _write_conf_key processor_path);
 use Lazysite::Manager::Upload qw(action_file_upload action_file_download action_file_zip_download
     check_upload_rate is_editable_text parse_multipart_body);
 use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action_plugin_disable
@@ -58,7 +58,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
-use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check);
+use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview);
 use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -805,7 +805,7 @@ elsif ( $action eq 'domain-remove' ) {
     $result = domain_remove( $req->{host}, purge => ( $req->{purge} ? 1 : 0 ) );
 }
 elsif ( $action eq 'domain-preview' ) {
-    $result = action_domain_preview( $params{host} );
+    $result = domain_preview( $params{host} );
 }
 elsif ( $action eq 'domain-check' ) {
     $result = action_domain_check( $params{host} );
@@ -1403,12 +1403,6 @@ sub users_api {
 # manager-api (auth stripped -> "Authentication required") instead of the
 # processor. Take only the cgi-bin DIRECTORY it names and resolve the
 # processor by its own name there, falling back to the docroot-relative path.
-sub _processor_path {
-    my $lp  = $ENV{LAZYSITE_PROCESSOR};
-    my $dir = ( defined $lp && length $lp ) ? dirname($lp) : "$DOCROOT/../cgi-bin";
-    return "$dir/lazysite-processor.pl";
-}
-
 sub action_preview {
     my ($rel_path) = @_;
 
@@ -1421,7 +1415,7 @@ sub action_preview {
     local $ENV{REDIRECT_URL}     = $uri;
     local $ENV{DOCUMENT_ROOT}    = $DOCROOT;
 
-    my $processor = _processor_path();
+    my $processor = processor_path();
     my $output    = qx($^X \Q$processor\E 2>/dev/null);
 
     # Strip CGI headers
@@ -1441,55 +1435,6 @@ sub action_preview {
 # and, more importantly, the domain-check outbound probe to operator-declared
 # hosts - grepping `|| is_primary` matched the ever-present (default) row and so
 # accepted ANY host, which for the SSRF-sensitive check must not happen.
-sub _known_domain_host {
-    my ($host) = @_;
-    my @rows = @{ domains_list()->{domains} || [] };
-    for my $r (@rows) {
-        next     if $r->{is_primary};
-        return 1 if lc( $r->{host} // '' ) eq $host;
-    }
-    my ($prim) = grep { $_->{is_primary} } @rows;
-    if ( $prim && ( $prim->{site_url} // '' ) =~ m{^https?://([^/:]+)}i ) {
-        return 1 if lc($1) eq $host;
-    }
-    return 0;
-}
-
-sub action_domain_preview {
-    my ($host) = @_;
-    $host = lc( $host // '' );
-    return { ok => 0, error => 'Invalid domain host' }
-        unless $host =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
-            (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
-
-    # Only a registered domain (or the primary site's own host) may be previewed.
-    return { ok => 0, error => "Not a registered domain: $host" }
-        unless _known_domain_host($host);
-
-    local %ENV = %ENV;
-    delete @ENV{ grep { /^(?:HTTP_X_REMOTE_|LAZYSITE_AUTH_)/ } keys %ENV };
-    $ENV{DOCUMENT_ROOT}    = $DOCROOT;
-    $ENV{HTTP_HOST}        = $host;
-    $ENV{REDIRECT_URL}     = '/';
-    $ENV{REQUEST_METHOD}   = 'GET';
-    $ENV{QUERY_STRING}     = '';
-    $ENV{LAZYSITE_NOCACHE} = '1';
-
-    my $processor = _processor_path();
-    my $output    = qx($^X \Q$processor\E 2>/dev/null);
-    $output =~ s/\A.*?\r?\n\r?\n//s;    # strip CGI headers (ASCII, byte-safe)
-
-    # qx() returns the processor's raw UTF-8 BYTES. respond() emits the JSON via
-    # encode_json, which UTF-8-encodes CHARACTER strings - so bytes handed to it
-    # get double-encoded (e => é -> Ã©, Thai -> mojibake). Decode to characters
-    # here so the round-trip is clean. (Same raw-bytes-vs-characters trap the
-    # resolve_json path fixed on the render side.)
-    require Encode;
-    $output = Encode::decode( 'UTF-8', $output );
-
-    return { ok => 1, host => $host, html => $output };
-}
-
 # SM156: a stable, non-sensitive per-install id - identical to the processor's
 # (same one-way function over the same docroot), so a domain-check can tell
 # whether an HTTPS request to the candidate host lands back on THIS install.

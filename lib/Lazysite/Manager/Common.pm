@@ -18,7 +18,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
-    raw_html_page_refusal);
+    raw_html_page_refusal processor_path);
 
 our $DOCROOT;                         # set by the script
 our $action    = '';                  # current request action (for log attribution)
@@ -220,6 +220,18 @@ sub write_file_checked {
 }
 
 # Emit a JSON response (200).
+# SM238: where the render processor lives. Both the control API (page preview)
+# and the domain preview shell it, and the domain preview moved into
+# Manager::Domains - so this is defined ONCE here rather than copied, which is
+# the class of duplication t/lint/17 exists to catch.
+sub processor_path {
+    my $lp  = $ENV{LAZYSITE_PROCESSOR};
+    my $dir = ( defined $lp && length $lp )
+        ? File::Basename::dirname($lp)
+        : "$DOCROOT/../cgi-bin";
+    return "$dir/lazysite-processor.pl";
+}
+
 sub respond {
     my ($data) = @_;
     # encode_json already emits UTF-8 bytes; print raw (a :utf8 layer would

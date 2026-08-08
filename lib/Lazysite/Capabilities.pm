@@ -110,7 +110,7 @@ my %ACTION_INFO = (
             api => [ qw(domains-list domain-add domain-set domain-remove
                     domain-preview domain-check
                     site-backup-create site-backup-download site-backup-upload site-backup-apply) ],
-            mcp => [qw(site_backup site_apply)],
+            mcp => [qw(list_domains domain_set preview_domain site_backup site_apply)],
         },
     },
     manage_config => {

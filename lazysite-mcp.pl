@@ -415,6 +415,50 @@ my %TOOLS = (
             return $r;
         },
     },
+    list_domains => {
+        description => 'List the domains this instance serves - the primary site plus every registered domain, each with its content_root, layout, theme, nav and language settings, and which of those it INHERITS from the primary rather than setting itself. Call this FIRST on any task that mentions a domain, or before activate_theme / activate_layout on an instance that may serve more than one site: those are instance-wide without a host, and this is how you find out whether that matters. Read-only.',
+        cap         => 'manage_domains',
+        inputSchema => { type => 'object', properties => {},
+            additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Domains::domains_list();
+        },
+    },
+    domain_set => {
+        description => 'Set ONE presentation or routing key on ONE registered domain: theme, layout, site_name, site_url, nav_file, search_default, lang or lang_group. This is how a secondary domain gets its own look - binding a theme or layout here publishes that theme\'s assets and leaves every other domain, including the primary, untouched. To bind both a layout and a theme, call twice (layout first). Does NOT create or remove domains.',
+        cap         => 'manage_domains',
+        inputSchema => { type => 'object',
+            properties => {
+                host => { type => 'string', description => 'The registered domain, e.g. clienta.example' },
+                key => { type => 'string', description => 'theme | layout | site_name | site_url | nav_file | search_default | lang | lang_group' },
+                value => { type => 'string', description => 'The value; an empty string clears the override so the domain inherits the primary again' },
+            },
+            required => [ 'host', 'key' ], additionalProperties => JSON::PP::false },
+        run => sub {
+            my $a = $_[0];
+            # content_root is deliberately not settable here: repointing a live
+            # domain's content is a migration, not a presentation tweak, and it
+            # belongs with site_apply where a safety snapshot is taken.
+            return { ok => 0, kind => 'refused',
+                error => 'content_root cannot be set through this tool - repointing '
+                    . 'a domain\'s content is a migration. Use site_apply, which '
+                    . 'takes a snapshot first.' }
+                if ( $a->{key} // '' ) eq 'content_root';
+            return _domain_presentation_set( $a->{host}, $a->{key}, $a->{value} // '' );
+        },
+    },
+    preview_domain => {
+        description => 'Render a registered domain\'s home page exactly as an anonymous visitor would see it under that Host - its own content root, layout, theme and nav - and return the HTML. Works before DNS or TLS point at the domain, because the render is server-side, so use it to CHECK a domain you have just configured rather than guessing. Read-only: nothing is published and no cache is written.',
+        cap         => 'manage_domains',
+        inputSchema => { type => 'object',
+            properties => { host => { type => 'string', description => 'The registered domain to render' } },
+            required => ['host'], additionalProperties => JSON::PP::false },
+        run => sub {
+            local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+            return Lazysite::Manager::Domains::domain_preview( $_[0]->{host} );
+        },
+    },
     site_backup => {
         description => 'Package one registered domain\'s SITE - its content, nav, referenced theme + layout, and presentation settings - into a portable .tar.gz stored alongside the backups (download it with the backup tooling). Excludes plugins, instance settings and secrets, so it is safe to hand to a client\'s own instance. Requires manage_domains and access to that domain.',
         cap         => 'manage_domains',
@@ -593,12 +637,26 @@ my %TOOLS = (
         },
     },
     activate_theme => {
-        description => 'Activate a theme for the current layout (clears the HTML cache).',
+        description => 'Activate a theme. WITHOUT `host` this is INSTANCE-WIDE: it changes the theme of the whole site, every domain that inherits it included - on a multi-domain instance that is almost never what you want. WITH `host` it binds the theme to that one registered domain and publishes its assets, leaving every other domain untouched. Call list_domains first if you are not certain the instance serves only one site. Clears the HTML cache.',
         cap         => 'manage_themes',
         inputSchema => { type => 'object',
-            properties => { theme => { type => 'string' } },
+            properties => {
+                theme => { type => 'string' },
+                host  => { type => 'string',
+                    description => 'A registered domain to bind this theme to. Omit ONLY when you mean the whole instance.' },
+            },
             required   => ['theme'], additionalProperties => JSON::PP::false },
-        run => sub { action_theme_activate( $_[0]->{theme}, {} ) },
+        run => sub {
+            my $a = $_[0];
+            # SM238: with a host, this is a per-domain BINDING, not an instance
+            # activation - so it routes through domain_set, which mirrors the
+            # theme's assets under that domain's own layout (SM241) and never
+            # touches the site-wide theme: key. Without a host the old
+            # instance-wide behaviour is unchanged.
+            return _domain_presentation_set( $a->{host}, 'theme', $a->{theme} )
+                if defined $a->{host} && length $a->{host};
+            return action_theme_activate( $a->{theme}, {} );
+        },
     },
     create_theme => {
         description => 'Scaffold a validated theme under a layout in ONE step (instead of the five-step create-dirs / write theme.json / remember assets/ / write CSS / activate sequence). Give layout + name + a config (group->key->value of design tokens). Omit css to copy the layout default theme\'s main.css as the starting point (the config restyles it via the var(--theme-*) fallback chain). Validates the name and config values EAGERLY (rejects with kind:"validation" before writing anything). If the layout declares a token vocabulary (SM203), returns coverage warnings (never rejects). activate:true makes it live (mirror build + cache clear), same as activate_theme. Returns created paths, warnings, and a preview URL.',
@@ -630,15 +688,30 @@ my %TOOLS = (
         },
     },
     activate_layout => {
-        description => 'Activate a layout (optionally naming a compatible theme).',
+        description => 'Activate a layout (optionally naming a compatible theme). WITHOUT `host` this is INSTANCE-WIDE and changes the whole site. WITH `host` it binds the layout to that one registered domain and leaves the others alone. Call list_domains first if the instance may serve more than one site.',
         cap         => 'manage_layouts',
         inputSchema => { type => 'object',
-            properties => { layout => { type => 'string' }, theme => { type => 'string' } },
+            properties => {
+                layout => { type => 'string' },
+                theme  => { type => 'string' },
+                host   => { type => 'string',
+                    description => 'A registered domain to bind this layout to. Omit ONLY when you mean the whole instance.' },
+            },
             required   => ['layout'], additionalProperties => JSON::PP::false },
         run => sub {
+            my $a = $_[0];
+            if ( defined $a->{host} && length $a->{host} ) {
+                # SM238: bind the layout, then the theme if one was named, so a
+                # single call leaves the domain in a consistent, servable state
+                # rather than a layout with the previous layout's theme.
+                my $r = _domain_presentation_set( $a->{host}, 'layout', $a->{layout} );
+                return $r unless $r->{ok};
+                return $r unless defined $a->{theme} && length $a->{theme};
+                return _domain_presentation_set( $a->{host}, 'theme', $a->{theme} );
+            }
             my $p = {};
-            $p->{theme} = $_[0]->{theme} if defined $_[0]->{theme};
-            action_layout_activate( $_[0]->{layout}, $p );
+            $p->{theme} = $a->{theme} if defined $a->{theme};
+            return action_layout_activate( $a->{layout}, $p );
         },
     },
     list_layout_catalogue => {
@@ -1334,6 +1407,24 @@ sub _validate_page {
 }
 
 # --- SM087 Tier 2: whole-site audit ---------------------------------------
+# SM238: bind one presentation key on one registered domain. The MCP surface had
+# NO domain tools at all beyond site_backup/site_apply, while the control API
+# carried the whole domain family under the same manage_domains capability - so an
+# agent asked to style a secondary domain could reach only the INSTANCE-WIDE
+# activate_theme/activate_layout, which would restyle every other site on the
+# instance. It correctly refused to act and reported the gap instead. The safe
+# scoped operation was the missing one.
+#
+# Routes through Domains::domain_set, so it inherits the SM241 asset mirroring
+# and cannot touch the site-wide layout:/theme: keys.
+sub _domain_presentation_set {
+    my ( $host, $key, $value ) = @_;
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    my $r = Lazysite::Manager::Domains::domain_set( $host, $key, $value );
+    return $r unless ref $r eq 'HASH' && $r->{ok};
+    return { %$r, scope => "domain:$host" };
+}
+
 sub _audit_site {
     my ( %exists, %inbound, %para, @info, @links, @forms, @rawpages );
     _each_page( sub {

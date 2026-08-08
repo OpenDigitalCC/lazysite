@@ -283,9 +283,15 @@ domain" rather than "the site", read this section first - the instructions above
 are not wrong, but they operate instance-wide and will change a site you were not
 asked to touch.
 
-A domain's own layout and theme are set with `domain-set` (control API) against
-that host. `domains-list` shows what is registered, each with its `content_root`,
-`layout` and `theme` - call it first to see the shape of what you are working on.
+A domain's own layout and theme are set with `domain_set` (MCP) or `domain-set`
+(control API) against that host. `list_domains` / `domains-list` shows what is
+registered, each with its `content_root`, `layout` and `theme` - **call it first**
+on any task that mentions a domain, so you know whether this instance serves one
+site or several.
+
+`preview_domain` renders a domain exactly as an anonymous visitor would see it,
+under its own Host, and works before DNS or TLS point at it - so you can check
+what you configured instead of guessing.
 
 ### Do not use `theme-activate` to fix a secondary domain
 
@@ -302,9 +308,17 @@ remedy fails in both directions.
 
 ### The right way to publish a secondary domain's assets
 
-Binding the layout and theme with `domain-set` publishes the theme's assets to
+Binding the layout and theme publishes the theme's assets to
 `/lazysite-assets/<layout>/<theme>/` as part of the binding, under **that
 domain's** layout. Bind it and the mirror is there.
+
+Two equivalent ways to bind, and the second is usually what you want:
+
+- `domain_set` with `key: theme` (or `layout`) - explicit, one key at a time.
+- `activate_theme` / `activate_layout` **with a `host`** - the same tools you
+  would reach for anyway, scoped to that one domain. Without a `host` they are
+  instance-wide and change every site on the instance, so on a multi-domain
+  instance always pass one.
 
 `site_apply` (applying a site package to a target `host`) also mirrors on apply,
 and is the right tool when you are moving a whole site rather than changing its
