@@ -474,7 +474,7 @@ sub do_put {
 
     my $tmp = "$r->{abs}.tmp.$$";
     open my $out, '>:raw', $tmp
-        or return send_status( 500, body => "Cannot write\n" );
+        or return _write_failure( 'create the file', $!, $r->{abs} );
     binmode STDIN;
     my $written = 0;
     my $buf;
@@ -494,8 +494,9 @@ sub do_put {
         $remaining -= $n if defined $remaining;
     }
     unless ( close $out ) {
+        my $e = $!;
         unlink $tmp;
-        return send_status( 500, body => "Write failed\n" );
+        return _write_failure( 'write the file', $e, $r->{abs} );
     }
     # SM189: refuse a content page that ships raw HTML/SVG (api:/raw: front matter
     # + a script-capable content_type) - the same guard the manager/MCP save path
@@ -515,8 +516,9 @@ sub do_put {
         }
     }
     unless ( rename $tmp, $r->{abs} ) {
+        my $e = $!;
         unlink $tmp;
-        return send_status( 500, body => "Rename failed\n" );
+        return _write_failure( 'store the file', $e, $r->{abs} );
     }
 
     invalidate_cache( $r->{abs} );
@@ -740,7 +742,7 @@ sub do_lock {
         return send_status( 409, body => "Parent collection missing\n" )
             unless $r->{parent_ok};
         open my $fh, '>:raw', $r->{abs}
-            or return send_status( 500, body => "Cannot create\n" );
+            or return _write_failure( 'create the file', $!, $r->{abs} );
         close $fh;
         $created = 1;
     }
@@ -1580,6 +1582,38 @@ sub copy_tree {
 sub send_status {
     my ( $code, %o ) = @_;
     send_response( $code, %o );
+}
+
+# SM235: a write that fails because the TARGET DIRECTORY is not writable is an
+# environment fault, not a server bug, and answering both with a bare 500 leaves
+# a client unable to tell three different situations apart: the path is denied to
+# this grant (stop asking), the server cannot currently store it (an operator must
+# act), or something unexpected broke (report it). A site agent hit the middle
+# case - the docroot itself was unwritable while its subdirectories were not - and
+# probed to characterise the failure, then reported to the operator that root
+# writes were denied by policy, which was wrong. A misleading error costs more
+# than a terse one.
+#
+# 507 is the honest status: the request is valid and the server is at fault, which
+# is exactly what a 403 would deny. The body names the operation and the condition
+# and NEVER the filesystem path - a client has no use for it and it discloses the
+# layout.
+sub _write_failure {
+    my ( $what, $errno, $abs ) = @_;
+    my $dir = $abs;
+    $dir =~ s{/[^/]*\z}{};
+    if ( length $dir && -d $dir && !-w $dir ) {
+        log_event( 'ERROR', 'dav-write', 'target directory not writable',
+            op => $what );
+        return send_status( 507,
+            body => "Cannot $what: the target directory is not writable by the "
+                . "server. This is a server configuration fault, not a permission "
+                . "decision about your request - the operator must fix the "
+                . "directory permissions.\n" );
+    }
+    log_event( 'ERROR', 'dav-write', 'write failed', op => $what,
+        error => "$errno" );
+    return send_status( 500, body => "Cannot $what.\n" );
 }
 
 sub send_response {

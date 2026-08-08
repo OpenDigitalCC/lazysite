@@ -438,6 +438,27 @@ A `2xx` is not proof the page is right. After publishing, confirm:
   `404`; the receiver is a server CGI (`/cgi-bin/form-handler.pl`) the operator
   installs - if it `404`s, report it rather than trying to fix it.
 
+## When a write fails, read the status
+
+Three different things can stop a write, and they call for three different
+responses. Do not probe to tell them apart - the status says which.
+
+`403`
+: The path is denied to your grant. Stop asking; this will not succeed on retry
+  and it is not a fault. If you believe it should be in scope, report it.
+
+`507`
+: The server cannot currently store it - the target directory is not writable by
+  the server. This is an operator's problem, not yours and not your request's.
+  Report it with the response body and do not retry in a loop.
+
+`500`
+: Something unexpected broke. Worth reporting.
+
+A `507` in particular is not a permission decision. Reading it as one, and
+telling the operator that writes to a path are denied by policy, sends them
+looking in the wrong place.
+
 ## Do not design a browser-origin integration
 
 The control API is not callable from a page. It sends no CORS headers and
