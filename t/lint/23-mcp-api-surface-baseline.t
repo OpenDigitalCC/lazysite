@@ -35,7 +35,10 @@ my %BASELINE = (
     delegate_sub_user_creation => 'api=0 mcp=0 ui=1 dav=0',
     feedback                   => 'api=0 mcp=1 ui=0 dav=0',
     manage_config              => 'api=3 mcp=0 ui=0 dav=2',
-    manage_content             => 'api=6 mcp=26 ui=0 dav=1',
+    # SM240 added upload_file (26 -> 27): a binary write, deliberately MCP-only.
+    # The control API has no twin and does not need one - a script or an agent on
+    # the API channel already has WebDAV, which is the right tool for bulk bytes.
+    manage_content             => 'api=6 mcp=27 ui=0 dav=1',
     manage_domains             => 'api=10 mcp=2 ui=0 dav=0',
     manage_forms               => 'api=0 mcp=2 ui=0 dav=1',
     manage_layouts             => 'api=5 mcp=4 ui=0 dav=1',

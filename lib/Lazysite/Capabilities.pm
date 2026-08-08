@@ -60,7 +60,7 @@ my %ACTION_INFO = (
         title   => 'Read and write site content (pages, assets).',
         unlocks => {
             api => [qw(aliases-list git-status git-history git-history-summary git-show git-restore)],
-            mcp => [ qw(list_files read_file write_file replace_text copy_file
+            mcp => [ qw(list_files read_file write_file upload_file replace_text copy_file
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files
                     validate_page invalidate_cache read_nav audit_site create_form

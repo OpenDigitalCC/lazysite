@@ -33,6 +33,7 @@ use Lazysite::Audit          qw(audit_log);
 use Lazysite::Capabilities   qw(describe);
 use Lazysite::Auth::OAuth    ();
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete
+    action_save_binary
     action_move action_acl_get action_acl_set action_acl_remove
     action_git_history action_git_history_summary action_git_show action_git_restore);
 use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
@@ -345,6 +346,42 @@ my %TOOLS = (
                         . length( $out->{content} ) . ' bytes); edit it over WebDAV instead.' };
             }
             return $out;
+        },
+    },
+    upload_file => {
+        description => 'Upload a BINARY file (base64-encoded): a webfont, an image, a favicon.ico, a PDF, a JavaScript library. Use this whenever the bytes are not text - write_file is text-only and will corrupt them. This is how you SELF-HOST assets instead of linking a CDN or hotlinking a remote image, which the site briefings require: upload the woff2 and reference it from the theme CSS, upload the photograph and reference it from the page. Same permissions as write_file (manage_content, or manage_themes/manage_layouts for a path under a layout or theme) and the same refusals - engine-owned paths, executable extensions and your scope confinement all apply unchanged. Give `content_base64` as standard base64; the size cap is the site\'s upload limit and is named in the refusal if you exceed it.',
+        cap         => 'manage_content', path_aware => 1,
+        inputSchema => { type => 'object',
+            properties => {
+                path => { type => 'string',
+                    description => 'Site-relative destination, e.g. assets/fonts/inter.woff2 or favicon.ico' },
+                content_base64 => { type => 'string',
+                    description => 'The file bytes, base64-encoded' },
+            },
+            required             => [ 'path', 'content_base64' ],
+            additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $a, $user ) = @_;
+            my $b64 = $a->{content_base64} // '';
+            ( my $clean = $b64 ) =~ s/\s+//g;
+            # Reject what does not decode rather than writing a corrupt file:
+            # decode_base64 silently ignores characters outside the alphabet, so
+            # a truncated or mangled payload would otherwise land on disk looking
+            # like a successful upload.
+            return { ok => 0, kind => 'bad-encoding',
+                error => 'content_base64 is not valid base64 - expected only '
+                    . 'A-Z a-z 0-9 + / and = padding.' }
+                if $clean =~ m{[^A-Za-z0-9+/=]} || $clean =~ m{=[^=]};
+            return { ok => 0, kind => 'bad-encoding',
+                error => 'content_base64 length is not a multiple of 4 - the '
+                    . 'payload looks truncated.' }
+                if length($clean) % 4;
+            require MIME::Base64;
+            my $bytes = MIME::Base64::decode_base64($clean);
+            return { ok => 0, kind => 'bad-encoding',
+                error => 'content_base64 decoded to nothing.' }
+                unless length $bytes;
+            return action_save_binary( $a->{path}, $user, $bytes );
         },
     },
     write_file => {

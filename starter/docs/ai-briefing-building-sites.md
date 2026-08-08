@@ -221,6 +221,34 @@ When you meet a page like summit-of-summits:
 Done once, the design is now reusable, themeable and authorable - and the next
 page in that style costs almost nothing.
 
+## Self-host your assets - you can upload binaries
+
+Fonts, photographs, icons and JavaScript libraries belong on the site's own
+origin, never a CDN and never a hotlink to someone else's server. That has always
+been the rule; the tool to follow it is `upload_file`.
+
+`write_file` is **text only** and will corrupt binary content. Use `upload_file`
+with the bytes base64-encoded:
+
+- A webfont: upload the `woff2` under the theme's `assets/`, then reference it
+  from the theme CSS with a relative path. Do not write `@import
+  url('https://fonts.googleapis.com/…')` - that sends every visitor to a third
+  party and breaks the site's privacy position.
+- A photograph: upload it and reference the local path. Do not embed a remote
+  image URL - the design breaks the day the remote changes, and every page load
+  becomes a third-party request.
+- A favicon: `favicon.ico` and `apple-touch-icon.png` are binary, so upload them.
+  A site with no favicon is a site that looks unfinished.
+
+Permissions are the same as `write_file` - `manage_content`, or
+`manage_themes` / `manage_layouts` for a path under a layout or theme - and the
+same refusals apply: engine-owned paths, executable extensions and your scope
+confinement are unchanged. The size cap is the site's upload limit and is named
+in the refusal if you exceed it.
+
+If an asset is genuinely too large for the cap, say so and ask the operator
+rather than reaching for a remote URL.
+
 ## Publishing hygiene (hard-won)
 
 - **Keep `json:` data ASCII** - the data loader drops non-ASCII (use `-` not em
@@ -248,4 +276,7 @@ page in that style costs almost nothing.
 - [ ] Shared features (hero, nav, footer) are layout features, not per-page hacks.
 - [ ] The whole site restyles by swapping the theme.
 - [ ] Pages are registered (sitemap/llms/feeds) and reachable from the nav.
+- [ ] Every font, image and script is served from this origin - no CDN import,
+      no hotlinked remote image. Upload them with `upload_file`.
+- [ ] The site has a favicon.
 - [ ] Verified live (with a non-human UA) and cache cleared.

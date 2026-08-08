@@ -77,6 +77,7 @@ my $HOOK_RE = qr/\b_git_commit(?:_move)?\s*\(
 # carry the reason they are allowed to skip the hook.
 my %HOOKED = map { $_ => 1 } qw(
     Files::action_save
+    Files::action_save_binary
     Files::action_delete
     Files::action_move
     Files::action_copy

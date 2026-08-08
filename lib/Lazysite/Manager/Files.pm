@@ -16,14 +16,15 @@ use Fcntl qw(:flock);
 use POSIX qw(strftime);
 use Lazysite::Util qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal load_upload_limits);
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Manager::Upload qw(is_editable_text);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
-    action_list action_read action_save action_delete action_mkdir action_move action_copy
+    action_list action_read action_save action_save_binary
+    action_delete action_mkdir action_move action_copy
     action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove
@@ -198,6 +199,98 @@ sub action_read {
         content => $content,
         mtime   => ( stat $full )[9],
         lock    => $lock_info,
+    };
+}
+
+# SM240: write BYTES. action_save opens '>:utf8' and is text-only, so an MCP-only
+# agent could not place a single non-text byte on a site it otherwise had full
+# manage_content over - no webfont, no photograph, no favicon.ico. That gap is
+# why MCP-built sites import fonts from a CDN, hotlink photography, and never
+# have a favicon: each is a rule the agent was given and could not follow.
+#
+# Same gates as action_save, in the same order, deliberately: validate_path, the
+# blocked-path check (which also enforces the DANGEROUS_RE extension blocklist),
+# the configurable blocked-extension list, the live-lock check and the per-file
+# ACL. Nothing here is a new privilege - it is the same privilege on a file type
+# the channel could not express. The two text-only steps are skipped because they
+# cannot apply: raw_html_page_refusal parses front matter, and alias indexing
+# reads Markdown.
+sub action_save_binary {
+    my ( $rel_path, $username, $bytes ) = @_;
+
+    my $result = validate_path($rel_path);
+    return $result unless $result->{ok};
+
+    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
+        if is_blocked_path( $result->{rel} );
+    # check_extensions => 1: the operator's configurable blocked list applies to
+    # an upload, exactly as it does to the multipart upload path.
+    return { ok => 0, error => "Path is blocked by config", kind => 'blocked-config' }
+        if is_blocked_config( $result->{rel}, 1 );
+
+    my $limits = load_upload_limits();
+    my $max    = $limits->{max_bytes} // ( 10 * 1024 * 1024 );
+    if ( length($bytes) > $max ) {
+        return { ok => 0, kind => 'too-large',
+            error => sprintf(
+                'File is %d bytes; this site accepts at most %d (%.1f MB). '
+                    . 'Raise manager_upload_max_mb to change it.',
+                length($bytes), $max, $max / ( 1024 * 1024 ) ) };
+    }
+
+    my $full    = $result->{full};
+    my $existed = -f $full;
+
+    my $lock_key = $rel_path;
+    $lock_key =~ s{/}{:}g;
+    my $lrec = _read_lock_record("$LOCK_DIR/$lock_key.lock");
+    if ( _lock_fresh($lrec)
+        && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) )
+    {
+        return { ok => 0, locked => 1,
+            error => "File is locked by " . ( $lrec->{user} // 'another client' ) };
+    }
+
+    if ( my $d = _acl_denied( $result->{rel}, 'write', $username ) ) { return $d }
+
+    my $dir = dirname($full);
+    make_path($dir) unless -d $dir;
+
+    my $tmp = "$full.$$.tmp";
+    open my $fh, '>', $tmp or return { ok => 0, error => "Cannot write file: $!" };
+    binmode $fh;
+    unless ( print {$fh} $bytes ) {
+        my $e = "$!";
+        close $fh;
+        unlink $tmp;
+        return { ok => 0, error => "Write failed: $e" };
+    }
+    unless ( close $fh ) {
+        my $e = "$!";
+        unlink $tmp;
+        return { ok => 0, error => "Close failed: $e" };
+    }
+    if     ( my @st = stat $full ) { chmod $st[2] & 07777, $tmp }
+    unless ( rename $tmp, $full ) {
+        my $e = "$!";
+        unlink $tmp;
+        return { ok => 0, error => "Rename failed: $e" };
+    }
+
+    unlink "$LOCK_DIR/$lock_key.lock" if -f "$LOCK_DIR/$lock_key.lock";
+    log_event( 'INFO', $action, 'binary file saved',
+        path => $rel_path, bytes => length($bytes), user => $auth_user );
+
+    _git_commit( $username,
+        ( $existed ? 'edit ' : 'create ' ) . $result->{rel}, $result->{rel} );
+
+    my @st = stat $full;
+    return {
+        ok      => 1,
+        path    => $result->{rel},
+        bytes   => length($bytes),
+        created => ( $existed ? JSON::PP::false : JSON::PP::true ),
+        mtime   => ( $st[9] // 0 ),
     };
 }
 
