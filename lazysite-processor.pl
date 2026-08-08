@@ -5039,8 +5039,12 @@ sub write_html {
 # --- Output ---
 
 sub output_page {
-    my ( $content, $content_type, $ttl, $auth_protected ) = @_;
+    # SM253: $status lets a non-200 response (the 404 path) share this function,
+    # and therefore the baseline security headers. Optional and last, so every
+    # existing caller keeps emitting 200 unchanged.
+    my ( $content, $content_type, $ttl, $auth_protected, $status ) = @_;
     $content_type //= 'text/html; charset=utf-8';
+    $status       //= '200 OK';
 
     # SM252: mint the form timing token HERE, per response, rather than at render
     # time where it would be baked into the cached page and shared by every
@@ -5057,10 +5061,11 @@ sub output_page {
         $content =~ s/\Q$ph_tk\E/$tk/g;
     }
 
-    $ACCESS_REC{s} //= 200;                       # SM140
+    my ($code) = $status =~ /\A(\d{3})/;
+    $ACCESS_REC{s} //= ( $code // 200 );          # SM140
     $ACCESS_REC{b} = length( $content // '' );    # SM140
     binmode( STDOUT, ':utf8' );
-    print "Status: 200 OK\n";
+    print "Status: $status\n";
     print "Content-type: $content_type\n";
     # L-1: baseline security headers. CSP and HSTS are deliberately NOT
     # emitted here - CSP is site-specific (depends on what external
@@ -5194,30 +5199,51 @@ sub _ai_partner_doc {
     };
 }
 
+# SM253: the content root for THIS request, for callers that run outside the
+# render path. The render path publishes $REQUEST_CROOT after confining it; a 404
+# can be reached before that happens, so fall back to resolving it the same way
+# rather than silently using the docroot - which is the bug this fixes.
+sub _request_croot {
+    return $REQUEST_CROOT if defined $REQUEST_CROOT && length $REQUEST_CROOT;
+    my %sv = resolve_site_vars();
+    if ( defined $sv{content_root} && length $sv{content_root} ) {
+        my $c = confine_content_root( $DOCROOT, $sv{content_root} );
+        return $c if defined $c;
+    }
+    return $DOCROOT;
+}
+
 sub not_found {
     my ($uri) = @_;
     $ACCESS_REC{s} //= 404;    # SM140
 
-    my $md_path   = _system_page_md('404') // "$DOCROOT/404.md";    # SM201 fallback
-    my $html_path = "$DOCROOT/404.html";
-
-    binmode( STDOUT, ':utf8' );
+    # SM253: resolve through the DOMAIN's content root. _system_page_md has
+    # always taken a content root and this call site never gave it one, so the
+    # first of its three tiers collapsed into the second and a secondary domain
+    # served the primary's 404 - the primary's branding and navigation shown to a
+    # visitor who mistyped a URL on someone else's site. The cache slot has to
+    # move with it, or one domain's rendered 404 is served to another.
+    my $croot     = _request_croot();
+    my $md_path   = _system_page_md( '404', $croot ) // "$DOCROOT/404.md";
+    my $html_path = "$croot/404.html";
 
     if ( -f $md_path ) {
         my $page = is_fresh( $html_path, $md_path )
             ? read_file($html_path)
             : process_md( $md_path, $html_path );
-        print "Status: 404 Not Found\n";
-        print "Content-type: text/html; charset=utf-8\n\n";
-        print $page;
-        return;
+        # SM253: through output_page, so a 404 carries the same baseline security
+        # headers as every other response. It used to print its own status line
+        # and content type, which made the one response most likely to be reached
+        # by a scanner or a crawler the only one served without them - and left
+        # $ACCESS_REC{b} unset, so the analytics record had no byte count.
+        return output_page( $page, 'text/html; charset=utf-8', undef, 0,
+            '404 Not Found' );
     }
 
     # Bare fallback if no 404.md exists yet. chrome_string HTML-escapes $uri (it
     # was interpolated raw before - a reflected-markup vector on the 404 path).
-    print "Status: 404 Not Found\n";
-    print "Content-type: text/html; charset=utf-8\n\n";
-    print '<p>' . _chrome( 'notfound.body', $uri ) . "</p>\n";
+    return output_page( '<p>' . _chrome( 'notfound.body', $uri ) . "</p>\n",
+        'text/html; charset=utf-8', undef, 0, '404 Not Found' );
 }
 
 # --- Utilities ---
