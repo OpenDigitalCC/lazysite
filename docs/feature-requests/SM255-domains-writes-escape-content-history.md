@@ -2,8 +2,8 @@
 title: "SM255 - Domain writes escape content history, and the guarantee cannot see them"
 subtitle: "config-set commits lazysite.conf; domain-set writes the same file and commits nothing. The write-path guarantee does not scan Manager::Domains, so neither the omission nor a future one fails the build."
 brand: plain
-status: candidate
-status-note: "DECIDED 2026-08-08 by the operator: any write to lazysite.conf must use the same mechanism whatever its source, because the distinction is invisible to the person the history is for - so the commit belongs INSIDE one unified write path, not at each caller. Not yet built. Found 2026-08-08 while repairing a stale entry in the git-guarantee registry after SM238 moved a function. Predates that work - Manager::Domains has NEVER been in the scanner's module list. Two questions, one mechanical and one a real decision: extending the scanner is easy, deciding whether domain configuration belongs in content history is not."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.3 edge line (2026-08-08, commits fc03cd5 + e73c65b - the second completing it, after the gate showed the first had unified two of seven writers). DECIDED 2026-08-08 by the operator: any write to lazysite.conf must use the same mechanism whatever its source, because the distinction is invisible to the person the history is for - so the commit belongs INSIDE one unified write path, not at each caller. Not yet built. Found 2026-08-08 while repairing a stale entry in the git-guarantee registry after SM238 moved a function. Predates that work - Manager::Domains has NEVER been in the scanner's module list. Two questions, one mechanical and one a real decision: extending the scanner is easy, deciding whether domain configuration belongs in content history is not."
 ---
 
 # SM255 - domain writes escape content history

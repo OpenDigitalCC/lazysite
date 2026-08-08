@@ -2,8 +2,8 @@
 title: "SM241 - Binding a theme to a domain does not publish its assets"
 subtitle: "domain-set writes the binding and no mirror, so a secondary domain serves a 404 stylesheet. The layout renders its chrome correctly and the page looks chrome-less because nothing styles it."
 brand: plain
-status: candidate
-status-note: "Reported by the sjm-claude-code site agent 2026-08-08, diagnosed on harmony2050.org (a secondary domain on the theunited.fund instance, 0.10.0). Verified: the mirror is written by theme-activate, layout-activate/layout-install, create_theme with activate:true, and site_apply - and by no path in Domains.pm. The documented remedy is worse than useless here, which is SM242."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit 9a0adf2). Reported by the sjm-claude-code site agent 2026-08-08, diagnosed on harmony2050.org (a secondary domain on the theunited.fund instance, 0.10.0). Verified: the mirror is written by theme-activate, layout-activate/layout-install, create_theme with activate:true, and site_apply - and by no path in Domains.pm. The documented remedy is worse than useless here, which is SM242."
 ---
 
 # SM241 - domain-set does not mirror theme assets

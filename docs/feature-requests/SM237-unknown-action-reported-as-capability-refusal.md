@@ -2,8 +2,8 @@
 title: "SM237 - An unknown action is reported as a capability refusal"
 subtitle: "'Action not available to token clients' answers both an action a token client may not call and an action name the server does not recognise. The two send an agent in opposite directions."
 brand: plain
-status: candidate
-status-note: "Reported by the sjm-claude-code site agent 2026-08-07. Verified in lazysite-manager-api.pl. Same class as SM226 and SM227 - the platform saying something that reads as a capability problem when it is not - and a natural fit for the same release."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit c447b79). Reported by the sjm-claude-code site agent 2026-08-07. Verified in lazysite-manager-api.pl. Same class as SM226 and SM227 - the platform saying something that reads as a capability problem when it is not - and a natural fit for the same release."
 ---
 
 # SM237 - an unknown action is reported as a capability refusal

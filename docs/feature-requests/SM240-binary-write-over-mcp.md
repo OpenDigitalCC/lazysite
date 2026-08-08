@@ -2,8 +2,8 @@
 title: "SM240 - An MCP agent cannot write a single byte of binary"
 subtitle: "write_file takes a string and there is no base64 path anywhere in the connector. No webfont, no photograph, no favicon - which is why MCP-built sites reach for CDNs and hotlinks, and why favicons are made by hand afterwards."
 brand: plain
-status: candidate
-status-note: "Reported by the sjm-claude-code site agent 2026-08-08 after repairing MCP-built work on theunited.fund, harmony2050.org, united.explore and edge.explore. Verified: the only occurrences of 'base64' or 'binary' in lazysite-mcp.pl are a tool description and a comment. The agent's framing is the important part - this is not agent error being corrected, it is one missing capability forcing a competent agent into a predictable bad workaround."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.3 edge line (2026-08-08, commit 1a51f26). Reported by the sjm-claude-code site agent 2026-08-08 after repairing MCP-built work on theunited.fund, harmony2050.org, united.explore and edge.explore. Verified: the only occurrences of 'base64' or 'binary' in lazysite-mcp.pl are a tool description and a comment. The agent's framing is the important part - this is not agent error being corrected, it is one missing capability forcing a competent agent into a predictable bad workaround."
 ---
 
 # SM240 - no binary write over MCP

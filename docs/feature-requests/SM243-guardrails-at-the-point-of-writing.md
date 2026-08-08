@@ -2,8 +2,8 @@
 title: "SM243 - Warn at the moment of writing, not only in the briefing"
 subtitle: "An agent reads the briefings once, then works through a tool surface that cheerfully accepts the thing the briefing warned against. Put the warning where the mistake is made."
 brand: plain
-status: candidate
-status-note: "Reported by the sjm-claude-code site agent 2026-08-08 as the pattern behind several repairs on MCP-built sites. Extends the SM228 approach (detect at write time, not at serve time) to the cases that are not refusals but warnings. Warn-only throughout - none of these should reject a write."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.3 edge line (2026-08-08, commit 5615e62). Reported by the sjm-claude-code site agent 2026-08-08 as the pattern behind several repairs on MCP-built sites. Extends the SM228 approach (detect at write time, not at serve time) to the cases that are not refusals but warnings. Warn-only throughout - none of these should reject a write."
 ---
 
 # SM243 - guardrails at the point of writing

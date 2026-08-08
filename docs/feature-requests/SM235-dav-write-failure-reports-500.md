@@ -2,8 +2,8 @@
 title: "SM235 - A WebDAV write to an unwritable target reports 500"
 subtitle: "An environment fault and a genuine server error are the same response, so an agent cannot tell 'this server cannot store it' from 'your request is not allowed' and probes to find out."
 brand: plain
-status: candidate
-status-note: "Reported by the sjm-claude-code site agent 2026-08-07, observed on sovereigncomputing.org (0.10.0) with the operator's knowledge. Small, and it cost real diagnosis time plus a wrong report to the operator. Verified in lazysite-dav.pl."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit 8e10865). Reported by the sjm-claude-code site agent 2026-08-07, observed on sovereigncomputing.org (0.10.0) with the operator's knowledge. Small, and it cost real diagnosis time plus a wrong report to the operator. Verified in lazysite-dav.pl."
 ---
 
 # SM235 - an unwritable target reports 500

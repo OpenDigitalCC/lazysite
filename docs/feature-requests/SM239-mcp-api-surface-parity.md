@@ -2,8 +2,8 @@
 title: "SM239 - MCP and control-API surface parity, enforced"
 subtitle: "The two remote channels have drifted apart one action at a time, with nothing recording whether a gap is deliberate. Audit them, declare the intended relationship, and pin it with a drift guard."
 brand: plain
-status: candidate
-status-note: "Raised by the operator 2026-08-07 after SM238 found the domain tools present on the control API and wholly absent from MCP. The point is not a one-off backfill: without a guard the surfaces drift again on the next feature. This codebase already has the right pattern for that (t/lint/17,18,19 and the guarantee registries) and this should use it."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.3 edge line (2026-08-08, commit 0dd587f). Raised by the operator 2026-08-07 after SM238 found the domain tools present on the control API and wholly absent from MCP. The point is not a one-off backfill: without a guard the surfaces drift again on the next feature. This codebase already has the right pattern for that (t/lint/17,18,19 and the guarantee registries) and this should use it."
 ---
 
 # SM239 - MCP and control-API surface parity

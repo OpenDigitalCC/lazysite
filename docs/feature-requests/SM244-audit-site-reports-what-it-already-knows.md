@@ -2,8 +2,8 @@
 title: "SM244 - audit_site does not report what the site already knows about itself"
 subtitle: "Starter demo pages were advertised to search engines from a fund's domain, one of them publishing demo credentials. The front matter that identifies them has existed all along and nothing reads it."
 brand: plain
-status: candidate
-status-note: "Reported by the sjm-claude-code site agent 2026-08-08 from repairs on MCP-built sites. Verified: starter pages carry `provenance: lazysite-starter` in their front matter, and no code anywhere reads that key. Small, and the first item has a live disclosure edge to it."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.3 edge line (2026-08-08, commit 5615e62). Reported by the sjm-claude-code site agent 2026-08-08 from repairs on MCP-built sites. Verified: starter pages carry `provenance: lazysite-starter` in their front matter, and no code anywhere reads that key. Small, and the first item has a live disclosure edge to it."
 ---
 
 # SM244 - audit_site does not report what the site already knows

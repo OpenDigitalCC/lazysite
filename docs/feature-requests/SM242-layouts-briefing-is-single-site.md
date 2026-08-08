@@ -2,8 +2,8 @@
 title: "SM242 - The layouts briefing assumes one site, and its remedy breaks a multi-domain instance"
 subtitle: "'If it 404s, re-activate to rebuild it' is correct on a single site and actively harmful on an instance with more than one domain, where it switches the primary site's theme."
 brand: plain
-status: candidate
-status-note: "Reported by the sjm-claude-code site agent 2026-08-08 alongside SM241, from the same harmony2050.org diagnosis. Documentation only. The engine fix (SM241) turns most of this from a warning about a sharp edge into an explanation, so the two should be weighed together - but the docs gap is real whether or not SM241 is built."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.2 edge line (2026-08-08, commit 3df26b3). Reported by the sjm-claude-code site agent 2026-08-08 alongside SM241, from the same harmony2050.org diagnosis. Documentation only. The engine fix (SM241) turns most of this from a warning about a sharp edge into an explanation, so the two should be weighed together - but the docs gap is real whether or not SM241 is built."
 ---
 
 # SM242 - the layouts briefing is single-site

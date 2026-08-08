@@ -2,8 +2,8 @@
 title: "SM238 - MCP exposes the instance-wide theme switch and no per-domain one"
 subtitle: "An agent managing one domain on a multi-domain instance can reach activate_theme, which changes every domain, but not domain-set, which changes only theirs. The safe operation is the missing one."
 brand: plain
-status: candidate
-status-note: "Reported by a site agent 2026-08-07, who correctly declined to use the tools available rather than risk another domain on the same instance. Verified: the MCP tool list carries NO domain-management tools at all beyond site_backup / site_apply, while the control API carries the full set under the same manage_domains capability. This is a channel gap, not a permission question."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.3 edge line (2026-08-08, commit 37e7c37). Reported by a site agent 2026-08-07, who correctly declined to use the tools available rather than risk another domain on the same instance. Verified: the MCP tool list carries NO domain-management tools at all beyond site_backup / site_apply, while the control API carries the full set under the same manage_domains capability. This is a channel gap, not a permission question."
 ---
 
 # SM238 - no per-domain tools over MCP
