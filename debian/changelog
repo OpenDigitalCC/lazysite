@@ -1,3 +1,38 @@
+lazysite (0.10.2-1) unstable; urgency=medium
+
+  * EDGE build on 0.10.1. No BREAKING change and no migration. Edge sites take it
+    next update; beta/stable stay on their channel until it promotes.
+  * SM241 domain-set now publishes the theme assets it binds. Binding a
+    layout/theme to a domain wrote the binding and mirrored nothing, so a
+    secondary domain served a 404 stylesheet - the layout applied and rendered
+    its chrome correctly, so an unstyled page read as "no layout". Mirrors under
+    the domain's own layout; the primary site's presentation is untouched.
+  * SM235 a WebDAV write to an unwritable directory answers 507 with the
+    condition named, instead of a bare 500 that cannot be told apart from a scope
+    refusal or a genuine fault.
+  * SM237 an unrecognised control-API action name is reported as a bad request
+    rather than as a capability refusal - the two point in opposite directions.
+  * SM225 describe_capabilities carries a documentation index, derived from what
+    the site publishes; a /docs/ index page ships with it.
+  * SM226 the capability map states its own scope: a false means "not granted to
+    this account", never "not available", and a granted channel whose site
+    service is off is reported as dormant.
+  * SM227 form-list returns row_count; the `rows` key remains one release as a
+    deprecated alias for that count and will be removed.
+  * SM228 the raw-page content-type refusal names the static-file alternative,
+    and existing affected pages are reported by validate_page and audit_site.
+  * SM229/SM230/SM242 documentation: submission notification, the position on
+    browser-origin calls, and a multi-domain section for layouts and themes.
+  * SM233 the manager's scope-independence control is now "Content access" and
+    shows which accounts currently cap the one being edited.
+  * SM234 a theme or layout used by a registered sub-domain is marked in use and
+    names the domains, instead of offering a Delete the server then refuses.
+  * SM220 a lapsed renew-on-use token is no longer displayed as "in use".
+  * Four new drift guards (CORS absence, known-action set, MCP/API surface shape,
+    feature-request status consistency).
+
+ -- Stuart Mackintosh <sjm@opendigital.cc>  Sat, 08 Aug 2026 08:00:00 +0000
+
 lazysite (0.10.1-1) unstable; urgency=medium
 
   * EDGE build on 0.10.0 stable. No BREAKING change, no migration (the form-event

@@ -16,6 +16,53 @@ Keying
 : Entries are high-level. Released versions are keyed by tag; unreleased
   entries are keyed by SM number and short commit ref.
 
+## 0.10.2 - EDGE: what the platform knew and did not say (2026-08-08)
+
+An edge build on 0.10.1. Every change closes a gap between what lazysite knows
+about itself and what it tells the person or agent asking. No BREAKING change and
+no migration; `form-list` gains `row_count` with `rows` kept one release as a
+deprecated alias.
+
+- SM241 (9a0adf2) domain-set publishes theme assets: binding a layout/theme to a
+  domain wrote the binding and mirrored nothing, so a secondary domain served a
+  404 stylesheet - the layout applied and rendered its chrome correctly, so an
+  unstyled page read as "no layout". Now mirrors under the domain's OWN layout
+  (the failing case) and leaves the primary site's presentation untouched.
+- SM242 (3df26b3) layouts briefing covers multi-domain instances: "re-activate to
+  rebuild the mirror" is right for one site and switches the primary site's theme
+  otherwise. Scopes that advice, names the correct action, makes the WebDAV
+  fallback actionable, and records the ten-year asset cache.
+- SM235 (8e10865) an unwritable WebDAV target answers 507 with the condition
+  named, not a bare 500 indistinguishable from a scope refusal.
+- SM237 (c447b79) an unrecognised control-API action is no longer reported as a
+  capability refusal; %KNOWN_ACTION is pinned to the dispatch chain.
+- SM225 (c8852c2) documentation index in describe_capabilities, derived from what
+  the site publishes, plus a /docs/ index page.
+- SM226 (53556f0) the capability map states its own scope: a false means "not
+  granted to this account", and a granted channel whose service is off says so.
+- SM227 (fb328a1) the submission store no longer reads as write-only. `rows`
+  meant a count here and an array in its sibling; `row_count` is now canonical.
+- SM228 (fc55d63) the raw-page downgrade names the static-file alternative, and
+  existing affected pages are reported by validate_page and audit_site.
+- SM229 (1a5bc2d) submission notification documented - it exists, and nothing
+  said so, so integrators designed polling.
+- SM230 (86711bb) stated position on browser-origin calls, with the preflight
+  refused explicitly instead of failing opaquely.
+- SM233 (5859d61) the scope-independence control is now "Content access" and
+  shows which accounts currently cap this one.
+- SM234 (931330c) a theme or layout used by a sub-domain is marked in use and
+  names the domains, instead of offering a Delete the server refuses. Layouts had
+  the same gap and are fixed with it.
+- SM239 (075c799) first cut: a baseline guard on the MCP/control-API surface
+  shape, with each one-sided capability carrying a recorded reason.
+- SM220 (ee18e06) a lapsed renew-on-use token no longer shows as "in use".
+- Backlog integrity (2b8fc19): 25 items were marked open while their own notes
+  recorded them as shipped; open items drop from 40 to 24, and t/lint/09 now
+  fails a status that contradicts its note. SM209 merged into SM222.
+- Backlog captured, no code: SM236-SM245 (an MCP binary write, per-domain MCP
+  tools, surface parity, write-time guardrails, audit_site reporting what the
+  site already knows, and briefs moving out of band into a plugin).
+
 ## 0.10.1 - EDGE: form spam controls, submissions tooling, and fixes (2026-07-27)
 
 An edge build on 0.10.0 stable - operator-facing form/submissions features, an
