@@ -64,8 +64,14 @@ sub sub_bodies {
     return \%body;
 }
 
+# SM255: writing lazysite.conf commits it, inside the shared writer - so calling
+# that writer IS calling the hook, transitively. A caller that used to commit its
+# own conf write (config-set) no longer does, and should not: one write path, one
+# commit, whatever the surface.
 my $HOOK_RE = qr/\b_git_commit(?:_move)?\s*\(
-    | \bLazysite::Git::(?:commit_paths|commit_all|commit_move|init)\s*\(/x;
+    | \bLazysite::Git::(?:commit_paths|commit_all|commit_move|init)\s*\(
+    | \b(?:write_conf_key|write_conf_content|_write_conf_key|conf_batch)\s*\(
+    | \b_write\s*\(\s*\$content/x;
 
 # =========================================================================
 # 1a. Structural registry: every write path classified hooked-or-exempt
@@ -76,6 +82,10 @@ my $HOOK_RE = qr/\b_git_commit(?:_move)?\s*\(
 # itself calls the content-history hook (verified below). Exempt entries
 # carry the reason they are allowed to skip the hook.
 my %HOOKED = map { $_ => 1 } qw(
+    Layouts::action_layouts_install
+    Domains::domain_add
+    Domains::domain_set
+    Domains::domain_remove
     Files::action_save
     Files::action_save_binary
     Files::action_delete
@@ -95,6 +105,10 @@ my %HOOKED = map { $_ => 1 } qw(
 );
 
 my %EXEMPT = (
+    # --- Domains (SM255: newly scanned) ---
+    'Domains::domain_check'   => 'read-only - probes DNS/TLS and reports; writes nothing',
+    'Domains::domain_preview' => 'read-only - renders a host as a visitor would see it',
+    'Domains::domain_usage'   => 'read-only - inverts the conf into a layout/theme usage map',
     # --- Files ---
     'Files::action_list'         => 'read-only',
     'Files::action_read'         => 'read-only',
@@ -162,7 +176,6 @@ my %EXEMPT = (
     'Layouts::action_themes_for_layout'        => 'read-only',
     'Layouts::action_layouts_repo_get'         => 'read-only',
     'Layouts::action_layouts_manifest'         => 'read-only',
-    'Layouts::action_layouts_install' => 'layout/theme artifact write (capture-swept)',
     'Layouts::action_layout_install'  => 'layout/theme artifact write (capture-swept)',
     'Layouts::action_layout_delete'   => 'layout/theme artifact write (capture-swept)',
     'Layouts::action_artifact_backups_delete' => 'layout/theme artifact write (capture-swept)',
@@ -229,6 +242,11 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         Layouts  => [ "$root/lib/Lazysite/Manager/Layouts.pm",  qr/^action_/ ],
         Themes   => [ "$root/lib/Lazysite/Manager/Themes.pm",   qr/^action_/ ],
         Sessions => [ "$root/lib/Lazysite/Manager/Sessions.pm", qr/^action_/ ],
+        # SM255: Manager::Domains was never scanned, so its conf writes escaped
+        # the guarantee entirely - the gap that let domain-set diverge from
+        # config-set unnoticed. Its verbs are named domain_*, hence the
+        # per-module pattern.
+        Domains  => [ "$root/lib/Lazysite/Manager/Domains.pm", qr/^domain_/ ],
         API      => [ "$root/lazysite-manager-api.pl",          qr/^action_/ ],
         DAV      => [ "$root/lazysite-dav.pl",                  qr/^do_/ ],
     );

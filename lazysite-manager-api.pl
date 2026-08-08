@@ -2189,10 +2189,10 @@ sub action_config_set {
         error => 'Could not write lazysite.conf' . ( defined $werr ? ": $werr" : '' ) }
         unless $wok;
     log_event( 'INFO', 'config-set', 'config key set', key => $key, user => $auth_user );
-    # SM085: lazysite.conf is one of the two versioned config files.
-    require Lazysite::Git;
-    Lazysite::Git::commit_paths( $DOCROOT, $auth_user,
-        'edit lazysite/lazysite.conf', 'lazysite/lazysite.conf' );
+    # SM255: the commit is no longer made here. lazysite.conf has ONE write path
+    # and it records the change itself, so every writer - config-set, the domain
+    # verbs, the CLI - produces the same history entry. A caller committing its
+    # own write is how the two surfaces diverged in the first place.
     return { ok => 1, key => $key, value => $value };
 }
 

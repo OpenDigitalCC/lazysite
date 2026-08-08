@@ -30,7 +30,7 @@ use File::Find                 ();
 use JSON::PP                   qw(encode_json decode_json);
 use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Domains ();
-use Lazysite::Manager::Common  qw(_write_conf_key);
+use Lazysite::Manager::Common  qw(_write_conf_key conf_batch);
 use Lazysite::Manager::Themes  qw(_mirror_theme_assets);      # SM193: mirror on apply
 use Exporter 'import';
 our @EXPORT_OK = qw(package_create package_apply apply_and_configure package_inspect);
@@ -471,12 +471,23 @@ sub apply_and_configure {
     unless ( $opt{adopt_identity} ) {
         delete @{$keys}{qw(site_url site_name)};
     }
-    for my $k ( sort keys %$keys ) {
-        my $v = $keys->{$k};
-        next unless defined $v && length $v;
-        if ( length $host ) { Lazysite::Manager::Domains::domain_set( $host, $k, $v ) }
-        else                { _write_conf_key( $k, $v ) }
-    }
+    # SM255: applying a package sets several presentation keys, each of which is
+    # its own conf write. Batched so the history records ONE act - "apply site
+    # package" - rather than half a dozen consecutive edits that read as separate
+    # operator decisions. The batch commits at the end; it cannot skip.
+    Lazysite::Manager::Common::conf_batch(
+        'apply site package to ' . ( length $host ? $host : 'the default site' ),
+        sub {
+            for my $k ( sort keys %$keys ) {
+                my $v = $keys->{$k};
+                next unless defined $v && length $v;
+                if ( length $host ) {
+                    Lazysite::Manager::Domains::domain_set( $host, $k, $v );
+                }
+                else { _write_conf_key( $k, $v ) }
+            }
+            return;
+        } );
     $ap->{applied_to}    = length $host         ? $host : '(default)';
     $ap->{identity_kept} = $opt{adopt_identity} ? 0     : 1;
     return $ap;

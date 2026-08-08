@@ -8,7 +8,7 @@ package Lazysite::Manager::Common;
 use strict;
 use warnings;
 use Cwd            qw(realpath);
-use Errno          ();                # %! (errno names) for the permission-failure hint
+use Errno          ();                  # %! (errno names) for the permission-failure hint
 use File::Basename qw(dirname basename);
 use Fcntl          qw(:flock);
 use JSON::PP       qw(encode_json);
@@ -17,12 +17,12 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
-    _write_conf_key path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
+    _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
     raw_html_page_refusal processor_path);
 
-our $DOCROOT;                         # set by the script
-our $action    = '';                  # current request action (for log attribution)
-our $auth_user = '';                  # current request user (for log attribution)
+our $DOCROOT;                           # set by the script
+our $action    = '';                    # current request action (for log attribution)
+our $auth_user = '';                    # current request user (for log attribution)
 
 our @BLOCKED_PATHS = (
     'lazysite/auth/.secret',
@@ -425,7 +425,7 @@ sub raw_html_page_refusal {
     # accepts .html/.js on every authoring channel - is a different mechanism, and
     # nothing previously connected the two.
     return
-          "This page declares a raw HTML content type ($ct), which a content page "
+        "This page declares a raw HTML content type ($ct), which a content page "
         . "may not use: raw HTML/SVG bypasses the layout and theme and is served "
         . "as plain text (ADR 0006), and external CSS/font/CDN links are refused. "
         . "What to do instead: to publish a self-contained HTML file unchanged, "
@@ -437,24 +437,76 @@ sub raw_html_page_refusal {
         . "application/json.";
 }
 
-sub _write_conf_key {
-    my ( $key, $value ) = @_;
-    # An empty value is allowed (writes "key:" - used to CLEAR a key, e.g.
-    # canonical_ip = auto-detect); the caller is the emptiness gate. The key
-    # itself must be present and name-shaped.
-    return 0 unless defined $key && length $key && defined $value;
-    return 0 unless $key =~ /^[A-Za-z_][A-Za-z0-9_-]*$/;
+# =========================================================================
+# SM255: ONE write path for lazysite.conf
+# =========================================================================
+#
+# The commit is a property of WRITING THIS FILE, not of the action that happened
+# to do it. An operator does not know or care whether a change arrived through
+# config-set, domain-set or the CLI - they know the file changed, and it should
+# be recorded once, the same way, every time. Before this, config-set committed
+# and the domain verbs did not, on the same file.
+#
+# So: no caller commits, and no caller may skip committing. A caller may only
+# GROUP writes into one commit, via conf_batch - which is not the same as opting
+# out, because the batch always commits at the end.
+#
+# WRITE STRATEGY. The two writers this replaces used incompatible techniques,
+# each introduced for a real reason:
+#   - _write_conf_key wrote via temp+rename (atomic);
+#   - Domains::_write wrote IN PLACE, on the grounds that temp+rename drops a
+#     site-user's ownership on the new inode.
+# Only one can survive, and the atomic one must: READERS OF THIS FILE ARE
+# LOCK-FREE BY DESIGN, so they depend on the rename to never observe a partial
+# file. t/unit/manager/47 asserts exactly that, and an in-place write fails it -
+# the lock serialises writers and does nothing for a concurrent reader.
+# The ownership concern the in-place write addressed is covered another way:
+# write_file_checked carries the old mode across to the temp file, and
+# lazysite/ is setgid (2775) so the group is inherited. Owner may flip between
+# the two legitimate writers - the site user and the web-server CGI - and mode
+# 0664 keeps both able to write, which is what the installer's group-write pass
+# exists to guarantee.
+our $CONF_BATCH;    # set by conf_batch() while a grouped write is in flight
 
-    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+sub _conf_path_of { return "$DOCROOT/lazysite/lazysite.conf" }
 
-    # Serialise concurrent writers. The Services page saves every changed key as
-    # its own config-set, fired in parallel (Promise.all), so several processes
-    # reach this read-modify-write at once. Without a lock, the second saver's
-    # write drops the first's change (lost update); combined with the old
-    # non-atomic write it truncated the whole file. Hold an exclusive lock on a
-    # sidecar lockfile across the read-modify-write so the writes serialise;
-    # write_file_checked keeps each write atomic. Readers stay lock-free - the
-    # atomic rename means they always see a complete file.
+# Group several conf writes into ONE content-history entry. domain_add writes
+# half a dozen keys; without this, one registration would read as six separate
+# acts in the history. Nested calls join the outer batch - the outermost owns
+# the commit.
+sub conf_batch {
+    my ( $message, $code ) = @_;
+    return $code->() if $CONF_BATCH;    # already batching: the outer one commits
+    local $CONF_BATCH = { message => $message, dirty => 0 };
+    my $r = eval { $code->() };
+    my $e = $@;
+    _commit_conf( $CONF_BATCH->{message} ) if $CONF_BATCH->{dirty};
+    die $e                                 if $e;
+    return $r;
+}
+
+# Record the change. Instant no-op when the content-history plugin is off, and
+# eval-guarded there, so a git failure never fails the write.
+sub _commit_conf {
+    my ($message) = @_;
+    require Lazysite::Git;
+    Lazysite::Git::commit_paths( $DOCROOT, $auth_user,
+        ( $message // 'edit lazysite/lazysite.conf' ),
+        'lazysite/lazysite.conf' );
+    return;
+}
+
+# The single writer. $mutate receives the current content and returns the new
+# content; returning undef means "nothing to do" and skips both write and
+# commit. Returns ( ok, err ) in list context, ok in scalar - the contract the
+# callers already expect.
+sub _write_conf {
+    my ( $mutate, $message ) = @_;
+    my $conf_path = _conf_path_of();
+
+    # Serialise the read-modify-write. The Services page fires every changed key
+    # as its own config-set in parallel, so several processes reach this at once;
+    # without the lock the second write drops the first (lost update).
     open my $lock, '>', "$conf_path.lock"
         or return wantarray ? ( 0, "Cannot lock lazysite.conf: $!" . _perm_hint() ) : 0;
     unless ( flock $lock, LOCK_EX ) {
@@ -465,25 +517,59 @@ sub _write_conf_key {
 
     my $content = '';
     if ( -f $conf_path ) {
-        open my $fh, '<:utf8', $conf_path
-            or do { close $lock; return wantarray ? ( 0, "Cannot read lazysite.conf: $!" ) : 0 };
-        $content = do { local $/; <$fh> };
-        close $fh;
+        unless ( open my $fh, '<:utf8', $conf_path ) {
+            my $e = "$!";
+            close $lock;
+            return wantarray ? ( 0, "Cannot read lazysite.conf: $e" ) : 0;
+        }
+        else {
+            $content = do { local $/; <$fh> };
+            close $fh;
+        }
     }
 
-    if ( $content =~ /^$key\s*:/m ) {
-        $content =~ s/^$key\s*:.*$/$key: $value/m;
-    }
-    else {
-        $content =~ s/\n?$/\n/;
-        $content .= "$key: $value\n";
-    }
+    my $new = $mutate->($content);
+    unless ( defined $new ) { close $lock; return wantarray ? ( 1, '' ) : 1 }
 
-    my ( $ok, $err ) = write_file_checked( $conf_path, $content );
+    # Atomic: temp + rename, so a lock-free reader never sees a partial file.
+    my ( $ok, $err ) = write_file_checked( $conf_path, $new );
     close $lock;    # releases the exclusive flock
-                    # Scalar callers keep the boolean contract; a list caller (config-set)
-                    # also gets the underlying error, incl. the permission hint.
-    return wantarray ? ( $ok ? 1 : 0, $err ) : ( $ok ? 1 : 0 );
+    return wantarray ? ( 0, $err ) : 0 unless $ok;
+
+    # Commit, or mark the batch dirty so its owner commits once at the end.
+    if ($CONF_BATCH) { $CONF_BATCH->{dirty} = 1 }
+    else             { _commit_conf($message) }
+    return wantarray ? ( 1, '' ) : 1;
 }
+
+# Set (or add) one `key: value` line.
+sub write_conf_key {
+    my ( $key, $value, $message ) = @_;
+    # An empty value is allowed (writes "key:" - used to CLEAR a key, e.g.
+    # canonical_ip = auto-detect); the caller is the emptiness gate. The key
+    # itself must be present and name-shaped.
+    return 0 unless defined $key && length $key && defined $value;
+    return 0 unless $key =~ /^[A-Za-z_][A-Za-z0-9_-]*$/;
+    return _write_conf(
+        sub {
+            my ($c) = @_;
+            if   ( $c =~ /^$key\s*:/m ) { $c =~ s/^$key\s*:.*$/$key: $value/m }
+            else                        { $c =~ s/\n?$/\n/; $c .= "$key: $value\n" }
+            return $c;
+        },
+        ( $message // "edit lazysite/lazysite.conf ($key)" ) );
+}
+
+# Replace the whole file. The domain verbs rewrite it wholesale (alias_hosts plus
+# a set of alias.<host>.<key> lines), which a per-key setter cannot express.
+sub write_conf_content {
+    my ( $content, $message ) = @_;
+    return 0 unless defined $content;
+    return _write_conf( sub { return $content }, $message );
+}
+
+# Back-compat: the old private name, kept so existing callers and the
+# content-history plugin (which imports it by name at runtime) keep working.
+sub _write_conf_key { return write_conf_key(@_) }
 
 1;

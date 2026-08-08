@@ -18,7 +18,7 @@ use warnings;
 use Cwd                       qw(realpath);
 use File::Path                qw(make_path);
 use Lazysite::Util            qw(log_event);
-use Lazysite::Manager::Common qw(path_is_reserved processor_path);
+use Lazysite::Manager::Common qw(path_is_reserved processor_path conf_batch);
 use Exporter 'import';
 our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview known_domain_host instance_public_ips);
 
@@ -100,16 +100,21 @@ sub _slurp {
     return $c;
 }
 
-# Write the conf back IN PLACE (open '>', so the inode - and thus the owner and
-# mode - is preserved; a temp+rename would drop a site-user's group/mode, the
-# field bug fixed earlier this cycle). Returns ( ok, err ).
+# SM255: conf writes go through the ONE shared path, which locks, writes in place
+# (preserving the inode and so the owner and mode - the field bug this module's
+# own writer existed to avoid) and records the change in content history. Before
+# this, config-set committed lazysite.conf and the domain verbs did not, on the
+# same file; an operator cannot tell those apart and should not have to.
 sub _write {
-    my ($content) = @_;
-    my $path = _conf_path();
-    open my $fh, '>:utf8', $path or return ( 0, "Cannot write $path: $!" );
-    print {$fh} $content or do { my $e = $!; close $fh; return ( 0, "Write failed: $e" ) };
-    close $fh            or return ( 0, "Close failed: $!" );
-    return ( 1, '' );
+    my ( $content, $message ) = @_;
+    # Each manager module carries its own $DOCROOT / $auth_user, set per request
+    # by the dispatcher, so bridge this module's context into Common's for the
+    # duration of the write - otherwise the shared writer looks in the wrong
+    # docroot and attributes the commit to nobody.
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT   = $DOCROOT;
+    local $Lazysite::Manager::Common::auth_user = $auth_user;
+    return Lazysite::Manager::Common::write_conf_content( $content, $message );
 }
 
 # Set (or replace) one `alias.<host>.<key>: value` line in $content, returning
@@ -354,7 +359,7 @@ sub domain_add {
     my @new_hosts = ( @$hosts, $host );
     $content = _set_base( $content, 'alias_hosts', join( ',', @new_hosts ) );
 
-    my ( $ok, $err ) = _write($content);
+    my ( $ok, $err ) = _write( $content, "register domain $host" );
     return { ok => 0, error => $err } unless $ok;
 
     # A host with no content root of its own serves the default site - nothing
@@ -441,7 +446,7 @@ sub domain_set {
     my $content = _slurp();
     return { ok => 0, error => 'Cannot read lazysite.conf' } unless defined $content;
     $content = _set_line( $content, $host, $key, $value );
-    my ( $ok, $err ) = _write($content);
+    my ( $ok, $err ) = _write( $content, "set domain key $host" );
     return { ok => 0, error => $err } unless $ok;
 
     log_event( 'INFO', 'domain-set', 'domain key set',
@@ -530,7 +535,7 @@ sub domain_remove {
     my @remaining = grep { $_ ne $host } @$hosts;
     $content = _set_base( $content, 'alias_hosts', join( ',', @remaining ) );
 
-    my ( $ok, $err ) = _write($content);
+    my ( $ok, $err ) = _write( $content, "remove domain $host" );
     return { ok => 0, error => $err } unless $ok;
 
     my $purged = 0;
