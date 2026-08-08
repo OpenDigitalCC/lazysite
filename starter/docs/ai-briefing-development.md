@@ -28,7 +28,6 @@ lazysite/
   plugins/payment-demo.pl     # x402 payment demo helper
   plugins/log.pl              # shared log helper (optional)
   install.sh                   # system installer (HestiaCP + Apache)
-  uninstall.sh                 # removes installer files
   tools/
     lazysite-server.pl         # dev server
     lazysite-users.pl          # user management CLI
@@ -40,9 +39,9 @@ lazysite/
       manager/                 # manager UI template + CSS (D013; internal)
       layouts/                 # operator-installed layouts + themes (D013)
       forms/                   # form config examples
+      templates/registries/    # sitemap, feeds and llms.txt templates
     manager/                   # manager UI pages
     docs/                      # documentation (this site)
-    registries/                # registry templates
     [demo pages]
   test-site/                   # scratch docroot for manual testing
 ```

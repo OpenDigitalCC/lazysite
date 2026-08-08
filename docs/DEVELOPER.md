@@ -65,7 +65,10 @@ Capabilities are channel x action grants carried by **groups**
 ## Tests
 
 Five-level taxonomy under `t/`: `unit/`, `integration/`, `journey/`, `smoke/`,
-`lint/`, plus `tools/`. Run `prove -r t/` (≈2,700 tests). The CGIs are exercised
+`lint/`, plus `tools/`. Run `prove -r t/`; the run prints its own totals on the
+final `Files=… Tests=…` line, which is the number to quote. (A count written
+into prose here is stale by the next release and misleads about the suite's
+size - this one said "≈2,700" while the suite had grown well past it.) The CGIs are exercised
 as **subprocesses** (`open3`/`open2`) with CGI env, or in-process via a
 `LOAD_ONLY` hook. `t/lib/TestHelper.pm` has the fixtures (`setup_dav_site`,
 `run_processor`, …). `tools/bench.pl --check` is the performance gate.

@@ -1245,7 +1245,7 @@ paths share one `handle_one_request`. Prefork is via FCGI::ProcManager
 (`LAZYSITE_FCGI_WORKERS`) with worker recycling
 (`LAZYSITE_FCGI_MAX_REQUESTS`, default 500); FCGI.pm is lazy-required, so the
 CGI path gains no new dependency. **Measured: a cache-hit at 62.2 ms as CGI
-serves in 0.4 ms pooled (147x)** - the CGI figure is almost entirely process
+serves in 0.4 ms pooled (155x)** - the CGI figure is almost entirely process
 start, which the loop amortises away. One pool per site
 (`tools/lazysite-pool.pl` binds `/run/lazysite/<site>.sock`, drops privileges,
 execs the processor). The auth wrapper stays CGI (its exec design), so pooling
@@ -1584,7 +1584,7 @@ Newest first; releases are git tags.
   `lazysite-check` (post-fix re-report, CGI-identity evaluation).
 - **0.7.1** (2026-07-10) - Persistent runtime (SM142): the dual-mode FastCGI
   accept loop - per-site worker pools, modules compile once; measured
-  cache-hit 62.2 ms CGI → 0.4 ms FCGI (147x); plain CGI byte-identical.
+  cache-hit 62.2 ms CGI → 0.4 ms FCGI (155x); plain CGI byte-identical.
 - **0.7.0** (2026-07-10) - **First stable release**, cut on completion of the
   2026-07-10 eight-dimension review resolution: seven refusal-level code
   fixes, the RELIABILITY.md SLO/RTO/RPO declarations, the pentest-gate ADR +

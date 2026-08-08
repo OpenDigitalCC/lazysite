@@ -1,108 +1,83 @@
 ---
-title: "SM254 - Engine documentation has drifted from the engine"
-subtitle: "Fourteen divergences found by source-validating the docs against the tree. Individually trivial; together they mean the documentation cannot be trusted without checking the code, which is the thing it exists to save."
+title: "SM254 - Guard the documentation against dead paths, and correct the drift a machine can find"
+subtitle: "A docs audit found fourteen divergences between the documentation and the engine. This closes the four that are mechanically checkable and builds the lint that stops them recurring. The remaining ten are SM263."
 brand: plain
-status: candidate
-status-note: "From a docs-audit note of 2026-07-26, produced by source-validating every claim while rewriting the public site. Never actioned; found and filed 2026-08-08. Spot-checked before filing: uninstall.sh and starter/registries/ genuinely do not exist, and DEVELOPER.md's test figure is stale. The value is less in the individual corrections than in the guards that would stop the same drift recurring."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.4 line (2026-08-08). SCOPE DELIBERATELY NARROWED from the original filing: this request now covers only the lint and the four corrections a machine can verify, and the ten judgement-call items were moved to SM263 rather than left inside a 'partial'. The operator's reasoning, and it is right: a partial forces a later reader to pick through the doc working out what was and was not done, when two clean records cost nothing. Original filing from a docs-audit note of 2026-07-26, produced by source-validating every claim while rewriting the public site; never actioned, found and filed 2026-08-08."
 ---
 
-# SM254 - engine documentation has drifted
+# SM254 - guard the docs against dead paths
 
 ## Why
 
-Someone rewriting the public site validated every claim against the v0.9.15 tree
-and found fourteen places where the documentation and the code disagree. None is
-dangerous. Together they matter, because documentation that is wrong in fourteen
-small ways cannot be relied on without opening the source - which is precisely
-the work it exists to save.
+A docs audit against the v0.9.15 tree found fourteen places where the
+documentation and the code disagree. None dangerous. Together they matter,
+because documentation that is wrong in fourteen small ways cannot be relied on
+without opening the source - which is precisely the work it exists to save.
 
-Two were spot-checked while filing and both hold: `uninstall.sh` and
-`starter/registries/` are referenced in engine docs and **do not exist in the
-tree**, and `DEVELOPER.md` still quotes "≈2,700 tests" for a suite that has since
-grown well past it.
+Four of the fourteen are mechanically checkable. Those are this request. The
+other ten are judgement calls and two open decisions, and they are **SM263**.
 
-## The findings
+## What shipped
 
-### Statements that are simply wrong
+### The guard
 
-| Claim | Reality |
+`t/lint/27-docs-reference-real-paths.t` fails when the documentation names a path
+or a shell script the tree does not contain. Both dead paths below would have
+failed it the day they were removed.
+
+It is **deliberately narrow**, because a lint that cries wolf gets switched off:
+
+- only repo-relative paths (`tools/`, `lib/`, `plugins/`, `debian/`, `starter/`,
+  `installers/`) and bare `.sh` names;
+- only tokens that LOOK like a file - an extension, or a trailing slash. Without
+  that it fires on `tools/list` and `tools/call`, which are JSON-RPC method
+  names, and on "plugins / handlers / form-targets", which is a sentence;
+- **not the CHANGELOG**, which correctly names files that existed when an old
+  release shipped. Rewriting history to satisfy a lint would be the wrong repair;
+- exceptions carry their REASON in the exempt list. An unexplained exemption is
+  how a lint stops meaning anything.
+
+`t/lint/01-stale-paths.t` is not this: it greps a hand-listed set of files for one
+literal left behind by the D013 rename.
+
+**It found four references the audit had not listed.** Three were legitimate - a
+one-off disaster-rehearsal script kept in session records, two scripts named as
+what `tools/release.sh` replaced, and an example script the reader writes
+themselves - and are exempted with those reasons. The fourth was a stale
+`registries/` entry in a repository-structure listing, corrected below.
+
+### The corrections
+
+| Was | Now |
 |---|---|
-| `uninstall.sh`, `starter/registries/` referenced | Neither exists |
-| DEVELOPER.md "≈2,700 tests" | Stale; the suite has grown since |
-| FEATURES.md quotes a 147x cache-hit speedup | The recorded measurement is 155x |
-| Preinstall snapshot attributed to `install.pl` | It lives in `install-hestia` |
-| FEATURES.md quotes `Lazysite::Git`'s `@EXCLUDE` list | The real list is longer |
-| FEATURES.md describes SM155 delegation | The shipped model is SM165 domain-derived scopes |
-| SM179 P8 chrome i18n marked deferred | It shipped |
-| SM179 spec names a `lang_source` front-matter flag | No such flag exists |
-| SM140 analytics field list | Predates the implementation |
+| `starter/registries/*.tt` | `starter/lazysite/templates/registries/*.tt`, where they actually ship |
+| `uninstall.sh` (two docs, plus a tree listing) | Removed. It does not exist and never did - there is no uninstall mechanism anywhere in the tree |
+| `DEVELOPER.md`: "≈2,700 tests" | Removed, not updated - the doc points at the `Files=… Tests=…` line the run prints |
+| `FEATURES.md`: 147x cache-hit speedup | 155x, self-evident from the doc's own figures since 62.2 / 0.4 is 155.5 |
 
-### Statements that are true but read wrong
+Two of those deserve a note.
 
-| Claim | The misreading |
-|---|---|
-| SM133 static fallback wording | Can be read as doing SSI; it serves `.html` only |
-| `::: include` described per the P4 claim | The shipped version is content-root-confined, i.e. stricter |
-| SM120 source comment calls the per-page `theme:` pin "preview-only" | FEATURES.md and the code treat it as a general per-page override |
+**`uninstall.sh`** was promised by two documents and has never existed. The
+install doc now describes manual removal honestly - delete the engine scripts the
+installer placed in `cgi-bin/`, restore the previous web-server config - and says
+plainly that a domain's `public_html` is not touched, which is the question
+anyone reading an uninstall section actually has.
 
-A wrong-but-plausible statement costs more than an absent one: SM242 was
-precisely this failure, where "re-activate to rebuild the mirror" was correct for
-one site and damaging for another.
+**The test count** was removed rather than corrected. A number nobody maintains
+is worse than no number: it is authoritative-looking and wrong, and the next
+person to update it will be the first. The run prints its own totals.
 
-### Behaviour worth a decision, not just a correction
+## What is NOT here
 
-**Theme name collision is handled two ways.** A theme upload installs under a
-date-prefixed name; `create_theme` (SM205) refuses. Both are defensible; having
-both, undocumented, means an agent cannot predict which it will get. Decide, then
-document the decision.
-
-**Packaged-install registry defaults to channel `edge` while the seeded conf says
-`stable`.** Two defaults for one question, disagreeing. Whichever is right, they
-should not differ.
-
-### Site-package warts, still present
-
-From the providers migration of 2026-07-24: token clients cannot download site
-packages; `apply` carries the source's `site_url`/`site_name` onto the target
-(SM193 fixed the default on the control-API path, but the MCP and CLI paths still
-lack `adopt_identity`); and apply installs the layout without creating the
-`/lazysite-assets` mirror.
-
-That last one is the same family as SM241, which fixed `domain-set`. Worth
-checking whether SM193's mirror-on-apply covers it or whether a gap remains -
-the report says it does not.
-
-## What to do
-
-**Correct the fourteen.** Mechanical, and it should be one pass rather than
-fourteen commits.
-
-**Then stop it recurring**, because a docs sweep that is not defended decays
-again. Three of these are mechanically checkable and worth guards:
-
-- **Dead path references.** A lint that greps the docs for `path/like/this` and
-  fails when the path does not exist would have caught `uninstall.sh` and
-  `starter/registries/` the day they were removed.
-- **The test count.** Either derive it, or drop the number and say "see the
-  gate output" - a figure nobody updates is worse than no figure.
-- **Retired terminology.** The SM120 "preview-only" comment is adjacent to the
-  existing retired-terms lint; extending that list is cheap.
-
-The rest - measurements, feature descriptions, spec-versus-shipped - are judgement
-calls that no lint will catch, and their real defence is that a claim gets
-re-validated when the feature next changes.
+Everything requiring judgement, moved to **SM263**: the remaining
+feature-description and spec-versus-shipped rows, all three "true but reads
+wrong" rows, the site-package warts, and the two behaviour questions
+(theme-name collision, packaged-install channel default) that need an operator
+decision rather than a correction.
 
 ## Verification
 
-- Every finding above is either corrected or recorded as a deliberate decision.
-- The two dead paths are gone from the docs, and a lint fails if a new one
-  appears.
-- DEVELOPER.md's figure is current or removed.
-- The two behaviour questions (theme collision, channel default) have answers,
-  not just descriptions.
-
-## Not in scope
-
-- The public lazysite.io site, which was already corrected and is what produced
-  this list.
-- SM193's site-package work beyond confirming whether the mirror gap remains.
+- The lint passes, and fails when a dead path is introduced.
+- The four corrections are in the tree.
+- `prove -lr t/lint` green.

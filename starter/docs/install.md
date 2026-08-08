@@ -91,7 +91,7 @@ mkdir -p /var/www/example.com/public_html/lazysite/templates/registries
 mkdir -p /var/www/example.com/public_html/lazysite/layouts
 mkdir -p /var/www/example.com/public_html/lazysite-assets
 cp starter/lazysite.conf.example   /var/www/example.com/public_html/lazysite/lazysite.conf
-cp starter/registries/*.tt         /var/www/example.com/public_html/lazysite/templates/registries/
+cp starter/lazysite/templates/registries/*.tt  /var/www/example.com/public_html/lazysite/templates/registries/
 mkdir -p /var/www/example.com/public_html/lazysite/templates/system
 cp starter/lazysite/templates/system/*.md  /var/www/example.com/public_html/lazysite/templates/system/
 cp starter/index.md                /var/www/example.com/public_html/
@@ -214,9 +214,18 @@ and invalidates the rendered HTML cache afterwards.
 
 ## Uninstall
 
-    sudo bash uninstall.sh
+There is no uninstall script. Removal is manual, and deliberately so - the
+installer only ever adds files to a domain's `cgi-bin/` and the Hestia template
+directory, so there is nothing to unwind beyond deleting them.
 
-Removes Hestia template files only. Deployed domain files are not touched.
+To remove lazysite from one domain, delete the engine scripts the installer
+placed in that domain's `cgi-bin/` (`lazysite-processor.pl`, `lazysite-auth.pl`
+and the other `lazysite-*.pl` entry points) and restore the web-server
+configuration that was in place before.
+
+**A domain's content is not touched by any of this.** The `public_html` tree -
+pages, `lazysite/`, uploads - is yours and stays exactly where it is. Back it up
+before removing anything if you intend to move it elsewhere.
 
 ## File reference
 
