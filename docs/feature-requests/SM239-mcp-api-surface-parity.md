@@ -113,3 +113,65 @@ distinction and this is the third case it should cover.
 - Making the two channels identical in shape. A tool has typed parameters and a
   description; an API action has a query string. Parity is about what is
   reachable, not how it is spelled.
+
+## Audit done, guard enforced (2026-08-08)
+
+Built as `t/lint/23-mcp-api-action-parity.t`, 247 assertions. A first cut in
+0.10.2 compared capability-level SHAPE only and said in its own header that it
+would not have caught SM238; this replaces it.
+
+### The map was incomplete, which is the finding under the finding
+
+Building the pairing surfaced that **thirteen real control-API actions appeared
+in no `unlocks` list at all**: `artifact-manifest`, `artifact-validate`,
+`artifact-backups-delete`, `bad-url-blocks`, `bad-url-unblock`, `lang-status`,
+`preview-grant`, `site-backup-delete`, `site-backup-inspect`,
+`site-export-primary`, and the three ACL actions.
+
+So `describe_capabilities` was under-reporting what every capability gives, and
+the first cut - which read `unlocks` - was measuring an incomplete map. All
+thirteen are now placed, and the guard checks completeness FIRST, because a
+parity check reading a partial map measures nothing.
+
+The ACL trio turned out to be a different case worth recording: `acl-get` /
+`acl-set` / `acl-remove` are gated by the **webdav CHANNEL** capability rather
+than an action capability, so they have no action-capability home by design. The
+channel's own description now names them.
+
+### What the pairing found
+
+**21 paired**, via a name map - the twins are spelled differently on the two
+channels (`form-submissions` / `read_form_submissions`), which is exactly why a
+naive comparison could not work.
+
+**Content file operations pair with WebDAV, not with a control-API action.** The
+API channel does file work over `/dav`, so `write_file`, `move_file`,
+`get_permissions` and a dozen others have no control-API twin and should not.
+Listing them as one-sided would have produced a dozen false positives and taught
+readers to ignore the list.
+
+**24 API-only and 13 MCP-only**, each now carrying a reason. Seven are
+deliberate: the domain verbs held by SM238, the byte-streaming backup actions
+that belong on WebDAV, `preview-grant` minting a browser cookie, and
+`upload_file` being MCP-only for the mirror-image reason. The rest read
+**undecided** - the honest answer, and the point of recording it, because a gap
+nobody has looked at should read differently from a gap someone chose.
+
+The largest undecided cluster is `manage_config`: `config-read`, `config-set` and
+`git-init` have no MCP twin at all. Then `audit`, which means an agent cannot read
+the audit trail over MCP.
+
+### What the guard catches
+
+- An action or tool added to one channel with no twin and no recorded reason.
+- An action callable but absent from `unlocks` - the class that hid thirteen.
+- A stale reason: one recorded for something since paired or removed, which reads
+  as a live decision and is worse than no entry.
+
+It would have caught SM238.
+
+### Still open
+
+The `undecided` entries are decisions, not defects - each is a small question
+about whether a given operation belongs on the connector. They can be worked
+through in any order now that they are visible and cannot silently grow.

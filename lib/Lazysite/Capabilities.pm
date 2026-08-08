@@ -32,7 +32,7 @@ sub capability_keys { return @CAP_KEYS }
 # the MCP tools/call dispatch.
 my %CHANNEL_INFO = (
     ui     => 'Interactive manager UI over a browser cookie session.',
-    webdav => 'The /dav publishing endpoint (files, themes, layouts).',
+    webdav => 'The /dav publishing endpoint (files, themes, layouts). Also gates the per-file ACL actions on the control API (acl-get / acl-set / acl-remove): a publishing partner manages permissions on the content it owns.',
     api    => 'The token-authenticated control API (structured actions).',
     mcp    => 'The MCP connector (Claude.ai / ChatGPT / Code tools).',
 );
@@ -59,7 +59,8 @@ my %ACTION_INFO = (
     manage_content => {
         title   => 'Read and write site content (pages, assets).',
         unlocks => {
-            api => [qw(aliases-list git-status git-history git-history-summary git-show git-restore)],
+            api => [ qw(aliases-list git-status git-history git-history-summary
+                    git-show git-restore lang-status site-export-primary) ],
             mcp => [ qw(list_files read_file write_file upload_file replace_text copy_file
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files
@@ -91,7 +92,8 @@ my %ACTION_INFO = (
     manage_themes => {
         title   => 'Install and activate themes.',
         unlocks => {
-            api    => [qw(theme-activate theme-list themes-for-layout themes-list-all)],
+            api => [ qw(theme-activate theme-list themes-for-layout themes-list-all
+                    artifact-manifest artifact-validate preview-grant) ],
             mcp    => [qw(list_themes theme_tokens activate_theme create_theme)],
             webdav => ['lazysite/layouts/<layout>/themes/<theme>/ (active theme read-only)'],
         },
@@ -99,7 +101,8 @@ my %ACTION_INFO = (
     manage_layouts => {
         title   => 'Install, author and activate layouts.',
         unlocks => {
-            api => [qw(layout-activate layout-install layout-delete layouts-available layouts-manifest)],
+            api => [ qw(layout-activate layout-install layout-delete layouts-available
+                    layouts-manifest artifact-backups-delete) ],
             mcp => [qw(activate_layout install_layout delete_layout list_layout_catalogue)],
             webdav => ['lazysite/layouts/<layout>/ (active layout read-only)'],
         },
@@ -109,14 +112,15 @@ my %ACTION_INFO = (
         unlocks => {
             api => [ qw(domains-list domain-add domain-set domain-remove
                     domain-preview domain-check
-                    site-backup-create site-backup-download site-backup-upload site-backup-apply) ],
+                    site-backup-create site-backup-download site-backup-upload
+                    site-backup-apply site-backup-delete site-backup-inspect) ],
             mcp => [qw(list_domains domain_set preview_domain site_backup site_apply)],
         },
     },
     manage_config => {
         title   => 'Read and set safe site configuration.',
         unlocks => {
-            api    => [qw(config-read config-set git-init)],
+            api => [qw(config-read config-set git-init bad-url-blocks bad-url-unblock)],
             webdav => [ 'lazysite/nav.conf', 'lazysite/forms/<name>.conf' ],
         },
     },
