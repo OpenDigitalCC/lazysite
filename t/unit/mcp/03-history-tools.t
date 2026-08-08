@@ -114,12 +114,12 @@ ok( sc($r)->{ok}, 'write_file v3 through the connector' );
 ( $st, $r ) = call( 'list_versions', { path => '/content/page.md' }, $agent );
 my $hist = sc($r);
 ok( $hist->{ok} && $hist->{enabled}, 'list_versions: enabled' ) or diag encode_json($r);
-cmp_ok( scalar @{ $hist->{entries} }, '>=', 3, 'adoption + both connector writes recorded' );
-like( $hist->{entries}[0]{sha}, qr/\A[0-9a-f]{7,40}\z/, 'entries carry version ids' );
-like( $hist->{entries}[0]{subject}, qr/edit/, 'connector writes named as edits' );
+cmp_ok( scalar @{ $hist->{versions} }, '>=', 3, 'adoption + both connector writes recorded' );
+like( $hist->{versions}[0]{sha}, qr/\A[0-9a-f]{7,40}\z/, 'versions carry ids' );
+like( $hist->{versions}[0]{subject}, qr/edit/, 'connector writes named as edits' );
 
 # --- view: exact historic content + a diff -------------------------------------
-my $adoption = $hist->{entries}[-1]{sha};
+my $adoption = $hist->{versions}[-1]{sha};
 ( $st, $r ) = call( 'view_version', { path => '/content/page.md', version => $adoption }, $agent );
 is( sc($r)->{content}, "version one\n", 'view_version returns the exact historic content' );
 like( sc($r)->{diff}, qr/version three/, 'and a diff against the current file' );
@@ -131,9 +131,9 @@ open my $now, '<', "$d/content/page.md" or die $!;
 is( do { local $/; <$now> }, "version one\n", 'file content restored' );
 close $now;
 ( $st, $r ) = call( 'list_versions', { path => '/content/page.md' }, $agent );
-cmp_ok( scalar @{ sc($r)->{entries} }, '>=', 4, 'the restore itself is the newest recorded version' );
-like( sc($r)->{entries}[0]{subject}, qr/restore/i, 'named as a restore' )
-    or diag encode_json( sc($r)->{entries} );
+cmp_ok( scalar @{ sc($r)->{versions} }, '>=', 4, 'the restore itself is the newest recorded version' );
+like( sc($r)->{versions}[0]{subject}, qr/restore/i, 'named as a restore' )
+    or diag encode_json( sc($r)->{versions} );
 
 # --- SM199: list_content_history (site-level file list + statistics) ------------
 ( $st, $r ) = mcp( { jsonrpc => '2.0', id => 1, method => 'tools/list' }, auth => $agent );

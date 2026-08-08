@@ -123,12 +123,12 @@ my ( $sha_adopt, $sha_edit );
 
     my $h = op_get( $d, 'action=git-history&path=page.md' );
     ok( $h->{ok} && $h->{enabled}, 'git-history ok + enabled flag' );
-    is( scalar @{ $h->{entries} }, 2, 'two versions of the page' );
-    is( $h->{entries}[0]{subject}, 'edit page.md',        'newest: the edit, terse message' );
-    is( $h->{entries}[0]{author},  'admin',               'newest: the acting user' );
-    is( $h->{entries}[1]{subject}, 'adopt existing site', 'oldest: the adoption commit' );
-    ok( $h->{entries}[0]{epoch} > 0, 'entries carry an epoch' );
-    ( $sha_edit, $sha_adopt ) = map { $_->{sha} } @{ $h->{entries} };
+    is( scalar @{ $h->{versions} }, 2, 'two versions of the page' );
+    is( $h->{versions}[0]{subject}, 'edit page.md',        'newest: the edit, terse message' );
+    is( $h->{versions}[0]{author},  'admin',               'newest: the acting user' );
+    is( $h->{versions}[1]{subject}, 'adopt existing site', 'oldest: the adoption commit' );
+    ok( $h->{versions}[0]{epoch} > 0, 'versions carry an epoch' );
+    ( $sha_edit, $sha_adopt ) = map { $_->{sha} } @{ $h->{versions} };
 }
 
 # --- git-show: historic content + diff vs the worktree -------------------------
@@ -165,9 +165,9 @@ my ( $sha_adopt, $sha_edit );
 
     my $sha7 = substr $sha_adopt, 0, 7;
     my $h = op_get( $d, 'action=git-history&path=page.md' );
-    is( $h->{entries}[0]{subject}, "restore page.md to $sha7",
+    is( $h->{versions}[0]{subject}, "restore page.md to $sha7",
         'the restore is itself the newest history entry' );
-    is( $h->{entries}[0]{author}, 'admin', 'restore attributed to the acting user' );
+    is( $h->{versions}[0]{author}, 'admin', 'restore attributed to the acting user' );
 
     ok( !op_post( $d, 'action=git-restore&path=page.md&sha=nope' )->{ok},
         'restore refuses a malformed sha' );
@@ -222,14 +222,14 @@ my ( $sha_adopt, $sha_edit );
 
     my $h = op_get( $d, 'action=git-history&path=sub/moved.md' );
     ok( $h->{ok} && $h->{enabled}, 'git-history on the moved path' );
-    my @subj = map { $_->{subject} } @{ $h->{entries} };
+    my @subj = map { $_->{subject} } @{ $h->{versions} };
     ok( ( grep { m{^move page\.md -> sub/moved\.md} } @subj ), 'shows the move commit' );
     ok( ( grep { /^edit page\.md/ } @subj ),      'history followed the rename: the pre-move edit is present' );
     ok( ( grep { /adopt existing site/ } @subj ), 'history followed back to the adoption commit' );
 
     # View a PRE-MOVE version through the new path: git-show resolves the historic
     # path (page.md) from the lineage and returns that version's content + a diff.
-    my ($pre) = grep { $_->{subject} =~ /^edit page\.md/ } @{ $h->{entries} };
+    my ($pre) = grep { $_->{subject} =~ /^edit page\.md/ } @{ $h->{versions} };
     my $sv = op_get( $d, "action=git-show&path=sub/moved.md&sha=$pre->{sha}" );
     ok( $sv->{ok}, 'git-show opens a pre-move version through the new path' ) or diag explain $sv;
     is( $sv->{from_path}, 'page.md', 'git-show reports the historic (pre-rename) path' );
@@ -245,7 +245,7 @@ my ( $sha_adopt, $sha_edit );
     my $nw = op_post( $d, 'action=save&path=page.md',
         encode_json( { content => "---\ntitle: New\n---\n\nunrelated\n" } ) );
     ok( $nw->{ok}, 'a new page created at the old path' );
-    my @s2 = map { $_->{subject} } @{ op_get( $d, 'action=git-history&path=page.md' )->{entries} };
+    my @s2 = map { $_->{subject} } @{ op_get( $d, 'action=git-history&path=page.md' )->{versions} };
     ok( ( !grep { /^edit page\.md/ } @s2 ),
         'the recreated old path does NOT inherit the moved file history (no leak)' );
 }

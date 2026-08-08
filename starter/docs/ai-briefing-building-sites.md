@@ -227,8 +227,17 @@ Fonts, photographs, icons and JavaScript libraries belong on the site's own
 origin, never a CDN and never a hotlink to someone else's server. That has always
 been the rule; the tool to follow it is `upload_file`.
 
-`write_file` is **text only** and will corrupt binary content. Use `upload_file`
-with the bytes base64-encoded:
+`write_file` is **text only** and will corrupt binary content. Use `upload_file`,
+which takes `path` and `content_base64` - the bytes as standard base64, newlines
+in the payload are fine:
+
+```json
+{ "path": "assets/fonts/inter.woff2", "content_base64": "d09GMgABAAAAA…" }
+```
+
+Same permissions and refusals as `write_file`: engine-owned paths, executable
+extensions and your scope confinement all apply unchanged, and the size cap is
+named in the refusal if you exceed it.
 
 - A webfont: upload the `woff2` under the theme's `assets/`, then reference it
   from the theme CSS with a relative path. Do not write `@import

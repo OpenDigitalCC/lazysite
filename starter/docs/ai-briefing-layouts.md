@@ -201,6 +201,24 @@ Agents set these **themselves** through the control API (`layout-activate` /
 `theme-activate`), which also clears the cache - it is a self-serve action with
 `manage_layouts` / `manage_themes`, not an operator hand-off.
 
+## The active theme is read-only. Where a theme lives.
+
+Two facts to have BEFORE you plan a theme change, rather than after your first
+`403`:
+
+**A theme lives at `lazysite/layouts/<layout>/themes/<theme>/`.** Not
+`lazysite/themes/` - a theme always belongs to a layout, so it is stored under
+that layout. Looking in the wrong place is a `403`, not a `404`, because the
+whole `lazysite/` tree is denied to writes by default.
+
+**The theme a site is currently using cannot be edited in place.** The server
+refuses writes to it, deliberately: a live theme being rewritten mid-request
+would serve a half-updated site to whoever was reading at that moment. It is
+design, not obstruction.
+
+So a theme change is always: install under a NEW name, check it, then activate.
+The old theme stays where it is until you remove it, which is also your rollback.
+
 ## Staging a layout over WebDAV
 
 If you publish over WebDAV you do NOT edit the live look in place - you

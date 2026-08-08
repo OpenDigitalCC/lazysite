@@ -855,8 +855,26 @@ elsif ( $action eq 'bad-url-unblock' ) {
 }
 elsif ( $action eq 'theme-list' )      { $result = action_theme_list() }
 elsif ( $action eq 'themes-list-all' ) { $result = action_themes_list_all() }
-elsif ( $action eq 'theme-activate' ) { $result = action_theme_activate( $path, \%params ) }
-elsif ( $action eq 'layout-activate' ) { $result = action_layout_activate( $path, \%params ) }
+
+# SM261: these two take the theme/layout NAME in a parameter called `path`,
+# which is the file-ish parameter everywhere else on this surface - so a caller
+# building from the action reference sends `theme=` or `layout=`, which is what
+# everyone tries first. SM247 made that survivable (an empty name is now an
+# error naming `path` rather than a silent deactivation), but only for someone
+# who has already made the call and read the error. Accept the obvious spelling
+# as an alias so the trap stops being reachable.
+#
+# NB: `path` DEFAULTS to '/', so "absent" here means empty or '/' - testing
+# length($path) alone would never reach the alias, which is the same defaulting
+# that made SM247 read a missing parameter as an instruction.
+elsif ( $action eq 'theme-activate' ) {
+    my $name = ( length($path) && $path ne '/' ) ? $path : ( $params{theme} // '' );
+    $result = action_theme_activate( $name, \%params );
+}
+elsif ( $action eq 'layout-activate' ) {
+    my $name = ( length($path) && $path ne '/' ) ? $path : ( $params{layout} // '' );
+    $result = action_layout_activate( $name, \%params );
+}
 elsif ( $action eq 'theme-delete' )            { $result = action_theme_delete($path) }
 elsif ( $action eq 'layout-delete' )           { $result = action_layout_delete($path) }
 elsif ( $action eq 'artifact-backups-delete' ) { $result = action_artifact_backups_delete($path) }

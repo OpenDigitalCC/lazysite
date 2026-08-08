@@ -1021,7 +1021,13 @@ sub action_git_history {
         ok      => 1,
         path    => $r->{rel},
         enabled => _git_bool($enabled),
-        entries => ( $enabled ? Lazysite::Git::file_log( $DOCROOT, $r->{rel}, $limit ) : [] ),
+        # SM261: `versions`, not `entries`. A list response names its CONTENTS,
+        # so a caller can predict the key from the tool. A reporting agent read
+        # this as returning zero versions and began writing it up as a defect -
+        # it was returning two `entries` perfectly well. A wrong key and an
+        # empty result are indistinguishable, so the failure mode is not an
+        # error but a confident wrong conclusion.
+        versions => ( $enabled ? Lazysite::Git::file_log( $DOCROOT, $r->{rel}, $limit ) : [] ),
     };
 }
 

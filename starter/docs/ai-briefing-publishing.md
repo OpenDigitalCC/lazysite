@@ -166,8 +166,20 @@ Which to use, by client
 Issue these to the control-API endpoint (`/cgi-bin/lazysite-manager-api.pl`)
 with your access token as HTTP Basic auth, the same as WebDAV. Each is a
 `?action=<name>` query; parameters are passed in the query string unless noted
-as a JSON body, and a token client's POSTs need no CSRF token. Call `whoami`
-first to see which your capabilities permit.
+as a JSON body, and a token client's POSTs need no CSRF token.
+
+**Before planning a sequence of calls, read `describe_capabilities`.** It is the
+authoritative list of what *this* account can call on *this* channel, and it is
+narrower than the list below: some actions are served only to the manager UI over
+a cookie session, so a token or MCP client cannot reach them at all. Planning
+against the full action list and discovering the subset by being refused is a
+trial-and-error loop that one lookup replaces.
+
+Some list-shaped responses are worth knowing before you read one: **a list
+response names its contents**, so `list_versions` returns `versions`,
+`list_domains` returns `domains`, `form-list` returns `forms`. If you read the
+wrong key you get an empty result, which looks exactly like a working call that
+found nothing - so check the key before concluding a feature is broken.
 
 `whoami` (GET)
 : No parameters. Returns your partner identity, capabilities, groups, effective

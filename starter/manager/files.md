@@ -985,7 +985,7 @@ function toggleHistory(btn) {
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (!d.ok) { panel.innerHTML = '<p class="mg-muted">' + escHtml(d.error || 'No history available') + '</p>'; return; }
-      renderHistory(panel, d.entries || []);
+      renderHistory(panel, d.versions || []);
     })
     .catch(function(e) { panel.innerHTML = '<p class="mg-muted">Error: ' + escHtml(e.message) + '</p>'; });
 }
