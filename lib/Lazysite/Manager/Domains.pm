@@ -226,9 +226,53 @@ sub domain_preview {
     $ENV{QUERY_STRING}     = '';
     $ENV{LAZYSITE_NOCACHE} = '1';
 
+    # SM257: this tool exists to VERIFY a domain renders before DNS points at it,
+    # so it must not report success without having verified anything. It used to
+    # discard the processor's stderr (2>/dev/null), never look at its exit
+    # status, and return ok:1 whatever came back - so a dead processor, a render
+    # that emitted nothing, and a genuinely blank page were one answer. An agent
+    # checking its own work was told "fine" in every case.
+    require File::Temp;
+    my ( $efh, $errfile ) = File::Temp::tempfile( 'lzs-preview-XXXXXX', TMPDIR => 1 );
+    close $efh;
+
     my $processor = processor_path();
-    my $output    = qx($^X \Q$processor\E 2>/dev/null);
-    $output =~ s/\A.*?\r?\n\r?\n//s;    # strip CGI headers (ASCII, byte-safe)
+    my $raw       = qx($^X \Q$processor\E 2>\Q$errfile\E);
+    my $status    = $?;
+
+    my $stderr = '';
+    if ( open my $ef, '<:utf8', $errfile ) {
+        local $/;
+        $stderr = <$ef> // '';
+        close $ef;
+    }
+    unlink $errfile;
+    $stderr =~ s/\s+\z//;
+    # Enough to identify the fault without returning a whole stack trace.
+    $stderr = substr( $stderr, 0, 500 ) if length $stderr > 500;
+
+    if ( $status != 0 ) {
+        my $code = $status >> 8;
+        my $sig  = $status & 127;
+        return { ok => 0, kind => 'render-failed',
+            error => "The processor failed to render $host"
+                . ( $sig           ? " (killed by signal $sig)" : " (exit $code)" )
+                . ( length $stderr ? ": $stderr" : '. It produced no diagnostic.' ) };
+    }
+
+    # A CGI response is headers, a blank line, then the body. No blank line means
+    # the processor did not produce a response at all - distinct from producing
+    # an empty one, and a different fault to chase.
+    unless ( defined $raw && $raw =~ /\r?\n\r?\n/ ) {
+        return { ok => 0, kind => 'no-cgi-headers',
+            error => "The processor returned no CGI response for $host"
+                . ( length $stderr ? ": $stderr" : '. Output was: '
+                    . ( defined $raw && length $raw
+                    ? '"' . substr( $raw, 0, 200 ) . '"'
+                    : 'nothing at all.' ) ) };
+    }
+
+    ( my $output = $raw ) =~ s/\A.*?\r?\n\r?\n//s;  # strip CGI headers (ASCII, byte-safe)
 
     # qx() returns the processor's raw UTF-8 BYTES. respond() emits the JSON via
     # encode_json, which UTF-8-encodes CHARACTER strings - so bytes handed to it
@@ -237,6 +281,15 @@ sub domain_preview {
     # resolve_json path fixed on the render side.)
     require Encode;
     $output = Encode::decode( 'UTF-8', $output );
+
+    # An empty body is the signature of a broken render, not of a blank page: the
+    # engine always emits a layout around whatever content it found, and a
+    # missing page is a 404 document rather than nothing.
+    return { ok => 0, kind => 'empty-render',
+        error => "The processor rendered nothing for $host. The domain is "
+            . 'registered, so check its content_root points at a directory with '
+            . 'an index page.' }
+        unless $output =~ /\S/;
 
     return { ok => 1, host => $host, html => $output };
 }
@@ -596,23 +649,23 @@ sub _ip_is_public {
     $ip =~ s/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)//i;    # IPv4-mapped IPv6 -> test the v4
     if ( $ip =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/ ) {
         my @o = ( $1, $2, $3, $4 );
-        return 0 if grep { $_ > 255 } @o;                          # malformed
-        return 0 if $o[0] == 0;                                    # 0.0.0.0/8 this-host
-        return 0 if $o[0] == 10;                                   # 10/8 private
-        return 0 if $o[0] == 127;                                  # 127/8 loopback
-        return 0 if $o[0] == 169 && $o[1] == 254;                  # 169.254/16 link-local + metadata
+        return 0 if grep { $_ > 255 } @o;                           # malformed
+        return 0 if $o[0] == 0;                                     # 0.0.0.0/8 this-host
+        return 0 if $o[0] == 10;                                    # 10/8 private
+        return 0 if $o[0] == 127;                                   # 127/8 loopback
+        return 0 if $o[0] == 169 && $o[1] == 254;    # 169.254/16 link-local + metadata
         return 0 if $o[0] == 172 && $o[1] >= 16 && $o[1] <= 31;    # 172.16/12 private
         return 0 if $o[0] == 192 && $o[1] == 168;                  # 192.168/16 private
-        return 0 if $o[0] == 100 && $o[1] >= 64 && $o[1] <= 127;   # 100.64/10 CGNAT
-        return 0 if $o[0] >= 224;                                  # 224/4 multicast, 240/4 reserved
+        return 0 if $o[0] == 100 && $o[1] >= 64 && $o[1] <= 127;    # 100.64/10 CGNAT
+        return 0 if $o[0] >= 224;    # 224/4 multicast, 240/4 reserved
         return 1;
     }
     my $l = lc $ip;
-    $l =~ s/%.*$//;                          # strip an IPv6 zone id (fe80::1%eth0)
-    return 0 if $l eq '::' || $l eq '::1';   # unspecified / loopback
-    return 0 if $l =~ /^fe[89ab]/;           # fe80::/10 link-local
-    return 0 if $l =~ /^f[cd]/;              # fc00::/7 unique-local
-    return 1;                                # global unicast
+    $l =~ s/%.*$//;                           # strip an IPv6 zone id (fe80::1%eth0)
+    return 0 if $l eq '::' || $l eq '::1';    # unspecified / loopback
+    return 0 if $l =~ /^fe[89ab]/;            # fe80::/10 link-local
+    return 0 if $l =~ /^f[cd]/;               # fc00::/7 unique-local
+    return 1;                                 # global unicast
 }
 
 # Open a verified TLS connection to $host:443. A connection only forms when the
@@ -810,7 +863,7 @@ sub domain_check {
     # and marker connections below. Keying on the resolved IPs (not the host name)
     # closes the DNS-rebinding path too. A public domain legitimately never
     # resolves to an internal address, so this only ever fires on abuse.
-    my @nonpublic = grep { !_ip_is_public($_) } @ips;
+    my @nonpublic  = grep { !_ip_is_public($_) } @ips;
     my $ssrf_block = @nonpublic ? 1 : 0;
 
     # 2. Points to this server (a resolved IP is one of ours). Behind a proxy or

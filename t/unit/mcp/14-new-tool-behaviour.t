@@ -24,9 +24,19 @@ use FindBin;
 
 my $root = "$FindBin::Bin/../../..";
 my $mcp  = "$root/lazysite-mcp.pl";
-my $d    = tempdir( CLEANUP => 1 );
-make_path( "$d/lazysite/auth", "$d/lazysite/layouts/base/themes/blue",
+my $base = tempdir( CLEANUP => 1 );
+
+# SM257: the docroot sits UNDER the temp dir rather than being it, because the
+# processor is resolved at $DOCROOT/../cgi-bin/ - so a preview can only render if
+# there is somewhere above the docroot to put it. With the docroot as the temp
+# dir itself, that path escapes into /tmp and the render can never succeed.
+# Before SM257 that did not show up, because a failed render reported ok:1.
+my $d = "$base/site";
+make_path( "$base/cgi-bin", "$d/lazysite/auth",
+    "$d/lazysite/layouts/base/themes/blue",
     "$d/lazysite/layouts/alt/themes/red", "$d/sites/clienta", "$d/content" );
+symlink "$root/lazysite-processor.pl", "$base/cgi-bin/lazysite-processor.pl"
+    or die "cannot link the processor: $!";
 
 open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
 print {$cf} "site_name: Agency\nmcp_enabled: true\nlayout: base\ntheme: blue\n"
@@ -190,13 +200,11 @@ my $GIF = pack 'H*',
     my $r = sc( call( 'preview_domain', { host => 'shop.clienta.com' }, $ok ) );
     ok( $r && $r->{ok}, 'preview_domain renders' ) or diag encode_json( $r // {} );
     is( $r->{host}, 'shop.clienta.com', 'the result names the host it rendered' );
-    ok( exists $r->{html}, 'and carries the rendered HTML' );
-    # NB: the body is deliberately NOT asserted here, and that is the finding.
-    # The preview shells the real processor, which needs more of an installed
-    # engine than this fixture provides - and it returns ok:1 with an empty body
-    # rather than reporting that nothing rendered. So the one thing the tool
-    # promises cannot be asserted. SM257 covers fixing that; do not pin the
-    # current behaviour as correct in the meantime.
+    # SM257: THIS is the assertion the tool exists to support, and before SM257
+    # it could not be made - a render producing nothing came back as ok:1 with an
+    # empty body, so the test could neither pass nor fail meaningfully.
+    like( $r->{html} // '', qr/Client A/,
+        "and renders THAT domain's content root, not the primary's" );
 
     my $unknown = sc( call( 'preview_domain', { host => 'nope.example' }, $ok ) );
     ok( $unknown && !$unknown->{ok}, 'preview_domain refuses an unregistered host' );
