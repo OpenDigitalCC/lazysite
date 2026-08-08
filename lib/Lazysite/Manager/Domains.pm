@@ -384,7 +384,60 @@ sub domain_set {
 
     log_event( 'INFO', 'domain-set', 'domain key set',
         host => $host, key => $key, user => $auth_user );
+
+    # SM241: binding a layout/theme to a domain must PUBLISH that theme's assets,
+    # not merely record the choice. Without this the domain serves a 404
+    # stylesheet: the layout renders its header, nav and footer correctly and the
+    # page looks chrome-less because nothing styles it. That is what happened to
+    # a secondary domain whose theme source was in the right place and whose
+    # public mirror was never written.
+    #
+    # The mirror was previously written only by theme-activate, theme upload,
+    # layout activate/install and site_apply - so the natural action for a
+    # secondary domain was the one action that published nothing, and the
+    # documented remedy (re-activate) is instance-wide and would switch the
+    # PRIMARY site's theme.
+    #
+    # Mirrors the pair the host resolves to AFTER this change, using the theme's
+    # own layout - the whole failure case is a secondary domain on a layout other
+    # than the active one. Best-effort and non-fatal: the binding is recorded
+    # either way, and _mirror_theme_assets already logs its own failure.
+    if ( $key eq 'layout' || $key eq 'theme' ) {
+        my ( $l, $t ) = _effective_presentation($host);
+        if ( length $l && length $t ) {
+            local $@;
+            eval {
+                # Loaded and imported at RUNTIME: Themes uses this module, so a
+                # compile-time `use` here would close the loop. _mirror_theme_assets
+                # is in the Themes @EXPORT_OK set (SitePackage imports it the
+                # ordinary way), so this is a published helper, not a reach inside.
+                require Lazysite::Manager::Themes;
+                Lazysite::Manager::Themes->import('_mirror_theme_assets');
+                no warnings 'once';    # fully-qualified package vars
+                local $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
+                local $Lazysite::Manager::Themes::LAZYSITE_DIR = "$DOCROOT/lazysite";
+                local $Lazysite::Manager::Themes::action       = 'domain-set';
+                _mirror_theme_assets( $l, $t );
+                1;
+            } or log_event( 'WARN', 'domain-set', 'theme asset mirror skipped',
+                host => $host, error => "$@" );
+        }
+    }
+
     return { ok => 1, host => $host, key => $key, value => $value };
+}
+
+# SM241: the layout+theme a host actually resolves to - its own override where it
+# has one, the base site's value otherwise. Same resolution domain_usage uses, so
+# what gets mirrored is what gets served.
+sub _effective_presentation {
+    my ($host) = @_;
+    my ( $base, $ov ) = _parse();
+    my $eff = sub {
+        my ($k) = @_;
+        return defined $ov->{$host}{$k} ? $ov->{$host}{$k} : ( $base->{$k} // '' );
+    };
+    return ( $eff->('layout'), $eff->('theme') );
 }
 
 # --- public: remove --------------------------------------------------------
