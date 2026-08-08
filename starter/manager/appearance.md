@@ -304,7 +304,9 @@ function activateThemeOnly(name) {
 function deactivateTheme() {
   mgConfirm('Deactivate theme and use the built-in fallback?', { ok: 'Deactivate' }).then(function(ok) {
     if (!ok) return;
-    fetch(API + '?action=theme-activate&path=', { method: 'POST' })
+    // SM247: deactivation is now explicit - an empty path alone is an error,
+    // because it is what a mistyped parameter looks like.
+    fetch(API + '?action=theme-activate&path=&deactivate=1', { method: 'POST' })
       .then(function(r){ return r.json(); }).then(function(d) {
         if (!d.ok) { showStatus(d.error, true); return; }
         showStatus('Theme deactivated.'); loadAll();
