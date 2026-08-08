@@ -801,7 +801,31 @@ sub cmd_group_add {
     print "User '$user' added to group '$group'.\n" unless $API_MODE;
 }
 
-# Append "key: value" to lazysite.conf unless the key is already present
+# SM255 (completion): the CLI writes the same file the manager writes, so it
+# uses the same writer - "a user won't distinguish, so they should behave the
+# same, irrespective of the source of the write". These two used an append and a
+# private temp+rename, neither locked against a concurrent manager write nor
+# recorded in content history, so a setup-manager run was invisible in the
+# history of the file it changed.
+#
+# Common carries the ambient docroot and acting user; this process has neither
+# set, so bridge them per write. The acting user is the operator at the terminal.
+sub _conf_write {
+    my ( $code, $message ) = @_;
+    require Lazysite::Manager::Common;
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT   = $DOCROOT;
+    local $Lazysite::Manager::Common::auth_user = _cli_actor();
+    return $code->();
+}
+
+sub _cli_actor {
+    return $ENV{LAZYSITE_ACTING_USER} if length( $ENV{LAZYSITE_ACTING_USER} // '' );
+    return $ENV{SUDO_USER}            if length( $ENV{SUDO_USER}            // '' );
+    return getpwuid($<) // 'cli';
+}
+
+# Set "key: value" in lazysite.conf unless the key is already present
 # (idempotent; never overrides an operator's existing value).
 sub _ensure_conf_key {
     my ( $key, $value ) = @_;
@@ -810,15 +834,17 @@ sub _ensure_conf_key {
         while (<$fh>) { if (/^\Q$key\E\s*:/) { close $fh; return 0 } }
         close $fh;
     }
-    open my $out, '>>', $conf or die "Cannot write $conf: $!\n";
-    print {$out} "$key: $value\n";
-    close $out;
+    my $ok = _conf_write(
+        sub {
+            return Lazysite::Manager::Common::write_conf_key( $key, $value,
+                "set $key" );
+        } );
+    die "Cannot write $conf\n" unless $ok;
     return 1;
 }
 
-# Remove one "key: value" line from lazysite.conf. Best-effort and atomic
-# (temp + rename); an unwritable conf is tolerated - the caller treats the
-# lingering line as inert.
+# Remove one "key: value" line from lazysite.conf. Best-effort; an unwritable
+# conf is tolerated - the caller treats the lingering line as inert.
 sub _remove_conf_key {
     my ($key) = @_;
     my $conf = "$DOCROOT/lazysite/lazysite.conf";
@@ -828,11 +854,12 @@ sub _remove_conf_key {
     close $in;
     my @keep = grep { !/^\Q$key\E\s*:/ } @lines;
     return 0 if @keep == @lines;
-    my $tmp = "$conf.tmp.$$";
-    open my $out, '>', $tmp or return 0;
-    print {$out} @keep;
-    close $out;
-    rename $tmp, $conf or do { unlink $tmp; return 0 };
+    my $ok = _conf_write(
+        sub {
+            return Lazysite::Manager::Common::write_conf_content( join( '', @keep ),
+                "remove retired conf key $key" );
+        } );
+    return 0 unless $ok;
     log_event( 'INFO', 'migrate', 'retired conf key removed', key => $key );
     return 1;
 }

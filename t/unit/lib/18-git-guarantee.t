@@ -68,9 +68,17 @@ sub sub_bodies {
 # that writer IS calling the hook, transitively. A caller that used to commit its
 # own conf write (config-set) no longer does, and should not: one write path, one
 # commit, whatever the surface.
+# Calling the unified lazysite.conf writer IS calling the hook, transitively -
+# the commit lives inside it (SM255). Match the writer through any wrapper name:
+# each manager module reaches it via its own thin bridge that localises that
+# module's $DOCROOT (Domains::_write, Plugins::_write_conf_content), so pinning
+# the exact bridge names would fail the next module to grow one - which is how
+# Plugins::action_plugin_save was missed in the first place.
 my $HOOK_RE = qr/\b_git_commit(?:_move)?\s*\(
     | \bLazysite::Git::(?:commit_paths|commit_all|commit_move|init)\s*\(
-    | \b(?:write_conf_key|write_conf_content|_write_conf_key|conf_batch)\s*\(
+    | \w*write_conf_(?:key|content)\s*\(
+    | \bconf_batch\s*\(
+    | \b_set_(?:theme|layout)_pointer\s*\(
     | \b_write\s*\(\s*\$content/x;
 
 # =========================================================================
@@ -81,7 +89,15 @@ my $HOOK_RE = qr/\b_git_commit(?:_move)?\s*\(
 # without classifying it here fails the build. "Hooked" means the sub body
 # itself calls the content-history hook (verified below). Exempt entries
 # carry the reason they are allowed to skip the hook.
+# SM255 (completion): these three write lazysite.conf and are therefore recorded
+# by the writer that owns that file. They were exempt while they wrote it by
+# hand - action_layouts_repo_set's exemption said so in as many words ("conf
+# write without a commit"), which is the shape of a defect sitting in a registry
+# as an accepted fact.
 my %HOOKED = map { $_ => 1 } qw(
+    Themes::action_theme_activate
+    Themes::action_layout_activate
+    Layouts::action_layouts_repo_set
     Layouts::action_layouts_install
     Domains::domain_add
     Domains::domain_set
@@ -179,8 +195,6 @@ my %EXEMPT = (
     'Layouts::action_layout_install'  => 'layout/theme artifact write (capture-swept)',
     'Layouts::action_layout_delete'   => 'layout/theme artifact write (capture-swept)',
     'Layouts::action_artifact_backups_delete' => 'layout/theme artifact write (capture-swept)',
-    'Layouts::action_layouts_repo_set' => 'conf write without a commit (pre-existing; '
-        . 'folded into the next capture sweep)',
     'Themes::action_theme_list'        => 'read-only',
     'Themes::action_themes_list_all'   => 'read-only',
     'Themes::action_theme_tokens'      => 'read-only',    # SM204: token-vocabulary discovery
@@ -188,8 +202,6 @@ my %EXEMPT = (
     'Themes::action_cache_list'        => 'read-only',
     'Themes::action_artifact_manifest' => 'read-only',
     'Themes::action_artifact_validate' => 'read-only',
-    'Themes::action_theme_activate'    => 'layout/theme artifact write (capture-swept)',
-    'Themes::action_layout_activate'   => 'layout/theme artifact write (capture-swept)',
     'Themes::action_theme_delete'      => 'layout/theme artifact write (capture-swept)',
     'Themes::action_theme_rename'      => 'layout/theme artifact write (capture-swept)',
     'Themes::action_theme_upload'      => 'layout/theme artifact write (capture-swept)',

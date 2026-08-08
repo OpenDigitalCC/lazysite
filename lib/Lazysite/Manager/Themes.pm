@@ -42,6 +42,20 @@ our $LAZYSITE_DIR;
 our $auth_user = '';
 our $action    = '';
 
+# SM255 (completion): the pointer setters below used a bare open('>') - not
+# atomic, not locked, and unrecorded - on the same file config-set writes
+# through the locking writer. Route them through the one writer; this module
+# carries its own $DOCROOT and $auth_user (the dispatcher sets both per
+# request), so bridge them for the duration of the write or the shared writer
+# looks in the wrong docroot and attributes the commit to nobody.
+sub _write_conf_content {
+    my ( $content, $message ) = @_;
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT   = $DOCROOT;
+    local $Lazysite::Manager::Common::auth_user = $auth_user;
+    return Lazysite::Manager::Common::write_conf_content( $content, $message );
+}
+
 # === moved from lazysite-manager-api.pl (SM079a) ===
 
 sub _read_active_layout_and_theme {
@@ -663,9 +677,9 @@ sub _set_theme_pointer {
     if    ( $theme_name eq '' )      { $conf =~ s/^theme\s*:.*\n?//m }
     elsif ( $conf =~ /^theme\s*:/m ) { $conf =~ s/^theme\s*:.*$/theme: $theme_name/m }
     else                             { $conf .= "\ntheme: $theme_name\n" }
-    open my $o, '>:utf8', $conf_path or return { ok => 0, error => "Cannot write conf" };
-    print $o $conf;
-    close $o;
+    my ( $wok, $werr ) = _write_conf_content( $conf,
+        ( length $theme_name ? "activate theme $theme_name" : 'deactivate theme' ) );
+    return { ok => 0, error => "Cannot write conf: $werr" } unless $wok;
     _invalidate_html_cache();
     return { ok => 1, theme => $theme_name };
 }
@@ -924,9 +938,9 @@ sub _set_layout_pointer {
         if ( $conf =~ /^theme\s*:/m ) { $conf =~ s/^theme\s*:.*$/theme: $theme/m }
         else                          { $conf .= "\ntheme: $theme\n" }
     }
-    open my $o, '>:utf8', $conf_path or return { ok => 0, error => "Cannot write conf" };
-    print $o $conf;
-    close $o;
+    my ( $wok, $werr ) = _write_conf_content( $conf,
+        "activate layout $layout" . ( defined $theme ? " with theme $theme" : '' ) );
+    return { ok => 0, error => "Cannot write conf: $werr" } unless $wok;
     _invalidate_html_cache();
     return { ok => 1, layout => $layout, ( defined $theme ? ( theme => $theme ) : () ) };
 }

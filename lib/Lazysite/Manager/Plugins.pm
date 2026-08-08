@@ -28,6 +28,23 @@ our @EXPORT_OK = qw(
 our $DOCROOT;
 our $action = '';
 
+# SM255 (completion): every write to lazysite.conf goes through Common's single
+# writer, which locks, writes atomically and records the change. This module
+# used to write the file twice by hand - once for the plugins: block (no commit)
+# and once for a Site-settings save (its own commit) - which is the same
+# one-file-two-mechanisms split SM255 set out to remove, in the one module the
+# original change missed.
+#
+# Each manager module carries its own $DOCROOT and the dispatcher sets it per
+# request, so the shared writer must be pointed at ours for the duration of the
+# write or it looks in the wrong docroot.
+sub _write_conf_content {
+    my ( $content, $message ) = @_;
+    no warnings 'once';
+    local $Lazysite::Manager::Common::DOCROOT = $DOCROOT;
+    return Lazysite::Manager::Common::write_conf_content( $content, $message );
+}
+
 # === moved from lazysite-manager-api.pl (SM079a) ===
 
 # SM152: the plugin registry - the canonical, authoritative enumeration of the
@@ -270,7 +287,8 @@ sub _update_plugins_conf {
     $new_conf =~ s/\n{3,}/\n\n/g;
     $new_conf .= "\n" unless $new_conf =~ /\n$/;
 
-    my ( $wok, $werr ) = write_file_checked( $conf_path, $new_conf );
+    my ( $wok, $werr ) = _write_conf_content( $new_conf,
+        ( $op eq 'add' ? "enable plugin $script" : "disable plugin $script" ) );
     return { ok => 0, error => "Cannot write lazysite.conf: $werr" }
         unless $wok;
 
@@ -293,8 +311,8 @@ sub action_plugin_read {
     my %values;
 
     if ($config_file) {
-        my $conf_path = "$DOCROOT/$config_file";
-        if ( -f $conf_path and open my $fh, '<:utf8', $conf_path ) {
+        my $plugin_conf = "$DOCROOT/$config_file";
+        if ( -f $plugin_conf and open my $fh, '<:utf8', $plugin_conf ) {
             while (<$fh>) {
                 chomp;
                 s/^\s+|\s+$//g;
@@ -364,25 +382,28 @@ sub action_plugin_save {
     };
 
     if ($config_file) {
-        my $conf_path = "$DOCROOT/$config_file";
-        my $content   = '';
-        if ( -f $conf_path and open my $fh, '<:utf8', $conf_path ) {
+        # $plugin_conf, not $conf_path: this branch writes the PLUGIN'S OWN
+        # config file, while the branch below writes lazysite.conf. They had the
+        # same variable name, which reads as one thing written two ways.
+        my $plugin_conf = "$DOCROOT/$config_file";
+        my $content     = '';
+        if ( -f $plugin_conf and open my $fh, '<:utf8', $plugin_conf ) {
             $content = do { local $/; <$fh> };
             close $fh;
         }
 
         $apply->( \$content, $_ ) for keys %safe;
 
-        my $dir = dirname($conf_path);
+        my $dir = dirname($plugin_conf);
         make_path($dir) unless -d $dir;
-        my ( $wok, $werr ) = write_file_checked( $conf_path, $content );
+        my ( $wok, $werr ) = write_file_checked( $plugin_conf, $content );
         return { ok => 0, error => "Cannot write config: $werr" }
             unless $wok;
 
         # A config carrying a password field must not be world-readable -
         # notify-xmpp.conf sits at the lazysite/ top level, outside the
         # mode-checked directories (2026-07-10 review, D6).
-        chmod 0660, $conf_path
+        chmod 0660, $plugin_conf
             if grep { ( $_->{type} // '' ) eq 'password' }
             @{ $desc->{config_schema} // [] };
     }
@@ -397,18 +418,17 @@ sub action_plugin_save {
 
         $apply->( \$content, $_ ) for grep { $want{$_} } keys %safe;
 
-        my ( $wok, $werr ) = write_file_checked( $conf_path, $content );
+        # SM085: lazysite.conf is one of the two versioned config files, so a
+        # Site-settings save is recorded. SM255 (completion): the writer records
+        # it, rather than this branch committing its own write - that private
+        # commit is exactly how the two mechanisms diverged. @changed still
+        # shapes the MESSAGE, so a one-field edit does not read as "8 settings".
+        my $msg = @changed
+            ? 'edit lazysite/lazysite.conf (' . join( ', ', sort @changed ) . ')'
+            : 'edit lazysite/lazysite.conf';
+        my ( $wok, $werr ) = _write_conf_content( $content, $msg );
         return { ok => 0, error => "Cannot write lazysite.conf: $werr" }
             unless $wok;
-
-        # SM085: lazysite.conf is one of the two versioned config files - a
-        # Site-settings save (this branch) commits it (no-op when git is off).
-        if (@changed) {
-            require Lazysite::Git;
-            Lazysite::Git::commit_paths( $DOCROOT,
-                $Lazysite::Manager::Common::auth_user,
-                'edit lazysite/lazysite.conf', 'lazysite/lazysite.conf' );
-        }
     }
 
     return { ok => 1, changed => [ sort @changed ] };

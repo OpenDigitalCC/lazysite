@@ -758,7 +758,16 @@ sub action_layouts_repo_set {
         $content =~ s/^layouts_repo\s*:.*\n?//m;
     }
 
-    my ( $wok, $werr ) = write_file_checked( $conf_path, $content );
+    # SM255 (completion): through the one writer - locked, atomic, recorded.
+    # This wrote the file directly, so a layouts_repo change was the one config
+    # edit that left no trace in content history.
+    my ( $wok, $werr ) = do {
+        no warnings 'once';
+        local $Lazysite::Manager::Common::DOCROOT   = $DOCROOT;
+        local $Lazysite::Manager::Common::auth_user = $auth_user;
+        Lazysite::Manager::Common::write_conf_content( $content,
+            ( length $value ? "set layouts_repo $value" : 'unset layouts_repo' ) );
+    };
     return { ok => 0, error => "Cannot write lazysite.conf: $werr" }
         unless $wok;
 

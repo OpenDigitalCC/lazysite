@@ -215,6 +215,7 @@ SKIP: {
     Lazysite::Git::reset_cache();
     ok( Lazysite::Git::enabled($site), 'recording is ON after the one switch' );
     my $commits = Lazysite::Git::count_commits($site);
+    my $first_log = Lazysite::Git::file_log( $site, 'index.md' );
 
     my $dis = Lazysite::Manager::Plugins::action_plugin_disable('plugins/content-history.pl');
     ok( $dis->{ok}, 'plugin-disable ok' ) or diag explain $dis;
@@ -232,7 +233,24 @@ SKIP: {
         or diag explain $re;
     Lazysite::Git::reset_cache();
     ok( Lazysite::Git::enabled($site), 'recording is ON again' );
-    is( Lazysite::Git::count_commits($site), $commits, 'resume kept every version (no re-adoption)' );
+    # The guarantee is that resuming keeps the existing history rather than
+    # re-adopting the site as a fresh baseline. Commit-count equality was a valid
+    # proxy for that only while nothing else committed in between; since SM255
+    # every write to lazysite.conf is recorded, so toggling the plugin
+    # legitimately adds commits (the plugins: block, then git_history off and on
+    # again). Counting therefore fails on correct behaviour. Assert the property
+    # itself instead: adoption happened exactly once, and the pre-existing
+    # history for a file is still intact and unchanged.
+    # file_log is per-file (and rename-following), so it cannot answer a
+    # whole-repo question; go through the module's own git primitive.
+    my ( $lok, $subjects ) = Lazysite::Git::run_git( $site, 'log', '--format=%s' );
+    ok( $lok, 'read the repository log' );
+    my $adopts = grep {/adopt existing site/} split /\n/, ( $subjects // '' );
+    is( $adopts, 1, 'resume did NOT re-adopt - exactly one adoption commit' );
+    is_deeply( Lazysite::Git::file_log( $site, 'index.md' ), $first_log,
+        'and the history recorded before the pause is unchanged' );
+    cmp_ok( Lazysite::Git::count_commits($site), '>=', $commits,
+        'every version kept - history only ever grows' );
 
     # A plugin with no lifecycle hooks toggles exactly as before (no hook key).
     my $plain = Lazysite::Manager::Plugins::action_plugin_enable('plugins/git-sync.pl');

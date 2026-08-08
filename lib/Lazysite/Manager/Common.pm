@@ -487,10 +487,20 @@ sub conf_batch {
 
 # Record the change. Instant no-op when the content-history plugin is off, and
 # eval-guarded there, so a git failure never fails the write.
+#
+# ATTRIBUTION. $auth_user is per-request ambient state, set by the dispatcher in
+# the CGI process. A plugin hook runs as a SUBPROCESS (Plugins::_run_hook shells
+# the plugin script), where that variable starts empty and the acting user
+# arrives in the environment instead. Before SM255 this write did not commit, so
+# an empty user was harmless; now it would author the commit as "unknown". Fall
+# back to the environment the hook runner already sets.
 sub _commit_conf {
     my ($message) = @_;
     require Lazysite::Git;
-    Lazysite::Git::commit_paths( $DOCROOT, $auth_user,
+    my $who = ( defined $auth_user && length $auth_user )
+        ? $auth_user
+        : ( $ENV{LAZYSITE_ACTING_USER} // '' );
+    Lazysite::Git::commit_paths( $DOCROOT, $who,
         ( $message // 'edit lazysite/lazysite.conf' ),
         'lazysite/lazysite.conf' );
     return;
