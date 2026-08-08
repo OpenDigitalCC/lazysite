@@ -8,12 +8,12 @@ use strict;
 use warnings;
 use JSON::PP qw(encode_json decode_json);
 use File::Find;
-use File::Path qw(make_path);
+use File::Path     qw(make_path);
 use File::Copy     qw(copy);
 use File::Basename qw(dirname);
-use Cwd qw(realpath);
-use Fcntl qw(:flock);
-use POSIX qw(strftime);
+use Cwd            qw(realpath);
+use Fcntl          qw(:flock);
+use POSIX          qw(strftime);
 use Lazysite::Util qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Manager::Common
     qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal load_upload_limits);
@@ -83,19 +83,19 @@ sub action_list {
         && -d $real;
 
     my @entries;
-    my $acls = load_acls();   # SM074: owner display, read once per listing
+    my $acls = load_acls();    # SM074: owner display, read once per listing
     opendir my $dh, $real or return { ok => 0, error => "Cannot read directory" };
     for my $name ( sort readdir $dh ) {
         next if $name =~ /^\./;
-        my $full = "$real/$name";
-        my $rel  = $dir_path eq '/' ? "/$name" : "$dir_path/$name";
-        my @st   = stat($full);
+        my $full   = "$real/$name";
+        my $rel    = $dir_path eq '/' ? "/$name" : "$dir_path/$name";
+        my @st     = stat($full);
         my $is_dir = -d $full ? 1 : 0;
         my $entry  = {
             name  => $name,
             path  => $rel,
             type  => $is_dir ? 'dir' : 'file',
-            size  => $is_dir ? 0 : ( $st[7] // 0 ),
+            size  => $is_dir ? 0     : ( $st[7] // 0 ),
             mtime => $st[9] // 0,
         };
         # SM019b: surface emptiness so the client knows whether a
@@ -104,7 +104,7 @@ sub action_list {
         # entry (including hidden files) counts as content. We
         # only count, never stat, so the cost scales with the
         # directory size, not tree depth.
-        if ( $is_dir ) {
+        if ($is_dir) {
             if ( opendir my $dh2, $full ) {
                 my @kids = grep { $_ ne '.' && $_ ne '..' } readdir $dh2;
                 closedir $dh2;
@@ -138,9 +138,9 @@ sub action_list {
                 # permissions editor) and any live lock (for the lock glyph).
                 my $a = $acls->{ _acl_norm($rel) };
                 if ($a) {
-                    $entry->{owner} = $a->{owner}  if defined $a->{owner};
-                    $entry->{read}  = $a->{read}   if ref $a->{read}  eq 'ARRAY';
-                    $entry->{write} = $a->{write}  if ref $a->{write} eq 'ARRAY';
+                    $entry->{owner} = $a->{owner} if defined $a->{owner};
+                    $entry->{read}  = $a->{read}  if ref $a->{read} eq 'ARRAY';
+                    $entry->{write} = $a->{write} if ref $a->{write} eq 'ARRAY';
                 }
                 ( my $lk = $rel ) =~ s{/}{:}g;
                 my $lrec = _read_lock_record("$LOCK_DIR/$lk.lock");
@@ -191,7 +191,7 @@ sub action_read {
     my $content = do { local $/; <$fh> };
     close $fh;
 
-    my $lock_info = _get_lock_info( $rel_path );
+    my $lock_info = _get_lock_info($rel_path);
 
     return {
         ok      => 1,
@@ -342,15 +342,15 @@ sub action_save {
     my $lock_key = $rel_path;
     $lock_key =~ s{/}{:}g;
     my $lock_file = "$LOCK_DIR/$lock_key.lock";
-    my $lrec = _read_lock_record($lock_file);
+    my $lrec      = _read_lock_record($lock_file);
     if ( _lock_fresh($lrec)
-         && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) ) {
+        && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) ) {
         return {
             ok     => 0,
             locked => 1,
             error  => $lrec->{origin} eq 'dav'
-                ? "File is locked via WebDAV by " . ( $lrec->{user} // 'another client' )
-                : "File is locked by " . ( $lrec->{user} // 'another user' ),
+            ? "File is locked via WebDAV by " . ( $lrec->{user} // 'another client' )
+            : "File is locked by " . ( $lrec->{user} // 'another user' ),
         };
     }
 
@@ -379,7 +379,7 @@ sub action_save {
     # Release lock
     unlink $lock_file if -f $lock_file;
 
-    log_event('INFO', $action, 'file saved', path => $rel_path, user => $auth_user);
+    log_event( 'INFO', $action, 'file saved', path => $rel_path, user => $auth_user );
 
     # SM085: every save is a content-history commit (create vs edit named).
     _git_commit( $username,
@@ -403,15 +403,55 @@ sub action_save {
 # Removing the generated outputs makes the processor regenerate them fresh on the
 # next request (update_registries rebuilds a missing output) - the cross-process
 # refresh that fixes "deleted page still in sitemap/llms".
+#
+# SM251: and it must clear them for EVERY content root, not just the docroot.
+# update_registries (SM110/SM151) writes a domain's registries INTO that domain's
+# content root - that is the whole point of per-domain registries - while this
+# only ever unlinked "$DOCROOT/$out". So on a multi-domain instance the
+# invalidation missed the file it was aiming at: deleting a page under a domain's
+# content root left THAT domain's sitemap and llms.txt untouched, and the entry
+# survived until the TTL expired. The reported symptom ("a deleted page stays in
+# the sitemap") was read as slow convergence; it was the refresh aiming at the
+# wrong file.
+#
+# Over-invalidating is the safe direction here: a registry that is regenerated
+# unnecessarily costs one rebuild on the next request, whereas one that is missed
+# serves a page that no longer exists.
+sub _registry_roots {
+    my %seen  = ( $DOCROOT => 1 );
+    my @roots = ($DOCROOT);
+
+    # Reuse the domain parser rather than re-reading the conf here - SM255's
+    # lesson about one file with several readers applies to parsing too.
+    require Lazysite::Manager::Domains;
+    no warnings 'once';
+    local $Lazysite::Manager::Domains::DOCROOT = $DOCROOT;
+    my $r = eval { Lazysite::Manager::Domains::domains_list() };
+    return @roots unless ref $r eq 'HASH' && $r->{ok};
+
+    for my $d ( @{ $r->{domains} || [] } ) {
+        my $cr = $d->{content_root} // '';
+        next unless length $cr;
+        $cr =~ s{^/+|/+$}{}g;
+        next if !length $cr || $cr =~ m{(?:^|/)\.\.(?:/|$)};
+        my $full = "$DOCROOT/$cr";
+        next if $seen{$full}++;
+        push @roots, $full if -d $full;
+    }
+    return @roots;
+}
+
 sub _invalidate_registries {
     my $rdir = "$DOCROOT/lazysite/templates/registries";
     return unless -d $rdir;
     opendir my $dh, $rdir or return;
     my @tt = grep { /\.tt$/ } readdir $dh;
     closedir $dh;
-    for my $t (@tt) {
-        ( my $out = $t ) =~ s/\.tt$//;
-        unlink "$DOCROOT/$out" if -f "$DOCROOT/$out";
+    for my $root ( _registry_roots() ) {
+        for my $t (@tt) {
+            ( my $out = $t ) =~ s/\.tt$//;
+            unlink "$root/$out" if -f "$root/$out";
+        }
     }
     return;
 }
@@ -461,13 +501,13 @@ sub action_delete {
             or return { ok => 0, error => "Cannot read directory: $!" };
         my @entries = grep { $_ ne '.' && $_ ne '..' } readdir $dh;
         closedir $dh;
-        if ( @entries ) {
+        if (@entries) {
             return { ok => 0, error => "Directory is not empty" };
         }
         rmdir $full
             or return { ok => 0, error => "Cannot remove directory: $!" };
-        log_event('INFO', $action, 'directory deleted',
-            path => $rel_path, user => $auth_user);
+        log_event( 'INFO', $action, 'directory deleted',
+            path => $rel_path, user => $auth_user );
         return { ok => 1, path => $rel_path };
     }
 
@@ -487,7 +527,7 @@ sub action_delete {
         Lazysite::Aliases::deindex_page( $DOCROOT, $arel );
     }
 
-    log_event('INFO', $action, 'file deleted', path => $rel_path, user => $auth_user);
+    log_event( 'INFO', $action, 'file deleted', path => $rel_path, user => $auth_user );
     # SM085: record the deletion in the content history.
     _git_commit( $username, "delete $result->{rel}", $result->{rel} );
     _invalidate_registries();
@@ -512,8 +552,8 @@ sub action_mkdir {
     make_path($full)
         or return { ok => 0, error => "Cannot create directory: $!" };
 
-    log_event('INFO', $action, 'directory created',
-        path => $rel_path, user => $auth_user);
+    log_event( 'INFO', $action, 'directory created',
+        path => $rel_path, user => $auth_user );
 
     return { ok => 1, path => $rel_path };
 }
@@ -537,16 +577,16 @@ sub action_move {
     }
 
     my ( $src_full, $dst_full ) = ( $s->{full}, $d->{full} );
-    return { ok => 0, error => "Source not found" }     unless -e $src_full;
+    return { ok => 0, error => "Source not found" } unless -e $src_full;
     return { ok => 0, error => "Target already exists" } if -e $dst_full;
 
     # Refuse a live foreign lock on the source (mirror action_save).
     my $lock_key = $src_rel;
     $lock_key =~ s{/}{:}g;
     my $lock_file = "$LOCK_DIR/$lock_key.lock";
-    my $lrec = _read_lock_record($lock_file);
+    my $lrec      = _read_lock_record($lock_file);
     if ( _lock_fresh($lrec)
-         && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) ) {
+        && ( $lrec->{origin} eq 'dav' || ( $lrec->{user} // '' ) ne $username ) ) {
         return { ok => 0, locked => 1,
             error => "Source is locked by " . ( $lrec->{user} // 'another user' ) };
     }
@@ -750,7 +790,7 @@ sub _read_lock_record {
     $at //= 0;
     $at =~ s/\D.*$//;
     return { user => $user, at => ( $at || 0 ), origin => 'manager',
-             timeout => $LOCK_TIMEOUT, token => undef, owner => '' };
+        timeout => $LOCK_TIMEOUT, token => undef, owner => '' };
 }
 
 sub _write_lock_record {
@@ -783,7 +823,7 @@ sub acquire_lock {
     # manager) or by a different manager user. The user may refresh
     # their own manager lock.
     if ( _lock_fresh($rec)
-         && ( $rec->{origin} eq 'dav' || ( $rec->{user} // '' ) ne $username ) ) {
+        && ( $rec->{origin} eq 'dav' || ( $rec->{user} // '' ) ne $username ) ) {
         return {
             ok        => 0,
             locked    => 1,
@@ -795,8 +835,8 @@ sub acquire_lock {
     }
 
     _write_lock_record( $lock_file, {
-        user => $username, at => time(), origin => 'manager',
-        timeout => $LOCK_TIMEOUT, token => undef, owner => '',
+            user    => $username,     at    => time(), origin => 'manager',
+            timeout => $LOCK_TIMEOUT, token => undef,  owner  => '',
     } ) or return { ok => 0, error => "Cannot write lock" };
     return { ok => 1, locked_by => $username };
 }
@@ -826,7 +866,7 @@ sub _get_lock_info {
     my $lock_key = $rel_path;
     $lock_key =~ s{/}{:}g;
     my $lock_file = "$LOCK_DIR/$lock_key.lock";
-    my $rec = _read_lock_record($lock_file);
+    my $rec       = _read_lock_record($lock_file);
     return {} unless $rec;
     return {
         locked_by => $rec->{user},
@@ -877,11 +917,11 @@ sub action_acl_set {
     # normal user always becomes the owner of what they claim.
     my $owner =
         $existing ? $existing->{owner}
-      : ( _is_operator() && defined $owner_req && length $owner_req ) ? $owner_req
-      : $user;
+        : ( _is_operator() && defined $owner_req && length $owner_req ) ? $owner_req
+        :                                                                 $user;
     my %rec = ( owner => $owner );
-    my $rl = _to_list($read);  $rec{read}  = $rl if defined $rl;
-    my $wl = _to_list($write); $rec{write} = $wl if defined $wl;
+    my $rl  = _to_list($read);  $rec{read}  = $rl if defined $rl;
+    my $wl  = _to_list($write); $rec{write} = $wl if defined $wl;
     $acls->{$rel} = \%rec;
     save_acls($acls) or return { ok => 0, error => "Cannot write the ACL store" };
     log_event( 'INFO', 'acl-set', 'acl set', path => $rel, user => $auth_user );
@@ -910,10 +950,10 @@ sub action_acl_remove {
     my ( $rel_path, $user ) = @_;
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
-    my $rel  = _acl_norm( $r->{rel} );
+    my $rel = _acl_norm( $r->{rel} );
     return { ok => 0, error => "Path is blocked", kind => 'blocked' }
         if is_blocked_path($rel) || is_blocked_config($rel);
-    my $acls = load_acls();
+    my $acls     = load_acls();
     my $existing = $acls->{$rel};
     return { ok => 1, path => $r->{rel}, removed => 0 } unless $existing;
     unless ( _is_operator() || ( $existing->{owner} // '' ) eq ( $user // '' ) ) {
