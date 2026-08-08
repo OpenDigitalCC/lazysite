@@ -89,6 +89,26 @@
     RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.html -f
     RewriteRule ^/([^.]+)$ /$1.html [L]
 
+    # SM248: the per-domain registries must reach the engine, ALWAYS.
+    #
+    # Every routing rule here is conditioned on the request mapping to NO file.
+    # On a multi-domain instance $DOCROOT/sitemap.xml exists - it is the PRIMARY
+    # site's - so a secondary domain's request matches a real file, skips every
+    # rule below, and Apache serves the primary's sitemap, llms.txt and feeds
+    # for the wrong Host. The engine has a correct per-Host handler (SM151 P6)
+    # and it never runs, because the request never reaches it.
+    #
+    # This rule carries no -f condition, so it fires whether the file exists or
+    # not. Placed BEFORE the cookie rule so it applies to crawler traffic (which
+    # has no cookie) and to a logged-in operator alike. Self-maintaining: it
+    # works for every domain, now and for any added later, with no vhost
+    # regeneration.
+    #
+    # Hot assets (favicon.ico, images, CSS) are deliberately NOT routed here -
+    # use `lazysite-apache-vhost rewrites` for those, which keeps them static.
+    RewriteRule ^/(?:sitemap\.xml|llms\.txt|robots\.txt|feed\.rss|feed\.atom)$ \
+        /cgi-bin/lazysite-auth.pl [PT,L]
+
     # Session-bearing requests stay on the CGI path: the pooled worker is
     # anonymous BY DESIGN (the auth wrapper's exec-per-request
     # trust-header model is not pooled - performance.md), so a request

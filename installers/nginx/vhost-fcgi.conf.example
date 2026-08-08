@@ -69,6 +69,26 @@ server {
         deny all;
     }
 
+    # SM248: the per-domain registries must reach the engine, ALWAYS.
+    #
+    # try_files serves an existing file directly. On a multi-domain instance
+    # $DOCROOT/sitemap.xml exists - it is the PRIMARY site's - so a secondary
+    # domain's request finds a real file and nginx serves the wrong site's
+    # sitemap, llms.txt and feeds. The engine has a correct per-Host handler
+    # (SM151 P6) and it never runs, because the request never reaches it. Same
+    # structural cause as the .brief deny above.
+    #
+    # An exact-match location beats the generic try_files with no file test, so
+    # this works for every domain, now and for any added later, with no config
+    # regeneration. Crawler traffic, so the cost is irrelevant. Hot assets
+    # (favicon.ico, images, CSS) are deliberately NOT here - use
+    # `lazysite-nginx-vhost rewrites`, which keeps them static.
+    location = /sitemap.xml { try_files /dev/null @lazysite; }
+    location = /llms.txt    { try_files /dev/null @lazysite; }
+    location = /robots.txt  { try_files /dev/null @lazysite; }
+    location = /feed.rss    { try_files /dev/null @lazysite; }
+    location = /feed.atom   { try_files /dev/null @lazysite; }
+
     # Front the two real CGI endpoints with the auth wrapper so the
     # session cookie becomes X-Remote-User before the target runs
     # (security.md: "every /cgi-bin/*.pl passes through the auth

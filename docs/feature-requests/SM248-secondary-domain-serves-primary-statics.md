@@ -2,8 +2,8 @@
 title: "SM248 - A secondary domain serves the primary site's sitemap, llms.txt and favicon"
 subtitle: "The per-domain files are generated correctly and never reach the visitor: Apache serves the primary's copies for every host, and the engine's per-domain handler is unreachable in production."
 brand: plain
-status: candidate
-status-note: "Reported by the sjm-claude-code site agent 2026-08-08 on harmony2050.org (0.10.0). Verified, and the ROOT CAUSE is different from the report's: the processor's SM151 P6 handler is correct - FallbackResource only routes non-existent paths, so an existing docroot file is served by Apache before the engine sees the request. Same structural cause as SM223. The fix therefore belongs in the vhost, not the processor."
+status: partial
+status-note: "PARTIAL 2026-08-08: the REGISTRY half is fixed - all four shipped vhost templates route sitemap.xml, llms.txt, robots.txt and the feeds to the engine unconditionally, pinned by t/lint/28. An operator action is needed on EXISTING sites: templates apply at install time, so a deployed vhost keeps the defect until regenerated. The FAVICON half and the rest of the cluster (SM253, SM249, SM223) are untouched. Reported by the sjm-claude-code site agent 2026-08-08 on harmony2050.org (0.10.0). Verified, and the ROOT CAUSE is different from the report's: the processor's SM151 P6 handler is correct - FallbackResource only routes non-existent paths, so an existing docroot file is served by Apache before the engine sees the request. Same structural cause as SM223. The fix therefore belongs in the vhost, not the processor."
 ---
 
 # SM248 - a secondary domain serves the primary's docroot-root statics
@@ -145,6 +145,51 @@ For the real defect, all three must hold at once:
 3. the served response is nonetheless the primary's file.
 
 Anything failing (1) or (2) is a different problem.
+
+## Shipped 2026-08-08: the registries route to the engine
+
+Operator decision: route those paths through the processor rather than generate a
+per-host rewrite for each. Self-maintaining - it works for every domain, now and
+for any added later, with no vhost regeneration - and the cost is a CGI
+invocation on paths crawlers fetch rather than visitors.
+
+All four shipped vhost templates now route `/sitemap.xml`, `/llms.txt`,
+`/robots.txt`, `/feed.rss` and `/feed.atom` to the engine **unconditionally**:
+
+- Apache CGI: a `ScriptAlias` per path, which beats `FallbackResource`.
+- Apache FastCGI: a `RewriteRule` with NO `-f` condition, placed before the
+  cookie rule so it applies to crawler and operator traffic alike.
+- nginx (both): an exact-match `location`, which beats the generic `try_files`.
+
+`t/lint/28-registries-routed-to-engine.t` pins all four, stripping comments first
+so a template cannot pass by describing the problem while still exhibiting it.
+
+**The per-host rewrite option already existed and lost on deployability.**
+`Lazysite::DomainRewrites` (SM151 P6b) generates exactly those rules and is wired
+into both vhost tools as a `rewrites` verb - which PRINTS a snippet for the
+operator to paste. That manual step is why the affected instances still show the
+defect: the mechanism was built and never applied. Hot assets still belong to it
+(favicon.ico, images and CSS stay static and fast); the registries do not.
+
+### An operator action is required on existing sites
+
+**This does not fix a deployed site by itself.** The templates are used at install
+time, so a site installed before this release keeps its current vhost and keeps
+serving the primary's registries until that vhost is regenerated or the routing
+lines are added by hand. No fix at the web-server layer can avoid that.
+
+This also settles the narrowing question above in the direction of "not
+exercised": the routing was never in place on any deployed vhost, so a domain
+whose primary HAS registries would have shown the defect on 0.10.3 too.
+
+### What this does NOT close
+
+The favicon half is untouched, and so is the rest of the cluster: **SM253** (the
+404 path skips the content root and the security headers), **SM249** (theme
+assets unavailable in page bodies) and **SM223** (static files bypass the auth
+gate). SM223 shares the same structural cause but is a security decision about
+which paths must never be served statically, not a routing tweak, and deserves to
+be taken deliberately rather than folded in behind this.
 
 ## Verification
 

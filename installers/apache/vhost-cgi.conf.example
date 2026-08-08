@@ -102,6 +102,31 @@
         Require all denied
     </FilesMatch>
 
+    # SM248: the per-domain registries must reach the engine, ALWAYS.
+    #
+    # FallbackResource only routes paths that do NOT exist. On a multi-domain
+    # instance $DOCROOT/sitemap.xml exists - it is the PRIMARY site's - so
+    # Apache serves it directly for every Host, and a secondary domain gets the
+    # primary's sitemap, llms.txt and feeds. The engine has a correct per-Host
+    # handler (SM151 P6) and it never runs, because the request never reaches
+    # it. Same structural cause as the .brief deny above: an existing docroot
+    # file wins before lazysite is consulted.
+    #
+    # Aliasing these few paths to the engine unconditionally is self-
+    # maintaining: it works for every domain, now and for any added later, with
+    # no vhost regeneration. They are fetched by crawlers rather than visitors,
+    # so the CGI cost is irrelevant. Hot assets (favicon.ico, images, CSS) are
+    # deliberately NOT here - use `lazysite-apache-vhost rewrites` for those,
+    # which keeps them static.
+    #
+    # NB these are ScriptAlias, so they run the auth wrapper exactly as
+    # FallbackResource does; the wrapper execs the processor.
+    ScriptAlias /sitemap.xml  __CGIBIN__/lazysite-auth.pl
+    ScriptAlias /llms.txt     __CGIBIN__/lazysite-auth.pl
+    ScriptAlias /robots.txt   __CGIBIN__/lazysite-auth.pl
+    ScriptAlias /feed.rss     __CGIBIN__/lazysite-auth.pl
+    ScriptAlias /feed.atom    __CGIBIN__/lazysite-auth.pl
+
     <Directory __DOCROOT__>
         # Debian's default config denies the filesystem outside
         # /var/www; grant the docroot explicitly (the Hestia original
