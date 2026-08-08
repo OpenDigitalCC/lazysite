@@ -31,10 +31,10 @@ sub capability_keys { return @CAP_KEYS }
 # login, webdav by webdav_enabled_for, api on the control-API token path, mcp on
 # the MCP tools/call dispatch.
 my %CHANNEL_INFO = (
-    ui     => 'Interactive manager UI over a browser cookie session.',
+    ui => 'Interactive manager UI over a browser cookie session.',
     webdav => 'The /dav publishing endpoint (files, themes, layouts). Also gates the per-file ACL actions on the control API (acl-get / acl-set / acl-remove): a publishing partner manages permissions on the content it owns.',
-    api    => 'The token-authenticated control API (structured actions).',
-    mcp    => 'The MCP connector (Claude.ai / ChatGPT / Code tools).',
+    api => 'The token-authenticated control API (structured actions).',
+    mcp => 'The MCP connector (Claude.ai / ChatGPT / Code tools).',
 );
 
 # SM180: each CHANNEL capability only DOES anything while its site service is
@@ -93,8 +93,8 @@ my %ACTION_INFO = (
         title   => 'Install and activate themes.',
         unlocks => {
             api => [ qw(theme-activate theme-list themes-for-layout themes-list-all
-                    artifact-manifest artifact-validate preview-grant) ],
-            mcp    => [qw(list_themes theme_tokens activate_theme create_theme)],
+                    artifact-manifest artifact-validate preview-grant theme-delete) ],
+            mcp => [qw(list_themes theme_tokens activate_theme create_theme delete_theme)],
             webdav => ['lazysite/layouts/<layout>/themes/<theme>/ (active theme read-only)'],
         },
     },

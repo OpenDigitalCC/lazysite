@@ -89,6 +89,11 @@ my %PAIR = (
     'layout-delete'       => 'delete_layout',
     'layouts-manifest'    => 'list_layout_catalogue',
     'theme-activate'      => 'activate_theme',
+    # SM262: paired, but NOT identical - the MCP tool is always restricted to
+    # themes the caller created, while the API action restricts only for token
+    # clients and leaves the manager UI's cookie session unrestricted. Same
+    # action, two channels, one of which can have a human behind it.
+    'theme-delete'        => 'delete_theme',
     'themes-list-all'     => 'list_themes',
     'nav-read'            => 'read_nav',
     'nav-save'            => 'set_nav',
@@ -132,6 +137,7 @@ my %MCP_ONLY = (
     'upload_file'     => 'deliberate (SM240) - the API channel has WebDAV for bulk bytes',
     'theme_tokens'       => 'undecided',
     'create_theme'       => 'undecided',
+    # SM262: create_theme's counterpart now exists; see the %PAIR entry.
     'list_form_handlers' => 'undecided',
     'bind_form'          => 'undecided',
     'audit_site'         => 'undecided',

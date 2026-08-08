@@ -165,6 +165,11 @@ my $site_secured = site_grants_manager();
 # 108-branch refactor in a copy-and-discoverability release. Drift is impossible:
 # t/lint/22-known-action-parity.t extracts the chain's action names and asserts
 # this set matches exactly.
+# SM262: set when the request authenticated with a TOKEN rather than a manager
+# cookie, so theme-delete can be restricted to themes the caller created. Declared
+# here because it is set in the auth branch and read at dispatch.
+my $RESTRICT_THEME_DELETE = 0;
+
 my %KNOWN_ACTION = map { $_ => 1 } qw(
     acl-get acl-remove acl-set aliases-list analyse_visitors
     artifact-backups-delete artifact-manifest artifact-validate audit
@@ -615,6 +620,12 @@ if ($token_auth) {
                     . "account's group." } );
         exit 0;
     }
+
+    # SM262: this whole branch runs ONLY for token auth, so reaching it is what
+    # marks the caller as automated rather than a human at the manager console.
+    # The flag is read at dispatch, where the acting user is also known.
+    $RESTRICT_THEME_DELETE = 1;
+
     my %need = (
         'artifact-manifest' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'artifact-validate' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
@@ -656,8 +667,16 @@ if ($token_auth) {
         'layouts-available' => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         'layouts-manifest'  => sub { $_[0]->{manage_themes} || $_[0]->{manage_layouts} },
         # SM: a layouts manager may install/remove layouts on demand from the repo.
-        'layout-install'          => sub { $_[0]->{manage_layouts} },
-        'layout-delete'           => sub { $_[0]->{manage_layouts} },
+        'layout-install' => sub { $_[0]->{manage_layouts} },
+        'layout-delete'  => sub { $_[0]->{manage_layouts} },
+        # SM262: a caller that can create a theme may remove one IT created, and
+        # nothing else - enforced in action_theme_delete, which this branch asks
+        # for by setting $RESTRICT_THEME_DELETE below. Without this an agent
+        # accumulated an experiment per attempt and only the operator could clear
+        # them. The manager UI over a cookie session does not take this path and
+        # keeps the unrestricted delete: a human at the console is the case the
+        # UI-only rule was protecting, and it still is.
+        'theme-delete'            => sub { $_[0]->{manage_themes} },
         'artifact-backups-delete' => sub { $_[0]->{manage_layouts} || $_[0]->{manage_themes} },
         # SM105: navigation is a token-client action gated by manage_nav (which
         # inherits manage_content / webdav), so a WebDAV/API partner can read and
@@ -875,7 +894,12 @@ elsif ( $action eq 'layout-activate' ) {
     my $name = ( length($path) && $path ne '/' ) ? $path : ( $params{layout} // '' );
     $result = action_layout_activate( $name, \%params );
 }
-elsif ( $action eq 'theme-delete' )            { $result = action_theme_delete($path) }
+elsif ( $action eq 'theme-delete' ) {
+    # SM262: a token client may remove a theme it created; a cookie session (a
+    # human in the manager) keeps the unrestricted delete.
+    $result = action_theme_delete( $path,
+        { restrict_to_creator => $RESTRICT_THEME_DELETE, user => $auth_user } );
+}
 elsif ( $action eq 'layout-delete' )           { $result = action_layout_delete($path) }
 elsif ( $action eq 'artifact-backups-delete' ) { $result = action_artifact_backups_delete($path) }
 elsif ( $action eq 'theme-rename' ) {

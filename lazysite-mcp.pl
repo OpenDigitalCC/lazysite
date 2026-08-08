@@ -645,7 +645,7 @@ my %TOOLS = (
                 host  => { type => 'string',
                     description => 'A registered domain to bind this theme to. Omit ONLY when you mean the whole instance.' },
             },
-            required   => ['theme'], additionalProperties => JSON::PP::false },
+            required => ['theme'], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
             # SM238: with a host, this is a per-domain BINDING, not an instance
@@ -697,7 +697,7 @@ my %TOOLS = (
                 host   => { type => 'string',
                     description => 'A registered domain to bind this layout to. Omit ONLY when you mean the whole instance.' },
             },
-            required   => ['layout'], additionalProperties => JSON::PP::false },
+            required => ['layout'], additionalProperties => JSON::PP::false },
         run => sub {
             my $a = $_[0];
             if ( defined $a->{host} && length $a->{host} ) {
@@ -749,6 +749,22 @@ my %TOOLS = (
             properties => { layout => { type => 'string' } },
             required   => ['layout'], additionalProperties => JSON::PP::false },
         run => sub { action_layout_delete( $_[0]->{layout} ) },
+    },
+    delete_theme => {
+        description => 'Delete a theme YOU created with create_theme. You cannot remove a theme created by anyone else, or one that predates this account - that stays an operator action from the manager. Refuses the ACTIVE theme, and any theme a registered domain is using, naming the domains. Use this to clear an experiment rather than leaving it behind: a theme you abandon stays in the site\'s theme list until someone removes it.',
+        cap         => 'manage_themes',
+        inputSchema => { type => 'object',
+            properties => { theme => { type => 'string',
+                    description => 'The theme name, as given to create_theme' } },
+            required => ['theme'], additionalProperties => JSON::PP::false },
+        run => sub {
+            my ( $a, $user ) = @_;
+            # SM262: always creator-restricted here. Every MCP caller is an
+            # automated one, so there is no cookie-session case to distinguish -
+            # the tool grants exactly "tidy up after yourself".
+            return Lazysite::Manager::Themes::action_theme_delete( $a->{theme} // '',
+                { restrict_to_creator => 1, user => $user } );
+        },
     },
     list_form_handlers => {
         description => 'List the configured form delivery handlers (id, type, name) - what a form can be bound to. Destinations and credentials are operator-only and never returned.',

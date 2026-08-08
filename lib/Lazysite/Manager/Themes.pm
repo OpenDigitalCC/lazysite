@@ -97,9 +97,9 @@ sub action_theme_list {
                 next unless -d "$themes_dir/$name";
                 my $by = $use->{themes}{"$active_layout\0$name"} || [];
                 push @themes, {
-                    name   => $name,
-                    active => $name eq $active_theme            ? 1 : 0,
-                    valid  => -f "$themes_dir/$name/theme.json" ? 1 : 0,
+                    name    => $name,
+                    active  => $name eq $active_theme            ? 1 : 0,
+                    valid   => -f "$themes_dir/$name/theme.json" ? 1 : 0,
                     used_by => $by,           # SM234: domains that resolve to it
                     in_use  => scalar @$by,
                 };
@@ -583,7 +583,15 @@ sub action_create_theme {
         : '1.0.0',
         layouts => [$layout],
         author  => $author,
-        config  => $config,
+        # SM262: provenance for the delete rule, kept SEPARATE from `author`.
+        # `author` is a descriptive theme.json field the theme itself may carry
+        # and edit; this one exists to answer "may this caller remove it", and
+        # conflating a description with an authorisation would mean a theme could
+        # rewrite its own permissions. Absent means "not created through this
+        # path", which is the safe reading: an agent can never delete a theme
+        # that predates the field.
+        created_by => $author,
+        config     => $config,
         ( defined $params->{description} && length $params->{description}
             ? ( description => $params->{description} ) : () ),
         ( ref $params->{tags} eq 'ARRAY' ? ( tags => $params->{tags} ) : () ),
@@ -978,8 +986,9 @@ sub _theme_declares_layout {
 }
 
 sub action_theme_delete {
-    my ($theme_name) = @_;
+    my ( $theme_name, $opts ) = @_;
     $theme_name =~ s/[^a-zA-Z0-9_-]//g;
+    $opts ||= {};
 
     my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
     return { ok => 0, error => "Cannot delete the active theme" }
@@ -1009,6 +1018,30 @@ sub action_theme_delete {
     my $themes_dir = "$DOCROOT/lazysite/layouts/$active_layout/themes";
     my $theme_dir  = "$themes_dir/$theme_name";
     return { ok => 0, error => "Theme not found" } unless -d $theme_dir;
+
+    # SM262: an agent that can create a theme could not remove one, so every
+    # experiment it ran was permanent and only the operator could clear it -
+    # create-without-delete makes agents into litter generators. The grant is the
+    # narrowest that solves that: delete what YOU created, and nothing else. A
+    # theme with no created_by predates the field or arrived another way, and is
+    # never removable this way, so an agent gains no authority over anything that
+    # existed before it did.
+    #
+    # Applied only when the caller asks for it. The manager UI over a cookie
+    # session is a human at the console and keeps the unrestricted delete; the
+    # dispatcher sets this for token and MCP clients.
+    if ( $opts->{restrict_to_creator} ) {
+        my $who = $opts->{user} // '';
+        my $td  = _read_theme_json( $active_layout, $theme_name );
+        my $by  = ( ref $td eq 'HASH' ? $td->{created_by} : undef ) // '';
+        unless ( length $who && length $by && $by eq $who ) {
+            return { ok => 0, kind => 'not-yours',
+                error => "Theme '$theme_name' was not created by this account, so "
+                    . 'it cannot be removed over this channel. You may delete '
+                    . 'themes you created yourself; anything else is an operator '
+                    . 'action from the manager.' };
+        }
+    }
 
     my $real = realpath($theme_dir);
     return { ok => 0, error => "Invalid theme path" }
