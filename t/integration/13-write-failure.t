@@ -98,7 +98,12 @@ subtest 'dav: failed PUT reports 500 and leaves the original untouched' => sub {
 
     my $out = run_limited( "$root/lazysite-dav.pl", $BIG );
     like( $out, qr/Status:\s*500/, 'PUT under write failure returns 500' );
-    like( $out, qr/Write failed/,  'with the write-failure body' );
+    # SM235: the body now names the OPERATION that failed ("Cannot write the
+    # file", "Cannot store the file") rather than the bare "Write failed", so a
+    # client can tell which stage broke. 500 is still the answer for a genuine
+    # failure - an unwritable target directory is the separate 507 case.
+    like( $out, qr/Cannot \w+ the file/, 'the body names the failed operation' );
+    unlike( $out, qr/\Q$d\E/, 'and never leaks the filesystem path' );
     is( slurp("$d/content/target.md"), "ORIGINAL\n",
         'destination file is untouched' );
     my @tmp = glob("$d/content/target.md.tmp.*");
