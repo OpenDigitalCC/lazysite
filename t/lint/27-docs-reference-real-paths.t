@@ -59,12 +59,20 @@ my $REPO_DIR = qr{(?:tools|lib|plugins|debian|starter|installers)};
 # form-targets" is a sentence.
 my $LOOKS_LIKE_PATH = qr{(?:\.[A-Za-z0-9*]+\z|/\z)};
 
-my %EXEMPT_TOKEN = map { $_ => 1 } (
-    # Created at runtime by the operator, not shipped: the docs describe them
-    # precisely because they have to be written by hand.
-    'starter/lazysite/forms/smtp.conf',
-    'starter/lazysite/forms/handlers.conf',
-);
+# Runtime state under starter/lazysite/ - a site's own config, cache and logs.
+# These are gitignored and exist only in a working checkout, so testing for them
+# on disk makes the result depend on whether anyone has run the dev server. The
+# docs name them precisely BECAUSE they are operator-written or generated: the
+# rsync recipe lists them as things NOT to sync.
+#
+# This is the same portability fault as the absolute-path exclusion below, found
+# the same way: the lint passed in the primary checkout and failed in a clean
+# worktree. A lint whose verdict depends on leftover state is worse than none.
+my $RUNTIME_STATE = qr{\Astarter/lazysite/(?:cache|logs|auth)/
+    | \Astarter/lazysite/(?:lazysite|nav)\.conf\z
+    | \Astarter/lazysite/forms/}x;
+
+my %EXEMPT_TOKEN = map { $_ => 1 } ();
 
 # Script names a doc may legitimately mention without the repo containing them.
 # Each carries its reason: an unexplained exemption is how a lint stops meaning
@@ -91,8 +99,20 @@ File::Find::find(
     {   no_chdir => 1,
         wanted   => sub {
             return unless /([^\/]+\.sh)\z/;
-            return if $File::Find::name =~ m{/(?:\.git|tmp|dist)/};
-            $SCRIPTS{$1} = 1;
+            # Capture IMMEDIATELY: $1 belongs to the last successful match, and
+            # the two regexes below would clobber it before it is read.
+            my $base = $1;
+            # Match the exclusion against the REPO-RELATIVE path, never the
+            # absolute one. The gate runs from a worktree under /srv/tmp, where
+            # an absolute match on "tmp" excluded every script in the tree - so
+            # the lint reported release.sh, install.sh and coverage.sh as dead
+            # references, in a checkout where all three exist. It passed in the
+            # primary checkout and failed in the gate: a lint whose result
+            # depends on WHERE the repo sits is worse than no lint.
+            my $rel_path = $File::Find::name;
+            $rel_path =~ s{\A\Q$root\E/}{};
+            return if $rel_path =~ m{\A(?:\.git|tmp|dist)/};
+            $SCRIPTS{$base} = 1;
         },
     },
     $root,
@@ -112,6 +132,7 @@ for my $doc (@DOCS) {
         $tok =~ s{[.,:;)]+\z}{};      # trailing punctuation from prose
         next unless length $tok;
         next if $EXEMPT_TOKEN{$tok};
+        next if $tok =~ $RUNTIME_STATE;
         next unless $tok =~ $LOOKS_LIKE_PATH;
 
         # A glob stands for its directory.
