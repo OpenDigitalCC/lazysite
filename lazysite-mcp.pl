@@ -1622,6 +1622,65 @@ sub _audit_site {
     # partner. Declared separately so the shape cannot mislead again.
     my @stale;
     my @stack = ($DOCROOT);
+    # SM250: a theme whose CSS hides content by default and reveals it with a
+    # script. Content at opacity:0 until JavaScript runs is invisible to a
+    # visitor with JS blocked, to most crawlers, and to anything extracting
+    # text - so it degrades badly on its own terms, before anyone breaks it.
+    #
+    # It is worth a MECHANICAL check because the failure is silent, total below
+    # the fold, and survives the obvious verification: an agent removed the page
+    # script while moving chrome into a layout and left every section of a live
+    # site permanently invisible. The hero sat outside the pattern, so four
+    # successive visual checks looked fine.
+    #
+    # Detection is deliberately rough. The pattern is distinctive, and a false
+    # positive costs an operator ten seconds while a false negative costs a live
+    # site its content. A rule inside prefers-reduced-motion does NOT count as a
+    # fallback - it reaches only visitors who asked for reduced motion, and
+    # reading it as a neutraliser is exactly what caused the incident.
+    my @hidden_by_script;
+    {
+        my $ldir = "$DOCROOT/lazysite/layouts";
+        my @css;
+        if ( opendir my $lh, $ldir ) {
+            for my $layout ( grep { !/^\./ } readdir $lh ) {
+                my $tdir = "$ldir/$layout/themes";
+                next unless -d $tdir;
+                opendir my $th, $tdir or next;
+                for my $theme ( grep { !/^\./ } readdir $th ) {
+                    next unless -d "$tdir/$theme";
+                    for my $f ( glob "$tdir/$theme/*.css $tdir/$theme/assets/*.css" ) {
+                        push @css, [ "$layout/$theme", $f ];
+                    }
+                }
+                closedir $th;
+            }
+            closedir $lh;
+        }
+        for my $c (@css) {
+            my ( $name, $file ) = @$c;
+            open my $fh, '<:utf8', $file or next;
+            my $text = do { local $/; <$fh> };
+            close $fh;
+            next unless $text =~ m{ (?:opacity \s*:\s* 0 (?![.\d]) | visibility \s*:\s* hidden ) }xi;
+
+            # A non-script path back to visible: anything inside <noscript>'s
+            # stylesheet counterpart, or a plain rule restoring it outside a
+            # reduced-motion block. Strip reduced-motion blocks first - they are
+            # the trap, not the remedy.
+            # NB: '#' delimiters, not braces. The pattern needs a literal
+            # unmatched '{' in a character class, and s{...}{...} then mis-pairs
+            # and swallows the rest of the sub.
+            ( my $outside = $text ) =~ s#\@media[^{]*prefers-reduced-motion.*?\}\s*\}##gs;
+            my $has_fallback = $outside =~ m{ \.no-js | html:not\(\.js\) | noscript }xi ? 1 : 0;
+            next if $has_fallback;
+
+            ( my $rel = $file ) =~ s{^\Q$DOCROOT\E/+}{/};
+            push @hidden_by_script, { theme => $name, file => $rel };
+            last if @hidden_by_script >= 50;
+        }
+    }
+
     # SM223: a site whose auth_default is protective still serves STATIC files to
     # anyone who knows the path. A file with no .md source is never evaluated
     # against auth_default - on Apache the [L] rewrite means the processor never
@@ -1698,6 +1757,8 @@ sub _audit_site {
         # only when auth_default is protective, because on an open site these are
         # simply the site's assets and listing them would be noise - and a
         # finding that fires on every site trains its reader to ignore it.
+        # SM250: themes whose content is invisible until a script runs.
+        hidden_by_script         => \@hidden_by_script,
         site_auth_default        => $auth_default,
         unprotected_static_files => \@unprotected,
     };

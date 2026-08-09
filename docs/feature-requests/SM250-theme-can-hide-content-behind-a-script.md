@@ -2,8 +2,8 @@
 title: "SM250 - A theme can make a site's content invisible, and only a script reveals it"
 subtitle: "opacity:0 by default with a scroll script adding the reveal class. Remove the script and every section vanishes for everyone - and the reduced-motion rule that looks like a safety net is not one."
 brand: plain
-status: candidate
-status-note: "Reported by the sjm-claude-code site agent 2026-08-08 after leaving every section of a live site permanently invisible. Worth a guardrail because the failure is silent, total, and survives casual checking - the hero was unaffected, so four successive visual checks looked fine. It is also an accessibility and crawler problem in its own right, independent of the incident."
+status: shipped
+status-note: "IMPLEMENTED 2026-08-09. All three asks: create_theme already warned (SM243), audit_site now reports hidden_by_script for INSTALLED themes, and the layouts briefing states the pattern and the reduced-motion trap explicitly. Detection deliberately rough - the pattern is distinctive, and a false positive costs ten seconds while a false negative costs a live site its content. A prefers-reduced-motion rule does NOT count as a fallback, which is the specific thing that misled the reporter. Reported by the sjm-claude-code site agent 2026-08-08 after leaving every section of a live site permanently invisible. Worth a guardrail because the failure is silent, total, and survives casual checking - the hero was unaffected, so four successive visual checks looked fine. It is also an accessibility and crawler problem in its own right, independent of the incident."
 ---
 
 # SM250 - a theme can hide content behind a script
@@ -48,6 +48,25 @@ invisible to:
 
 So the pattern degrades badly on its own terms. The site looks complete to its
 author and is empty to a meaningful fraction of what reads it.
+
+## Shipped 2026-08-09
+
+`audit_site` returns `hidden_by_script`: installed themes whose CSS sets
+`opacity: 0` or `visibility: hidden` with no non-script path back to visible.
+This is the half that was missing - `create_theme` already warned at write time
+(SM243), but that does nothing for a theme already on a site.
+
+**A `prefers-reduced-motion` rule does not count as a fallback.** Reduced-motion
+blocks are stripped before looking for one, because reading that rule as a
+neutraliser is exactly what caused the incident. `.no-js`, `html:not(.js)` and
+`noscript` do count.
+
+Deliberately rough, per this filing: a fractional opacity is not the zero case,
+`visibility: hidden` is the same failure in a different property, and a theme
+that hides nothing raises nothing - all pinned in t/unit/mcp/17.
+
+The layouts briefing now states the pattern, names the reduced-motion trap, and
+gives the two acceptable shapes (start visible, or provide a `<noscript>` path).
 
 ## What to add
 

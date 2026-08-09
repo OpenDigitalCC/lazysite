@@ -201,6 +201,37 @@ Agents set these **themselves** through the control API (`layout-activate` /
 `theme-activate`), which also clears the cache - it is a self-serve action with
 `manage_layouts` / `manage_themes`, not an operator hand-off.
 
+## A reveal animation must start from a VISIBLE state
+
+A scroll-reveal pattern usually looks like this:
+
+```css
+.rv    { opacity: 0; transform: translateY(22px); }
+.rv.in { opacity: 1; transform: none; }
+```
+
+with a script adding `.in` as sections enter the viewport. **Content is invisible
+by default and visible only once JavaScript has run** - so a visitor with
+JavaScript blocked, most crawlers, and anything extracting text see an empty
+page. The site looks complete to its author and is empty to a meaningful fraction
+of what reads it.
+
+**A rule inside `prefers-reduced-motion` is NOT a safety net:**
+
+```css
+@media (prefers-reduced-motion: reduce) { .rv { opacity: 1; } }
+```
+
+That applies only to visitors who asked for reduced motion. It reads like the
+animation has already been made safe, and it has not. A careful reader took it
+that way, removed the page script while moving chrome into the layout, and left
+every section of a live site permanently invisible. The hero sat outside the
+pattern, so four successive visual checks looked fine.
+
+Either start visible and animate from there, or give a `<noscript>` fallback that
+restores visibility. `create_theme` warns when a theme's CSS hides content by
+default, and `audit_site` reports it on an installed theme.
+
 ## The active theme is read-only. Where a theme lives.
 
 Two facts to have BEFORE you plan a theme change, rather than after your first
