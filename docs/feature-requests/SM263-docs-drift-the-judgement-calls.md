@@ -2,8 +2,8 @@
 title: "SM263 - The docs-drift items that need judgement, not a lint"
 subtitle: "The ten findings SM254 could not close mechanically: feature descriptions that no longer match the shipped model, statements that are true but read wrong, the site-package warts, and two behaviour inconsistencies."
 brand: plain
-status: candidate
-status-note: "Split out of SM254 on 2026-08-08 at the operator's direction: SM254 shipped the lint and the four mechanically-checkable corrections, and carrying the rest as a 'partial' would force a later reader to pick through the doc working out what was and was not done. Two clean records instead. The theme-name collision question was DECIDED 2026-08-08 (both surfaces refuse) and is recorded below ready to build; everything else still needs the work."
+status: partial
+status-note: "PARTIAL 2026-08-09: the operator decided all four open questions. THREE ARE DONE (SM179 implementation note; site_apply adopt_identity now reachable from MCP and the CLI; the package-download question recorded as deliberate). The FOURTH was withdrawn - the channel-default row was WRONG: a build channel and a site update_channel answer different questions and both defaults are correct, so there was nothing to change. Two audit rows turned out to be overstated on inspection, which is worth knowing about the rest of the list. Still open: the remaining feature-description rows, the three true-but-reads-wrong rows, and the /lazysite-assets mirror-on-apply gap (confirm before working it). Split out of SM254 on 2026-08-08 at the operator's direction: SM254 shipped the lint and the four mechanically-checkable corrections, and carrying the rest as a 'partial' would force a later reader to pick through the doc working out what was and was not done. Two clean records instead. The theme-name collision question was DECIDED 2026-08-08 (both surfaces refuse) and is recorded below ready to build; everything else still needs the work."
 ---
 
 # SM263 - the docs-drift items that need judgement
@@ -29,9 +29,15 @@ when the feature next changes.
 
 The SM179 rows are worth separating from the rest: they are a **spec** describing
 what was intended, not a guide describing what exists. Correcting a spec after
-the fact loses the record of what was planned. The better repair is an
-implementation note at the top saying which parts shipped and which were dropped,
-leaving the original text intact.
+the fact loses the record of what was planned.
+
+**DONE 2026-08-09**, by the operator's decision: SM179 gains an "As built"
+section at the top naming what shipped (P8 chrome i18n did, despite being
+described as deferred) and what never existed (`lang_source`, which appears
+nowhere in the engine - the shipped model derives language from `lang` and
+membership from `lang_group`, with no designated source). The original text is
+untouched, so a later reader asking "why not `lang_source`?" still has the design
+to read.
 
 ## Statements that are true but read wrong
 
@@ -70,33 +76,79 @@ Related: SM262 gives an agent the ability to delete a theme it created, which
 makes "delete it first" an action an agent can actually take rather than an
 instruction to fetch a human.
 
-### Packaged-install channel default - still open
+### Packaged-install channel default - NOT a defect (corrected 2026-08-09)
 
-The packaged install defaults its registry to channel `edge` while the seeded
-`lazysite.conf` says `stable`. Two defaults for one question, disagreeing.
+The original audit row read "packaged install defaults its registry to channel
+`edge` while the seeded conf says `stable` - two defaults for one question,
+disagreeing." **That framing is wrong, and it was carried into this filing and
+then into the decision put to the operator.** Recording the correction here
+because the wrong version was believed for two releases.
 
-No decision recorded yet. The safe reading is that a packaged install should
-default to `stable` - a fresh install landing on `edge` opts a site into
-pre-release code it never asked for, and the channel ladder means the mistake is
-invisible until an edge build changes something. Whichever is chosen, they must
-not differ.
+The two values answer DIFFERENT questions, and both defaults are right:
 
-## Site-package warts, still present
+- `build-manifest.pl --channel` declares what a build **is** - its maturity.
+  Defaulting to `edge` is correct: an uncertified build is edge until somebody
+  certifies it.
+- `update_channel` in the seeded conf declares the **minimum a site accepts**.
+  Defaulting to `stable` is correct: a fresh site should take only certified
+  releases.
 
-From the providers migration of 2026-07-24:
+They are the two ends of one ladder, compared by `channel_refuses` in
+`install.pl`:
 
-- token clients cannot download site packages;
-- `apply` carries the source's `site_url` / `site_name` onto the target. SM193
-  fixed the default on the control-API path, but the MCP and CLI paths still lack
-  `adopt_identity`;
-- `apply` installs the layout without creating the `/lazysite-assets` mirror.
+```perl
+return $CHANNEL_RANK{$release_channel} < $CHANNEL_RANK{$site_channel} ? 1 : 0;
+```
 
-That last is the same family as SM241, which fixed `domain-set`. Worth
-establishing first whether SM193's mirror-on-apply covers it or whether a gap
-remains - the report says it does not, and that is a five-minute check before any
-work starts.
+Making the build side default to `stable` would label every uncertified build as
+certified and let untested code install on production sites - the exact opposite
+of what a stable default is chosen for.
 
-## Verification
+**The only real interaction** is that a locally built deb (channel `edge`) is
+refused by a freshly seeded site (`stable`). That is the ladder working, not a
+fault. Released stable debs are cut from `release.sh --final` trees with
+`channel: stable`, so real installs are unaffected. Worth knowing when a
+dev-built deb appears to install and change nothing.
+
+Nothing to change.
+
+## Site-package warts
+
+### site_apply identity - DONE 2026-08-09, and the row was overstated
+
+The audit row said `apply` "carries the source's `site_url`/`site_name` onto the
+target (SM193 fixed the default on the control-API path, but the MCP and CLI
+paths still lack `adopt_identity`)". The second half is true; the first is not,
+and the two together read as a live defect that did not exist.
+
+SM193 set the default in `SitePackage::apply_and_configure`, which is the single
+place all three channels call. MCP and the CLI therefore already got the SAFE
+behaviour by inheritance - the target keeps its own identity. What they lacked
+was any way to **opt in** to the other behaviour.
+
+Both now have it: `adopt_identity` on the MCP tool, `--adopt-source-identity` on
+the CLI. The default is unchanged everywhere and remains "keep the target's
+identity", which is right for the common case of migrating a package onto a new
+domain; adopting the source's is right when cloning a site as-is to hand over.
+
+`t/unit/manager/58` pins that the rule lives in ONE place and that each channel
+can reach it, including that the CLI registers its flag AS a flag - a hand-rolled
+parser that treats a flag as a value option silently swallows the next argument.
+
+### Token clients cannot download packages - DECIDED: deliberate
+
+Settled 2026-08-09 so it stops being re-asked. WebDAV is the file channel for a
+token client; the control API and MCP are for structured actions, and an action
+API is the wrong shape for a byte stream. Recorded as the reason in
+`t/lint/23`'s `%API_ONLY` entry rather than left as "undecided".
+
+### The /lazysite-assets mirror on apply - still open
+
+The report says `apply` installs a layout without creating the mirror, the same
+family as SM241. **Confirm before working on it**: SM193's mirror-on-apply may
+already cover this, and the check is minutes rather than the fix being hours.
+
+## Verification## Verification
 
 - Every row above is either corrected, or recorded as a deliberate decision with
   its reasoning.

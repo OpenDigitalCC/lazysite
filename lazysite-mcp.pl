@@ -500,6 +500,14 @@ my %TOOLS = (
                 name => { type => 'string', description => 'The package file name in the backups area (lazysite-site-*.tar.gz)' },
                 host => { type => 'string', description => 'Target registered domain; omit for the default site' },
                 clean => { type => 'boolean', description => 'Remove existing content under the target root first' },
+                # SM263: opt IN to taking the package's identity. The default -
+                # keeping the TARGET's site_url and site_name - is right for
+                # migrating a package onto a new domain, which is the common
+                # case; adopting the source's is right when cloning a site as-is
+                # to hand over. The control API has had this since SM193 and MCP
+                # had no way to ask for it at all.
+                adopt_identity => { type => 'boolean',
+                    description => "Take the PACKAGE's site_url and site_name instead of keeping the target domain's own. Default false: the target keeps its identity, so a clone never advertises the source's address. Set true only when the package IS the site being moved." },
             },
             required             => ['name'],
             additionalProperties => JSON::PP::false,
@@ -534,7 +542,10 @@ my %TOOLS = (
                 return { ok => 0, error => 'Target is outside your assigned scope.' };
             }
             local $Lazysite::Manager::SitePackage::auth_user = $user;
-            return apply_and_configure( $pkg, host => $host, clean => ( $a->{clean} ? 1 : 0 ) );
+            return apply_and_configure( $pkg,
+                host           => $host,
+                clean          => ( $a->{clean}          ? 1 : 0 ),
+                adopt_identity => ( $a->{adopt_identity} ? 1 : 0 ) );
         },
     },
     replace_text => {

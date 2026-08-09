@@ -120,7 +120,9 @@ my %API_ONLY = (
     'theme-list'          => 'superseded by themes-list-all, which is paired',
     'themes-for-layout'   => 'undecided',
     'layouts-available'   => 'undecided - list_layout_catalogue covers the repo, not the installed set',
-    'site-backup-download' => 'deliberate - streams bytes; WebDAV is the file channel',
+    # SM263: settled, so it stops being re-asked. A token client needing the
+    # bytes uses WebDAV; the control API and MCP are for structured actions.
+    'site-backup-download' => 'deliberate (SM263) - streams bytes; WebDAV is the file channel for a token client, and an action API is the wrong shape for a byte stream',
     'site-backup-upload'   => 'deliberate - as site-backup-download',
     'site-backup-delete'   => 'undecided',
     'site-backup-inspect'  => 'undecided',

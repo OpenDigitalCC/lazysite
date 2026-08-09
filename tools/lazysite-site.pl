@@ -12,7 +12,8 @@
 # Usage:
 #   lazysite-site.pl --docroot DIR backup --host H [--json]
 #     Package one domain's site into lazysite/backups/lazysite-site-<host>-<UTC>.
-#   lazysite-site.pl --docroot DIR apply --package FILE [--host H] [--clean] [--json]
+#   lazysite-site.pl --docroot DIR apply --package FILE [--host H] [--clean]
+#                    [--adopt-source-identity] [--json]
 #     Apply a package (a path, or a name already in lazysite/backups/) to a target
 #     domain's content root - or the default site when --host is omitted. Writes
 #     the target domain's presentation keys from the package manifest. This is a
@@ -39,7 +40,11 @@ my ( %opt, @pos );
         my $t = shift @a;
         if ( $t =~ /^--([\w-]+)$/ ) {
             my $k = $1;
-            if   ( $k eq 'json' || $k eq 'clean' ) { $opt{$k} = 1 }
+            # SM263: adopt-source-identity is a FLAG, not a value option -
+            # missing it from this list would swallow the next argument.
+            if ( $k eq 'json' || $k eq 'clean' || $k eq 'adopt-source-identity' ) {
+                $opt{$k} = 1;
+            }
             else                                   { $opt{$k} = shift @a }
         }
         else { push @pos, $t }
@@ -69,7 +74,12 @@ elsif ( $cmd eq 'apply' ) {
         $pkg,
         host         => ( $opt{host}           // '' ),
         content_root => ( $opt{'content-root'} // '' ),
-        clean        => ( exists $opt{clean} ? 1 : 0 ) );
+        clean        => ( exists $opt{clean} ? 1 : 0 ),
+        # SM263: opt IN to taking the package's identity. Default keeps the
+        # TARGET's site_url / site_name, which is right for migrating a package
+        # onto a new domain; adopting the source's is right when cloning a site
+        # as-is to hand over. Matches the control API (SM193) and MCP.
+        adopt_identity => ( exists $opt{'adopt-source-identity'} ? 1 : 0 ) );
 }
 else {
     die "lazysite-site: unknown command '$cmd' (backup|apply); "

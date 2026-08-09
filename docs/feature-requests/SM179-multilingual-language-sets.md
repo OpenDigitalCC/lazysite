@@ -19,6 +19,28 @@ content.
 
 # SM179 - Multilingual language sets
 
+## As built (SM263, 2026-08-09)
+
+**This is a SPEC.** It records what was designed, and two things below no longer
+match what shipped. The original text is kept deliberately - correcting a spec
+after the fact loses the record of what was intended and why it changed, and a
+later reader asking "why not `lang_source`?" would have no answer.
+
+For the behaviour that actually exists, read
+[AI briefing - configuration](/docs/ai-briefing-configuration).
+
+**P8 (engine-chrome localisation) SHIPPED.** Section 8 and the status-note
+describe it as deferred to a later release. It landed - `_layout_strings` loads a
+layout's chrome strings for the site language, English overlaid by the site
+language, and the layouts briefing documents `[% t %]`.
+
+**`lang_source` was never built.** Section 5 describes a `lang_source: true`
+front-matter flag electing a set member as the translation source, and section 12
+lists it under unit tests. Neither exists: the term appears nowhere in the engine.
+The shipped model derives a host's language from its `lang` key and its
+membership from `lang_group`, with no notion of a designated source. Nothing
+depends on the flag, so its absence costs nothing except a reader looking for it.
+
 ## 1. Goal and motivation
 
 lazysite has no language awareness today: the default template hardcodes
