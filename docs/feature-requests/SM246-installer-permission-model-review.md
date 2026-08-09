@@ -2,8 +2,8 @@
 title: "SM246 - Installer review: one permission model, one place to verify it"
 subtitle: "Permissions are decided in three places by three policies, the check tool duplicates the knowledge from a fourth, and the code already carries scar tissue from a previous regression of exactly this kind."
 brand: plain
-status: candidate
-status-note: "Raised by the operator 2026-08-08 after a stable deploy left the docroot's root-level folders without group write. This is a REVIEW request: the specific regression is the motivation, not the scope. Root cause is deliberately NOT asserted here - the installer has enough overlapping paths that guessing would be worse than useless, and explaining that incident is the review's first deliverable."
+status: partial
+status-note: "PARTIAL 2026-08-09: DELIVERABLE 1 (explain the incident) is done and the cause is identified with evidence - install_file creates directories with a bare make_path and no mode, so they land at the umask default (0755 under root: no group write), and the docroot directories that are NOT in runtime_paths are never corrected on fresh or upgrade. No code change yet: this filing own guidance is report before repair, and the remaining deliverables (the declarative model, the fresh-vs-upgrade policy, retiring the imperative passes) depend on it. Raised by the operator 2026-08-08 after a stable deploy left the docroot's root-level folders without group write. This is a REVIEW request: the specific regression is the motivation, not the scope. Root cause is deliberately NOT asserted here - the installer has enough overlapping paths that guessing would be worse than useless, and explaining that incident is the review's first deliverable."
 ---
 
 # SM246 - installer permission model review
@@ -98,6 +98,89 @@ The default is worth noting separately. The one caller does pass the mode, so
 this is not a live bug - but the defensive default for a parameter controlling
 "do I re-chmod existing directories?" should be the conservative value, and
 `fresh` is the destructive one.
+
+## Deliverable 1, done 2026-08-09: what removed group write
+
+**`install_file` creates directories with no mode, so they inherit the umask.**
+
+```perl
+sub install_file {
+    my ( $src, $dest ) = @_;
+    my $dir = dirname($dest);
+    if ( !-d $dir && !eval { make_path($dir); 1 } ) { ... }
+    File::Copy::copy( $src, $dest ) or die ...;
+    chmod mode_for($dest), $dest;      # the FILE gets an explicit mode
+}
+```
+
+`make_path` with no `mode` uses `0777 & ~umask`. Under a root umask of `022`
+that is **0755 - no group write**. The file gets an explicit mode on the next
+line; the directory never does.
+
+The asymmetry is the finding. The installer is demonstrably aware of the umask
+problem and solves it three times **for files** - `chmod 0664 ... # umask-proof
+the create`, and a whole pass commented "the group-write bit ... has to carry
+group-write whatever umask this installer ran under". The same problem for
+directories was never addressed.
+
+### Which directories, and why "root-level"
+
+The starter ships these into the docroot:
+
+```
+manager/  manager/assets/  assets/  docs/  docs/features/
+docs/integrations/  .well-known/  lazysite/  lazysite/forms/
+lazysite/manager/  lazysite/templates/
+```
+
+`runtime_paths` in `classification.json` claims only `lazysite/auth`,
+`lazysite/cache`, `lazysite/logs`, `lazysite/stats`, `lazysite/manager/locks`,
+`lazysite/layouts` and `lazysite-assets`. `lazysite/` itself is separately
+OR'd with `02020` by the setgid pass.
+
+**Everything else in that list is created by `install_file` at the umask default
+and corrected by nothing** - which is exactly the set the operator described as
+"the docroot's root-level folders".
+
+### Why an upgrade shows it and a fresh install may not
+
+Two independent reasons, either sufficient:
+
+- `create_runtime_paths` re-applies its declared mode only
+  `if $install_mode eq 'fresh'`, so an upgrade cannot repair even the
+  directories it does claim;
+- a directory that already exists is never touched by `install_file` at all, so
+  the fault appears when a directory is **newly shipped** (or was removed and
+  recreated) - which is why it surfaces on some deploys and not others.
+
+### Why setgid does not save it
+
+`lazysite/` carries `02020`, so directories created beneath it inherit the
+**group**. Setgid propagates group ownership, not the group-write bit. A new
+`lazysite/forms/` created at 0755 therefore has the right group and still cannot
+be written by the web-server CGI.
+
+### Ruled out
+
+- **`dh_fixperms`** normalises modes inside the built deb. The deb carries the
+  engine, not a live docroot, so it cannot explain modes on an installed site's
+  content directories.
+- **`align_ownership()`** changes owner, not mode, and is deliberately narrow
+  because of the 0.6.5 outage.
+- **The five-file group-write pass** only ORs `0020` into six named FILES.
+
+### The narrow fix, and why it is not applied here
+
+Giving `install_file` an explicit directory mode would close this. It is not
+being applied in this commit, for the reason this filing already states: *report
+before repair*. A directory mode applied at install time is precisely the class
+of change that took a site down in 0.6.5, and the right sequence is the
+declarative model plus `check` reporting against it, proving the model matches
+reality on live sites before it is given power over them.
+
+It also should not be fixed in isolation, because "what mode should this
+directory have?" is deliverable 2's question. Answering it inline for one call
+site would add a fifth policy rather than replacing four.
 
 ## What the review must produce
 
