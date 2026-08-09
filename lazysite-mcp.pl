@@ -873,7 +873,7 @@ my %TOOLS = (
         run => sub { _bind_form( $_[0]->{form}, $_[0]->{handler} ) },
     },
     audit_site => {
-        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count.',
+        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets.',
         cap => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _audit_site() },
@@ -1611,6 +1611,36 @@ sub _audit_site {
     # partner. Declared separately so the shape cannot mislead again.
     my @stale;
     my @stack = ($DOCROOT);
+    # SM223: a site whose auth_default is protective still serves STATIC files to
+    # anyone who knows the path. A file with no .md source is never evaluated
+    # against auth_default - on Apache the [L] rewrite means the processor never
+    # runs at all, and on the engine's own path check_auth sits inside a
+    # source-file test - so an operator can set auth_default: required, watch
+    # every page bounce to the login form, reasonably conclude the site is
+    # closed, and be publishing private assets to the open internet. Nothing in
+    # the manager, the config or the logs contradicts them.
+    #
+    # Closing that gap is a behavioural change on upgrade and carries four open
+    # decisions (SM223). The DETECTOR does not: it needs no reload, breaks
+    # nothing, and is what tells an operator their configuration and their
+    # content disagree. Detect before enforce.
+    my $auth_default = '';
+    if ( open my $cfh, '<:utf8', "$DOCROOT/lazysite/lazysite.conf" ) {
+        while ( my $l = <$cfh> ) {
+            if ( $l =~ /^auth_default\s*:\s*(\S+)/ ) { $auth_default = lc $1; last }
+        }
+        close $cfh;
+    }
+    my $site_protected = ( $auth_default eq 'required' || $auth_default eq 'optional' ) ? 1 : 0;
+
+    # Anything the web server will hand to an anonymous visitor. Deliberately
+    # broad: the reported case was single-file browser applications and the
+    # private material they produce, which are .html, but a PDF or an image
+    # inside a private brief is the same exposure.
+    my $SERVABLE = qr/\.(?:html?|pdf|docx?|xlsx?|pptx?|csv|txt|json|js|css|
+        png|jpe?g|gif|webp|svg|avif|mp4|webm|mp3|zip)$/xi;
+
+    my @unprotected;
     while (@stack) {
         my $dir = pop @stack;
         opendir my $dh, $dir or next;
@@ -1618,9 +1648,21 @@ sub _audit_site {
             next if $e =~ /^\./;
             my $full = "$dir/$e";
             if ( -d $full ) { push @stack, $full unless $e =~ /^(?:lazysite|lazysite-assets)$/; next }
-            next unless $e =~ /\.html$/;
-            ( my $src = $full ) =~ s/\.html$/.md/;
-            unless ( -f $src ) { ( my $rel = $full ) =~ s{^\Q$DOCROOT\E/+}{/}; push @stale, $rel; last if @stale >= 200 }
+
+            ( my $rel = $full ) =~ s{^\Q$DOCROOT\E/+}{/};
+
+            if ( $e =~ /\.html$/ ) {
+                ( my $src = $full ) =~ s/\.html$/.md/;
+                unless ( -f $src ) { push @stale, $rel if @stale < 200 }
+            }
+
+            # A source-less servable file on a protected site. One WITH a .md
+            # source is a rendered page and is gated normally, so it is not a
+            # finding.
+            next unless $site_protected && @unprotected < 200;
+            next unless $e =~ $SERVABLE;
+            ( my $md = $full ) =~ s/\.[^.]+$/.md/;
+            push @unprotected, $rel unless -f $md;
         }
         closedir $dh;
     }
@@ -1640,6 +1682,13 @@ sub _audit_site {
         starter_pages => \@starter,
         # The ratio is what makes the problem obvious - no single page does.
         starter_in_sitemap => scalar( grep { grep { $_ eq 'sitemap.xml' } @{ $_->{registered} } } @starter ),
+
+        # SM223: static files a protected site is serving to anyone. Reported
+        # only when auth_default is protective, because on an open site these are
+        # simply the site's assets and listing them would be noise - and a
+        # finding that fires on every site trains its reader to ignore it.
+        site_auth_default        => $auth_default,
+        unprotected_static_files => \@unprotected,
     };
 }
 

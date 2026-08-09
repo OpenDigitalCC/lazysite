@@ -2,8 +2,8 @@
 title: "SM223 - Static files under access control"
 subtitle: "A static file is served before any page logic runs, so it is reachable by anyone who knows its path - including on a site whose auth_default is 'required'. Close the gap so 'the site is protected' means every served byte."
 brand: plain
-status: candidate
-status-note: "Raised 2026-08-06 from the Golden Link partner review, where private participant material would have been published as static HTML. Treated as a MISSING FEATURE, not a defect: nothing is behaving contrary to its design, but an operator cannot express an intention the platform lets them believe they have expressed. Overlaps SM181 (subtree protection), which already carries an open 'static-asset caveat' - SM223 is that caveat, scoped as its own decision."
+status: partial
+status-note: "PARTIAL 2026-08-09: the DETECTOR is built (option C, minus its write-time refusal) - audit_site reports unprotected_static_files and site_auth_default, so an operator can see that their configuration and their content disagree. ENFORCEMENT (options A and B) is NOT built and should not be until the four open decisions below are answered: it is a behavioural change that would start refusing assets on live sites. Detect before enforce, which is this filing own recommendation. Raised 2026-08-06 from the Golden Link partner review, where private participant material would have been published as static HTML. Treated as a MISSING FEATURE, not a defect: nothing is behaving contrary to its design, but an operator cannot express an intention the platform lets them believe they have expressed. Overlaps SM181 (subtree protection), which already carries an open 'static-asset caveat' - SM223 is that caveat, scoped as its own decision."
 ---
 
 # SM223 - static files under access control
@@ -85,6 +85,28 @@ An operator can set `auth_default: required`, see every page bounce to the login
 form, reasonably conclude the site is closed, and still be serving private
 static assets to the open internet. Nothing in the manager, the configuration,
 `audit_site` or the logs contradicts them.
+
+## Built 2026-08-09: the detector
+
+`audit_site` now returns `site_auth_default` and `unprotected_static_files` - the
+files with no page source that the web server hands to anyone who knows the path,
+listed only when `auth_default` is `required` or `optional`.
+
+Reported only on a protected site, deliberately. On an open site these are simply
+the site's assets, and a finding that fires everywhere trains its reader to
+ignore it. A rendered page (one with a `.md` source) is excluded, because it is
+gated normally.
+
+The extension list is broad on purpose - `.html`, PDFs, office documents, images,
+media, archives. The reported case was single-file browser applications, but a
+PDF inside a private brief is the same exposure in a different wrapper.
+
+**This detects; it does not protect.** Enforcement is options A and B below and
+must wait for the four open decisions, because it would start refusing assets on
+live sites that are serving them today. That sequencing is this filing's own
+recommendation: the audit warning is "what makes the gap visible on sites that
+upgrade without regenerating their vhost", and it is worth having before, not
+after, the behaviour changes.
 
 ## What this asks for
 
