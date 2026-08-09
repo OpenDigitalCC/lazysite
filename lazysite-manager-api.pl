@@ -2745,7 +2745,18 @@ sub action_users {
             # KNOW who is asking. Without this the actor arrived undefined and the
             # ceiling silently did not apply, which is how the hole existed:
             # manage_users was the whole check.
-            if ( $auth_user ne 'local' && !_is_operator() && $act eq 'group-settings-set' ) {
+            # NOT gated on _is_operator(). That returns TRUE for anyone holding
+            # manage_users (Acl.pm:116), which is exactly the population the
+            # ceiling exists to bound - so gating on it meant no actor was passed
+            # for a delegate, the tool saw an operator, and the ceiling never ran.
+            # An adversarial review found that; the first cut of SM195 was inert
+            # through the manager while its unit test passed, because the test
+            # supplied the actor this line did not.
+            #
+            # The tool decides. `local` is the CLI/operator sentinel and is the
+            # only exemption here; the unsecured-site exemption lives in
+            # _may_confer, where it can be stated once for every caller.
+            if ( $auth_user ne 'local' && $act eq 'group-settings-set' ) {
                 $parsed->{actor} = $auth_user;
                 $request_body = encode_json($parsed);
             }

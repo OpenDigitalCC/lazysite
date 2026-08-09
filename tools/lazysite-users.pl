@@ -2993,6 +2993,25 @@ sub _group_settings_view {
 sub _may_confer {
     my ( $actor, $cap ) = @_;
     return 1 unless defined $actor && length $actor && $actor ne 'local';
+
+    # An UNSECURED site (no group grants manager access at all) is the dev /
+    # first-run case, where any authenticated user is the operator. Exempt it
+    # explicitly, and only it.
+    #
+    # This deliberately does NOT reuse Acl::_is_operator, which also returns true
+    # for anyone holding manage_users. That clause is right for "may bypass a
+    # per-file ACL" and catastrophic here: manage_users is precisely the
+    # population this ceiling exists to bound, so treating it as operator makes
+    # the ceiling unreachable. An adversarial review found exactly that - the
+    # first cut of this feature gated the manager API's actor injection on
+    # _is_operator(), so no actor was passed for a manage_users delegate, the
+    # tool saw an operator, and the self-escalation this was written to stop
+    # still worked. The unit test passed because it supplied the actor the
+    # manager did not.
+    require Lazysite::Auth::Settings;
+    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    return 1 unless Lazysite::Auth::Settings::site_grants_manager();
+
     my $caps = eval { caps_for($actor) } || {};
     return 1 if $caps->{$cap};    # holds it: may confer it
 
