@@ -2739,6 +2739,17 @@ sub action_users {
                     unless $DELEGABLE{$act};
             }
 
+            # SM195: group-settings-set now enforces a per-capability ceiling in
+            # the tool (a non-operator may confer only what they hold, or what an
+            # operator put in their groups' grantable set) - so the tool has to
+            # KNOW who is asking. Without this the actor arrived undefined and the
+            # ceiling silently did not apply, which is how the hole existed:
+            # manage_users was the whole check.
+            if ( $auth_user ne 'local' && !_is_operator() && $act eq 'group-settings-set' ) {
+                $parsed->{actor} = $auth_user;
+                $request_body = encode_json($parsed);
+            }
+
             if ( $auth_user ne 'local'
                 && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|claim-cancel|rename|passwd)$/x ) {
                 $parsed->{actor} = $auth_user unless _is_operator();

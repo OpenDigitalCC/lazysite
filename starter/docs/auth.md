@@ -404,6 +404,44 @@ The same data appears as `auth_refused` in the `analyse_visitors` report, so an
 AI assistant with the analytics capability can answer this without shell access.
 A path there that you believe is public is the signal to check its ACL entry.
 
+### Who may grant what
+
+A capability is conferred by turning it on for a group. Two rules govern who may
+do that:
+
+- an **operator** may confer anything;
+- a **delegate** (someone with `manage_users` but not operator) may confer a
+  capability only if they **hold** it, or if an operator has put it in one of
+  their groups' **grant authority**.
+
+Removing a capability is always allowed - that is de-escalation and needs no
+authority.
+
+**Grant authority** exists so a delegate does not have to hold a capability
+merely to hand it to someone else. An agency sub-admin who manages an AI agent
+should be able to grant the agent `mcp` without carrying `mcp` on their own
+account, which would enlarge their surface for a purely administrative act:
+
+```bash
+# operator only
+perl tools/lazysite-users.pl --docroot /path/to/public_html \
+  group-set client-admins grantable mcp,api
+```
+
+Members of `client-admins` may now confer `mcp` and `api` on the groups they
+manage, and still do not hold either themselves.
+
+Setting `grantable` is **operator-only**, and that is what makes it safe: grant
+authority is conferred from above and never self-assumed. A delegate that could
+widen its own grant authority would have no ceiling at all. Making a group a
+manager group (`manager`) is operator-only for the same reason.
+
+**Upgrading from before 0.10.5:** there was no ceiling - `manage_users` alone
+allowed conferring any capability, including on a group the delegate belonged to.
+If your delegates rely on that, give them explicit grant authority for the
+capabilities they legitimately hand out; otherwise those grants now refuse, and
+the refusal names the command that fixes it.
+
 ### Manager access
 
 The manager at `/manager` uses the same auth mechanism. Access is the
