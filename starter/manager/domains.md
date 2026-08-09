@@ -361,8 +361,6 @@ function domainSettingsHtml(row, isCreate) {
 
   if (isCreate) {
     h += '<div class="mg-line" style="margin-top:4px;">'
-      + '<label><input type="checkbox" id="e-' + esc(NEW_HOST) + '-seed" checked> Seed a starter home page (only when a content folder is given)</label></div>'
-      + '<div class="mg-line" style="margin-top:4px;">'
       + '<button class="mg-btn mg-btn-primary" onclick="createDomain()">Register domain</button> '
       + '<button class="mg-btn" onclick="closeConfig()">Cancel</button></div>';
     return h;
@@ -425,9 +423,20 @@ function openCreateSheet() {
   markConfiguring(null);
   var hf = document.getElementById('e-' + NEW_HOST + '-host');
   if (hf) { try { hf.focus(); } catch (e) {} }
+  syncSeedVisible();
 }
 
 // Derive the site URL from the host as it is typed, until the operator edits it.
+// SM259: show the seed option only while a content folder is named. Called on
+// input, after the sheet opens, and after a clone pre-fills the box - a value
+// that arrives without a keystroke must reveal it too.
+function syncSeedVisible() {
+  var croot = document.getElementById('e-' + NEW_HOST + '-content_root');
+  var wrap  = document.getElementById('seed-wrap');
+  if (!wrap) return;
+  wrap.style.display = (croot && croot.value.trim()) ? 'block' : 'none';
+}
+
 function onNewHostInput() {
   if (siteUrlEdited) return;
   var hf = document.getElementById('e-' + NEW_HOST + '-host');
@@ -639,8 +648,27 @@ function editField(host, k, row, isCreate) {
   } else {
     var ph = (row[k + '_inherited'] && effective)
       ? ' placeholder="' + esc(effective) + ' (inherited)"' : '';
-    field = '<input id="e-' + esc(host) + '-' + esc(k) + '" value="' + esc(own) + '"' + ph + ' style="' + full + '">';
+    // SM259: the create sheet's content-folder box drives the seed option's
+    // visibility, so it needs a handler the edit sheet does not.
+    var oi = (isCreate && k === 'content_root') ? ' oninput="syncSeedVisible()"' : '';
+    field = '<input id="e-' + esc(host) + '-' + esc(k) + '" value="' + esc(own) + '"' + ph + oi + ' style="' + full + '">';
   }
+  // SM259 (operator, 0.10.4 validation): the seed option is conditional on the
+  // content folder, and its own label was doing the explaining that proximity
+  // and conditional display should do - "(only when a content folder is given)".
+  // So it lives INSIDE that field and appears only once the box has a value. A
+  // field whose relevance is conditional reads better next to its condition, and
+  // hidden entirely when it does not apply.
+  if ( isCreate && k === 'content_root' ) {
+    var seedHidden = ' style="display:none;margin-top:6px;font-size:0.85em;color:#555;"';
+    return wrap(
+      field
+        + '<label id="seed-wrap"' + seedHidden + '>'
+        + '<input type="checkbox" id="e-' + esc(NEW_HOST) + '-seed" checked> '
+        + 'Seed a starter home page in this folder</label>',
+      false );
+  }
+
   return wrap(field, false);
 }
 
@@ -680,6 +708,7 @@ function cloneFrom(host) {
   if (ap) { var lay = own('layout'), th = own('theme'); ap.value = (lay || th) ? (lay + '|' + th) : ''; }
   setV('lang', own('lang'));
   setV('lang_group', own('lang_group'));
+  syncSeedVisible();   // SM259: a cloned content folder must reveal the option too
   // site_url is intentionally NOT copied - the new host gets its own address.
   // The access keys (allowed_groups / locked_users) are not copied either: who
   // may manage a domain is a deliberate grant, not a starting-point convenience.

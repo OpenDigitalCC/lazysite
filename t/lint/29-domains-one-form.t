@@ -63,4 +63,32 @@ like( $src, qr/var NEW_HOST = /, 'the create mode has a pseudo-host for its ids'
 like( $src, qr/editField\(host, k, row, isCreate\)/,
     'editField is shared by both modes' );
 
+# --- SM259 follow-up: the seed option sits with its condition ---------------
+# Operator feedback on the 0.10.4 validation: the option's own label was doing
+# the explaining that proximity and conditional display should do - it read
+# "(only when a content folder is given)" while sitting apart from that box.
+like( $src, qr/function syncSeedVisible\(/,
+    'the seed option has a visibility rule' );
+like( $src, qr/id="seed-wrap"/, 'and a wrapper to hide' );
+like( $src, qr/k === 'content_root'.*?seed-wrap/s,
+    'it is rendered INSIDE the content-folder field, not in a separate row' );
+
+# It must be revealed by a value arriving WITHOUT a keystroke, or cloning an
+# existing domain pre-fills the folder and the option stays hidden.
+my ($clone_fn) = $src =~ /(function cloneFrom\b.*?\n\})/s;
+like( $clone_fn, qr/syncSeedVisible\(\)/,
+    'a cloned content folder reveals the option too' );
+my ($open_fn) = $src =~ /(function openCreateSheet\b.*?\n\})/s;
+like( $open_fn, qr/syncSeedVisible\(\)/,
+    'and the initial state is set when the sheet opens' );
+
+# The parenthetical that prompted the change should be gone from the LABEL - the
+# layout now carries the dependency. Matched on the emitted text only: the source
+# still quotes the old wording in a comment explaining why it changed, and that
+# should not fail the check.
+my ($seed_label) = $src =~ /(Seed a starter home page[^']*)/;
+ok( defined $seed_label, 'the seed label was found' );
+unlike( $seed_label, qr/only when a content folder is given/,
+    'the label no longer explains a dependency the layout expresses' );
+
 done_testing();
