@@ -92,4 +92,50 @@ sub run_tool {
         'nginx tool: rewrites verb emits the map from the docroot conf' );
 }
 
+# --- SM248: a domain never inherits the primary's site identity -------------
+# The generic rule above already serves a domain's OWN favicon when it has one.
+# The reported defect was the domain that has none: the request falls through to
+# the docroot and the web server answers with the PRIMARY's file, so the browser
+# tab shows a different organisation's emblem. That is a misrepresentation, not a
+# cosmetic fault - the visitor is being told whose site this is, incorrectly.
+#
+# These stay OFF the CGI path on purpose. The registries were routed to the
+# engine because crawlers fetch them rarely; an icon is fetched by every visitor.
+{
+    my $roots = Lazysite::DomainRewrites::read_domain_roots("$d/lazysite/lazysite.conf");
+    my $ap    = Lazysite::DomainRewrites::apache_snippet($roots);
+
+    like( $ap, qr/never inherit the primary's site identity/,
+        'apache: the identity rule is emitted and says why' );
+    like( $ap, qr{RewriteCond %\{DOCUMENT_ROOT\}/sites/clienta%\{REQUEST_URI\} !-f},
+        'apache: it fires only when the domain has NO file of its own' );
+    like( $ap, qr{RewriteRule \^/\(\?:favicon\\\.ico\|},
+        'apache: and refuses the identity paths' );
+    like( $ap, qr/\[R=404,L\]/,
+        'apache: with a 404 - showing nothing beats showing the wrong emblem' );
+
+    # Ordering is the whole thing: the serve rule ends in [L], so a domain that
+    # HAS its own icon must reach it before the refusal.
+    my $serve  = index( $ap, 'RewriteRule ^/?(.*)$ /sites/clienta/$1 [L]' );
+    my $refuse = index( $ap, 'never inherit' );
+    cmp_ok( $serve, '>=', 0, 'apache: the serve rule is present' );
+    cmp_ok( $serve, '<', $refuse,
+        'apache: serve comes BEFORE refuse, so a domain with its own icon gets it' );
+
+    # A chrome-only alias shares the docroot and SHOULD inherit - that is the
+    # SM110 case and breaking it would trade one defect for another.
+    unlike( $ap, qr/brand\.example.*never inherit/s,
+        'apache: a chrome-only alias gets no refusal rule' );
+
+    my $ng = Lazysite::DomainRewrites::nginx_snippet($roots);
+    like( $ng, qr/the site identity must never be INHERITED/,
+        'nginx: the guidance is emitted' );
+    like( $ng, qr/try_files \$lz_content_root\$uri =404;/,
+        'nginx: the identity location drops the bare $uri fallback' );
+    # And the same one line covers the chrome-only case, because an unmapped host
+    # gets an empty $lz_content_root - so it reads as `try_files $uri =404`.
+    like( $ng, qr/chrome-only alias case/,
+        'nginx: and says why that still lets a chrome-only alias inherit' );
+}
+
 done_testing();

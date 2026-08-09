@@ -71,6 +71,48 @@ Whatever the server, a correct front end does exactly this:
    (Apache sets `REDIRECT_URL`; synthesise it elsewhere - the
    processor also falls back to `REQUEST_URI`).
 
+Two additions apply only when the instance serves **more than one domain**, and
+both come from the same generator - see *Multi-domain statics* below.
+
+## Multi-domain statics
+
+On a multi-domain instance, item 1 above ("serve existing files directly") is
+not enough on its own: the file that exists at the docroot root belongs to the
+**primary** site, so every other domain gets the primary's copy. That is one
+root cause behind three reported defects, and it needs two rules per domain:
+
+```bash
+lazysite-apache-vhost rewrites --docroot /path/to/public_html
+lazysite-nginx-vhost  rewrites --docroot /path/to/public_html
+```
+
+The command reads `alias_hosts` + `alias.<host>.content_root` from the site's
+own `lazysite.conf` and prints config text - it writes nothing and needs no
+root. Paste the output into the `<VirtualHost>` (Apache) or the `http{}` block
+and content location (nginx). Regenerate it whenever a domain is added or its
+content root changes.
+
+What the generated block does:
+
+- **serves each domain's own statics** from its content root, so
+  `harmony2050.org/logo.png` comes from that domain's subtree rather than the
+  primary's;
+- **refuses to inherit the site identity** - `favicon.ico`, `favicon.svg`, the
+  apple-touch icons and `site.webmanifest`. A domain with its own icon serves
+  it; a domain with none gets a 404 rather than the primary's file. That is
+  deliberate: a missing favicon is unremarkable and browsers handle it, whereas
+  another organisation's emblem in the browser tab is a claim about whose site
+  this is, and a false one.
+
+A host with **no content root of its own** is untouched by both and keeps
+inheriting the primary's files - that is the chrome-only alias case and it is
+correct.
+
+The registries (`sitemap.xml`, `llms.txt`, `robots.txt`, the feeds) are handled
+separately and need no action: the shipped templates route them to the engine
+unconditionally, because crawlers fetch them rarely and the CGI cost does not
+matter. Icons are fetched by every visitor, so they stay on the static path.
+
 ## Apache
 
 Install the **`lazysite-apache`** deb: templates for both patterns at

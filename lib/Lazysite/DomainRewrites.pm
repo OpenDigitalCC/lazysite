@@ -20,6 +20,34 @@ use warnings;
 # and the app entry points. Kept as a bare alternation for both back ends.
 our @EXEMPT = qw(lazysite cgi-bin manager);
 
+# SM248: docroot-ROOT files that identify the SITE rather than the instance, and
+# so must never be inherited by a domain that has a content root of its own.
+#
+# The generic rule below already serves a domain's own copy when it has one. The
+# gap is the domain that has NONE: the request falls through to the docroot, the
+# web server serves the PRIMARY's file, and the browser tab shows a different
+# organisation's emblem. That was the reported symptom on harmony2050.org, and
+# it is a misrepresentation rather than a cosmetic fault - the visitor is being
+# told whose site this is, incorrectly.
+#
+# Showing nothing is the better failure. A missing favicon is unremarkable and
+# browsers handle it; the wrong organisation's is a claim.
+#
+# These stay OFF the CGI path deliberately. The registries were routed to the
+# engine because crawlers fetch them rarely; an icon is fetched by every visitor,
+# so it is answered by the web server either way - from the domain's own file, or
+# not at all.
+#
+# A host with NO content root of its own is untouched by any of this: it shares
+# the docroot and SHOULD inherit, which is the SM110 chrome-only alias case.
+our @SITE_IDENTITY = qw(
+    favicon.ico
+    favicon.svg
+    apple-touch-icon.png
+    apple-touch-icon-precomposed.png
+    site.webmanifest
+);
+
 # Parse a lazysite.conf and return an ordered list of { host, root } for every
 # alias host that declares a content_root. Chrome-only aliases (no content_root)
 # are skipped - they share the docroot and need no static rewrite.
@@ -64,6 +92,7 @@ sub apache_snippet {
         push @out, '# (no alias domains with a content_root are configured)';
         return join( "\n", @out ) . "\n";
     }
+    my $identity = join '|', map { my $x = $_; $x =~ s/\./\\./g; $x } @SITE_IDENTITY;
     for my $d (@$roots) {
         my ( $h, $r ) = ( $d->{host}, $d->{root} );
         push @out,
@@ -72,7 +101,16 @@ sub apache_snippet {
             "RewriteCond %{HTTP_HOST} =$h [NC]",
             "RewriteCond %{REQUEST_URI} !^/(?:$exempt)(?:/|\$)",
             "RewriteCond %{DOCUMENT_ROOT}/$r%{REQUEST_URI} -f",
-            "RewriteRule ^/?(.*)\$ /$r/\$1 [L]";
+            "RewriteRule ^/?(.*)\$ /$r/\$1 [L]",
+            # SM248: this domain has no icon of its own, so the request would
+            # otherwise fall through and be answered with the PRIMARY's - another
+            # organisation's emblem in this domain's browser tab. Refuse instead.
+            # Placed AFTER the serve rule, which ends in [L], so a domain that
+            # does have its own file never reaches this.
+            "# $h: never inherit the primary's site identity",
+            "RewriteCond %{HTTP_HOST} =$h [NC]",
+            "RewriteCond %{DOCUMENT_ROOT}/$r%{REQUEST_URI} !-f",
+            "RewriteRule ^/(?:$identity)\$ - [R=404,L]";
     }
     return join( "\n", @out ) . "\n";
 }
@@ -93,6 +131,7 @@ sub nginx_snippet {
     for my $d (@$roots) {
         push @out, sprintf( '    %-24s %s;', $d->{host}, '/' . $d->{root} );
     }
+    my $identity = join '|', map { my $x = $_; $x =~ s/\./\\./g; $x } @SITE_IDENTITY;
     push @out,
         '}',
         '',
@@ -101,7 +140,20 @@ sub nginx_snippet {
         '#       try_files $lz_content_root$uri $uri @lazysite;',
         '#   }',
         '# The /lazysite, /cgi-bin and /manager locations must be declared',
-        '# BEFORE this one so they are never prefixed with a content root.';
+        '# BEFORE this one so they are never prefixed with a content root.',
+        '',
+        '# SM248: the site identity must never be INHERITED. The location above',
+        '# falls back to $uri, which on a multi-domain instance is the PRIMARY',
+        '# site\'s file - so a domain with no favicon of its own shows another',
+        '# organisation\'s emblem in the browser tab. This location drops that',
+        '# fallback: the domain\'s own file, or 404.',
+        '#',
+        '# A host with NO content root has $lz_content_root empty, so it reads as',
+        '# `try_files $uri =404` and still inherits - which is correct, that is',
+        '# the chrome-only alias case.',
+        "#   location ~ ^/(?:$identity)\$ {",
+        '#       try_files $lz_content_root$uri =404;',
+        '#   }';
     return join( "\n", @out ) . "\n";
 }
 
