@@ -149,6 +149,7 @@ my %MCP_ONLY = (
     'page_status'        => 'undecided',
     'read_page'          => 'undecided',
     'invalidate_cache'   => 'undecided',
+    'regenerate_registries' => 'deliberate (SM264) - the control API has no twin yet; the need came from an MCP agent verifying a delete, and the API path can add one when someone asks for it',
 );
 
 # Content FILE operations pair with WebDAV, not with a control-API action - the

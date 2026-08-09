@@ -28,6 +28,7 @@ our @EXPORT_OK = qw(
     action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove
+    invalidate_registries registry_roots
     action_git_status action_git_history action_git_history_summary
     action_git_show action_git_restore action_git_init
 );
@@ -440,6 +441,13 @@ sub _registry_roots {
     }
     return @roots;
 }
+
+# SM264: the public entry points. The invalidator and its root list are called
+# from outside this module now (the regenerate_registries MCP tool), and reaching
+# into a private sub from another file is exactly the coupling the leading
+# underscore is there to discourage.
+sub invalidate_registries { return _invalidate_registries() }
+sub registry_roots        { return _registry_roots() }
 
 sub _invalidate_registries {
     my $rdir = "$DOCROOT/lazysite/templates/registries";

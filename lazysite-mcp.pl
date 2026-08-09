@@ -1024,6 +1024,33 @@ my %TOOLS = (
             required => ['query'], additionalProperties => JSON::PP::false },
         run => sub { _mcp_search( $_[0]->{query}, $_[0]->{path} ) },
     },
+    regenerate_registries => {
+        description => 'Clear the generated registries - sitemap.xml, llms.txt, robots.txt and the feeds - so they rebuild from current content on the next request. Use after deleting or renaming a page when you want to VERIFY the result: a delete removes the page immediately but the registries are rebuilt asynchronously, so checking the sitemap straight afterwards can still show the old URL. Clears every content root, so a multi-domain instance is handled in one call. Fetch the registry afterwards to force the rebuild.',
+        cap         => 'manage_content', path_aware => 1,
+        inputSchema => { type => 'object', properties => {},
+            additionalProperties => JSON::PP::false },
+        run => sub {
+            # SM264: the operator's preferred remedy for SM251's reported
+            # confusion - an agent deletes a page, checks the sitemap, still sees
+            # the URL and reasonably concludes the delete failed. On one site
+            # that led to hand-editing a generated registry. Waiting is not a
+            # workflow; this makes "delete then verify" complete.
+            #
+            # Reuses the same invalidator the write paths use, so it clears every
+            # content root (SM251) rather than only the docroot's.
+            my @roots = Lazysite::Manager::Files::registry_roots();
+            Lazysite::Manager::Files::invalidate_registries();
+            my @rel = map {
+                my $r = $_;
+                $r =~ s{^\Q$DOCROOT\E/*}{};
+                length $r ? "/$r" : '/';
+            } @roots;
+            return { ok => 1, cleared_roots => \@rel,
+                note => 'The registries are cleared and rebuild on the next '
+                    . 'request for one. Fetch /sitemap.xml (or the registry you '
+                    . 'care about) to force it, then verify.' };
+        },
+    },
     invalidate_cache => {
         description => 'Drop the cached HTML for a page so it re-renders on the next request. A normal write already clears the saved page; use this to force a refresh or to rebuild pages that embed another (pass "*" to clear every page).',
         cap         => 'manage_content', path_aware => 1,
@@ -1954,10 +1981,20 @@ sub _delete_page {
     my $r = action_delete( "/$slug.md", $user );
     return $r unless ref $r eq 'HASH' && $r->{ok};
     action_delete( "/$slug.md.brief", $user ) if -f "$DOCROOT/$slug.md.brief";
-    # Report remaining references (nav, other pages); registries auto-refresh.
+    # Report remaining references (nav, other pages).
     my $s = _mcp_search( "/$slug", '/' );
     my %seen;
     $r->{still_referenced_in} = [ grep { !$seen{$_}++ } map { $_->{path} } @{ $s->{matches} || [] } ];
+
+    # SM264: say that the registries lag, rather than leaving the caller to infer
+    # it. The page 404s at once and the generated registries are cleared, but the
+    # rebuild happens on the next request for one - so an agent that deletes and
+    # immediately checks the sitemap sees the old URL and reasonably concludes
+    # the delete failed. On one live site that led to hand-editing a generated
+    # registry. A bare ok is what made that a reasonable conclusion.
+    $r->{registries} = 'cleared; they rebuild on the next request for one. '
+        . 'The sitemap may still show this URL until then - call '
+        . 'regenerate_registries and fetch a registry if you need to verify now.';
     return $r;
 }
 
