@@ -1511,6 +1511,8 @@ sub apply_retention {
     for my $i ( 0 .. $excess - 1 ) {
         unlink $backups[$i]
             or warn "  warn: could not remove $backups[$i]: $!\n";
+        # SM183: retire the integrity sidecar with the artefact it describes.
+        unlink "$backups[$i].sha256" if -f "$backups[$i].sha256";
         info( "  retired:   " . basename( $backups[$i] ) );
     }
 }

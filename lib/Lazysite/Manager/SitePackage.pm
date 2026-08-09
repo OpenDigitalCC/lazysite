@@ -223,12 +223,20 @@ sub package_create {
     $cleanup->();
     return { ok => 0, error => 'Packaging failed (tar)' } if $rc != 0 || !-f $out;
 
+    # SM183: a site package is the artefact that TRAVELS - between organisations,
+    # by whatever channel is to hand - and applying it overwrites a site. Write
+    # the digest beside it so the receiving operator can verify it arrived
+    # intact, with sha256sum -c and no lazysite tooling at all.
+    require Lazysite::Manager::Backups;
+    my $sha = Lazysite::Manager::Backups::write_sha256($out);
+
     my @st = stat $out;
     log_event( 'INFO', 'site-package-create', 'site packaged',
         host => $host, file => $name, user => $auth_user );
     return {
         ok       => 1,
         name     => $name,
+        sha256   => $sha,
         size     => ( $st[7] // 0 ),
         host     => ( $row->{is_primary} ? '(default)' : lc $host ),
         manifest => $manifest,

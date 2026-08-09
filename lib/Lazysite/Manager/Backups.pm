@@ -13,7 +13,8 @@ use File::Find     ();
 use Lazysite::Util qw(log_event);
 use Exporter       qw(import);
 our @EXPORT_OK = qw(action_backup_list action_backup_create action_backup_download
-    action_backup_restore);
+    action_backup_restore
+    write_sha256 read_sha256);
 
 our $DOCROOT      = '';
 our $LAZYSITE_DIR = '';
@@ -23,6 +24,47 @@ sub _dir { return "$LAZYSITE_DIR/backups" }
 
 # A backup name is a single tarball basename - strict, no path traversal.
 sub _valid_name { return $_[0] =~ /\A[A-Za-z0-9._-]+\.tar\.gz\z/ && $_[0] !~ /[.][.]/ }
+
+# SM183: write the integrity digest beside an artefact, and return it.
+#
+# A site package is made to TRAVEL - an agency builds a demo and hands it to the
+# client's own instance, often across organisations and by whatever channel is to
+# hand. The receiving operator has no way to tell an altered package from an
+# intact one, and "apply" overwrites a site. The release tarballs have carried a
+# .sha256 sidecar for exactly this reason since long before site packages
+# existed; this gives packages and backups the same.
+#
+# A sidecar file rather than a manifest field, deliberately: it is verifiable
+# with sha256sum -c and no lazysite tooling at all, which is the situation the
+# receiving operator is actually in.
+#
+# Failure to write it is NOT fatal. The artefact is valid without it; a digest
+# that cannot be stored should not lose an operator their backup.
+sub write_sha256 {
+    my ($path) = @_;
+    return '' unless -f $path;
+    require Digest::SHA;
+    my $sha = eval { Digest::SHA->new('sha256')->addfile( $path, 'b' )->hexdigest };
+    return '' unless defined $sha && length $sha;
+    my $base = $path;
+    $base =~ s{.*/}{};
+    if ( open my $fh, '>', "$path.sha256" ) {
+        print {$fh} "$sha  $base\n";    # sha256sum -c format
+        close $fh;
+        chmod 0664, "$path.sha256";
+    }
+    return $sha;
+}
+
+# Read the digest beside an artefact, if one was written.
+sub read_sha256 {
+    my ($path) = @_;
+    open my $fh, '<', "$path.sha256" or return '';
+    my $line = <$fh> // '';
+    close $fh;
+    my ($sha) = $line =~ /\A([0-9a-f]{64})\b/;
+    return $sha // '';
+}
 
 sub action_backup_list {
     my $dir = _dir();
@@ -37,7 +79,11 @@ sub action_backup_list {
             $kind //= 'manual';
             my $scope = $kind eq 'full' ? 'full' : $kind eq 'site' ? 'site' : 'content';
             push @out, { name => $f, size => $st[7] // 0, mtime => $st[9] // 0,
-                kind => $kind, scope => $scope };
+                kind => $kind, scope => $scope,
+                # SM183: present only when a digest was written beside it, so an
+                # artefact from before this is simply unverified rather than
+                # looking like one whose digest failed.
+                sha256 => read_sha256("$dir/$f") };
         }
         closedir $dh;
     }
@@ -52,8 +98,29 @@ sub action_backup_create {
     make_path($dir) unless -d $dir;
     # All backup artefacts carry the `lazysite-` namespace prefix so they are
     # unmistakably ours (and sort together): lazysite-<kind>-<UTCstamp>.tar.gz.
-    my $name = "lazysite-$kind-" . strftime( '%Y%m%dT%H%M%SZ', gmtime ) . '.tar.gz';
-    my $out  = "$dir/$name";
+    my $stamp = strftime( '%Y%m%dT%H%M%SZ', gmtime );
+    my $name  = "lazysite-$kind-$stamp.tar.gz";
+    my $out   = "$dir/$name";
+
+    # SM183: the stamp is second-granular, and it was the ONLY thing making a
+    # name unique - so two snapshots in the same second produced the same name
+    # and the second silently overwrote the first.
+    #
+    # That is not theoretical and it is not cosmetic. action_backup_restore takes
+    # its own safety snapshot before restoring; roll back an apply promptly and
+    # the restore's snapshot lands on the apply's, destroying the artefact being
+    # restored FROM - and then "restores" the state you were trying to undo. It
+    # reported success throughout. Found by testing the rollback round trip.
+    #
+    # Disambiguate rather than refuse: a backup is a safety net and the caller is
+    # usually mid-operation, so failing to take one is worse than taking one
+    # under a slightly longer name. -2, -3, ... keeps the lexical order stable.
+    if ( -e $out ) {
+        my $n = 2;
+        $n++ while -e "$dir/lazysite-$kind-$stamp-$n.tar.gz";
+        $name = "lazysite-$kind-$stamp-$n.tar.gz";
+        $out  = "$dir/$name";
+    }
 
     # 'full' = the whole site including the lazysite/ infra (config, auth,
     # forms, nav, themes/layouts) - a portable snapshot for DR and for migrating a
@@ -72,9 +139,11 @@ sub action_backup_create {
     log_event( 'INFO', 'backup-create',
         ( $kind eq 'full' ? 'full system snapshot' : 'docroot snapshot' ),
         file => $name, user => $auth_user );
-    my @st = stat $out;
+    my $sha = write_sha256($out);
+    my @st  = stat $out;
     return { ok => 1, name => $name, size => $st[7] // 0, mtime => $st[9] // 0,
-        scope => ( $kind eq 'full' ? 'full' : 'content' ) };
+        sha256 => $sha,
+        scope  => ( $kind eq q{full} ? q{full} : q{content} ) };
 }
 
 # SM084 (the open half, eight-dimension review D5): restore a snapshot. OVERLAY

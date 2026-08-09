@@ -1610,6 +1610,10 @@ sub action_site_backup_delete {
     }
 
     unlink $pkg or return { ok => 0, error => "Could not delete the package: $!" };
+    # SM183: and its integrity sidecar, or the next listing shows a digest for a
+    # package that no longer exists - and a later package reusing the name would
+    # inherit a digest that never described it.
+    unlink "$pkg.sha256" if -f "$pkg.sha256";
     return                { ok => 1, name  => $name };
 }
 
