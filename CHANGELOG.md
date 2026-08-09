@@ -91,9 +91,11 @@ window. Existing vhosts need regenerating to pick up the registry routing.
   and site-backup-download is recorded as deliberate. One row was WITHDRAWN as
   wrong: a build channel and a site update_channel answer different questions.
 - SM254 (4412cdc) a lint fails when the docs name a path or script the tree does
-  not contain; SM258 (6f0e629) a lint fails when a released CHANGELOG entry
-  claims an SM the backlog still calls open - it found SM247 had shipped with no
-  filing at all. SM236 (162474b) decided: the icon link belongs in the layouts.
+  not contain.
+- SM258 (6f0e629) a lint fails when a released CHANGELOG entry claims an SM the
+  backlog still calls open - it found SM247 had shipped with no filing at all.
+- Docs: SM236 decided - the icon link belongs in the layout catalogue, not the
+  engine. Nothing changes in lazysite core; the work moves to the catalogue.
 - Docs (de6c978) MANUAL-CHECKS.md: the nine areas the suite cannot reach and the
   manual pass for each, because "all tests passed" reads like "it works".
 - Fix (65ea0b9) the docs-path lint no longer depends on where the repo sits. It

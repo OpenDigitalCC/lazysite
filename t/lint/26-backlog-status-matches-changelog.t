@@ -53,6 +53,7 @@ close $cfh;
 # Only versioned headings count. Prose about future work, and any unreleased
 # section, must never flip a status.
 my %claimed;    # SM number => { release => ..., refs => ... }
+my @buried;     # SM+ref pairs sharing a bullet with an earlier claim
 my $release;
 for my $l (@lines) {
     if ( $l =~ /^##\s+(\d+\.\d+\.\d+)\b/ ) { $release = $1; next }
@@ -70,9 +71,23 @@ for my $l (@lines) {
     next
         unless $l
         =~ /^-\s+((?:SM\d+)(?:\s*[\/,+]\s*SM\d+)*)\s*\(([0-9a-f]{7,40}(?:\s*,\s*[0-9a-f]{7,40})*)\)/;
-    my ( $sms, $refs ) = ( $1, $2 );
+    my ( $sms, $refs, $matched ) = ( $1, $2, $& );
     for my $sm ( $sms =~ /SM(\d+)/g ) {
         $claimed{$sm} //= { release => $release, refs => $refs };
+    }
+
+    # A SECOND SM+ref pair later in the same bullet is a claim this guard cannot
+    # see. 0.10.4 shipped SM258 inside SM254's bullet - "SM254 (4412cdc) ...;
+    # SM258 (6f0e629) ..." - so SM258 read as a MENTION, stayed `candidate`
+    # through its own release, and the lint it introduced could not catch it.
+    #
+    # Buried pairs are not silently adopted: an SM cited mid-bullet is genuinely
+    # ambiguous (a Docs: bullet lists filings exactly that way), so the fix is to
+    # split the bullet, not to guess. Collected and reported below.
+    my $rest = $l;
+    substr( $rest, 0, length $matched ) = '';
+    while ( $rest =~ /(SM\d+)\s*\(([0-9a-f]{7,40})\)/g ) {
+        push @buried, "$release: $1 ($2) is buried in another bullet";
     }
 }
 
@@ -114,6 +129,13 @@ is_deeply( \@wrong, [],
 is_deeply( \@missing, [],
     'every released item has a feature-request doc' )
     or diag( join "\n  ", '', @missing );
+
+is_deeply( \@buried, [],
+    'no shipped item is buried mid-bullet, where this guard cannot see it' )
+    or diag( join "\n  ",
+    '', @buried,
+    'Give each shipped item its OWN bullet: the convention is "- SM<n> (<ref>) ..."',
+    'and an SM cited mid-bullet is read as a reference, not a claim.' );
 
 # NB: the reverse check - a doc marked shipped that no released entry mentions -
 # is deliberately NOT made. An item can genuinely ship inside another SM's work
