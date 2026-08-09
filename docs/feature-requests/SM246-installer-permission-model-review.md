@@ -3,7 +3,7 @@ title: "SM246 - Installer review: one permission model, one place to verify it"
 subtitle: "Permissions are decided in three places by three policies, the check tool duplicates the knowledge from a fourth, and the code already carries scar tissue from a previous regression of exactly this kind."
 brand: plain
 status: partial
-status-note: "PARTIAL 2026-08-09: DELIVERABLE 1 (explain the incident) is done and the cause is identified with evidence - install_file creates directories with a bare make_path and no mode, so they land at the umask default (0755 under root: no group write), and the docroot directories that are NOT in runtime_paths are never corrected on fresh or upgrade. No code change yet: this filing own guidance is report before repair, and the remaining deliverables (the declarative model, the fresh-vs-upgrade policy, retiring the imperative passes) depend on it. Raised by the operator 2026-08-08 after a stable deploy left the docroot's root-level folders without group write. This is a REVIEW request: the specific regression is the motivation, not the scope. Root cause is deliberately NOT asserted here - the installer has enough overlapping paths that guessing would be worse than useless, and explaining that incident is the review's first deliverable."
+status-note: "PARTIAL 2026-08-09: DELIVERABLE 1 (explain the incident) is done and the cause is identified with evidence - install_file creates directories with a bare make_path and no mode, so they land at the umask default (0755 under root: no group write), and the docroot directories that are NOT in runtime_paths are never corrected on fresh or upgrade. DELIVERABLE 2 STARTED 2026-08-09: classification.json is now the model - every path carries a `why` and an `applied_by`, and t/lint/30 pins it against the check tool, which had ALREADY diverged by four entries. install.pl honours applied_by, which preserves its behaviour exactly. Still open: the model does not SHIP (it is build-time config, so check cannot read it on a deployed site), the fresh-vs-upgrade policy is still implicit, the four imperative passes are still there, and the directory-mode fix itself is still not applied. Raised by the operator 2026-08-08 after a stable deploy left the docroot's root-level folders without group write. This is a REVIEW request: the specific regression is the motivation, not the scope. Root cause is deliberately NOT asserted here - the installer has enough overlapping paths that guessing would be worse than useless, and explaining that incident is the review's first deliverable."
 ---
 
 # SM246 - installer permission model review
@@ -181,6 +181,54 @@ reality on live sites before it is given power over them.
 It also should not be fixed in isolation, because "what mode should this
 directory have?" is deliverable 2's question. Answering it inline for one call
 site would add a fifth policy rather than replacing four.
+
+## Deliverable 2, started 2026-08-09: one table, and a guard
+
+`dist/config/classification.json`'s `runtime_paths` is now the model. Every entry
+carries two new fields:
+
+- **`why`** - the reason for the mode. This was the missing part, and the reason
+  a hand-maintained list drifts: without it a later reader cannot tell a
+  deliberate mode from an accident.
+- **`applied_by`** - which consumers own the path. `["install","check"]` for the
+  paths the installer creates; `["check"]` for paths that are VERIFIED but never
+  created here, because something else owns them: `lazysite/git` is made by the
+  content-history plugin at adoption, `lazysite/forms` and the form-events log by
+  the CGI. Absent means install, so an entry predating the field behaves as
+  before.
+
+`install.pl` honours `applied_by`, which **preserves its behaviour exactly** -
+the paths it creates and the modes it applies are unchanged. That matters:
+report-before-repair means the model can describe more than the installer acts
+on.
+
+### The two tables had already diverged
+
+`t/lint/30-permission-model-parity.t` compares the model against
+`tools/lazysite-check.pl`'s copy. Building it found four disagreements nobody had
+noticed, because nothing compared them:
+
+| Path | check | model |
+|---|---|---|
+| `lazysite/forms` | 2770 | absent |
+| `lazysite/git` | 2770 | absent |
+| `lazysite/stats/form-events` | 2775 | absent |
+| `../plugins` | never looked | 0755 |
+
+That is the incident's own shape in miniature: a permission fact maintained by
+hand in two places drifts, and the drift is invisible until a deploy exposes it.
+
+### What this does NOT do
+
+**The model does not ship.** `classification.json` is build-time config and is not
+installed, so `lazysite-check.pl` cannot read it on a deployed site and still
+holds its own copy. Making the model ship is a packaging change with its own
+risk. Until then the guard makes a divergence impossible to reintroduce
+unnoticed, which is this filing's own interim.
+
+Also still open: the fresh-versus-upgrade policy (deliverable 3) is still
+implicit, the four imperative passes (deliverable 4) are all still present, and
+the directory-mode fault deliverable 1 identified is still not fixed.
 
 ## What the review must produce
 

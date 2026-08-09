@@ -237,42 +237,106 @@
     {
       "path": "{DOCROOT}/lazysite/auth",
       "mode": "2770",
-      "purpose": "credentials, session secret, ACLs, consume lock, rate-limit DB - setgid + group-writable by the web user (www-data), no world access"
+      "purpose": "credentials, session secret, ACLs, consume lock, rate-limit DB - setgid + group-writable by the web user (www-data), no world access",
+      "why": "credential + session store; the CGI writes sessions and rate DBs, and nothing else may read it",
+      "applied_by": [
+        "install",
+        "check"
+      ]
     },
     {
       "path": "{DOCROOT}/lazysite/cache",
       "mode": "2775",
-      "purpose": "rendered HTML cache - setgid + group-writable by www-data (the CGI writes it), world-readable (Apache serves it)"
+      "purpose": "rendered HTML cache - setgid + group-writable by www-data (the CGI writes it), world-readable (Apache serves it)",
+      "why": "rendered page cache, written by the CGI on every miss",
+      "applied_by": [
+        "install",
+        "check"
+      ]
     },
     {
       "path": "{DOCROOT}/lazysite/logs",
       "mode": "2775",
-      "purpose": "application log output - setgid + group-writable by www-data"
+      "purpose": "application log output - setgid + group-writable by www-data",
+      "why": "engine + audit logs, appended by the CGI",
+      "applied_by": [
+        "install",
+        "check"
+      ]
     },
     {
       "path": "{DOCROOT}/lazysite/stats",
       "mode": "2775",
-      "purpose": "SM213 durable per-day visitor-stats rollups (aggregates only) - setgid + group-writable by www-data (the stats plugin writes it), not served publicly (under the protected lazysite/ tree)"
+      "purpose": "SM213 durable per-day visitor-stats rollups (aggregates only) - setgid + group-writable by www-data (the stats plugin writes it), not served publicly (under the protected lazysite/ tree)",
+      "why": "durable per-day visitor stats (SM213), written by the CGI",
+      "applied_by": [
+        "install",
+        "check"
+      ]
     },
     {
       "path": "{DOCROOT}/lazysite/manager/locks",
       "mode": "2775",
-      "purpose": "per-file edit locks - setgid + group-writable by www-data"
+      "purpose": "per-file edit locks - setgid + group-writable by www-data",
+      "why": "edit locks, created and removed by the manager",
+      "applied_by": [
+        "install",
+        "check"
+      ]
     },
     {
       "path": "{DOCROOT}/../plugins",
       "mode": "0755",
-      "purpose": "plugin scripts (D022)"
+      "purpose": "plugin scripts (D022)",
+      "why": "plugin scripts, executed not written; no group write by design",
+      "applied_by": [
+        "install",
+        "check"
+      ]
     },
     {
       "path": "{DOCROOT}/lazysite/layouts",
       "mode": "2775",
-      "purpose": "layouts + nested themes (D013) - setgid + group-writable by www-data (manage_layouts installs over the API)"
+      "purpose": "layouts + nested themes (D013) - setgid + group-writable by www-data (manage_layouts installs over the API)",
+      "why": "operator-installed layouts and themes; the manager writes here",
+      "applied_by": [
+        "install",
+        "check"
+      ]
     },
     {
       "path": "{DOCROOT}/lazysite-assets",
       "mode": "2775",
-      "purpose": "web-served theme assets (D013 nested under LAYOUT/THEME/) - setgid + group-writable by www-data (written on layout install)"
+      "purpose": "web-served theme assets (D013 nested under LAYOUT/THEME/) - setgid + group-writable by www-data (written on layout install)",
+      "why": "published theme asset mirror, written at activation",
+      "applied_by": [
+        "install",
+        "check"
+      ]
+    },
+    {
+      "path": "{DOCROOT}/lazysite/stats/form-events",
+      "mode": "2775",
+      "why": "form-outcome log (SM216-2), counts only, written by the form handler",
+      "applied_by": [
+        "check"
+      ]
+    },
+    {
+      "path": "{DOCROOT}/lazysite/forms",
+      "mode": "2770",
+      "why": "form config + submission store; the CGI appends submissions and it holds PII",
+      "applied_by": [
+        "check"
+      ]
+    },
+    {
+      "path": "{DOCROOT}/lazysite/git",
+      "mode": "2770",
+      "why": "content-history repository, created by the plugin at adoption - NOT created by the installer",
+      "applied_by": [
+        "check"
+      ]
     }
   ]
 }

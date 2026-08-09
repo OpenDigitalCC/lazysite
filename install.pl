@@ -1138,6 +1138,14 @@ sub create_runtime_paths {
     my ( $rps, $subs, $install_mode ) = @_;
     $install_mode ||= 'fresh';
     for my $rp (@$rps) {
+        # SM246: one model, three consumers - install applies, check verifies,
+        # check --fix repairs. `applied_by` says which consumers own a path, so
+        # the table can describe paths that are VERIFIED without being created
+        # or chmod'ed here (lazysite/git is made by the content-history plugin at
+        # adoption; lazysite/forms and the form-events log by the CGI). Absent
+        # means install, so an entry that predates the field behaves as before.
+        my $by = $rp->{applied_by};
+        next if ref $by eq 'ARRAY' && !grep { $_ eq 'install' } @$by;
         my $path = resolve_placeholders( $rp->{path}, $subs );
         my $mode = oct( $rp->{mode} );
         if ( -d $path ) {
