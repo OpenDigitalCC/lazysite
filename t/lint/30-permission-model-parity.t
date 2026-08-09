@@ -171,4 +171,49 @@ is_deeply( \@disagree, [],
         'install.pl takes the file list from the model' );
 }
 
+# --- the manifest actually CARRIES the model ---------------------------------
+# install.pl reads the model out of the manifest, not out of classification.json
+# (the config is build-time and is not installed). So a section declared in the
+# config and read by the installer is still INERT unless build-manifest.pl
+# copies it across - and runtime_files was exactly that for its whole life:
+# declared, read, never emitted, so install fell through to its hardcoded
+# fallback on every single build while the filing recorded it as done.
+#
+# This asserts the round trip rather than any one section, because the failure
+# mode is structural: whoever adds the next section will read the existing code,
+# see a `$manifest->{...}` read, and reasonably assume the plumbing exists.
+{
+    my $inst = do {
+        open my $fh, '<:utf8', "$root/install.pl" or die $!;
+        local $/;
+        <$fh>;
+    };
+    my $bm = do {
+        open my $fh, '<:utf8', "$root/tools/build-manifest.pl" or die $!;
+        local $/;
+        <$fh>;
+    };
+
+    my %read;
+    $read{$1} = 1 while $inst =~ /\$manifest->\{(\w+)\}/g;
+    cmp_ok( scalar keys %read, '>=', 2,
+        'install.pl reads model sections from the manifest' );
+
+    # The keys build-manifest puts INTO the manifest hash it writes.
+    my ($mblock) = $bm =~ /my \$manifest = \{(.*?)\n    \};/s;
+    ok( defined $mblock, 'build-manifest.pl\'s manifest literal was found' );
+    my %emitted;
+    $emitted{$1} = 1 while $mblock =~ /^\s*(\w+)\s*=>/gm;
+    # Fields added conditionally after the literal (e.g. security_critical).
+    $emitted{$1} = 1 while $bm =~ /\$manifest->\{(\w+)\}\s*=/g;
+
+    my @inert = grep { !$emitted{$_} } sort keys %read;
+    is_deeply( \@inert, [],
+        'every manifest section install.pl reads is one build-manifest emits' )
+        or diag( join "\n  ", '',
+        ( map {"$_: install.pl reads it, build-manifest.pl never writes it"} @inert ),
+        'The installer will silently use its fallback - the declaration does nothing.',
+        'Add the section to the manifest literal in tools/build-manifest.pl.' );
+}
+
 done_testing();

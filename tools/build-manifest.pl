@@ -112,7 +112,7 @@ sub load_config {
     my $text = do { local $/; <$fh> };
     close $fh;
     my $cfg = JSON::PP::decode_json($text);
-    for my $key (qw(rules exclude overrides runtime_paths)) {
+    for my $key (qw(rules exclude overrides runtime_paths runtime_files install_dirs)) {
         $cfg->{$key} //= [];
     }
     return $cfg;
@@ -270,6 +270,14 @@ sub generate_manifest {
         generated        => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         files            => \@manifest_files,
         runtime_paths    => $cfg->{runtime_paths},
+        # SM246: the permission model has ONE table, and the installer reads it
+        # from the manifest - so every section of that table has to be CARRIED
+        # by the manifest. runtime_files was declared in classification.json and
+        # read by install.pl, but never emitted here, so install fell through to
+        # its hardcoded fallback on every build and the declaration was inert.
+        # A model the consumer cannot see is not a model.
+        runtime_files    => $cfg->{runtime_files},
+        install_dirs     => $cfg->{install_dirs},
     };
     # SM139: a security-critical release declares itself in the manifest; the
     # field is present only when set, so ordinary manifests are unchanged.
