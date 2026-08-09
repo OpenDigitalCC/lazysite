@@ -2,8 +2,8 @@
 title: "SM181 - Folder / URL-prefix protection (hold a section back, release in one go)"
 subtitle: "Gate a whole subtree behind auth or as a draft, without touching every page - and publish it atomically"
 brand: plain
-status: candidate
-status-note: "proposed 2026-07-19, target 0.9.5. Extends the per-page auth: front-matter to folder/prefix scope. Content/engine feature; a static-asset caveat needs a decision."
+status: partial
+status-note: "PARTIAL 2026-08-09 (unreleased on main): the AUTH-GATE half is built, and NOT by the mechanism proposed here. SM223's operator decision put folder scope in the EXISTING acls.json rather than a new prefix list in lazysite.conf, so this became small: the processor already consulted a folder ACL entry for static files, and now consults it for PAGES too. One entry gates a section's pages and its assets together, which also CLOSES the static-asset caveat this filing left open (option 3, reached by a different route). A page inside a gated section cannot opt out with auth: none - the longest PATH match wins, not the mechanism. Deleting the entry publishes the subtree atomically. A gated page is never written to the shared HTML cache. t/integration/36 covers it and fails on the pre-SM181 processor for exactly the page subtests. NOT BUILT: the DRAFT policy (404 to the public rather than a login bounce, absent from sitemap and search, previewable by an editor) - which this filing argues is the better fit for 'not yet ready for publication', so the remaining half is the one it led with. Also not built: the Protected sections manager panel; the rule is hand-written JSON or set through the existing per-file ACL tools."
 ---
 
 # SM181 - Folder / URL-prefix protection
@@ -41,6 +41,47 @@ release all of it in one go.
 For "not yet ready for publication," **draft-hide is usually the better fit** than
 auth-gate (a "coming soon" section shouldn't answer 403s at guessable URLs or hint
 at unreleased structure), so the proposal leads with draft but supports both.
+
+## Built 2026-08-09: the auth-gate half, on the ACL store
+
+**Mechanism A below was not chosen, and the reason is worth recording.** SM223
+asked the operator the same question - where does folder scope live - and the
+answer was the existing `lazysite/auth/acls.json`, not a new prefix list in
+`lazysite.conf`. One store, because two mechanisms for "this path is protected"
+would give operators two ways to believe they are protected and only one of them
+would cover static files.
+
+That made this small. The processor already consulted a folder ACL entry for
+source-less statics; it now consults it for pages as well, before `check_auth`:
+
+```json
+{ "upcoming": { "read": ["@editors"] } }
+```
+
+- every page under `/upcoming/` requires an editor, with no per-page front matter;
+- so does every asset in it - which **closes the static-asset caveat below**,
+  reaching option 3's outcome by a different route;
+- a page inside the section carrying `auth: none` does not escape the gate. The
+  longest PATH match wins, not the mechanism that declared it. A section you can
+  hold back only if every page inside agrees is not a section gate;
+- a gated page is never written to the shared HTML cache, so a render for a
+  permitted user cannot be served to the next anonymous visitor;
+- **deleting the entry publishes the subtree atomically**, which is the operator's
+  original ask.
+
+### What is still open
+
+**The draft policy.** This filing leads with draft-hide - 404 to the public,
+absent from the sitemap and search, previewable by an editor - and argues it is
+the better fit for "not yet ready for publication", because a coming-soon section
+should not answer 403s at guessable URLs. What is built is the auth-gate: a
+protected page bounces to login, which reveals that the URL exists. So the half
+this filing recommended is the half still to do.
+
+**The manager panel.** No "Protected sections" UI: the rule is written as JSON,
+or through the existing per-file ACL tools. There is no one-click *Publish
+section* - the atomic release works, but an operator performs it by deleting an
+entry rather than pressing a button.
 
 ## Mechanisms considered
 
@@ -83,7 +124,13 @@ folder out of the protected tree.
 A folder `index.md`'s `auth:` cascades to children. Rejected as the primary
 mechanism: not every folder has an index, and cascade-from-index is surprising.
 
-## The static-asset caveat (needs a decision)
+## The static-asset caveat - CLOSED 2026-08-09
+
+Answered by SM223, and by option 3 rather than the recommended option 1: a
+protected asset is routed through the engine and gated by the same ACL entry as
+the pages around it. The section below is kept as the reasoning that led there.
+
+
 
 lazysite's auth runs in the **processor**, which serves rendered pages. Static
 assets (images, downloads) in a protected folder are typically served **directly

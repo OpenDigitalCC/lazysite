@@ -108,12 +108,12 @@ for my $rel (@NGINX) {
     my $proc = slurp("$root/lazysite-processor.pl");
     my $acl  = slurp("$root/lib/Lazysite/Auth/Acl.pm");
 
-    like( $proc, qr/sub _static_acl_allows/,
+    like( $proc, qr/sub _acl_allows_read/,
         'the processor carries a local read-decision copy (ADR 0001)' );
 
     # The four rules that make up the decision, each of which is a silent
     # exposure if the copy loses it.
-    my ($local) = $proc =~ /(sub _static_acl_allows\b.*?\n\})/s;
+    my ($local) = $proc =~ /(sub _acl_allows_read\b.*?\n\})/s;
     ok( defined $local, 'the local copy was found' );
 
     like( $local, qr/return 1 unless.*\$map/s,

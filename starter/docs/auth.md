@@ -309,6 +309,32 @@ Three behaviours worth knowing before you rely on it:
 To see what is already restricted, and what has actually been refused, see
 *Auditing access* below.
 
+#### Protecting a whole section
+
+The same folder entry gates the section's **pages**, not only its files. To hold
+back an unfinished area, write one entry:
+
+```json
+{ "upcoming": { "read": ["@editors"] } }
+```
+
+Every page under `/upcoming/` now requires an editor, and so does every image and
+PDF in it - one rule, one place. No page in the section needs `auth:` front
+matter, and a page that carries `auth: none` does **not** escape the section
+gate: a section you can hold back only if every page inside it agrees is not a
+section gate at all.
+
+**Publishing is deleting the entry.** Remove it and the whole subtree goes public
+in one act - no per-page edits, no partially-released section.
+
+A page under a gated prefix is never written to the shared HTML cache, so a
+render for a permitted user cannot leak to the next anonymous visitor.
+
+What this does **not** do is hide the section. A protected page answers with a
+login redirect, which reveals that the URL exists. If you need a section to be
+invisible before launch - 404 to the public, absent from the sitemap and search,
+previewable only by an editor - that is a separate policy and it is not built.
+
 #### Your web server has to co-operate
 
 This is the part that catches people. A web server answers a request for an

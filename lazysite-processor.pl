@@ -563,7 +563,7 @@ sub _acl_entry_for {
 # through _is_operator, which returns 1 on a site where no group grants manager
 # access. On an anonymous request that would treat the public as an operator and
 # bypass the ACL entirely, on exactly the sites least equipped to notice.
-sub _static_acl_allows {
+sub _acl_allows_read {
     my ( $rel, $user, @groups ) = @_;
     my $f = "$DOCROOT/lazysite/auth/acls.json";
     return 1 unless -f $f;
@@ -603,7 +603,7 @@ sub _static_acl_allows {
 # answer depended on who asked, the response must not be stored by a shared
 # cache, the same rule protected pages already follow. A file with no entry is
 # ordinary public content and stays cacheable.
-sub _static_is_acl_governed {
+sub _acl_governed {
     my ($abs) = @_;
     my $f = "$DOCROOT/lazysite/auth/acls.json";
     return 0 unless -f $f;
@@ -631,7 +631,7 @@ sub _static_is_acl_governed {
 # Anonymous and refused bounces to the login page, the way a protected page
 # does, so a person following a link to a private PDF gets somewhere useful.
 # Authenticated and refused gets 403, because logging in again will not help.
-sub _static_acl_refused {
+sub _acl_refused {
     my ( $abs, $uri ) = @_;
 
     my $f = "$DOCROOT/lazysite/auth/acls.json";
@@ -649,7 +649,7 @@ sub _static_acl_refused {
     my @groups = @{ $id->{auth_groups} // [] };
     my $user   = $id->{auth_user} // '';
 
-    return 0 if _static_acl_allows( $rel, $user, @groups );
+    return 0 if _acl_allows_read( $rel, $user, @groups );
 
     if ( $id->{authenticated} ) {
         log_event( 'WARN', $uri, 'static refused by ACL', user => $user );
@@ -1506,6 +1506,28 @@ sub main {
     my $auth_peek      = {};
     my %site_vars_peek;
     if (@md_stat) {
+        # SM181: a folder ACL entry gates the whole section, PAGES included.
+        #
+        # Access control was per-page or whole-site with nothing in between: to
+        # hold back an unfinished section an operator had to stamp `auth:` on
+        # every page in it, and to release it, unstamp every page. There was no
+        # atomic "publish the section now".
+        #
+        # A folder entry in acls.json is that missing middle, and it is the same
+        # entry SM223 already uses for static files - so one rule covers the
+        # section's pages AND the images and PDFs inside it, which is exactly the
+        # static-asset caveat SM181 left open. Deleting the entry publishes the
+        # whole subtree in one act.
+        #
+        # It runs BEFORE check_auth deliberately: a section gate must not be
+        # overridable by a page inside the section declaring `auth: none`. The
+        # narrower rule wins on PATH depth (longest match), not on which
+        # mechanism declared it.
+        return if _acl_refused( $md_path, $uri );
+        # A page under a governed prefix is per-identity, so it must never be
+        # written to or served from the shared HTML cache.
+        $auth_protected = 1 if _acl_governed($md_path);
+
         $auth_peek      = peek_auth($md_path);
         %site_vars_peek = resolve_site_vars();
         $auth_result    = check_auth( $uri, $auth_peek, \%site_vars_peek );
@@ -1717,13 +1739,13 @@ sub main {
             # SM223: a source-less static is reachable by anyone who knows its
             # path, so the ACL is the only thing that can protect it. No entry
             # means served, exactly as before.
-            return if _static_acl_refused( $static_html_path, $uri );
+            return if _acl_refused( $static_html_path, $uri );
             my $ct = read_ct($base) || 'text/html; charset=utf-8';
             log_event( 'INFO', $uri, 'static-html fallback (no .md source)' );
             # A file that carries an ACL entry is per-identity, so it must not be
             # stored by a cache that does not know who asked.
             output_page( read_file($static_html_path), $ct, undef,
-                _static_is_acl_governed($static_html_path) );
+                _acl_governed($static_html_path) );
             return;
         }
     }
@@ -1955,7 +1977,7 @@ sub _serve_content_static {
     # SM223: these are source-less statics on a content-rooted domain - the same
     # exposure as the fallback above, so the same gate. Returning 1 means the
     # response is written and the caller stops, which is what a refusal needs.
-    return 1 if _static_acl_refused( $real, $uri // ( $ENV{REDIRECT_URL} // '' ) );
+    return 1 if _acl_refused( $real, $uri // ( $ENV{REDIRECT_URL} // '' ) );
 
     open my $fh, '<', $real or return 0;
     binmode $fh;
@@ -1972,7 +1994,7 @@ sub _serve_content_static {
     # SM223: a file whose serving depended on WHO asked must not be stored by a
     # shared cache. no-cache still permits storage and revalidation; no-store
     # does not, and that is the distinction that matters for private material.
-    print( _static_is_acl_governed($real)
+    print( _acl_governed($real)
         ? "Cache-Control: no-store\n"
         : "Cache-Control: no-cache, must-revalidate\n" );
     print "\n";
