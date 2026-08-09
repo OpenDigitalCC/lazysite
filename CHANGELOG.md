@@ -28,6 +28,75 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
+## 0.10.4 - EDGE: success reported for work that did not happen (2026-08-09)
+
+An edge build on 0.10.3, and mostly one theme: an operation answered ok, the
+caller believed it, and the thing asked for had not happened. **BREAKING**:
+`list_versions` returns `versions` rather than `entries`, with no deprecation
+window. Existing vhosts need regenerating to pick up the registry routing.
+
+- SM261 (96934c5) a list response names its contents: `list_versions` returns
+  `versions`. A reporting agent read `entries` as zero versions and began writing
+  it up as a defect - a wrong key and an empty result are indistinguishable, so
+  the failure is a confident wrong conclusion rather than an error.
+  `theme-activate` / `layout-activate` also accept `theme=` / `layout=`, the
+  spelling everyone tries first, so SM247's trap is no longer reachable. Plus the
+  three documentation gaps the same report named.
+- SM252 (bc0b00c) the form timing token is minted per response, not per render.
+  It was baked into the cached page, so every visitor shared one timestamp:
+  measured live, three fetches two seconds apart returned the same token, already
+  363 seconds stale, and a submission with no dwell was accepted. A page carrying
+  a form is no longer publicly cacheable.
+- SM248 (30d509d) the per-domain registries route to the engine in all four vhost
+  templates. Every other routing rule is conditioned on the request mapping to no
+  file, which is right for pages and wrong here - the primary's sitemap.xml
+  exists, so it answered for every host. NEEDS AN OPERATOR ACTION on existing
+  sites: templates apply at install time.
+- SM253 (d0bf6a9) a 404 belongs to the domain that was asked - it resolved
+  against the primary's docroot, so a mistyped URL on a secondary domain showed
+  the primary's branding - and now carries the baseline security headers, which
+  the one response most likely to meet a scanner was previously served without.
+- SM251 (42786e4) deleting a page clears the registries for every content root.
+  It cleared the docroot's only, so a domain's own sitemap kept the deleted URL
+  until its TTL expired - which read as slow convergence and was a refresh aimed
+  at the wrong file.
+- SM260 (be619d9) audit_site no longer returns the server's filesystem path
+  (including the hosting account name) to token and MCP clients. The same line
+  meant the stale-HTML audit had NEVER run: it reported one finding, always the
+  docroot it was supposed to start scanning from. A new sweep checks the whole
+  read-only partner surface for paths.
+- SM256 (1910088) add_alias creates the front matter it needs instead of silently
+  doing nothing, and says whether it wrote, found it already there, or could not.
+- SM257 (e9df3c8) preview_domain verifies the render instead of assuming it -
+  exit status and stderr are read, and a dead processor, an empty render and a
+  blank page are now three distinct answers rather than one `ok`.
+- SM262 (f5d8017) an agent may delete the themes it created and nothing else, so
+  it can clear its own experiments; the active-theme and in-use protections come
+  first, unchanged.
+- SM223 (69b0e49) audit_site reports static files a protected site serves to
+  anyone. Detection only: enforcement would start refusing assets on live sites
+  and that decision is not taken.
+- SM259 (2e8af67) the Domains page describes a domain once - Add uses the
+  Configure sheet. The create-only parts (clone-from, seed, live URL derivation)
+  survived the move, and the add form's better field help came with it.
+- SM249 (a4653a3) validate_page warns when a page body uses a layout-scope theme
+  variable, which resolves to the empty string and cost an agent a handover.
+  Exposing the variable needs a render-path restructure and is not done.
+- SM246 (349cbd4) analysis: install_file creates directories with a bare
+  make_path and no mode, so they take the umask default (0755 under root, no
+  group write) and nothing corrects the ones outside runtime_paths. Explanation
+  only - no code change, per report-before-repair.
+- SM263 (0950d43) the docs-drift judgement calls: SM179 gains an as-built note
+  rather than being edited, site_apply's adopt_identity reaches MCP and the CLI,
+  and site-backup-download is recorded as deliberate. One row was WITHDRAWN as
+  wrong: a build channel and a site update_channel answer different questions.
+- SM254 (4412cdc) a lint fails when the docs name a path or script the tree does
+  not contain; SM258 (6f0e629) a lint fails when a released CHANGELOG entry
+  claims an SM the backlog still calls open - it found SM247 had shipped with no
+  filing at all. SM236 (162474b) decided: the icon link belongs in the layouts.
+- Docs (de6c978) MANUAL-CHECKS.md: the nine areas the suite cannot reach and the
+  manual pass for each, because "all tests passed" reads like "it works".
+
 ## 0.10.3 - EDGE: MCP surface parity, and instructions that are no longer accepted quietly (2026-08-08)
 
 An edge build on 0.10.2. The MCP surface gains the actions a token client already

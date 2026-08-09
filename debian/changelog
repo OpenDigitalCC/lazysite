@@ -1,3 +1,43 @@
+lazysite (0.10.4-1) unstable; urgency=medium
+
+  * EDGE build on 0.10.3. BREAKING: list_versions returns `versions`, not
+    `entries`, with no deprecation window - edge sites meet it first and stable
+    is untouched until it promotes. Existing vhosts need regenerating to pick up
+    the registry routing (SM248).
+  * Mostly one theme: an operation answered ok, the caller believed it, and the
+    thing asked for had not happened.
+  * SM261 a list response names its contents. A reporting agent read `entries`
+    as zero versions and began filing a defect against working code - a wrong
+    key and an empty result are indistinguishable. theme-activate and
+    layout-activate also accept theme= / layout=, the spelling callers try
+    first.
+  * SM252 the form timing token is minted per response rather than baked into
+    the cached page, where every visitor shared one timestamp: measured live, a
+    submission with no dwell at all was accepted. A page carrying a form is no
+    longer publicly cacheable.
+  * SM248 the per-domain registries (sitemap, llms.txt, robots.txt, feeds) route
+    to the engine in all four vhost templates. They were generated correctly per
+    domain and never served, because every other routing rule is conditioned on
+    the request mapping to no file. NEEDS AN OPERATOR ACTION on existing sites.
+  * SM253 a 404 resolves against the asking domain's content root and carries the
+    baseline security headers.
+  * SM251 deleting a page clears the registries for every content root, not only
+    the docroot's.
+  * SM260 audit_site no longer returns the server filesystem path to partners -
+    and the same one-line fault meant its stale-HTML scan had never run.
+  * SM256 add_alias creates the front matter it needs; SM257 preview_domain
+    verifies the render instead of assuming it; SM262 an agent may delete the
+    themes it created and nothing else.
+  * SM223 audit_site reports static files a protected site serves to anyone.
+    Detection only - enforcement would refuse assets on live sites.
+  * SM259 the Domains page describes a domain once: Add uses the Configure sheet.
+  * SM246 analysis only: install_file creates directories with no mode, so they
+    take the umask default and lose group write. No code change yet.
+  * New guards: dead paths in docs, backlog status against the CHANGELOG,
+    registry routing per template, one conf writer, one domain form.
+
+ -- Stuart Mackintosh <sjm@opendigital.cc>  Sun, 09 Aug 2026 12:00:00 +0000
+
 lazysite (0.10.3-1) unstable; urgency=medium
 
   * EDGE build on 0.10.2. No BREAKING change and no migration. Edge sites take it
