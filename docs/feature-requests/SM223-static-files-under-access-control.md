@@ -2,8 +2,8 @@
 title: "SM223 - Static files under access control"
 subtitle: "A static file is served before any page logic runs, so it is reachable by anyone who knows its path - including on a site whose auth_default is 'required'. Close the gap so 'the site is protected' means every served byte."
 brand: plain
-status: partial
-status-note: "PARTIAL 2026-08-09: the DETECTOR is built (option C, minus its write-time refusal) - audit_site reports unprotected_static_files and site_auth_default, so an operator can see that their configuration and their content disagree. The four open decisions are now ANSWERED (see 'Decisions taken'), and the design they produce is not the one this filing recommended: protection is an explicit per-path entry in the EXISTING acls.json rather than auth_default reaching static files, folder scopes are entries in that same store, the vhost routes source-less statics to the engine only when an ACL file exists (so no reload is ever required), and the upgrade risk is met by observability - an auth-failure report in analyse_visitors plus a documented log-scan pattern - rather than by a release of lead time. ENFORCEMENT is not yet built. Raised 2026-08-06 from the Golden Link partner review, where private participant material would have been published as static HTML. Treated as a MISSING FEATURE, not a defect: nothing is behaving contrary to its design, but an operator cannot express an intention the platform lets them believe they have expressed. SM181 is no longer a prerequisite - folder scope is an ACL entry, so SM181 becomes a manager affordance over the same store rather than a second mechanism."
+status: shipped
+status-note: "SHIPPED 2026-08-09, unreleased on main. Enforcement is built on the decisions below. acls.json governs a source-less static on the public read path: no entry means served (auth_default still does not reach static files, so protection is an explicit act and no live site changes behaviour on upgrade); a read list refuses, bouncing an anonymous request to login and answering an authenticated-but-refused one with 403; folder scope is an entry in the same store, longest match wins; an owner-only entry is not a read restriction, matching the authoring channels. All ten shipped front-end configs route an existing static through the AUTH WRAPPER when acls.json exists - the wrapper, not the processor, because the processor refuses untrusted X-Remote-* headers, so routing at it directly would give every protected file a login bounce for everyone including the entitled. The upgrade risk is met by observability: the access log carries \"ar\":1 on an access refusal (no status code can express it - the anonymous case is a 302 to login), analyse_visitors reports auth_refused per path, and the access-control model doc carries two scan patterns for finding what is already governed. Guards: t/lint/31 pins the routing in all ten templates AND the processor's module-free read decision against Auth::Acl, including that the public path never uses _acl_denied (which bypasses via _is_operator on a site where no group grants manager access); t/integration/35 exercises the behaviour end to end. Earlier, in 0.10.4: the DETECTOR (option C, minus its write-time refusal) - audit_site reports unprotected_static_files and site_auth_default, so an operator can see that their configuration and their content disagree. The four open decisions are now ANSWERED (see 'Decisions taken'), and the design they produce is not the one this filing recommended: protection is an explicit per-path entry in the EXISTING acls.json rather than auth_default reaching static files, folder scopes are entries in that same store, the vhost routes source-less statics to the engine only when an ACL file exists (so no reload is ever required), and the upgrade risk is met by observability - an auth-failure report in analyse_visitors plus a documented log-scan pattern - rather than by a release of lead time. ENFORCEMENT is not yet built. Raised 2026-08-06 from the Golden Link partner review, where private participant material would have been published as static HTML. Treated as a MISSING FEATURE, not a defect: nothing is behaving contrary to its design, but an operator cannot express an intention the platform lets them believe they have expressed. SM181 is no longer a prerequisite - folder scope is an ACL entry, so SM181 becomes a manager affordance over the same store rather than a second mechanism."
 ---
 
 # SM223 - static files under access control
@@ -266,6 +266,32 @@ operators who read that release's notes in that release's window.
 Open decision 3, answered by consistency: a protected static gets the same
 `no-store` handling a protected page already gets. A response whose content
 depends on who asked must not be stored by a cache that does not know who asked.
+
+## What shipped
+
+Two things that only became clear while building it, both worth recording
+because they are the kind of detail that gets rediscovered expensively.
+
+**The vhost must route at the auth WRAPPER, not the processor.** The processor
+refuses a client-supplied `X-Remote-*` header unless `LAZYSITE_AUTH_TRUSTED` is
+set, and `lazysite-auth.pl` sets it after validating the session cookie. Routing
+a static file straight at the processor would therefore arrive with no usable
+identity: every protected file would bounce to login for everyone, including the
+people entitled to read it, and the failure would look like a broken ACL rather
+than a broken route.
+
+**The primary docroot had to become servable from the engine.** Static serving
+from the processor was gated on `$croot ne $DOCROOT`, because on a single-domain
+site the front end always answered first. Once the vhost routes those requests
+in, the processor has to be able to answer them. The gate is now
+`$croot ne $DOCROOT || acls.json exists`, so a site with no ACL store behaves
+exactly as before and its statics are still served directly by the front end.
+
+**Ten front-end configs carry the rule**, not four. `t/lint/31` pins all of them,
+because this is the third leak from the same structural cause: the `.brief`
+sidecar served raw, the per-domain registries answered from the primary's files,
+and now this. Each time a routing rule was conditioned on the request mapping to
+*no* file - correct for pages, wrong for a file that exists.
 
 ## Consequences for the build
 

@@ -799,6 +799,8 @@ sub _day_rollup {
             plausible  => _topn( $bucket->{nf_plausible} || {}, $top_n ),
             junk_count => ( $bucket->{nf_junk} // 0 ),
         },
+        # SM223: turned away, as distinct from missing.
+        auth_refused => _topn( $bucket->{auth_refused} || {}, $top_n ),
         referrers => {
             direct   => ( $bucket->{ref_direct}   // 0 ),
             internal => ( $bucket->{ref_internal} // 0 ),
@@ -815,6 +817,7 @@ sub _day_rollup {
 sub _month_rollup {
     my ( $mon, $days,  $top_n ) = @_;
     my ( %cls, %pages, %ips, %status, %nf_pl, %forms );
+    my %auth_ref;    # SM223
     my ( $pv,  $ndays, $nf_junk ) = ( 0, 0, 0 );
     for my $day ( grep { index( $_, $mon ) == 0 } keys %$days ) {
         my $b = $days->{$day};
@@ -825,6 +828,7 @@ sub _month_rollup {
         $pages{$_}  += $b->{pages}{$_}        for keys %{ $b->{pages}        || {} };
         $status{$_} += $b->{status}{$_}       for keys %{ $b->{status}       || {} };
         $nf_pl{$_}  += $b->{nf_plausible}{$_} for keys %{ $b->{nf_plausible} || {} };
+        $auth_ref{$_} += $b->{auth_refused}{$_} for keys %{ $b->{auth_refused} || {} };
         $ips{$_} = 1 for keys %{ $b->{ips} || {} };
         for my $fn ( keys %{ $b->{forms} || {} } ) {    # SM216-2
             my $fb = $b->{forms}{$fn};
@@ -842,6 +846,7 @@ sub _month_rollup {
         top_pages    => _topn( \%pages, $top_n ),
         status_codes => \%status,
         not_found    => { plausible => _topn( \%nf_pl, $top_n ), junk_count => $nf_junk },
+        auth_refused => _topn( \%auth_ref, $top_n ), # SM223
         forms        => \%forms,    # SM216-2: per-form delivery outcomes
     };
 }
@@ -960,7 +965,7 @@ sub _tally_batch {
         my $b   = $cache->{days}{ $r->{day} } ||= {
             cls          => {}, ips     => {}, hits         => 0, pages      => {},
             status       => {}, ref_ext => {}, ref_internal => 0, ref_direct => 0,
-            nf_plausible => {}, nf_junk => 0,
+            nf_plausible => {}, nf_junk => 0,  auth_refused => {},
         };
         $b->{cls}{$cls}++;
         $b->{ips}{$tok} = 1 if length($tok) && keys %{ $b->{ips} } < $IP_CAP;
@@ -971,6 +976,15 @@ sub _tally_batch {
             }
             else { $b->{nf_junk}++ }
         }
+
+        # SM223: refusals are counted per PATH, for every class rather than
+        # humans only. The case this exists to catch is an asset that became
+        # protected by accident when the ACL's read list started governing the
+        # public path as well as the authoring channels - and an asset is fetched
+        # by whatever the page embeds it in, which is often not classified human.
+        # Capped like the 404 map so a scanner cannot grow the file without bound.
+        $b->{auth_refused}{ $r->{path} }++
+            if $r->{auth_refused} && keys %{ $b->{auth_refused} || {} } < $NF_CAP;
 
         if ( $cls eq 'human' ) {
             $b->{hits}++;
@@ -1110,6 +1124,10 @@ sub _export_ingest_first_party {
                 status => $st,
                 class => classify( ( $r->{p} // '' ), ( $r->{ua} // '' ), $extra_ai, $extra_noise, $st ),
                 token => ( $r->{v} // '' ),    # already an anonymised daily token
+                    # SM223: this request was REFUSED by an access decision. The
+                    # status alone cannot say so - the anonymous refusal is a 302 to
+                    # the login page, identical in the log to any other redirect.
+                auth_refused => ( $r->{ar} ? 1 : 0 ),
                 ref   => ( $r->{r} // '' ),
                 t     => $r->{t} + 0,
             };
@@ -1167,7 +1185,7 @@ sub _ingest_form_events {
             my $b = $cache->{days}{$day} ||= {
                 cls          => {}, ips     => {}, hits         => 0, pages      => {},
                 status       => {}, ref_ext => {}, ref_internal => 0, ref_direct => 0,
-                nf_plausible => {}, nf_junk => 0,
+                nf_plausible => {}, nf_junk => 0,  auth_refused => {},
             };
             my $fb = $b->{forms}{$form} ||= { stored => 0, quarantined => 0, blocked => {} };
             my $out = $r->{outcome} // '';
@@ -1203,6 +1221,7 @@ sub _export_assemble {
     my $from_day  = _day_str( time() - ( $window - 1 ) * 86400 );
     my $cutoff_ep = time() - $window * 86400;
     my ( %cls, %uips, %pages, %status, %ref_ext, %nf_pl, %forms, @by_day );
+    my %auth_ref;                     # SM223: paths a visitor was turned away from
     my ( $hits, $ref_internal, $ref_direct, $nf_junk ) = ( 0, 0, 0, 0 );
 
     for my $day ( sort keys %{ $cache->{days} } ) {
@@ -1220,6 +1239,7 @@ sub _export_assemble {
         $status{$_}   += $b->{status}{$_}       for keys %{ $b->{status} };
         $ref_ext{$_}  += $b->{ref_ext}{$_}      for keys %{ $b->{ref_ext} };
         $nf_pl{$_}    += $b->{nf_plausible}{$_} for keys %{ $b->{nf_plausible} || {} };
+        $auth_ref{$_} += $b->{auth_refused}{$_} for keys %{ $b->{auth_refused} || {} };
         $hits         += $b->{hits}         // 0;
         $ref_internal += $b->{ref_internal} // 0;
         $ref_direct   += $b->{ref_direct}   // 0;
@@ -1314,6 +1334,13 @@ sub _export_assemble {
             plausible  => $top->( \%nf_pl, $top_n ),    # a human hit a missing page
             junk_count => $nf_junk,                     # scanner-chorus 404s (count only)
         },
+        # SM223: paths a visitor was TURNED AWAY from, as opposed to paths that
+        # were missing. A file appearing here that the operator believes is
+        # public is the signal that an ACL entry written to govern authoring is
+        # now also governing reading - the upgrade risk of extending the read
+        # list to the public path, made visible whenever it bites rather than
+        # only in the release notes of the version that changed it.
+        auth_refused  => $top->( \%auth_ref, $top_n ),
         events        => \@events,
         form_delivery => \@form_delivery,    # SM216-2: blocked vs stored per form
         sample => {

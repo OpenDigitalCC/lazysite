@@ -162,6 +162,25 @@ server {
     # (No $uri/ entry on purpose: a bare "/" must reach the processor,
     # not a directory index.)
     location / {
+        # SM223: static files under access control. try_files serves an existing
+        # file directly, which is correct for ordinary assets and is exactly what
+        # makes a private one reachable by anyone who knows its path - the engine
+        # never sees the request, so no ACL it holds can apply.
+        #
+        # When the site has an ACL store, every request in this location goes to
+        # @lazysite instead, and the processor consults lazysite/auth/acls.json:
+        # it serves, refuses with 403, or bounces to login. A site with NO ACLs
+        # never enters the branch and keeps direct static serving at full speed,
+        # so protecting a path stays a pure content action - no regeneration and
+        # no reload, ever. The cost, plainly: on a site with any ACL entry, every
+        # static request goes through the engine.
+        #
+        # `error_page` + `return` is nginx's supported way to jump to a named
+        # location conditionally; `if` cannot be combined with try_files, and
+        # rewrite cannot target a named location. 418 is arbitrary and never
+        # reaches the client - it is consumed by the error_page mapping above it.
+        error_page 418 = @lazysite;
+        if (-f $document_root/lazysite/auth/acls.json) { return 418; }
         try_files $uri @lazysite;
     }
 

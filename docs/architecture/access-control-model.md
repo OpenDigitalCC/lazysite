@@ -131,11 +131,61 @@ Worth revisiting only if the legibility work proves insufficient.
 
 ## Where static files sit
 
-Neither mechanism governs a static file (SM223). With the recommendation above,
-the answer is now clear: **static files are a publication concern, so they belong
-to the `auth:` side, not the ACL side.** SM223 should proceed on that basis -
-prefix-scoped protection evaluated by the processor and the web server, with no
-ACL involvement. That resolves SM223's fourth open decision.
+**This analysis recommended one answer and the operator chose the other. The
+decision, 2026-08-09, is the ACL.** The recommendation below is kept because the
+reasoning still has force and a later reader should be able to see what was
+weighed - but it is not what was built.
+
+The recommendation was: static files are a publication concern, so they belong
+to the `auth:` side, prefix-scoped in `lazysite.conf`, with no ACL involvement.
+
+What was decided instead: **`acls.json` governs static files, and folder scopes
+are entries in that same store.** The operator's reason was that the ACL is
+established and one place is clearer to understand than two that must be kept in
+step - which is the argument this document itself makes about the two models. So
+SM224's fourth question is answered by merging rather than by separating, and
+`read` now means "who may read this at all" rather than "who may read this in the
+authoring channels".
+
+Two consequences worth stating here, because they are what a reader of this
+document will next want to know:
+
+- `auth_default` still does **not** reach a static file. A file with no ACL entry
+  is served exactly as before, so protection is an explicit act and nothing
+  changes on a site that has expressed nothing.
+- the processor carries a module-free copy of the read decision (ADR 0001) and
+  must use `_acl_allows` semantics, never `_acl_denied` - the latter routes
+  through `_is_operator`, which returns true on a site where no group grants
+  manager access, and would treat the anonymous public as an operator.
+  `t/lint/31` pins both.
+
+### Finding what this already governs
+
+Extending `read` to the public path means an entry written to keep other
+*editors* out of a file now also keeps anonymous visitors out of it. That is
+usually what was wanted. Where it is not, these find it.
+
+**Which files carry a read restriction today** - run on the site's docroot:
+
+```bash
+jq -r 'to_entries[] | select(.value.read != null and (.value.read | length) > 0)
+       | "\(.key)\t\(.value.read | join(","))"' lazysite/auth/acls.json
+```
+
+Every path listed is now refused to anyone outside its list, on the public path
+as well as in the manager. Anything in that output the site intends to be public
+needs its `read` list cleared.
+
+**Which paths have actually been refused** - the access log carries `"ar":1` on a
+request turned away by an access decision, which no status code can express (the
+anonymous refusal is a 302 to the login page):
+
+```bash
+grep -h '"ar":1' lazysite/logs/access-*.jsonl | jq -r .p | sort | uniq -c | sort -rn
+```
+
+The same data is available without shell access as `auth_refused` in
+`analyse_visitors`, and is documented for agents in the stats briefing.
 
 ## Recommendation on naming
 
@@ -147,7 +197,8 @@ is ever taken, `set_authoring_access` says what it does.
 
 ## What this unblocks
 
-- **SM223** proceeds, with static files on the `auth:` side.
+- **SM223** shipped, with static files on the **ACL** side - see the section
+  above, which records that this document recommended the other answer.
 - The MCP batch proceeds, with finding 2 as a known trap for `set_permissions`
   and a candidate warning in SM243.
 - The documentation work is unblocked, because the split is now a decision.

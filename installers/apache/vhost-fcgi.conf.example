@@ -71,6 +71,38 @@
     # purely static index.html home (no index.md) is still served
     # directly by the rewrite below.
     DirectoryIndex index.htm index.shtml
+    # SM223: static files under access control. A file the web server serves
+    # directly is reachable by anyone who knows its path, and no auth decision
+    # lazysite makes can reach it - the [L] on every rule below is exactly the
+    # point. So when the site has an ACL store, a request that would otherwise be
+    # served directly goes through the auth wrapper instead: it validates the
+    # cookie, sets X-Remote-*, and execs the processor, which consults
+    # lazysite/auth/acls.json and then serves, refuses with 403, or bounces to
+    # login.
+    #
+    # The first condition is a file-existence test of the same kind the rules
+    # below already perform, so a site with NO ACLs pays nothing and keeps direct
+    # static serving at full speed. That is what makes protecting a path a pure
+    # content action - no vhost regeneration and no reload, ever. The cost, stated
+    # plainly: on a site with any ACL entry, every static request goes through the
+    # engine.
+    #
+    # These must come FIRST. Every rule below terminates with [L], so anything
+    # placed after them would serve an ACL'd file before the ACL was consulted.
+    # /cgi-bin/ is excluded so the rewrite target cannot match itself.
+    RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f
+    RewriteCond %{REQUEST_URI} !^/cgi-bin/
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} -f
+    RewriteRule ^/(.*)$ /cgi-bin/lazysite-auth.pl [L]
+    RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.md !-f
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.html -f [OR]
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.shtml -f
+    RewriteRule ^/([^.]+)$ /cgi-bin/lazysite-auth.pl [L]
+    RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f
+    RewriteCond %{DOCUMENT_ROOT}/index.md !-f
+    RewriteCond %{DOCUMENT_ROOT}/index.html -f
+    RewriteRule ^/$ /cgi-bin/lazysite-auth.pl [L]
     RewriteCond %{DOCUMENT_ROOT}/index.md   !-f
     RewriteCond %{DOCUMENT_ROOT}/index.html -f
     RewriteRule ^/$ /index.html [L]

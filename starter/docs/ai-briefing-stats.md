@@ -35,9 +35,29 @@ by_day           [ { date, human, ai, bot, noise } ]   the trend, one row per da
 top_pages        [ { key: "/path", count } ]   most-visited pages (people only)
 referrers        { direct, internal, external: [ { key: host, count } ] }
 status_codes     { "200": n, "404": n, ... }   people's responses
+not_found        { plausible: [...], junk_count: n }   missing pages vs scanner noise
+auth_refused     [ { key: "/path", count } ]   turned away, NOT missing
 events           [ { t, class, path, status, visitor } ]   recent requests
 events_capped    true if the event stream hit its size limit
 ```
+
+### auth_refused
+
+Paths a visitor was **turned away from** - a page or file that exists and that an
+access rule refused. It is separate from `not_found` because the two need
+different actions: a 404 means write the page, a refusal means check who is meant
+to be able to read it.
+
+It is its own field rather than a status-code slice because the status cannot
+carry it. An anonymous refusal is a 302 to the login page, identical in the log
+to every other redirect.
+
+**A file in this list that you believe is public is the finding.** It means an
+access rule is refusing it - most often an ACL `read` list. Since 0.10.5 that
+list governs the public read path as well as the authoring channels, so an entry
+originally written to keep other editors out of a file now also keeps anonymous
+visitors out of it. That is usually what was wanted; occasionally it is not, and
+this is where it shows.
 
 `unique_visitors` is approximate - it counts anonymised networks, not people.
 `visitor` in an event is a short, non-reversible token for the request's network,

@@ -513,6 +513,169 @@ sub _groups_grant_cap {
     return 0;
 }
 
+# SM223: which ACL entry governs $rel? Exact path first, then the LONGEST
+# matching folder prefix, so a tighter rule on a sub-folder beats a broader one
+# above it. Folder scope is an entry in the same store rather than a separate
+# prefix rule in lazysite.conf - one place to look, and one place to be wrong.
+sub _acl_entry_for {
+    my ( $map, $rel ) = @_;
+    $rel =~ s{\A/+}{};
+    return $map->{$rel} if ref $map->{$rel} eq 'HASH';
+
+    my $best;
+    my $best_len = -1;
+    for my $k ( keys %$map ) {
+        next unless ref $map->{$k} eq 'HASH';
+        ( my $p = $k ) =~ s{\A/+}{};
+        $p =~ s{/+\z}{};
+        next unless length $p;
+        next unless index( $rel, "$p/" ) == 0;
+        next unless length($p) > $best_len;
+        $best     = $map->{$k};
+        $best_len = length $p;
+    }
+    return $best;
+}
+
+# SM223: may this identity READ $rel on the anonymous/public path?
+#
+# DELIBERATE local copy of Lazysite::Auth::Acl::_acl_allows - the render path is
+# module-free by design (ADR 0001), and Auth::Acl pulls in JSON::PP, File::Path
+# and Auth::Settings. Keep the semantics in sync with the shared implementation;
+# t/lint/31 pins them.
+#
+# The semantics are deliberately UNCHANGED from the authoring channels, because
+# this is the same question asked by a different caller:
+#
+#   * no entry            -> allowed. A static file nobody has said anything
+#                            about is served, exactly as before. auth_default
+#                            does NOT reach static files; protecting one is an
+#                            explicit act.
+#   * owner matches       -> allowed.
+#   * no read list        -> allowed. An entry carrying only an owner does not
+#                            restrict reading, here or in the manager.
+#   * read list           -> the user or one of their groups must appear.
+#
+# An anonymous request has no user and no groups, so a read list refuses it -
+# which is the point.
+#
+# NOTE the caller must use THIS, never Auth::Acl::_acl_denied: that routes
+# through _is_operator, which returns 1 on a site where no group grants manager
+# access. On an anonymous request that would treat the public as an operator and
+# bypass the ACL entirely, on exactly the sites least equipped to notice.
+sub _static_acl_allows {
+    my ( $rel, $user, @groups ) = @_;
+    my $f = "$DOCROOT/lazysite/auth/acls.json";
+    return 1 unless -f $f;
+    require JSON::PP;
+    open my $fh, '<:raw', $f or return 1;
+    my $map = eval {
+        local $/;
+        JSON::PP::decode_json(<$fh>);
+    } || {};
+    close $fh;
+    return 1 unless ref $map eq 'HASH' && keys %$map;
+
+    my $a = _acl_entry_for( $map, $rel );
+    return 1 unless ref $a eq 'HASH';
+    return 1 if defined $a->{owner} && length $user && $a->{owner} eq $user;
+
+    my $list = $a->{read};
+    return 1 unless ref $list eq 'ARRAY' && @$list;
+
+    my %grp = map { $_ => 1 } @groups;
+    for my $e (@$list) {
+        next unless defined $e && length $e;
+        if ( $e =~ /\A\@(.+)\z/ ) {
+            my $g = $1;    # capture immediately - any later match clobbers $1
+            return 1 if $grp{$g};
+        }
+        elsif ( length $user && $e eq $user ) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+# SM223: is an ACL entry governing this file at all?
+#
+# Separate from the allow decision because the ALLOWED case still matters: if the
+# answer depended on who asked, the response must not be stored by a shared
+# cache, the same rule protected pages already follow. A file with no entry is
+# ordinary public content and stays cacheable.
+sub _static_is_acl_governed {
+    my ($abs) = @_;
+    my $f = "$DOCROOT/lazysite/auth/acls.json";
+    return 0 unless -f $f;
+    my $real = realpath($abs);
+    return 0 unless defined $real;
+    my $rel = $real;
+    return 0 unless $rel =~ s{\A\Q$DOCROOT\E/}{};
+    require JSON::PP;
+    open my $fh, '<:raw', $f or return 0;
+    my $map = eval {
+        local $/;
+        JSON::PP::decode_json(<$fh>);
+    } || {};
+    close $fh;
+    return 0 unless ref $map eq 'HASH';
+    return ref( _acl_entry_for( $map, $rel ) ) eq 'HASH' ? 1 : 0;
+}
+
+# SM223: gate a SOURCE-LESS static file (no .md/.url behind it) on the ACL.
+#
+# Returns true when it has already written a response and the caller must stop.
+# A page with a Markdown source is gated by check_auth as before and never
+# reaches here.
+#
+# Anonymous and refused bounces to the login page, the way a protected page
+# does, so a person following a link to a private PDF gets somewhere useful.
+# Authenticated and refused gets 403, because logging in again will not help.
+sub _static_acl_refused {
+    my ( $abs, $uri ) = @_;
+
+    my $f = "$DOCROOT/lazysite/auth/acls.json";
+    return 0 unless -f $f;    # no store, no cost
+
+    my $real = realpath($abs);
+    return 0 unless defined $real;
+    my $rel = $real;
+    return 0 unless $rel =~ s{\A\Q$DOCROOT\E/}{};
+
+    my %sv = resolve_site_vars();
+    # auth => 'none' asks check_auth for the IDENTITY without enforcement, so
+    # auth_default is not consulted - static files are governed by the ACL alone.
+    my $id     = check_auth( $uri, { auth => 'none' }, \%sv );
+    my @groups = @{ $id->{auth_groups} // [] };
+    my $user   = $id->{auth_user} // '';
+
+    return 0 if _static_acl_allows( $rel, $user, @groups );
+
+    if ( $id->{authenticated} ) {
+        log_event( 'WARN', $uri, 'static refused by ACL', user => $user );
+        $ACCESS_REC{s} //= 403;
+        $ACCESS_REC{ar} = 1;
+        binmode( STDOUT, ':utf8' );
+        print "Status: 403 Forbidden\r\n";
+        print "Cache-Control: no-store\r\n";
+        print "Content-Type: text/html; charset=utf-8\r\n\r\n";
+        print "<!DOCTYPE html><html><body><h1>Forbidden</h1>"
+            . "<p>You do not have access to this file.</p></body></html>\n";
+        return 1;
+    }
+
+    log_event( 'WARN', $uri, 'static refused by ACL', user => '-' );
+    $ACCESS_REC{s} //= 302;
+    $ACCESS_REC{ar} = 1;
+    my $redirect_path = $sv{auth_redirect} || '/login';
+    my $next          = uri_encode($uri);
+    binmode( STDOUT, ':utf8' );
+    print "Status: 302 Found\r\n";
+    print "Cache-Control: no-store\r\n";
+    print "Location: $redirect_path?next=$next\r\n\r\n";
+    return 1;
+}
+
 # SM138: does ANY group grant manager access (ui / manage_users / the manager
 # flag)? When none does, the site is unsecured/dev and any authenticated user is
 # a manager. Local copy of the same decision Auth::Settings::site_grants_manager
@@ -745,6 +908,7 @@ sub serve_403 {
     my $md_path = _system_page_md('403') // "$DOCROOT/403.md";          # SM201 fallback
 
     $ACCESS_REC{s} //= 403;                                             # SM140
+    $ACCESS_REC{ar} = 1;       # SM223: an ACCESS refusal, not a missing page
     binmode( STDOUT, ':utf8' );
 
     if ( -f $md_path ) {
@@ -1347,6 +1511,9 @@ sub main {
         $auth_result    = check_auth( $uri, $auth_peek, \%site_vars_peek );
 
         if ( $auth_result->{redirect} ) {
+            # SM223: an access refusal, not an ordinary redirect. Flagged so the
+            # visitor report can separate "turned away" from every other 302.
+            $ACCESS_REC{ar} = 1;
             binmode( STDOUT, ':utf8' );
             print "Status: 302 Found\r\n";
             # SM188: check_auth only returns a redirect for an UNauthenticated
@@ -1547,9 +1714,16 @@ sub main {
     if ( -f $static_html_path ) {
         my $real = realpath($static_html_path);
         if ( _path_under( $real, $croot ) ) {
+            # SM223: a source-less static is reachable by anyone who knows its
+            # path, so the ACL is the only thing that can protect it. No entry
+            # means served, exactly as before.
+            return if _static_acl_refused( $static_html_path, $uri );
             my $ct = read_ct($base) || 'text/html; charset=utf-8';
             log_event( 'INFO', $uri, 'static-html fallback (no .md source)' );
-            output_page( read_file($static_html_path), $ct );
+            # A file that carries an ACL entry is per-identity, so it must not be
+            # stored by a cache that does not know who asked.
+            output_page( read_file($static_html_path), $ct, undef,
+                _static_is_acl_governed($static_html_path) );
             return;
         }
     }
@@ -1561,7 +1735,16 @@ sub main {
     # URL. Production fronts serve these directly or via a per-host vhost rewrite;
     # this is the portable net (dev server / FallbackResource-only fronts). Gated
     # on $croot ne $DOCROOT so the primary docroot's behaviour is unchanged.
-    if ( $croot ne $DOCROOT && _serve_content_static( $croot, $base ) ) {
+    #
+    # SM223: on a site that HAS an ACL store the front end now routes existing
+    # statics here, because a file the web server hands over directly cannot be
+    # gated by anything the engine does. So the primary docroot has to be
+    # servable from here too. A site with no acls.json keeps the previous
+    # condition exactly, and its statics are still served directly by the front
+    # end - the cost of the indirection falls only on sites that asked for it.
+    if ( ( $croot ne $DOCROOT || -f "$DOCROOT/lazysite/auth/acls.json" )
+        && _serve_content_static( $croot, $base, $uri ) )
+    {
         return;
     }
 
@@ -1759,7 +1942,7 @@ sub confine_content_root {
 # Binary-safe (raw read/write). Confined to $root via realpath, so a symlink
 # under the content root cannot escape it.
 sub _serve_content_static {
-    my ( $root, $rel ) = @_;
+    my ( $root, $rel, $uri ) = @_;
     return 0 unless length $rel;
     my ($ext) = $rel =~ /\.([A-Za-z0-9]+)\z/;
     return 0 unless defined $ext;
@@ -1768,6 +1951,11 @@ sub _serve_content_static {
     return 0 unless -f $path;
     my $real = realpath($path);
     return 0 unless defined $real && index( $real, "$root/" ) == 0;
+
+    # SM223: these are source-less statics on a content-rooted domain - the same
+    # exposure as the fallback above, so the same gate. Returning 1 means the
+    # response is written and the caller stops, which is what a refusal needs.
+    return 1 if _static_acl_refused( $real, $uri // ( $ENV{REDIRECT_URL} // '' ) );
 
     open my $fh, '<', $real or return 0;
     binmode $fh;
@@ -1781,7 +1969,12 @@ sub _serve_content_static {
     print "Status: 200 OK\n";
     print "Content-type: $ct\n";
     print "X-Content-Type-Options: nosniff\n";
-    print "Cache-Control: no-cache, must-revalidate\n";
+    # SM223: a file whose serving depended on WHO asked must not be stored by a
+    # shared cache. no-cache still permits storage and revalidation; no-store
+    # does not, and that is the distinction that matters for private material.
+    print( _static_is_acl_governed($real)
+        ? "Cache-Control: no-store\n"
+        : "Cache-Control: no-cache, must-revalidate\n" );
     print "\n";
     print $data;
     return 1;
@@ -5397,6 +5590,18 @@ sub _access_record {
         my $ref = $ENV{HTTP_REFERER} // '';
         $line .= ',"r":"' . _access_field( $ref, 200 ) . '"' if length $ref;
         $line .= ',"c":1'                                    if $ACCESS_REC{c};
+        # SM223: this request was refused by an ACCESS decision rather than by
+        # being missing or broken. Recorded as its own flag because the status
+        # alone cannot carry it: the anonymous refusal is a 302 to the login
+        # page, indistinguishable in the log from every other redirect.
+        #
+        # This is the upgrade safeguard the operator asked for. Extending the
+        # ACL's `read` list to the public path means an entry written to keep
+        # other EDITORS out now also refuses anonymous visitors, and a public
+        # asset can go dark without anyone being told. A per-path refusal report
+        # makes that visible whenever it happens, rather than only to operators
+        # who read one particular release's notes in one particular week.
+        $line .= ',"ar":1'                        if $ACCESS_REC{ar};
         $line .= ',"b":' . ( $ACCESS_REC{b} + 0 )            if defined $ACCESS_REC{b};
         # SM151: the sanitised request Host, so multi-site (many domains under
         # one docroot) can split visitor stats per domain later. DNS-shaped and
