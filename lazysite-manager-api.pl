@@ -1746,6 +1746,10 @@ sub action_site_backup_apply {
     }
 
     # Safety snapshot BEFORE any write, so an apply is always reversible.
+    # Taken here rather than in apply_and_configure because it must precede the
+    # scope checks above on this surface; snapshot => 0 below stops the shared
+    # layer taking a second one. SM183 moved the snapshot INTO the shared layer
+    # so MCP and the CLI get it too - this surface always had it.
     my $safety = action_backup_create('prerestore');
     return { ok => 0, error => 'Refusing to apply: safety snapshot failed' }
         unless $safety->{ok};
@@ -1756,6 +1760,7 @@ sub action_site_backup_apply {
         host         => $host,
         content_root => ( length $croot ? $croot : ( $req->{content_root} // '' ) ),
         clean        => ( $req->{clean} ? 1      : 0 ),
+        snapshot     => 0,
         # SM193: keep the TARGET domain's site_url/site_name by default; opt into
         # taking the package's identity with adopt_identity (a migration vs handoff).
         adopt_identity => ( $req->{adopt_identity} ? 1 : 0 ) );

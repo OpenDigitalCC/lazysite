@@ -492,7 +492,7 @@ my %TOOLS = (
         },
     },
     site_apply => {
-        description => 'Apply a previously created/uploaded site package (a lazysite-site-*.tar.gz already in the backups area) onto a target domain on this instance: copies its content into the domain content root, installs the bundled theme/layout if missing, places the nav, and sets the domain presentation. Omit host to apply to the default site. Requires manage_domains + access to the target. A safety snapshot is NOT taken here - create a backup first if you want a rollback point.',
+        description => 'Apply a previously created/uploaded site package (a lazysite-site-*.tar.gz already in the backups area) onto a target domain on this instance: copies its content into the domain content root, installs the bundled theme/layout if missing, places the nav, and sets the domain presentation. Omit host to apply to the default site. Requires manage_domains + access to the target. A safety snapshot of the docroot IS taken before anything is written, and its name is returned as `safety`, so an apply is always reversible - tell the operator that name if they need to roll back. If the snapshot cannot be taken the apply is refused rather than proceeding without one.',
         cap         => 'manage_domains',
         inputSchema => {
             type       => 'object',

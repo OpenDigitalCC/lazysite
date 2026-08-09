@@ -3,7 +3,7 @@ title: "SM183 - Site-package migration in the manager UI (surface parity)"
 subtitle: "Let a human perform the agency demo -> client hand-off without MCP or the CLI; make the package the interface across every surface"
 brand: plain
 status: partial
-status-note: "v1 built on claude/sm183-site-package-ui for 0.9.6 (UI-only): Export on Domains; a Site packages panel on Backups (list/download/upload/apply/delete) with an apply preview + confirm; new read action site-backup-inspect + site-backup-delete (manage_domains + scope + lazysite-site- name confinement). DEFERRED: dry-run content diff, one-click rollback + MCP site_apply snapshot parity, target-readiness (domain Check) in the apply flow, integrity sha display, and presentation-key remap override."
+status-note: "v1 built on claude/sm183-site-package-ui for 0.9.6 (UI-only): Export on Domains; a Site packages panel on Backups (list/download/upload/apply/delete) with an apply preview + confirm; new read action site-backup-inspect + site-backup-delete (manage_domains + scope + lazysite-site- name confinement). SNAPSHOT PARITY DONE 2026-08-09 (unreleased on main): the safety snapshot moved into the shared apply_and_configure, so MCP site_apply and the CLI now take one - previously only the control API did, and site_apply's own description said so. The snapshot name is returned as `safety` on every surface, and a failed snapshot REFUSES the apply. The control API passes snapshot => 0 because it takes its own before its scope checks; t/unit/manager/59 asserts MCP and the CLI do not, and that the snapshot actually contains the overwritten content. STILL DEFERRED: dry-run content diff, one-click rollback (the snapshot now exists to roll back TO, but no UI action restores it), target-readiness (domain Check) in the apply flow, integrity sha display, and presentation-key remap override."
 ---
 
 # SM183 - Site-package migration in the manager UI
@@ -124,6 +124,22 @@ overwrite; each is small and sits naturally in the same flow:
    currently does not snapshot** (its own description says so). Align them - or
    surface the difference in the UI - and offer *Undo apply* that restores the
    pre-apply snapshot. Rollback is the safety net that makes apply low-anxiety.
+
+   **The parity half is done, 2026-08-09.** The snapshot moved into the shared
+   `apply_and_configure`, so every surface takes one; `snapshot => 0` exists only
+   for the control API, which takes its own earlier (before its scope checks). A
+   snapshot that cannot be taken now REFUSES the apply rather than proceeding
+   without one - this overwrites content, and the worst outcome is believing you
+   can roll back when you cannot. The name is returned as `safety` so an agent
+   can tell the operator what to restore.
+
+   Worth recording why this was more than a tidy-up: `domain_presentation_set`
+   refuses to repoint a domain's `content_root` and tells the caller to "use
+   `site_apply`, which takes a snapshot first". The codebase was already
+   asserting the property it did not have.
+
+   **One-click rollback is still open.** There is now a snapshot to roll back
+   *to*, and no action that restores it in one step.
 
 3. **Target readiness check.** Fold the existing domain **Check** (DNS / vhost /
    TLS, and content_root exists) into the apply confirmation, so applying to a

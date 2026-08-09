@@ -458,8 +458,39 @@ sub apply_and_configure {
             unless length $croot;
     }
 
+    # SM183: the safety snapshot happens HERE, so every surface gets it.
+    #
+    # It used to be taken only by the control-API's inline apply, which meant an
+    # apply through MCP or the CLI overwrote a site with no rollback point - and
+    # site_apply's own tool description said so, which made a documented gap
+    # rather than a hidden one but did not make it safe. "The artefact is the
+    # interface, not the tool" is SM183's whole claim, and a destructive
+    # operation that is reversible on one surface and not another contradicts it.
+    #
+    # snapshot => 0 is for a caller that has ALREADY taken one (the control-API
+    # takes it before its scope checks); it is not an opt-out for convenience.
+    # Failure to snapshot REFUSES the apply rather than proceeding without one:
+    # this overwrites content, and the only thing worse than not being able to
+    # roll back is believing you can.
+    my $safety_name = '';
+    if ( !exists $opt{snapshot} || $opt{snapshot} ) {
+        require Lazysite::Manager::Backups;
+        local $Lazysite::Manager::Backups::DOCROOT      = $DOCROOT;
+        local $Lazysite::Manager::Backups::LAZYSITE_DIR = "$DOCROOT/lazysite";
+        my $safety = Lazysite::Manager::Backups::action_backup_create('prerestore');
+        return { ok => 0, kind => 'snapshot-failed',
+            error => 'Refusing to apply: safety snapshot failed' }
+            unless $safety->{ok};
+        $safety_name = $safety->{name} // '';
+    }
+
     my $ap = package_apply( $pkg, content_root => $croot, clean => $opt{clean} );
-    return $ap unless $ap->{ok};
+    unless ( $ap->{ok} ) {
+        # Name the snapshot on the failure path too - an apply that failed
+        # part-way is exactly when the caller needs to know what to restore.
+        $ap->{safety} = $safety_name if length $safety_name;
+        return $ap;
+    }
 
     my $keys = $ap->{keys} || {};
     # SM193: by DEFAULT keep the target domain's own identity - do not stamp the
@@ -490,6 +521,9 @@ sub apply_and_configure {
         } );
     $ap->{applied_to}    = length $host         ? $host : '(default)';
     $ap->{identity_kept} = $opt{adopt_identity} ? 0     : 1;
+    # The rollback point, named in the RESULT rather than only in a log line, so
+    # the caller can tell the operator what to restore without going looking.
+    $ap->{safety} = $safety_name if length $safety_name;
     return $ap;
 }
 
