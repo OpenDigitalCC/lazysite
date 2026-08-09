@@ -3,7 +3,7 @@ title: "SM223 - Static files under access control"
 subtitle: "A static file is served before any page logic runs, so it is reachable by anyone who knows its path - including on a site whose auth_default is 'required'. Close the gap so 'the site is protected' means every served byte."
 brand: plain
 status: partial
-status-note: "PARTIAL 2026-08-09: the DETECTOR is built (option C, minus its write-time refusal) - audit_site reports unprotected_static_files and site_auth_default, so an operator can see that their configuration and their content disagree. ENFORCEMENT (options A and B) is NOT built and should not be until the four open decisions below are answered: it is a behavioural change that would start refusing assets on live sites. Detect before enforce, which is this filing own recommendation. Raised 2026-08-06 from the Golden Link partner review, where private participant material would have been published as static HTML. Treated as a MISSING FEATURE, not a defect: nothing is behaving contrary to its design, but an operator cannot express an intention the platform lets them believe they have expressed. Overlaps SM181 (subtree protection), which already carries an open 'static-asset caveat' - SM223 is that caveat, scoped as its own decision."
+status-note: "PARTIAL 2026-08-09: the DETECTOR is built (option C, minus its write-time refusal) - audit_site reports unprotected_static_files and site_auth_default, so an operator can see that their configuration and their content disagree. The four open decisions are now ANSWERED (see 'Decisions taken'), and the design they produce is not the one this filing recommended: protection is an explicit per-path entry in the EXISTING acls.json rather than auth_default reaching static files, folder scopes are entries in that same store, the vhost routes source-less statics to the engine only when an ACL file exists (so no reload is ever required), and the upgrade risk is met by observability - an auth-failure report in analyse_visitors plus a documented log-scan pattern - rather than by a release of lead time. ENFORCEMENT is not yet built. Raised 2026-08-06 from the Golden Link partner review, where private participant material would have been published as static HTML. Treated as a MISSING FEATURE, not a defect: nothing is behaving contrary to its design, but an operator cannot express an intention the platform lets them believe they have expressed. SM181 is no longer a prerequisite - folder scope is an ACL entry, so SM181 becomes a manager affordance over the same store rather than a second mechanism."
 ---
 
 # SM223 - static files under access control
@@ -147,40 +147,138 @@ than widening what they may express, and it does nothing for the assets a
 protected page legitimately references - the image inside the private brief is
 still public.
 
-### Recommendation
+### Recommendation - SUPERSEDED 2026-08-09
 
-Options A and B together, with C's audit warning as the detector that tells an
-operator when their configuration and their content disagree. A alone leaves
-Apache exposed; B alone leaves the dev server and any future front end exposed;
-the audit warning is what makes the gap visible on sites that upgrade without
-regenerating their vhost.
+The recommendation was options A and B together, with C's audit warning as the
+detector. The detector shipped and stands. The rest was overtaken by the
+decisions below, in one important respect: **A and B were both framed around
+`auth_default` reaching static files, and it does not.** Protection is now an
+explicit per-path act carried in the ACL, so the enforcement is still A plus B
+in shape - the engine decides, the front end routes to it - but what they
+enforce is an ACL entry rather than a site-wide default.
+
+The part of the recommendation that survived intact is the sequencing: detect
+before enforce. That is why the detector shipped alone in 0.10.4 and why the
+answers below could be made against evidence from live sites rather than from
+argument.
 
 ## Relationship to SM181
 
 SM181 (folder / URL-prefix protection) proposes the prefix rule itself, and its
 status-note already records that "a static-asset caveat needs a decision". SM223
-is that decision. If SM181 is built first, SM223 becomes the second half of the
-same work and should not ship separately - a prefix rule that silently omits
-static files would make this gap worse by giving operators a second way to
-believe they are protected.
+is that decision.
 
-If SM181 stays held, SM223 still stands alone against `auth_default`, which is
-the case an operator can reach today with no new features at all.
+**The 2026-08-09 decisions invert the dependency.** Folder scope is now an entry
+in `acls.json` rather than a new prefix rule in `lazysite.conf`, so SM223 no
+longer waits on SM181 and can ship on its own. SM181 becomes a manager
+affordance over the same store - a way to write a folder-scoped ACL entry
+without hand-editing JSON - rather than a second mechanism that would have to be
+kept in step with this one.
 
-## Open decisions
+That is worth stating plainly, because the original concern still applies in
+reverse: two mechanisms for "this path is protected" would give operators two
+ways to believe they are protected, and only one of them would cover static
+files. One store removes that failure mode entirely.
 
-1. **Does a protected prefix require a web-server reload to take effect?** This
-   is the same trade-off SM222 names for service killswitches, and the two
-   should be answered the same way rather than diverging.
-2. **What happens to an existing site on upgrade?** A site currently serving
-   static assets under an `auth_default: required` docroot would begin refusing
-   them. That is the correct behaviour and it is a behavioural change; it needs
-   a release note and probably an audit warning one release ahead.
-3. **Do protected static assets bypass the render cache**, or do they need their
-   own no-store handling the way protected pages already do?
-4. **Is the ACL in scope?** If SM224 concludes the two models should merge, the
-   answer to "who may read this static file" may come from the ACL rather than
-   from a prefix rule, and this design changes shape.
+## Decisions taken 2026-08-09
+
+The four questions below were open when the detector shipped. All four are now
+answered, by the operator, and the answers are recorded here because the design
+they produce is not the one this filing originally recommended.
+
+### The mechanism is the ACL, not a new store
+
+**`lazysite/auth/acls.json` carries the access controls for a source-less file.**
+`Lazysite::Auth::Acl` already holds per-path `owner` / `read` / `write` lists with
+user and `@group` entries, atomically written and already maintained by the
+manager. Folder scopes are expressed as entries in that same file rather than as
+a separate prefix rule in `lazysite.conf`.
+
+This answers open decision 4 in the affirmative and settles SM224 by
+implication: `read` stops meaning "who may read this in the authoring channels"
+and starts meaning "who may read this at all". The operator's reason was that
+the store is established and a single place is clearer to understand than two
+that have to be kept in step - which is the same argument this whole filing
+makes about the permission model.
+
+A sidecar file per asset was considered and rejected: a copy or a move drops it
+silently, and SM245 is currently retiring the `.brief` sidecars for related
+reasons.
+
+### `auth_default` still does not reach static files
+
+A file with no ACL entry is served, exactly as today. `_acl_allows` already
+returns "allowed" for a path with no entry, and that behaviour carries over
+unchanged to the public path. Direct static serving is a correct and supported
+use, and a site that has expressed nothing about a file has not expressed that
+it is closed.
+
+Protecting a static asset is therefore an explicit act, which is the opposite of
+the original recommendation that `auth_default: required` should cover
+everything. The originating Golden Link case is met by the operator writing one
+ACL entry, not by the platform inferring one.
+
+### The front end routes to the engine when an ACL file exists
+
+Apache's `[L]` rewrite hands a source-less static straight to the client, so an
+ACL the engine enforces would be invisible there. The vhost generators emit
+**one rule, once, at install**: a source-less static routes through the engine
+only when `lazysite/auth/acls.json` exists.
+
+```apache
+RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f
+RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.md !-f
+RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} -f
+RewriteRule ^/(.*)$ /cgi-bin/lazysite-processor.pl [L]
+```
+
+The condition is a file-existence test of the kind the rewrite already performs
+for the `.md`, so it costs nothing on a site with no ACLs, and such a site keeps
+direct static serving untouched. This answers open decision 1: **no reload, ever.**
+Adding or changing a protected path is a pure content action with no operator
+involvement, which the option-B analysis called the real decision in this
+request. SM222's killswitch trade-off is resolved the other way here, and
+deliberately: a killswitch is an operator act, a content permission is not.
+
+The cost is stated plainly: on a site with **any** ACL entry, every source-less
+static request goes through the engine rather than being served directly. That
+is the price of never needing a reload, and it falls only on sites that have
+asked for it.
+
+### Upgrade is handled by observability, not by lead time
+
+Existing `acls.json` entries were written to govern authoring. Once the public
+path reads them, a `read` list set to keep other editors out also starts
+refusing anonymous visitors. Rather than buying a release of lead time or
+introducing a second kind of `read` entry, the consequence is made **detectable**:
+
+- `analyse_visitors` gains a report of page auth failures, so an asset that
+  became protected by accident surfaces as refusals against a real URL;
+- the documentation carries a log-scan pattern an operator can run directly to
+  find the files where this condition is already set, at any time rather than
+  only in the release before the change.
+
+This is better than a warning one release ahead, which only catches the case for
+operators who read that release's notes in that release's window.
+
+### Protected statics are never cached
+
+Open decision 3, answered by consistency: a protected static gets the same
+`no-store` handling a protected page already gets. A response whose content
+depends on who asked must not be stored by a cache that does not know who asked.
+
+## Consequences for the build
+
+- The public path must call `_acl_allows`, **never** `_acl_denied`. `_acl_denied`
+  routes through `_is_operator`, which returns 1 on a site where no group grants
+  manager access (`Acl.pm:118`). On an anonymous request that would bypass the
+  ACL entirely, and it would do so on exactly the sites least equipped to notice.
+- `Auth::Acl` pulls in `JSON::PP`, `File::Path` and `Auth::Settings`, so the
+  processor gets a module-free reader rather than a `require` - the same
+  treatment ADR 0001 already gives `_groups_grant_cap`.
+- SM181's prefix rule is no longer a prerequisite. Folder scope is an ACL entry,
+  so SM223 can ship on its own and SM181 becomes a manager affordance over the
+  same store rather than a second mechanism.
 
 ## Not in scope
 
