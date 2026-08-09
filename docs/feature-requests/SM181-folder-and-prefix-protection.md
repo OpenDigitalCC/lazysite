@@ -2,8 +2,8 @@
 title: "SM181 - Folder / URL-prefix protection (hold a section back, release in one go)"
 subtitle: "Gate a whole subtree behind auth or as a draft, without touching every page - and publish it atomically"
 brand: plain
-status: partial
-status-note: "PARTIAL 2026-08-09 (unreleased on main): the AUTH-GATE half is built, and NOT by the mechanism proposed here. SM223's operator decision put folder scope in the EXISTING acls.json rather than a new prefix list in lazysite.conf, so this became small: the processor already consulted a folder ACL entry for static files, and now consults it for PAGES too. One entry gates a section's pages and its assets together, which also CLOSES the static-asset caveat this filing left open (option 3, reached by a different route). A page inside a gated section cannot opt out with auth: none - the longest PATH match wins, not the mechanism. Deleting the entry publishes the subtree atomically. A gated page is never written to the shared HTML cache. t/integration/36 covers it and fails on the pre-SM181 processor for exactly the page subtests. NOT BUILT: the DRAFT policy (404 to the public rather than a login bounce, absent from sitemap and search, previewable by an editor) - which this filing argues is the better fit for 'not yet ready for publication', so the remaining half is the one it led with. Also not built: the Protected sections manager panel; the rule is hand-written JSON or set through the existing per-file ACL tools."
+status: shipped
+status-note: "SHIPPED 2026-08-09 (unreleased on main). BOTH policies this filing asked for are built, and NOT by the mechanism it proposed: SM223's operator decision put folder scope in the EXISTING acls.json rather than a new prefix list in lazysite.conf. AUTH-GATE: one folder entry gates a section's pages AND its assets together, which closes the static-asset caveat (option 3, reached by a different route); a page inside cannot opt out with auth: none (longest PATH match wins, not the mechanism); a gated page is never written to the shared HTML cache; deleting the entry publishes atomically. DRAFT: `draft: true` on the entry makes the refusal a 404 rather than a login bounce - for signed-in non-editors too, since a 403 discloses the section just as effectively - and removes the section from the sitemap, llms.txt, the feeds and every scan: list. That exclusion is unconditional, because a registry is generated once and then served to everyone from disk. Draft deliberately breaks the usual "no read list means anyone" rule: with no list the public is still refused and any signed-in user may preview. t/integration/36 and t/integration/37 cover them. The MANAGER PANEL (see what is held back, publish in one click, preview as public) is carved out to SM267 so this filing closes rather than sitting at partial; it is manager JavaScript, which the suite cannot reach."
 ---
 
 # SM181 - Folder / URL-prefix protection
@@ -71,17 +71,42 @@ source-less statics; it now consults it for pages as well, before `check_auth`:
 
 ### What is still open
 
-**The draft policy.** This filing leads with draft-hide - 404 to the public,
-absent from the sitemap and search, previewable by an editor - and argues it is
-the better fit for "not yet ready for publication", because a coming-soon section
-should not answer 403s at guessable URLs. What is built is the auth-gate: a
-protected page bounces to login, which reveals that the URL exists. So the half
-this filing recommended is the half still to do.
+**The manager panel** - carved out to **SM267** so this filing closes. Both
+policies work and both are hand-written JSON, so an operator cannot see which
+parts of their own site are held back without reading a file, and the atomic
+release is performed by deleting a key rather than pressing a button. A draft
+section is invisible by design, which means one left in draft after launch stays
+invisible and nothing says so.
 
-**The manager panel.** No "Protected sections" UI: the rule is written as JSON,
-or through the existing per-file ACL tools. There is no one-click *Publish
-section* - the atomic release works, but an operator performs it by deleting an
-entry rather than pressing a button.
+## Also built 2026-08-09: the draft policy
+
+`draft: true` on the same entry:
+
+```json
+{ "upcoming": { "read": ["@editors"], "draft": true } }
+```
+
+- **The refusal becomes a 404.** A login bounce at `/upcoming/pricing` confirms
+  that `/upcoming/pricing` exists, and the URL is the thing being held back. A
+  signed-in user outside the list gets 404 too, for the same reason: a 403
+  discloses the section just as effectively as a login form.
+- **The section leaves every listing** - `sitemap.xml`, `llms.txt`, the feeds and
+  every `scan:` page list - through one filter in `scan_pages`, which is the
+  single place page listings are built.
+
+That exclusion is **unconditional**, and that is the load-bearing detail. A
+registry is generated once and then served to everyone from disk, so whether the
+request that triggered generation was an editor's is irrelevant: a draft page in
+the sitemap is a published page, whatever the page itself answers to a visitor.
+`t/integration/37` tests generation by an editor specifically.
+
+Draft deliberately breaks the ordinary "no read list means anyone" rule. With no
+list the public is still refused and any signed-in user may preview - a draft
+that was public would not be a draft.
+
+**Publishing is removing `draft`**, or removing the entry entirely. Those are
+different acts and should stay distinguishable: the first publishes the section,
+the second also drops its access gate.
 
 ## Mechanisms considered
 
