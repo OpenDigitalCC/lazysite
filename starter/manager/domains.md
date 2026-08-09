@@ -37,69 +37,9 @@ routing are configured so the domain reaches this instance.
 </div>
 
 <div class="mg-toolbar" style="margin-bottom:12px;">
-  <button class="mg-btn" onclick="toggleAdd()">Add domain</button>
+  <button class="mg-btn" onclick="openCreateSheet()">Add domain</button>
 </div>
 
-<div id="add-panel" style="display:none;border:1px solid var(--mg-border,#ddd);border-radius:6px;padding:14px;margin-bottom:16px;">
-  <div style="display:flex;flex-wrap:wrap;gap:22px;">
-    <div style="flex:1 1 260px;min-width:240px;">
-      <div style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Identity</div>
-      <div class="mg-form-row">
-        <label>Full domain name<br>
-          <input id="f-host" placeholder="clienta.com" style="width:100%;box-sizing:border-box;" oninput="onHostInput()"></label>
-        <div style="font-size:0.8em;color:#888;margin-top:2px;">The complete hostname visitors type &mdash; e.g. <code>clienta.com</code> or <code>shop.clienta.com</code>. Must be unique in this instance.</div>
-      </div>
-      <div class="mg-form-row">
-        <label>Content folder <span style="color:#aaa;font-weight:400">&mdash; optional</span><br>
-          <input id="f-croot" placeholder="clienta" style="width:100%;box-sizing:border-box;"></label>
-        <div style="font-size:0.8em;color:#888;margin-top:2px;">The folder inside your site that holds this domain's pages (created if missing). Leave empty to show your <strong>default site</strong>. The lazysite system area is reserved &mdash; pick any other folder.</div>
-      </div>
-      <div class="mg-form-row">
-        <label>Copy settings from <span style="color:#aaa;font-weight:400">&mdash; optional</span><br>
-          <select id="f-clone-from" onchange="cloneFrom(this.value)" style="width:100%;box-sizing:border-box;"><option value="">Start blank</option></select></label>
-        <div style="font-size:0.8em;color:#888;margin-top:2px;">Pre-fill this form from an existing domain (its content folder, title and appearance) &mdash; a quick way to stand up another domain like one you already have. You can change anything before saving.</div>
-      </div>
-    </div>
-    <div style="flex:1 1 260px;min-width:240px;">
-      <div style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Presentation <span style="text-transform:none;letter-spacing:0">&mdash; optional, inherits the default site</span></div>
-      <div class="mg-form-row">
-        <label>Site address (URL)<br>
-          <input id="f-siteurl" placeholder="https://clienta.com" style="width:100%;box-sizing:border-box;" oninput="siteUrlEdited=true"></label>
-        <div style="font-size:0.8em;color:#888;margin-top:2px;">Filled in automatically from the domain. Change only if visitors reach it on a different address.</div>
-      </div>
-      <div class="mg-form-row">
-        <label>Site title<br>
-          <input id="f-sitename" placeholder="Client A" style="width:100%;box-sizing:border-box;"></label>
-        <div style="font-size:0.8em;color:#888;margin-top:2px;">Shown in the page header and the browser tab.</div>
-      </div>
-      <div class="mg-form-row">
-        <label>Appearance (layout &amp; theme)<br>
-          <select id="f-appearance" style="width:100%;box-sizing:border-box;"><option value="">Inherit the default</option></select></label>
-        <div style="font-size:0.8em;color:#888;margin-top:2px;">A theme always belongs to a layout, so pick them together.</div>
-      </div>
-    </div>
-    <div style="flex:1 1 260px;min-width:240px;">
-      <div style="font-size:0.78em;color:#888;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Language <span style="text-transform:none;letter-spacing:0">&mdash; optional, for a multilingual set</span></div>
-      <div class="mg-form-row">
-        <label>Language<br>
-          <input id="f-lang" placeholder="en" style="width:100%;box-sizing:border-box;"></label>
-        <div style="font-size:0.8em;color:#888;margin-top:2px;">This host's language, e.g. <code>en</code>, <code>fr</code>, <code>pt-BR</code>. Sets <code>&lt;html lang&gt;</code> and the Content-Language header.</div>
-      </div>
-      <div class="mg-form-row">
-        <label>Language set<br>
-          <input id="f-lang-group" placeholder="providers" style="width:100%;box-sizing:border-box;"></label>
-        <div style="font-size:0.8em;color:#888;margin-top:2px;">A shared name across the languages of one site. Two&#8239;+ hosts sharing it become a switchable set.</div>
-      </div>
-    </div>
-  </div>
-  <div class="mg-form-row" style="margin:6px 0 12px;">
-    <label><input type="checkbox" id="f-seed" checked> Seed a starter home page (only when a content folder is given)</label>
-  </div>
-  <div class="mg-form-row">
-    <button class="mg-btn mg-btn-primary" onclick="addDomain()">Register domain</button>
-    <button class="mg-btn" onclick="toggleAdd()">Cancel</button>
-  </div>
-</div>
 
 <div id="domains-list"><div class="mg-status">Loading&hellip;</div></div>
 
@@ -172,19 +112,6 @@ function showStatus(msg, isError) {
   el.style.color = isError ? '#b00' : '#080';
   if (!isError) setTimeout(function () { el.textContent = ''; }, 4000);
 }
-function toggleAdd() {
-  var p = document.getElementById('add-panel');
-  p.style.display = (p.style.display === 'none') ? 'block' : 'none';
-}
-
-// Site URL auto-derives from the domain: scheme://host. We only overwrite it
-// while the operator has not typed their own value, so a deliberate override is
-// never clobbered.
-function onHostInput() {
-  if (siteUrlEdited) return;
-  var host = document.getElementById('f-host').value.trim();
-  document.getElementById('f-siteurl').value = host ? 'https://' + host : '';
-}
 
 // A <select> of installed themes, with an "(inherit)" first option and, for an
 // edit row, the domain's current theme pre-selected. This is a picker over what
@@ -224,14 +151,9 @@ function loadThemes() {
       APPEARANCE.sort(function (a, b) {
         return (a.layout + '/' + a.theme).localeCompare(b.layout + '/' + b.theme);
       });
-      var sel = document.getElementById('f-appearance');   // populate the add-form select
-      if (sel) {
-        APPEARANCE.forEach(function (a) {
-          var o = document.createElement('option');
-          o.value = a.layout + '|' + a.theme; o.textContent = a.layout + ' / ' + a.theme;
-          sel.appendChild(o);
-        });
-      }
+      // SM259: nothing to populate eagerly - the create sheet builds its
+      // appearance <select> from APPEARANCE via appearanceSelect() each time it
+      // opens, so it always reflects what is installed now.
     })
     .catch(function () {});
 }
@@ -263,11 +185,22 @@ var EDIT_SECTIONS = [
 // Optional grey hint rendered under an edit field where the effect is not obvious.
 var EDIT_HINTS = {
   content_root: 'Blank serves the default site. Changing this repoints the domain to another folder – it does not move existing files.',
+  site_name: 'Shown in the page header and the browser tab.',
+  appearance: 'A theme always belongs to a layout, so pick them together.',
   lang: 'This host’s language (e.g. en, fr, pt-BR). Sets <html lang> and the Content-Language header.',
   lang_group: 'The language set this host belongs to (a shared name across the languages, e.g. providers). Two+ hosts sharing it become a switchable set.',
   allowed_groups: 'Add the groups whose members may manage this domain (and are confined to it). None = only operators.',
   locked_users: 'Add accounts that can reach ONLY this domain (of the ones their groups allow) – nothing else.'
 };
+// SM259: two hints read differently when the domain does not exist yet - a
+// content folder is CREATED rather than repointed, and the site URL is derived
+// from the host as you type. Overlaid on EDIT_HINTS in create mode rather than
+// compromising one string to serve both.
+var CREATE_HINTS = {
+  content_root: 'The folder inside your site holding this domain’s pages – created if missing. Leave empty to serve your default site. The lazysite system area is reserved; pick any other folder.',
+  site_url: 'Filled in automatically from the domain name. Change it only if visitors reach this site on a different address.'
+};
+
 // Keys whose value comes from a fixed set are edited as a <select> (with an
 // "inherit" blank), not a free-text box - matching the processor's own config UI
 // (SM174). search_default is a true/false choice there, so it is here too.
@@ -335,26 +268,6 @@ function post(action, obj) {
   }).then(function (r) { return r.json(); });
 }
 
-function addDomain() {
-  var host = document.getElementById('f-host').value.trim();
-  if (!host) { showStatus('A full domain name is required.', true); return; }
-  var ap = splitAppearance(document.getElementById('f-appearance').value);
-  post('domain-add', {
-    host: host,
-    content_root: document.getElementById('f-croot').value.trim(),   // empty = default site
-    site_url: document.getElementById('f-siteurl').value.trim(),
-    site_name: document.getElementById('f-sitename').value.trim(),
-    theme: ap.theme,
-    layout: ap.layout,
-    lang: document.getElementById('f-lang').value.trim(),
-    lang_group: document.getElementById('f-lang-group').value.trim(),
-    seed: document.getElementById('f-seed').checked ? 1 : 0
-  }).then(function (d) {
-    if (d && d.ok) { showStatus('Registered ' + host); toggleAdd(); loadDomains(); }
-    else { showStatus((d && d.error) || 'Could not register the domain.', true); }
-  });
-}
-
 
 function removeDomain(host) {
   if (!window.confirm('Delete ' + host + '? The domain is de-registered; its content files are kept.')) return;
@@ -406,12 +319,55 @@ function configureDomain(host) {
 // with the domain actions. This is a RE-HOST of the proven inline editor into one
 // modal - the field machinery, validation, token picker and datalists are unchanged.
 // Each section is boxed (mg-box) to match the Users sheet's card look.
-function domainSettingsHtml(row) {
+// SM259: the pseudo-host the create sheet uses for its field ids, so editField
+// and the token pickers work unchanged. Deliberately a shape no real host can
+// take (a hostname cannot contain underscores at the edges or be bracketed like
+// this), so it can never collide with a domain being configured.
+var NEW_HOST = '__new__';
+
+function domainSettingsHtml(row, isCreate) {
   var host = row.host;
   var h = '';
+
+  // SM259: creating and configuring are the same object described twice, so the
+  // sheet renders both from ONE set of sections. Only the create-only parts
+  // differ: the host itself (fixed once the domain exists), a starting point to
+  // copy from, and whether to seed a home page.
+  if (isCreate) {
+    var opts = '<option value="">Start blank</option>';
+    DOMAINS.forEach(function (d) {
+      if (d.host && d.host !== '(default)') {
+        opts += '<option value="' + esc(d.host) + '">' + esc(d.host) + '</option>';
+      }
+    });
+    h += '<div class="mg-box"><div style="font-size:0.72em;color:#999;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">New domain</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px;align-items:start;">'
+      + '<label style="display:flex;flex-direction:column;gap:3px;font-size:0.85em;color:#555;">'
+      + '<span style="font-weight:600;color:#444;">Full domain name</span>'
+      + '<input id="e-' + esc(NEW_HOST) + '-host" placeholder="clienta.com" style="width:100%;box-sizing:border-box;" oninput="onNewHostInput()">'
+      + '<span style="font-weight:400;color:#999;font-size:0.92em;margin-top:2px;">The complete hostname visitors type – e.g. clienta.com or shop.clienta.com. Must be unique in this instance.</span>'
+      + '</label>'
+      + '<label style="display:flex;flex-direction:column;gap:3px;font-size:0.85em;color:#555;">'
+      + '<span style="font-weight:600;color:#444;">Copy settings from</span>'
+      + '<select id="e-' + esc(NEW_HOST) + '-clone" onchange="cloneFrom(this.value)" style="width:100%;box-sizing:border-box;">' + opts + '</select>'
+      + '<span style="font-weight:400;color:#999;font-size:0.92em;margin-top:2px;">Pre-fill from an existing domain – a quick way to stand up another like one you already have. You can change anything before saving.</span>'
+      + '</label>'
+      + '</div></div>';
+  }
+
   EDIT_SECTIONS.forEach(function (s) {
-    h += '<div class="mg-box">' + editSection(host, s, row) + '</div>';
+    h += '<div class="mg-box">' + editSection(host, s, row, isCreate) + '</div>';
   });
+
+  if (isCreate) {
+    h += '<div class="mg-line" style="margin-top:4px;">'
+      + '<label><input type="checkbox" id="e-' + esc(NEW_HOST) + '-seed" checked> Seed a starter home page (only when a content folder is given)</label></div>'
+      + '<div class="mg-line" style="margin-top:4px;">'
+      + '<button class="mg-btn mg-btn-primary" onclick="createDomain()">Register domain</button> '
+      + '<button class="mg-btn" onclick="closeConfig()">Cancel</button></div>';
+    return h;
+  }
+
   // Save is the primary action, sitting under the field groups.
   h += '<div class="mg-line" style="margin-top:4px;">'
      + '<button class="mg-btn mg-btn-primary" onclick="saveDomain(' + esc(JSON.stringify(host)) + ')">Save changes</button></div>';
@@ -450,6 +406,63 @@ function renderConfigSheet(host) {
   var panel = sheet.querySelector('.mg-sheet-panel');
   if (panel) { try { panel.focus(); } catch (e) {} }
   markConfiguring(host);
+}
+
+// SM259: open the SAME sheet in create mode. An empty row means every field
+// renders blank with its inherit placeholder, exactly as a new domain inherits.
+function openCreateSheet() {
+  siteUrlEdited = false;
+  document.getElementById('cfg-sheet-title').innerHTML =
+    'Add a domain <span class="mg-sheet-sub">registers a new host on this instance</span>';
+  document.getElementById('cfg-sheet-body').innerHTML =
+    domainSettingsHtml({ host: NEW_HOST }, true);
+  var sheet = document.getElementById('cfg-sheet');
+  sheet.hidden = false;
+  document.body.classList.add('mg-sheet-open');
+  var b = document.getElementById('cfg-sheet-body'); if (b) b.scrollTop = 0;
+  var panel = sheet.querySelector('.mg-sheet-panel');
+  if (panel) { try { panel.focus(); } catch (e) {} }
+  markConfiguring(null);
+  var hf = document.getElementById('e-' + NEW_HOST + '-host');
+  if (hf) { try { hf.focus(); } catch (e) {} }
+}
+
+// Derive the site URL from the host as it is typed, until the operator edits it.
+function onNewHostInput() {
+  if (siteUrlEdited) return;
+  var hf = document.getElementById('e-' + NEW_HOST + '-host');
+  var uf = document.getElementById('e-' + NEW_HOST + '-site_url');
+  if (!hf || !uf) return;
+  var h = hf.value.trim();
+  uf.value = h ? 'https://' + h : '';
+}
+
+function createDomain() {
+  var v = function (k) {
+    var e = document.getElementById('e-' + NEW_HOST + '-' + k);
+    return e ? e.value.trim() : '';
+  };
+  var host = v('host');
+  if (!host) { showStatus('A full domain name is required.', true); return; }
+  var apEl = document.getElementById('e-' + NEW_HOST + '-appearance');
+  var ap = splitAppearance(apEl ? apEl.value : '');
+  var seedEl = document.getElementById('e-' + NEW_HOST + '-seed');
+  post('domain-add', {
+    host: host,
+    content_root: v('content_root'),   // empty = default site
+    site_url: v('site_url'),
+    site_name: v('site_name'),
+    theme: ap.theme,
+    layout: ap.layout,
+    nav_file: v('nav_file'),
+    search_default: v('search_default'),
+    lang: v('lang'),
+    lang_group: v('lang_group'),
+    seed: (seedEl && seedEl.checked) ? 1 : 0
+  }).then(function (d) {
+    if (d && d.ok) { showStatus('Registered ' + host); closeConfig(); loadDomains(); }
+    else { showStatus((d && d.error) || 'Could not register the domain.', true); }
+  });
 }
 
 function closeConfig() {
@@ -587,11 +600,12 @@ function saveDomain(host) {
 // inherited value is shown as a greyed placeholder so the current effective
 // value is always visible without overwriting the inherit. Each field fills its
 // grid cell (width:100%) so columns line up regardless of content.
-function editField(host, k, row) {
+function editField(host, k, row, isCreate) {
   var own = row[k + '_inherited'] ? '' : (row[k] || '');
   var effective = row[k] || '';
-  var hint = EDIT_HINTS[k]
-    ? '<span style="font-weight:400;color:#999;font-size:0.92em;margin-top:2px;">' + esc(EDIT_HINTS[k]) + '</span>'
+  var hintText = (isCreate && CREATE_HINTS[k]) ? CREATE_HINTS[k] : EDIT_HINTS[k];
+  var hint = hintText
+    ? '<span style="font-weight:400;color:#999;font-size:0.92em;margin-top:2px;">' + esc(hintText) + '</span>'
     : '';
   var full = 'width:100%;box-sizing:border-box;';
   var wrap = function (inner, span) {
@@ -631,8 +645,8 @@ function editField(host, k, row) {
 }
 
 // The fields of one edit section, laid out in an aligned responsive grid.
-function editSection(host, section, row) {
-  var cells = section.keys.map(function (k) { return editField(host, k, row); }).join('');
+function editSection(host, section, row, isCreate) {
+  var cells = section.keys.map(function (k) { return editField(host, k, row, isCreate); }).join('');
   var note = section.note
     ? ' <span style="text-transform:none;letter-spacing:0;font-weight:400;color:#aaa;">&mdash; ' + esc(section.note) + '</span>'
     : '';
@@ -653,14 +667,22 @@ function cloneFrom(host) {
   for (var i = 0; i < DOMAINS.length; i++) { if (DOMAINS[i].host === host) { src = DOMAINS[i]; break; } }
   if (!src) return;
   var own = function (k) { return src[k + '_inherited'] ? '' : (src[k] || ''); };
-  var setV = function (id, v) { var e = document.getElementById(id); if (e) e.value = v || ''; };
-  setV('f-croot', own('content_root'));
-  setV('f-sitename', own('site_name'));
-  var ap = document.getElementById('f-appearance');
+  // SM259: the create sheet's fields, not the retired add panel's.
+  var setV = function (k, v) {
+    var e = document.getElementById('e-' + NEW_HOST + '-' + k);
+    if (e) e.value = v || '';
+  };
+  setV('content_root', own('content_root'));
+  setV('site_name', own('site_name'));
+  setV('nav_file', own('nav_file'));
+  setV('search_default', own('search_default'));
+  var ap = document.getElementById('e-' + NEW_HOST + '-appearance');
   if (ap) { var lay = own('layout'), th = own('theme'); ap.value = (lay || th) ? (lay + '|' + th) : ''; }
-  setV('f-lang', own('lang'));
-  setV('f-lang-group', own('lang_group'));
+  setV('lang', own('lang'));
+  setV('lang_group', own('lang_group'));
   // site_url is intentionally NOT copied - the new host gets its own address.
+  // The access keys (allowed_groups / locked_users) are not copied either: who
+  // may manage a domain is a deliberate grant, not a starting-point convenience.
 }
 
 function loadDomains() {
@@ -670,15 +692,9 @@ function loadDomains() {
       var listEl = document.getElementById('domains-list');
       if (!d || !d.ok) { listEl.innerHTML = '<div class="mg-status">Could not load domains.</div>'; return; }
       var rows = d.domains || [];
-      DOMAINS = rows;    // for the Add form's "Copy settings from" pre-fill
+      DOMAINS = rows;    // SM259: the create sheet's "Copy settings from" list
       DOMAINS_BY_HOST = {};
       rows.forEach(function (r) { DOMAINS_BY_HOST[r.host] = r; });   // the editor sheet reads domains by host from here
-      var cf = document.getElementById('f-clone-from');
-      if (cf) {
-        var opts = '<option value="">Start blank</option>';
-        rows.forEach(function (r) { if (!r.is_primary) opts += '<option value="' + esc(r.host) + '">' + esc(r.host) + '</option>'; });
-        cf.innerHTML = opts;
-      }
       // Each domain is a slim single-line row - host, content folder, active
       // theme and a state chip - with ONE Configure button. Everything else
       // (edit + the domain actions) lives in the config sheet, so the row never

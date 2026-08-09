@@ -2,8 +2,8 @@
 title: "SM259 - Adding a domain is a different, clumsier form from configuring one"
 subtitle: "The Configure sheet works well. Add domain is a separate inline panel with its own markup, its own field set and its own idea of the same settings - so the same job is done twice, two ways, and only one of them is good."
 brand: plain
-status: candidate
-status-note: "Reported by the operator 2026-08-08 while working on a multi-domain instance: 'the edit modal works well, but the add new is still clumsy - can the modal be used for adding new?' The Configure sheet arrived in 0.9.15 (SM-era manager polish) and replaced the old per-domain Actions dropdown + inline edit panel; the ADD path was left on the pattern the edit path moved off. Not a defect - both forms work - but a UI that teaches one shape and then uses another for the closest neighbouring task."
+status: shipped
+status-note: "IMPLEMENTED 2026-08-09. The Configure sheet gained a create mode; #add-panel, toggleAdd and addDomain are retired, and t/lint/29 keeps them retired. All three create-only behaviours survived the move (copy-settings-from, seed-a-home-page, the live site-URL derivation), and the add form better per-field help text was carried IN rather than lost - as a CREATE_HINTS overlay, because two hints read differently before the domain exists. Reported by the operator 2026-08-08 while working on a multi-domain instance: 'the edit modal works well, but the add new is still clumsy - can the modal be used for adding new?' The Configure sheet arrived in 0.9.15 (SM-era manager polish) and replaced the old per-domain Actions dropdown + inline edit panel; the ADD path was left on the pattern the edit path moved off. Not a defect - both forms work - but a UI that teaches one shape and then uses another for the closest neighbouring task."
 ---
 
 # SM259 - add domain should use the Configure sheet
@@ -41,6 +41,28 @@ trivial swap:
 
 So the target is one sheet with a create mode, not "delete the add panel and
 reuse the edit one unchanged".
+
+## Shipped 2026-08-09
+
+One renderer, two modes. `domainSettingsHtml(row, isCreate)` builds both, so a new
+domain key is added in ONE place and appears in both; `editField` and the token
+pickers are shared, keyed on a `NEW_HOST` pseudo-host for the create sheet's ids.
+
+The three create-only behaviours are intact - copy-settings-from, seed-a-home-page,
+and the live site-URL derivation that stops once the operator types over it.
+`cloneFrom` now fills the sheet rather than the retired panel, and deliberately
+does NOT copy the access keys: who may manage a domain is a grant, not a
+starting-point convenience.
+
+The add form's per-field help was better than the sheet's and has been carried
+in. Two hints read differently before the domain exists - a content folder is
+CREATED rather than repointed, and the site URL derives from the host as you type
+- so those live in a `CREATE_HINTS` overlay rather than one string compromised to
+serve both modes.
+
+`t/lint/29-domains-one-form.t` fails if `#add-panel`, `toggleAdd`, `addDomain` or
+any of the old `f-*` field ids come back, and checks that each create-only
+behaviour is still present - so this cannot quietly become a downgrade.
 
 ## What to do
 
