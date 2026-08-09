@@ -24,19 +24,19 @@
 
 use strict;
 use warnings;
-use File::Copy ();
-use File::Path qw(make_path remove_tree);
-use File::Find ();
+use File::Copy     ();
+use File::Path     qw(make_path remove_tree);
+use File::Find     ();
 use File::Basename qw(basename dirname);
-use File::Temp qw(tempdir);
-use Digest::SHA ();
-use JSON::PP ();
-use POSIX qw(strftime);
-use Getopt::Long ();
-use Cwd qw(abs_path);
+use File::Temp     qw(tempdir);
+use Digest::SHA    ();
+use JSON::PP       ();
+use POSIX          qw(strftime);
+use Getopt::Long   ();
+use Cwd            qw(abs_path);
 use Fcntl          qw(O_WRONLY O_APPEND O_CREAT);
 
-my $STAGE_DIR = abs_path(dirname($0));
+my $STAGE_DIR = abs_path( dirname($0) );
 
 # The channel ladder: a build's channel declares its maturity, a site's
 # update_channel is the MINIMUM maturity it accepts. edge = every release
@@ -126,19 +126,19 @@ USAGE
 # No args = help (matches install.sh behaviour)
 usage(0) unless @ARGV;
 
-Getopt::Long::Configure('no_ignore_case', 'bundling_override');
+Getopt::Long::Configure( 'no_ignore_case', 'bundling_override' );
 Getopt::Long::GetOptions(
-    'docroot=s'     => \$opt{docroot},
-    'cgibin=s'      => \$opt{cgibin},
-    'domain=s'      => \$opt{domain},
-    'theme=s'       => \$opt{theme},
-    'help'          => \$opt{help},
-    'restore'       => \$opt{restore},
-    'backup=s'      => \$opt{backup},
-    'list-backups'  => \$opt{list_backups},
-    'dry-run'       => \$opt{dry_run},
-    'verify'        => \$opt{verify},
-    'channel-check' => \$opt{channel_check},
+    'docroot=s'      => \$opt{docroot},
+    'cgibin=s'       => \$opt{cgibin},
+    'domain=s'       => \$opt{domain},
+    'theme=s'        => \$opt{theme},
+    'help'           => \$opt{help},
+    'restore'        => \$opt{restore},
+    'backup=s'       => \$opt{backup},
+    'list-backups'   => \$opt{list_backups},
+    'dry-run'        => \$opt{dry_run},
+    'verify'         => \$opt{verify},
+    'channel-check'  => \$opt{channel_check},
     'channel=s'      => \$opt{channel},
     'policy=s'       => \$opt{policy},
     'restore-full=s' => \$opt{restore_full},
@@ -149,8 +149,8 @@ usage(0) if $opt{help};
 
 if ( $opt{theme} ) {
     warn "WARNING: --theme is no longer supported. install.pl "
-       . "does not fetch remote themes. Upload themes via the "
-       . "manager UI at /manager/themes.\n";
+        . "does not fetch remote themes. Upload themes via the "
+        . "manager UI at /manager/themes.\n";
 }
 
 # --- mode dispatch ---
@@ -492,9 +492,9 @@ sub audit_channel_forced {
 
 sub audit_install_event {
     my ( $docroot, $mode, $from, $to, $detail ) = @_;
-    my $act = $mode eq 'fresh'   ? 'installed'
-            : $mode eq 'upgrade' ? 'upgraded'
-            :                      'reinstalled';
+    my $act = $mode eq 'fresh' ? 'installed'
+        : $mode eq 'upgrade' ? 'upgraded'
+        :                      'reinstalled';
     my $target = ( $mode eq 'upgrade' && defined $from ) ? "$from -> $to" : $to;
     audit_append( $docroot, $act, $target, $detail );
     return;
@@ -587,7 +587,7 @@ sub cmd_install {
     create_runtime_paths( $manifest->{runtime_paths} || [], \%subs, $mode );
 
     # ---- execute plan ----
-    my ( $state_files, $plan_stats, $warnings ) = execute_plan( $plan );
+    my ( $state_files, $plan_stats, $warnings ) = execute_plan($plan);
 
     # ---- imperative post-steps ----
     post_install_steps( $o, $manifest, \%subs, $state_files, $mode, $plan_stats );
@@ -603,7 +603,7 @@ sub cmd_install {
             . " reported version may not reflect the running code: "
             . join( '; ', @verr );
         info( "WARNING: post-install verification found "
-            . scalar(@verr) . " code-file mismatch(es) - run --verify" );
+                . scalar(@verr) . " code-file mismatch(es) - run --verify" );
     }
 
     # ---- write new state ----
@@ -665,7 +665,7 @@ sub verify_code_files {
 # a deploy that left a stale .pl behind is caught instead of silently reporting
 # the new version.
 sub cmd_verify {
-    my ($o) = @_;
+    my ($o)      = @_;
     my $manifest = load_manifest("$STAGE_DIR/release-manifest.json");
     my %subs     = placeholders( $o->{docroot}, $o->{cgibin} );
     my @bad      = verify_code_files( $manifest, \%subs );
@@ -727,7 +727,7 @@ sub compute_plan {
             next;
         }
 
-        my $stored = $stored_files->{$dest} // '';
+        my $stored  = $stored_files->{$dest} // '';
         my $on_disk = -f $dest ? 'sha256:' . sha256_of($dest) : '';
 
         if ( $on_disk eq $stored ) {
@@ -745,13 +745,13 @@ sub compute_plan {
             # user-edited
             if ( ( $entry->{bucket} // '' ) eq 'code' ) {
                 push @plan, {
-                    action      => 'overwrite',
-                    source      => $source,
-                    dest        => $dest,
-                    bucket      => 'code',
-                    sha256      => $entry->{sha256},
-                    was_edited  => 1,
-                    path        => $entry->{path},
+                    action     => 'overwrite',
+                    source     => $source,
+                    dest       => $dest,
+                    bucket     => 'code',
+                    sha256     => $entry->{sha256},
+                    was_edited => 1,
+                    path       => $entry->{path},
                 };
             }
             else {
@@ -776,7 +776,7 @@ sub compute_plan {
                 next;
             }
 
-            my $stored = $stored_files->{$dest};
+            my $stored  = $stored_files->{$dest};
             my $on_disk = 'sha256:' . sha256_of($dest);
             if ( $on_disk eq $stored ) {
                 push @plan, { action => 'remove', dest => $dest };
@@ -820,11 +820,11 @@ sub execute_plan {
 
     my %state_files;
     my %stats = (
-        installed  => 0,
-        overwrote  => 0,
-        preserved  => [],
-        removed    => 0,
-        orphaned   => [],
+        installed => 0,
+        overwrote => 0,
+        preserved => [],
+        removed   => 0,
+        orphaned  => [],
     );
     my @warnings;
 
@@ -899,9 +899,9 @@ sub install_file {
         # must pre-create those as root. Give an actionable message rather than
         # a bare "mkdir ... Permission denied".
         die "Cannot create directory $dir: $@"
-          . "  If this is a Hestia install, the domain root is not user-writable;\n"
-          . "  re-apply the lazysite-app web template (it pre-creates plugins/,\n"
-          . "  tools/ and lib/ as root), then re-run the install.\n";
+            . "  If this is a Hestia install, the domain root is not user-writable;\n"
+            . "  re-apply the lazysite-app web template (it pre-creates plugins/,\n"
+            . "  tools/ and lib/ as root), then re-run the install.\n";
     }
     File::Copy::copy( $src, $dest )
         or die "Failed to copy $src -> $dest: $!\n";
@@ -922,8 +922,8 @@ sub mode_for {
 sub post_install_steps {
     my ( $o, $manifest, $subs, $state_files, $mode, $stats ) = @_;
 
-    my $docroot = $o->{docroot};
-    my $cgibin  = $o->{cgibin};
+    my $docroot    = $o->{docroot};
+    my $cgibin     = $o->{cgibin};
     my $plugin_dir = resolve_placeholders( '{DOCROOT}/../plugins', $subs );
 
     # --- cgi-bin symlinks for plugin endpoints ---
@@ -965,7 +965,7 @@ sub post_install_steps {
         my $orphan = "$docroot/lazysite/manager/assets/manager.css";
         unlink $orphan if -f $orphan;
         my $od = "$docroot/lazysite/manager/assets";
-        rmdir $od if -d $od;   # only succeeds if empty
+        rmdir $od if -d $od;    # only succeeds if empty
     }
 
     # --- auth users/groups: seed from .example on fresh install ---
@@ -1013,12 +1013,12 @@ sub post_install_steps {
                 write_text(
                     $conf,
                     "# lazysite.conf - site configuration\n"
-                  . "# See https://lazysite.io/docs for reference\n\n"
-                  . "site_name: $o->{domain}\n"
-                  . "site_url: \${REQUEST_SCHEME}://$o->{domain}\n"
-                  # New sites default to the stable update channel (edge upgrades
-                  # are skipped). Change to 'all' for a test / cutting-edge site.
-                  . "update_channel: stable\n"
+                        . "# See https://lazysite.io/docs for reference\n\n"
+                        . "site_name: $o->{domain}\n"
+                        . "site_url: \${REQUEST_SCHEME}://$o->{domain}\n"
+                        # New sites default to the stable update channel (edge upgrades
+                        # are skipped). Change to 'all' for a test / cutting-edge site.
+                        . "update_channel: stable\n"
                         # SM139: fleet upgrades (`lazysite upgrade --all`) leave a
                         # 'manual' site alone; set 'auto' to opt in to cron-driven
                         # upgrades. 'manual' matches the absent-key default.
@@ -1053,11 +1053,20 @@ sub post_install_steps {
     # step (t/tools/03-install-pl.t cross-checks them). Runs on every mode and
     # only ADDS the group-write bit to files that exist; anything else about
     # an operator's modes is left alone.
-    for my $rel ( qw(
+    # SM246 (deliverable 4): the list is DECLARED in the model
+    # (classification.json's runtime_files), not repeated here. It was
+    # hand-maintained in two places - a new file needing group write was only
+    # fixed if someone remembered both - and each row now carries the reason.
+    # Falls back to the historical list when the manifest predates the field, so
+    # an older payload installs exactly as before.
+    my @gw = map { $_->{path} } @{ $manifest->{runtime_files} || [] };
+    @gw = map { "{DOCROOT}/$_" } qw(
         lazysite/nav.conf lazysite/lazysite.conf
         lazysite/auth/users lazysite/auth/groups lazysite/auth/acls.json
         lazysite/logs/audit.log
-        ) ) {
+    ) unless @gw;
+    for my $spec (@gw) {
+        ( my $rel = $spec ) =~ s/\{DOCROOT\}\///;
         my $p = "$docroot/$rel";
         next unless -f $p;
         my $m = ( stat _ )[2] & 07777;
@@ -1068,7 +1077,7 @@ sub post_install_steps {
     my $laz = "$docroot/lazysite";
     if ( -d $laz ) {
         my $mode_now = ( stat $laz )[2] & 07777;
-        my $want = $mode_now | 02020;    # g+ws
+        my $want     = $mode_now | 02020;          # g+ws
         if ( $mode_now != $want ) {
             chmod $want, $laz;
         }
@@ -1194,7 +1203,7 @@ sub create_runtime_paths {
 sub create_backup {
     my ( $state, $backup_dir, $state_path, $new_version ) = @_;
 
-    my $ts = strftime( '%Y%m%d-%H%M%S', gmtime );
+    my $ts   = strftime( '%Y%m%d-%H%M%S', gmtime );
     my $name = "lazysite-backup-$ts-pre-$new_version.tar.gz";
     my $out  = "$backup_dir/$name";
 
@@ -1212,7 +1221,7 @@ sub create_backup {
     }
     push @paths, $state_path if -f $state_path;
 
-    unless ( @paths ) {
+    unless (@paths) {
         die "Backup: no files to archive. Aborting upgrade to avoid unrecoverable state.\n";
     }
 
@@ -1227,7 +1236,7 @@ sub create_backup {
     my @cmd = (
         'tar',
         '--absolute-names',
-        '-czf', $out,
+        '-czf',         $out,
         '--files-from', $listfile,
     );
     my $rc = system(@cmd);
@@ -1255,8 +1264,8 @@ sub cmd_list_backups {
     }
     printf "%-60s  %12s  %s\n", 'Backup', 'Size', 'Modified';
     for my $f (@files) {
-        my @st   = stat $f;
-        my $size = $st[7];
+        my @st    = stat $f;
+        my $size  = $st[7];
         my $mtime = strftime( '%Y-%m-%d %H:%M:%S UTC', gmtime $st[9] );
         printf "%-60s  %12d  %s\n", basename($f), $size, $mtime;
     }
@@ -1272,7 +1281,7 @@ sub cmd_restore {
         die "Backup not found: $backup_path\n" unless -f $backup_path;
     }
     else {
-        my $dir = "$o->{docroot}/lazysite/backups";
+        my $dir   = "$o->{docroot}/lazysite/backups";
         my @files = sort glob("$dir/lazysite-backup-*.tar.gz");
         die "No backups at $dir\n" unless @files;
         $backup_path = $files[-1];    # most recent (lexicographic == chronological)
@@ -1287,23 +1296,23 @@ sub cmd_restore {
     # bypass our state-driven restore logic (and the security
     # benefit of staging in a temp dir first).
     my $tmp = tempdir( 'lazysite-restore-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
-    my $rc = system(
+    my $rc  = system(
         'tar',
         '-xzf', $backup_path,
-        '-C',    $tmp,
+        '-C',   $tmp,
     );
     die "tar -x failed (rc=$rc)\n" if $rc != 0;
 
     # The tar stripped the leading "/" from paths, so the content
     # lives at $tmp/<abs-path-without-leading-slash>.
-    my $state_rel  = state_path( $o->{docroot} );
+    my $state_rel = state_path( $o->{docroot} );
     $state_rel =~ s{^/+}{};
     my $state_copy = "$tmp/$state_rel";
     die "Backup is missing .install-state.json at $state_copy\n"
         unless -f $state_copy;
 
     my $backup_state = load_state($state_copy);
-    my $files = $backup_state->{files} || {};
+    my $files        = $backup_state->{files} || {};
 
     my $restored = 0;
     for my $dest ( sort keys %$files ) {
@@ -1364,13 +1373,13 @@ sub cmd_restore {
 
 sub read_retention {
     my ($docroot) = @_;
-    my $conf = "$docroot/lazysite/lazysite.conf";
-    my $default = 3;
+    my $conf      = "$docroot/lazysite/lazysite.conf";
+    my $default   = 3;
     return $default unless -f $conf;
     open my $fh, '<', $conf or return $default;
     my $val = $default;
     while (<$fh>) {
-        if ( /^backup_retention\s*:\s*(\S+)/ ) {
+        if (/^backup_retention\s*:\s*(\S+)/) {
             my $v = $1;
             if ( $v =~ /^\d+$/ ) {
                 $val = $v + 0;
@@ -1431,7 +1440,7 @@ sub write_state {
     };
     make_path( dirname($path) );
     my $json = JSON::PP->new->utf8(1)->pretty(1)->indent_length(2)
-                   ->canonical(1)->encode($data);
+        ->canonical(1)->encode($data);
     open my $fh, '>:raw', $path
         or die "Cannot write state $path: $!\n";
     print $fh $json;
@@ -1521,7 +1530,7 @@ sub print_summary {
         print STDERR "    - $_\n" for @{ $stats->{orphaned} };
     }
     print STDERR "  Backup:     $backup_path\n" if $backup_path;
-    if ( @$warnings ) {
+    if (@$warnings) {
         print STDERR "\nWarnings:\n";
         print STDERR "  $_\n" for @$warnings;
     }
@@ -1531,10 +1540,10 @@ sub print_summary {
 sub print_dep_check {
     my @missing;
     for my $check (
-        [ 'Archive::Zip',                 'libarchive-zip-perl',
-          'theme upload (manager UI)' ],
+        [ 'Archive::Zip', 'libarchive-zip-perl',
+            'theme upload (manager UI)' ],
         [ 'Template::Plugin::JSON::Escape', 'libtemplate-plugin-json-escape-perl',
-          'search index (search-index.md)' ],
+            'search index (search-index.md)' ],
     ) {
         my ( $mod, $pkg, $feature ) = @$check;
         my $rc = system("perl -M$mod -e 1 2>/dev/null");

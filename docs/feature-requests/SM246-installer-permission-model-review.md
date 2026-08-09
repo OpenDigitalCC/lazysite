@@ -3,7 +3,7 @@ title: "SM246 - Installer review: one permission model, one place to verify it"
 subtitle: "Permissions are decided in three places by three policies, the check tool duplicates the knowledge from a fourth, and the code already carries scar tissue from a previous regression of exactly this kind."
 brand: plain
 status: partial
-status-note: "PARTIAL 2026-08-09: DELIVERABLE 1 (explain the incident) is done and the cause is identified with evidence - install_file creates directories with a bare make_path and no mode, so they land at the umask default (0755 under root: no group write), and the docroot directories that are NOT in runtime_paths are never corrected on fresh or upgrade. DELIVERABLE 2 STARTED 2026-08-09: classification.json is now the model - every path carries a `why` and an `applied_by`, and t/lint/30 pins it against the check tool, which had ALREADY diverged by four entries. install.pl honours applied_by, which preserves its behaviour exactly. Still open: the model does not SHIP (it is build-time config, so check cannot read it on a deployed site), DELIVERABLE 3 DONE 2026-08-09: on_upgrade is declared per path (repair|leave), install honours it, and the defensive default is now the conservative value. Still open: the model does not SHIP, the four imperative passes remain, and the directory-mode fault from deliverable 1 is still not fixed. Raised by the operator 2026-08-08 after a stable deploy left the docroot's root-level folders without group write. This is a REVIEW request: the specific regression is the motivation, not the scope. Root cause is deliberately NOT asserted here - the installer has enough overlapping paths that guessing would be worse than useless, and explaining that incident is the review's first deliverable."
+status-note: "PARTIAL 2026-08-09: DELIVERABLE 1 (explain the incident) is done and the cause is identified with evidence - install_file creates directories with a bare make_path and no mode, so they land at the umask default (0755 under root: no group write), and the docroot directories that are NOT in runtime_paths are never corrected on fresh or upgrade. DELIVERABLE 2 STARTED 2026-08-09: classification.json is now the model - every path carries a `why` and an `applied_by`, and t/lint/30 pins it against the check tool, which had ALREADY diverged by four entries. install.pl honours applied_by, which preserves its behaviour exactly. Still open: the model does not SHIP (it is build-time config, so check cannot read it on a deployed site), DELIVERABLE 3 DONE 2026-08-09: on_upgrade is declared per path (repair|leave), install honours it, and the defensive default is now the conservative value. DELIVERABLE 4 PART ONE DONE 2026-08-09: the CGI-writable file list is declared in the model as runtime_files and install reads it; t/lint/30 pins model + check 4b + install. Still open: the model does not SHIP, mode_for() and the setgid pass remain, and the directory-mode fault from deliverable 1 is still not fixed - it needs a decision on what mode a docroot CONTENT directory should have, which this filing puts out of scope. Raised by the operator 2026-08-08 after a stable deploy left the docroot's root-level folders without group write. This is a REVIEW request: the specific regression is the motivation, not the scope. Root cause is deliberately NOT asserted here - the installer has enough overlapping paths that guessing would be worse than useless, and explaining that incident is the review's first deliverable."
 ---
 
 # SM246 - installer permission model review
@@ -250,6 +250,30 @@ bites when someone makes a mistake should not be the dangerous one.
 `t/tools/34` exercises the function directly: fresh creates and sets, upgrade
 repairs a `repair` path and leaves a `leave` path alone, a check-only path is
 never created, and a policy-less entry behaves as before.
+
+## Deliverable 4, part one, done 2026-08-09: the file list is declared
+
+The CGI-writable FILE set - `nav.conf`, `lazysite.conf`, the auth store, the ACLs
+and `audit.log` - was hand-maintained in `install.pl` and again in
+`lazysite-check.pl`. The installer's own comment admitted it: *"keep the two in
+step"*. A new file needing group write was only fixed if someone remembered both
+places.
+
+It is now `runtime_files` in the model, each row carrying **why** it needs group
+write - `audit.log` because every surface appends to it and a 0644 file loses
+entries without trace; `nav.conf` because a save fails with "Permission denied".
+`install.pl` reads the list from the manifest, falling back to the historical set
+when the manifest predates the field, so an older payload installs exactly as
+before.
+
+`t/lint/30` now pins three consumers together: the model, check 4b, and that
+install reads the model rather than carrying a third copy. Verified by removing
+`audit.log` from the model and confirming the guard names it.
+
+The `mode_for()` extension policy and the setgid pass are **not** retired - they
+answer a different question (what mode does a newly installed FILE get) and
+folding them in means extending the model's schema, which is the remainder of
+deliverable 4.
 
 ### What this does NOT do
 

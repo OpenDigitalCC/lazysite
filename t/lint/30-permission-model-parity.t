@@ -125,4 +125,50 @@ is_deeply( \@disagree, [],
         'lazysite/git is check-only - the installer must never create it' );
 }
 
+# --- the CGI-writable FILE list (SM246 deliverable 4) -----------------------
+# It was hand-maintained in install.pl and tools/lazysite-check.pl, and the
+# installer's own comment admitted it: "keep the two in step". A new file needing
+# group write was only fixed if someone remembered both places. It is now
+# declared once in the model, and this pins the check tool to it.
+{
+    my $rfs = $cls->{runtime_files} || [];
+    cmp_ok( scalar @$rfs, '>=', 6, 'the model declares the CGI-writable files' );
+
+    my %model_file;
+    for my $rf (@$rfs) {
+        ( my $rel = $rf->{path} ) =~ s{\A\{DOCROOT\}/}{};
+        $model_file{$rel} = 1;
+        ok( defined $rf->{why} && length $rf->{why}, "$rel states why it needs group write" );
+        is( $rf->{ensure}, 'group-write', "$rel declares what to ensure" );
+    }
+
+    # check 4b's list.
+    my ($b4) = $chk =~ /4b\..*?for \s+ my \s+ \$rel \s* \( \s* qw\( (.*?) \)/xs;
+    ok( defined $b4, "check 4b's file list was found" );
+    my @check_file = grep { length } split /\s+/, ( $b4 // '' );
+    cmp_ok( scalar @check_file, '>=', 6, 'and parsed' );
+
+    my @file_disagree;
+    for my $f (@check_file) {
+        push @file_disagree, "$f: check 4b wants it group-writable, the model does not list it"
+            unless $model_file{$f};
+    }
+    for my $f ( sort keys %model_file ) {
+        push @file_disagree, "$f: the model declares it, check 4b never looks at it"
+            unless grep { $_ eq $f } @check_file;
+    }
+    is_deeply( \@file_disagree, [],
+        'the model and check 4b agree on which files need group write' )
+        or diag( join "\n  ", '', @file_disagree );
+
+    # install.pl must READ the model rather than carry a third copy.
+    my $inst = do {
+        open my $fh, '<:utf8', "$root/install.pl" or die $!;
+        local $/;
+        <$fh>;
+    };
+    like( $inst, qr/\$manifest->\{runtime_files\}/,
+        'install.pl takes the file list from the model' );
+}
+
 done_testing();

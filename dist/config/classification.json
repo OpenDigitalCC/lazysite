@@ -349,5 +349,37 @@
       ],
       "on_upgrade": "repair"
     }
+  ],
+  "runtime_files": [
+    {
+      "path": "{DOCROOT}/lazysite/nav.conf",
+      "ensure": "group-write",
+      "why": "the manager saves site navigation through the CGI; a 0644 file here fails nav-save with \"Permission denied\""
+    },
+    {
+      "path": "{DOCROOT}/lazysite/lazysite.conf",
+      "ensure": "group-write",
+      "why": "the manager and every conf writer save site settings through the CGI"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/auth/users",
+      "ensure": "group-write",
+      "why": "the user store is rewritten by account operations run through the CGI"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/auth/groups",
+      "ensure": "group-write",
+      "why": "as auth/users - group membership and capability grants"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/auth/acls.json",
+      "ensure": "group-write",
+      "why": "per-file ACLs are written by the manager and the MCP/DAV surfaces"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/logs/audit.log",
+      "ensure": "group-write",
+      "why": "every surface APPENDS here; a 0644 file loses audit entries without trace"
+    }
   ]
 }
