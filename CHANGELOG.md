@@ -96,6 +96,16 @@ window. Existing vhosts need regenerating to pick up the registry routing.
   filing at all. SM236 (162474b) decided: the icon link belongs in the layouts.
 - Docs (de6c978) MANUAL-CHECKS.md: the nine areas the suite cannot reach and the
   manual pass for each, because "all tests passed" reads like "it works".
+- Fix (65ea0b9) the docs-path lint no longer depends on where the repo sits. It
+  excluded paths by matching the ABSOLUTE name, so running from a worktree under
+  /srv/tmp excluded every file in the tree and reported release.sh, install.sh
+  and coverage.sh as dead references in a checkout containing all three. Also
+  fixed: a $1 clobbered by a later match, and runtime state under
+  starter/lazysite/ that exists only in a working checkout, so the lint passed
+  in place and failed anywhere clean.
+- Docs (5f92518) SM251, SM252, SM253, SM256, SM257, SM260, SM261 and SM262
+  marked shipped. Caught by t/lint/26 AT the release commit rather than by hand a
+  release later, which is what that guard was built for.
 
 ## 0.10.3 - EDGE: MCP surface parity, and instructions that are no longer accepted quietly (2026-08-08)
 
