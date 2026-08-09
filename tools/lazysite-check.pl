@@ -257,6 +257,7 @@ sub run_checks {
     # (so www-data can create cache/.html, logs, locks, .secret, rate DBs, and new
     #  files inherit the group)
     my %want_dir = (
+        'lazysite/backups'           => 02775,    # SM246 manager-written snapshots
         'lazysite/cache'         => 02775,
         'lazysite/logs'          => 02775,
         'lazysite/stats'         => 02775,    # SM213 durable per-day stats store

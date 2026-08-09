@@ -276,8 +276,8 @@ sub generate_manifest {
         # read by install.pl, but never emitted here, so install fell through to
         # its hardcoded fallback on every build and the declaration was inert.
         # A model the consumer cannot see is not a model.
-        runtime_files    => $cfg->{runtime_files},
-        install_dirs     => $cfg->{install_dirs},
+        runtime_files => $cfg->{runtime_files},
+        install_dirs  => $cfg->{install_dirs},
     };
     # SM139: a security-critical release declares itself in the manifest; the
     # field is present only when set, so ordinary manifests are unchanged.

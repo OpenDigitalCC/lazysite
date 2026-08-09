@@ -572,19 +572,35 @@ sub cmd_install {
         return 0;
     }
 
+    # ---- directory model ----
+    # Must precede anything that creates a directory. Empty (older payload)
+    # leaves install_file on its historical bare-make_path behaviour.
+    load_install_dirs( $manifest, \%subs );
+
+    # ---- runtime paths ----
+    # SM246: BEFORE the backup, not after. lazysite/backups is a runtime path
+    # the CGI writes (Manager::Backups saves snapshots through the manager), and
+    # the backup step below used to create it first with a bare make_path - so
+    # on an upgrade run as root it landed at the umask default, root-owned and
+    # not group-writable, and the manager's own backup action then failed with a
+    # permission error on a directory the installer had made. Creating the
+    # declared paths first means the model's mode is the one that takes effect.
+    # create_backup archives an explicit file list from the install state, so
+    # this ordering cannot change what a backup contains.
+    create_runtime_paths( $manifest->{runtime_paths} || [], \%subs, $mode );
+
     # ---- backup (upgrade or reinstall only) ----
     my $backup_path;
     if ( $mode ne 'fresh' ) {
         my $backup_dir = "$o->{docroot}/lazysite/backups";
-        make_path($backup_dir);
+        # Normally already created above from the model. Retained for a payload
+        # whose manifest predates the declaration, which must install as before.
+        make_path($backup_dir) unless -d $backup_dir;
         $backup_path = create_backup(
             $state, $backup_dir, $state_path, $manifest->{version},
         );
         info("Backup: $backup_path");
     }
-
-    # ---- runtime paths ----
-    create_runtime_paths( $manifest->{runtime_paths} || [], \%subs, $mode );
 
     # ---- execute plan ----
     my ( $state_files, $plan_stats, $warnings ) = execute_plan($plan);
@@ -890,15 +906,91 @@ sub execute_plan {
     return ( \%state_files, \%stats, \@warnings );
 }
 
+# SM246: the declared mode for each directory the installer may create, resolved
+# from the manifest once per run. Empty means the payload predates install_dirs,
+# in which case install_file behaves exactly as it always did - an older tarball
+# must install unchanged.
+our %INSTALL_DIR_MODE;
+
+sub load_install_dirs {
+    my ( $manifest, $subs ) = @_;
+    %INSTALL_DIR_MODE = ();
+    for my $d ( @{ $manifest->{install_dirs} || [] } ) {
+        $INSTALL_DIR_MODE{ resolve_placeholders( $d->{path}, $subs ) } = oct( $d->{mode} );
+    }
+    return scalar keys %INSTALL_DIR_MODE;
+}
+
+# Create a missing directory chain, giving EVERY level the mode the model
+# declares for it.
+#
+# This is deliverable 1's fault. `make_path($dir)` with no mode uses
+# 0777 & ~umask, which under a root umask of 022 is 0755 - no group write - and
+# nothing corrected the docroot directories that are not in runtime_paths. The
+# installer already solves this problem three times for FILES and never once for
+# directories.
+#
+# Two properties worth being explicit about, because this is the class of change
+# that caused the 0.6.5 outage:
+#
+#   * the mode is applied ONLY on creation. An existing directory is never
+#     chmod'ed here, so an operator who tightened one keeps their choice and a
+#     site whose ownership does not match the assumption cannot be broken by
+#     this path.
+#   * mkdir's mode argument is masked by the umask, so the mode is applied by an
+#     explicit chmod afterwards - the same umask-proofing the file path uses.
+#
+# A single make_path with one mode would give every intermediate level the mode
+# of the deepest one, which is wrong the moment two levels differ (creating
+# lazysite/auth would make lazysite/ 2770). Hence the level-by-level walk.
+sub make_declared_path {
+    my ($dir) = @_;
+    return 1 if -d $dir;
+
+    # No model (older payload): historical behaviour, unchanged.
+    return make_path($dir) ? 1 : 0 unless %INSTALL_DIR_MODE;
+
+    my @missing;
+    my $d = $dir;
+    while ( length $d && !-d $d ) {
+        push @missing, $d;
+        my $parent = dirname($d);
+        last if $parent eq $d;
+        $d = $parent;
+    }
+
+    for my $path ( reverse @missing ) {
+        my $mode = $INSTALL_DIR_MODE{$path};
+        # Refusing is the point. A directory created with no declared mode is
+        # how this incident happened: it lands at the umask default, no consumer
+        # claims it, and nothing reports it until a deploy exposes it. Shipping
+        # a file into a new directory must therefore be a decision someone made
+        # rather than a side effect nobody saw.
+        die "No declared mode for directory $path\n"
+            . "  Every directory the installer creates must be declared in\n"
+            . "  dist/config/classification.json (install_dirs), with the mode\n"
+            . "  and the reason for it. Add an entry and rebuild the manifest.\n"
+            unless defined $mode;
+        mkdir $path or die "Cannot create directory $path: $!\n";
+        chmod $mode, $path;    # mkdir's mode is masked by the umask; this is not
+    }
+    return 1;
+}
+
 sub install_file {
     my ( $src, $dest ) = @_;
     my $dir = dirname($dest);
-    if ( !-d $dir && !eval { make_path($dir); 1 } ) {
+    if ( !-d $dir && !eval { make_declared_path($dir); 1 } ) {
+        my $err = $@;
+        # An undeclared directory is a packaging fault, not a permissions one -
+        # pass it through rather than burying it under the Hestia hint, which
+        # would send the reader to re-apply a web template that cannot fix it.
+        die $err if $err =~ /^No declared mode/;
         # Most often: a site-root sibling (plugins/, tools/, lib/) on a Hestia
         # domain, whose root is mode 0551 - the template hook (lazysite-app.sh)
         # must pre-create those as root. Give an actionable message rather than
         # a bare "mkdir ... Permission denied".
-        die "Cannot create directory $dir: $@"
+        die "Cannot create directory $dir: $err"
             . "  If this is a Hestia install, the domain root is not user-writable;\n"
             . "  re-apply the lazysite-app web template (it pre-creates plugins/,\n"
             . "  tools/ and lib/ as root), then re-run the install.\n";
@@ -1191,8 +1283,22 @@ sub create_runtime_paths {
                 if $install_mode eq 'fresh' || $on_upgrade eq 'repair';
             next;
         }
-        make_path( $path, { mode => $mode } );
-        chmod $mode, $path;    # make_path honours mode on creation
+        # SM246: create the PARENTS through the directory model, then this
+        # directory with its own runtime mode.
+        #
+        # `make_path($path, {mode => $mode})` applied one mode to every level it
+        # created and then chmod'ed only the leaf, so an intermediate kept
+        # whatever mkdir left it with: creating lazysite/auth (2770) made
+        # lazysite/ 2770, and creating lazysite/manager/locks (2775) made
+        # lazysite/manager/ 0775 with no setgid. Both were then invisible,
+        # because nothing verified an intermediate.
+        #
+        # Linux mkdir(2) does not take S_ISGID from its mode argument, which is
+        # why every level needs an explicit chmod rather than a mode passed to
+        # mkdir - the same reason install_file's directory walk exists.
+        make_declared_path( dirname($path) );
+        mkdir $path unless -d $path;
+        chmod $mode, $path;
     }
 }
 

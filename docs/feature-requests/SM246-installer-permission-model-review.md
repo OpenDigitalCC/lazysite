@@ -3,7 +3,7 @@ title: "SM246 - Installer review: one permission model, one place to verify it"
 subtitle: "Permissions are decided in three places by three policies, the check tool duplicates the knowledge from a fourth, and the code already carries scar tissue from a previous regression of exactly this kind."
 brand: plain
 status: partial
-status-note: "PARTIAL 2026-08-09: DELIVERABLE 1 (explain the incident) is done and the cause is identified with evidence - install_file creates directories with a bare make_path and no mode, so they land at the umask default (0755 under root: no group write), and the docroot directories that are NOT in runtime_paths are never corrected on fresh or upgrade. DELIVERABLE 2 STARTED 2026-08-09: classification.json is now the model - every path carries a `why` and an `applied_by`, and t/lint/30 pins it against the check tool, which had ALREADY diverged by four entries. install.pl honours applied_by, which preserves its behaviour exactly. Still open: the model does not SHIP (it is build-time config, so check cannot read it on a deployed site), DELIVERABLE 3 DONE 2026-08-09: on_upgrade is declared per path (repair|leave), install honours it, and the defensive default is now the conservative value. DELIVERABLE 4 PART ONE DONE 2026-08-09: the CGI-writable file list is declared in the model as runtime_files and install reads it; t/lint/30 pins model + check 4b + install. Still open: the model does not SHIP, mode_for() and the setgid pass remain, and the directory-mode fault from deliverable 1 is still not fixed - it needs a decision on what mode a docroot CONTENT directory should have, which this filing puts out of scope. Raised by the operator 2026-08-08 after a stable deploy left the docroot's root-level folders without group write. This is a REVIEW request: the specific regression is the motivation, not the scope. Root cause is deliberately NOT asserted here - the installer has enough overlapping paths that guessing would be worse than useless, and explaining that incident is the review's first deliverable."
+status-note: "PARTIAL 2026-08-09: DELIVERABLE 1 (explain the incident) is done and the cause is identified with evidence - install_file creates directories with a bare make_path and no mode, so they land at the umask default (0755 under root: no group write), and the docroot directories that are NOT in runtime_paths are never corrected on fresh or upgrade. DELIVERABLE 2 STARTED 2026-08-09: classification.json is now the model - every path carries a `why` and an `applied_by`, and t/lint/30 pins it against the check tool, which had ALREADY diverged by four entries. install.pl honours applied_by, which preserves its behaviour exactly. Still open: the model does not SHIP (it is build-time config, so check cannot read it on a deployed site), DELIVERABLE 3 DONE 2026-08-09: on_upgrade is declared per path (repair|leave), install honours it, and the defensive default is now the conservative value. DELIVERABLE 4 PART ONE DONE 2026-08-09: the CGI-writable file list is declared in the model as runtime_files and install reads it; t/lint/30 pins model + check 4b + install. DELIVERABLE 1's FAULT IS NOW FIXED 2026-08-09: the operator's answer to 'what mode should a docroot content directory have' was to DECLARE EVERY SHIPPED DIRECTORY - install_dirs names all 28, each with a mode and a reason, install.pl creates them level by level with an explicit chmod, and it REFUSES to create a directory the model does not declare, so a newly shipped file in a new directory fails the build rather than inheriting the build host's umask. Fixing it found the same fault in two more places: create_runtime_paths passed one mode to make_path and chmod'ed only the leaf, so intermediates kept the umask default (creating lazysite/auth left lazysite/ at 0770, creating lazysite/manager/locks left lazysite/manager/ at 0775 with no setgid), and lazysite/backups was made by a bare make_path on upgrade, root-owned and not group-writable, so the manager's own backup action failed on a directory the installer had created. Still open: the model does not SHIP, and mode_for() and the setgid pass remain. Raised by the operator 2026-08-08 after a stable deploy left the docroot's root-level folders without group write. This is a REVIEW request: the specific regression is the motivation, not the scope. Root cause is deliberately NOT asserted here - the installer has enough overlapping paths that guessing would be worse than useless, and explaining that incident is the review's first deliverable."
 ---
 
 # SM246 - installer permission model review
@@ -169,18 +169,75 @@ be written by the web-server CGI.
   because of the 0.6.5 outage.
 - **The five-file group-write pass** only ORs `0020` into six named FILES.
 
-### The narrow fix, and why it is not applied here
+### The narrow fix, and why it was not applied immediately
 
-Giving `install_file` an explicit directory mode would close this. It is not
-being applied in this commit, for the reason this filing already states: *report
-before repair*. A directory mode applied at install time is precisely the class
-of change that took a site down in 0.6.5, and the right sequence is the
-declarative model plus `check` reporting against it, proving the model matches
-reality on live sites before it is given power over them.
+Giving `install_file` an explicit directory mode closes this. It was deliberately
+not applied when deliverable 1 was written, for the reason this filing states:
+*report before repair*. A directory mode applied at install time is precisely
+the class of change that took a site down in 0.6.5, and the right sequence is
+the declarative model plus `check` reporting against it.
 
 It also should not be fixed in isolation, because "what mode should this
 directory have?" is deliverable 2's question. Answering it inline for one call
 site would add a fifth policy rather than replacing four.
+
+## The fix, 2026-08-09: declare every directory
+
+The operator's answer to "what mode should a docroot content directory have" was
+not a mode. It was: **every directory the installer may create is declared, and
+creating an undeclared one is a build failure.**
+
+`install_dirs` in `classification.json` names all 28, each with a mode and a
+reason. The rule behind the values, stated once so a later reader can apply it
+to a new directory:
+
+- **inside the docroot: 2775**, because the docroot *is* the content tree and
+  the manager, WebDAV and MCP all write into it through the CGI. 2770 where the
+  contents are secret (`lazysite/auth`, `lazysite/forms`).
+- **outside the docroot: 0755**, because those hold engine code that is read and
+  executed, never written by the CGI.
+
+The set is not hand-listed. It is derived from the manifest's `install_to`
+destinations, and `t/tools/35` regenerates a manifest and fails if the two
+disagree in either direction - an undeclared destination, or a declared path
+nothing installs into.
+
+### Why this is not the 0.6.5 change
+
+Two properties, both deliberate:
+
+- **The mode is applied only on creation.** An existing directory is never
+  chmod'ed by this path, so an operator who tightened one keeps their choice and
+  a site whose ownership does not match the assumption cannot be broken.
+- **It is chmod, not chown.** The 0.6.5 outage was an ownership pass, which is
+  untouched.
+
+The blast radius is therefore exactly the directories that today get 0755 by
+umask accident and are corrected by nothing.
+
+### Two more instances of the same fault, found by fixing the first
+
+`t/tools/35` asserts that a real install produces the declared modes, and that
+half failed twice before it passed - each time on a genuine second site of the
+same bug:
+
+- **`create_runtime_paths` chmod'ed only the leaf.** It called
+  `make_path($path, { mode => $mode })` and then chmod'ed `$path`, so every
+  intermediate level kept whatever `mkdir` left it with. Creating
+  `lazysite/auth` (2770) left `lazysite/` at 0770; creating
+  `lazysite/manager/locks` (2775) left `lazysite/manager/` at 0775 with no
+  setgid. Nothing verified an intermediate, so neither was visible. Linux
+  `mkdir(2)` does not take `S_ISGID` from its mode argument, which is why every
+  level needs an explicit chmod rather than a mode passed through.
+- **`lazysite/backups` was created by a bare `make_path` on upgrade**, root-owned
+  at the umask default. `Manager::Backups` writes snapshots there through the
+  CGI, so the manager's own backup action failed with a permission error on a
+  directory the installer had made. It is now a declared runtime path at 2775,
+  and `create_runtime_paths` runs *before* the backup step so the declared mode
+  is the one that takes effect.
+
+Both are the reported incident in a different location, and both had been there
+for as long as the first.
 
 ## Deliverable 2, started 2026-08-09: one table, and a guard
 

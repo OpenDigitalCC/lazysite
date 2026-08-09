@@ -42,9 +42,20 @@ ok( defined $fn, 'create_runtime_paths body extracted' );
 my ($resolver) = $src =~ /(sub resolve_placeholders\b.*?\n\})/s;
 ok( defined $resolver, 'resolve_placeholders extracted' );
 
+# SM246: create_runtime_paths now creates a path's PARENTS through the shared
+# directory model rather than letting make_path give every level one mode, so
+# the helper and its dirname import come along too. With no model loaded here
+# (%INSTALL_DIR_MODE empty) make_declared_path falls back to plain make_path,
+# which is the older-payload behaviour and is what this test is about - the
+# declared modes on intermediates are t/tools/35's subject.
+my ($mkdirs) = $src =~ /(sub make_declared_path\b.*?\n\})/s;
+ok( defined $mkdirs, 'make_declared_path extracted' );
+
 {
     no warnings 'redefine';
-    eval "use File::Path qw(make_path); $resolver $fn 1" or die $@;
+    eval "use File::Path qw(make_path); use File::Basename qw(dirname);"
+        . " our %INSTALL_DIR_MODE; $resolver $mkdirs $fn 1"
+        or die $@;
 }
 
 my $d = Cwd::realpath( tempdir( CLEANUP => 1 ) );

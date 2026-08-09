@@ -246,6 +246,17 @@
       "on_upgrade": "repair"
     },
     {
+      "path": "{DOCROOT}/lazysite/backups",
+      "mode": "2775",
+      "purpose": "content backup tarballs - setgid + group-writable by www-data (Manager::Backups writes them through the CGI)",
+      "why": "the manager saves backup snapshots here; the installer used to create it with a bare make_path on upgrade, leaving it root-owned at the umask default so the manager's own backup action failed",
+      "applied_by": [
+        "install",
+        "check"
+      ],
+      "on_upgrade": "repair"
+    },
+    {
       "path": "{DOCROOT}/lazysite/cache",
       "mode": "2775",
       "purpose": "rendered HTML cache - setgid + group-writable by www-data (the CGI writes it), world-readable (Apache serves it)",
@@ -380,6 +391,148 @@
       "path": "{DOCROOT}/lazysite/logs/audit.log",
       "ensure": "group-write",
       "why": "every surface APPENDS here; a 0644 file loses audit entries without trace"
+    }
+  ],
+  "install_dirs": [
+    {
+      "path": "{CGIBIN}",
+      "mode": "0755",
+      "why": "CGI scripts are executed by the web server, never written by it"
+    },
+    {
+      "path": "{DOCROOT}",
+      "mode": "2775",
+      "why": "the docroot IS the content tree - every authoring surface writes into it through the CGI. Normally pre-created by the platform; this mode applies only if the installer ever has to create it"
+    },
+    {
+      "path": "{DOCROOT}/..",
+      "mode": "0755",
+      "why": "the site root, holding engine code beside the docroot. Pre-created by the platform (on Hestia it is 0551 and the template hook makes it); this mode applies only at creation"
+    },
+    {
+      "path": "{DOCROOT}/.well-known",
+      "mode": "2775",
+      "why": "site-level well-known documents are content; an agent may add one through the manager"
+    },
+    {
+      "path": "{DOCROOT}/assets",
+      "mode": "2775",
+      "why": "uploads land here - the CGI creates files in this directory on every upload"
+    },
+    {
+      "path": "{DOCROOT}/docs",
+      "mode": "2775",
+      "why": "engine documentation ships as ordinary pages in the content tree, and an operator may add or rename one"
+    },
+    {
+      "path": "{DOCROOT}/lazysite",
+      "mode": "2775",
+      "why": "the engine's own state directory; the setgid pass already ORs 02020 onto it, and this is the same answer applied at creation instead of after the fact"
+    },
+    {
+      "path": "{DOCROOT}/manager",
+      "mode": "2775",
+      "why": "the manager UI pages are content in the docroot and are refreshed on upgrade"
+    },
+    {
+      "path": "{DOCROOT}/../lib",
+      "mode": "0755",
+      "why": "engine modules - read and required, never written by the CGI"
+    },
+    {
+      "path": "{DOCROOT}/../plugins",
+      "mode": "0755",
+      "why": "plugins are EXECUTED, not written - hardening this further is a legitimate operator choice"
+    },
+    {
+      "path": "{DOCROOT}/../tools",
+      "mode": "0755",
+      "why": "operator CLI tools - executed, never written by the CGI"
+    },
+    {
+      "path": "{DOCROOT}/docs/features",
+      "mode": "2775",
+      "why": "as docs/"
+    },
+    {
+      "path": "{DOCROOT}/docs/integrations",
+      "mode": "2775",
+      "why": "as docs/"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/auth",
+      "mode": "2770",
+      "why": "credential and session store - group-writable by the CGI, no world access. Must match runtime_paths"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/forms",
+      "mode": "2770",
+      "why": "form definitions and submissions may carry personal data - no world access. Must match runtime_paths"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/manager",
+      "mode": "2775",
+      "why": "manager state; parent of manager/locks, which the CGI writes on every lock"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/templates",
+      "mode": "2775",
+      "why": "shipped templates an operator may override in place"
+    },
+    {
+      "path": "{DOCROOT}/manager/assets",
+      "mode": "2775",
+      "why": "as manager/"
+    },
+    {
+      "path": "{DOCROOT}/../lib/Lazysite",
+      "mode": "0755",
+      "why": "as ../lib"
+    },
+    {
+      "path": "{DOCROOT}/docs/features/authoring",
+      "mode": "2775",
+      "why": "as docs/"
+    },
+    {
+      "path": "{DOCROOT}/docs/features/configuration",
+      "mode": "2775",
+      "why": "as docs/"
+    },
+    {
+      "path": "{DOCROOT}/docs/features/development",
+      "mode": "2775",
+      "why": "as docs/"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/templates/components",
+      "mode": "2775",
+      "why": "as templates/"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/templates/registries",
+      "mode": "2775",
+      "why": "as templates/ - the registry templates the CGI renders llms.txt and sitemap.xml from"
+    },
+    {
+      "path": "{DOCROOT}/lazysite/templates/system",
+      "mode": "2775",
+      "why": "as templates/"
+    },
+    {
+      "path": "{DOCROOT}/manager/assets/cm",
+      "mode": "2775",
+      "why": "as manager/ - the bundled editor assets"
+    },
+    {
+      "path": "{DOCROOT}/../lib/Lazysite/Auth",
+      "mode": "0755",
+      "why": "as ../lib - the auth MODULES; the auth STORE is {DOCROOT}/lazysite/auth and is 2770"
+    },
+    {
+      "path": "{DOCROOT}/../lib/Lazysite/Manager",
+      "mode": "0755",
+      "why": "as ../lib"
     }
   ]
 }
