@@ -191,6 +191,27 @@ gate). SM223 shares the same structural cause but is a security decision about
 which paths must never be served statically, not a routing tweak, and deserves to
 be taken deliberately rather than folded in behind this.
 
+## Edge, after 0.10.4: still active, and the symptom is temporarily WORSE
+
+Validated 2026-08-09. `edge2.explore.lazysite.io/llms.txt` returns `# EDGE` while
+`/sites/edge2/llms.txt` on disk correctly reads `# edge2`. That is the three-part
+signature exactly: the domain has its own `site_url`, its on-disk registry is
+correct, and the served response is the primary's.
+
+The cause is the one the release notes name - **the vhost templates apply at
+install time and edge has not been rebuilt.**
+
+Worth recording because it is counter-intuitive: **the visible symptom got worse
+across the upgrade.** Before 0.10.4 the primary had no `llms.txt` or `sitemap.xml`
+at all, so a secondary request had nothing to fall through to and edge2 appeared
+correct. 0.10.4 generates registries for the primary, which now shadow every
+secondary until the vhosts are regenerated. The earlier narrowing note warned
+that edge proved less than it looked for exactly this reason, and it was right.
+
+**Operator disposition: understood, not urgent - edge will be rebuilt at some
+point.** Recorded here so the next agent testing this does not file it again as a
+0.10.4 regression. It is the known operator action, not a new defect.
+
 ## Verification
 
 - A content-rooted secondary domain serves its OWN sitemap, llms.txt and feeds.
