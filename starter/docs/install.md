@@ -26,6 +26,13 @@ CGI and error-handler mechanisms.
 - Nginx - use `error_page 403 404` to point to the CGI script
 - Any web server with CGI support and configurable error handlers should work
 
+If you use a front end other than the shipped Apache, nginx or built-in server
+**and you intend to protect static files with ACLs**, read *Your web server has
+to co-operate* in [Authentication](/docs/auth). A web server that answers an
+existing file from disk never reaches lazysite, so a per-file access rule cannot
+apply - and the failure is silent. Sites that do not use ACLs are unaffected and
+need nothing.
+
 ## Requirements
 
 - Apache 2.4 with CGI support and `FallbackResource` configuration

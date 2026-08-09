@@ -321,7 +321,13 @@ Or use Manager > Cache > Clear all. For the full layout/theme model, see
    groups in `lazysite/auth/groups`, enable the auth wrapper as the
    Apache `FallbackResource`.
 3. Add `auth: required` to any page that needs protection, or set
-   `auth_default: required` site-wide.
+   `auth_default: required` site-wide. **This covers pages, not files.** A PDF, a
+   source-less `.html` or an image has no front matter to inherit it, so a site
+   set to `required` will still serve those to anyone with the path. Protect one
+   by giving it a `read` list in `lazysite/auth/acls.json` (a folder entry covers
+   everything beneath it); see *Protecting static files* in
+   [Authentication](/docs/auth). Do not tell an operator their site is closed on
+   the strength of `auth_default` alone - check what static files it publishes.
 4. If the manager is enabled, make sure a group grants the `ui`
    capability (setup-manager does this; further grants on the Groups page).
 

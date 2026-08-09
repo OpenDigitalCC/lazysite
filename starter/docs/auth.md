@@ -270,6 +270,114 @@ Pages without `auth:` in front matter inherit this value. Default
 is `none` when not set. The login page is always accessible
 regardless of the site-wide default.
 
+**It applies to pages, not to files.** A `.html` with no Markdown source, a PDF,
+an image or a downloadable archive is not a page - it has no front matter, so
+there is nothing for this setting to inherit into. `auth_default: required` will
+bounce every page to the login form and still serve those files to anyone who
+knows the path. Protecting them is the next section, and it is a separate,
+explicit act.
+
+### Protecting static files
+
+A file with no page source is protected by giving it an entry in
+`lazysite/auth/acls.json` - the same per-file access list the manager, WebDAV and
+the MCP connector already use. A `read` list is what protects it:
+
+```json
+{
+  "private/brief.pdf": { "read": ["alice", "@staff"] },
+  "private":           { "read": ["@staff"] }
+}
+```
+
+- A **path** entry governs that file.
+- A **folder** entry governs everything beneath it. The longest match wins, so a
+  tighter rule on a file beats a broader one on the folder above it.
+- Names are users; `@name` is a group.
+
+Three behaviours worth knowing before you rely on it:
+
+- **No entry means served.** Files you have said nothing about are public, exactly
+  as before. Nothing changes on a site that has not written an ACL.
+- **An entry with only an `owner` does not protect anything.** Ownership is not a
+  read restriction here, and it is not one in the manager either. You need a
+  `read` list.
+- An anonymous request for a protected file is sent to the login page; a signed-in
+  user who is not permitted gets `403`. Protected files are never stored by a
+  shared cache.
+
+To see what is already restricted, and what has actually been refused, see
+*Auditing access* below.
+
+#### Your web server has to co-operate
+
+This is the part that catches people. A web server answers a request for an
+existing file from disk without consulting anything - that is what web servers
+are for. When it does, lazysite never sees the request and **no ACL can apply.**
+
+So the front end has to be told: *when this site has an ACL store, hand existing
+files to lazysite instead of serving them.* The shipped Apache and nginx
+templates and the built-in dev server already do this, and there is nothing to
+configure - install or regenerate the vhost and it is in place.
+
+If you run **any other web server** - Caddy, lighttpd, a CDN or a reverse proxy
+in front - you must add the equivalent rule yourself, or ACLs on static files
+will silently do nothing. The rule is:
+
+> If `<docroot>/lazysite/auth/acls.json` exists, route a request for an existing
+> file to `/cgi-bin/lazysite-auth.pl` instead of serving it from disk.
+
+Two details that are easy to get wrong:
+
+- **Route at `lazysite-auth.pl`, not at the processor.** The auth wrapper
+  validates the session cookie and passes a trusted identity through. Pointing
+  straight at `lazysite-processor.pl` gives it no usable identity, so every
+  protected file bounces to the login page for *everyone* - including the people
+  entitled to read it.
+- **Test for the ACL file, not for a path prefix.** Gating on the file's
+  existence is what keeps this free: a site with no ACLs never enters the branch
+  and keeps direct static serving at full speed, and adding a protected path
+  later needs no configuration change and no reload. The cost, stated plainly: on
+  a site that *does* have an ACL, every static request goes through lazysite.
+
+Verify it before trusting it. With an ACL in place, request a protected file
+while signed out:
+
+```bash
+curl -sSI https://example.com/private/brief.pdf
+```
+
+A `302` to the login page (or a `403`) means the rule works. A `200` means your
+web server is still answering from disk and the ACL is being ignored.
+
+### Auditing access
+
+Two questions, two answers.
+
+**What is restricted right now** - read the store directly:
+
+```bash
+jq -r 'to_entries[] | select(.value.read != null and (.value.read | length) > 0)
+       | "\(.key)\t\(.value.read | join(","))"' lazysite/auth/acls.json
+```
+
+Anything listed is refused to everyone outside its list. This matters after an
+upgrade: an entry originally written to keep other *editors* out of a file now
+also keeps anonymous visitors out of it, which is usually the intention and
+occasionally is not.
+
+**What has actually been refused** - the access log flags an access refusal with
+`"ar":1`, because no status code can express it (the anonymous case is a `302` to
+the login page, identical to any other redirect):
+
+```bash
+grep -h '"ar":1' lazysite/logs/access-*.jsonl | jq -r .p | sort | uniq -c | sort -rn
+```
+
+The same data appears as `auth_refused` in the `analyse_visitors` report, so an
+AI assistant with the analytics capability can answer this without shell access.
+A path there that you believe is public is the signal to check its ACL entry.
+
 ### Manager access
 
 The manager at `/manager` uses the same auth mechanism. Access is the
