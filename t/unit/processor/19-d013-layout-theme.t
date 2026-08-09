@@ -227,4 +227,56 @@ subtest 'theme_assets URL is nested layout/theme' => sub {
         'nested asset URL follows layout/theme structure' );
 };
 
+# --- 11. SM249: the theme variables reach the PAGE BODY, not only the layout ---
+# An author writing [% theme_assets %]/hero.jpg in a page used to get an empty
+# string and no error, because the layout and theme were resolved in the step
+# BETWEEN the body render and the layout render - the variable existed for the
+# layout and never for the body. A wrong-looking image path and a missing
+# variable are indistinguishable in the output, which is what made it expensive.
+subtest 'theme vars resolve in a page body (SM249)' => sub {
+    make_path("$docroot/lazysite/layouts/body-probe");
+    open my $bl, '>', "$docroot/lazysite/layouts/body-probe/layout.tt" or die $!;
+    print $bl "<body>[% content %]</body>";
+    close $bl;
+    my $bt = "$docroot/lazysite/layouts/body-probe/themes/odcc";
+    make_path($bt);
+    open my $bj, '>', "$bt/theme.json" or die $!;
+    print $bj encode_json(
+        {   name    => 'odcc',
+            version => '1.0',
+            layouts => [ 'default', 'asset-probe', 'body-probe' ],
+            config  => { colours => { primary => '#abcdef' } },
+        }
+    );
+    close $bj;
+
+    # The page BODY references the variables - the layout references none of
+    # them, so anything that appears in the output got there through the body.
+    open my $pg, '>', "$docroot/index.md" or die $!;
+    print $pg "---\ntitle: Home\n---\n"
+        . "<img src=\"[% theme_assets %]/hero.jpg\">\n"
+        . "<span id=\"ln\">[% layout_name %]</span>\n"
+        . "<span id=\"tn\">[% theme_name %]</span>\n";
+    close $pg;
+
+    write_conf("site_name: Test\nlayout: body-probe\ntheme: odcc\n");
+    clear_cache();
+    my $out = run_processor( $docroot, '/' );
+
+    like( $out, qr{<img src="/lazysite-assets/body-probe/odcc/hero\.jpg">},
+        'theme_assets resolves in the page body' );
+    like( $out, qr{<span id="ln">body-probe</span>},
+        'layout_name resolves in the page body' );
+    like( $out, qr{<span id="tn">odcc</span>},
+        'theme_name resolves in the page body' );
+    unlike( $out, qr/\[%\s*theme_assets/,
+        'the token is consumed, not emitted literally' );
+
+    # Restore the shared page for any later subtest.
+    open my $rp, '>', "$docroot/index.md" or die $!;
+    print $rp "---\ntitle: Home\n---\nHome.\n";
+    close $rp;
+    clear_cache();
+};
+
 done_testing();

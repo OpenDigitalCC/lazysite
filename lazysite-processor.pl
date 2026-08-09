@@ -4268,7 +4268,7 @@ sub _tt_render_impl {
 }
 
 sub render_content {
-    my ( $meta, $html_body, $query ) = @_;
+    my ( $meta, $html_body, $query, $before_render ) = @_;
     $query //= {};
 
     # Content pass uses ABSOLUTE => 0 - the content body is a string reference
@@ -4417,6 +4417,23 @@ sub render_content {
         year     => sprintf( '%04d', (localtime)[5] + 1900 ),
         search_enabled => ( -f "$DOCROOT/search-results.md" || -f "$DOCROOT/search-results.url" ) ? 1 : 0,
     };
+
+    # SM249: the variables are now complete, and the body has not been rendered
+    # yet - so this is the one point at which a caller can add to them and have
+    # the page body see them.
+    #
+    # render_template uses it to resolve the layout and the active theme here
+    # rather than after the body render, which is why [% theme_assets %] now
+    # works in a page body. It used to resolve in the step BETWEEN this function
+    # returning and the layout render, so a page body referencing it got an
+    # empty string with no error - the variable existed by the time the layout
+    # was rendered and never during the body.
+    #
+    # Callers that render a body with NO layout (raw pages, api pages) pass
+    # nothing and are unaffected: no layout means no theme, and theme_assets
+    # stays absent for them, which is the correct answer rather than a
+    # misleading one.
+    $before_render->($vars) if $before_render;
 
     # Protect <pre><code> blocks and inline <code> elements from TT processing
     my $protected_body = $html_body;
@@ -4687,16 +4704,22 @@ sub fetch_remote_layout {
     return ( $cache_path, $cache_key );
 }
 
-sub render_template {
-    my ( $meta, $html_body, $query ) = @_;
-    $query //= {};
-
-    my ( $processed_body, $vars ) = render_content( $meta, $html_body, $query );
-
-    # Second include pass - resolves :::include blocks with TT-variable paths
-    if ( $meta->{_md_path} ) {
-        $processed_body = convert_fenced_include( $processed_body, $meta->{_md_path}, $meta );
-    }
+# SM249: resolve the layout and the active theme INTO $vars.
+#
+# Split out of render_template and moved ahead of the body render so that
+# [% theme_assets %], [% theme %], [% theme_css %], [% layout_name %] and [% t %]
+# are available to a page body, not only to the layout. Previously an author who
+# wrote [% theme_assets %]/hero.jpg in a page got an empty string and no error,
+# because the variable was populated in the step between the body render and the
+# layout render - it existed for the layout and never for the body.
+#
+# Returns ( $layout, $layout_key ) so the caller still knows which template to
+# render and whether it was remote.
+#
+# get_layout_path can fetch a remote layout over the network, so it must be
+# called ONCE per request. That is why this moved rather than being duplicated.
+sub resolve_layout_vars {
+    my ( $meta, $vars ) = @_;
 
     my ( $layout, $layout_key ) = get_layout_path( $meta, $vars );
 
@@ -4761,6 +4784,29 @@ sub render_template {
         $vars->{theme_css} = '';
     }
 
+    return ( $layout, $layout_key );
+}
+
+sub render_template {
+    my ( $meta, $html_body, $query ) = @_;
+    $query //= {};
+
+    # SM249: the layout and theme are resolved by the hook below, which
+    # render_content calls once the variables are complete and BEFORE it renders
+    # the body - so the body sees theme_assets and friends. The hook runs
+    # exactly once per render_content call, so the remote-layout fetch inside
+    # get_layout_path still happens at most once per request.
+    my ( $layout, $layout_key );
+    my ( $processed_body, $vars ) = render_content(
+        $meta, $html_body, $query,
+        sub { ( $layout, $layout_key ) = resolve_layout_vars( $meta, $_[0] ) },
+    );
+
+    # Second include pass - resolves :::include blocks with TT-variable paths
+    if ( $meta->{_md_path} ) {
+        $processed_body = convert_fenced_include( $processed_body, $meta->{_md_path}, $meta );
+    }
+
     $vars->{content} = $processed_body;
     my $output = '';
 
@@ -4790,8 +4836,11 @@ sub render_template {
         return $output;
     }
 
-    # Determine if layout is remote (from cache dir) - sandbox it
-    my $is_remote = $is_remote_layout;
+    # Determine if layout is remote (from cache dir) - sandbox it. Derived from
+    # $layout rather than carried out of resolve_layout_vars: it is the same
+    # one-line test, and passing it back would be a third return value that
+    # exists only to avoid retyping it.
+    my $is_remote = defined $layout && index( $layout, $LAYOUT_CACHE_DIR ) == 0;
 
     # D035 content components: resolve [% INCLUDE 'components/NAME.tt' %] against
     # the active layout's own directory, and expose a `markdown` filter so a

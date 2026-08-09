@@ -260,38 +260,33 @@ This feature is in beta.
 Inline code and fenced code blocks are protected from TT. Put TT tags
 outside code blocks if you want them to render.
 
-### The theme variables are LAYOUT scope, not page scope
+### The theme variables resolve in a page body
 
-`theme_assets`, `theme_name`, `theme` and `theme_css` resolve in `layout.tt` and
-**do not resolve in a page body**. A page body sees the site variables, the page
-variables, the automatic page fields, and the auth/payment context - not the
-theme family.
-
-This matters more than it sounds, because the failure is silent. Template Toolkit
-substitutes an undefined variable with the empty string, so:
+`theme_assets`, `theme_name`, `theme`, `theme_css` and `layout_name` resolve in a
+page body as well as in `layout.tt`. So this works, and is the right way to
+reference a themed asset from a page:
 
 ```html
 <img src="[% theme_assets %]/hero.jpg">
 ```
 
-renders as `src="/hero.jpg"`, resolves against the domain root, and 404s. No
-error, no warning, no log line - and the broken result looks like a typo in the
-filename rather than a scope problem. One agent used that pattern in seven image
-blocks, entirely reasonably, because it is the pattern the site's own `layout.tt`
-uses.
+`theme_assets` expands to `/lazysite-assets/LAYOUT/THEME`, so the path follows
+the site when its layout or theme changes. Prefer it over writing
+`/lazysite-assets/<layout>/<theme>/hero.jpg` literally: a hard-coded path is
+correct only until someone activates a different theme, and then it 404s with no
+indication of why.
 
-**Write the path literally in a page body:**
+They resolve on ordinary pages, which are the ones with a layout. A **raw** page
+(`raw: true` / `api: true`) has no layout, so it has no theme either and these
+are empty there - which is the correct answer for a page that renders no chrome.
 
-```html
-<img src="/lazysite-assets/<layout>/<theme>/hero.jpg">
-```
+If the asset belongs to the design rather than to this one page, it still belongs
+in the layout or the theme's CSS rather than in a page body.
 
-`list_themes` reports the active layout and theme, so an agent can construct that
-path without guessing. `validate_page` warns if a page body uses one of the
-theme variables.
-
-If the asset belongs to the design rather than to this one page, it belongs in
-the layout or the theme's CSS, where `[% theme_assets %]` does resolve.
+**On an older engine.** Before 0.10.5 these were layout-scope only, and a page
+body using one got the empty string with no error - `[% theme_assets %]/hero.jpg`
+rendered as `/hero.jpg` and 404'd. If you are working against an older engine, or
+reading guidance that says to write the path literally, that is why.
 
 **No randomness primitive.** There is no random/shuffle helper in the template
 context, so a "random quote" or "random image" cannot be computed per request.

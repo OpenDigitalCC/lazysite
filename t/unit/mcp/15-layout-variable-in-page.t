@@ -1,18 +1,26 @@
 #!/usr/bin/perl
-# SM249: using a LAYOUT variable in a page body is warned about, because the
-# alternative is silence.
+# SM249: the theme variables work in a page body, so validate_page does NOT warn
+# about them.
 #
-# theme_assets, theme_name, theme and theme_css resolve in layout.tt and not in a
-# page body. Template Toolkit substitutes an undefined variable with the empty
-# string, so `<img src="[% theme_assets %]/hero.jpg">` renders as src="/hero.jpg",
-# resolves against the domain root and 404s - with no error, no warning and no
-# log line. The broken result looks like a typo in the filename rather than a
-# scope problem, which is what makes it expensive: one agent used the pattern in
-# all seven of its replacement image blocks and recovering it cost a handover.
+# This file used to assert the opposite. theme_assets, theme_name, theme and
+# theme_css resolved in layout.tt and not in a page body, and Template Toolkit
+# substitutes an undefined variable with the empty string - so
+# `<img src="[% theme_assets %]/hero.jpg">` rendered as src="/hero.jpg",
+# resolved against the domain root and 404'd, with no error, no warning and no
+# log line. One agent used the pattern in all seven of its replacement image
+# blocks and recovering it cost a handover. The warning existed because the
+# alternative was silence.
 #
-# It is a reasonable thing to write. It is the pattern the site's own layout.tt
-# uses, and nothing said the scope differed. So this warns at the point the
-# mistake is made and names the literal path to use instead.
+# The engine now resolves the layout and the active theme BEFORE rendering the
+# body, so the pattern works and the warning would be false. It is removed
+# rather than softened: a warning describing a constraint that no longer exists
+# teaches an author to hard-code /lazysite-assets/<layout>/<theme>/..., which
+# then goes stale the next time the site's theme changes - in order to avoid a
+# failure that cannot happen.
+#
+# So this file is now a guard against reintroducing it. That the variables
+# actually resolve is t/unit/processor/19-d013-layout-theme.t's subject; this
+# one only checks that the authoring surface has stopped saying they do not.
 use strict;
 use warnings;
 use Test::More;
@@ -42,8 +50,13 @@ chmod 0755, $stub;
 
 sub validate {
     my ($content) = @_;
-    my $body = encode_json( { jsonrpc => '2.0', id => 1, method => 'tools/call',
-            params => { name => 'validate_page', arguments => { content => $content } } } );
+    my $body = encode_json(
+        {   jsonrpc => '2.0',
+            id      => 1,
+            method  => 'tools/call',
+            params  => { name => 'validate_page', arguments => { content => $content } }
+        }
+    );
     local %ENV = %ENV;
     $ENV{DOCUMENT_ROOT}       = $d;
     $ENV{REQUEST_METHOD}      = 'POST';
@@ -67,51 +80,38 @@ sub kinds {
     return map { $_->{kind} // '' } @{ $r->{warnings} || [] };
 }
 
-# --- the reported case ------------------------------------------------------
+# --- the reported case, which is now correct authoring ----------------------
 {
     my $r = validate("# Page\n\n<img src=\"[% theme_assets %]/hero.jpg\">\n");
     ok( $r && $r->{ok}, 'validate_page answers' ) or diag encode_json( $r // {} );
-    ok( ( grep { $_ eq 'layout-variable-in-page' } kinds($r) ),
-        'theme_assets in a page body is warned about' );
-
-    my ($w) = grep { ( $_->{kind} // '' ) eq 'layout-variable-in-page' }
-        @{ $r->{warnings} || [] };
-    like( $w->{message}, qr/theme_assets/, 'the message names the variable used' );
-    like( $w->{message}, qr{/lazysite-assets/},
-        'and gives the literal path to use instead - naming the alternative, not '
-            . 'just the prohibition' );
-    like( $w->{message}, qr/empty string|resolves to nothing/,
-        'and explains WHY it fails silently' );
+    is( scalar( grep { $_ eq 'layout-variable-in-page' } kinds($r) ),
+        0, 'theme_assets in a page body is no longer warned about' );
 }
 
-# --- the other layout-scope variables ---------------------------------------
-for my $v (qw(theme_css theme_name)) {
+# --- and the other variables that used to be warned about -------------------
+for my $v (qw(theme_css theme_name theme)) {
     my $r = validate("# Page\n\n[% $v %]\n");
-    ok( ( grep { $_ eq 'layout-variable-in-page' } kinds($r) ), "$v is warned about too" );
+    is( scalar( grep { $_ eq 'layout-variable-in-page' } kinds($r) ),
+        0, "$v raises no layout-scope warning either" );
 }
 
-# --- a page using ORDINARY variables is left alone --------------------------
-# Site and page variables are legitimate in a body; warning on those would train
-# the reader to ignore this.
+# --- no warning anywhere still names the retired constraint ------------------
+# Removing the `kind` but leaving the explanation in some other warning's text
+# would keep teaching the same wrong thing.
 {
-    my $r = validate("# Page\n\nVersion [% latest_release %], [% site_name %].\n");
-    is( scalar( grep { $_ eq 'layout-variable-in-page' } kinds($r) ), 0,
-        'an ordinary TT variable raises nothing' );
+    my $r = validate("# Page\n\n<img src=\"[% theme_assets %]/hero.jpg\">\n");
+    my @msgs = map { $_->{message} // '' } @{ $r->{warnings} || [] };
+    is( scalar( grep {/resolves to nothing in a page body/} @msgs ),
+        0, 'no warning still claims layout variables do not resolve in a body' );
 }
 
-# --- a page with no TT at all ------------------------------------------------
+# --- the unrelated checks are untouched --------------------------------------
+# validate_page still warns about the things it should; this change removed one
+# warning, not the surface.
 {
-    my $r = validate("# Page\n\nJust prose.\n");
-    is( scalar( grep { $_ eq 'layout-variable-in-page' } kinds($r) ), 0,
-        'plain content raises nothing' );
-}
-
-# --- it is a WARNING, never a refusal ---------------------------------------
-# There are legitimate reasons to write the token (documenting it, for one), and
-# a platform that refused would be wrong more often than the authors it protects.
-{
-    my $r = validate("# Page\n\n<img src=\"[% theme_assets %]/x.jpg\">\n");
-    ok( $r->{ok}, 'the page still validates - warned, not refused' );
+    my $r = validate("# Page\n\n<nav><a href=\"/\">Home</a></nav>\n");
+    ok( ( grep { $_ eq 'chrome-in-page' } kinds($r) ),
+        'chrome-in-page still fires - the other checks are intact' );
 }
 
 done_testing();

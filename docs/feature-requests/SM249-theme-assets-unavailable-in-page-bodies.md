@@ -2,8 +2,8 @@
 title: "SM249 - [% theme_assets %] silently becomes empty in a page body"
 subtitle: "It resolves in layout.tt and not in content, so an image path built from it points at the domain root and 404s. Nothing says the scope differs, and the failure is silent."
 brand: plain
-status: partial
-status-note: "PARTIAL 2026-08-09: the SILENCE is fixed - validate_page now warns when a page body uses a layout-scope theme variable, naming the literal /lazysite-assets/<layout>/<theme>/ path to use instead, and the authoring briefing states the scope split for the first time. EXPOSING theme_assets to page bodies is NOT done: it needs the layout/theme resolution moved ahead of the body render, because get_layout_path calls fetch_remote_layout and cannot safely run twice per request - a restructure of the ADR-0001 hot path that should be taken deliberately. Reported by the sjm-claude-code site agent 2026-08-08; it cost another agent an entire handover. Verified: the page-body TT stash is built from site_vars, page_vars and the auth/payment/preview contexts, and theme_assets is set separately for the LAYOUT render - so in a page body it is simply undefined, and Template Toolkit substitutes an undefined variable with the empty string."
+status: shipped
+status-note: "The INTERIM shipped in 0.10.4 (a4653a3): validate_page warned that the theme variables were layout-scope, and the authoring briefing stated the split. The FULL fix is complete on main and unreleased. The layout and the active theme are now resolved BEFORE the body render rather than between the body render and the layout render, so theme_assets, theme_name, theme, theme_css and layout_name all resolve in a page body. The concern that held this - that get_layout_path calls fetch_remote_layout and so cannot run twice per request - was real but smaller than recorded: it needed the resolution MOVED, not duplicated, and get_layout_path reads only site variables (layout, manager_path), so there was no circular dependency on the body render's output. render_content gained a hook that fires once the variables are complete and before the TT pass; render_template passes it, and the three callers that render a body with no layout pass nothing and are unaffected. The interim from 2026-08-09 is REVERSED: validate_page's layout-variable-in-page warning is REMOVED, because a warning describing a constraint the engine no longer has teaches authors to hard-code /lazysite-assets/<layout>/<theme>/ paths that go stale on the next theme change, to avoid a failure that cannot happen. t/unit/mcp/15 now guards the warning's absence; t/unit/processor/19 proves the variables resolve in a body and fails against the pre-change processor. Hot path: bench.pl --check within tolerance. Reported by the sjm-claude-code site agent 2026-08-08; it cost another agent an entire handover."
 ---
 
 # SM249 - theme_assets does not resolve in page content
@@ -104,7 +104,50 @@ detection as SM243's guardrails.
 - `theme_css` remains layout-only.
 - The authoring briefing states which variables are available in a page body.
 
+## What shipped, 2026-08-09
+
+The resolution moved. `render_content` gained a hook that fires once the
+variables are complete and before the body's TT pass; `render_template` passes a
+closure that calls the extracted `resolve_layout_vars`. The three callers that
+render a body with **no** layout - raw pages, api pages - pass nothing and are
+unaffected, so the theme variables stay absent there. That is the correct answer
+for a page with no chrome rather than a misleading one.
+
+### The blocker was real but smaller than recorded
+
+The status note said this needed "a restructure of the ADR-0001 hot path".
+`get_layout_path` does call `fetch_remote_layout`, so it must run once per
+request - but that meant the call had to **move**, not be duplicated. And the
+`$vars` it reads (`layout`, `manager_path`) come from `resolve_site_vars()`
+inside `render_content`, not from the body render's output, so there was no
+circular dependency. It is a reordering. Recorded because the original
+assessment would have deferred this indefinitely on a constraint that did not
+hold.
+
+No modules move, so ADR 0001 is untouched, and `bench.pl --check` reports every
+operation within tolerance of the baseline.
+
+### The scope note below is superseded
+
+"Exposing the full `theme` hash to content" was listed as out of scope, and
+`theme_css` was to remain layout-only. Both are now exposed, because they are set
+in the same block and withholding them would mean deliberately deleting them from
+the body stash - which would leave `[% theme_css %]` silently empty in a page
+body, reintroducing the exact failure this filing is about. One rule is better
+than a line nobody can predict.
+
+### The interim warning is removed, not softened
+
+The 2026-08-09 interim added a `validate_page` warning telling authors these were
+layout-scope. That warning is now false and is deleted. A warning describing a
+constraint the engine no longer has is worse than none: it teaches an author to
+write `/lazysite-assets/<layout>/<theme>/hero.jpg` literally, which then 404s the
+next time someone activates a different theme, in order to avoid a failure that
+can no longer occur.
+
+`t/unit/mcp/15` was rewritten to assert the warning's **absence**, including that
+no other warning still carries the explanation, so reintroducing it fails.
+
 ## Not in scope
 
-- Exposing the full `theme` hash to content.
 - Changing how the layout render works.
