@@ -641,12 +641,39 @@ else {
 
 # --- Commands ---
 
+# SM268 C1: `local` is the SENTINEL for "operator / direct CLI", not a name.
+#
+# `lazysite-manager-api.pl` guards read `$auth_user ne 'local'`,
+# `Acl::_is_operator` returns 1 for it, and this tool skips every actor
+# confinement when the actor is `local` - nine call sites between them. Nothing
+# reserved the name, so an ordinary delegate holding only create_sub_users could
+# create an ACCOUNT called `local` with a password of its choosing, log in, and
+# be handed operator status by every one of those checks: the %COOKIE_CAP gate,
+# %DELEGABLE, the %ACTOR_FORBIDDEN backstop and the whole SM195 ceiling.
+#
+# Reproduced by an adversarial review: a zero-capability `local` account granted
+# a new group mcp, api, manage_users and manage_config, joined it, and minted a
+# credential.
+#
+# Reserving the name is the fix, and it must sit at EVERY door into the user
+# store - create, sub-user create, and rename - because one unreserved door is
+# the whole vulnerability. Existing accounts are not migrated: an account named
+# `local` on a live site is already an escalation and needs an operator's
+# attention, not a silent rename.
+sub _reserved_username {
+    my ($name) = @_;
+    return 0 unless defined $name;
+    return lc($name) eq 'local' ? 1 : 0;
+}
+
 sub cmd_add {
     my ( $user, $pass ) = @_;
     die "Username required\n" unless defined $user && length $user;
     $user =~ s/[^a-zA-Z0-9_.-]//g;
     die "Username required\n" unless length $user;
-    $pass = ''                unless defined $pass;
+    die "'local' is reserved - it is the operator identity, not an account\n"
+        if _reserved_username($user);
+    $pass = '' unless defined $pass;
 
     my %users = read_users();
     die "User '$user' already exists\n" if exists $users{$user};
@@ -669,6 +696,8 @@ sub cmd_rename {
         unless defined $old && length $old && defined $new && length $new;
     $new =~ s/[^a-zA-Z0-9_.-]//g;
     die "Invalid new username\n" unless length $new;
+    die "'local' is reserved - it is the operator identity, not an account\n"
+        if _reserved_username($new);
     return if $old eq $new;
 
     my %users = read_users();
@@ -1308,6 +1337,11 @@ sub cmd_account_create {
         unless defined $creator && length $creator;
     $user =~ s/[^a-zA-Z0-9_.-]//g;
     die "Username required\n" unless length $user;
+    # SM268 C1: this is the door the reproduction used - a delegate holding only
+    # create_sub_users made an account called `local` and inherited operator
+    # status from every `ne 'local'` check in the codebase.
+    die "'local' is reserved - it is the operator identity, not an account\n"
+        if _reserved_username($user);
 
     my %users = read_users();
     die "User '$user' already exists\n" if exists $users{$user};

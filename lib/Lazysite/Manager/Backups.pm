@@ -118,8 +118,28 @@ sub action_backup_restore {
     # kind), and a FULL snapshot is refused above - so excluding ./lazysite here
     # is a no-op for real archives and neutralises the escalation for a hostile
     # one. tar --exclude drops matching members at extraction time.
-    my $rc = system( 'tar', 'xzf', $full, '-C', $DOCROOT,
-        '--no-same-owner', '--no-same-permissions', '--exclude=./lazysite' );
+    # SM268 C3: `--exclude=./lazysite` matched only archives TAR ITSELF made.
+    #
+    # GNU tar matches --exclude against the member name as stored. A hostile
+    # archive naming its member `lazysite/auth/users` (no `./`) or
+    # `.//lazysite/auth/users` did not match, so the M-TAR-AUTH guard above -
+    # whose comment says it "neutralises the escalation" - was inert for exactly
+    # the archives it was written for. Proven end to end by an adversarial
+    # review: an uploaded tarball restored through this action replaced the
+    # account store and the group grants with the attacker's.
+    #
+    # Cover every spelling, and add --anchored so the patterns cannot be
+    # side-stepped by nesting. Belt and braces with the wildcard form, which
+    # matches a `lazysite` segment wherever tar normalises it to.
+    my $rc = system(
+        'tar',             'xzf', $full, '-C', $DOCROOT,
+        '--no-same-owner', '--no-same-permissions',
+        '--anchored',
+        '--exclude=./lazysite', '--exclude=./lazysite/*',
+        '--exclude=lazysite',   '--exclude=lazysite/*',
+        '--no-anchored',
+        '--exclude=*/lazysite/*',
+    );
     return { ok => 0, error => 'Restore extraction failed (safety snapshot kept: '
             . $safety->{name} . ')' }
         if $rc != 0;

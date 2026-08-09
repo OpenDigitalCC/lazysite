@@ -759,11 +759,57 @@ sub action_form_targets_save {
 # large store never floods the browser.
 # SM182/SM187: confine a submissions-file argument to a .jsonl under the docroot.
 # Returns ( $abs_path, $rel, undef ) or ( undef, undef, $error ).
+# SM268 H1: the directories that legitimately hold submission stores - the
+# default, plus the `path` of every configured file-target handler. Normalised
+# and reserved-area-checked, so an operator cannot point a handler at
+# lazysite/auth and turn this back into an arbitrary reader.
+sub _submission_store_dirs {
+    my %dirs = ( 'lazysite/forms/submissions' => 1 );
+    my $list = eval { _parse_handlers_conf() } || [];
+    for my $h (@$list) {
+        next unless ref $h eq 'HASH';
+        next unless ( $h->{type} // 'file' ) eq 'file';
+        my $p = $h->{path};
+        next unless defined $p && length $p;
+        $p =~ s{^/+|/+$}{}g;
+        next unless length $p;
+        next if $p =~ m{(?:^|/)\.\.(?:/|$)};
+        # A handler pointed at an engine-owned area is a misconfiguration, and
+        # honouring it here would reintroduce the very read this fix closes.
+        next if Lazysite::Manager::Common::path_is_reserved($p)
+            && $p !~ m{\Alazysite/forms(?:/|\z)};
+        $dirs{$p} = 1;
+    }
+    return keys %dirs;
+}
+
 sub _submissions_path {
     my ($file) = @_;
     ( my $rel = $file // '' ) =~ s{^/+}{};
     return ( undef, undef, 'Invalid submissions file' )
         unless $rel =~ /\.jsonl\z/ && $rel !~ m{(?:^|/)\.\.(?:/|$)};
+
+    # SM268 H1: confine to the submission stores. This checked only "ends in
+    # .jsonl, no .., inside the docroot" - so a token holding the LEAST
+    # PRIVILEGE read capability (read_submissions, documented as "a read that
+    # does not allow editing forms or handlers") could read ANY .jsonl under the
+    # docroot. Reproduced: lazysite/auth/sessions.jsonl, which is the session
+    # registry - operator usernames, their source IPs, User-Agents and session
+    # ids - and another domain's leads file. The blocklist was never consulted
+    # and the action is absent from %SCOPED_ACTION, so neither the reserved-area
+    # guard nor dav_scope applied.
+    #
+    # The store directory is operator-configurable (the file handler's `path`,
+    # default lazysite/forms/submissions), so this admits the configured
+    # directories rather than one hard-coded string - anything else would break
+    # a site that moved its store. A file OUTSIDE every configured store is
+    # refused whatever its extension.
+    my %allowed = map { $_ => 1 } _submission_store_dirs();
+    my $dir     = $rel;
+    $dir =~ s{/[^/]+\z}{};
+    return ( undef, undef, 'Invalid submissions file' )
+        unless length $dir && $allowed{$dir};
+
     my $abs  = "$DOCROOT/$rel";
     my $real = realpath( -e $abs ? $abs : dirname($abs) );
     return ( undef, undef, 'Invalid submissions file' )

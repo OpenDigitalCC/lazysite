@@ -47,7 +47,27 @@ sub reserved_roots { return @RESERVED_ROOTS }
 sub path_is_reserved {
     my ($rel) = @_;
     return 0 unless defined $rel && length $rel;
+
+    # SM268 C2: NORMALISE before comparing, or the comparison is decorative.
+    #
+    # This stripped leading/trailing slashes and then compared literally, so
+    # `./lazysite` and `.//lazysite/auth` were not "lazysite" and not under
+    # "lazysite/" - they simply passed. An adversarial review used that to set a
+    # domain's content_root to `./lazysite`, export the site, and download a
+    # package advertised as carrying NO secrets that contained the account store,
+    # the per-file ACLs and the session HMAC secret - which forges operator
+    # sessions.
+    #
+    # Collapse duplicate separators and drop `.` segments, so every spelling of
+    # a path reaches the same comparison. `..` is rejected by the callers (and
+    # by validate_path) rather than resolved here: this function answers "is this
+    # a reserved area", not "where does this point".
+    $rel =~ s{/+}{/}g;
+    $rel =~ s{(?:^|/)\.(?=/|$)}{/}g;
+    $rel =~ s{/+}{/}g;
     $rel =~ s{^/+|/+$}{}g;
+    return 0 unless length $rel;
+
     for my $r (@RESERVED_ROOTS) {
         return 1 if $rel eq $r || index( $rel, "$r/" ) == 0;
     }
