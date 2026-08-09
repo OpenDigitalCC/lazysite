@@ -419,9 +419,7 @@ sub handle_request {
     }
 
     # Static file serving
-    # Skip .html files that have a .md or .url source - let the processor handle them
-    if ( $method eq 'GET' && -f $file_path && $file_path !~ /\.(?:md|url|tt|conf|brief)$/
-        && !( $file_path =~ /\.html$/ && ( -f ( $file_path =~ s/\.html$/.md/r ) || -f ( $file_path =~ s/\.html$/.url/r ) ) ) ) {
+    if ( $method eq 'GET' && _dev_serve_direct( $file_path, $DOCROOT ) ) {
         serve_static( $client, $file_path, $method, $uri, $t0 );
         return;
     }
@@ -626,6 +624,36 @@ sub handle_request {
 # Rejects traversal, anything under the lazysite/ management tree (secrets,
 # hashes, ACLs, logs), and dotfiles/dotdirs - parity with the production vhosts.
 # Confinement is by realpath so a symlink out of the docroot is caught too.
+# Should the dev server answer this GET from disk itself, or hand it to the CGI
+# path? Extracted as a predicate so it can be tested without a port, the way
+# _dev_path_ok already is.
+#
+# Two reasons to decline:
+#
+#   * a source file, or a .html that HAS a .md/.url source - the processor owns
+#     the render, and serving the cached .html here would skip it.
+#   * SM223: the site has an ACL store. Serving an existing file here, before the
+#     processor, is the same structural gap the production vhosts had - the
+#     engine never sees the request, so no ACL it holds can apply, and a private
+#     PDF is handed to anyone who knows its path. Falling through instead reaches
+#     the CGI path, which under use_auth runs lazysite-auth.pl first, so the
+#     processor gets a TRUSTED identity and can make the read decision.
+#
+# A site with no acls.json keeps direct static serving exactly as before, which
+# is the same "pay nothing unless you asked for this" property the vhost rules
+# have.
+sub _dev_serve_direct {
+    my ( $file_path, $docroot ) = @_;
+    return 0 unless -f $file_path;
+    return 0 if $file_path =~ /\.(?:md|url|tt|conf|brief)$/;
+    return 0
+        if $file_path =~ /\.html$/
+        && ( -f ( $file_path =~ s/\.html$/.md/r )
+        || -f ( $file_path =~ s/\.html$/.url/r ) );
+    return 0 if -f "$docroot/lazysite/auth/acls.json";
+    return 1;
+}
+
 sub _dev_path_ok {
     my ( $uri, $fs, $docroot ) = @_;
     $docroot //= $DOCROOT;

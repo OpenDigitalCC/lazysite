@@ -214,6 +214,66 @@ curl -sSI https://example.test/no-such-page | sort
 The 404 must carry the same baseline set as the 200 (SM253). Confirm CSP and
 HSTS are present if the vhost is meant to emit them - the engine will not.
 
+# Static files under access control (SM223)
+
+## Why it is out of reach
+
+The enforcement is engine-side and fully tested: `t/integration/35` drives the
+processor directly and covers the read decision, folder scope, group entries,
+the 403-versus-login-bounce split and `no-store`. What no test can reach is
+whether a front end **lets the request get to the engine at all** - which is the
+entire failure mode SM223 exists to fix.
+
+`t/lint/31` asserts the routing rule is present in all ten shipped configs, and
+that is a text match. It cannot tell you whether Apache and nginx actually
+*behave* that way: rule ordering, the interaction with `DirectoryIndex`, whether
+`RewriteCond ... -f` on the ACL file evaluates per request as expected, or
+whether nginx's `error_page 418 = @lazysite` jump fires where intended.
+
+The dev server IS covered - `t/unit/tools/03` drives the predicate, and the
+behaviour was confirmed against a running instance. Apache and nginx were not,
+because this host runs neither.
+
+## The pass
+
+On a site with **no** `lazysite/auth/acls.json`, first confirm nothing changed:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' https://example.test/assets/logo.png
+curl -sS -o /dev/null -w '%{http_code}\n' https://example.test/some-static-page
+```
+
+Both 200, served by the front end. Check the access log shows no CGI hit for
+them - if the engine is now handling every asset on a site with no ACLs, the
+condition is inverted and every site pays the indirection.
+
+Then create the store and re-check:
+
+```bash
+echo '{"private":{"read":["alice"]}}' > <docroot>/lazysite/auth/acls.json
+curl -sSI https://example.test/private/brief.html | head -3
+curl -sS https://example.test/private/notes.pdf | head -c 40
+```
+
+Anonymous must get a 302 to the login page with `Cache-Control: no-store`, and
+**no body bytes**. Then sign in as a permitted user and confirm the file is
+served, and as a non-permitted one and confirm 403.
+
+Three specific things to look at, each of which the lint cannot see:
+
+- **ordering** - the ACL rules must fire before the SM133 `.shtml`/`.html`
+  fallbacks. Every rule in those files ends in `[L]`, so a mis-ordered ACL rule
+  is simply never reached and the file is served as before.
+- **no redirect loop** - the rewrite targets `/cgi-bin/lazysite-auth.pl`, and
+  `/cgi-bin/` is excluded from the condition. Confirm a normal page still loads.
+- **the `.brief` deny** - Apache's `<FilesMatch>` matches the *resolved* file, so
+  once the request is rewritten to the CGI that deny no longer applies to it. The
+  processor's own guard covers it. Request a `.brief` on an ACL site and confirm
+  it 404s.
+
+Remove the test `acls.json` afterwards, or the site keeps routing every static
+through the engine.
+
 # How to use this document
 
 Read the section matching what you changed, not the whole file. If a change
