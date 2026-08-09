@@ -2,8 +2,8 @@
 title: "SM261 - Where an agent trips: list-response keys, the activate parameter, and three documentation gaps"
 subtitle: "A wrong response key is indistinguishable from an empty result, so a working call reads as a bug. Plus a theme name passed in a parameter called path, and three rules an agent can only learn by being refused."
 brand: plain
-status: candidate
-status-note: "Reported by the site agent 2026-08-08 after a 0.10.3 testing pass in which it made seven wrong calls, and explicitly separated the two that were its own fault (not reading the tool schema; testing a refusal without meeting its condition) from the five below. The reporter's own priority, if only one item is done, is the response-key convention - it nearly turned a working call into a filed defect. The reporter's honesty about its own errors is why the remaining five are worth taking at face value."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.4 edge line (2026-08-09, commit 96934c5). Reported by the site agent 2026-08-08 after a 0.10.3 testing pass in which it made seven wrong calls, and explicitly separated the two that were its own fault (not reading the tool schema; testing a refusal without meeting its condition) from the five below. The reporter's own priority, if only one item is done, is the response-key convention - it nearly turned a working call into a filed defect. The reporter's honesty about its own errors is why the remaining five are worth taking at face value."
 ---
 
 # SM261 - where an agent trips

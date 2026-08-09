@@ -2,8 +2,8 @@
 title: "SM260 - audit_site returned the server filesystem path, and its stale-HTML scan never ran"
 subtitle: "One list-assignment mistake did both: the docroot was reported to every partner as a finding, and the walk it was supposed to start was never entered."
 brand: plain
-status: candidate
-status-note: "Reported by the site agent 2026-08-08 testing 0.10.3 on edge.explore.lazysite.io over MCP, with the operator's knowledge. Root cause found to be `my ( @stale, @stack ) = ( (), $DOCROOT );` - the first array slurps the whole right-hand side, so @stale started holding the docroot and @stack was empty. The reporter identified the disclosure; the dead feature underneath it was found while fixing. FIXED with t/integration/33 as a standing sweep of the read-only partner surface."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.4 edge line (2026-08-09, commit be619d9). Reported by the site agent 2026-08-08 testing 0.10.3 on edge.explore.lazysite.io over MCP, with the operator's knowledge. Root cause found to be `my ( @stale, @stack ) = ( (), $DOCROOT );` - the first array slurps the whole right-hand side, so @stale started holding the docroot and @stack was empty. The reporter identified the disclosure; the dead feature underneath it was found while fixing. FIXED with t/integration/33 as a standing sweep of the read-only partner surface."
 ---
 
 # SM260 - the audit disclosed the docroot, and never audited

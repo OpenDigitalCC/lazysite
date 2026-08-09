@@ -2,8 +2,8 @@
 title: "SM252 - The form time token is baked into the cached page, so the timing check does nothing"
 subtitle: "One minted timestamp is reused for every visitor until the page next renders. The minimum-dwell check passes unconditionally, and the expiry can be spent before anyone arrives."
 brand: plain
-status: candidate
-status-note: "Reported by a site agent 2026-07-28 on edge.explore.lazysite.io, and NOT filed at the time - found in the inbox 2026-08-08 while archiving. Verified: _ts and _tk are emitted into the form HTML at render time and lazysite serves the cached render until the source changes. This defeats one of only two automated-submission defences the handler has, so it is more urgent than its age suggests."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.4 edge line (2026-08-09, commit bc0b00c). Reported by a site agent 2026-07-28 on edge.explore.lazysite.io, and NOT filed at the time - found in the inbox 2026-08-08 while archiving. Verified: _ts and _tk are emitted into the form HTML at render time and lazysite serves the cached render until the source changes. This defeats one of only two automated-submission defences the handler has, so it is more urgent than its age suggests."
 ---
 
 # SM252 - the form time token is defeated by the page cache

@@ -2,8 +2,8 @@
 title: "SM257 - preview_domain reports success when the render produced nothing"
 subtitle: "The preview shells the processor and returns whatever came back. An empty body, a processor that died, and a genuinely blank page are all reported as ok:1 with no way to tell them apart."
 brand: plain
-status: candidate
-status-note: "Found 2026-08-08 while writing behaviour coverage for the 0.10.3 MCP tools (t/unit/mcp/14-new-tool-behaviour.t). The fixture could not produce a rendered body, and the tool reported success anyway - so the test could not assert the thing the tool exists to do. Same family as SM247 and SM256: success reported for work that did not happen."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.4 edge line (2026-08-09, commit e9df3c8). Found 2026-08-08 while writing behaviour coverage for the 0.10.3 MCP tools (t/unit/mcp/14-new-tool-behaviour.t). The fixture could not produce a rendered body, and the tool reported success anyway - so the test could not assert the thing the tool exists to do. Same family as SM247 and SM256: success reported for work that did not happen."
 ---
 
 # SM257 - preview_domain reports success on an empty render

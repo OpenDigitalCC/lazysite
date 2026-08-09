@@ -2,8 +2,8 @@
 title: "SM253 - The 404 path ignores the domain's content root and emits no security headers"
 subtitle: "A secondary domain serves the primary's 404 page, and every 404 response goes out without the baseline headers every other response carries."
 brand: plain
-status: candidate
-status-note: "Reported in a docs-audit note of 2026-07-26 that was never actioned; found and verified 2026-08-08. Two independent defects on one code path, both small. The content-root half is another SM151 edge - the FOURTH found on this family - and _system_page_md already takes the content root it is never given."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.4 edge line (2026-08-09, commit d0bf6a9). Reported in a docs-audit note of 2026-07-26 that was never actioned; found and verified 2026-08-08. Two independent defects on one code path, both small. The content-root half is another SM151 edge - the FOURTH found on this family - and _system_page_md already takes the content root it is never given."
 ---
 
 # SM253 - the 404 path skips the content root and the headers

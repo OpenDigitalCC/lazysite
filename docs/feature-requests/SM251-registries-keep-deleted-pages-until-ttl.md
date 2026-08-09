@@ -2,8 +2,8 @@
 title: "SM251 - A deleted page stays in the sitemap until the registry TTL expires"
 subtitle: "Self-healing, so not broken - but an agent that deletes a page and checks the sitemap cannot tell 'stale' from 'failed', and agents delete more than people do."
 brand: plain
-status: candidate
-status-note: "Reported by the sjm-claude-code site agent 2026-08-08 as the smallest of five items, explicitly minor. Filed because the cost is ambiguity rather than breakage: the state is correct-eventually and indistinguishable from a failure while it lasts. A briefing note would discharge it; pruning on delete would remove it."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.4 edge line (2026-08-09, commit 42786e4). Reported by the sjm-claude-code site agent 2026-08-08 as the smallest of five items, explicitly minor. Filed because the cost is ambiguity rather than breakage: the state is correct-eventually and indistinguishable from a failure while it lasts. A briefing note would discharge it; pruning on delete would remove it."
 ---
 
 # SM251 - registries keep deleted pages until the TTL

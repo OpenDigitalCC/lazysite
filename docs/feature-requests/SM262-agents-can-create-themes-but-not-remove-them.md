@@ -2,8 +2,8 @@
 title: "SM262 - An agent can create themes but cannot remove them, so it accumulates litter only the operator can clear"
 subtitle: "create_theme and install_layout are available over MCP; theme-delete and layout-delete are manager-UI-only. Every experiment an agent runs leaves a permanent artefact."
 brand: plain
-status: candidate
-status-note: "Raised by the site agent 2026-08-08 alongside SM261, and split out because it changes the permission model rather than the documentation. Concrete instance: a zz-guard-theme left behind on edge.explore.lazysite.io that only the operator can clear. The reporter's phrase - create-without-delete makes agents into litter generators - is the whole argument. NOT obviously a bug: the asymmetry may well be deliberate, which is why this is a decision to make rather than a defect to fix."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.4 edge line (2026-08-09, commit f5d8017). Raised by the site agent 2026-08-08 alongside SM261, and split out because it changes the permission model rather than the documentation. Concrete instance: a zz-guard-theme left behind on edge.explore.lazysite.io that only the operator can clear. The reporter's phrase - create-without-delete makes agents into litter generators - is the whole argument. NOT obviously a bug: the asymmetry may well be deliberate, which is why this is a decision to make rather than a defect to fix."
 ---
 
 # SM262 - create without delete

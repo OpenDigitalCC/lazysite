@@ -2,8 +2,8 @@
 title: "SM256 - add_alias reports success and writes no alias when the page has no front matter"
 subtitle: "rename_page with add_alias:true returns ok:1 and alias_suggested populated, but a page with no `---` block gets nothing written. The retired URL 404s and the agent has been told the opposite."
 brand: plain
-status: candidate
-status-note: "Found 2026-08-08 while writing behaviour coverage for the 0.10.3 MCP tools (t/unit/mcp/14-new-tool-behaviour.t). Found by ACCIDENT: the first fixture page had no front matter, the assertion failed, and the cause turned out to be the feature rather than the test. Not a regression - the alias-on-rename facility is new in 0.10.3 and shipped with this gap. Same family as SM247, which 0.10.3 fixes: an operation reports success without doing the thing that was asked."
+status: shipped
+status-note: "IMPLEMENTED in the 0.10.4 edge line (2026-08-09, commit 1910088). Found 2026-08-08 while writing behaviour coverage for the 0.10.3 MCP tools (t/unit/mcp/14-new-tool-behaviour.t). Found by ACCIDENT: the first fixture page had no front matter, the assertion failed, and the cause turned out to be the feature rather than the test. Not a regression - the alias-on-rename facility is new in 0.10.3 and shipped with this gap. Same family as SM247, which 0.10.3 fixes: an operation reports success without doing the thing that was asked."
 ---
 
 # SM256 - add_alias silently skips a page with no front matter
