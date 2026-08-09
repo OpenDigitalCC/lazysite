@@ -260,6 +260,39 @@ This feature is in beta.
 Inline code and fenced code blocks are protected from TT. Put TT tags
 outside code blocks if you want them to render.
 
+### The theme variables are LAYOUT scope, not page scope
+
+`theme_assets`, `theme_name`, `theme` and `theme_css` resolve in `layout.tt` and
+**do not resolve in a page body**. A page body sees the site variables, the page
+variables, the automatic page fields, and the auth/payment context - not the
+theme family.
+
+This matters more than it sounds, because the failure is silent. Template Toolkit
+substitutes an undefined variable with the empty string, so:
+
+```html
+<img src="[% theme_assets %]/hero.jpg">
+```
+
+renders as `src="/hero.jpg"`, resolves against the domain root, and 404s. No
+error, no warning, no log line - and the broken result looks like a typo in the
+filename rather than a scope problem. One agent used that pattern in seven image
+blocks, entirely reasonably, because it is the pattern the site's own `layout.tt`
+uses.
+
+**Write the path literally in a page body:**
+
+```html
+<img src="/lazysite-assets/<layout>/<theme>/hero.jpg">
+```
+
+`list_themes` reports the active layout and theme, so an agent can construct that
+path without guessing. `validate_page` warns if a page body uses one of the
+theme variables.
+
+If the asset belongs to the design rather than to this one page, it belongs in
+the layout or the theme's CSS, where `[% theme_assets %]` does resolve.
+
 **No randomness primitive.** There is no random/shuffle helper in the template
 context, so a "random quote" or "random image" cannot be computed per request.
 Either pick one at author time, or render the set as a carousel/cycle in the

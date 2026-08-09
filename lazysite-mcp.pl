@@ -1408,6 +1408,32 @@ sub _validate_page {
                 . 'unreachable while looking fine.' };
     }
 
+    # SM249: the theme variables are LAYOUT scope. A page body that uses one gets
+    # the empty string - Template Toolkit substitutes an undefined variable
+    # silently, so `<img src="[% theme_assets %]/hero.jpg">` renders as
+    # src="/hero.jpg", resolves against the domain root and 404s. There is no
+    # error, no warning and no log line, and the result looks like a typo in the
+    # filename rather than a scope problem.
+    #
+    # It is an entirely reasonable thing to write: it is the pattern the site's
+    # own layout.tt uses, and nothing said the scope differed. One agent used it
+    # in all seven of its replacement image blocks and recovering it cost a whole
+    # handover. Warn where the mistake is made.
+    if ( my @used = $body =~ /\[%\s*(theme_assets|theme_css|theme_name|theme)\b/g ) {
+        my %seen;
+        my @names = grep { !$seen{$_}++ } @used;
+        push @warnings, { kind => 'layout-variable-in-page',
+            message => 'this page uses [% '
+                . join( ' %], [% ', @names )
+                . ' %], which is a LAYOUT variable and resolves to nothing in a '
+                . 'page body. Template Toolkit substitutes an undefined variable '
+                . 'with the empty string, so the result is a silently broken path '
+                . 'rather than an error - "[% theme_assets %]/hero.jpg" becomes '
+                . '"/hero.jpg" and 404s. Write the asset path literally instead: '
+                . '/lazysite-assets/<layout>/<theme>/hero.jpg (list_themes reports '
+                . 'the active layout and theme).' };
+    }
+
     # SM161: forms must be native (a :::form block bound to an operator-vetted
     # handler), never hand-written HTML or a third-party form service.
     my $has_fenced_form = $content =~ /^:::[ \t]*form\b/m;

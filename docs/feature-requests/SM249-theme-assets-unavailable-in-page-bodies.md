@@ -2,8 +2,8 @@
 title: "SM249 - [% theme_assets %] silently becomes empty in a page body"
 subtitle: "It resolves in layout.tt and not in content, so an image path built from it points at the domain root and 404s. Nothing says the scope differs, and the failure is silent."
 brand: plain
-status: candidate
-status-note: "Reported by the sjm-claude-code site agent 2026-08-08; it cost another agent an entire handover. Verified: the page-body TT stash is built from site_vars, page_vars and the auth/payment/preview contexts, and theme_assets is set separately for the LAYOUT render - so in a page body it is simply undefined, and Template Toolkit substitutes an undefined variable with the empty string."
+status: partial
+status-note: "PARTIAL 2026-08-09: the SILENCE is fixed - validate_page now warns when a page body uses a layout-scope theme variable, naming the literal /lazysite-assets/<layout>/<theme>/ path to use instead, and the authoring briefing states the scope split for the first time. EXPOSING theme_assets to page bodies is NOT done: it needs the layout/theme resolution moved ahead of the body render, because get_layout_path calls fetch_remote_layout and cannot safely run twice per request - a restructure of the ADR-0001 hot path that should be taken deliberately. Reported by the sjm-claude-code site agent 2026-08-08; it cost another agent an entire handover. Verified: the page-body TT stash is built from site_vars, page_vars and the auth/payment/preview contexts, and theme_assets is set separately for the LAYOUT render - so in a page body it is simply undefined, and Template Toolkit substitutes an undefined variable with the empty string."
 ---
 
 # SM249 - theme_assets does not resolve in page content
@@ -47,6 +47,30 @@ it.
 That split is defensible - a page is content and the theme is presentation - but
 it is undocumented, and the failure mode is silent, which is what makes it
 expensive.
+
+## Done 2026-08-09: the silence, not the scope
+
+The expensive property was never the scope split - it was that breaking it is
+SILENT. That half is fixed:
+
+- `validate_page` warns on `theme_assets`, `theme_name`, `theme` and `theme_css`
+  in a page body, names which one was used, explains that TT substitutes an
+  undefined variable with the empty string, and gives the literal
+  `/lazysite-assets/<layout>/<theme>/` form to use instead. A warning, never a
+  refusal - writing the token is legitimate when documenting it.
+- The authoring briefing states the scope split, which the docs answered nowhere
+  before, with the failing example and the working alternative.
+
+**Exposing `theme_assets` to page bodies is NOT done, and is not a small
+change.** The value derives from `$layout_key`, which comes from
+`get_layout_path` - and that calls `fetch_remote_layout` for a remote layout, so
+it cannot safely run twice in a request. Making the variable available means
+resolving layout and theme ONCE, before the body render, and threading the result
+through: a restructure of the render path ADR 0001 governs.
+
+Doing it half-way would be worse than not doing it. A `theme_assets` that
+resolves under a local layout and not a remote one looks reliable and is not,
+which is the same class of trap as the original.
 
 ## What to change
 
