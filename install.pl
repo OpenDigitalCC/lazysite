@@ -1136,7 +1136,12 @@ sub align_ownership {
 
 sub create_runtime_paths {
     my ( $rps, $subs, $install_mode ) = @_;
-    $install_mode ||= 'fresh';
+    # SM246: the defensive default is the CONSERVATIVE value. This read
+    # `||= 'fresh'`, and 'fresh' is the one that re-chmods existing directories -
+    # so a caller that forgot the argument got the destructive behaviour. The one
+    # real caller always passes it, so this was never live; a default that only
+    # bites when someone makes a mistake should not be the dangerous one.
+    $install_mode ||= 'upgrade';
     for my $rp (@$rps) {
         # SM246: one model, three consumers - install applies, check verifies,
         # check --fix repairs. `applied_by` says which consumers own a path, so
@@ -1156,7 +1161,25 @@ sub create_runtime_paths {
             # group-writable + setgid for the www-data CGI to write them). On an
             # UPGRADE, leave an existing directory alone: the operator may have
             # tightened it deliberately.
-            chmod $mode, $path if $install_mode eq 'fresh';
+            # SM246 (deliverable 3): the fresh-versus-upgrade policy is now
+            # DECLARED per path rather than implied by one branch.
+            #
+            #   repair - the engine owns this absolutely and re-applies the mode
+            #            on every run. These are the directories the CGI MUST be
+            #            able to write; an operator who "tightens" lazysite/cache
+            #            breaks their own site, silently, and the failure looks
+            #            like a rendering fault rather than a permission one.
+            #   leave  - set on creation, never touched again. ../plugins is
+            #            EXECUTED, not written, so 0755 is right and hardening it
+            #            further is a legitimate operator choice.
+            #
+            # Absent means leave, so an entry predating the field keeps the old
+            # upgrade behaviour. Note this only ever widens a mode toward what the
+            # model declares - it is not the "align everything" ownership pass
+            # that caused the 0.6.5 outage, which was chown and is untouched.
+            my $on_upgrade = $rp->{on_upgrade} // 'leave';
+            chmod $mode, $path
+                if $install_mode eq 'fresh' || $on_upgrade eq 'repair';
             next;
         }
         make_path( $path, { mode => $mode } );

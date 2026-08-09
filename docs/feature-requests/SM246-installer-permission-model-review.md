@@ -3,7 +3,7 @@ title: "SM246 - Installer review: one permission model, one place to verify it"
 subtitle: "Permissions are decided in three places by three policies, the check tool duplicates the knowledge from a fourth, and the code already carries scar tissue from a previous regression of exactly this kind."
 brand: plain
 status: partial
-status-note: "PARTIAL 2026-08-09: DELIVERABLE 1 (explain the incident) is done and the cause is identified with evidence - install_file creates directories with a bare make_path and no mode, so they land at the umask default (0755 under root: no group write), and the docroot directories that are NOT in runtime_paths are never corrected on fresh or upgrade. DELIVERABLE 2 STARTED 2026-08-09: classification.json is now the model - every path carries a `why` and an `applied_by`, and t/lint/30 pins it against the check tool, which had ALREADY diverged by four entries. install.pl honours applied_by, which preserves its behaviour exactly. Still open: the model does not SHIP (it is build-time config, so check cannot read it on a deployed site), the fresh-vs-upgrade policy is still implicit, the four imperative passes are still there, and the directory-mode fix itself is still not applied. Raised by the operator 2026-08-08 after a stable deploy left the docroot's root-level folders without group write. This is a REVIEW request: the specific regression is the motivation, not the scope. Root cause is deliberately NOT asserted here - the installer has enough overlapping paths that guessing would be worse than useless, and explaining that incident is the review's first deliverable."
+status-note: "PARTIAL 2026-08-09: DELIVERABLE 1 (explain the incident) is done and the cause is identified with evidence - install_file creates directories with a bare make_path and no mode, so they land at the umask default (0755 under root: no group write), and the docroot directories that are NOT in runtime_paths are never corrected on fresh or upgrade. DELIVERABLE 2 STARTED 2026-08-09: classification.json is now the model - every path carries a `why` and an `applied_by`, and t/lint/30 pins it against the check tool, which had ALREADY diverged by four entries. install.pl honours applied_by, which preserves its behaviour exactly. Still open: the model does not SHIP (it is build-time config, so check cannot read it on a deployed site), DELIVERABLE 3 DONE 2026-08-09: on_upgrade is declared per path (repair|leave), install honours it, and the defensive default is now the conservative value. Still open: the model does not SHIP, the four imperative passes remain, and the directory-mode fault from deliverable 1 is still not fixed. Raised by the operator 2026-08-08 after a stable deploy left the docroot's root-level folders without group write. This is a REVIEW request: the specific regression is the motivation, not the scope. Root cause is deliberately NOT asserted here - the installer has enough overlapping paths that guessing would be worse than useless, and explaining that incident is the review's first deliverable."
 ---
 
 # SM246 - installer permission model review
@@ -217,6 +217,39 @@ noticed, because nothing compared them:
 
 That is the incident's own shape in miniature: a permission fact maintained by
 hand in two places drifts, and the drift is invisible until a deploy exposes it.
+
+## Deliverable 3, done 2026-08-09: the upgrade policy is declared
+
+Every model entry now carries `on_upgrade`:
+
+- **`repair`** - the engine owns the path absolutely and re-applies the mode on
+  every run. These are the directories the CGI MUST be able to write. An operator
+  who "tightens" `lazysite/cache` breaks their own site, and the failure reads as
+  a rendering fault rather than a permission one.
+- **`leave`** - set on creation, never touched again. `../plugins` is EXECUTED,
+  not written, so 0755 is correct and hardening it further is a legitimate
+  operator choice.
+
+Absent means `leave`, so a row predating the field keeps the old upgrade
+behaviour. `t/lint/30` requires every path to declare one - both answers are
+legitimate, and the fault was being unable to say which applied.
+
+**This does change install behaviour on upgrade**, and that is the point:
+previously the installer could not repair a directory whose mode was wrong, and
+only `check --fix` could. Two tools, two policies, on the same paths. It only
+ever widens a mode toward what the model declares, and it is NOT the
+align-everything ownership pass that caused the 0.6.5 outage - that was `chown`
+and is untouched.
+
+**The defensive default is now the conservative one.** `create_runtime_paths` read
+`$install_mode ||= 'fresh'`, and `fresh` is the branch that re-chmods existing
+directories - so a caller that forgot the argument got the destructive behaviour.
+The one real caller always passes it, so this was never live; a default that only
+bites when someone makes a mistake should not be the dangerous one.
+
+`t/tools/34` exercises the function directly: fresh creates and sets, upgrade
+repairs a `repair` path and leaves a `leave` path alone, a check-only path is
+never created, and a policy-less entry behaves as before.
 
 ### What this does NOT do
 

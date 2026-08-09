@@ -242,7 +242,8 @@
       "applied_by": [
         "install",
         "check"
-      ]
+      ],
+      "on_upgrade": "repair"
     },
     {
       "path": "{DOCROOT}/lazysite/cache",
@@ -252,7 +253,8 @@
       "applied_by": [
         "install",
         "check"
-      ]
+      ],
+      "on_upgrade": "repair"
     },
     {
       "path": "{DOCROOT}/lazysite/logs",
@@ -262,7 +264,8 @@
       "applied_by": [
         "install",
         "check"
-      ]
+      ],
+      "on_upgrade": "repair"
     },
     {
       "path": "{DOCROOT}/lazysite/stats",
@@ -272,7 +275,8 @@
       "applied_by": [
         "install",
         "check"
-      ]
+      ],
+      "on_upgrade": "repair"
     },
     {
       "path": "{DOCROOT}/lazysite/manager/locks",
@@ -282,7 +286,8 @@
       "applied_by": [
         "install",
         "check"
-      ]
+      ],
+      "on_upgrade": "repair"
     },
     {
       "path": "{DOCROOT}/../plugins",
@@ -292,7 +297,8 @@
       "applied_by": [
         "install",
         "check"
-      ]
+      ],
+      "on_upgrade": "leave"
     },
     {
       "path": "{DOCROOT}/lazysite/layouts",
@@ -302,7 +308,8 @@
       "applied_by": [
         "install",
         "check"
-      ]
+      ],
+      "on_upgrade": "repair"
     },
     {
       "path": "{DOCROOT}/lazysite-assets",
@@ -312,7 +319,8 @@
       "applied_by": [
         "install",
         "check"
-      ]
+      ],
+      "on_upgrade": "repair"
     },
     {
       "path": "{DOCROOT}/lazysite/stats/form-events",
@@ -320,7 +328,8 @@
       "why": "form-outcome log (SM216-2), counts only, written by the form handler",
       "applied_by": [
         "check"
-      ]
+      ],
+      "on_upgrade": "repair"
     },
     {
       "path": "{DOCROOT}/lazysite/forms",
@@ -328,7 +337,8 @@
       "why": "form config + submission store; the CGI appends submissions and it holds PII",
       "applied_by": [
         "check"
-      ]
+      ],
+      "on_upgrade": "repair"
     },
     {
       "path": "{DOCROOT}/lazysite/git",
@@ -336,7 +346,8 @@
       "why": "content-history repository, created by the plugin at adoption - NOT created by the installer",
       "applied_by": [
         "check"
-      ]
+      ],
+      "on_upgrade": "repair"
     }
   ]
 }

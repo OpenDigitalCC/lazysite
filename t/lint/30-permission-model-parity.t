@@ -54,6 +54,13 @@ for my $rp (@$rps) {
     # tell a deliberate mode from an accident.
     ok( defined $rp->{why} && length $rp->{why},
         "$p states why it has that mode" );
+
+    # SM246 deliverable 3: the fresh-versus-upgrade policy is DECLARED, not
+    # implied. Both categories are legitimate; what is not legitimate is being
+    # unable to say which one a path is in.
+    ok( defined $rp->{on_upgrade}
+            && $rp->{on_upgrade} =~ /\A(?:repair|leave)\z/,
+        "$p declares its upgrade policy (repair|leave)" );
     like( $rp->{mode}, qr/\A[0-7]{3,4}\z/, "$p declares an octal mode" );
 }
 
