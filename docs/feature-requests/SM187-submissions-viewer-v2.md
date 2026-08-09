@@ -2,8 +2,8 @@
 title: "SM187 - Submissions viewer v2 (modal, row delete, agent read)"
 subtitle: "Scrollable modal for the form-submissions table; delete a handled row; a least-privilege read_submissions capability so an agent can read submissions over API/MCP"
 brand: plain
-status: partial
-status-note: "v2 built on claude/submissions-viewer-v2. Done: scrollable modal viewer; per-row delete (manage_forms, UI); new read_submissions capability + form-submissions on the token channel + a read_form_submissions MCP tool. FOLLOW-UP SHIPPED in 0.10.1 edge (branch claude/sm187-submissions-viewer): bulk delete (row checkboxes + select-all + Delete-selected -> new form-submissions-delete-bulk action, manage_forms, %MUTATING, audited, one atomic rewrite, UI-only) and client-side CSV export (Download CSV, built from the loaded rows, RFC-4180 quoted, no new server surface). The discover-forms helper is delivered by SM214's form_list (name/handlers/has_store/rows), so it is not duplicated here. Remaining: nothing outstanding."
+status: shipped
+status-note: "v2 built on claude/submissions-viewer-v2. Done: scrollable modal viewer; per-row delete (manage_forms, UI); new read_submissions capability + form-submissions on the token channel + a read_form_submissions MCP tool. FOLLOW-UP SHIPPED in 0.10.1 edge (branch claude/sm187-submissions-viewer): bulk delete (row checkboxes + select-all + Delete-selected -> new form-submissions-delete-bulk action, manage_forms, %MUTATING, audited, one atomic rewrite, UI-only) and client-side CSV export (Download CSV, built from the loaded rows, RFC-4180 quoted, no new server surface). The discover-forms helper is delivered by SM214's form_list (name/handlers/has_store/rows), so it is not duplicated here. Remaining: nothing outstanding - status corrected from partial to shipped 2026-08-09, having verified each claimed deliverable against the code rather than the note: form-submissions-delete-bulk in lazysite-manager-api.pl, read_submissions in Capabilities.pm, read_form_submissions in lazysite-mcp.pl, and the Download CSV / Delete selected controls in the manager pages."
 ---
 
 # SM187 - Submissions viewer v2
