@@ -67,3 +67,4 @@ starter/lazysite/auth/.login-rate.db
 man/
 *.bak
 .prove
+.manifest-test.lock

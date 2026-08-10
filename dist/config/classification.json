@@ -167,6 +167,7 @@
     "^\\.github/",
     "^\\.gitignore$",
     "^\\.prove$",
+    "^\\.manifest-test\\.lock$",
     "^\\.perlcriticrc$",
     "^\\.perltidyrc$",
     "^tools/tidy-check\\.pl$",

@@ -3,6 +3,7 @@ package TestHelper;
 use strict;
 use warnings;
 use File::Temp  qw(tempdir);
+use Fcntl       qw(:flock O_WRONLY O_CREAT);
 use File::Path  qw(make_path);
 use Digest::SHA qw(sha256_hex);
 use FindBin;
@@ -16,7 +17,46 @@ our @EXPORT_OK = qw(
     setup_dav_site dav_users_tool
     grant_caps revoke_caps
     env_passthrough
+    repo_manifest_guard
 );
+
+# SM269 phase 1: serialise the tests that need release-manifest.json AT THE REPO
+# ROOT, so the suite is safe under `prove -j`.
+#
+# install.pl resolves its manifest as abs_path(dirname($0))/release-manifest.json
+# - beside itself, by design, because that is where it sits in a release tarball.
+# Three tests therefore build one at the repo root if it is absent and unlink it
+# at END if they created it. Run concurrently, one deletes the file another is
+# still using, and the symptom is a bare "release-manifest.json not found" from a
+# test that did nothing wrong.
+#
+# A lock rather than per-test isolation, deliberately. Isolating would mean
+# either copying the tree per test (slow, and it is a large tree) or teaching
+# install.pl to take a manifest path it does not otherwise need - a production
+# surface widened for the convenience of a test. Serialising three files costs
+# almost nothing under -j, because they overlap with the other 318.
+#
+# Returns a guard: hold it for the life of the test, and the lock releases when
+# it goes out of scope. Call in the caller's file scope, not inside a subtest.
+sub repo_manifest_guard {
+    my $lock = repo_root() . '/.manifest-test.lock';
+    ## no critic (RequireBriefOpen) - the handle IS the lock; it lives in the guard.
+    open my $fh, '>>', $lock or die "cannot open $lock: $!";
+    flock( $fh, LOCK_EX ) or die "cannot lock $lock: $!";
+    return TestHelper::ManifestGuard->new($fh);
+}
+
+{
+    package TestHelper::ManifestGuard;
+    sub new { my ( $c, $fh ) = @_; return bless { fh => $fh }, $c }
+    sub DESTROY {
+        my ($self) = @_;
+        # flock releases on close; the lockfile itself is left in place (it is
+        # gitignored) so the next run does not race on creating it.
+        close $self->{fh} if $self->{fh};
+        return;
+    }
+}
 
 # Coverage passthrough (review D3): a test that rebuilds %ENV from scratch for
 # a CGI child drops PERL5OPT, so tools/coverage.sh's Devel::Cover

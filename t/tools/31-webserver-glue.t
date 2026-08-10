@@ -17,7 +17,7 @@ use File::Path     qw(make_path);
 use File::Temp     qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root repo_manifest_guard);
 
 my $ROOT = repo_root();
 my $POOL = "$ROOT/tools/lazysite-pool.pl";
@@ -256,6 +256,12 @@ for my $server ( sort keys %SERVER ) {
 subtest 'demo verb' => sub {
     # install.pl needs a release manifest beside it (same on-demand build
     # as t/tools/28-cli.t).
+    #
+    # SM269 phase 1: the guard is taken HERE rather than at file scope, because
+    # only this subtest touches the shared repo-root manifest - holding it for
+    # the whole file would serialise the rest of a slow test for nothing. It
+    # releases when the subtest's scope ends.
+    my $mf_guard = repo_manifest_guard();
     my $manifest    = "$ROOT/release-manifest.json";
     my $we_built_it = 0;
     if ( !-f $manifest ) {

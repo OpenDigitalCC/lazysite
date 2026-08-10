@@ -16,9 +16,16 @@ use File::Copy     qw();
 use Digest::SHA    qw(sha256_hex);
 use JSON::PP       qw(decode_json);
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use TestHelper qw(repo_manifest_guard);
 
-my $ROOT     = "$FindBin::Bin/../..";
-my $INSTALL  = "$ROOT/install.pl";
+my $ROOT    = "$FindBin::Bin/../..";
+my $INSTALL = "$ROOT/install.pl";
+# SM269 phase 1: this test needs release-manifest.json AT THE REPO ROOT, and so
+# do t/tools/35 and t/tools/36. Under `prove -j` they raced - one deleted at END
+# what another was still using. The guard serialises just these three.
+my $MF_GUARD = repo_manifest_guard();
+
 my $MANIFEST = "$ROOT/release-manifest.json";
 my $BUILD_MF = "$ROOT/tools/build-manifest.pl";
 

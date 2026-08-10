@@ -26,6 +26,8 @@ use File::Path     qw(make_path);
 use File::Temp     qw(tempdir);
 use File::Basename qw(dirname);
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use TestHelper qw(repo_manifest_guard);
 
 my $ROOT     = "$FindBin::Bin/../..";
 my $INSTALL  = "$ROOT/install.pl";
@@ -50,6 +52,11 @@ my $declared = $cfg->{install_dirs} || [];
 # tracked (it ships only in release tarballs), so build one if it is absent and
 # remove it again at END - same handling as t/tools/03, so a run here does not
 # leave a phantom modified file behind, and does not delete an operator's own.
+# SM269 phase 1: this test needs release-manifest.json AT THE REPO ROOT, and so
+# do two others. Under `prove -j` they raced - one deleted at END what another
+# was still using. The guard serialises just these three.
+my $MF_GUARD = repo_manifest_guard();
+
 my $REPO_MF = "$ROOT/release-manifest.json";
 my $MF_OURS = 0;
 unless ( -f $REPO_MF ) {

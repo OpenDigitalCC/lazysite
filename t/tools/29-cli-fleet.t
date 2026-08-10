@@ -14,10 +14,14 @@ use File::Temp qw(tempdir);
 use JSON::PP   ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root repo_manifest_guard);
 
 my $ROOT     = repo_root();
 my $CLI      = "$ROOT/tools/lazysite-cli.pl";
+# SM269 phase 1: serialise on the shared repo-root manifest - six tests build
+# and unlink it, and under `prove -j` one deletes what another is using.
+my $MF_GUARD = repo_manifest_guard();
+
 my $MANIFEST = "$ROOT/release-manifest.json";
 
 die "lazysite-cli.pl not found at $CLI" unless -f $CLI;
