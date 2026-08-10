@@ -375,7 +375,7 @@ if ($API_MODE) {
                     grep { defined && length } sort keys %users ] };
         }
         elsif ( $action eq 'group-add' ) {
-            cmd_group_add( $req->{username}, $req->{group} );
+            cmd_group_add( $req->{username}, $req->{group}, $req->{actor} );
             $result = { ok => 1, message => "User added to group" };
         }
         elsif ( $action eq 'group-remove' ) {
@@ -416,7 +416,7 @@ if ($API_MODE) {
             $result = cmd_group_create( $req->{group} );
         }
         elsif ( $action eq 'group-nest' ) {
-            $result = cmd_group_nest( $req->{sub}, $req->{parent} );
+            $result = cmd_group_nest( $req->{sub}, $req->{parent}, $req->{actor} );
         }
         elsif ( $action eq 'group-delete' ) {
             $result = cmd_group_delete( $req->{group} );
@@ -463,7 +463,7 @@ if ($API_MODE) {
             $result = { ok => 1, users => [ sort keys %seen ] };
         }
         elsif ( $action eq 'token' ) {
-            my $token = cmd_token( $req->{username} );
+            my $token = cmd_token( $req->{username}, $req->{actor} );
             $result = { ok => 1, token => $token };
         }
         elsif ( $action eq 'account-create' ) {
@@ -810,8 +810,15 @@ sub cmd_list {
 }
 
 sub cmd_group_add {
-    my ( $user, $group ) = @_;
+    my ( $user, $group, $actor ) = @_;
     die "Username and group required\n" unless $user && $group;
+    # SM268 H8: joining a group ACQUIRES its capabilities, so adding anyone to a
+    # group is conferring them. A delegate that could not grant `mcp` could add
+    # itself to a group that already had it - the ceiling, walked around.
+    if ( my $c = _exceeds_authority( $actor, _caps_granted_by_group($group) ) ) {
+        die "You cannot add anyone to '$group': it grants '$c', which you may "
+            . "not confer.\n";
+    }
     # Ensure the default role groups (and their capabilities) exist, so adding a
     # user to e.g. user-managers actually confers that group's caps via caps_for.
     _ensure_groups_seeded();
@@ -1294,11 +1301,20 @@ sub cmd_set {
 # (shown to the caller exactly once); never logged, never stored in
 # the clear.
 sub cmd_token {
-    my ($user) = @_;
+    my ( $user, $actor ) = @_;
     die "Username required\n" unless $user;
 
     my %users = read_users();
     die "User '$user' not found\n" unless exists $users{$user};
+
+    # SM268 H8: issuing a credential is taking the account OVER - the line below
+    # replaces its stored hash, so this both authenticates as the target and
+    # destroys its password. A delegate may only do that to an account whose
+    # capabilities it could confer in the first place.
+    if ( my $c = _exceeds_authority( $actor, _caps_held_by($user) ) ) {
+        die "You cannot issue a credential for '$user': that account holds "
+            . "'$c', which you may not confer.\n";
+    }
 
     my $token = generate_token();
     $users{$user} = hash_token($token);
@@ -1789,6 +1805,16 @@ sub cmd_claim_create {
     if ( defined $actor && length $actor && $actor ne 'local' ) {
         die "Not authorised to manage '$user'\n"
             unless $actor eq $user || is_ancestor( $actor, $user, $all );
+
+        # SM268 H8: the ancestry check above is about WHOSE account it is; this
+        # is about what the account can DO. A setup link mints a credential, so
+        # it is a takeover by another name - and a sub-user an operator granted
+        # extra capabilities to sits inside the delegate's subtree while being
+        # above it in privilege. Ancestry alone does not bound that.
+        if ( my $c = _exceeds_authority( $actor, _caps_held_by($user) ) ) {
+            die "You cannot create a setup link for '$user': that account holds "
+                . "'$c', which you may not confer.\n";
+        }
     }
 
     # purpose follows the ui flag: interactive => password, machine => token
@@ -3058,6 +3084,69 @@ sub _may_confer {
     return 0;
 }
 
+# SM268 H8: every capability a GROUP grants, following the nesting closure.
+#
+# Nesting matters for the same reason it matters in caps_for: a group that is a
+# member of another confers its capabilities transitively, so checking only the
+# named group's own settings would miss exactly the route `group-nest` uses.
+sub _caps_granted_by_group {
+    my ($group) = @_;
+    my $gs      = read_group_settings();
+    my %members = read_groups();
+
+    my ( %seen, %caps );
+    my @stack = ($group);
+    while (@stack) {
+        my $g = shift @stack;
+        next if $seen{$g}++;
+        my $cfg = $gs->{$g};
+        if ( ref $cfg eq 'HASH' ) {
+            for my $k (@CAP_KEYS) { $caps{$k} = 1 if $cfg->{$k} }
+        }
+        for my $m ( @{ $members{$g} || [] } ) {
+            push @stack, $m if exists $gs->{$m} || exists $members{$m};
+        }
+    }
+    my @out = sort keys %caps;
+    return @out;
+}
+
+# Every capability an ACCOUNT currently holds.
+sub _caps_held_by {
+    my ($user) = @_;
+    my $caps   = eval { caps_for($user) } || {};
+    my @out    = sort grep { $caps->{$_} } keys %$caps;
+    return @out;
+}
+
+# SM268 H8: THE rule the privilege-raising verbs share.
+#
+# SM195 bounded DECLARING a capability (group-settings-set) and left four ways to
+# ACQUIRE one. An adversarial review walked all four with a delegate holding only
+# manage_users:
+#
+#   group-add     join a group that already holds mcp/api - instant acquisition
+#   group-nest    nest a capable group under your own; every member inherits it
+#   token         issue a credential for the operator. Worse than it sounds:
+#                 cmd_token REPLACES the account's stored hash, so it takes the
+#                 account over AND destroys its password in one call
+#   claim-create  the same takeover, via a setup link
+#
+# One rule covers all four: a delegate may not act on a group or an account whose
+# capabilities exceed what it may itself confer. Stated that way the ceiling is a
+# property rather than a list of patched verbs - and the only way back in is a
+# NEW verb that forgets to ask.
+#
+# Returns the first capability that exceeds the actor's authority, or undef.
+sub _exceeds_authority {
+    my ( $actor, @caps ) = @_;
+    return undef unless defined $actor && length $actor && $actor ne 'local';
+    for my $c (@caps) {
+        return $c unless _may_confer( $actor, $c );
+    }
+    return undef;
+}
+
 # The groups an account belongs to, for the grantable lookup.
 sub _groups_of {
     my ($user) = @_;
@@ -3179,11 +3268,44 @@ sub cmd_group_settings_set {
 
     my $gs = read_group_settings();
 
-    # Lockout guard: never clear the manager flag from the last manager group.
+    # Lockout guard: never leave the site with no group granting manager access.
+    #
+    # SM268 H9: this covered the `manager` FLAG only. site_grants_manager()
+    # returns true for `ui` OR `manage_users` OR `manager`, so a delegate could
+    # strip ui and manage_users from every group - 21 calls, no refusals - and
+    # flip the site to "unsecured", which until this release meant the manager
+    # API required no credential at all. A half-built guard reads as a guard,
+    # which is worse than none: it is why nobody noticed.
+    #
+    # TWO invariants, not one - they were conflated while fixing this and the
+    # suite caught it. The `manager` FLAG marks which group IS the manager group
+    # (setup-manager and the group pickers read it), so the last one must keep
+    # it even when other groups still grant `ui`. That is the original guard and
+    # it stays exactly as it was.
     if ( $key eq 'manager' && !$on ) {
         my @mgr = grep { $gs->{$_}{manager} } keys %$gs;
         return { ok => 0, error => 'Refusing to remove the only manager group' }
             if @mgr <= 1 && $gs->{$group} && $gs->{$group}{manager};
+    }
+
+    # The SECOND invariant is the one H9 needed: after this change, would ANY
+    # group still grant manager access? That asks site_grants_manager()'s own
+    # question rather than a proxy for it, so all three keys count.
+    if ( !$on && ( $key eq 'manager' || $key eq 'ui' || $key eq 'manage_users' ) ) {
+        my $still = 0;
+        for my $g ( keys %$gs ) {
+            my $cfg = $gs->{$g};
+            next unless ref $cfg eq 'HASH';
+            my %after = %$cfg;
+            delete $after{$key} if $g eq $group;    # the change being requested
+            $still = 1          if $after{ui} || $after{manage_users} || $after{manager};
+            last                if $still;
+        }
+        return { ok => 0, kind => 'refused',
+            error => "Refusing to remove '$key' from '$group': it would leave "
+                . 'the site with no group granting manager access, and nobody '
+                . 'able to sign in. Grant it to another group first.' }
+            unless $still;
     }
 
     # SM127: manager/UI-remote separation. A single group must not combine manager
@@ -3248,7 +3370,7 @@ sub cmd_group_create {
 # must be existing groups; a direct self-loop is refused (a longer cycle is
 # harmless - the resolver's closure terminates on it). Un-nest with group-remove.
 sub cmd_group_nest {
-    my ( $sub, $parent ) = @_;
+    my ( $sub, $parent, $actor ) = @_;
     return { ok => 0, error => 'sub-group and parent group required' }
         unless defined $sub && length $sub && defined $parent && length $parent;
     return { ok => 0, error => 'a group cannot contain itself' } if $sub eq $parent;
@@ -3257,6 +3379,14 @@ sub cmd_group_nest {
     my $exists  = sub { my $g = shift; $gs->{$g} || $members{$g} };
     return { ok => 0, error => "group '$sub' does not exist" }    unless $exists->($sub);
     return { ok => 0, error => "group '$parent' does not exist" } unless $exists->($parent);
+    # SM268 H8: nesting makes every member of $parent inherit what $sub grants -
+    # conferral by another name, and the closure means it reaches further than
+    # the two groups named here.
+    if ( my $c = _exceeds_authority( $actor, _caps_granted_by_group($sub) ) ) {
+        return { ok => 0, kind => 'forbidden',
+            error => "You cannot nest '$sub': it grants '$c', which you may not "
+                . 'confer.' };
+    }
     $members{$parent} //= [];
     unless ( grep { $_ eq $sub } @{ $members{$parent} } ) {
         push @{ $members{$parent} }, $sub;

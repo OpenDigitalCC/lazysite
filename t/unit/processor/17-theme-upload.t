@@ -66,6 +66,12 @@ sub api_post {
                                 : '' ),
         CONTENT_LENGTH     => length($body // ''),
         HTTP_X_REMOTE_USER => 'testadmin',
+        # SM268 H9: the manager API strips a client-supplied X-Remote-* unless the
+        # auth wrapper vouched for it, and it no longer falls back to the `local`
+        # operator when nobody is signed in. This test used to pass BECAUSE of
+        # that fallback - an untrusted header, stripped, then treated as the
+        # operator. Vouch for it as lazysite-auth.pl does.
+        LAZYSITE_AUTH_TRUSTED => 1,
         HTTP_X_CSRF_TOKEN  => $token // '',
     );
     my $pid = open2( $cout, $cin,
@@ -86,6 +92,12 @@ sub csrf_token {
         REQUEST_METHOD     => 'GET',
         QUERY_STRING       => 'action=csrf-token',
         HTTP_X_REMOTE_USER => 'testadmin',
+        # SM268 H9: the manager API strips a client-supplied X-Remote-* unless the
+        # auth wrapper vouched for it, and it no longer falls back to the `local`
+        # operator when nobody is signed in. This test used to pass BECAUSE of
+        # that fallback - an untrusted header, stripped, then treated as the
+        # operator. Vouch for it as lazysite-auth.pl does.
+        LAZYSITE_AUTH_TRUSTED => 1,
     );
     my $out = qx($^X \Q$root/lazysite-manager-api.pl\E 2>/dev/null);
     $out =~ s/\A.*?\r?\n\r?\n//s;

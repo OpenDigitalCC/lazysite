@@ -81,8 +81,8 @@ Severity is the reviewer's. Status is mine.
 | H5 | The installer follows symlinks on every write and every mode change; five attacks landed including `chmod 2775` onto an arbitrary file. | 03-F3 | FIXED |
 | H6 | `install.pl --restore` lets the tarball choose absolute destinations. | 03-F4 | FIXED |
 | H7 | `create_backup`'s `.backup-list-$$` is a predictable name in a group-writable directory. | 03-F5 | FIXED |
-| H8 | The SM195 ceiling guards one verb; `group-add`, `group-nest`, `token`, `claim-create` and others reach the same escalation. | 02-3 | OPEN |
-| H9 | Stripping `ui`/`manage_users` from every group flips the site to unsecured, where an anonymous caller is the operator. | 02-4 | OPEN |
+| H8 | The SM195 ceiling guards one verb; `group-add`, `group-nest`, `token`, `claim-create` and others reach the same escalation. | 02-3 | FIXED |
+| H9 | Stripping `ui`/`manage_users` from every group flips the site to unsecured, where an anonymous caller is the operator. | 02-4 | FIXED |
 | H10 | An owner-only ACL entry inside a gated folder republishes the file - and `copy_file` writes exactly that entry. | 01-H1 | FIXED |
 | H11 | A `.url` page inside a gated section is served with no ACL check (the gate is inside `if (@md_stat)`). | 01-H2 | FIXED |
 | H12 | An unreadable or malformed `acls.json` fails open, silently. | 01-H3 | FIXED |

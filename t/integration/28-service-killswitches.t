@@ -131,8 +131,12 @@ my $ex = 'pairing_key=lzp_nope';
 # The Groups/Users grids cross-reference this to flag a granted-but-dormant
 # capability (the channel is granted, but its site service is switched off).
 {
+    # SM268 H9: the manager API no longer falls back to the `local` operator for
+    # an unauthenticated request, so this read needs an identity vouched for the
+    # way lazysite-auth.pl does it.
     my $out = cgi( 'lazysite-manager-api.pl',
-        { DOCUMENT_ROOT => site("webdav_enabled: enabled\nmanager: enabled\n"),
+        { HTTP_X_REMOTE_USER => 'local', LAZYSITE_AUTH_TRUSTED => 1,
+            DOCUMENT_ROOT => site("webdav_enabled: enabled\nmanager: enabled\n"),
             REQUEST_METHOD => 'GET', QUERY_STRING => 'action=channel-services' }, '' );
     my ($jb) = $out =~ /\r?\n\r?\n(.*)/s;
     my $d = eval { decode_json( $jb // '' ) } || {};

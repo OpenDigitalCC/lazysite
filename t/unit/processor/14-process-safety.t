@@ -63,6 +63,9 @@ my $out;
     $ENV{REQUEST_METHOD}     = 'GET';
     $ENV{QUERY_STRING}       = 'action=plugin-list';
     $ENV{HTTP_X_REMOTE_USER} = 'admin';
+    # SM268 H9: see 17-theme-upload - the untrusted-header + `local` fallback
+    # this relied on is gone; vouch for the identity as the auth wrapper does.
+    $ENV{LAZYSITE_AUTH_TRUSTED} = 1;
     $out = qx($^X \Q$script\E 2>/dev/null);
 }
 

@@ -284,11 +284,39 @@ my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
 # Cookie (manager) auth: the trusted X-Remote-User set by the auth wrapper.
 unless ($token_auth) {
     $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
-    if ( $site_secured && !$auth_user ) {
-        respond( { ok => 0, error => "Authentication required" } );
+
+    # SM268 H9: an unauthenticated request is REFUSED. Always.
+    #
+    # This used to fall through to `$auth_user ||= 'local'` whenever no group
+    # granted manager access - and `local` is the operator sentinel, so an
+    # "unsecured" site was not "any authenticated user is a manager" (as
+    # security.md claimed) but "no credential required, and you are the
+    # operator". Two ways to be there:
+    #
+    #   * a fresh install, before setup-manager has run. The window had no lower
+    #     bound on a manual install.
+    #   * a site pushed BACK into it - a manage_users delegate stripping ui /
+    #     manage_users / manager from every group, which the lockout guard in
+    #     cmd_group_settings_set did not prevent because it only ever covered the
+    #     `manager` flag.
+    #
+    # The intended first-run flow is the CLI: `lazysite-users.pl setup-manager`
+    # creates the first manager account and hands over the credential. Until it
+    # has run there is no account to log in as, so refusing is not a loss of
+    # function - it is the accurate answer. `local` remains the CLI's identity
+    # and is unaffected; it never arrives over HTTP.
+    unless ( length $auth_user ) {
+        respond(
+            { ok => 0,
+                error => $site_secured
+                ? 'Authentication required'
+                : 'This site has no manager account yet. Create one from the '
+                    . 'command line with: lazysite-users.pl --docroot <docroot> '
+                    . 'setup-manager'
+            }
+        );
         exit 0;
     }
-    $auth_user ||= 'local';
 }
 
 # --- Parse request ---
@@ -2756,7 +2784,14 @@ sub action_users {
             # The tool decides. `local` is the CLI/operator sentinel and is the
             # only exemption here; the unsecured-site exemption lives in
             # _may_confer, where it can be stated once for every caller.
-            if ( $auth_user ne 'local' && $act eq 'group-settings-set' ) {
+            # SM268 H8: the ceiling now covers every verb that can RAISE
+            # privilege, not just the one that declares a capability - joining a
+            # capable group, nesting one, and minting a credential all acquire
+            # capabilities by another route. Each needs the actor, or the tool
+            # sees an operator and the ceiling does not run.
+            if ( $auth_user ne 'local'
+                && $act =~ /\A(?:group-settings-set|group-add|group-nest|token)\z/ )
+            {
                 $parsed->{actor} = $auth_user;
                 $request_body = encode_json($parsed);
             }
