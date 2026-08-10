@@ -168,10 +168,20 @@ group pass. Any other authenticated user gets redirected to
 `/login`.
 
 If **no** group grants manager access, the site is in unsecured/dev
-mode: any authenticated user has manager access. A DEBUG-level log
-line is emitted when this condition is encountered, to surface the
-"open manager" configuration to the operator without flooding
-INFO-level logs on every request.
+mode. A DEBUG-level log line is emitted when this condition is
+encountered, to surface the "open manager" configuration to the
+operator without flooding INFO-level logs on every request.
+
+**Corrected 2026-08-10.** This paragraph used to say "any
+authenticated user has manager access". That understates it. The
+manager API skips the authentication check entirely in this mode and
+assigns the `local` operator sentinel
+(`lazysite-manager-api.pl:287-291`), so an unsecured site is
+reachable **with no credential at all**, as the operator. The
+intended first-run flow is `setup-manager` from the CLI, which
+creates the first manager account and ends the window; see
+`docs/architecture/permissions-and-secrets.md` for the whole model
+and for what a site can be pushed back into this state by.
 
 (The legacy `manager_groups:` conf key was retired in 0.6.5, SM138,
 with an automatic migration that grants its groups explicitly and
