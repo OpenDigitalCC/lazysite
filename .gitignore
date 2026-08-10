@@ -68,3 +68,4 @@ man/
 *.bak
 .prove
 .manifest-test.lock
+.test_info.*.json

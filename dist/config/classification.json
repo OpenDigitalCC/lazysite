@@ -168,6 +168,7 @@
     "^\\.gitignore$",
     "^\\.prove$",
     "^\\.manifest-test\\.lock$",
+    "^\\.test_info\\.[0-9]+\\.json$",
     "^\\.perlcriticrc$",
     "^\\.perltidyrc$",
     "^tools/tidy-check\\.pl$",
