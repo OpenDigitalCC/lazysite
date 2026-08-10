@@ -187,6 +187,39 @@ grep -h '"ar":1' lazysite/logs/access-*.jsonl | jq -r .p | sort | uniq -c | sort
 The same data is available without shell access as `auth_refused` in
 `analyse_visitors`, and is documented for agents in the stats briefing.
 
+### ACL keys are docroot-relative, not URL-relative
+
+This is the mistake worth naming, because the wrong version looks exactly like
+the right one until somebody tries the URL.
+
+A key is the path from the **docroot**. On a content-rooted domain the URLs are
+relative to that domain's `content_root`, so the two differ:
+
+| Domain | URL | ACL key that governs it |
+|---|---|---|
+| primary (no content root) | `/private/notes.pdf` | `private` |
+| `alias.example` with `content_root: sites/foo` | `/private/notes.pdf` | `sites/foo/private` |
+
+Write `private` on the second and nothing is protected. The rule is syntactically
+valid, appears in the store, and governs a path that does not exist. Multi-domain
+operators think in URLs - SM181's own example rule is the URL segment `upcoming` -
+so this is the shape the mistake takes.
+
+Keys written by the manager, MCP and WebDAV are already docroot-relative and
+consistent. The exposure is confined to the hand-written folder rules SM181 asks
+for.
+
+**Finding it:** `audit_site` returns `acl_keys_matching_nothing` - every key that
+matches no file or folder, with the content-root-prefixed key to use instead
+where one would match. A rule that governs nothing is the classic symptom, so
+check it after writing a folder rule and before believing a section is closed:
+
+```bash
+jq -r 'keys[]' lazysite/auth/acls.json | while read -r k; do
+    [ -e "$k" ] || echo "governs nothing: $k"
+done
+```
+
 ## Recommendation on naming
 
 `set_permissions` is the wrong name for something that governs four authoring

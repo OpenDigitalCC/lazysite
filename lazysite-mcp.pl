@@ -884,7 +884,7 @@ my %TOOLS = (
         run => sub { _bind_form( $_[0]->{form}, $_[0]->{handler} ) },
     },
     audit_site => {
-        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets.',
+        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets. It also returns acl_keys_matching_nothing: per-path ACL entries whose key matches no file or folder, which is what a URL-shaped key looks like on a content-rooted domain - ACL keys are relative to the docroot, not to a domain\'s URLs, and an inert rule looks exactly like a protecting one until somebody tries the URL.',
         cap => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _audit_site() },
@@ -1772,6 +1772,55 @@ sub _audit_site {
         closedir $dh;
     }
 
+    # SM268 01-M3: an ACL key that matches nothing on disk.
+    #
+    # ACL keys are DOCROOT-relative; a content-rooted domain's URLs are relative
+    # to its content_root. So on such a domain the intuitive key - the URL
+    # segment, which is exactly what SM181's example rule uses - is inert, and
+    # inert looks identical to protected until somebody tries the URL. The
+    # manager and MCP write docroot-relative keys and are consistent; the
+    # exposure is confined to the hand-written folder rules SM181 asks for.
+    #
+    # A key matching no existing path is the classic symptom, and it is cheap to
+    # check. Where a content root would make it match, say so - that is the
+    # actual repair, and an operator who has just read "protects nothing" needs
+    # to be told what to write instead.
+    my @acl_unmatched;
+    if ( open my $afh, '<:raw', "$DOCROOT/lazysite/auth/acls.json" ) {
+        my $raw = do { local $/; <$afh> };
+        close $afh;
+        my $map = eval { JSON::PP::decode_json( $raw // '{}' ) };
+        if ( ref $map eq 'HASH' ) {
+            my @croots;
+            if ( open my $cfh2, '<:utf8', "$DOCROOT/lazysite/lazysite.conf" ) {
+                while ( my $l = <$cfh2> ) {
+                    next unless $l =~ /^alias\.\S+\.content_root\s*:\s*(\S+)/;
+                    my $c = $1;
+                    $c =~ s{^/+|/+$}{}g;
+                    push @croots, $c if length $c;
+                }
+                close $cfh2;
+            }
+            for my $k ( sort keys %$map ) {
+                ( my $rel = $k ) =~ s{^/+|/+$}{}g;
+                next unless length $rel;
+                next if -e "$DOCROOT/$rel";
+                my @would = grep { -e "$DOCROOT/$_/$rel" } @croots;
+                push @acl_unmatched, {
+                    key     => $k,
+                    message => @would
+                    ? "matches nothing at the docroot, so it protects nothing. On "
+                        . "a content-rooted domain the key must include the content "
+                        . "root: try '$would[0]/$rel'."
+                    : 'matches no file or folder in this site, so it protects '
+                        . 'nothing. ACL keys are relative to the docroot, not to a '
+                        . "domain's URLs.",
+                };
+                last if @acl_unmatched >= 50;
+            }
+        }
+    }
+
     my @dups;
     for my $p ( sort keys %para ) {
         my %u = map { $_ => 1 } @{ $para{$p} };
@@ -1796,6 +1845,10 @@ sub _audit_site {
         hidden_by_script         => \@hidden_by_script,
         site_auth_default        => $auth_default,
         unprotected_static_files => \@unprotected,
+
+        # SM268 01-M3: ACL keys that match nothing, which is what a URL-shaped
+        # key looks like on a content-rooted domain.
+        acl_keys_matching_nothing => \@acl_unmatched,
     };
 }
 
