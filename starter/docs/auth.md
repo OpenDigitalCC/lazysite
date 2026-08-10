@@ -330,10 +330,34 @@ in one act - no per-page edits, no partially-released section.
 A page under a gated prefix is never written to the shared HTML cache, so a
 render for a permitted user cannot leak to the next anonymous visitor.
 
-What this does **not** do is hide the section. A protected page answers with a
-login redirect, which reveals that the URL exists. If you need a section to be
-invisible before launch - 404 to the public, absent from the sitemap and search,
-previewable only by an editor - that is a separate policy and it is not built.
+#### Holding a section back before launch
+
+A protected section answers with a login redirect, which tells anyone who tries
+the URL that it exists. For a section that is not ready to be *known about* -
+an unlaunched product, a client area before announcement - add `draft`:
+
+```json
+{ "upcoming": { "read": ["@editors"], "draft": true } }
+```
+
+That changes two things:
+
+- **the refusal becomes a 404.** Nothing about the URL is disclosed - not to the
+  public, and not to a signed-in user outside the list either, since a 403 gives
+  the section away just as effectively.
+- **the section disappears from every listing** - `sitemap.xml`, `llms.txt`, the
+  feeds, and any `scan:` page list. That is unconditional: a registry file is
+  generated once and then served to everyone from disk, so a draft page listed in
+  it is published no matter what the page itself answers.
+
+Editors on the `read` list preview it normally by signing in. With **no** `read`
+list, any signed-in user may preview it and the public still cannot - `draft`
+deliberately breaks the usual "no read list means anyone" rule, because a draft
+that was public would not be a draft.
+
+**Publishing is removing `draft`** - or removing the entry entirely, which also
+drops the access gate. The section goes live and enters the sitemap on the next
+render.
 
 #### Your web server has to co-operate
 

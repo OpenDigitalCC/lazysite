@@ -690,6 +690,48 @@ sub _acl_allows_read {
 # answer depended on who asked, the response must not be stored by a shared
 # cache, the same rule protected pages already follow. A file with no entry is
 # ordinary public content and stays cacheable.
+# SM181: is this path inside a DRAFT section?
+#
+# Draft is an attribute of a protected entry, not a separate mechanism:
+#
+#   { "upcoming": { "read": ["@editors"], "draft": true } }
+#
+# It changes two things and nothing else:
+#
+#   * the refusal becomes a 404 rather than a bounce to login. A section held
+#     back before launch should not answer at guessable URLs - a 403 or a login
+#     form confirms that /upcoming/pricing exists, which is the thing being held
+#     back. This filing's own words: "don't even reveal the URLs".
+#   * it is absent from the registries and from search, always - for everyone,
+#     regardless of who triggered the generation. A sitemap is written once and
+#     served to the public, so a draft page listed in it is published no matter
+#     what the page itself answers.
+#
+# An ANONYMOUS request is never allowed into a draft section, even when the entry
+# carries no read list. That differs from the ordinary rule (no list = allowed)
+# and it has to: a draft with no list would otherwise be public, which is the
+# opposite of what the word means. With no list, any signed-in user may preview;
+# with one, the list decides.
+sub _acl_is_draft {
+    my ($abs) = @_;
+    my $f = "$DOCROOT/lazysite/auth/acls.json";
+    return 0 unless -f $f;
+    my $real = realpath($abs);
+    return 0 unless defined $real;
+    my $rel = $real;
+    return 0 unless $rel =~ s{\A\Q$DOCROOT\E/}{};
+    require JSON::PP;
+    open my $fh, '<:raw', $f or return 0;
+    my $map = eval {
+        local $/;
+        JSON::PP::decode_json(<$fh>);
+    } || {};
+    close $fh;
+    return 0 unless ref $map eq 'HASH';
+    my $a = _acl_entry_for( $map, $rel );
+    return ( ref $a eq 'HASH' && $a->{draft} ) ? 1 : 0;
+}
+
 sub _acl_governed {
     my ($abs) = @_;
     my $f = "$DOCROOT/lazysite/auth/acls.json";
@@ -749,7 +791,27 @@ sub _acl_refused {
     my @groups = @{ $id->{auth_groups} // [] };
     my $user   = $id->{auth_user} // '';
 
+    # SM181: a draft section is not published, so an anonymous request is refused
+    # even when the entry carries no read list - and refused as a 404, which
+    # reveals nothing about what is being held back.
+    my $draft = _acl_is_draft($abs);
+    if ( $draft && !$id->{authenticated} ) {
+        log_event( 'INFO', $uri, 'draft section hidden from the public' );
+        not_found($uri);
+        return 1;
+    }
+
     return 0 if _acl_allows_read( $rel, $user, @groups );
+
+    # A signed-in user outside a DRAFT section's list also gets 404, not 403:
+    # the section's existence is the thing being withheld, and a 403 to an
+    # authenticated non-editor discloses it just as effectively as one to the
+    # public.
+    if ($draft) {
+        log_event( 'WARN', $uri, 'draft section refused', user => $user );
+        not_found($uri);
+        return 1;
+    }
 
     if ( $id->{authenticated} ) {
         log_event( 'WARN', $uri, 'static refused by ACL', user => $user );
@@ -3949,6 +4011,21 @@ sub peek_conf_key {
 # 1 if this page must be left out of a scan result for the requesting identity.
 sub _scan_hidden {
     my ($abs) = @_;
+
+    # SM181, and the reason this merge needed a decision rather than a pick.
+    #
+    # The draft filter went into scan_pages under the belief that it was "the
+    # single place page listings are built - the registries AND the `scan:`
+    # page-list variables". SM268 H13 made that untrue: resolve_scan filters
+    # separately, here. Taking either side of the conflict alone would have left
+    # a draft page appearing in a `scan:` list, which is the one thing SM181
+    # says unconditionally does not happen.
+    #
+    # Before the identity checks, because draft is not a question about the
+    # requester: SM181 makes the exclusion from listings unconditional, so an
+    # editor who may PREVIEW the page still does not see it listed.
+    return 1 if _acl_is_draft($abs);
+
     my ( $user, $groups ) = _scan_identity();
 
     # The per-path ACL, keyed docroot-relative exactly as the read path keys it.
@@ -3973,6 +4050,8 @@ sub _scan_hidden {
 # part: the artefact outlives the request that built it.
 sub _registry_hidden {
     my ($abs) = @_;
+    # SM181: a draft section leaves every listing, unconditionally.
+    return 1 if _acl_is_draft($abs);
     return 1 if _acl_governed($abs);
     my $meta  = peek_auth($abs);
     my $level = $meta->{auth} || peek_conf_key('auth_default') || 'none';
@@ -4413,12 +4492,11 @@ sub scan_pages {
                 my ( $meta, undef ) = parse_yaml_front_matter($raw);
                 next unless $meta->{register};
 
-                # SM268 H13: a registry (sitemap.xml, the feeds) is a STATIC
-                # artefact written to disk and served to anyone, so the question
-                # is not "may this requester read it" but "is it gated at all".
-                # An ACL-governed or login-gated page is left out entirely -
-                # otherwise the sitemap publishes the URL structure of every
-                # private section, which is how a "closed" subtree gets crawled.
+                # SM181 + SM268 H13: a registry (sitemap.xml, llms.txt, the
+                # feeds) is a STATIC artefact written to disk and served to
+                # anyone, so the question is not "may this requester read it"
+                # but "is it public at all". Draft and gated are two answers to
+                # that one question and both live in _registry_hidden.
                 next if _registry_hidden($path);
 
                 # Get date from front matter or file mtime
