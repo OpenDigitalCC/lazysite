@@ -132,6 +132,10 @@ my $REQUEST_CROOT;        # SM151: the request's confined content root (undef =>
                           # set by main(), read by resolve_scan() so per-domain search is
                           # boxed to the requesting domain's subtree without re-entering
     # resolve_site_vars (which calls resolve_scan for conf directives)
+my $ACL_MAP_CACHE;    # SM268 H13: acls.json parsed at most once per request -
+                      # a scan asks the read decision up to 200 times. undef =
+                      # not loaded, 0 = load failed (fail closed), hashref = the
+                      # store.
 
 # Built-in fallback template - used when no layout.tt is found
 my $FALLBACK_LAYOUT = <<'END_FALLBACK';
@@ -614,26 +618,40 @@ sub _acl_allows_read {
     # which is loud, and the manager is unaffected (it reads through Auth::Acl),
     # so an operator can still get in and fix the file. Open is not recoverable -
     # the disclosure has already happened by the time anyone notices.
-    my $raw = do {
-        if ( open my $fh, '<:raw', $f ) {
-            local $/;
-            my $c = <$fh>;
-            close $fh;
-            $c;
-        }
-        else { undef }
-    };
-    unless ( defined $raw ) {
-        log_event( 'ERROR', $rel, 'ACL store unreadable - refusing (fail closed)' );
-        return 0;
+    # Parsed at most once per request. SM268 H13 made this a hot path: a scan
+    # filters up to 200 pages through it, and re-reading and re-decoding the
+    # store per page would turn one render into 200 opens. A failed load is
+    # cached as a failure, so it still fails closed and still logs once.
+    my $map;
+    if ( defined $ACL_MAP_CACHE ) {
+        return 0 unless ref $ACL_MAP_CACHE eq 'HASH';
+        $map = $ACL_MAP_CACHE;
     }
-    require JSON::PP;
-    my $map = eval { JSON::PP::decode_json($raw) };
-    unless ( ref $map eq 'HASH' ) {
-        log_event( 'ERROR', $rel,
-            'ACL store unparseable - refusing (fail closed). Fix '
-                . 'lazysite/auth/acls.json; every protected path is denied until you do.' );
-        return 0;
+    else {
+        my $raw = do {
+            if ( open my $fh, '<:raw', $f ) {
+                local $/;
+                my $c = <$fh>;
+                close $fh;
+                $c;
+            }
+            else { undef }
+        };
+        unless ( defined $raw ) {
+            $ACL_MAP_CACHE = 0;
+            log_event( 'ERROR', $rel, 'ACL store unreadable - refusing (fail closed)' );
+            return 0;
+        }
+        require JSON::PP;
+        $map = eval { JSON::PP::decode_json($raw) };
+        unless ( ref $map eq 'HASH' ) {
+            $ACL_MAP_CACHE = 0;
+            log_event( 'ERROR', $rel,
+                'ACL store unparseable - refusing (fail closed). Fix '
+                    . 'lazysite/auth/acls.json; every protected path is denied until you do.' );
+            return 0;
+        }
+        $ACL_MAP_CACHE = $map;
     }
     return 1 unless keys %$map;
 
@@ -672,14 +690,27 @@ sub _acl_governed {
     return 0 unless defined $real;
     my $rel = $real;
     return 0 unless $rel =~ s{\A\Q$DOCROOT\E/}{};
-    require JSON::PP;
-    open my $fh, '<:raw', $f or return 0;
-    my $map = eval {
-        local $/;
-        JSON::PP::decode_json(<$fh>);
-    } || {};
-    close $fh;
-    return 0 unless ref $map eq 'HASH';
+
+    # Shares _acl_allows_read's per-request parse (SM268 H13). A store that
+    # failed to load counts as governing everything: _acl_allows_read is
+    # refusing every path, and both callers want that answer - no-store on the
+    # response, and out of the registries.
+    my $map;
+    if ( defined $ACL_MAP_CACHE ) {
+        return 1 unless ref $ACL_MAP_CACHE eq 'HASH';
+        $map = $ACL_MAP_CACHE;
+    }
+    else {
+        require JSON::PP;
+        open my $fh, '<:raw', $f or return 1;
+        $map = eval {
+            local $/;
+            JSON::PP::decode_json(<$fh>);
+        } || {};
+        close $fh;
+        return 0 unless ref $map eq 'HASH';
+        $ACL_MAP_CACHE = $map;
+    }
     return ref( _acl_entry_for( $map, $rel ) ) eq 'HASH' ? 1 : 0;
 }
 
@@ -3840,6 +3871,86 @@ sub peek_search_default {
     return 1;
 }
 
+# SM268 H13: a scan must not publish what the requester may not read.
+#
+# resolve_scan and scan_pages read .md sources directly and applied no filter at
+# all, so the title, subtitle, path, custom front-matter keys and a 500-character
+# BODY EXCERPT of every page inside a gated section were published to anonymous
+# visitors by any page that scans the tree - including the starter's own
+# /search-index, which is api: true with ttl: 3600 and is therefore served
+# Cache-Control: public, max-age=3600. Gating a folder stopped the page being
+# served and published its opening paragraph to a shared cache for an hour.
+#
+# The identity comes straight from the environment rather than through
+# resolve_site_vars, because resolve_scan is itself called FROM resolve_site_vars
+# for conf directives and asking for site vars here can re-enter it before its
+# cache is warm. A site that has RENAMED the auth headers therefore scans as
+# anonymous, which hides more than it should rather than less.
+{
+    my ( $_scan_id_done, $_scan_user, @_scan_groups );
+
+    sub _scan_identity {
+        unless ($_scan_id_done) {
+            $_scan_id_done = 1;
+            $_scan_user    = $ENV{HTTP_X_REMOTE_USER} // '';
+            @_scan_groups
+                = grep { length } split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+        }
+        return ( $_scan_user, \@_scan_groups );
+    }
+}
+
+# One conf key, read from the file without going through resolve_site_vars - the
+# same reason peek_search_default exists. Per-domain alias overrides are not
+# applied; auth_default is a site-wide switch and a scanning page on a fully
+# gated site has already been through check_auth.
+sub peek_conf_key {
+    my ($key) = @_;
+    return '' unless -f $CONF_FILE;
+    open my $fh, '<:utf8', $CONF_FILE or return '';
+    my $val = '';
+    while ( my $line = <$fh> ) {
+        next unless $line =~ /^\Q$key\E\s*:\s*(\S+)/;
+        $val = $1;
+        last;
+    }
+    close $fh;
+    return $val;
+}
+
+# 1 if this page must be left out of a scan result for the requesting identity.
+sub _scan_hidden {
+    my ($abs) = @_;
+    my ( $user, $groups ) = _scan_identity();
+
+    # The per-path ACL, keyed docroot-relative exactly as the read path keys it.
+    my $rel = $abs;
+    if ( $rel =~ s{\A\Q$DOCROOT\E/}{} ) {
+        return 1 unless _acl_allows_read( $rel, $user, @{$groups} );
+    }
+
+    # The publication gate: auth: front matter, or the site's auth_default.
+    my $meta  = peek_auth($abs);
+    my $level = $meta->{auth} || peek_conf_key('auth_default') || 'none';
+    return 0 if $level eq 'none';
+    return 1 unless length $user;
+
+    my @required = @{ $meta->{groups} // [] };
+    return 0 unless @required;
+    my %have = map { lc($_) => 1 } @{$groups};
+    return ( grep { $have{ lc($_) } } @required ) ? 0 : 1;
+}
+
+# 1 if this page must be left out of the generated registries. Identity plays no
+# part: the artefact outlives the request that built it.
+sub _registry_hidden {
+    my ($abs) = @_;
+    return 1 if _acl_governed($abs);
+    my $meta  = peek_auth($abs);
+    my $level = $meta->{auth} || peek_conf_key('auth_default') || 'none';
+    return $level eq 'none' ? 0 : 1;
+}
+
 # Normalise a passed-through front-matter scalar for scan results: trim, strip a
 # single layer of matching surrounding quotes (so accent: "#7C5CFF" yields #7C5CFF
 # rather than the literal quotes), and strip TT markers as defence in depth.
@@ -3939,6 +4050,9 @@ sub resolve_scan {
         my $real = realpath($path);
         next unless _path_under( $real, $scan_root );
         next unless -f $real;
+
+        # SM268 H13: never list what this requester may not read.
+        next if _scan_hidden($real);
 
         # Read front matter
         my $raw = read_file($path);
@@ -4270,6 +4384,14 @@ sub scan_pages {
 
                 my ( $meta, undef ) = parse_yaml_front_matter($raw);
                 next unless $meta->{register};
+
+                # SM268 H13: a registry (sitemap.xml, the feeds) is a STATIC
+                # artefact written to disk and served to anyone, so the question
+                # is not "may this requester read it" but "is it gated at all".
+                # An ACL-governed or login-gated page is left out entirely -
+                # otherwise the sitemap publishes the URL structure of every
+                # private section, which is how a "closed" subtree gets crawled.
+                next if _registry_hidden($path);
 
                 # Get date from front matter or file mtime
                 my $date = $meta->{date} || '';
