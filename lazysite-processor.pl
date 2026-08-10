@@ -518,14 +518,49 @@ sub _groups_grant_cap {
 # above it. Folder scope is an entry in the same store rather than a separate
 # prefix rule in lazysite.conf - one place to look, and one place to be wrong.
 sub _acl_entry_for {
-    my ( $map, $rel ) = @_;
+    my ( $map, $rel, $mode ) = @_;
+    $mode //= '';
     $rel =~ s{\A/+}{};
-    return $map->{$rel} if ref $map->{$rel} eq 'HASH';
+
+    # SM268 H10: an entry with no list for the mode we are deciding is NOT a
+    # tighter rule - it is NO rule, and it must not win the longest match.
+    #
+    # "Longest match wins" is documented as "a tighter rule on a sub-folder beats
+    # a broader one above it". An owner-only entry says nothing about reading, so
+    # letting it beat an enclosing folder's `read` list turned the folder gate
+    # off for that one file. The operator action that produced it is DUPLICATE in
+    # the file manager: action_copy writes `{ owner => $user }` for the new file,
+    # so copying a file inside a protected section republished it to the world -
+    # no warning, no log line, and performed by someone who need not hold any
+    # permission-changing capability.
+    #
+    # So for a mode decision, only entries carrying a non-empty list for that
+    # mode are candidates. With no mode ("does anything govern this path?") every
+    # entry counts, which is what the cache and draft checks want.
+    my $governs = sub {
+        my ($e) = @_;
+        return 0 unless ref $e eq 'HASH';
+        return 1 unless length $mode;
+        return ( ref $e->{$mode} eq 'ARRAY' && @{ $e->{$mode} } ) ? 1 : 0;
+    };
+
+    return $map->{$rel} if $governs->( $map->{$rel} );
+
+    # SM268 H14: a folder entry covers the section's OWN landing page.
+    #
+    # `private.md` renders at /private and `private/index.md` at /private/, so a
+    # gate on the folder `private` left its front door open: /private served its
+    # body while /private/ bounced to login. The page that introduces a held-back
+    # section is the last one that should be public.
+    if ( $rel =~ m{\A(.+)\.(?:md|url|html)\z} ) {
+        my $stem = $1;
+        return $map->{$stem} if $governs->( $map->{$stem} );
+    }
 
     my $best;
     my $best_len = -1;
     for my $k ( keys %$map ) {
-        next unless ref $map->{$k} eq 'HASH';
+        next unless $governs->( $map->{$k} );
         ( my $p = $k ) =~ s{\A/+}{};
         $p =~ s{/+\z}{};
         next unless length $p;
@@ -567,16 +602,42 @@ sub _acl_allows_read {
     my ( $rel, $user, @groups ) = @_;
     my $f = "$DOCROOT/lazysite/auth/acls.json";
     return 1 unless -f $f;
-    require JSON::PP;
-    open my $fh, '<:raw', $f or return 1;
-    my $map = eval {
-        local $/;
-        JSON::PP::decode_json(<$fh>);
-    } || {};
-    close $fh;
-    return 1 unless ref $map eq 'HASH' && keys %$map;
 
-    my $a = _acl_entry_for( $map, $rel );
+    # SM268 H12: a store that EXISTS but cannot be read or parsed fails CLOSED.
+    #
+    # It used to fail open, silently: no WARN, no access-log flag, and every
+    # protected file served to anyone. Hand-written JSON is the only interface
+    # for a folder rule (SM181), so a stray comma is a realistic way to reach
+    # this - and the failure was indistinguishable from having no rules at all.
+    #
+    # Closed is the right direction and it is recoverable: the site refuses,
+    # which is loud, and the manager is unaffected (it reads through Auth::Acl),
+    # so an operator can still get in and fix the file. Open is not recoverable -
+    # the disclosure has already happened by the time anyone notices.
+    my $raw = do {
+        if ( open my $fh, '<:raw', $f ) {
+            local $/;
+            my $c = <$fh>;
+            close $fh;
+            $c;
+        }
+        else { undef }
+    };
+    unless ( defined $raw ) {
+        log_event( 'ERROR', $rel, 'ACL store unreadable - refusing (fail closed)' );
+        return 0;
+    }
+    require JSON::PP;
+    my $map = eval { JSON::PP::decode_json($raw) };
+    unless ( ref $map eq 'HASH' ) {
+        log_event( 'ERROR', $rel,
+            'ACL store unparseable - refusing (fail closed). Fix '
+                . 'lazysite/auth/acls.json; every protected path is denied until you do.' );
+        return 0;
+    }
+    return 1 unless keys %$map;
+
+    my $a = _acl_entry_for( $map, $rel, 'read' );
     return 1 unless ref $a eq 'HASH';
     return 1 if defined $a->{owner} && length $user && $a->{owner} eq $user;
 
@@ -1505,6 +1566,30 @@ sub main {
     my $auth_result    = { ok => 1 };
     my $auth_peek      = {};
     my %site_vars_peek;
+    # SM268 H11: the section gate runs for the RESOLVED TARGET, whatever its
+    # source, and outside the @md_stat block.
+    #
+    # It used to sit inside `if (@md_stat)`, so a `.url` page - which has no .md -
+    # was never gated, and neither was its render cache. SM181's claim is "every
+    # page under /upcoming/ requires an editor"; a .url page under that prefix was
+    # public. `.url` pages have never been coverable by `auth:` either, for the
+    # same structural reason, so an operator had no way at all to protect one.
+    #
+    # Gate on the source that actually exists, so the decision is made once for
+    # whatever the request resolves to.
+    {
+        my $gate_src =
+            @md_stat       ? $md_path
+            : -f $url_path ? $url_path
+            :                undef;
+        if ( defined $gate_src ) {
+            return if _acl_refused( $gate_src, $uri );
+            # Governed => per-identity => never written to or served from the
+            # shared render cache.
+            $auth_protected = 1 if _acl_governed($gate_src);
+        }
+    }
+
     if (@md_stat) {
         # SM181: a folder ACL entry gates the whole section, PAGES included.
         #

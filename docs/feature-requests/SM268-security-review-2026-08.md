@@ -76,18 +76,18 @@ Severity is the reviewer's. Status is mine.
 |---|---|---|---|
 | H1 | `form-submissions&file=` reads any `.jsonl` under the docroot - proven to return `lazysite/auth/sessions.jsonl` (operator usernames, IPs, UAs, session ids) and another tenant's leads, to a `read_submissions` token. | 04-F2 | FIXED |
 | H2 | `create_page` / `delete_page` / `rename_page` are not scope-confined: the gate inspects `path`/`to`/`from`, the tools use `slug`/`old`/`new`. | 04-F1 | FIXED |
-| H3 | Folder ACL scope exists only in the processor's copy, so `Acl::_acl_allows` grants read **and write** inside a "protected section" over manager, MCP and WebDAV. | 01-M1 | OPEN |
+| H3 | Folder ACL scope exists only in the processor's copy, so `Acl::_acl_allows` grants read **and write** inside a "protected section" over manager, MCP and WebDAV. | 01-M1 | FIXED |
 | H4 | `read_file`/`write_file` reach the submission store and `nav.conf`, defeating `read_submissions`, `manage_forms` and `manage_nav` - refused by WebDAV, so a cross-plane inconsistency. | 04-F3 | OPEN |
 | H5 | The installer follows symlinks on every write and every mode change; five attacks landed including `chmod 2775` onto an arbitrary file. | 03-F3 | OPEN |
 | H6 | `install.pl --restore` lets the tarball choose absolute destinations. | 03-F4 | OPEN |
 | H7 | `create_backup`'s `.backup-list-$$` is a predictable name in a group-writable directory. | 03-F5 | OPEN |
 | H8 | The SM195 ceiling guards one verb; `group-add`, `group-nest`, `token`, `claim-create` and others reach the same escalation. | 02-3 | OPEN |
 | H9 | Stripping `ui`/`manage_users` from every group flips the site to unsecured, where an anonymous caller is the operator. | 02-4 | OPEN |
-| H10 | An owner-only ACL entry inside a gated folder republishes the file - and `copy_file` writes exactly that entry. | 01-H1 | OPEN |
-| H11 | A `.url` page inside a gated section is served with no ACL check (the gate is inside `if (@md_stat)`). | 01-H2 | OPEN |
-| H12 | An unreadable or malformed `acls.json` fails open, silently. | 01-H3 | OPEN |
+| H10 | An owner-only ACL entry inside a gated folder republishes the file - and `copy_file` writes exactly that entry. | 01-H1 | FIXED |
+| H11 | A `.url` page inside a gated section is served with no ACL check (the gate is inside `if (@md_stat)`). | 01-H2 | FIXED |
+| H12 | An unreadable or malformed `acls.json` fails open, silently. | 01-H3 | FIXED |
 | H13 | Gated page content leaks through `scan:` listings and `/search-index`, cached `public, max-age=3600`. | 01-H4 | OPEN |
-| H14 | A section's own landing page (`<section>.md`) is not covered by the folder key. | 01-H5 | OPEN |
+| H14 | A section's own landing page (`<section>.md`) is not covered by the folder key. | 01-H5 | FIXED |
 | H15 | The generated multi-domain rewrites serve per-domain files directly, bypassing SM223. Proven against real Apache. | 01-H6 | OPEN |
 | H16 | `--restore-full` omits `--no-same-permissions`, so as root it restores setuid bits. | 03-F6 | OPEN |
 
@@ -122,9 +122,37 @@ The release is blocked. Criticals and the two verified highs are closed with
 regression tests; the rest are open and tracked above. Nothing here is closed on
 reasoning alone - each fix carries a test that fails without it.
 
-Two of these deserve their own follow-up rather than a line in a table, because
-they are design questions rather than bugs: **H3/H4** (one ACL semantic across
-all four channels, which is SM224's question arriving from the other direction)
-and **H9** (the unsecured-site fallback being anonymous-operator, which is a
-deliberate dev convenience that becomes a live escalation once a site can be
-pushed into it).
+**H3 is closed by making the ACL semantics one thing.** The shared `Auth::Acl`
+now does the same longest-match folder resolution the processor's copy does, so a
+protected section is protected on all four channels rather than only on the
+anonymous read path. That was SM224's question arriving from the other direction,
+and it answered itself: two implementations of one store is what produced the
+gap, and there is now one rule with two call sites rather than two rules.
+
+The same change closes H10 on both sides at once - only entries carrying a
+non-empty list for the mode being decided take part in the match, so an
+owner-only entry cannot beat an enclosing folder rule. That matters because
+*Duplicate* in the file manager writes exactly such an entry, which means an
+ordinary editing action was silently republishing files inside a gated section.
+
+**H9 still deserves its own follow-up**, because it is a design question rather
+than a bug: the unsecured-site fallback treats any authenticated user as the
+operator, which is a deliberate first-run convenience that becomes a live
+escalation once a delegate can *push a site into* that state by stripping
+capabilities. Fixing it naively risks locking operators out of genuine first-run
+sites, so it needs a decision about what "unsecured" should mean rather than a
+patch.
+
+## Fail-closed, and why
+
+H12 changed a failure direction, which is worth stating on its own because it
+can take a site down. An `acls.json` that exists but cannot be read or parsed now
+**refuses** rather than serving everything. Hand-written JSON is the only
+interface for a folder rule, so a stray comma is a realistic way to get there,
+and the previous behaviour was indistinguishable from having no rules at all -
+no WARN, no access-log flag, every protected file public.
+
+Closed is recoverable: the site refuses loudly, the manager is unaffected because
+it reads through `Auth::Acl`, and an operator can still sign in and fix the file.
+Open is not recoverable - by the time anyone notices, the disclosure has already
+happened.

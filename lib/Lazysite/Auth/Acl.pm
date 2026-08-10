@@ -68,9 +68,56 @@ sub _to_list {
 # Does the ACL for $rel allow $user $mode access? No entry = allowed (the
 # account's scope governs); owner always allowed; else membership of the
 # mode's allow-list.
+# SM268 H3: which entry governs $rel for $mode - exact, then the section's own
+# landing page, then the LONGEST matching folder prefix.
+#
+# Folder scope was implemented only in the processor's module-free copy, so a
+# "protected section" was protected on the anonymous read path and nowhere else:
+# Acl::_acl_allows matched the exact key only, and the manager, MCP and WebDAV
+# therefore granted full READ AND WRITE inside a section the operator had gated.
+# An adversarial review demonstrated it. One store answering two different
+# questions depending on which surface asks is precisely what SM223 chose a
+# single store to avoid.
+#
+# Only entries carrying a non-empty list for the mode participate, so an
+# owner-only entry - which action_copy writes for every duplicated file - cannot
+# beat an enclosing folder rule. It is not a tighter rule, it is no rule.
+sub _acl_entry_for {
+    my ( $map, $rel, $mode ) = @_;
+    $rel = _acl_norm($rel) // '';
+
+    my $governs = sub {
+        my ($e) = @_;
+        return 0 unless ref $e eq 'HASH';
+        return 1 unless defined $mode && length $mode;
+        return ( ref $e->{$mode} eq 'ARRAY' && @{ $e->{$mode} } ) ? 1 : 0;
+    };
+
+    return $map->{$rel} if $governs->( $map->{$rel} );
+
+    if ( $rel =~ m{\A(.+)\.(?:md|url|html)\z} ) {
+        my $stem = $1;
+        return $map->{$stem} if $governs->( $map->{$stem} );
+    }
+
+    my $best;
+    my $best_len = -1;
+    for my $k ( keys %$map ) {
+        next unless $governs->( $map->{$k} );
+        ( my $p = $k ) =~ s{\A/+}{};
+        $p =~ s{/+\z}{};
+        next unless length $p;
+        next unless index( $rel, "$p/" ) == 0;
+        next unless length($p) > $best_len;
+        $best     = $map->{$k};
+        $best_len = length $p;
+    }
+    return $best;
+}
+
 sub _acl_allows {
     my ( $rel, $mode, $user ) = @_;
-    my $a = load_acls()->{ _acl_norm($rel) };
+    my $a = _acl_entry_for( load_acls(), $rel, $mode );
     return 1 unless $a;
     return 1 if defined $a->{owner} && defined $user && $a->{owner} eq $user;
     my $list = $a->{$mode};
