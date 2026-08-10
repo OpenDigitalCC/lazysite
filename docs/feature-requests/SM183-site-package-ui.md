@@ -2,8 +2,8 @@
 title: "SM183 - Site-package migration in the manager UI (surface parity)"
 subtitle: "Let a human perform the agency demo -> client hand-off without MCP or the CLI; make the package the interface across every surface"
 brand: plain
-status: partial
-status-note: "v1 built on claude/sm183-site-package-ui for 0.9.6 (UI-only): Export on Domains; a Site packages panel on Backups (list/download/upload/apply/delete) with an apply preview + confirm; new read action site-backup-inspect + site-backup-delete (manage_domains + scope + lazysite-site- name confinement). SNAPSHOT PARITY DONE 2026-08-09 (unreleased on main): the safety snapshot moved into the shared apply_and_configure, so MCP site_apply and the CLI now take one - previously only the control API did, and site_apply's own description said so. The snapshot name is returned as `safety` on every surface, and a failed snapshot REFUSES the apply. The control API passes snapshot => 0 because it takes its own before its scope checks; t/unit/manager/59 asserts MCP and the CLI do not, and that the snapshot actually contains the overwritten content. STILL DEFERRED: dry-run content diff, one-click rollback (the snapshot now exists to roll back TO, but no UI action restores it), target-readiness (domain Check) in the apply flow, integrity sha display, and presentation-key remap override."
+status: shipped
+status-note: "SHIPPED 2026-08-09 (unreleased on main). v1 delivered the UI in 0.9.6: Export on Domains; a Site packages panel on Backups (list/download/upload/apply/delete) with an apply preview + confirm; site-backup-inspect and site-backup-delete. The BACKEND safety work completed 2026-08-09: the safety snapshot moved into the shared apply_and_configure so MCP and the CLI take one too (previously only the control API did, and site_apply's own description said so), a failed snapshot now REFUSES the apply, and the snapshot name is returned as `safety` on every surface. Packages and backups carry a <name>.sha256 sidecar in sha256sum -c format, surfaced as sha256 in backup-list and retired with the artefact. Building the rollback test found and fixed a DATA-LOSS defect: backup names were lazysite-<kind>-<UTC seconds> with the stamp as the only uniqueness key, so two snapshots in the same second collided - action_backup_restore takes its own safety snapshot first, so rolling an apply back promptly overwrote the artefact it was restoring FROM and then restored the state being undone, reporting success throughout. The four remaining items are all manager JAVASCRIPT (dry-run diff, target-readiness in apply, an Undo-apply button, presentation-key remap override) and are carved out to SM266 so this filing closes rather than sitting at partial."
 ---
 
 # SM183 - Site-package migration in the manager UI
@@ -138,8 +138,34 @@ overwrite; each is small and sits naturally in the same flow:
    `site_apply`, which takes a snapshot first". The codebase was already
    asserting the property it did not have.
 
-   **One-click rollback is still open.** There is now a snapshot to roll back
-   *to*, and no action that restores it in one step.
+   **The rollback PATH is complete; the button is SM266.** `action_backup_restore`
+   restores the named snapshot and `t/unit/manager/60` proves the round trip -
+   apply, then restore, then the pre-apply page is back. What is missing is the
+   one-click affordance, which is manager JavaScript.
+
+   Building that test found a data-loss defect worth recording on its own.
+   Backup names were `lazysite-<kind>-<UTC seconds>` and the stamp was the ONLY
+   thing making a name unique. `action_backup_restore` takes its own safety
+   snapshot before restoring - so rolling an apply back promptly produced a
+   second snapshot in the same second, which **overwrote the artefact being
+   restored from**, and the restore then put back the state the operator was
+   trying to undo. It reported success at every step. Names now disambiguate
+   with `-2`, `-3`, which keeps lexical order stable for listings and retention.
+
+   The consequence was never confined to site packages: any two backups inside
+   one second collided, including a scripted or hook-driven pair.
+
+4. **Integrity on hand-off - DONE 2026-08-09.** Every package and backup gets a
+   `<name>.sha256` sidecar in `sha256sum -c` format, returned as `sha256` from
+   create and surfaced by `backup-list`. A sidecar rather than a manifest field
+   deliberately: the receiving operator can verify with `sha256sum -c` and no
+   lazysite tooling, which is the situation they are actually in. The sidecar is
+   retired with the artefact by both deletion paths, so a listing never shows a
+   digest for a file that no longer exists. An artefact from before this lists
+   with an empty digest - unverified, rather than failed.
+
+   Signing is explicitly NOT included: a digest proves the package arrived
+   intact, not who made it. See SM266's out-of-scope note.
 
 3. **Target readiness check.** Fold the existing domain **Check** (DNS / vhost /
    TLS, and content_root exists) into the apply confirmation, so applying to a

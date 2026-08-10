@@ -223,12 +223,20 @@ sub package_create {
     $cleanup->();
     return { ok => 0, error => 'Packaging failed (tar)' } if $rc != 0 || !-f $out;
 
+    # SM183: a site package is the artefact that TRAVELS - between organisations,
+    # by whatever channel is to hand - and applying it overwrites a site. Write
+    # the digest beside it so the receiving operator can verify it arrived
+    # intact, with sha256sum -c and no lazysite tooling at all.
+    require Lazysite::Manager::Backups;
+    my $sha = Lazysite::Manager::Backups::write_sha256($out);
+
     my @st = stat $out;
     log_event( 'INFO', 'site-package-create', 'site packaged',
         host => $host, file => $name, user => $auth_user );
     return {
         ok       => 1,
         name     => $name,
+        sha256   => $sha,
         size     => ( $st[7] // 0 ),
         host     => ( $row->{is_primary} ? '(default)' : lc $host ),
         manifest => $manifest,
@@ -332,6 +340,31 @@ sub package_apply {
     return { ok => 0, kind => 'invalid', error => 'Invalid target content_root' }
         if $croot =~ m{(?:^|/)\.\.(?:/|$)} || $croot =~ m{^lazysite(?:/|$)};
 
+    # SM268 03-F10: verify the digest BEFORE overwriting a site.
+    #
+    # The sidecar existed and nothing ever checked it: it was written, listed,
+    # and read as assurance by an operator who had no way to know it was only
+    # "a digest was recorded at some point". Apply is where that assurance is
+    # actually spent - it overwrites a live site - so it is where the check has
+    # to happen.
+    #
+    # A MISMATCH refuses: the artefact says it is not the one whose digest was
+    # recorded, and the recorded digest is the only claim about it we have. An
+    # ABSENT sidecar does not refuse - packages built before this existed have
+    # none, and turning them into un-appliable files would break restore for
+    # exactly the operators most likely to need it. The response says which it
+    # was, so a caller can tell "verified" from "unverified".
+    my $verified = Lazysite::Manager::Backups::verify_sha256($pkg);
+    if ( $verified eq 'mismatch' ) {
+        return { ok => 0, kind => 'integrity',
+            error => 'This package does not match the digest recorded beside it '
+                . '(' . ( $pkg =~ s{.*/}{}r ) . '.sha256). It has been altered or '
+                . 'truncated since it was created - applying it would overwrite '
+                . 'the site with content nobody vouched for. Fetch it again from '
+                . 'its source, or delete the sidecar if you know the change was '
+                . 'yours.' };
+    }
+
     my $stage = "$DOCROOT/lazysite/backups/.apply-$$-" . strftime( '%H%M%S', gmtime );
     remove_tree($stage) if -e $stage;
     my ( $manifest, $err ) = _extract_package( $pkg, $stage );
@@ -429,6 +462,10 @@ sub package_apply {
         nav              => ( $nav_rel ? 'override' : 'base-inherited' ),
         layout_installed => $layout_installed,
         source_host      => ( $manifest->{source_host} // '' ),
+        # SM268 03-F10: 'verified' or 'absent' - a mismatch never reaches here.
+        # The caller can then tell an integrity-checked apply from one where
+        # nobody had made a claim to check against.
+        integrity => $verified,
     };
 }
 
