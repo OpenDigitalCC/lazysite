@@ -419,7 +419,10 @@ sub cmd_restore_full {
 
     info("Restoring full-system backup into $docroot");
     info("  from: $tarball");
-    my $rc = system( 'tar', 'xzf', $tarball, '-C', $docroot, '--no-same-owner' );
+    # SM268 H16: was missing --no-same-permissions, so as ROOT this restored
+    # setuid bits straight out of the tarball. safe_tar_extract also vets the
+    # member names for traversal before writing anything.
+    my $rc = safe_tar_extract( $tarball, $docroot );
     die "Restore extraction failed (tar rc=$rc)\n" if $rc != 0;
 
     my $conf = "$docroot/lazysite/lazysite.conf";
@@ -945,6 +948,21 @@ sub load_install_dirs {
 # lazysite/auth would make lazysite/ 2770). Hence the level-by-level walk.
 sub make_declared_path {
     my ($dir) = @_;
+
+    # SM268 H5: `-d` follows a link, so a symlinked intermediate directory was
+    # accepted as "already there" and everything below it was written outside
+    # the docroot - 39 files, in the reviewer's reproduction. Walk the existing
+    # levels and refuse any that is a link before trusting the tree.
+    {
+        my $d = $dir;
+        while ( length $d ) {
+            _refuse_symlink( $d, 'create a directory' ) if -e $d || -l $d;
+            my $parent = dirname($d);
+            last if $parent eq $d;
+            $d = $parent;
+        }
+    }
+
     return 1 if -d $dir;
 
     # No model (older payload): historical behaviour, unchanged.
@@ -971,15 +989,100 @@ sub make_declared_path {
             . "  dist/config/classification.json (install_dirs), with the mode\n"
             . "  and the reason for it. Add an entry and rebuild the manifest.\n"
             unless defined $mode;
+        # SM268 H5: mkdir FAILS if the name already exists - including as a
+        # symlink - so a successful mkdir proves we created a real directory
+        # and the chmod below cannot land on someone else's file. Without the
+        # check, a pre-placed symlink-to-file took the runtime mode: an
+        # adversarial review put 2775 on an arbitrary file outside the docroot.
         mkdir $path or die "Cannot create directory $path: $!\n";
+        _refuse_symlink( $path, 'set the mode' );
         chmod $mode, $path;    # mkdir's mode is masked by the umask; this is not
     }
     return 1;
 }
 
+# SM268 H5: refuse a path that IS a symlink.
+#
+# The installer runs as ROOT by the documented deploy path, and SM246 guarantees
+# the docroot and lazysite/ are group-writable by design. So any account that can
+# create a name in the docroot - the CGI, the site user, a compromised plugin -
+# could pre-place a symlink and have the next upgrade write through it, chmod
+# through it, or chown through it, as root. An adversarial review landed five:
+# a write through a symlinked destination, a chmod through a symlinked .pl, a
+# runtime directory chmod through a symlinked dir, `chmod 2775` applied to an
+# arbitrary FILE outside the docroot, and 39 files written outside via a
+# symlinked intermediate directory.
+#
+# lstat, not stat: `-d`/`-e` follow the link and answer about the target, which
+# is exactly the confusion being exploited. `lazysite-check.pl` already uses this
+# idiom in two walks.
+# SM268 H6/H16: extract an archive with the member names checked FIRST.
+#
+# Both restore paths shelled out to tar and trusted the archive. Two problems:
+#
+#   * a member named `../..` or an absolute path escapes the destination, even
+#     when -C names a staging directory. The reviewer wrote a file outside the
+#     docroot this way.
+#   * --restore-full omitted --no-same-permissions, so as ROOT it restored
+#     setuid bits straight out of the tarball.
+#
+# tar has no "reject traversal" switch, so the member list is read and vetted
+# before anything is written. Refusing beats sanitising: an archive containing a
+# traversal member is not a backup this installer produced, and continuing with
+# the "safe" remainder would restore a half-tree from a hostile file.
+sub safe_tar_extract {
+    my ( $tarball, $dest, @extra ) = @_;
+
+    my @members = qx(tar tzf \Q$tarball\E 2>/dev/null);
+    die "Cannot list $tarball\n" if $? != 0;
+    chomp @members;
+
+    for my $m (@members) {
+        # `..` in any position escapes the destination even with -C, and no tar
+        # switch rejects it - hence the pre-flight.
+        #
+        # A LEADING SLASH is not a finding here: create_backup deliberately
+        # writes absolute member names (--absolute-names) and the restore relies
+        # on tar stripping the leading `/` to land them under a staging dir.
+        # --no-absolute-names below is what makes that stripping guaranteed
+        # rather than default behaviour. Rejecting absolute members would refuse
+        # every backup this installer has ever produced.
+        die "Refusing to restore: archive member escapes the destination: $m\n"
+            if $m =~ m{(?:\A|/)\.\.(?:/|\z)};
+    }
+
+    # --no-same-owner: never restore uid/gid from the archive.
+    # --no-same-permissions: never restore setuid/setgid or over-permissive
+    #   modes; extracted files take the process umask instead.
+    #
+    # Stripping the leading `/` is tar's DEFAULT (it only keeps absolute names
+    # under --absolute-names/-P, which is not passed here), so no flag is needed
+    # for it - and `--no-absolute-names` is not accepted by every tar in the
+    # supported range, so naming it would break the restore it protects.
+    return system( 'tar', '-xzf', $tarball, '-C', $dest,
+        '--no-same-owner', '--no-same-permissions', @extra );
+}
+
+sub _is_symlink {
+    my ($path) = @_;
+    return ( lstat($path) && -l _ ) ? 1 : 0;
+}
+
+# Die on a symlinked path, naming it. Loud rather than skipped: a symlink where
+# the installer expects a real file is either an attack or a broken tree, and
+# both want an operator to look.
+sub _refuse_symlink {
+    my ( $path, $what ) = @_;
+    return unless _is_symlink($path);
+    die "Refusing to $what through a symlink: $path\n"
+        . "  The installer runs as root and never follows a link. Remove it (or\n"
+        . "  replace it with the real file) and re-run.\n";
+}
+
 sub install_file {
     my ( $src, $dest ) = @_;
     my $dir = dirname($dest);
+    _refuse_symlink( $dest, 'write' );
     if ( !-d $dir && !eval { make_declared_path($dir); 1 } ) {
         my $err = $@;
         # An undeclared directory is a packaging fault, not a permissions one -
@@ -1214,8 +1317,14 @@ sub align_ownership {
         for my $e ( readdir $dh ) {
             next if $e eq '.' || $e eq '..';
             my $p = "$dir/$e";
-            if   ( -d $p && !-l $p ) { push @stack, $p }
-            else                     { push @paths, $p }
+            # SM268 H5: a symlink is SKIPPED outright, never queued for chown.
+            # It used to fall into @paths, where stat read the TARGET's uid for
+            # the "only root-owned" guard and chown followed the link - so a
+            # planted link handed its target to the site user, as root. Perl has
+            # no lchown, so skipping is the only correct answer.
+            if    ( -l $p ) { next }
+            elsif ( -d $p ) { push @stack, $p }
+            else            { push @paths, $p }
         }
         closedir $dh;
     }
@@ -1254,6 +1363,10 @@ sub create_runtime_paths {
         next if ref $by eq 'ARRAY' && !grep { $_ eq 'install' } @$by;
         my $path = resolve_placeholders( $rp->{path}, $subs );
         my $mode = oct( $rp->{mode} );
+        # SM268 H5: never chmod a runtime path that is a symlink. `-d` follows
+        # the link, so a planted link took the runtime mode onto its target -
+        # the reviewer put 2775 on a file outside the docroot this way.
+        _refuse_symlink( $path, 'set the mode' );
         if ( -d $path ) {
             # On a FRESH install the directory may already exist because the
             # file-install pass created it (e.g. to hold the seeded
@@ -1333,20 +1446,35 @@ sub create_backup {
 
     # Build a file list for tar --files-from. Paths are absolute;
     # tar strips leading / by default. Restore re-adds it.
-    my $listfile = "$backup_dir/.backup-list-$$";
-    open my $lfh, '>', $listfile
-        or die "Backup: could not write $listfile: $!\n";
-    for my $p (@paths) { print $lfh "$p\n" }
-    close $lfh;
-
+    # SM268 H7: the list is piped to tar, not written to a file.
+    #
+    # It used to be `$backup_dir/.backup-list-$$` - a predictable name in a
+    # directory SM246 guarantees is group-writable. Anyone in the site group
+    # could pre-place that name as a symlink and, since this runs as root during
+    # an upgrade, have the open() write the file list through it. Racing the pid
+    # is easy: pids are small and the window is the whole backup.
+    #
+    # Feeding tar on stdin removes the file, and with it the race, the predicable
+    # name and the cleanup. There is nothing left to plant.
     my @cmd = (
         'tar',
         '--absolute-names',
-        '-czf',         $out,
-        '--files-from', $listfile,
+        '-czf', $out,
+        # --verbatim-files-from is POSITIONAL and affects only the --files-from
+        # that follows it, so the order here is load-bearing: after, tar warns
+        # "has no effect" and exits non-zero, which aborts the upgrade.
+        '--verbatim-files-from',
+        '--files-from', '-',
     );
-    my $rc = system(@cmd);
-    unlink $listfile;
+    my $rc;
+    if ( open my $tar, '|-', @cmd ) {
+        print {$tar} "$_\n" for @paths;
+        close $tar;
+        $rc = $?;
+    }
+    else {
+        die "Backup: could not run tar: $!\n";
+    }
 
     if ( $rc != 0 ) {
         unlink $out if -f $out;
@@ -1402,11 +1530,7 @@ sub cmd_restore {
     # bypass our state-driven restore logic (and the security
     # benefit of staging in a temp dir first).
     my $tmp = tempdir( 'lazysite-restore-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
-    my $rc  = system(
-        'tar',
-        '-xzf', $backup_path,
-        '-C',   $tmp,
-    );
+    my $rc  = safe_tar_extract( $backup_path, $tmp );
     die "tar -x failed (rc=$rc)\n" if $rc != 0;
 
     # The tar stripped the leading "/" from paths, so the content

@@ -49,12 +49,15 @@ ok( defined $resolver, 'resolve_placeholders extracted' );
 # which is the older-payload behaviour and is what this test is about - the
 # declared modes on intermediates are t/tools/35's subject.
 my ($mkdirs) = $src =~ /(sub make_declared_path\b.*?\n\})/s;
+my ($symguard) = $src =~ /(sub _refuse_symlink\b.*?\n\})/s;
+my ($symtest) = $src =~ /(sub _is_symlink\b.*?\n\})/s;
+ok( defined $symguard && defined $symtest, 'the SM268 symlink guards extracted' );
 ok( defined $mkdirs, 'make_declared_path extracted' );
 
 {
     no warnings 'redefine';
     eval "use File::Path qw(make_path); use File::Basename qw(dirname);"
-        . " our %INSTALL_DIR_MODE; $resolver $mkdirs $fn 1"
+        . " our %INSTALL_DIR_MODE; $resolver $symtest $symguard $mkdirs $fn 1"
         or die $@;
 }
 
