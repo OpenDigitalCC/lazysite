@@ -94,20 +94,37 @@ Severity is the reviewer's. Status is mine.
 
 ### Medium and low
 
-Recorded in the reports; not reproduced here. In summary: `grantable` ignores
-group nesting while held capabilities follow it (02-5); the permissions grid has
-the same blind spot (02-6); operator status is decided from a header on one path
-and the store on another (02-7); `search_files` greps inside `lazysite/` (04-F4);
-`action_list` has no blocklist and accepts `..` (04-F5); `delete_theme`'s creator
-restriction is forgeable via the theme's own `theme.json` (04-F6); the model has
-no verifier for `install_dirs` and an upgrade does not repair the incident SM246
-was written for (03-F7); `{DOCROOT}/..` can never match (03-F8); the `-2`
-disambiguator is sequential-only (03-F9); the `.sha256` is displayed but never
-verified (03-F10); manager backups have no retention or delete (03-F11);
-`content_root: .` makes `package_create` copy itself (03-F12); ACL keys are
-docroot-relative so a URL-shaped key protects nothing on a content-rooted domain
-(01-M3); read-path group matching is case-sensitive and does not expand compound
-groups (01-L1).
+Fifteen were recorded in the reports; the table below is the working state.
+`01-L2` was found while working through them and was not in the register.
+
+| # | Finding | Source | Status |
+|---|---|---|---|
+| M1 | `grantable` ignores group nesting while held capabilities follow it. | 02-5 | FIXED |
+| M2 | The permissions grid has the same blind spot, so a nested grant is enforced everywhere and displayed nowhere. | 02-6 | FIXED |
+| M3 | Operator status is decided from a request header on one path and from the store on another. | 02-7 | FIXED |
+| M4 | `search_files` greps inside `lazysite/`, returning the contents of blocklisted files. | 04-F4 | FIXED |
+| M5 | `action_list` has no blocklist and accepts `..`. | 04-F5 | FIXED |
+| M6 | `delete_theme`'s creator restriction is forgeable via the theme's own `theme.json`. | 04-F6 | FIXED |
+| M7 | The model has no verifier for `install_dirs`, and an upgrade does not repair the incident SM246 was written for. | 03-F7 | OPEN |
+| M8 | `{DOCROOT}/..` is declared but can never match, and a greenfield install dies. | 03-F8 | OPEN |
+| M9 | The snapshot name is claimed non-atomically, so concurrent callers overwrite each other's tarball. | 03-F9 | FIXED |
+| M10 | The `.sha256` sidecar is displayed but never verified. | 03-F10 | ON A BRANCH |
+| M11 | Manager backups have no retention and no delete. | 03-F11 | OPEN |
+| M12 | `content_root: .` makes `package_create` copy itself. | 03-F12 | FIXED |
+| M13 | ACL keys are docroot-relative, so on a content-rooted domain a URL-shaped key protects nothing. | 01-M3 | OPEN |
+| L1 | Read-path group matching is case-sensitive and does not expand compound groups. | 01-L1 | FIXED |
+| L2 | On the SM223 Apache route `REDIRECT_URL` is unset, so any static whose URL needs percent-encoding 404s - i.e. turning on the first ACL entry breaks every asset with a space or non-ASCII character in its name, site-wide. | this session | FIXED |
+
+**M10 is not on this branch.** `write_sha256`/`read_sha256` and the `-2`
+disambiguator the finding describes live on `claude/sm183-rollback` (`ff702b7`),
+which is not merged here. M9's underlying defect IS present on this branch, in a
+worse form - no name check at all - and is fixed here with an `O_EXCL` claim.
+That branch's disambiguator must be replaced by the same mechanism before it
+merges, and its sidecar must be verified on read rather than merely displayed.
+
+**L2 was not in any report's register.** It is filed here because its impact is
+larger than several of the mediums above: it is not a disclosure, it is "the
+first ACL entry broke my site".
 
 ### Artefacts of reviewing `main`
 
