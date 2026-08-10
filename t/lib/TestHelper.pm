@@ -20,40 +20,58 @@ our @EXPORT_OK = qw(
     repo_manifest_guard
 );
 
-# SM269 phase 1: serialise the tests that need release-manifest.json AT THE REPO
-# ROOT, so the suite is safe under `prove -j`.
+# SM269 phase 1: OWN the shared release-manifest.json, rather than lock beside
+# six copies of its lifecycle.
 #
 # install.pl resolves its manifest as abs_path(dirname($0))/release-manifest.json
 # - beside itself, by design, because that is where it sits in a release tarball.
-# Three tests therefore build one at the repo root if it is absent and unlink it
-# at END if they created it. Run concurrently, one deletes the file another is
-# still using, and the symptom is a bare "release-manifest.json not found" from a
-# test that did nothing wrong.
+# Six tests therefore need one at the repo root, and each had grown its own copy
+# of the same three steps: build if absent, remember whether I built it, unlink
+# at END if I did.
 #
-# A lock rather than per-test isolation, deliberately. Isolating would mean
-# either copying the tree per test (slow, and it is a large tree) or teaching
-# install.pl to take a manifest path it does not otherwise need - a production
-# surface widened for the convenience of a test. Serialising three files costs
-# almost nothing under -j, because they overlap with the other 318.
+# Six copies of one lifecycle is what kept producing ordering bugs. A lock alone
+# did not fix it: the lock serialises the tests, but each test still decides
+# independently when to create and destroy a file they all share, and an END
+# block firing at the wrong moment relative to another test's body is exactly the
+# race the lock was supposed to remove. So the guard now owns all three steps.
 #
-# Returns a guard: hold it for the life of the test, and the lock releases when
-# it goes out of scope. Call in the caller's file scope, not inside a subtest.
+# Hold it for as long as you need the manifest. It locks on construction, builds
+# if absent, and removes at destruction ONLY if it was the one that built it - so
+# an operator's own manifest is never deleted.
 sub repo_manifest_guard {
-    my $lock = repo_root() . '/.manifest-test.lock';
+    my $root = repo_root();
+    my $lock = "$root/.manifest-test.lock";
     ## no critic (RequireBriefOpen) - the handle IS the lock; it lives in the guard.
     open my $fh, '>>', $lock or die "cannot open $lock: $!";
     flock( $fh, LOCK_EX ) or die "cannot lock $lock: $!";
-    return TestHelper::ManifestGuard->new($fh);
+
+    my $mf    = "$root/release-manifest.json";
+    my $built = 0;
+    unless ( -f $mf ) {
+        my $rc = system( $^X, "$root/tools/build-manifest.pl" );
+        die "TestHelper: failed to build $mf (rc=$rc)\n" if $rc != 0 || !-f $mf;
+        $built = 1;
+    }
+    return TestHelper::ManifestGuard->new( $fh, $mf, $built );
 }
 
 {
     package TestHelper::ManifestGuard;
-    sub new { my ( $c, $fh ) = @_; return bless { fh => $fh }, $c }
+
+    sub new {
+        my ( $c, $fh, $mf, $built ) = @_;
+        return bless { fh => $fh, mf => $mf, built => $built }, $c;
+    }
+
+    # The manifest path, for a test that wants to read it.
+    sub path { return $_[0]->{mf} }
+
     sub DESTROY {
         my ($self) = @_;
-        # flock releases on close; the lockfile itself is left in place (it is
-        # gitignored) so the next run does not race on creating it.
-        close $self->{fh} if $self->{fh};
+        # Remove BEFORE releasing the lock, or the next waiter can see a file
+        # that is about to vanish - which is the original race in miniature.
+        unlink $self->{mf} if $self->{built} && -f $self->{mf};
+        close $self->{fh}  if $self->{fh};    # flock releases on close
         return;
     }
 }

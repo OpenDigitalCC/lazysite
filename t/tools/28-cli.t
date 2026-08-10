@@ -14,8 +14,9 @@ use TestHelper qw(repo_root repo_manifest_guard);
 
 my $ROOT     = repo_root();
 my $CLI      = "$ROOT/tools/lazysite-cli.pl";
-# SM269 phase 1: serialise on the shared repo-root manifest - six tests build
-# and unlink it, and under `prove -j` one deletes what another is using.
+# SM269 phase 1: the guard OWNS the shared repo-root manifest - it locks,
+# builds if absent, and removes at scope end only if it built it. Six tests
+# used to carry their own copy of that lifecycle, which is what kept racing.
 my $MF_GUARD = repo_manifest_guard();
 
 my $MANIFEST = "$ROOT/release-manifest.json";
@@ -25,17 +26,6 @@ die "lazysite-cli.pl not found at $CLI" unless -f $CLI;
 # SM065: release-manifest.json is generated, not tracked. install.pl (which
 # provision/upgrade wrap) needs one beside it; build on demand and clean up
 # only if we created it (same pattern as t/tools/03-install-pl.t).
-my $MANIFEST_CREATED_BY_US = 0;
-unless ( -f $MANIFEST ) {
-    system( $^X, "$ROOT/tools/build-manifest.pl" ) == 0
-        or die "failed to build release-manifest.json";
-    $MANIFEST_CREATED_BY_US = 1;
-}
-END {
-    if ( $MANIFEST_CREATED_BY_US && -f $MANIFEST ) {
-        unlink $MANIFEST;
-    }
-}
 
 # Run the CLI; returns (exit_code, combined_output). %env entries are set
 # for the child only.

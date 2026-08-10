@@ -33,18 +33,12 @@ my $BUILD_MF = "$ROOT/tools/build-manifest.pl";
 plan skip_all => 'install.pl not found'        unless -f $INSTALL;
 plan skip_all => 'lazysite-check.pl not found' unless -f $CHECK;
 
-# SM269 phase 1: this test needs release-manifest.json AT THE REPO ROOT, and so
-# do two others. Under `prove -j` they raced - one deleted at END what another
-# was still using. The guard serialises just these three.
+# SM269 phase 1: the guard OWNS the shared repo-root manifest - it locks,
+# builds if absent, and removes at scope end only if it built it. Six tests
+# used to carry their own copy of that lifecycle, which is what kept racing.
 my $MF_GUARD = repo_manifest_guard();
 
 my $REPO_MF = "$ROOT/release-manifest.json";
-my $MF_OURS = 0;
-unless ( -f $REPO_MF ) {
-    system( $^X, $BUILD_MF ) == 0 or BAIL_OUT('failed to build release-manifest.json');
-    $MF_OURS = 1;
-}
-END { unlink $REPO_MF if $MF_OURS && -f $REPO_MF }
 
 my $base    = tempdir( 'lazysite-checkdirs-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
 my $docroot = "$base/site";

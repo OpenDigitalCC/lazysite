@@ -52,18 +52,12 @@ my $declared = $cfg->{install_dirs} || [];
 # tracked (it ships only in release tarballs), so build one if it is absent and
 # remove it again at END - same handling as t/tools/03, so a run here does not
 # leave a phantom modified file behind, and does not delete an operator's own.
-# SM269 phase 1: this test needs release-manifest.json AT THE REPO ROOT, and so
-# do two others. Under `prove -j` they raced - one deleted at END what another
-# was still using. The guard serialises just these three.
+# SM269 phase 1: the guard OWNS the shared repo-root manifest - it locks,
+# builds if absent, and removes at scope end only if it built it. Six tests
+# used to carry their own copy of that lifecycle, which is what kept racing.
 my $MF_GUARD = repo_manifest_guard();
 
 my $REPO_MF = "$ROOT/release-manifest.json";
-my $MF_OURS = 0;
-unless ( -f $REPO_MF ) {
-    system( $^X, $BUILD_MF ) == 0 or BAIL_OUT('failed to build release-manifest.json');
-    $MF_OURS = 1;
-}
-END { unlink $REPO_MF if $MF_OURS && -f $REPO_MF }
 
 # --- the model is well-formed ------------------------------------------------
 

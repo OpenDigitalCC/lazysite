@@ -21,9 +21,9 @@ use TestHelper qw(repo_manifest_guard);
 
 my $ROOT    = "$FindBin::Bin/../..";
 my $INSTALL = "$ROOT/install.pl";
-# SM269 phase 1: this test needs release-manifest.json AT THE REPO ROOT, and so
-# do t/tools/35 and t/tools/36. Under `prove -j` they raced - one deleted at END
-# what another was still using. The guard serialises just these three.
+# SM269 phase 1: the guard OWNS the shared repo-root manifest - it locks,
+# builds if absent, and removes at scope end only if it built it. Six tests
+# used to carry their own copy of that lifecycle, which is what kept racing.
 my $MF_GUARD = repo_manifest_guard();
 
 my $MANIFEST = "$ROOT/release-manifest.json";
@@ -42,19 +42,6 @@ die "install.pl not found at $INSTALL" unless -f $INSTALL;
 # up a phantom "modified" manifest for a file that should be absent
 # on main. Track whether WE built it so we don't nuke an operator's
 # locally-generated copy.
-my $MANIFEST_CREATED_BY_US = 0;
-unless ( -f $MANIFEST ) {
-    die "build-manifest.pl not found at $BUILD_MF" unless -f $BUILD_MF;
-    system( $^X, $BUILD_MF ) == 0
-        or die "failed to build release-manifest.json via $BUILD_MF";
-    die "manifest build produced no file at $MANIFEST" unless -f $MANIFEST;
-    $MANIFEST_CREATED_BY_US = 1;
-}
-END {
-    if ( $MANIFEST_CREATED_BY_US && -f $MANIFEST ) {
-        unlink $MANIFEST;
-    }
-}
 
 sub fresh_docroot {
     my $dir = tempdir( 'lazysite-install-test-XXXXXX', TMPDIR => 1, CLEANUP => 1 );

@@ -262,13 +262,7 @@ subtest 'demo verb' => sub {
     # the whole file would serialise the rest of a slow test for nothing. It
     # releases when the subtest's scope ends.
     my $mf_guard = repo_manifest_guard();
-    my $manifest    = "$ROOT/release-manifest.json";
-    my $we_built_it = 0;
-    if ( !-f $manifest ) {
-        system( $^X, "$ROOT/tools/build-manifest.pl" ) == 0
-            or return fail('cannot build release-manifest.json');
-        $we_built_it = 1;
-    }
+    my $manifest = $mf_guard->path();
 
     my $run = sub {
         my ( $env, @args ) = @_;
@@ -306,8 +300,6 @@ subtest 'demo verb' => sub {
     ( $rc, $out ) = $run->( { LAZYSITE_DEMO_NO_SERVE => 1 }, '--dir', "$dir/demo" );
     is( $rc, 0, 'demo re-run: exit 0' );
     like( $out, qr/reusing/, 'existing demo site reused' );
-
-    unlink $manifest if $we_built_it;
 };
 
 # --- debian packaging declares the relations ----------------------------------
