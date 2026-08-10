@@ -18,6 +18,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
+    carveout_requirement carveout_refusal
     raw_html_page_refusal processor_path);
 
 our $DOCROOT;                           # set by the script
@@ -190,6 +191,74 @@ sub is_blocked_path {
         return 1;
     }
     return 0;
+}
+
+# SM268 H4: the carve-outs above are reachable by PATH on the generic file
+# surface, and each of them is governed by a CAPABILITY on every other plane.
+# nav.conf needs manage_nav for nav-read/nav-save and over WebDAV; the
+# submission store needs read_submissions (or manage_forms) for
+# form-submissions and read_form_submissions, and WebDAV refuses it outright.
+# read_file/write_file asked only "is this path blocked", so a partner holding
+# manage_content alone could read every submission - names, email addresses,
+# message bodies - and rewrite the site navigation, defeating the three
+# capabilities that exist to say otherwise. The blocklist cannot decide this
+# itself: it takes a path and no caller identity, and the manager UI and its
+# agents legitimately reach both paths when they hold the capability.
+#
+# So the requirement is stated ONCE here, and the two dispatchers that expose
+# the file surface by path (the control API and MCP) apply it against the
+# caller's resolved capabilities, alongside the scope and blocklist gates they
+# already run. An empty `caps` list means "no capability reaches this" - the
+# submission store is written by the form handler, never by hand.
+#
+# Returns { caps => [...], mode, why } or undef if the path is not governed.
+sub carveout_requirement {
+    my ( $rel, $mode ) = @_;
+    return undef unless defined $rel && length $rel;
+    $mode = 'read' unless defined $mode && $mode eq 'write';
+
+    my $r = $rel;
+    $r =~ s{/+}{/}g;
+    $r =~ s{(?:^|/)\.(?=/|$)}{/}g;
+    $r =~ s{/+}{/}g;
+    $r =~ s{^/+|/+$}{}g;
+    return undef unless length $r;
+
+    if ( $r eq 'lazysite/nav.conf' ) {
+        return { caps => ['manage_nav'], mode => $mode,
+            why => 'the site navigation is governed by the manage_nav capability' };
+    }
+
+    # The literal prefix the blocklist carves out. A store the operator has
+    # configured ELSEWHERE under lazysite/ is still blocked outright; one under
+    # the content tree is ordinary content, confined by dav_scope.
+    if ( index( $r, 'lazysite/forms/submissions/' ) == 0 ) {
+        return { caps => [], mode => $mode,
+            why => 'the submission store is append-only: the form handler writes it' }
+            if $mode eq 'write';
+        return { caps => [ 'read_submissions', 'manage_forms' ], mode => $mode,
+            why => 'form submissions carry the data visitors sent you' };
+    }
+
+    return undef;
+}
+
+# The refusal text for a governed path the caller cannot reach, or undef when
+# it can. $caps is the caller's resolved capability hash.
+sub carveout_refusal {
+    my ( $rel, $mode, $caps ) = @_;
+    my $req = carveout_requirement( $rel, $mode );
+    return undef unless $req;
+    $caps ||= {};
+    for my $c ( @{ $req->{caps} } ) {
+        return undef if $caps->{$c};
+    }
+    my $needs = @{ $req->{caps} }
+        ? ( 'It needs the ' . join( ' or ', @{ $req->{caps} } ) . ' capability.' )
+        : 'No capability reaches it on this channel.';
+    log_event( 'WARN', $action, 'blocked carve-out path',
+        path => $rel, user => $auth_user );
+    return "'$rel' is not $req->{mode}able by path: $req->{why}. $needs";
 }
 
 # A permission failure is server-truthful but operator-opaque ("Permission

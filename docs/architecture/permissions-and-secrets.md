@@ -125,6 +125,18 @@ implementation of the read decision. They must stay in step; `t/lint/31` pins
 them. Folder scope existed in only one of them until SM268 H3, which is exactly
 the failure this arrangement risks.
 
+**The reserved blocklist has two capability-governed carve-outs.** Everything
+under `lazysite/` is denied to the generic file surface except `layouts/`,
+`themes/`, `nav.conf` and `forms/submissions/`. The last two are governed by a
+capability everywhere else - `manage_nav` for the navigation, `read_submissions`
+or `manage_forms` for the store - so reaching them by path defeated all three.
+Since SM268 H4 the requirement is stated once, in
+`Manager::Common::carveout_requirement`, and applied by the control API and MCP
+against the caller's resolved capabilities. Nothing writes the submission store
+by hand: it is append-only, written by the form handler. The gate is skipped on
+an unsecured site, which is the same exemption `_is_operator()` already makes,
+not a new one.
+
 **WebDAV is the strictest surface** and the reviewers named it the correct model:
 it applies the blocklist on reads as well as writes, and puts MOVE/COPY
 destinations through the full authorisation chain after decoding. Where the

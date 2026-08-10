@@ -32,7 +32,11 @@ sub csrf_token {
         DOCUMENT_ROOT      => $docroot,
         REQUEST_METHOD     => 'GET',
         QUERY_STRING       => 'action=csrf-token',
-        HTTP_X_REMOTE_USER => 'testmgr',
+        # SM268 H9: the manager API no longer falls back to the `local`
+        # operator, so the identity has to be vouched for as lazysite-auth.pl
+        # does after validating the session cookie.
+        HTTP_X_REMOTE_USER    => 'testmgr',
+        LAZYSITE_AUTH_TRUSTED => 1,
     );
     my $out = qx($^X \Q$root/lazysite-manager-api.pl\E 2>/dev/null);
     $out =~ s/\A.*?\r?\n\r?\n//s;
@@ -46,7 +50,11 @@ sub api_get {
         DOCUMENT_ROOT      => $docroot,
         REQUEST_METHOD     => 'GET',
         QUERY_STRING       => $qs,
-        HTTP_X_REMOTE_USER => 'testmgr',
+        # SM268 H9: the manager API no longer falls back to the `local`
+        # operator, so the identity has to be vouched for as lazysite-auth.pl
+        # does after validating the session cookie.
+        HTTP_X_REMOTE_USER    => 'testmgr',
+        LAZYSITE_AUTH_TRUSTED => 1,
     );
     my $out = qx($^X \Q$root/lazysite-manager-api.pl\E 2>/dev/null);
     return $out;
@@ -62,7 +70,11 @@ sub api_post_multipart {
         QUERY_STRING       => $qs,
         CONTENT_TYPE       => $ctype,
         CONTENT_LENGTH     => length($body),
-        HTTP_X_REMOTE_USER => 'testmgr',
+        # SM268 H9: the manager API no longer falls back to the `local`
+        # operator, so the identity has to be vouched for as lazysite-auth.pl
+        # does after validating the session cookie.
+        HTTP_X_REMOTE_USER    => 'testmgr',
+        LAZYSITE_AUTH_TRUSTED => 1,
         HTTP_X_CSRF_TOKEN  => $token,
     );
     # The size gate exits before reading STDIN, so a rejected

@@ -2369,6 +2369,28 @@ elsif ( $method eq 'tools/call' ) {
                 . "to see what your account currently holds and what each capability unlocks." );
     }
 
+    # SM268 H4: the same carve-out gate the control API applies, from the same
+    # definition in Manager::Common - nav.conf needs manage_nav and the
+    # submission store needs read_submissions/manage_forms, whichever channel
+    # names the path. Without this an mcp+manage_content partner read every
+    # submission through read_file and rewrote the navigation through
+    # write_file, while set_nav and read_form_submissions refused it the caps.
+    if ( $tool->{path_aware} ) {
+        my $a = $params->{arguments} || {};
+        my $w = ( $name =~ /^(?:read|list|search|preview|view)/ ) ? 'read' : 'write';
+        for my $pk (qw(path to from)) {
+            my $p = $a->{$pk};
+            next unless defined $p && length $p;
+            my $refusal
+                = Lazysite::Manager::Common::carveout_refusal( $p, $w, $caps );
+            next unless $refusal;
+            audit_log( $user, $name, $p, $ENV{REMOTE_ADDR} // '',
+                'fail', 'mcp', 'denied: carve-out capability' );
+            rpc_error( $id, -32002,
+                "$refusal Do not retry; ask the operator to grant it." );
+        }
+    }
+
     # SEC-2026-07 (M2) / SM155: enforce the group-derived scope union on the MCP
     # channel too. A scoped partner (via its group(s)) is confined to its content
     # subtree(s) over WebDAV and must be here as well. Applies to every content

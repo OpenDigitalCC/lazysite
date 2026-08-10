@@ -791,6 +791,53 @@ if ($token_auth) {
     }
 }
 
+# SM268 H4: the generic file surface reaches two paths inside lazysite/ that
+# every other plane gates on a capability - nav.conf (manage_nav) and the
+# submission store (read_submissions / manage_forms). Reaching them by path
+# defeated all three. The requirement is defined once, in Manager::Common;
+# applied here against the caller's resolved capabilities, and in lazysite-mcp.pl
+# against the partner's, so the two dispatchers cannot drift apart.
+#
+# Skipped on an unsecured site (no group grants manager access at all), which is
+# the dev/first-run state where _is_operator() already treats every
+# authenticated user as the operator - the same exemption, not a new one.
+{
+    my %file_surface = (
+        'list'             => 'read',
+        'read'             => 'read',
+        'acl-get'          => 'read',
+        'preview'          => 'read',
+        'git-history'      => 'read',
+        'git-show'         => 'read',
+        'save'             => 'write',
+        'delete'           => 'write',
+        'acl-set'          => 'write',
+        'acl-remove'       => 'write',
+        'mkdir'            => 'write',
+        'move'             => 'write',
+        'copy'             => 'write',
+        'upload'           => 'write',
+        'git-restore'      => 'write',
+        'migrate-to-local' => 'write',
+        'lock'             => 'write',
+        'unlock'           => 'write',
+        'renew-lock'       => 'write',
+    );
+    my $fs_mode = $file_surface{$action};
+    if ( defined $fs_mode && $site_secured ) {
+        my $caps = $token_auth ? \%token_caps : _user_caps($auth_user);
+        for my $p ( $path, $params{to} ) {
+            next unless defined $p && length $p;
+            my $refusal = Lazysite::Manager::Common::carveout_refusal( $p, $fs_mode, $caps );
+            next unless $refusal;
+            audit_log( $auth_user, $action, $p, $ENV{REMOTE_ADDR} // '',
+                'fail', ( $token_auth ? 'api' : 'ui' ), 'denied: carve-out capability' );
+            respond( { ok => 0, error => $refusal } );
+            exit 0;
+        }
+    }
+}
+
 # --- Dispatch ---
 
 my $result;
