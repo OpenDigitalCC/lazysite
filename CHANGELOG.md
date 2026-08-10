@@ -28,6 +28,88 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
+## 0.10.5 - EDGE: what the security review found, and what it cost to prove (2026-08-10)
+
+An edge build dominated by SM268 - four adversarial reviews run against 0.10.4
+as a pre-release gate, which reproduced 26 defects and blocked the release. All
+of them are closed, plus two more found while proving the fixes. **Existing
+vhosts must be re-rendered**: every SM223 Apache routing rule gained the `PT`
+flag, without which the ACL routing never reached the auth wrapper at all on the
+layout the Hestia templates produce.
+
+The theme, if there is one, is two surfaces disagreeing about the same question.
+A capability the control API enforced and MCP did not; a ceiling applied when
+DECLARING a capability but not when ACQUIRING one; a gate on serving a page with
+nothing on listing it; a routing rule in ten templates but not in the generator
+that writes the eleventh. Each fix states the rule once and pins it, rather than
+fixing the instance.
+
+- SM268 (40f4976, ac2a3ae, 4473bcf, ac4b365, 0c57737, 4ab6444, ba8a135, 3971940,
+  95e6936, e9e829f, bee4623, 218befd, 3c4dd3d) the adversarial security review,
+  closed in full. Three criticals: a site package could be made to carry the auth
+  store and the session HMAC secret (`content_root: ./lazysite` normalised past a
+  literal comparison); a tar member without `./` bypassed the restore exclusion
+  and replaced the account store; an account named `local` became the operator
+  from any starting privilege. Then the highs: `form-submissions&file=` returned
+  any `.jsonl` under the docroot including the session store; folder ACL scope
+  existed only in the processor's copy, so a "protected section" was fully
+  writable over the manager, MCP and WebDAV; the installer followed symlinks on
+  every write and every mode change; the SM195 ceiling guarded one verb while
+  `group-add`, `group-nest`, `token` and `claim-create` reached the same
+  escalation; stripping `ui` from every group flipped a live site to unsecured,
+  where an anonymous caller was the operator. Gated page content leaked through
+  `scan:` listings and the shipped `/search-index`, cached `public, max-age=3600`.
+  Every fix carries a regression test that was confirmed failing on the unfixed
+  tree.
+- SM268 H17 (ba8a135) **every SM223 Apache rule lacked `PT`**, so mod_rewrite
+  prefixed DocumentRoot and the target resolved to
+  `<docroot>/cgi-bin/lazysite-auth.pl`. Where cgi-bin is a SIBLING of the docroot
+  - which is what the Hestia templates produce - that file does not exist and
+  EVERY static file 404s once an ACL store is present. Fail-closed, so not a
+  disclosure, but SM223 was inert and the site's assets were broken. Found by
+  driving real Apache 2.4.67 rather than by reading the rules: the text was right
+  and the behaviour was not. `t/integration/40` now drives a real server.
+- SM223 (04ae232, 20dd86b, cc5b445, 21e65fb) static files come under access control through the
+  ACL, with folder scope as an entry in the same store. A file the web server
+  hands over directly was reachable by anyone who knew its path, and no auth
+  decision lazysite made could reach it.
+- SM181 (dacf24e, cabc969) a folder ACL entry gates a whole SECTION - its pages
+  and its assets together - and `draft: true` makes the refusal a 404 rather than
+  a login bounce, removing the section from every listing. A login form at
+  `/upcoming/pricing` confirms that `/upcoming/pricing` exists, and the URL is the
+  thing being held back.
+- SM183 (2d7bc62, ff702b7, 3c4dd3d) applying a site package snapshots on every
+  surface, the snapshot restores, and the artefact carries an integrity digest
+  that is now VERIFIED rather than displayed. Nothing had ever recomputed it: an
+  operator read a digest beside a package as "verified" when it meant "a digest
+  was written at some point". `package_apply` refuses a mismatch; the listing
+  reports verified, mismatch or absent.
+- SM195 (c3d8e1a, 3f3cfc6, ac4b365) a delegate cannot confer a capability it does
+  not hold, on any of the five verbs that reach conferral. The ceiling is computed
+  from what the actor HOLDS, through the group nesting closure, so an inherited
+  capability counts.
+- SM249 (688db58) theme variables resolve in a page body, not only in a layout.
+- SM246 (bee4623) `check` verifies the whole declared directory model rather than
+  eleven hand-written paths, so a site already carrying the 0.6.5 incident is
+  reported instead of called healthy. Reported, not repaired: an operator who
+  tightened a content directory deliberately should not have it widened by a tool
+  they ran to ask a question.
+- Filed as candidates rather than shipped: SM265 (50c7cfb) the browser-session
+  surface, SM266 (ff702b7) apply-confidence UI, SM267 (cabc969) the
+  protected-sections panel, and SM269 (f081b95) a commissioned research project
+  on the test cycle. The three UI filings are manager JavaScript, which the suite
+  cannot reach; SM269 is a whole-project piece of work deliberately not bundled
+  into a release cycle.
+
+Docs: `docs/architecture/permissions-and-secrets.md` is new and describes the
+whole model - identities, capability resolution, the five planes and what
+enforces what, ACL semantics, a secret inventory with the consequence of each
+disclosure, and the first-run flow. It also records a documentation defect it
+found: `security.md` said unsecured mode meant "any authenticated user has
+manager access", while the implementation skipped authentication entirely and
+assigned the operator sentinel. Both now say the same accurate thing, and the
+behaviour itself is fixed.
+
 ## 0.10.4 - EDGE: success reported for work that did not happen (2026-08-09)
 
 An edge build on 0.10.3, and mostly one theme: an operation answered ok, the
