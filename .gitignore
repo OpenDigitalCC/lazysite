@@ -66,3 +66,4 @@ starter/llms.txt
 starter/lazysite/auth/.login-rate.db
 man/
 *.bak
+.prove

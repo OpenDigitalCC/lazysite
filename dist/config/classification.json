@@ -166,6 +166,7 @@
     "^\\.git(/|$)",
     "^\\.github/",
     "^\\.gitignore$",
+    "^\\.prove$",
     "^\\.perlcriticrc$",
     "^\\.perltidyrc$",
     "^tools/tidy-check\\.pl$",
