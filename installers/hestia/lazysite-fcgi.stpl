@@ -68,19 +68,29 @@
     # These must come FIRST. Every rule below terminates with [L], so anything
     # placed after them would serve an ACL'd file before the ACL was consulted.
     # /cgi-bin/ is excluded so the rewrite target cannot match itself.
+    #
+    # SM268: PT, not a bare [L]. In vhost context mod_rewrite treats a
+    # substitution beginning with / as a LOCAL PATH and prefixes DocumentRoot
+    # before mod_alias ever sees it (rewrite:trace2 "prefixed with
+    # document_root"), so without PT the target resolves to
+    # <docroot>/cgi-bin/lazysite-auth.pl. Where cgi-bin is a SIBLING of the
+    # docroot - which is what the Hestia templates produce - that file does not
+    # exist, and on a site with an ACL store every static file 404s. Verified
+    # against Apache 2.4.67: 404 without PT, 200 with it. Existing vhosts must
+    # be re-rendered for this to take effect.
     RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f
     RewriteCond %{REQUEST_URI} !^/cgi-bin/
     RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} -f
-    RewriteRule ^/(.*)$ /cgi-bin/lazysite-auth.pl [L]
+    RewriteRule ^/(.*)$ /cgi-bin/lazysite-auth.pl [PT,L]
     RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f
     RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.md !-f
     RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.html -f [OR]
     RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}.shtml -f
-    RewriteRule ^/([^.]+)$ /cgi-bin/lazysite-auth.pl [L]
+    RewriteRule ^/([^.]+)$ /cgi-bin/lazysite-auth.pl [PT,L]
     RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f
     RewriteCond %{DOCUMENT_ROOT}/index.md !-f
     RewriteCond %{DOCUMENT_ROOT}/index.html -f
-    RewriteRule ^/$ /cgi-bin/lazysite-auth.pl [L]
+    RewriteRule ^/$ /cgi-bin/lazysite-auth.pl [PT,L]
     RewriteCond %{DOCUMENT_ROOT}/index.md   !-f
     RewriteCond %{DOCUMENT_ROOT}/index.html -f
     RewriteRule ^/$ /index.html [L]

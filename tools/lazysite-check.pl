@@ -292,6 +292,65 @@ sub run_checks {
         }
     }
 
+    # --- 2b. the rest of the declared model (SM268 03-F7) -----------------------
+    #
+    # SM246 states the design as "one table, three consumers - install applies,
+    # check verifies, check --fix repairs". That was true of runtime_paths and
+    # false of install_dirs: the eleven entries above are hand-written and the
+    # model declares twenty-eight. So a site carrying the reported fault - the
+    # docroot's content directories stripped of group write, which is the 0.6.5
+    # incident SM246 exists for - stayed broken while this tool called it
+    # healthy. The fix was prospective only: make_declared_path applies a mode
+    # ON CREATION and never corrects an existing directory.
+    #
+    # Reported, not repaired, and deliberately so. These are content directories
+    # on a live site; an operator who tightened one on purpose should not have it
+    # widened by a tool they ran to ask a question. --fix stays on the CGI
+    # writability set above, where the mode is a functional requirement rather
+    # than a default. The suggested command is printed so the repair is one
+    # paste away.
+    {
+        require JSON::PP;
+        my %declared;
+        if ( open my $sf, '<', "$LZ/.install-state.json" ) {
+            local $/;
+            my $j = eval { JSON::PP::decode_json(<$sf>) };
+            close $sf;
+            %declared = %{ $j->{dirs} }
+                if ref $j eq 'HASH' && ref $j->{dirs} eq 'HASH';
+        }
+
+        my $checked = 0;
+        my $wrong   = 0;
+        for my $path ( sort keys %declared ) {
+            # Only the site's OWN directories. The model also declares the
+            # docroot itself, its parent and the cgi-bin, all of which are
+            # pre-existing and operator- or panel-owned: their modes are the
+            # platform's business, and a finding that fires on every install is
+            # one its reader learns to skip past.
+            next unless index( $path, "$DOC/" ) == 0;
+            ( my $rel = $path ) =~ s{\A\Q$DOC\E/}{};
+            next if $rel =~ m{\A\.\.(?:/|\z)};
+            next if exists $want_dir{$rel};    # already covered, with --fix
+            next unless -d $path;
+            $checked++;
+            my $want = oct $declared{$path};
+            my $mode = mode_of($path);
+            next if $mode == $want;
+            $wrong++;
+            report( 'WARN',
+                sprintf( '%s is %04o, the model declares %04o', $rel, $mode, $want ),
+                sprintf( "chmod %04o '%s'", $want, $path ) );
+        }
+        if ( !$checked ) {
+            report( 'OK',
+                'no declared directory modes recorded (payload predates the model)' );
+        }
+        elsif ( !$wrong ) {
+            report( 'OK', "$checked declared directories carry their declared mode" );
+        }
+    }
+
     # --- 3. group must be the CGI's group on the writable dirs -------------------
     for my $rel ( sort keys %want_dir ) {
         my $path = "$DOC/$rel";

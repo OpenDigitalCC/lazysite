@@ -132,6 +132,72 @@ subtest 'every directory the manifest installs into is declared' => sub {
         or diag( join "\n  ", '', @orphan );
 };
 
+# --- the coverage proof and the runtime lookup use the SAME key space --------
+#
+# SM268 03-F8: the check above compares TEMPLATE strings, and install.pl looks
+# up RESOLVED ones. Two key spaces, so the model's central guarantee was
+# unverified for exactly the entries containing `..`: `{DOCROOT}/..` resolved to
+# `/base/site/..`, which the parent walk never asks for (it asks for `/base`),
+# and the declaration was dead. Nothing here could see it, because dirname on
+# the template produced the same dead string the declaration used.
+#
+# So resolve both sides through install.pl's OWN resolve_placeholders - the
+# function the installer calls - and compare what it produces.
+subtest 'every needed directory is declared after resolution, too' => sub {
+    my $src = do {
+        open my $fh, '<', "$ROOT/install.pl" or die "install.pl: $!";
+        local $/;
+        <$fh>;
+    };
+    my ($resolver) = $src =~ /(sub resolve_placeholders\b.*?\n\})/s;
+    ok( defined $resolver, 'resolve_placeholders extracted from install.pl' )
+        or return;
+
+    my $pkg = 'SM268F8';
+    eval "package $pkg; $resolver; 1" or die $@;    ## no critic (ProhibitStringyEval)
+
+    my %subs = ( DOCROOT => '/base/site', CGIBIN => '/base/cgi-bin' );
+    my $r    = sub { return $pkg->can('resolve_placeholders')->( $_[0], \%subs ) };
+
+    my %have_resolved = map { $r->( $_->{path} ) => $_->{path} } @$declared;
+
+    my @missing;
+    for my $n ( sort keys %needed ) {
+        my $res = $r->($n);
+        push @missing, "$n -> $res" unless exists $have_resolved{$res};
+    }
+    is_deeply( \@missing, [], 'no needed directory resolves to an undeclared path' )
+        or diag( join "\n  ", '', @missing,
+        'The template is declared but resolves to a string install.pl never',
+        'looks up. That is what made {DOCROOT}/.. a dead declaration.' );
+
+    # And the resolved form must be a path the parent walk can actually reach:
+    # no `..` may survive resolution, or the lookup key can never match.
+    my @unresolved = grep { m{(?:\A|/)\.\.(?:/|\z)} }
+        map { $r->( $_->{path} ) } @$declared;
+    is_deeply( \@unresolved, [],
+        'no declared path still contains .. after resolution' )
+        or diag( join "\n  ", '', @unresolved );
+};
+
+# SM268 03-F8: and the declaration that was dead now does its job. Provisioning
+# a site whose own parent directory does not exist yet is the case the
+# `{DOCROOT}/..` entry exists for, and it failed with "No declared mode for
+# directory ..." - telling the operator to add an entry to classification.json
+# that was already there.
+subtest 'a site whose parent directory does not exist yet installs' => sub {
+    my $base = tempdir( 'lazysite-greenfield-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
+    # $base/nx exists; $base/nx/site does NOT - it is what {DOCROOT}/.. declares.
+    make_path("$base/nx");
+    my $docroot = "$base/nx/site/public_html";
+    my $cgibin  = "$base/nx/cgi-bin";
+
+    my $out = `$^X \Q$INSTALL\E --docroot \Q$docroot\E --cgibin \Q$cgibin\E 2>&1`;
+    is( $? >> 8, 0, 'install exited 0' ) or diag $out;
+    ok( -d $docroot,        'the docroot was created' );
+    ok( -d "$base/nx/site", 'and so was its parent, from its own declaration' );
+};
+
 # --- and a real install produces those modes ---------------------------------
 
 subtest 'a fresh install creates the declared directories at the declared mode' => sub {

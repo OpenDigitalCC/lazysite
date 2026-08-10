@@ -83,9 +83,15 @@ ok( !$bset->{ok} && ( $bset->{error} // '' ) =~ /block/i,
     'F3: acl-set on forms/smtp.conf is blocked' );
 
 # F3 - a cookie operator's read of forms/smtp.conf is refused (no secret read).
+# SM268 H9: `local` supplied as a client header is STRIPPED as untrusted, and
+# the manager API no longer falls back to the operator when nobody is signed in -
+# so without vouching for it the request is refused for authentication before it
+# ever reaches the blocklist this test is about. Vouch as the auth wrapper does,
+# so the assertion below tests what it means to test.
 my $rd = mapi( $d, REQUEST_METHOD => 'GET',
-    QUERY_STRING => 'action=read&path=/lazysite/forms/smtp.conf',
-    HTTP_X_REMOTE_USER => 'local' );
+    QUERY_STRING          => 'action=read&path=/lazysite/forms/smtp.conf',
+    HTTP_X_REMOTE_USER    => 'local',
+    LAZYSITE_AUTH_TRUSTED => 1 );
 ok( !$rd->{ok} && ( $rd->{error} // '' ) =~ /block/i,
     'F3: manager read of forms/smtp.conf refused' );
 unlike( encode_json($rd), qr/hunter2/, 'F3: the SMTP password is never returned' );

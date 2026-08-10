@@ -884,7 +884,7 @@ my %TOOLS = (
         run => sub { _bind_form( $_[0]->{form}, $_[0]->{handler} ) },
     },
     audit_site => {
-        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets.',
+        description => 'Audit the whole site: broken internal links, orphan pages (nothing links to them), pages missing a title, stale generated HTML (no source), duplicate content blocks (the same paragraph on multiple pages), broken forms (hand-authored form HTML with no handler, or a :::form never bound to a handler), raw HTML pages (a raw:/api: page declaring an HTML content type, which is served as plain text), and STARTER pages - the shipped demo content, still published and possibly still advertised in the sitemap, which is worth checking before a site goes public. Returns lists per category, plus starter_in_sitemap as a count. On a site whose auth_default is required or optional it also returns unprotected_static_files: files with no page source, which the web server hands to anyone who knows the path REGARDLESS of the site-wide auth setting - so a site that looks closed can still be publishing private assets. It also returns acl_keys_matching_nothing: per-path ACL entries whose key matches no file or folder, which is what a URL-shaped key looks like on a content-rooted domain - ACL keys are relative to the docroot, not to a domain\'s URLs, and an inert rule looks exactly like a protecting one until somebody tries the URL.',
         cap => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub { _audit_site() },
@@ -1125,6 +1125,20 @@ sub _mcp_search {
     return { ok => 0, error => 'query must not be empty' } unless defined $query && length $query;
     $base = '/' unless defined $base && length $base;
     $base =~ s{^/+}{}; $base =~ s{/+$}{}; $base =~ s{\.\.}{}g;
+
+    # SM268 04-F4: the lazysite/ exclusion below only applies while DESCENDING,
+    # so naming a base INSIDE the tree skipped it entirely - and the blocklist
+    # was never consulted at all. `search_files` with base lazysite/auth printed
+    # user-settings.json a line at a time, a file read_file refuses outright:
+    # the full capability and scope roster, to any partner holding
+    # manage_content, scoped or not, as an unlimited-query oracle. The
+    # searchable extension set also covers acls.json (per-file owner and
+    # reader/writer lists), oauth.json and revoked.json.
+    return { ok => 0,
+        error => 'search does not enter the lazysite/ tree - it holds the auth '
+            . 'store, ACLs and engine state, none of which is site content' }
+        if Lazysite::Manager::Common::path_is_reserved($base);
+
     my $root = $DOCROOT . ( length $base ? "/$base" : '' );
     my $qre  = qr/\Q$query\E/i;
     my ( @matches, $files, $truncated );
@@ -1142,6 +1156,11 @@ sub _mcp_search {
             next unless -f $full;
             my ($ext) = $e =~ /\.([^.]+)$/;
             next unless $ext && $SEARCH_EXT{ lc $ext };
+            # SM268 04-F4: and the blocklist per candidate, as defence in depth -
+            # the base check above is a string test, this one asks the same
+            # question the read path asks about the file actually being opened.
+            ( my $key = $full ) =~ s{^\Q$DOCROOT\E/?}{};
+            next if Lazysite::Manager::Common::is_blocked_path($key);
             if ( ++$files > 2000 ) { $truncated = 1; last }
             open my $fh, '<:utf8', $full or next;
             my $ln = 0;
@@ -1753,6 +1772,55 @@ sub _audit_site {
         closedir $dh;
     }
 
+    # SM268 01-M3: an ACL key that matches nothing on disk.
+    #
+    # ACL keys are DOCROOT-relative; a content-rooted domain's URLs are relative
+    # to its content_root. So on such a domain the intuitive key - the URL
+    # segment, which is exactly what SM181's example rule uses - is inert, and
+    # inert looks identical to protected until somebody tries the URL. The
+    # manager and MCP write docroot-relative keys and are consistent; the
+    # exposure is confined to the hand-written folder rules SM181 asks for.
+    #
+    # A key matching no existing path is the classic symptom, and it is cheap to
+    # check. Where a content root would make it match, say so - that is the
+    # actual repair, and an operator who has just read "protects nothing" needs
+    # to be told what to write instead.
+    my @acl_unmatched;
+    if ( open my $afh, '<:raw', "$DOCROOT/lazysite/auth/acls.json" ) {
+        my $raw = do { local $/; <$afh> };
+        close $afh;
+        my $map = eval { JSON::PP::decode_json( $raw // '{}' ) };
+        if ( ref $map eq 'HASH' ) {
+            my @croots;
+            if ( open my $cfh2, '<:utf8', "$DOCROOT/lazysite/lazysite.conf" ) {
+                while ( my $l = <$cfh2> ) {
+                    next unless $l =~ /^alias\.\S+\.content_root\s*:\s*(\S+)/;
+                    my $c = $1;
+                    $c =~ s{^/+|/+$}{}g;
+                    push @croots, $c if length $c;
+                }
+                close $cfh2;
+            }
+            for my $k ( sort keys %$map ) {
+                ( my $rel = $k ) =~ s{^/+|/+$}{}g;
+                next unless length $rel;
+                next if -e "$DOCROOT/$rel";
+                my @would = grep { -e "$DOCROOT/$_/$rel" } @croots;
+                push @acl_unmatched, {
+                    key     => $k,
+                    message => @would
+                    ? "matches nothing at the docroot, so it protects nothing. On "
+                        . "a content-rooted domain the key must include the content "
+                        . "root: try '$would[0]/$rel'."
+                    : 'matches no file or folder in this site, so it protects '
+                        . 'nothing. ACL keys are relative to the docroot, not to a '
+                        . "domain's URLs.",
+                };
+                last if @acl_unmatched >= 50;
+            }
+        }
+    }
+
     my @dups;
     for my $p ( sort keys %para ) {
         my %u = map { $_ => 1 } @{ $para{$p} };
@@ -1777,6 +1845,10 @@ sub _audit_site {
         hidden_by_script         => \@hidden_by_script,
         site_auth_default        => $auth_default,
         unprotected_static_files => \@unprotected,
+
+        # SM268 01-M3: ACL keys that match nothing, which is what a URL-shaped
+        # key looks like on a content-rooted domain.
+        acl_keys_matching_nothing => \@acl_unmatched,
     };
 }
 
@@ -2367,6 +2439,28 @@ elsif ( $method eq 'tools/call' ) {
         rpc_error( $id, -32002, "Insufficient capability for $name (needs $need). "
                 . "Do not retry; ask the operator to grant it. Call describe_capabilities "
                 . "to see what your account currently holds and what each capability unlocks." );
+    }
+
+    # SM268 H4: the same carve-out gate the control API applies, from the same
+    # definition in Manager::Common - nav.conf needs manage_nav and the
+    # submission store needs read_submissions/manage_forms, whichever channel
+    # names the path. Without this an mcp+manage_content partner read every
+    # submission through read_file and rewrote the navigation through
+    # write_file, while set_nav and read_form_submissions refused it the caps.
+    if ( $tool->{path_aware} ) {
+        my $a = $params->{arguments} || {};
+        my $w = ( $name =~ /^(?:read|list|search|preview|view)/ ) ? 'read' : 'write';
+        for my $pk (qw(path to from)) {
+            my $p = $a->{$pk};
+            next unless defined $p && length $p;
+            my $refusal
+                = Lazysite::Manager::Common::carveout_refusal( $p, $w, $caps );
+            next unless $refusal;
+            audit_log( $user, $name, $p, $ENV{REMOTE_ADDR} // '',
+                'fail', 'mcp', 'denied: carve-out capability' );
+            rpc_error( $id, -32002,
+                "$refusal Do not retry; ask the operator to grant it." );
+        }
     }
 
     # SEC-2026-07 (M2) / SM155: enforce the group-derived scope union on the MCP

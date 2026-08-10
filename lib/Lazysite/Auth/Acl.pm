@@ -68,18 +68,74 @@ sub _to_list {
 # Does the ACL for $rel allow $user $mode access? No entry = allowed (the
 # account's scope governs); owner always allowed; else membership of the
 # mode's allow-list.
+# SM268 H3: which entry governs $rel for $mode - exact, then the section's own
+# landing page, then the LONGEST matching folder prefix.
+#
+# Folder scope was implemented only in the processor's module-free copy, so a
+# "protected section" was protected on the anonymous read path and nowhere else:
+# Acl::_acl_allows matched the exact key only, and the manager, MCP and WebDAV
+# therefore granted full READ AND WRITE inside a section the operator had gated.
+# An adversarial review demonstrated it. One store answering two different
+# questions depending on which surface asks is precisely what SM223 chose a
+# single store to avoid.
+#
+# Only entries carrying a non-empty list for the mode participate, so an
+# owner-only entry - which action_copy writes for every duplicated file - cannot
+# beat an enclosing folder rule. It is not a tighter rule, it is no rule.
+sub _acl_entry_for {
+    my ( $map, $rel, $mode ) = @_;
+    $rel = _acl_norm($rel) // '';
+
+    my $governs = sub {
+        my ($e) = @_;
+        return 0 unless ref $e eq 'HASH';
+        return 1 unless defined $mode && length $mode;
+        return ( ref $e->{$mode} eq 'ARRAY' && @{ $e->{$mode} } ) ? 1 : 0;
+    };
+
+    return $map->{$rel} if $governs->( $map->{$rel} );
+
+    if ( $rel =~ m{\A(.+)\.(?:md|url|html)\z} ) {
+        my $stem = $1;
+        return $map->{$stem} if $governs->( $map->{$stem} );
+    }
+
+    my $best;
+    my $best_len = -1;
+    for my $k ( keys %$map ) {
+        next unless $governs->( $map->{$k} );
+        ( my $p = $k ) =~ s{\A/+}{};
+        $p =~ s{/+\z}{};
+        next unless length $p;
+        next unless index( $rel, "$p/" ) == 0;
+        next unless length($p) > $best_len;
+        $best     = $map->{$k};
+        $best_len = length $p;
+    }
+    return $best;
+}
+
 sub _acl_allows {
     my ( $rel, $mode, $user ) = @_;
-    my $a = load_acls()->{ _acl_norm($rel) };
+    my $a = _acl_entry_for( load_acls(), $rel, $mode );
     return 1 unless $a;
     return 1 if defined $a->{owner} && defined $user && $a->{owner} eq $user;
     my $list = $a->{$mode};
     return 1 unless ref $list eq 'ARRAY' && @$list;
-    my %grp = map { $_ => 1 } @user_groups;
+    # SM268 01-L1: case-insensitive, and compound-expanded - the same semantics
+    # the processor's copy uses (t/lint/31 pins the pair) and the same ones
+    # check_auth applies to `groups:` front matter. Three different answers to
+    # "is this user in that group" on one request was the defect.
+    require Lazysite::Auth::Settings;
+    my %grp = map { lc($_) => 1 }
+        do {
+        local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+        Lazysite::Auth::Settings::group_closure(@user_groups);
+        };
     for my $entry (@$list) {
         next unless defined $entry && length $entry;
         if ( $entry =~ /\A\@(.+)\z/ ) {          # SM077: @group entry
-            return 1 if $grp{$1};
+            return 1 if $grp{ lc $1 };
         }
         elsif ( defined $user && $entry eq $user ) {
             return 1;
@@ -107,15 +163,41 @@ sub _groups_grant_cap {
 sub _is_operator {
     return 0 if $token_auth;
     return 1 if ( $auth_user // '' ) eq 'local';
-    my @ug = grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+
+    require Lazysite::Auth::Settings;
+    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+
     # SM095/SM138: unrestricted account management is the manage_users
     # capability, granted through a group. The legacy lazysite.conf
     # manager_groups fallback is RETIRED - the migration granted those groups
-    # their capabilities explicitly. A site where no group grants manager access
-    # at all is unsecured/dev: any authenticated user is an operator.
+    # their capabilities explicitly.
+    #
+    # SM268 02-7: ask the STORE FIRST, then the header - not the header alone.
+    #
+    # The two sources disagree for a session whose group set changed after the
+    # header was written, and the header is the stale one. Asking the store
+    # first means a grant that exists NOW is honoured now, which is the
+    # direction that matters: it is how a revoked grant stops applying and a
+    # fresh one starts.
+    #
+    # The header is NOT dropped, though the review suggested it. It carries
+    # group names for identities the local store does not know - a trusted
+    # reverse proxy or SSO, where membership lives in the IdP and the account
+    # may not exist here at all. t/unit/manager/16 asserts exactly that case
+    # (an operator known only as X-Remote-Groups: managers), so removing the
+    # header check trades a LOW consistency finding for a broken deployment.
+    # It reaches this code only when the wrapper set LAZYSITE_AUTH_TRUSTED, so
+    # it is vouched for; the remaining objection was staleness, and consulting
+    # the store first is what answers that.
+    if ( defined $auth_user && length $auth_user ) {
+        my $caps = eval { Lazysite::Auth::Settings::caps_for($auth_user) } || {};
+        return 1 if $caps->{manage_users};
+    }
+    my @ug = grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
     return 1 if _groups_grant_cap( 'manage_users', @ug );
-    require Lazysite::Auth::Settings;
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+
+    # A site where no group grants manager access at all is unsecured/dev: any
+    # authenticated user is an operator.
     return 1 unless Lazysite::Auth::Settings::site_grants_manager();
     return 0;
 }

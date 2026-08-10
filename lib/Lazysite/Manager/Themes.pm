@@ -195,6 +195,75 @@ sub _read_theme_json {
     return ( ref $meta eq 'HASH' ) ? $meta : undef;
 }
 
+# SM268 04-F6: who created a theme, kept where the caller cannot write it.
+#
+# theme.json is inside the tree manage_themes makes writable, so provenance
+# stored there is self-certified by the party the delete rule restricts. This
+# store lives in lazysite/auth/, which the blocklist denies on every authoring
+# surface. Keyed "<layout>/<theme>", because the same theme name under two
+# layouts is two objects.
+sub _created_registry_path { return "$LAZYSITE_DIR/auth/themes-created.json" }
+
+sub _read_created_registry {
+    my $path = _created_registry_path();
+    return {} unless -f $path;
+    open my $fh, '<:raw', $path or return {};
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $map = eval { decode_json( $raw // '{}' ) };
+    return ( ref $map eq 'HASH' ) ? $map : {};
+}
+
+sub _write_created_registry {
+    my ($map) = @_;
+    my $path = _created_registry_path();
+    make_path( dirname($path) ) unless -d dirname($path);
+    my $tmp = "$path.tmp.$$";
+    open my $fh, '>:raw', $tmp or return 0;
+    print {$fh} JSON::PP->new->canonical->pretty->encode($map);
+    close $fh;
+    chmod 0640, $tmp;
+    return rename $tmp, $path;
+}
+
+sub _record_theme_creator {
+    my ( $layout, $theme, $who ) = @_;
+    return unless length( $layout // '' ) && length( $theme // '' );
+    return unless length( $who    // '' );
+    my $map = _read_created_registry();
+    $map->{"$layout/$theme"} = $who;
+    _write_created_registry($map);
+    return;
+}
+
+sub _theme_creator {
+    my ( $layout, $theme ) = @_;
+    my $map = _read_created_registry();
+    my $who = $map->{"$layout/$theme"};
+    return ( defined $who && length $who ) ? $who : '';
+}
+
+sub _forget_theme_creator {
+    my ( $layout, $theme ) = @_;
+    my $map = _read_created_registry();
+    return unless exists $map->{"$layout/$theme"};
+    delete $map->{"$layout/$theme"};
+    _write_created_registry($map);
+    return;
+}
+
+# Carry provenance across a rename, or the theme stops being deletable by the
+# account that made it - which would turn this fix into the litter problem
+# SM262 set out to solve.
+sub _rename_theme_creator {
+    my ( $layout, $from, $to ) = @_;
+    my $map = _read_created_registry();
+    return unless exists $map->{"$layout/$from"};
+    $map->{"$layout/$to"} = delete $map->{"$layout/$from"};
+    _write_created_registry($map);
+    return;
+}
+
 # SM204: the config (GROUP->KEY->value) map of a theme.json, keeping only
 # scalar leaf values (mirrors generate_theme_css: nested objects under a group
 # key are a shape error and skipped).
@@ -606,6 +675,9 @@ sub action_create_theme {
         print {$fh} $enc;
         close $fh;
         push @created, "lazysite/layouts/$layout/themes/$name/theme.json";
+        # SM268 04-F6: the authoritative copy of "who made this", out of reach
+        # of the caller. theme.json's created_by above is now description only.
+        _record_theme_creator( $layout, $name, $author );
     }
 
     {
@@ -1030,10 +1102,23 @@ sub action_theme_delete {
     # Applied only when the caller asks for it. The manager UI over a cookie
     # session is a human at the console and keeps the unrestricted delete; the
     # dispatcher sets this for token and MCP clients.
+    # SM268 04-F6: provenance comes from a SIDE RECORD, not from theme.json.
+    #
+    # theme.json lives under lazysite/layouts/**, which the very capability this
+    # rule restricts (manage_themes) makes writable through write_file,
+    # upload_file and WebDAV - so the restriction was self-certified by data the
+    # restricted party controls. An agent rewrote created_by to its own name and
+    # deleted any non-active theme on the instance, operator-authored ones
+    # included, and the audit line said it had deleted its own.
+    #
+    # themes-created.json sits in lazysite/auth/, which the blocklist denies on
+    # every authoring surface, so the answer is now kept where the caller cannot
+    # reach it. theme.json's created_by stays as a description; it is no longer
+    # an authorisation. A theme with no side record is never removable this way,
+    # which is the same safe reading as before.
     if ( $opts->{restrict_to_creator} ) {
         my $who = $opts->{user} // '';
-        my $td  = _read_theme_json( $active_layout, $theme_name );
-        my $by  = ( ref $td eq 'HASH' ? $td->{created_by} : undef ) // '';
+        my $by  = _theme_creator( $active_layout, $theme_name );
         unless ( length $who && length $by && $by eq $who ) {
             return { ok => 0, kind => 'not-yours',
                 error => "Theme '$theme_name' was not created by this account, so "
@@ -1053,6 +1138,9 @@ sub action_theme_delete {
             path => $theme_dir, rc => ( $rc >> 8 ) );
         return { ok => 0, error => "Delete failed" };
     }
+    # The theme is gone; drop its provenance so a later theme reusing the name
+    # does not inherit a creator it never had.
+    _forget_theme_creator( $active_layout, $theme_name );
     my $assets_dir = "$DOCROOT/lazysite-assets/$active_layout/$theme_name";
     if ( -d $assets_dir ) {
         $rc = system( "rm", "-rf", $assets_dir );
@@ -1082,6 +1170,7 @@ sub action_theme_rename {
     return { ok => 0, error => "Name already in use" } if -d "$themes_dir/$new_name";
 
     rename "$themes_dir/$old_name", "$themes_dir/$new_name";
+    _rename_theme_creator( $active_layout, $old_name, $new_name );
 
     my $old_assets = "$DOCROOT/lazysite-assets/$active_layout/$old_name";
     my $new_assets = "$DOCROOT/lazysite-assets/$active_layout/$new_name";

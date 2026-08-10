@@ -132,6 +132,10 @@ my $REQUEST_CROOT;        # SM151: the request's confined content root (undef =>
                           # set by main(), read by resolve_scan() so per-domain search is
                           # boxed to the requesting domain's subtree without re-entering
     # resolve_site_vars (which calls resolve_scan for conf directives)
+my $ACL_MAP_CACHE;    # SM268 H13: acls.json parsed at most once per request -
+                      # a scan asks the read decision up to 200 times. undef =
+                      # not loaded, 0 = load failed (fail closed), hashref = the
+                      # store.
 
 # Built-in fallback template - used when no layout.tt is found
 my $FALLBACK_LAYOUT = <<'END_FALLBACK';
@@ -518,14 +522,49 @@ sub _groups_grant_cap {
 # above it. Folder scope is an entry in the same store rather than a separate
 # prefix rule in lazysite.conf - one place to look, and one place to be wrong.
 sub _acl_entry_for {
-    my ( $map, $rel ) = @_;
+    my ( $map, $rel, $mode ) = @_;
+    $mode //= '';
     $rel =~ s{\A/+}{};
-    return $map->{$rel} if ref $map->{$rel} eq 'HASH';
+
+    # SM268 H10: an entry with no list for the mode we are deciding is NOT a
+    # tighter rule - it is NO rule, and it must not win the longest match.
+    #
+    # "Longest match wins" is documented as "a tighter rule on a sub-folder beats
+    # a broader one above it". An owner-only entry says nothing about reading, so
+    # letting it beat an enclosing folder's `read` list turned the folder gate
+    # off for that one file. The operator action that produced it is DUPLICATE in
+    # the file manager: action_copy writes `{ owner => $user }` for the new file,
+    # so copying a file inside a protected section republished it to the world -
+    # no warning, no log line, and performed by someone who need not hold any
+    # permission-changing capability.
+    #
+    # So for a mode decision, only entries carrying a non-empty list for that
+    # mode are candidates. With no mode ("does anything govern this path?") every
+    # entry counts, which is what the cache and draft checks want.
+    my $governs = sub {
+        my ($e) = @_;
+        return 0 unless ref $e eq 'HASH';
+        return 1 unless length $mode;
+        return ( ref $e->{$mode} eq 'ARRAY' && @{ $e->{$mode} } ) ? 1 : 0;
+    };
+
+    return $map->{$rel} if $governs->( $map->{$rel} );
+
+    # SM268 H14: a folder entry covers the section's OWN landing page.
+    #
+    # `private.md` renders at /private and `private/index.md` at /private/, so a
+    # gate on the folder `private` left its front door open: /private served its
+    # body while /private/ bounced to login. The page that introduces a held-back
+    # section is the last one that should be public.
+    if ( $rel =~ m{\A(.+)\.(?:md|url|html)\z} ) {
+        my $stem = $1;
+        return $map->{$stem} if $governs->( $map->{$stem} );
+    }
 
     my $best;
     my $best_len = -1;
     for my $k ( keys %$map ) {
-        next unless ref $map->{$k} eq 'HASH';
+        next unless $governs->( $map->{$k} );
         ( my $p = $k ) =~ s{\A/+}{};
         $p =~ s{/+\z}{};
         next unless length $p;
@@ -567,27 +606,75 @@ sub _acl_allows_read {
     my ( $rel, $user, @groups ) = @_;
     my $f = "$DOCROOT/lazysite/auth/acls.json";
     return 1 unless -f $f;
-    require JSON::PP;
-    open my $fh, '<:raw', $f or return 1;
-    my $map = eval {
-        local $/;
-        JSON::PP::decode_json(<$fh>);
-    } || {};
-    close $fh;
-    return 1 unless ref $map eq 'HASH' && keys %$map;
 
-    my $a = _acl_entry_for( $map, $rel );
+    # SM268 H12: a store that EXISTS but cannot be read or parsed fails CLOSED.
+    #
+    # It used to fail open, silently: no WARN, no access-log flag, and every
+    # protected file served to anyone. Hand-written JSON is the only interface
+    # for a folder rule (SM181), so a stray comma is a realistic way to reach
+    # this - and the failure was indistinguishable from having no rules at all.
+    #
+    # Closed is the right direction and it is recoverable: the site refuses,
+    # which is loud, and the manager is unaffected (it reads through Auth::Acl),
+    # so an operator can still get in and fix the file. Open is not recoverable -
+    # the disclosure has already happened by the time anyone notices.
+    # Parsed at most once per request. SM268 H13 made this a hot path: a scan
+    # filters up to 200 pages through it, and re-reading and re-decoding the
+    # store per page would turn one render into 200 opens. A failed load is
+    # cached as a failure, so it still fails closed and still logs once.
+    my $map;
+    if ( defined $ACL_MAP_CACHE ) {
+        return 0 unless ref $ACL_MAP_CACHE eq 'HASH';
+        $map = $ACL_MAP_CACHE;
+    }
+    else {
+        my $raw = do {
+            if ( open my $fh, '<:raw', $f ) {
+                local $/;
+                my $c = <$fh>;
+                close $fh;
+                $c;
+            }
+            else { undef }
+        };
+        unless ( defined $raw ) {
+            $ACL_MAP_CACHE = 0;
+            log_event( 'ERROR', $rel, 'ACL store unreadable - refusing (fail closed)' );
+            return 0;
+        }
+        require JSON::PP;
+        $map = eval { JSON::PP::decode_json($raw) };
+        unless ( ref $map eq 'HASH' ) {
+            $ACL_MAP_CACHE = 0;
+            log_event( 'ERROR', $rel,
+                'ACL store unparseable - refusing (fail closed). Fix '
+                    . 'lazysite/auth/acls.json; every protected path is denied until you do.' );
+            return 0;
+        }
+        $ACL_MAP_CACHE = $map;
+    }
+    return 1 unless keys %$map;
+
+    my $a = _acl_entry_for( $map, $rel, 'read' );
     return 1 unless ref $a eq 'HASH';
     return 1 if defined $a->{owner} && length $user && $a->{owner} eq $user;
 
     my $list = $a->{read};
     return 1 unless ref $list eq 'ARRAY' && @$list;
 
-    my %grp = map { $_ => 1 } @groups;
+    # SM268 01-L1: one group semantics, not three. This compared the raw
+    # X-Remote-Groups list exactly, while check_auth's `groups:` comparison
+    # lowercases both sides and _groups_grant_cap expands compound groups
+    # through the closure - so `Editors` was refused where `editors` was
+    # allowed, and membership of a group NESTED in the granted one did not
+    # count. It failed closed, so it was a correctness defect rather than an
+    # exposure, but an operator meeting it reads it as "the ACL is broken" and
+    # the obvious repair is to widen the rule.
+    my %grp = map { lc($_) => 1 } _group_closure(@groups);
     for my $e (@$list) {
         next unless defined $e && length $e;
         if ( $e =~ /\A\@(.+)\z/ ) {
-            my $g = $1;    # capture immediately - any later match clobbers $1
+            my $g = lc $1;    # capture immediately - any later match clobbers $1
             return 1 if $grp{$g};
         }
         elsif ( length $user && $e eq $user ) {
@@ -611,14 +698,27 @@ sub _acl_governed {
     return 0 unless defined $real;
     my $rel = $real;
     return 0 unless $rel =~ s{\A\Q$DOCROOT\E/}{};
-    require JSON::PP;
-    open my $fh, '<:raw', $f or return 0;
-    my $map = eval {
-        local $/;
-        JSON::PP::decode_json(<$fh>);
-    } || {};
-    close $fh;
-    return 0 unless ref $map eq 'HASH';
+
+    # Shares _acl_allows_read's per-request parse (SM268 H13). A store that
+    # failed to load counts as governing everything: _acl_allows_read is
+    # refusing every path, and both callers want that answer - no-store on the
+    # response, and out of the registries.
+    my $map;
+    if ( defined $ACL_MAP_CACHE ) {
+        return 1 unless ref $ACL_MAP_CACHE eq 'HASH';
+        $map = $ACL_MAP_CACHE;
+    }
+    else {
+        require JSON::PP;
+        open my $fh, '<:raw', $f or return 1;
+        $map = eval {
+            local $/;
+            JSON::PP::decode_json(<$fh>);
+        } || {};
+        close $fh;
+        return 0 unless ref $map eq 'HASH';
+        $ACL_MAP_CACHE = $map;
+    }
     return ref( _acl_entry_for( $map, $rel ) ) eq 'HASH' ? 1 : 0;
 }
 
@@ -1320,7 +1420,27 @@ sub main {
     # level, NOCACHE, etc.) cannot leak across requests under FastCGI / D016.
     local %ENV = %ENV;
 
-    my $uri = $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '';
+    # SM268 01-L2: REQUEST_URI is percent-ENCODED; REDIRECT_URL is not.
+    #
+    # Apache does not set REDIRECT_* for a rewrite in server context, which is
+    # exactly where the SM223 rules live - so on a site with an ACL store EVERY
+    # existing static takes the REQUEST_URI branch, and the raw encoded path was
+    # never decoded. Turning on the first ACL entry therefore 404'd every asset
+    # whose filename contains a space, `+`, `&` or a non-ASCII character,
+    # site-wide, and it reads as "SM223 broke my site" rather than as an
+    # encoding bug.
+    #
+    # Decoded BEFORE sanitise_uri and the \0 / .. / ^/ rejections below, never
+    # after: decoding afterwards would let `%2e%2e%2f` slip past a check that
+    # ran on the encoded form. The query string is split off first, so a `?` in
+    # a filename cannot be manufactured by decoding.
+    my $uri = $ENV{REDIRECT_URL} || '';
+    unless ( length $uri ) {
+        $uri = $ENV{REQUEST_URI} // '';
+        my $q = ( $uri =~ s/\?(.*)\z//s ) ? $1 : undef;
+        $uri =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
+        $uri .= "?$q" if defined $q;
+    }
 
     # Capture query string before stripping
     my $qs_source = '';
@@ -1505,6 +1625,30 @@ sub main {
     my $auth_result    = { ok => 1 };
     my $auth_peek      = {};
     my %site_vars_peek;
+    # SM268 H11: the section gate runs for the RESOLVED TARGET, whatever its
+    # source, and outside the @md_stat block.
+    #
+    # It used to sit inside `if (@md_stat)`, so a `.url` page - which has no .md -
+    # was never gated, and neither was its render cache. SM181's claim is "every
+    # page under /upcoming/ requires an editor"; a .url page under that prefix was
+    # public. `.url` pages have never been coverable by `auth:` either, for the
+    # same structural reason, so an operator had no way at all to protect one.
+    #
+    # Gate on the source that actually exists, so the decision is made once for
+    # whatever the request resolves to.
+    {
+        my $gate_src =
+            @md_stat       ? $md_path
+            : -f $url_path ? $url_path
+            :                undef;
+        if ( defined $gate_src ) {
+            return if _acl_refused( $gate_src, $uri );
+            # Governed => per-identity => never written to or served from the
+            # shared render cache.
+            $auth_protected = 1 if _acl_governed($gate_src);
+        }
+    }
+
     if (@md_stat) {
         # SM181: a folder ACL entry gates the whole section, PAGES included.
         #
@@ -3755,6 +3899,86 @@ sub peek_search_default {
     return 1;
 }
 
+# SM268 H13: a scan must not publish what the requester may not read.
+#
+# resolve_scan and scan_pages read .md sources directly and applied no filter at
+# all, so the title, subtitle, path, custom front-matter keys and a 500-character
+# BODY EXCERPT of every page inside a gated section were published to anonymous
+# visitors by any page that scans the tree - including the starter's own
+# /search-index, which is api: true with ttl: 3600 and is therefore served
+# Cache-Control: public, max-age=3600. Gating a folder stopped the page being
+# served and published its opening paragraph to a shared cache for an hour.
+#
+# The identity comes straight from the environment rather than through
+# resolve_site_vars, because resolve_scan is itself called FROM resolve_site_vars
+# for conf directives and asking for site vars here can re-enter it before its
+# cache is warm. A site that has RENAMED the auth headers therefore scans as
+# anonymous, which hides more than it should rather than less.
+{
+    my ( $_scan_id_done, $_scan_user, @_scan_groups );
+
+    sub _scan_identity {
+        unless ($_scan_id_done) {
+            $_scan_id_done = 1;
+            $_scan_user    = $ENV{HTTP_X_REMOTE_USER} // '';
+            @_scan_groups
+                = grep { length } split /\s*,\s*/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+        }
+        return ( $_scan_user, \@_scan_groups );
+    }
+}
+
+# One conf key, read from the file without going through resolve_site_vars - the
+# same reason peek_search_default exists. Per-domain alias overrides are not
+# applied; auth_default is a site-wide switch and a scanning page on a fully
+# gated site has already been through check_auth.
+sub peek_conf_key {
+    my ($key) = @_;
+    return '' unless -f $CONF_FILE;
+    open my $fh, '<:utf8', $CONF_FILE or return '';
+    my $val = '';
+    while ( my $line = <$fh> ) {
+        next unless $line =~ /^\Q$key\E\s*:\s*(\S+)/;
+        $val = $1;
+        last;
+    }
+    close $fh;
+    return $val;
+}
+
+# 1 if this page must be left out of a scan result for the requesting identity.
+sub _scan_hidden {
+    my ($abs) = @_;
+    my ( $user, $groups ) = _scan_identity();
+
+    # The per-path ACL, keyed docroot-relative exactly as the read path keys it.
+    my $rel = $abs;
+    if ( $rel =~ s{\A\Q$DOCROOT\E/}{} ) {
+        return 1 unless _acl_allows_read( $rel, $user, @{$groups} );
+    }
+
+    # The publication gate: auth: front matter, or the site's auth_default.
+    my $meta  = peek_auth($abs);
+    my $level = $meta->{auth} || peek_conf_key('auth_default') || 'none';
+    return 0 if $level eq 'none';
+    return 1 unless length $user;
+
+    my @required = @{ $meta->{groups} // [] };
+    return 0 unless @required;
+    my %have = map { lc($_) => 1 } @{$groups};
+    return ( grep { $have{ lc($_) } } @required ) ? 0 : 1;
+}
+
+# 1 if this page must be left out of the generated registries. Identity plays no
+# part: the artefact outlives the request that built it.
+sub _registry_hidden {
+    my ($abs) = @_;
+    return 1 if _acl_governed($abs);
+    my $meta  = peek_auth($abs);
+    my $level = $meta->{auth} || peek_conf_key('auth_default') || 'none';
+    return $level eq 'none' ? 0 : 1;
+}
+
 # Normalise a passed-through front-matter scalar for scan results: trim, strip a
 # single layer of matching surrounding quotes (so accent: "#7C5CFF" yields #7C5CFF
 # rather than the literal quotes), and strip TT markers as defence in depth.
@@ -3854,6 +4078,9 @@ sub resolve_scan {
         my $real = realpath($path);
         next unless _path_under( $real, $scan_root );
         next unless -f $real;
+
+        # SM268 H13: never list what this requester may not read.
+        next if _scan_hidden($real);
 
         # Read front matter
         my $raw = read_file($path);
@@ -4185,6 +4412,14 @@ sub scan_pages {
 
                 my ( $meta, undef ) = parse_yaml_front_matter($raw);
                 next unless $meta->{register};
+
+                # SM268 H13: a registry (sitemap.xml, the feeds) is a STATIC
+                # artefact written to disk and served to anyone, so the question
+                # is not "may this requester read it" but "is it gated at all".
+                # An ACL-governed or login-gated page is left out entirely -
+                # otherwise the sitemap publishes the URL structure of every
+                # private section, which is how a "closed" subtree gets crawled.
+                next if _registry_hidden($path);
 
                 # Get date from front matter or file mtime
                 my $date = $meta->{date} || '';

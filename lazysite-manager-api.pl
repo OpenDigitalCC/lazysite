@@ -56,7 +56,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
     action_artifact_backups_delete
     action_layouts_repo_get action_layouts_repo_set);
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
-    action_backup_restore);
+    action_backup_restore action_backup_delete);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview known_domain_host);
 use Lazysite::Lang                 qw(lang_status sole_group);
@@ -173,7 +173,7 @@ my $RESTRICT_THEME_DELETE = 0;
 my %KNOWN_ACTION = map { $_ => 1 } qw(
     acl-get acl-remove acl-set aliases-list analyse_visitors
     artifact-backups-delete artifact-manifest artifact-validate audit
-    backup-create backup-download backup-list backup-restore bad-url-blocks
+    backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
     bad-url-unblock cache-invalidate cache-list channel-services
     config-read config-set copy csrf-token delete describe-capabilities
     domain-add domain-check domain-preview domain-remove domain-set
@@ -284,11 +284,39 @@ my @REQUEST_SCOPES;    # SM158: the request's resolved dav_scopes (union), for
 # Cookie (manager) auth: the trusted X-Remote-User set by the auth wrapper.
 unless ($token_auth) {
     $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
-    if ( $site_secured && !$auth_user ) {
-        respond( { ok => 0, error => "Authentication required" } );
+
+    # SM268 H9: an unauthenticated request is REFUSED. Always.
+    #
+    # This used to fall through to `$auth_user ||= 'local'` whenever no group
+    # granted manager access - and `local` is the operator sentinel, so an
+    # "unsecured" site was not "any authenticated user is a manager" (as
+    # security.md claimed) but "no credential required, and you are the
+    # operator". Two ways to be there:
+    #
+    #   * a fresh install, before setup-manager has run. The window had no lower
+    #     bound on a manual install.
+    #   * a site pushed BACK into it - a manage_users delegate stripping ui /
+    #     manage_users / manager from every group, which the lockout guard in
+    #     cmd_group_settings_set did not prevent because it only ever covered the
+    #     `manager` flag.
+    #
+    # The intended first-run flow is the CLI: `lazysite-users.pl setup-manager`
+    # creates the first manager account and hands over the credential. Until it
+    # has run there is no account to log in as, so refusing is not a loss of
+    # function - it is the accurate answer. `local` remains the CLI's identity
+    # and is unaffected; it never arrives over HTTP.
+    unless ( length $auth_user ) {
+        respond(
+            { ok => 0,
+                error => $site_secured
+                ? 'Authentication required'
+                : 'This site has no manager account yet. Create one from the '
+                    . 'command line with: lazysite-users.pl --docroot <docroot> '
+                    . 'setup-manager'
+            }
+        );
         exit 0;
     }
-    $auth_user ||= 'local';
 }
 
 # --- Parse request ---
@@ -489,6 +517,9 @@ if ( !$token_auth ) {
         'principals'      => 'manage_content|manage_domains',
         'bad-url-unblock' => 'manage_config',  'rotate-auth-secret' => 'manage_config',
         'backup-create'   => 'manage_config',  'backup-restore'     => 'manage_config',
+        # SM268 03-F11: removing a snapshot is the same authority as taking or
+        # restoring one.
+        'backup-delete'   => 'manage_config',
         'backup-download' => 'manage_config',  'backup-list'        => 'manage_config',
         'theme-activate'  => 'manage_themes',  'theme-delete'       => 'manage_themes',
         'theme-rename'    => 'manage_themes',  'theme-upload'       => 'manage_themes',
@@ -524,7 +555,7 @@ if ( !$token_auth ) {
     my %MUTATING = map { $_ => 1 } qw(
         save delete mkdir move copy migrate-to-local file-upload git-restore
         git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
-        rotate-auth-secret backup-create backup-restore theme-activate
+        rotate-auth-secret backup-create backup-delete backup-restore theme-activate
         theme-delete theme-rename theme-upload layout-activate layout-delete
         layout-install layouts-install layouts-repo-set artifact-backups-delete
         preview-grant preview-clear nav-save handler-save handler-delete
@@ -760,6 +791,53 @@ if ($token_auth) {
         print "Content-Type: application/json; charset=utf-8\r\n\r\n";
         print encode_json( { ok => 0, error => 'Rate limit exceeded' } );
         exit 0;
+    }
+}
+
+# SM268 H4: the generic file surface reaches two paths inside lazysite/ that
+# every other plane gates on a capability - nav.conf (manage_nav) and the
+# submission store (read_submissions / manage_forms). Reaching them by path
+# defeated all three. The requirement is defined once, in Manager::Common;
+# applied here against the caller's resolved capabilities, and in lazysite-mcp.pl
+# against the partner's, so the two dispatchers cannot drift apart.
+#
+# Skipped on an unsecured site (no group grants manager access at all), which is
+# the dev/first-run state where _is_operator() already treats every
+# authenticated user as the operator - the same exemption, not a new one.
+{
+    my %file_surface = (
+        'list'             => 'read',
+        'read'             => 'read',
+        'acl-get'          => 'read',
+        'preview'          => 'read',
+        'git-history'      => 'read',
+        'git-show'         => 'read',
+        'save'             => 'write',
+        'delete'           => 'write',
+        'acl-set'          => 'write',
+        'acl-remove'       => 'write',
+        'mkdir'            => 'write',
+        'move'             => 'write',
+        'copy'             => 'write',
+        'upload'           => 'write',
+        'git-restore'      => 'write',
+        'migrate-to-local' => 'write',
+        'lock'             => 'write',
+        'unlock'           => 'write',
+        'renew-lock'       => 'write',
+    );
+    my $fs_mode = $file_surface{$action};
+    if ( defined $fs_mode && $site_secured ) {
+        my $caps = $token_auth ? \%token_caps : _user_caps($auth_user);
+        for my $p ( $path, $params{to} ) {
+            next unless defined $p && length $p;
+            my $refusal = Lazysite::Manager::Common::carveout_refusal( $p, $fs_mode, $caps );
+            next unless $refusal;
+            audit_log( $auth_user, $action, $p, $ENV{REMOTE_ADDR} // '',
+                'fail', ( $token_auth ? 'api' : 'ui' ), 'denied: carve-out capability' );
+            respond( { ok => 0, error => $refusal } );
+            exit 0;
+        }
     }
 }
 
@@ -1085,6 +1163,10 @@ elsif ( $action eq 'backup-create' ) {
         ( $params{scope} // '' ) eq 'full' ? 'full' : undef );
 }
 elsif ( $action eq 'backup-restore' ) { $result = action_backup_restore( $params{name} ) }
+elsif ( $action eq 'backup-delete' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_backup_delete( $req->{name} // $params{name} );
+}
 elsif ( $action eq 'backup-download' ) {
     action_backup_download( $params{name} );
     exit 0;
@@ -2741,6 +2823,35 @@ sub action_users {
                     error => "That account operation requires the 'Users & groups' "
                         . "permission (full user management)." }
                     unless $DELEGABLE{$act};
+            }
+
+            # SM195: group-settings-set now enforces a per-capability ceiling in
+            # the tool (a non-operator may confer only what they hold, or what an
+            # operator put in their groups' grantable set) - so the tool has to
+            # KNOW who is asking. Without this the actor arrived undefined and the
+            # ceiling silently did not apply, which is how the hole existed:
+            # manage_users was the whole check.
+            # NOT gated on _is_operator(). That returns TRUE for anyone holding
+            # manage_users (Acl.pm:116), which is exactly the population the
+            # ceiling exists to bound - so gating on it meant no actor was passed
+            # for a delegate, the tool saw an operator, and the ceiling never ran.
+            # An adversarial review found that; the first cut of SM195 was inert
+            # through the manager while its unit test passed, because the test
+            # supplied the actor this line did not.
+            #
+            # The tool decides. `local` is the CLI/operator sentinel and is the
+            # only exemption here; the unsecured-site exemption lives in
+            # _may_confer, where it can be stated once for every caller.
+            # SM268 H8: the ceiling now covers every verb that can RAISE
+            # privilege, not just the one that declares a capability - joining a
+            # capable group, nesting one, and minting a credential all acquire
+            # capabilities by another route. Each needs the actor, or the tool
+            # sees an operator and the ceiling does not run.
+            if ( $auth_user ne 'local'
+                && $act =~ /\A(?:group-settings-set|group-add|group-nest|token)\z/ )
+            {
+                $parsed->{actor} = $auth_user;
+                $request_body = encode_json($parsed);
             }
 
             if ( $auth_user ne 'local'

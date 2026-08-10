@@ -62,6 +62,11 @@ sub grant {
             REQUEST_METHOD => 'POST',
             QUERY_STRING   => $qs,
             CONTENT_LENGTH => 0,
+            # SM268 H9: the manager API no longer falls back to the `local`
+            # operator for an unauthenticated request, so the identity has to be
+            # supplied and vouched for exactly as lazysite-auth.pl does.
+            HTTP_X_REMOTE_USER    => $user,
+            LAZYSITE_AUTH_TRUSTED => 1,
             ( length $token ? ( HTTP_X_CSRF_TOKEN => $token ) : () ),
         },
     );
@@ -116,8 +121,11 @@ my $clear = run_script(
         DOCUMENT_ROOT    => $docroot,
         REQUEST_METHOD   => 'POST',
         QUERY_STRING     => 'action=preview-clear',
-        CONTENT_LENGTH   => 0,
+        CONTENT_LENGTH    => 0,
         HTTP_X_CSRF_TOKEN => csrf_token('local'),
+        # SM268 H9: as above - identity supplied and vouched for.
+        HTTP_X_REMOTE_USER    => 'local',
+        LAZYSITE_AUTH_TRUSTED => 1,
     },
 );
 like( $clear, qr/Set-Cookie:\s*lzs_preview=;[^\n]*Max-Age=0/,

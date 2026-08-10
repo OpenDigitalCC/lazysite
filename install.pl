@@ -419,7 +419,10 @@ sub cmd_restore_full {
 
     info("Restoring full-system backup into $docroot");
     info("  from: $tarball");
-    my $rc = system( 'tar', 'xzf', $tarball, '-C', $docroot, '--no-same-owner' );
+    # SM268 H16: was missing --no-same-permissions, so as ROOT this restored
+    # setuid bits straight out of the tarball. safe_tar_extract also vets the
+    # member names for traversal before writing anything.
+    my $rc = safe_tar_extract( $tarball, $docroot );
     die "Restore extraction failed (tar rc=$rc)\n" if $rc != 0;
 
     my $conf = "$docroot/lazysite/lazysite.conf";
@@ -912,9 +915,15 @@ sub execute_plan {
 # must install unchanged.
 our %INSTALL_DIR_MODE;
 
+# The resolved docroot for this run, so make_declared_path can tell "a directory
+# the installer owns" from "a directory above the site" (SM268 03-F8) - the two
+# need opposite advice.
+our $INSTALL_DOCROOT = '';
+
 sub load_install_dirs {
     my ( $manifest, $subs ) = @_;
     %INSTALL_DIR_MODE = ();
+    $INSTALL_DOCROOT  = $subs->{DOCROOT} // '';
     for my $d ( @{ $manifest->{install_dirs} || [] } ) {
         $INSTALL_DIR_MODE{ resolve_placeholders( $d->{path}, $subs ) } = oct( $d->{mode} );
     }
@@ -945,6 +954,21 @@ sub load_install_dirs {
 # lazysite/auth would make lazysite/ 2770). Hence the level-by-level walk.
 sub make_declared_path {
     my ($dir) = @_;
+
+    # SM268 H5: `-d` follows a link, so a symlinked intermediate directory was
+    # accepted as "already there" and everything below it was written outside
+    # the docroot - 39 files, in the reviewer's reproduction. Walk the existing
+    # levels and refuse any that is a link before trusting the tree.
+    {
+        my $d = $dir;
+        while ( length $d ) {
+            _refuse_symlink( $d, 'create a directory' ) if -e $d || -l $d;
+            my $parent = dirname($d);
+            last if $parent eq $d;
+            $d = $parent;
+        }
+    }
+
     return 1 if -d $dir;
 
     # No model (older payload): historical behaviour, unchanged.
@@ -966,20 +990,125 @@ sub make_declared_path {
         # claims it, and nothing reports it until a deploy exposes it. Shipping
         # a file into a new directory must therefore be a decision someone made
         # rather than a side effect nobody saw.
-        die "No declared mode for directory $path\n"
-            . "  Every directory the installer creates must be declared in\n"
-            . "  dist/config/classification.json (install_dirs), with the mode\n"
-            . "  and the reason for it. Add an entry and rebuild the manifest.\n"
-            unless defined $mode;
+        # SM268 03-F8: say which of the two cases this is, because they need
+        # opposite responses and the old message only described one of them.
+        #
+        # A path INSIDE the site is the installer's own: the model must gain an
+        # entry. A path ABOVE the site is the operator's - the installer will
+        # not guess a mode for a directory it does not own, and telling them to
+        # edit classification.json for their own parent directory sends them
+        # somewhere that cannot help. That was the reported complaint: the entry
+        # was already there.
+        unless ( defined $mode ) {
+            my $inside = length($INSTALL_DOCROOT)
+                && ( $path eq $INSTALL_DOCROOT
+                || index( $path, "$INSTALL_DOCROOT/" ) == 0 );
+            die "No declared mode for directory $path\n"
+                . "  Every directory the installer creates must be declared in\n"
+                . "  dist/config/classification.json (install_dirs), with the mode\n"
+                . "  and the reason for it. Add an entry and rebuild the manifest.\n"
+                if $inside;
+            die "Cannot create $path: it is above the site and the installer does\n"
+                . "  not own it, so there is no mode it can safely choose. Create it\n"
+                . "  yourself with the ownership and mode your platform expects:\n"
+                . "      mkdir -p $path\n"
+                . "  then re-run this install. (Editing classification.json will not\n"
+                . "  help here - it describes the site's own directories.)\n";
+        }
+        # SM268 H5: mkdir FAILS if the name already exists - including as a
+        # symlink - so a successful mkdir proves we created a real directory
+        # and the chmod below cannot land on someone else's file. Without the
+        # check, a pre-placed symlink-to-file took the runtime mode: an
+        # adversarial review put 2775 on an arbitrary file outside the docroot.
         mkdir $path or die "Cannot create directory $path: $!\n";
+        _refuse_symlink( $path, 'set the mode' );
         chmod $mode, $path;    # mkdir's mode is masked by the umask; this is not
     }
     return 1;
 }
 
+# SM268 H5: refuse a path that IS a symlink.
+#
+# The installer runs as ROOT by the documented deploy path, and SM246 guarantees
+# the docroot and lazysite/ are group-writable by design. So any account that can
+# create a name in the docroot - the CGI, the site user, a compromised plugin -
+# could pre-place a symlink and have the next upgrade write through it, chmod
+# through it, or chown through it, as root. An adversarial review landed five:
+# a write through a symlinked destination, a chmod through a symlinked .pl, a
+# runtime directory chmod through a symlinked dir, `chmod 2775` applied to an
+# arbitrary FILE outside the docroot, and 39 files written outside via a
+# symlinked intermediate directory.
+#
+# lstat, not stat: `-d`/`-e` follow the link and answer about the target, which
+# is exactly the confusion being exploited. `lazysite-check.pl` already uses this
+# idiom in two walks.
+# SM268 H6/H16: extract an archive with the member names checked FIRST.
+#
+# Both restore paths shelled out to tar and trusted the archive. Two problems:
+#
+#   * a member named `../..` or an absolute path escapes the destination, even
+#     when -C names a staging directory. The reviewer wrote a file outside the
+#     docroot this way.
+#   * --restore-full omitted --no-same-permissions, so as ROOT it restored
+#     setuid bits straight out of the tarball.
+#
+# tar has no "reject traversal" switch, so the member list is read and vetted
+# before anything is written. Refusing beats sanitising: an archive containing a
+# traversal member is not a backup this installer produced, and continuing with
+# the "safe" remainder would restore a half-tree from a hostile file.
+sub safe_tar_extract {
+    my ( $tarball, $dest, @extra ) = @_;
+
+    my @members = qx(tar tzf \Q$tarball\E 2>/dev/null);
+    die "Cannot list $tarball\n" if $? != 0;
+    chomp @members;
+
+    for my $m (@members) {
+        # `..` in any position escapes the destination even with -C, and no tar
+        # switch rejects it - hence the pre-flight.
+        #
+        # A LEADING SLASH is not a finding here: create_backup deliberately
+        # writes absolute member names (--absolute-names) and the restore relies
+        # on tar stripping the leading `/` to land them under a staging dir.
+        # --no-absolute-names below is what makes that stripping guaranteed
+        # rather than default behaviour. Rejecting absolute members would refuse
+        # every backup this installer has ever produced.
+        die "Refusing to restore: archive member escapes the destination: $m\n"
+            if $m =~ m{(?:\A|/)\.\.(?:/|\z)};
+    }
+
+    # --no-same-owner: never restore uid/gid from the archive.
+    # --no-same-permissions: never restore setuid/setgid or over-permissive
+    #   modes; extracted files take the process umask instead.
+    #
+    # Stripping the leading `/` is tar's DEFAULT (it only keeps absolute names
+    # under --absolute-names/-P, which is not passed here), so no flag is needed
+    # for it - and `--no-absolute-names` is not accepted by every tar in the
+    # supported range, so naming it would break the restore it protects.
+    return system( 'tar', '-xzf', $tarball, '-C', $dest,
+        '--no-same-owner', '--no-same-permissions', @extra );
+}
+
+sub _is_symlink {
+    my ($path) = @_;
+    return ( lstat($path) && -l _ ) ? 1 : 0;
+}
+
+# Die on a symlinked path, naming it. Loud rather than skipped: a symlink where
+# the installer expects a real file is either an attack or a broken tree, and
+# both want an operator to look.
+sub _refuse_symlink {
+    my ( $path, $what ) = @_;
+    return unless _is_symlink($path);
+    die "Refusing to $what through a symlink: $path\n"
+        . "  The installer runs as root and never follows a link. Remove it (or\n"
+        . "  replace it with the real file) and re-run.\n";
+}
+
 sub install_file {
     my ( $src, $dest ) = @_;
     my $dir = dirname($dest);
+    _refuse_symlink( $dest, 'write' );
     if ( !-d $dir && !eval { make_declared_path($dir); 1 } ) {
         my $err = $@;
         # An undeclared directory is a packaging fault, not a permissions one -
@@ -1214,8 +1343,14 @@ sub align_ownership {
         for my $e ( readdir $dh ) {
             next if $e eq '.' || $e eq '..';
             my $p = "$dir/$e";
-            if   ( -d $p && !-l $p ) { push @stack, $p }
-            else                     { push @paths, $p }
+            # SM268 H5: a symlink is SKIPPED outright, never queued for chown.
+            # It used to fall into @paths, where stat read the TARGET's uid for
+            # the "only root-owned" guard and chown followed the link - so a
+            # planted link handed its target to the site user, as root. Perl has
+            # no lchown, so skipping is the only correct answer.
+            if    ( -l $p ) { next }
+            elsif ( -d $p ) { push @stack, $p }
+            else            { push @paths, $p }
         }
         closedir $dh;
     }
@@ -1254,6 +1389,10 @@ sub create_runtime_paths {
         next if ref $by eq 'ARRAY' && !grep { $_ eq 'install' } @$by;
         my $path = resolve_placeholders( $rp->{path}, $subs );
         my $mode = oct( $rp->{mode} );
+        # SM268 H5: never chmod a runtime path that is a symlink. `-d` follows
+        # the link, so a planted link took the runtime mode onto its target -
+        # the reviewer put 2775 on a file outside the docroot this way.
+        _refuse_symlink( $path, 'set the mode' );
         if ( -d $path ) {
             # On a FRESH install the directory may already exist because the
             # file-install pass created it (e.g. to hold the seeded
@@ -1333,20 +1472,35 @@ sub create_backup {
 
     # Build a file list for tar --files-from. Paths are absolute;
     # tar strips leading / by default. Restore re-adds it.
-    my $listfile = "$backup_dir/.backup-list-$$";
-    open my $lfh, '>', $listfile
-        or die "Backup: could not write $listfile: $!\n";
-    for my $p (@paths) { print $lfh "$p\n" }
-    close $lfh;
-
+    # SM268 H7: the list is piped to tar, not written to a file.
+    #
+    # It used to be `$backup_dir/.backup-list-$$` - a predictable name in a
+    # directory SM246 guarantees is group-writable. Anyone in the site group
+    # could pre-place that name as a symlink and, since this runs as root during
+    # an upgrade, have the open() write the file list through it. Racing the pid
+    # is easy: pids are small and the window is the whole backup.
+    #
+    # Feeding tar on stdin removes the file, and with it the race, the predicable
+    # name and the cleanup. There is nothing left to plant.
     my @cmd = (
         'tar',
         '--absolute-names',
-        '-czf',         $out,
-        '--files-from', $listfile,
+        '-czf', $out,
+        # --verbatim-files-from is POSITIONAL and affects only the --files-from
+        # that follows it, so the order here is load-bearing: after, tar warns
+        # "has no effect" and exits non-zero, which aborts the upgrade.
+        '--verbatim-files-from',
+        '--files-from', '-',
     );
-    my $rc = system(@cmd);
-    unlink $listfile;
+    my $rc;
+    if ( open my $tar, '|-', @cmd ) {
+        print {$tar} "$_\n" for @paths;
+        close $tar;
+        $rc = $?;
+    }
+    else {
+        die "Backup: could not run tar: $!\n";
+    }
 
     if ( $rc != 0 ) {
         unlink $out if -f $out;
@@ -1445,11 +1599,7 @@ sub cmd_restore {
     # bypass our state-driven restore logic (and the security
     # benefit of staging in a temp dir first).
     my $tmp = tempdir( 'lazysite-restore-XXXXXX', TMPDIR => 1, CLEANUP => 1 );
-    my $rc  = system(
-        'tar',
-        '-xzf', $backup_path,
-        '-C',   $tmp,
-    );
+    my $rc  = safe_tar_extract( $backup_path, $tmp );
     die "tar -x failed (rc=$rc)\n" if $rc != 0;
 
     # The tar stripped the leading "/" from paths, so the content
@@ -1583,11 +1733,30 @@ sub load_state {
 
 sub write_state {
     my ( $path, $version, $files ) = @_;
+
+    # SM268 03-F7: record the RESOLVED install_dirs modes alongside the files.
+    #
+    # SM246's design is "one table, three consumers - install applies, check
+    # verifies, check --fix repairs". That was true of runtime_paths and false
+    # of install_dirs: lazysite-check.pl carried its own hand-written list of
+    # eleven lazysite/* directories and knew nothing of the twenty-eight the
+    # model declares. So every site already carrying the reported fault - the
+    # docroot's content directories stripped of group write - stayed broken, and
+    # the audit tool called the site healthy.
+    #
+    # The model lives in the release tarball, which an installed site does not
+    # keep, so check cannot read it directly. Writing the resolved paths into
+    # the install state is what gives check something to verify against, without
+    # it having to guess at placeholders or find a manifest.
+    my %dirs = map { $_ => sprintf '%04o', $INSTALL_DIR_MODE{$_} }
+        keys %INSTALL_DIR_MODE;
+
     my $data = {
         schema_version => '1',
         version        => $version,
         installed_at   => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         files          => $files,
+        ( %dirs ? ( dirs => \%dirs ) : () ),
     };
     make_path( dirname($path) );
     my $json = JSON::PP->new->utf8(1)->pretty(1)->indent_length(2)
@@ -1633,7 +1802,23 @@ sub resolve_placeholders {
     # introduced them (e.g. {DOCROOT}/../plugins), by normalising
     # through a simple textual pass. Do NOT use abs_path here - the
     # directory may not exist yet.
-    $out =~ s{/[^/]+/\.\./}{/}g;
+    #
+    # SM268 03-F8: a TRAILING `..` counts too. This pattern needed a slash on
+    # both sides, so `{DOCROOT}/../lib` collapsed to /base/lib and matched,
+    # while `{DOCROOT}/..` stayed as `/base/site/..` - a string
+    # make_declared_path never looks up, because the parent walk asks for
+    # `/base`. The declaration for the site's parent directory was therefore
+    # dead, and provisioning a site whose parent does not yet exist failed with
+    # "No declared mode for directory ..." telling the operator to add an entry
+    # to classification.json that was already there.
+    #
+    # Loop: collapsing one segment can expose another (a/b/../../c).
+    1 while $out =~ s{/[^/]+/\.\./}{/}g;
+    1 while $out =~ s{/[^/]+/\.\.\z}{};
+    $out =~ s{/\z}{} if length($out) > 1;
+    # Collapsing back past the root leaves nothing; that is the root itself, and
+    # an empty string would be a lookup key no declaration can ever carry.
+    $out = '/' if $out eq '';
     return $out;
 }
 
