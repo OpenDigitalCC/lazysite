@@ -108,19 +108,24 @@ Fifteen were recorded in the reports; the table below is the working state.
 | M7 | The model has no verifier for `install_dirs`, and an upgrade does not repair the incident SM246 was written for. | 03-F7 | FIXED |
 | M8 | `{DOCROOT}/..` is declared but can never match, and a greenfield install dies. | 03-F8 | FIXED |
 | M9 | The snapshot name is claimed non-atomically, so concurrent callers overwrite each other's tarball. | 03-F9 | FIXED |
-| M10 | The `.sha256` sidecar is displayed but never verified. | 03-F10 | ON A BRANCH |
+| M10 | The `.sha256` sidecar is displayed but never verified. | 03-F10 | FIXED |
 | M11 | Manager backups have no retention and no delete. | 03-F11 | FIXED |
 | M12 | `content_root: .` makes `package_create` copy itself. | 03-F12 | FIXED |
 | M13 | ACL keys are docroot-relative, so on a content-rooted domain a URL-shaped key protects nothing. | 01-M3 | MITIGATED |
 | L1 | Read-path group matching is case-sensitive and does not expand compound groups. | 01-L1 | FIXED |
 | L2 | On the SM223 Apache route `REDIRECT_URL` is unset, so any static whose URL needs percent-encoding 404s - i.e. turning on the first ACL entry breaks every asset with a space or non-ASCII character in its name, site-wide. | this session | FIXED |
 
-**M10 is not on this branch.** `write_sha256`/`read_sha256` and the `-2`
-disambiguator the finding describes live on `claude/sm183-rollback` (`ff702b7`),
-which is not merged here. M9's underlying defect IS present on this branch, in a
-worse form - no name check at all - and is fixed here with an `O_EXCL` claim.
-That branch's disambiguator must be replaced by the same mechanism before it
-merges, and its sidecar must be verified on read rather than merely displayed.
+**M10 was fixed ON `claude/sm183-rollback`** (`3c4dd3d`), where the code lives -
+`write_sha256`/`read_sha256` and the `-2` disambiguator are not on this branch.
+Four things were wrong and all four are closed there: nothing verified the
+digest (the listing now carries `sha256_status`, and `package_apply` refuses a
+mismatch); the basename field was ignored, so a sidecar naming another artefact
+passed; the sidecar was written non-atomically through a symlink-following
+`open '>'` that returned a digest it had failed to store; and the installer's
+own backups never got one, which made its retention `unlink` dead code.
+
+That branch's `-2` disambiguator was replaced by the same `O_EXCL` claim used
+here, so the two branches carry one mechanism rather than two answers to M9.
 
 **M13 is MITIGATED, not fixed.** The engine cannot silently reinterpret an ACL
 key: the manager, MCP and WebDAV all write docroot-relative keys and agree with
