@@ -94,6 +94,11 @@ sub _effective_groups {
 # domain-access resolver needs the same expanded set the capability resolver uses.
 sub effective_groups { return _effective_groups(@_) }
 
+# Public: close a set of GROUP names upward over sub-group membership. Callers
+# that already hold group names (the ACL read decision, SM268 01-L1) need the
+# same expansion as callers that start from a username.
+sub group_closure { return _group_closure(@_) }
+
 # SM165: THE shared scope resolver for every enforcement channel (manager cookie,
 # control-API token, WebDAV - all route here, directly or via effective_settings).
 # A user's effective content-root scopes come from DOMAIN access (each domain's

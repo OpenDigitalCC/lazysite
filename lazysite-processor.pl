@@ -662,11 +662,19 @@ sub _acl_allows_read {
     my $list = $a->{read};
     return 1 unless ref $list eq 'ARRAY' && @$list;
 
-    my %grp = map { $_ => 1 } @groups;
+    # SM268 01-L1: one group semantics, not three. This compared the raw
+    # X-Remote-Groups list exactly, while check_auth's `groups:` comparison
+    # lowercases both sides and _groups_grant_cap expands compound groups
+    # through the closure - so `Editors` was refused where `editors` was
+    # allowed, and membership of a group NESTED in the granted one did not
+    # count. It failed closed, so it was a correctness defect rather than an
+    # exposure, but an operator meeting it reads it as "the ACL is broken" and
+    # the obvious repair is to widen the rule.
+    my %grp = map { lc($_) => 1 } _group_closure(@groups);
     for my $e (@$list) {
         next unless defined $e && length $e;
         if ( $e =~ /\A\@(.+)\z/ ) {
-            my $g = $1;    # capture immediately - any later match clobbers $1
+            my $g = lc $1;    # capture immediately - any later match clobbers $1
             return 1 if $grp{$g};
         }
         elsif ( length $user && $e eq $user ) {

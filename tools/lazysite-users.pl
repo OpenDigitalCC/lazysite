@@ -2888,9 +2888,16 @@ sub cmd_permissions_grid {
     my ($user) = @_;
     return { ok => 0, error => 'username required' } unless defined $user && length $user;
     _ensure_groups_seeded();
-    my $gs         = Lazysite::Auth::Settings::read_group_settings();
-    my %membership = read_groups();
-    my @mygroups = sort grep { grep { $_ eq $user } @{ $membership{$_} || [] } } keys %membership;
+    my $gs = Lazysite::Auth::Settings::read_group_settings();
+
+    # SM268 02-6: the CLOSURE, because that is what caps_for uses and therefore
+    # what every enforcement point acts on. This read direct membership only, so
+    # a capability conferred by NESTING was enforced everywhere and shown
+    # nowhere: an operator auditing "who holds manage_users" was told nobody
+    # did, while settings-get on the same store said otherwise. Paired with the
+    # unguarded group-nest (H8) that was a ready-made persistence mechanism -
+    # escalate by nesting, and the review screen shows nothing.
+    my @mygroups = sort( Lazysite::Auth::Settings::effective_groups($user) );
 
     my %granted_by;    # cap => [ groups granting it ]
     for my $g (@mygroups) {
@@ -3075,8 +3082,17 @@ sub _may_confer {
     my $caps = eval { caps_for($actor) } || {};
     return 1 if $caps->{$cap};    # holds it: may confer it
 
+    # SM268 02-5: the CLOSURE, not direct membership. caps_for above walks the
+    # compound-group closure, so a capability held through nesting counts as
+    # held; `grantable` read direct membership only, and the two halves of this
+    # one decision disagreed for any nested group. An operator who put
+    # `grantable` on a parent group had delegated nothing to the members of its
+    # children and got no diagnostic. It failed closed, so it was not an
+    # escalation - but the natural workaround is to move the delegate into the
+    # parent group, which grants them everything the parent holds. A usability
+    # defect that pushes an operator toward a real privilege increase.
     my $gs = read_group_settings();
-    for my $g ( _groups_of($actor) ) {
+    for my $g ( Lazysite::Auth::Settings::effective_groups($actor) ) {
         my $set = $gs->{$g} && $gs->{$g}{grantable};
         next unless ref $set eq 'ARRAY';
         return 1 if grep { $_ eq $cap } @$set;
@@ -3147,17 +3163,9 @@ sub _exceeds_authority {
     return undef;
 }
 
-# The groups an account belongs to, for the grantable lookup.
-sub _groups_of {
-    my ($user) = @_;
-    my %members = read_groups();
-    my @in;
-    for my $g ( sort keys %members ) {
-        my @m = ref $members{$g} eq 'ARRAY' ? @{ $members{$g} } : ();
-        push @in, $g if grep { $_ eq $user } @m;
-    }
-    return @in;
-}
+# _groups_of (direct membership) is gone: SM268 02-5/02-6 replaced both its
+# callers with Settings::effective_groups, which follows the nesting closure.
+# Leaving it here would invite a third caller to reintroduce the disagreement.
 
 sub cmd_group_settings_set {
     my ( $group, $key, $value, $actor ) = @_;
