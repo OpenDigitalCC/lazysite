@@ -106,10 +106,28 @@ sub _copy_base_content {
 sub _copy_tree {
     my ( $src, $dst ) = @_;
     $src =~ s{/+$}{};
+
+    # SM268 03-F12: never descend into the destination. The staging directory
+    # lives under lazysite/backups/, and a domain whose content_root resolves to
+    # the docroot itself put the destination INSIDE the source - so the copy fed
+    # itself, nesting content/lazysite/backups/.stage-.../content/... about fifty
+    # deep until the kernel refused the path length, and died uncaught inside a
+    # CGI (500, no useful message) leaving a tree ordinary cleanup will not
+    # remove. Repeatable at will by a manage_domains holder.
+    #
+    # The reachable route is closed upstream by refusing such a content_root;
+    # this is the second line, and it is the one that holds whatever a future
+    # caller passes.
+    ( my $dst_pfx = $dst ) =~ s{/+$}{};
+
     File::Find::find(
         { no_chdir => 1,
             wanted => sub {
-                my $p      = $File::Find::name;
+                my $p = $File::Find::name;
+                if ( $p eq $dst_pfx || index( $p, "$dst_pfx/" ) == 0 ) {
+                    $File::Find::prune = 1;
+                    return;
+                }
                 my $rel    = ( $p eq $src ) ? '' : substr( $p, length($src) + 1 );
                 my $target = length $rel    ? "$dst/$rel" : $dst;
                 if    ( -l $p ) { return }               # never follow/copy links

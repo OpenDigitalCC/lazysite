@@ -10,6 +10,8 @@ use warnings;
 use POSIX          qw(strftime);
 use File::Path     qw(make_path);
 use File::Find     ();
+use Fcntl          qw(O_WRONLY O_CREAT O_EXCL);
+use Errno          ();
 use Lazysite::Util qw(log_event);
 use Exporter       qw(import);
 our @EXPORT_OK = qw(action_backup_list action_backup_create action_backup_download
@@ -45,6 +47,33 @@ sub action_backup_list {
     return { ok => 1, backups => \@out };
 }
 
+# Claim an unused artefact name by creating it O_EXCL, and return
+# (path, basename) - or () if 50 suffixes were all taken, or the create failed
+# for a reason other than "exists" (a full or unwritable backups directory, say,
+# which must not be reported as a successful snapshot).
+#
+# tar then writes THROUGH the placeholder: it opens O_WRONLY|O_CREAT|O_TRUNC, so
+# the inode we claimed is the one it fills.
+sub _claim_name {
+    my ( $dir, $kind ) = @_;
+    my $stamp = strftime( '%Y%m%dT%H%M%SZ', gmtime );
+    for my $n ( 1 .. 50 ) {
+        my $name = "lazysite-$kind-$stamp" . ( $n > 1 ? "-$n" : q{} ) . '.tar.gz';
+        my $path = "$dir/$name";
+        if ( sysopen my $fh, $path, O_WRONLY | O_CREAT | O_EXCL, oct '640' ) {
+            close $fh;
+            return ( $path, $name );
+        }
+        next if $! == Errno::EEXIST();
+        log_event( 'ERROR', 'backup-create', 'cannot create backup file',
+            path => $path, error => "$!" );
+        return ();
+    }
+    log_event( 'ERROR', 'backup-create', 'no free backup name in this second',
+        dir => $dir );
+    return ();
+}
+
 sub action_backup_create {
     my ($kind) = @_;
     $kind = 'manual' unless defined $kind && $kind =~ /\A(manual|prerestore|full)\z/;
@@ -52,8 +81,20 @@ sub action_backup_create {
     make_path($dir) unless -d $dir;
     # All backup artefacts carry the `lazysite-` namespace prefix so they are
     # unmistakably ours (and sort together): lazysite-<kind>-<UTCstamp>.tar.gz.
-    my $name = "lazysite-$kind-" . strftime( '%Y%m%dT%H%M%SZ', gmtime ) . '.tar.gz';
-    my $out  = "$dir/$name";
+    #
+    # SM268 03-F9: the name is claimed ATOMICALLY, and the stamp has one-second
+    # resolution. Two snapshots in the same second - an apply's safety snapshot
+    # and a concurrent backup-create or git-sync snapshot - produced the same
+    # name, and both tar processes wrote the same inode. Every caller was told
+    # ok => 1 and handed a name; all but one described someone else's tarball.
+    # That is the worst failure mode this feature has, because the operator
+    # believes they can roll back. A check-then-create (-e, then tar) does not
+    # fix it either: the window is between the test and the write. O_EXCL is the
+    # test and the claim in one syscall, so exactly one caller wins each name and
+    # the losers take the next suffix.
+    my ( $out, $name ) = _claim_name( $dir, $kind );
+    return { ok => 0, error => 'Backup failed: could not claim a filename' }
+        unless defined $out;
 
     # 'full' = the whole site including the lazysite/ infra (config, auth,
     # forms, nav, themes/layouts) - a portable snapshot for DR and for migrating a
@@ -68,7 +109,12 @@ sub action_backup_create {
         : ( '--exclude=./lazysite', '--exclude=./lazysite-assets' );
 
     my $rc = system( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.' );
-    return { ok => 0, error => 'Backup failed' } if $rc != 0 || !-f $out;
+    if ( $rc != 0 || !-f $out || -z $out ) {
+        # Drop the placeholder we claimed, or a failed snapshot leaves a
+        # zero-byte tarball in the listing that reads as a usable one.
+        unlink $out;
+        return { ok => 0, error => 'Backup failed' };
+    }
     log_event( 'INFO', 'backup-create',
         ( $kind eq 'full' ? 'full system snapshot' : 'docroot snapshot' ),
         file => $name, user => $auth_user );

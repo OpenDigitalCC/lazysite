@@ -221,4 +221,38 @@ subtest 'a .brief sidecar is still refused when routed through the engine' => su
         'and not to a permitted user either - it is not content at all' );
 };
 
+# --- SM268 01-L2: the route SM223 actually uses carries an ENCODED path -------
+#
+# Apache does not set REDIRECT_* for a rewrite in server context, which is where
+# the SM223 rules live - so on a site with an ACL store EVERY existing static
+# arrives with REQUEST_URI only, percent-encoded, and the processor never
+# decoded it. Turning on the first ACL entry therefore 404'd every asset whose
+# filename contains a space, `+`, `&` or a non-ASCII character, site-wide. It
+# reads as "SM223 broke my site" rather than as an encoding bug, which is why it
+# is worth a test rather than a note.
+subtest 'a static whose URL needs percent-encoding is served on the ACL route' => sub {
+    write_acls( {} );
+    open my $fh, '>', "$docroot/public/my file.pdf" or die $!;
+    print {$fh} 'SPACEFILE';
+    close $fh;
+
+    # No REDIRECT_URL, encoded REQUEST_URI: the SM223 Apache route exactly.
+    my $out = run_processor(
+        $docroot, undef,
+        REDIRECT_URL => undef,
+        REQUEST_URI  => '/public/my%20file.pdf',
+    );
+    like( $out, qr/SPACEFILE/, 'the file is served' );
+    unlike( $out, qr/404/, 'not a 404' );
+
+    # And decoding did not open a traversal: the decode happens BEFORE the
+    # `..` rejection, so an encoded one is still caught.
+    my $trav = run_processor(
+        $docroot, undef,
+        REDIRECT_URL => undef,
+        REQUEST_URI  => '/public/%2e%2e%2f%2e%2e%2flazysite/auth/acls.json',
+    );
+    unlike( $trav, qr/Status:\s*200/, 'an encoded traversal is still refused' );
+};
+
 done_testing();

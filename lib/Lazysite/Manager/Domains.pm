@@ -66,6 +66,20 @@ sub _clean_content_root {
     return undef unless length $rel;
     return undef if $rel =~ m{(?:^|/)\.\.(?:/|$)};    # traversal
     return undef if $rel =~ m{(?:^|/)\.[^/]};         # dotfile/dotdir segment
+
+    # SM268 03-F12: collapse `.` segments and refuse what is left empty. A
+    # content_root of `.` is the docroot itself, and it passed every check above:
+    # the dotdir test wants a character after the dot, and path_is_reserved
+    # normalises `.` away to nothing. Accepted, it made package_create stage its
+    # copy INSIDE the tree it was copying - the copy fed itself until the kernel
+    # refused the path length and the CGI died with a 500, leaving a ~50-deep
+    # directory behind. The staging prune in SitePackage::_copy_tree is the
+    # second line; this is the first.
+    $rel =~ s{(?:^|/)\.(?=/|$)}{/}g;
+    $rel =~ s{/+}{/}g;
+    $rel =~ s{^/+|/+$}{}g;
+    return undef unless length $rel;
+
     return undef if path_is_reserved($rel);           # engine-owned (system) area
     return $rel;
 }

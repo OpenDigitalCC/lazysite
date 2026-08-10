@@ -1420,7 +1420,27 @@ sub main {
     # level, NOCACHE, etc.) cannot leak across requests under FastCGI / D016.
     local %ENV = %ENV;
 
-    my $uri = $ENV{REDIRECT_URL} || $ENV{REQUEST_URI} || '';
+    # SM268 01-L2: REQUEST_URI is percent-ENCODED; REDIRECT_URL is not.
+    #
+    # Apache does not set REDIRECT_* for a rewrite in server context, which is
+    # exactly where the SM223 rules live - so on a site with an ACL store EVERY
+    # existing static takes the REQUEST_URI branch, and the raw encoded path was
+    # never decoded. Turning on the first ACL entry therefore 404'd every asset
+    # whose filename contains a space, `+`, `&` or a non-ASCII character,
+    # site-wide, and it reads as "SM223 broke my site" rather than as an
+    # encoding bug.
+    #
+    # Decoded BEFORE sanitise_uri and the \0 / .. / ^/ rejections below, never
+    # after: decoding afterwards would let `%2e%2e%2f` slip past a check that
+    # ran on the encoded form. The query string is split off first, so a `?` in
+    # a filename cannot be manufactured by decoding.
+    my $uri = $ENV{REDIRECT_URL} || '';
+    unless ( length $uri ) {
+        $uri = $ENV{REQUEST_URI} // '';
+        my $q = ( $uri =~ s/\?(.*)\z//s ) ? $1 : undef;
+        $uri =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
+        $uri .= "?$q" if defined $q;
+    }
 
     # Capture query string before stripping
     my $qs_source = '';
