@@ -35,7 +35,12 @@ as a pre-release gate, which reproduced 26 defects and blocked the release. All
 of them are closed, plus two more found while proving the fixes. **Existing
 vhosts must be re-rendered**: every SM223 Apache routing rule gained the `PT`
 flag, without which the ACL routing never reached the auth wrapper at all on the
-layout the Hestia templates produce.
+layout the Hestia templates produce. **And a re-render resets the docroot
+permissions** - Hestia's `v-rebuild-web-domain` puts `public_html` back to its
+own default (2751: setgid, no group write), which leaves the CGI unable to save
+anything. Run `lazysite-check --fix` after any rebuild, or use
+`lazysite-hestia-update-all.sh --rebuild`, which orders the refresh, the rebuild
+and the deploy so the permission sweep runs last (SM270).
 
 The theme, if there is one, is two surfaces disagreeing about the same question.
 A capability the control API enforced and MCP did not; a ceiling applied when

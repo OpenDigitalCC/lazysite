@@ -20,22 +20,22 @@
 # Core-Perl only.
 use strict;
 use warnings;
-use Cwd qw(abs_path);
+use Cwd        qw(abs_path);
 use File::Find ();
 
 my %opt = ( docroot => undef, cgibin => undef, owner => undef,
-            group => undef, fix => 0, check_dav => undef, dependencies => 0 );
-while ( @ARGV ) {
+    group => undef, fix => 0, check_dav => undef, dependencies => 0 );
+while (@ARGV) {
     my $a = shift @ARGV;
-    if    ( $a eq '--docroot' ) { $opt{docroot} = shift @ARGV }
-    elsif ( $a eq '--cgibin' )  { $opt{cgibin}  = shift @ARGV }
-    elsif ( $a eq '--owner' )   { $opt{owner}   = shift @ARGV }
-    elsif ( $a eq '--group' )   { $opt{group}   = shift @ARGV }
-    elsif ( $a eq '--fix' )     { $opt{fix}     = 1 }
-    elsif ( $a eq '--check-dav' ) { $opt{check_dav} = shift @ARGV }
-    elsif ( $a eq '--dependencies' ) { $opt{dependencies} = 1 }
+    if    ( $a eq '--docroot' )       { $opt{docroot}       = shift @ARGV }
+    elsif ( $a eq '--cgibin' )        { $opt{cgibin}        = shift @ARGV }
+    elsif ( $a eq '--owner' )         { $opt{owner}         = shift @ARGV }
+    elsif ( $a eq '--group' )         { $opt{group}         = shift @ARGV }
+    elsif ( $a eq '--fix' )           { $opt{fix}           = 1 }
+    elsif ( $a eq '--check-dav' )     { $opt{check_dav}     = shift @ARGV }
+    elsif ( $a eq '--dependencies' )  { $opt{dependencies}  = 1 }
     elsif ( $a eq '--handover-mode' ) { $opt{handover_mode} = shift @ARGV }
-    elsif ( $a eq '--help' )    { usage(); exit 0 }
+    elsif ( $a eq '--help' )          { usage(); exit 0 }
     else { print STDERR "lazysite-check: unknown option: $a\n"; exit 2 }
 }
 
@@ -43,7 +43,7 @@ while ( @ARGV ) {
 # modules lazysite needs (from dist/config/sbom-deps.json) - no docroot needed,
 # so it runs before the docroot validation below. An operator (or an onboarding
 # agent) can ask "what must I install here" and get the missing-package line.
-run_dependency_check() if $opt{dependencies};   # exits
+run_dependency_check() if $opt{dependencies};    # exits
 
 # Introspection for the regression tests (the chown-handover logic is only
 # reachable as root): print what handover_mode() computes for an octal mode.
@@ -81,7 +81,7 @@ USAGE
 sub run_dependency_check {
     require JSON::PP;
     my $self = abs_path($0);
-    ( my $tools = $self ) =~ s{/[^/]*$}{};
+    ( my $tools = $self )  =~ s{/[^/]*$}{};
     ( my $root  = $tools ) =~ s{/[^/]*$}{};
     my $deps_path = "$root/dist/config/sbom-deps.json";
     unless ( -f $deps_path ) {
@@ -106,7 +106,7 @@ sub run_dependency_check {
         ( my $file = $mod ) =~ s{::}{/}g;
         # Probe a module named in the trusted local SBOM file; block-form require
         # of a path string, no injection surface.
-        my $ok = eval { require "$file.pm"; 1 };  ## no critic (Modules::RequireBarewordIncludes)
+        my $ok = eval { require "$file.pm"; 1 }; ## no critic (Modules::RequireBarewordIncludes)
         if ($ok) {
             $present++;
             printf "  %-8s %-22s %s\n", 'OK', $mod, ( $m->{debian_pkg} // '' );
@@ -150,13 +150,13 @@ unless ( -d $LZ ) {
 }
 
 # --- expected owner / group (default: derived from the docroot itself) -------
-my @ds = stat $DOC;
+my @ds      = stat $DOC;
 my $exp_uid = defined $opt{owner} ? ( ( getpwnam $opt{owner} )[2] // -1 ) : $ds[4];
 # Expected GROUP defaults to the CGI's group (www-data), NOT the docroot's group:
 # the no-suexec CGI runs as www-data and must keep group access to the tree.
 # Falling back to the docroot group only if there is no www-data group.
 my $exp_gid = defined $opt{group} ? ( ( getgrnam $opt{group} )[2] // -1 )
-            : ( ( getgrnam 'www-data' )[2] // $ds[5] );
+    :   ( ( getgrnam 'www-data' )[2] // $ds[5] );
 my $exp_user = ( getpwuid $exp_uid )[0] // $exp_uid;
 my $exp_grp  = ( getgrgid $exp_gid )[0] // $exp_gid;
 # The CGI (www-data) legitimately OWNS the files it creates at runtime - locks,
@@ -258,20 +258,20 @@ sub run_checks {
     #  files inherit the group)
     my %want_dir = (
         'lazysite/backups'           => 02775,    # SM246 manager-written snapshots
-        'lazysite/cache'         => 02775,
-        'lazysite/logs'          => 02775,
-        'lazysite/stats'         => 02775,    # SM213 durable per-day stats store
+        'lazysite/cache'             => 02775,
+        'lazysite/logs'              => 02775,
+        'lazysite/stats'             => 02775,    # SM213 durable per-day stats store
         'lazysite/stats/form-events' => 02775,    # SM216-2 form-outcome log (PII-free)
-        'lazysite/manager/locks' => 02775,
-        'lazysite/layouts'       => 02775,
-        'lazysite-assets'        => 02775,
-        'lazysite/auth'          => 02770,
-        'lazysite/forms'         => 02770,
-        'lazysite/git'           => 02770,
+        'lazysite/manager/locks'     => 02775,
+        'lazysite/layouts'           => 02775,
+        'lazysite-assets'            => 02775,
+        'lazysite/auth'              => 02770,
+        'lazysite/forms'             => 02770,
+        'lazysite/git'               => 02770,
     );
     for my $rel ( sort keys %want_dir ) {
         my $path = "$DOC/$rel";
-        next unless -e $path;    # not every dir exists on every install
+        next unless -e $path;                     # not every dir exists on every install
         unless ( -d $path ) { report( 'WARN', "$rel exists but is not a directory" ); next }
         my $mode = mode_of($path);
         my $want = $want_dir{$rel};
@@ -322,12 +322,57 @@ sub run_checks {
 
         my $checked = 0;
         my $wrong   = 0;
+        # SM270: the DOCROOT ITSELF is checked, and it is a FAIL rather than a
+        # warning.
+        #
+        # SM268 03-F7 excluded it along with the parent and the cgi-bin, on the
+        # reasoning that those are pre-existing and the platform's business.
+        # That was right about the parent and the cgi-bin and WRONG about the
+        # docroot: its mode is a functional requirement, not a preference - the
+        # CGI writes every authoring surface through it. A live 0.10.5 upgrade
+        # then proved the point. Hestia's v-rebuild-web-domain reset public_html
+        # to 2751 (setgid, no group write), the operator followed the release
+        # notes' instruction to re-render vhosts, and this tool reported the site
+        # healthy while the manager could not save a file.
+        #
+        # Queued for --fix, unlike the content directories below: this one is
+        # "the site does not work", not "someone may have tightened it on
+        # purpose".
+        if ( my $want_doc = $declared{$DOC} ) {
+            my $w = oct $want_doc;
+            my $m = mode_of($DOC);
+            # Two severities, because they are two different problems. NOT
+            # GROUP-WRITABLE is "the site does not work" - it is the reported
+            # incident, and the CGI cannot save anything. Group-writable but no
+            # SETGID works today and breaks the group on newly created files,
+            # which is the slower-burning SM215 class. Reporting both as FAIL
+            # would fire on every hand-made dev docroot and teach the reader to
+            # skip the line that matters.
+            if    ( !-d $DOC ) { }
+            elsif ( !( $m & 0020 ) ) {
+                report( 'FAIL',
+                    sprintf( 'the docroot is %04o and is NOT group-writable - the CGI '
+                            . 'cannot save anything. A Hestia vhost rebuild resets this '
+                            . '(SM270); re-run after any rebuild', $m ),
+                    sprintf( "chmod %04o '%s'", $w, $DOC ) );
+                push @chmod_fixes, [ $w, $DOC ];
+            }
+            elsif ( !( $m & 02000 ) ) {
+                report( 'WARN',
+                    sprintf( 'the docroot is %04o - writable, but without setgid new '
+                            . 'files will not inherit the web-server group', $m ),
+                    sprintf( "chmod %04o '%s'", $w, $DOC ) );
+            }
+            else {
+                report( 'OK', sprintf( 'docroot is group-writable + setgid (%04o)', $m ) );
+            }
+        }
+
         for my $path ( sort keys %declared ) {
-            # Only the site's OWN directories. The model also declares the
-            # docroot itself, its parent and the cgi-bin, all of which are
-            # pre-existing and operator- or panel-owned: their modes are the
-            # platform's business, and a finding that fires on every install is
-            # one its reader learns to skip past.
+            # Only the site's OWN directories BELOW the docroot. The parent and
+            # the cgi-bin stay out: those really are the platform's, and a
+            # finding that fires on every install is one its reader learns to
+            # skip past. The docroot itself is handled above.
             next unless index( $path, "$DOC/" ) == 0;
             ( my $rel = $path ) =~ s{\A\Q$DOC\E/}{};
             next if $rel =~ m{\A\.\.(?:/|\z)};

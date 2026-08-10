@@ -22,6 +22,8 @@ use File::Path qw(make_path);
 use File::Temp qw(tempdir);
 use JSON::PP   ();
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use TestHelper qw(repo_manifest_guard);
 
 my $ROOT     = "$FindBin::Bin/../..";
 my $INSTALL  = "$ROOT/install.pl";
@@ -30,6 +32,11 @@ my $BUILD_MF = "$ROOT/tools/build-manifest.pl";
 
 plan skip_all => 'install.pl not found'        unless -f $INSTALL;
 plan skip_all => 'lazysite-check.pl not found' unless -f $CHECK;
+
+# SM269 phase 1: this test needs release-manifest.json AT THE REPO ROOT, and so
+# do two others. Under `prove -j` they raced - one deleted at END what another
+# was still using. The guard serialises just these three.
+my $MF_GUARD = repo_manifest_guard();
 
 my $REPO_MF = "$ROOT/release-manifest.json";
 my $MF_OURS = 0;
@@ -89,6 +96,45 @@ subtest 'a correct directory is not reported' => sub {
             . 'for the wrong reason' );
     like( $report, qr/declared directories carry their declared mode/,
         'and it says positively that the model was verified' );
+};
+
+# --- SM270: the docroot itself ----------------------------------------------
+#
+# From a live 0.10.5 upgrade. Hestia's v-rebuild-web-domain resets public_html
+# to its own default (2751: setgid, NO group write), the operator followed the
+# release notes' instruction to re-render vhosts for the SM268 H17 PT fix, and
+# this tool reported the site healthy while the manager could not save a file.
+#
+# SM268 03-F7 had excluded the docroot from the model check along with the
+# parent and the cgi-bin, reasoning that those are pre-existing and the
+# platform's business. That was right about two of the three: the docroot's mode
+# is a functional requirement, because the CGI writes every authoring surface
+# through it.
+subtest 'a docroot the CGI cannot write is a FAIL, and --fix repairs it' => sub {
+    chmod 02751, $docroot;
+    my $report = `$^X \Q$CHECK\E --docroot \Q$docroot\E 2>&1`;
+    like( $report, qr/docroot is 2751 and is NOT group-writable/,
+        'reported, with the mode' );
+    like( $report, qr/SM270/, 'and pointed at the rebuild that causes it' );
+
+    `$^X \Q$CHECK\E --docroot \Q$docroot\E --fix 2>&1`;
+    my $mode = ( stat $docroot )[2] & 07777;
+    is( $mode, 02775,
+        '--fix repairs it - unlike the content directories, this one is "the '
+            . 'site does not work" rather than "someone may have tightened it '
+            . 'on purpose"' );
+};
+
+subtest 'writable-but-no-setgid is a warning, not a failure' => sub {
+    chmod 00775, $docroot;
+    my $report = `$^X \Q$CHECK\E --docroot \Q$docroot\E 2>&1`;
+    like( $report, qr/warn.*docroot is 0775 - writable, but without setgid/,
+        'the slower-burning problem is reported as the lesser one' );
+    unlike( $report, qr/FAIL.*docroot is 0775/,
+        'and NOT as a failure - a hand-made dev docroot is 0775, and a check '
+            . 'that fails on every one of those teaches its reader to skip the '
+            . 'line that matters' );
+    chmod 02775, $docroot;
 };
 
 done_testing();

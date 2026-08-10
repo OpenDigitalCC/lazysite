@@ -23,6 +23,17 @@
 #                 are rebuilt - run `v-rebuild-web-domain USER DOMAIN` (or deploy
 #                 with LAZYSITE_APPLY_TEMPLATE=1) on the domains you want to pick
 #                 up the change, having confirmed they use lazysite-app.
+#   --rebuild     SM270: refresh the template, REBUILD each domain's vhost, and
+#                 then deploy - in that order. Implies --templates.
+#
+#                 The order is the whole point. Hestia's v-rebuild-web-domain
+#                 re-applies its own docroot permissions (2751: setgid, NO group
+#                 write), and the deploy's permission sweep is what repairs that.
+#                 Rebuilding AFTER the deploy - which is what the manual
+#                 instructions ask for - leaves the docroot unwritable by the
+#                 CGI, and nothing notices until the manager fails to save. A
+#                 live 0.10.5 upgrade hit exactly this.
+#
 #   STAGE_DIR     the unpacked release (default: this script's release root).
 #
 # A per-site failure is reported and the run continues; the exit status is
@@ -32,11 +43,13 @@ shopt -s nullglob
 
 LIST=0
 DO_TPL=0
+DO_REBUILD=0
 ARGS=()
 for a in "$@"; do
     case "$a" in
         --list)       LIST=1 ;;
         --templates)  DO_TPL=1 ;;
+        --rebuild)    DO_REBUILD=1; DO_TPL=1 ;;
         *)            ARGS+=("$a") ;;
     esac
 done
@@ -110,6 +123,23 @@ if [ "$DO_TPL" = 1 ] && [ -d "$TPLDIR" ]; then
     cp "$STAGE/installers/hestia/lazysite-app.stpl" "$TPLDIR/lazysite-app.stpl"
     cp "$STAGE/installers/hestia/lazysite-app.sh"   "$TPLDIR/lazysite-app.sh"
     chmod 755 "$TPLDIR/lazysite-app.sh"
+fi
+
+# --- rebuild each vhost, BEFORE deploying (SM270) ----------------------------
+# Deliberately between the template refresh and the deploy: the refresh puts the
+# new template in place, the rebuild renders it (resetting docroot permissions
+# on the way), and the deploy's permission sweep then repairs what the rebuild
+# reset. Any other order leaves the site unwritable.
+if [ "$DO_REBUILD" = 1 ]; then
+    echo "==> rebuilding vhosts (picks up the refreshed template)"
+    for i in "${!DOMAINS[@]}"; do
+        d="${DOMAINS[$i]}"; u="${USERS[$i]}"
+        if "$HESTIA/bin/v-rebuild-web-domain" "$u" "$d" >/dev/null 2>&1; then
+            echo "    rebuilt: $d"
+        else
+            echo "    REBUILD FAILED: $d (user $u) - deploy will still run" >&2
+        fi
+    done
 fi
 
 # --- deploy each -------------------------------------------------------------
