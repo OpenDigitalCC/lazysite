@@ -1125,6 +1125,20 @@ sub _mcp_search {
     return { ok => 0, error => 'query must not be empty' } unless defined $query && length $query;
     $base = '/' unless defined $base && length $base;
     $base =~ s{^/+}{}; $base =~ s{/+$}{}; $base =~ s{\.\.}{}g;
+
+    # SM268 04-F4: the lazysite/ exclusion below only applies while DESCENDING,
+    # so naming a base INSIDE the tree skipped it entirely - and the blocklist
+    # was never consulted at all. `search_files` with base lazysite/auth printed
+    # user-settings.json a line at a time, a file read_file refuses outright:
+    # the full capability and scope roster, to any partner holding
+    # manage_content, scoped or not, as an unlimited-query oracle. The
+    # searchable extension set also covers acls.json (per-file owner and
+    # reader/writer lists), oauth.json and revoked.json.
+    return { ok => 0,
+        error => 'search does not enter the lazysite/ tree - it holds the auth '
+            . 'store, ACLs and engine state, none of which is site content' }
+        if Lazysite::Manager::Common::path_is_reserved($base);
+
     my $root = $DOCROOT . ( length $base ? "/$base" : '' );
     my $qre  = qr/\Q$query\E/i;
     my ( @matches, $files, $truncated );
@@ -1142,6 +1156,11 @@ sub _mcp_search {
             next unless -f $full;
             my ($ext) = $e =~ /\.([^.]+)$/;
             next unless $ext && $SEARCH_EXT{ lc $ext };
+            # SM268 04-F4: and the blocklist per candidate, as defence in depth -
+            # the base check above is a string test, this one asks the same
+            # question the read path asks about the file actually being opened.
+            ( my $key = $full ) =~ s{^\Q$DOCROOT\E/?}{};
+            next if Lazysite::Manager::Common::is_blocked_path($key);
             if ( ++$files > 2000 ) { $truncated = 1; last }
             open my $fh, '<:utf8', $full or next;
             my $ln = 0;

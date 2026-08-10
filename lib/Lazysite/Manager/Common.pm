@@ -18,7 +18,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
     _write_conf_key write_conf_key write_conf_content conf_batch path_out_of_scope outside_all_scopes reserved_roots path_is_reserved
-    carveout_requirement carveout_refusal
+    carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal processor_path);
 
 our $DOCROOT;                           # set by the script
@@ -159,6 +159,34 @@ sub outside_all_scopes {
     return 1;
 }
 
+# The carve-outs from the whole-lazysite/ denial, named ONCE. is_blocked_path
+# asks "is this path one of them", path_leads_to_carveout asks "is this
+# directory on the way to one" - a listing must offer lazysite/layouts even
+# though nothing may be read at that path itself. Two lists would drift, and the
+# way they would drift is a directory the file browser can no longer enter.
+our @LAZYSITE_OPEN_PREFIXES = ( 'lazysite/forms/submissions/', 'lazysite/layouts/', 'lazysite/themes/' );
+our @LAZYSITE_OPEN_EXACT = ('lazysite/nav.conf');
+
+sub _is_carveout {
+    my ($rel) = @_;
+    for my $e (@LAZYSITE_OPEN_EXACT)    { return 1 if $rel eq $e }
+    for my $p (@LAZYSITE_OPEN_PREFIXES) { return 1 if index( $rel, $p ) == 0 }
+    return 0;
+}
+
+# 1 if $rel is a DIRECTORY that some carve-out lives under, so a listing may
+# show it even though the path itself is not readable.
+sub path_leads_to_carveout {
+    my ($rel) = @_;
+    return 0 unless defined $rel && length $rel;
+    $rel =~ s{^/+|/+$}{}g;
+    return 0 unless length $rel;
+    for my $c ( @LAZYSITE_OPEN_PREFIXES, @LAZYSITE_OPEN_EXACT ) {
+        return 1 if index( $c, "$rel/" ) == 0;
+    }
+    return 0;
+}
+
 # The hard deny list (exact paths) plus the *.pl rule.
 sub is_blocked_path {
     my ($rel_path) = @_;
@@ -176,12 +204,7 @@ sub is_blocked_path {
     # by path - layouts/, themes/, nav.conf - and form SUBMISSIONS (operator
     # reviews entries) stay reachable: those are guarded by manage_layouts/
     # manage_themes/manage_nav + dav_scope, not by this path blocklist.
-    if ( $rel_path =~ m{\Alazysite/}
-        && $rel_path !~ m{\Alazysite/forms/submissions/}
-        && $rel_path !~ m{\Alazysite/layouts/}
-        && $rel_path !~ m{\Alazysite/themes/}
-        && $rel_path !~ m{\Alazysite/nav\.conf\z} )
-    {
+    if ( $rel_path =~ m{\Alazysite/} && !_is_carveout($rel_path) ) {
         log_event( 'WARN', $action, 'blocked lazysite tree', path => $rel_path, user => $auth_user );
         return 1;
     }

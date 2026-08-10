@@ -83,6 +83,31 @@ sub action_list {
         && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 )    # SEC-2026-07 (H3)
         && -d $real;
 
+    # SM268 04-F5: this was the one file handler with no blocklist, and the
+    # character strip above PRESERVES `..`. Two consequences, both disclosure.
+    #
+    # A confined partner spelled `..` through its own scope prefix - the scope
+    # gates test the raw request string, so `/content/clientA/../clientB` passed
+    # and then resolved elsewhere. And `lazysite/auth` was listable by any
+    # manage_content grant, which is reconnaissance on the auth tree. Worse than
+    # a plain listing: every entry carries the ACL owner, the read and write
+    # user lists, and any live lock holder, so it is a username roster keyed to
+    # files.
+    #
+    # Confine on the CANONICAL path, never the request spelling: $real has the
+    # `..` resolved, so deriving the docroot-relative key from it is what closes
+    # the traversal rather than another string test.
+    my $canon = $real eq $DOCROOT ? '' : substr( $real, length($DOCROOT) + 1 );
+    if ( length $canon ) {
+        return { ok => 0, error => 'Path is blocked', kind => 'blocked' }
+            if is_blocked_path($canon);
+        return { ok => 0, error => 'Path is blocked by config', kind => 'blocked-config' }
+            if is_blocked_config($canon);
+    }
+    # The listing reports the canonical location, so a `..` spelling cannot be
+    # used to make the response describe a directory by a name it does not have.
+    $dir_path = length $canon ? "/$canon" : '/';
+
     my @entries;
     my $acls = load_acls();    # SM074: owner display, read once per listing
     opendir my $dh, $real or return { ok => 0, error => "Cannot read directory" };
@@ -90,6 +115,12 @@ sub action_list {
         next if $name =~ /^\./;
         my $full   = "$real/$name";
         my $rel    = $dir_path eq '/' ? "/$name" : "$dir_path/$name";
+        # SM268 04-F5: and per entry, so a listable directory cannot advertise a
+        # blocklisted file inside it.
+        ( my $entry_key = $rel ) =~ s{^/}{};
+        next
+            if ( is_blocked_path($entry_key) || is_blocked_config($entry_key) )
+            && !Lazysite::Manager::Common::path_leads_to_carveout($entry_key);
         my @st     = stat($full);
         my $is_dir = -d $full ? 1 : 0;
         my $entry  = {
