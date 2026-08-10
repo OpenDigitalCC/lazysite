@@ -77,7 +77,7 @@ Severity is the reviewer's. Status is mine.
 | H1 | `form-submissions&file=` reads any `.jsonl` under the docroot - proven to return `lazysite/auth/sessions.jsonl` (operator usernames, IPs, UAs, session ids) and another tenant's leads, to a `read_submissions` token. | 04-F2 | FIXED |
 | H2 | `create_page` / `delete_page` / `rename_page` are not scope-confined: the gate inspects `path`/`to`/`from`, the tools use `slug`/`old`/`new`. | 04-F1 | FIXED |
 | H3 | Folder ACL scope exists only in the processor's copy, so `Acl::_acl_allows` grants read **and write** inside a "protected section" over manager, MCP and WebDAV. | 01-M1 | FIXED |
-| H4 | `read_file`/`write_file` reach the submission store and `nav.conf`, defeating `read_submissions`, `manage_forms` and `manage_nav` - refused by WebDAV, so a cross-plane inconsistency. | 04-F3 | OPEN |
+| H4 | `read_file`/`write_file` reach the submission store and `nav.conf`, defeating `read_submissions`, `manage_forms` and `manage_nav` - refused by WebDAV, so a cross-plane inconsistency. | 04-F3 | FIXED |
 | H5 | The installer follows symlinks on every write and every mode change; five attacks landed including `chmod 2775` onto an arbitrary file. | 03-F3 | FIXED |
 | H6 | `install.pl --restore` lets the tarball choose absolute destinations. | 03-F4 | FIXED |
 | H7 | `create_backup`'s `.backup-list-$$` is a predictable name in a group-writable directory. | 03-F5 | FIXED |
@@ -86,10 +86,11 @@ Severity is the reviewer's. Status is mine.
 | H10 | An owner-only ACL entry inside a gated folder republishes the file - and `copy_file` writes exactly that entry. | 01-H1 | FIXED |
 | H11 | A `.url` page inside a gated section is served with no ACL check (the gate is inside `if (@md_stat)`). | 01-H2 | FIXED |
 | H12 | An unreadable or malformed `acls.json` fails open, silently. | 01-H3 | FIXED |
-| H13 | Gated page content leaks through `scan:` listings and `/search-index`, cached `public, max-age=3600`. | 01-H4 | OPEN |
+| H13 | Gated page content leaks through `scan:` listings and `/search-index`, cached `public, max-age=3600`. | 01-H4 | FIXED |
 | H14 | A section's own landing page (`<section>.md`) is not covered by the folder key. | 01-H5 | FIXED |
-| H15 | The generated multi-domain rewrites serve per-domain files directly, bypassing SM223. Proven against real Apache. | 01-H6 | OPEN |
+| H15 | The generated multi-domain rewrites serve per-domain files directly, bypassing SM223. Proven against real Apache. | 01-H6 | FIXED |
 | H16 | `--restore-full` omits `--no-same-permissions`, so as root it restores setuid bits. | 03-F6 | FIXED |
+| H17 | Every SM223 Apache routing rule lacks the `PT` flag, so mod_rewrite prefixes DocumentRoot and the target resolves to `<docroot>/cgi-bin/lazysite-auth.pl`. Where cgi-bin is a SIBLING of the docroot - what the Hestia templates produce - that file does not exist and EVERY static file 404s once an ACL store is present. Found while proving H15 against Apache 2.4.67; not in any review report. | this session | FIXED |
 
 ### Medium and low
 

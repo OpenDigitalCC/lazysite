@@ -98,6 +98,32 @@ sub apache_snippet {
         push @out,
             '',
             "# $h -> $r",
+            # SM268 H15: SM223 routes a static file through the engine when the
+            # site has an ACL store, and the ten shipped vhost templates do that
+            # for the PRIMARY docroot. This generator emits the per-domain serve
+            # rules, and did not - so on a multi-site instance, which is the shape
+            # SM151 exists for, every alias domain's own assets were served
+            # directly and no ACL could reach them. Proven against real Apache.
+            #
+            # Must precede the serve rule below: that rule ends in [L], so
+            # anything after it would serve an ACL'd file before the ACL was
+            # consulted. The exempt list already excludes /cgi-bin, so the
+            # rewrite target cannot match itself.
+            "# $h: route this domain's statics through the engine when ACLs exist",
+            "RewriteCond %{HTTP_HOST} =$h [NC]",
+            'RewriteCond %{DOCUMENT_ROOT}/lazysite/auth/acls.json -f',
+            "RewriteCond %{REQUEST_URI} !^/(?:$exempt)(?:/|\$)",
+            "RewriteCond %{DOCUMENT_ROOT}/$r%{REQUEST_URI} -f",
+            # PT, not a bare [L]: in vhost context mod_rewrite treats a
+            # substitution beginning with / as a LOCAL PATH and prefixes
+            # DocumentRoot before mod_alias ever sees it, so without PT the
+            # target resolves to <docroot>/cgi-bin/lazysite-auth.pl. Where
+            # cgi-bin is a sibling of the docroot - which is what the Hestia
+            # templates produce - that file does not exist and every request
+            # this rule catches 404s.
+            'RewriteRule ^/(.*)$ /cgi-bin/lazysite-auth.pl [PT,L]',
+            '',
+            "# $h: serve this domain's own static files",
             "RewriteCond %{HTTP_HOST} =$h [NC]",
             "RewriteCond %{REQUEST_URI} !^/(?:$exempt)(?:/|\$)",
             "RewriteCond %{DOCUMENT_ROOT}/$r%{REQUEST_URI} -f",
@@ -137,8 +163,17 @@ sub nginx_snippet {
         '',
         '# In the server{} block, serve per-host statics first, then the app:',
         '#   location / {',
+        '#       error_page 418 = @lazysite;',
+        '#       if (-f $document_root/lazysite/auth/acls.json) { return 418; }',
         '#       try_files $lz_content_root$uri $uri @lazysite;',
         '#   }',
+        '#',
+        '# SM268 H15: the two ACL lines are not optional. This example REPLACES',
+        '# the shipped `location /`, so leaving them out deletes SM223 rather',
+        '# than merely out-competing it: on a site with an ACL store every',
+        '# per-domain static would be served directly, with no auth decision able',
+        '# to reach it. A site with no ACLs never enters the branch and keeps',
+        '# direct static serving at full speed.',
         '# The /lazysite, /cgi-bin and /manager locations must be declared',
         '# BEFORE this one so they are never prefixed with a content root.',
         '',
@@ -152,6 +187,8 @@ sub nginx_snippet {
         '# `try_files $uri =404` and still inherits - which is correct, that is',
         '# the chrome-only alias case.',
         "#   location ~ ^/(?:$identity)\$ {",
+        '#       error_page 418 = @lazysite;',
+        '#       if (-f $document_root/lazysite/auth/acls.json) { return 418; }',
         '#       try_files $lz_content_root$uri =404;',
         '#   }';
     return join( "\n", @out ) . "\n";

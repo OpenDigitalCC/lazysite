@@ -74,6 +74,18 @@ for my $rel (@APACHE) {
     like( $code, qr{RewriteRule\s+\^/\(\.\*\)\$\s+/cgi-bin/lazysite-auth\.pl},
         "$rel routes an existing file to the AUTH WRAPPER, not the processor" );
 
+    # SM268: every ACL routing rule must carry PT. In vhost context mod_rewrite
+    # treats a substitution beginning with / as a LOCAL PATH and prefixes
+    # DocumentRoot before mod_alias sees it, so without PT the target resolves
+    # to <docroot>/cgi-bin/lazysite-auth.pl. Where cgi-bin is a SIBLING of the
+    # docroot - which is exactly what the Hestia templates produce - that file
+    # does not exist and every static request on an ACL'd site 404s. Verified
+    # against Apache 2.4.67; t/integration/40 drives the real server.
+    for my $rule ( $code =~ m{^\s*(RewriteRule\s+\S+\s+/cgi-bin/lazysite-auth\.pl[^\n]*)$}mg ) {
+        like( $rule, qr{\[(?:[^\]]*,)?PT(?:,[^\]]*)?\]},
+            "$rel: '$rule' carries PT, so ScriptAlias still maps /cgi-bin/" );
+    }
+
     # Ordering is the whole game. Every rule in these files terminates with [L],
     # so an ACL rule placed after the SM133 static fallbacks would never be
     # reached for the .html files that fallback serves.
@@ -100,6 +112,42 @@ for my $rel (@NGINX) {
     like( $code, qr{error_page\s+418\s*=\s*\@lazysite},
         "$rel jumps to the engine when it does - if cannot be combined with "
             . "try_files, so this is the supported conditional named-location form" );
+}
+
+# --- 1b. the GENERATED per-domain rules too (SM268 H15) ---------------------
+#
+# The ten templates above cover the primary docroot. On a multi-site instance
+# the per-domain static rules come from Lazysite::DomainRewrites, and they were
+# not updated for SM223 - so every alias domain's own assets were served
+# directly by the web server, with no auth decision able to reach them. That is
+# the shape SM151 exists for, which makes the generator the more important half.
+# The filing's own diagnosis - "the third leak from the same structural cause" -
+# applies to the generator as much as to the files it pins.
+{
+    require Lazysite::DomainRewrites;
+    my $roots = [ { host => 'alias.test', root => 'sites/foo' } ];
+
+    my $apache = code_of( Lazysite::DomainRewrites::apache_snippet($roots) );
+    like( $apache, qr{RewriteCond\s+%\{DOCUMENT_ROOT\}/lazysite/auth/acls\.json\s+-f},
+        'the generated Apache block gates on the ACL store' );
+    like( $apache, qr{RewriteRule\s+\S+\s+/cgi-bin/lazysite-auth\.pl\s+\[PT,L\]},
+        'and routes to the auth wrapper, not straight to the file' );
+
+    # Order is the whole defect: the serve rule ends in [L], so an ACL rule
+    # placed after it never runs.
+    my $acl_at   = index( $apache, '/cgi-bin/lazysite-auth.pl' );
+    my $serve_at = index( $apache, 'RewriteRule ^/?(.*)$ /sites/foo/$1 [L]' );
+    cmp_ok( $acl_at,   '>=', 0, 'the ACL rule is present' );
+    cmp_ok( $serve_at, '>=', 0, 'the serve rule is present' );
+    cmp_ok( $acl_at, '<', $serve_at,
+        'and the ACL rule comes FIRST - after the [L] serve rule it would be dead' );
+
+    my $nginx = Lazysite::DomainRewrites::nginx_snippet($roots);
+    like( $nginx, qr{-f\s+\$document_root/lazysite/auth/acls\.json},
+        'the generated nginx guidance keeps the ACL test' );
+    like( $nginx, qr{error_page\s+418\s*=\s*\@lazysite},
+        'and the 418 branch - the operator is told to REPLACE location /, so '
+            . 'omitting these deletes SM223 rather than out-competing it' );
 }
 
 # --- 2. the processor's local copy matches the shared decision --------------
