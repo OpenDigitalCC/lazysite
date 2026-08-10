@@ -1,3 +1,37 @@
+lazysite (0.10.5-1) unstable; urgency=medium
+
+  * EDGE build on 0.10.4. OPERATOR ACTION: existing vhosts must be re-rendered.
+    Every SM223 Apache routing rule gained the PT flag; without it the ACL
+    routing never reached the auth wrapper at all wherever cgi-bin is a sibling
+    of the docroot, which is what the Hestia templates produce, and every static
+    file 404s once an ACL store is present.
+  * SM268 the adversarial security review, closed in full: 26 reproduced
+    defects plus two found while proving the fixes. Three criticals - a site
+    package could be made to carry the auth store and the session HMAC secret, a
+    tar member without ./ bypassed the restore exclusion and replaced the account
+    store, and an account named `local` became the operator from any starting
+    privilege. Seventeen highs, thirteen mediums, two lows. Every fix carries a
+    regression test that was confirmed failing on the unfixed tree.
+  * SM223 static files come under access control through the ACL, with folder
+    scope as an entry in the same store. A file the web server hands over
+    directly was reachable by anyone who knew its path.
+  * SM181 a folder ACL entry gates a whole section - pages and assets together -
+    and draft: true makes the refusal a 404 rather than a login bounce, removing
+    the section from every listing. A login form at a URL confirms the URL
+    exists, which is the thing being held back.
+  * SM183 a site package carries an integrity digest that is now verified rather
+    than displayed, and applying one snapshots first so it can be rolled back.
+  * SM195 a delegate cannot confer a capability it does not hold, on any of the
+    five verbs that reach conferral.
+  * SM249 theme variables resolve in a page body, not only in a layout.
+  * SM246 lazysite-check verifies the whole declared directory model rather than
+    eleven hand-written paths. Reported, not repaired: --fix stays on the
+    CGI-writability set.
+  * Two findings ship qualified and the SM268 register says why beside each:
+    M13 is mitigated rather than fixed, and M11 ships without a total-bytes cap.
+
+ -- Stuart Mackintosh <sjm@opendigital.cc>  Mon, 10 Aug 2026 12:00:00 +0000
+
 lazysite (0.10.4-1) unstable; urgency=medium
 
   * EDGE build on 0.10.3. BREAKING: list_versions returns `versions`, not
