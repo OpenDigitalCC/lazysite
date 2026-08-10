@@ -915,9 +915,15 @@ sub execute_plan {
 # must install unchanged.
 our %INSTALL_DIR_MODE;
 
+# The resolved docroot for this run, so make_declared_path can tell "a directory
+# the installer owns" from "a directory above the site" (SM268 03-F8) - the two
+# need opposite advice.
+our $INSTALL_DOCROOT = '';
+
 sub load_install_dirs {
     my ( $manifest, $subs ) = @_;
     %INSTALL_DIR_MODE = ();
+    $INSTALL_DOCROOT  = $subs->{DOCROOT} // '';
     for my $d ( @{ $manifest->{install_dirs} || [] } ) {
         $INSTALL_DIR_MODE{ resolve_placeholders( $d->{path}, $subs ) } = oct( $d->{mode} );
     }
@@ -984,11 +990,31 @@ sub make_declared_path {
         # claims it, and nothing reports it until a deploy exposes it. Shipping
         # a file into a new directory must therefore be a decision someone made
         # rather than a side effect nobody saw.
-        die "No declared mode for directory $path\n"
-            . "  Every directory the installer creates must be declared in\n"
-            . "  dist/config/classification.json (install_dirs), with the mode\n"
-            . "  and the reason for it. Add an entry and rebuild the manifest.\n"
-            unless defined $mode;
+        # SM268 03-F8: say which of the two cases this is, because they need
+        # opposite responses and the old message only described one of them.
+        #
+        # A path INSIDE the site is the installer's own: the model must gain an
+        # entry. A path ABOVE the site is the operator's - the installer will
+        # not guess a mode for a directory it does not own, and telling them to
+        # edit classification.json for their own parent directory sends them
+        # somewhere that cannot help. That was the reported complaint: the entry
+        # was already there.
+        unless ( defined $mode ) {
+            my $inside = length($INSTALL_DOCROOT)
+                && ( $path eq $INSTALL_DOCROOT
+                || index( $path, "$INSTALL_DOCROOT/" ) == 0 );
+            die "No declared mode for directory $path\n"
+                . "  Every directory the installer creates must be declared in\n"
+                . "  dist/config/classification.json (install_dirs), with the mode\n"
+                . "  and the reason for it. Add an entry and rebuild the manifest.\n"
+                if $inside;
+            die "Cannot create $path: it is above the site and the installer does\n"
+                . "  not own it, so there is no mode it can safely choose. Create it\n"
+                . "  yourself with the ownership and mode your platform expects:\n"
+                . "      mkdir -p $path\n"
+                . "  then re-run this install. (Editing classification.json will not\n"
+                . "  help here - it describes the site's own directories.)\n";
+        }
         # SM268 H5: mkdir FAILS if the name already exists - including as a
         # symlink - so a successful mkdir proves we created a real directory
         # and the chmod below cannot land on someone else's file. Without the
@@ -1662,11 +1688,30 @@ sub load_state {
 
 sub write_state {
     my ( $path, $version, $files ) = @_;
+
+    # SM268 03-F7: record the RESOLVED install_dirs modes alongside the files.
+    #
+    # SM246's design is "one table, three consumers - install applies, check
+    # verifies, check --fix repairs". That was true of runtime_paths and false
+    # of install_dirs: lazysite-check.pl carried its own hand-written list of
+    # eleven lazysite/* directories and knew nothing of the twenty-eight the
+    # model declares. So every site already carrying the reported fault - the
+    # docroot's content directories stripped of group write - stayed broken, and
+    # the audit tool called the site healthy.
+    #
+    # The model lives in the release tarball, which an installed site does not
+    # keep, so check cannot read it directly. Writing the resolved paths into
+    # the install state is what gives check something to verify against, without
+    # it having to guess at placeholders or find a manifest.
+    my %dirs = map { $_ => sprintf '%04o', $INSTALL_DIR_MODE{$_} }
+        keys %INSTALL_DIR_MODE;
+
     my $data = {
         schema_version => '1',
         version        => $version,
         installed_at   => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         files          => $files,
+        ( %dirs ? ( dirs => \%dirs ) : () ),
     };
     make_path( dirname($path) );
     my $json = JSON::PP->new->utf8(1)->pretty(1)->indent_length(2)
@@ -1712,7 +1757,23 @@ sub resolve_placeholders {
     # introduced them (e.g. {DOCROOT}/../plugins), by normalising
     # through a simple textual pass. Do NOT use abs_path here - the
     # directory may not exist yet.
-    $out =~ s{/[^/]+/\.\./}{/}g;
+    #
+    # SM268 03-F8: a TRAILING `..` counts too. This pattern needed a slash on
+    # both sides, so `{DOCROOT}/../lib` collapsed to /base/lib and matched,
+    # while `{DOCROOT}/..` stayed as `/base/site/..` - a string
+    # make_declared_path never looks up, because the parent walk asks for
+    # `/base`. The declaration for the site's parent directory was therefore
+    # dead, and provisioning a site whose parent does not yet exist failed with
+    # "No declared mode for directory ..." telling the operator to add an entry
+    # to classification.json that was already there.
+    #
+    # Loop: collapsing one segment can expose another (a/b/../../c).
+    1 while $out =~ s{/[^/]+/\.\./}{/}g;
+    1 while $out =~ s{/[^/]+/\.\.\z}{};
+    $out =~ s{/\z}{} if length($out) > 1;
+    # Collapsing back past the root leaves nothing; that is the root itself, and
+    # an empty string would be a lookup key no declaration can ever carry.
+    $out = '/' if $out eq '';
     return $out;
 }
 

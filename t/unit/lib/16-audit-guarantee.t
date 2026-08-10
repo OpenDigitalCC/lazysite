@@ -197,7 +197,7 @@ subtest 'manager-api: every action is classified (skip-listed or audited)' => su
     # sit here deliberately: if they are ever POSTed they audit, which errs
     # loud rather than silent.
     my %audited = map { $_ => 1 } qw(
-        acl-remove acl-set artifact-backups-delete backup-create
+        acl-remove acl-set artifact-backups-delete backup-create backup-delete
         backup-download backup-restore bad-url-unblock config-set copy delete
         domain-add domain-remove domain-set
         file-download file-upload file-zip-download form-targets-save git-init

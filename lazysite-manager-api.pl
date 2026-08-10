@@ -56,7 +56,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
     action_artifact_backups_delete
     action_layouts_repo_get action_layouts_repo_set);
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
-    action_backup_restore);
+    action_backup_restore action_backup_delete);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
 use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview known_domain_host);
 use Lazysite::Lang                 qw(lang_status sole_group);
@@ -173,7 +173,7 @@ my $RESTRICT_THEME_DELETE = 0;
 my %KNOWN_ACTION = map { $_ => 1 } qw(
     acl-get acl-remove acl-set aliases-list analyse_visitors
     artifact-backups-delete artifact-manifest artifact-validate audit
-    backup-create backup-download backup-list backup-restore bad-url-blocks
+    backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
     bad-url-unblock cache-invalidate cache-list channel-services
     config-read config-set copy csrf-token delete describe-capabilities
     domain-add domain-check domain-preview domain-remove domain-set
@@ -517,6 +517,9 @@ if ( !$token_auth ) {
         'principals'      => 'manage_content|manage_domains',
         'bad-url-unblock' => 'manage_config',  'rotate-auth-secret' => 'manage_config',
         'backup-create'   => 'manage_config',  'backup-restore'     => 'manage_config',
+        # SM268 03-F11: removing a snapshot is the same authority as taking or
+        # restoring one.
+        'backup-delete'   => 'manage_config',
         'backup-download' => 'manage_config',  'backup-list'        => 'manage_config',
         'theme-activate'  => 'manage_themes',  'theme-delete'       => 'manage_themes',
         'theme-rename'    => 'manage_themes',  'theme-upload'       => 'manage_themes',
@@ -552,7 +555,7 @@ if ( !$token_auth ) {
     my %MUTATING = map { $_ => 1 } qw(
         save delete mkdir move copy migrate-to-local file-upload git-restore
         git-init cache-invalidate acl-set acl-remove config-set bad-url-unblock
-        rotate-auth-secret backup-create backup-restore theme-activate
+        rotate-auth-secret backup-create backup-delete backup-restore theme-activate
         theme-delete theme-rename theme-upload layout-activate layout-delete
         layout-install layouts-install layouts-repo-set artifact-backups-delete
         preview-grant preview-clear nav-save handler-save handler-delete
@@ -1160,6 +1163,10 @@ elsif ( $action eq 'backup-create' ) {
         ( $params{scope} // '' ) eq 'full' ? 'full' : undef );
 }
 elsif ( $action eq 'backup-restore' ) { $result = action_backup_restore( $params{name} ) }
+elsif ( $action eq 'backup-delete' ) {
+    my $req = eval { decode_json($body) } // {};
+    $result = action_backup_delete( $req->{name} // $params{name} );
+}
 elsif ( $action eq 'backup-download' ) {
     action_backup_download( $params{name} );
     exit 0;

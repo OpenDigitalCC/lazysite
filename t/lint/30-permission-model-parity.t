@@ -211,9 +211,55 @@ is_deeply( \@disagree, [],
     is_deeply( \@inert, [],
         'every manifest section install.pl reads is one build-manifest emits' )
         or diag( join "\n  ", '',
-        ( map {"$_: install.pl reads it, build-manifest.pl never writes it"} @inert ),
+        ( map { "$_: install.pl reads it, build-manifest.pl never writes it" } @inert ),
         'The installer will silently use its fallback - the declaration does nothing.',
         'Add the section to the manifest literal in tools/build-manifest.pl.' );
 }
+
+# --- install_dirs has three consumers too (SM268 03-F7) ----------------------
+#
+# SM246 states the design as "one table, three consumers - install applies,
+# check verifies, check --fix repairs". This lint pinned runtime_paths and
+# runtime_files and never install_dirs, and the gap was exactly where the design
+# was not true: check carried its own hand-written list of eleven lazysite/*
+# directories while the model declared twenty-eight, so a site with the reported
+# fault was reported healthy.
+#
+# The chain has three links and each can break independently: declared in the
+# config, emitted into the manifest, recorded into the install state, read by
+# check. Pin all of them, because a section that is declared and never carried
+# is precisely what runtime_files was for its whole life.
+subtest 'install_dirs reaches the tool that verifies it' => sub {
+    my $dirs = $cls->{install_dirs} || [];
+    cmp_ok( scalar @$dirs, '>=', 20, 'the config declares install_dirs' );
+
+    my $bm = do {
+        open my $fh, '<:utf8', "$root/tools/build-manifest.pl" or die $!;
+        local $/;
+        <$fh>;
+    };
+    like( $bm, qr/install_dirs/,
+        'build-manifest.pl carries install_dirs into the manifest' );
+
+    my $inst = do {
+        open my $fh, '<:utf8', "$root/install.pl" or die $!;
+        local $/;
+        <$fh>;
+    };
+    like( $inst, qr/\$manifest->\{install_dirs\}/,
+        'install.pl reads it from the manifest' );
+    like( $inst, qr/dirs\s*=>\s*\\%dirs/,
+        'and records the RESOLVED modes into the install state - without this '
+            . 'an installed site keeps no copy of the model and check has '
+            . 'nothing to verify against' );
+
+    my $chk = do {
+        open my $fh, '<:utf8', "$root/tools/lazysite-check.pl" or die $!;
+        local $/;
+        <$fh>;
+    };
+    like( $chk, qr/\$j->\{dirs\}/,
+        'lazysite-check.pl reads the recorded modes' );
+};
 
 done_testing();

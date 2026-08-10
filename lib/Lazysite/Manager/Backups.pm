@@ -15,7 +15,7 @@ use Errno          ();
 use Lazysite::Util qw(log_event);
 use Exporter       qw(import);
 our @EXPORT_OK = qw(action_backup_list action_backup_create action_backup_download
-    action_backup_restore);
+    action_backup_restore action_backup_delete);
 
 our $DOCROOT      = '';
 our $LAZYSITE_DIR = '';
@@ -74,6 +74,93 @@ sub _claim_name {
     return ();
 }
 
+# SM268 03-F11: keep the artefact directory bounded.
+#
+# install.pl's apply_retention globs `lazysite-backup-*` - only the installer's
+# own. Every manager artefact (manual, prerestore, full, site) was out of its
+# reach, and nothing removed a prerestore snapshot EVER. Since SM183 made every
+# surface snapshot before an apply, and action_backup_restore snapshots before
+# every restore, each of which is a full copy of the docroot content, an agent
+# looping site_apply fills the disk - and on a shared instance that takes every
+# hosted site down and corrupts in-flight writes.
+#
+# Per KIND, because the kinds are not interchangeable: ten manual snapshots and
+# ten prerestore snapshots are ten of each, and expiring an operator's deliberate
+# snapshot because a plugin took twenty automatic ones would be the wrong
+# trade. `backup_retention: 0` means unlimited, matching install.pl.
+#
+# Newest-first, and the newest of a kind is never removed: a retention rule that
+# can empty the directory is a rule that deletes the snapshot taken thirty
+# seconds ago because the limit was misread.
+sub _retention_limit {
+    my $conf    = "$LAZYSITE_DIR/lazysite.conf";
+    my $default = 10;
+    return $default unless -f $conf;
+    open my $fh, '<:utf8', $conf or return $default;
+    my $val = $default;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^backup_retention\s*:\s*(\d+)\s*$/;
+        $val = $1 + 0;
+        last;
+    }
+    close $fh;
+    return $val;
+}
+
+sub _apply_retention {
+    my ($kind) = @_;
+    my $keep = _retention_limit();
+    return unless $keep > 0;
+
+    my $dir = _dir();
+    opendir my $dh, $dir or return;
+    my @mine = grep { /\A(?:lazysite-)?\Q$kind\E-/ && /\.tar\.gz\z/ } readdir $dh;
+    closedir $dh;
+    return if @mine <= $keep;
+
+    my @by_age = sort { ( stat "$dir/$b" )[9] <=> ( stat "$dir/$a" )[9] } @mine;
+    for my $old ( @by_age[ $keep .. $#by_age ] ) {
+        next unless unlink "$dir/$old";
+        log_event( 'INFO', 'backup-retention', 'expired old snapshot',
+            file => $old, kind => $kind, keep => $keep );
+    }
+    return;
+}
+
+# SM268 03-F11: and a way to remove one deliberately.
+#
+# The only delete in the API was site-backup-delete, confined to the
+# lazysite-site- namespace, so a manual snapshot an operator no longer wanted -
+# or a prerestore snapshot of a restore that went fine - could only be removed
+# from the shell. Retention bounds the growth; this is for the operator who
+# knows which one they want gone.
+#
+# The site- namespace is deliberately NOT reachable here: it has its own delete
+# with its own scope confinement (a scoped partner must not remove another
+# domain's package), and duplicating that check in a second place is how the two
+# come to disagree.
+sub action_backup_delete {
+    my ($name) = @_;
+    $name = '' unless defined $name;
+    return { ok => 0, kind => 'invalid', error => 'Invalid backup name' }
+        unless _valid_name($name);
+    return { ok => 0, kind => 'invalid',
+        error => 'A site package is removed with site-backup-delete, which '
+            . 'applies the per-domain scope checks this action does not.' }
+        if $name =~ /\A(?:lazysite-)?site-/;
+    return { ok => 0, kind => 'invalid',
+        error => 'Not a lazysite snapshot name' }
+        unless $name =~ /\A(?:lazysite-)?(?:preinstall|prerestore|manual|full)-/;
+
+    my $full = _dir() . "/$name";
+    return { ok => 0, kind => 'not-found', error => 'Backup not found' } unless -f $full;
+
+    unlink $full or return { ok => 0, error => "Could not delete the backup: $!" };
+    log_event( 'INFO', 'backup-delete', 'snapshot removed',
+        file => $name, user => $auth_user );
+    return { ok => 1, name => $name };
+}
+
 sub action_backup_create {
     my ($kind) = @_;
     $kind = 'manual' unless defined $kind && $kind =~ /\A(manual|prerestore|full)\z/;
@@ -118,6 +205,10 @@ sub action_backup_create {
     log_event( 'INFO', 'backup-create',
         ( $kind eq 'full' ? 'full system snapshot' : 'docroot snapshot' ),
         file => $name, user => $auth_user );
+    # After the snapshot exists, never before: expiring an old one to make room
+    # for a new one that then fails would lose both.
+    _apply_retention($kind);
+
     my @st = stat $out;
     return { ok => 1, name => $name, size => $st[7] // 0, mtime => $st[9] // 0,
         scope => ( $kind eq 'full' ? 'full' : 'content' ) };

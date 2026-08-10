@@ -125,4 +125,75 @@ subtest 'the tree copier never descends into its own destination' => sub {
             . 'the recursion is the defect' );
 };
 
+# --- F11 --------------------------------------------------------------------
+#
+# install.pl's retention globs `lazysite-backup-*` - only the installer's own.
+# Every manager artefact was out of its reach and nothing removed a prerestore
+# snapshot ever. SM183 made every surface snapshot before an apply, and restore
+# snapshots before every restore, each a full copy of the docroot content: an
+# agent looping site_apply fills the disk, and on a shared instance that takes
+# every hosted site down.
+subtest 'snapshots are expired per kind' => sub {
+    my $d = tempdir( CLEANUP => 1 );
+    make_path("$d/lazysite/backups");
+    make_path("$d/content");
+    open my $fh, '>', "$d/content/page.md" or die $!;
+    print {$fh} "body\n";
+    close $fh;
+    open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
+    print {$cf} "site_name: T\nbackup_retention: 3\n";
+    close $cf;
+
+    local $Lazysite::Manager::Backups::DOCROOT      = $d;
+    local $Lazysite::Manager::Backups::LAZYSITE_DIR = "$d/lazysite";
+
+    my @manual;
+    for ( 1 .. 5 ) {
+        my $r = Lazysite::Manager::Backups::action_backup_create('manual');
+        push @manual, $r->{name} if $r->{ok};
+    }
+    # A different kind, which must not be counted against manual's allowance.
+    Lazysite::Manager::Backups::action_backup_create('prerestore') for 1 .. 2;
+
+    opendir my $dh, "$d/lazysite/backups" or die $!;
+    my @files = grep { /\.tar\.gz\z/ } readdir $dh;
+    closedir $dh;
+
+    my @kept_manual = grep { /manual/ } @files;
+    is( scalar(@kept_manual), 3, 'the manual snapshots are held to the limit' );
+    is( scalar( grep { /prerestore/ } @files ), 2,
+        'and a different kind keeps its own - expiring an operator\'s deliberate '
+            . 'snapshot because a plugin took twenty automatic ones would be the '
+            . 'wrong trade' );
+
+    # The newest survive, not an arbitrary three.
+    my %kept = map { $_ => 1 } @kept_manual;
+    ok( $kept{ $manual[-1] },
+        'the snapshot taken most recently is still there - a retention rule that '
+            . 'can delete the one you just took is worse than none' );
+};
+
+subtest 'retention 0 means unlimited' => sub {
+    my $d = tempdir( CLEANUP => 1 );
+    make_path("$d/lazysite/backups");
+    make_path("$d/content");
+    open my $fh, '>', "$d/content/page.md" or die $!;
+    print {$fh} "body\n";
+    close $fh;
+    open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
+    print {$cf} "site_name: T\nbackup_retention: 0\n";
+    close $cf;
+
+    local $Lazysite::Manager::Backups::DOCROOT      = $d;
+    local $Lazysite::Manager::Backups::LAZYSITE_DIR = "$d/lazysite";
+
+    Lazysite::Manager::Backups::action_backup_create('manual') for 1 .. 4;
+
+    opendir my $dh, "$d/lazysite/backups" or die $!;
+    my @files = grep { /\.tar\.gz\z/ } readdir $dh;
+    closedir $dh;
+    is( scalar(@files), 4,
+        'matching install.pl, where 0 has always meant keep everything' );
+};
+
 done_testing();
