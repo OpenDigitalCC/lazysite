@@ -119,9 +119,9 @@ Not defects. The reviews ran against `main`, and these are on unmerged branches:
 
 ## Disposition
 
-The release is blocked. Criticals and the two verified highs are closed with
-regression tests; the rest are open and tracked above. Nothing here is closed on
-reasoning alone - each fix carries a test that fails without it.
+Every critical and every high is closed, each with a regression test that was
+confirmed failing on the unfixed tree. Nothing here is closed on reasoning
+alone. The mediums and lows below remain open and tracked.
 
 **H3 is closed by making the ACL semantics one thing.** The shared `Auth::Acl`
 now does the same longest-match folder resolution the processor's copy does, so a
@@ -136,13 +136,31 @@ owner-only entry cannot beat an enclosing folder rule. That matters because
 *Duplicate* in the file manager writes exactly such an entry, which means an
 ordinary editing action was silently republishing files inside a gated section.
 
-**H9 still deserves its own follow-up**, because it is a design question rather
-than a bug: the unsecured-site fallback treats any authenticated user as the
-operator, which is a deliberate first-run convenience that becomes a live
-escalation once a delegate can *push a site into* that state by stripping
-capabilities. Fixing it naively risks locking operators out of genuine first-run
-sites, so it needs a decision about what "unsecured" should mean rather than a
-patch.
+**H9 was a design question, and the answer was decided rather than patched.**
+The unsecured-site fallback treated any authenticated user as the operator - and
+the implementation was more permissive than security.md described, skipping
+authentication entirely and assigning the `local` sentinel. A delegate could
+push a live site into that state by stripping capabilities. The decision: the
+manager API always requires an authenticated user, a site with no manager account
+says so and names the CLI command that creates one, and both lockout invariants
+hold - the last manager-flagged group keeps its flag AND the last group granting
+manager access keeps its grant. A new install therefore denies login until the
+first user exists rather than granting everything to whoever arrives first.
+
+**H4, H8, H13 and H15 all had one shape**: two surfaces disagreeing about the
+same question. A capability the control API enforced and MCP did not; a ceiling
+applied when DECLARING a capability and not when ACQUIRING one; a gate on serving
+a page with nothing on listing it; a routing rule in ten templates and not in the
+generator that writes the eleventh. Each fix states the rule once and has the
+surfaces call it, and each carries a lint or parity test so the next surface
+cannot quietly skip it.
+
+**H17 was found by trying to prove H15 rather than by reading the code.** The
+per-domain rules were fixed, the real-Apache reproduction still 404d, and the
+cause was that the ACL routing rules had never worked where cgi-bin is a sibling
+of the docroot - the layout the Hestia templates produce. That is the argument
+for driving a real server in the test rather than pinning the text: the text was
+right and the behaviour was not. Existing vhosts must be re-rendered.
 
 ## Fail-closed, and why
 
