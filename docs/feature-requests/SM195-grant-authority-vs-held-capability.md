@@ -2,8 +2,8 @@
 title: "SM195 - Grant authority distinct from held capability"
 subtitle: "A grantor can only confer capabilities they hold - so a sub-admin must carry mcp themselves just to grant it to their AI, enlarging their own surface for a purely administrative reason. Separate 'may confer X' from 'holds X'."
 brand: plain
-status: candidate
-status-note: "further-consideration request 2026-07-21. The delegate_sub_user_creation capability is the existing precedent for exactly this split; this generalises it. Security-sensitive - the escalation guard must be preserved."
+status: shipped
+status-note: "SHIPPED 2026-08-09 (unreleased on main), and the filing's PREMISE WAS WRONG in a way that changed the work. It opens "the delegation model enforces privilege de-escalation: a grantor can only confer capabilities they themselves hold" and asks to relax that. There was no such ceiling: %ACTOR_FORBIDDEN required manage_users and nothing more, so a non-operator delegate could confer ANY capability - including on a group it belonged to. Reproduced before building: a subadmin holding only manage_users granted itself mcp, and the write succeeded. So option 1 (a per-group `grantable` set) is built AND the ceiling it is an exception to is built with it, because grantable is meaningless without a rule to except. Now: a non-operator may confer C only if they hold C or C is in their groups' grantable set; removing a capability needs no authority (de-escalation); setting grantable is OPERATOR-ONLY, which is what preserves the invariant this filing names as non-negotiable - grant authority is conferred from above, never self-assumed; the manager flag is operator-only for the same reason. The manager API now passes the actor for group-settings-set, without which the ceiling silently would not apply. BEHAVIOUR CHANGE ON UPGRADE: delegates that relied on unbounded conferral will be refused, with a message naming the group-set command that restores it deliberately. t/unit/users/23 covers the ceiling, the exception, self-assumption, de-escalation, unknown capabilities and the operator bypass."
 ---
 
 # SM195 - Grant authority distinct from held capability
@@ -38,6 +38,43 @@ delegate_sub_user_creation
 `delegate_sub_user_creation` is "may confer, distinct from exercises". SM195 is
 the same idea generalised to capabilities at large (`mcp`, `api`,
 `read_submissions`, ...).
+
+## Built 2026-08-09 - and the premise above was wrong
+
+**There was no ceiling to relax.** The "Why" section opens by describing
+privilege de-escalation as an existing default that costs a sub-admin a live
+capability. Checked against the code and then reproduced: `%ACTOR_FORBIDDEN`
+required `manage_users` and nothing further, after which a non-operator delegate
+could confer **any** capability - including on a group it was itself a member of.
+
+The reproduction, before any code was written: a `subadmin` account whose only
+capability was `manage_users` conferred `mcp` on another group, and then on its
+own group. Both returned `{"ok":1}`. A `manage_users` delegate could grant itself
+`mcp`, `api` or `manage_config` and become an operator in all but name.
+
+So the cost this filing describes was not real - a sub-admin never had to hold
+`mcp` to grant it - and a different, worse problem was. Option 1 is built, and
+**the rule it is an exception to is built with it**, because a `grantable` set
+that excepts nothing is decoration.
+
+What now holds:
+
+- a non-operator may confer `C` only if they **hold** `C`, or `C` is in the
+  `grantable` set of one of their groups;
+- **removing** a capability is always allowed - de-escalation needs no authority;
+- `grantable` is **operator-only**, which is what preserves the invariant below;
+- the `manager` group flag is operator-only for the same reason: a delegate that
+  could mint a manager group would not need any other escalation.
+
+The manager API now passes the actor for `group-settings-set`. Without that the
+tool saw no actor and the ceiling did not apply - which is precisely how the
+original hole survived: the check existed one layer up and only asked for
+`manage_users`.
+
+**This changes behaviour on upgrade.** A delegate that relied on unbounded
+conferral is now refused, and the refusal names the `group-set ... grantable`
+command that restores the ability deliberately. That is the intended direction:
+the previous behaviour was a privilege-escalation path, not a feature.
 
 ## The invariant that must survive
 

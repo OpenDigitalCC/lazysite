@@ -409,7 +409,8 @@ if ($API_MODE) {
             $result = cmd_permissions_grid( $req->{username} );
         }
         elsif ( $action eq 'group-settings-set' ) {
-            $result = cmd_group_settings_set( $req->{group}, $req->{key}, $req->{value} );
+            $result = cmd_group_settings_set( $req->{group}, $req->{key}, $req->{value},
+                $req->{actor} );
         }
         elsif ( $action eq 'group-create' ) {
             $result = cmd_group_create( $req->{group} );
@@ -2996,8 +2997,81 @@ sub _group_settings_view {
     return \%view;
 }
 
+# SM195: may $actor confer capability $cap on a group?
+#
+# THE GUARD SM195 ASSUMED EXISTED DID NOT. That filing opens "the delegation model
+# enforces privilege de-escalation: a grantor can only confer capabilities they
+# themselves hold", calls that the right default, and asks to relax it so a
+# sub-admin need not hold `mcp` merely to grant it to an agent.
+#
+# Verified against the code and then reproduced: there was no such ceiling. The
+# only check was %ACTOR_FORBIDDEN requiring manage_users, after which a
+# non-operator delegate could confer ANY capability - including on a group they
+# were themselves in. A manage_users delegate could grant itself mcp, api, or
+# manage_config and become an operator in all but name.
+#
+# So SM195's mechanism is built, and the ceiling it presupposed is built with it,
+# because the mechanism is meaningless without it: `grantable` is the exception to
+# a rule, and there was no rule.
+#
+#   a non-operator actor may confer C  <=>  they HOLD C, or C is in the
+#                                           `grantable` set of one of their groups
+#
+# The invariant the filing names as non-negotiable is what makes `grantable` safe:
+# it is conferred from ABOVE and never self-assumed. Setting it is operator-only
+# (see cmd_group_settings_set), so a delegate cannot widen its own grant
+# authority - it can only use what an operator gave it.
+#
+# An operator ('local', or any actor on a site where no group grants manager
+# access) is unrestricted, as everywhere else in this tool.
+sub _may_confer {
+    my ( $actor, $cap ) = @_;
+    return 1 unless defined $actor && length $actor && $actor ne 'local';
+
+    # An UNSECURED site (no group grants manager access at all) is the dev /
+    # first-run case, where any authenticated user is the operator. Exempt it
+    # explicitly, and only it.
+    #
+    # This deliberately does NOT reuse Acl::_is_operator, which also returns true
+    # for anyone holding manage_users. That clause is right for "may bypass a
+    # per-file ACL" and catastrophic here: manage_users is precisely the
+    # population this ceiling exists to bound, so treating it as operator makes
+    # the ceiling unreachable. An adversarial review found exactly that - the
+    # first cut of this feature gated the manager API's actor injection on
+    # _is_operator(), so no actor was passed for a manage_users delegate, the
+    # tool saw an operator, and the self-escalation this was written to stop
+    # still worked. The unit test passed because it supplied the actor the
+    # manager did not.
+    require Lazysite::Auth::Settings;
+    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    return 1 unless Lazysite::Auth::Settings::site_grants_manager();
+
+    my $caps = eval { caps_for($actor) } || {};
+    return 1 if $caps->{$cap};    # holds it: may confer it
+
+    my $gs = read_group_settings();
+    for my $g ( _groups_of($actor) ) {
+        my $set = $gs->{$g} && $gs->{$g}{grantable};
+        next unless ref $set eq 'ARRAY';
+        return 1 if grep { $_ eq $cap } @$set;
+    }
+    return 0;
+}
+
+# The groups an account belongs to, for the grantable lookup.
+sub _groups_of {
+    my ($user) = @_;
+    my %members = read_groups();
+    my @in;
+    for my $g ( sort keys %members ) {
+        my @m = ref $members{$g} eq 'ARRAY' ? @{ $members{$g} } : ();
+        push @in, $g if grep { $_ eq $user } @m;
+    }
+    return @in;
+}
+
 sub cmd_group_settings_set {
-    my ( $group, $key, $value ) = @_;
+    my ( $group, $key, $value, $actor ) = @_;
     return { ok => 0, error => 'group required' } unless defined $group && length $group;
     return { ok => 0, error => 'invalid group name' } unless $group =~ /^[A-Za-z0-9_-]+$/;
 
@@ -3045,10 +3119,64 @@ sub cmd_group_settings_set {
         return { ok => 1 };
     }
 
+    # SM195: the group's GRANT AUTHORITY - capabilities its members may confer
+    # without holding them. Comma or space separated; empty clears.
+    #
+    # OPERATOR-ONLY, and that is the whole security argument. Grant authority is
+    # conferred from above and never self-assumed: if a delegate could widen its
+    # own `grantable` set, the ceiling below would be decorative, because the
+    # first thing an attacker with manage_users would do is grant themselves the
+    # authority to grant everything.
+    if ( defined $key && $key eq 'grantable' ) {
+        return { ok => 0, kind => 'forbidden',
+            error => 'Only an operator may set a group\'s grant authority. '
+                . 'grantable is what lets a delegate confer a capability it does '
+                . 'not hold, so a delegate that could set it would have no ceiling '
+                . 'at all.' }
+            if defined $actor && length $actor && $actor ne 'local';
+
+        my $gs = read_group_settings();
+        $gs->{$group} ||= { label => $group };
+        my @caps  = grep { length } split /[,\s]+/, ( $value // '' );
+        my %known = map  { $_ => 1 } @CAP_KEYS;
+        my @bad   = grep { !$known{$_} } @caps;
+        return { ok => 0, error => 'unknown capability: ' . join( ', ', @bad ) } if @bad;
+
+        my %uniq;
+        $uniq{$_} = 1 for @caps;
+        if (@caps) { $gs->{$group}{grantable} = [ sort keys %uniq ] }
+        else       { delete $gs->{$group}{grantable} }
+        write_group_settings($gs);
+        log_event( 'INFO', $group, 'group grant authority set',
+            grantable => join( ',', @caps ) );
+        cli_audit( 'user-group-settings-set', $group,
+            'grantable=' . ( @caps ? join( ',', @caps ) : '(cleared)' ) );
+        return { ok => 1, grantable => \@caps };
+    }
+
     my %ok_key = map { $_ => 1 } ( @CAP_KEYS, 'manager' );
     return { ok => 0, error => "unknown group setting: " . ( $key // '' ) }
         unless defined $key && $ok_key{$key};
     my $on = ( defined $value && $value =~ /^(?:on|1|true|yes)$/i ) ? 1 : 0;
+
+    # SM195: the ceiling. A non-operator may confer a capability only if they
+    # hold it, or an operator has put it in one of their groups' grantable sets.
+    # Applies to TURNING IT ON only - taking a capability away is de-escalation
+    # and needs no grant authority.
+    if ( $on && $key ne 'manager' && !_may_confer( $actor, $key ) ) {
+        return { ok => 0, kind => 'forbidden',
+            error => "You cannot grant '$key' - you do not hold it, and it is not "
+                . 'in your groups\' grant authority. An operator can add it with: '
+                . "group-set <your-group> grantable $key" };
+    }
+    # `manager` is the group flag that makes a group a manager group, not a
+    # capability; conferring it is operator-only by the same argument as
+    # grantable, since a delegate could otherwise mint a manager group.
+    if ( $on && $key eq 'manager' && defined $actor && length $actor && $actor ne 'local' ) {
+        return { ok => 0, kind => 'forbidden',
+            error => 'Only an operator may make a group a manager group.' };
+    }
+
     my $gs = read_group_settings();
 
     # Lockout guard: never clear the manager flag from the last manager group.
