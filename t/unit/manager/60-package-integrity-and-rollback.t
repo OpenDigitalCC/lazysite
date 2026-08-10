@@ -162,4 +162,144 @@ subtest 'backups taken in the same second do not overwrite each other' => sub {
     ok( -f "$d/lazysite/backups/$b->{name}.sha256", 'and the second has its own' );
 };
 
+# SM268 03-F10: call the verifier through can(), so a tree WITHOUT it fails these
+# assertions rather than dying on an undefined subroutine. A test that dies on
+# the unfixed code proves the code is needed; one that fails proves what it does.
+sub verify_status {
+    my ($path) = @_;
+    my $fn = Lazysite::Manager::Backups->can('verify_sha256') or return '(no verifier)';
+    return $fn->($path);
+}
+
+# --- SM268 03-F10: the digest is VERIFIED, not merely displayed --------------
+#
+# The sidecar existed and nothing recomputed it. An operator saw a digest beside
+# a package in the UI and read it as "verified"; it meant "a digest was written
+# at some point". Misleading assurance is worse than none - someone who tampers
+# with a tarball in place and leaves the sidecar alone got a green-looking
+# listing, and apply overwrote a live site on the strength of it.
+subtest 'a tampered artefact is reported as a mismatch, not as a digest' => sub {
+    my $d = fixture();
+    my $r = Lazysite::Manager::Backups::action_backup_create('manual');
+    ok( $r->{ok}, 'snapshot taken' ) or return;
+    my $path = "$d/lazysite/backups/$r->{name}";
+
+    is( verify_status($path), 'verified',
+        'an untouched artefact verifies' );
+
+    my $listed = Lazysite::Manager::Backups::action_backup_list();
+    my ($row) = grep { $_->{name} eq $r->{name} } @{ $listed->{backups} };
+    is( $row->{sha256_status}, 'verified', 'and the LISTING says so' );
+
+    # Tamper in place, leaving the sidecar alone - the whole point of the
+    # finding.
+    open my $fh, '>>', $path or die $!;
+    print {$fh} "TAMPER";
+    close $fh;
+
+    is( verify_status($path), 'mismatch',
+        'the altered artefact no longer matches its recorded digest' );
+    $listed = Lazysite::Manager::Backups::action_backup_list();
+    ($row) = grep { $_->{name} eq $r->{name} } @{ $listed->{backups} };
+    is( $row->{sha256_status}, 'mismatch',
+        'and the listing says THAT - a digest shown with no verdict reads as '
+            . 'assurance nobody gave' );
+};
+
+subtest 'a sidecar naming a different artefact is not accepted' => sub {
+    my $d = fixture();
+    my $r = Lazysite::Manager::Backups::action_backup_create('manual');
+    ok( $r->{ok}, 'snapshot taken' ) or return;
+    my $path = "$d/lazysite/backups/$r->{name}";
+
+    # A valid-looking line whose second field names something else. read_sha256
+    # took the first 64 hex characters and ignored the rest, which is precisely
+    # what sha256sum's second field is for.
+    my $real = Lazysite::Manager::Backups::read_sha256($path);
+    spit( "$path.sha256", "$real  some-other-artefact.tar.gz\n" );
+
+    is( Lazysite::Manager::Backups::read_sha256($path), '',
+        'the basename field is checked' );
+    is( verify_status($path), 'absent',
+        'so it counts as no claim at all, rather than as a passing one' );
+};
+
+subtest 'apply refuses a package that does not match its digest' => sub {
+    my $d   = fixture();
+    my $pkg = package_create('shop.clienta.com');
+    ok( $pkg->{ok}, 'package built' ) or return;
+    my $path = "$d/lazysite/backups/$pkg->{name}";
+
+    # The artefact and its sidecar DISAGREE, and the archive itself is
+    # untouched. Corrupting the tarball instead would be refused by the archive
+    # reader ("bad archive") and would prove nothing about the digest: this
+    # package extracts perfectly, so the integrity check is the only thing that
+    # can stop it.
+    spit( "$path.sha256", ( '0' x 64 ) . '  ' . $pkg->{name} . "\n" );
+
+    my $ap = Lazysite::Manager::SitePackage::package_apply( $path,
+        content_root => 'sites/target' );
+    ok( !$ap->{ok}, 'refused' );
+    is( $ap->{kind}, 'integrity', 'as an integrity failure, named as such' );
+    like( slurp("$d/sites/target/index.md"), qr/TARGET-ORIGINAL/,
+        'and the target site is untouched - a refusal that still applied would '
+            . 'be the whole defect' );
+};
+
+subtest 'apply still works, and says whether it verified' => sub {
+    my $d   = fixture();
+    my $pkg = package_create('shop.clienta.com');
+    ok( $pkg->{ok}, 'package built' ) or return;
+    my $path = "$d/lazysite/backups/$pkg->{name}";
+
+    my $ap = Lazysite::Manager::SitePackage::package_apply( $path,
+        content_root => 'sites/target' );
+    ok( $ap->{ok}, 'an intact package applies' ) or diag explain $ap;
+    is( $ap->{integrity}, 'verified',
+        'and reports that it checked - a guard that refused everything would '
+            . 'pass the subtest above for the wrong reason' );
+
+    # An artefact from before sidecars existed must still be appliable: turning
+    # those into un-appliable files would break restore for exactly the
+    # operators most likely to need it.
+    unlink "$path.sha256";
+    my $ap2 = Lazysite::Manager::SitePackage::package_apply( $path,
+        content_root => 'sites/target' );
+    ok( $ap2->{ok}, 'a package with NO sidecar still applies' );
+    is( $ap2->{integrity}, 'absent', 'reported as unverified, not as verified' );
+};
+
+# --- SM268 03-F9: the disambiguator was check-then-create --------------------
+#
+# SM183 fixed the same-second collision with `if (-e $out) { pick a -N }`, which
+# closes the window for SEQUENTIAL callers and leaves it open for concurrent
+# ones: the test and the create are two operations. An adversarial review ran
+# twelve concurrent snapshots and got two files - every caller told ok => 1 and
+# handed a name, ten of them naming someone else's tarball. Two tar processes
+# writing one inode is also not guaranteed to produce a valid archive.
+subtest 'the snapshot name is claimed atomically' => sub {
+    my $d = fixture();
+
+    my @names;
+    for ( 1 .. 4 ) {
+        my $r = Lazysite::Manager::Backups::action_backup_create('manual');
+        ok( $r->{ok}, 'snapshot reported ok' ) or next;
+        push @names, $r->{name};
+    }
+    my %seen;
+    $seen{$_}++ for @names;
+    is( scalar( keys %seen ), scalar(@names), 'every caller got a distinct name' );
+
+    opendir my $dh, "$d/lazysite/backups" or die $!;
+    my @files = grep { /^lazysite-manual-.*\.tar\.gz\z/ } readdir $dh;
+    closedir $dh;
+    is( scalar(@files), scalar(@names),
+        'and there is one file per caller, so nothing was overwritten' );
+
+    # The claim is the create. A name handed out must exist on disk before the
+    # caller is told it does.
+    ok( ( scalar( grep { -s "$d/lazysite/backups/$_" } @files ) == @files ),
+        'and none of them is a zero-byte placeholder' );
+};
+
 done_testing();

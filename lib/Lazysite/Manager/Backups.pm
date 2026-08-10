@@ -10,11 +10,13 @@ use warnings;
 use POSIX          qw(strftime);
 use File::Path     qw(make_path);
 use File::Find     ();
+use Fcntl          qw(O_WRONLY O_CREAT O_EXCL);
+use Errno          ();
 use Lazysite::Util qw(log_event);
 use Exporter       qw(import);
 our @EXPORT_OK = qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore
-    write_sha256 read_sha256);
+    write_sha256 read_sha256 verify_sha256);
 
 our $DOCROOT      = '';
 our $LAZYSITE_DIR = '';
@@ -39,7 +41,18 @@ sub _valid_name { return $_[0] =~ /\A[A-Za-z0-9._-]+\.tar\.gz\z/ && $_[0] !~ /[.
 # receiving operator is actually in.
 #
 # Failure to write it is NOT fatal. The artefact is valid without it; a digest
-# that cannot be stored should not lose an operator their backup.
+# that cannot be stored should not lose an operator their backup - but it must
+# be REPORTED as absent, which is the SM268 03-F10 half below.
+#
+# SM268 03-F10: write it atomically, and never report a digest that was not
+# stored.
+#
+# This wrote with a plain `open '>'` - which follows a symlink, has no O_EXCL and
+# is not atomic - silently ignored an open failure while STILL returning the
+# digest to its caller, and chmod 0664'd the sidecar into the same
+# group-writable directory as the artefact it describes. A caller that was told
+# a digest and got no file is the worst of the three: package_create recorded a
+# sha256 in its response for an artefact that carries none.
 sub write_sha256 {
     my ($path) = @_;
     return '' unless -f $path;
@@ -48,22 +61,71 @@ sub write_sha256 {
     return '' unless defined $sha && length $sha;
     my $base = $path;
     $base =~ s{.*/}{};
-    if ( open my $fh, '>', "$path.sha256" ) {
+
+    my $side = "$path.sha256";
+    if ( -l $side ) {
+        log_event( 'ERROR', 'sha256', 'sidecar path is a symlink - refusing',
+            path => $side );
+        return '';
+    }
+    my $tmp = "$side.tmp.$$";
+    unless ( sysopen my $fh, $tmp, O_WRONLY | O_CREAT | O_EXCL, oct '640' ) {
+        log_event( 'ERROR', 'sha256', 'cannot write digest sidecar',
+            path => $tmp, error => "$!" );
+        return '';
+    }
+    else {
         print {$fh} "$sha  $base\n";    # sha256sum -c format
         close $fh;
-        chmod 0664, "$path.sha256";
+    }
+    unless ( rename $tmp, $side ) {
+        log_event( 'ERROR', 'sha256', 'cannot install digest sidecar',
+            path => $side, error => "$!" );
+        unlink $tmp;
+        return '';
     }
     return $sha;
 }
 
 # Read the digest beside an artefact, if one was written.
+#
+# SM268 03-F10: the BASENAME field is checked. This took the first 64 hex
+# characters and ignored the rest of the line, so a sidecar describing a
+# different artefact was accepted as this one's - which is the whole point of
+# sha256sum's second field.
 sub read_sha256 {
     my ($path) = @_;
     open my $fh, '<', "$path.sha256" or return '';
     my $line = <$fh> // '';
     close $fh;
-    my ($sha) = $line =~ /\A([0-9a-f]{64})\b/;
-    return $sha // '';
+    my ( $sha, $named ) = $line =~ /\A([0-9a-f]{64})\s+\*?(\S+)/;
+    return '' unless defined $sha;
+    my $base = $path;
+    $base =~ s{.*/}{};
+    return '' unless defined $named && $named eq $base;
+    return $sha;
+}
+
+# SM268 03-F10: the digest was DISPLAYED and never verified.
+#
+# action_backup_list surfaced read_sha256 for every artefact and nothing
+# anywhere recomputed it. An operator sees a digest in the UI beside a package
+# and reads it as "verified"; it meant "a digest was written at some point".
+# Misleading assurance is worse than none: someone who tampers with a tarball in
+# place and leaves the sidecar alone gets a green-looking listing.
+#
+# Returns 'verified', 'mismatch', or 'absent'. Not a boolean, because the three
+# cases need different responses: absent is an artefact from before the sidecar
+# existed and is merely unverified, while mismatch is a fact about this file
+# now.
+sub verify_sha256 {
+    my ($path) = @_;
+    my $want = read_sha256($path);
+    return 'absent' unless length $want;
+    require Digest::SHA;
+    my $got = eval { Digest::SHA->new('sha256')->addfile( $path, 'b' )->hexdigest };
+    return 'mismatch' unless defined $got && length $got;
+    return $got eq $want ? 'verified' : 'mismatch';
 }
 
 sub action_backup_list {
@@ -83,12 +145,62 @@ sub action_backup_list {
                 # SM183: present only when a digest was written beside it, so an
                 # artefact from before this is simply unverified rather than
                 # looking like one whose digest failed.
-                sha256 => read_sha256("$dir/$f") };
+                #
+                # SM268 03-F10: and RECOMPUTED, not merely echoed. A digest
+                # displayed beside a package reads as "verified" whether or not
+                # anything checked it, so the listing now says which of the
+                # three it is: verified, mismatch, or absent.
+                sha256        => read_sha256("$dir/$f"),
+                sha256_status => verify_sha256("$dir/$f") };
         }
         closedir $dh;
     }
     @out = sort { $b->{mtime} <=> $a->{mtime} } @out;
     return { ok => 1, backups => \@out };
+}
+
+# SM183: the stamp is second-granular and was the ONLY thing making a name
+# unique, so two snapshots in the same second produced the same name and the
+# second silently overwrote the first.
+#
+# That is not theoretical and it is not cosmetic. action_backup_restore takes its
+# own safety snapshot before restoring; roll back an apply promptly and the
+# restore's snapshot lands on the apply's, destroying the artefact being restored
+# FROM - and then "restores" the state you were trying to undo. It reported
+# success throughout. Found by testing the rollback round trip.
+#
+# SM268 03-F9: the first fix for that was `if (-e $out) { pick a -N }`, which is
+# a check followed by a create and therefore fixed it only for SEQUENTIAL
+# callers. An adversarial review ran twelve concurrent snapshots and got two
+# files: every caller was told ok => 1 and handed a name, and ten of them named
+# someone else's tarball. Two tar processes writing one inode is also not
+# guaranteed to produce a valid archive.
+#
+# O_EXCL is the test and the claim in one syscall, so exactly one caller wins
+# each name and the losers take the next suffix. Still disambiguate rather than
+# refuse: a backup is a safety net and the caller is usually mid-operation, so
+# failing to take one is worse than taking one under a slightly longer name.
+#
+# tar then writes THROUGH the placeholder - it opens O_WRONLY|O_CREAT|O_TRUNC,
+# so the inode we claimed is the one it fills.
+sub _claim_name {
+    my ( $dir, $kind ) = @_;
+    my $stamp = strftime( '%Y%m%dT%H%M%SZ', gmtime );
+    for my $n ( 1 .. 50 ) {
+        my $name = "lazysite-$kind-$stamp" . ( $n > 1 ? "-$n" : q{} ) . '.tar.gz';
+        my $path = "$dir/$name";
+        if ( sysopen my $fh, $path, O_WRONLY | O_CREAT | O_EXCL, oct '640' ) {
+            close $fh;
+            return ( $path, $name );
+        }
+        next if $! == Errno::EEXIST();
+        log_event( 'ERROR', 'backup-create', 'cannot create backup file',
+            path => $path, error => "$!" );
+        return ();
+    }
+    log_event( 'ERROR', 'backup-create', 'no free backup name in this second',
+        dir => $dir );
+    return ();
 }
 
 sub action_backup_create {
@@ -98,29 +210,9 @@ sub action_backup_create {
     make_path($dir) unless -d $dir;
     # All backup artefacts carry the `lazysite-` namespace prefix so they are
     # unmistakably ours (and sort together): lazysite-<kind>-<UTCstamp>.tar.gz.
-    my $stamp = strftime( '%Y%m%dT%H%M%SZ', gmtime );
-    my $name  = "lazysite-$kind-$stamp.tar.gz";
-    my $out   = "$dir/$name";
-
-    # SM183: the stamp is second-granular, and it was the ONLY thing making a
-    # name unique - so two snapshots in the same second produced the same name
-    # and the second silently overwrote the first.
-    #
-    # That is not theoretical and it is not cosmetic. action_backup_restore takes
-    # its own safety snapshot before restoring; roll back an apply promptly and
-    # the restore's snapshot lands on the apply's, destroying the artefact being
-    # restored FROM - and then "restores" the state you were trying to undo. It
-    # reported success throughout. Found by testing the rollback round trip.
-    #
-    # Disambiguate rather than refuse: a backup is a safety net and the caller is
-    # usually mid-operation, so failing to take one is worse than taking one
-    # under a slightly longer name. -2, -3, ... keeps the lexical order stable.
-    if ( -e $out ) {
-        my $n = 2;
-        $n++ while -e "$dir/lazysite-$kind-$stamp-$n.tar.gz";
-        $name = "lazysite-$kind-$stamp-$n.tar.gz";
-        $out  = "$dir/$name";
-    }
+    my ( $out, $name ) = _claim_name( $dir, $kind );
+    return { ok => 0, error => 'Backup failed: could not claim a filename' }
+        unless defined $out;
 
     # 'full' = the whole site including the lazysite/ infra (config, auth,
     # forms, nav, themes/layouts) - a portable snapshot for DR and for migrating a
@@ -135,7 +227,12 @@ sub action_backup_create {
         : ( '--exclude=./lazysite', '--exclude=./lazysite-assets' );
 
     my $rc = system( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.' );
-    return { ok => 0, error => 'Backup failed' } if $rc != 0 || !-f $out;
+    if ( $rc != 0 || !-f $out || -z $out ) {
+        # Drop the placeholder we claimed, or a failed snapshot sits in the
+        # listing as a zero-byte tarball that reads as a usable one.
+        unlink $out;
+        return { ok => 0, error => 'Backup failed' };
+    }
     log_event( 'INFO', 'backup-create',
         ( $kind eq 'full' ? 'full system snapshot' : 'docroot snapshot' ),
         file => $name, user => $auth_user );

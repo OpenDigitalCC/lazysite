@@ -34,7 +34,7 @@ use JSON::PP       ();
 use POSIX          qw(strftime);
 use Getopt::Long   ();
 use Cwd            qw(abs_path);
-use Fcntl          qw(O_WRONLY O_APPEND O_CREAT);
+use Fcntl          qw(O_WRONLY O_APPEND O_CREAT O_EXCL);
 
 my $STAGE_DIR = abs_path( dirname($0) );
 
@@ -1353,7 +1353,50 @@ sub create_backup {
         die "Backup: tar failed (rc=$rc). Aborting upgrade. Your system is unchanged.\n";
     }
 
+    # SM268 03-F10: the installer's own backups never got a sidecar.
+    #
+    # SM183 said "every site package and backup now gets a .sha256 sidecar" and
+    # the installer's did not - it cannot load Lazysite::Manager::Backups, so the
+    # writer simply was not there. That also made apply_retention's
+    # `unlink "$backups[$i].sha256"` dead code: it retired a file nothing had
+    # ever written. Same format, same sha256sum -c compatibility, written the
+    # same atomic way.
+    write_backup_sha256($out);
+
     return $out;
+}
+
+# The .sha256 sidecar for an installer-written artefact. Deliberately a small
+# local copy rather than a shared one: install.pl runs from the release tarball
+# with no @INC into the site's lib, which is the whole reason this was missing.
+# Failure is not fatal - the artefact is valid without it - but it must not be
+# reported as written when it was not.
+sub write_backup_sha256 {
+    my ($path) = @_;
+    return '' unless -f $path;
+    my $sha = eval { sha256_of($path) };
+    return '' unless defined $sha && length $sha;
+    my $base = basename($path);
+    my $side = "$path.sha256";
+    if ( -l $side ) {
+        warn "  warn: $side is a symlink; not writing a digest sidecar\n";
+        return '';
+    }
+    my $tmp = "$side.tmp.$$";
+    unless ( sysopen my $fh, $tmp, O_WRONLY | O_CREAT | O_EXCL, oct '640' ) {
+        warn "  warn: could not write $tmp: $!\n";
+        return '';
+    }
+    else {
+        print {$fh} "$sha  $base\n";
+        close $fh;
+    }
+    unless ( rename $tmp, $side ) {
+        warn "  warn: could not install $side: $!\n";
+        unlink $tmp;
+        return '';
+    }
+    return $sha;
 }
 
 sub cmd_list_backups {
