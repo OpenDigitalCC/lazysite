@@ -55,6 +55,23 @@ search: false
 </table>
 <div id="file-pager" class="mg-pager"></div>
 
+<div class="mg-card" id="protected-card">
+<div class="mg-card-header"><span class="mg-card-title">Protected sections</span>
+<button class="mg-btn mg-btn-sm" onclick="loadProtectedSections()">Refresh</button></div>
+<div class="mg-card-body">
+<p class="mg-muted">Whole folders held back from the public. A <b>gated</b> section is
+visible only to the people named on it; a <b>draft</b> section does not exist as far as
+a visitor is concerned - it returns 404 and stays out of the sitemap, the feeds and
+every listing, while a signed-in editor can still preview it.</p>
+<table class="mg-file-table" id="protected-table" style="display:none">
+<thead><tr><th>Section</th><th>Policy</th><th>Readable by</th><th>Contents</th><th></th></tr></thead>
+<tbody id="protected-rows"></tbody>
+</table>
+<p class="mg-muted" id="protected-empty" style="display:none">Nothing is held back &mdash;
+every folder on this site is public.</p>
+</div>
+</div>
+
 <div class="mg-card" id="aliases-card">
 <div class="mg-card-header"><span class="mg-card-title">Aliases</span>
 <button class="mg-btn mg-btn-sm" onclick="loadAliases()">Refresh</button></div>
@@ -861,6 +878,87 @@ function updateSelection() {
   }
 }
 
+// SM267 (carved out of SM181): what is held back right now.
+//
+// SM181 built both policies and left them reachable only by hand-editing
+// acls.json, so the product could hold a section back and had no screen that
+// said which sections were held back. The failure mode of a good hiding
+// mechanism is forgetting what you hid: a draft section left in place after
+// launch is invisible by design and nothing says so.
+//
+// Publishing is TWO different acts and gets two different controls. Clearing
+// `draft` makes a section public. Removing the entry drops the read list as
+// well, which on a gated section is a wider act than it looks - so it is named
+// for what it does and confirmed separately.
+function loadProtectedSections() {
+  fetch(API + '?action=protected-sections')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var table = document.getElementById('protected-table');
+      var empty = document.getElementById('protected-empty');
+      if (!table || !empty) return;
+      var rows = (d && d.ok && d.sections) || [];
+      if (!rows.length) { table.style.display = 'none'; empty.style.display = ''; return; }
+      var html = '';
+      for (var i = 0; i < rows.length; i++) {
+        var s = rows[i], p = escHtml(s.prefix);
+        var draft = s.policy === 'draft';
+        var badge = draft
+          ? '<span class="mg-alias-badge mg-alias-302" title="Hidden outright: 404 to the public, absent from the sitemap, feeds and every listing.">draft</span>'
+          : '<span class="mg-alias-badge" title="Visible only to the people named in the read list; everyone else is sent to sign in.">gated</span>';
+        var who = (s.read && s.read.length) ? escHtml(s.read.join(', '))
+          : '<span class="mg-muted">nobody but the owner</span>';
+        // An entry whose folder has gone still gates the path. Say so rather
+        // than drop the row - an orphaned rule is exactly what this screen is
+        // for.
+        var contents = s.exists
+          ? (s.pages + ' page' + (s.pages === 1 ? '' : 's')
+             + (s.assets ? ', ' + s.assets + ' asset' + (s.assets === 1 ? '' : 's') : ''))
+          : '<span class="mg-cap-dormant" title="The rule still gates this path, but there is no such folder.">no such folder</span>';
+        html += '<tr><td><code>' + p + '</code></td>'
+              + '<td>' + badge + '</td>'
+              + '<td>' + who + '</td>'
+              + '<td>' + contents + '</td>'
+              + '<td class="mg-file-actions">'
+              + (draft
+                  ? '<button class="mg-btn mg-btn-sm" onclick="publishSection(\'' + p + '\',true)">Publish</button> '
+                  : '')
+              + '<button class="mg-btn mg-btn-sm mg-btn-danger" onclick="publishSection(\'' + p + '\',false)">Remove protection</button>'
+              + '</td></tr>';
+      }
+      document.getElementById('protected-rows').innerHTML = html;
+      table.style.display = '';
+      empty.style.display = 'none';
+    })
+    .catch(function() { /* card stays empty */ });
+}
+
+// draftOnly: clear the draft flag and keep the read list (the section becomes
+// public but the ACL survives). Otherwise remove the entry entirely.
+function publishSection(prefix, draftOnly) {
+  var msg = draftOnly
+    ? 'Publish "' + prefix + '"? Every page and asset under it becomes visible to '
+      + 'the public and enters the sitemap and feeds.'
+    : 'Remove all protection from "' + prefix + '"? This drops the read list as '
+      + 'well, so the section becomes public AND stops being access-controlled.';
+  mgConfirm(msg, { ok: draftOnly ? 'Publish' : 'Remove protection' }).then(function(okd) {
+    if (!okd) return;
+    var q = draftOnly
+      ? { action: 'acl-set', body: { draft: false } }
+      : { action: 'acl-remove', body: null };
+    var opts = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
+    if (q.body) opts.body = JSON.stringify(q.body);
+    fetch(API + '?action=' + q.action + '&path=' + encodeURIComponent(prefix), opts)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (!d.ok) { showStatus(d.error || 'Failed', true); return; }
+        showStatus(draftOnly ? 'Section published.' : 'Protection removed.');
+        loadProtectedSections();
+      })
+      .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
+}
+
 // SM134 follow-ups: read-only view of the alias-redirect map (aliases.json).
 function loadAliases() {
   fetch(API + '?action=aliases-list')
@@ -1132,5 +1230,6 @@ function readInitDir() {
 
 renderScopeSwitcher();
 loadPrincipals().then(loadGitStatus).then(function() { loadDir(readInitDir()); });
+loadProtectedSections();
 loadAliases();
 </script>

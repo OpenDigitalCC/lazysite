@@ -2,8 +2,8 @@
 title: "SM266 - Apply-confidence controls in the manager: dry-run, readiness, rollback button, remap override"
 subtitle: "Applying a site package overwrites a site. The backend is now reversible and verifiable; what is missing is the four manager controls that let a human see what will happen before agreeing to it."
 brand: plain
-status: candidate
-status-note: "Carved out of SM183 on 2026-08-09 so that filing could close rather than sit at partial. SM183's BACKEND is complete: every surface snapshots before applying and returns the rollback point, packages and backups carry a .sha256 sidecar, and the snapshot-name collision that made prompt rollback destroy its own restore point is fixed. What remains is four manager-UI affordances, which share one property - they are all manager JavaScript, the area docs/MANUAL-CHECKS.md exists because the suite cannot reach. Grouped rather than left as four orphan lines on a closed filing."
+status: shipped
+status-note: "BUILT on main (unreleased), all four controls. The two needing new backend are covered by t/unit/manager/60: package_inspect takes an optional TARGET and returns added-versus-overwritten counts plus the layout/theme disposition (opt-in, so existing callers do not pay for a tree walk), and apply_and_configure takes keep_presentation so an operator can take the package content and keep the target theme, layout or nav. Untouched means the previous behaviour, exactly. The other two are presentation over data that already existed: the readiness check calls the existing domain-check from the apply panel, and Undo routes through the SAME backup-restore the Backups list uses - no second restore path - so it inherits the pre-restore snapshot, the cache clear and the audit entry, and is itself undoable. THE FOUR PANELS ARE NOT SUITE-COVERED: docs/MANUAL-CHECKS.md carries the pass, steps 6-9. CARVED OUT of SM183 on 2026-08-09; SM183's backend half was already complete."
 ---
 
 # SM266 - apply-confidence controls in the manager

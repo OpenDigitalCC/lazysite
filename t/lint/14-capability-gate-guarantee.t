@@ -134,7 +134,7 @@ my %COOKIE_READ = map { $_ => 1 } qw(
     backup-list backup-download lang-status git-status git-history git-history-summary git-show
     analyse_visitors plugin-read form-submissions form-list site-backup-inspect
     site-backup-download
-    principals
+    principals protected-sections
 );
 # 'users' is dual-mode (GET reads list/groups; writes self-enforce POST inside
 # action_users), so it is deliberately NOT in %MUTATING - enrolled as a reviewed

@@ -157,6 +157,38 @@ function renderBackups(list, elId, restorable) {
   el.innerHTML = html;
 }
 
+// SM266 (3): undo the apply that just happened, by name, from where the
+// operator is standing. Routes through the SAME restore the Backups list uses -
+// no second restore path - so it inherits the pre-restore snapshot, the cache
+// clear and the audit entry. The undo is therefore itself undoable.
+function offerUndo(snapshot, host) {
+  var bar = document.getElementById('undo-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'undo-bar';
+    bar.className = 'mg-undo-bar';
+    var app = document.getElementById('app') || document.body;
+    app.insertBefore(bar, app.firstChild);
+  }
+  bar.innerHTML = 'Applied to ' + escHtml(host || 'the primary site') + '. '
+    + 'Not what you meant? <button class="mg-btn mg-btn-sm" '
+    + 'onclick="undoApply(\'' + escHtml(snapshot) + '\', this)">Undo &mdash; restore '
+    + '<code>' + escHtml(snapshot) + '</code></button> '
+    + '<button class="mg-btn mg-btn-sm" onclick="this.parentNode.remove()">Dismiss</button>';
+}
+
+function undoApply(snapshot, btn) {
+  mgConfirm('Restore the pre-apply snapshot "' + snapshot + '"?\n\n'
+    + 'This puts the site back as it was immediately before the apply. The restore '
+    + 'takes its own snapshot first, so this is reversible too.',
+    { danger: true, ok: 'Undo the apply' }).then(function(ok) {
+    if (!ok) return;
+    restoreBackup(snapshot, btn);
+    var bar = document.getElementById('undo-bar');
+    if (bar) bar.remove();
+  });
+}
+
 function restoreBackup(name, btn) {
   var msg = 'Restore "' + name + '"?\n\nIts files are written back over the site '
           + '(newer files stay). A prerestore safety snapshot is taken first.';
@@ -281,6 +313,7 @@ function showApply(name, panelId) {
   if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
   panel.style.display = 'block';
   panel.innerHTML = '<span class="mg-muted">Loading&hellip;</span>';
+  panel._pkg = name;
   Promise.all([
     fetch(API + '?action=site-backup-inspect&name=' + encodeURIComponent(name), { credentials: 'same-origin' }).then(function(r) { return r.json(); }),
     fetch(API + '?action=domains-list', { credentials: 'same-origin' }).then(function(r) { return r.json(); })
@@ -301,22 +334,131 @@ function showApply(name, panelId) {
           + ' file(s) &middot; theme ' + escHtml(m.theme || '(none)') + ' &middot; layout '
           + escHtml(m.layout || '(none)') + ' &middot; nav '
           + (info.has_nav ? 'override' : escHtml(m.nav || 'base-inherited')) + '.</div>';
-    html += '<div style="margin-bottom:6px;"><label>Apply to: <select id="' + selId + '">' + opts + '</select></label></div>';
+    // SM266: changing the target re-runs the dry run and the readiness check
+    // against THAT target. Both are per-target answers, so neither can be
+    // computed once when the panel opens.
+    html += '<div style="margin-bottom:6px;"><label>Apply to: <select id="' + selId
+          + '" onchange="refreshApplyPreview(\'' + panelId + '\')">' + opts + '</select></label></div>';
     html += '<div style="margin-bottom:6px;"><label><input type="checkbox" id="' + clnId + '"> Remove existing content under the target first (clean)</label></div>';
+    // SM266 (1) dry run, (2) target readiness, (4) presentation-key override.
+    html += '<div id="' + panelId + '-preview" class="mg-apply-preview"></div>';
     html += '<div class="mg-muted" style="font-size:0.8rem;margin-bottom:8px;">Apply overwrites the target domain\'s content and rewrites its presentation (site_url / site_name / theme / layout / nav) to the package\'s. A safety snapshot is taken first and the change is recorded in content history. DNS/TLS for the target stay the operator\'s job.</div>';
     html += '<button class="mg-btn mg-btn-primary mg-btn-sm" onclick="doApply(\'' + escHtml(name) + '\', \'' + selId + '\', \'' + clnId + '\', this)">Apply package</button> ';
     html += '<button class="mg-btn mg-btn-sm" onclick="document.getElementById(\'' + panelId + '\').style.display=\'none\';">Cancel</button>';
     panel.innerHTML = html;
+    refreshApplyPreview(panelId);
   }).catch(function(e) { panel.innerHTML = '<span class="mg-warn">Error: ' + escHtml(e.message) + '</span>'; });
+}
+
+// SM266 (carved out of SM183): the difference between "I have read the
+// manifest" and "I know what this will change".
+//
+// SM183 made apply SAFE - a snapshot on every surface, a named rollback point,
+// a digest on the artefact. None of that lets a human see what an apply will do
+// BEFORE agreeing to it, which is the question an operator actually has in
+// front of a confirm button. Three answers, all for the selected target:
+//
+//   the dry run       how many files land, and how many of them overwrite
+//   readiness         whether DNS/vhost/TLS are pointed at the target yet
+//   the key override  which presentation keys change, with the option to keep
+//
+// All three are per-target. Re-run on every target change; blank for the
+// primary site, where "which domain" is not a question.
+function refreshApplyPreview(panelId) {
+  var box = document.getElementById(panelId + '-preview');
+  var sel = document.getElementById(panelId + '-target');
+  var panel = document.getElementById(panelId);
+  if (!box || !sel || !panel) return;
+  var host = sel.value;
+  var name = panel._pkg;
+  if (!host) {
+    box.innerHTML = '<div class="mg-muted" style="font-size:0.8rem;margin-bottom:8px;">'
+      + 'Applying to the primary site. Select a domain to see what would change there.</div>';
+    return;
+  }
+  box.innerHTML = '<span class="mg-muted">Checking the target&hellip;</span>';
+  Promise.all([
+    fetch(API + '?action=site-backup-inspect&name=' + encodeURIComponent(name)
+          + '&host=' + encodeURIComponent(host), { credentials: 'same-origin' })
+      .then(function(r) { return r.json(); }),
+    fetch(API + '?action=domain-check&host=' + encodeURIComponent(host),
+          { credentials: 'same-origin' }).then(function(r) { return r.json(); })
+      .catch(function() { return { ok: false }; })
+  ]).then(function(res) {
+    var info = res[0], chk = res[1];
+    if (!info.ok) {
+      box.innerHTML = '<div class="mg-warn">' + escHtml(info.error || 'Cannot compare against that target') + '</div>';
+      return;
+    }
+    var c = info.compare || {}, m = info.manifest || {}, h = '';
+
+    // 1. The dry run. Overwrites are the number that matters, so it leads and
+    // is emphasised when non-zero - "12 files, 9 of them overwriting what is
+    // there" is a different decision from "12 new files".
+    h += '<div class="mg-apply-block"><b>What this would do to ' + escHtml(host) + '</b><ul>';
+    h += '<li>' + (c.added || 0) + ' new file' + ((c.added === 1) ? '' : 's') + '</li>';
+    h += '<li>' + (c.overwritten
+          ? '<b>' + c.overwritten + ' existing file' + ((c.overwritten === 1) ? '' : 's') + ' overwritten</b>'
+          : 'nothing overwritten') + '</li>';
+    if (m.layout) {
+      h += '<li>layout <code>' + escHtml(m.layout) + '</code> &mdash; '
+        + (c.layout_present ? 'already installed, left as it is' : 'would be installed') + '</li>';
+    }
+    if (m.theme) {
+      h += '<li>theme <code>' + escHtml(m.theme) + '</code> &mdash; '
+        + (c.theme_present ? 'already installed, left as it is' : 'would be installed') + '</li>';
+    }
+    h += '</ul></div>';
+
+    // 2. Readiness. A target whose DNS or TLS is not pointed yet is a warning
+    // BEFORE the apply rather than a discovery after it. Not a blocker: staging
+    // content ahead of a DNS cutover is a legitimate thing to do deliberately.
+    if (chk && chk.ok) {
+      var probs = [];
+      if (chk.dns && chk.dns.ok === false) probs.push('DNS does not resolve here');
+      if (chk.tls && chk.tls.ok === false) probs.push('no valid TLS certificate');
+      if (chk.vhost && chk.vhost.ok === false) probs.push('no vhost is serving it');
+      h += probs.length
+        ? '<div class="mg-apply-warn">&#9888; ' + escHtml(host) + ': ' + escHtml(probs.join('; '))
+          + '. The apply will still work &mdash; the content simply is not reachable yet.</div>'
+        : '<div class="mg-apply-ok">&#10003; ' + escHtml(host) + ' is resolving and served.</div>';
+    }
+
+    // 3. The presentation keys, with the option to keep the target's own. Ticked
+    // means "keep mine"; unticked (the default) is the existing behaviour, so
+    // an operator who ignores this control gets exactly what they got before.
+    var pres = [['theme', m.theme], ['layout', m.layout], ['nav', m.nav]];
+    var rows = '';
+    for (var i = 0; i < pres.length; i++) {
+      if (!pres[i][1]) continue;
+      rows += '<label class="mg-apply-keep"><input type="checkbox" class="' + panelId + '-keep" '
+        + 'value="' + escHtml(pres[i][0]) + '"> keep this site\'s <b>' + escHtml(pres[i][0])
+        + '</b> (the package would set it to <code>' + escHtml(pres[i][1]) + '</code>)</label>';
+    }
+    if (rows) {
+      h += '<div class="mg-apply-block"><b>Presentation</b><div class="mg-muted" '
+        + 'style="font-size:0.8rem">Tick anything you want left alone. Untouched, the '
+        + 'package\'s values are applied, as before.</div>' + rows + '</div>';
+    }
+    box.innerHTML = h;
+  }).catch(function(e) {
+    box.innerHTML = '<div class="mg-warn">Error: ' + escHtml(e.message) + '</div>';
+  });
 }
 
 function doApply(name, selId, clnId, btn) {
   var sel = document.getElementById(selId), cln = document.getElementById(clnId);
   var host = sel ? sel.value : '';
   var clean = cln ? cln.checked : false;
+  // SM266 (4): the presentation keys the operator ticked to keep.
+  var panelId = selId.replace(/-target$/, '');
+  var keep = [];
+  var boxes = document.querySelectorAll('.' + panelId + '-keep');
+  for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) keep.push(boxes[i].value);
   var where = host ? ('"' + host + '"') : 'the primary site';
   var msg = 'Apply "' + name + '" to ' + where + '?'
           + (clean ? '\n\nCLEAN is on: existing content under the target is removed first.' : '')
+          + (keep.length ? '\n\nKeeping this site\'s own ' + keep.join(', ') + '.' : '')
           + '\n\nA safety snapshot is taken and the change is recorded in content history.';
   var go = function(ok) {
     if (!ok) return;
@@ -325,11 +467,17 @@ function doApply(name, selId, clnId, btn) {
     fetch(API + '?action=site-backup-apply', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, host: host, clean: clean })
+      body: JSON.stringify({ name: name, host: host, clean: clean, keep_presentation: keep })
     }).then(function(r) { return r.json(); }).then(function(d) {
       if (btn) btn.disabled = false;
       if (!d.ok) { showStatus(d.error || 'Apply failed', true); return; }
       showStatus('Applied ' + name + (host ? ' to ' + host : ' to the primary site') + '.');
+      // SM266 (3): the undo. The snapshot name comes back in the result and used
+      // to appear only in the audit trail, so undoing meant finding the right
+      // row on the Backups list and knowing it was the one. Offered here, at the
+      // moment the operator can still tell whether the apply was what they meant.
+      // Safe to offer because restoring is itself snapshotted.
+      if (d.safety) offerUndo(d.safety, host);
       loadBackups();
     }).catch(function(e) { if (btn) btn.disabled = false; showStatus('Apply error: ' + e.message, true); });
   };

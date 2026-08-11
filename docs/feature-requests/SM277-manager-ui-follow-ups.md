@@ -2,8 +2,8 @@
 title: "SM277 - Two manager-UI follow-ups, closed scope"
 subtitle: "The reciprocal capability counts on the Services page, and in-place regeneration of a connect code. Both were deferred inside shipped filings where nobody would find them."
 brand: plain
-status: candidate
-status-note: "SPLIT on 2026-08-11 from SM180 and SM200, both shipped. Each carried one small deferred follow-up in its note, which is where deferred work goes to be forgotten. THE SCOPE OF THIS FILING IS THE TWO ITEMS BELOW AND NOTHING ELSE - see 'Why this is two items and not a bucket'. Not started."
+status: shipped
+status-note: "BUILT on main (unreleased), both items, closed to additions as filed. (1) New read-only capability-holders resolver returns, per capability, how many groups grant it and how many accounts hold it - through the NESTING CLOSURE, because that is what enforcement uses; counting direct membership would under-report exactly the grants hardest to audit. Groups are named, accounts are counted only: a roster on the settings screen buys nothing the Users page does not already answer. channel-services now also returns the conf-key-to-channel map so the Services page needs no second copy of it in JavaScript. The counts sit behind manage_users, so an operator with manage_config alone sees NOTHING rather than zero - zero would read as 'nothing depends on this'. Covered by t/unit/manager/66. (2) The connect-code panel counts the code's life down, says plainly when it has expired and strikes it through, and Regenerate re-mints IN PLACE - superseding the old timer and poll rather than rebuilding the panel and scrolling the operator back to the top of a flow they are midway through. cmd_onboarding_web now passes through the absolute expiry SM200 already computed and this caller dropped. THE UI IS NOT SUITE-COVERED: docs/MANUAL-CHECKS.md steps 10-14. SPLIT on 2026-08-11 from SM180 and SM200."
 ---
 
 # SM277 - two manager-UI follow-ups

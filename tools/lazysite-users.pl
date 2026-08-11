@@ -192,7 +192,7 @@ $Lazysite::Audit::LAZYSITE_DIR      = "$DOCROOT/lazysite";
 # is harmless - it stays lock-free deliberately.
 my %STORE_READONLY = map { $_ => 1 } qw(
     list groups users-detail users-page group-settings-get settings-get settings
-    permissions-grid permissions credential-status keys-list partner-caps
+    permissions-grid capability-holders permissions credential-status keys-list partner-caps
     audit-scope audit-registry totp-code verify-credential
 );
 
@@ -247,14 +247,15 @@ our %CLI_AUDIT_ACTION = (
 );
 our %CLI_NO_DIRECT_AUDIT = (
     # read-only commands
-    cmd_list              => 'read-only',
-    cmd_groups            => 'read-only',
-    cmd_settings          => 'read-only',
-    cmd_permissions_grid  => 'read-only',
-    cmd_permissions_cli   => 'read-only',
-    cmd_credential_status => 'read-only',
-    cmd_keys_list         => 'read-only',
-    cmd_audit_registry    => 'read-only (audit introspection itself)',
+    cmd_list               => 'read-only',
+    cmd_groups             => 'read-only',
+    cmd_settings           => 'read-only',
+    cmd_permissions_grid   => 'read-only',
+    cmd_capability_holders => 'read-only',
+    cmd_permissions_cli    => 'read-only',
+    cmd_credential_status  => 'read-only',
+    cmd_keys_list          => 'read-only',
+    cmd_audit_registry     => 'read-only (audit introspection itself)',
     # thin CLI wrappers - the audited core command writes the entry
     cmd_set_cli                       => 'delegates to cmd_set',
     cmd_group_set_cli                 => 'delegates to cmd_group_settings_set',
@@ -407,6 +408,9 @@ if ($API_MODE) {
         }
         elsif ( $action eq 'permissions-grid' ) {
             $result = cmd_permissions_grid( $req->{username} );
+        }
+        elsif ( $action eq 'capability-holders' ) {
+            $result = cmd_capability_holders();
         }
         elsif ( $action eq 'group-settings-set' ) {
             $result = cmd_group_settings_set( $req->{group}, $req->{key}, $req->{value},
@@ -2505,9 +2509,15 @@ sub cmd_onboarding_web {
     $domain =~ s{/.*$}{};
     log_event( 'INFO', $user, 'connector setup issued' );
     return {
-        username        => $user,
-        connect_code    => $cc->{code},
-        domain          => $domain,       # the connector name (one per site)
+        username     => $user,
+        connect_code => $cc->{code},
+        # SM277: the ABSOLUTE expiry, so the setup panel can count down and flip
+        # to an expired state with a Regenerate control in place. SM200 added
+        # this to cmd_connect_code for exactly that purpose and this caller
+        # dropped it, so the panel could only print a static "30 minutes" that
+        # stayed on screen long after the code stopped working.
+        connect_code_expires_at => $cc->{expires_at},
+        domain                  => $domain,            # the connector name (one per site)
         connector_url   => "$base/cgi-bin/lazysite-mcp.pl",
         connector_setup => _connector_setup_text( $user, $cc->{code}, $domain, $base ),
         assistant_prompt => _assistant_prompt( $user, $domain, $base, effective_settings($user) ),
@@ -2927,6 +2937,55 @@ sub cmd_permissions_grid {
         granted_by => \%granted_by,
         surface    => Lazysite::Capabilities::action_channel_surface(),
     };
+}
+
+# SM277: the RECIPROCAL of the grid. cmd_permissions_grid answers "what does
+# this user hold, and which group gave it" - the grant's side. This answers the
+# switch's side: for each capability, how many groups grant it and how many
+# accounts end up holding it. The Services page needs the second before an
+# operator turns a service off, because "switching this off strips 4 accounts"
+# is not derivable from any per-user view.
+#
+# Both numbers come from the same resolver the grid uses (effective_groups, ie
+# the nesting closure) rather than direct membership - so a capability conferred
+# by nesting is counted here exactly as it is enforced. Counting direct
+# membership would under-report precisely the grants hardest to audit, which is
+# the SM268 02-6 defect in the other direction.
+sub cmd_capability_holders {
+    _ensure_groups_seeded();
+    my $gs = Lazysite::Auth::Settings::read_group_settings();
+
+    my %granting;    # cap => { group => 1 }
+    for my $g ( keys %$gs ) {
+        for my $k ( @CAP_KEYS, 'manager' ) {
+            $granting{$k}{$g} = 1 if $gs->{$g}{$k};
+        }
+    }
+
+    my %users = read_users();
+    my %holders;     # cap => { user => 1 }
+    for my $u ( grep { defined && length } keys %users ) {
+        my %mine = map { $_ => 1 } Lazysite::Auth::Settings::effective_groups($u);
+        for my $k ( keys %granting ) {
+            $holders{$k}{$u} = 1
+                if grep { $mine{$_} } keys %{ $granting{$k} };
+        }
+    }
+
+    my %out;
+    for my $k ( @CAP_KEYS, 'manager' ) {
+        my @g = sort keys %{ $granting{$k} || {} };
+        $out{$k} = {
+            groups => scalar @g,
+            users  => scalar keys %{ $holders{$k} || {} },
+            # The names, so the UI can say WHICH groups without a second call.
+            # Users are deliberately a count only: naming every account that
+            # would lose a channel is a disclosure the Services page has no
+            # reason to make, and the Users page already answers it per account.
+            group_names => \@g,
+        };
+    }
+    return { ok => 1, holders => \%out };
 }
 
 # CLI: print a human-readable channel x capability grid for a user, resolved
@@ -3352,8 +3411,22 @@ sub cmd_group_set_cli {
         unless defined $group && defined $key && defined $value;
     my $r = cmd_group_settings_set( $group, $key, $value );
     die "$r->{error}\n" unless $r->{ok};
-    my $on = ( $value =~ /^(?:on|1|true|yes)$/i ) ? 'on' : 'off';
-    print "Set $key $on for group '$group'.\n" unless $API_MODE;
+    # Not every group setting is a boolean. label, description, dav_scope,
+    # home_domain and the grant-authority list all take a VALUE, and reporting
+    # `group-set g dav_scope other` as "Set dav_scope off" told the operator the
+    # opposite of what had just been stored.
+    my %VALUED = map { $_ => 1 }
+        qw(label description dav_scope home_domain grantable);
+    if ( $VALUED{$key} ) {
+        print( length( $value // '' )
+            ? "Set $key to '$value' for group '$group'.\n"
+            : "Cleared $key for group '$group'.\n" )
+            unless $API_MODE;
+    }
+    else {
+        my $on = ( $value =~ /^(?:on|1|true|yes)$/i ) ? 'on' : 'off';
+        print "Set $key $on for group '$group'.\n" unless $API_MODE;
+    }
     return $r;
 }
 

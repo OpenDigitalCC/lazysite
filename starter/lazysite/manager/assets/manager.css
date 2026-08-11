@@ -706,6 +706,24 @@
 }
 .mg-code-token { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.6em; }
 .mg-code-token code { font-size: 1.05em; font-weight: 700; color: var(--mg-accent); }
+/* SM277: a lapsed connect code reads as spent rather than merely quiet - the
+   operator should not be able to mistake it for one that still works. */
+.mg-code-token code.mg-code-stale { color: var(--mg-text-light); text-decoration: line-through; }
+/* SM277: the reciprocal capability count under a Services switch. Quieter than
+   the note above it - it is context for the switch, not instruction. */
+.mg-holder-line:empty { display: none; }
+
+/* SM266: the apply-confidence block. Quiet by default - what the operator
+   should notice is the overwrite count and any readiness warning, so those two
+   carry the weight and everything else stays plain. */
+.mg-apply-preview { margin: 0 0 8px; font-size: 0.85rem; }
+.mg-apply-block { margin-bottom: 8px; }
+.mg-apply-block ul { margin: 0.2em 0 0; padding-left: 1.2em; }
+.mg-apply-warn { margin: 6px 0; padding: 6px 8px; border-left: 3px solid #b45309; color: #b45309; }
+.mg-apply-ok { margin: 6px 0; color: var(--mg-success); }
+.mg-apply-keep { display: block; margin: 0.3em 0 0; }
+.mg-undo-bar { margin: 0 0 10px; padding: 8px 10px; border-left: 3px solid var(--mg-accent); }
+.mg-holder-count { cursor: help; }
 .mg-onb-wait { margin-top: 0.6em; font-size: 0.85em; color: var(--mg-text-light); }
 .mg-onb-ok { color: var(--mg-success); font-weight: 600; }
 

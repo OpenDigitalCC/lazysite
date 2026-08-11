@@ -31,7 +31,7 @@ use JSON::PP                   qw(encode_json decode_json);
 use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Common  qw(_write_conf_key conf_batch);
-use Lazysite::Manager::Themes  qw(_mirror_theme_assets);      # SM193: mirror on apply
+use Lazysite::Manager::Themes  qw(_mirror_theme_assets);         # SM193: mirror on apply
 use Exporter 'import';
 our @EXPORT_OK = qw(package_create package_apply apply_and_configure package_inspect);
 
@@ -179,8 +179,8 @@ sub package_create {
 
     # 1. content -> content/. For the primary/default site that means the docroot
     # root with the infra + other domains excluded; for a domain, its subtree.
-    if ($primary_base) { _copy_base_content("$stage/content") }
-    else               { _copy_tree( $content_src, "$stage/content" ) }
+    if   ($primary_base) { _copy_base_content("$stage/content") }
+    else                 { _copy_tree( $content_src, "$stage/content" ) }
 
     # 2. nav: package the OVERRIDE only. A base-inherited nav (nav_file unset or
     # pointing at the infra lazysite/nav.conf) is NOT packaged - the target's
@@ -310,8 +310,14 @@ sub _extract_package {
 # manifest, counts the content files, then drops the stage. Read-only: nothing on
 # the live docroot changes. The CALLER enforces access (manage_domains + scope).
 # Returns { ok, manifest, content_files, has_nav, has_layout } or { ok=>0, error }.
+# SM266: with a $target content root, inspect also answers what an apply would
+# DO to that target - how many files it would add versus overwrite, and whether
+# the bundled theme and layout are already installed. The Backups page showed a
+# manifest and then a confirm button, which is the difference between "I have
+# read the manifest" and "I know what this will change". Read-only: it extracts
+# to the same scratch dir inspect already uses and never touches the target.
 sub package_inspect {
-    my ($pkg) = @_;
+    my ( $pkg, $target ) = @_;
     return { ok => 0, error => 'Package not found' } unless defined $pkg && -f $pkg;
 
     my $stage = "$DOCROOT/lazysite/backups/.inspect-$$-" . strftime( '%H%M%S', gmtime );
@@ -328,12 +334,44 @@ sub package_inspect {
             { no_chdir => 1, wanted => sub { $files++ if -f $File::Find::name } },
             "$stage/content" );
     }
-    my $has_nav    = -f "$stage/nav" ? 1 : 0;
+    my $has_nav    = -f "$stage/nav"    ? 1 : 0;
     my $has_layout = -d "$stage/layout" ? 1 : 0;
+
+    # SM266: the dry run. Counted against the target as it stands now.
+    my $compare;
+    if ( defined $target && length $target && -d "$stage/content" ) {
+        my ( $add, $over ) = ( 0, 0 );
+        ( my $root = $target ) =~ s{^/+|/+$}{}g;
+        File::Find::find(
+            { no_chdir => 1,
+                wanted => sub {
+                    return unless -f $File::Find::name;
+                    my $rel = substr( $File::Find::name, length("$stage/content/") );
+                    -e "$DOCROOT/$root/$rel" ? $over++ : $add++;
+                },
+            },
+            "$stage/content"
+        );
+        my $theme  = $manifest->{theme};
+        my $layout = $manifest->{layout};
+        $compare = {
+            added       => $add,
+            overwritten => $over,
+            # "already present" means the apply leaves it alone; "missing" means
+            # the apply installs it. Both are fine - the point is that the
+            # operator knows which before agreeing, not after.
+            layout_present => ( defined $layout && length $layout
+                    && -d "$DOCROOT/lazysite/layouts/$layout" ) ? 1 : 0,
+            theme_present => ( defined $theme && length $theme && defined $layout
+                    && length $layout
+                    && -d "$DOCROOT/lazysite/layouts/$layout/themes/$theme" ) ? 1 : 0,
+        };
+    }
     remove_tree($stage) if -d $stage;
 
     return { ok => 1, manifest => $manifest, content_files => $files,
-        has_nav => $has_nav, has_layout => $has_layout };
+        has_nav => $has_nav, has_layout => $has_layout,
+        ( $compare ? ( compare => $compare ) : () ) };
 }
 
 # package_apply($pkg_path, %opt) - apply an (already-safe-located) site package
@@ -556,6 +594,16 @@ sub apply_and_configure {
     # The portable presentation keys (theme/layout/nav/content_root) are unaffected.
     unless ( $opt{adopt_identity} ) {
         delete @{$keys}{qw(site_url site_name)};
+    }
+    # SM266: the operator may KEEP named presentation keys - take the package's
+    # content while leaving the target's own theme, layout or nav alone. SM193
+    # made the identity keys opt-in because stamping them was dangerous; the
+    # rest were still applied wholesale, and an operator who wanted the content
+    # but not the look had no way to say so. Named keys are dropped from the
+    # write set, so the target's existing value simply stays.
+    if ( ref $opt{keep_presentation} eq 'ARRAY' ) {
+        delete @{$keys}{ @{ $opt{keep_presentation} } };
+        $ap->{kept_presentation} = [ sort @{ $opt{keep_presentation} } ];
     }
     # SM255: applying a package sets several presentation keys, each of which is
     # its own conf write. Batched so the history records ONE act - "apply site

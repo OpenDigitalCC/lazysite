@@ -90,6 +90,45 @@ sub send_status {    # for notifications (no id) and bad methods on GET
 
 sub rpc_result { send_json( { jsonrpc => '2.0', id => $_[0], result => $_[1] } ) }
 
+# SM278: enforce the inputSchema we publish. Every tool declares its properties
+# and "additionalProperties": false, and until now that declaration was sent to
+# the client at tools/list and never checked at tools/call - so an argument the
+# tool does not support was silently dropped and the call reported ok. A site
+# agent found this the expensive way: set_permissions with "draft": true
+# returned ok:1 and stored an ACL without it, which reads as a security setting
+# that succeeded and did nothing.
+#
+# Refusing is the honest answer for an ARGUMENT (the caller asked for something
+# we do not do). Note the asymmetry with the capability model, where refusing
+# loudly is also the rule - silence is what both exist to avoid.
+sub validate_args {
+    my ( $name, $tool, $args ) = @_;
+    my $schema = $tool->{inputSchema} or return;
+    my $props  = $schema->{properties} || {};
+
+    my @unknown = sort grep { !exists $props->{$_} } keys %$args;
+    if (@unknown) {
+        my $known = join ', ', sort keys %$props;
+        return
+            "Unknown argument"
+            . ( @unknown > 1 ? 's' : '' ) . ' '
+            . join( ', ', map { "'$_'" } @unknown )
+            . " for $name. This tool accepts: "
+            . ( length $known ? $known : '(no arguments)' )
+            . ". Do not retry with the same argument - it is not supported, and "
+            . "passing it would have no effect.";
+    }
+
+    my @missing = sort grep { !defined $args->{$_} } @{ $schema->{required} || [] };
+    return "Missing required argument"
+        . ( @missing > 1 ? 's' : '' ) . ' '
+        . join( ', ', map { "'$_'" } @missing )
+        . " for $name."
+        if @missing;
+
+    return;
+}
+
 sub rpc_error {
     my ( $id, $code, $msg ) = @_;
     send_json( { jsonrpc => '2.0', id => $id,
@@ -611,17 +650,20 @@ my %TOOLS = (
         run => sub { action_delete( $_[0]->{path}, $_[1] ) },
     },
     set_permissions => {
-        description => 'Set the per-file ACL: owner plus read/write lists (users or @groups).',
+        description => 'Set the ACL for a file OR a folder prefix: owner, read/write lists (users or @groups), and the draft flag. A folder prefix (a path ending in /) gates or hides every page and asset beneath it.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
                 path => { type => 'string' },
                 read => { type => 'string', description => 'comma-separated users / @groups' },
                 write => { type => 'string' },
+                draft => { type => 'boolean',
+                    description => 'Hide this path outright: 404 to the public and absent from the sitemap, feeds and every listing, previewable by a signed-in editor. Omit to leave the current setting alone; false clears it and publishes.' },
             },
             required => ['path'], additionalProperties => JSON::PP::false },
         run => sub {
-            action_acl_set( $_[0]->{path}, $_[1], $_[0]->{read}, $_[0]->{write}, undef );
+            action_acl_set( $_[0]->{path}, $_[1], $_[0]->{read}, $_[0]->{write},
+                undef, $_[0]->{draft} );
         },
     },
     list_themes => {
@@ -2489,7 +2531,17 @@ elsif ( $method eq 'tools/call' ) {
 
     setup_context($user);
     my $args = $params->{arguments} || {};
-    my $out  = eval { $tool->{run}->( $args, $user, $caps ) };
+
+    # SM278: the published schema is enforced here, after the channel and
+    # capability gates (so a caller without the capability is told that, not
+    # given a schema critique of a call it was never allowed to make).
+    if ( my $bad = validate_args( $name, $tool, $args ) ) {
+        audit_log( $user, $name, ( $args->{path} // '' ), $ENV{REMOTE_ADDR} // '',
+            'fail', 'mcp', 'invalid arguments' );
+        rpc_error( $id, -32602, $bad );
+    }
+
+    my $out = eval { $tool->{run}->( $args, $user, $caps ) };
     if ($@) {
         log_event( 'ERROR', 'mcp', 'tool died', tool => $name, err => "$@" );
         rpc_error( $id, -32603, "Tool error: $name" );

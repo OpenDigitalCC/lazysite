@@ -130,6 +130,7 @@ my %EXEMPT = (
     'Files::action_read'         => 'read-only',
     'Files::action_aliases_list' => 'read-only',
     'Files::action_acl_get'      => 'read-only',
+    'Files::action_protected_sections' => 'read-only',
     'Files::action_git_status'   => 'read-only',
     'Files::action_git_history'  => 'read-only',
     'Files::action_git_history_summary' => 'read-only',    # SM199: site-level stats view

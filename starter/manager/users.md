@@ -821,6 +821,7 @@ function showConnector(user) {
       box._prompt = d.assistant_prompt;
       box._code = d.connect_code;
       box._poll = (box._poll || 0) + 1;
+      box._expires = d.connect_code_expires_at || 0;
       var ue = escHtml(user), dom = escHtml(d.domain), url = escHtml(d.connector_url), code = escHtml(d.connect_code);
       box.style.display = '';
       box.innerHTML =
@@ -838,17 +839,79 @@ function showConnector(user) {
         ' connector, and verify it is active by running whoami.&rdquo;</i></li>' +
         '<li>When it asks you to sign in, paste this one-time connect code:' +
         '<div class="mg-code-box mg-code-token"><code id="cc-' + ue + '">' + code + '</code>' +
-        '<button class="mg-btn mg-btn-sm" onclick="copyConnectCode(\'' + ue + '\')">Copy</button></div>' +
-        '<span class="mg-muted">Single-use, expires in 30&nbsp;min. If it expires before you use it, ' +
-        '<a href="#" onclick="showConnector(\'' + ue + '\');return false;">get a fresh code</a>.</span></li>' +
+        '<button class="mg-btn mg-btn-sm" onclick="copyConnectCode(\'' + ue + '\')">Copy</button>' +
+        '<button class="mg-btn mg-btn-sm" id="cc-regen-' + ue + '" onclick="regenerateConnectCode(\'' + ue + '\')">Regenerate</button></div>' +
+        '<span class="mg-muted" id="cc-life-' + ue + '">Single-use.</span></li>' +
         '</ol>' +
         '<div class="mg-onb-wait" id="conn-wait-' + ue + '">&#8987; waiting for the AI agent to connect&hellip;</div>' +
         '</div>' +
         '<div id="conn-step2-' + ue + '"></div>';
       showStatus('Connect code ready - follow Step 1 to connect the agent.');
+      tickConnectCode(user, box._poll);
       pollConnector(user, box._poll, Date.now());
     })
     .catch(function(e) { showStatus('Error: ' + e.message, true); });
+}
+
+// SM277 (deferred half of SM200): a connect code lives 30 minutes, and the
+// panel used to print that as a fixed sentence - so a code that had lapsed
+// looked exactly like one that had not, and the only way to get a fresh one was
+// a link buried in the prose that re-entered the whole flow. Count the life
+// down, say plainly when it has gone, and put Regenerate where the operator is
+// already looking.
+//
+// The gen check is the same superseded-panel guard pollConnector uses: a second
+// Regenerate must not leave the first timer writing into the panel.
+function tickConnectCode(user, gen) {
+  var box = document.getElementById('onb-' + user);
+  if (!box || box.style.display === 'none' || box._poll !== gen) return;
+  var life = document.getElementById('cc-life-' + user);
+  if (!life) return;
+  var left = box._expires ? Math.round(box._expires - Date.now() / 1000) : 0;
+  if (!box._expires) {
+    life.innerHTML = 'Single-use, expires in 30&nbsp;min.';
+  } else if (left <= 0) {
+    life.innerHTML = '<b>This code has expired.</b> Regenerate to get a fresh one - ' +
+      'the connector you added stays as it is.';
+    var cc = document.getElementById('cc-' + user);
+    if (cc) cc.classList.add('mg-code-stale');
+    return;                                  // stop ticking; nothing left to count
+  } else if (left < 120) {
+    life.innerHTML = 'Single-use, expires in <b>' + left + '&nbsp;s</b>.';
+  } else {
+    life.innerHTML = 'Single-use, expires in <b>' + Math.ceil(left / 60) + '&nbsp;min</b>.';
+  }
+  setTimeout(function() { tickConnectCode(user, gen); }, left > 0 && left < 120 ? 1000 : 15000);
+}
+
+// Re-mint IN PLACE: swap the code, restart the clock and the poll, and leave the
+// rest of the card alone. Re-running showConnector would rebuild the whole panel
+// and scroll the operator back to the top of a flow they are midway through.
+function regenerateConnectCode(user) {
+  var box = document.getElementById('onb-' + user);
+  if (!box) return;
+  var btn = document.getElementById('cc-regen-' + user);
+  if (btn) { btn.disabled = true; btn.textContent = 'Working...'; }
+  apiCall({ action: 'onboarding-web', username: user })
+    .then(function(d) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Regenerate'; }
+      if (!d.ok && d.error) { showStatus(d.error, true); return; }
+      box._prompt = d.assistant_prompt;
+      box._code = d.connect_code;
+      box._expires = d.connect_code_expires_at || 0;
+      box._poll = (box._poll || 0) + 1;      // supersede the old timer and poll
+      var cc = document.getElementById('cc-' + user);
+      if (cc) { cc.textContent = d.connect_code; cc.classList.remove('mg-code-stale'); }
+      var wait = document.getElementById('conn-wait-' + user);
+      if (wait) wait.style.display = '';
+      tickConnectCode(user, box._poll);
+      pollConnector(user, box._poll, Date.now());
+      showStatus('Fresh connect code issued - the previous one no longer works.');
+    })
+    .catch(function(e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Regenerate'; }
+      showStatus('Error: ' + e.message, true);
+    });
 }
 
 function pollConnector(user, gen, started) {

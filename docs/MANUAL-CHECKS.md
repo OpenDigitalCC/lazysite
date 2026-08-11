@@ -58,6 +58,60 @@ For any other manager page: exercise the control you changed, then reload and
 confirm the change persisted - a control that updates the DOM without saving
 looks identical to one that works.
 
+## The SM266 / SM267 / SM277 batch
+
+Four panels landed together precisely so they share ONE pass. Their server-side
+halves are covered - `t/unit/manager/60`, `t/unit/manager/65`,
+`t/unit/manager/66` - so what follows is the part no test reaches.
+
+**Protected sections (Files page, [[SM267]]).**
+
+1. Put a folder ACL on a section with `draft: true`, reload the Files page, and
+   confirm the section is listed as **draft** with the right page and asset
+   counts.
+2. From a signed-out browser, confirm the section 404s and is absent from
+   `/sitemap.xml`.
+3. Press **Publish**. Confirm the section goes live, enters the sitemap, and the
+   row flips to **gated** (the read list survives - publishing a draft and
+   removing protection are different acts).
+4. Press **Remove protection** on a gated section. Confirm the entry is gone and
+   the content is public.
+5. Sign in as a **scoped** (non-operator) manager and confirm the panel lists
+   only sections inside their scope. This is the one with security weight: the
+   list must not tell them that content exists elsewhere.
+
+**Apply confidence (Backups page, [[SM266]]).**
+
+6. Open **Apply** on a package and pick a target domain that already has content.
+   Confirm the preview names the overwrite count, and that it CHANGES when you
+   pick a different target - a count that does not move is a cached first answer.
+7. Confirm a target whose DNS is not pointed yet shows the readiness warning, and
+   that the apply is still allowed (staging before a cutover is deliberate).
+8. Tick **keep this site's theme**, apply, and confirm the content arrived and the
+   theme did not change. Untick everything and confirm the previous behaviour is
+   unchanged - an operator who ignores the control must get what they got before.
+9. After an apply, use the **Undo** bar. Confirm the site returns to its previous
+   state and that a fresh pre-restore snapshot was taken (the undo is itself
+   undoable).
+
+**Services counts (Settings, [[SM277]] part 1).**
+
+10. Confirm each Services switch shows "held by N groups / M accounts", and that
+    the numbers match what the Groups page says. Turn one service off and confirm
+    the Users grid now flags those grants dormant - the two views are the same
+    fact from opposite ends and must agree.
+11. Sign in as an operator with `manage_config` but NOT `manage_users`. The counts
+    must be ABSENT, not zero. Zero would read as "nothing depends on this".
+
+**Connect-code regeneration ([[SM277]] part 2).**
+
+12. Start the web connector flow and watch the code's remaining life count down.
+13. Wait for it to expire (or shorten the TTL) and confirm the panel says so
+    plainly and strikes the code through.
+14. Press **Regenerate**. Confirm a new code appears in place without the panel
+    rebuilding, the clock restarts, and the OLD code is refused at the OAuth
+    prompt.
+
 # Web-server behaviour (vhost templates)
 
 ## Why it is out of reach

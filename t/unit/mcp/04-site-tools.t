@@ -79,8 +79,14 @@ my $scoped = 'Bearer scopedagent:lzs_tok';    # manage_domains, confined to cont
 
 # --- site_backup: refusals --------------------------------------------------
 {
-    my $none = sc( call( 'site_backup', {}, $ok ) );
-    ok( $none && !$none->{ok}, 'site_backup needs a host' );
+    # SM278: a missing REQUIRED argument is refused by the schema gate before
+    # the tool runs, so it arrives as a JSON-RPC error naming the argument
+    # rather than as a tool result with ok:0. Stronger than the old assertion -
+    # it pins that the caller is told WHICH argument is missing.
+    my $none = call( 'site_backup', {}, $ok );
+    ok( $none && $none->{error} && $none->{error}{message} =~ /Missing required argument 'host'/,
+        'site_backup needs a host, and says which' )
+        or diag encode_json($none);
 
     my $nope = sc( call( 'site_backup', { host => 'nope.example' }, $ok ) );
     ok( !$nope->{ok} && $nope->{error} =~ /registered/i, 'site_backup refuses an unregistered domain' );

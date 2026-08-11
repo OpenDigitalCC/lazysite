@@ -16,7 +16,7 @@ use Fcntl          qw(:flock);
 use POSIX          qw(strftime);
 use Lazysite::Util qw(log_event unlink_host_copies clear_host_cache);
 use Lazysite::Manager::Common
-    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal load_upload_limits);
+    qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal load_upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Manager::Upload qw(is_editable_text);
@@ -27,7 +27,7 @@ our @EXPORT_OK = qw(
     action_delete action_mkdir action_move action_copy
     action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
-    action_acl_get action_acl_set action_acl_remove
+    action_acl_get action_acl_set action_acl_remove action_protected_sections
     invalidate_registries registry_roots
     action_git_status action_git_history action_git_history_summary
     action_git_show action_git_restore action_git_init
@@ -113,8 +113,8 @@ sub action_list {
     opendir my $dh, $real or return { ok => 0, error => "Cannot read directory" };
     for my $name ( sort readdir $dh ) {
         next if $name =~ /^\./;
-        my $full   = "$real/$name";
-        my $rel    = $dir_path eq '/' ? "/$name" : "$dir_path/$name";
+        my $full = "$real/$name";
+        my $rel  = $dir_path eq '/' ? "/$name" : "$dir_path/$name";
         # SM268 04-F5: and per entry, so a listable directory cannot advertise a
         # blocklisted file inside it.
         ( my $entry_key = $rel ) =~ s{^/}{};
@@ -930,7 +930,7 @@ sub action_acl_get {
 }
 
 sub action_acl_set {
-    my ( $rel_path, $user, $read, $write, $owner_req ) = @_;
+    my ( $rel_path, $user, $read, $write, $owner_req, $draft ) = @_;
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
     my $rel = _acl_norm( $r->{rel} );
@@ -961,6 +961,23 @@ sub action_acl_set {
     my %rec = ( owner => $owner );
     my $rl  = _to_list($read);  $rec{read}  = $rl if defined $rl;
     my $wl  = _to_list($write); $rec{write} = $wl if defined $wl;
+
+    # SM278: `draft` is a FIRST-CLASS field here, not a passenger. SM181 shipped
+    # the engine half (a draft prefix 404s to the public and is absent from
+    # every listing) but this writer built its record from owner/read/write
+    # alone, so a caller setting draft got ok:1 and a stored ACL without it -
+    # a security setting that reported success and did nothing. Absent means
+    # "leave as it is" on an existing entry, so a caller updating only the read
+    # list does not silently publish a draft section; a false value clears it.
+    if ( defined $draft ) {
+        my $on = ( ref $draft eq 'JSON::PP::Boolean' ) ? ( $draft ? 1 : 0 )
+            : ( $draft =~ /\A(?:1|true|yes|on)\z/i ) ? 1
+            :                                          0;
+        $rec{draft} = JSON::PP::true() if $on;
+    }
+    elsif ( $existing && $existing->{draft} ) {
+        $rec{draft} = JSON::PP::true();
+    }
     $acls->{$rel} = \%rec;
     save_acls($acls) or return { ok => 0, error => "Cannot write the ACL store" };
     log_event( 'INFO', 'acl-set', 'acl set', path => $rel, user => $auth_user );
@@ -983,6 +1000,66 @@ sub action_acl_set {
 
     return { ok => 1, path => $r->{rel}, acl => \%rec,
         ( @warnings ? ( warnings => \@warnings ) : () ) };
+}
+
+# SM267 (carved out of SM181): what is held back right now.
+#
+# SM181 shipped both policies - a folder ACL entry gates a section, `draft`
+# hides it outright - and both are reached by hand-editing acls.json. So the
+# product could hold a section back and had no screen that said which sections
+# were held back, which is the failure mode of a good hiding mechanism: a
+# section left in draft after launch stays invisible and nothing says so.
+#
+# Read-only, and deliberately SECTIONS only (a key ending in /). Per-file ACLs
+# are the Files page's business and answer a different question; mixing them
+# here would bury the four entries that matter among hundreds that do not.
+sub action_protected_sections {
+    my ( $user, $scopes ) = @_;
+    my $acls = load_acls();
+    my @out;
+
+    for my $key ( sort keys %$acls ) {
+        next unless $key =~ m{/\z};    # sections, not files
+        my $a = $acls->{$key} or next;
+        next unless ref $a eq 'HASH';
+
+        # A scoped manager sees only sections inside their own scope. Listing a
+        # section they cannot reach would disclose the existence of content the
+        # scope exists to keep from them - the same reasoning that makes a draft
+        # section 404 rather than 403.
+        next
+            if ref $scopes eq 'ARRAY'
+            && @$scopes
+            && outside_all_scopes( $scopes, $key );
+
+        my ( $pages, $assets ) = ( 0, 0 );
+        my $dir = "$DOCROOT/$key";
+        if ( -d $dir ) {
+            File::Find::find(
+                { no_chdir => 1,
+                    wanted => sub {
+                        return unless -f $File::Find::name;
+                        $File::Find::name =~ /\.md\z/ ? $pages++ : $assets++;
+                    },
+                },
+                $dir
+            );
+        }
+
+        push @out, {
+            prefix => $key,
+            # Two DIFFERENT acts, named differently, because publishing a draft
+            # section and un-gating a private one are not the same decision.
+            policy => ( $a->{draft} ? 'draft' : 'gated' ),
+            owner  => $a->{owner} // '',
+            read   => $a->{read}  || [],
+            write  => $a->{write} || [],
+            pages  => $pages,
+            assets => $assets,
+            exists => ( -d $dir ) ? 1 : 0,
+        };
+    }
+    return { ok => 1, sections => \@out };
 }
 
 sub action_acl_remove {

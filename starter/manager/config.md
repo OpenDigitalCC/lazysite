@@ -67,6 +67,62 @@ var SITE_SCHEMA = [
 // Null means "not yet loaded"; [] means "loaded, but none installed".
 var availableLayouts = null;
 
+// SM277 (deferred half of SM180): the RECIPROCAL of the dormant-capability
+// indicator. The Groups and Users grids answer "this grant does nothing because
+// the service is off" - the grant's side. An operator standing at the switch
+// needs the other direction: how many accounts lose this channel if I turn it
+// off. Populated by loadCapabilityHolders(); {} until it arrives, and left {} if
+// the call is refused (see below), so the page renders identically either way.
+var capHolders = {};
+var channelForKey = {};
+
+// The counts come from action=users/capability-holders, which sits behind
+// manage_users - an operator with manage_config but not manage_users may edit
+// these switches and cannot enumerate accounts. That refusal is CORRECT and the
+// page must not treat it as an error: no counts is a quieter, truthful state
+// than a count of zero, which would read as "nothing depends on this".
+function loadCapabilityHolders() {
+  fetch(API + '?action=channel-services').then(function(r) { return r.json(); })
+    .then(function(d) {
+      channelForKey = (d && d.ok && d.channel_for_key) || {};
+      // The users sub-dispatcher takes its action in the POST body. CSRF is
+      // added by the manager's fetch wrapper, as everywhere else on this page.
+      return fetch(API + '?action=users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'capability-holders' })
+      }).then(function(r) { return r.json(); });
+    })
+    .then(function(d) {
+      if (d && d.ok && d.holders) { capHolders = d.holders; refreshServiceCounts(); }
+    })
+    .catch(function() { /* no counts; the switches still work */ });
+}
+
+// Rendered after the form exists, and re-rendered when the counts land, so the
+// form is never blocked on a call that may be refused.
+function refreshServiceCounts() {
+  Object.keys(channelForKey).forEach(function(key) {
+    var el = document.getElementById('cfg-holders-' + key);
+    if (!el) return;
+    var h = capHolders[channelForKey[key]];
+    if (!h) { el.textContent = ''; return; }
+    var g = h.groups, u = h.users;
+    if (!g && !u) {
+      el.innerHTML = '<span class="mg-muted">Held by no group &mdash; switching this '
+        + 'off affects nobody today.</span>';
+      return;
+    }
+    // Groups are named (the operator can act on them); accounts are a count
+    // only - the Users page answers "which account" per account, and listing
+    // them here would put a roster on the settings screen for no gain.
+    el.innerHTML = '<span class="mg-holder-count" title="'
+      + esc(g ? 'Granted by: ' + (h.group_names || []).join(', ') : '')
+      + '">Held by <b>' + g + '</b> group' + (g === 1 ? '' : 's')
+      + ' / <b>' + u + '</b> account' + (u === 1 ? '' : 's')
+      + '. Switching this off makes those grants inert.</span>';
+  });
+}
+
 function esc(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // --- Site settings ---
@@ -105,6 +161,8 @@ function loadSiteSettings() {
       loadedValues = values;
       container.innerHTML = renderSiteForm(values);
       applyShowWhen(container);
+      refreshServiceCounts();      // fills in if the counts already arrived
+      loadCapabilityHolders();
       // Now that layout is known, populate theme dropdown for it.
       refreshThemeDropdown(values.layout || '', values.theme || '');
     })
@@ -250,6 +308,13 @@ function renderSiteForm(values) {
       html += '<input type="text" name="'+f.key+'" value="'+esc(v)+'"'+(f.required?' required':'')+'>';
     }
     if (f.note) html += '<div class="mg-config-help mg-field-note">' + esc(f.note) + '</div>';
+    // SM277: an anchor for the reciprocal count, emitted for every field so
+    // refreshServiceCounts can fill in whichever ones map to a channel. Empty
+    // until the count arrives, and it stays empty for a service with no
+    // capability of its own (OAuth and the token exchange serve other channels
+    // rather than being held by anyone) - which is why this is driven by the
+    // server's channel_for_key map rather than by the group heading.
+    html += '<div class="mg-config-help mg-holder-line" id="cfg-holders-' + esc(f.key) + '"></div>';
     html += '</div>';
   });
   html += '<div class="mg-form-row"><label></label><button type="submit" class="mg-btn mg-btn-primary">Save</button>'

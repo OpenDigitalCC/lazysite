@@ -43,7 +43,7 @@ use Lazysite::Manager::Plugins qw(action_plugin_list action_plugin_enable action
 use Lazysite::Manager::Files qw(action_list action_read action_save action_delete action_mkdir
     action_move action_copy action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
-    action_acl_get action_acl_set action_acl_remove
+    action_acl_get action_acl_set action_acl_remove action_protected_sections
     action_git_status action_git_history action_git_history_summary
     action_git_show action_git_restore action_git_init);
 use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action_theme_activate
@@ -188,7 +188,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     layouts-repo-set list lock migrate-to-local mkdir move nav-read
     nav-save notices notices-seen pages plugin-action plugin-disable
     plugin-enable plugin-list plugin-read plugin-save preview preview-clear
-    preview-grant principals read recent-changes renew-lock
+    preview-grant principals protected-sections read recent-changes renew-lock
     rotate-auth-secret save session-revoke sessions-list site-backup-apply
     site-backup-create site-backup-delete site-backup-download
     site-backup-inspect site-backup-upload site-export-primary
@@ -514,17 +514,21 @@ if ( !$token_auth ) {
             # (Files, manage_content) and the domain-groups picker (Domains,
             # manage_domains). Gate it to those callers so a user with no
             # grant-related capability cannot enumerate every username/group.
-        'principals'      => 'manage_content|manage_domains',
-        'bad-url-unblock' => 'manage_config',  'rotate-auth-secret' => 'manage_config',
-        'backup-create'   => 'manage_config',  'backup-restore'     => 'manage_config',
+        'principals' => 'manage_content|manage_domains',
+        # SM267: the Protected sections list names ACL prefixes and their read
+        # lists, which is the same disclosure acl-get carries per file - so it
+        # takes the same capability, and the response is scope-filtered on top.
+        'protected-sections' => 'manage_content',
+        'bad-url-unblock'    => 'manage_config', 'rotate-auth-secret' => 'manage_config',
+        'backup-create'      => 'manage_config', 'backup-restore'     => 'manage_config',
         # SM268 03-F11: removing a snapshot is the same authority as taking or
         # restoring one.
         'backup-delete'   => 'manage_config',
-        'backup-download' => 'manage_config',  'backup-list'        => 'manage_config',
-        'theme-activate'  => 'manage_themes',  'theme-delete'       => 'manage_themes',
-        'theme-rename'    => 'manage_themes',  'theme-upload'       => 'manage_themes',
-        'layout-activate' => 'manage_layouts', 'layout-delete'      => 'manage_layouts',
-        'layout-install'  => 'manage_layouts', 'layouts-install'    => 'manage_layouts',
+        'backup-download' => 'manage_config',  'backup-list'     => 'manage_config',
+        'theme-activate'  => 'manage_themes',  'theme-delete'    => 'manage_themes',
+        'theme-rename'    => 'manage_themes',  'theme-upload'    => 'manage_themes',
+        'layout-activate' => 'manage_layouts', 'layout-delete'   => 'manage_layouts',
+        'layout-install'  => 'manage_layouts', 'layouts-install' => 'manage_layouts',
         'layouts-repo-set'        => 'manage_layouts',
         'preview-grant'           => 'manage_themes|manage_layouts',
         'preview-clear'           => 'manage_themes|manage_layouts',
@@ -855,12 +859,18 @@ elsif ( $action eq 'acl-get' ) { $result = action_acl_get( $path, $auth_user ) }
 elsif ( $action eq 'acl-set' ) {
     my $req = eval { decode_json($body) } // {};
     $result = action_acl_set( $path, $auth_user,
-        $req->{read}, $req->{write}, $req->{owner} );
+        $req->{read}, $req->{write}, $req->{owner}, $req->{draft} );
 }
 elsif ( $action eq 'acl-remove' ) { $result = action_acl_remove( $path, $auth_user ) }
-elsif ( $action eq 'mkdir' )      { $result = action_mkdir($path) }
-elsif ( $action eq 'move' ) { $result = action_move( $path, $params{to}, $auth_user ) }
-elsif ( $action eq 'copy' ) { $result = action_copy( $path, $params{to}, $auth_user ) }
+elsif ( $action eq 'protected-sections' ) {
+    # SM267: read-only, and scoped - a confined manager is shown only the
+    # sections inside their own scope, so the list cannot be used to discover
+    # that content exists elsewhere.
+    $result = action_protected_sections( $auth_user, \@REQUEST_SCOPES );
+}
+elsif ( $action eq 'mkdir' ) { $result = action_mkdir($path) }
+elsif ( $action eq 'move' )  { $result = action_move( $path, $params{to}, $auth_user ) }
+elsif ( $action eq 'copy' )  { $result = action_copy( $path, $params{to}, $auth_user ) }
 elsif ( $action eq 'migrate-to-local' ) { $result = action_migrate_to_local( $path, $auth_user ) }
 elsif ( $action eq 'aliases-list' ) { $result = action_aliases_list() }
 elsif ( $action eq 'git-status' )   { $result = action_git_status() }
@@ -925,7 +935,7 @@ elsif ( $action eq 'site-export-primary' ) {
     $result = action_site_export_primary();
 }
 elsif ( $action eq 'site-backup-inspect' ) {
-    $result = action_site_backup_inspect( $params{name} );
+    $result = action_site_backup_inspect( $params{name}, $params{host} );
 }
 elsif ( $action eq 'site-backup-delete' ) {
     my $req = eval { decode_json($body) } // {};
@@ -1199,7 +1209,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant
         backup-list sessions-list keys-list git-status git-history git-history-summary git-show
-        site-backup-inspect );
+        site-backup-inspect protected-sections );
 
     my ( $aud_action, $aud_target ) =
         ( $action, $action eq 'config-set' ? ( $params{key} // '' ) : ( $path // '' ) );
@@ -1210,7 +1220,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
         my $b     = eval { decode_json($body) };
         my $sub   = ( ref $b eq 'HASH' ) ? ( $b->{action} // '' ) : '';
         my %uskip = map { $_ => 1 } qw(
-            list users-detail users-page groups group-settings-get permissions-grid settings-get credential-status partner-caps
+            list users-detail users-page groups group-settings-get permissions-grid capability-holders settings-get credential-status partner-caps
             verify-credential totp-code onboarding );
         if ( $sub eq '' || $uskip{$sub} ) { $aud_action = undef }
         else {
@@ -1657,12 +1667,30 @@ sub _site_package_path {
 # manager cannot read another client's package metadata (or the primary site's)
 # on a shared instance. Operators (no scope) are unconfined.
 sub action_site_backup_inspect {
-    my ($name) = @_;
+    my ( $name, $host ) = @_;
     my $pkg = _site_package_path($name)
         or return { ok => 0, kind => 'invalid', error => 'A site package name is required' };
     return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
 
-    my $info = package_inspect($pkg);
+    # SM266: with a target host, the caller wants the DRY RUN as well - what an
+    # apply would add versus overwrite there. The target's content root is
+    # resolved here (not passed in), so a caller cannot aim the comparison at an
+    # arbitrary directory and use the counts to probe the filesystem.
+    my $target = '';
+    if ( defined $host && length $host ) {
+        my ($d) = grep { ( $_->{host} // '' ) eq $host }
+            @{ Lazysite::Manager::Domains::domains_list()->{domains} || [] };
+        $target = ( ref $d eq 'HASH' ? $d->{content_root} : '' ) // '';
+        return { ok => 0, kind => 'invalid',
+            error => "No registered domain '$host' with its own content root." }
+            unless length $target;
+        return { ok => 0, kind => 'forbidden',
+            error => 'You do not have access to that target.' }
+            if @REQUEST_SCOPES
+            && Lazysite::Manager::Common::outside_all_scopes( \@REQUEST_SCOPES, $target );
+    }
+
+    my $info = package_inspect( $pkg, $target );
     return $info unless $info->{ok};
 
     if (@REQUEST_SCOPES) {
@@ -1696,7 +1724,7 @@ sub action_site_backup_delete {
     # package that no longer exists - and a later package reusing the name would
     # inherit a digest that never described it.
     unlink "$pkg.sha256" if -f "$pkg.sha256";
-    return                { ok => 1, name  => $name };
+    return { ok => 1, name => $name };
 }
 
 # SM193 gap 1: stream a SITE PACKAGE for download. manage_domains-gated and so
@@ -1849,7 +1877,17 @@ sub action_site_backup_apply {
         snapshot     => 0,
         # SM193: keep the TARGET domain's site_url/site_name by default; opt into
         # taking the package's identity with adopt_identity (a migration vs handoff).
-        adopt_identity => ( $req->{adopt_identity} ? 1 : 0 ) );
+        adopt_identity => ( $req->{adopt_identity} ? 1 : 0 ),
+        # SM266: presentation keys the operator chose to KEEP on the target -
+        # take the package's content without taking its look. Filtered against
+        # the portable set so a caller cannot use this to skip a key the apply
+        # depends on (content_root above all, which is what makes the write land
+        # in the right place).
+        keep_presentation => [
+            grep { /\A(?:theme|layout|nav)\z/ }
+                @{ ref $req->{keep_presentation} eq 'ARRAY' ? $req->{keep_presentation} : [] }
+        ],
+    );
     unless ( $ap->{ok} ) {
         $ap->{safety} = $safety->{name};
         return $ap;
@@ -2055,7 +2093,11 @@ sub action_channel_services {
     for my $ch ( keys %$map ) {
         $svc{$ch} = Lazysite::Util::service_enabled( $DOCROOT, $map->{$ch} ) ? 1 : 0;
     }
-    return { ok => 1, services => \%svc };
+    # SM277: the map itself, keyed by the lazysite.conf setting, so the Services
+    # page can say which capability each switch governs without a second copy of
+    # the mapping in JavaScript. Lazysite::Capabilities stays the one source.
+    my %by_key = reverse %$map;
+    return { ok => 1, services => \%svc, channel_for_key => \%by_key };
 }
 
 sub _audit_implicit_target {

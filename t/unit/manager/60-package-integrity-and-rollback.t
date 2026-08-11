@@ -23,8 +23,9 @@ use File::Temp qw(tempdir);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use Lazysite::Manager::SitePackage qw(package_create apply_and_configure);
+use Lazysite::Manager::SitePackage qw(package_create apply_and_configure package_inspect);
 use Lazysite::Manager::Backups     ();
+use Lazysite::Manager::Domains     ();
 
 sub spit  { open my $fh, '>', $_[0] or die $!;    print {$fh} $_[1]; close $fh }
 sub slurp { open my $fh, '<', $_[0] or return ''; local $/;          <$fh> }
@@ -48,6 +49,7 @@ sub fixture {
     $Lazysite::Manager::Backups::DOCROOT       = $d;
     $Lazysite::Manager::Backups::LAZYSITE_DIR  = "$d/lazysite";
     $Lazysite::Manager::Backups::auth_user     = 'tester';
+    $Lazysite::Manager::Domains::DOCROOT       = $d;
     return $d;
 }
 
@@ -300,6 +302,74 @@ subtest 'the snapshot name is claimed atomically' => sub {
     # caller is told it does.
     ok( ( scalar( grep { -s "$d/lazysite/backups/$_" } @files ) == @files ),
         'and none of them is a zero-byte placeholder' );
+};
+
+# --- SM266: the dry run, and keeping the target's own presentation -----------
+#
+# The four apply-confidence controls are manager JavaScript and unreachable
+# here; the two that needed NEW backend are not, and this is that half.
+subtest 'inspect answers what an apply would do to a named target' => sub {
+    my $d = fixture();
+    my $r = package_create('shop.clienta.com');
+    ok( $r->{ok}, 'packaged' ) or return;
+    my $pkg = "$d/lazysite/backups/$r->{name}";
+
+    # Without a target, inspect is unchanged - a manifest and nothing more. The
+    # dry run must be opt-in, or every existing caller pays for a tree walk.
+    my $plain = package_inspect($pkg);
+    ok( $plain->{ok}, 'inspect still works with no target' );
+    ok( !$plain->{compare}, 'and reports no comparison unless one is asked for' );
+
+    # sites/target already holds index.md, and the package carries one, so the
+    # apply would OVERWRITE rather than add. That distinction is the whole point
+    # of the control: "1 file" and "1 file, overwriting what is there" are
+    # different decisions.
+    my $cmp = package_inspect( $pkg, 'sites/target' )->{compare};
+    ok( $cmp, 'with a target, a comparison comes back' ) or return;
+    is( $cmp->{overwritten}, 1, 'an existing file at the same path counts as overwritten' );
+    is( $cmp->{added},       0, 'and is not also counted as added' );
+
+    # An empty target inverts it, which is the check that the counts are really
+    # comparing rather than reporting a constant.
+    make_path("$d/sites/empty");
+    my $fresh = package_inspect( $pkg, 'sites/empty' )->{compare};
+    is( $fresh->{added},       1, 'against an empty target the same file is an ADD' );
+    is( $fresh->{overwritten}, 0, 'and nothing is overwritten' );
+
+    # The layout ships in the package and is already installed here, so the
+    # apply would leave it alone - the operator should be told which.
+    ok( $cmp->{layout_present}, 'an already-installed layout is reported as present' );
+};
+
+subtest 'keep_presentation leaves the target key alone' => sub {
+    my $d = fixture();
+
+    # Give the target its own layout, distinct from the package's.
+    make_path("$d/lazysite/layouts/targetlook");
+    spit( "$d/lazysite/layouts/targetlook/layout.tt", '[% content %]' );
+    my $set = Lazysite::Manager::Domains::domain_set( 'target.example', 'layout', 'targetlook' );
+    ok( $set->{ok}, "the target has its own layout to defend" ) or diag $set->{error};
+    like( slurp("$d/lazysite/lazysite.conf"), qr/alias\.target\.example\.layout:\s*targetlook/,
+        'and it is really in the conf - otherwise the assertion below proves nothing' );
+
+    my $r = package_create('shop.clienta.com');
+    ok( $r->{ok}, 'packaged' ) or return;
+    my $pkg = "$d/lazysite/backups/$r->{name}";
+
+    my $ap = apply_and_configure( $pkg, host => 'target.example',
+        keep_presentation => ['layout'] );
+    ok( $ap->{ok}, 'applied' ) or diag $ap->{error};
+    is_deeply( $ap->{kept_presentation}, ['layout'],
+        'the apply reports which keys it left alone' );
+
+    # The CONTENT still arrived - keeping a presentation key must not turn the
+    # apply into a no-op, which is the way this could pass while being useless.
+    like( slurp("$d/sites/target/index.md"), qr/Client A/,
+        'the package content was applied' );
+
+    my $conf = slurp("$d/lazysite/lazysite.conf");
+    unlike( $conf, qr/alias\.target\.example\.layout:\s*base/,
+        "and the target's layout was NOT overwritten with the package's" );
 };
 
 done_testing();

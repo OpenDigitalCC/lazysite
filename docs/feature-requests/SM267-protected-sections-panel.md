@@ -2,8 +2,8 @@
 title: "SM267 - A Protected sections panel: see what is held back, and publish it in one click"
 subtitle: "Section gating and draft-hide both work and are both hand-written JSON. An operator cannot see which parts of their own site are held back without reading a file."
 brand: plain
-status: candidate
-status-note: "Carved out of SM181 on 2026-08-09 so that filing could close rather than sit at partial. SM181's ENGINE half is complete: a folder ACL entry gates a section's pages and assets, `draft: true` hides it (404, absent from every listing, editor preview), and removing the entry publishes atomically. What remains is the manager affordance - which is manager JavaScript, the area docs/MANUAL-CHECKS.md exists because the suite cannot reach."
+status: shipped
+status-note: "BUILT on main (unreleased). New read-only action protected-sections lists every ACL key that is a FOLDER prefix with its policy (gated / draft), read list and a recursive page/asset count, scope-filtered so a confined manager cannot use the list to learn that content exists outside their scope - covered by t/unit/manager/66, including the case where the filter must NOT blank a section inside the scope. The panel sits on the Files page and offers two DIFFERENT controls, because publishing a draft and removing protection are different decisions: Publish clears draft and keeps the read list; Remove protection deletes the entry. An entry whose folder has gone is shown rather than dropped - an orphaned rule is what this screen is for. Building it surfaced SM278: the ACL writer silently dropped draft, so the panel would have written a setting that did nothing; that is fixed first. THE PANEL IS NOT SUITE-COVERED: docs/MANUAL-CHECKS.md steps 1-5. CARVED OUT of SM181 on 2026-08-09; the engine half was already complete."
 ---
 
 # SM267 - a Protected sections panel
