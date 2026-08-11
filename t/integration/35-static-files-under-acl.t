@@ -157,6 +157,49 @@ subtest 'a folder entry covers everything beneath it' => sub {
     like( $open, qr/open/, 'a file outside the folder is unaffected' );
 };
 
+# --- SM283: the field measurement, at the level the engine can be held to ----
+# A live site, one folder ACL, and the SAME 11829 bytes uploaded under five
+# extensions so nothing varied but the name. Four were served anonymously,
+# byte-identical to the source; only .dat gated - because .dat was the one
+# extension absent from the front end's static list. The engine was never at
+# fault, which is exactly what made the report confusing.
+#
+# So this asserts the property the engine owes and the front end kept it from
+# demonstrating: the read decision does not consult the extension. It cannot
+# reproduce the leak, which happened in nginx (t/lint/33 pins that half), but it
+# does pin the half that must never acquire an opinion about file types - and
+# an extension allow-list creeping into the engine is a live temptation every
+# time someone optimises the static path.
+subtest 'the decision is blind to the extension (SM283 fixture)' => sub {
+    my @exts = qw(png pdf txt bin dat);
+    my $body = 'IDENTICAL-BYTES-UNDER-EVERY-NAME';
+    for my $e (@exts) {
+        open my $fh, '>', "$docroot/private/probe.$e" or die $!;
+        print {$fh} $body;
+        close $fh;
+    }
+    write_acls( { 'private' => { read => ['alice'] } } );
+
+    for my $e (@exts) {
+        my $out = get("/private/probe.$e");
+        like( $out, qr/Status: 302/, ".$e is refused to the public" );
+        unlike( $out, qr/\Q$body\E/, ".$e bytes do not appear" );
+
+        my $ok = get_as( "/private/probe.$e", 'alice' );
+        like( $ok, qr/\Q$body\E/, ".$e is served to the owner" );
+    }
+
+    # And the same five outside the folder stay ordinary. Protection is opt-in
+    # per path, never per type - in either direction.
+    for my $e (@exts) {
+        open my $fh, '>', "$docroot/public/probe.$e" or die $!;
+        print {$fh} $body;
+        close $fh;
+        my $out = get("/public/probe.$e");
+        like( $out, qr/\Q$body\E/, ".$e outside the folder is served" );
+    }
+};
+
 subtest 'the longest matching folder wins' => sub {
     write_acls(
         { 'private' => { read => ['alice'] },

@@ -428,6 +428,87 @@ Three specific things to look at, each of which the lint cannot see:
 Remove the test `acls.json` afterwards, or the site keeps routing every static
 through the engine.
 
+# The front end that answers first (SM283)
+
+## Why it is out of reach
+
+This is the check that would have caught a live disclosure, and the reason it
+did not exist is worth stating plainly: **every check we had asked about the
+layer we had a file for.** On Hestia the request path is nginx to Apache.
+lazysite shipped four Hestia templates, all of them Apache, and `t/lint/31`
+proved the ACL rules were present in every one. They were. Hestia's own nginx
+proxy answered the request first, off a fixed list of static extensions, and
+Apache never saw it.
+
+The measurement, on a live site: identical bytes uploaded into one ACL'd folder
+under five extensions. `.png`, `.pdf`, `.txt` and `.bin` were served to an
+anonymous client, byte-identical to the source. `.dat` gated - because `.dat`
+was not on the proxy's list. The section's *pages* bounced to login throughout,
+so the manager, the audit trail and the operator all agreed it was protected.
+
+`t/lint/33` now pins the proxy template, and `t/integration/35` pins that the
+engine's decision is blind to the extension. Neither can start nginx, so
+whether the config *behaves* is still a thing a person has to look at.
+
+## The pass
+
+**Run this on a deployed Hestia site, after the release is out** - it gates
+promotion to beta/stable, not the cut (see *How to use this document*).
+
+1. Ask which front end answered. No credentials, from anywhere:
+
+   ```bash
+   curl -sI https://example.test/ | grep -i x-lazysite-front
+   ```
+
+   Expect `X-Lazysite-Front: hestia-proxy/acl`. Nothing means the domain is
+   still on a stock proxy template - stop here and apply
+   `v-change-web-domain-proxy-tpl <user> example.test lazysite-proxy`.
+
+2. Reproduce the original measurement. Put the same bytes under five
+   extensions inside a folder you then protect:
+
+   ```bash
+   cd <docroot> && mkdir -p upcoming
+   head -c 2048 /dev/urandom > upcoming/probe.png
+   cp upcoming/probe.png upcoming/probe.pdf
+   cp upcoming/probe.png upcoming/probe.txt
+   cp upcoming/probe.png upcoming/probe.bin
+   cp upcoming/probe.png upcoming/probe.dat
+   echo '{"upcoming":{"read":["alice"]}}' > lazysite/auth/acls.json
+   ```
+
+   Then, anonymously:
+
+   ```bash
+   curl -sS -o /dev/null -w '%{url_effective} %{http_code}\n' \
+        https://example.test/upcoming/probe.{png,pdf,txt,bin,dat}
+   ```
+
+   **All five must be 302** to the login page. Four 200s and one 302 is the
+   defect verbatim. Confirm no body bytes come back on any of them.
+
+3. Confirm the fast path is intact. Delete `lazysite/auth/acls.json` and fetch
+   an ordinary asset:
+
+   ```bash
+   curl -sI https://example.test/assets/logo.png | grep -i 'expires\|x-lazysite'
+   ```
+
+   It should carry `Expires` far in the future - nginx served it directly. A
+   site that never asked for access control must not start paying for it.
+
+4. Check the fleet, not just the site in front of you:
+
+   ```bash
+   lazysite-hestia-list.sh
+   ```
+
+   Any domain flagged `ACL-BYPASSED-BY-PROXY(SM283)` is exposed right now.
+   `lazysite-hestia-update-all.sh --proxy` moves them all.
+
+Remove the probe files and the test `acls.json` afterwards.
+
 # How to use this document
 
 Read the section matching what you changed, not the whole file. If a change

@@ -82,8 +82,11 @@ Verbs:
         (sudo -u USER lazysite provision), register it in
         /etc/lazysite/sites.d/, and with --fcgi write
         /etc/lazysite/pools/DOMAIN.conf and enable lazysite@DOMAIN.
-        Afterwards apply the matching web template yourself:
-          v-change-web-domain-tpl USER DOMAIN lazysite-cgi|lazysite-fcgi yes
+        Afterwards apply BOTH templates yourself - the Apache one that
+        carries the access rules, and the nginx proxy in front of it,
+        which otherwise answers static requests before Apache sees them:
+          v-change-web-domain-tpl       USER DOMAIN lazysite-cgi|lazysite-fcgi yes
+          v-change-web-domain-proxy-tpl USER DOMAIN lazysite-proxy
   remove DOMAIN
         Stop and disable the lazysite@DOMAIN pool (if any), remove the
         pool config and the registry entry. NEVER deletes the docroot -
@@ -299,6 +302,17 @@ sub cmd_add {
         . ( $o{fcgi} ? 'lazysite-fcgi' : 'lazysite-cgi' )
         . " yes\n";
     template_hint( $o{fcgi} ? 'lazysite-fcgi' : 'lazysite-cgi' );
+
+    # SM283. Printed as a second step rather than folded into the line above,
+    # because it is a second LAYER: the web template is Apache's and carries
+    # lazysite's access rules, while nginx sits in front of it and answers
+    # static requests by extension. Leave the domain on a stock proxy and a
+    # protected section gates its pages while publishing its images and PDFs.
+    print "\nAnd the proxy template, so the front end respects the same rules:\n"
+        . "    v-change-web-domain-proxy-tpl $user $domain lazysite-proxy\n"
+        . "    curl -sI https://$domain/ | grep -i x-lazysite-front"
+        . "    # confirms which front end replied\n";
+    proxy_template_hint();
     return 0;
 }
 
@@ -353,6 +367,18 @@ sub template_hint {
     return if -f "$hestia_tpl/$tpl.tpl";
     print "NOTE: $tpl is not installed in $hestia_tpl yet; copy it first:\n"
         . "    cp /usr/share/lazysite-hestia/templates/$tpl.* $hestia_tpl/\n";
+    return;
+}
+
+# The same hint for the nginx proxy layer (SM283), which lives in a DIFFERENT
+# Hestia template directory - copying the web templates does not put it there.
+sub proxy_template_hint {
+    my $hestia_tpl = '/usr/local/hestia/data/templates/web/nginx';
+    return unless -d $hestia_tpl;    # no Hestia here (tests) - stay quiet
+    return if -f "$hestia_tpl/lazysite-proxy.tpl";
+    print "NOTE: lazysite-proxy is not installed in $hestia_tpl yet; copy it\n"
+        . "      first, or the front end serves gated static files directly:\n"
+        . "    cp /usr/share/lazysite-hestia/templates/lazysite-proxy.* $hestia_tpl/\n";
     return;
 }
 
@@ -457,10 +483,21 @@ keys C<lazysite-pool.pl> consumes) and runs
 C<systemctl enable --now lazysite@DOMAIN>, giving the domain a
 persistent FastCGI pool on F</run/lazysite/DOMAIN.sock>.
 
-It finishes by printing the matching template-application command
-(C<v-change-web-domain-tpl USER DOMAIN lazysite-cgi|lazysite-fcgi yes>);
-applying the web template is deliberately left to the operator because
-it forces a Hestia vhost rebuild.
+It finishes by printing the two template-application commands
+(C<v-change-web-domain-tpl USER DOMAIN lazysite-cgi|lazysite-fcgi yes>
+and C<v-change-web-domain-proxy-tpl USER DOMAIN lazysite-proxy>);
+applying them is deliberately left to the operator because each forces
+a Hestia vhost rebuild.
+
+Both are needed, and the second is the one that is easy to skip. On
+Hestia the request path is nginx to Apache. lazysite's access rules
+live in the Apache template, while Hestia's stock nginx proxy serves a
+fixed list of static B<extensions> straight off the docroot - so a
+protected section gates its pages and publishes its images, PDFs and
+archives, with nothing in the manager or the audit trail to say so
+(SM283). C<lazysite-proxy> hands those requests back to Apache
+whenever the site has an ACL store, and leaves a site without one
+serving statics directly as before.
 
 =item B<remove> DOMAIN
 

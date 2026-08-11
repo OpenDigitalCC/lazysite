@@ -7,3 +7,11 @@ installers/hestia/lazysite-cgi.tpl   usr/share/lazysite-hestia/templates
 installers/hestia/lazysite-cgi.stpl  usr/share/lazysite-hestia/templates
 installers/hestia/lazysite-fcgi.tpl  usr/share/lazysite-hestia/templates
 installers/hestia/lazysite-fcgi.stpl usr/share/lazysite-hestia/templates
+# SM283: the nginx PROXY template. On Hestia the request path is nginx ->
+# Apache, and the templates above are the Apache half. Hestia's stock proxy
+# answers a fixed list of static EXTENSIONS off the docroot, so the ACL rules
+# in the Apache templates never see those requests and a protected section
+# serves its images, PDFs and archives to anyone. Different Hestia directory
+# ($WEBTPL/nginx/) and a different apply command - see README.Debian.
+installers/hestia/lazysite-proxy.tpl  usr/share/lazysite-hestia/templates
+installers/hestia/lazysite-proxy.stpl usr/share/lazysite-hestia/templates

@@ -1,0 +1,123 @@
+#=========================================================================#
+# lazysite-proxy Web Proxy Template (nginx in front of Apache)            #
+# Shipped by the lazysite-hestia package; copy to                         #
+# /usr/local/hestia/data/templates/web/nginx/ and apply with              #
+# v-change-web-domain-proxy-tpl USER DOMAIN lazysite-proxy                #
+#                                                                         #
+# SM283. Hestia's stock proxy template serves a fixed list of static      #
+# EXTENSIONS straight off the docroot and proxies everything else. On a   #
+# lazysite site that means the ACL rules in the Apache template - which   #
+# are correct - are never reached for the very file types a protected     #
+# section exists to hold: images, PDFs, text, archives. Measured on a     #
+# live site: the same bytes uploaded into one ACL'd folder under five     #
+# extensions, four served anonymously and only the extension absent from  #
+# the proxy list gated. Deciding this by extension cannot be made safe -  #
+# any list is a list of the types that happen to be protected.            #
+#                                                                         #
+# This template keeps the fast path (a site with no ACL store serves      #
+# statics from nginx exactly as before) and hands the request back to     #
+# Apache the moment the site has one.                                     #
+# https://lazysite.io                                                     #
+# DO NOT MODIFY THIS FILE! CHANGES WILL BE LOST WHEN REBUILDING DOMAINS   #
+#=========================================================================#
+server {
+    listen      %ip%:%proxy_port%;
+    server_name %domain_idn% %alias_idn%;
+    error_log   /var/log/%web_system%/domains/%domain%.error.log error;
+
+    # The observable. SM283 shipped for weeks with no way for an operator to
+    # tell from outside whether the front end in front of them was the
+    # ACL-aware one - three rebuilds and a template install all produced
+    # byte-identical responses, because none of them touched this layer.
+    # `curl -sI https://%domain%/ | grep -i x-lazysite-front` now answers it.
+    # t/lint/33 pins the header to the ACL branch below, so its presence is a
+    # statement about the file rather than about a comment in it.
+    add_header X-Lazysite-Front "hestia-proxy/acl" always;
+
+    # WebDAV publishing (/dav) uploads whole files - images, theme bundles.
+    # nginx's default 1m body cap applies at the proxy, so without this a
+    # large upload is refused here and Apache never sees it.
+    client_max_body_size 64m;
+
+    # The lazysite engine directory is never served raw: config, credentials,
+    # audit logs and pre-install backups live under it. The Apache template
+    # denies it, but a request for e.g. lazysite/backups/preinstall-*.tar.gz
+    # carries a static extension and would be answered here, so the deny has
+    # to exist at BOTH layers. ^~ so no regex location can override it.
+    location ^~ /lazysite/ {
+        deny all;
+    }
+
+    # SM073: .brief sidecars document authoring intent and are never public.
+    # Declared before the static location for the same reason.
+    location ~ \.brief$ {
+        deny all;
+    }
+
+    # The two script surfaces are Apache's (ScriptAlias in the web template)
+    # and must never be given static treatment here: a docroot file that
+    # happened to sit under either path would be served in place of the
+    # endpoint. ^~ beats the extension regex below.
+    location ^~ /cgi-bin/ { proxy_pass http://%ip%:%web_port%; }
+    location ^~ /dav      { proxy_pass http://%ip%:%web_port%; }
+
+    # SM248: the per-domain registries must reach the engine, ALWAYS. On a
+    # multi-domain instance %docroot%/sitemap.xml exists - it is the PRIMARY
+    # site's - and .xml/.txt are on every stock proxy extension list, so a
+    # secondary domain gets the primary's sitemap, llms.txt and feeds. An
+    # exact-match location beats the regex below with no file test, so this
+    # holds for every domain, now and for any added later.
+    location = /sitemap.xml { proxy_pass http://%ip%:%web_port%; }
+    location = /llms.txt    { proxy_pass http://%ip%:%web_port%; }
+    location = /robots.txt  { proxy_pass http://%ip%:%web_port%; }
+    location = /feed.rss    { proxy_pass http://%ip%:%web_port%; }
+    location = /feed.atom   { proxy_pass http://%ip%:%web_port%; }
+
+    location / {
+        proxy_pass http://%ip%:%web_port%;
+
+        location ~* ^.+\.(%proxy_extensions%)$ {
+            root       %docroot%;
+            access_log /var/log/%web_system%/domains/%domain%.log combined;
+            access_log /var/log/%web_system%/domains/%domain%.bytes bytes;
+            expires    max;
+
+            # SM223 at the proxy. When the site has an ACL store every request
+            # in this location goes back to Apache instead of being served
+            # here, and the engine consults lazysite/auth/acls.json: it serves,
+            # refuses with 403, or bounces to login. A site with NO ACLs never
+            # enters the branch and keeps direct static serving at full speed,
+            # so protecting a path stays a pure content action - no vhost
+            # regeneration and no reload, ever. The cost, plainly: on a site
+            # with any ACL entry, every static request crosses to Apache.
+            #
+            # `error_page` + `return` is nginx's supported way to jump to a
+            # named location conditionally; `if` cannot be combined with
+            # try_files, and rewrite cannot target a named location. 418 is
+            # arbitrary and never reaches the client.
+            error_page 418 = @fallback;
+            if (-f $document_root/lazysite/auth/acls.json) { return 418; }
+
+            try_files $uri @fallback;
+        }
+    }
+
+    location /error/ {
+        alias %home%/%user%/web/%domain%/document_errors/;
+    }
+
+    location @fallback {
+        proxy_pass http://%ip%:%web_port%;
+    }
+
+    # Client-supplied trust headers (X-Remote-User and friends) are stripped
+    # by the Apache template at the origin, which is the layer that acts on
+    # them; nothing here may set them.
+    location ~ /\.(?!well-known/) {
+        deny all;
+        return 404;
+    }
+
+    include %home%/%user%/conf/web/%domain%/nginx.forcessl.conf*;
+    include %home%/%user%/conf/web/%domain%/nginx.conf_*;
+}

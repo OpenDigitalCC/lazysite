@@ -34,6 +34,19 @@
 #                 CGI, and nothing notices until the manager fails to save. A
 #                 live 0.10.5 upgrade hit exactly this.
 #
+#   --proxy       SM283: ALSO stage the lazysite-proxy nginx templates and put
+#                 every discovered domain on them (v-change-web-domain-proxy-tpl,
+#                 which rebuilds the vhost). Implies --templates.
+#
+#                 This is the one thing here that changes a TEMPLATE ASSIGNMENT
+#                 rather than a template file, and it is opt-in for that reason.
+#                 It is also the only way an existing site gets the SM283 fix: a
+#                 package upgrade cannot deliver it, because the layer at fault
+#                 is nginx and lazysite shipped no template for it until now.
+#                 Until a domain is moved, its gated images, PDFs and archives
+#                 are served straight off the docroot by nginx and the correct
+#                 Apache ACL rules never see the request.
+#
 #   STAGE_DIR     the unpacked release (default: this script's release root).
 #
 # A per-site failure is reported and the run continues; the exit status is
@@ -44,12 +57,14 @@ shopt -s nullglob
 LIST=0
 DO_TPL=0
 DO_REBUILD=0
+DO_PROXY=0
 ARGS=()
 for a in "$@"; do
     case "$a" in
         --list)       LIST=1 ;;
         --templates)  DO_TPL=1 ;;
         --rebuild)    DO_REBUILD=1; DO_TPL=1 ;;
+        --proxy)      DO_PROXY=1; DO_TPL=1 ;;
         *)            ARGS+=("$a") ;;
     esac
 done
@@ -61,6 +76,10 @@ DEPLOY="$STAGE/installers/hestia/lazysite-hestia-deploy.sh"
 
 HESTIA=/usr/local/hestia
 TPLDIR="$HESTIA/data/templates/web/apache2/php-fpm"
+# SM283: the nginx proxy layer. Hestia scans proxy templates here, one level
+# up from the web templates above (nginx as PROXY, not as web server).
+PROXYTPLDIR="$HESTIA/data/templates/web/nginx"
+PROXY_TPL='lazysite-proxy'
 
 ver_of() {   # print the "version" from an install-state.json, or "?"
     # (perl -ne exits 0 on a missing file, so test first rather than ||)
@@ -123,6 +142,42 @@ if [ "$DO_TPL" = 1 ] && [ -d "$TPLDIR" ]; then
     cp "$STAGE/installers/hestia/lazysite-app.stpl" "$TPLDIR/lazysite-app.stpl"
     cp "$STAGE/installers/hestia/lazysite-app.sh"   "$TPLDIR/lazysite-app.sh"
     chmod 755 "$TPLDIR/lazysite-app.sh"
+fi
+
+# --- stage the nginx PROXY templates (SM283) ---------------------------------
+# Separate from the block above because it is a different layer, in a different
+# directory, and getting it wrong is a disclosure rather than a cosmetic drift.
+if [ "$DO_TPL" = 1 ] && [ -d "$PROXYTPLDIR" ]; then
+    if [ -f "$STAGE/installers/hestia/$PROXY_TPL.tpl" ]; then
+        echo "==> staging the $PROXY_TPL nginx proxy template in $PROXYTPLDIR"
+        cp "$STAGE/installers/hestia/$PROXY_TPL.tpl"  "$PROXYTPLDIR/$PROXY_TPL.tpl"
+        cp "$STAGE/installers/hestia/$PROXY_TPL.stpl" "$PROXYTPLDIR/$PROXY_TPL.stpl"
+    else
+        echo "    NOTE: STAGE has no $PROXY_TPL template (pre-SM283 release)" >&2
+    fi
+fi
+
+# --- move each domain onto the proxy template (SM283) ------------------------
+# Opt-in, because this changes a template ASSIGNMENT. v-change-web-domain-proxy-tpl
+# rebuilds the vhost itself, so no separate rebuild is needed for this step.
+PROXY_MOVED=0
+PROXY_FAILED=()
+if [ "$DO_PROXY" = 1 ]; then
+    if [ ! -f "$PROXYTPLDIR/$PROXY_TPL.tpl" ]; then
+        echo "$0: $PROXY_TPL is not staged in $PROXYTPLDIR - cannot apply it" >&2
+        exit 3
+    fi
+    echo "==> putting each domain on the $PROXY_TPL nginx proxy template"
+    for i in "${!DOMAINS[@]}"; do
+        d="${DOMAINS[$i]}"; u="${USERS[$i]}"
+        if "$HESTIA/bin/v-change-web-domain-proxy-tpl" "$u" "$d" "$PROXY_TPL" >/dev/null 2>&1; then
+            echo "    proxy template applied: $d"
+            PROXY_MOVED=$((PROXY_MOVED + 1))
+        else
+            echo "    PROXY TEMPLATE FAILED: $d (user $u)" >&2
+            PROXY_FAILED+=( "$d (user $u)" )
+        fi
+    done
 fi
 
 # --- rebuild each vhost, BEFORE deploying (SM270) ----------------------------
@@ -203,5 +258,26 @@ for i in "${!DOMAINS[@]}"; do
     printf '  %-44s %-9s channel=%-7s %s\n' "$d" "$now" "$ch" "$status"
 done
 
+# --- the front-end layer (SM283) ---------------------------------------------
+# Said last, and said even on a clean run, because this is the failure mode that
+# hid: everything above can succeed - packages upgraded, vhosts rebuilt, health
+# summary clean - while nginx keeps serving gated files, because none of it
+# touches the proxy layer. `lazysite-hestia-list.sh` names the affected domains.
+echo
+if [ "$DO_PROXY" = 1 ]; then
+    echo "==> front end: $PROXY_MOVED domain(s) now on the $PROXY_TPL proxy template"
+    if [ "${#PROXY_FAILED[@]}" -gt 0 ]; then
+        printf '  NOT MOVED: %s\n' "${PROXY_FAILED[@]}"
+        echo "  These still serve gated static files directly (SM283)."
+    fi
+else
+    echo "==> front end: NOT checked or changed (no --proxy)."
+    echo "  On Hestia the ACL rules live in the Apache template, and nginx"
+    echo "  answers static requests before Apache sees them. Until a domain is"
+    echo "  on the $PROXY_TPL proxy template, a protected section's images,"
+    echo "  PDFs and archives are public. Review: lazysite-hestia-list.sh"
+fi
+
 [ "${#FAILED[@]}" -gt 0 ] && exit 1
+[ "${#PROXY_FAILED[@]}" -gt 0 ] && exit 1
 exit 0

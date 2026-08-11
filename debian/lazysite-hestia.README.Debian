@@ -27,11 +27,28 @@ One-off host setup
    deeper than .../apache2/; a template placed too high never appears
    in v-list-web-templates):
 
-       cp /usr/share/lazysite-hestia/templates/lazysite-*.tpl \
-          /usr/share/lazysite-hestia/templates/lazysite-*.stpl \
+       cp /usr/share/lazysite-hestia/templates/lazysite-cgi.* \
+          /usr/share/lazysite-hestia/templates/lazysite-fcgi.* \
           /usr/local/hestia/data/templates/web/apache2/php-fpm/
 
-3. Enable the Apache modules the templates use, then restart Apache:
+3. Copy the nginx PROXY template into Hestia's OTHER template
+   directory. This is a different layer, not a variant of step 2:
+
+       cp /usr/share/lazysite-hestia/templates/lazysite-proxy.* \
+          /usr/local/hestia/data/templates/web/nginx/
+
+   Why it matters (SM283): on Hestia the request path is nginx ->
+   Apache. lazysite's access rules live in the Apache templates, but
+   Hestia's stock nginx proxy serves a fixed list of static EXTENSIONS
+   straight off the docroot - so requests for .png, .pdf, .txt and the
+   rest are answered before Apache is involved and no ACL can apply.
+   A protected section then gates its pages and publishes its images,
+   PDFs and archives, silently. The lazysite-proxy template hands
+   those requests back to Apache whenever the site has an ACL store,
+   and leaves a site with no ACLs serving statics directly at full
+   speed as before.
+
+4. Enable the Apache modules the templates use, then restart Apache:
 
        a2enmod headers rewrite          # both patterns
        a2enmod proxy proxy_fcgi         # lazysite-fcgi only
@@ -67,6 +84,21 @@ Per-domain onboarding (3 steps)
 
        v-change-web-domain-tpl <panel-user> <domain> lazysite-cgi  yes
    or  v-change-web-domain-tpl <panel-user> <domain> lazysite-fcgi yes
+
+4. Apply the proxy template, so the front end respects the same access
+   rules (SM283 - see one-off step 3):
+
+       v-change-web-domain-proxy-tpl <panel-user> <domain> lazysite-proxy
+
+   Confirm which front end answered, without credentials:
+
+       curl -sI https://<domain>/ | grep -i x-lazysite-front
+       # X-Lazysite-Front: hestia-proxy/acl
+
+   No header means the domain is still on a stock proxy template and
+   any protected section's static files are public. `lazysite-hestia-
+   list.sh` flags such domains across the whole host, and
+   `lazysite-hestia-update-all.sh --proxy` moves all of them at once.
 
 First-run site steps (manager password via
 `sudo -u <user> lazysite users --docroot <docroot> setup-manager`,

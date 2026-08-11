@@ -185,13 +185,28 @@ subtest 'debian/ metadata' => sub {
     like( $stanza, qr/^ sudo,$/m, 'depends on sudo (the drop mechanism)' );
 
     my $install = slurp("$ROOT/debian/lazysite-hestia.install");
-    for my $pattern (qw(cgi fcgi)) {
+    # SM283: 'proxy' is in this list because the package shipping only the
+    # Apache half is the whole defect. The nginx proxy answers static requests
+    # before Apache is involved, so a template set that covers one layer covers
+    # none of the deployment.
+    for my $pattern (qw(cgi fcgi proxy)) {
         for my $ext (qw(tpl stpl)) {
             like( $install,
                 qr{^installers/hestia/lazysite-$pattern\.$ext\s+usr/share/lazysite-hestia/templates$}m,
                 "ships lazysite-$pattern.$ext to the templates dir" );
         }
     }
+
+    # The operator has to put the proxy template in Hestia's OTHER template
+    # directory and apply it with a different command; a README that describes
+    # only the Apache half is how the layer goes missing on a live host.
+    my $readme = slurp("$ROOT/debian/lazysite-hestia.README.Debian");
+    like( $readme, qr{templates/web/nginx},
+        'README.Debian names the nginx proxy template directory' );
+    like( $readme, qr{v-change-web-domain-proxy-tpl},
+        'README.Debian gives the proxy apply command' );
+    like( $readme, qr{x-lazysite-front}i,
+        'README.Debian gives the probe that says which front end replied' );
 
     like( slurp("$ROOT/debian/rules"),
         qr{install -D -m 0755 tools/lazysite-hestia-domain\.pl debian/lazysite-hestia/usr/bin/lazysite-hestia-domain},

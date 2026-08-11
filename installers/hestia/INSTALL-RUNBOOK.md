@@ -54,11 +54,31 @@ domain cannot route `/cgi-bin/` or `/dav`.
    in `v-list-web-templates`:
 
    ```bash
-   cp /usr/share/lazysite-hestia/templates/lazysite-*.?tpl \
+   cp /usr/share/lazysite-hestia/templates/lazysite-cgi.?tpl \
+      /usr/share/lazysite-hestia/templates/lazysite-fcgi.?tpl \
       /usr/local/hestia/data/templates/web/apache2/php-fpm/
    ```
 
-3. Enable the Apache modules the templates use, then restart:
+3. Copy the **nginx proxy** template into Hestia's other template
+   directory. This is a second layer, not a variant of step 2:
+
+   ```bash
+   cp /usr/share/lazysite-hestia/templates/lazysite-proxy.?tpl \
+      /usr/local/hestia/data/templates/web/nginx/
+   ```
+
+   SM283. The path here is nginx → Apache, and everything lazysite
+   enforces lives in the Apache half. Hestia's stock proxy answers a
+   fixed list of static **extensions** off the docroot, so a request
+   for a `.png`, `.pdf`, `.txt` or `.zip` inside a protected section
+   is served before Apache is involved and no access rule can reach
+   it — the section gates its pages and publishes its files. Deciding
+   this by extension cannot be made safe: any list is a list of the
+   types that happen to be protected. `lazysite-proxy` hands those
+   requests back to Apache whenever the site has an ACL store, and
+   changes nothing for a site without one.
+
+4. Enable the Apache modules the templates use, then restart:
 
    ```bash
    a2enmod headers rewrite        # both patterns
@@ -67,7 +87,7 @@ domain cannot route `/cgi-bin/` or `/dav`.
    systemctl restart apache2
    ```
 
-## Per-domain onboarding (3 steps)
+## Per-domain onboarding (4 steps)
 
 1. Create the web domain in Hestia as usual (panel or
    `v-add-web-domain <user> <domain>`).
@@ -90,6 +110,26 @@ domain cannot route `/cgi-bin/` or `/dav`.
    ```bash
    v-change-web-domain-tpl <user> <domain> lazysite-cgi yes    # or lazysite-fcgi
    ```
+
+4. Apply the proxy template, so the front end respects the same
+   access rules:
+
+   ```bash
+   v-change-web-domain-proxy-tpl <user> <domain> lazysite-proxy
+   ```
+
+   Confirm which front end answered, with no credentials and from
+   anywhere:
+
+   ```bash
+   curl -sI https://<domain>/ | grep -i x-lazysite-front
+   # X-Lazysite-Front: hestia-proxy/acl
+   ```
+
+   No header means the domain is still on a stock proxy template.
+   That header exists because SM283 had no observable: three rebuilds
+   and a template install all produced byte-identical responses,
+   because none of them touched this layer.
 
 First-run site steps (unchanged from the tarball era):
 
@@ -135,6 +175,24 @@ pool socket. The pool is anonymous by design.
   `"security_critical": true`. `lazysite sites` lists the fleet.
 - **Pools**: a pool picks up upgraded site code on restart:
   `systemctl restart lazysite@<domain>` after upgrading that site.
+- **Front end (SM283)**: a package upgrade **cannot** deliver this
+  one. The layer at fault is nginx, and no Hestia proxy template
+  shipped before 0.10.7, so an existing domain keeps serving gated
+  statics until it is moved onto `lazysite-proxy` explicitly. For the
+  whole host at once:
+
+  ```bash
+  lazysite-hestia-list.sh                          # who is affected
+  lazysite-hestia-update-all.sh --proxy            # stage + apply, rebuilds vhosts
+  ```
+
+  `lazysite-hestia-list.sh` flags a domain with an ACL store on a
+  stock proxy as `ACL-BYPASSED-BY-PROXY(SM283)` — that one is exposed
+  now — and shows the rest with their current proxy template, which
+  is the gap before anyone protects a folder. This is the same shape
+  as SM248: correct engine code made unreachable by front-end
+  routing, and therefore fixed by deployment configuration rather
+  than by code that ships in the payload.
 
 ## Taking a domain off lazysite
 

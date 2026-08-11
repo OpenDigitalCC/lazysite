@@ -2,8 +2,8 @@
 title: "SM283 - A protected section gates its pages and serves its images, PDFs and text to anyone"
 subtitle: "SM223's enforcement is correct. Most static requests never reach it, because lazysite's own nginx guidance tells the front end to serve them directly - and which ones gate is decided by file extension."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-11 from the site agent's brief of 2026-08-10, re-confirmed against 0.10.6 on 2026-08-11 with the correct Apache template installed. NOT FIXED. This is a LIVE, FAIL-OPEN DISCLOSURE on deployed sites: anonymous requests retrieve byte-identical copies of gated .png, .pdf, .txt and .bin files. Measured, not inferred - same 11829 bytes uploaded under five extensions into one ACL'd folder, four served, one gated. ROOT-CAUSED 2026-08-11: every template lazysite ships already carries the ACL branch, but all four HESTIA templates are Apache and no Hestia NGINX PROXY template is shipped - so Hestia's own default proxy serves its static extension list directly and Apache never sees those requests. Sized S-M: the logic exists and is proven, it is in the wrong file for this deployment shape."
+status: shipped
+status-note: "SHIPPED on main (unreleased). FILED 2026-08-11 from the site agent's brief of 2026-08-10 and root-caused the same day: every template lazysite shipped already carried the ACL branch, but all Hestia templates were APACHE and no Hestia NGINX PROXY template existed, so Hestia's own default proxy served its static extension list directly and Apache never saw those requests. BUILT: installers/hestia/lazysite-proxy.tpl/.stpl, which hand a static request back to the origin whenever lazysite/auth/acls.json exists and change nothing for a site without one. The proxy layer also needed the .brief deny, the /lazysite/ deny (a stock proxy would have served lazysite/backups/*.tar.gz - a full pre-install snapshot of the site - on any host whose extension list includes gz), the SM248 registry routes and a raised body cap for /dav, because every one of those lives in the Apache half and a request the proxy answers never reaches it. THE OBSERVABLE the filing asked for: the template answers X-Lazysite-Front: hestia-proxy/acl, checkable with curl and no credentials; t/lint/33 binds the header to the ACL branch so it cannot appear without it. FLEET VISIBILITY: lazysite-hestia-list.sh flags a domain with an ACL store on a stock proxy as ACL-BYPASSED-BY-PROXY(SM283) and shows the rest with their proxy template; lazysite-hestia-update-all.sh --proxy stages and applies it host-wide, and says on EVERY run whether the layer was checked. THIS IS NOT DELIVERED BY A PACKAGE UPGRADE - per SM248's lesson the template must be installed and each domain moved onto it, which the release note must say. Tests: t/lint/33 (new, verified failing both with the templates absent and with the ACL branch stripped while the header stayed), t/integration/35 gains the five-extension fixture at the level the engine can be held to, t/tools/30 pins the packaging and the README steps. NOT covered by the suite: whether nginx BEHAVES as configured - this host has no nginx, so docs/MANUAL-CHECKS.md carries the pass, to be run on a deployed Hestia site."
 ---
 
 # SM283 - the front end serves what the ACL refuses
@@ -140,6 +140,38 @@ is to put it in the file Hestia actually reads.
   before and after, so an operator can confirm rather than trust.
 - The nginx guidance in `lazysite-nginx-vhost.pl` no longer tells operators to
   configure the bypass.
+
+## What was built
+
+Against each of those, and one thing they did not ask for.
+
+The five-extension fixture is in `t/integration/35`, and it is honest about
+what it can prove. It cannot reproduce the leak - that happened in nginx, and
+this host has none - so it pins the half the engine owes: **the read decision
+never consults the extension.** `t/lint/33` pins the other half as text, the way
+`t/lint/31` pins the Apache rules, and `docs/MANUAL-CHECKS.md` carries the
+behavioural pass for a person on a deployed Hestia site. Three levels because
+the defect lived in the gap between two of them.
+
+The observable is a response header, `X-Lazysite-Front: hestia-proxy/acl`, and
+the lint binds it to the ACL branch: a template may not claim the header without
+carrying the rule. That matters more than the header does. An observable nobody
+can trust is worse than none, because it converts "I do not know" into "I
+checked". At fleet scale `lazysite-hestia-list.sh` names the affected domains,
+and `lazysite-hestia-update-all.sh` reports on **every** run whether the layer
+was touched - including, especially, when it was not.
+
+The guidance item needed nothing: `Lazysite::DomainRewrites` already emits the
+ACL branch, which is what the ROOT CAUSE section above corrected.
+
+The thing not asked for: the proxy also has to carry the `/lazysite/` deny, the
+`.brief` deny, the SM248 registry routes and a body cap for `/dav`. All four
+live in the Apache template, and a request the proxy answers never gets there.
+The first is the one to notice - `lazysite/backups/preinstall-*.tar.gz` is a
+complete snapshot of the site taken at install, and `gz` is on many stock
+extension lists. Nobody reported it, and the same measurement would have found
+it. **When a layer is missing, every protection at that layer is missing**, not
+the one that happened to be observed.
 
 ## Related
 
