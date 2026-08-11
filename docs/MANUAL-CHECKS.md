@@ -85,11 +85,21 @@ genuinely blocks a release. B and C do not.
 Record each tier in `docs/manual-check-register.md` when it is done, against the
 version it was done on. A pass nobody wrote down has to be repeated.
 
-### Tier A - blocks the cut
+### Tier A - blocks the PROMOTION, not the cut
 
 Three checks, each a control that **writes or destroys** where the data path is
 tested and the button wiring is not. About twenty minutes. Do them in order - the
 first one creates what the other two need.
+
+**Run these against a deployed EDGE build, not against a released site.** The
+first version of this document said tier A blocked the cut, which is circular: the
+panels only exist after a cut and a deploy, so nobody can verify them on the
+release they are meant to gate. An operator went to run it against 0.10.6 and
+correctly found the controls absent - they had never shipped.
+
+The order is: cut as **edge**, deploy to an edge site, run tier A there, and let
+passing be what allows promotion to beta and stable. A tier-A failure on edge is
+an edge release doing its job, and no customer site has seen it.
 
 Sign in as an operator. You will need one folder of content you do not mind
 hiding for a minute; make one if there is not one, with two or three pages in it.
