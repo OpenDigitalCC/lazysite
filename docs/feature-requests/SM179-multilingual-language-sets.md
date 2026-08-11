@@ -3,7 +3,7 @@ title: "SM179 - Multilingual sites: language sets over the multi-site plane"
 subtitle: "Per-language content roots linked as one site, with engine-supplied switcher data, hreflang, and a file-based translation workflow"
 brand: plain
 status: shipped
-status-note: "P1-P7 shipped in 0.7.27 (2026-07-18). P8 (engine-chrome localisation - login/validation/404) deferred to a later release by design. Builds directly on SM110/SM151; P4 (content-root-relative json:/include resolution) also fixed a live multi-site wart found during the sites/providers migration."
+status-note: "SPLIT 2026-08-11: P8 (engine-chrome localisation) moved to [[SM276]], so this filing is complete rather than carrying a deferred half in its note where nobody would find it. P1-P7 shipped in 0.7.27 (2026-07-18). P8 (engine-chrome localisation - login/validation/404) deferred to a later release by design. Builds directly on SM110/SM151; P4 (content-root-relative json:/include resolution) also fixed a live multi-site wart found during the sites/providers migration."
 ---
 
 ::: widebox

@@ -16,7 +16,7 @@ exactly that reason, and had drifted back into the same shape.
 `candidate` - done, or not started. Where work genuinely remained, the
 original was closed with a note saying what it delivered, and the
 remainder was filed as its own request with its own scope. Nothing was
-dropped; four new filings carry what the closures released.
+dropped; six new filings carry what the closures released.
 
 This document is the boundary. Below it, nothing is half-finished.
 
@@ -39,6 +39,36 @@ SM263 | Four operator questions: three built, one withdrawn | [[SM275]] - the ju
 Two of those closures needed no successor, which is worth noticing: SM248
 was finished and reading as unfinished, and SM103's remainder had already
 been superseded by a better design.
+
+## A second sweep: deferred halves inside SHIPPED filings
+
+Closing the six `partial` records was not enough. A shipped filing can
+still carry a deferred half in its note, which is a worse hiding place -
+the status says done, so nobody reads on.
+
+Sixteen shipped notes mentioned outstanding work. Thirteen were false
+positives: they narrate history ("was not yet built when filed"), or point
+at a successor that already exists ([[SM183]] -> [[SM266]], [[SM185]] ->
+[[SM217]]). **Three were real, and are now filed:**
+
+```datatable
+columns: Was buried in | Work | Now
+widths: 3cm | X | 2.5cm
+bold: 1
+tone: light
+---
+SM179 | P8, engine-chrome localisation - login, validation and 404 are English on every site whatever the content language | [[SM276]]
+SM180 | The reciprocal "held by N groups / M users" counts on the Services page | [[SM277]]
+SM200 | In-place regeneration of an expired connect code | [[SM277]]
+```
+
+A code sweep for `TODO`/`FIXME`/`XXX`/`HACK` in production Perl and shell
+returned **nothing**, which is worth recording as a positive result rather
+than an absence of output.
+
+**The general lesson: "deferred" written in a shipped filing's note is
+where work goes to be forgotten.** It should be a new filing at the moment
+of deferral, not a sentence in the record of something else.
 
 # The 0.10.6 cut
 
@@ -97,13 +127,15 @@ tone: light
 [[SM274]] `--fix` repair | One decision unblocks it; the code is small either way | S
 [[SM275]] docs-drift rows | Editorial, and one row may already be closed - confirm first | S
 [[SM245]] brief sidecars to a plugin | Long-standing, self-contained | M
+[[SM277]] two manager-UI follow-ups | Closed scope, and they batch with the UI trio below | S
+[[SM276]] engine-chrome localisation | Needs a decision on who supplies translations first | M
 `Notify.pm` coverage | Weakest module at 56.7\%, and [[SM231]] touches the same file - do them together | M
 ```
 
 ## Then: the decided-but-unbuilt UI trio
 
-[[SM265]], [[SM266]], [[SM267]] are all manager JavaScript, which the
-suite cannot reach. They should be done as one batch with a deliberate
+[[SM265]], [[SM266]], [[SM267]] and [[SM277]] are all manager JavaScript,
+which the suite cannot reach. They should be done as one batch with a deliberate
 manual test pass, not one at a time - the shared cost is the testing, not
 the code.
 
@@ -150,6 +182,10 @@ from the recorded install state, if the state can tell the two cases
 apart, and otherwise stay report-only and document it.
 
 **SM272**: where does the apt signing key live, and who can sign?
+
+**SM276**: are engine-chrome translations bundled and maintained by the
+project, or overridable per site the way layouts and themes already are?
+The second is cheaper for the project and better for house style.
 
 # What this document is not
 

@@ -3,7 +3,7 @@ title: "SM180 - Dormant-capability indicators (service off vs capability granted
 subtitle: "Warn, don't block: show when a granted channel capability can't work because its site service is disabled"
 brand: plain
 status: shipped
-status-note: "SHIPPED 0.9.9 (2026-07-21): dormant-capability indicators in the Groups + Users grids (Capabilities::channel_service map + the channel-services control-API action). The reciprocal Services-page 'held by N groups / M users' counts are deferred as a follow-up."
+status-note: "SPLIT 2026-08-11: the reciprocal Services-page counts moved to [[SM277]], so this filing is complete rather than carrying a deferred half in its note where nobody would find it. SHIPPED 0.9.9 (2026-07-21): dormant-capability indicators in the Groups + Users grids (Capabilities::channel_service map + the channel-services control-API action). The reciprocal Services-page 'held by N groups / M users' counts are deferred as a follow-up."
 ---
 
 # SM180 - Dormant-capability indicators
