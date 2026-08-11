@@ -28,6 +28,51 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
+## 0.10.6 - EDGE: the release that told you to do something it had not made safe (2026-08-11)
+
+An edge build on 0.10.5, and it exists because of a live upgrade. 0.10.5's
+release notes instruct every operator to re-render their vhosts for the SM268
+H17 `PT` fix. On Hestia, re-rendering resets the docroot permissions - and
+nothing in 0.10.5 repairs that afterwards. The operator who followed the
+instruction found `public_html` at `drwxr-s--x` and the manager unable to save.
+
+- SM270 (4070fb5) a vhost rebuild no longer leaves the site unwritable. Three
+  parts, because the defect had three causes and fixing one would have looked
+  like fixing it. `lazysite-hestia-update-all.sh --rebuild` refreshes the
+  template, rebuilds each vhost and THEN deploys, so the permission sweep is the
+  last thing to touch the tree - previously the rebuild was a manual step
+  performed after the deploy, which is the wrong end. `lazysite-check` reports a
+  docroot the CGI cannot write as a FAIL and repairs it under `--fix`; a docroot
+  that is writable but missing setgid is a WARN, because that works today and a
+  hand-made development docroot is 0775, and failing on all of those teaches the
+  reader to skip the line that matters. And the upgrade instructions now say
+  what a re-render costs.
+- SM271 (21e3028, 8777ea4) a transient dotfile at the repo root no longer
+  refuses the build. `build-manifest.pl` rejects any file matching no
+  classification rule, which is right for content and wrong for the repo root -
+  which is where per-run tooling state conventionally goes. Three tools tripped
+  it in one session (`prove --state=save`, a test lockfile, and yath's per-job
+  file), each breaking every test that builds a manifest, and each presenting as
+  something else: twice as parallel-safety failures, once as harness
+  incompatibility. A root DOTFILE is now excluded; an unclassified ordinary file
+  still refuses, which is the case the gate exists for. The refusal message
+  leads with the offending file rather than the manifest it was writing.
+- SM269 phase 0 + 1 (fdedc45, ac9889c, 83aa65e) the test cycle, measured and
+  then made parallel-safe. The two perlcritic sweeps are sharded across forks
+  (41.3s to 15.5s, 31.7s to 12.9s; same files, same profile, same severity, both
+  verified still failing on a real violation) and the shared repo-root manifest
+  has one owner instead of six copies of its lifecycle, so `prove -j4` is green:
+  122s against 330s. Reported honestly: this improves the developer loop and
+  does NOT move the release gate, because coverage is 92% of the gate's
+  wall-clock and the compile tax lives in CGI subprocesses no harness can
+  preload.
+
+Backlog: every `partial` filing is now closed or split, so nothing in the queue
+is half-done, and a second sweep found three more deferred halves hiding inside
+SHIPPED filings - a worse hiding place, because the status says done and nobody
+reads on. Six successors carry what the closures released (SM272-SM277). See
+`docs/feature-requests/WORK-PLAN-2026-08.md` for the boundary and the order.
+
 ## 0.10.5 - EDGE: what the security review found, and what it cost to prove (2026-08-10)
 
 An edge build dominated by SM268 - four adversarial reviews run against 0.10.4

@@ -1,3 +1,31 @@
+lazysite (0.10.6-1) unstable; urgency=medium
+
+  * EDGE build on 0.10.5, and it exists because 0.10.5 told every operator to do
+    something it had not made safe.
+  * SM270 a Hestia vhost rebuild resets the docroot permissions, and 0.10.5's
+    own release notes instruct a rebuild for the SM268 H17 PT fix. Hestia puts
+    public_html back to its default (2751: setgid, no group write) and the CGI
+    can then save nothing. Reported from a live upgrade. Three changes:
+    lazysite-hestia-update-all.sh --rebuild orders template refresh, rebuild and
+    deploy so the permission sweep runs LAST; lazysite-check now reports a
+    docroot the CGI cannot write as a FAIL and repairs it under --fix; and the
+    upgrade instructions say what a re-render costs.
+  * SM271 a transient dotfile at the repo root no longer refuses the build.
+    build-manifest.pl rejects any unclassified file, and three tools dropped
+    per-run state at the root in one session - each breaking every test that
+    builds a manifest, with an error naming the manifest rather than the file.
+    A root dotfile is tooling state; an unclassified ordinary file still
+    refuses, which is what the gate is for.
+  * SM269 phase 0 and 1: the test cycle measured, then made parallel-safe. The
+    plain suite is 39 seconds faster (perlcritic sharded across forks, same
+    files and same profile) and prove -j4 is green. Recorded honestly: this
+    improves the developer loop and does NOT move the release gate, because
+    coverage is 92% of the gate's wall-clock.
+  * Backlog hygiene: every partial filing is closed or split, so nothing in the
+    queue is half-done. See docs/feature-requests/WORK-PLAN-2026-08.md.
+
+ -- Stuart Mackintosh <sjm@opendigital.cc>  Tue, 11 Aug 2026 12:00:00 +0000
+
 lazysite (0.10.5-1) unstable; urgency=medium
 
   * EDGE build on 0.10.4. OPERATOR ACTION: existing vhosts must be re-rendered.
