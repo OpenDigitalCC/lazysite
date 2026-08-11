@@ -194,3 +194,91 @@ week produced three unplanned items - a security review that blocked a
 release, a live permissions incident, and a build-gate trap that cost
 three misdiagnoses - and each was more valuable than what it displaced.
 The order is a recommendation; the boundary is the point.
+
+# The next release: integrity
+
+**Theme, set by the operator on 2026-08-11: everything the product asserts
+about itself should be true and checkable.** Not new capability - finishing
+what is started, so nothing in the tree, the docs or the backlog is
+half-true. Then the full eight-dimension sweep, and only then a minor
+bump.
+
+That theme has already found something. SM151 (first-class multi-site)
+was `candidate`, note reading "awaiting review/merge/release", while
+multi-site has been live for weeks - 26 references in the processor,
+per-domain content roots and rewrites on 17 production sites, and SM248,
+SM251 and SM268 H15 all built on top of it. The backlog was asserting
+something false about the product. Corrected.
+
+## Completing something started
+
+Everything below is a successor to shipped work, not a new idea. Sized S
+(hours), M (a day or two), L (more).
+
+```datatable
+columns: Item | Completes | Size | Importance
+widths: X | 4cm | 1.4cm | 2.6cm
+bold: 1
+tone: medium
+---
+[[SM274]] `--fix` repairs, or says why not | SM246's third consumer - "install applies, check verifies, --fix repairs" is 2/3 true | S | HIGH - the design's own sentence is false until this lands
+[[SM275]] remaining docs-drift rows | SM263/SM254 - docs that read wrong | S | HIGH - integrity of what we tell users
+[[SM277]] two manager-UI follow-ups | SM180 + SM200 deferred halves | S | MEDIUM
+[[SM276]] engine-chrome localisation | SM179 P8 | M | MEDIUM - a French site answers in English
+[[SM266]] apply-confidence controls | SM183's carved-out manager JS | M | MEDIUM
+[[SM267]] protected-sections panel | SM181's carved-out panel | M | MEDIUM - operators cannot see what is held back
+`Notify.pm` coverage + [[SM231]] | the weakest-verified module, and the feature that owns it | M | HIGH - lowest coverage in the tree at 56.7\%
+[[SM269]] phase 2, the tier ladder | phases 0-1 done | M | HIGH - tells us which tests to trust when, which the sweep needs
+[[SM217]] first-class domain aliases | SM185 named it un-built | M | LOW - engine already supports it; this is UI
+[[SM245]] briefs into a plugin | long-standing refactor of a shipped feature | M | LOW
+[[SM273]] spam cross-signal | SM216 parts 3-5 | M | LOW - needs signal-quality confirmation first
+[[SM272]] apt repository | SM139's distribution half | L | LOW - blocked on key custody
+[[SM269]] phase 3, progressive coverage | the only thing that moves the 80-minute gate | L | MEDIUM - high value, real risk of building a report nobody reads
+```
+
+## What is NOT in this release
+
+New capability, all of it: [[SM089]] 3D layout, [[SM090]] social
+syndication, [[SM184]] email authoring, [[SM221]] real-time daemon,
+[[SM222]] mini-init, [[SM265]] browser surface, [[SM208]] Figma helper.
+Good ideas; none of them make the product more coherent than it is today.
+
+## Suggested contents
+
+The S items and the two HIGH M items: **SM274, SM275, SM277, SM269 phase
+2, and the Notify.pm/SM231 pairing.** That is a coherent release - the
+permission model becomes true, the docs stop misleading, two half-built
+features finish, the test tiers become explicit, and the least-verified
+module gets covered.
+
+[[SM266]], [[SM267]] and [[SM277]] should go together whenever they go:
+all three are manager JavaScript the suite cannot reach, so they share one
+manual verification pass, and that pass is their real cost. [[SM153]]
+(manager UI test guide) is the enabler for that and is worth pulling
+forward if the trio lands.
+
+## Verification before the minor bump
+
+Three passes, in this order, because each feeds the next:
+
+**1. Agent tests by the sites agent** - the product exercised by its
+actual consumer, on real sites. Catches what unit tests structurally
+cannot: whether an agent can accomplish a task end to end.
+
+**2. A third adversarial round, locally.** Round 2 (SM268) found 26
+defects against 0.10.4 and blocked that release. Round 3 must be told what
+rounds 1 and 2 covered so it deliberately extends rather than repeats -
+the register in the security memory exists for this. Candidate areas not
+yet deeply covered: DoS and resource exhaustion, the git backends under
+adversarial repo content, MCP tool-surface fuzzing, concurrent-request
+races on the flat-file stores, and the multi-tenant boundary under the
+shared-www-data CGI model.
+
+**3. The eight-dimension non-functional sweep**, in the signoff order
+defined in toolchain-development/TOOLCHAIN.md, with the docs dimension
+maintaining CHANGELOG.md.
+
+Only then the minor bump. A minor version that says "this is coherent"
+should have been checked by its consumer, attacked deliberately, and swept
+across all eight dimensions - in that order, because the sweep should not
+be the thing that discovers a security defect.
