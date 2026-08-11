@@ -177,6 +177,7 @@
     "^docs/development\\.md$",
     "^docs/feature-requests/",
     "^docs/manager-ui-guide/",
+    "^docs/manual-check-register\\.md$",
     "^docs/reference/",
     "^docs/review/",
     "^security/",

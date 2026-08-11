@@ -73,57 +73,65 @@ menu-complete, so a new item cannot ship without an entry.
 
 ## The SM266 / SM267 / SM277 batch
 
-Four panels landed together precisely so they share ONE pass. Their server-side
-halves are covered - `t/unit/manager/60`, `t/unit/manager/65`,
-`t/unit/manager/66` - so what follows is the part no test reaches.
+Four panels landed together so they share one pass. Their server-side halves are
+covered - `t/unit/manager/60`, `t/unit/manager/65`, `t/unit/manager/66` - so what
+follows is the part no test reaches, and only that part.
 
-**Protected sections (Files page, [[SM267]]).**
+**The tiers below exist so this does not have to be done in one sitting.** A
+walkthrough that must be completed before anything ships gets rushed or skipped,
+and a rushed pass is worse than an honest partial one. Tier A is small and
+genuinely blocks a release. B and C do not.
 
-1. Put a folder ACL on a section with `draft: true`, reload the Files page, and
-   confirm the section is listed as **draft** with the right page and asset
-   counts.
-2. From a signed-out browser, confirm the section 404s and is absent from
+Record each tier in `docs/manual-check-register.md` when it is done, against the
+version it was done on. A pass nobody wrote down has to be repeated.
+
+### Tier A - blocks the cut
+
+Three checks. Everything here is a control that **writes or destroys**, where the
+data path is tested but the button wiring is not - so the failure mode is a
+control that acts on the wrong thing, or acts when it should not.
+
+1. **Publish a draft section.** Files -> Protected sections. Put a folder ACL with
+   `draft: true` on a section, confirm the row reads *draft*, press **Publish**.
+   The section goes live and the row flips to *gated* - the read list survives.
+2. **Remove protection** on a gated section. The entry goes entirely and the
+   content is public. This is the wider act of the two and must be distinguishable
+   from Publish at the moment of pressing it.
+3. **Apply, then Undo.** Backups -> Apply to a target with existing content.
+   Confirm the overwrite count is non-zero and changes when you switch target,
+   apply, then press **Undo**. The site returns to its pre-apply state.
+
+If any of these three misbehaves, the cut waits. They are the only ones that can
+lose an operator's content.
+
+### Tier B - blocks the minor bump, not the cut
+
+Verification of things that are wrong-but-recoverable, or read-only.
+
+4. A draft section 404s to a signed-out visitor and is absent from
    `/sitemap.xml`.
-3. Press **Publish**. Confirm the section goes live, enters the sitemap, and the
-   row flips to **gated** (the read list survives - publishing a draft and
-   removing protection are different acts).
-4. Press **Remove protection** on a gated section. Confirm the entry is gone and
-   the content is public.
-5. Sign in as a **scoped** (non-operator) manager and confirm the panel lists
-   only sections inside their scope. This is the one with security weight: the
-   list must not tell them that content exists elsewhere.
+5. A **scoped** (non-operator) manager sees only sections inside their scope.
+   Security weight, but the filter itself is suite-covered
+   (`t/unit/manager/66`) - what is unverified is that the panel passes the
+   request through it.
+6. The readiness warning appears for a target whose DNS is not pointed, and the
+   apply is **still allowed**.
+7. **Keep this site's theme** on apply: content arrives, theme does not change.
+   Untick everything and confirm the previous behaviour is unchanged.
+8. Services counts: "held by N groups / M accounts" matches the Groups page, and
+   turning a service off flags those grants dormant in the Users grid.
 
-**Apply confidence (Backups page, [[SM266]]).**
+### Tier C - opportunistic
 
-6. Open **Apply** on a package and pick a target domain that already has content.
-   Confirm the preview names the overwrite count, and that it CHANGES when you
-   pick a different target - a count that does not move is a cached first answer.
-7. Confirm a target whose DNS is not pointed yet shows the readiness warning, and
-   that the apply is still allowed (staging before a cutover is deliberate).
-8. Tick **keep this site's theme**, apply, and confirm the content arrived and the
-   theme did not change. Untick everything and confirm the previous behaviour is
-   unchanged - an operator who ignores the control must get what they got before.
-9. After an apply, use the **Undo** bar. Confirm the site returns to its previous
-   state and that a fresh pre-restore snapshot was taken (the undo is itself
-   undoable).
+Cosmetic or convenience. Do them when passing.
 
-**Services counts (Settings, [[SM277]] part 1).**
-
-10. Confirm each Services switch shows "held by N groups / M accounts", and that
-    the numbers match what the Groups page says. Turn one service off and confirm
-    the Users grid now flags those grants dormant - the two views are the same
-    fact from opposite ends and must agree.
-11. Sign in as an operator with `manage_config` but NOT `manage_users`. The counts
-    must be ABSENT, not zero. Zero would read as "nothing depends on this".
-
-**Connect-code regeneration ([[SM277]] part 2).**
-
-12. Start the web connector flow and watch the code's remaining life count down.
-13. Wait for it to expire (or shorten the TTL) and confirm the panel says so
-    plainly and strikes the code through.
-14. Press **Regenerate**. Confirm a new code appears in place without the panel
-    rebuilding, the clock restarts, and the OLD code is refused at the OAuth
-    prompt.
+9. Counts on the protected-sections rows are right (pages vs assets, recursive).
+10. An operator with `manage_config` but not `manage_users` sees **no** Services
+    counts - absent, not zero.
+11. The connect code counts down, says plainly when it has expired, and strikes
+    it through.
+12. **Regenerate** swaps the code in place without rebuilding the panel, and the
+    old code is refused at the OAuth prompt.
 
 # Web-server behaviour (vhost templates)
 
