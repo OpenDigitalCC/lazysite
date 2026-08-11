@@ -58,6 +58,19 @@ For any other manager page: exercise the control you changed, then reload and
 confirm the change persisted - a control that updates the DOM without saving
 looks identical to one that works.
 
+## The full walkthrough
+
+`docs/manager-ui-guide/` is the menu-complete companion to this document, and
+the split is deliberate. **This document is the things the suite structurally
+cannot reach, and why.** That one is the whole manager surface, item by item,
+with a Where / Do / Expect / Negative for each - written for a person reviewing
+the product end to end, an agent being onboarded, and whoever is owed a tutorial.
+
+Use this document when you have changed something and need to know what a green
+suite does not tell you. Use the guide when you are reviewing the product rather
+than a change. `t/lint/32-manager-guide-covers-the-nav.t` keeps the guide
+menu-complete, so a new item cannot ship without an entry.
+
 ## The SM266 / SM267 / SM277 batch
 
 Four panels landed together precisely so they share ONE pass. Their server-side

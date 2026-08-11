@@ -176,6 +176,7 @@
     "^docs/architecture/",
     "^docs/development\\.md$",
     "^docs/feature-requests/",
+    "^docs/manager-ui-guide/",
     "^docs/reference/",
     "^docs/review/",
     "^security/",
