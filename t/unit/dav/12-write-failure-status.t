@@ -34,9 +34,32 @@ my $src  = do {
 # helper, the environment-fault case silently regresses to 500 there.
 unlike( $src, qr/send_status\(\s*500,\s*body\s*=>\s*"(?:Cannot write|Write failed|Rename failed|Cannot create)/,
     'no write path still answers with a bare 500 and a two-word body' );
+
+# SM284: and the other four verbs, which met the identical condition and each
+# had their own two-word body. Named individually rather than as a pattern,
+# because a regression here reads as a wording change and would be reviewed as
+# one - these strings are the whole of what an agent had to act on.
+for my $gone ( 'Delete failed', 'Operation failed', 'Cannot create collection\\\\n' ) {
+    unlike( $src, qr/send_status\(\s*\d+,\s*body\s*=>\s*"\Q$gone\E/,
+        "the bare \"$gone\" answer is gone" );
+}
+
 my @calls = ( $src =~ /(_write_failure\()/g );
-cmp_ok( scalar @calls, '>=', 4,
-    'every write path calls the helper (PUT open / close / rename, and create)' );
+cmp_ok( scalar @calls, '>=', 8,
+    'all five write verbs call the helper (PUT open / close / rename / create, '
+        . 'plus MKCOL, DELETE, MOVE and COPY)' );
+
+# The two-directory verbs must say WHICH directory. MOVE can fail on either
+# side, and "the target directory" would be a guess presented as a fact.
+like( $src, qr/\[\s*\$dst->\{abs\},\s*'destination'\s*\]/,
+    'MOVE/COPY label the destination' );
+like( $src, qr/\[\s*\$src->\{abs\},\s*'source'\s*\]/,
+    'and MOVE labels the source, which is the side a caller cannot guess' );
+
+# MKCOL's two 409s. One is the caller's problem (create the parent), the other
+# was a server fault wearing a client error's status.
+like( $src, qr/parent collection does not exist/,
+    'MKCOL says a missing parent is a missing parent' );
 
 # --- the helper's contract --------------------------------------------------
 like( $src, qr/sub _write_failure/, '_write_failure is defined' );
@@ -44,8 +67,13 @@ like( $src, qr/send_status\(\s*507/s,
     'an unwritable target answers 507 (valid request, server at fault)' );
 like( $src, qr/507 => 'Insufficient Storage'/,
     '507 carries a reason phrase' );
-like( $src, qr/target directory is not writable/,
-    'and the body names the condition' );
+like( $src, qr/the \$role directory is not writable/,
+    'and the body names the condition, and which directory it means' );
+# SM284 widened the message from "the target directory" to "the $role
+# directory" so MOVE can distinguish its two. 'target' stays the DEFAULT, which
+# is what keeps PUT's wording byte-identical to what SM235 shipped and reviewed.
+like( $src, qr/\(\s*\$w,\s*'target'\s*\)/,
+    "an unlabelled path is still the 'target' directory" );
 like( $src, qr/not a permission\s*"?\s*\.?\s*"?decision about your request/s,
     'and separates it from a permission decision, which is the misreading' );
 

@@ -550,12 +550,20 @@ sub do_mkcol {
 
     my $r = resolve_under_docroot( $a{rel} );
     return send_status( $r->{err}, body => "Error\n" ) if $r->{err};
-    return send_status( 409,       body => "Parent collection missing\n" )
+    # SM284: MKCOL had two 409s worded almost identically, so a missing parent
+    # and an unwritable one were indistinguishable to the caller - and they are
+    # different problems with different fixes. This one stays 409 (RFC 4918:
+    # the request is wrong, create the parent first) and now says which.
+    return send_status( 409,
+        body => "Cannot create collection: the parent collection does not "
+            . "exist. Create it first.\n" )
         unless $r->{parent_ok};
     return send_status( 405, body => "Already exists\n" ) if -e $r->{abs};
 
+    # The other one was a server fault dressed as a client error. It goes to the
+    # shared helper, which answers 507 when the parent is unwritable.
     unless ( mkdir $r->{abs} ) {
-        return send_status( 409, body => "Cannot create collection\n" );
+        return _write_failure( 'create the collection', $!, $r->{abs} );
     }
     log_event( 'INFO', $a{user}, 'dav mkcol', path => $a{rel}, status => 201 );
     send_status(201);
@@ -583,7 +591,11 @@ sub do_delete {
     else {
         $ok = unlink $r->{abs};
     }
-    return send_status( 500, body => "Delete failed\n" ) unless $ok;
+    # SM284: removing an entry is a write to the directory that CONTAINS it, so
+    # an unwritable parent fails a DELETE for exactly the reason it fails a PUT -
+    # and used to answer "Delete failed", which tells an agent nothing it can act
+    # on. Same helper, same 507-versus-500 split.
+    return _write_failure( 'delete the entry', $!, $r->{abs} ) unless $ok;
 
     remove_lock( $a{rel} );
     invalidate_cache( $r->{abs} );
@@ -645,8 +657,29 @@ sub do_copy_move {
         if ( !$ok ) {    # cross-device: copy then remove
             $ok = copy_tree( $src->{abs}, $dst->{abs} );
             if ($ok) {
-                if ( -d $src->{abs} ) { remove_tree( $src->{abs}, { safe => 1 } ) }
-                else                  { unlink $src->{abs} }
+                # SM284: the removal decides the outcome too. It was performed
+                # for effect and never checked, so a MOVE out of an unwritable
+                # directory copied the entry, failed to remove the original, and
+                # answered 201 - a MOVE silently downgraded to a COPY, with both
+                # copies live and the client told it had moved. Found while
+                # building the source-side failure case, which could not fire
+                # until this did.
+                if ( -d $src->{abs} ) {
+                    remove_tree( $src->{abs}, { safe => 1 } );
+                    $ok = !-e $src->{abs};
+                }
+                else { $ok = unlink $src->{abs} }
+                # Roll the copy back, so a failed MOVE leaves no entry the
+                # caller never asked to create. Reporting the failure while
+                # leaving the copy in place would be the same defect one step
+                # further on: the client is told nothing happened, and a second
+                # file exists.
+                unless ($ok) {
+                    if ( -d $dst->{abs} ) {
+                        remove_tree( $dst->{abs}, { safe => 1 } );
+                    }
+                    else { unlink $dst->{abs} }
+                }
             }
         }
         remove_lock( $a{rel} ) if $ok;
@@ -654,7 +687,20 @@ sub do_copy_move {
     else {
         $ok = copy_tree( $src->{abs}, $dst->{abs} );
     }
-    return send_status( 500, body => "Operation failed\n" ) unless $ok;
+    # SM284: MOVE and COPY are the two-directory case. A COPY only writes the
+    # destination; a MOVE also has to remove the source, so an unwritable SOURCE
+    # parent fails it while the destination is perfectly fine. Naming which side
+    # is the whole value of the message - "Operation failed" left an agent with
+    # nowhere to go, and the operator with nothing to fix.
+    unless ($ok) {
+        return _write_failure(
+            'complete the move', $!,
+            [ $dst->{abs}, 'destination' ],
+            [ $src->{abs}, 'source' ],
+        ) if $move;
+        return _write_failure( 'copy the entry', $!,
+            [ $dst->{abs}, 'destination' ] );
+    }
 
     invalidate_cache( $src->{abs} ) if $move;
     invalidate_cache( $dst->{abs} );
@@ -1598,15 +1644,29 @@ sub send_status {
 # is exactly what a 403 would deny. The body names the operation and the condition
 # and NEVER the filesystem path - a client has no use for it and it discloses the
 # layout.
+# SM284: all five write verbs, not just PUT. DELETE, MOVE, COPY and MKCOL met the
+# identical condition and answered with a bare 500 (or, for MKCOL, a 409 whose
+# wording was near-identical to the one it returns for a genuinely missing
+# parent, so two different faults were indistinguishable to the caller). A write
+# path that explains itself on one verb and not the other four is a half-built
+# contract, and the half that is missing is the half nobody tested.
+#
+# Callers pass the paths whose CONTAINING directory the operation needed to
+# write, each optionally paired with the role that directory plays in the
+# request - because MOVE has two of them and "the target directory" would be a
+# guess. First unwritable one wins, so callers order them most-likely-first. A
+# bare scalar keeps the PUT wording byte-identical to what SM235 shipped.
 sub _write_failure {
-    my ( $what, $errno, $abs ) = @_;
-    my $dir = $abs;
-    $dir =~ s{/[^/]*\z}{};
-    if ( length $dir && -d $dir && !-w $dir ) {
+    my ( $what, $errno, @where ) = @_;
+    for my $w (@where) {
+        my ( $abs, $role ) = ref $w eq 'ARRAY' ? @$w : ( $w, 'target' );
+        my $dir = $abs;
+        $dir =~ s{/[^/]*\z}{};
+        next unless length $dir && -d $dir && !-w $dir;
         log_event( 'ERROR', 'dav-write', 'target directory not writable',
-            op => $what );
+            op => $what, role => $role );
         return send_status( 507,
-            body => "Cannot $what: the target directory is not writable by the "
+            body => "Cannot $what: the $role directory is not writable by the "
                 . "server. This is a server configuration fault, not a permission "
                 . "decision about your request - the operator must fix the "
                 . "directory permissions.\n" );

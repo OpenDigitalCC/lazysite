@@ -460,8 +460,8 @@ responses. Do not probe to tell them apart - the status says which.
   and it is not a fault. If you believe it should be in scope, report it.
 
 `507`
-: The server cannot currently store it - the target directory is not writable by
-  the server. This is an operator's problem, not yours and not your request's.
+: The server cannot currently store it - a directory is not writable by the
+  server. This is an operator's problem, not yours and not your request's.
   Report it with the response body and do not retry in a loop.
 
 `500`
@@ -470,6 +470,18 @@ responses. Do not probe to tell them apart - the status says which.
 A `507` in particular is not a permission decision. Reading it as one, and
 telling the operator that writes to a path are denied by policy, sends them
 looking in the wrong place.
+
+All five write verbs answer this way - `PUT`, `DELETE`, `MKCOL`, `MOVE` and
+`COPY` - so the same reading works whatever you were doing. The body names
+**which** directory, which matters for `MOVE`: it writes two of them, and a
+`MOVE` can fail because the *source* directory is unwritable while the
+destination is fine. Pass the body along verbatim; it says `source` or
+`destination` and the operator needs that to know where to look.
+
+`MKCOL` has one more distinction worth reading. A `409` means the parent
+collection does not exist - that one **is** yours to fix, by creating the
+parent first. A `507` from the same request means the parent exists and the
+server cannot write into it.
 
 ## Do not design a browser-origin integration
 
