@@ -221,6 +221,13 @@ syntax-highlighted code blocks. `.html` files are inserted bare.
 Includes are single-pass - includes inside included files are not
 processed.
 
+A local include path is resolved **inside your site's content root**, and cannot
+reach outside it. On a multi-domain instance that means a domain includes its own
+partials and never another domain's - the confinement is not a setting you can
+relax. (SM275: the shipped behaviour is stricter than earlier wording implied,
+and a reader who believed the looser version would design a shared-partials
+layout that cannot work.)
+
 Use the **multi-line fenced form** above. A one-line `::: include path` is left
 as literal text, not expanded. Keep consecutive includes contiguous.
 

@@ -17,6 +17,12 @@ my $root = repo_root();
 # term => the release that retired it (for the failure message)
 my %retired = (
     'manager_groups' => 'SM138, 0.6.5 - manager access is granted by groups (ui / manage_users)',
+    # SM275: never a real limitation, only a wrong description. A source comment
+    # called the per-page `theme:` pin "preview-only" while FEATURES.md and the
+    # code both treat it as a general per-page override. Pinned here because the
+    # term is cheap to re-introduce and the misreading is expensive: a reader who
+    # believes it will not use the pin on a page they mean to keep.
+    'preview-only' => 'SM275 - the per-page theme: pin is a general override, not a preview',
 );
 
 # Files that legitimately DESCRIBE history: changelogs, migration notes,

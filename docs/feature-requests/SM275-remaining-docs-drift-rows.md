@@ -2,8 +2,8 @@
 title: "SM275 - The remaining docs-drift rows"
 subtitle: "The audit rows that survived two rounds of splitting: feature descriptions, three that are true but read wrong, and one gap to confirm before working."
 brand: plain
-status: candidate
-status-note: "SPLIT from SM263 on 2026-08-11, which was itself split from SM254 on 2026-08-08. SM254 delivered the lint and the mechanically-checkable corrections; SM263 answered all four operator questions (three built, one withdrawn as wrong). These rows are what is left, and they are left because each needs a human judgement about wording rather than a check. Not started."
+status: shipped
+status-note: "SHIPPED 2026-08-11 (unreleased on main), and TWO OF THE FOUR ROWS WERE ALREADY CLOSED - which is why the filing said confirm before working. The /lazysite-assets mirror-on-apply gap: closed, _mirror_theme_assets IS called in package_apply (SitePackage.pm:451) by SM193; minutes to check against hours to fix. The SM133 static-fallback wording: closed, the processor comment already says explicitly that a verbatim serve does NOT process SSI. FIXED HERE: the SM120 source comment called the per-page theme: pin preview-only when FEATURES.md and the code both treat it as a general override - corrected, and 'preview-only' added to t/lint/08-retired-terms.t so the term cannot come back. The ::: include wording now states the content-root confinement, which is stricter than the earlier description implied. ORIGINAL: SPLIT from SM263 on 2026-08-11, which was itself split from SM254 on 2026-08-08. SM254 delivered the lint and the mechanically-checkable corrections; SM263 answered all four operator questions (three built, one withdrawn as wrong). These rows are what is left, and they are left because each needs a human judgement about wording rather than a check. Not started."
 ---
 
 # SM275 - the remaining rows

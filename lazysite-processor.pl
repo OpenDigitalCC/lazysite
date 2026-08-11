@@ -1069,7 +1069,7 @@ sub serve_403 {
     my ($auth_result) = @_;
     my $md_path = _system_page_md('403') // "$DOCROOT/403.md";          # SM201 fallback
 
-    $ACCESS_REC{s} //= 403;                                             # SM140
+    $ACCESS_REC{s} //= 403;    # SM140
     $ACCESS_REC{ar} = 1;       # SM223: an ACCESS refusal, not a missing page
     binmode( STDOUT, ':utf8' );
 
@@ -5066,8 +5066,15 @@ sub resolve_layout_vars {
         # [% t %] (English base overlaid by the site language). No strings/ dir =>
         # {}; layouts that don't localise are unaffected.
         $vars->{t} = _layout_strings( $layout_key, $vars->{site_lang} // 'en' );
-        # SM120: a page may pin a theme via front matter (theme:), preview-only and
-        # sanitised the same way as layout:; falls back to the active/site theme.
+        # SM120: a page may pin a theme via front matter (theme:), sanitised the
+        # same way as layout:; falls back to the active/site theme.
+        #
+        # SM275: this said "preview-only", which it is not and never was. The
+        # pin is a general per-page override - FEATURES.md documents it that
+        # way and the code treats it that way - so the comment described a
+        # narrower feature than the one below it. A wrong-but-plausible
+        # statement costs more than an absent one: a reader trusting it would
+        # not reach for the pin on a page they meant to keep.
         # resolve_theme still gates on layout compatibility, so an incompatible pin
         # renders as no theme rather than breaking.
         my $page_theme = ( defined $meta->{theme} && $meta->{theme} =~ /^[A-Za-z0-9_-]+$/ )
@@ -5986,7 +5993,7 @@ sub _access_record {
         # makes that visible whenever it happens, rather than only to operators
         # who read one particular release's notes in one particular week.
         $line .= ',"ar":1'                        if $ACCESS_REC{ar};
-        $line .= ',"b":' . ( $ACCESS_REC{b} + 0 )            if defined $ACCESS_REC{b};
+        $line .= ',"b":' . ( $ACCESS_REC{b} + 0 ) if defined $ACCESS_REC{b};
         # SM151: the sanitised request Host, so multi-site (many domains under
         # one docroot) can split visitor stats per domain later. DNS-shaped and
         # capped; empty (primary / malformed Host) is simply omitted.
