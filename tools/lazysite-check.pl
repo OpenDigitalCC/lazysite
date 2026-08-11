@@ -609,6 +609,42 @@ sub run_checks {
         report( 'WARN', "cgi-bin not found at $CGI (pass --cgibin to check it)" );
     }
 
+    # --- 6b. SM279: a stale group dav_scope is a confinement that is not one ----
+    #
+    # SM165 moved confinement to the domain-owned model in 0.7.26. The group
+    # `dav_scope` field kept being accepted and stored for every release after,
+    # and enforced nowhere - so an operator who set one between 0.7.26 and 0.10.6
+    # has an account they believe is confined and which is not.
+    #
+    # FAIL, not WARN, and deliberately so: every other finding in this tool is
+    # about a permission being wrong. This one is about a permission the operator
+    # thinks exists. There is no repair to apply - the fix is to confine the group
+    # through its domain - so it is reported and never touched by --fix.
+    {
+        my %scoped;
+        if ( open my $gsf, '<', "$LZ/auth/groups-settings.json" ) {
+            require JSON::PP;
+            local $/;
+            my $gs = eval { JSON::PP::decode_json(<$gsf>) } || {};
+            close $gsf;
+            for my $g ( sort keys %$gs ) {
+                next unless ref $gs->{$g} eq 'HASH';
+                my $s = $gs->{$g}{dav_scope};
+                $scoped{$g} = $s if defined $s && length $s;
+            }
+        }
+        for my $g ( sort keys %scoped ) {
+            report( 'FAIL',
+                "group '$g' carries a retired dav_scope ($scoped{$g}) - it has "
+                    . "confined NOBODY since 0.7.26; any member you believe is "
+                    . "restricted to that folder is not",
+                "confine the group by naming it in the allowed_groups of the "
+                    . "domain it may manage, then clear the stale value: "
+                    . "perl tools/lazysite-users.pl --docroot '$DOC' group-set "
+                    . "'$g' dav_scope ''" );
+        }
+    }
+
     # --- 7. manager bootstrap (ties to setup-manager) ----------------------------
     my $mgr_enabled = ( conf_value( $conf, 'manager' ) // '' ) =~ /enabled/i;
     {

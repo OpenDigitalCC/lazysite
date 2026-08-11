@@ -1202,9 +1202,12 @@ sub cmd_settings {
     my $eff = effective_settings($user);
     printf "%-11s %s\n", 'webdav:', $eff->{webdav} ? 'on' : 'off';
     printf "%-11s %s\n", 'ui:',     $eff->{ui}     ? 'on' : 'off';
-    my @sc = @{ $eff->{dav_scopes} || [] };    # SM155: group-derived
-    printf "%-11s %s\n", 'dav_scope:',
-        ( @sc ? join( ', ', @sc ) : '(unset - set on a group)' );
+    # SM279: the scopes are DOMAIN-derived (SM165). The old text said
+    # "(unset - set on a group)", which pointed the reader at a group setting
+    # that has confined nobody since 0.7.26.
+    my @sc = @{ $eff->{dav_scopes} || [] };
+    printf "%-11s %s\n", 'confined to:',
+        ( @sc ? join( ', ', @sc ) : '(nothing - no domain confines this account)' );
 }
 
 # CLI wrapper: pull an optional --force flag out of the positional args.
@@ -1244,10 +1247,14 @@ sub cmd_set {
         $all->{$user}{$key} = $bool ? JSON::PP::true() : JSON::PP::false();
     }
     elsif ( $key eq 'dav_scope' || $key eq 'home_domain' ) {
-     # SM155: the domain binding moved to the GROUP. Set it there:
-     #   group-set <group> dav_scope <content-root> ; group-set <group> home_domain <host>
-        die "SM155: dav_scope/home_domain are group settings now, not per-account. "
-            . "Use: group-set <group> $key <value> (members inherit it, unioned).\n";
+        # SM279: this used to redirect the operator to group-set, which by then
+        # stored a value that confined nobody. Point at the model that actually
+        # enforces instead - a redirect to a dead end is worse than no redirect.
+        die "'$key' was retired in 0.7.26. Access lives on the DOMAIN: register "
+            . "the domain with its own content root and name the user's group in "
+            . "its allowed_groups (lazysite-domains, or the Domains page). A user "
+            . "locked to a domain is confined to that domain's content root on "
+            . "every channel.\n";
     }
     elsif ( $key eq 'comment' ) {
         # Free-text operator annotation (single line, length-capped).
@@ -1291,8 +1298,8 @@ sub cmd_set {
     }
     else {
         die "Unknown setting '$key' (expected ui, comment, email, "
-            . "expires_at, or token_ttl; dav_scope/home_domain are group "
-            . "settings - see group-set)\n";
+            . "expires_at, or token_ttl; dav_scope/home_domain were retired in "
+            . "0.7.26 - confinement lives on the domain)\n";
     }
 
     write_settings($all);
@@ -2626,6 +2633,16 @@ sub cmd_partner_create {
     die "Creator (--by USERNAME) required\n"
         unless defined $opt{created_by} && length $opt{created_by};
 
+    # SM279: --scope wrote a group dav_scope, which has confined nobody since
+    # 0.7.26. Refused UP FRONT, before anything is created, so a partner is never
+    # left half-provisioned by a flag that was going to do nothing anyway. The
+    # partner itself is still created by dropping the flag; confinement is then
+    # a domain question.
+    die "--scope was retired in 0.7.26 and confines nothing. Create the partner "
+        . "without it, then confine it by naming its role group (role-$name) in "
+        . "the allowed_groups of the domain it may manage.\n"
+        if defined $opt{scope} && length $opt{scope};
+
     my $key;
     {
         # One operator action = two trail entries (below), not one per
@@ -2644,15 +2661,8 @@ sub cmd_partner_create {
         push @caps, 'manage_config'  if $opt{config};
         _grant_account_caps( $name, @caps );
 
-        # SM155: dav_scope is a GROUP setting now. Set it on the account's own
-        # role group (just created by _grant_account_caps), so a scoped partner
-        # is confined through the same group model as an interactive editor -
-        # unioned with any other scoped group it later joins. (The group setter
-        # normalises + rejects traversal.)
-        if ( defined $opt{scope} && length $opt{scope} ) {
-            local $AUDIT_SUPPRESS = 1;
-            cmd_group_settings_set( "role-$name", 'dav_scope', $opt{scope} );
-        }
+        # SM279: the --scope branch that used to set a group dav_scope here is
+        # gone; the flag is refused above rather than accepted and ignored.
         my $all = read_settings();
         $key = _issue_pairing_key( $all, $name );
         write_settings($all);
@@ -3246,33 +3256,40 @@ sub cmd_group_settings_set {
         return { ok => 1 };
     }
 
-    # SM155: the domain binding lives on the GROUP now - a content-root subtree
-    # (dav_scope) that confines members on every channel, plus a home_domain (the
-    # UI pointer). Members of several scoped groups get the union. Empty clears.
+    # SM279: RETIRED. SM155 put the domain binding on the group (a dav_scope
+    # subtree plus a home_domain pointer); SM165 moved confinement to the
+    # DOMAIN-owned model in 0.7.26, and docs/SECURITY.md records that as an
+    # accepted decision. Since then this branch accepted the value, stored it,
+    # and confined nobody: resolve_user_scopes reads Lazysite::Auth::DomainAccess
+    # and never looked at the group field again.
+    #
+    # Refused rather than quietly ignored, and refused rather than left to store
+    # a dead value. An operator setting a confinement is entitled to be told it
+    # is not one - the whole failure this closes is a security setting that
+    # reported success and did nothing. CLEARING it (an empty value) is still
+    # allowed, so an operator can tidy a stale value away without hand-editing
+    # the store.
     if ( defined $key && ( $key eq 'dav_scope' || $key eq 'home_domain' ) ) {
-        my $gs = read_group_settings();
-        $gs->{$group} ||= { label => $group };
         my $v = defined $value ? $value : '';
         $v =~ s/^\s+|\s+$//g;
-        if ( !length $v ) {
-            delete $gs->{$group}{$key};
+        if ( length $v ) {
+            return { ok => 0, kind => 'retired',
+                error =>
+                    "Group '$key' was retired in 0.7.26 and confines nothing. "
+                    . "Access lives on the DOMAIN now: register the domain with its "
+                    . "own content root and name this group in its allowed_groups "
+                    . "(lazysite-domains, or the Domains page). "
+                    . "Pass an empty value here to clear a stale setting." };
         }
-        elsif ( $key eq 'dav_scope' ) {
-            my $scope = normalise_scope($v);    # dies on traversal; undef for '/'
-            if ( defined $scope ) { $gs->{$group}{dav_scope} = $scope }
-            else                  { delete $gs->{$group}{dav_scope} }
-        }
-        else {                                  # home_domain
-            $v = lc $v;
-            die "Invalid home_domain (must be a hostname)\n"
-                unless $v =~ /\A [a-z0-9] (?:[a-z0-9-]*[a-z0-9])?
-                    (?: \. [a-z0-9] (?:[a-z0-9-]*[a-z0-9])? )* \z/x;
-            $gs->{$group}{home_domain} = $v;
-        }
-        write_group_settings($gs);
-        log_event( 'INFO', $group, "group $key set" );
-        cli_audit( 'user-group-settings-set', $group, "key $key" );
-        return { ok => 1 };
+        my $gs = read_group_settings();
+        return { ok => 1, cleared => 0 } unless ref $gs->{$group} eq 'HASH';
+        my $had = exists $gs->{$group}{$key} ? 1 : 0;
+        delete $gs->{$group}{$key};
+        write_group_settings($gs)                                 if $had;
+        log_event( 'INFO', $group, "retired group $key cleared" ) if $had;
+        cli_audit( 'user-group-settings-set', $group, "cleared retired key $key" )
+            if $had;
+        return { ok => 1, cleared => $had };
     }
 
     # SM195: the group's GRANT AUTHORITY - capabilities its members may confer
@@ -3411,12 +3428,19 @@ sub cmd_group_set_cli {
         unless defined $group && defined $key && defined $value;
     my $r = cmd_group_settings_set( $group, $key, $value );
     die "$r->{error}\n" unless $r->{ok};
+    # SM279: clearing a retired key is a distinct outcome and reads as one.
+    if ( exists $r->{cleared} ) {
+        print( $r->{cleared}
+            ? "Cleared the retired '$key' setting on group '$group'.\n"
+            : "Group '$group' carries no '$key' setting.\n" )
+            unless $API_MODE;
+        return $r;
+    }
     # Not every group setting is a boolean. label, description, dav_scope,
     # home_domain and the grant-authority list all take a VALUE, and reporting
     # `group-set g dav_scope other` as "Set dav_scope off" told the operator the
     # opposite of what had just been stored.
-    my %VALUED = map { $_ => 1 }
-        qw(label description dav_scope home_domain grantable);
+    my %VALUED = map { $_ => 1 } qw(label description grantable);
     if ( $VALUED{$key} ) {
         print( length( $value // '' )
             ? "Set $key to '$value' for group '$group'.\n"

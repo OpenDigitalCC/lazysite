@@ -12,7 +12,7 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(read_settings write_settings _consume_lock
     caps_for groups_grant_cap site_grants_manager
-    group_scopes group_home_domain effective_groups touch_credential
+    effective_groups touch_credential
     resolve_user_scopes resolve_home_domain resolve_token_ttl
     read_group_settings write_group_settings @CAP_KEYS);
 
@@ -199,44 +199,22 @@ sub groups_grant_cap {
     return 0;
 }
 
-# SM155: the content-root(s) a set of groups confine their members to. A group
-# may carry a `dav_scope` (a content-root-relative subtree) - the domain binding
-# that moved from the per-account setting to the group. Returns the distinct
-# non-empty scopes across the given groups (0/1/many); empty means unconfined.
-# A member of several scoped groups gets the UNION, consistent with how
-# capabilities union across a user's groups (groups_grant_cap / _group_caps).
-sub group_scopes {
-    my (@groups) = @_;
-    return () unless @groups;
-    @groups = _group_closure(@groups);    # SM121: compound-expanded
-    my $gs = read_group_settings();
-    my ( %seen, @scopes );
-    for my $g (@groups) {
-        next unless ref $gs->{$g} eq 'HASH';
-        my $s = $gs->{$g}{dav_scope};
-        next unless defined $s && length $s;
-        push @scopes, $s unless $seen{$s}++;
-    }
-    return @scopes;
-}
-
-# SM155: the home_domain (UI pointer) for single-domain rooting - defined only
-# when EXACTLY ONE of the groups is scoped (a one-domain editor roots their file
-# browser there; a multi-domain editor gets a switcher, a tracked follow-up).
-# Returns '' otherwise.
-sub group_home_domain {
-    my (@groups) = @_;
-    @groups = _group_closure(@groups);    # SM121: compound-expanded
-    my $gs = read_group_settings();
-    my @hd;
-    for my $g (@groups) {
-        next unless ref $gs->{$g} eq 'HASH';
-        my $s = $gs->{$g}{dav_scope};
-        next unless defined $s && length $s;    # only a scoped group carries one
-        push @hd, ( $gs->{$g}{home_domain} // '' );
-    }
-    return ( @hd == 1 && length $hd[0] ) ? $hd[0] : '';
-}
+# SM279: group_scopes / group_home_domain were REMOVED here.
+#
+# SM155 put the domain binding on the group; SM165 moved confinement to the
+# domain-owned model in 0.7.26 (docs/SECURITY.md records that as an accepted
+# decision) and resolve_user_scopes has read Lazysite::Auth::DomainAccess ever
+# since. These two resolvers were left behind, exported, and called by nothing -
+# so the group `dav_scope` they read was accepted, stored, and enforced nowhere.
+#
+# Deleted rather than deprecated: a resolver nothing calls is not a compatibility
+# surface, it is a second answer to a question that must have exactly one. The
+# CLI verb that wrote the field is refused in tools/lazysite-users.pl, and
+# lazysite-check reports any stale value still in the store.
+#
+# Confinement, in one place: resolve_user_scopes -> DomainAccess::effective_scopes
+# (the content roots of the domains a user's groups may manage), intersected up
+# the created_by chain so a sub-user can never out-reach its creator.
 
 sub write_group_settings {
     require JSON::PP;

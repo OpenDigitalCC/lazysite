@@ -2,11 +2,11 @@
 title: "SM279 - A group's dav_scope is still accepted, still stored, and no longer confines anything"
 subtitle: "The domain-access model replaced it. The CLI verb, the resolver and the help text all survived the replacement, so an operator can set a confinement that has no effect on the manager, WebDAV or MCP."
 brand: plain
-status: candidate
-status-note: "FOUND 2026-08-11 while building the SM267 panel test, which needed a scoped manager and could not get one. NOT investigated beyond the observation below, and NOT fixed - deciding between 'restore the binding' and 'retire the verb' needs someone who knows which model is intended, and getting that wrong in either direction is a security change. Sized S if the answer is retire, M if it is restore."
+status: shipped
+status-note: "RETIRED on main (unreleased) - the operator chose retire over restore on 2026-08-11. The writers refuse: group-set GROUP dav_scope|home_domain VALUE is refused with a message naming the domain model that does confine, the per-account redirect that used to point at group-set now points at allowed_groups instead (a redirect to a dead end is worse than no redirect), and partner-create --scope is refused BEFORE the account is created so a partner is never half-provisioned by a flag that would do nothing. CLEARING is still allowed (an empty value), so a stale setting can be tidied without hand-editing the store. The dead resolvers group_scopes / group_home_domain are DELETED from Lazysite::Auth::Settings along with their module-free processor copies - a resolver nothing calls is not a compatibility surface, it is a second answer to a question that must have exactly one. lazysite-check reports any group still carrying the field as a FAIL, and --fix deliberately does NOT clear it: there is no repair, only a decision, and the stale value is the only remaining evidence that somebody relied on it. t/unit/users/26-group-scope-retired.t covers all four, every assertion confirmed failing against the pre-fix tools (7 of 13). t/unit/manager/30-dav-scope.t lost its group_scopes block - it had been testing dead code since 0.7.26 and reading as coverage. docs/SECURITY.md carries the decision entry. THE LIVE EXPOSURE IS NOT CLOSED BY THIS: any site that set a group dav_scope between 0.7.26 and now has an account that is not confined as intended, and this release DETECTS that rather than repairing it - run lazysite-check on each site."
 ---
 
-# SM279 - a group's `dav_scope` no longer confines
+# SM279 - a group's `dav_scope` no longer confines, and is now retired
 
 ## What was observed
 

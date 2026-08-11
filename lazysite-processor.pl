@@ -858,11 +858,16 @@ sub _site_grants_manager {
     return 0;
 }
 
-# SM155: the content-root scope(s) a set of groups confine their members to, and
-# the single-domain home_domain pointer. Module-free raw-octets read of
-# groups-settings.json to keep the render path module-free (ADR 0001), a local
-# copy of Lazysite::Auth::Settings::group_scopes / group_home_domain (kept in
-# step). Used to root a delegated editor's file browser at their own domain.
+# Module-free raw-octets read of groups-settings.json, keeping the render path
+# free of Lazysite modules (ADR 0001). The store carries each group's
+# capabilities and its nesting, which _group_closure and _groups_grant_cap
+# resolve.
+#
+# SM279: it also USED to carry a `dav_scope` confinement, read here by
+# _group_scopes / _group_home_domain. Those were removed - SM165 moved
+# confinement to the domain-owned model in 0.7.26 and the two copies here were
+# dead code from that day, so the file browser roots from _domain_scopes /
+# _domain_home instead.
 sub _group_settings {
     my $f = "$DOCROOT/lazysite/auth/groups-settings.json";
     return {} unless -f $f;
@@ -919,35 +924,6 @@ sub _group_closure {
         }
     }
     return keys %eff;
-}
-
-sub _group_scopes {
-    my (@groups) = @_;
-    return () unless @groups;
-    @groups = _group_closure(@groups);    # SM121: compound-expanded
-    my $gs = _group_settings();
-    my ( %seen, @scopes );
-    for my $g (@groups) {
-        next unless ref $gs->{$g} eq 'HASH';
-        my $s = $gs->{$g}{dav_scope};
-        next unless defined $s && length $s;
-        push @scopes, $s unless $seen{$s}++;
-    }
-    return @scopes;
-}
-
-sub _group_home_domain {
-    my (@groups) = @_;
-    @groups = _group_closure(@groups);    # SM121: compound-expanded
-    my $gs = _group_settings();
-    my @hd;
-    for my $g (@groups) {
-        next unless ref $gs->{$g} eq 'HASH';
-        my $s = $gs->{$g}{dav_scope};
-        next unless defined $s && length $s;
-        push @hd, ( $gs->{$g}{home_domain} // '' );
-    }
-    return ( @hd == 1 && length $hd[0] ) ? $hd[0] : '';
 }
 
 # SM165: the module-free render-path copy of the DOMAIN-access scope resolution

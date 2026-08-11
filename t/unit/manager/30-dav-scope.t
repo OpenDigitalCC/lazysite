@@ -33,27 +33,16 @@ for my $scope ( 'content/clientA', '/content/clientA', 'content/clientA/' ) {
     ok( !outside_all_scopes( undef, '/anything' ), 'union: undef set confines nothing' );
 }
 
-# --- SM155: group_scopes / group_home_domain resolve from groups-settings ---
-{
-    use File::Temp qw(tempdir);
-    use File::Path qw(make_path);
-    require Lazysite::Auth::Settings;
-    Lazysite::Auth::Settings->import(qw(group_scopes group_home_domain));
-    my $d = tempdir( CLEANUP => 1 );
-    open my $fh, '>', "$d/groups-settings.json" or die $!;
-    print $fh '{"clienta":{"dav_scope":"/content/clienta","home_domain":"clienta.com"},'
-        . '"clientb":{"dav_scope":"/content/clientb"},"plain":{"manage_content":1}}';
-    close $fh;
-    local $Lazysite::Auth::Settings::AUTH_DIR = $d;
-
-    is_deeply( [ sort( Lazysite::Auth::Settings::group_scopes('clienta') ) ],
-        ['/content/clienta'], 'group_scopes: one scoped group' );
-    is_deeply( [ sort( Lazysite::Auth::Settings::group_scopes( 'clienta', 'clientb', 'plain' ) ) ],
-        [ '/content/clienta', '/content/clientb' ], 'group_scopes: union of scoped groups, plain ignored' );
-    is( Lazysite::Auth::Settings::group_home_domain('clienta'), 'clienta.com',
-        'group_home_domain: single scoped group -> its home_domain' );
-    is( Lazysite::Auth::Settings::group_home_domain( 'clienta', 'clientb' ), '',
-        'group_home_domain: multiple scoped groups -> none (switcher case)' );
-}
+# SM279: the group_scopes / group_home_domain block that used to sit here has
+# been REMOVED with the resolvers it tested. They read a group's `dav_scope`,
+# which SM165 stopped consulting in 0.7.26 - so from that release the block was
+# testing dead code, passing, and saying nothing about whether anyone was
+# actually confined. A test that pins a resolver nothing calls is worse than no
+# test: it reads as coverage.
+#
+# What remains above is the live half - path_out_of_scope and outside_all_scopes
+# are what every channel calls to enforce a scope, whatever produced it. The
+# SOURCE of scopes is covered by t/unit/lib/20-domain-access.t, and the
+# retirement itself by t/unit/users/26-group-scope-retired.t.
 
 done_testing();

@@ -439,8 +439,14 @@ per-user flags:
   cookie, which gates the manager UI, the manager API, and
   auth-protected pages in one place. The localhost no-password bypass
   respects it too.
-- `dav_scope` (default unset) — confines the account's WebDAV access
-  (reads and writes) to a path subtree.
+- `dav_scope` — **not an account field.** Confinement is resolved from
+  the DOMAIN model (SM165, 0.7.26): each domain names `allowed_groups`
+  and `locked_users`, and an account's scopes are the content roots of
+  the domains its groups may manage, intersected up the `created_by`
+  chain. The per-account and per-group `dav_scope` settings that
+  preceded it are retired (SM279) and refused by the tooling; the
+  resolved scopes still travel under the name `dav_scopes` everywhere
+  they are enforced.
 
 A corrupt settings file fails safe: `webdav` defaults off (closed) and
 `ui` defaults on (open, matching pre-SM070 behaviour so a damaged file

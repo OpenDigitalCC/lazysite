@@ -113,7 +113,7 @@ raise privilege by another route (SM268 H8). That is a known gap, not a design.
 | Identity | cookie | cookie or token | token | Basic | anonymous or trusted headers |
 | Capability gate | `%ACTION_CAPS` | `%ACTION_CAPS` | per-tool `cap` | per-verb | n/a |
 | Path containment | `validate_path` | `validate_path` | `validate_path` | `sanitise_path` | `realpath` + docroot |
-| Scope (`dav_scope`) | `@REQUEST_SCOPES` | `@REQUEST_SCOPES` | scope union | `authorise` | n/a |
+| Scope (`dav_scopes`, domain-derived) | `@REQUEST_SCOPES` | `@REQUEST_SCOPES` | scope union | `authorise` | n/a |
 | Per-file ACL | `Auth::Acl` | `Auth::Acl` | `Auth::Acl` | `Auth::Acl` | processor's copy |
 | Reserved areas | blocklist | blocklist | blocklist | blocklist | never served |
 

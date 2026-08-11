@@ -616,3 +616,44 @@ residual risk
 
 verdict
 : accepted.
+
+### 2026-08-11 - SM279: the retired group `dav_scope` is refused and reported
+
+what changed
+: the SM165 migration above moved confinement to the domain-owned model in
+  0.7.26 and did not withdraw the mechanism it replaced. `group-set GROUP
+  dav_scope PATH`, the per-account redirect that pointed at it, and
+  `partner-create --scope` all kept accepting a value that
+  `resolve_user_scopes` had stopped reading. Every release from 0.7.26 to
+  0.10.6 stored those values and enforced none of them. The writers now
+  refuse (clearing a stale value is still allowed), the dead resolvers
+  `group_scopes` / `group_home_domain` and their module-free processor copies
+  are deleted, and `lazysite-check` reports any group still carrying the field
+  as a FAIL.
+
+threat delta
+: Elevation of privilege - specifically, a confinement an operator believes
+  is in force and which is not. No enforcement path changed; nothing that was
+  confined becomes unconfined.
+
+controls
+: refusal at the writer rather than a deprecation notice, so the false
+  affordance cannot be exercised at all; `partner-create --scope` refused
+  BEFORE the account is created, so a partner is never half-provisioned by a
+  flag that would do nothing; the check reports and `--fix` deliberately does
+  NOT clear, because the stale value is the only remaining evidence that
+  somebody relied on it and clearing it would destroy that evidence while
+  leaving the account unconfined. Verified by
+  `t/unit/users/26-group-scope-retired.t`, every assertion confirmed failing
+  against the pre-fix tools.
+
+residual risk
+: any site that set a group `dav_scope` between 0.7.26 and this release has an
+  account that is not confined as intended, and this release detects that
+  rather than repairing it - repair is an operator decision about which domain
+  the group should own. `t/unit/manager/30-dav-scope.t` lost its
+  `group_scopes` block: it had been testing dead code since 0.7.26 and reading
+  as coverage.
+
+verdict
+: accepted.
