@@ -2,70 +2,70 @@
 # lazysite-form-handler.pl - form POST receiver, validation, dispatch
 use strict;
 use warnings;
-use POSIX qw(strftime);
+use POSIX       qw(strftime);
 use Digest::SHA qw(hmac_sha256_hex);
-use Fcntl qw(:flock O_RDWR O_CREAT);
+use Fcntl       qw(:flock O_RDWR O_CREAT);
 use DB_File;
-use File::Path qw(make_path);
+use File::Path     qw(make_path);
 use File::Basename qw(dirname);
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP       qw(encode_json decode_json);
 
 my $LOG_COMPONENT = 'form-handler';
 
 if ( grep { $_ eq '--describe' } @ARGV ) {
-    print encode_json({
-        id          => 'form-handler',
-        name        => 'Form Handler',
-        description => 'Receives and dispatches contact form submissions',
-        version     => '1.1',
-        config_file => '',
-        config_schema => [],
-        handler_types => [
-            {
-                type   => 'smtp',
-                label  => 'Send email (SMTP)',
-                schema => [
-                    { key => 'name',           label => 'Name',           type => 'text',    required => JSON::PP::true, default => 'Email delivery' },
-                    { key => 'enabled',        label => 'Enabled',        type => 'boolean', default => 'true' },
-                    { key => 'from',           label => 'From address',   type => 'email',   required => JSON::PP::true, default => 'webforms@example.com' },
-                    { key => 'to',             label => 'To address',     type => 'email',   required => JSON::PP::true, default => 'admin@example.com' },
-                    { key => 'subject_prefix', label => 'Subject prefix', type => 'text',    default => '[Contact] ' },
-                    { key => 'attach_files',   label => 'Attach uploaded files', type => 'boolean', default => 'false',
-                      note => 'When on, files uploaded with the form are attached to the email and listed (name + size) below the message. Off by default. Mind your mail server\'s attachment size limits.' },
-                ],
-                note => 'SMTP connection settings (host, port, TLS) are configured under the Email (SMTP) group header.',
+    print encode_json( {
+            id            => 'form-handler',
+            name          => 'Form Handler',
+            description   => 'Receives and dispatches contact form submissions',
+            version       => '1.1',
+            config_file   => '',
+            config_schema => [],
+            handler_types => [
+                {
+                    type   => 'smtp',
+                    label  => 'Send email (SMTP)',
+                    schema => [
+                        { key => 'name', label => 'Name', type => 'text', required => JSON::PP::true, default => 'Email delivery' },
+                        { key => 'enabled', label => 'Enabled', type => 'boolean', default => 'true' },
+                        { key => 'from', label => 'From address', type => 'email', required => JSON::PP::true, default => 'webforms@example.com' },
+                        { key => 'to', label => 'To address', type => 'email', required => JSON::PP::true, default => 'admin@example.com' },
+                        { key => 'subject_prefix', label => 'Subject prefix', type => 'text', default => '[Contact] ' },
+                        { key => 'attach_files', label => 'Attach uploaded files', type => 'boolean', default => 'false',
+                            note => 'When on, files uploaded with the form are attached to the email and listed (name + size) below the message. Off by default. Mind your mail server\'s attachment size limits.' },
+                    ],
+                    note => 'SMTP connection settings (host, port, TLS) are configured under the Email (SMTP) group header.',
+                },
+                {
+                    type   => 'file',
+                    label  => 'Save to file',
+                    schema => [
+                        { key => 'name', label => 'Name', type => 'text', required => JSON::PP::true },
+                        { key => 'enabled', label => 'Enabled', type => 'boolean', default => 'true' },
+                        { key => 'path', label => 'Storage directory', type => 'text', default => 'lazysite/forms/submissions' },
+                    ],
+                },
+                {
+                    type   => 'webhook',
+                    label  => 'Webhook',
+                    schema => [
+                        { key => 'name', label => 'Name', type => 'text', required => JSON::PP::true },
+                        { key => 'enabled', label => 'Enabled', type => 'boolean', default => 'true' },
+                        { key => 'url', label => 'Webhook URL', type => 'text', required => JSON::PP::true },
+                        { key => 'format', label => 'Format', type => 'select', options => [ 'json', 'slack' ], default => 'json' },
+                    ],
+                },
+            ],
+            child_configs => {
+                pattern    => 'lazysite/forms/*.conf',
+                exclude    => [ 'smtp.conf', 'handlers.conf' ],
+                label_from => 'filename',
             },
-            {
-                type   => 'file',
-                label  => 'Save to file',
-                schema => [
-                    { key => 'name',    label => 'Name',              type => 'text',    required => JSON::PP::true },
-                    { key => 'enabled', label => 'Enabled',           type => 'boolean', default => 'true' },
-                    { key => 'path',    label => 'Storage directory',  type => 'text',    default => 'lazysite/forms/submissions' },
-                ],
-            },
-            {
-                type   => 'webhook',
-                label  => 'Webhook',
-                schema => [
-                    { key => 'name',    label => 'Name',        type => 'text',   required => JSON::PP::true },
-                    { key => 'enabled', label => 'Enabled',     type => 'boolean', default => 'true' },
-                    { key => 'url',     label => 'Webhook URL',  type => 'text',   required => JSON::PP::true },
-                    { key => 'format',  label => 'Format',       type => 'select', options => ['json', 'slack'], default => 'json' },
-                ],
-            },
-        ],
-        child_configs => {
-            pattern    => 'lazysite/forms/*.conf',
-            exclude    => ['smtp.conf', 'handlers.conf'],
-            label_from => 'filename',
-        },
-        actions => [],
-    });
+            actions => [],
+    } );
     exit 0;
 }
 
-my $DOCROOT      = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
+my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 my $LAZYSITE_DIR = "$DOCROOT/lazysite";
 my $FORMS_DIR    = "$LAZYSITE_DIR/forms";
@@ -90,11 +90,11 @@ eval {
     my $auth_user = $ENV{HTTP_X_REMOTE_USER} // '';
     $form{_auth_user} = $auth_user if length $auth_user;
 
-    my $conf = load_form_conf($name);
+    my $conf     = load_form_conf($name);
     my %handlers = load_handlers();
 
-    check_honeypot( $form{_hp} // '' );
-    check_timestamp( $form{_ts} // '', $form{_tk} // '', load_form_secret() );
+    check_honeypot( $form{_hp}          // '' );
+    check_timestamp( $form{_ts}         // '', $form{_tk} // '', load_form_secret() );
     check_rate_limit( $ENV{REMOTE_ADDR} // '0.0.0.0' );
 
     # Binary uploads: reject up front (before any handler runs) if the form does
@@ -137,7 +137,7 @@ eval {
         log_event( 'ERROR', $name, 'form not delivered - no active target',
             ip => $ENV{REMOTE_ADDR} // 'unknown' );
         reject_user( 'This form is not accepting submissions right now '
-            . '(no active delivery target). Please contact the site owner.' );
+                . '(no active delivery target). Please contact the site owner.' );
     }
 
     log_event( 'INFO', $name, 'form received', ip => $ENV{REMOTE_ADDR} // 'unknown' );
@@ -185,6 +185,24 @@ sub load_handlers {
     return %handlers;
 }
 
+# SM231: is a top-level boolean key in a form's own config explicitly OFF?
+# Absent, unreadable or anything else => 0 (not off), so the caller's default
+# stands. Never rejects, never dies - it is consulted from the notification
+# path, which must not be able to affect a submission.
+sub _form_conf_flag_off {
+    my ( $name, $key ) = @_;
+    return 0 unless defined $name && $name =~ /\A[\w.-]+\z/;
+    open my $fh, '<:utf8', "$FORMS_DIR/$name.conf" or return 0;
+    my $off = 0;
+    while ( my $l = <$fh> ) {
+        next unless $l =~ /^\Q$key\E\s*:\s*(.+?)\s*$/;
+        $off = ( $1 =~ /^(?:0|off|false|no)$/i ) ? 1 : 0;
+        last;
+    }
+    close $fh;
+    return $off;
+}
+
 sub load_form_conf {
     my ($name) = @_;
     my $path = "$FORMS_DIR/$name.conf";
@@ -224,16 +242,16 @@ sub load_form_conf {
     #                                     against the part's Content-Type)
     my $upload;
     if ( $text =~ /^\s*upload_(?:max_kb|max_files|accept)\s*:/m ) {
-        my ($kb)    = $text =~ /^\s*upload_max_kb\s*:\s*(\d+)/m;
-        my ($maxn)  = $text =~ /^\s*upload_max_files\s*:\s*(\d+)/m;
-        my ($acc)   = $text =~ /^\s*upload_accept\s*:\s*(.+?)\s*$/m;
-        my @accept  = grep { length }
-                      map { my $x = lc $_; $x =~ s/^\s+|\s+$//g; $x =~ s/^\.//; $x }
-                      split /[,\s|]+/, ( $acc // '' );
+        my ($kb)   = $text =~ /^\s*upload_max_kb\s*:\s*(\d+)/m;
+        my ($maxn) = $text =~ /^\s*upload_max_files\s*:\s*(\d+)/m;
+        my ($acc)  = $text =~ /^\s*upload_accept\s*:\s*(.+?)\s*$/m;
+        my @accept = grep { length }
+            map { my $x = lc $_; $x =~ s/^\s+|\s+$//g; $x =~ s/^\.//; $x }
+            split /[,\s|]+/, ( $acc // '' );
         $upload = {
-            max_kb    => ( $kb   ? $kb   + 0 : 5120 ),     # 5 MiB default
+            max_kb    => ( $kb   ? $kb + 0   : 5120 ),    # 5 MiB default
             max_files => ( $maxn ? $maxn + 0 : 5 ),
-            accept    => \@accept,                          # empty = any type
+            accept    => \@accept,                        # empty = any type
         };
     }
 
@@ -302,7 +320,7 @@ sub dispatch {
         %h_config = %{ $handlers_ref->{$id} };
 
         if ( lc( $h_config{enabled} // 'true' ) eq 'false' ) {
-            return 0;          # handler disabled - did NOT deliver
+            return 0;    # handler disabled - did NOT deliver
         }
     }
     else {
@@ -311,8 +329,8 @@ sub dispatch {
 
     my $type = $h_config{type} // '';
 
-    if    ( $type eq 'file' )    { return dispatch_file( \%h_config, $form ) }
-    elsif ( $type eq 'smtp' )    { return dispatch_smtp( \%h_config, $form ) }
+    if    ( $type eq 'file' ) { return dispatch_file( \%h_config, $form ) }
+    elsif ( $type eq 'smtp' ) { return dispatch_smtp( \%h_config, $form ) }
     elsif ( $type eq 'webhook' || $type eq 'api' ) { return dispatch_webhook( \%h_config, $form ) }
     else {
         log_event( 'WARN', $form->{_form} // '-', 'unknown handler type', type => $type );
@@ -381,6 +399,23 @@ sub _notify_submission {
     return unless -d $logdir;
     ( my $f = defined $form ? "$form" : '' ) =~ s/[\r\n]+/ /g;
 
+    # SM231 emission control, PER FORM. A partner's three-day programme
+    # established the scale: 46 form steps per participant across 15
+    # participants is 690 notices where five were wanted. Batching them would
+    # need pending state and a timer lazysite does not have; the answer is that
+    # a form says whether it announces itself.
+    #
+    # Default ON, so every existing form behaves exactly as before and a site
+    # that never sets this notices nothing. `notify: off` in the form's own
+    # .conf silences that form alone - the other forty-one steps stay quiet
+    # while the five that matter still speak. (Site-wide silencing of the whole
+    # type is the separate `emit.submission` key in notify.conf.)
+    # Read the one key directly rather than through load_form_conf, which
+    # returns delivery targets and calls reject() on a missing or empty config -
+    # aborting a request from inside a best-effort notification would be a
+    # spectacular way to fail.
+    return if _form_conf_flag_off( $form, 'notify' );
+
     # SM136: prefer the shared notify path (bell + optional XMPP delivery). This
     # plugin ships without `use lib`, so locate the module tree the same way the
     # processor's lazy-require does; on any failure fall through to the plain
@@ -404,13 +439,13 @@ sub _notify_submission {
     };
     return if $sent;
 
-    my $line = encode_json({
-        ts      => time(),
-        type    => 'submission',
-        message => "New form submission: $f",
-        target  => $f,
-        url     => '/manager/plugins',
-    });
+    my $line = encode_json( {
+            ts      => time(),
+            type    => 'submission',
+            message => "New form submission: $f",
+            target  => $f,
+            url     => '/manager/plugins',
+    } );
     open my $fh, '>>', "$logdir/notices.jsonl" or return;
     print {$fh} "$line\n";
     close $fh;
@@ -448,7 +483,7 @@ sub dispatch_file {
     # <form>.jsonl, and record the (sanitised) filenames + their dir in the record.
     if ( $form->{_files} && @{ $form->{_files} } ) {
         my $id = strftime( '%Y%m%dT%H%M%S', localtime )
-               . '-' . sprintf( '%04x', int( rand 65536 ) );
+            . '-' . sprintf( '%04x', int( rand 65536 ) );
         my ( $saved, $rel ) = save_uploads( $form->{_files}, $dir, $form_name, $id );
         if (@$saved) {
             $record{_files}     = $saved;
@@ -517,7 +552,7 @@ sub save_uploads {
     for my $f (@$files) {
         $i++;
         my $safe = _safe_filename( $f->{filename} );
-        $safe = "$i-$safe" if -e "$fdir/$safe";   # keep both if names collide
+        $safe = "$i-$safe" if -e "$fdir/$safe";    # keep both if names collide
         open my $w, '>:raw', "$fdir/$safe" or next;
         print {$w} $f->{data};
         close $w;
@@ -550,11 +585,11 @@ sub dispatch_smtp {
     if ( $attach && $form->{_files} && @{ $form->{_files} } ) {
         require MIME::Base64;
         $payload{files} = [ map {
-            {   filename => $_->{filename},
-                type     => $_->{type},
-                size     => length( $_->{data} // '' ),
-                data     => MIME::Base64::encode_base64( $_->{data} // '' ),
-            }
+                { filename => $_->{filename},
+                    type => $_->{type},
+                    size => length( $_->{data}                      // '' ),
+                    data => MIME::Base64::encode_base64( $_->{data} // '' ),
+                }
         } @{ $form->{_files} } ];
     }
 
@@ -635,7 +670,7 @@ sub parse_post {
 
     reject('Upload too large') if $len > $MAX_POST_BYTES;
 
-    binmode STDIN;                       # binary-safe: file parts carry raw bytes
+    binmode STDIN;    # binary-safe: file parts carry raw bytes
     if ( $len > 0 ) { read( STDIN, $data, $len ); }
     else            { local $/; $data = <STDIN> // ''; }
 
@@ -651,7 +686,7 @@ sub parse_post {
             my ( $head, $body ) = ( $1, $2 );
             next unless $head =~ /name="([^"]*)"/i;
             my $name = $1;
-            $body =~ s/\r?\n\z//;        # drop the CRLF that precedes the next boundary
+            $body =~ s/\r?\n\z//;    # drop the CRLF that precedes the next boundary
             if ( $head =~ /filename="([^"]*)"/i ) {
                 my $filename = $1;
                 next unless length $filename;    # an empty file input - skip
@@ -698,8 +733,8 @@ sub check_timestamp {
     my $expected = hmac_sha256_hex( $ts, $secret );
     reject('Invalid submission') unless $tk eq $expected;
     my $age = time() - $ts;
-    reject('Submission too fast')  if $age < 3;
-    reject('Submission expired')   if $age > 7200;
+    reject('Submission too fast') if $age < 3;
+    reject('Submission expired')  if $age > 7200;
 }
 
 sub check_rate_limit {
@@ -709,8 +744,8 @@ sub check_rate_limit {
     my %db;
     tie( %db, 'DB_File', "$FORMS_DIR/.rate-limit.db",
         O_RDWR | O_CREAT, 0o600, $DB_HASH ) or return;
-    my $hour = int( time() / 3600 );
-    my $key  = "$ip:$hour";
+    my $hour  = int( time() / 3600 );
+    my $key   = "$ip:$hour";
     my $count = $db{$key} || 0;
     if ( $count >= 5 ) { untie %db; reject('Rate limit exceeded'); }
     $db{$key} = $count + 1;
@@ -772,22 +807,22 @@ sub _ensure_dir_for {
 }
 
 sub log_event {
-    my ($level, $context, $message, %extra) = @_;
+    my ( $level, $context, $message, %extra ) = @_;
     my $min_level = $ENV{LAZYSITE_LOG_LEVEL} // 'INFO';
-    my %rank = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
+    my %rank      = ( DEBUG => 0, INFO => 1, WARN => 2, ERROR => 3 );
     return if ( $rank{$level} // 1 ) < ( $rank{$min_level} // 1 );
     use POSIX qw(strftime);
-    my $ts = strftime( '%Y-%m-%d %H:%M:%S', localtime );
+    my $ts     = strftime( '%Y-%m-%d %H:%M:%S', localtime );
     my $format = $ENV{LAZYSITE_LOG_FORMAT} // 'text';
     if ( $format eq 'json' ) {
         my $pairs = join ',',
-            map  { '"' . _json_str($_) . '":"' . _json_str($extra{$_}) . '"' }
+            map { '"' . _json_str($_) . '":"' . _json_str( $extra{$_} ) . '"' }
             keys %extra;
         my $json = '{"ts":"' . $ts . '"'
-            . ',"level":"'     . _json_str($level)          . '"'
-            . ',"component":"' . _json_str($LOG_COMPONENT)  . '"'
-            . ',"context":"'   . _json_str($context)        . '"'
-            . ',"message":"'   . _json_str($message)        . '"'
+            . ',"level":"' . _json_str($level) . '"'
+            . ',"component":"' . _json_str($LOG_COMPONENT) . '"'
+            . ',"context":"' . _json_str($context) . '"'
+            . ',"message":"' . _json_str($message) . '"'
             . ( $pairs ? ",$pairs" : '' )
             . '}';
         print STDERR "$json\n";
@@ -796,7 +831,7 @@ sub log_event {
         my $extras = join ' ',
             map { "$_=" . $extra{$_} } keys %extra;
         my $line = "[$ts] [$level] [$LOG_COMPONENT] [$context] $message";
-        $line   .= " $extras" if $extras;
+        $line .= " $extras" if $extras;
         print STDERR "$line\n";
     }
 }

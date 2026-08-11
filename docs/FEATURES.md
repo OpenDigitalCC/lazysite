@@ -826,6 +826,46 @@ human-awaiting-a-response events: form submissions, a password-reset request whe
 no SMTP is configured (previously a silent dead-end), and agent feedback
 submissions.
 
+**The channel (SM231).** A notice declares a **type**, and the type decides how
+it is rendered and where it goes. `lazysite/notify.conf` carries two keys per
+type and one global:
+
+```
+route.submission:    bell,xmpp     # which endpoints this type reaches
+emit.submission:     off           # silence a type without touching its caller
+base_url:            https://...   # how a link is made absolute
+```
+
+The **bell is always written and is always the record** - a route that omits it
+still gets it, because a notice nothing wrote down is not a notice. Types with no
+entry follow their own default, so a site that never writes this file behaves
+exactly as it did before.
+
+A **link is now delivered.** A notice has always carried a `url` and it was
+stored and dropped, so an operator was told that something happened and never
+where to go. The body of each notice comes from a template, per type and per
+endpoint, and the built-in one renders the site name, the message and an absolute
+link. Override any of them by dropping a file at
+`lazysite/notify-templates/<type>.<endpoint>.tt` - full Template Toolkit, with
+`message`, `type`, `target`, `url`, `site` and `base` in scope. A template that
+fails to render falls back to the plain message: a bad template must not silence
+an alert.
+
+**Emission is per caller.** A form that should announce itself does; the rest stay
+quiet. Set `notify: off` in a form's own `.conf` to silence that form alone, or
+`emit.submission: off` in `notify.conf` to silence the type site-wide. Both
+default to on. This exists because volume is real - a three-day programme of 46
+form steps across 15 participants is 690 notices where five were wanted - and
+because the alternative (accumulate and send a digest) needs pending state and a
+timer, which lazysite deliberately does not have.
+
+The registered types are `submission`, `feedback`, `reset-request`,
+`credential-expiring`, `backup-outcome`, `audit-finding` and `service-degraded`.
+The last four are a declared vocabulary with no emitter yet - the platform learns
+those things and has nowhere to say them. An **unregistered** type is still
+delivered, on the generic template, with a warning in the log: refusing it would
+lose an event because a caller arrived before a registry entry.
+
 ## Visitor analytics
 
 **First-party analytics** (SM140): lazysite records its own traffic, so visitor
