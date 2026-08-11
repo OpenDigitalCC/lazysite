@@ -488,6 +488,12 @@ function rowHtml(f) {
 // reports a clear error for a non-empty one). No ACL editor, history, or download
 // - those are file concepts.
 function folderCard(f) {
+  // SM267: a folder can be PROTECTED from here. Until this existed the panel
+  // below could list and publish protected sections and there was no way to
+  // create one - the store was reachable only by hand-editing acls.json, which
+  // is the gap SM181 named and SM267 was carved out to close. Listing something
+  // an operator cannot create is half a feature.
+  var p = escHtml(f.path);
   return '<tr class="mg-perms-row" style="display:none"><td colspan="5" class="mg-perms-cell">'
     + '<div class="mg-perms-card">'
     +   '<div class="mg-perms-head"><span class="mg-perms-title">' + escHtml(f.name) + '/</span></div>'
@@ -496,8 +502,57 @@ function folderCard(f) {
     +     '<button class="mg-btn" onclick="moveFile(this)">&#8644; Rename / Move&hellip;</button> '
     +     '<button class="mg-btn mg-btn-danger" onclick="deleteOneFile(this)">&#128465; Delete</button>'
     +   '</div>'
+    +   '<div class="mg-perms-hint" style="margin-top:0.7em"><b>Protect this section</b> &mdash; '
+    +     'applies to every page and asset under <code>' + p + '/</code>.</div>'
+    +   '<div class="mg-perms-actions">'
+    +     '<label><input type="radio" name="pol-' + p + '" value="gated" checked> '
+    +       '<b>Gated</b> &mdash; only the people named below can see it; everyone else is asked to sign in</label><br>'
+    +     '<label><input type="radio" name="pol-' + p + '" value="draft"> '
+    +       '<b>Draft</b> &mdash; hidden completely: 404 to the public, and absent from the sitemap, feeds and search</label>'
+    +   '</div>'
+    +   '<div class="mg-form-row"><label>Who may read it</label>'
+    +     '<input type="text" class="mg-inp mg-sec-read" placeholder="alice, @editors (leave blank for nobody but you)"></div>'
+    +   '<div class="mg-perms-actions">'
+    +     '<button class="mg-btn mg-btn-primary" onclick="protectSection(this, \'' + p + '\')">Protect this section</button>'
+    +   '</div>'
     + '</div>'
     + '</td></tr>';
+}
+
+// SM267: write the folder ACL that gates or hides a whole section. Uses the same
+// acl-set the per-file editor uses - one writer, so a section and a file are
+// governed by the same store and the same rules.
+function protectSection(btn, path) {
+  var card  = btn.closest('.mg-perms-card');
+  var pol   = card.querySelector('input[name="pol-' + path + '"]:checked');
+  var read  = card.querySelector('.mg-sec-read');
+  var draft = pol && pol.value === 'draft';
+  var who   = read ? read.value.trim() : '';
+
+  var msg = draft
+    ? 'Hide "' + path + '/" completely?\n\nEvery page and asset under it will '
+      + 'return 404 to the public and disappear from the sitemap, the feeds and '
+      + 'search. Signed-in editors can still see it.'
+    : 'Restrict "' + path + '/" to ' + (who || 'you alone') + '?\n\nEveryone else '
+      + 'is asked to sign in.';
+
+  mgConfirm(msg, { ok: draft ? 'Hide it' : 'Restrict it' }).then(function(ok) {
+    if (!ok) return;
+    // The trailing slash is what makes this a SECTION rather than a file - the
+    // store keys folder rules that way and the panel lists on it.
+    fetch(API + '?action=acl-set&path=' + encodeURIComponent(path + '/'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ read: who, write: who, draft: draft })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) { showStatus(d.error || 'Could not protect the section', true); return; }
+      showStatus(draft ? 'Section hidden.' : 'Section restricted.');
+      loadProtectedSections();
+      loadDir(currentDir);
+    })
+    .catch(function(e) { showStatus('Error: ' + e.message, true); });
+  });
 }
 
 function setSort(col) {

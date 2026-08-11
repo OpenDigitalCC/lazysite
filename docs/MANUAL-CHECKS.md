@@ -87,22 +87,91 @@ version it was done on. A pass nobody wrote down has to be repeated.
 
 ### Tier A - blocks the cut
 
-Three checks. Everything here is a control that **writes or destroys**, where the
-data path is tested but the button wiring is not - so the failure mode is a
-control that acts on the wrong thing, or acts when it should not.
+Three checks, each a control that **writes or destroys** where the data path is
+tested and the button wiring is not. About twenty minutes. Do them in order - the
+first one creates what the other two need.
 
-1. **Publish a draft section.** Files -> Protected sections. Put a folder ACL with
-   `draft: true` on a section, confirm the row reads *draft*, press **Publish**.
-   The section goes live and the row flips to *gated* - the read list survives.
-2. **Remove protection** on a gated section. The entry goes entirely and the
-   content is public. This is the wider act of the two and must be distinguishable
-   from Publish at the moment of pressing it.
-3. **Apply, then Undo.** Backups -> Apply to a target with existing content.
-   Confirm the overwrite count is non-zero and changes when you switch target,
-   apply, then press **Undo**. The site returns to its pre-apply state.
+Sign in as an operator. You will need one folder of content you do not mind
+hiding for a minute; make one if there is not one, with two or three pages in it.
 
-If any of these three misbehaves, the cut waits. They are the only ones that can
-lose an operator's content.
+#### A1 - hide a section, then publish it
+
+1. Go to **Files**.
+2. Find your folder in the list. At the right-hand end of its row, click the
+   small **&#9662;** chevron. A card opens underneath it.
+3. In that card, under **Protect this section**, choose **Draft**.
+4. Leave *Who may read it* blank.
+5. Click **Protect this section**, and confirm.
+
+   *Expected:* a message saying the section is hidden. Further down the Files
+   page, the **Protected sections** card now lists your folder with a **draft**
+   badge and a count of what is under it.
+
+6. Open the site in a **private/incognito window** (not signed in) and visit the
+   folder's page - `https://<your site>/<folder>/`.
+
+   *Expected:* **404**. Not a sign-in prompt - the section's existence is what is
+   being withheld.
+
+7. Back in the manager, on the **Protected sections** card, click **Publish** on
+   that row, and confirm.
+
+   *Expected:* the badge changes from **draft** to **gated**, and the row stays -
+   the read list survives. Reload the private window: the page now loads.
+
+**This fails the tier if:** the row does not appear, Publish does not change the
+badge, the page still 404s to the public after publishing, or the row vanishes
+entirely (Publish must not delete the rule - that is the other button).
+
+#### A2 - remove protection completely
+
+1. On the same **Protected sections** row (now showing **gated**), click
+   **Remove protection**.
+2. Read the confirmation before accepting it.
+
+   *Expected:* it says this drops the read list as well, so the section stops
+   being access-controlled - a wider act than Publish, and it should read as one.
+
+3. Accept.
+
+   *Expected:* the row disappears from the card entirely. The folder is ordinary
+   content again.
+
+**This fails the tier if:** the confirmation is indistinguishable from Publish's,
+or the row survives, or the content is still gated afterwards.
+
+#### A3 - apply a site package, then undo it
+
+Needs a second registered domain with its own content root and at least one page
+in it. If you do not have one, **skip A3 and say so** - a skipped check recorded
+as skipped is fine; a guessed one is not.
+
+1. Go to **Backups**. If there is no site package listed, create one first with
+   **Export site** on the Domains page for any domain.
+2. On a package row, click **Apply**. A panel opens.
+3. In **Apply to**, choose your second domain.
+
+   *Expected:* a block appears saying how many files are new and how many would
+   be **overwritten**. Note the overwrite number.
+
+4. Change **Apply to** to a different target, then change it back.
+
+   *Expected:* the numbers **change** when the target changes. A number that
+   stays the same is a cached first answer, and that is a failure.
+
+5. Click **Apply package** and confirm.
+
+   *Expected:* a success message, and a bar appears at the top of the page
+   offering **Undo - restore <snapshot name>**.
+
+6. Visit the target domain and confirm its content is now the package's.
+7. Click **Undo** in that bar, and confirm.
+
+   *Expected:* a restore runs. Visit the target domain again - it is back to what
+   it was before step 5.
+
+**This fails the tier if:** the overwrite count does not change with the target,
+the Undo bar does not appear, or Undo does not restore the previous content.
 
 ### Tier B - blocks the minor bump, not the cut
 
