@@ -1,8 +1,8 @@
 ---
 title: "SM139 - Packaged distribution: common .deb + environment .debs + unprivileged provisioning"
 brand: plain
-status: partial
-status-note: "increments 1-6 shipped (0.6.10-0.7.5); OPEN: apt-repo publication + signing-key management (candidate host: the Forgejo instance)"
+status: shipped
+status-note: "CLOSED 2026-08-11. Increments 1-6 shipped (0.6.10-0.7.5) and are the substance of this filing: the deb family, site-user provisioning and per-site channels are all in the field. The remaining item - apt-repository publication and signing-key management - is split to [[SM272]] because it is a different kind of work (hosting and key custody, not packaging) and carrying it here made a shipped feature read as unfinished for months. ORIGINAL: increments 1-6 shipped (0.6.10-0.7.5); OPEN: apt-repo publication + signing-key management (candidate host: the Forgejo instance)"
 ---
 
 # SM139 - Packaged distribution: common .deb + environment .debs + unprivileged provisioning

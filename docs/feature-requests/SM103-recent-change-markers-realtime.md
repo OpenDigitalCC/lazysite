@@ -2,8 +2,8 @@
 title: "SM103 - recent-change markers and real-time presence"
 subtitle: "A dot for what changed lately; later, live audit and change notifications"
 brand: plain
-status: partial
-status-note: "phase 1 (recent-change markers) shipped in 0.6.1; OPEN: phase 2 real-time presence"
+status: shipped
+status-note: "CLOSED 2026-08-11. Phase 1 (recent-change markers) shipped in 0.6.1 and is the whole of what this filing asked for. Phase 2 (real-time presence) is NOT abandoned - it was superseded by [[SM221]], which designs the transport properly (WebSocket, a `realtime` channel capability with its own killswitch, manager-first phasing) rather than bolting SSE onto a CGI, where a worker per open stream is the wrong shape. Carrying this as 'partial' pointed at work that had moved. ORIGINAL: phase 1 (recent-change markers) shipped in 0.6.1; OPEN: phase 2 real-time presence"
 ---
 
 ::: widebox
