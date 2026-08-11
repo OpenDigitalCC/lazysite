@@ -93,6 +93,30 @@ for my $e ( @{$env} ) {
     push @out, "$name\n: $desc\n\n";
 }
 
+push @out, <<'DEV';
+## Development-only: nginx
+
+nginx is **not** a runtime or build dependency. It is used by two tests, both
+of which skip cleanly when it is absent:
+
+- `t/lint/34-front-end-configs-parse.t` runs `nginx -t` over every shipped
+  nginx config, so one that will not start cannot ship. A front-end config that
+  fails to parse takes a site down at the front door rather than degrading.
+- `t/integration/42-hestia-proxy-gates-statics.t` starts nginx against the
+  rendered Hestia proxy template and reproduces SM283's field measurement.
+
+Install with `apt install nginx-light` (no service needs to run; the tests use
+their own prefix, config and port). `openssl` is used to make a throwaway
+certificate for the SSL template.
+
+Worth stating plainly, because it is the lesson of SM283: the defect was in an
+nginx config, on a repo whose entire coverage of nginx configs was text
+matching, and the text matched. These two tests skipping is a real gap wherever
+they skip - `t/lint/33` still pins the same files by text so that something
+holds there, but it is the weaker check, not an equivalent one.
+
+DEV
+
 push @out, <<'FOOT';
 ## Core modules
 
