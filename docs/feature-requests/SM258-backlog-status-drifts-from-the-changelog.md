@@ -3,7 +3,7 @@ title: "SM258 - A shipped item stays open in the backlog, and no test notices"
 subtitle: "The CHANGELOG names the SM numbers each release carried. Nothing compares that against the docs' own status headers, so an item can ship, deploy, and go on reporting itself as open work."
 brand: plain
 status: shipped
-status-note: "IMPLEMENTED in the 0.10.4 edge line (2026-08-09, commit 6f0e629) as t/lint/26-backlog-status-matches-changelog.t. It found SM247 had shipped with no filing at all on its first run. It then FAILED TO CATCH ITSELF: its CHANGELOG entry was written inside SM254 bullet, so it read as a mention rather than a claim and this doc stayed candidate through its own release. Fixed by splitting the bullet and adding a buried-pair check. Filed 2026-08-08 after correcting the SAME drift twice in one session: 25 items at the 0.10.2 cut, then 10 more at 0.10.3 - four of which were among the 25 and had drifted straight back. The existing lint (t/lint/09-feature-request-status.t) cannot catch this by construction: it checks a status against its own status-note, so an item whose note never mentioned shipping is internally consistent while being wrong. Deliberately NOT written alongside the correction it polices - a lint authored in the same breath as its fix tends to be shaped to pass."
+status-note: "STATUS CORRECTED 2026-08-11: this shipped in 0.10.4, said so in its own note, and stayed `candidate` for three releases - which is exactly the drift it was written to catch, on the one document that should have been immune. Recorded rather than quietly flipped, because it demonstrates the blind spot instead of theorising it: t/lint/09 reads a status against its own status-note, so a note describing a shipped thing while the status says candidate is internally CONSISTENT and invisible to it. The sibling lint (t/lint/26) reads the CHANGELOG instead and is what should have caught this. ORIGINAL: IMPLEMENTED in the 0.10.4 edge line (2026-08-09, commit 6f0e629) as t/lint/26-backlog-status-matches-changelog.t. It found SM247 had shipped with no filing at all on its first run. It then FAILED TO CATCH ITSELF: its CHANGELOG entry was written inside SM254 bullet, so it read as a mention rather than a claim and this doc stayed candidate through its own release. Fixed by splitting the bullet and adding a buried-pair check. Filed 2026-08-08 after correcting the SAME drift twice in one session: 25 items at the 0.10.2 cut, then 10 more at 0.10.3 - four of which were among the 25 and had drifted straight back. The existing lint (t/lint/09-feature-request-status.t) cannot catch this by construction: it checks a status against its own status-note, so an item whose note never mentioned shipping is internally consistent while being wrong. Deliberately NOT written alongside the correction it polices - a lint authored in the same breath as its fix tends to be shaped to pass."
 ---
 
 # SM258 - the backlog drifts from the CHANGELOG
@@ -20,7 +20,7 @@ Every release CHANGELOG entry names the SM numbers it carried:
 Every feature-request doc declares its own status:
 
 ```yaml
-status: candidate | shipped | partial | parked | superseded
+status: shipped | shipped | partial | parked | superseded
 ```
 
 Nothing compares the two. So an item is released, tagged, packaged and deployed
