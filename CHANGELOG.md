@@ -28,6 +28,135 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
+## 0.10.7 - EDGE: a protected section was protecting its pages and publishing its files (2026-08-11)
+
+An edge build on 0.10.6, and the reason to take it is SM283: on Hestia, every
+site with a protected section has been serving that section's images, PDFs, text
+and archives to anyone who knew the path. The pages gated correctly throughout,
+which is why nobody saw it.
+
+**OPERATOR ACTION - this fix is NOT delivered by upgrading the packages.** The
+layer at fault is nginx, and lazysite has never shipped a Hestia nginx template,
+so the new one has to be installed and each domain moved onto it. Same shape as
+SM248: correct engine code made unreachable by the layer in front of it, and
+therefore fixed by deployment configuration rather than by code in the payload.
+
+```bash
+cp /usr/share/lazysite-hestia/templates/lazysite-proxy.* \
+   /usr/local/hestia/data/templates/web/nginx/
+lazysite-hestia-list.sh                 # who is affected
+lazysite-hestia-update-all.sh --proxy   # stage + apply, rebuilds vhosts
+```
+
+Then confirm from outside, with no credentials:
+`curl -sI https://<domain>/ | grep -i x-lazysite-front` should answer
+`X-Lazysite-Front: hestia-proxy/acl`. No header means the domain is still on a
+stock proxy template.
+
+- SM283 (a910219, 44dec16) **the front end served what the ACL refused.** On
+  Hestia the request path is nginx to Apache. Everything lazysite enforces lives
+  in the Apache half, and all four shipped Hestia templates were Apache; Hestia's
+  own nginx proxy answers a fixed list of static EXTENSIONS straight off the
+  docroot, so those requests never reached the rules. Measured on a live site,
+  not inferred: the same bytes uploaded into one ACL'd folder under five
+  extensions, four served anonymously and byte-identical, only `.dat` gated -
+  because `.dat` was the one extension absent from the list. Deciding this by
+  extension cannot be made safe: any such list is a list of the types that happen
+  to be protected. The new `lazysite-proxy` template hands a static request back
+  to Apache whenever the site has an ACL store, and changes nothing for a site
+  without one, so protecting a path stays a pure content action - no vhost
+  regeneration and no reload.
+
+  Three further protections came with it, none of them reported, all of them
+  invisible for the same reason: **when a layer is missing, every protection at
+  that layer is missing.** The engine directory is denied at the proxy too (a
+  stock proxy serves `lazysite/backups/preinstall-*.tar.gz` - a complete snapshot
+  of the site taken at install - wherever `gz` is on the extension list); so are
+  `.brief` sidecars; the SM248 per-domain registries are routed to the engine;
+  and the WebDAV body cap is raised so large uploads reach the origin.
+
+  There is now an **observable**, which the filing correctly identified as its
+  own finding: three rebuilds and a template install had all produced
+  byte-identical responses, so an operator following the release note had no way
+  to tell whether anything had changed. `t/lint/33` binds the header to the ACL
+  branch, so a template cannot claim it without carrying the rule.
+  `lazysite-hestia-list.sh` flags an affected domain as
+  `ACL-BYPASSED-BY-PROXY(SM283)`, and `lazysite-hestia-update-all.sh` reports on
+  every run whether the front end was checked - including when it was not.
+- SM284 (57756f8) **the other four WebDAV verbs explain themselves.** SM235 made
+  a PUT into an unwritable directory answer 507 with the condition named and a
+  server fault distinguished from a permission decision. DELETE, MOVE, COPY and
+  MKCOL met the identical condition and answered "Delete failed", "Operation
+  failed", or a 409 worded almost exactly like the one MKCOL returns for a
+  genuinely missing parent - and retry, ask and give up are all consistent with
+  those. All five now share one helper, which names WHICH directory failed
+  (MOVE writes two, and can fail with the destination perfectly writable), and
+  MKCOL's two 409s are two answers. Building the fixture found two defects
+  nobody had filed: a MOVE could silently become a COPY, because the
+  copy-then-remove fallback never checked the removal and answered 201 with both
+  copies live; and once that was fixed, a failed MOVE left the copy behind.
+- SM266 / SM267 / SM277 (5e508f9, 0a63273) the manager UI batch. Protected
+  sections are listed with policy, read list and recursive counts, scope-filtered
+  so a confined manager cannot learn that content exists outside their scope; a
+  folder can now be protected from its own actions card, with the policy offered
+  as a choice of two worded for what each DOES; Publish clears the draft flag and
+  keeps the read list, while Remove protection deletes the entry, because those
+  are different decisions. Shipped first with the panel able to LIST protected
+  sections and not create one - the operator found it, and it is recorded here
+  because a half-built feature that reports itself complete is worse than an
+  absent one. Preview-as-public is split out as SM282, not rushed in behind the
+  correction.
+- SM278 (5e508f9) **a security setting reported success and did nothing.** The
+  ACL writer silently dropped `draft`, so `set_permissions` with `draft:true`
+  returned `ok:1` and stored an entry without it. Found by a site agent
+  re-testing 0.10.6. The report named one tool; the mechanism reached all of
+  them, because all 51 MCP tools published an `inputSchema` that nothing
+  enforced - an unknown argument was accepted and ignored. Both halves fixed:
+  the writer honours the flag, and `tools/call` validates against the schema it
+  publishes.
+- SM279 (587f30e, 861cd9d) the group `dav_scope` is retired, by decision rather
+  than repair. It has been accepted, stored and enforced nowhere since 0.7.26,
+  when domain-owned access replaced it. The writers now refuse it with a message
+  naming the model that does confine; the dead resolvers are deleted, because a
+  resolver nothing calls is a second answer to a question that must have one; and
+  `lazysite-check` reports a group still carrying the field as a FAIL. **`--fix`
+  deliberately does not clear it**: there is no repair here, only a decision, and
+  the stale value is the only remaining evidence that somebody relied on it.
+  **Any site that set a group `dav_scope` between 0.7.26 and now has an account
+  that is not confined as intended** - this release detects that rather than
+  repairing it.
+- SM231 (0ff239b) notification becomes a channel rather than a function: a
+  registry of types, templates that finally deliver the `url` they always
+  documented, routing with a bell that cannot be turned off, and emission control
+  per type and per form. `Notify.pm` was the least-verified module in the tree at
+  56.7%; it is now 89.6%.
+- SM153 (2bd02c8) a menu-complete manager walkthrough in `docs/manager-ui-guide/`,
+  written for three readers - someone reviewing the product, an agent being
+  onboarded, and whoever is owed a tutorial. Every entry carries a **Negative**
+  row, which is where an unenforced capability hides. `t/lint/32` checks it
+  against the manager's own nav in both directions, so a new menu item cannot
+  ship undocumented and a removed one cannot leave a stale page.
+- SM274 (c71812c) `check --fix` restores group write on content directories, and
+  nothing else. The narrow answer on purpose: widening modes on a live site is
+  not a repair a tool should decide.
+- SM269 phase 2 (16a5da1) the tier ladder - `make tier-dev`, `tier-review`,
+  `tier-release` - so there is one answer per situation instead of a judgement
+  call about which subset to run.
+- Testing: **lazysite can now run a real front end.** `t/lint/34` puts every
+  shipped nginx config through `nginx -t`, and
+  `t/integration/42` starts nginx against the Hestia proxy template and
+  reproduces SM283's measurement. Both skip where nginx is absent. This is the
+  second time a defect has been found in a config the suite could only text-match
+  (SM268 H17 was the first), and this time running the server also **falsified an
+  explanation this release had written into three separate files** - the
+  protection was real, the stated reason for it was wrong, and no text match
+  would ever have disagreed.
+- Docs: `docs/MANUAL-CHECKS.md` is split into tiers by risk with a register of
+  what was actually walked, and tier A is corrected to gate **promotion** rather
+  than the cut - a manual pass over new UI cannot block the release that
+  introduces it, which is what the previous wording asked for. New filings:
+  SM278-SM284.
+
 ## 0.10.6 - EDGE: the release that told you to do something it had not made safe (2026-08-11)
 
 An edge build on 0.10.5, and it exists because of a live upgrade. 0.10.5's

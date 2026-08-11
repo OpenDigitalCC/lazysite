@@ -1,3 +1,56 @@
+lazysite (0.10.7-1) unstable; urgency=medium
+
+  * EDGE build on 0.10.6. OPERATOR ACTION REQUIRED: this release contains a fix
+    that upgrading the packages does NOT deliver.
+  * SM283 a protected section has been gating its pages and serving its images,
+    PDFs, text and archives to anyone who knew the path. On Hestia the request
+    path is nginx to Apache; every access rule lazysite enforces lives in the
+    Apache half, and Hestia's own nginx proxy answers a fixed list of static
+    EXTENSIONS straight off the docroot, so those requests never reached the
+    rules. Measured on a live site: the same bytes in one ACL'd folder under
+    five extensions, four served anonymously, only the extension absent from
+    the list gated. lazysite had never shipped a Hestia nginx template, so the
+    fix is a new one - lazysite-proxy.tpl/.stpl - and it must be installed and
+    applied per domain:
+        cp /usr/share/lazysite-hestia/templates/lazysite-proxy.* \
+           /usr/local/hestia/data/templates/web/nginx/
+        lazysite-hestia-list.sh                 # who is affected
+        lazysite-hestia-update-all.sh --proxy   # stage, apply, rebuild
+    Confirm from outside with no credentials:
+        curl -sI https://DOMAIN/ | grep -i x-lazysite-front
+    which must answer "X-Lazysite-Front: hestia-proxy/acl". The template also
+    carries the engine-directory deny (a stock proxy will serve
+    lazysite/backups/preinstall-*.tar.gz, a full snapshot of the site, wherever
+    gz is on the extension list), the .brief deny, the per-domain registry
+    routes and a raised WebDAV body cap.
+  * SM284 DELETE, MOVE, COPY and MKCOL now report a write failure the way PUT
+    has since 0.10.2: 507 when the server is at fault, the condition named, a
+    server fault distinguished from a permission decision, and no filesystem
+    path. MOVE names which of its two directories failed. Also fixes a MOVE
+    that could silently become a COPY, answering 201 with both copies live.
+  * SM278 set_permissions with draft:true returned ok and stored an entry
+    without it - a security setting reporting success and doing nothing. The
+    same mechanism reached all 51 MCP tools, which published an argument schema
+    that nothing enforced; tools/call now validates against it.
+  * SM279 the group dav_scope is retired. It has been accepted, stored and
+    enforced nowhere since 0.7.26. The writers refuse it, the dead resolvers are
+    deleted, and lazysite-check reports a group still carrying it as a FAIL.
+    --fix deliberately does not clear it: there is no repair, only a decision.
+    ANY SITE that set a group dav_scope between 0.7.26 and now has an account
+    that is not confined as intended - run lazysite-check on each site.
+  * SM266/267/277 the manager UI batch: protected sections listed with policy,
+    read list and recursive counts, and a folder can now be protected from its
+    own actions card.
+  * SM231 notification becomes a channel - a type registry, templates that
+    deliver the url they always documented, routing, and per-type emission
+    control.
+  * SM153 a menu-complete manager walkthrough in docs/manager-ui-guide/, with a
+    lint that checks it against the manager's nav in both directions.
+  * SM274 check --fix restores group write on content directories, nothing else.
+  * SM269 phase 2: the tier ladder (make tier-dev / tier-review / tier-release).
+
+ -- Stuart Mackintosh <sjm@opendigital.cc>  Tue, 11 Aug 2026 18:00:00 +0000
+
 lazysite (0.10.6-1) unstable; urgency=medium
 
   * EDGE build on 0.10.5, and it exists because 0.10.5 told every operator to do
