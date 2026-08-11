@@ -64,6 +64,30 @@ Capabilities are channel x action grants carried by **groups**
 
 ## Tests
 
+### Which tests to run when (the tier ladder)
+
+One answer per situation, so "which directory" stops being the question people
+get wrong. `make tiers` prints this.
+
+| Tier | Cost | When | What |
+|---|---|---|---|
+| `make tier-dev AREA=x` | seconds | every edit | compile + tidy lint, plus `t/unit/<AREA>/` |
+| `make tier-review` | ~2 min | branch handoff | the whole plain suite at `-j4` |
+| `make tier-release` | ~80 min | once per cut | suite, then bench, then coverage |
+
+There is deliberately **no scheduled tier**. SM269 phase 3 has to justify one by
+emitting a worklist somebody uses; measurement without a consumer is not a tier.
+
+Two measured facts that explain the shape (SM269 phase 0/1, 6 cores): the plain
+suite is ~330s sequential and ~122s at `-j4`, and the release gate is ~80
+minutes of which **coverage is 92%**. So the ladder does not speed up the gate -
+nothing short of phase 3 does. It exists so a problem surfaces while the code is
+being written rather than at the cut.
+
+Every tier passes `-l`. Without it, tests that load `Lazysite::` modules die
+with zero tests run and `prove` reports a failure whose cause is not on screen.
+
+
 Five-level taxonomy under `t/`: `unit/`, `integration/`, `journey/`, `smoke/`,
 `lint/`, plus `tools/`. Run `prove -r t/`; the run prints its own totals on the
 final `Files=… Tests=…` line, which is the number to quote. (A count written
