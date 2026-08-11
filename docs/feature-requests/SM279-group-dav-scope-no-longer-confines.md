@@ -42,16 +42,29 @@ still works. Nothing on the manager/DAV/MCP path calls it any more:
 (`Lazysite::Auth::DomainAccess`), whose own header says it *"replaces the
 per-group dav_scope of SM155"*.
 
-So the replacement looks deliberate and complete on the enforcement side. What
-was left behind is everything that ADVERTISES the old mechanism:
+The replacement is deliberate, complete on the enforcement side, and on the
+security record. `docs/SECURITY.md` carries it as an accepted decision:
+
+> **2026-07-18 - SM165: domain-owned access-control model (0.7.26)** - access
+> confinement moved from a per-user/per-group `dav_scope` to a domain-owned
+> model [...] enforcement code unchanged (only the SOURCE of `dav_scopes`
+> moved).
+
+So the intended model is not in doubt. What was left behind is everything that
+ADVERTISES the old mechanism:
 
 - `group-set GROUP dav_scope PATH` accepts and stores it.
 - `settings USERNAME` prints `dav_scope: (unset - set on a group)`, which tells
   the reader the setting exists and where to set it.
 - `group_scopes` / `group_home_domain` remain exported.
-- The processor keeps a module-free copy (`_group_scopes`) and does use it, for
-  render-time rooting - so the field is not entirely inert, which makes this
-  harder to reason about, not easier.
+- The processor keeps module-free copies (`_group_scopes`, `_group_home_domain`)
+  which are **defined and never called** - it roots the file browser from
+  `_domain_scopes` / `_domain_home` instead.
+
+**Corrected 2026-08-11**: an earlier draft of this filing said the processor
+still used its copy for render-time rooting. It does not. `_group_scopes` is
+dead code, so the field is inert on EVERY path - enforcement and rooting alike.
+That makes the decision simpler, not harder.
 
 ## Why it matters
 
@@ -64,6 +77,17 @@ two because the thing not done is an access-control boundary.
 **Not claimed:** that any live site is currently exposed by this. Sites confined
 by the domain-access model are confined. This is about the OTHER route still
 being offered.
+
+## The window
+
+The migration shipped in **0.7.26 on 2026-07-18**. Every release since -
+0.8.x, 0.9.x, 0.10.x - has accepted `group-set GROUP dav_scope PATH`, stored
+it, and confined nobody. An operator who used it in that window has a user they
+believe is confined and who is not.
+
+This is checkable without a decision and should be checked first: any group
+carrying `dav_scope` in `groups-settings.json` is either a live confinement gap
+or a stale value that should be cleared.
 
 ## The decision to take first
 
