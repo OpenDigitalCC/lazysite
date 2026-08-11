@@ -3,7 +3,7 @@ title: "SM283 - A protected section gates its pages and serves its images, PDFs 
 subtitle: "SM223's enforcement is correct. Most static requests never reach it, because lazysite's own nginx guidance tells the front end to serve them directly - and which ones gate is decided by file extension."
 brand: plain
 status: candidate
-status-note: "FILED 2026-08-11 from the site agent's brief of 2026-08-10, re-confirmed against 0.10.6 on 2026-08-11 with the correct Apache template installed. NOT FIXED. This is a LIVE, FAIL-OPEN DISCLOSURE on deployed sites: anonymous requests retrieve byte-identical copies of gated .png, .pdf, .txt and .bin files. Measured, not inferred - same 11829 bytes uploaded under five extensions into one ACL'd folder, four served, one gated. Sized M and the first hour is a decision, not code: whether the front end excludes ACL-covered paths or all statics route through the engine."
+status-note: "FILED 2026-08-11 from the site agent's brief of 2026-08-10, re-confirmed against 0.10.6 on 2026-08-11 with the correct Apache template installed. NOT FIXED. This is a LIVE, FAIL-OPEN DISCLOSURE on deployed sites: anonymous requests retrieve byte-identical copies of gated .png, .pdf, .txt and .bin files. Measured, not inferred - same 11829 bytes uploaded under five extensions into one ACL'd folder, four served, one gated. ROOT-CAUSED 2026-08-11: every template lazysite ships already carries the ACL branch, but all four HESTIA templates are Apache and no Hestia NGINX PROXY template is shipped - so Hestia's own default proxy serves its static extension list directly and Apache never sees those requests. Sized S-M: the logic exists and is proven, it is in the wrong file for this deployment shape."
 ---
 
 # SM283 - the front end serves what the ACL refuses
@@ -41,17 +41,17 @@ types that happen to be protected, and everything left off it is silently public
 
 ## The cause is ours
 
-`tools/lazysite-nginx-vhost.pl` publishes the multi-site static guidance, and its
-own description is the defect:
+Not the guidance, as an earlier draft of this filing said - see ROOT CAUSE below,
+which supersedes that reading. `tools/lazysite-nginx-vhost.pl` describes serving
+per-domain statics directly, and it pairs that with the ACL branch that makes it
+safe. The defect is that on Hestia the layer doing the serving is one we ship no
+template for at all.
 
-> Static files for each alias domain then serve directly from its content root;
-> clean page URLs and /lazysite, /cgi-bin, /manager still reach the processor.
+It is still a product defect rather than a deployment quirk: lazysite supports
+Hestia as a first-class target, ships four templates for it, and none of them is
+the one that answers these requests.
 
-That is the bypass, and lazysite tells operators to configure it. So this is a
-product defect, not a deployment quirk - a site following our documentation
-arrives here.
-
-The disclosed responses corroborate it: a served file carries
+The disclosed responses point straight at it: a served file carries
 `expires: Thu, 31 Dec 2037`, an `etag` and a `last-modified`, and **none** of
 `x-content-type-options`, `x-frame-options` or `referrer-policy` - which lazysite
 puts on everything it serves, its own 404 included. The auth wrapper is not in
@@ -74,17 +74,61 @@ runs across two rebuilds produced byte-identical responses. An operator followin
 the release note has done everything asked of them and has no way to tell from
 outside whether anything changed.
 
-## What to decide first
+## ROOT CAUSE (found 2026-08-11, by reading the shipped templates)
 
-**Either** the front end carries an exclusion for ACL-covered prefixes, **or**
-statics under a protected prefix route to the auth wrapper before any static
-handler claims them. The second is safer and slower; the first is faster and
-needs the exclusion regenerated whenever an ACL changes, which is a
-synchronisation problem with a fail-open failure mode.
+The agent could not determine this from the client side and said so. It is
+determinable from the tree, and the answer is narrower than the brief assumed.
 
-My inclination is the second for correctness, with the performance question
-answered by measurement rather than assumption - a protected section is a small
-fraction of a site, so the cost applies to little of the traffic.
+**Every template lazysite ships already carries the ACL branch:**
+
+```
+installers/apache/vhost-cgi.conf.example   acls.json x4
+installers/hestia/lazysite-cgi.tpl         acls.json x4
+installers/hestia/lazysite-cgi.stpl        acls.json x4
+installers/hestia/lazysite-fcgi.stpl       acls.json x4
+installers/nginx/vhost-cgi.conf.example    acls.json x2
+installers/nginx/vhost-fcgi.conf.example   acls.json x2
+```
+
+So the guidance is right, the generator is right, and SM268 H15 did its job.
+
+**The gap is that all four Hestia templates are APACHE.** `lazysite-app.tpl` is
+`RewriteCond`; so are the rest. Lazysite ships **no Hestia nginx proxy
+template**.
+
+On Hestia the path is nginx -> Apache. Hestia's own default nginx proxy template
+serves a fixed list of static extensions directly from the docroot with
+`expires max`, and proxies everything else back. So:
+
+- `.png`, `.pdf`, `.txt`, `.bin` are on Hestia's static list -> **nginx answers,
+  Apache never sees it, our correct ACL rules are unreachable**;
+- `.dat` is not on that list -> proxied to Apache -> gated, exactly as designed.
+
+That accounts for every observation in the brief: the extension-decided split,
+the `expires: Thu, 31 Dec 2037`, the `etag`, and the absence of all three
+lazysite security headers on a disclosed file. It also explains why three
+rebuilds and a template install changed nothing - every one of them re-rendered
+the APACHE template, which was never the layer answering.
+
+## What to build
+
+Ship a **Hestia nginx proxy template** (`lazysite-proxy.tpl` / `.stpl`) whose
+static location carries the same ACL branch `installers/nginx/vhost-cgi.conf.example`
+already has, and have `install-hestia.sh` select it alongside the Apache one. The
+logic is written and proven; it is in the wrong file for this deployment shape.
+
+This also means **the fix is deployment configuration**, so per SM248's lesson a
+site does not get it from a package upgrade alone - the proxy template has to be
+installed and the vhost re-rendered, and the release note must say so.
+
+## The decision this filing opened, now closed
+
+It asked whether the front end should exclude ACL-covered prefixes or route
+protected statics through the wrapper. **Neither needs deciding**: the shipped
+nginx template already does the second, gated on the presence of `acls.json`, so
+a site with no ACLs keeps direct serving at full speed and a site with them pays
+only where it asked to. That choice was made in SM268 H15 and holds. What remains
+is to put it in the file Hestia actually reads.
 
 ## Acceptance
 
