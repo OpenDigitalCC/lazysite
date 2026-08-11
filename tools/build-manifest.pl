@@ -7,13 +7,13 @@
 # byte-identical JSON (modulo the "generated" timestamp).
 use strict;
 use warnings;
-use Digest::SHA qw();
-use JSON::PP qw();
-use File::Find qw();
+use Digest::SHA    qw();
+use JSON::PP       qw();
+use File::Find     qw();
 use File::Basename qw(dirname basename);
-use POSIX qw(strftime);
-use Getopt::Long qw();
-use FindBin qw();
+use POSIX          qw(strftime);
+use Getopt::Long   qw();
+use FindBin        qw();
 
 my %opt = (
     staged            => undef,
@@ -148,6 +148,28 @@ sub sha256_of {
 sub classify_file {
     my ( $rel, $cfg ) = @_;
 
+    # SM271: a DOTFILE at the repo ROOT is tooling state, not shippable content.
+    #
+    # This gate refuses any file matching no rule, which is right for ordinary
+    # content - an unclassified file is one nobody decided about, and shipping
+    # it, or silently omitting it, is how a release acquires something nobody
+    # reviewed. It is wrong for the repo root, which is where per-run tooling
+    # state conventionally goes.
+    #
+    # Three tools tripped it in one session, none of them carelessly: `.prove`
+    # (from `prove --state=save`), a test lockfile, and `.test_info.<pid>.json`
+    # (written by yath, one per job, deleted a fraction of a second later). Six
+    # tests build a manifest at the repo root, so each of those failed all six -
+    # with an error naming the manifest rather than the file. Twice it presented
+    # as a parallel-safety problem and once as harness incompatibility, and it
+    # produced one confident wrong diagnosis before being caught.
+    #
+    # Deliberately narrow: ROOT only, and DOTFILES only. An unclassified
+    # ordinary file still refuses, which is the case the strictness exists for,
+    # and nothing lazysite ships is a root dotfile (t/tools/01 pins that).
+    return { excluded => 1, reason => 'root dotfile (tooling state)' }
+        if $rel =~ m{\A\.[^/]*\z};
+
     for my $pat ( @{ $cfg->{exclude} } ) {
         return { excluded => 1, reason => "exclude $pat" } if $rel =~ /$pat/;
     }
@@ -164,7 +186,7 @@ sub classify_file {
         my $pat = $r->{pattern};
         next unless defined $pat;
         if ( my @caps = ( $rel =~ /$pat/ ) ) {
-            my @values = ( $rel, @caps );   # $0 = whole string, $1..$n = captures
+            my @values  = ( $rel, @caps );    # $0 = whole string, $1..$n = captures
             my $install = apply_captures( $r->{install_to}, \@values );
             return {
                 install_to => $install,
@@ -202,7 +224,7 @@ sub generate_manifest {
     my @unmatched;
     my %install_to_seen;
 
-    for my $rel ( @$files ) {
+    for my $rel (@$files) {
         my $cls = classify_file( $rel, $cfg );
         next if $cls->{excluded};
         if ( $cls->{unmatched} ) {
@@ -227,7 +249,7 @@ sub generate_manifest {
         if ( defined $install ) {
             if ( $install_to_seen{$install} ) {
                 die "Duplicate install_to '$install': $rel "
-                  . "collides with $install_to_seen{$install}\n";
+                    . "collides with $install_to_seen{$install}\n";
             }
             $install_to_seen{$install} = $rel;
         }
@@ -243,8 +265,11 @@ sub generate_manifest {
         };
     }
 
-    if ( @unmatched ) {
-        print STDERR "build-manifest: files match no rule and no exclude:\n";
+    if (@unmatched) {
+        # SM271: lead with the file. The old wording named the manifest, two
+        # layers from the cause, and readers reliably diagnosed the wrong thing.
+        my $n = @unmatched;
+        print STDERR "build-manifest: REFUSING - $n unclassified file(s):\n";
         print STDERR "  $_\n" for @unmatched;
         # SM034: use the actual config path in use so the message is
         # accurate regardless of the --config override. The path
@@ -258,8 +283,8 @@ sub generate_manifest {
         my $ai = defined $a->{install_to} ? 0 : 1;
         my $bi = defined $b->{install_to} ? 0 : 1;
         $ai <=> $bi
-          || ( $a->{install_to} // '' ) cmp( $b->{install_to} // '' )
-          || $a->{path} cmp $b->{path};
+            || ( $a->{install_to} // '' ) cmp( $b->{install_to} // '' )
+            || $a->{path} cmp $b->{path};
     } @manifest_files;
 
     my $manifest = {
@@ -308,7 +333,7 @@ sub check_manifest {
     my @sha_mismatch;
     my @not_in_manifest;
 
-    for my $rel ( @$files ) {
+    for my $rel (@$files) {
         my $cls = classify_file( $rel, $cfg );
         next if $cls->{excluded};
         next if $cls->{unmatched};
@@ -319,7 +344,7 @@ sub check_manifest {
         my $entry = $by_path{$rel};
         my $full  = "$opt{staged}/$rel";
         my @st    = stat $full;
-        unless ( @st ) {
+        unless (@st) {
             push @missing, $rel;
             next;
         }
@@ -342,13 +367,13 @@ sub check_manifest {
     if ( @missing || @size_mismatch || @sha_mismatch || @not_in_manifest ) {
         print STDERR "build-manifest --check: mismatches detected\n";
         print STDERR "  missing from disk:\n    $_\n" for @missing;
-        print STDERR "  size mismatch:\n    $_\n"    for @size_mismatch;
-        print STDERR "  sha256 mismatch:\n    $_\n"  for @sha_mismatch;
-        print STDERR "  not in manifest:\n    $_\n"  for @not_in_manifest;
+        print STDERR "  size mismatch:\n    $_\n"     for @size_mismatch;
+        print STDERR "  sha256 mismatch:\n    $_\n"   for @sha_mismatch;
+        print STDERR "  not in manifest:\n    $_\n"   for @not_in_manifest;
         return 1;
     }
     print STDERR "build-manifest --check: OK ("
-      . scalar( @{ $manifest->{files} || [] } ) . " files)\n";
+        . scalar( @{ $manifest->{files} || [] } ) . " files)\n";
     return 0;
 }
 

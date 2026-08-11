@@ -4,11 +4,11 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
-use File::Path qw(make_path);
+use File::Temp     qw(tempdir);
+use File::Path     qw(make_path);
 use File::Basename qw(dirname);
-use Digest::SHA qw(sha256_hex);
-use JSON::PP qw(decode_json encode_json);
+use Digest::SHA    qw(sha256_hex);
+use JSON::PP       qw(decode_json encode_json);
 use FindBin;
 
 my $root   = "$FindBin::Bin/../..";
@@ -37,15 +37,15 @@ sub write_default_config {
             schema_version => "1",
             rules          => [
                 { pattern => "^bin/(.+)\\.pl\$",
-                  install_to => "{CGIBIN}/\$1.pl", bucket => "code" },
+                    install_to => "{CGIBIN}/\$1.pl", bucket => "code" },
                 { pattern => "^starter/(.+)\$",
-                  install_to => "{DOCROOT}/\$1", bucket => "seed" },
+                    install_to => "{DOCROOT}/\$1", bucket => "seed" },
             ],
-            exclude => [ "^tests/", "^README\\.md\$" ],
-            overrides      => [],
-            runtime_paths  => [
+            exclude       => [ "^tests/", "^README\\.md\$" ],
+            overrides     => [],
+            runtime_paths => [
                 { path => "{DOCROOT}/lazysite/auth",
-                  mode => "0750", purpose => "creds" },
+                    mode => "0750", purpose => "creds" },
             ],
         }
     );
@@ -53,8 +53,8 @@ sub write_default_config {
 
 sub run_script {
     my (@args) = @_;
-    my $cmd = join(' ', map { quotemeta } $^X, $script, @args) . " 2>&1";
-    my $out = qx($cmd);
+    my $cmd    = join( ' ', map { quotemeta } $^X, $script, @args ) . " 2>&1";
+    my $out    = qx($cmd);
     return ( $? >> 8, $out );
 }
 
@@ -66,7 +66,7 @@ subtest 'happy path: manifest shape and fields' => sub {
     write_file( "$dir/starter/index.md", "home\n" );
     write_file( "$dir/tests/unused.t",   "skipped\n" );
     write_file( "$dir/README.md",        "readme\n" );
-    write_default_config( "$dir-cfg/classification.json" );
+    write_default_config("$dir-cfg/classification.json");
 
     my ( $rc, $out ) = run_script(
         '--staged',  $dir,
@@ -80,9 +80,9 @@ subtest 'happy path: manifest shape and fields' => sub {
     my $m = decode_json( do { local $/; <$fh> } );
     close $fh;
 
-    is( $m->{schema_version}, '1',     'schema_version' );
-    is( $m->{version},        '1.2.3', 'version' );
-    is( scalar @{ $m->{files} }, 2,    'two files (tests/ excluded, README excluded)' );
+    is( $m->{schema_version},    '1',     'schema_version' );
+    is( $m->{version},           '1.2.3', 'version' );
+    is( scalar @{ $m->{files} }, 2, 'two files (tests/ excluded, README excluded)' );
     like( $m->{generated}, qr/^\d{4}-\d{2}-\d{2}T/, 'generated looks like ISO timestamp' );
     ok( ref $m->{runtime_paths} eq 'ARRAY', 'runtime_paths present' );
     is( scalar @{ $m->{runtime_paths} }, 1, 'one runtime_path' );
@@ -95,7 +95,7 @@ subtest 'files sorted by install_to' => sub {
     for my $n (qw(zebra alpha mango)) {
         write_file( "$dir/starter/$n.md", "x\n" );
     }
-    write_default_config( "$dir-cfg/classification.json" );
+    write_default_config("$dir-cfg/classification.json");
 
     run_script(
         '--staged', $dir,
@@ -118,10 +118,10 @@ subtest 'files sorted by install_to' => sub {
 # --- 3. SHA-256 correct ---
 
 subtest 'sha256 matches known value' => sub {
-    my $dir = tempdir( CLEANUP => 1 );
+    my $dir  = tempdir( CLEANUP => 1 );
     my $body = "hello world\n";
     write_file( "$dir/starter/greet.md", $body );
-    write_default_config( "$dir-cfg/classification.json" );
+    write_default_config("$dir-cfg/classification.json");
     run_script(
         '--staged', $dir,
         '--config', "$dir-cfg/classification.json",
@@ -131,7 +131,7 @@ subtest 'sha256 matches known value' => sub {
     my $m = decode_json( do { local $/; <$fh> } );
     close $fh;
     my $expected = sha256_hex($body);
-    is( $m->{files}[0]{sha256}, $expected, 'sha256 matches expected digest' );
+    is( $m->{files}[0]{sha256}, $expected,     'sha256 matches expected digest' );
     is( $m->{files}[0]{size},   length($body), 'size is byte count' );
 };
 
@@ -140,7 +140,7 @@ subtest 'sha256 matches known value' => sub {
 subtest '--check passes on freshly-generated manifest' => sub {
     my $dir = tempdir( CLEANUP => 1 );
     write_file( "$dir/starter/a.md", "one\n" );
-    write_default_config( "$dir-cfg/classification.json" );
+    write_default_config("$dir-cfg/classification.json");
     run_script(
         '--staged', $dir,
         '--config', "$dir-cfg/classification.json",
@@ -161,7 +161,7 @@ subtest '--check passes on freshly-generated manifest' => sub {
 subtest '--check fails on modified file' => sub {
     my $dir = tempdir( CLEANUP => 1 );
     write_file( "$dir/starter/a.md", "original\n" );
-    write_default_config( "$dir-cfg/classification.json" );
+    write_default_config("$dir-cfg/classification.json");
     run_script(
         '--staged', $dir,
         '--config', "$dir-cfg/classification.json",
@@ -184,7 +184,7 @@ subtest '--check fails on modified file' => sub {
 subtest '--check flags new file that matches a rule' => sub {
     my $dir = tempdir( CLEANUP => 1 );
     write_file( "$dir/starter/a.md", "one\n" );
-    write_default_config( "$dir-cfg/classification.json" );
+    write_default_config("$dir-cfg/classification.json");
     run_script(
         '--staged', $dir,
         '--config', "$dir-cfg/classification.json",
@@ -206,9 +206,9 @@ subtest '--check flags new file that matches a rule' => sub {
 
 subtest 'exclude pattern skips a matching file' => sub {
     my $dir = tempdir( CLEANUP => 1 );
-    write_file( "$dir/starter/keep.md",       "keep\n" );
-    write_file( "$dir/tests/skipme.t",        "ignore\n" );
-    write_default_config( "$dir-cfg/classification.json" );
+    write_file( "$dir/starter/keep.md", "keep\n" );
+    write_file( "$dir/tests/skipme.t",  "ignore\n" );
+    write_default_config("$dir-cfg/classification.json");
     run_script(
         '--staged', $dir,
         '--config', "$dir-cfg/classification.json",
@@ -218,7 +218,7 @@ subtest 'exclude pattern skips a matching file' => sub {
     my $m = decode_json( do { local $/; <$fh> } );
     close $fh;
     my @paths = map { $_->{path} } @{ $m->{files} };
-    is_deeply( \@paths, [ 'starter/keep.md' ], 'only non-excluded file present' );
+    is_deeply( \@paths, ['starter/keep.md'], 'only non-excluded file present' );
 };
 
 # --- 8. Override replaces rule-based bucket ---
@@ -232,12 +232,12 @@ subtest 'override replaces rule-based classification' => sub {
             schema_version => "1",
             rules          => [
                 { pattern => "^starter/(.+)\$",
-                  install_to => "{DOCROOT}/\$1", bucket => "seed" },
+                    install_to => "{DOCROOT}/\$1", bucket => "seed" },
             ],
             exclude   => [],
             overrides => [
                 { path => "starter/special.md",
-                  install_to => "{DOCROOT}/special.md", bucket => "code" },
+                    install_to => "{DOCROOT}/special.md", bucket => "code" },
             ],
             runtime_paths => [],
         }
@@ -258,7 +258,7 @@ subtest 'override replaces rule-based classification' => sub {
 subtest 'unmatched file fails with useful error' => sub {
     my $dir = tempdir( CLEANUP => 1 );
     write_file( "$dir/orphan.txt", "no rule matches me\n" );
-    write_default_config( "$dir-cfg/classification.json" );
+    write_default_config("$dir-cfg/classification.json");
     my ( $rc, $out ) = run_script(
         '--staged', $dir,
         '--config', "$dir-cfg/classification.json",
@@ -280,7 +280,7 @@ subtest 'duplicate install_to fails' => sub {
             schema_version => "1",
             rules          => [
                 { pattern => "^bin/.+\\.pl\$",
-                  install_to => "{CGIBIN}/same.pl", bucket => "code" },
+                    install_to => "{CGIBIN}/same.pl", bucket => "code" },
             ],
             exclude => [], overrides => [], runtime_paths => [],
         }
@@ -292,6 +292,59 @@ subtest 'duplicate install_to fails' => sub {
     );
     isnt( $rc, 0, 'exit non-zero on duplicate install_to' );
     like( $out, qr/[Dd]uplicate/, 'error mentions duplicate' );
+};
+
+# --- SM271: the repo root is where tooling state goes -----------------------
+#
+# This gate refuses any file matching no rule, which is right for content and
+# wrong for the repo root. Three tools tripped it in one session - `.prove` from
+# `prove --state=save`, a test lockfile, and yath's `.test_info.<pid>.json`,
+# written one per job and deleted a fraction of a second later. Six tests build
+# a manifest at the repo root, so each broke all six, and the error named the
+# manifest rather than the file. Twice it was diagnosed as a parallel-safety
+# problem and once as harness incompatibility.
+subtest 'a transient dotfile at the repo root does not break the build' => sub {
+    my $root = "$FindBin::Bin/../..";
+    my $dir  = tempdir( CLEANUP => 1 );
+    my $out  = "$dir/sm271.json";
+
+    my @drops = map { "$root/.test_info.$$.$_.json" } ( 1 .. 2 );
+    push @drops, "$root/.sm271-probe";
+    for my $f (@drops) { open my $fh, '>', $f or die $!; print {$fh} "x\n"; close $fh }
+
+    my $rc = system( $^X, $script, '--version', '0.0.0-test', '--out', $out );
+    unlink @drops;
+
+    is( $rc, 0, 'the manifest still builds with tooling state at the root' );
+    ok( -f $out, 'and it was written' ) or return;
+
+    open my $fh, '<', $out or die $!;
+    my $mf = JSON::PP::decode_json( do { local $/; <$fh> } );
+    close $fh;
+    my @shipped = grep { m{\A\.} } map { $_->{path} } @{ $mf->{files} };
+    is_deeply( \@shipped, [],
+        'and no root dotfile is shipped - the rule excludes them, it does not '
+            . 'quietly classify them as content' );
+};
+
+subtest 'an unclassified ORDINARY file still refuses' => sub {
+    my $root  = "$FindBin::Bin/../..";
+    my $probe = "$root/zz-sm271-unclassified.txt";
+    open my $fh, '>', $probe or die $!;
+    print {$fh} "x\n";
+    close $fh;
+
+    my $dir = tempdir( CLEANUP => 1 );
+    my $out = "$dir/sm271-refuse.json";
+    my $err = `$^X \Q$script\E --version 0.0.0-test --out \Q$out\E 2>&1`;
+    my $rc  = $?;
+    unlink $probe;
+
+    isnt( $rc, 0,
+        'the strictness that this whole gate exists for is intact - narrowing '
+            . 'it to root dotfiles must not have opened the ordinary case' );
+    like( $err, qr/zz-sm271-unclassified\.txt/,
+        'and the message names the FILE, not the manifest it was writing' );
 };
 
 done_testing();
