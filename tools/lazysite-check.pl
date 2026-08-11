@@ -63,7 +63,11 @@ Usage: perl tools/lazysite-check.pl --docroot PATH [options]
   --owner USER     expected owner (default: the owner of the docroot)
   --group GROUP    expected group (default: the group of the docroot)
   --fix            apply the safe fixes (chmod always; chown only as root),
-                   then re-run the checks - the report shows the post-fix state
+                   then re-run the checks - the report shows the post-fix state.
+                   On the docroot's own content directories it restores GROUP
+                   WRITE and nothing else: without it the CGI cannot save, and
+                   every other bit is your choice, not the model's (SM274). A
+                   mode that differs any other way is reported, never changed.
   --check-dav URL  probe URL/dav/ unauthenticated; expect 401 (route wired), not
                    404 (route missing - the web server / proxy does not forward /dav/)
   --dependencies   report the OS Perl packages lazysite needs (present vs missing)
@@ -383,8 +387,42 @@ sub run_checks {
             my $mode = mode_of($path);
             next if $mode == $want;
             $wrong++;
+            # SM274: two questions, not one - "is this mode different from the
+            # model" and "can the CGI still write here".
+            #
+            # SM246's design says "install applies, check verifies, --fix
+            # repairs", and the repair third was held because these are content
+            # directories on a live site: an operator who tightened one on
+            # purpose must not have it widened by a tool they ran to ask a
+            # question. That reasoning is right about the WHOLE mode and wrong
+            # about one bit of it.
+            #
+            # The install state records the DECLARED mode, not the mode the
+            # installer actually left, so it cannot distinguish "drifted" from
+            # "deliberate" by history - which is what ruled out comparing
+            # against a baseline. But it does not need to. Group-write on a
+            # declared directory is FUNCTIONAL: without it the CGI cannot write
+            # there, which is the site not working. Every other bit is
+            # preference, and nobody tightens a docroot subdirectory to break
+            # their own site on purpose.
+            #
+            # So --fix ADDS the group-write bit and nothing else, leaving an
+            # operator's own choices about world and owner bits exactly as they
+            # made them. A mode that differs in any other way is still reported
+            # and still not touched.
+            if ( !( $mode & 0020 ) ) {
+                report( 'FAIL',
+                    sprintf( '%s is %04o and is NOT group-writable - the CGI cannot '
+                            . 'write here (the model declares %04o)', $rel, $mode, $want ),
+                    sprintf( "chmod g+w '%s'", $path ) );
+                push @chmod_fixes, [ 0020, $path, 'add' ];
+                $wrong++;
+                next;
+            }
             report( 'WARN',
-                sprintf( '%s is %04o, the model declares %04o', $rel, $mode, $want ),
+                sprintf( '%s is %04o, the model declares %04o - reported only; '
+                        . '--fix restores group write, never other bits',
+                    $rel, $mode, $want ),
                 sprintf( "chmod %04o '%s'", $want, $path ) );
         }
         if ( !$checked ) {

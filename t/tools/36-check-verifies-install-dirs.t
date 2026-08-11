@@ -67,19 +67,23 @@ chmod 02755, "$docroot/$victim";
 
 subtest 'check reports a content directory that lost its declared mode' => sub {
     my $report = `$^X \Q$CHECK\E --docroot \Q$docroot\E 2>&1`;
-    like( $report, qr/\Q$victim\E is 2755, the model declares 2775/,
-        'the fault is named, with both modes' );
+    # SM274 changed this wording deliberately: a directory the CGI cannot write
+    # is a FAILURE, not a difference, and --fix now repairs it.
+    like( $report, qr/\Q$victim\E is 2755 and is NOT group-writable/,
+        'the fault is named, with the mode' );
     like( $report, qr/chmod 2775/, 'and the repair is one paste away' );
 };
 
-subtest 'and does not repair it' => sub {
+subtest 'and --fix now repairs it (SM274 superseded the hold)' => sub {
+    # This subtest asserted the OPPOSITE until SM274. The hold was on a real
+    # objection - do not widen a live site's permissions from a diagnostic - and
+    # SM274 kept it for every bit EXCEPT group-write, which is functional rather
+    # than preference. The sibling subtest below pins the half that still holds.
     my $report = `$^X \Q$CHECK\E --docroot \Q$docroot\E --fix 2>&1`;
     my $mode   = ( stat "$docroot/$victim" )[2] & 07777;
-    is( $mode, 02755,
-        '--fix leaves a content directory alone: an operator who tightened one '
-            . 'on purpose must not have it widened by a tool they ran to ask a '
-            . 'question' );
-    like( $report, qr/\Q$victim\E/, 'though it still says so' );
+    is( $mode, 02775, 'group write restored' );
+    like( $report, qr/\Q$victim\E/, 'and it said what it did' );
+    chmod 02755, "$docroot/$victim";
 };
 
 subtest 'a correct directory is not reported' => sub {
@@ -129,6 +133,51 @@ subtest 'writable-but-no-setgid is a warning, not a failure' => sub {
             . 'that fails on every one of those teaches its reader to skip the '
             . 'line that matters' );
     chmod 02775, $docroot;
+};
+
+# --- SM274: --fix restores group write, and nothing else ---------------------
+#
+# SM246's design is "install applies, check verifies, --fix repairs", and the
+# repair third was held on a real objection: these are content directories on a
+# live site, and an operator who tightened one on purpose must not have it
+# widened by a tool they ran to ask a question.
+#
+# That objection is right about the whole mode and wrong about one bit. The
+# install state records the DECLARED mode, not what the installer left, so
+# "drifted" cannot be told from "deliberate" by history. It does not need to be:
+# group-write is FUNCTIONAL - without it the CGI cannot write there - and nobody
+# tightens a docroot subdirectory to break their own site on purpose. Every
+# other bit is preference.
+subtest 'a directory the CGI cannot write is repaired' => sub {
+    my ($victim) = grep { -d "$docroot/$_" } qw(docs manager);
+    plan skip_all => 'no content directory in this build' unless $victim;
+    my $path = "$docroot/$victim";
+
+    chmod 02755, $path;
+    my $report = `$^X \Q$CHECK\E --docroot \Q$docroot\E 2>&1`;
+    like( $report, qr/\Q$victim\E is 2755 and is NOT group-writable/,
+        'reported as a failure, not a difference' );
+
+    `$^X \Q$CHECK\E --docroot \Q$docroot\E --fix 2>&1`;
+    is( ( ( stat $path )[2] & 07777 ), 02775, '--fix restored it' );
+};
+
+subtest 'a deliberately tightened directory is left exactly as it is' => sub {
+    my ($victim) = grep { -d "$docroot/$_" } qw(docs manager);
+    plan skip_all => 'no content directory in this build' unless $victim;
+    my $path = "$docroot/$victim";
+
+    # 2770: group can still write, world cannot read. A choice, not a fault.
+    chmod 02770, $path;
+    my $report = `$^X \Q$CHECK\E --docroot \Q$docroot\E 2>&1`;
+    like( $report, qr/reported only; --fix restores group write, never other bits/,
+        'reported, with the promise stated in the message itself' );
+
+    `$^X \Q$CHECK\E --docroot \Q$docroot\E --fix 2>&1`;
+    is( ( ( stat $path )[2] & 07777 ), 02770,
+        'and --fix left it ALONE - this is the property the repair third was '
+            . 'held for, so it is the one worth pinning' );
+    chmod 02775, $path;
 };
 
 done_testing();
