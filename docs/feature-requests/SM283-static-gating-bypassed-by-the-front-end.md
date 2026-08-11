@@ -3,7 +3,7 @@ title: "SM283 - A protected section gates its pages and serves its images, PDFs 
 subtitle: "SM223's enforcement is correct. Most static requests never reach it, because lazysite's own nginx guidance tells the front end to serve them directly - and which ones gate is decided by file extension."
 brand: plain
 status: shipped
-status-note: "SHIPPED on main (unreleased). FILED 2026-08-11 from the site agent's brief of 2026-08-10 and root-caused the same day: every template lazysite shipped already carried the ACL branch, but all Hestia templates were APACHE and no Hestia NGINX PROXY template existed, so Hestia's own default proxy served its static extension list directly and Apache never saw those requests. BUILT: installers/hestia/lazysite-proxy.tpl/.stpl, which hand a static request back to the origin whenever lazysite/auth/acls.json exists and change nothing for a site without one. The proxy layer also needed the .brief deny, the /lazysite/ deny (a stock proxy would have served lazysite/backups/*.tar.gz - a full pre-install snapshot of the site - on any host whose extension list includes gz), the SM248 registry routes and a raised body cap for /dav, because every one of those lives in the Apache half and a request the proxy answers never reaches it. THE OBSERVABLE the filing asked for: the template answers X-Lazysite-Front: hestia-proxy/acl, checkable with curl and no credentials; t/lint/33 binds the header to the ACL branch so it cannot appear without it. FLEET VISIBILITY: lazysite-hestia-list.sh flags a domain with an ACL store on a stock proxy as ACL-BYPASSED-BY-PROXY(SM283) and shows the rest with their proxy template; lazysite-hestia-update-all.sh --proxy stages and applies it host-wide, and says on EVERY run whether the layer was checked. THIS IS NOT DELIVERED BY A PACKAGE UPGRADE - per SM248's lesson the template must be installed and each domain moved onto it, which the release note must say. Tests: t/lint/33 (new, verified failing both with the templates absent and with the ACL branch stripped while the header stayed), t/integration/35 gains the five-extension fixture at the level the engine can be held to, t/tools/30 pins the packaging and the README steps. NOT covered by the suite: whether nginx BEHAVES as configured - this host has no nginx, so docs/MANUAL-CHECKS.md carries the pass, to be run on a deployed Hestia site."
+status-note: "SHIPPED on main (unreleased). FILED 2026-08-11 from the site agent's brief of 2026-08-10 and root-caused the same day: every template lazysite shipped already carried the ACL branch, but all Hestia templates were APACHE and no Hestia NGINX PROXY template existed, so Hestia's own default proxy served its static extension list directly and Apache never saw those requests. BUILT: installers/hestia/lazysite-proxy.tpl/.stpl, which hand a static request back to the origin whenever lazysite/auth/acls.json exists and change nothing for a site without one. The proxy layer also needed the .brief deny, the /lazysite/ deny (a stock proxy would have served lazysite/backups/*.tar.gz - a full pre-install snapshot of the site - on any host whose extension list includes gz), the SM248 registry routes and a raised body cap for /dav, because every one of those lives in the Apache half and a request the proxy answers never reaches it. THE OBSERVABLE the filing asked for: the template answers X-Lazysite-Front: hestia-proxy/acl, checkable with curl and no credentials; t/lint/33 binds the header to the ACL branch so it cannot appear without it. FLEET VISIBILITY: lazysite-hestia-list.sh flags a domain with an ACL store on a stock proxy as ACL-BYPASSED-BY-PROXY(SM283) and shows the rest with their proxy template; lazysite-hestia-update-all.sh --proxy stages and applies it host-wide, and says on EVERY run whether the layer was checked. THIS IS NOT DELIVERED BY A PACKAGE UPGRADE - per SM248's lesson the template must be installed and each domain moved onto it, which the release note must say. Tests: t/lint/33 (new, verified failing both with the templates absent and with the ACL branch stripped while the header stayed), t/integration/35 gains the five-extension fixture at the level the engine can be held to, t/tools/30 pins the packaging and the README steps. THEN nginx was installed on the build host and the behavioural half became reachable: t/integration/42 STARTS nginx against the shipped template and reproduces the measurement (all five extensions leave nginx with an ACL store; three served directly with a far-future Expires without one), and t/lint/34 runs nginx -t over all four shipped nginx configs. Verified by breaking the template five ways - ACL branch, /lazysite/ deny, .brief deny, registry routes, and the OVER-FIX of routing every static to the origin - each caught. Running it also FALSIFIED a claim this work had made in three places (that the ^~ modifier was what refused a pre-install backup; it is the deny location itself, since the extension regex is nested inside location /) - the protection was real, the explanation was wrong, and no text match would ever have contradicted it. What remains manual is narrower and stated as such in docs/MANUAL-CHECKS.md: a real Hestia host has its own proxy_extensions list, its own rendering, and a live origin, so a person confirms THAT DEPLOYMENT behaves, not that the template is right."
 ---
 
 # SM283 - the front end serves what the ACL refuses
@@ -145,13 +145,23 @@ is to put it in the file Hestia actually reads.
 
 Against each of those, and one thing they did not ask for.
 
-The five-extension fixture is in `t/integration/35`, and it is honest about
-what it can prove. It cannot reproduce the leak - that happened in nginx, and
-this host has none - so it pins the half the engine owes: **the read decision
-never consults the extension.** `t/lint/33` pins the other half as text, the way
-`t/lint/31` pins the Apache rules, and `docs/MANUAL-CHECKS.md` carries the
-behavioural pass for a person on a deployed Hestia site. Three levels because
-the defect lived in the gap between two of them.
+The five-extension fixture is in `t/integration/35`, pinning the half the engine
+owes: **the read decision never consults the extension.**
+
+And then nginx was installed on the build host, which changed what was
+reachable. `t/integration/42` now **starts nginx** against the shipped proxy
+template and reproduces the field measurement outright: five extensions, one
+folder ACL, and all five must leave nginx. With no ACL store, three are served
+directly with a far-future `Expires` and two are proxied because they are off
+the extension list - the original split, reproduced deliberately. `t/lint/34`
+runs `nginx -t` over all four shipped nginx configs, so one that will not start
+cannot ship.
+
+Verified by breaking the template five ways and confirming the test catches each:
+ACL branch removed (the original defect), `/lazysite/` deny removed, `.brief`
+deny removed, registry routes removed, and the **over-fix** - routing every
+static to the origin unconditionally, which would have "fixed" SM283 by making
+every site pay for a feature it never asked for.
 
 The observable is a response header, `X-Lazysite-Front: hestia-proxy/acl`, and
 the lint binds it to the ACL branch: a template may not claim the header without
@@ -172,6 +182,30 @@ complete snapshot of the site taken at install, and `gz` is on many stock
 extension lists. Nobody reported it, and the same measurement would have found
 it. **When a layer is missing, every protection at that layer is missing**, not
 the one that happened to be observed.
+
+## A correction the running server forced
+
+Worth recording, because it is the argument for the test rather than a detail
+of it.
+
+The first version of this work asserted - in the template's own comments, in
+`t/lint/33`, and in a `pass()` in the behavioural test - that the `^~` modifier
+on the `/lazysite/` deny was what stopped the static-extension regex serving a
+pre-install backup. Every one of those said the same thing, confidently, and it
+was **wrong**. The extension regex is nested inside `location /`, so a URI
+matching the longer `/lazysite/` prefix never reaches it, `^~` or not. What
+refuses the backup is the deny location existing at all.
+
+The protection was real throughout; only the explanation was false. But a wrong
+explanation is what the next person edits against, and no text match would ever
+have contradicted it - three separate checks agreed with it, because all three
+were reading the same file I had reasoned about. It took starting nginx and
+deleting the location to find out.
+
+The assertion that replaced it is a control rather than a claim: the same
+`.tar.gz` extension, served normally from an ordinary path. That proves the
+refusal is about the path rather than the file type, and it cannot be satisfied
+by a rationale.
 
 ## Related
 

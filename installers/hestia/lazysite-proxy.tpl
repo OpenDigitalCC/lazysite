@@ -43,7 +43,15 @@ server {
     # audit logs and pre-install backups live under it. The Apache template
     # denies it, but a request for e.g. lazysite/backups/preinstall-*.tar.gz
     # carries a static extension and would be answered here, so the deny has
-    # to exist at BOTH layers. ^~ so no regex location can override it.
+    # to exist at BOTH layers.
+    #
+    # What refuses it is this location being a LONGER prefix match than
+    # `location /` - the static-extension regex is nested inside that one, so
+    # it is never reached for a URI that lands here. Verified against a running
+    # nginx in t/integration/42, which serves the same .tar.gz from a path
+    # outside this prefix to prove the refusal is about the path and not the
+    # file type. ^~ is belt and braces: it costs nothing and keeps the deny
+    # correct if a top-level regex location is ever added below.
     location ^~ /lazysite/ {
         deny all;
     }

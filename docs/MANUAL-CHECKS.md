@@ -446,9 +446,21 @@ anonymous client, byte-identical to the source. `.dat` gated - because `.dat`
 was not on the proxy's list. The section's *pages* bounced to login throughout,
 so the manager, the audit trail and the operator all agreed it was protected.
 
-`t/lint/33` now pins the proxy template, and `t/integration/35` pins that the
-engine's decision is blind to the extension. Neither can start nginx, so
-whether the config *behaves* is still a thing a person has to look at.
+The suite now goes further than it could when this section was first written.
+`t/lint/34` runs `nginx -t` over every shipped nginx config, and
+`t/integration/42` **starts nginx** against the rendered Hestia proxy template
+and reproduces the measurement above: five extensions, one folder ACL, all five
+must leave nginx. It also pins the fast path, so a template that "fixed" this by
+sending every static request to the engine fails too. Both skip where nginx is
+absent, which is a real gap and the reason `t/lint/33` still pins the same files
+by text.
+
+That leaves a narrower thing for a person, and it is worth being exact about
+what it is. The tests render the template with a *representative*
+`proxy_extensions` list and no Apache behind it. A real host has Hestia's own
+list (which the operator can change), Hestia's rendering of the template, and a
+live origin. So what a human is confirming is that **this deployment** behaves,
+not that the template is right.
 
 ## The pass
 

@@ -100,11 +100,14 @@ for my $rel ( sort keys %PROXY ) {
             'the ACL branch is inside it - at server level it would never see '
                 . 'the requests that leak' ) if $static;
 
-        # The engine directory. ^~ is load-bearing: a plain prefix location
-        # loses to the extension regex, so lazysite/backups/*.tar.gz - a full
-        # pre-install snapshot of the site - would be served.
+        # The engine directory - config, credentials, audit logs, and the
+        # pre-install snapshot at lazysite/backups/*.tar.gz. What refuses it is
+        # this being a longer prefix match than `location /`, inside which the
+        # static-extension regex is nested; `^~` is defence against a future
+        # top-level regex. t/integration/42 establishes which is which against
+        # a running server - this file can only see that the line is here.
         like( $code, qr{location\s+\^~\s+/lazysite/\s*\{[^\}]*deny all},
-            'denies the engine directory with ^~, which beats the extension regex' );
+            'denies the engine directory' );
 
         # SM073 and SM248, which live in the Apache template and are equally
         # unreachable when the proxy answers first.
