@@ -625,6 +625,64 @@ sub _acl_entry_for {
 # through _is_operator, which returns 1 on a site where no group grants manager
 # access. On an anonymous request that would treat the public as an operator and
 # bypass the ACL entirely, on exactly the sites least equipped to notice.
+# SM286: the private content store, resolved module-free.
+#
+# DELIBERATE local copy of Lazysite::Private - the render path loads no Lazysite
+# modules (ADR 0001), exactly as _acl_allows_read copies Auth::Acl. t/lint/36
+# pins the pair.
+#
+# Nothing moves content here yet, and before this the private tree was simply
+# never consulted - a path there was not found, so it 404'd and nothing leaked.
+#
+# THE TRAP, MEASURED. Resolution and key derivation must change TOGETHER. Every
+# ACL predicate below derives its docroot-relative key with `s{^$DOCROOT/}{}`,
+# which FAILS for a path in the private tree, and each returns 0 on failure -
+# meaning "not governed", "not draft", "not refused". Add _content_abs alone,
+# leaving those three as they were, and a gated file in the private store is
+# served to anonymous visitors, to the wrong user, and out of a draft section.
+# Verified by doing exactly that and watching the test go red.
+#
+# So this is not preparation that could be split further. Anyone continuing the
+# wiring on the other surfaces should assume the same shape: wherever a surface
+# turns an absolute path back into a key, resolving the new tree without fixing
+# the derivation opens a hole rather than leaving one closed.
+our $PRIVATE_ROOT_CACHE;
+
+sub _private_root {
+    return $PRIVATE_ROOT_CACHE if defined $PRIVATE_ROOT_CACHE;
+    my $d = $DOCROOT // '';
+    $d =~ s{/+\z}{};
+    $d =~ s{/[^/]*\z}{};    # dirname, without File::Basename
+    return $PRIVATE_ROOT_CACHE = length $d ? "$d/lazysite-private" : '';
+}
+
+# The docroot-relative ACL key for an absolute path in EITHER tree. undef when
+# the path is in neither, which every caller must treat as "not content".
+sub _content_rel {
+    my ($abs) = @_;
+    return undef unless defined $abs && length $abs;
+    my $rel = $abs;
+    return $rel if $rel =~ s{\A\Q$DOCROOT\E/}{};
+    my $priv = _private_root();
+    return $rel if length $priv && $rel =~ s{\A\Q$priv\E/}{};
+    return undef;
+}
+
+# Where a docroot-anchored path actually lives. PRIVATE WINS when both exist -
+# the same fail-safe direction Lazysite::Private takes, because a stray public
+# copy is already reachable by the front end and serving it from here too would
+# hide the fault.
+sub _content_abs {
+    my ($abs) = @_;
+    return $abs unless defined $abs;
+    my $rel = $abs;
+    if ( $rel =~ s{\A\Q$DOCROOT\E/}{} ) {
+        my $priv = _private_root();
+        return "$priv/$rel" if length $priv && -e "$priv/$rel";
+    }
+    return $abs;
+}
+
 sub _acl_allows_read {
     my ( $rel, $user, @groups ) = @_;
     my $f = "$DOCROOT/lazysite/auth/acls.json";
@@ -741,8 +799,8 @@ sub _acl_is_draft {
     return 0 unless -f $f;
     my $real = realpath($abs);
     return 0 unless defined $real;
-    my $rel = $real;
-    return 0 unless $rel =~ s{\A\Q$DOCROOT\E/}{};
+    my $rel = _content_rel($real);
+    return 0 unless defined $rel;
     require JSON::PP;
     open my $fh, '<:raw', $f or return 0;
     my $map = eval {
@@ -761,8 +819,8 @@ sub _acl_governed {
     return 0 unless -f $f;
     my $real = realpath($abs);
     return 0 unless defined $real;
-    my $rel = $real;
-    return 0 unless $rel =~ s{\A\Q$DOCROOT\E/}{};
+    my $rel = _content_rel($real);
+    return 0 unless defined $rel;
 
     # Shares _acl_allows_read's per-request parse (SM268 H13). A store that
     # failed to load counts as governing everything: _acl_allows_read is
@@ -804,8 +862,8 @@ sub _acl_refused {
 
     my $real = realpath($abs);
     return 0 unless defined $real;
-    my $rel = $real;
-    return 0 unless $rel =~ s{\A\Q$DOCROOT\E/}{};
+    my $rel = _content_rel($real);
+    return 0 unless defined $rel;
 
     my %sv = resolve_site_vars();
     # auth => 'none' asks check_auth for the IDENTITY without enforcement, so
@@ -2174,10 +2232,17 @@ sub _serve_content_static {
     my ($ext) = $rel =~ /\.([A-Za-z0-9]+)\z/;
     return 0 unless defined $ext;
 
-    my $path = "$root/$rel";
+    # SM286: the file may live in the private store rather than under $root,
+    # and the confinement test has to accept whichever tree answered - while
+    # still refusing anything outside BOTH.
+    my $path = _content_abs("$root/$rel");
     return 0 unless -f $path;
     my $real = realpath($path);
-    return 0 unless defined $real && index( $real, "$root/" ) == 0;
+    return 0 unless defined $real;
+    my $priv = _private_root();
+    return 0
+        unless index( $real, "$root/" ) == 0
+        || ( length $priv && index( $real, "$priv/" ) == 0 );
 
     # SM223: these are source-less statics on a content-rooted domain - the same
     # exposure as the fallback above, so the same gate. Returning 1 means the
@@ -4028,8 +4093,10 @@ sub _scan_hidden {
     my ( $user, $groups ) = _scan_identity();
 
     # The per-path ACL, keyed docroot-relative exactly as the read path keys it.
-    my $rel = $abs;
-    if ( $rel =~ s{\A\Q$DOCROOT\E/}{} ) {
+    # SM286: via _content_rel, so a page resolved from the private store is
+    # keyed and checked rather than skipping the branch and being listed.
+    my $rel = _content_rel($abs);
+    if ( defined $rel ) {
         return 1 unless _acl_allows_read( $rel, $user, @{$groups} );
     }
 
