@@ -156,6 +156,63 @@ serve it; having the engine serve the public one too would hide the fault from
 anything comparing them. `stray_public()` reports it, and a second `move_in`
 refuses rather than overwriting the governed copy.
 
+### Step 1 progress: the resolver is wired everywhere that serves (2026-08-12)
+
+Done, and **still nothing moves** - with an empty store every surface behaves
+exactly as before, verified by the full suite and by `bench.pl --check` (the
+render path is untouched within tolerance).
+
+- **the processor** - statics, pages, `.url` pages, and the page CACHE, which is
+  the dangerous one: a gated page writing its `.html` sibling into the docroot
+  republishes the very content the gate was protecting, in a file no ACL rule
+  names. The cache follows its SOURCE's tree rather than being resolved on its
+  own existence, which it does not have on a first render;
+- **the manager, MCP and WebDAV**, through `validate_path` for read and write
+  plus `action_list`, which builds its own path and needed its own fix;
+- **the write rule** - `resolve_for_write`: existing content keeps its home, a
+  NEW path inherits the tree of its nearest existing ancestor. That is what stops
+  the first save into a moved-out section creating a public directory for it.
+
+Two things the cross-surface test found that review had not:
+
+**A directory's children can be split across the trees** even though no single
+path is in both. The root is the ordinary case, so listing one tree makes a
+gated top-level section vanish from the file browser - which is how an operator
+loses track of content they protected. Listings union the names now.
+
+**Widening a confinement check is where this gets dangerous.** The page path
+refused the resolved file because `_path_under($real, $croot)` rejected it. The
+fix accepts the twin of the **domain's content root** inside the store, never
+the store as a whole: that check exists so a symlink in one domain's tree cannot
+serve a sibling domain's files, and accepting the whole store would have given
+every domain access to every other domain's private content - a bigger hole than
+the one this closes.
+
+### Step 1 remaining: the move, and what must precede it
+
+**Do not flip the move until backups cover the store.** A gated section that
+silently stops being backed up is worse than the exposure this removes.
+
+`action_acl_set` / `action_acl_remove` calling `move_in` / `move_out` is a small
+change and is deliberately NOT made yet, because:
+
+Backups, site packages and content history all walk the docroot
+: Backups are `tar czf … -C $DOCROOT … .` - one archive of one tree. Including
+  the store means either a second `-C` (colliding relative paths on restore) or
+  a distinct prefix inside the archive, which **changes the archive format** and
+  therefore what older lazysites can restore. That is an ADR 0008 compatibility
+  decision, not a wiring one, and it needs the release manager rather than an
+  agent's judgement. Site packages and `Lazysite::Git` have the same shape.
+
+`lazysite-check` should FAIL on `stray_public`
+: a path in both trees is the exposure, and today nothing reports it. Cheap, and
+  only meaningful once content moves - so it belongs with the move.
+
+The manager needs to say where content lives
+: `validate_path` already returns `store`, and the protected-sections panel
+  should show it. An operator who cannot see that a section moved has been given
+  a new place to lose track of.
+
 ### Step 1 remaining: the wiring, which is the bulk
 
 Each of these must resolve BOTH trees before anything is moved in anger:
