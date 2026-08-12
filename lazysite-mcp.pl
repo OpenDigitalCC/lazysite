@@ -126,6 +126,38 @@ sub validate_args {
         . " for $name."
         if @missing;
 
+    # SM291: the declared TYPE, for booleans.
+    #
+    # SM278 made this validator enforce the argument NAME and `required`, and a
+    # site agent measured what it still did not enforce: a value the schema
+    # declares invalid was neither refused nor treated as omitted. For
+    # set_permissions.draft it fell through to CLEAR - so `draft: "yes-please"`
+    # published a folder that had been returning 404, and answered ok:1.
+    #
+    # The inversion is what makes it worth refusing rather than coercing:
+    # OMITTING draft is safe and documented as safe, while a MALFORMED draft was
+    # destructive. A typo is normally the safer of the two mistakes.
+    #
+    # Booleans only. They have a small closed set of sane spellings, so refusing
+    # the rest cannot surprise a caller that was already right. Strings and
+    # numbers are left alone deliberately - agents rely on existing coercion
+    # there, and tightening it needs its own measurement rather than a guess.
+    for my $k ( sort keys %$args ) {
+        my $spec = $props->{$k} or next;
+        next unless ref $spec eq 'HASH';
+        next unless ( $spec->{type} // '' ) eq 'boolean';
+        my $v = $args->{$k};
+        next unless defined $v;    # null reads as omitted
+        next if ref $v eq 'JSON::PP::Boolean';
+        next if !ref $v && $v =~ /\A(?:1|0|true|false|yes|no|on|off|)\z/i;
+        return
+            "Argument '$k' for $name must be true or false. "
+            . "It was neither, so it was REFUSED rather than guessed at: "
+            . "on this tool an unrecognised value used to mean 'false', which "
+            . "is the destructive direction. Send true or false, or omit '$k' "
+            . "to leave the current setting alone.";
+    }
+
     return;
 }
 

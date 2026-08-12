@@ -1008,9 +1008,28 @@ sub action_acl_set {
     # "leave as it is" on an existing entry, so a caller updating only the read
     # list does not silently publish a draft section; a false value clears it.
     if ( defined $draft ) {
-        my $on = ( ref $draft eq 'JSON::PP::Boolean' ) ? ( $draft ? 1 : 0 )
-            : ( $draft =~ /\A(?:1|true|yes|on)\z/i ) ? 1
-            :                                          0;
+        # SM291: an unrecognised value is REFUSED, not read as false.
+        #
+        # This coercion used to end in `: 0` - anything it did not recognise
+        # cleared the flag and published the section, while reporting ok:1. A
+        # site agent measured it: draft => "yes-please" turned a folder that was
+        # 404ing to the public into one that bounces to login. Omitting draft is
+        # safe and documented as safe, so the malformed spelling was the
+        # destructive one, which is the wrong way round for a typo.
+        #
+        # Refused HERE rather than only in the MCP validator because every
+        # surface funnels through this one writer (SM267), and the control API
+        # hands it form-encoded strings that no JSON schema ever sees.
+        my $on;
+        if    ( ref $draft eq 'JSON::PP::Boolean' ) { $on = $draft ? 1 : 0 }
+        elsif ( !ref $draft && $draft =~ /\A(?:1|true|yes|on)\z/i )   { $on = 1 }
+        elsif ( !ref $draft && $draft =~ /\A(?:0|false|no|off|)\z/i ) { $on = 0 }
+        else {
+            return { ok => 0,
+                error => "The 'draft' setting must be true or false. It was "
+                    . "neither, so nothing was changed - an unrecognised value "
+                    . "used to clear the flag and publish the section." };
+        }
         $rec{draft} = JSON::PP::true() if $on;
     }
     elsif ( $existing && $existing->{draft} ) {
