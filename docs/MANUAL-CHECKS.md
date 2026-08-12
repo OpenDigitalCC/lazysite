@@ -521,6 +521,27 @@ promotion to beta/stable, not the cut (see *How to use this document*).
 
 Remove the probe files and the test `acls.json` afterwards.
 
+## Or let the site do it (SM285)
+
+Steps 2 and 3 above are now a command, and it does the whole thing - creates
+the probe, gates it, fetches it anonymously under six file extensions, compares
+each against a public control of the same type, and cleans up after itself:
+
+```bash
+lazysite check --docroot <docroot> --check-acl https://example.test
+```
+
+A **FAIL** names the extensions that leaked and says whether the split is by
+file type, which is the signature of a front end serving a static list off the
+docroot. An **OK** states its evidence: every type was served when public and
+refused when gated. A **warn** means it could not tell - the public control did
+not come back either, so a refusal proved nothing.
+
+Run this first. The manual pass above is still worth doing once on a new
+deployment shape, because a person notices things a probe was not told to look
+for - but on a known shape the command answers the same question in one line,
+and it is the thing to put in a cron job.
+
 # How to use this document
 
 Read the section matching what you changed, not the whole file. If a change

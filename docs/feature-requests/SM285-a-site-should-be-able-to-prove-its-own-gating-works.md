@@ -2,8 +2,8 @@
 title: "SM285 - A site should be able to prove its own gating works, whatever is in front of it"
 subtitle: "SM283's fix is a template for one panel. The general problem is that a site cannot tell whether its protected sections are actually protected, and the operator who most needs to know is the one least able to find out."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-12, out of the operator's question after 0.10.7: is the Hestia proxy template essential? It is one fix for one deployment shape, and answering only that leaves the same defect available on every other shape. NOT STARTED. Sized S: lazysite-check already self-probes over HTTP for --check-dav, and this is the same mechanism pointed at a different question."
+status: shipped
+status-note: "SHIPPED on main (unreleased) 2026-08-12, as phase 1 item 1 of WORK-PLAN-ACCESS-CONTROL. `lazysite check --check-acl URL` creates a probe folder, gates it against a principal that cannot exist, and fetches it anonymously under six extensions - several on purpose, because SM283 gated .dat and leaked the rest, so a one-extension probe reports a leaking site healthy. EACH GATED FILE HAS A PUBLIC CONTROL of the same type outside the folder: without it a refusal proves nothing, since an unreachable site and a 403 the front end returns because it cannot read the file both read as correct gating. Cleans up its files and its ACL entry, including via an END block after an interrupt, re-reading the store so a rule added meanwhile is not reverted, and sweeps anything an earlier interrupted run left. No filesystem path in the output - it names EXTENSIONS, which is what identifies the layer. TESTED against two real front ends in t/integration/43: the dev server (must report OK) and nginx serving a static extension list with the rest proxied, which is SM283 reproduced (must FAIL and must recognise the extension split). IT SHIPPED BROKEN FIRST AND THE TEST CAUGHT IT: the extension list was a file-scoped `my` below the main body, which exits before reaching it, so the list was EMPTY - zero fetches, 0 == 0, and a verdict of 'the front end respects the ACL' against a port with nothing listening. A security check that passes by testing nothing is the exact defect this programme exists to remove; it has its own regression test, and perlcritic flags the same hazard as unreachable code."
 ---
 
 # SM285 - let the site answer the question
@@ -83,6 +83,27 @@ outcome that must be unambiguous is "the bytes came back", which is the FAIL.
 - The probe file and its ACL entry are removed even when the run is interrupted.
 - No filesystem path appears in any output (the standing rule).
 - A site with no egress to itself gets a WARN that says so.
+
+## What building it taught, which was not in the design
+
+**The probe shipped with a false pass and a test found it.** The extension list
+was declared as a file-scoped `my` beside the subs, and this file's main body
+exits before it gets there - so the list was empty, the loop ran zero times, the
+"all refused" verdict compared 0 with 0, and the probe reported a healthy front
+end against a port with nothing listening on it. It would have reported every
+site healthy, for ever, and its output would have read exactly like success.
+
+That is the same shape as [[SM278]] and as SM283 itself: **a control reporting
+success without doing the work.** Writing a checker does not make one immune to
+the class of defect the checker exists to find.
+
+**"Refused" is not evidence unless something was served.** The first design
+counted a 403 as correct gating. But a 403 can be the front end failing to read
+the file, and a site that is simply down refuses everything - both would have
+read as a pass. Every gated probe now has a **public control** of the same file
+type outside the gated folder, and the OK verdict states its evidence: *served
+when public, refused when gated*. Without the control the check could only ever
+have proved the absence of a leak, never the presence of gating.
 
 ## Related
 

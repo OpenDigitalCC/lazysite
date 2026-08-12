@@ -24,7 +24,18 @@ use Cwd        qw(abs_path);
 use File::Find ();
 
 my %opt = ( docroot => undef, cgibin => undef, owner => undef,
-    group => undef, fix => 0, check_dav => undef, dependencies => 0 );
+    group        => undef, fix => 0, check_dav => undef, check_acl => undef,
+    dependencies => 0 );
+
+# SM285 probe state. Declared HERE, at the top, because this file's main body
+# exits before its sub definitions are reached - so a `my` down beside the subs
+# never executes. That is not a style point: the first version of the probe put
+# its extension list down there, the list was empty when the probe ran, and it
+# reported a leaking front end healthy. perlcritic flags the same hazard as
+# unreachable code. Anything the probe needs at runtime is declared up here.
+my $PROBE_DIR;    # absolute path of the probe directory
+my $PROBE_KEY;    # the ACL key we added, so an interrupt can withdraw it
+
 while (@ARGV) {
     my $a = shift @ARGV;
     if    ( $a eq '--docroot' )       { $opt{docroot}       = shift @ARGV }
@@ -33,6 +44,7 @@ while (@ARGV) {
     elsif ( $a eq '--group' )         { $opt{group}         = shift @ARGV }
     elsif ( $a eq '--fix' )           { $opt{fix}           = 1 }
     elsif ( $a eq '--check-dav' )     { $opt{check_dav}     = shift @ARGV }
+    elsif ( $a eq '--check-acl' )     { $opt{check_acl}     = shift @ARGV }
     elsif ( $a eq '--dependencies' )  { $opt{dependencies}  = 1 }
     elsif ( $a eq '--handover-mode' ) { $opt{handover_mode} = shift @ARGV }
     elsif ( $a eq '--help' )          { usage(); exit 0 }
@@ -70,6 +82,13 @@ Usage: perl tools/lazysite-check.pl --docroot PATH [options]
                    mode that differs any other way is reported, never changed.
   --check-dav URL  probe URL/dav/ unauthenticated; expect 401 (route wired), not
                    404 (route missing - the web server / proxy does not forward /dav/)
+  --check-acl URL  ask whether the FRONT END respects the ACL: briefly gate a
+                   probe folder, fetch it anonymously from URL under several
+                   file extensions, and FAIL if any bytes come back. Several
+                   extensions on purpose - SM283 leaked .png/.pdf/.txt and
+                   gated .dat, so a one-extension probe reports OK on a leaking
+                   site. Writes a temporary entry to the ACL store and removes
+                   it, including after an interrupt.
   --dependencies   report the OS Perl packages lazysite needs (present vs missing)
                    and the install line for whatever is absent; no docroot needed
   --help           this help
@@ -898,6 +917,9 @@ sub run_checks {
         }
     }
 
+    # --- 8b. does the front end actually respect the ACL? (SM285) ---------------
+    run_acl_probe( $opt{check_acl} ) if defined $opt{check_acl};
+
     # --- 9. content provenance (is this content lazysite's or the operator's?) ---
     # lazysite stamps its shipped seed pages with `provenance: lazysite-starter` in the
     # front matter. This reports which .md content is ours (unmodified vs customised)
@@ -1192,6 +1214,265 @@ sub conf_value {
     return $val;
 }
 
+# ---------------------------------------------------------------------------
+# SM285: the ACL self-probe.
+#
+# Everything else in this tool inspects the site from the inside. This asks the
+# only question that matters from the outside, and it is the question nothing
+# could answer before: WHEN THE ENGINE REFUSES A FILE, DOES THE VISITOR ACTUALLY
+# GET REFUSED? Front-end configuration decides that, lazysite ships templates it
+# cannot test where they are installed, and on most deployments we have no
+# access to look. SM248, SM268 H17 and SM283 were all that gap; SM283 was live
+# across a fleet for weeks and was found by a person fetching a URL by hand.
+#
+# WHY SEVERAL EXTENSIONS, which is the whole design. SM283 leaked .png, .pdf,
+# .txt and .bin and gated .dat - because .dat was the one extension absent from
+# the front end's static list. A probe using one extension would have picked
+# .dat and reported OK. Deciding by extension cannot be made safe, so neither
+# can testing one.
+#
+# A SUB, not a file-scoped `my` list. The first version was
+# `my @PROBE_EXT = qw(...)` down here, and this file executes its main body near
+# the top - so the list was still EMPTY when the probe ran. The loop iterated
+# zero times, `@gated == @PROBE_EXT` compared 0 with 0, and the probe reported
+# "the front end respects the ACL" against a port with nothing listening on it.
+# A security check that passes by testing nothing is the exact defect this whole
+# programme is about, and it survived until a test drove a real leaking front
+# end at it.
+sub _probe_exts { return qw(png pdf txt css gz dat) }
+
+END { _acl_probe_cleanup() if defined $PROBE_DIR || defined $PROBE_KEY }
+
+sub _acl_probe_marker { join '', map { sprintf '%02x', int rand 256 } 1 .. 16 }
+
+sub _acls_file { my ($d) = @_; return "$d/lazysite/auth/acls.json" }
+
+# Read the ACL store as raw text -> hash. Deliberately not via
+# Lazysite::Auth::Acl: this tool is core-Perl only and runs where the library
+# may not be installed.
+sub _acl_read {
+    my ($d) = @_;
+    my $f = _acls_file($d);
+    return {} unless -f $f;
+    open my $fh, '<', $f or return {};
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    require JSON::PP;
+    my $m = eval { JSON::PP::decode_json( $raw // '{}' ) };
+    return ref $m eq 'HASH' ? $m : {};
+}
+
+sub _acl_write {
+    my ( $d, $map ) = @_;
+    my $f = _acls_file($d);
+    require JSON::PP;
+    my $tmp = "$f.probe.$$";
+    open my $fh, '>', $tmp or return 0;
+    print {$fh} JSON::PP->new->canonical->pretty->encode($map);
+    close $fh;
+    chmod 0640, $tmp;
+    return rename $tmp, $f;
+}
+
+# Remove the probe's file tree and its ACL entry. RE-READS the store rather than
+# restoring a copy taken earlier, so a rule the operator added while the probe
+# was running is not silently reverted.
+sub _acl_probe_cleanup {
+    if ( defined $PROBE_KEY ) {
+        my $d   = $opt{docroot};
+        my $map = _acl_read($d);
+        if ( delete $map->{$PROBE_KEY} ) { _acl_write( $d, $map ) }
+        undef $PROBE_KEY;
+    }
+    if ( defined $PROBE_DIR ) {
+        if ( -d $PROBE_DIR ) {
+            opendir my $dh, $PROBE_DIR or return;
+            for my $e ( readdir $dh ) {
+                next if $e eq '.' || $e eq '..';
+                unlink "$PROBE_DIR/$e";
+            }
+            closedir $dh;
+            rmdir $PROBE_DIR;
+        }
+        # The public controls sit BESIDE the folder, not inside it, so they need
+        # removing separately - they are ordinary readable files and leaving one
+        # behind would be litter in the operator's docroot.
+        unlink glob("$PROBE_DIR-open.*");
+        undef $PROBE_DIR;
+    }
+    return;
+}
+
+# Sweep anything a previous interrupted run left behind, so the tool self-heals
+# rather than accumulating gated directories nobody knows about.
+sub _acl_probe_sweep {
+    my ($d)     = @_;
+    my $map     = _acl_read($d);
+    my $changed = 0;
+    for my $k ( keys %$map ) {
+        next unless $k =~ m{\Alazysite-acl-probe-};
+        delete $map->{$k};
+        $changed = 1;
+    }
+    _acl_write( $d, $map ) if $changed;
+
+    opendir my $dh, $d or return;
+    my @stale = grep { /\Alazysite-acl-probe-/ } readdir $dh;
+    closedir $dh;
+    for my $s (@stale) {
+        if ( -d "$d/$s" ) {
+            opendir my $sd, "$d/$s" or next;
+            for my $e ( readdir $sd ) {
+                next if $e eq '.' || $e eq '..';
+                unlink "$d/$s/$e";
+            }
+            closedir $sd;
+            rmdir "$d/$s";
+        }
+        else { unlink "$d/$s" }    # a stray public control
+    }
+    report( 'OK', 'cleared a probe left by an interrupted earlier run' )
+        if $changed || @stale;
+    return;
+}
+
+# One anonymous GET. Returns (status, body). Cache directives on purpose: a
+# cached 200 from an intermediary must not be mistaken for the origin serving
+# the file, and neither must it hide a leak.
+sub _probe_get {
+    my ($url) = @_;
+    my @cmd = (
+        'curl', '-sS',                     '-k', '--max-time', '8',
+        '-H',   'Cache-Control: no-cache', '-H', 'Pragma: no-cache',
+        '-w',   "\n%{http_code}",          $url,
+    );
+    open my $ph, '-|', @cmd or return ( '', '' );
+    my $out = do { local $/; <$ph> };
+    close $ph;
+    return ( '', '' ) unless defined $out;
+    my $code = '';
+    if ( $out =~ s/\n(\d{3})\z// ) { $code = $1 }
+    return ( $code, $out );
+}
+
+sub run_acl_probe {
+    my ($url) = @_;
+    $url =~ s{/+$}{};
+    if ( $url !~ m{^https?://\S+$} ) {
+        report( 'WARN', '--check-acl needs an http(s):// URL; skipping the ACL probe' );
+        return;
+    }
+    my $d = $opt{docroot};
+
+    _acl_probe_sweep($d);
+
+    my $marker = _acl_probe_marker();
+    my $name   = "lazysite-acl-probe-$marker";
+    $PROBE_DIR = "$d/$name";
+    unless ( mkdir $PROBE_DIR ) {
+        undef $PROBE_DIR;
+        report( 'WARN',
+            'cannot create a probe directory in the docroot, so the ACL probe '
+                . 'was skipped - this reports nothing either way about the front end' );
+        return;
+    }
+    my @exts = _probe_exts();
+    unless (@exts) {
+        _acl_probe_cleanup();
+        report( 'FAIL', 'the ACL probe has no file types to test - this is a bug '
+                . 'in lazysite-check, and a probe that tests nothing must never '
+                . 'report a pass' );
+        return;
+    }
+    for my $ext (@exts) {
+        open my $fh, '>', "$PROBE_DIR/probe.$ext" or next;
+        print {$fh} $marker;
+        close $fh;
+        # The CONTROL for this extension: same bytes, same type, OUTSIDE the
+        # gated folder. Without it, "refused" and "nothing here works" are the
+        # same observation - a 403 because the front end cannot read the file,
+        # or a site that is simply down, would read as healthy gating.
+        open my $cf, '>', "$PROBE_DIR-open.$ext" or next;
+        print {$cf} $marker;
+        close $cf;
+    }
+
+    # Gate the folder against a principal that cannot exist. An EMPTY read list
+    # would not restrict anything - "no list for this mode" means allowed, which
+    # is the documented behaviour and would make this probe pass vacuously.
+    $PROBE_KEY = $name;
+    my $map = _acl_read($d);
+    $map->{$PROBE_KEY} = { read => ['__lazysite-acl-probe-nobody__'] };
+    unless ( _acl_write( $d, $map ) ) {
+        _acl_probe_cleanup();
+        report( 'WARN', 'cannot write the ACL store, so the ACL probe was skipped' );
+        return;
+    }
+
+    my ( @leaked, @gated, @blind );
+    for my $ext (@exts) {
+        my ( $code,  $body )  = _probe_get("$url/$name/probe.$ext");
+        my ( $ccode, $cbody ) = _probe_get("$url/$name-open.$ext");
+        my $served_gated  = defined $body  && index( $body,  $marker ) >= 0;
+        my $served_public = defined $cbody && index( $cbody, $marker ) >= 0;
+
+        print {*STDERR} "acl-probe: .$ext gated=$code public=$ccode\n"
+            if $ENV{LAZYSITE_ACL_PROBE_DEBUG};
+
+        if    ($served_gated) { push @leaked, $ext }
+        elsif ( !$served_public ) {
+            # The control did not come back either, so the refusal proves
+            # nothing about the ACL.
+            push @blind, ".$ext(gated $code / control $ccode)";
+        }
+        else { push @gated, $ext }
+    }
+
+    _acl_probe_cleanup();
+
+    # The verdicts. Note what is NOT said: never the filesystem path, and never
+    # the name of a real file - the operator is told which EXTENSIONS leaked,
+    # because that is what identifies the layer at fault.
+    if (@leaked) {
+        my $l = join ', ', map { ".$_" } @leaked;
+        my $g = @gated ? join( ', ', map { ".$_" } @gated ) : '';
+        my $shape
+            = @gated
+            ? "$l served, $g refused - the split is by FILE EXTENSION, which is a "
+            . "front end serving a static list straight off the docroot"
+            : "$l served - the front end is answering without consulting the engine";
+        report( 'FAIL',
+            "a file the engine refuses is served to anonymous visitors: $shape",
+            'the request is not reaching lazysite. On Hestia apply the '
+                . 'lazysite-proxy template (or turn that domain\'s proxy off); '
+                . 'elsewhere check that the front end routes to the engine when '
+                . 'lazysite/auth/acls.json exists. See SM283.' );
+    }
+    elsif ( @gated == @exts ) {
+        report( 'OK',
+            'the front end respects the ACL: every probed file type ('
+                . join( ', ', map { ".$_" } @exts )
+                . ') was served when public and refused when gated' );
+    }
+    elsif (@gated) {
+        report( 'WARN',
+            'the ACL probe could not vouch for some file types: '
+                . join( ', ', @blind )
+                . ' (confirmed gated: ' . join( ', ', map { ".$_" } @gated ) . ')',
+            'no bytes leaked, so this is not an exposure - but the public '
+                . 'control was not served for those types either, so a refusal '
+                . 'there proves nothing' );
+    }
+    else {
+        report( 'WARN',
+            'the ACL probe got no usable answer - nothing was served, gated or '
+                . 'public (' . join( ', ', @blind ) . ')',
+            'no bytes leaked, and nothing is confirmed. Check the URL is this '
+                . 'site and reachable from here; curl must be installed' );
+    }
+    return;
+}
+
 __END__
 
 =head1 NAME
@@ -1255,6 +1536,38 @@ state (the C<fixed:> action lines come first).
 
 Probe C<< URL/dav/ >> unauthenticated; expect 401 (route wired), not 404 (the web
 server or proxy is not forwarding F</dav/>).
+
+=item B<--check-acl> URL
+
+Ask whether the B<front end> respects the ACL - the one question this tool
+cannot answer from the inside, and the one three incidents turned on
+(SM248, SM268 H17, SM283).
+
+It creates a probe folder in the docroot, gates it against a principal that
+cannot exist, and fetches it anonymously from C<URL> under several file
+extensions. If any bytes come back, the front end is answering without
+consulting the engine, and the check B<FAILs>.
+
+B<Several extensions on purpose.> SM283 leaked C<.png>, C<.pdf>, C<.txt> and
+C<.bin> and gated C<.dat>, because C<.dat> was the one extension absent from the
+front end's static list. A probe testing one extension would have picked C<.dat>
+and reported the site healthy. When the answers split by extension, this check
+says so - that split is the signature of a front end serving a static list
+straight off the docroot.
+
+Each gated file has a B<public control> of the same type outside the gated
+folder. If the control is not served either, the refusal proves nothing - a site
+that is simply unreachable would otherwise read as correctly gated - and the
+check reports that it could not tell rather than passing.
+
+The probe writes a temporary entry to the ACL store and removes both it and its
+files afterwards, including after an interrupt, and it clears anything an
+earlier interrupted run left behind. It re-reads the store before removing its
+entry, so a rule added while it was running is not reverted. No filesystem path
+appears in its output; the operator is told which B<extensions> leaked, because
+that is what identifies the layer at fault.
+
+Needs C<curl>, and needs the site to be reachable from where the check runs.
 
 =item B<--dependencies>
 
