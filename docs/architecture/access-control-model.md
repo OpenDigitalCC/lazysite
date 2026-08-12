@@ -33,31 +33,77 @@ They share no code, no vocabulary and no storage.
 Rows are the object; columns are the channel. **ACL** = the per-file ACL decides;
 **auth:** = the page auth level decides; **-** = neither consults anything.
 
+**CORRECTED 2026-08-12.** The table below described the state before SM223. That
+filing is recorded as shipped at the foot of this document, but the correction
+was appended there and never made here - so the single cell this section calls
+out as most important said the opposite of the behaviour for three releases,
+in the one table a reader consults to answer the question. The rows are now
+current; the superseded reading is kept underneath, because this document's
+purpose is to show what was weighed.
+
 | Object | Anonymous HTTP | Manager (cookie) | Control API (token) | MCP | WebDAV |
 |---|---|---|---|---|---|
 | Page with `auth: none` | public | ACL | ACL | ACL | ACL |
 | Page with `auth: required` | **auth:** (redirect) | ACL | ACL | ACL | ACL |
 | Page with `groups:` | **auth:** (403) | ACL | ACL | ACL | ACL |
-| File with an ACL entry | *not consulted* | ACL | ACL | ACL | ACL |
-| File with both | **auth:** on read, ACL on authoring | ACL | ACL | ACL | ACL |
-| **Static file** (no `.md`) | **nothing** | ACL | ACL | ACL | ACL |
+| File with an ACL entry | **ACL** | ACL | ACL | ACL | ACL |
+| File with both | **auth:**, then ACL | ACL | ACL | ACL | ACL |
+| **Static file** (no `.md`), site has an ACL store | **ACL** | ACL | ACL | ACL | ACL |
+| **Static file**, site has NO ACL store | public | ACL | ACL | ACL | ACL |
 | Engine-owned path | 404/refused | blocked | blocked | blocked | blocked |
 
-The single most important cell is the one an operator would never guess: **a
-per-file ACL has no effect on what an anonymous visitor can read.** The
-processor never loads `Lazysite::Auth::Acl`.
+Since SM223 the processor carries a **module-free copy** of the read decision
+(`_acl_allows_read`; ADR 0001 forbids it loading `Lazysite::Auth::Acl`), and
+`t/lint/31` pins the copy against the shared implementation so the two cannot
+drift into meaning different things.
+
+Two properties of that path are load-bearing and easy to lose:
+
+- **The public path never applies the operator bypass.** `_is_operator` treats
+  every cookie client as an operator on a site where no group grants manager
+  access, so consulting it anonymously would make the whole feature inert on
+  exactly the least-secured sites. `t/lint/31` asserts the processor does not
+  call `_acl_denied`.
+- **No ACL store means no change.** A site that has never protected anything
+  serves statics exactly as before, which is what made SM223 safe to ship to
+  every existing site.
+
+What has NOT changed, and still surprises people: `auth_default: required`
+governs **pages** and does not reach static files. A site can declare itself
+private and still publish its PDFs. See [[SM287]].
+
+> **Superseded reading, kept deliberately (pre-SM223):** *"The single most
+> important cell is the one an operator would never guess: a per-file ACL has no
+> effect on what an anonymous visitor can read. The processor never loads
+> `Lazysite::Auth::Acl`."* True when written, and the finding that prompted
+> SM223.
 
 ### Subject-level behaviour
 
 | Subject | ACL treatment |
 |---|---|
+| No entry, or no list for that mode | **allowed** - protection is opt-in, and an owner-only entry is not a read restriction |
 | Owner of the file | always allowed |
-| User named in the mode's list | allowed |
-| Member of an `@group` in the list | allowed **only if the channel carries groups** |
-| Operator (cookie, `manage_users`) | bypasses the ACL entirely |
+| User named in the mode's list | allowed (exact username) |
+| Member of an `@group` in the list | allowed **only if the channel carries groups**. Matching is case-insensitive and expands **nested** groups (`group_closure`), so membership can be indirect |
+| Operator (cookie, `manage_users`) | bypasses the ACL entirely - **on the authoring surfaces only, never on the anonymous read path** |
 | `local` user | always operator |
-| Any user, on an unsecured site | operator (no group grants manager access) |
-| **Token / MCP / WebDAV partner** | **never an operator; carries no groups** |
+| Any user, on an unsecured site | operator (no group grants manager access) - which is why the public path must not consult it |
+| **Token / MCP / WebDAV partner** | **never an operator; carries no groups**, so an `@group` entry can never match one - name it explicitly |
+
+### The two policies
+
+An entry is not just an allow-list; it carries a policy, and the two differ in
+what an anonymous request gets **and in what an empty list means**.
+
+| Policy | Anonymous request | Empty read list means |
+|---|---|---|
+| **Gated** (default) | 302 to the login page, `Cache-Control: no-store` | no restriction - the entry does not govern |
+| **Draft** (`draft: true`) | **404**, and absent from the sitemap, feeds and search | **nobody**: an anonymous request is refused even with no list |
+
+The draft asymmetry is deliberate. A draft section with no read list would
+otherwise be public, which is the opposite of what "draft" means to the person
+who set it.
 
 ## Four findings
 
