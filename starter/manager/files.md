@@ -958,6 +958,13 @@ function loadProtectedSections() {
       for (var i = 0; i < rows.length; i++) {
         var s = rows[i], p = escHtml(s.prefix);
         var draft = s.policy === 'draft';
+        // SM287: the site-wide rule is a section like any other and covers
+        // everything, so it must not read as a folder called "/". Named, not
+        // just styled - somebody scanning this list for what is protected
+        // should not have to interpret a slash.
+        var label = s.site_wide
+          ? '<strong>The whole site</strong> <span class="mg-muted">(every page and asset)</span>'
+          : '<code>' + p + '</code>';
         var badge = draft
           ? '<span class="mg-alias-badge mg-alias-302" title="Hidden outright: 404 to the public, absent from the sitemap, feeds and every listing.">draft</span>'
           : '<span class="mg-alias-badge" title="Visible only to the people named in the read list; everyone else is sent to sign in.">gated</span>';
@@ -970,7 +977,7 @@ function loadProtectedSections() {
           ? (s.pages + ' page' + (s.pages === 1 ? '' : 's')
              + (s.assets ? ', ' + s.assets + ' asset' + (s.assets === 1 ? '' : 's') : ''))
           : '<span class="mg-cap-dormant" title="The rule still gates this path, but there is no such folder.">no such folder</span>';
-        html += '<tr><td><code>' + p + '</code></td>'
+        html += '<tr><td>' + label + '</td>'
               + '<td>' + badge + '</td>'
               + '<td>' + who + '</td>'
               + '<td>' + contents + '</td>'

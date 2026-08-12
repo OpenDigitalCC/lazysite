@@ -152,7 +152,29 @@ sub _acl_entry_for {
         $best     = $map->{$k};
         $best_len = length $p;
     }
-    return $best;
+    return $best if $best;
+
+    # SM287: the SITE-WIDE rule, and it is the WEAKEST - checked only when
+    # nothing more specific governs, so a public carve-out inside a private site
+    # stays expressible (which is the common shape: everything private except
+    # the landing page).
+    #
+    # Before this, a root entry did nothing under any spelling. Not by an
+    # oversight in one branch: the loop above skips a zero-length prefix, and
+    # even without that guard `index($rel, "$p/")` can never match an empty
+    # prefix because _acl_norm has already stripped the leading slash from $rel.
+    # So there was NO way to say "this whole site is private" - auth_default
+    # governs pages and deliberately does not reach statics, and enumerating
+    # top-level folders fails OPEN as content grows.
+    #
+    # '/' is what the writer stores. '' and '.' are accepted too: a hand-edited
+    # store is a real interface here and all three plainly mean the same thing.
+    # Glob spellings are NOT accepted - the store has no matching language, and
+    # audit_site's acl_keys_matching_nothing surfaces a key that governs nothing.
+    for my $rk ( '/', '', '.' ) {
+        return $map->{$rk} if $governs->( $map->{$rk} );
+    }
+    return;
 }
 
 sub _acl_allows {

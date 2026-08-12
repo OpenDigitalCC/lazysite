@@ -70,7 +70,12 @@ Two properties of that path are load-bearing and easy to lose:
 
 What has NOT changed, and still surprises people: `auth_default: required`
 governs **pages** and does not reach static files. A site can declare itself
-private and still publish its PDFs. See [[SM287]].
+private and still publish its PDFs - deliberately, because making it
+retrospective would have started refusing assets on every site that upgraded.
+
+Since [[SM287]] there is a way to say it: an ACL entry on `/` governs every path,
+pages and assets alike. That is the mechanism for a wholly-private site, and it
+is opt-in, so nothing changes for a site that does not write one.
 
 > **Superseded reading, kept deliberately (pre-SM223):** *"The single most
 > important cell is the one an operator would never guess: a per-file ACL has no
@@ -79,6 +84,30 @@ private and still publish its PDFs. See [[SM287]].
 > SM223.
 
 ### Subject-level behaviour
+
+### The scope grammar
+
+An ACL key names what it governs. Resolution order is **most specific first**,
+and only entries carrying a non-empty list for the mode in question take part -
+an owner-only entry is no rule, not a tighter one.
+
+| Scope | Key | Beats |
+|---|---|---|
+| One file | `content/report.pdf` | everything |
+| A section's landing page | `private` also governs `private.md` | the folder rules above it |
+| A folder, at any depth | `private` covers `private/...` | shorter prefixes, and the site |
+| **The whole site** | `/` | nothing - it is the **weakest**, so a carve-out under it still wins |
+
+The site-wide rule is what makes "everything private except the front door"
+expressible. `''`, `'.'` and `'./'` are read as `/` too, since a hand-edited
+store is a real interface here; the writer only ever stores `/`. **Wildcards are
+refused** - the store has no matching language, so accepting `*` would imply
+one.
+
+Before SM287 the root was the one scope that could not be expressed at all: an
+entry there was inert under every spelling, so a wholly-private site had to
+enumerate its top-level folders - a workaround that **fails open as content
+grows**, because a file added at the root next month is public.
 
 | Subject | ACL treatment |
 |---|---|

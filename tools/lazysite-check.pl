@@ -1242,6 +1242,26 @@ sub report_group_acl_reach {
     return unless ref $map eq 'HASH';
 
     # Every @group named by any entry, in any mode.
+    return unless keys %$map;
+
+    # SM287: is anything site-wide? Informational, deliberately NOT a warning,
+    # and reported BEFORE the @group section because it is a different question
+    # and a site can have one without the other.
+    #
+    # Enumerating top-level folders is a legitimate choice and nagging about it
+    # would teach the reader to skip this section. But it fails OPEN as content
+    # grows - a file added at the docroot root next month is public, with
+    # nothing else in this tool to say so - and an operator who believes the
+    # site is closed should be able to see which of the two shapes they have.
+    my $has_root = grep { exists $map->{$_} } ( '/', '', '.', './' );
+    report( 'OK',
+        $has_root
+        ? 'a site-wide ACL rule is in force - every path is governed unless a '
+            . 'more specific entry says otherwise'
+        : 'access is granted per path; there is no site-wide rule, so anything '
+            . 'added outside the listed paths is public (use "/" if the whole '
+            . 'site should be private)' );
+
     my %wanted;
     for my $path ( keys %$map ) {
         my $e = $map->{$path};

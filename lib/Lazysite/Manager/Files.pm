@@ -929,13 +929,51 @@ sub action_acl_get {
     return { ok => 1, path => $r->{rel}, acl => $a };
 }
 
+# SM287: which spellings mean "the whole site", and which are refused.
+#
+# The root was the one scope that could not be expressed: a root entry was inert
+# under every spelling, so a wholly-private site had to enumerate its top-level
+# folders - a workaround that fails OPEN as content grows, because a file added
+# at the root next month is public with nothing to say so.
+#
+# '/', '' and '.' all plainly mean the site, so they NORMALISE to the canonical
+# '/'. Glob spellings are REFUSED with a message naming the canonical form: the
+# store has no glob syntax anywhere else, so accepting '*' would imply a
+# matching language that does not exist, and quietly storing it is how this
+# started - the old behaviour accepted every one of these and gated nothing.
+my %ROOT_SPELLING = map { $_ => 1 } ( '/', '',   '.',  './' );
+my %ROOT_GLOB     = map { $_ => 1 } ( '*', '/*', '**', '/**', './*' );
+
+sub _acl_root_key {
+    my ($raw) = @_;
+    my $t = defined $raw ? $raw : '';
+    $t =~ s/\A\s+|\s+\z//g;
+    return 'root' if $ROOT_SPELLING{$t};
+    return 'glob' if $ROOT_GLOB{$t};
+    return '';
+}
+
 sub action_acl_set {
     my ( $rel_path, $user, $read, $write, $owner_req, $draft ) = @_;
-    my $r = validate_path($rel_path);
-    return $r unless $r->{ok};
-    my $rel = _acl_norm( $r->{rel} );
-    return { ok => 0, error => "Path is blocked", kind => 'blocked' }
-        if is_blocked_path($rel) || is_blocked_config($rel);
+
+    my $rootish = _acl_root_key($rel_path);
+    if ( $rootish eq 'glob' ) {
+        return { ok => 0,
+            error => "Wildcards are not a path here. To govern the whole site, "
+                . "including every folder beneath it, use \"/\" as the path." };
+    }
+
+    my ( $r, $rel );
+    if ( $rootish eq 'root' ) {
+        $rel = '/';    # canonical, and the only key the writer ever produces
+    }
+    else {
+        $r = validate_path($rel_path);
+        return $r unless $r->{ok};
+        $rel = _acl_norm( $r->{rel} );
+        return { ok => 0, error => "Path is blocked", kind => 'blocked' }
+            if is_blocked_path($rel) || is_blocked_config($rel);
+    }
 
     my $acls     = load_acls();
     my $existing = $acls->{$rel};
@@ -1048,6 +1086,11 @@ sub action_protected_sections {
 
         push @out, {
             prefix => $key,
+            # SM287: the site-wide rule is listed here because it IS a protected
+            # section - the widest one - but flagged so the panel can say so.
+            # Rendered as one folder row among the others it would read as a
+            # folder called "/", which understates a rule covering everything.
+            site_wide => ( $key eq '/' ? 1 : 0 ),
             # Two DIFFERENT acts, named differently, because publishing a draft
             # section and un-gating a private one are not the same decision.
             policy => ( $a->{draft} ? 'draft' : 'gated' ),
@@ -1064,6 +1107,38 @@ sub action_protected_sections {
 
 sub action_acl_remove {
     my ( $rel_path, $user ) = @_;
+
+    # SM287: remove has to understand the same spellings as set, or a site-wide
+    # rule can be created and not taken off - which is a worse trap than not
+    # being able to create one. Found by the writer test, not by review.
+    #
+    # A hand-edited store may hold '' or '.'; the writer only produces '/', but
+    # removing the root must clear whichever of them is actually there, or the
+    # operator is left with a rule the UI says is gone.
+    my $rootish = _acl_root_key($rel_path);
+    if ( $rootish eq 'glob' ) {
+        return { ok => 0,
+            error => "Wildcards are not a path here. To remove the rule that "
+                . "governs the whole site, use \"/\" as the path." };
+    }
+    if ( $rootish eq 'root' ) {
+        my $acls = load_acls();
+        my ($present) = grep { exists $acls->{$_} } ( '/', '', '.', './' );
+        return { ok => 1, path => '/', removed => 0 } unless defined $present;
+        my $existing = $acls->{$present};
+        unless ( _is_operator()
+            || ( $existing->{owner} // '' ) eq ( $user // '' ) )
+        {
+            return { ok => 0, error => "Only the owner may remove permissions" };
+        }
+        delete $acls->{$_} for ( '/', '', '.', './' );
+        save_acls($acls)
+            or return { ok => 0, error => "Cannot write the ACL store" };
+        log_event( 'INFO', 'acl-remove', 'site-wide acl removed',
+            path => '/', user => $auth_user );
+        return { ok => 1, path => '/', removed => 1 };
+    }
+
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
     my $rel = _acl_norm( $r->{rel} );
