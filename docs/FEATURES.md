@@ -461,18 +461,63 @@ Several 0.9.x changes make the capability model legible rather than silent:
   flag a channel capability granted while its site service is switched off (a
   dormant grant that silently does nothing) - indicate, never block.
 
-## Per-file ACLs
+## Limiting who can see content
 
-A central store (`lazysite/auth/acls.json`) optionally maps a docroot-relative path
-to `{ owner, read:[…], write:[…] }`. The model: **no entry means allowed** (the
-account's namespace scope governs), the owner is always allowed, and list entries
-may be a username or `@group`. ACLs only ever *narrow* access. They bind identically
-across WebDAV, the manager, and MCP via one shared check. Crucially, the **two auth
-domains** differ: a cookie **operator** inside the manager bypasses ACLs (edits
-anything), but a **token/WebDAV/MCP partner is never an operator** and is bound by
-per-file ownership exactly like any external author - the linchpin that stops
-external partners escalating. `@group` entries match a cookie user's groups; a token
-client carries none, so `@group` never matches it (the safe default).
+A site can restrict **a page, a file, a folder, or the whole site**, and the
+restriction applies to visitors as well as to authors. The full reference,
+including the resolution order and the per-channel table, is
+`docs/architecture/access-control-model.md`.
+
+There are two mechanisms, answering two questions:
+
+Who may read a **page**
+: `auth:` and `groups:` in the page's front matter, with `auth_default` in
+  `lazysite.conf` as the site default.
+
+Who may read or write a **path**
+: the ACL store, `lazysite/auth/acls.json` - a file, a folder (covering
+  everything beneath it), or `/` for the whole site including its assets.
+
+**Protection is opt-in.** A file nobody has mentioned is public, and a site that
+has never protected anything behaves exactly as it always did - which is what
+made this safe to extend to existing sites. Note the corollary: `auth_default:
+required` closes the **pages** and does not reach static files, so a wholly
+private site wants a root ACL entry rather than the site default alone.
+
+Two policies, differing in what a visitor gets:
+
+- **Gated** - anonymous visitors are sent to sign in; the response is never
+  stored by a shared cache.
+- **Draft** - a 404, and absent from the sitemap, the feeds and search. Held-back
+  content should not answer at guessable URLs, because a login form confirms the
+  page exists.
+
+Set it from the manager (Files -> a folder's actions, or the per-file
+permissions editor), over MCP (`set_permissions`), or over the control API
+(`acl-set`). One writer, so a section and a file are governed by the same store
+and the same rules.
+
+**Verify it from outside**, because the front end decides whether a request ever
+reaches the engine: `lazysite check --check-acl https://example.test` gates a
+probe, fetches it anonymously under several file extensions, and fails if any
+bytes come back.
+
+## Per-path ACLs: the model
+
+The store maps a docroot-relative path to `{ owner, read:[…], write:[…] }`.
+**No entry means allowed** (the account's namespace scope governs), the owner is
+always allowed, and list entries may be a username or `@group` - matched
+case-insensitively, with nested groups expanded. ACLs only ever *narrow* access,
+and they bind identically across the manager, the control API, MCP and WebDAV
+through one shared check, plus a module-free copy in the processor for the
+public read path (ADR 0001; `t/lint/31` pins the pair).
+
+The **two auth domains** differ in one respect: a cookie **operator** inside the
+manager bypasses ACLs, but a **token/WebDAV/MCP partner is never an operator**
+and is bound by per-file ownership like any external author - the linchpin that
+stops external partners escalating. That bypass applies to the authoring
+surfaces only, never to the anonymous read path. A partner's `@group`
+memberships resolve from its account on every channel (SM288).
 
 ## The deny-list
 

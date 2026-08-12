@@ -2,8 +2,8 @@
 title: "SM290 - The access-control documentation, and the lint that keeps it true"
 subtitle: "Writing it down is what we did last time. It rotted, and it was believed while rotten. Every statement of fact about the code gets pinned."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-12 as phase 3 of WORK-PLAN-ACCESS-CONTROL. NOT STARTED. Write once SM287 and SM288 have landed - at that point the scope, subject and policy grammars are settled, and SM286 step 1 changes only where the bytes live, which is one paragraph here. Depends on SM289 for the vocabulary."
+status: shipped
+status-note: "SHIPPED on main (unreleased) 2026-08-12, phase 3 of WORK-PLAN-ACCESS-CONTROL, written straight after SM287/SM288 settled the grammars rather than waiting for SM286 step 1 (which changes where bytes live, not the model a user sees). access-control-model.md is now a REFERENCE - two mechanisms and which question each answers, the scope grammar, the subject grammar, the two policies, the per-channel table, the truth table, and how to verify it from outside - with the SM224 analysis kept as an APPENDIX, assembled rather than retyped so its reasoning could not be paraphrased away. Two superseded recommendations marked in place rather than left as live suggestions: finding 1 (rename set_permissions because it does not govern the public path - SM223 made the premise false) and the naming recommendation at the foot. FEATURES gains 'Limiting who can see content', including the sentence that was written nowhere: protection is opt-in, so a file nobody mentioned is public - and its now-false claim that an @group can never match a partner is gone. t/lint/36 pins every factual table against the source, and was verified by breaking the CODE four ways - root check moved before the prefix loop, nested-group expansion removed, a channel dropping the shared resolver, and the processor using _acl_denied on the public path - each caught with a precise message. Judgement, history and the appendix are deliberately NOT pinned."
 ---
 
 # SM290 - documentation that cannot quietly stop being true

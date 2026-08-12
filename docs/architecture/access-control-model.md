@@ -1,45 +1,133 @@
 ---
-title: "Access control: the two models, and how they relate"
-subtitle: "SM224 analysis. Who may read or write what, on which channel, decided by which mechanism - and what should change."
+title: "Access control: who may see what"
+subtitle: "The reference. Two mechanisms, which question each answers, and the grammar of both. The analysis that settled the design is the appendix."
 brand: plain
+standard-margins: true
 ---
 
-# Access control: the two models
+# Access control
 
-## Why this document exists
+## How to use this document
 
-lazysite answers "who may read or write this?" with two mechanisms that do not
-know about each other. An experienced reviewer, reasoning from the tool surface,
-could not determine which one governed the public read path - and drew a
-conclusion with privacy consequences. This is the analysis SM224 asked for:
-what is actually true, whether the two should merge, and what to do next.
+The reference is everything up to the appendix, and it describes what the code
+does today. **Every factual table in it is asserted against the source by
+`t/lint/36`** - not as ceremony, but because this document has twice told a
+reader the opposite of the behaviour and been believed both times (see *How this
+document earned its lint*, below).
+
+The appendix is the SM224 analysis of June 2026: why there are two mechanisms,
+what was considered, and what was decided. It is history and reasoning, kept
+because a later reader should be able to see what was weighed - but nobody
+looking for *"how does this work"* should have to read an argument about what it
+should have been.
 
 ## The two mechanisms
 
-Per-file ACL
-: `lazysite/auth/acls.json`, set by `set_permissions` / `acl-set`, enforced by
-`Lazysite::Auth::Acl::_acl_allows`. Owner plus per-mode allow-lists of users and
-`@groups`.
+lazysite answers "who may see this?" two ways, and they answer **different
+questions**. That is a decision, not an accident (appendix: *Should they
+merge?*).
 
-Page auth level
-: `auth:` and `groups:` in a page's front matter, with `auth_default` in
-`lazysite.conf` as the fallback, enforced by `check_auth` in
-`lazysite-processor.pl`.
+Per-path ACL - `lazysite/auth/acls.json`
+: **Who may read or write a PATH** - a file, a folder, or the whole site.
+  Written by the manager, `acl-set` and `set_permissions`; enforced by
+  `Lazysite::Auth::Acl::_acl_allows` on the authoring channels and by a
+  module-free copy in `lazysite-processor.pl` on the public read path (ADR 0001
+  keeps the render path free of module loads; `t/lint/31` pins the two copies
+  together).
 
-They share no code, no vocabulary and no storage.
+Page auth level - `auth:` / `groups:` front matter, `auth_default` in `lazysite.conf`
+: **Who may read a PAGE.** Enforced by `check_auth` in the processor.
+
+They share no storage and no vocabulary. **`auth_default: required` governs
+pages and does not reach static files** - so a site can declare itself private
+and still publish its PDFs. To close a whole site, including its assets, use a
+root ACL entry (below).
+
+## The scope grammar
+
+An ACL key names what it governs. Resolution is **most specific first**, and
+only entries carrying a non-empty list for the mode in question take part - an
+owner-only entry is *no* rule, not a tighter one.
+
+| Scope | Key | Beaten by |
+|---|---|---|
+| One file | `content/report.pdf` | nothing |
+| A section's landing page | `private` also governs `private.md` | an exact key |
+| A folder, at any depth | `private` covers `private/...` | longer prefixes, exact keys |
+| **The whole site** | `/` | **everything** - it is the weakest |
+
+The site-wide rule is deliberately the weakest, so "everything private except
+the front door" is expressible. `''`, `'.'` and `'./'` are read as `/` too,
+since a hand-edited store is a real interface; the writer only ever stores `/`.
+**Wildcards are refused** - the store has no matching language, so accepting
+`*` would imply one.
+
+### Keys are docroot-relative, not URL-relative
+
+The mistake worth naming, because the wrong version looks exactly like the right
+one until somebody tries the URL. A key is the path from the **docroot**; on a
+content-rooted domain the URLs are relative to that domain's `content_root`.
+
+| Domain | URL | ACL key that governs it |
+|---|---|---|
+| primary (no content root) | `/private/notes.pdf` | `private` |
+| `alias.example` with `content_root: sites/foo` | `/private/notes.pdf` | `sites/foo/private` |
+
+Write `private` on the second and nothing is protected: the rule is valid,
+appears in the store, and governs a path that does not exist. Keys written by
+the manager, MCP and WebDAV are already correct; the exposure is confined to
+hand-written rules. `audit_site` returns `acl_keys_matching_nothing` for exactly
+this.
+
+## The subject grammar
+
+| Subject | Treatment |
+|---|---|
+| No entry, or no list for that mode | **allowed** - protection is opt-in |
+| Owner of the file | always allowed |
+| User named in the mode's list | allowed (exact username) |
+| Member of an `@group` in the list | allowed. Case-insensitive, and **nested groups expand**, so membership can be indirect |
+| Operator (cookie, `manage_users`) | bypasses the ACL - **on the authoring surfaces only, never on the anonymous read path** |
+| `local` user | always operator |
+| Any user, on a site where no group grants manager access | operator - which is why the public path must not consult it |
+| Partner (token / MCP / WebDAV) | never an operator; groups resolve from the account |
+
+## The two policies
+
+An entry carries a policy, and they differ in what an anonymous request gets
+**and in what an empty list means**.
+
+| Policy | Anonymous request | Empty read list means |
+|---|---|---|
+| **Gated** (default) | 302 to the login page, `Cache-Control: no-store` | no restriction - the entry does not govern |
+| **Draft** (`draft: true`) | **404**, and absent from the sitemap, feeds and search | **nobody**: refused even with no list |
+
+The draft asymmetry is deliberate: a draft section with no read list would
+otherwise be public, which is the opposite of what the word means.
+
+## Whose groups apply, by channel
+
+A group is a property of the **account**, not of the door it arrived through.
+
+| Channel | Where the groups come from |
+|---|---|
+| **WebDAV** | `Acl::groups_for_user` |
+| **MCP** | `Acl::groups_for_user` |
+| **Control API (token)** | `Acl::groups_for_user` |
+| Manager (cookie) | `HTTP_X_REMOTE_GROUPS`, set by the auth wrapper from the validated session |
+
+`Acl::groups_for_user` delegates to `Settings::effective_groups` - the same
+resolver the capability and domain-access checks use - so *"which groups is this
+account in"* has one implementation for every question lazysite asks.
+
+**Note for token clients:** the control API has no action that reads a file's
+content, so a partner can set an ACL there and must use MCP or WebDAV to
+exercise it ([[SM289]]).
 
 ## Truth table
 
-Rows are the object; columns are the channel. **ACL** = the per-file ACL decides;
-**auth:** = the page auth level decides; **-** = neither consults anything.
-
-**CORRECTED 2026-08-12.** The table below described the state before SM223. That
-filing is recorded as shipped at the foot of this document, but the correction
-was appended there and never made here - so the single cell this section calls
-out as most important said the opposite of the behaviour for three releases,
-in the one table a reader consults to answer the question. The rows are now
-current; the superseded reading is kept underneath, because this document's
-purpose is to show what was weighed.
+Rows are the object, columns the channel. **ACL** = the per-path ACL decides;
+**auth:** = the page auth level decides.
 
 | Object | Anonymous HTTP | Manager (cookie) | Control API (token) | MCP | WebDAV |
 |---|---|---|---|---|---|
@@ -52,134 +140,78 @@ purpose is to show what was weighed.
 | **Static file**, site has NO ACL store | public | ACL | ACL | ACL | ACL |
 | Engine-owned path | 404/refused | blocked | blocked | blocked | blocked |
 
-Since SM223 the processor carries a **module-free copy** of the read decision
-(`_acl_allows_read`; ADR 0001 forbids it loading `Lazysite::Auth::Acl`), and
-`t/lint/31` pins the copy against the shared implementation so the two cannot
-drift into meaning different things.
+**No ACL store means no change.** A site that has never protected anything
+serves statics exactly as before, which is what made SM223 safe to ship to every
+existing site.
 
-Two properties of that path are load-bearing and easy to lose:
+## Checking it, rather than believing it
 
-- **The public path never applies the operator bypass.** `_is_operator` treats
-  every cookie client as an operator on a site where no group grants manager
-  access, so consulting it anonymously would make the whole feature inert on
-  exactly the least-secured sites. `t/lint/31` asserts the processor does not
-  call `_acl_denied`.
-- **No ACL store means no change.** A site that has never protected anything
-  serves statics exactly as before, which is what made SM223 safe to ship to
-  every existing site.
+The front end decides whether a request reaches the engine at all, and three
+incidents turned on that (SM248, SM268 H17, SM283). So the engine being right is
+not the same as the visitor being refused:
 
-What has NOT changed, and still surprises people: `auth_default: required`
-governs **pages** and does not reach static files. A site can declare itself
-private and still publish its PDFs - deliberately, because making it
-retrospective would have started refusing assets on every site that upgraded.
+```bash
+lazysite check --docroot <docroot> --check-acl https://example.test
+```
 
-Since [[SM287]] there is a way to say it: an ACL entry on `/` governs every path,
-pages and assets alike. That is the mechanism for a wholly-private site, and it
-is opt-in, so nothing changes for a site that does not write one.
+That gates a probe folder, fetches it anonymously under six file extensions,
+compares each against a public control of the same type, and FAILs if any bytes
+come back. Several extensions on purpose - SM283 leaked `.png`, `.pdf` and
+`.txt` while gating `.dat`, so a one-extension probe reports a leaking site
+healthy.
 
-> **Superseded reading, kept deliberately (pre-SM223):** *"The single most
-> important cell is the one an operator would never guess: a per-file ACL has no
-> effect on what an anonymous visitor can read. The processor never loads
-> `Lazysite::Auth::Acl`."* True when written, and the finding that prompted
-> SM223.
+A plain `lazysite check` also reports whether a site-wide rule is in force, and
+which `@group` entries exist.
 
-### Subject-level behaviour
+## How this document earned its lint
 
-### The scope grammar
+Twice this file stated the opposite of the behaviour and was believed:
 
-An ACL key names what it governs. Resolution order is **most specific first**,
-and only entries carrying a non-empty list for the mode in question take part -
-an owner-only entry is no rule, not a tighter one.
+- it said a per-file ACL had **no effect on an anonymous read**, and called that
+  out as *"the single most important cell"*. SM223 had made it false three
+  releases earlier; the correction was appended at the foot and the table was
+  never touched;
+- it said **no partner could match an `@group`**, which was true of MCP and
+  false of WebDAV. That came from trusting a comment in `Lazysite::Auth::Acl`
+  rather than the three assignments, and it survived the analysis below, an
+  adversarial security review, and a feature built on top of it - about a year -
+  until an operator said "partners do have groups".
 
-| Scope | Key | Beats |
-|---|---|---|
-| One file | `content/report.pdf` | everything |
-| A section's landing page | `private` also governs `private.md` | the folder rules above it |
-| A folder, at any depth | `private` covers `private/...` | shorter prefixes, and the site |
-| **The whole site** | `/` | nothing - it is the **weakest**, so a carve-out under it still wins |
+Neither was a coding error. **Prose about code is unverified code**, and the
+only difference from a broken function is that nothing fails when it is wrong.
+So the factual tables above are asserted against the source. Judgement, history
+and reasoning are deliberately *not* pinned - an editor must be able to improve
+them without fighting a test.
 
-The site-wide rule is what makes "everything private except the front door"
-expressible. `''`, `'.'` and `'./'` are read as `/` too, since a hand-edited
-store is a real interface here; the writer only ever stores `/`. **Wildcards are
-refused** - the store has no matching language, so accepting `*` would imply
-one.
+# Appendix: how this was decided
 
-Before SM287 the root was the one scope that could not be expressed at all: an
-entry there was inert under every spelling, so a wholly-private site had to
-enumerate its top-level folders - a workaround that **fails open as content
-grows**, because a file added at the root next month is public.
+The SM224 analysis, June 2026, with later corrections marked in place. It
+explains **why** there are two mechanisms and what was weighed - the reference
+above is what they now do.
 
-| Subject | ACL treatment |
-|---|---|
-| No entry, or no list for that mode | **allowed** - protection is opt-in, and an owner-only entry is not a read restriction |
-| Owner of the file | always allowed |
-| User named in the mode's list | allowed (exact username) |
-| Member of an `@group` in the list | allowed **only if the channel carries groups**. Matching is case-insensitive and expands **nested** groups (`group_closure`), so membership can be indirect |
-| Operator (cookie, `manage_users`) | bypasses the ACL entirely - **on the authoring surfaces only, never on the anonymous read path** |
-| `local` user | always operator |
-| Any user, on an unsecured site | operator (no group grants manager access) - which is why the public path must not consult it |
-| **Any partner (token / MCP / WebDAV)** | **never an operator.** Whether its groups apply depends on the CHANNEL - see below |
+## Why the analysis was commissioned
 
-### Whose groups apply, by channel - one answer since SM288
-
-A group is a property of the **account**, not of the door it arrived through.
-Every channel resolves the same way.
-
-| Channel | Where `@user_groups` comes from | Does `@group` match a partner? |
-|---|---|---|
-| **WebDAV** | `Acl::groups_for_user` | **yes** |
-| **MCP** | `Acl::groups_for_user` | **yes** |
-| **Control API (token)** | `Acl::groups_for_user` | **yes** |
-| Manager (cookie) | `HTTP_X_REMOTE_GROUPS`, set by the auth wrapper from the validated session | yes |
-
-`Acl::groups_for_user` delegates to `Settings::effective_groups` - the same
-resolver the capability and domain-access checks already use, so *"which groups
-is this account in"* has **one** implementation for every question lazysite
-asks, and membership expands over nested groups everywhere. `t/lint/35` pins
-each channel to it; `t/integration/44` drives the same question on WebDAV and
-MCP and asserts they agree.
-
-The cookie path keeps the header deliberately: for a browser session the auth
-wrapper sets it from the validated session, and that is the trusted path the
-manager is built on.
-
-> **How it was before SM288, and why it matters.** WebDAV parsed the group file
-> itself, MCP hard-set the list to `()` with a comment calling it "the safe
-> default", and the control API read a header a token client cannot send. So the
-> same account, in the same group, reading the same file under the same ACL, was
-> **allowed over WebDAV and refused over MCP** - for about a year, through the
-> analysis below, an adversarial security review, and a feature built on top of
-> it. Nothing failed and no test noticed, because each channel was only ever
-> tested against itself. An operator found it by reading a summary and saying
-> "partners do have groups". That is the recurring theme SM268 named - two
-> surfaces disagreeing about one question - and the reason `t/lint/35` exists is
-> to catch the fourth channel somebody adds.
-
-**Note for token clients:** the control API has no action that reads a file's
-content, so a partner can set an ACL there and must use MCP or WebDAV to
-exercise it. See [[SM289]].
-
-### The two policies
-
-An entry is not just an allow-list; it carries a policy, and the two differ in
-what an anonymous request gets **and in what an empty list means**.
-
-| Policy | Anonymous request | Empty read list means |
-|---|---|---|
-| **Gated** (default) | 302 to the login page, `Cache-Control: no-store` | no restriction - the entry does not govern |
-| **Draft** (`draft: true`) | **404**, and absent from the sitemap, feeds and search | **nobody**: an anonymous request is refused even with no list |
-
-The draft asymmetry is deliberate. A draft section with no read list would
-otherwise be public, which is the opposite of what "draft" means to the person
-who set it.
+lazysite answered "who may read or write this?" with two mechanisms that did not
+know about each other. An experienced reviewer, reasoning from the tool surface,
+could not determine which one governed the public read path - and drew a
+conclusion with privacy consequences.
 
 ## Four findings
 
-### 1. The ACL is invisible on the path people assume it governs
+### 1. The ACL is invisible on the path people assume it governs - FIXED
 
-Named `set_permissions`, stored as `acls.json`, and inert for anonymous reads.
-The naming is the defect: a reasonable reader concludes that setting read
-permissions on a file restricts who can read it over HTTP. It does not.
+**Closed by [[SM223]], August 2026.** The ACL now governs the anonymous read
+path; see the truth table in the reference.
+
+> **As originally written:** *"Named `set_permissions`, stored as `acls.json`,
+> and inert for anonymous reads. The naming is the defect: a reasonable reader
+> concludes that setting read permissions on a file restricts who can read it
+> over HTTP. It does not."*
+
+The finding was right and the fix went the other way from its recommendation:
+rather than rename the tool to admit the limit, the limit was removed. Which
+also retires the rename proposed at the foot of this appendix - `set_permissions`
+is a better name today than the criticism of it ([[SM289]]).
 
 ### 2. An `@group` ACL entry could not match a token partner - FIXED
 
@@ -286,74 +318,19 @@ document will next want to know:
   manager access, and would treat the anonymous public as an operator.
   `t/lint/31` pins both.
 
-### Finding what this already governs
+## Recommendation on naming - SUPERSEDED, do not act on it
 
-Extending `read` to the public path means an entry written to keep other
-*editors* out of a file now also keeps anonymous visitors out of it. That is
-usually what was wanted. Where it is not, these find it.
+> **As originally written:** *"`set_permissions` is the wrong name for something
+> that governs four authoring channels and not the public one. A rename is a
+> compatibility event and the tool is in wide use; the cheaper and
+> nearly-as-effective fix is a scope statement in the response. If a rename is
+> ever taken, `set_authoring_access` says what it does."*
 
-**Which files carry a read restriction today** - run on the site's docroot:
-
-```bash
-jq -r 'to_entries[] | select(.value.read != null and (.value.read | length) > 0)
-       | "\(.key)\t\(.value.read | join(","))"' lazysite/auth/acls.json
-```
-
-Every path listed is now refused to anyone outside its list, on the public path
-as well as in the manager. Anything in that output the site intends to be public
-needs its `read` list cleared.
-
-**Which paths have actually been refused** - the access log carries `"ar":1` on a
-request turned away by an access decision, which no status code can express (the
-anonymous refusal is a 302 to the login page):
-
-```bash
-grep -h '"ar":1' lazysite/logs/access-*.jsonl | jq -r .p | sort | uniq -c | sort -rn
-```
-
-The same data is available without shell access as `auth_refused` in
-`analyse_visitors`, and is documented for agents in the stats briefing.
-
-### ACL keys are docroot-relative, not URL-relative
-
-This is the mistake worth naming, because the wrong version looks exactly like
-the right one until somebody tries the URL.
-
-A key is the path from the **docroot**. On a content-rooted domain the URLs are
-relative to that domain's `content_root`, so the two differ:
-
-| Domain | URL | ACL key that governs it |
-|---|---|---|
-| primary (no content root) | `/private/notes.pdf` | `private` |
-| `alias.example` with `content_root: sites/foo` | `/private/notes.pdf` | `sites/foo/private` |
-
-Write `private` on the second and nothing is protected. The rule is syntactically
-valid, appears in the store, and governs a path that does not exist. Multi-domain
-operators think in URLs - SM181's own example rule is the URL segment `upcoming` -
-so this is the shape the mistake takes.
-
-Keys written by the manager, MCP and WebDAV are already docroot-relative and
-consistent. The exposure is confined to the hand-written folder rules SM181 asks
-for.
-
-**Finding it:** `audit_site` returns `acl_keys_matching_nothing` - every key that
-matches no file or folder, with the content-root-prefixed key to use instead
-where one would match. A rule that governs nothing is the classic symptom, so
-check it after writing a folder rule and before believing a section is closed:
-
-```bash
-jq -r 'keys[]' lazysite/auth/acls.json | while read -r k; do
-    [ -e "$k" ] || echo "governs nothing: $k"
-done
-```
-
-## Recommendation on naming
-
-`set_permissions` is the wrong name for something that governs four authoring
-channels and not the public one. A rename is a compatibility event and the tool
-is in wide use; the cheaper and nearly-as-effective fix is a **scope statement in
-the response**, in the same style SM226 added to the capability map. If a rename
-is ever taken, `set_authoring_access` says what it does.
+**Its premise stopped being true.** SM223 put static files on the ACL side, so
+the tool governs the public read path too - the name is more accurate today than
+this criticism of it, and `set_authoring_access` would now be the wrong name.
+Recorded as retired in [[SM289]] rather than left here as a suggestion a later
+reader might act on.
 
 ## What this unblocks
 
