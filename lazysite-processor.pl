@@ -683,6 +683,39 @@ sub _content_abs {
     return $abs;
 }
 
+# The private twin of a docroot path, whether or not it exists. Used for files
+# that must FOLLOW their source into the store rather than be looked up - the
+# page cache above all: a gated page whose .html render lands in the docroot has
+# republished the very content the gate was protecting, in a file the front end
+# serves without asking anything.
+sub _private_twin {
+    my ($abs) = @_;
+    return $abs unless defined $abs;
+    my $priv = _private_root();
+    return $abs unless length $priv;
+    return $priv if $abs eq $DOCROOT;    # the store mirrors the docroot itself
+    my $rel = $abs;
+    return $abs unless $rel =~ s{\A\Q$DOCROOT\E/}{};
+    return "$priv/$rel";
+}
+
+# Confinement for a resolved content path: inside the domain's content root, OR
+# inside that root's twin in the private store.
+#
+# NOT "anywhere in the private store". The check this widens exists so a symlink
+# in one domain's tree cannot serve a sibling domain's files (SM151 spec S1), and
+# the store mirrors the docroot's shape - so the twin of $croot is the exactly
+# equivalent boundary. Accepting the whole store would hand every domain access
+# to every other domain's private content, which is a bigger hole than the one
+# the private store closes.
+sub _path_under_content {
+    my ( $real, $croot ) = @_;
+    return 1 if _path_under( $real, $croot );
+    my $twin = _private_twin($croot);
+    return 0 if !defined $twin || $twin eq $croot;
+    return _path_under( $real, $twin ) ? 1 : 0;
+}
+
 sub _acl_allows_read {
     my ( $rel, $user, @groups ) = @_;
     my $f = "$DOCROOT/lazysite/auth/acls.json";
@@ -1714,6 +1747,22 @@ sub main {
     my $url_path  = "$croot/$base.url";
     my $html_path = "$croot/$base.html";
 
+    # SM286: a page whose source lives in the private store renders from there,
+    # and its cache goes there WITH it.
+    #
+    # The cache is the dangerous half. A gated page that renders its .html
+    # sibling into the docroot has republished exactly what the gate was
+    # protecting, in a file the front end serves without asking anything - the
+    # SM283 shape, arriving by a different route. So the cache follows the
+    # SOURCE's tree rather than being resolved on its own existence, which it
+    # does not have on a first render.
+    for my $p ( \$md_path, \$url_path ) {
+        my $resolved = _content_abs($$p);
+        next if $resolved eq $$p;
+        $$p        = $resolved;
+        $html_path = _private_twin("$croot/$base.html");
+    }
+
     # SM110 phase 2: the page cache is host-keyed. An alias host reads and
     # writes its cached render in its own slot - $HOST_CACHE_DIR/<host>/,
     # mirroring the page's docroot-relative path - so an alias render can
@@ -1943,7 +1992,7 @@ sub main {
         # content_root), so a symlink inside one domain's tree cannot serve a
         # sibling domain's or the docroot's files (spec S1).
         my $real = realpath($md_path);
-        if ( !_path_under( $real, $croot ) ) {
+        if ( !_path_under_content( $real, $croot ) ) {
             not_found($uri);
             return;
         }
@@ -1975,7 +2024,7 @@ sub main {
     # Found .url - fetch remote content
     if ( -f $url_path ) {
         my $real = realpath($url_path);
-        if ( !_path_under( $real, $croot ) ) {
+        if ( !_path_under_content( $real, $croot ) ) {
             not_found($uri);
             return;
         }

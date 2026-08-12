@@ -122,6 +122,30 @@ subtest 'public content is unaffected by any of this' => sub {
         'and stays ordinary cacheable content' );
 };
 
+# --- a PAGE, and where its render cache lands -------------------------------
+# The cache is the dangerous half of this. A gated page that renders its .html
+# sibling into the docroot has republished exactly what the gate was protecting,
+# in a file the front end serves without asking anything - SM283's shape
+# arriving by a different route, and one no ACL rule would ever catch because
+# the file is not the one the rule names.
+subtest 'a gated page renders from the store, and caches into it' => sub {
+    spit( private_path( $doc, 'members/brief.md' ),
+        "---\ntitle: Brief\n---\nMEMBERSONLY\n" );
+    with_acls( { 'members' => { read => ['alice'] } } );
+
+    my $anon = get_anon('/members/brief');
+    unlike( $anon, qr/MEMBERSONLY/, 'the public does not get the page body' );
+
+    my $ok = get_as( '/members/brief', 'alice' );
+    like( $ok, qr/MEMBERSONLY/, 'alice does' );
+
+    # THE assertion: whatever was cached is not in the docroot.
+    ok( !-e "$doc/members/brief.html",
+        'no .html render was written into the docroot' );
+    ok( !-d "$doc/members",
+        'and no public folder was created for the section at all' );
+};
+
 # --- nothing was moved -------------------------------------------------------
 # This increment wires resolution and moves nothing. Asserted so that if a later
 # change starts moving content, it does so deliberately rather than as a
