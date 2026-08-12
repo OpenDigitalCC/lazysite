@@ -38,6 +38,7 @@ BEGIN {
 use Lazysite::Util             qw(log_event const_eq);
 use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Acl        qw(_acl_allows);
+use Lazysite::Private          ();
 use Lazysite::Auth::Credential qw(verify_password);
 use Lazysite::Auth::Settings   qw(read_settings caps_for resolve_user_scopes);
 $Lazysite::Util::COMPONENT = 'dav';
@@ -1273,7 +1274,27 @@ sub is_blocked {
 
 sub resolve_under_docroot {
     my ($rel) = @_;
-    my $droot = realpath($DOCROOT);
+
+    # SM286: content may live in the private store. Choose the TREE first and
+    # then run the identical confinement against it, rather than teaching the
+    # checks below to span two roots - a boundary test that has to accept two
+    # prefixes is a weaker boundary test, and this one is load-bearing.
+    #
+    # resolve_for_write, so a PUT or MKCOL inside a gated section lands in the
+    # private tree with it instead of creating a public directory for it.
+    #
+    # WebDAV keys its ACL decisions on the REQUEST path, not on the resolved
+    # absolute one, so unlike the processor there is no key-derivation to fix
+    # here - authorise() already receives the docroot-relative rel.
+    my $root = $DOCROOT;
+    if ( length $rel ) {
+        my ( undef, $where )
+            = Lazysite::Private::resolve_for_write( $DOCROOT, $rel );
+        $root = Lazysite::Private::private_root($DOCROOT)
+            if $where eq 'private';
+    }
+
+    my $droot = realpath($root);
     return { err => 500 } unless defined $droot;
     if ( !length $rel ) {
         return { abs => $droot, parent => $droot, parent_ok => 1 };

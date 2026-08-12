@@ -35,8 +35,8 @@ use File::Copy     qw(copy);
 use Cwd            qw(realpath);
 use Exporter 'import';
 
-our @EXPORT_OK = qw(private_root private_path resolve is_private move_in move_out
-    stray_public);
+our @EXPORT_OK = qw(private_root private_path resolve resolve_for_write
+    is_private move_in move_out stray_public);
 
 # The store's directory name. A leading dot would hide it from an operator
 # looking at the tree, and the point is that they can see where their private
@@ -83,6 +83,34 @@ sub is_private {
     my ( $docroot, $rel )   = @_;
     my ( undef,    $where ) = resolve( $docroot, $rel );
     return $where eq 'private' ? 1 : 0;
+}
+
+# Where a path should be WRITTEN, which is not the same question as where it is.
+#
+# Existing content keeps its home. A NEW path inherits the tree of its nearest
+# existing ancestor - so a file created inside a gated folder is created
+# PRIVATELY. Without that rule a naive save recreates a public copy of a section
+# that was moved out: the folder does not exist in the docroot, mkdir -p makes
+# it, and the section is half-published by an operation nobody thought of as a
+# permission change. That is the "one write choke point" the filing asks for,
+# expressed as a resolution rule rather than a check every caller must remember.
+sub resolve_for_write {
+    my ( $docroot, $rel ) = @_;
+    return ( undef, '' ) unless defined $rel && length $rel;
+    $rel =~ s{\A/+}{};
+
+    my ( $abs, $where ) = resolve( $docroot, $rel );
+    return ( $abs, $where ) if $where;
+
+    my @parts = split m{/}, $rel;
+    pop @parts;    # the path itself does not exist; start at its parent
+    while (@parts) {
+        my ( undef, $w ) = resolve( $docroot, join( '/', @parts ) );
+        if ( $w eq 'private' ) { return ( private_path( $docroot, $rel ), 'private' ) }
+        last if $w;    # a public ancestor settles it
+        pop @parts;
+    }
+    return ( "$docroot/$rel", 'public' );
 }
 
 # A path that exists in BOTH trees. Always a fault: the private copy is the one

@@ -66,6 +66,17 @@ sub _git_commit_move {
 
 # === moved from lazysite-manager-api.pl (SM079a) ===
 
+# SM286: the same canonical directory in the OTHER tree, or undef. Used only to
+# union a listing's children - never to resolve a path, which stays the job of
+# Lazysite::Private so there is one answer to "where does this live".
+sub _sibling_dir {
+    my ( $real, $lroot, $canon ) = @_;
+    my $priv = Lazysite::Private::private_root($DOCROOT);
+    return undef unless defined $priv && length $priv;
+    my $other = ( $lroot eq $DOCROOT ) ? $priv : $DOCROOT;
+    return length $canon ? "$other/$canon" : $other;
+}
+
 sub action_list {
     my ($dir_path) = @_;
     $dir_path //= '/';
@@ -76,11 +87,32 @@ sub action_list {
     $dir_path =~ s{/+$}{};
     $dir_path = '/' if $dir_path eq '';
 
-    my $fs_path = "$DOCROOT$dir_path";
+    # SM286: a listing must show a section that lives in the private store, or
+    # the manager reports an empty folder for content that is there.
+    #
+    # This handler builds its own path rather than going through validate_path,
+    # which is why the cross-surface test caught it while read and write were
+    # already right - a reminder that "wire the resolver" means finding the
+    # places that resolve for themselves, not only the shared helper.
+    #
+    # The TREE is chosen first and the existing confinement then runs against
+    # it unchanged, so SEC-2026-07 H3's boundary test and 04-F5's canonical-key
+    # derivation keep their exact shape. A folder is wholly in one tree or the
+    # other (the store's invariant), so there is nothing to merge.
+    ( my $list_rel = $dir_path ) =~ s{\A/+}{};
+    my $lroot = $DOCROOT;
+    if ( length $list_rel ) {
+        my ( undef, $where )
+            = Lazysite::Private::resolve( $DOCROOT, $list_rel );
+        $lroot = Lazysite::Private::private_root($DOCROOT)
+            if $where eq 'private';
+    }
+
+    my $fs_path = "$lroot$dir_path";
     my $real    = realpath($fs_path);
     return { ok => 0, error => "Invalid path" }
         unless $real
-        && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 )    # SEC-2026-07 (H3)
+        && ( $real eq $lroot || index( $real, "$lroot/" ) == 0 )    # SEC-2026-07 (H3)
         && -d $real;
 
     # SM268 04-F5: this was the one file handler with no blocklist, and the
@@ -97,7 +129,7 @@ sub action_list {
     # Confine on the CANONICAL path, never the request spelling: $real has the
     # `..` resolved, so deriving the docroot-relative key from it is what closes
     # the traversal rather than another string test.
-    my $canon = $real eq $DOCROOT ? '' : substr( $real, length($DOCROOT) + 1 );
+    my $canon = $real eq $lroot ? q{} : substr( $real, length($lroot) + 1 );
     if ( length $canon ) {
         return { ok => 0, error => 'Path is blocked', kind => 'blocked' }
             if is_blocked_path($canon);
@@ -110,10 +142,35 @@ sub action_list {
 
     my @entries;
     my $acls = load_acls();    # SM074: owner display, read once per listing
-    opendir my $dh, $real or return { ok => 0, error => "Cannot read directory" };
-    for my $name ( sort readdir $dh ) {
-        next if $name =~ /^\./;
-        my $full = "$real/$name";
+
+    # SM286: a directory's CHILDREN may be split across the two trees even
+    # though no single path is in both. The root is the ordinary case: a gated
+    # top-level section lives in the private store while its siblings do not,
+    # and listing one tree would make that section vanish from the file browser
+    # entirely - which is how an operator loses track of content they protected.
+    #
+    # So the names are unioned. They cannot collide under the store's invariant;
+    # where they do, that is the stray-public fault and the private copy wins,
+    # for the same fail-safe reason resolution does.
+    my %child;    # name => absolute path in whichever tree holds it
+    for my $pair ( [ $real, 0 ], [ _sibling_dir( $real, $lroot, $canon ), 1 ] ) {
+        my ( $dir, $is_other ) = @$pair;
+        next unless defined $dir && -d $dir;
+        opendir my $dh, $dir or next;
+        for my $name ( readdir $dh ) {
+            next if $name =~ /^\./;
+            # First writer wins unless the private tree is the second read, in
+            # which case it overrides - private is the governed copy.
+            $child{$name} = "$dir/$name"
+                if !exists $child{$name} || ( $is_other && $lroot eq $DOCROOT );
+        }
+        closedir $dh;
+    }
+    return { ok => 0, error => "Cannot read directory" }
+        unless %child || -d $real;
+
+    for my $name ( sort keys %child ) {
+        my $full = $child{$name};
         my $rel  = $dir_path eq '/' ? "/$name" : "$dir_path/$name";
         # SM268 04-F5: and per entry, so a listable directory cannot advertise a
         # blocklisted file inside it.
@@ -184,7 +241,6 @@ sub action_list {
         }
         push @entries, $entry;
     }
-    closedir $dh;
 
     return { ok => 1, path => $dir_path, entries => \@entries };
 }

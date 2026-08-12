@@ -13,6 +13,7 @@ use File::Basename qw(dirname basename);
 use Fcntl          qw(:flock);
 use JSON::PP       qw(encode_json);
 use Lazysite::Util qw(log_event);
+use Lazysite::Private ();
 use Exporter 'import';
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
@@ -21,9 +22,9 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal processor_path);
 
-our $DOCROOT;                           # set by the script
-our $action    = '';                    # current request action (for log attribution)
-our $auth_user = '';                    # current request user (for log attribution)
+our $DOCROOT;           # set by the script
+our $action    = '';    # current request action (for log attribution)
+our $auth_user = '';    # current request user (for log attribution)
 
 our @BLOCKED_PATHS = (
     'lazysite/auth/.secret',
@@ -123,7 +124,33 @@ sub validate_path {
     my $canon = ( -e $full ) ? $real : "$real/" . basename($full);
     ( my $rel = $canon ) =~ s{\A\Q$DOCROOT\E/?}{};
 
-    return { ok => 1, full => $canon, rel => $rel };
+    # SM286: `rel` is the docroot-relative KEY and never changes - the ACL store,
+    # the blocklist and every audit line are keyed on it. `full` is WHERE THE
+    # BYTES ARE, which may be the private store.
+    #
+    # Deliberately bolted on AFTER the validation above rather than woven into
+    # it. That block carries two CVE-class fixes (F1's `..` rejection and H3's
+    # boundary-safe containment) and both reason about the docroot; rewriting
+    # them to span two trees to add a feature is how a fix gets undone. So the
+    # request is still validated against the docroot exactly as before, and only
+    # then resolved.
+    #
+    # resolve_for_write, not resolve: a NEW file inside a gated folder must be
+    # created privately. Otherwise the first save into a moved-out section makes
+    # a public directory for it and half-publishes the section, via an operation
+    # nobody thinks of as a permission change.
+    my ( $abs, $where ) = Lazysite::Private::resolve_for_write( $DOCROOT, $rel );
+    return {
+        ok    => 1,
+        full  => ( $where eq 'private' ? $abs : $canon ),
+        rel   => $rel,
+        store => ( $where || 'public' ),
+
+        # The docroot location regardless of where the content lives, for the
+        # callers that legitimately need it - the move in and out of the store,
+        # and anything reporting on a stray public copy.
+        public_full => $canon,
+    };
 }
 
 # SEC-2026-07 (M2): dav_scope confines a token/partner credential to one content
