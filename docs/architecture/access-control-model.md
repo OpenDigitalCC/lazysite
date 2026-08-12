@@ -89,7 +89,29 @@ private and still publish its PDFs. See [[SM287]].
 | Operator (cookie, `manage_users`) | bypasses the ACL entirely - **on the authoring surfaces only, never on the anonymous read path** |
 | `local` user | always operator |
 | Any user, on an unsecured site | operator (no group grants manager access) - which is why the public path must not consult it |
-| **Token / MCP / WebDAV partner** | **never an operator; carries no groups**, so an `@group` entry can never match one - name it explicitly |
+| **Any partner (token / MCP / WebDAV)** | **never an operator.** Whether its groups apply depends on the CHANNEL - see below |
+
+### Whose groups apply, by channel - the three answers
+
+**MEASURED 2026-08-12**, after the operator said partners do have groups and
+expected `@group` to work the same way for them. They were right for WebDAV, and
+this document previously said otherwise for all three channels.
+
+| Channel | Where `@user_groups` comes from | Does `@group` match a partner? |
+|---|---|---|
+| **WebDAV** | `user_groups_for($user)` - the account's real groups, read from the group file | **YES** |
+| **MCP** | hard-set to `()` | **no** |
+| **Control API (token)** | `HTTP_X_REMOTE_GROUPS`, which a token client does not carry | **no, in practice** |
+| Manager (cookie) | `HTTP_X_REMOTE_GROUPS`, set by the auth wrapper from the session | yes |
+
+Verified behaviourally, not just by reading: a WebDAV partner in `@editors` is
+served a file gated to `@editors`, and is refused once removed from the group -
+so the match is the group and not a bypass.
+
+**One store, one question, three answers by channel.** That is the recurring
+theme SM268 named (H4, H8, H13, H15 were all this shape), and the operator's
+expectation is the design intent, so **MCP and the control-API token path are
+the defect here - not WebDAV**. Tracked as [[SM288]].
 
 ### The two policies
 
@@ -113,16 +135,28 @@ Named `set_permissions`, stored as `acls.json`, and inert for anonymous reads.
 The naming is the defect: a reasonable reader concludes that setting read
 permissions on a file restricts who can read it over HTTP. It does not.
 
-### 2. An `@group` ACL entry can never match a token partner
+### 2. An `@group` ACL entry matches a WebDAV partner but not an MCP one
 
-`lazysite-mcp.pl` sets `@Lazysite::Auth::Acl::user_groups = ()` with the comment
-"token carries no groups - the safe default". It is the safe default, and it
-means an ACL granting `@editors` write access grants it to cookie users in that
-group and **silently to no token partner at all**.
+**Corrected 2026-08-12; the original finding is below.** The claim was that no
+partner can match an `@group`. That is true of MCP and of the control-API token
+path, and **false of WebDAV**, which resolves the account's real groups. The
+error came from trusting the comment in `Lazysite::Auth::Acl` - *"a
+token/WebDAV partner carries none"* - which is itself wrong about WebDAV.
 
-This matters directly to the MCP work queued behind this analysis: an MCP agent
-holding `set_permissions` can author a rule that will never apply to another MCP
-agent, with no feedback that it is inert.
+So the live consequence is narrower than stated and worse in a different way: an
+ACL granting `@editors` applies to a cookie user, applies to a WebDAV partner,
+and **silently does not apply to the same account over MCP**. The inconsistency
+is between two channels of the same product, not between people and machines.
+
+> **Original finding (pre-correction):** *"`lazysite-mcp.pl` sets
+> `@Lazysite::Auth::Acl::user_groups = ()` with the comment 'token carries no
+> groups - the safe default'. It is the safe default, and it means an ACL
+> granting `@editors` write access grants it to cookie users in that group and
+> silently to no token partner at all."*
+
+This still matters directly to the MCP work: an agent holding `set_permissions`
+can author a rule that will never apply to another MCP agent, with no feedback
+that it is inert. See [[SM288]].
 
 ### 3. Both mechanisms default open, by different routes
 

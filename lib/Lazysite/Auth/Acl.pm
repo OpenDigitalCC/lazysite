@@ -24,8 +24,21 @@ our $auth_user  = '';
 our $token_auth = 0;
 
 # SM077: the requesting user's groups (for @group ACL entries), set per request
-# by the dispatcher from X-Remote-Groups. A token/WebDAV partner carries none,
-# so a @group entry never matches it - the safe default.
+# by the dispatcher.
+#
+# WHAT EACH CHANNEL SETS - they do not agree, and this comment used to claim
+# they did ("a token/WebDAV partner carries none"), which is false for WebDAV
+# and was copied into the architecture doc and believed for a year:
+#
+#   lazysite-dav.pl         user_groups_for($user) - the account's REAL groups,
+#                           so an @group entry DOES match a WebDAV partner
+#   lazysite-mcp.pl         () - hard-zeroed, so an @group never matches
+#   lazysite-manager-api.pl HTTP_X_REMOTE_GROUPS - the session's groups for a
+#                           cookie client, empty for a token client
+#
+# One store answering one question three ways by channel. SM288 tracks making
+# MCP and the token path resolve the account's groups as WebDAV already does;
+# until then, name a partner explicitly rather than relying on its group.
 our @user_groups;
 
 sub _acls_path { "$DOCROOT/lazysite/auth/acls.json" }
