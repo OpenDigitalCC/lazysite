@@ -123,6 +123,58 @@ What it costs, honestly:
   processor's copy of the resolution has to stay module-free and pinned by lint,
   as `_acl_allows_read` already is.
 
+### Step 1 progress: the foundation is built (2026-08-12)
+
+`Lazysite::Private` ships with `t/unit/lib/20`, and **nothing is wired to it
+yet** - deliberately, because half-wiring it would break the gated-content path
+on whichever surface was left out, and that path is the one this whole filing is
+about.
+
+The decisions, so the next session re-derives none of them:
+
+**Location.** `dirname($DOCROOT)/lazysite-private` - a **sibling** of the
+docroot, never a subdirectory, since a subdirectory is exactly what a front end
+serves. The docroot's parent already holds engine files on the Hestia layout
+(`tools/`, `lazysite-log.pl`), so this follows a convention rather than
+inventing one. Not hidden with a leading dot: an operator should be able to see
+where their content went.
+
+**The invariant: a path is in exactly one tree.** A copy left in the docroot is
+the exposure being removed, so every failure path leaves the content on one side
+and says which. `move_in` on a missing path succeeds quietly - gating a section
+before filling it is ordinary.
+
+**Atomicity.** `rename` is atomic within a filesystem and moves a whole
+directory in one step, which is what makes protecting a *section* safe: there is
+no window in which half of it is public. Cross-device falls back to
+copy-verify-unlink, and a folder across devices is refused outright rather than
+walked.
+
+**Both-trees resolution prefers PRIVATE**, which is a fail-safe choice rather
+than a preference. If a stray public copy appears, the front end can already
+serve it; having the engine serve the public one too would hide the fault from
+anything comparing them. `stray_public()` reports it, and a second `move_in`
+refuses rather than overwriting the governed copy.
+
+### Step 1 remaining: the wiring, which is the bulk
+
+Each of these must resolve BOTH trees before anything is moved in anger:
+
+- **the processor** - `_serve_content_static` and the page path, plus a
+  module-free copy of the resolver (ADR 0001), pinned like `_acl_allows_read`;
+- **the manager, MCP, WebDAV** - list, read, save, move, copy, delete;
+- **the page cache** for a gated page, which must land in the private tree or it
+  re-publishes the content it was protecting;
+- **one write choke point**, so a naive save cannot recreate a public copy;
+- **`action_acl_set` / `action_acl_remove`** to move in and out, reporting a
+  failed move as a failed protect;
+- **backups, site packages and content history**, which all walk the docroot
+  today and would silently stop covering gated content.
+
+Sequence it so the resolver lands everywhere FIRST and the move last: with
+resolution in place and nothing moved, every surface behaves exactly as now, and
+the move becomes a single switch with a real rollback.
+
 ## Steps 2-5
 
 2. **Move `lazysite/` out of the document root.** Config, credentials, audit
