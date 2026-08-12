@@ -91,27 +91,44 @@ private and still publish its PDFs. See [[SM287]].
 | Any user, on an unsecured site | operator (no group grants manager access) - which is why the public path must not consult it |
 | **Any partner (token / MCP / WebDAV)** | **never an operator.** Whether its groups apply depends on the CHANNEL - see below |
 
-### Whose groups apply, by channel - the three answers
+### Whose groups apply, by channel - one answer since SM288
 
-**MEASURED 2026-08-12**, after the operator said partners do have groups and
-expected `@group` to work the same way for them. They were right for WebDAV, and
-this document previously said otherwise for all three channels.
+A group is a property of the **account**, not of the door it arrived through.
+Every channel resolves the same way.
 
 | Channel | Where `@user_groups` comes from | Does `@group` match a partner? |
 |---|---|---|
-| **WebDAV** | `user_groups_for($user)` - the account's real groups, read from the group file | **YES** |
-| **MCP** | hard-set to `()` | **no** |
-| **Control API (token)** | `HTTP_X_REMOTE_GROUPS`, which a token client does not carry | **no, in practice** |
-| Manager (cookie) | `HTTP_X_REMOTE_GROUPS`, set by the auth wrapper from the session | yes |
+| **WebDAV** | `Acl::groups_for_user` | **yes** |
+| **MCP** | `Acl::groups_for_user` | **yes** |
+| **Control API (token)** | `Acl::groups_for_user` | **yes** |
+| Manager (cookie) | `HTTP_X_REMOTE_GROUPS`, set by the auth wrapper from the validated session | yes |
 
-Verified behaviourally, not just by reading: a WebDAV partner in `@editors` is
-served a file gated to `@editors`, and is refused once removed from the group -
-so the match is the group and not a bypass.
+`Acl::groups_for_user` delegates to `Settings::effective_groups` - the same
+resolver the capability and domain-access checks already use, so *"which groups
+is this account in"* has **one** implementation for every question lazysite
+asks, and membership expands over nested groups everywhere. `t/lint/35` pins
+each channel to it; `t/integration/44` drives the same question on WebDAV and
+MCP and asserts they agree.
 
-**One store, one question, three answers by channel.** That is the recurring
-theme SM268 named (H4, H8, H13, H15 were all this shape), and the operator's
-expectation is the design intent, so **MCP and the control-API token path are
-the defect here - not WebDAV**. Tracked as [[SM288]].
+The cookie path keeps the header deliberately: for a browser session the auth
+wrapper sets it from the validated session, and that is the trusted path the
+manager is built on.
+
+> **How it was before SM288, and why it matters.** WebDAV parsed the group file
+> itself, MCP hard-set the list to `()` with a comment calling it "the safe
+> default", and the control API read a header a token client cannot send. So the
+> same account, in the same group, reading the same file under the same ACL, was
+> **allowed over WebDAV and refused over MCP** - for about a year, through the
+> analysis below, an adversarial security review, and a feature built on top of
+> it. Nothing failed and no test noticed, because each channel was only ever
+> tested against itself. An operator found it by reading a summary and saying
+> "partners do have groups". That is the recurring theme SM268 named - two
+> surfaces disagreeing about one question - and the reason `t/lint/35` exists is
+> to catch the fourth channel somebody adds.
+
+**Note for token clients:** the control API has no action that reads a file's
+content, so a partner can set an ACL there and must use MCP or WebDAV to
+exercise it. See [[SM289]].
 
 ### The two policies
 
@@ -135,28 +152,29 @@ Named `set_permissions`, stored as `acls.json`, and inert for anonymous reads.
 The naming is the defect: a reasonable reader concludes that setting read
 permissions on a file restricts who can read it over HTTP. It does not.
 
-### 2. An `@group` ACL entry matches a WebDAV partner but not an MCP one
+### 2. An `@group` ACL entry could not match a token partner - FIXED
 
-**Corrected 2026-08-12; the original finding is below.** The claim was that no
-partner can match an `@group`. That is true of MCP and of the control-API token
-path, and **false of WebDAV**, which resolves the account's real groups. The
-error came from trusting the comment in `Lazysite::Auth::Acl` - *"a
-token/WebDAV partner carries none"* - which is itself wrong about WebDAV.
+**Closed by [[SM288]], 2026-08-12.** An `@group` entry now matches the same
+account on every channel; see the resolution table above.
 
-So the live consequence is narrower than stated and worse in a different way: an
-ACL granting `@editors` applies to a cookie user, applies to a WebDAV partner,
-and **silently does not apply to the same account over MCP**. The inconsistency
-is between two channels of the same product, not between people and machines.
+The finding went through two corrections, which is worth keeping because both
+were the same mistake:
 
-> **Original finding (pre-correction):** *"`lazysite-mcp.pl` sets
-> `@Lazysite::Auth::Acl::user_groups = ()` with the comment 'token carries no
-> groups - the safe default'. It is the safe default, and it means an ACL
+> **As originally written:** *"`lazysite-mcp.pl` sets `@user_groups = ()` with
+> the comment 'token carries no groups - the safe default'. It means an ACL
 > granting `@editors` write access grants it to cookie users in that group and
 > silently to no token partner at all."*
 
-This still matters directly to the MCP work: an agent holding `set_permissions`
-can author a rule that will never apply to another MCP agent, with no feedback
-that it is inert. See [[SM288]].
+That over-generalised from MCP to all partners - **WebDAV always resolved real
+groups** - and the over-generalisation came from trusting the comment above the
+variable rather than the three assignments. It was then repeated into this
+document as a headline finding, where it survived long enough to be quoted back
+at an operator as fact.
+
+The lesson is not about groups. **A comment next to correct code outlives a
+wrong line of code**, because nothing executes it and every reader trusts it.
+The comment in `Lazysite::Auth::Acl` is now a table of what each channel sets,
+which is a form a lint can check - and `t/lint/35` checks it.
 
 ### 3. Both mechanisms default open, by different routes
 

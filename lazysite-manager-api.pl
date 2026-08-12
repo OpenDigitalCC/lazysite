@@ -350,9 +350,19 @@ $Lazysite::Manager::Sessions::auth_user = $auth_user;    # SM141
 $Lazysite::Manager::Domains::auth_user  = $auth_user;    # SM154
 $Lazysite::Auth::Acl::auth_user         = $auth_user;
 $Lazysite::Auth::Acl::token_auth        = $token_auth;
-# SM077: requester's groups for @group ACL entries (cookie users carry them in
-# X-Remote-Groups; token partners carry none, so a @group never matches them).
-@Lazysite::Auth::Acl::user_groups = grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
+# SM077 / SM288: the requester's groups, for @group ACL entries.
+#
+# A COOKIE client's groups arrive in X-Remote-Groups, set by the auth wrapper
+# from the validated session - that is the trusted path and it stays.
+#
+# A TOKEN client cannot send that header at all, so this used to leave a partner
+# with no groups and an @group entry silently never matched it - while the same
+# account over WebDAV matched fine. Resolve from the account instead: a group is
+# a property of the account, not of the door it arrived through.
+@Lazysite::Auth::Acl::user_groups
+    = $token_auth
+    ? Lazysite::Auth::Acl::groups_for_user($auth_user)
+    : grep { length } split /[,\s]+/, ( $ENV{HTTP_X_REMOTE_GROUPS} // '' );
 
 # SEC-2026-07 (M2) / SM154 (P1): the content path-bearing actions whose target a
 # dav_scope binding confines (WebDAV enforces the same). Non-content actions

@@ -1066,33 +1066,20 @@ sub sanitise_path {
 
 # The user's group memberships, read from lazysite/auth/groups (for @group
 # ACLs). WebDAV has no X-Remote-Groups, so it resolves them from the store.
-sub user_groups_for {
-    my ($user) = @_;
-    return () unless defined $user && defined $LAZYSITE_DIR;
-    my $gf = "$LAZYSITE_DIR/auth/groups";
-    return () unless -f $gf;
-    open my $fh, '<', $gf or return ();
-    my @groups;
-    while (<$fh>) {
-        chomp;
-        s/^\s+|\s+$//g;
-        next if /^#/ || !length;
-        my ( $g, $members ) = split /:\s*/, $_, 2;
-        next unless defined $members;
-        for my $m ( split /,/, $members ) {
-            $m =~ s/^\s+|\s+$//g;
-            push @groups, $g if $m eq $user;
-        }
-    }
-    close $fh;
-    return @groups;
-}
+# SM288: the local groups reader that used to live here is DELETED. It parsed
+# the group file itself and returned direct memberships only - the right answer
+# in practice, because _acl_allows expands them again, but a second
+# implementation of "which groups is this user in". SM279's lesson: a second
+# answer to a question that must have exactly one is not a compatibility
+# surface, it is a defect waiting for the two to disagree. The shared resolver
+# is Lazysite::Auth::Acl::groups_for_user.
 
 # 1 if $user may access $rel in $mode ('read'|'write'); delegates to the shared
 # allow check with the user's groups in scope (so @group entries match).
 sub acl_allows {
     my ( $rel, $mode, $user ) = @_;
-    local @Lazysite::Auth::Acl::user_groups = user_groups_for($user);
+    local @Lazysite::Auth::Acl::user_groups
+        = Lazysite::Auth::Acl::groups_for_user($user);
     return _acl_allows( $rel, $mode, $user ) ? 1 : 0;
 }
 

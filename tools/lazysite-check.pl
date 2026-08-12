@@ -920,6 +920,9 @@ sub run_checks {
     # --- 8b. does the front end actually respect the ACL? (SM285) ---------------
     run_acl_probe( $opt{check_acl} ) if defined $opt{check_acl};
 
+    # --- 8c. who an @group ACL entry now admits (SM288) -------------------------
+    report_group_acl_reach();
+
     # --- 9. content provenance (is this content lazysite's or the operator's?) ---
     # lazysite stamps its shipped seed pages with `provenance: lazysite-starter` in the
     # front matter. This reports which .md content is ours (unmodified vs customised)
@@ -1212,6 +1215,68 @@ sub conf_value {
     return undef unless defined $val;
     $val =~ s/^\s+|\s+$//g;
     return $val;
+}
+
+# SM288 WIDENS ACCESS ON UPGRADE, so the operator gets to see it coming.
+#
+# An @group ACL entry used to match a cookie user and a WebDAV partner, and
+# silently never matched the same account over MCP or the control API. From
+# SM288 it matches everywhere - which is the intended behaviour and is still a
+# change of effective permissions on a live site. Nobody should discover that
+# from a changelog line.
+#
+# Informational, never a WARN: an @group entry is a normal thing to have and
+# nagging about it would teach the reader to skip this section. It reports the
+# entries and who resolves into them, so "who gains" is answerable before the
+# upgrade rather than after.
+sub report_group_acl_reach {
+    my $d = $opt{docroot};
+    my $f = "$d/lazysite/auth/acls.json";
+    return unless -f $f;
+
+    open my $fh, '<', $f or return;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    require JSON::PP;
+    my $map = eval { JSON::PP::decode_json( $raw // '{}' ) };
+    return unless ref $map eq 'HASH';
+
+    # Every @group named by any entry, in any mode.
+    my %wanted;
+    for my $path ( keys %$map ) {
+        my $e = $map->{$path};
+        next unless ref $e eq 'HASH';
+        for my $mode (qw(read write)) {
+            my $list = $e->{$mode};
+            next unless ref $list eq 'ARRAY';
+            for my $entry (@$list) {
+                next unless defined $entry && $entry =~ /\A\@(.+)\z/;
+                push @{ $wanted{ lc $1 } }, "$path ($mode)";
+            }
+        }
+    }
+    return unless %wanted;
+
+    # DELIBERATELY NOT RESOLVING MEMBERSHIP HERE.
+    #
+    # The honest options were: duplicate the closure logic (a fourth answer to
+    # "which groups is this account in", which is the defect SM288 exists to
+    # remove, so no), report DIRECT membership only (which omits anyone in a
+    # nested group and would tell an operator that somebody does not gain access
+    # when they do), or name the entries and point at the tool that knows. This
+    # file is core-Perl by design and cannot load Lazysite::Auth::Settings.
+    #
+    # Under-reporting who gains access is worse than not reporting it.
+    for my $g ( sort keys %wanted ) {
+        report( 'OK',
+            "\@$g is granted by " . join( ', ', sort @{ $wanted{$g} } ) );
+    }
+    report( 'OK',
+        'SM288: these @group entries now apply on EVERY channel, including MCP '
+            . 'and the control API, where they were silently inert before. '
+            . 'For who is in each group, including via nested groups: '
+            . 'lazysite-users.pl --docroot <docroot> groups' );
+    return;
 }
 
 # ---------------------------------------------------------------------------

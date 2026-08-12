@@ -7,13 +7,13 @@ package Lazysite::Auth::Acl;
 
 use strict;
 use warnings;
-use JSON::PP ();
-use File::Path qw(make_path);
+use JSON::PP       ();
+use File::Path     qw(make_path);
 use File::Basename qw(dirname);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
-    _is_operator _acl_denied);
+    _is_operator _acl_denied groups_for_user);
 
 our $DOCROOT;    # set by the script
 
@@ -36,10 +36,37 @@ our $token_auth = 0;
 #   lazysite-manager-api.pl HTTP_X_REMOTE_GROUPS - the session's groups for a
 #                           cookie client, empty for a token client
 #
-# One store answering one question three ways by channel. SM288 tracks making
-# MCP and the token path resolve the account's groups as WebDAV already does;
-# until then, name a partner explicitly rather than relying on its group.
+# SM288 made them agree. Every channel now assigns this from groups_for_user()
+# below, except the manager's COOKIE path, which uses the session's groups from
+# X-Remote-Groups as set by the auth wrapper. t/lint/35 pins that, because the
+# previous state - dav resolving real groups, mcp hard-zeroing them, the token
+# path reading a header a token cannot carry - was invisible until an operator
+# said so.
 our @user_groups;
+
+# THE per-account group resolver for the ACL decision, on every channel.
+#
+# Before SM288 there were three answers: lazysite-dav.pl read the group file
+# itself, lazysite-mcp.pl set the empty list with a comment calling it "the safe
+# default", and lazysite-manager-api.pl took X-Remote-Groups - which a token
+# client structurally cannot send. So the same account, in the same group,
+# reading the same file under the same ACL, was ALLOWED over WebDAV and REFUSED
+# over MCP. A group is a property of the account, not of the door it arrived
+# through.
+#
+# Delegates to Settings::effective_groups, which is what the capability and
+# domain-access resolvers already use, so "which groups is this user in" has one
+# implementation for every question lazysite asks. AUTH_DIR is localised from
+# this module's own request context - the same trick _groups_grant_cap uses
+# below - so a caller that only sets Acl::DOCROOT needs to know nothing else.
+sub groups_for_user {
+    my ($user) = @_;
+    return () unless defined $user    && length $user;
+    return () unless defined $DOCROOT && length $DOCROOT;
+    require Lazysite::Auth::Settings;
+    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    return Lazysite::Auth::Settings::effective_groups($user);
+}
 
 sub _acls_path { "$DOCROOT/lazysite/auth/acls.json" }
 
@@ -55,8 +82,8 @@ sub load_acls {
 
 sub save_acls {
     my ($map) = @_;
-    my $path = _acls_path();
-    my $dir  = dirname($path);
+    my $path  = _acls_path();
+    my $dir   = dirname($path);
     make_path($dir) unless -d $dir;
     my $tmp = "$path.tmp.$$";
     open my $fh, '>', $tmp or return 0;
@@ -147,7 +174,7 @@ sub _acl_allows {
         };
     for my $entry (@$list) {
         next unless defined $entry && length $entry;
-        if ( $entry =~ /\A\@(.+)\z/ ) {          # SM077: @group entry
+        if ( $entry =~ /\A\@(.+)\z/ ) {    # SM077: @group entry
             return 1 if $grp{ lc $1 };
         }
         elsif ( defined $user && $entry eq $user ) {

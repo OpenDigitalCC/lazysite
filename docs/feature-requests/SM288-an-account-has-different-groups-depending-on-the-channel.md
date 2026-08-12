@@ -2,8 +2,8 @@
 title: "SM288 - The same account has different groups depending on which channel it arrives on"
 subtitle: "WebDAV resolves a partner's real groups, so an @group ACL matches it. MCP hard-zeroes them and the control-API token path never receives them. One store, one question, three answers."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-12. The operator corrected me: 'Token/MCP/WebDAV partners do have groups applied, and I expect would work in the same way.' They were right for WebDAV and I had said otherwise, repeating a comment in Lazysite::Auth::Acl that is itself wrong. MEASURED: a WebDAV partner in @editors is served a file gated to @editors, and refused after the group is removed - so the match is the group, not an operator bypass. Probe at tmp/partner-groups-probe.t, 5 assertions. NOT STARTED."
+status: shipped
+status-note: "SHIPPED on main (unreleased) 2026-08-12, phase 1 item 2 of WORK-PLAN-ACCESS-CONTROL. ONE resolver - Lazysite::Auth::Acl::groups_for_user, delegating to Settings::effective_groups, which is what the capability and domain-access resolvers already use - called by all three channels. MCP no longer hard-zeroes; the control API resolves from the ACCOUNT for a token client and keeps X-Remote-Groups for a cookie client, whose session sets it; WebDAV's own group-file parser is DELETED rather than left beside the shared one (SM279's lesson: a second answer is a disagreement waiting to happen). t/integration/44 is a MATRIX - one question asked on every channel that can answer it, then the group removed and asked again, because 'allowed everywhere' is only half of consistent; plus a named-partner control and a nested-group case. t/lint/35 pins the shape and catches the fourth channel somebody adds. Verified failing on the stashed tree: MCP fails both group cases while WebDAV passes either way (the control proving the test is not just detecting a broken tree), and 8 of 11 lint assertions fail. TWO FINDINGS while building it, both recorded below: the control API has NO token action that makes a per-file read decision, and lazysite-check now reports which @group entries exist because this change WIDENS access on upgrade."
 ---
 
 # SM288 - one account, three group memberships
@@ -94,6 +94,29 @@ The reverse risk is worth stating too: nobody should read this filing as
 - The comment in `Lazysite::Auth::Acl` and the architecture doc agree with the
   code - both are corrected already, ahead of the fix, because a wrong comment
   is what caused this.
+
+## Two findings from building it
+
+**The control API has no token action that makes a per-file read decision.**
+Both `read` and `file-download` answer *"served only to the manager UI over a
+cookie session"*. So a token client can **set** an ACL there and cannot read the
+content it just governed - it has to change channel, to MCP or WebDAV, to
+exercise the grant it wrote. That is why the behavioural matrix covers WebDAV
+and MCP (the two channels that used to disagree) and the control API's half is
+pinned at source: there is no behaviour to drive. Recorded for [[SM289]], whose
+"same method from every surface" turns out to have a bigger hole than the two
+names it was filed about.
+
+**The upgrade preview could not be built honestly, so it was not.**
+`lazysite-check` now lists the `@group` entries and says plainly that they apply
+on every channel from this release. It deliberately does **not** list who is in
+each group. The options were: duplicate the closure logic (a fourth answer to
+the question this filing exists to give one answer to), report direct membership
+only (which omits anyone in a nested group, telling an operator that somebody
+does **not** gain access when they do), or name the entries and point at the
+tool that knows - `lazysite-users.pl groups`. This file is core-Perl by design
+and cannot load the resolver. **Under-reporting who gains access is worse than
+not reporting it**, so the third option won.
 
 ## Related
 

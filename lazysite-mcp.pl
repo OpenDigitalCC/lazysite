@@ -309,9 +309,15 @@ sub setup_context {
     $Lazysite::Manager::Artifact::LAZYSITE_DIR = $LAZYSITE_DIR;
     $Lazysite::Auth::Acl::DOCROOT              = $DOCROOT;
     $Lazysite::Auth::Acl::auth_user            = $user;
-    $Lazysite::Auth::Acl::token_auth           = 1;              # never an operator
-    @Lazysite::Auth::Acl::user_groups          = ();             # token carries no groups
-    $Lazysite::Audit::LAZYSITE_DIR             = $LAZYSITE_DIR;
+    $Lazysite::Auth::Acl::token_auth           = 1;               # never an operator
+        # SM288: the account's REAL groups, so an @group ACL entry matches a partner
+        # here exactly as it already did over WebDAV. This line used to be `= ()`
+        # with the comment "token carries no groups - the safe default". It was not
+        # a safe default, it was a THIRD answer: the same account in the same group
+        # was allowed over WebDAV and refused here. Being an operator is still
+        # refused above - that is a capability question, and this is not.
+    @Lazysite::Auth::Acl::user_groups = Lazysite::Auth::Acl::groups_for_user($user);
+    $Lazysite::Audit::LAZYSITE_DIR    = $LAZYSITE_DIR;
     return;
 }
 
