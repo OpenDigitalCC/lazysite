@@ -1,9 +1,32 @@
 ---
 title: "Work plan - access control, made consistent and then written down"
-subtitle: "Four filings, then surface parity, then the documentation that keeps it true. Written 12 August 2026 after two wrong answers in one session, both from trusting prose over code."
+subtitle: "Four filings, then surface parity, then the documentation that keeps it true. Written 12 August 2026 after two wrong answers in one session, both from trusting prose over code. COMPLETE 13 August 2026."
 brand: plain
 standard-margins: true
 ---
+
+# Status - COMPLETE, 13 August 2026
+
+Every phase is done and on `main`, unreleased. Kept rather than deleted, because
+the reasoning below is what the next person needs when they wonder why access
+control has the shape it has.
+
+| Phase | Item | State |
+|---|---|---|
+| 1 | SM285 self-probe | shipped |
+| 1 | SM288 one group resolver | shipped |
+| 1 | SM287 the root scope | shipped |
+| 1 | SM286 step 1 - the private store, and the move | shipped |
+| 2 | SM289 the same method from every surface, incl. a CLI verb | shipped |
+| 3 | SM290 the reference, FEATURES, and `t/lint/36` | shipped |
+
+Found and fixed along the way, none of them planned: SM291 (a malformed boolean
+published a hidden section and reported success), SM292 (the "held back" panel
+was empty for everyone who used a supported surface), SM212's two items, and
+four defects introduced by the store move itself - recorded in the commit
+messages on `9f63a76..bb3dfce` rather than repeated here.
+
+SM286 is now closed on step 1; its steps 2-5 continue as [[SM293]].
 
 # Why this plan exists
 
