@@ -2,8 +2,8 @@
 title: "SM293 - Take the rest out of the served tree"
 subtitle: "SM286 step 1 moved gated content out of the document root. Config, credentials, snapshots and the generated registries are still in it, and every one of them is still defended by a rule in a config file we do not control."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-13, carrying forward steps 2-5 of SM286 (closed on step 1). STEPS 2a, 2b, 3 and 4 ALL SHIPPED 2026-08-13 on main (unreleased), after the operator settled both open questions: automation per-domain-or-all with a version gate for step 2b, and generated-on-request-with-a-cache for step 3. The engine tree can now be moved out of the document root with `lazysite migrate-engine-tree`, and the registries are no longer written into it at all. Only STEP 5 (the daemon shape) remains, and it is a new artefact rather than a removal."
+status: shipped
+status-note: "FILED 2026-08-13, carrying forward steps 2-5 of SM286 (closed on step 1). ALL FIVE STEPS SHIPPED 2026-08-13 on main (unreleased). The engine tree can be moved out of the document root (`lazysite migrate-engine-tree`, dry-run by default, reversible, version-gated); the registries are generated on request and cached; the trust-header strip is hardening rather than a requirement, after the lint that makes the in-app gate an enforced control; and a front end can now be ONE RULE, with Lazysite::FrontDoor::route() making the decisions and t/integration/49 driving that shape through real Apache. ONE THING DELIBERATELY NOT DONE: the front door is CGI, not the FastCGI pool - dispatch ends in exec(), which is fatal inside a persistent worker`s accept loop. Folding it into the pool needs in-process dispatch to each surface and is a larger change to the auth wrapper than this filing should carry; filed as the follow-up below rather than left implicit."
 ---
 
 # SM293 - the rest of the served tree
@@ -166,12 +166,38 @@ logging them.
 Demoting the doc first would have been the very thing this programme exists to
 stop: prose asserting a control that nothing enforced.
 
-## Step 5 - the daemon shape
+## Step 5 - the front door - SHIPPED
 
-With 2-4 done, the front end's whole job is "forward everything". At that point
-the natural artefact is lazysite speaking HTTP or FastCGI itself - which the
-pool already does for the render path - with a documented one-line proxy rule
-per front end and no templates at all.
+`Lazysite::FrontDoor::route()` makes every routing decision the vhost templates
+used to make, and `lazysite-front.pl` executes it. Two reference configs ship
+(`installers/{apache,nginx}/vhost-one-rule.conf.example`), each a single rule.
+
+**The value is testability, not speed.** route() is a pure function, so the
+whole routing table is asserted in `t/unit/lib/21` - and `t/integration/49`
+drives the one-rule shape through REAL Apache, because a config that reads
+correctly can still be dead (SM268 H15) and a proxy can answer before the engine
+is consulted (SM283). The vhost templates could never be tested: testing one
+means installing it on the web server the operator actually runs.
+
+The nginx config is the one that matters most. nginx has no CGI, so every other
+nginx template either proxies to Apache or answers static files from a
+per-extension list - and answering by extension is exactly what SM283 was.
+
+**The trade is stated, not hidden.** One rule means a process start per request,
+including images on a site that protects nothing. The fuller templates remain as
+PERFORMANCE options whose absence costs speed and never correctness - the
+acceptance criterion below, met rather than quietly dropped.
+
+### Follow-up: the front door under the pool
+
+The front door is CGI. Dispatch ends in `exec()`, which is correct for a
+one-shot CGI and fatal inside the FastCGI pool's accept loop - it would replace
+the worker. Running it pooled means in-process dispatch to each surface, which
+is a larger change to the auth wrapper's design (it currently execs its target)
+than this filing should carry.
+
+So today an operator chooses: one rule with CGI cost, or the pool with a fuller
+template. Closing that gap is worth its own filing.
 
 ## Acceptance
 

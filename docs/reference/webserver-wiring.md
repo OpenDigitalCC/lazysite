@@ -42,6 +42,23 @@ FastCGI pool
   `/cgi-bin`, `/dav` stay CGI too. See
   `docs/architecture/performance.md`.
 
+## The one-rule option (SM293 step 5)
+
+Everything in this section describes what a front end must do when it is making
+the routing decisions itself. **It no longer has to.**
+
+`installers/apache/vhost-one-rule.conf.example` and its nginx counterpart
+forward every request to `lazysite-front.pl`, which routes it -
+`Lazysite::FrontDoor::route()`, asserted in `t/unit/lib/21` and driven through
+real Apache in `t/integration/49`. There is nothing to get wrong in the config
+because there is nothing in it.
+
+The cost is a process start per request, including for assets on a site that
+protects nothing. So the contract below still matters: **the fuller templates
+are performance options whose absence costs speed and never correctness.** Read
+on if you want the speed, or if you are writing a config for a server not
+covered here.
+
 ## The front-end contract (any server)
 
 Whatever the server, a correct front end does exactly this:

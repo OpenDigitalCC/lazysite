@@ -78,6 +78,20 @@ been "put the rule in one more config file"; this is the other answer.
   deliberately NOT renamed - both are in live partner use and the mapping is
   documented instead
 
+- SM293 step 5 (pending) **a front end can now be ONE RULE.**
+  `Lazysite::FrontDoor::route()` makes every routing decision the vhost
+  templates used to make, and `lazysite-front.pl` executes it; reference configs
+  ship for Apache and nginx. The value is testability: route() is a pure
+  function, so the whole routing table is asserted directly, and t/integration/49
+  drives the one-rule shape through REAL Apache - the templates could never be
+  tested, which is how SM248, SM268 H17 and SM283 each happened. The nginx config
+  matters most: nginx has no CGI, so every other nginx template answers statics
+  from a per-extension list, and deciding by suffix is exactly what SM283 was.
+  The trade is stated rather than hidden - one rule costs a process per request,
+  so the fuller templates remain as PERFORMANCE options whose absence costs speed
+  and never correctness. SM294 files the remaining gap (the front door under the
+  FastCGI pool, which needs in-process dispatch and a change to the auth
+  wrapper's exec-based design)
 - SM293 steps 2b + 3 (pending) **the engine tree can be moved out of the
   document root**, with `lazysite migrate-engine-tree --docroot D | --all` -
   dry-run by default, `--back` to reverse, `--min-version` so a fleet follows a
