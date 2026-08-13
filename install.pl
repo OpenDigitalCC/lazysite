@@ -240,7 +240,7 @@ exit cmd_install( \%opt );
 # 'all' (accepts every build - the pre-ladder behaviour).
 sub read_update_channel {
     my ($docroot) = @_;
-    my $conf = "$docroot/lazysite/lazysite.conf";
+    my $conf = lazysite_dir_for($docroot) . "/lazysite.conf";
     open my $fh, '<', $conf or return 'all';
     while ( my $l = <$fh> ) {
         next unless $l =~ /^\s*update_channel\s*:\s*(\S+)/;
@@ -271,7 +271,7 @@ sub channel_refuses {
 # STDERR instead of vanishing. Never dies - auditing must not break a deploy.
 sub audit_append {
     my ( $docroot, $act, $target, $detail ) = @_;
-    my $logdir = "$docroot/lazysite/logs";
+    my $logdir = lazysite_dir_for($docroot) . "/logs";
     unless ( -d $logdir || mkdir $logdir ) {
         warn "audit write failed ($act): cannot create $logdir: $!\n";
         return;
@@ -309,7 +309,7 @@ sub audit_channel_skip {
 # is absent). Atomic via temp + rename. Shared by --channel and --policy.
 sub set_conf_line {
     my ( $docroot, $key, $value ) = @_;
-    my $conf = "$docroot/lazysite/lazysite.conf";
+    my $conf = lazysite_dir_for($docroot) . "/lazysite.conf";
     unless ( -f $conf ) {
         warn "No lazysite.conf at $conf - is this a lazysite docroot?\n";
         return 1;
@@ -425,7 +425,7 @@ sub cmd_restore_full {
     my $rc = safe_tar_extract( $tarball, $docroot );
     die "Restore extraction failed (tar rc=$rc)\n" if $rc != 0;
 
-    my $conf = "$docroot/lazysite/lazysite.conf";
+    my $conf = lazysite_dir_for($docroot) . "/lazysite.conf";
     die "Restored tree has no lazysite/lazysite.conf - not a full backup?\n"
         unless -f $conf;
 
@@ -436,7 +436,7 @@ sub cmd_restore_full {
     }
 
     # Drop generated HTML caches so pages re-render (new domain, fresh mtimes).
-    my $cache = "$docroot/lazysite/cache";
+    my $cache = lazysite_dir_for($docroot) . "/cache";
     File::Path::remove_tree($cache) if -d $cache;
 
     audit_full_restore( $docroot, $tarball, $domain );
@@ -595,7 +595,7 @@ sub cmd_install {
     # ---- backup (upgrade or reinstall only) ----
     my $backup_path;
     if ( $mode ne 'fresh' ) {
-        my $backup_dir = "$o->{docroot}/lazysite/backups";
+        my $backup_dir = lazysite_dir_for( $o->{docroot} ) . "/backups";
         # Normally already created above from the model. Retained for a payload
         # whose manifest predates the declaration, which must install as before.
         make_path($backup_dir) unless -d $backup_dir;
@@ -645,7 +645,7 @@ sub cmd_install {
     # ---- retention ----
     if ( $mode ne 'fresh' ) {
         my $retention = read_retention( $o->{docroot} );
-        apply_retention( "$o->{docroot}/lazysite/backups", $retention );
+        apply_retention( lazysite_dir_for( $o->{docroot} ) . "/backups", $retention );
     }
 
     # ---- summary ----
@@ -886,7 +886,7 @@ sub execute_plan {
                 # SM110: and its per-alias-host copies (standalone installer -
                 # inline rather than the Lazysite::Util helper).
                 ( my $rel = $cached ) =~ s{^\Q$opt{docroot}\E/?}{};
-                my $hosts = "$opt{docroot}/lazysite/cache/hosts";
+                my $hosts = lazysite_dir_for( $opt{docroot} ) . "/cache/hosts";
                 if ( length $rel && $rel !~ m{\.\.} && opendir( my $hd, $hosts ) ) {
                     for my $h ( readdir $hd ) {
                         next                    if $h =~ /^\./;
@@ -1183,9 +1183,9 @@ sub post_install_steps {
     # pre-SM109 manager.css lingered on upgrade), so it was removed. Clean up
     # the now-orphaned source copy if a previous install left one.
     {
-        my $orphan = "$docroot/lazysite/manager/assets/manager.css";
+        my $orphan = lazysite_dir_for($docroot) . "/manager/assets/manager.css";
         unlink $orphan if -f $orphan;
-        my $od = "$docroot/lazysite/manager/assets";
+        my $od = lazysite_dir_for($docroot) . "/manager/assets";
         rmdir $od if -d $od;    # only succeeds if empty
     }
 
@@ -1195,8 +1195,8 @@ sub post_install_steps {
     # the live files are left alone (operator-edited); we do nothing.
     if ( $mode eq 'fresh' ) {
         for my $f (qw(users groups)) {
-            my $src = "$docroot/lazysite/auth/$f.example";
-            my $dst = "$docroot/lazysite/auth/$f";
+            my $src = lazysite_dir_for($docroot) . "/auth/$f.example";
+            my $dst = lazysite_dir_for($docroot) . "/auth/$f";
             if ( -f $src && !-f $dst ) {
                 File::Copy::copy( $src, $dst )
                     or die "Could not seed auth/$f: $!\n";
@@ -1212,7 +1212,7 @@ sub post_install_steps {
     # --- nav.conf: seed from .example on fresh install ---
     if ( $mode eq 'fresh' ) {
         my $src = "$STAGE_DIR/starter/nav.conf.example";
-        my $dst = "$docroot/lazysite/nav.conf";
+        my $dst = lazysite_dir_for($docroot) . "/nav.conf";
         if ( -f $src && !-f $dst ) {
             File::Copy::copy( $src, $dst )
                 or die "Could not seed nav.conf: $!\n";
@@ -1228,7 +1228,7 @@ sub post_install_steps {
     # If --domain, write a minimal conf with templated site_name /
     # site_url. Otherwise, install the .example as the live conf.
     if ( $mode eq 'fresh' ) {
-        my $conf = "$docroot/lazysite/lazysite.conf";
+        my $conf = lazysite_dir_for($docroot) . "/lazysite.conf";
         if ( !-f $conf ) {
             if ( length $o->{domain} ) {
                 write_text(
@@ -1295,7 +1295,7 @@ sub post_install_steps {
     }
 
     # --- SGID on the lazysite/ subtree (not whole docroot) ---
-    my $laz = "$docroot/lazysite";
+    my $laz = lazysite_dir_for($docroot);
     if ( -d $laz ) {
         my $mode_now = ( stat $laz )[2] & 07777;
         my $want     = $mode_now | 02020;          # g+ws
@@ -1334,8 +1334,8 @@ sub align_ownership {
     my $gid = ( getgrnam 'www-data' )[2];
     $gid = ( stat $docroot )[5] unless defined $gid;
 
-    my @paths = ("$docroot/lazysite/lazysite.conf");
-    my @stack = ("$docroot/lazysite");
+    my @paths = ( lazysite_dir_for($docroot) . "/lazysite.conf" );
+    my @stack = ( lazysite_dir_for($docroot) );
     while ( my $dir = pop @stack ) {
         next unless -d $dir;
         push @paths, $dir;
@@ -1555,7 +1555,7 @@ sub write_backup_sha256 {
 
 sub cmd_list_backups {
     my ($docroot) = @_;
-    my $dir = "$docroot/lazysite/backups";
+    my $dir = lazysite_dir_for($docroot) . "/backups";
     unless ( -d $dir ) {
         print "No backups directory at $dir.\n";
         return 0;
@@ -1584,7 +1584,7 @@ sub cmd_restore {
         die "Backup not found: $backup_path\n" unless -f $backup_path;
     }
     else {
-        my $dir   = "$o->{docroot}/lazysite/backups";
+        my $dir   = lazysite_dir_for( $o->{docroot} ) . "/backups";
         my @files = sort glob("$dir/lazysite-backup-*.tar.gz");
         die "No backups at $dir\n" unless @files;
         $backup_path = $files[-1];    # most recent (lexicographic == chronological)
@@ -1641,7 +1641,7 @@ sub cmd_restore {
 
     # Invalidate rendered .html cache: content at the pre-upgrade
     # version may reference state that no longer matches.
-    my $cache = "$o->{docroot}/lazysite/cache";
+    my $cache = lazysite_dir_for( $o->{docroot} ) . "/cache";
     if ( -d $cache ) {
         File::Find::find(
             {
@@ -1672,7 +1672,7 @@ sub cmd_restore {
 
 sub read_retention {
     my ($docroot) = @_;
-    my $conf      = "$docroot/lazysite/lazysite.conf";
+    my $conf      = lazysite_dir_for($docroot) . "/lazysite.conf";
     my $default   = 3;
     return $default unless -f $conf;
     open my $fh, '<', $conf or return $default;
@@ -1716,7 +1716,7 @@ sub apply_retention {
 
 sub state_path {
     my ($docroot) = @_;
-    return "$docroot/lazysite/.install-state.json";
+    return lazysite_dir_for($docroot) . "/.install-state.json";
 }
 
 sub load_state {
@@ -1784,11 +1784,37 @@ sub load_manifest {
 # ---------- helpers ----------
 # =========================================================
 
+# SM293: where this site keeps its engine tree.
+#
+# Module-free, and that is not laziness: install.pl is the bootstrap that
+# INSTALLS the payload containing lib/, so it cannot depend on it. Mirrors
+# Lazysite::Paths::lazysite_dir and the processor's copy; t/lint/37 drives all
+# three and compares their answers.
+#
+# This one matters more than the others. Every write into the engine tree flows
+# through the {LAZYSITE} placeholder below, so an installer that computed
+# "<docroot>/lazysite" would RE-CREATE the tree inside the docroot on the next
+# upgrade of a migrated site - putting it in both places, which is the one state
+# that is broken and invisible at the same time.
+sub lazysite_dir_for {
+    my ($d) = @_;
+    return '' unless defined $d && length $d;
+    $d =~ s{/+\z}{};
+    return '' unless length $d;
+    my $leaf = $d;
+    $leaf =~ s{\A.*/}{};         # basename
+    my $parent = $d;
+    $parent =~ s{/[^/]*\z}{};    # dirname
+    my $ext = "$parent/$leaf-lazysite";
+    return -d $ext ? $ext : "$d/lazysite";
+}
+
 sub placeholders {
     my ( $docroot, $cgibin ) = @_;
     return (
-        DOCROOT => $docroot,
-        CGIBIN  => $cgibin,
+        DOCROOT  => $docroot,
+        CGIBIN   => $cgibin,
+        LAZYSITE => lazysite_dir_for($docroot),
     );
 }
 
@@ -1897,6 +1923,7 @@ sub print_dep_check {
 
 sub print_next_steps {
     my ($docroot) = @_;
+    my $LAZYSITE_SHOWN = lazysite_dir_for($docroot);
     print STDERR <<"TEXT";
 Next steps:
   1. Install a layout + theme via the manager UI at /manager/themes.
@@ -1904,7 +1931,7 @@ Next steps:
      back to a built-in template until a layout is installed and
      a compatible theme is activated via /manager/config. Set
      'layout:' and 'theme:' in lazysite.conf to point at them.
-  2. Edit $docroot/lazysite/lazysite.conf to configure your site.
+  2. Edit $LAZYSITE_SHOWN/lazysite.conf to configure your site.
   3. Replace $docroot/index.md with your content.
 
 TEXT

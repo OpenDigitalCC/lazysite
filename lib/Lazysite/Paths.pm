@@ -86,4 +86,73 @@ sub stray_lazysite {
     return ( defined $ext && -d $ext && -d "$docroot/$DIRNAME" ) ? 1 : 0;
 }
 
+# Move the engine tree OUT of the document root. Returns ( $ok, $error_or_note ).
+#
+# rename() is atomic within a filesystem and moves the whole tree in one step,
+# which is what makes this safe to run on a live site: there is no window in
+# which half the config, or half the account store, is in each place. Across
+# filesystems it fails with EXDEV and this REFUSES rather than falling back to a
+# copy - a half-copied auth store is the worst outcome available here, and the
+# operator can move it themselves and re-run the check.
+#
+# Idempotent: a site already migrated returns ok with a note, so "migrate
+# everything" is safe to run repeatedly and safe to run on a mixed fleet.
+sub migrate_out {
+    my ($docroot) = @_;
+    return ( 0, 'no docroot given' ) unless defined $docroot && length $docroot;
+    $docroot =~ s{/+\z}{};
+
+    my $inside = "$docroot/$DIRNAME";
+    my $ext    = external_lazysite_dir($docroot)
+        or return ( 0, 'cannot derive the external location' );
+
+    return ( 0, 'this site has an engine tree in BOTH places - resolve that by '
+            . 'hand before migrating; the engine is already reading the one '
+            . 'outside, so the copy inside the document root is the one to '
+            . 'check and remove' )
+        if -d $ext && -d $inside;
+
+    return ( 1, 'already migrated' ) if -d $ext;
+    return ( 0, "no engine tree at $inside" ) unless -d $inside;
+
+    return ( 0, 'something already exists at the destination' ) if -e $ext;
+
+    unless ( rename $inside, $ext ) {
+        my $err = "$!";
+        return ( 0, 'cannot move the engine tree across filesystems - move it '
+                . "by hand and re-run: $err" )
+            if $err =~ /cross-device|Invalid cross/i;
+        return ( 0, "cannot move the engine tree: $err" );
+    }
+    return ( 1, 'migrated' );
+}
+
+# And back, for an operator who wants to undo it. Same contract reversed.
+#
+# Reversibility is not politeness. It is what lets a site be migrated on edge,
+# watched, and put back without a release if anything about the deployment turns
+# out to disagree.
+sub migrate_back {
+    my ($docroot) = @_;
+    return ( 0, 'no docroot given' ) unless defined $docroot && length $docroot;
+    $docroot =~ s{/+\z}{};
+
+    my $inside = "$docroot/$DIRNAME";
+    my $ext    = external_lazysite_dir($docroot)
+        or return ( 0, 'cannot derive the external location' );
+
+    return ( 0, 'this site has an engine tree in BOTH places - resolve that by '
+            . 'hand first' )
+        if -d $ext && -d $inside;
+
+    return ( 1, 'already inside the document root' ) if -d $inside;
+    return ( 0, "no engine tree at $ext" ) unless -d $ext;
+
+    unless ( rename $ext, $inside ) {
+        my $err = "$!";
+        return ( 0, "cannot move the engine tree back: $err" );
+    }
+    return ( 1, 'moved back' );
+}
+
 1;

@@ -213,6 +213,14 @@ subtest 'a fresh install creates the declared directories at the declared mode' 
     my %want;
     for my $d (@$declared) {
         my $p = $d->{path};
+        # SM293: {LAZYSITE} is the engine tree, which on an unmigrated site -
+        # which is what a fresh install produces - IS {DOCROOT}/lazysite. It
+        # became its own placeholder so the installer stops writing into the
+        # served tree on a site that has moved it; resolve it the same way the
+        # installer does, or this check silently stops covering the ~15
+        # directories that live under it.
+        $p =~ s{\A\Q{LAZYSITE}\E}{{DOCROOT}/lazysite};
+
         # Only the docroot-relative ones: {DOCROOT}/.. paths land outside the
         # temp site directory and {CGIBIN} is pre-created by the harness.
         next unless $p =~ s{\A\Q{DOCROOT}\E/}{};

@@ -46,6 +46,13 @@ ok( scalar @$rps, 'the model declares runtime paths' );
 my %model;
 for my $rp (@$rps) {
     my $p = $rp->{path};
+
+    # SM293: the model addresses the engine tree as {LAZYSITE}, because the
+    # installer must not write into a migrated site's docroot. The check tool
+    # still names those paths docroot-relative ("lazysite/auth") and resolves
+    # them at runtime, so normalise to that spelling here or the two key spaces
+    # stop overlapping and this parity check silently compares nothing.
+    $p =~ s{\A\{LAZYSITE\}}{lazysite};
     $p =~ s{\A\{DOCROOT\}/}{};
     $model{$p} = { mode => $rp->{mode}, by => $rp->{applied_by} || ['install'] };
 
@@ -136,7 +143,10 @@ is_deeply( \@disagree, [],
 
     my %model_file;
     for my $rf (@$rfs) {
-        ( my $rel = $rf->{path} ) =~ s{\A\{DOCROOT\}/}{};
+        # SM293: same normalisation as the directory model above - {LAZYSITE}
+        # is the engine tree, spelled docroot-relative by the check tool.
+        ( my $rel = $rf->{path} ) =~ s{\A\{LAZYSITE\}}{lazysite};
+        $rel =~ s{\A\{DOCROOT\}/}{};
         $model_file{$rel} = 1;
         ok( defined $rf->{why} && length $rf->{why}, "$rel states why it needs group write" );
         is( $rf->{ensure}, 'group-write', "$rel declares what to ensure" );

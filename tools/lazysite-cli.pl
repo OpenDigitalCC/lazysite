@@ -42,12 +42,13 @@ elsif ( $verb eq 'help' || $verb =~ /^-{0,2}help$|^-h$/ ) { usage(0) }
 elsif ( $verb eq 'provision' )                            { exit cmd_provision() }
 elsif ( $verb eq 'upgrade' )                              { exit cmd_upgrade() }
 elsif ( $verb eq 'sites' )                                { exit cmd_sites() }
-elsif ( $verb eq 'check' )   { run_tool( 'tools/lazysite-check.pl',  @ARGV ) }
-elsif ( $verb eq 'users' )   { run_tool( 'tools/lazysite-users.pl',  @ARGV ) }
-elsif ( $verb eq 'acl' )     { run_tool( 'tools/lazysite-acl.pl',    @ARGV ) }
-elsif ( $verb eq 'dev' )     { run_tool( 'tools/lazysite-server.pl', @ARGV ) }
-elsif ( $verb eq 'demo' )    { exit cmd_demo() }
-elsif ( $verb eq 'version' ) { exit cmd_version() }
+elsif ( $verb eq 'check' )               { run_tool( 'tools/lazysite-check.pl', @ARGV ) }
+elsif ( $verb eq 'users' )               { run_tool( 'tools/lazysite-users.pl', @ARGV ) }
+elsif ( $verb eq 'acl' )                 { run_tool( 'tools/lazysite-acl.pl',   @ARGV ) }
+elsif ( $verb eq 'migrate-engine-tree' ) { exit cmd_migrate_engine_tree() }
+elsif ( $verb eq 'dev' )                 { run_tool( 'tools/lazysite-server.pl', @ARGV ) }
+elsif ( $verb eq 'demo' )                { exit cmd_demo() }
+elsif ( $verb eq 'version' )             { exit cmd_version() }
 else {
     print {*STDERR} "lazysite: unknown verb '$verb'\n\n";
     usage(2);
@@ -88,6 +89,13 @@ Verbs:
         version, docroot.
   check [args...]        Health/permissions doctor (lazysite-check.pl).
   users [args...]        Auth user management (lazysite-users.pl).
+  migrate-engine-tree --docroot D | --all [--apply] [--min-version V]
+        Move a site's lazysite/ tree OUT of the document root, to
+        <docroot>-lazysite. Reports what it would do unless --apply is
+        given. --all walks the registry; as root it drops to each
+        site's owner. --min-version skips sites below that version, so
+        a fleet can be migrated as the release rolls through its
+        channels. Reversible with --back.
   acl [args...]          Per-path access: who may read or write a file,
         a folder, or the whole site (lazysite-acl.pl). Same rules and
         same store as the manager, the control API and MCP.
@@ -514,6 +522,155 @@ sub cmd_upgrade_all {
 # docroot. Channel and policy show the LIVE conf value when the site's
 # lazysite.conf is readable, falling back to the registry's cached value; the
 # version comes from the site's .install-state.json ('-' when undiscoverable).
+
+# SM293 step 2b: move a site's engine tree out of the document root.
+#
+# `lazysite/` holds config, credentials, the audit log, session state, form
+# submissions and pre-install snapshots, and inside the docroot it is kept
+# unreachable only by a `deny /lazysite/` in every shipped front-end template -
+# configuration lazysite ships, cannot test where it is installed, and mostly
+# cannot see. SM283's proxy would have served
+# lazysite/backups/preinstall-*.tar.gz on any host whose static list includes
+# `gz`: the whole site, including the account store.
+#
+# The engine ASKS where its tree is (SM293 step 2a), so this command is the whole
+# migration: one rename, atomic within a filesystem, reversible with --back, and
+# idempotent so a fleet run is safe to repeat and safe on a mixed fleet.
+#
+# DRY RUN BY DEFAULT. This moves live credentials; --apply is the deliberate act,
+# matching lazysite-fix-perms. --min-version is how a fleet follows a release
+# through its channels: migrate what is new enough, leave the rest, run it again
+# after the next roll-out.
+sub cmd_migrate_engine_tree {
+    my %o = ( apply => 0, back => 0, all => 0 );
+    Getopt::Long::GetOptions(
+        'docroot=s'     => \$o{docroot},
+        'all'           => \$o{all},
+        'apply'         => \$o{apply},
+        'back'          => \$o{back},
+        'min-version=s' => \$o{min_version},
+    ) or usage(2);
+
+    fail('give --docroot D or --all') unless $o{all} || $o{docroot};
+    fail('--docroot and --all are mutually exclusive') if $o{all} && $o{docroot};
+
+    require Lazysite::Paths;
+
+    my @targets;
+    if ( $o{all} ) {
+        my $sites = read_registry();
+        if ( !@$sites ) {
+            print 'lazysite: no sites registered in ' . registry_dir() . "\n";
+            return 0;
+        }
+        @targets = @$sites;
+    }
+    else {
+        @targets = ( { name => $o{docroot}, docroot => $o{docroot} } );
+    }
+
+    my $me      = current_user();
+    my $is_root = running_as_root();
+    my ( @done, @skipped, @failed );
+
+    for my $s (@targets) {
+        my $doc = $s->{docroot};
+        my $ver = site_version($doc);
+
+        # The version gate. A site the release has not reached yet is running
+        # code that computes "<docroot>/lazysite" and would not find a moved
+        # tree - migrating it would take it offline.
+        if ( defined $o{min_version} && length $o{min_version} ) {
+            if ( !defined $ver || !length $ver ) {
+                print "== $s->{name}: version unknown - skipped "
+                    . "(cannot prove it can find a moved tree)\n";
+                push @skipped, $s->{name};
+                next;
+            }
+            if ( version_lt( $ver, $o{min_version} ) ) {
+                print "== $s->{name}: $ver is below $o{min_version} - skipped\n";
+                push @skipped, $s->{name};
+                next;
+            }
+        }
+
+        my $what = $o{back} ? 'move back into' : 'move out of';
+        if ( !$o{apply} ) {
+            my ( $would, $note ) = $o{back}
+                ? ( 1, 'would move back into the document root' )
+                : ( 1, 'would move out of the document root' );
+            my $state =
+                Lazysite::Paths::stray_lazysite($doc) ? 'IN BOTH PLACES - refuses'
+                : -d Lazysite::Paths::external_lazysite_dir($doc) ? 'already outside'
+                : -d "$doc/lazysite"                              ? $note
+                :   'no engine tree found';
+            printf "== %-28s %s  [%s]\n", $s->{name}, $state,
+                ( defined $ver && length $ver ? $ver : 'version unknown' );
+            push @skipped, $s->{name};
+            next;
+        }
+
+        # SM139: never as root into a site tree. As root, drop to the owner.
+        my $owner = $o{all} ? site_owner($s) : $me;
+        if ( $is_root && $o{all} && ( !length $owner || $owner eq 'root' ) ) {
+            warn "lazysite: $s->{name}: unusable owner - skipped\n";
+            push @failed, $s->{name};
+            next;
+        }
+        if ( $is_root && $owner ne $me ) {
+            my $root = payload_root();
+            my @cmd  = (
+                'sudo',      '-n',                          '-u', $owner, '--',
+                $^X,         "$root/tools/lazysite-cli.pl", 'migrate-engine-tree',
+                '--docroot', $doc, '--apply', ( $o{back} ? ('--back') : () )
+            );
+            print "== $s->{name}: $what the document root (as $owner)\n";
+            my $rc = system(@cmd);
+            if   ( $rc == 0 ) { push @done,   $s->{name} }
+            else              { push @failed, $s->{name} }
+            next;
+        }
+        if ( $is_root && !$o{all} ) {
+            fail( "refusing to migrate as root.\n"
+                    . "  This moves the site's own credentials; root-owned files in a\n"
+                    . "  site tree are what break the manager afterwards (SM139).\n"
+                    . "    sudo -u SITEUSER lazysite migrate-engine-tree --docroot $doc --apply" );
+        }
+
+        my ( $ok, $note ) = $o{back}
+            ? Lazysite::Paths::migrate_back($doc)
+            : Lazysite::Paths::migrate_out($doc);
+        if ($ok) {
+            print "== $s->{name}: $note\n";
+            push @done, $s->{name};
+        }
+        else {
+            warn "lazysite: $s->{name}: $note\n";
+            push @failed, $s->{name};
+        }
+    }
+
+    print 'lazysite: '
+        . ( $o{apply} ? 'migrated ' . @done . ' site(s)'     : 'dry run - nothing moved' )
+        . ( @skipped  ? ', ' . @skipped . ' skipped'         : '' )
+        . ( @failed   ? ', FAILED: ' . join( ', ', @failed ) : '' ) . "\n";
+    print "Re-run with --apply to make the change.\n" if !$o{apply};
+    return @failed ? 1 : 0;
+}
+
+# Numeric-segment version compare: is $a strictly older than $b?
+sub version_lt {
+    my ( $a, $b ) = @_;
+    my @a = ( $a =~ /(\d+)/g );
+    my @b = ( $b =~ /(\d+)/g );
+    for my $i ( 0 .. 2 ) {
+        my ( $x, $y ) = ( $a[$i] // 0, $b[$i] // 0 );
+        return 1 if $x < $y;
+        return 0 if $x > $y;
+    }
+    return 0;
+}
+
 sub cmd_sites {
     my $sites = read_registry();
     if ( !@$sites ) {

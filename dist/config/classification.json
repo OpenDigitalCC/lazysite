@@ -75,13 +75,13 @@
     {
       "_comment": "Built-in content components (::: qr, ...) available on any layout via the templates fallback in the processor.",
       "pattern": "^starter/lazysite/templates/components/(.+)$",
-      "install_to": "{DOCROOT}/lazysite/templates/components/$1",
+      "install_to": "{LAZYSITE}/templates/components/$1",
       "bucket": "code"
     },
     {
       "_comment": "SM201: engine-required system pages (login/claim/402/403/404) served with a fallback - a content-root or docroot-root copy overrides, else this protected default. Code bucket (refreshed every upgrade, DAV-blocklisted so an agent cannot delete it). Precedes the general starter/*.md seed rule so it is NOT seeded as an editable root page.",
       "pattern": "^starter/lazysite/templates/system/(.+)$",
-      "install_to": "{DOCROOT}/lazysite/templates/system/$1",
+      "install_to": "{LAZYSITE}/templates/system/$1",
       "bucket": "code"
     },
     {
@@ -98,33 +98,33 @@
     {
       "_comment": "D013: manager UI template lives outside both layouts/ and themes/. Manager is internal plumbing, not a themeable layout. (assets/ handled by the rule above.)",
       "pattern": "^starter/lazysite/manager/(.+)$",
-      "install_to": "{DOCROOT}/lazysite/manager/$1",
+      "install_to": "{LAZYSITE}/manager/$1",
       "bucket": "code"
     },
     {
       "_comment": "D022: registries source path now matches install destination. One rule replaces the previous rule-pair.",
       "pattern": "^starter/lazysite/templates/registries/(.+)$",
-      "install_to": "{DOCROOT}/lazysite/templates/registries/$1",
+      "install_to": "{LAZYSITE}/templates/registries/$1",
       "bucket": "seed"
     },
     {
       "pattern": "^starter/lazysite/forms/(.+)\\.conf\\.example$",
-      "install_to": "{DOCROOT}/lazysite/forms/$1.conf",
+      "install_to": "{LAZYSITE}/forms/$1.conf",
       "bucket": "seed"
     },
     {
       "pattern": "^starter/lazysite/auth/(.+)\\.example$",
-      "install_to": "{DOCROOT}/lazysite/auth/$1.example",
+      "install_to": "{LAZYSITE}/auth/$1.example",
       "bucket": "seed"
     },
     {
       "pattern": "^starter/lazysite\\.conf\\.example$",
-      "install_to": "{DOCROOT}/lazysite/lazysite.conf.example",
+      "install_to": "{LAZYSITE}/lazysite.conf.example",
       "bucket": "seed"
     },
     {
       "pattern": "^starter/nav\\.conf\\.example$",
-      "install_to": "{DOCROOT}/lazysite/nav.conf.example",
+      "install_to": "{LAZYSITE}/nav.conf.example",
       "bucket": "seed"
     },
     {
@@ -238,7 +238,7 @@
   "overrides": [],
   "runtime_paths": [
     {
-      "path": "{DOCROOT}/lazysite/auth",
+      "path": "{LAZYSITE}/auth",
       "mode": "2770",
       "purpose": "credentials, session secret, ACLs, consume lock, rate-limit DB - setgid + group-writable by the web user (www-data), no world access",
       "why": "credential + session store; the CGI writes sessions and rate DBs, and nothing else may read it",
@@ -249,7 +249,7 @@
       "on_upgrade": "repair"
     },
     {
-      "path": "{DOCROOT}/lazysite/backups",
+      "path": "{LAZYSITE}/backups",
       "mode": "2775",
       "purpose": "content backup tarballs - setgid + group-writable by www-data (Manager::Backups writes them through the CGI)",
       "why": "the manager saves backup snapshots here; the installer used to create it with a bare make_path on upgrade, leaving it root-owned at the umask default so the manager's own backup action failed",
@@ -260,7 +260,7 @@
       "on_upgrade": "repair"
     },
     {
-      "path": "{DOCROOT}/lazysite/cache",
+      "path": "{LAZYSITE}/cache",
       "mode": "2775",
       "purpose": "rendered HTML cache - setgid + group-writable by www-data (the CGI writes it), world-readable (Apache serves it)",
       "why": "rendered page cache, written by the CGI on every miss",
@@ -271,7 +271,7 @@
       "on_upgrade": "repair"
     },
     {
-      "path": "{DOCROOT}/lazysite/logs",
+      "path": "{LAZYSITE}/logs",
       "mode": "2775",
       "purpose": "application log output - setgid + group-writable by www-data",
       "why": "engine + audit logs, appended by the CGI",
@@ -282,7 +282,7 @@
       "on_upgrade": "repair"
     },
     {
-      "path": "{DOCROOT}/lazysite/stats",
+      "path": "{LAZYSITE}/stats",
       "mode": "2775",
       "purpose": "SM213 durable per-day visitor-stats rollups (aggregates only) - setgid + group-writable by www-data (the stats plugin writes it), not served publicly (under the protected lazysite/ tree)",
       "why": "durable per-day visitor stats (SM213), written by the CGI",
@@ -293,7 +293,7 @@
       "on_upgrade": "repair"
     },
     {
-      "path": "{DOCROOT}/lazysite/manager/locks",
+      "path": "{LAZYSITE}/manager/locks",
       "mode": "2775",
       "purpose": "per-file edit locks - setgid + group-writable by www-data",
       "why": "edit locks, created and removed by the manager",
@@ -315,7 +315,7 @@
       "on_upgrade": "leave"
     },
     {
-      "path": "{DOCROOT}/lazysite/layouts",
+      "path": "{LAZYSITE}/layouts",
       "mode": "2775",
       "purpose": "layouts + nested themes (D013) - setgid + group-writable by www-data (manage_layouts installs over the API)",
       "why": "operator-installed layouts and themes; the manager writes here",
@@ -337,7 +337,7 @@
       "on_upgrade": "repair"
     },
     {
-      "path": "{DOCROOT}/lazysite/stats/form-events",
+      "path": "{LAZYSITE}/stats/form-events",
       "mode": "2775",
       "why": "form-outcome log (SM216-2), counts only, written by the form handler",
       "applied_by": [
@@ -346,7 +346,7 @@
       "on_upgrade": "repair"
     },
     {
-      "path": "{DOCROOT}/lazysite/forms",
+      "path": "{LAZYSITE}/forms",
       "mode": "2770",
       "why": "form config + submission store; the CGI appends submissions and it holds PII",
       "applied_by": [
@@ -355,7 +355,7 @@
       "on_upgrade": "repair"
     },
     {
-      "path": "{DOCROOT}/lazysite/git",
+      "path": "{LAZYSITE}/git",
       "mode": "2770",
       "why": "content-history repository, created by the plugin at adoption - NOT created by the installer",
       "applied_by": [
@@ -366,32 +366,32 @@
   ],
   "runtime_files": [
     {
-      "path": "{DOCROOT}/lazysite/nav.conf",
+      "path": "{LAZYSITE}/nav.conf",
       "ensure": "group-write",
       "why": "the manager saves site navigation through the CGI; a 0644 file here fails nav-save with \"Permission denied\""
     },
     {
-      "path": "{DOCROOT}/lazysite/lazysite.conf",
+      "path": "{LAZYSITE}/lazysite.conf",
       "ensure": "group-write",
       "why": "the manager and every conf writer save site settings through the CGI"
     },
     {
-      "path": "{DOCROOT}/lazysite/auth/users",
+      "path": "{LAZYSITE}/auth/users",
       "ensure": "group-write",
       "why": "the user store is rewritten by account operations run through the CGI"
     },
     {
-      "path": "{DOCROOT}/lazysite/auth/groups",
+      "path": "{LAZYSITE}/auth/groups",
       "ensure": "group-write",
       "why": "as auth/users - group membership and capability grants"
     },
     {
-      "path": "{DOCROOT}/lazysite/auth/acls.json",
+      "path": "{LAZYSITE}/auth/acls.json",
       "ensure": "group-write",
       "why": "per-file ACLs are written by the manager and the MCP/DAV surfaces"
     },
     {
-      "path": "{DOCROOT}/lazysite/logs/audit.log",
+      "path": "{LAZYSITE}/logs/audit.log",
       "ensure": "group-write",
       "why": "every surface APPENDS here; a 0644 file loses audit entries without trace"
     }
@@ -428,7 +428,7 @@
       "why": "engine documentation ships as ordinary pages in the content tree, and an operator may add or rename one"
     },
     {
-      "path": "{DOCROOT}/lazysite",
+      "path": "{LAZYSITE}",
       "mode": "2775",
       "why": "the engine's own state directory; the setgid pass already ORs 02020 onto it, and this is the same answer applied at creation instead of after the fact"
     },
@@ -463,22 +463,22 @@
       "why": "as docs/"
     },
     {
-      "path": "{DOCROOT}/lazysite/auth",
+      "path": "{LAZYSITE}/auth",
       "mode": "2770",
       "why": "credential and session store - group-writable by the CGI, no world access. Must match runtime_paths"
     },
     {
-      "path": "{DOCROOT}/lazysite/forms",
+      "path": "{LAZYSITE}/forms",
       "mode": "2770",
       "why": "form definitions and submissions may carry personal data - no world access. Must match runtime_paths"
     },
     {
-      "path": "{DOCROOT}/lazysite/manager",
+      "path": "{LAZYSITE}/manager",
       "mode": "2775",
       "why": "manager state; parent of manager/locks, which the CGI writes on every lock"
     },
     {
-      "path": "{DOCROOT}/lazysite/templates",
+      "path": "{LAZYSITE}/templates",
       "mode": "2775",
       "why": "shipped templates an operator may override in place"
     },
@@ -508,17 +508,17 @@
       "why": "as docs/"
     },
     {
-      "path": "{DOCROOT}/lazysite/templates/components",
+      "path": "{LAZYSITE}/templates/components",
       "mode": "2775",
       "why": "as templates/"
     },
     {
-      "path": "{DOCROOT}/lazysite/templates/registries",
+      "path": "{LAZYSITE}/templates/registries",
       "mode": "2775",
       "why": "as templates/ - the registry templates the CGI renders llms.txt and sitemap.xml from"
     },
     {
-      "path": "{DOCROOT}/lazysite/templates/system",
+      "path": "{LAZYSITE}/templates/system",
       "mode": "2775",
       "why": "as templates/"
     },
@@ -530,7 +530,7 @@
     {
       "path": "{DOCROOT}/../lib/Lazysite/Auth",
       "mode": "0755",
-      "why": "as ../lib - the auth MODULES; the auth STORE is {DOCROOT}/lazysite/auth and is 2770"
+      "why": "as ../lib - the auth MODULES; the auth STORE is {LAZYSITE}/auth and is 2770"
     },
     {
       "path": "{DOCROOT}/../lib/Lazysite/Manager",

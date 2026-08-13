@@ -169,7 +169,20 @@ $DOC = abs_path($DOC);
 # it outright at the guard below - the health tool refusing to look at exactly
 # the sites that had taken the safer layout.
 require Lazysite::Paths;
-my $LZ  = Lazysite::Paths::lazysite_dir($DOC);
+my $LZ = Lazysite::Paths::lazysite_dir($DOC);
+
+# SM293: the permission model is written in docroot-relative paths
+# ("lazysite/auth"), because that is the layout it grew up in. On a MIGRATED
+# site those paths are not under the docroot at all, and a bare "$DOC/$rel"
+# simply does not exist - so every check below would `next unless -e` its way
+# past the entire engine tree and report a clean bill of health while verifying
+# nothing. The auth store's 02770 is the most important mode on the site.
+sub model_path {
+    my ($rel) = @_;
+    return "$LZ/$1" if $rel =~ m{\Alazysite/(.*)\z};
+    return $LZ      if $rel eq 'lazysite';
+    return "$DOC/$rel";
+}
 my $CGI = defined $opt{cgibin} ? abs_path( $opt{cgibin} ) : abs_path("$DOC/../cgi-bin");
 
 unless ( -d $LZ ) {
@@ -299,7 +312,7 @@ sub run_checks {
         'lazysite/git'               => 02770,
     );
     for my $rel ( sort keys %want_dir ) {
-        my $path = "$DOC/$rel";
+        my $path = model_path($rel);
         next unless -e $path;                     # not every dir exists on every install
         unless ( -d $path ) { report( 'WARN', "$rel exists but is not a directory" ); next }
         my $mode = mode_of($path);
@@ -461,7 +474,7 @@ sub run_checks {
 
     # --- 3. group must be the CGI's group on the writable dirs -------------------
     for my $rel ( sort keys %want_dir ) {
-        my $path = "$DOC/$rel";
+        my $path = model_path($rel);
         next unless -d $path;
         my $gid = ( stat $path )[5];
         if ( $gid != $exp_gid ) {
@@ -478,7 +491,7 @@ sub run_checks {
     # above the file (execute bit on each dir). A root-run -x cannot see a
     # missing group-execute (root bypasses DAC), so evaluate ownership+mode.
     for my $rel (qw(lazysite lazysite/manager lazysite/auth)) {
-        my $path = "$DOC/$rel";
+        my $path = model_path($rel);
         next unless -d $path;
         my @s = stat $path;
         if ( !cgi_can( 1, @s ) ) {
@@ -531,7 +544,7 @@ sub run_checks {
         lazysite/auth/sessions.jsonl lazysite/auth/revoked.json
         lazysite/notify-xmpp.conf lazysite/forms/smtp.conf
         ) ) {
-        my $path = "$DOC/$rel";
+        my $path = model_path($rel);
         next unless -f $path;
         my @s    = stat $path;
         my $mode = $s[2] & 07777;
@@ -563,7 +576,7 @@ sub run_checks {
         lazysite/auth/users lazysite/auth/groups lazysite/auth/acls.json
         lazysite/logs/audit.log
         ) ) {
-        my $path = "$DOC/$rel";
+        my $path = model_path($rel);
         next unless -f $path;
         my @s    = stat $path;
         my $mode = $s[2] & 07777;
@@ -585,7 +598,7 @@ sub run_checks {
 
     # --- 5. the user store must not be world-writable ----------------------------
     for my $rel (qw(lazysite/auth/users lazysite/auth/groups)) {
-        my $path = "$DOC/$rel";
+        my $path = model_path($rel);
         next unless -f $path;
         my $mode = mode_of($path);
         if ( $mode & 0002 ) {
