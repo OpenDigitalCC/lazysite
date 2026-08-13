@@ -17,6 +17,7 @@ use POSIX                      qw(strftime);
 use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Common  qw(write_file_checked _write_conf_key);
 use Lazysite::Manager::Domains ();    # SM177: domains_using (delete-safety scan)
+use Lazysite::Paths            ();
 use Lazysite::Manager::Themes  qw(_install_theme_from_dir _read_active_layout_and_theme
     _snapshot_artifact _prune_backups _mirror_theme_assets action_layout_activate);
 use Exporter 'import';
@@ -28,6 +29,11 @@ our @EXPORT_OK = qw(
     action_layouts_repo_get action_layouts_repo_set);
 
 our $DOCROOT;
+
+# SM293: this site's engine tree - beside the docroot once migrated,
+# inside it before. Asked, never computed, so both layouts work on one
+# code path and a site migrates by moving the directory.
+sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 our $LAZYSITE_DIR;
 our $auth_user = '';
 our $action    = '';
@@ -35,7 +41,7 @@ our $action    = '';
 # === moved from Manager::Themes (SM079 polish) ===
 
 sub _layouts_repo {
-    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf_path = _lz() . "/lazysite.conf";
     my $repo;
     if ( -f $conf_path && open my $fh, '<', $conf_path ) {
         while (<$fh>) {
@@ -523,7 +529,7 @@ sub action_layouts_release_contents {
 }
 
 sub action_layouts_available {
-    my $layouts_dir = "$DOCROOT/lazysite/layouts";
+    my $layouts_dir = _lz() . "/layouts";
     my @layouts;
     if ( -d $layouts_dir ) {
         opendir my $dh, $layouts_dir
@@ -562,7 +568,7 @@ sub action_themes_for_layout {
     return { ok => 0, error => 'layout parameter required', themes => [] }
         unless length $layout;
 
-    my $themes_dir = "$DOCROOT/lazysite/layouts/$layout/themes";
+    my $themes_dir = _lz() . "/layouts/$layout/themes";
     my @themes;
     if ( -d $themes_dir ) {
         opendir my $dh, $themes_dir
@@ -621,7 +627,7 @@ sub action_layout_delete {
                 . ". Repoint or remove those domains first." };
     }
 
-    my $layouts_dir = "$DOCROOT/lazysite/layouts";
+    my $layouts_dir = _lz() . "/layouts";
     my $layout_dir  = "$layouts_dir/$layout_name";
     return { ok => 0, error => 'Layout not found' } unless -d $layout_dir;
 
@@ -681,7 +687,7 @@ sub action_layout_delete {
 # active layout. Frees the operator from the backup clutter the lists accumulate.
 sub action_artifact_backups_delete {
     my ($rel) = @_;
-    my $layouts_dir = "$DOCROOT/lazysite/layouts";
+    my $layouts_dir = _lz() . "/layouts";
     return { ok => 0, error => 'No layouts directory' } unless -d $layouts_dir;
     my $root = realpath($layouts_dir);
     my ( $active_layout, undef ) = _read_active_layout_and_theme();
@@ -735,7 +741,7 @@ sub action_layouts_repo_set {
         }
     }
 
-    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf_path = _lz() . "/lazysite.conf";
     my $content   = '';
     if ( -f $conf_path ) {
         open my $fh, '<:utf8', $conf_path
@@ -787,7 +793,7 @@ sub action_layouts_repo_set {
 # relative, which suits raw files.
 
 sub _layouts_ref {
-    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf = _lz() . "/lazysite.conf";
     my $ref;
     if ( open my $fh, '<', $conf ) {
         while (<$fh>) { if (/^layouts_ref\s*:\s*(\S+)/) { $ref = $1; last } }
@@ -1049,7 +1055,7 @@ sub _install_layout_from_dir {
     return { ok => 0, error => 'missing layout.tt in release' }
         unless -f "$layout_source/layout.tt";
 
-    my $target_dir = "$DOCROOT/lazysite/layouts/$layout_name";
+    my $target_dir = _lz() . "/layouts/$layout_name";
 
     # Collect the release's layout files: the root files (layout.tt, optional
     # layout.json) and the optional components/ subtree (D035 content
@@ -1100,8 +1106,8 @@ sub _install_layout_from_dir {
             }
             # update: snapshot the existing layout (recoverable), then overwrite
             # the layout files. themes/ is left untouched.
-            _snapshot_artifact( "$DOCROOT/lazysite/layouts", $layout_name );
-            _prune_backups( "$DOCROOT/lazysite/layouts", $layout_name );
+            _snapshot_artifact( _lz() . "/layouts", $layout_name );
+            _prune_backups( _lz() . "/layouts", $layout_name );
             for my $f (@rel_files) {
                 make_path( dirname("$target_dir/$f") );
                 my $rc = system( 'cp', "$layout_source/$f", "$target_dir/$f" );

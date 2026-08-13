@@ -6,14 +6,15 @@ package Lazysite::Manager::Plugins;
 
 use strict;
 use warnings;
-use JSON::PP qw(encode_json decode_json);
-use File::Basename qw(basename dirname);
-use File::Path qw(make_path);
-use Cwd qw(realpath);
+use JSON::PP                  qw(encode_json decode_json);
+use File::Basename            qw(basename dirname);
+use File::Path                qw(make_path);
+use Cwd                       qw(realpath);
 use Digest::SHA               qw(sha256_hex);
-use Lazysite::Util qw(log_event);
+use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(write_file_checked);
 use Exporter 'import';
+use Lazysite::Paths ();
 
 our @EXPORT_OK = qw(
     action_plugin_list action_plugin_enable action_plugin_disable
@@ -26,6 +27,11 @@ our @EXPORT_OK = qw(
 );
 
 our $DOCROOT;
+
+# SM293: this site's engine tree - beside the docroot once migrated,
+# inside it before. Asked, never computed, so both layouts work on one
+# code path and a site migrates by moving the directory.
+sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 our $action = '';
 
 # SM255 (completion): every write to lazysite.conf goes through Common's single
@@ -94,27 +100,27 @@ sub resolve_plugin_script {
 }
 
 sub action_plugin_list {
-    my $cache_file = "$DOCROOT/lazysite/cache/plugin-list.cache";
-    if ( -f $cache_file && (time() - (stat($cache_file))[9]) < 60 ) {
-        open my $fh, '<', $cache_file or return { ok=>0, error=>"cache read failed" };
-        my $data = do { local $/; <$fh> }; close $fh;
+    my $cache_file = _lz() . "/cache/plugin-list.cache";
+    if ( -f $cache_file && ( time() - ( stat($cache_file) )[9] ) < 60 ) {
+        open my $fh, '<', $cache_file or return { ok => 0, error => "cache read failed" };
+        my $data   = do { local $/; <$fh> }; close $fh;
         my $parsed = eval { decode_json($data) };
         return $parsed if $parsed && $parsed->{ok};
     }
 
     my %enabled;
-    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf_path = _lz() . "/lazysite.conf";
     if ( open my $fh, '<:utf8', $conf_path ) {
         my $in_plugins = 0;
         while (<$fh>) {
             chomp;
             if (/^plugins\s*:\s*$/) { $in_plugins = 1; next }
-            if ($in_plugins && /^\s+-\s+(.+)$/) {
+            if ( $in_plugins && /^\s+-\s+(.+)$/ ) {
                 my $entry = $1;
                 $entry =~ s/\s+$//;
                 $enabled{$entry} = 1;
             }
-            elsif ($in_plugins && !/^\s/) { $in_plugins = 0 }
+            elsif ( $in_plugins && !/^\s/ ) { $in_plugins = 0 }
         }
         close $fh;
     }
@@ -158,14 +164,14 @@ sub action_plugin_list {
     }
 
     @plugins = sort {
-        ($b->{_enabled} ? 1 : 0) <=> ($a->{_enabled} ? 1 : 0)
-            || ($a->{name} // '') cmp ($b->{name} // '')
+        ( $b->{_enabled} ? 1 : 0 ) <=> ( $a->{_enabled} ? 1 : 0 )
+            || ( $a->{name} // '' ) cmp( $b->{name} // '' )
     } @plugins;
 
     my $cache_dir = dirname($cache_file);
     make_path($cache_dir) unless -d $cache_dir;
     if ( open my $fh, '>', $cache_file ) {
-        print $fh encode_json({ ok => 1, plugins => \@plugins });
+        print $fh encode_json( { ok => 1, plugins => \@plugins } );
         close $fh;
     }
 
@@ -227,17 +233,17 @@ sub _run_plugin_hook {
 }
 
 sub _update_plugins_conf {
-    my ($script, $op) = @_;
+    my ( $script, $op ) = @_;
 
-    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf_path = _lz() . "/lazysite.conf";
     open my $fh, '<:utf8', $conf_path
         or return { ok => 0, error => "Cannot read lazysite.conf" };
     my $conf = do { local $/; <$fh> };
     close $fh;
 
-    my @lines   = split /\n/, $conf;
+    my @lines = split /\n/, $conf;
     my @plugins;
-    my $in_plugins = 0;
+    my $in_plugins  = 0;
     my $found_block = 0;
     my @before;
     my @after;
@@ -245,12 +251,12 @@ sub _update_plugins_conf {
 
     for my $line (@lines) {
         if ( $line =~ /^plugins\s*:\s*$/ ) {
-            $in_plugins = 1;
+            $in_plugins  = 1;
             $found_block = 1;
-            $phase = 'plugins';
+            $phase       = 'plugins';
             next;
         }
-        if ( $in_plugins ) {
+        if ($in_plugins) {
             if ( $line =~ /^\s+-\s+(.+)$/ ) {
                 my $entry = $1;
                 $entry =~ s/\s+$//;
@@ -259,12 +265,12 @@ sub _update_plugins_conf {
             }
             elsif ( $line !~ /^\s/ ) {
                 $in_plugins = 0;
-                $phase = 'after';
+                $phase      = 'after';
             }
             else { next }
         }
         if    ( $phase eq 'before' ) { push @before, $line }
-        elsif ( $phase eq 'after' )  { push @after, $line }
+        elsif ( $phase eq 'after' )  { push @after,  $line }
     }
 
     if ( $op eq 'add' ) {
@@ -292,7 +298,7 @@ sub _update_plugins_conf {
     return { ok => 0, error => "Cannot write lazysite.conf: $werr" }
         unless $wok;
 
-    unlink "$DOCROOT/lazysite/cache/plugin-list.cache";
+    unlink _lz() . "/cache/plugin-list.cache";
 
     return { ok => 1, action => $op, script => $script };
 }
@@ -324,8 +330,8 @@ sub action_plugin_read {
         }
     }
     elsif ( $desc->{config_keys} ) {
-        my %want = map { $_ => 1 } @{ $desc->{config_keys} };
-        my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+        my %want      = map { $_ => 1 } @{ $desc->{config_keys} };
+        my $conf_path = _lz() . "/lazysite.conf";
         if ( -f $conf_path and open my $fh, '<:utf8', $conf_path ) {
             while (<$fh>) {
                 chomp;
@@ -408,8 +414,8 @@ sub action_plugin_save {
             @{ $desc->{config_schema} // [] };
     }
     elsif ( $desc->{config_keys} ) {
-        my %want = map { $_ => 1 } @{ $desc->{config_keys} };
-        my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+        my %want      = map { $_ => 1 } @{ $desc->{config_keys} };
+        my $conf_path = _lz() . "/lazysite.conf";
         my $content   = '';
         if ( -f $conf_path and open my $fh, '<:utf8', $conf_path ) {
             $content = do { local $/; <$fh> };
@@ -483,7 +489,7 @@ sub action_plugin_action {
 }
 
 sub _handlers_conf_path {
-    return "$DOCROOT/lazysite/forms/handlers.conf";
+    return _lz() . "/forms/handlers.conf";
 }
 
 sub _parse_handlers_conf {
@@ -527,7 +533,7 @@ sub _write_handlers_conf {
         }
     }
 
-    my ( $wok ) = write_file_checked( $path, $content );
+    my ($wok) = write_file_checked( $path, $content );
     return $wok;
 }
 
@@ -543,7 +549,7 @@ sub action_handler_list {
 # submission content), so it is safe on the read_submissions gate. Answers "what
 # forms exist?" and "which deliver to email vs storage, and did any come in?".
 sub action_form_list {
-    my $dir      = "$DOCROOT/lazysite/forms";
+    my $dir      = _lz() . "/forms";
     my $handlers = _parse_handlers_conf();
     my %by_id    = map { $_->{id} => $_ } @$handlers;
 
@@ -627,8 +633,8 @@ sub action_handler_save {
 
     # Build handler record from input
     my %new = ( id => $id );
-    for my $k (qw(type name enabled from to subject_prefix path url format
-                   method sendmail_path host port tls auth username password_file)) {
+    for my $k ( qw(type name enabled from to subject_prefix path url format
+        method sendmail_path host port tls auth username password_file) ) {
         $new{$k} = $data->{$k} if defined $data->{$k} && length $data->{$k};
     }
     $new{type} //= 'file';
@@ -637,7 +643,7 @@ sub action_handler_save {
     my $found = 0;
     for my $h (@$handlers) {
         if ( $h->{id} eq $id ) {
-            %$h = %new;
+            %$h    = %new;
             $found = 1;
             last;
         }
@@ -661,7 +667,7 @@ sub action_handler_delete {
         return { ok => 0, error => "Handler not found: $id" };
     }
 
-    _write_handlers_conf(\@filtered)
+    _write_handlers_conf( \@filtered )
         or return { ok => 0, error => "Cannot write handlers.conf" };
 
     return { ok => 1, deleted => $id };
@@ -673,7 +679,7 @@ sub action_form_targets_read {
     $form_name =~ s/[^a-zA-Z0-9_-]//g;
     return { ok => 0, error => "Invalid form name" } unless $form_name;
 
-    my $path = "$DOCROOT/lazysite/forms/$form_name.conf";
+    my $path = _lz() . "/forms/$form_name.conf";
     return { ok => 1, targets => [] } unless -f $path;
 
     open my $fh, '<:utf8', $path or return { ok => 0, error => "Cannot read form config" };
@@ -709,7 +715,7 @@ sub action_form_targets_save {
     $form_name =~ s/[^a-zA-Z0-9_-]//g;
     return { ok => 0, error => "Invalid form name" } unless $form_name;
 
-    my $path = "$DOCROOT/lazysite/forms/$form_name.conf";
+    my $path = _lz() . "/forms/$form_name.conf";
     my $dir  = dirname($path);
     make_path($dir) unless -d $dir;
 
@@ -850,11 +856,11 @@ sub action_form_submissions {
     # Each row carries a stable _id (raw-line hash) so it can be deleted.
     my @out = map {
         my ( $r, $raw ) = ( $rows[$_], $raw[$_] );
-        +{  _id => _submission_row_id($raw),
+        +{ _id => _submission_row_id($raw),
             map {
                 $_ => ( !defined $r->{$_} ? ''
                     : ref $r->{$_} ? encode_json( $r->{$_} )
-                    : "$r->{$_}" )
+                    :                "$r->{$_}" )
             } @cols
         }
     } 0 .. $#rows;
@@ -864,7 +870,7 @@ sub action_form_submissions {
         file      => $rel,
         columns   => \@cols,
         rows      => \@out,
-        total     => ( $total   || 0 ),
+        total     => ( $total || 0 ),
         shown     => scalar(@out),
         truncated => ( $total > $CAP ? 1 : 0 ),
         malformed => ( $malformed || 0 ),

@@ -7,6 +7,19 @@ use File::Basename qw(dirname);
 use Cwd            qw(abs_path);
 use Encode;
 
+# SM293: this server is standalone by design, but a third copy of "where does
+# lazysite/ live" is exactly the drift that makes one directory mean two things,
+# so it loads the resolver instead. Not the render path, so ADR 0001 does not
+# apply here.
+#
+# Loaded at COMPILE time, and located from __FILE__ rather than $0. The test
+# harness pulls this file in with require(), which both leaves $0 as the TEST
+# script - so a $0-derived lib path points at the wrong tree - and returns before
+# the main body runs, so a runtime require() here never executed and every call
+# died with "Undefined subroutine".
+use lib File::Basename::dirname( Cwd::abs_path(__FILE__) ) . '/../lib';
+use Lazysite::Paths ();
+
 # --- Module check ---
 
 my @required = (
@@ -178,6 +191,13 @@ unless ( -d $DOCROOT ) {
     exit 1;
 }
 
+# SM293: where this site keeps its engine tree - beside the docroot once
+# migrated, inside it before. Computed HERE rather than beside $DOCROOT because
+# --docroot is parsed above; deriving it earlier would pin it to the default
+# starter tree and the seeding below would write into the wrong place.
+#
+my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);
+
 unless ( -f $PROCESSOR ) {
     print STDERR "lazysite-server: processor not found: $PROCESSOR\n";
     exit 1;
@@ -208,7 +228,7 @@ my %MIME = (
 # lazysite site (it has a lazysite/ dir or a lazysite.conf.example). Pointed at an
 # arbitrary tree - or in --auto-index browse mode, or with --no-seed - the server
 # writes nothing into the docroot.
-my $is_lazysite_docroot = ( -d "$DOCROOT/lazysite" )
+my $is_lazysite_docroot = ( -d $LAZYSITE_DIR )
     || ( -f "$DOCROOT/lazysite.conf.example" );
 my $do_seed = $seed && !$auto_index && $is_lazysite_docroot;
 
@@ -218,7 +238,7 @@ $BROWSE_CACHE = "/tmp/lazysite-browse-$$" if $auto_index;
 
 # --- Seed auth files from examples if needed ---
 
-my $auth_dir = "$DOCROOT/lazysite/auth";
+my $auth_dir = "$LAZYSITE_DIR/auth";
 if ($do_seed) {
     require File::Path;
     File::Path::make_path($auth_dir) unless -d $auth_dir;
@@ -235,19 +255,19 @@ if ($do_seed) {
 
 # --- Seed lazysite.conf if missing ---
 
-my $conf_target = "$DOCROOT/lazysite/lazysite.conf";
+my $conf_target = "$LAZYSITE_DIR/lazysite.conf";
 my $conf_source = "$DOCROOT/lazysite.conf.example";
 if ( $do_seed && !-f $conf_target && -f $conf_source ) {
     require File::Copy;
     require File::Path;
-    File::Path::make_path("$DOCROOT/lazysite");
+    File::Path::make_path($LAZYSITE_DIR);
     File::Copy::copy( $conf_source, $conf_target );
     print "  seeded: lazysite/lazysite.conf\n";
 }
 
 # Copy manager CSS to web-accessible path
 {
-    my $src = "$DOCROOT/lazysite/manager/assets/manager.css";
+    my $src = "$LAZYSITE_DIR/manager/assets/manager.css";
     my $dst = "$DOCROOT/manager/assets/manager.css";
     if ( $do_seed && -f $src ) {
         require File::Path;
@@ -259,7 +279,7 @@ if ( $do_seed && !-f $conf_target && -f $conf_source ) {
 
 # Seed form config from .example files if missing
 if ($do_seed) {
-    my $forms_dir = "$DOCROOT/lazysite/forms";
+    my $forms_dir = "$LAZYSITE_DIR/forms";
     require File::Path;
     File::Path::make_path($forms_dir) unless -d $forms_dir;
     require File::Copy;
@@ -273,7 +293,7 @@ if ($do_seed) {
     }
 }
 
-my $nav_target = "$DOCROOT/lazysite/nav.conf";
+my $nav_target = "$LAZYSITE_DIR/nav.conf";
 my $nav_source = "$DOCROOT/nav.conf.example";
 if ( $do_seed && !-f $nav_target && -f $nav_source ) {
     require File::Copy;
@@ -284,7 +304,7 @@ if ( $do_seed && !-f $nav_target && -f $nav_source ) {
 # --- Seed log config from lazysite.conf (env var takes priority) ---
 
 {
-    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf_path = "$LAZYSITE_DIR/lazysite.conf";
     if ( -f $conf_path && open my $fh, '<', $conf_path ) {
         while (<$fh>) {
             if ( /^\s*log_level\s*:\s*(\S+)/ && !$ENV{LAZYSITE_LOG_LEVEL} ) {
@@ -303,7 +323,7 @@ if ( $do_seed && !-f $nav_target && -f $nav_source ) {
 my $cache_label = $nocache ? 'disabled (pass --cache to enable)' : 'enabled';
 
 my $manager_enabled = 0;
-if ( open my $cfh, '<', "$DOCROOT/lazysite/lazysite.conf" ) {
+if ( open my $cfh, '<', "$LAZYSITE_DIR/lazysite.conf" ) {
     while (<$cfh>) { $manager_enabled = 1 if /^(?:manager|editor)\s*:\s*enabled/i }
     close $cfh;
 }
@@ -439,7 +459,7 @@ sub handle_request {
     # Determine which script to run
     my $auth_script = abs_path("$SCRIPT_DIR/../lazysite-auth.pl");
     my $manager_api = abs_path("$SCRIPT_DIR/../lazysite-manager-api.pl");
-    my $auth_users  = "$DOCROOT/lazysite/auth/users";
+    my $auth_users  = "$LAZYSITE_DIR/auth/users";
     my $use_auth    = -f $auth_users && -f $auth_script;
 
     # Pick the ultimate target CGI. Default is the processor; /cgi-bin/*.pl
@@ -650,7 +670,10 @@ sub _dev_serve_direct {
         if $file_path =~ /\.html$/
         && ( -f ( $file_path =~ s/\.html$/.md/r )
         || -f ( $file_path =~ s/\.html$/.url/r ) );
-    return 0 if -f "$docroot/lazysite/auth/acls.json";
+    # SM293: resolved, not rebuilt - on a migrated site the ACL store is beside
+    # the docroot, and a literal path here would report "no ACL store" and hand
+    # every protected static straight to the visitor (SM223's whole condition).
+    return 0 if -f ( Lazysite::Paths::lazysite_dir($docroot) . '/auth/acls.json' );
     return 1;
 }
 

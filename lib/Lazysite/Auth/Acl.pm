@@ -12,11 +12,17 @@ use File::Path     qw(make_path);
 use File::Basename qw(dirname);
 use Lazysite::Util ();    # SM289: secure_write_perms - root must not own this store
 use Exporter 'import';
+use Lazysite::Paths ();
 
 our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
     _is_operator _acl_denied groups_for_user);
 
 our $DOCROOT;             # set by the script
+
+# SM293: this site's engine tree - beside the docroot once migrated,
+# inside it before. Asked, never computed, so both layouts work on one
+# code path and a site migrates by moving the directory.
+sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 
 # Manager auth-state, set per request by the dispatcher (the operator-bypass
 # decision). A token client is never an operator; otherwise group-granted
@@ -65,11 +71,11 @@ sub groups_for_user {
     return () unless defined $user    && length $user;
     return () unless defined $DOCROOT && length $DOCROOT;
     require Lazysite::Auth::Settings;
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = _lz() . "/auth";
     return Lazysite::Auth::Settings::effective_groups($user);
 }
 
-sub _acls_path { "$DOCROOT/lazysite/auth/acls.json" }
+sub _acls_path { _lz() . "/auth/acls.json" }
 
 sub load_acls {
     my $path = _acls_path();
@@ -204,7 +210,7 @@ sub _acl_allows {
     require Lazysite::Auth::Settings;
     my %grp = map { lc($_) => 1 }
         do {
-        local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+        local $Lazysite::Auth::Settings::AUTH_DIR = _lz() . "/auth";
         Lazysite::Auth::Settings::group_closure(@user_groups);
         };
     for my $entry (@$list) {
@@ -231,7 +237,7 @@ sub _groups_grant_cap {
     my ( $cap, @groups ) = @_;
     return 0 unless @groups;
     require Lazysite::Auth::Settings;
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = _lz() . "/auth";
     return Lazysite::Auth::Settings::groups_grant_cap( $cap, @groups );
 }
 
@@ -240,7 +246,7 @@ sub _is_operator {
     return 1 if ( $auth_user // '' ) eq 'local';
 
     require Lazysite::Auth::Settings;
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = _lz() . "/auth";
 
     # SM095/SM138: unrestricted account management is the manage_users
     # capability, granted through a group. The legacy lazysite.conf

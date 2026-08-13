@@ -9,7 +9,7 @@
 # in Lazysite::Auth::OAuth. See docs/feature-requests/SM076-oauth.md.
 use strict;
 use warnings;
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP       qw(encode_json decode_json);
 use File::Basename qw(dirname);
 use IPC::Open2;
 
@@ -21,16 +21,17 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util qw(log_event);
+use Lazysite::Util  qw(log_event);
+use Lazysite::Paths ();
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::OAuth
     qw(register_client get_client mint_code redeem_code issue_token refresh_access
-       validate_token);
+    validate_token);
 
-my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT} // '';
-my $LAZYSITE_DIR = "$DOCROOT/lazysite";
+my $DOCROOT      = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT} // '';
+my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);                     # SM293
 $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
-$Lazysite::Audit::LAZYSITE_DIR        = $LAZYSITE_DIR;
+$Lazysite::Audit::LAZYSITE_DIR       = $LAZYSITE_DIR;
 
 # --- helpers --------------------------------------------------------------
 
@@ -46,7 +47,7 @@ sub respond_json {
 }
 
 sub read_body {
-    my $len = $ENV{CONTENT_LENGTH} || 0;
+    my $len  = $ENV{CONTENT_LENGTH} || 0;
     my $body = '';
     read( STDIN, $body, $len ) if $len > 0;
     return $body;
@@ -145,7 +146,7 @@ HTML
 # --- routing --------------------------------------------------------------
 
 my %q      = parse_form( $ENV{QUERY_STRING} );
-my $action = $q{action} // '';
+my $action = $q{action}           // '';
 my $method = $ENV{REQUEST_METHOD} // 'GET';
 
 # Service killswitch (0.9.0): the OAuth surface (dynamic client registration,
@@ -163,33 +164,33 @@ if ( $action eq 'register' ) {
     my $req  = eval { decode_json( read_body() ) } || {};
     my @uris = ref $req->{redirect_uris} eq 'ARRAY' ? @{ $req->{redirect_uris} } : ();
     respond_json( 400, { error => 'invalid_redirect_uri',
-        error_description => 'redirect_uris required' } ) unless @uris;
+            error_description => 'redirect_uris required' } ) unless @uris;
     my $client_id = register_client( \@uris, $req->{client_name} );
-    my $total = scalar keys %{ Lazysite::Auth::OAuth::load_store()->{clients} };
+    my $total     = scalar keys %{ Lazysite::Auth::OAuth::load_store()->{clients} };
     log_event( 'INFO', 'oauth', 'client registered',
         client_id => $client_id, redirect => $uris[0], total_clients => $total );
     audit_log( '', 'oauth-register', $client_id, $ENV{REMOTE_ADDR} // '', 'ok', 'mcp',
         $req->{client_name} // '' );
     respond_json( 201, {
-        client_id                  => $client_id,
-        client_id_issued_at        => time(),
-        redirect_uris              => \@uris,
-        token_endpoint_auth_method => 'none',
-        grant_types                => [ 'authorization_code', 'refresh_token' ],
-        response_types             => ['code'],
+            client_id                  => $client_id,
+            client_id_issued_at        => time(),
+            redirect_uris              => \@uris,
+            token_endpoint_auth_method => 'none',
+            grant_types                => [ 'authorization_code', 'refresh_token' ],
+            response_types             => ['code'],
     } );
 }
 elsif ( $action eq 'authorize' ) {
-    my %p = $method eq 'POST' ? parse_form( read_body() ) : %q;
+    my %p      = $method eq 'POST' ? parse_form( read_body() ) : %q;
     my $client = get_client( $p{client_id} // '' );
     unless ($client) {
         log_event( 'WARN', 'oauth', 'authorize: client_id not registered',
-            method => $method, client_id => ( $p{client_id} // '(none)' ),
+            method        => $method, client_id => ( $p{client_id} // '(none)' ),
             known_clients => scalar keys %{ Lazysite::Auth::OAuth::load_store()->{clients} } );
         respond_json( 400, { error => 'invalid_client' } );
     }
     my $redirect_uri = $p{redirect_uri} // '';
-    my $ok_uri = grep { $_ eq $redirect_uri } @{ $client->{redirect_uris} || [] };
+    my $ok_uri       = grep { $_ eq $redirect_uri } @{ $client->{redirect_uris} || [] };
     unless ($ok_uri) {
         log_event( 'WARN', 'oauth', 'authorize: redirect_uri mismatch',
             got => $redirect_uri, registered => join( ' ', @{ $client->{redirect_uris} || [] } ) );
@@ -200,7 +201,7 @@ elsif ( $action eq 'authorize' ) {
         respond_json( 400, { error => 'unsupported_response_type' } )
             unless ( $p{response_type} // '' ) eq 'code';
         respond_json( 400, { error => 'invalid_request',
-            error_description => 'PKCE S256 required' } )
+                error_description => 'PKCE S256 required' } )
             unless ( $p{code_challenge_method} // '' ) eq 'S256'
             && length( $p{code_challenge} // '' );
         $p{client_name} = $client->{client_name};
@@ -224,7 +225,7 @@ elsif ( $action eq 'authorize' ) {
     redirect( $redirect_uri . $sep . 'code=' . url_enc($code) . '&state=' . url_enc( $p{state} ) );
 }
 elsif ( $action eq 'token' ) {
-    my %p = parse_form( read_body() );
+    my %p     = parse_form( read_body() );
     my $grant = $p{grant_type} // '';
     if ( $grant eq 'authorization_code' ) {
         my $partner = redeem_code( $p{code}, $p{client_id}, $p{code_verifier}, $p{redirect_uri} );
@@ -235,8 +236,8 @@ elsif ( $action eq 'token' ) {
         # OAuth (the "connected" moment the operator wants to see).
         audit_log( $partner, 'connect', 'oauth', $ENV{REMOTE_ADDR} // '', 'ok', 'mcp' );
         respond_json( 200, {
-            access_token  => $access, token_type => 'Bearer',
-            expires_in    => $ttl,    refresh_token => $refresh, scope => 'mcp' } );
+                access_token => $access, token_type    => 'Bearer',
+                expires_in   => $ttl,    refresh_token => $refresh, scope => 'mcp' } );
     }
     elsif ( $grant eq 'refresh_token' ) {
         my ( $access, $refresh, $ttl ) = refresh_access( $p{refresh_token} );
@@ -245,8 +246,8 @@ elsif ( $action eq 'token' ) {
         audit_log( validate_token($access) // '', 'oauth-refresh', '',
             $ENV{REMOTE_ADDR} // '', 'ok', 'mcp' );
         respond_json( 200, {
-            access_token  => $access, token_type => 'Bearer',
-            expires_in    => $ttl,    refresh_token => $refresh, scope => 'mcp' } );
+                access_token => $access, token_type    => 'Bearer',
+                expires_in   => $ttl,    refresh_token => $refresh, scope => 'mcp' } );
     }
     else {
         respond_json( 400, { error => 'unsupported_grant_type' } );
@@ -254,5 +255,5 @@ elsif ( $action eq 'token' ) {
 }
 else {
     respond_json( 400, { error => 'invalid_request',
-        error_description => 'unknown or missing action' } );
+            error_description => 'unknown or missing action' } );
 }

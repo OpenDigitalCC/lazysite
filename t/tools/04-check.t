@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
-use File::Path qw(make_path);
+use File::Path qw(make_path remove_tree);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_root);
@@ -384,6 +384,40 @@ subtest 'a stray public copy of protected content is a FAIL' => sub {
             . 'decision, not one a permissions tool should take' );
 
     unlink "$doc/members/secret.md";
+};
+
+
+# --- SM293: where the engine tree is, and a FAIL if it is in two places ------
+subtest 'the engine tree layout is reported, and a half-migration FAILs' => sub {
+    my $inside = run();
+    like( $inside, qr/engine tree is inside the document root/,
+        'an unmigrated site is reported as such - supported, not nagged about, '
+            . 'because nagging every site every run teaches the reader to skip '
+            . 'the section where the FAIL below lives' );
+    unlike( $inside, qr/BOTH places/, 'and is not reported as half-migrated' );
+
+    # Half-migrated: the engine reads the outside copy while the front end can
+    # still serve the inside one, so the site behaves perfectly and publishes
+    # its credentials. Invisible from outside, which is why it is a FAIL.
+    my $ext = "$base/public_html-lazysite";
+    make_path("$ext/auth");
+
+    my $both = run();
+    like( $both, qr/BOTH places/, 'a tree in both places is reported' );
+    like( $both, qr/\bFAIL\b/,    'as a FAIL' );
+    like( $both, qr/will not delete/, 'and says it did not repair it - these '
+            . 'are the operator`s live credentials' );
+
+    # Now the migrated shape: only the outside tree.
+    my $stash = "$base/stashed-lazysite";
+    rename "$doc/lazysite", $stash or die "rename: $!";
+    my $out = run();
+    like( $out, qr/held outside the document root/,
+        'a migrated site is reported as needing no front-end rule at all' );
+    unlike( $out, qr/BOTH places/, 'and is no longer half-migrated' );
+
+    rename $stash, "$doc/lazysite" or die "rename back: $!";
+    remove_tree($ext);
 };
 
 done_testing();

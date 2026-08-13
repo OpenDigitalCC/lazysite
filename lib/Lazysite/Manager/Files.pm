@@ -8,13 +8,14 @@ use strict;
 use warnings;
 use JSON::PP qw(encode_json decode_json);
 use File::Find;
-use File::Path     qw(make_path);
-use File::Copy     qw(copy);
-use File::Basename qw(dirname);
-use Cwd            qw(realpath);
-use Fcntl          qw(:flock);
-use POSIX          qw(strftime);
-use Lazysite::Util qw(log_event unlink_host_copies clear_host_cache);
+use File::Path      qw(make_path);
+use File::Copy      qw(copy);
+use File::Basename  qw(dirname);
+use Cwd             qw(realpath);
+use Fcntl           qw(:flock);
+use POSIX           qw(strftime);
+use Lazysite::Util  qw(log_event unlink_host_copies clear_host_cache);
+use Lazysite::Paths ();
 use Lazysite::Manager::Common
     qw(validate_path is_blocked_path is_blocked_config write_file_checked _write_conf_key raw_html_page_refusal load_upload_limits outside_all_scopes);
 use Lazysite::Auth::Acl
@@ -35,6 +36,11 @@ our @EXPORT_OK = qw(
 );
 
 our $DOCROOT;
+
+# SM293: this site's engine tree - beside the docroot once migrated,
+# inside it before. Asked, never computed, so both layouts work on one
+# code path and a site migrates by moving the directory.
+sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 our $LOCK_DIR;
 our $LOCK_TIMEOUT = 300;
 our $auth_user    = '';
@@ -558,7 +564,7 @@ sub invalidate_registries { return _invalidate_registries() }
 sub registry_roots        { return _registry_roots() }
 
 sub _invalidate_registries {
-    my $rdir = "$DOCROOT/lazysite/templates/registries";
+    my $rdir = _lz() . "/templates/registries";
     return unless -d $rdir;
     opendir my $dh, $rdir or return;
     my @tt = grep { /\.tt$/ } readdir $dh;

@@ -22,6 +22,7 @@ BEGIN {
     }
 }
 use Lazysite::Util             qw(log_event const_eq);
+use Lazysite::Paths            ();
 use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Credential qw(generate_random_hex hash_password verify_password);
 use Lazysite::Auth::Settings   qw(groups_grant_cap);
@@ -59,7 +60,7 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
 
 my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
-my $LAZYSITE_DIR = "$DOCROOT/lazysite";
+my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);    # SM293
 my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
 $Lazysite::Audit::LAZYSITE_DIR      = $LAZYSITE_DIR;
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;

@@ -20,9 +20,15 @@ use File::Path                qw(make_path);
 use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved processor_path conf_batch);
 use Exporter 'import';
+use Lazysite::Paths ();
 our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview known_domain_host instance_public_ips);
 
-our $DOCROOT;           # set by the caller (manager-api or the CLI)
+our $DOCROOT;    # set by the caller (manager-api or the CLI)
+
+# SM293: this site's engine tree - beside the docroot once migrated,
+# inside it before. Asked, never computed, so both layouts work on one
+# code path and a site migrates by moving the directory.
+sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 our $auth_user = '';    # for log attribution
 
 # Per-host presentation/routing keys that may be overridden for an alias. Same
@@ -37,7 +43,7 @@ my @DOMAIN_KEYS = qw(content_root site_url site_name theme layout nav_file
     search_default allowed_groups locked_users lang lang_group);
 my %IS_KEY = map { $_ => 1 } @DOMAIN_KEYS;
 
-sub _conf_path { return "$DOCROOT/lazysite/lazysite.conf" }
+sub _conf_path { return _lz() . "/lazysite.conf" }
 
 # A host label is a lowercase DNS name: dot-separated labels of [a-z0-9-], no
 # leading/trailing hyphen, no traversal, no scheme/port/path. Kept strict so a
@@ -80,7 +86,7 @@ sub _clean_content_root {
     $rel =~ s{^/+|/+$}{}g;
     return undef unless length $rel;
 
-    return undef if path_is_reserved($rel);           # engine-owned (system) area
+    return undef if path_is_reserved($rel);    # engine-owned (system) area
     return $rel;
 }
 
@@ -549,7 +555,7 @@ sub domain_set {
                 Lazysite::Manager::Themes->import('_mirror_theme_assets');
                 no warnings 'once';    # fully-qualified package vars
                 local $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
-                local $Lazysite::Manager::Themes::LAZYSITE_DIR = "$DOCROOT/lazysite";
+                local $Lazysite::Manager::Themes::LAZYSITE_DIR = _lz();
                 local $Lazysite::Manager::Themes::action       = 'domain-set';
                 _mirror_theme_assets( $l, $t );
                 1;

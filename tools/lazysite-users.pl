@@ -123,6 +123,7 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
+use Lazysite::Paths ();    # SM293: where this site keeps its engine tree
 use Lazysite::Util  qw(log_event const_eq secure_write_perms);
 use Lazysite::Audit qw(audit_log);
 use Lazysite::Auth::Credential
@@ -163,7 +164,13 @@ unless ($DOCROOT) {
     exit 1;
 }
 
-my $AUTH_DIR = "$DOCROOT/lazysite/auth";
+# SM293: ASK where the engine tree is. This one matters more than most - the
+# next statement make_path()s it, so a tool that computed "$DOCROOT/lazysite"
+# on a migrated site would silently CREATE A SECOND, EMPTY AUTH STORE inside
+# the docroot and then manage that one. The site would keep working (the CGIs
+# read the real store) while every account added from the shell went nowhere.
+my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);
+my $AUTH_DIR     = "$LAZYSITE_DIR/auth";
 # Only set the default mode when we create the dir. Re-chmodding on every
 # run would clobber an operator's deliberate perms (e.g. 2770 group-write
 # for a www-data CGI that must mint .secret / rate DBs here).
@@ -180,7 +187,7 @@ my $USERS_FILE          = "$AUTH_DIR/users";
 my $GROUPS_FILE         = "$AUTH_DIR/groups";
 my $GROUP_SETTINGS_FILE = "$AUTH_DIR/groups-settings.json";
 $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
-$Lazysite::Audit::LAZYSITE_DIR      = "$DOCROOT/lazysite";
+$Lazysite::Audit::LAZYSITE_DIR      = $LAZYSITE_DIR;
 
 # Verbs (API actions and CLI commands) that ONLY read the auth store - they take
 # NO store lock, so the hot per-request read (verify-credential) never serialises
@@ -870,7 +877,7 @@ sub _cli_actor {
 # (idempotent; never overrides an operator's existing value).
 sub _ensure_conf_key {
     my ( $key, $value ) = @_;
-    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf = "$LAZYSITE_DIR/lazysite.conf";
     if ( -f $conf && open my $fh, '<', $conf ) {
         while (<$fh>) { if (/^\Q$key\E\s*:/) { close $fh; return 0 } }
         close $fh;
@@ -888,7 +895,7 @@ sub _ensure_conf_key {
 # conf is tolerated - the caller treats the lingering line as inert.
 sub _remove_conf_key {
     my ($key) = @_;
-    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf = "$LAZYSITE_DIR/lazysite.conf";
     return 0 unless -f $conf;
     open my $in, '<', $conf or return 0;
     my @lines = <$in>;
@@ -2080,7 +2087,7 @@ sub cmd_mfa_verify {
 # Read a scalar value from lazysite.conf (for the onboarding brief).
 sub read_conf_value {
     my ($key) = @_;
-    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf = "$LAZYSITE_DIR/lazysite.conf";
     return undef unless -f $conf;
     open my $fh, '<', $conf or return undef;
     my $val;
@@ -2823,7 +2830,7 @@ sub _default_group_seed {
 # Raw manager_groups from lazysite.conf - the seed/fallback source. Kept separate
 # from the effective lookup so the seeder never recurses through itself.
 sub _conf_manager_groups {
-    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf = "$LAZYSITE_DIR/lazysite.conf";
     return () unless -f $conf;
     open my $fh, '<', $conf or return ();
     my $line = '';
@@ -3145,7 +3152,7 @@ sub _may_confer {
     # still worked. The unit test passed because it supplied the actor the
     # manager did not.
     require Lazysite::Auth::Settings;
-    local $Lazysite::Auth::Settings::AUTH_DIR = "$DOCROOT/lazysite/auth";
+    local $Lazysite::Auth::Settings::AUTH_DIR = $AUTH_DIR;
     return 1 unless Lazysite::Auth::Settings::site_grants_manager();
 
     my $caps = eval { caps_for($actor) } || {};

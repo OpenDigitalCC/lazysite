@@ -65,9 +65,35 @@ if ( grep { $_ eq '--describe' } @ARGV ) {
 my $DOCROOT = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
 
-my $LAZYSITE_DIR   = "$DOCROOT/lazysite";
+# SM293: ASK where the engine tree is, do not compute one answer.
+#
+# A site migrates by MOVING the directory beside its docroot and nothing else -
+# no config key, no flag day, no version gate - so both layouts work on the same
+# code and an upgrade cannot half-migrate a site into an unbootable state.
+#
+# OUTSIDE WINS when both exist: a tree left inside the docroot is reachable by a
+# front end that has not been told otherwise, which is the exposure being
+# removed, so the engine governs the copy that is safe and `lazysite check`
+# reports the one that is not.
+#
+# Module-free (ADR 0001 - the render path loads no Lazysite modules), mirroring
+# Lazysite::Paths::lazysite_dir; t/lint/37 pins the pair, because a copy that
+# drifts is how one directory comes to mean two things depending on who asks.
+sub _lazysite_dir_for {
+    my ($d) = @_;
+    return '' unless defined $d && length $d;
+    $d =~ s{/+\z}{};
+    return '' unless length $d;
+    my $leaf = $d;
+    $leaf =~ s{\A.*/}{};         # basename, without File::Basename
+    my $parent = $d;
+    $parent =~ s{/[^/]*\z}{};    # dirname, likewise
+    my $ext = "$parent/$leaf-lazysite";
+    return -d $ext ? $ext : "$d/lazysite";
+}
+my $LAZYSITE_DIR   = _lazysite_dir_for($DOCROOT);
 my $LAZYSITE_URI   = "/lazysite";
-my $PREVIEW_COOKIE = 'lzs_preview';         # SM071: theme/layout preview cookie
+my $PREVIEW_COOKIE = 'lzs_preview';                 # SM071: theme/layout preview cookie
 
 # SM201: engine-required system pages (auth + error) are served with a fallback so
 # a deleted or never-seeded content copy never 404s the sign-in / sign-up flow,
@@ -504,7 +530,7 @@ sub check_auth {
 sub _groups_grant_cap {
     my ( $cap, @groups ) = @_;
     return 0 unless @groups;
-    my $f = "$DOCROOT/lazysite/auth/groups-settings.json";
+    my $f = "$LAZYSITE_DIR/auth/groups-settings.json";
     return 0 unless -f $f;
     require JSON::PP;
     open my $fh, '<:raw', $f or return 0;
@@ -727,7 +753,7 @@ sub _path_under_content {
 
 sub _acl_allows_read {
     my ( $rel, $user, @groups ) = @_;
-    my $f = "$DOCROOT/lazysite/auth/acls.json";
+    my $f = "$LAZYSITE_DIR/auth/acls.json";
     return 1 unless -f $f;
 
     # SM268 H12: a store that EXISTS but cannot be read or parsed fails CLOSED.
@@ -837,7 +863,7 @@ sub _acl_allows_read {
 # with one, the list decides.
 sub _acl_is_draft {
     my ($abs) = @_;
-    my $f = "$DOCROOT/lazysite/auth/acls.json";
+    my $f = "$LAZYSITE_DIR/auth/acls.json";
     return 0 unless -f $f;
     my $real = realpath($abs);
     return 0 unless defined $real;
@@ -857,7 +883,7 @@ sub _acl_is_draft {
 
 sub _acl_governed {
     my ($abs) = @_;
-    my $f = "$DOCROOT/lazysite/auth/acls.json";
+    my $f = "$LAZYSITE_DIR/auth/acls.json";
     return 0 unless -f $f;
     my $real = realpath($abs);
     return 0 unless defined $real;
@@ -899,7 +925,7 @@ sub _acl_governed {
 sub _acl_refused {
     my ( $abs, $uri ) = @_;
 
-    my $f = "$DOCROOT/lazysite/auth/acls.json";
+    my $f = "$LAZYSITE_DIR/auth/acls.json";
     return 0 unless -f $f;    # no store, no cost
 
     my $real = realpath($abs);
@@ -966,7 +992,7 @@ sub _acl_refused {
 # a manager. Local copy of the same decision Auth::Settings::site_grants_manager
 # makes - the render path stays module-free (ADR 0001).
 sub _site_grants_manager {
-    my $f = "$DOCROOT/lazysite/auth/groups-settings.json";
+    my $f = "$LAZYSITE_DIR/auth/groups-settings.json";
     return 0 unless -f $f;
     require JSON::PP;
     open my $fh, '<:raw', $f or return 0;
@@ -992,7 +1018,7 @@ sub _site_grants_manager {
 # dead code from that day, so the file browser roots from _domain_scopes /
 # _domain_home instead.
 sub _group_settings {
-    my $f = "$DOCROOT/lazysite/auth/groups-settings.json";
+    my $f = "$LAZYSITE_DIR/auth/groups-settings.json";
     return {} unless -f $f;
     require JSON::PP;
     open my $fh, '<:raw', $f or return {};
@@ -1009,7 +1035,7 @@ sub _group_settings {
 # (ADR 0001). Without this a member of a compound group would get its inherited
 # caps over the API/dav but be denied at the render path (e.g. manager access).
 sub _group_membership_map {
-    my $f = "$DOCROOT/lazysite/auth/groups";
+    my $f = "$LAZYSITE_DIR/auth/groups";
     my %g;
     return %g unless -f $f;
     open my $fh, '<:utf8', $f or return %g;
@@ -2085,7 +2111,7 @@ sub main {
     # servable from here too. A site with no acls.json keeps the previous
     # condition exactly, and its statics are still served directly by the front
     # end - the cost of the indirection falls only on sites that asked for it.
-    if ( ( $croot ne $DOCROOT || -f "$DOCROOT/lazysite/auth/acls.json" )
+    if ( ( $croot ne $DOCROOT || -f "$LAZYSITE_DIR/auth/acls.json" )
         && _serve_content_static( $croot, $base, $uri ) )
     {
         return;
@@ -2124,7 +2150,7 @@ sub main {
 # string value is a 301 target (the 0.6.1 format); { target, code } carries a 302.
 # Anything else, or an unknown code, reads as 301.
 sub _alias_lookup {
-    my $f = "$DOCROOT/lazysite/aliases.json";
+    my $f = "$LAZYSITE_DIR/aliases.json";
     return undef unless -f $f;
     my $req = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '';
     $req =~ s/\?.*\z//;                      # drop any query string
@@ -2268,7 +2294,12 @@ sub confine_content_root {
 
     my $droot = realpath($docroot) // return undef;
     my $abs   = realpath($target)  // return undef;
-    my $lzdir = realpath("$docroot/lazysite");    # may not exist
+    # SM293: the tree this guard excludes may live beside the docroot. Derived
+    # from the PASSED docroot, not the file-scoped one - this sub is pure and
+    # its tests call it with their own root. On a migrated site the guard finds
+    # nothing inside the docroot to exclude, which is correct: there is nothing
+    # there to reach.
+    my $lzdir = realpath( _lazysite_dir_for($docroot) );    # may not exist
 
     # Must sit within the docroot ...
     return undef unless $abs eq $droot || index( $abs, "$droot/" ) == 0;
@@ -3482,7 +3513,7 @@ sub _resolve_include {
         # lazysite/ management tree (always at the docroot root).
         my $real = realpath($resolved);
         if ( !_path_under( $real, $base )
-            || _path_under( $real, "$DOCROOT/lazysite" ) )
+            || _path_under( $real, "$LAZYSITE_DIR" ) )
         {
             log_event( "WARN", $ENV{REDIRECT_URL} // "-", "include path invalid", source => $source );
             return qq(<span class="include-error" data-src="$source_escaped"></span>\n);
@@ -3768,7 +3799,7 @@ sub _resolve_content_path {
         next
             unless $real
             && _path_under( $real,  $DOCROOT )
-            && !_path_under( $real, "$DOCROOT/lazysite" )
+            && !_path_under( $real, "$LAZYSITE_DIR" )
             && -f $real;
         return $real;
     }
@@ -5401,7 +5432,7 @@ my $LAZYSITE_VERSION;
 # can write `enabled_plugins.stats`.
 sub _enabled_plugins {
     my %en;
-    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf = "$LAZYSITE_DIR/lazysite.conf";
     open my $fh, '<:utf8', $conf or return \%en;
     my $in = 0;
     while (<$fh>) {
@@ -5424,7 +5455,7 @@ sub _enabled_plugins {
 sub _lazysite_version {
     return $LAZYSITE_VERSION if defined $LAZYSITE_VERSION;
     $LAZYSITE_VERSION = '';
-    my $path = "$DOCROOT/lazysite/.install-state.json";
+    my $path = "$LAZYSITE_DIR/.install-state.json";
     if ( open my $fh, '<', $path ) {
         local $/; my $j = <$fh>; close $fh;
         my $d = eval { decode_json($j) };
@@ -5817,7 +5848,7 @@ sub forbidden {
 # default OFF; enabled / true / yes / on / 1 = on.
 sub _conf_flag_enabled {
     my ($key) = @_;
-    open my $fh, '<', "$DOCROOT/lazysite/lazysite.conf" or return 0;
+    open my $fh, '<', "$LAZYSITE_DIR/lazysite.conf" or return 0;
     while ( my $l = <$fh> ) {
         next unless $l =~ /^\Q$key\E\s*:\s*(\S+)/;
         close $fh;

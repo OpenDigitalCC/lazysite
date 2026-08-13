@@ -164,11 +164,17 @@ unless ( defined $DOC && -d $DOC ) {
     exit 2;
 }
 $DOC = abs_path($DOC);
-my $LZ  = "$DOC/lazysite";
+# SM293: ASK where the engine tree is. A site that has moved it beside its
+# docroot is still a lazysite site, and computing "$DOC/lazysite" here rejected
+# it outright at the guard below - the health tool refusing to look at exactly
+# the sites that had taken the safer layout.
+require Lazysite::Paths;
+my $LZ  = Lazysite::Paths::lazysite_dir($DOC);
 my $CGI = defined $opt{cgibin} ? abs_path( $opt{cgibin} ) : abs_path("$DOC/../cgi-bin");
 
 unless ( -d $LZ ) {
-    print STDERR "lazysite-check: no lazysite/ under $DOC - is this a lazysite docroot?\n";
+    print STDERR "lazysite-check: no engine tree for $DOC - looked inside it "
+        . "and beside it. Is this a lazysite docroot?\n";
     exit 2;
 }
 
@@ -926,6 +932,9 @@ sub run_checks {
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
     report_stray_public();
 
+    # --- 8e. where is this site's engine tree, and is there only one? (SM293) ---
+    report_engine_tree();
+
     # --- 9. content provenance (is this content lazysite's or the operator's?) ---
     # lazysite stamps its shipped seed pages with `provenance: lazysite-starter` in the
     # front matter. This reports which .md content is ours (unmodified vs customised)
@@ -1328,6 +1337,67 @@ sub report_group_acl_reach {
 # programme is about, and it survived until a test drove a real leaking front
 # end at it.
 sub _probe_exts { return qw(png pdf txt css gz dat) }
+
+# ---------------------------------------------------------------------------
+# SM293: which layout this site has, and a FAIL if it has both.
+#
+# `lazysite/` holds config, credentials, the audit log, session state, form
+# submissions and pre-install snapshots. Inside the docroot it is kept
+# unreachable by a `deny /lazysite/` repeated in every shipped front-end
+# template - the same arrangement SM248, SM268 H17 and SM283 each turned out to
+# be. SM283's proxy answered static extensions off the docroot, so on any host
+# whose list includes `gz` it would have served
+# `lazysite/backups/preinstall-*.tar.gz`: the whole site, including the account
+# store, to anyone who knew the path.
+#
+# A site migrates by MOVING the directory beside its docroot. Both layouts work,
+# so this reports rather than nags - EXCEPT for the half-migrated state, which is
+# a genuine fault and an invisible one: the engine reads the outside copy while
+# the front end can still serve the inside one, so the site behaves perfectly and
+# publishes its credentials.
+sub report_engine_tree {
+    my $d = $opt{docroot};
+
+    require Lazysite::Paths;
+    my $ext    = Lazysite::Paths::external_lazysite_dir($d);
+    my $inside = "$d/lazysite";
+
+    if ( Lazysite::Paths::stray_lazysite($d) ) {
+        report(
+            'FAIL',
+            'this site has an engine tree in BOTH places - beside the document '
+                . 'root AND inside it. The engine reads the one outside, so the '
+                . 'site works; the one inside is still where a web server can '
+                . 'serve it.',
+            'confirm the tree beside the document root is the current one '
+                . '(compare lazysite.conf and auth/), then remove the copy '
+                . 'inside the document root. This tool will not delete '
+                . 'credentials for you.'
+        );
+        return;
+    }
+
+    if ( defined $ext && -d $ext ) {
+        report( 'OK',
+            'the engine tree is held outside the document root, so no '
+                . 'front-end rule is needed to keep config, credentials and '
+                . 'snapshots unreachable' );
+        return;
+    }
+
+    if ( -d $inside ) {
+        # Deliberately not a WARN. Both layouts are supported, the deny rules
+        # are in every shipped template, and nagging every site on every run
+        # teaches the reader to skip the section - which is where the FAIL
+        # above lives.
+        report( 'OK',
+            'the engine tree is inside the document root, kept '
+                . 'unreachable by the front end`s deny rules - supported, and '
+                . 'the alternative is to move it beside the document root, '
+                . 'after which no such rule is needed' );
+    }
+    return;
+}
 
 # ---------------------------------------------------------------------------
 # SM286: content that exists in BOTH trees.

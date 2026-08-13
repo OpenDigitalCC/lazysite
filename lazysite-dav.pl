@@ -36,6 +36,7 @@ BEGIN {
     }
 }
 use Lazysite::Util             qw(log_event const_eq);
+use Lazysite::Paths            ();
 use Lazysite::Audit            qw(audit_log);
 use Lazysite::Auth::Acl        qw(_acl_allows);
 use Lazysite::Private          ();
@@ -50,7 +51,7 @@ my $DOCROOT = $ENV{DOCUMENT_ROOT} // $ENV{REDIRECT_DOCUMENT_ROOT};
 # here so it is in scope at both the call site and the authorise() subs below.
 our $DENY_REASON;
 
-my $LAZYSITE_DIR = defined $DOCROOT ? "$DOCROOT/lazysite" : undef;
+my $LAZYSITE_DIR = defined $DOCROOT ? Lazysite::Paths::lazysite_dir($DOCROOT) : undef; # SM293
 $Lazysite::Audit::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Auth::Acl::DOCROOT  = $DOCROOT;
 my $AUTH_DIR    = defined $DOCROOT ? "$LAZYSITE_DIR/auth"          : undef;

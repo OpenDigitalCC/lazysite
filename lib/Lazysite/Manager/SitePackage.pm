@@ -33,10 +33,16 @@ use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Common  qw(_write_conf_key conf_batch);
 use Lazysite::Manager::Themes  qw(_mirror_theme_assets);         # SM193: mirror on apply
 use Lazysite::Private          ();    # SM286: what a package cannot carry
+use Lazysite::Paths            ();
 use Exporter 'import';
 our @EXPORT_OK = qw(package_create package_apply apply_and_configure package_inspect);
 
-our $DOCROOT   = '';
+our $DOCROOT = '';
+
+# SM293: this site's engine tree - beside the docroot once migrated,
+# inside it before. Asked, never computed, so both layouts work on one
+# code path and a site migrates by moving the directory.
+sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 our $auth_user = '';
 
 # The 7 presentation keys that define a site (mirrors Domains @DOMAIN_KEYS).
@@ -46,7 +52,7 @@ our $auth_user = '';
 my @KEYS = qw(content_root site_url site_name theme layout nav_file search_default
     lang lang_group);
 
-sub _backups_dir { return "$DOCROOT/lazysite/backups" }
+sub _backups_dir { return _lz() . "/backups" }
 
 # Resolve a host to its domains_list row (the primary answers to '(default)').
 sub _domain_row {
@@ -201,7 +207,7 @@ sub package_create {
     my $layout = $keys{layout};
     my $theme  = $keys{theme};
     if ( length $layout && $layout =~ /^[A-Za-z0-9_-]+$/ ) {
-        my $layout_src = "$DOCROOT/lazysite/layouts/$layout";
+        my $layout_src = _lz() . "/layouts/$layout";
         if ( -d $layout_src ) {
             _copy_tree( $layout_src, "$stage/layout" );
             my $themes_dir = "$stage/layout/themes";
@@ -360,7 +366,7 @@ sub package_inspect {
     my ( $pkg, $target ) = @_;
     return { ok => 0, error => 'Package not found' } unless defined $pkg && -f $pkg;
 
-    my $stage = "$DOCROOT/lazysite/backups/.inspect-$$-" . strftime( '%H%M%S', gmtime );
+    my $stage = _lz() . "/backups/.inspect-$$-" . strftime( '%H%M%S', gmtime );
     remove_tree($stage) if -e $stage;
     my ( $manifest, $err ) = _extract_package( $pkg, $stage );
     unless ($manifest) {
@@ -401,10 +407,10 @@ sub package_inspect {
             # the apply installs it. Both are fine - the point is that the
             # operator knows which before agreeing, not after.
             layout_present => ( defined $layout && length $layout
-                    && -d "$DOCROOT/lazysite/layouts/$layout" ) ? 1 : 0,
+                    && -d _lz() . "/layouts/$layout" ) ? 1 : 0,
             theme_present => ( defined $theme && length $theme && defined $layout
                     && length $layout
-                    && -d "$DOCROOT/lazysite/layouts/$layout/themes/$theme" ) ? 1 : 0,
+                    && -d _lz() . "/layouts/$layout/themes/$theme" ) ? 1 : 0,
         };
     }
     remove_tree($stage) if -d $stage;
@@ -477,7 +483,7 @@ sub package_apply {
                 . 'yours.' };
     }
 
-    my $stage = "$DOCROOT/lazysite/backups/.apply-$$-" . strftime( '%H%M%S', gmtime );
+    my $stage = _lz() . "/backups/.apply-$$-" . strftime( '%H%M%S', gmtime );
     remove_tree($stage) if -e $stage;
     my ( $manifest, $err ) = _extract_package( $pkg, $stage );
     unless ($manifest) {
@@ -513,7 +519,7 @@ sub package_apply {
         && $layout =~ /^[A-Za-z0-9_-]+$/
         && -d "$stage/layout" )
     {
-        my $ldst = "$DOCROOT/lazysite/layouts/$layout";
+        my $ldst = _lz() . "/layouts/$layout";
         if ( !-d $ldst ) {
             _copy_tree( "$stage/layout", $ldst );
             $layout_installed = $layout;
@@ -538,10 +544,10 @@ sub package_apply {
         && length $theme
         && $layout =~ /^[A-Za-z0-9_-]+$/
         && $theme  =~ /^[A-Za-z0-9_-]+$/
-        && -d "$DOCROOT/lazysite/layouts/$layout/themes/$theme" )
+        && -d _lz() . "/layouts/$layout/themes/$theme" )
     {
         local $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
-        local $Lazysite::Manager::Themes::LAZYSITE_DIR = "$DOCROOT/lazysite";
+        local $Lazysite::Manager::Themes::LAZYSITE_DIR = _lz();
         eval { _mirror_theme_assets( $layout, $theme ); 1 }
             or log_event( 'WARN', 'site-package-apply',
             'asset mirror failed after apply', layout => $layout, theme => $theme );
@@ -625,7 +631,7 @@ sub apply_and_configure {
     if ( !exists $opt{snapshot} || $opt{snapshot} ) {
         require Lazysite::Manager::Backups;
         local $Lazysite::Manager::Backups::DOCROOT      = $DOCROOT;
-        local $Lazysite::Manager::Backups::LAZYSITE_DIR = "$DOCROOT/lazysite";
+        local $Lazysite::Manager::Backups::LAZYSITE_DIR = _lz();
         my $safety = Lazysite::Manager::Backups::action_backup_create('prerestore');
         return { ok => 0, kind => 'snapshot-failed',
             error => 'Refusing to apply: safety snapshot failed' }

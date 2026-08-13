@@ -24,6 +24,7 @@ BEGIN {
     }
 }
 use Lazysite::Util           qw(log_event const_eq);
+use Lazysite::Paths          ();
 use Lazysite::Audit          qw(audit_log);
 use Lazysite::Capabilities   qw(describe capability_keys channel_service);
 use Lazysite::BadUrl         qw(list_blocks unblock);
@@ -74,7 +75,7 @@ $Lazysite::Manager::Layouts::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::Backups::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::Domains::DOCROOT     = $DOCROOT;
 $Lazysite::Manager::SitePackage::DOCROOT = $DOCROOT;
-my $LAZYSITE_DIR = "$DOCROOT/lazysite";
+my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);    # SM293
 $Lazysite::Manager::Backups::LAZYSITE_DIR = $LAZYSITE_DIR;
 $Lazysite::Audit::LAZYSITE_DIR            = $LAZYSITE_DIR;
 $Lazysite::Auth::Session::LAZYSITE_DIR    = $LAZYSITE_DIR;
@@ -1702,7 +1703,7 @@ sub _site_package_path {
     $name //= '';
     return undef
         unless $name =~ /\Alazysite-site-[A-Za-z0-9._-]+\.tar\.gz\z/ && $name !~ /\.\./;
-    return "$DOCROOT/lazysite/backups/$name";
+    return "$LAZYSITE_DIR/backups/$name";
 }
 
 # SM183: read a package's manifest WITHOUT applying it. manage_domains-gated
@@ -1840,7 +1841,7 @@ sub action_site_backup_upload {
     # uploaded filename is never trusted for the on-disk name.
     my $stamp = strftime( '%Y%m%dT%H%M%SZ', gmtime );
     my $name  = "lazysite-site-uploaded-$stamp.tar.gz";
-    my $dir   = "$DOCROOT/lazysite/backups";
+    my $dir   = "$LAZYSITE_DIR/backups";
     make_path($dir) unless -d $dir;
     my $out = "$dir/$name";
     open my $fh, '>:raw', $out or return { ok => 0, error => "Cannot store the upload: $!" };
@@ -1870,7 +1871,7 @@ sub action_site_backup_apply {
 
     return { ok => 0, kind => 'invalid', error => 'A package name is required' }
         unless $name =~ /\Alazysite-site-[A-Za-z0-9._-]+\.tar\.gz\z/ && $name !~ /\.\./;
-    my $pkg = "$DOCROOT/lazysite/backups/$name";
+    my $pkg = "$LAZYSITE_DIR/backups/$name";
     return { ok => 0, kind => 'not-found', error => 'Package not found' } unless -f $pkg;
 
     # Resolve the TARGET content root.
@@ -2808,7 +2809,7 @@ sub action_analyse_visitors {
 }
 
 sub action_version {
-    my $path = "$DOCROOT/lazysite/.install-state.json";
+    my $path = "$LAZYSITE_DIR/.install-state.json";
     return { ok => 1, version => undef } unless -f $path;
     open my $fh, '<', $path or return { ok => 1, version => undef };
     my $raw = do { local $/; <$fh> };
@@ -3051,7 +3052,7 @@ sub _nav_conf_info {
 
     my $base = 'lazysite/nav.conf';
     my $over;
-    my $conf = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf = "$LAZYSITE_DIR/lazysite.conf";
     if ( -f $conf and open my $fh, '<:utf8', $conf ) {
         while (<$fh>) {
             if (/^nav_file\s*:\s*(.+)/) { ( my $v = $1 ) =~ s/^\s+|\s+$//g; $base = $v if length $v }

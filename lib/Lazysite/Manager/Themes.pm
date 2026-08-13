@@ -23,6 +23,7 @@ use Lazysite::Manager::Common   qw(write_file_checked _write_conf_key);
 use Lazysite::Manager::Files    qw(acquire_lock release_lock);
 use Lazysite::Manager::Artifact qw(_artifact_dir _compute_manifest _artifact_digest);
 use Lazysite::Manager::Domains  ();    # SM177: domains_using (delete-safety scan)
+use Lazysite::Paths             ();
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
@@ -38,6 +39,11 @@ our @EXPORT_OK = qw(
 );
 
 our $DOCROOT;
+
+# SM293: this site's engine tree - beside the docroot once migrated,
+# inside it before. Asked, never computed, so both layouts work on one
+# code path and a site migrates by moving the directory.
+sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 our $LAZYSITE_DIR;
 our $auth_user = '';
 our $action    = '';
@@ -61,7 +67,7 @@ sub _write_conf_content {
 sub _read_active_layout_and_theme {
     my $layout = '';
     my $theme  = '';
-    if ( open my $fh, '<', "$DOCROOT/lazysite/lazysite.conf" ) {
+    if ( open my $fh, '<', _lz() . "/lazysite.conf" ) {
         while (<$fh>) {
             $layout = $1 if /^layout\s*:\s*(\S+)/;
             $theme  = $1 if /^theme\s*:\s*(\S+)/;
@@ -89,7 +95,7 @@ sub action_theme_list {
 
     my @themes;
     if ( length $active_layout ) {
-        my $themes_dir = "$DOCROOT/lazysite/layouts/$active_layout/themes";
+        my $themes_dir = _lz() . "/layouts/$active_layout/themes";
         if ( -d $themes_dir ) {
             opendir( my $dh, $themes_dir );
             for my $name ( sort readdir $dh ) {
@@ -120,7 +126,7 @@ sub action_themes_list_all {
     my ( $active_layout, $active_theme ) = _read_active_layout_and_theme();
     my $use = _usage();
 
-    my $layouts_dir = "$DOCROOT/lazysite/layouts";
+    my $layouts_dir = _lz() . "/layouts";
     my @themes;
 
     if ( -d $layouts_dir ) {
@@ -749,7 +755,7 @@ sub action_create_theme {
 
 sub _set_theme_pointer {
     my ($theme_name) = @_;
-    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf_path = _lz() . "/lazysite.conf";
     return { ok => 0, error => "Cannot read conf" } unless -f $conf_path;
     open my $fh, '<:utf8', $conf_path or return { ok => 0, error => "Cannot read conf" };
     my $conf = do { local $/; <$fh> };
@@ -909,7 +915,7 @@ sub _prune_backups {
 
 sub _backup_retention {
     my $n = 3;
-    if ( open my $fh, '<', "$DOCROOT/lazysite/lazysite.conf" ) {
+    if ( open my $fh, '<', _lz() . "/lazysite.conf" ) {
         while (<$fh>) { if (/^backup_retention\s*:\s*(-?\d+)/) { $n = $1; last } }
         close $fh;
     }
@@ -1007,7 +1013,7 @@ sub action_layout_activate {
 
 sub _set_layout_pointer {
     my ( $layout, $theme ) = @_;
-    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf_path = _lz() . "/lazysite.conf";
     return { ok => 0, error => "Cannot read conf" } unless -f $conf_path;
     open my $fh, '<:utf8', $conf_path or return { ok => 0, error => "Cannot read conf" };
     my $conf = do { local $/; <$fh> };
@@ -1087,7 +1093,7 @@ sub action_theme_delete {
     # installed under multiple layouts (via theme.json's layouts[])
     # has copies elsewhere — those remain, and the operator can remove
     # them by switching to each layout in turn.
-    my $themes_dir = "$DOCROOT/lazysite/layouts/$active_layout/themes";
+    my $themes_dir = _lz() . "/layouts/$active_layout/themes";
     my $theme_dir  = "$themes_dir/$theme_name";
     return { ok => 0, error => "Theme not found" } unless -d $theme_dir;
 
@@ -1165,7 +1171,7 @@ sub action_theme_rename {
     return { ok => 0, error => "No active layout set" }
         unless length $active_layout;
 
-    my $themes_dir = "$DOCROOT/lazysite/layouts/$active_layout/themes";
+    my $themes_dir = _lz() . "/layouts/$active_layout/themes";
     return { ok => 0, error => "Theme not found" } unless -d "$themes_dir/$old_name";
     return { ok => 0, error => "Name already in use" } if -d "$themes_dir/$new_name";
 
@@ -1286,7 +1292,7 @@ sub _install_theme_from_dir {
     my @missing;
     for my $l (@clean_layouts) {
         push @missing, $l
-            unless -f "$DOCROOT/lazysite/layouts/$l/layout.tt";
+            unless -f _lz() . "/layouts/$l/layout.tt";
     }
     if (@missing) {
         return { ok => 0,
@@ -1298,7 +1304,7 @@ sub _install_theme_from_dir {
     # every layout so operators can refer to the theme by a single
     # name in lazysite.conf's theme: key.
     my $install_name = $theme_name;
-    my $first_dest   = "$DOCROOT/lazysite/layouts/$clean_layouts[0]/themes/$theme_name";
+    my $first_dest   = _lz() . "/layouts/$clean_layouts[0]/themes/$theme_name";
     if ( -d $first_dest ) {
         my @t = localtime( time() );
         $install_name = sprintf( "%04d%02d%02d-%s",
@@ -1307,7 +1313,7 @@ sub _install_theme_from_dir {
 
     my @installed;
     for my $l (@clean_layouts) {
-        my $dest = "$DOCROOT/lazysite/layouts/$l/themes/$install_name";
+        my $dest = _lz() . "/layouts/$l/themes/$install_name";
         make_path($dest);
         my $rc = system( "cp", "-r", "$extract_dir/.", $dest );
         if ( $rc != 0 ) {
@@ -1330,7 +1336,7 @@ sub _install_theme_from_dir {
 
         # SM176: record the pristine baseline so switching away from this theme
         # later, if the operator never edited it, does not spawn a pointless backup.
-        _write_pristine( "$DOCROOT/lazysite/layouts/$l/themes",
+        _write_pristine( _lz() . "/layouts/$l/themes",
             $install_name, _artifact_digest($dest) );
 
         push @installed, $l;
@@ -1371,7 +1377,7 @@ sub _cleanup_tmp {
 sub _host_content_root {
     my ($host) = @_;
     my ( $base, $override ) = ( '', undef );
-    if ( open my $fh, '<:raw', "$DOCROOT/lazysite/lazysite.conf" ) {
+    if ( open my $fh, '<:raw', _lz() . "/lazysite.conf" ) {
         while ( my $l = <$fh> ) {
             if    ( $l =~ /^content_root\s*:\s*(\S+)/ ) { $base = $1 }
             elsif ( length $host
@@ -1411,7 +1417,7 @@ sub action_cache_list {
     # them too, tagged with their host, so a sub-domain's cached pages are visible
     # and clearable here (rather than an operator resorting to a Files delete under
     # the reserved lazysite/ tree, which is correctly blocked).
-    my $cache_base = $ENV{LAZYSITE_CACHE_DIR} || "$DOCROOT/lazysite/cache";
+    my $cache_base = $ENV{LAZYSITE_CACHE_DIR} || _lz() . "/cache";
     my $hosts_dir  = "$cache_base/hosts";
     if ( -d $hosts_dir ) {
         find(

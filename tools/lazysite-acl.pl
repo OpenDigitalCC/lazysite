@@ -37,6 +37,7 @@ use Lazysite::Manager::Files
 use Lazysite::Manager::Common ();
 use Lazysite::Auth::Acl       ();
 use Lazysite::Auth::Settings  ();
+use Lazysite::Paths           ();
 
 Getopt::Long::Configure( 'no_ignore_case', 'bundling_override' );
 
@@ -92,8 +93,9 @@ if ( ( $> == 0 || $ENV{LAZYSITE_CLI_FAKE_ROOT} )
 # other surfaces are also setting, and both should be looked at together.
 my $docroot = $opt{docroot};
 $docroot =~ s{/+\z}{};
-$Lazysite::Manager::Files::DOCROOT  = $docroot;
-$Lazysite::Manager::Files::LOCK_DIR = "$docroot/lazysite/cache/locks";
+$Lazysite::Manager::Files::DOCROOT = $docroot;
+$Lazysite::Manager::Files::LOCK_DIR =
+    Lazysite::Paths::lazysite_dir($docroot) . '/cache/locks';    # SM293
 $Lazysite::Manager::Common::DOCROOT = $docroot;
 $Lazysite::Auth::Acl::DOCROOT       = $docroot;
 

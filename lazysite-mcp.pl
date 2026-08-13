@@ -29,6 +29,7 @@ BEGIN {
     }
 }
 use Lazysite::Util           qw(log_event);
+use Lazysite::Paths          ();
 use Lazysite::Audit          qw(audit_log);
 use Lazysite::Capabilities   qw(describe);
 use Lazysite::Auth::OAuth    ();
@@ -55,7 +56,7 @@ my $PROTOCOL = '2025-11-25';
 my $MAX_READ_BYTES = 512 * 1024;
 
 my $DOCROOT      = $ENV{DOCUMENT_ROOT} // '';
-my $LAZYSITE_DIR = "$DOCROOT/lazysite";
+my $LAZYSITE_DIR = Lazysite::Paths::lazysite_dir($DOCROOT);    # SM293
 my $LOCK_DIR     = "$LAZYSITE_DIR/manager/locks";
 $Lazysite::Auth::OAuth::LAZYSITE_DIR = $LAZYSITE_DIR;
 # Set early so verify_bearer (which runs before setup_context) can audit a connect.
@@ -594,7 +595,7 @@ my %TOOLS = (
             my $name = $a->{name} // '';
             return { ok => 0, error => 'A package name is required' }
                 unless $name =~ /\Alazysite-site-[A-Za-z0-9._-]+\.tar\.gz\z/ && $name !~ /\.\./;
-            my $pkg = "$DOCROOT/lazysite/backups/$name";
+            my $pkg = "$LAZYSITE_DIR/backups/$name";
             return { ok => 0, error => "Package not found: $name" } unless -f $pkg;
 
             my $host = lc( $a->{host} // '' );
@@ -1597,7 +1598,7 @@ sub _validate_page {
                     . 'it cannot be bound to a handler and will not deliver - add it, then bind_form.' };
         }
         elsif ( defined $path && length $path ) {
-            my $conf = "$DOCROOT/lazysite/forms/$fname.conf";
+            my $conf = "$LAZYSITE_DIR/forms/$fname.conf";
             push @warnings, { kind => 'form-unbound',
                 message => "the form '$fname' is not bound to a delivery handler yet "
                     . '(it renders but does not deliver) - call bind_form(form, handler).' }
@@ -1755,7 +1756,7 @@ sub _audit_site {
     # reading it as a neutraliser is exactly what caused the incident.
     my @hidden_by_script;
     {
-        my $ldir = "$DOCROOT/lazysite/layouts";
+        my $ldir = "$LAZYSITE_DIR/layouts";
         my @css;
         if ( opendir my $lh, $ldir ) {
             for my $layout ( grep { !/^\./ } readdir $lh ) {
@@ -1810,7 +1811,7 @@ sub _audit_site {
     # nothing, and is what tells an operator their configuration and their
     # content disagree. Detect before enforce.
     my $auth_default = '';
-    if ( open my $cfh, '<:utf8', "$DOCROOT/lazysite/lazysite.conf" ) {
+    if ( open my $cfh, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
         while ( my $l = <$cfh> ) {
             if ( $l =~ /^auth_default\s*:\s*(\S+)/ ) { $auth_default = lc $1; last }
         }
@@ -1866,13 +1867,13 @@ sub _audit_site {
     # actual repair, and an operator who has just read "protects nothing" needs
     # to be told what to write instead.
     my @acl_unmatched;
-    if ( open my $afh, '<:raw', "$DOCROOT/lazysite/auth/acls.json" ) {
+    if ( open my $afh, '<:raw', "$LAZYSITE_DIR/auth/acls.json" ) {
         my $raw = do { local $/; <$afh> };
         close $afh;
         my $map = eval { JSON::PP::decode_json( $raw // '{}' ) };
         if ( ref $map eq 'HASH' ) {
             my @croots;
-            if ( open my $cfh2, '<:utf8', "$DOCROOT/lazysite/lazysite.conf" ) {
+            if ( open my $cfh2, '<:utf8', "$LAZYSITE_DIR/lazysite.conf" ) {
                 while ( my $l = <$cfh2> ) {
                     next unless $l =~ /^alias\.\S+\.content_root\s*:\s*(\S+)/;
                     my $c = $1;

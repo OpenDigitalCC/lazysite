@@ -15,6 +15,7 @@ use JSON::PP       qw(encode_json);
 use Lazysite::Util qw(log_event);
 use Lazysite::Private ();
 use Exporter 'import';
+use Lazysite::Paths ();
 
 our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     is_blocked_config is_blocked_upload_target upload_limits load_upload_limits _reset_upload_limits_cache
@@ -22,7 +23,12 @@ our @EXPORT_OK = qw(validate_path is_blocked_path write_file_checked respond
     carveout_requirement carveout_refusal path_leads_to_carveout
     raw_html_page_refusal processor_path);
 
-our $DOCROOT;           # set by the script
+our $DOCROOT;    # set by the script
+
+# SM293: this site's engine tree - beside the docroot once migrated,
+# inside it before. Asked, never computed, so both layouts work on one
+# code path and a site migrates by moving the directory.
+sub _lz { return Lazysite::Paths::lazysite_dir($DOCROOT) }
 our $action    = '';    # current request action (for log attribution)
 our $auth_user = '';    # current request user (for log attribution)
 
@@ -395,7 +401,7 @@ sub load_upload_limits {
         rate_bytes         => 500 * 1024 * 1024,
     );
 
-    my $conf_path = "$DOCROOT/lazysite/lazysite.conf";
+    my $conf_path = _lz() . "/lazysite.conf";
     return \%limits unless -f $conf_path;
 
     my $new_key_seen = 0;
@@ -607,7 +613,7 @@ sub raw_html_page_refusal {
 # exists to guarantee.
 our $CONF_BATCH;    # set by conf_batch() while a grouped write is in flight
 
-sub _conf_path_of { return "$DOCROOT/lazysite/lazysite.conf" }
+sub _conf_path_of { return _lz() . "/lazysite.conf" }
 
 # Group several conf writes into ONE content-history entry. domain_add writes
 # half a dozen keys; without this, one registration would read as six separate
