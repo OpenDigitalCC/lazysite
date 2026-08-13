@@ -61,10 +61,27 @@ Whatever the server, a correct front end does exactly this:
    (`LAZYSITE_PROCESSOR` env names the real target), and `/dav` mapped
    to `lazysite-dav.pl` (its own Basic auth - pass the `Authorization`
    header through).
-4. **Strip the client-supplied trust headers** before anything
-   downstream: `X-Remote-User`, `X-Remote-Groups`, `X-Remote-Name`,
-   `X-Remote-Email`, `X-Payment-Verified`, `X-Payment-Payer`
-   (`docs/architecture/security.md`).
+4. **Recommended hardening - strip the client-supplied trust headers**
+   before anything downstream: `X-Remote-User`, `X-Remote-Groups`,
+   `X-Remote-Name`, `X-Remote-Email`, `X-Payment-Verified`,
+   `X-Payment-Payer` (`docs/architecture/security.md`).
+
+   Recommended, **not required**, and the distinction is deliberate.
+   The control is in the engine: a trust header is honoured only when
+   the auth wrapper vouched for the request
+   (`LAZYSITE_AUTH_TRUSTED=1`) or the operator opted into a trusted
+   reverse proxy (`auth_proxy_trusted: true`). Otherwise every one of
+   them is deleted from the environment and the attempt logged. A
+   forged header therefore fails on a front end that strips nothing.
+
+   `t/lint/38` pins that: every surface that READS a trust header must
+   also gate it, so a new surface cannot start believing one. This
+   entry used to be listed as a front-end requirement, which put a
+   security control in configuration lazysite ships as a template,
+   cannot test where it is installed, and mostly cannot see - the
+   pattern behind SM248, SM268 H17 and SM283. Strip them anyway if you
+   can: defence in depth is worth having, and it keeps the headers out
+   of logs upstream.
 5. **Deny `/lazysite/` and `*.brief`** at the origin (engine
    internals; authoring sidecars).
 6. Give the CGIs `DOCUMENT_ROOT` and the originally-requested path
