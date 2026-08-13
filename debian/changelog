@@ -1,3 +1,41 @@
+lazysite (0.10.8-1) unstable; urgency=medium
+
+  * EDGE build on 0.10.7. No operator action is required, and nothing on an
+    existing site changes until you ask for it - every move in this release is
+    opt-in and reversible.
+  * The theme: the front end stops making decisions. SM248, SM268 H17 and
+    SM283 were one cause - security living in front-end configuration lazysite
+    ships as a template, cannot test where it is installed, and mostly cannot
+    see. This release moves those decisions inside.
+  * SM286 protecting content now MOVES it out of the document root, into a
+    private store beside it, and back when the rule is lifted. There is then
+    nothing in the served tree for a front end to get wrong. Backups cover the
+    store; site packages and the content history cannot carry it and report
+    what they left behind.
+  * SM293 the engine tree (config, credentials, audit log, snapshots) can be
+    moved out of the document root with `lazysite migrate-engine-tree` -
+    dry-run by default, reversible with --back, and --min-version so a fleet
+    follows the release through its channels. The generated registries
+    (sitemap.xml, llms.txt, the feeds) are no longer written into the document
+    root at all; they are produced on request and cached.
+  * SM293 a front end can now be ONE RULE: forward everything to lazysite and
+    let it route. Reference configs ship for Apache and nginx. The existing
+    templates keep working and remain the faster option.
+  * SM289 access can be set from a shell: `lazysite acl list|show|set|remove`,
+    through the same writer the manager, control API and MCP use.
+  * SM285, SM287, SM288, SM290, SM291, SM292 complete the access-control work:
+    a self-probe that asks the running site whether its gating holds, a
+    site-wide rule that can actually be expressed, one set of groups per
+    account on every channel, the reference documentation with a lint that
+    keeps it true, a malformed boolean that used to publish a hidden section,
+    and the "held back" panel that was empty for everyone who used a supported
+    surface.
+  * UPGRADE NOTE: any sitemap.xml, llms.txt or feed left in the document root
+    from before this release will keep being served and will never refresh.
+    `lazysite check` names them; delete the ones you did not write yourself.
+
+ -- Stuart J Mackintosh <sjm@opendigital.cc>  Thu, 13 Aug 2026 15:26:45 +0100
+
 lazysite (0.10.7-1) unstable; urgency=medium
 
   * EDGE build on 0.10.6. OPERATOR ACTION REQUIRED: this release contains a fix

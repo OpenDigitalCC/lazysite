@@ -28,13 +28,35 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
-## Unreleased - the access-control programme
+## 0.10.8 - EDGE: the front end stops making decisions (2026-08-13)
 
-On `main` since v0.10.7, unreleased. One theme: SM248, SM268 H17 and SM283 were
-all the same cause - security living in front-end configuration that lazysite
-ships as a template, cannot test where it is installed, and on most deployments
-cannot even see. SM283 ran live across a fleet for weeks. Every fix so far had
-been "put the rule in one more config file"; this is the other answer.
+One theme, and it is the largest structural change in the 0.10 line. SM248,
+SM268 H17 and SM283 were all the same cause: security living in front-end
+configuration that lazysite ships as a template, cannot test where it is
+installed, and on most deployments cannot even see. SM283 ran live across a
+fleet for weeks. Every fix before this had been "put the rule in one more config
+file"; this release is the other answer.
+
+**No operator action is required, and nothing changes on an existing site until
+you ask for it.** Every move in this release is opt-in and reversible:
+protecting content moves it out of the document root (new behaviour, on the act
+of protecting); the engine tree moves only when you run
+`lazysite migrate-engine-tree --apply`; the one-rule vhost is an option beside
+the existing templates, which keep working unchanged.
+
+Two things to know before deploying:
+
+- **The generated registries stop being written into the document root.** They
+  are produced on request and cached instead. Any `sitemap.xml`, `llms.txt` or
+  feed left over from before will keep being served by the front end and will
+  never refresh - `lazysite check` names them, and you should delete the ones
+  you did not write yourself.
+- **Protecting content now moves it.** A read list or `draft` takes the content
+  out of the document root; removing the rule brings it back. Backups cover the
+  new location; site packages and the content history deliberately do not, and
+  say what they left behind.
+
+What shipped:
 
 - SM285 (d0428a6) a site can prove its own gating works from outside, whatever
   is in front of it - `lazysite check --check-acl URL` gates a probe folder and
@@ -68,7 +90,7 @@ been "put the rule in one more config file"; this is the other answer.
   writer stores keys without one, so it listed hand-edited entries and nothing
   else. Exactly the failure SM267 built that screen to prevent
 
-- SM289 (pending) access can now be set from a shell: `lazysite acl
+- SM289 (abd2d5b, bb3dfce) access can now be set from a shell: `lazysite acl
   list|show|set|remove`, calling the same writer as the manager, the control API
   and MCP - so a rule set from a shell is the same object, and gets the same move
   into the private store. `--actor` is mandatory for a write and carries exactly
@@ -78,7 +100,7 @@ been "put the rule in one more config file"; this is the other answer.
   deliberately NOT renamed - both are in live partner use and the mapping is
   documented instead
 
-- SM295 (pending) three repeat traps become checks, after the operator asked
+- SM295 (9d7e8cb) three repeat traps become checks, after the operator asked
   whether they could be structural rather than remembered. `t/lint/39` fails on
   file-scoped state initialised below the main body - and found a THIRD live
   instance on its first run (`%OEMBED_PROVIDERS`, shipped for months, leaving a
@@ -89,7 +111,7 @@ been "put the rule in one more config file"; this is the other answer.
   converted. `tools/coverage.sh` gains an flock and a live-writer check, so two
   runs cannot corrupt each other and an orphaned `prove` is named rather than
   silently poisoning the database
-- SM293 step 5 (pending) **a front end can now be ONE RULE.**
+- SM293 step 5 (b87e008) **a front end can now be ONE RULE.**
   `Lazysite::FrontDoor::route()` makes every routing decision the vhost
   templates used to make, and `lazysite-front.pl` executes it; reference configs
   ship for Apache and nginx. The value is testability: route() is a pure
@@ -103,7 +125,7 @@ been "put the rule in one more config file"; this is the other answer.
   and never correctness. SM294 files the remaining gap (the front door under the
   FastCGI pool, which needs in-process dispatch and a change to the auth
   wrapper's exec-based design)
-- SM293 steps 2b + 3 (pending) **the engine tree can be moved out of the
+- SM293 steps 2b + 3 (0f5ec80, e305232) **the engine tree can be moved out of the
   document root**, with `lazysite migrate-engine-tree --docroot D | --all` -
   dry-run by default, `--back` to reverse, `--min-version` so a fleet follows a
   release through its channels, and as root it drops to each site's owner. A
@@ -115,7 +137,7 @@ been "put the rule in one more config file"; this is the other answer.
   root at all** - generated on request and cached outside it, one render per TTL
   rather than one per crawler hit, with an operator's own sitemap.xml still
   winning and `lazysite check` naming any leftover file from before the change
-- SM293 steps 2a + 4 (pending) the engine now ASKS where its own tree lives
+- SM293 steps 2a + 4 (6dadcd9, 85b48d2) the engine now ASKS where its own tree lives
   (`Lazysite::Paths`) instead of computing `<docroot>/lazysite`, so a site can
   migrate it out of the served tree by MOVING the directory - no config key, no
   flag day, both layouts on one code path, and `lazysite check` FAILs on the
