@@ -193,7 +193,14 @@ is needed and none can be got wrong.
 | A page's cached `.html` render | deleted on protection; the next render is written privately |
 
 The store is named for the document root it shadows, so two sites under one
-parent directory can never share one.
+parent directory can never share one. The same convention now applies to the
+engine's own tree ([[SM293]]): a site can move `lazysite/` - config,
+credentials, the audit log, session state, form submissions and pre-install
+snapshots - to `<docroot>-lazysite` with
+`lazysite migrate-engine-tree --docroot D --apply`, after which no front-end
+`deny /lazysite/` rule is needed at all. The generated registries are no longer
+written into the served tree either; they are produced on request and cached
+beside the engine.
 
 **A move that cannot complete leaves the content where it was and reports
 failure.** A path lives in exactly one tree; a copy left in the document root is

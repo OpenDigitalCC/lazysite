@@ -3,7 +3,7 @@ title: "SM293 - Take the rest out of the served tree"
 subtitle: "SM286 step 1 moved gated content out of the document root. Config, credentials, snapshots and the generated registries are still in it, and every one of them is still defended by a rule in a config file we do not control."
 brand: plain
 status: candidate
-status-note: "FILED 2026-08-13, carrying forward steps 2-5 of SM286 (closed on step 1). STEP 2a SHIPPED 2026-08-13: Lazysite::Paths resolves where a site keeps its engine tree, every surface asks it, and NOTHING MOVES - the migration is separated deliberately, being a change to every site`s on-disk layout touching live credentials on a fleet. STEP 4 SHIPPED: the trust-header strip demoted to recommended hardening, after t/lint/38 was written to make the in-app gate an enforced control rather than a claim (the filing said it was lint-enforced; it was not). STEP 2b (the flip + an install.pl migration) NEEDS THE RELEASE MANAGER. STEP 3 NEEDS A DECISION - see below; it is tidiness, not an exposure, and it costs a CGI hit on crawler-facing artefacts. STEP 5 unstarted."
+status-note: "FILED 2026-08-13, carrying forward steps 2-5 of SM286 (closed on step 1). STEPS 2a, 2b, 3 and 4 ALL SHIPPED 2026-08-13 on main (unreleased), after the operator settled both open questions: automation per-domain-or-all with a version gate for step 2b, and generated-on-request-with-a-cache for step 3. The engine tree can now be moved out of the document root with `lazysite migrate-engine-tree`, and the registries are no longer written into it at all. Only STEP 5 (the daemon shape) remains, and it is a new artefact rather than a removal."
 ---
 
 # SM293 - the rest of the served tree
@@ -67,9 +67,30 @@ sibling of the document root, named for it - so the location question is
 settled. What is not settled is the migration: `lazysite/` is referenced by
 every surface, by installers, by the Hestia hook, and by operators' own scripts.
 
-## Step 2b - the flip, and why it is not in step 2a
+## Step 2b - the migration - SHIPPED
 
-**Needs the release manager.** Step 2a made the engine ASK where its tree is;
+`lazysite migrate-engine-tree --docroot D | --all`, dry-run by default,
+`--apply` to act, `--back` to reverse, `--min-version` to gate on the release
+having reached a site. One rename, atomic within a filesystem; it REFUSES across
+filesystems rather than falling back to a copy, because a half-copied auth store
+is the worst outcome available. Idempotent, so a fleet run is safe to repeat and
+safe on a mixed fleet. As root, `--all` drops to each site's owner exactly as
+`upgrade --all` does. A half-migrated site is refused, not repaired.
+
+The rename was the easy part. Two things had to change or the migration would
+have been a trap:
+
+- **install.pl** writes into the engine tree, so an installer computing
+  `<docroot>/lazysite` would recreate it inside the docroot on the very next
+  upgrade - and a site in both places works perfectly while publishing its
+  credentials. The classification targets use a `{LAZYSITE}` placeholder now.
+- **lazysite-check** writes its permission model docroot-relative, so on a
+  migrated site all six consumption sites would have skipped the entire engine
+  tree and reported a clean bill of health while verifying nothing.
+
+### The original note, kept because the reasoning still applies
+
+**Needed the release manager.** Step 2a made the engine ASK where its tree is;
 the answer today is still `<docroot>/lazysite`. Flipping means moving that
 directory on every existing site, and it is a different kind of change from the
 refactor:
@@ -87,7 +108,25 @@ needs no release at all - only step 2a, which is shipped.
 
 ## Step 3 - registries and sidecars
 
-**This one needs a decision, and it is not the same kind of item as step 2.**
+**DECIDED AND SHIPPED**: generated-on-request with a cache. The operator's
+reasoning, 2026-08-13 - it uses the machinery already there, a registry being a
+little stale does not matter, and it keeps a potentially high-demand file out of
+the document root.
+
+The generated copy goes to `$CACHE_BASE/registries/<content-root-key>/`, keyed
+per content root, and the engine serves it; the TTL is unchanged, so it costs one
+render per TTL rather than one per crawler hit. An operator's own sitemap.xml
+still wins. `lazysite-check` names any leftover file from before the change,
+because a file left at the old path goes on being served and never refreshed -
+WARN, not FAIL, since a stale sitemap is an SEO problem and may have been
+authored deliberately.
+
+Three defects found while building it, all mine: a file-scoped `my` hash below
+the main body that was empty at serve time (the SM285 trap, in the same file that
+documents it); serving only the four shipped names, which quietly removed the
+ability to define your own registry; and a missing Status line.
+
+### The decision as it stood
 
 Serve `sitemap.xml`, `llms.txt`, `robots.txt` and the feeds **from the engine**
 rather than writing files at the docroot root that shadow it. That removes the

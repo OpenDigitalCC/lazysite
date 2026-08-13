@@ -78,6 +78,18 @@ been "put the rule in one more config file"; this is the other answer.
   deliberately NOT renamed - both are in live partner use and the mapping is
   documented instead
 
+- SM293 steps 2b + 3 (pending) **the engine tree can be moved out of the
+  document root**, with `lazysite migrate-engine-tree --docroot D | --all` -
+  dry-run by default, `--back` to reverse, `--min-version` so a fleet follows a
+  release through its channels, and as root it drops to each site's owner. A
+  half-migrated site is refused rather than repaired. install.pl and
+  lazysite-check both had to learn the resolver first, or the next upgrade would
+  have recreated the tree inside the docroot and the health check would have
+  verified nothing on a migrated site. And the generated registries
+  (sitemap.xml, llms.txt, the feeds) are **no longer written into the content
+  root at all** - generated on request and cached outside it, one render per TTL
+  rather than one per crawler hit, with an operator's own sitemap.xml still
+  winning and `lazysite check` naming any leftover file from before the change
 - SM293 steps 2a + 4 (pending) the engine now ASKS where its own tree lives
   (`Lazysite::Paths`) instead of computing `<docroot>/lazysite`, so a site can
   migrate it out of the served tree by MOVING the directory - no config key, no
