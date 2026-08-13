@@ -38,7 +38,13 @@ subtest 'the private root is a sibling of the docroot, never inside it' => sub {
     unlike( $root, qr{\A\Q$doc\E/},
         'and it is NOT under the docroot - a subdirectory is exactly what a '
             . 'front end serves, which would defeat the whole mechanism' );
-    is( $root, "$base/lazysite-private", 'it is a sibling' );
+    # Named for the docroot it shadows, not a fixed name in the parent. A fixed
+    # name is shared by every docroot with the same parent, so two sites side by
+    # side would share one store and each would resolve the other's protected
+    # content by path - two sites' members-only content silently merged.
+    is( $root, "$base/public_html-lazysite-private",
+        'it is a sibling, named for the docroot so two docroots under one '
+            . 'parent can never share a store' );
 };
 
 # --- moving in --------------------------------------------------------------

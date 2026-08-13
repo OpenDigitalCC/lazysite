@@ -17,8 +17,9 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
-use File::Path qw(make_path);
+use File::Temp     qw(tempdir);
+use File::Path     qw(make_path);
+use File::Basename qw(basename);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Backups
@@ -57,12 +58,17 @@ my $created = action_backup_create('manual');
 ok( $created->{ok}, 'a backup is created' ) or diag( $created->{error} // '' );
 my $name = $created->{name};
 
+# The store is named for the docroot it shadows, so the archive member name is
+# derived, never a fixed string. Two docroots sharing a parent would otherwise
+# share one store and each resolve the other's protected content.
+my $LEAF = basename( private_root($d) );
+
 subtest 'the archive contains the private store' => sub {
     my $tar     = "$d/lazysite/backups/$name";
     my $listing = `tar tzf \Q$tar\E 2>/dev/null`;
-    like( $listing, qr{^lazysite-private/members/secret\.md$}m,
+    like( $listing, qr{^\Q$LEAF\E/members/secret\.md$}m,
         'the gated file is in the archive' );
-    like( $listing, qr{^lazysite-private/members/deep/more\.md$}m,
+    like( $listing, qr{^\Q$LEAF\E/members/deep/more\.md$}m,
         'including nested content' );
     like( $listing, qr{^\./open/public\.md$}m,
         'and the docroot members keep their existing spelling, so an archive '
@@ -85,7 +91,7 @@ subtest 'restoring puts the store back OUTSIDE the docroot' => sub {
         'nested content too' );
     is( slurp("$d/open/public.md"), "PUBLICBYTES\n", 'and the docroot content' );
 
-    ok( !-e "$d/lazysite-private",
+    ok( !-e "$d/$LEAF",
         'the store was NOT extracted into the docroot - which would put every '
             . 'gated file back where the front end serves it' );
 };
@@ -97,11 +103,11 @@ subtest 'an uploaded archive cannot write outside the two trees' => sub {
 
     # An archive carrying a member that climbs out of the extraction root, and
     # one that is simply not ours. Neither may land.
-    make_path("$stage/lazysite-private");
-    spit( "$stage/lazysite-private/ok.md", "INSIDE\n" );
+    make_path("$stage/$LEAF");
+    spit( "$stage/$LEAF/ok.md", "INSIDE\n" );
     make_path("$stage/elsewhere");
     spit( "$stage/elsewhere/loot.md", "SHOULD-NOT-LAND\n" );
-    system( 'tar', 'czf', $evil, '-C', $stage, 'lazysite-private', 'elsewhere' );
+    system( 'tar', 'czf', $evil, '-C', $stage, $LEAF, 'elsewhere' );
 
     my $r = action_backup_restore(
         'lazysite-manual-19700101T000000Z-evil.tar.gz');
@@ -118,14 +124,14 @@ subtest 'an uploaded archive cannot write outside the two trees' => sub {
 subtest 'a climbing member name is refused' => sub {
     my $evil2 = "$d/lazysite/backups/lazysite-manual-19700101T000001Z-climb.tar.gz";
     my $stage = tempdir( CLEANUP => 1 );
-    make_path("$stage/lazysite-private");
-    spit( "$stage/lazysite-private/fine.md", "FINE\n" );
+    make_path("$stage/$LEAF");
+    spit( "$stage/$LEAF/fine.md", "FINE\n" );
 
     # tar refuses to STORE a climbing member without -P, so the archive here is
     # an ordinary one and the guarantee under test is that the extract side does
     # not gain a way to climb - it passes an explicit member name, never a
     # pattern, and GNU tar strips a leading `/` and refuses `..` by default.
-    system( 'tar', 'czf', $evil2, '-C', $stage, 'lazysite-private' );
+    system( 'tar', 'czf', $evil2, '-C', $stage, $LEAF );
 
     my $r = action_backup_restore(
         'lazysite-manual-19700101T000001Z-climb.tar.gz');

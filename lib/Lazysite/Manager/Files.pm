@@ -20,6 +20,7 @@ use Lazysite::Manager::Common
 use Lazysite::Auth::Acl
     qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Manager::Upload qw(is_editable_text);
+use Lazysite::Private         ();                    # SM286: where content actually lives
 use Exporter 'import';
 
 our @EXPORT_OK = qw(
@@ -710,9 +711,24 @@ sub action_move {
     # Re-key the ACL entry to the new path.
     my $acls = load_acls();
     my ( $sk, $dk ) = ( _acl_norm( $s->{rel} ), _acl_norm( $d->{rel} ) );
+    my @store_warnings;
     if ( exists $acls->{$sk} ) {
         $acls->{$dk} = delete $acls->{$sk};
         save_acls($acls);
+
+        # SM286: the ACL follows the path, so the CONTENT has to follow the ACL.
+        #
+        # The rename above puts the bytes wherever the destination resolved,
+        # which for a new path under a public folder is the docroot - so moving
+        # a protected page would carry its rule to the new key while leaving the
+        # content public. The rule would still be enforced by the engine and
+        # ignored by any front end serving the file directly: SM283 exactly,
+        # reintroduced by a rename.
+        #
+        # Re-syncing against the NEW key settles it in one place, whichever
+        # direction the move went, and covers un-protecting by moving out of a
+        # gated folder just as well.
+        push @store_warnings, _sync_private_store( $dk, $acls->{$dk} );
     }
 
     # SM134 follow-ups: the page's canonical URL changed - re-key its
@@ -730,7 +746,8 @@ sub action_move {
         $s->{rel}, $d->{rel},
         ( -e "$dst_full.brief" ? ( "$s->{rel}.brief", "$d->{rel}.brief" ) : () ) );
     _invalidate_registries();
-    return { ok => 1, from => $s->{rel}, to => $d->{rel} };
+    return { ok => 1, from => $s->{rel}, to => $d->{rel},
+        ( @store_warnings ? ( warnings => \@store_warnings ) : () ) };
 }
 
 # SM: duplicate a file. Like action_move but copies rather than renames, needs
@@ -1009,6 +1026,134 @@ sub _acl_root_key {
     return '';
 }
 
+# SM286: does this ACL record keep the PUBLIC out?
+#
+# Read semantics come straight from Acl::_acl_allows, and they are the reason the
+# question is about `read` alone: an absent or EMPTY read list allows everyone
+# ("return 1 unless ref $list eq 'ARRAY' && @$list"). So an entry that names only
+# a write list restricts editing and publishes exactly as before - moving that
+# content out of the docroot would take a public page offline to express a rule
+# about who may edit it.
+#
+# `draft` counts. A draft section 404s to the public, which is a stronger
+# statement than gating, not a weaker one.
+sub _acl_gates_public {
+    my ($rec) = @_;
+    return 0 unless ref $rec eq 'HASH';
+    return 1 if $rec->{draft};
+    my $read = $rec->{read};
+    return ( ref $read eq 'ARRAY' && @$read ) ? 1 : 0;
+}
+
+# SM286: put the bytes where the rule says they belong.
+#
+# This is the point of the whole work item. Until now a gate was a rule the
+# ENGINE honoured and every front end had to be told about separately; three
+# releases running, a front end was not told, or was told and answered first
+# (SM248, SM268 H17, SM283). Moving the content out of the document root makes
+# the rule structural: there is nothing for a front end to serve and nothing for
+# it to get wrong.
+#
+# Returns a list of warnings. Deliberately warnings and NOT a failure:
+#
+#   - A gate whose move failed is still a gate. The ACL is stored, the engine
+#     honours it, and the exposure is exactly what it was before this existed.
+#     Refusing the ACL because the filesystem misbehaved would leave the content
+#     ungoverned, which is worse than governed-but-not-moved.
+#
+#   - Ungating whose move-out failed leaves content in the store, where the
+#     engine still resolves and serves it. Slower, but not wrong, and not a
+#     disclosure in either direction.
+#
+# What must never happen is silence, because either state is invisible from the
+# outside: the operator sees the permission they asked for either way.
+sub _sync_private_store {
+    my ( $rel, $rec ) = @_;
+    my @warnings;
+
+    # The site-wide rule cannot be expressed as a move. The docroot cannot be
+    # moved into its own sibling - it would have to BECOME the store - so a '/'
+    # entry stays enforced by the engine alone, exactly as SM287 built it.
+    #
+    # Said out loud rather than skipped quietly: this is the one scope where the
+    # SM283 class of exposure is still reachable if a front end serves files
+    # from the docroot without asking the engine, and an operator choosing to
+    # make a whole site private deserves to know that.
+    if ( $rel eq '/' ) {
+        push @warnings,
+            'a site-wide rule is enforced by the engine and does not move any '
+            . 'files. Every other path moves out of the document root when it '
+            . 'is protected; the site root cannot, because it IS the document '
+            . 'root. If a front end serves this site directly, protect '
+            . 'individual folders as well.';
+        return @warnings;
+    }
+
+    # Sections are stored with a trailing slash; the mover takes a path.
+    ( my $path = $rel ) =~ s{/+\z}{};
+    return @warnings unless length $path;
+
+    require Lazysite::Private;
+    my $gates = _acl_gates_public($rec);
+
+    my ( $ok, $err ) =
+        $gates
+        ? Lazysite::Private::move_in( $DOCROOT, $path )
+        : Lazysite::Private::move_out( $DOCROOT, $path );
+
+    # SM286: the companions a page drags along. A move that takes the .md and
+    # leaves these behind protects the page and publishes its substance.
+    #
+    #   .brief  - the authored "why" sidecar. Content, and about the very page
+    #             being protected, so it follows it in both directions.
+    #
+    #   .html   - the render cache from BEFORE the gate existed. It is a
+    #             complete public copy of the page, sitting in the docroot,
+    #             which is precisely what SM283 was: a front end serving a file
+    #             beside a gated page without asking the engine. Deleted rather
+    #             than moved, because it is derived - the next render writes it
+    #             into the store (the processor's _private_twin) - and deleting a
+    #             regenerable file cannot lose anything.
+    if ($ok) {
+        my $brief = "$path.brief";
+        my ( $bok, $berr ) =
+            $gates
+            ? Lazysite::Private::move_in( $DOCROOT, $brief )
+            : Lazysite::Private::move_out( $DOCROOT, $brief );
+        if ( !$bok ) {
+            push @warnings,
+                "the notes beside this page could not be moved with it"
+                . ( defined $berr && length $berr ? ": $berr" : '' ) . '.';
+        }
+
+        if ( $gates && $path =~ /\.md\z/ ) {
+            ( my $cache = $path ) =~ s/\.md\z/.html/;
+            if ( -f "$DOCROOT/$cache" ) {
+                unlink "$DOCROOT/$cache"
+                    or push @warnings,
+                    'a previously rendered copy of this page is still in the '
+                    . 'document root and could not be removed - it is a public '
+                    . 'copy of the content just protected.';
+            }
+        }
+    }
+
+    if ( !$ok ) {
+        my $what = $gates ? 'out of' : 'back into';
+        push @warnings,
+            "the permission was saved, but the content could not be moved "
+            . "$what the document root"
+            . ( defined $err && length $err ? ": $err" : '' )
+            . '. The rule is in force - the engine honours it - but the files '
+            . 'are still where they were, so a front end that serves them '
+            . 'without asking the engine would not be covered.';
+        log_event( 'ERROR', 'acl-set', 'private store move failed',
+            path  => $rel, direction => ( $gates ? 'in' : 'out' ),
+            error => ( $err // '' ) );
+    }
+    return @warnings;
+}
+
 sub action_acl_set {
     my ( $rel_path, $user, $read, $write, $owner_req, $draft ) = @_;
 
@@ -1102,6 +1247,14 @@ sub action_acl_set {
     # remote channel. An agent setting this has no way to discover that its rule
     # is inert, so say it here rather than let it be found the hard way.
     my @warnings;
+
+    # SM286: and now move the bytes to match the rule. AFTER the store is
+    # written, deliberately - if the process dies between the two, the surviving
+    # state is "rule recorded, content not yet moved", which the engine already
+    # enforces correctly. The other order would leave content out of the docroot
+    # with nothing recording why.
+    push @warnings, _sync_private_store( $rel, \%rec );
+
     my @grp = grep { defined && /\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
     if (@grp) {
         push @warnings,
@@ -1111,7 +1264,9 @@ sub action_acl_set {
             . 'individually if they need access.';
     }
 
-    return { ok => 1, path => $r->{rel}, acl => \%rec,
+    # $rel, not $r->{rel}: on the root branch $r is never assigned, so this
+    # reported path => undef for the one rule that covers the whole site.
+    return { ok => 1, path => $rel, acl => \%rec,
         ( @warnings ? ( warnings => \@warnings ) : () ) };
 }
 
@@ -1132,9 +1287,30 @@ sub action_protected_sections {
     my @out;
 
     for my $key ( sort keys %$acls ) {
-        next unless $key =~ m{/\z};    # sections, not files
         my $a = $acls->{$key} or next;
         next unless ref $a eq 'HASH';
+
+        # SM292: a section is a key that names a FOLDER - which is not the same
+        # as a key ending in a slash.
+        #
+        # This filtered on the trailing slash alone, and validate_path derives
+        # `rel` from realpath, which has no trailing slash. So every rule an
+        # operator created through the manager or MCP was stored as `members`
+        # and this panel skipped all of them. It listed only hand-edited keys.
+        #
+        # That is precisely the failure SM267 built this screen to prevent: "the
+        # product could hold a section back and had no screen that said which
+        # sections were held back". It had the screen, and the screen was empty
+        # for everyone who used the supported route. Its tests wrote acls.json
+        # by hand with trailing slashes, so they agreed with each other and
+        # never with the writer.
+        my $is_section = ( $key =~ m{/\z} ) ? 1 : 0;
+        ( my $bare = $key ) =~ s{/+\z}{};
+        if ( !$is_section && length $bare ) {
+            my ( $abs, $where ) = Lazysite::Private::resolve( $DOCROOT, $bare );
+            $is_section = 1 if $where && -d $abs;
+        }
+        next unless $is_section;
 
         # A scoped manager sees only sections inside their own scope. Listing a
         # section they cannot reach would disclose the existence of content the
@@ -1146,7 +1322,13 @@ sub action_protected_sections {
             && outside_all_scopes( $scopes, $key );
 
         my ( $pages, $assets ) = ( 0, 0 );
-        my $dir = "$DOCROOT/$key";
+
+        # SM286: count where the content actually IS. A protected section now
+        # lives outside the docroot, so counting only the docroot would report
+        # every gated section as 0 pages / 0 assets / exists:false - "held back
+        # and empty" - at the exact moment protecting it succeeded.
+        my ( $dir, $where ) = Lazysite::Private::resolve( $DOCROOT, $bare );
+        $dir = "$DOCROOT/$key" unless $where;
         if ( -d $dir ) {
             File::Find::find(
                 { no_chdir => 1,
@@ -1228,7 +1410,18 @@ sub action_acl_remove {
     delete $acls->{$rel};
     save_acls($acls) or return { ok => 0, error => "Cannot write the ACL store" };
     log_event( 'INFO', 'acl-remove', 'acl removed', path => $rel, user => $auth_user );
-    return { ok => 1, path => $r->{rel}, removed => 1 };
+
+    # SM286: the rule is gone, so the content comes back into the document root.
+    # Passing undef is the whole statement - no record means nothing gates it.
+    #
+    # Content left in the store would still be SERVED (the resolver looks there
+    # first), so this is not a disclosure risk in either direction; it would just
+    # be content sitting somewhere its permissions no longer explain, which is
+    # how a store drifts out of step with the tree it shadows.
+    my @warnings = _sync_private_store( $rel, undef );
+
+    return { ok => 1, path => $r->{rel}, removed => 1,
+        ( @warnings ? ( warnings => \@warnings ) : () ) };
 }
 
 # --- SM085: content-history manager actions -------------------------------------

@@ -30,7 +30,7 @@ package Lazysite::Private;
 use strict;
 use warnings;
 use File::Path     qw(make_path remove_tree);
-use File::Basename qw(dirname);
+use File::Basename qw(dirname basename);
 use File::Copy     qw(copy);
 use Cwd            qw(realpath);
 use Exporter 'import';
@@ -43,10 +43,28 @@ our @EXPORT_OK = qw(private_root private_path resolve resolve_for_write
 # content went.
 our $DIRNAME = 'lazysite-private';
 
+# The store is named for the docroot it shadows, NOT a fixed name in the parent.
+#
+# A fixed "<parent>/lazysite-private" is shared by every docroot with the same
+# parent. Two sites side by side - /srv/sites/a and /srv/sites/b, which is what
+# the dev server invites and what a container image tends to look like - would
+# then share ONE private store, and each would resolve the other's protected
+# content by path. Two sites' members-only content silently merged is a worse
+# disclosure than the one this store exists to remove.
+#
+# It was not a hypothetical: every test using a bare tempdir() as its docroot had
+# a parent of /tmp, so the whole suite shared /tmp/lazysite-private and files
+# from one test file appeared in another. That is the same defect, found the easy
+# way.
+#
+# Deriving the name from the docroot makes collision impossible: two docroots
+# with the same parent have different basenames, or they are the same directory.
 sub private_root {
     my ($docroot) = @_;
     return undef unless defined $docroot && length $docroot;
-    return dirname($docroot) . "/$DIRNAME";
+    $docroot =~ s{/+\z}{};
+    return undef unless length $docroot;
+    return dirname($docroot) . '/' . basename($docroot) . "-$DIRNAME";
 }
 
 sub private_path {
@@ -102,12 +120,31 @@ sub resolve_for_write {
     my ( $abs, $where ) = resolve( $docroot, $rel );
     return ( $abs, $where ) if $where;
 
+    # An ancestor that exists in the DOCROOT settles it as public, and is checked
+    # FIRST - a directory existing in the store is not on its own evidence that
+    # the folder is gated.
+    #
+    # Moving a single FILE into the store creates its parent directories there
+    # too. Using resolve() here, that bare container made the folder look
+    # private, so protecting one file in `content/` silently caused every file
+    # created in `content/` afterwards to be written privately - unpublishing new
+    # public content through an operation nobody thinks of as a permission
+    # change, which is the exact failure this function was written to prevent,
+    # pointed the other way.
+    #
+    # The distinction is structural and needs no ACL lookup: a genuinely gated
+    # folder was MOVED, so it does not exist in the docroot at all. A folder in
+    # both trees is a public folder that happens to hold some private files.
     my @parts = split m{/}, $rel;
     pop @parts;    # the path itself does not exist; start at its parent
     while (@parts) {
-        my ( undef, $w ) = resolve( $docroot, join( '/', @parts ) );
-        if ( $w eq 'private' ) { return ( private_path( $docroot, $rel ), 'private' ) }
-        last if $w;    # a public ancestor settles it
+        my $anc = join( '/', @parts );
+        last if -e "$docroot/$anc";    # a public ancestor settles it
+
+        my $priv_anc = private_path( $docroot, $anc );
+        return ( private_path( $docroot, $rel ), 'private' )
+            if defined $priv_anc && -e $priv_anc;
+
         pop @parts;
     }
     return ( "$docroot/$rel", 'public' );

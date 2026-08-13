@@ -5,19 +5,20 @@
 use strict;
 use warnings;
 use Test::More;
-use JSON::PP qw(encode_json);
+use JSON::PP   qw(encode_json);
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../../lib";
 use Lazysite::Manager::Files
     qw(action_list action_save action_mkdir action_delete action_move action_copy action_migrate_to_local
-       action_aliases_list action_acl_set action_acl_remove acquire_lock renew_lock release_lock);
-use Lazysite::Aliases qw(lookup);
+    action_aliases_list action_acl_set action_acl_remove acquire_lock renew_lock release_lock);
+use Lazysite::Aliases         qw(lookup);
+use Lazysite::Private         qw(private_path);
 use Lazysite::Manager::Common ();
-use Lazysite::Auth::Acl qw(load_acls);
+use Lazysite::Auth::Acl       qw(load_acls);
 
-my $d = tempdir( CLEANUP => 1 );
+my $d     = tempdir( CLEANUP => 1 );
 my $LOCKS = "$d/lazysite/manager/locks";
 make_path( "$d/content", "$d/lazysite/auth", $LOCKS );
 $Lazysite::Manager::Files::DOCROOT   = $d;
@@ -25,13 +26,13 @@ $Lazysite::Manager::Files::LOCK_DIR  = $LOCKS;
 $Lazysite::Manager::Files::auth_user = 'alice';
 $Lazysite::Manager::Files::action    = 'test';
 $Lazysite::Manager::Common::DOCROOT  = $d;
-$Lazysite::Auth::Acl::DOCROOT             = $d;
-$Lazysite::Auth::Acl::auth_user           = 'alice';
-$Lazysite::Auth::Acl::token_auth          = 0;
+$Lazysite::Auth::Acl::DOCROOT        = $d;
+$Lazysite::Auth::Acl::auth_user      = 'alice';
+$Lazysite::Auth::Acl::token_auth     = 0;
 
 # --- mkdir (assert the rejection reason, not just falsiness) ---
 ok( action_mkdir('content/sub')->{ok}, 'mkdir creates a directory' );
-ok( -d "$d/content/sub", 'directory exists on disk' );
+ok( -d "$d/content/sub",               'directory exists on disk' );
 my $mk = action_mkdir('../escape');
 ok( !$mk->{ok}, 'traversal mkdir rejected' );
 like( $mk->{error}, qr/Invalid path/, 'rejected specifically as an invalid path' );
@@ -40,7 +41,7 @@ like( $mk->{error}, qr/Invalid path/, 'rejected specifically as an invalid path'
 open my $f, '>', "$d/content/x.md" or die $!;
 print {$f} 'hi'; close $f;
 ok( action_delete( 'content/x.md', 'alice' )->{ok}, 'delete a file' );
-ok( !-f "$d/content/x.md", 'file removed' );
+ok( !-f "$d/content/x.md",                          'file removed' );
 my $bd = action_delete( 'lazysite/auth/users', 'alice' );
 ok( !$bd->{ok}, 'delete of a blocked path refused' );
 like( $bd->{error}, qr/block/i, 'refused with a "blocked" reason' );
@@ -61,7 +62,7 @@ is_deeply( load_acls()->{'content/secret.md'}, { owner => 'alice', write => ['al
     open my $gsf, '>', "$d/lazysite/auth/groups-settings.json" or die $!;
     print {$gsf} '{"managers":{"label":"Managers","ui":1,"manage_users":1}}';
     close $gsf;
-    local $Lazysite::Auth::Acl::auth_user      = 'eve';   # not operator, not owner
+    local $Lazysite::Auth::Acl::auth_user      = 'eve';    # not operator, not owner
     local $Lazysite::Manager::Files::auth_user = 'eve';
     open my $sf, '>', "$d/content/secret.md" or die $!;
     print {$sf} 'secret'; close $sf;
@@ -82,7 +83,7 @@ is_deeply( load_acls()->{'content/secret.md'}, { owner => 'alice', write => ['al
 
 # back to operator: acl-remove works + clears the store
 ok( action_acl_remove( 'content/secret.md', 'alice' )->{ok}, 'owner removes the ACL' );
-ok( !exists load_acls()->{'content/secret.md'}, 'ACL gone from the store' );
+ok( !exists load_acls()->{'content/secret.md'},              'ACL gone from the store' );
 my $rem2 = action_acl_remove( 'content/none.md', 'alice' );
 ok( $rem2->{ok} && !$rem2->{removed}, 'remove of an unset path is a no-op' );
 
@@ -107,12 +108,12 @@ sub _write_dav_lock {
 }
 
 # --- action_move (rename/move + .brief + ACL re-key) ---
-open my $of, '>', "$d/content/orig.md" or die $!;       print {$of} 'body'; close $of;
+open my $of, '>', "$d/content/orig.md"       or die $!; print {$of} 'body'; close $of;
 open my $ob, '>', "$d/content/orig.md.brief" or die $!; print {$ob} 'why';  close $ob;
 action_acl_set( 'content/orig.md', 'alice', undef, ['alice'], 'alice' );
 my $mv = action_move( 'content/orig.md', 'content/renamed.md', 'alice' );
 ok( $mv->{ok}, 'move succeeds' );
-ok( -f "$d/content/renamed.md" && !-e "$d/content/orig.md", 'file moved' );
+ok( -f "$d/content/renamed.md" && !-e "$d/content/orig.md",             'file moved' );
 ok( -f "$d/content/renamed.md.brief" && !-e "$d/content/orig.md.brief", '.brief sidecar moved' );
 my $acls = load_acls();
 ok( exists $acls->{'content/renamed.md'} && !exists $acls->{'content/orig.md'},
@@ -127,17 +128,23 @@ ok( !action_move( 'content/missing.md', 'content/x.md', 'alice' )->{ok},
     'move of a missing source is refused' );
 
 # --- action_copy (duplicate: source kept, fresh owner, no cache copy) ---
-open my $cf, '>', "$d/content/src.md" or die $!;       print {$cf} 'dup me'; close $cf;
-open my $cb, '>', "$d/content/src.md.brief" or die $!; print {$cb} 'why';   close $cb;
-open my $ch, '>', "$d/content/src.html" or die $!;     print {$ch} '<cache>'; close $ch;
+open my $cf, '>', "$d/content/src.md"       or die $!; print {$cf} 'dup me';  close $cf;
+open my $cb, '>', "$d/content/src.md.brief" or die $!; print {$cb} 'why';     close $cb;
+open my $ch, '>', "$d/content/src.html"     or die $!; print {$ch} '<cache>'; close $ch;
 action_acl_set( 'content/src.md', 'alice', ['bob'], ['alice'], 'alice' );
 my $cp = action_copy( 'content/src.md', 'content/dup.md', 'carol' );
 ok( $cp->{ok}, 'copy succeeds' );
-ok( -f "$d/content/src.md" && -f "$d/content/dup.md", 'source kept, duplicate created' );
+# SM286: the source carries a read ACL, so it now lives in the private store -
+# kept, but out of the document root where no front end can serve it. The
+# duplicate is a fresh public file: it inherits no read list, so nothing gates
+# it and it must NOT be written privately.
+ok( -f private_path( $d, 'content/src.md' ), 'source kept - protected, in the store' );
+ok( !-e "$d/content/src.md", 'and not also in the docroot - one tree, never two' );
+ok( -f "$d/content/dup.md",  'the duplicate is created, and is public' );
 is( do { open my $f, '<', "$d/content/dup.md"; local $/; <$f> }, 'dup me',
     'duplicate has the source content' );
 ok( -f "$d/content/dup.md.brief", '.brief sidecar copied' );
-ok( !-e "$d/content/dup.html", 'generated .html cache is NOT copied (re-renders)' );
+ok( !-e "$d/content/dup.html",    'generated .html cache is NOT copied (re-renders)' );
 my $ca = load_acls();
 is( $ca->{'content/dup.md'}{owner}, 'carol', 'duplicate is owned by its creator, not the source owner' );
 ok( !$ca->{'content/dup.md'}{read}, 'duplicate does not inherit the source read list' );
@@ -153,18 +160,26 @@ ok( !action_copy( 'content/missing.md', 'content/y.md', 'carol' )->{ok},
 # Mock the shared fetch so there is no live-network dependency.
 require Lazysite::Fetch;
 { no warnings qw(redefine once);
-  *Lazysite::Fetch::fetch_url = sub { "# Migrated\n\nremote body from $_[0]\n" }; }
+    *Lazysite::Fetch::fetch_url = sub { "# Migrated\n\nremote body from $_[0]\n" }; }
 
-open my $uf, '>', "$d/content/remote.url"        or die $!; print {$uf} 'https://example.com/page'; close $uf;
-open my $ub, '>', "$d/content/remote.url.brief"  or die $!; print {$ub} 'why';                     close $ub;
+open my $uf, '>', "$d/content/remote.url" or die $!; print {$uf} 'https://example.com/page'; close $uf;
+open my $ub, '>', "$d/content/remote.url.brief" or die $!; print {$ub} 'why'; close $ub;
 action_acl_set( 'content/remote.url', 'alice', ['bob'], ['alice'], 'alice' );
 
 my $mig = action_migrate_to_local( 'content/remote.url', 'alice' );
 ok( $mig->{ok}, 'migrate succeeds' );
-ok( -f "$d/content/remote.md" && !-e "$d/content/remote.url", '.md created, .url removed' );
-like( do { open my $f, '<', "$d/content/remote.md"; local $/; <$f> }, qr/remote body from/,
+# SM286: the .url was protected, so it lived in the store - and the .md that
+# replaces it is written beside it, in the store. A migrate that published the
+# fetched body while carrying the .url's ACL over to the new key would gate the
+# page in the engine and serve it from the docroot: SM283, via a migrate.
+my $md_priv = private_path( $d, 'content/remote.md' );
+ok( -f $md_priv && !-e private_path( $d, 'content/remote.url' ),
+    '.md created, .url removed - both in the store, where the ACL says' );
+ok( !-e "$d/content/remote.md",
+    'and the fetched body was NOT published into the document root' );
+like( do { open my $f, '<', $md_priv; local $/; <$f> }, qr/remote body from/,
     '.md holds the fetched content' );
-ok( -f "$d/content/remote.md.brief", '.brief sidecar carried over' );
+ok( -f "$md_priv.brief", '.brief sidecar carried over, into the store too' );
 my $ma = load_acls();
 ok( exists $ma->{'content/remote.md'} && !exists $ma->{'content/remote.url'},
     'ACL entry re-keyed from .url to .md (ownership carried)' );
@@ -182,13 +197,13 @@ ok( !$fail->{ok} && -f "$d/content/dead.url" && !-e "$d/content/dead.md",
 # --- action_list surfaces ACL read/write + lock state (SM077) ---
 open my $sh, '>', "$d/content/shared.md" or die $!; print {$sh} 'x'; close $sh;
 action_acl_set( 'content/shared.md', 'alice', ['bob'], ['alice'], 'alice' );
-acquire_lock( '/content/shared.md', 'alice' );   # leading slash, as the dispatch passes it
+acquire_lock( '/content/shared.md', 'alice' );  # leading slash, as the dispatch passes it
 my ($e) = grep { $_->{name} eq 'shared.md' }
     @{ action_list('/content')->{entries} };
 ok( $e, 'shared.md is listed' );
-is( $e->{owner}, 'alice',           'list surfaces owner' );
-is_deeply( $e->{read},  ['bob'],    'list surfaces the read list' );
-is_deeply( $e->{write}, ['alice'],  'list surfaces the write list' );
+is( $e->{owner}, 'alice', 'list surfaces owner' );
+is_deeply( $e->{read},  ['bob'],   'list surfaces the read list' );
+is_deeply( $e->{write}, ['alice'], 'list surfaces the write list' );
 ok( $e->{lock} && $e->{lock}{locked_by} eq 'alice', 'list surfaces the lock holder' );
 
 # --- SM134: saving/deleting a page maintains the alias-redirect map ---
@@ -246,7 +261,7 @@ ok( $e->{lock} && $e->{lock}{locked_by} eq 'alice', 'list surfaces the lock hold
     my %by_alias = map { $_->{alias} => $_ } @{ $r->{aliases} };
     is( $by_alias{'/old-guide'}{target}, '/content/handbook-v2',
         'aliases-list row carries the target' );
-    is( $by_alias{'/old-guide'}{code}, 301, 'permanent row reports 301' );
+    is( $by_alias{'/old-guide'}{code},     301, 'permanent row reports 301' );
     is( $by_alias{'/guide-preview'}{code}, 302, 'temporary row reports 302' );
 }
 

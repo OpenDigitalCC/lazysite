@@ -652,8 +652,17 @@ sub _private_root {
     return $PRIVATE_ROOT_CACHE if defined $PRIVATE_ROOT_CACHE;
     my $d = $DOCROOT // '';
     $d =~ s{/+\z}{};
-    $d =~ s{/[^/]*\z}{};    # dirname, without File::Basename
-    return $PRIVATE_ROOT_CACHE = length $d ? "$d/lazysite-private" : '';
+    return $PRIVATE_ROOT_CACHE = '' unless length $d;
+
+    # Named for the docroot, not a fixed name in the parent - or two docroots
+    # sharing a parent share one store and each resolves the other's protected
+    # content by path. Mirrors Lazysite::Private::private_root; t/lint pins the
+    # pair (ADR 0001 keeps this copy module-free, which makes drift the risk).
+    my $leaf = $d;
+    $leaf =~ s{\A.*/}{};         # basename, without File::Basename
+    my $parent = $d;
+    $parent =~ s{/[^/]*\z}{};    # dirname, likewise
+    return $PRIVATE_ROOT_CACHE = "$parent/$leaf-lazysite-private";
 }
 
 # The docroot-relative ACL key for an absolute path in EITHER tree. undef when

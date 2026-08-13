@@ -434,9 +434,17 @@ sub action_backup_restore {
         # operation meant to recover from one. The existing `lazysite` excludes
         # do not cover it: the names differ, and these members carry no `./`.
         # Caught by the test, not by review.
-        '--exclude=lazysite-private',   '--exclude=lazysite-private/*',
-        '--exclude=./lazysite-private', '--exclude=./lazysite-private/*',
+        #
+        # Matched by SUFFIX rather than by this site's own store name. The store
+        # is named for its docroot, so an archive made on a site whose docroot
+        # had a different basename carries a differently-named member - and an
+        # exclude that missed it would extract that store into this docroot,
+        # which is the exposure this pass exists to avoid. A wildcard cannot
+        # under-match here; the separate pass below is what decides whether the
+        # store is restored at all, and it uses the exact name.
         '--no-anchored',
+        '--exclude=*lazysite-private',
+        '--exclude=*lazysite-private/*',
         '--exclude=*/lazysite/*',
     );
     return { ok => 0, error => 'Restore extraction failed (safety snapshot kept: '
