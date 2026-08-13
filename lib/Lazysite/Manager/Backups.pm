@@ -7,13 +7,15 @@ package Lazysite::Manager::Backups;
 
 use strict;
 use warnings;
-use POSIX          qw(strftime);
-use File::Path     qw(make_path);
-use File::Find     ();
-use Fcntl          qw(O_WRONLY O_CREAT O_EXCL);
-use Errno          ();
-use Lazysite::Util qw(log_event);
-use Exporter       qw(import);
+use POSIX             qw(strftime);
+use File::Path        qw(make_path);
+use File::Find        ();
+use File::Basename    qw(dirname basename);
+use Lazysite::Private ();
+use Fcntl             qw(O_WRONLY O_CREAT O_EXCL);
+use Errno             ();
+use Lazysite::Util    qw(log_event);
+use Exporter          qw(import);
 our @EXPORT_OK = qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore action_backup_delete
     write_sha256 read_sha256 verify_sha256);
@@ -319,7 +321,28 @@ sub action_backup_create {
         '--exclude=./lazysite-assets' )
         : ( '--exclude=./lazysite', '--exclude=./lazysite-assets' );
 
-    my $rc = system( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.' );
+    # SM286: the private content store is CONTENT, and it lives outside the
+    # docroot - so a tar of the docroot alone silently stops backing up every
+    # gated section. That is worse than the exposure the store removes, and it
+    # would be discovered at restore time, which is the worst moment to discover
+    # anything.
+    #
+    # A mid-command -C switches tar's directory for the members that follow, so
+    # one pass produces `./...` for the docroot and `lazysite-private/...` for
+    # the store. The docroot members keep their exact existing spelling, so an
+    # archive written before this still restores unchanged - the format is
+    # extended, not replaced. (Back-compat is not required here as of
+    # 2026-08-13, but breaking it for no gain would still be a choice with a
+    # cost and none of the benefit.)
+    my @store;
+    my $priv = Lazysite::Private::private_root($DOCROOT);
+    if ( defined $priv && -d $priv ) {
+        my $parent = dirname($priv);
+        my $leaf   = basename($priv);
+        @store = ( '-C', $parent, $leaf );
+    }
+
+    my $rc = system( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.', @store );
     if ( $rc != 0 || !-f $out || -z $out ) {
         # Drop the placeholder we claimed, or a failed snapshot sits in the
         # listing as a zero-byte tarball that reads as a usable one.
@@ -401,12 +424,63 @@ sub action_backup_restore {
         '--anchored',
         '--exclude=./lazysite', '--exclude=./lazysite/*',
         '--exclude=lazysite',   '--exclude=lazysite/*',
+
+        # SM286: and the private store, which this pass must NOT touch. Its
+        # members are extracted separately, into the docroot's parent, below.
+        #
+        # Without these the first pass extracts `lazysite-private/...` INTO the
+        # docroot - putting every gated file back exactly where the front end
+        # serves it, which is the whole exposure, restored from a backup, by the
+        # operation meant to recover from one. The existing `lazysite` excludes
+        # do not cover it: the names differ, and these members carry no `./`.
+        # Caught by the test, not by review.
+        '--exclude=lazysite-private',   '--exclude=lazysite-private/*',
+        '--exclude=./lazysite-private', '--exclude=./lazysite-private/*',
         '--no-anchored',
         '--exclude=*/lazysite/*',
     );
     return { ok => 0, error => 'Restore extraction failed (safety snapshot kept: '
             . $safety->{name} . ')' }
         if $rc != 0;
+
+    # SM286: the private store, extracted in its OWN pass, into the docroot's
+    # parent - because that is where it lives.
+    #
+    # This is the most dangerous line in the file and it is worth saying why.
+    # The pass above extracts an operator-supplied archive INTO the docroot; the
+    # SEC-2026-07 review showed an uploaded tarball replacing the account store
+    # through exactly this action, and the `lazysite` excludes are the fix. This
+    # pass extracts OUTSIDE the docroot, so a careless version would let an
+    # uploaded archive write anywhere its member names pointed.
+    #
+    # Confined three ways, none of them sufficient alone:
+    #   * only members named `lazysite-private` are extracted at all - an
+    #     explicit member list, not a filter, so anything else in the archive is
+    #     never a candidate;
+    #   * --anchored, so the name cannot be reached by nesting;
+    #   * the leading `/` strip and `..` refusal that GNU tar applies by default,
+    #     which stop an absolute or climbing member.
+    # And the pass runs only when the archive actually contains such a member,
+    # so an archive without one does no extraction outside the docroot at all.
+    {
+        my $priv = Lazysite::Private::private_root($DOCROOT);
+        my $leaf = defined $priv ? basename($priv) : undef;
+        if ( defined $leaf && length $leaf ) {
+            my $listing = `tar tzf \Q$full\E 2>/dev/null`;
+            if ( defined $listing && $listing =~ m{^\Q$leaf\E/}m ) {
+                my $prc = system(
+                    'tar',             'xzf', $full, '-C', dirname($priv),
+                    '--no-same-owner', '--no-same-permissions',
+                    '--anchored',      $leaf,
+                );
+                return {
+                    ok    => 0,
+                    error => 'Restore of the private content store failed '
+                        . '(safety snapshot kept: ' . $safety->{name} . ')'
+                } if $prc != 0;
+            }
+        }
+    }
 
     # Drop render caches: only .html with a .md sibling (a bare legacy .html is
     # real migration content since SM133, never a cache - leave it alone).
