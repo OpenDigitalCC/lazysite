@@ -8,6 +8,7 @@ lazysite-dav.pl         usr/share/lazysite
 lazysite-manager-api.pl usr/share/lazysite
 lazysite-mcp.pl         usr/share/lazysite
 lazysite-oauth.pl       usr/share/lazysite
+lazysite-front.pl       usr/share/lazysite
 install.pl              usr/share/lazysite
 VERSION                 usr/share/lazysite
 LICENSE                 usr/share/lazysite
