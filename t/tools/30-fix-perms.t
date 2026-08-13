@@ -9,7 +9,7 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_cmd);
 
 my $TOOL = repo_root() . '/tools/lazysite-fix-perms.pl';
 ok( -f $TOOL, 'fix-perms tool present' );
@@ -36,7 +36,8 @@ print {$u} "op:hash\n";
 close $u;
 chmod 0755, "$root/forms";    # drifted: not group-writable/setgid
 
-sub run { my $out = qx($^X \Q$TOOL\E --docroot \Q$d\E @_ 2>&1); return $out }
+# List form: @_ interpolated into a shell string re-splits on any space.
+sub run { return run_cmd( $^X, $TOOL, '--docroot', $d, @_ ) }
 
 my $help = qx($^X \Q$TOOL\E --help 2>&1);
 like( $help, qr/lazysite-check|repair/i, '--help explains it delegates to the repairer' );

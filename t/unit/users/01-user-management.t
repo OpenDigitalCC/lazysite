@@ -2,11 +2,11 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
+use File::Temp  qw(tempdir);
 use Digest::SHA qw(sha256_hex);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_cmd);
 
 my $root    = repo_root();
 my $script  = "$root/tools/lazysite-users.pl";
@@ -17,7 +17,8 @@ ok( -f $script, 'tools/lazysite-users.pl present' );
 sub run_cli {
     my (@args) = @_;
     my @cmd = ( $^X, $script, '--docroot', $docroot, @args );
-    return qx(@cmd 2>&1);
+    # List form: "qx(@cmd)" joins on a space and lets the shell re-split it.
+    return run_cmd(@cmd);
 }
 
 # --- add user ---
@@ -30,7 +31,7 @@ sub run_cli {
     my $content = do { local $/; <$fh> }; close $fh;
     # H-2: new format is sha256iter:SALT:ITERATIONS:HASH
     like( $content, qr{^alice:sha256iter:[0-9a-f]{32}:100000:[0-9a-f]{64}\s*$}m,
-          'users file has a salted iterated hash for alice' );
+        'users file has a salted iterated hash for alice' );
 }
 
 # --- list users ---
@@ -49,11 +50,11 @@ sub run_cli {
     # derivation with the same salt — this proves the new password took
     # effect (salts differ per invocation so we cannot compare hashes
     # directly without reading the stored salt).
-    my ($salt, $iters, $hash) =
+    my ( $salt, $iters, $hash ) =
         ( $content =~ m{^alice:sha256iter:([0-9a-f]{32}):(\d+):([0-9a-f]{64})}m );
     ok( $salt && $iters && $hash, 'new hash has sha256iter format' );
     my $derived = 'newpass';
-    $derived = sha256_hex($salt . $derived) for 1 .. $iters;
+    $derived = sha256_hex( $salt . $derived ) for 1 .. $iters;
     is( $hash, $derived, 'stored hash matches sha256iter(newpass) with stored salt' );
 }
 

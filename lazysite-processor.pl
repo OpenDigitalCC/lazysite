@@ -3683,15 +3683,31 @@ sub convert_p_links {
 
 # --- oEmbed ---
 
-# Known provider endpoints - matched by URL pattern
-# Falls back to autodiscovery for unlisted providers
-my %OEMBED_PROVIDERS = (
-    qr{youtube\.com/watch|youtu\.be/} => 'https://www.youtube.com/oembed',
-    qr{vimeo\.com/}                   => 'https://vimeo.com/api/oembed.json',
-    qr{/videos/watch/|/videos/embed/} => undef,    # PeerTube - autodiscover
-    qr{twitter\.com/|x\.com/}         => 'https://publish.twitter.com/oembed',
-    qr{soundcloud\.com/}              => 'https://soundcloud.com/oembed',
-);
+# Known provider endpoints - matched by URL pattern.
+# Falls back to autodiscovery for unlisted providers.
+#
+# A SUB, not a file-scoped `my`. This file runs its main body near the top and
+# defines its subs below it, so a `my %OEMBED_PROVIDERS = (...)` written here
+# was still EMPTY when a request was served: the known-provider loop in
+# find_oembed_endpoint iterated zero times and EVERY oEmbed fell through to
+# autodiscovery. It kept working - the large providers do advertise the link
+# tag - which is why nothing surfaced it, but the endpoint was then taken from
+# the remote page instead of from this list, leaving the "restrict to trusted
+# hosts" mitigation named below inert.
+#
+# THIRD instance of this trap: SM285 shipped it as `my @PROBE_EXT` (a security
+# probe that passed by testing nothing) and SM293 as `my %REGISTRY_CT` (every
+# registry 404'd). t/lint/39 fails on it now - and found THIS one on its first
+# run, in code that had been shipped for months.
+sub _oembed_providers {
+    return (
+        qr{youtube\.com/watch|youtu\.be/} => 'https://www.youtube.com/oembed',
+        qr{vimeo\.com/}                   => 'https://vimeo.com/api/oembed.json',
+        qr{/videos/watch/|/videos/embed/} => undef,    # PeerTube - autodiscover
+        qr{twitter\.com/|x\.com/}         => 'https://publish.twitter.com/oembed',
+        qr{soundcloud\.com/}              => 'https://soundcloud.com/oembed',
+    );
+}
 
 sub convert_oembed {
     my ($text) = @_;
@@ -3732,7 +3748,7 @@ sub fetch_oembed {
     # Parse JSON safely using JSON::PP (S3)
     # Note: JSON::PP gives correct string values but the html field content
     # itself is still trusted as-is. A compromised or malicious provider
-    # could return arbitrary HTML. Restrict OEMBED_PROVIDERS to trusted
+    # could return arbitrary HTML. Restrict _oembed_providers() to trusted
     # hosts if this is a concern in your deployment.
     my $data = eval { decode_json($raw) };
     if ( $@ || !defined $data || !defined $data->{html} ) {
@@ -3747,9 +3763,10 @@ sub find_oembed_endpoint {
     my ($url) = @_;
 
     # Check known providers first
-    for my $pattern ( keys %OEMBED_PROVIDERS ) {
+    my %providers = _oembed_providers();
+    for my $pattern ( keys %providers ) {
         if ( $url =~ $pattern ) {
-            my $ep = $OEMBED_PROVIDERS{$pattern};
+            my $ep = $providers{$pattern};
             return $ep if $ep;
             last;    # Pattern matched but no endpoint - fall through to autodiscovery
         }

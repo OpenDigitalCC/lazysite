@@ -1,13 +1,13 @@
 use strict;
 use warnings;
 use Test::More;
-use JSON::PP qw(decode_json encode_json);
-use POSIX qw(strftime);
+use JSON::PP   qw(decode_json encode_json);
+use POSIX      qw(strftime);
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_cmd);
 
 # The AI visitor-stats export: a SANITISED, cached, incremental JSON the agent
 # reasons over - aggregates + an event stream, never the raw log, a filesystem
@@ -30,13 +30,13 @@ sub line {
 
 open my $lf, '>', $LOG or die $!;
 print $lf line( '1.2.3.4', '/about', 200, 'https://google.com/', 'Mozilla/5.0 Chrome/120' );
-print $lf line( '1.2.3.5', '/about', 200, '-',                    'Mozilla/5.0 Safari/16' );
-print $lf line( '9.9.9.9', '/x',     200, '-',                    'ClaudeBot/1.0' );
-print $lf line( '8.8.8.8', '/wp-login.php', 404, '-',             'curl/8' );
+print $lf line( '1.2.3.5', '/about',        200, '-', 'Mozilla/5.0 Safari/16' );
+print $lf line( '9.9.9.9', '/x',            200, '-', 'ClaudeBot/1.0' );
+print $lf line( '8.8.8.8', '/wp-login.php', 404, '-', 'curl/8' );
 close $lf;
 
 sub run_export {
-    local $ENV{DOCUMENT_ROOT}      = $d;
+    local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $LOG;
     my $out = qx($^X \Q$PLUGIN\E --export --window 30 2>/dev/null);
     return decode_json($out);
@@ -44,17 +44,17 @@ sub run_export {
 
 my $r = run_export();
 ok( $r->{ok}, 'export ok' );
-is( $r->{schema_version}, '2', 'schema_version bumped to 2 (SM213)' );
+is( $r->{schema_version},       '2', 'schema_version bumped to 2 (SM213)' );
 is( $r->{totals}{human_visits}, 2, 'two human visits (the AI + scanner are not human)' );
-is( $r->{traffic_classes}{ai}{visits},      1, 'one AI-assistant hit (ClaudeBot)' );
+is( $r->{traffic_classes}{ai}{visits}, 1, 'one AI-assistant hit (ClaudeBot)' );
 # SM213: visitor-level scanner classification - the wp-login probe marks its
 # visitor a scanner, so it lands in the scanner class, not noise.
 is( $r->{traffic_classes}{scanner}{visits}, 1, 'the wp-login probe is classed scanner (visitor-level)' );
-is( $r->{traffic_classes}{noise}{visits},   0, 'and is no longer counted as generic noise' );
+is( $r->{traffic_classes}{noise}{visits}, 0, 'and is no longer counted as generic noise' );
 # SM213: 404 split - the probe 404 is junk (a scanner), not a plausible missing page.
-is( $r->{not_found}{junk_count}, 1, 'the probe 404 counts as junk' );
-is( scalar @{ $r->{not_found}{plausible} }, 0, 'no plausible (human) 404s here' );
-is( $r->{top_pages}[0]{key}, '/about', 'top human page is /about' );
+is( $r->{not_found}{junk_count},            1,        'the probe 404 counts as junk' );
+is( scalar @{ $r->{not_found}{plausible} }, 0,        'no plausible (human) 404s here' );
+is( $r->{top_pages}[0]{key},                '/about', 'top human page is /about' );
 ok( @{ $r->{by_day} } >= 1, 'by_day trend present' );
 is( scalar @{ $r->{events} }, 4, 'event stream has all four requests' );
 
@@ -71,7 +71,7 @@ print $ap line( '7.7.7.7', '/docs', 200, '-', 'Mozilla/5.0 Chrome/120' );
 close $ap;
 my $r2 = run_export();
 is( $r2->{totals}{human_visits}, 3, 'incremental: appended human line counted' );
-is( scalar @{ $r2->{events} }, 5, 'incremental: appended event added' );
+is( scalar @{ $r2->{events} },   5, 'incremental: appended event added' );
 
 open my $ch, '<', "$d/lazysite/cache/stats-export.json" or die $!;
 my $cache = decode_json( do { local $/; <$ch> } );
@@ -84,9 +84,9 @@ is( $cache->{offset}, -s $LOG, 'cache offset matches the log size (clean boundar
 # human/referrer buckets (not just flag the probe). A real person hitting a missing
 # page is a plausible 404.
 open my $ap2, '>>', $LOG or die $!;
-print $ap2 line( '5.5.5.5', '/',            200, 'https://reddit.com/', 'Mozilla/5.0 Chrome/120' );
-print $ap2 line( '5.5.5.5', '/secrets.json', 404, '-',                  'Mozilla/5.0 Chrome/120' );
-print $ap2 line( '6.6.6.6', '/moved-page',   404, '-',                  'Mozilla/5.0 Safari/16' );
+print $ap2 line( '5.5.5.5', '/', 200, 'https://reddit.com/', 'Mozilla/5.0 Chrome/120' );
+print $ap2 line( '5.5.5.5', '/secrets.json', 404, '-',       'Mozilla/5.0 Chrome/120' );
+print $ap2 line( '6.6.6.6', '/moved-page',   404, '-',       'Mozilla/5.0 Safari/16' );
 close $ap2;
 my $r3 = run_export();
 # Would be 5 if the spoofer's homepage counted (3 + spoofer / + the 6.6.6.6 human
@@ -104,20 +104,20 @@ my ($this_mon) = $today =~ /^(\d{4}-\d{2})/;
 
 # Self-describing fields distinguish the complete aggregates from the raw sample.
 ok( defined $r2->{data_from}, 'SM213: data_from present (how far the aggregates reach)' );
-is( ref $r2->{sample}, 'HASH', 'SM213: sample block present' );
+is( ref $r2->{sample}, 'HASH',                       'SM213: sample block present' );
 is( $r2->{sample}{count}, scalar @{ $r2->{events} }, 'SM213: sample.count matches the event ring' );
 ok( defined $r2->{sample}{from} && defined $r2->{sample}{to}, 'SM213: sample states its from/to span' );
 is( ref $r2->{months}, 'ARRAY', 'SM213: month-on-month series present' );
 ok( ( grep { $_->{month} eq $this_mon } @{ $r2->{months} } ), 'SM213: current month in the series' );
 
 # The durable store: a per-day file, a monthly rollup, and an index - OUTSIDE cache.
-ok( -f "$d/lazysite/stats/daily/$today.json",     'SM213: durable per-day file written' );
+ok( -f "$d/lazysite/stats/daily/$today.json", 'SM213: durable per-day file written' );
 ok( -f "$d/lazysite/stats/monthly/$this_mon.json", 'SM213: durable monthly rollup written' );
-ok( -f "$d/lazysite/stats/index.json",            'SM213: durable index written' );
+ok( -f "$d/lazysite/stats/index.json",             'SM213: durable index written' );
 
 my $day = decode_json( do { open my $f, '<', "$d/lazysite/stats/daily/$today.json" or die $!; local $/; <$f> } );
-is( $day->{date}, $today, 'day file is dated' );
-is( $day->{pageviews}, 4, 'day rollup counts the human hits (incl. the human 404)' );
+is( $day->{date},      $today, 'day file is dated' );
+is( $day->{pageviews}, 4,      'day rollup counts the human hits (incl. the human 404)' );
 ok( exists $day->{top_pages} && exists $day->{classes}, 'day rollup carries aggregates' );
 # Privacy: a durable day file holds aggregates only - no per-visitor list, no IP.
 my $day_json = encode_json($day);
@@ -129,7 +129,8 @@ sub run_sel {
     my (@a) = @_;
     local $ENV{DOCUMENT_ROOT}       = $d;
     local $ENV{LAZYSITE_ACCESS_LOG} = $LOG;
-    return decode_json( qx($^X \Q$PLUGIN\E --export @a 2>/dev/null) );
+    # List form: @a interpolated into a shell string re-splits on any space.
+    return decode_json( run_cmd( $^X, $PLUGIN, '--export', @a ) );
 }
 my $idx = run_sel('--index');
 ok( $idx->{ok} && $idx->{data_from} && ref $idx->{days} eq 'ARRAY' && ref $idx->{months} eq 'ARRAY',
@@ -165,7 +166,7 @@ ok( !$bad->{ok}, 'SM213: an absent day is a clean not-found, not a crash' );
     is( $fd->{quarantined},       1, 'SM216-2: one quarantined submission counted' );
     is( $fd->{blocked_total},     2, 'SM216-2: two blocked POSTs counted' );
     is( $fd->{blocked}{honeypot}, 1, 'SM216-2: a honeypot block is attributed by reason' );
-    is( $fd->{blocked}{rate},     1, 'SM216-2: a rate-limit block is attributed by reason' );
+    is( $fd->{blocked}{rate}, 1, 'SM216-2: a rate-limit block is attributed by reason' );
 
     # Folded into the durable day file too, as counts only.
     my $dayf = decode_json(

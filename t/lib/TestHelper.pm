@@ -18,7 +18,38 @@ our @EXPORT_OK = qw(
     grant_caps revoke_caps
     env_passthrough
     repo_manifest_guard
+    run_cmd
 );
+
+# Run a command and capture its output. LIST FORM - no shell, ever.
+#
+# WHY THIS EXISTS. Tests kept building a shell string and interpolating into it,
+# which works until an argument contains a space and then fails in the most
+# misleading way available: the command is silently re-split into different
+# words, the tool under test receives nonsense, and EVERY assertion in the file
+# fails at once. That reads exactly like the feature being broken.
+#
+# It has cost two debugging sessions in one day. `lazysite acl` looked entirely
+# broken because "--docroot is required" came back for every call; the front
+# door looked entirely broken because no route reached any surface. Both times
+# the tool was fine and the harness was wrong, and both times the honest signal
+# - "everything failed at once" - pointed at the product.
+#
+# Returns the combined stdout+stderr, with the exit status in $?, because a test
+# that ignores stderr cannot tell a refusal from a crash.
+sub run_cmd {
+    my (@argv) = @_;
+    my $pid    = open my $ph, '-|';
+    die "run_cmd: cannot fork: $!" unless defined $pid;
+    if ( !$pid ) {
+        open STDERR, '>&', \*STDOUT or exit 127;
+        exec @argv;
+        exit 127;
+    }
+    my $out = do { local $/; <$ph> };
+    close $ph;
+    return defined $out ? $out : '';
+}
 
 # SM269 phase 1: OWN the shared release-manifest.json, rather than lock beside
 # six copies of its lifecycle.
@@ -71,7 +102,7 @@ sub repo_manifest_guard {
         # Remove BEFORE releasing the lock, or the next waiter can see a file
         # that is about to vanish - which is the original race in miniature.
         unlink $self->{mf} if $self->{built} && -f $self->{mf};
-        close $self->{fh}  if $self->{fh};    # flock releases on close
+        close $self->{fh}  if $self->{fh};                       # flock releases on close
         return;
     }
 }

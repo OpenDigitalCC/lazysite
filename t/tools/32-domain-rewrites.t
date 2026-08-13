@@ -14,7 +14,7 @@ use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../lib";
-use TestHelper               qw(repo_root);
+use TestHelper               qw(repo_root run_cmd);
 use Lazysite::DomainRewrites ();
 
 # --- Fixture: a docroot whose conf has two first-class aliases (own
@@ -80,7 +80,8 @@ close $cf;
 sub run_tool {
     my ( $tool, @args ) = @_;
     my $path = repo_root() . "/tools/$tool";
-    return scalar qx($^X \Q$path\E @args 2>&1);
+    # List form: @args interpolated into a shell string re-splits on any space.
+    return run_cmd( $^X, $path, @args );
 }
 {
     my $ap = run_tool( 'lazysite-apache-vhost.pl', 'rewrites', '--docroot', $d );

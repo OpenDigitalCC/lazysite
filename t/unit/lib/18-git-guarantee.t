@@ -35,7 +35,7 @@ use File::Find ();
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use lib "$FindBin::Bin/../../../lib";
-use TestHelper    qw(repo_root);
+use TestHelper    qw(repo_root run_cmd);
 use Lazysite::Git ();
 
 my $root = repo_root();
@@ -124,19 +124,19 @@ my %EXEMPT = (
     # --- Domains (SM255: newly scanned) ---
     'Domains::domain_check'   => 'read-only - probes DNS/TLS and reports; writes nothing',
     'Domains::domain_preview' => 'read-only - renders a host as a visitor would see it',
-    'Domains::domain_usage'   => 'read-only - inverts the conf into a layout/theme usage map',
+    'Domains::domain_usage' => 'read-only - inverts the conf into a layout/theme usage map',
     # --- Files ---
-    'Files::action_list'         => 'read-only',
-    'Files::action_read'         => 'read-only',
-    'Files::action_aliases_list' => 'read-only',
-    'Files::action_acl_get'      => 'read-only',
-    'Files::action_protected_sections' => 'read-only',
-    'Files::action_git_status'   => 'read-only',
-    'Files::action_git_history'  => 'read-only',
+    'Files::action_list'                => 'read-only',
+    'Files::action_read'                => 'read-only',
+    'Files::action_aliases_list'        => 'read-only',
+    'Files::action_acl_get'             => 'read-only',
+    'Files::action_protected_sections'  => 'read-only',
+    'Files::action_git_status'          => 'read-only',
+    'Files::action_git_history'         => 'read-only',
     'Files::action_git_history_summary' => 'read-only',    # SM199: site-level stats view
-    'Files::action_git_show'     => 'read-only',
-    'Files::action_mkdir'        => 'creates an empty directory - git cannot track one',
-    'Files::action_acl_set'      => 'ACL sidecar store (permissions metadata, not page '
+    'Files::action_git_show'            => 'read-only',
+    'Files::action_mkdir'   => 'creates an empty directory - git cannot track one',
+    'Files::action_acl_set' => 'ACL sidecar store (permissions metadata, not page '
         . 'content; swept by the next commit_all capture)',
     'Files::action_acl_remove'  => 'ACL sidecar store (as action_acl_set)',
     'Files::action_git_restore' =>
@@ -159,7 +159,7 @@ my %EXEMPT = (
         'stores an uploaded package under lazysite/backups/ - not versioned content',
     'API::action_site_backup_inspect' => 'read-only',
     'API::action_site_backup_download' => 'read-only (streams a package; no content write)',
-    'API::action_site_backup_delete'  =>
+    'API::action_site_backup_delete'   =>
         'removes a package under lazysite/backups/ - not versioned content',
     'API::action_site_export_primary' =>
         'writes only a package under lazysite/backups/ - not versioned content',
@@ -178,7 +178,7 @@ my %EXEMPT = (
     'Plugins::action_plugin_disable' => 'as action_plugin_enable',
     'Plugins::action_handler_save'   =>
         'writes under lazysite/forms/ - excluded from the versioned set',
-    'Plugins::action_handler_delete'    => 'as action_handler_save',
+    'Plugins::action_handler_delete'         => 'as action_handler_save',
     'Plugins::action_form_targets_save'      => 'as action_handler_save',
     'Plugins::action_form_submission_delete' =>
         'rewrites a submissions store under lazysite/forms/ - excluded from the versioned set',
@@ -196,14 +196,14 @@ my %EXEMPT = (
     'Layouts::action_themes_for_layout'        => 'read-only',
     'Layouts::action_layouts_repo_get'         => 'read-only',
     'Layouts::action_layouts_manifest'         => 'read-only',
-    'Layouts::action_layout_install'  => 'layout/theme artifact write (capture-swept)',
-    'Layouts::action_layout_delete'   => 'layout/theme artifact write (capture-swept)',
+    'Layouts::action_layout_install' => 'layout/theme artifact write (capture-swept)',
+    'Layouts::action_layout_delete'  => 'layout/theme artifact write (capture-swept)',
     'Layouts::action_artifact_backups_delete' => 'layout/theme artifact write (capture-swept)',
-    'Themes::action_theme_list'        => 'read-only',
-    'Themes::action_themes_list_all'   => 'read-only',
-    'Themes::action_theme_tokens'      => 'read-only',    # SM204: token-vocabulary discovery
-    'Themes::action_create_theme'      => 'layout/theme artifact write (capture-swept)',    # SM205
-    'Themes::action_cache_list'        => 'read-only',
+    'Themes::action_theme_list'      => 'read-only',
+    'Themes::action_themes_list_all' => 'read-only',
+    'Themes::action_theme_tokens'    => 'read-only',   # SM204: token-vocabulary discovery
+    'Themes::action_create_theme' => 'layout/theme artifact write (capture-swept)', # SM205
+    'Themes::action_cache_list'   => 'read-only',
     'Themes::action_artifact_manifest' => 'read-only',
     'Themes::action_artifact_validate' => 'read-only',
     'Themes::action_theme_delete'      => 'layout/theme artifact write (capture-swept)',
@@ -223,22 +223,22 @@ my %EXEMPT = (
     'API::action_notices'       => 'read-only',
     'API::action_notices_seen'  =>
         'notice-seen marker under lazysite/manager, not page content',
-    'API::action_pages'                 => 'read-only',
-    'API::action_config_read'           => 'read-only',
-    'API::action_domains_list'          => 'read-only',
-    'API::action_domain_check'          => 'read-only', # SM156: probes DNS/TLS, no content write
-    'API::action_lang_status'           => 'read-only', # SM179 P6: reports coverage, no write
+    'API::action_pages'        => 'read-only',
+    'API::action_config_read'  => 'read-only',
+    'API::action_domains_list' => 'read-only',
+    'API::action_domain_check' => 'read-only',   # SM156: probes DNS/TLS, no content write
+    'API::action_lang_status'  => 'read-only',   # SM179 P6: reports coverage, no write
     'API::action_describe_capabilities' => 'read-only',
     'API::action_whoami'                => 'read-only',
     'API::action_recent_changes'        => 'read-only',
-    'API::action_channel_services'      => 'read-only', # SM180: reports killswitch state, no write
-    'API::action_audit'                 => 'read-only',
-    'API::action_analyse_visitors'      => 'read-only',
-    'API::action_version'               => 'read-only',
-    'API::action_principals'            => 'read-only',
-    'API::action_users'                 => 'auth store - excluded from the versioned set',
-    'API::action_rotate_auth_secret'    => 'auth store - excluded from the versioned set',
-    'API::action_nav_read'              => 'read-only',
+    'API::action_channel_services' => 'read-only', # SM180: reports killswitch state, no write
+    'API::action_audit'            => 'read-only',
+    'API::action_analyse_visitors'   => 'read-only',
+    'API::action_version'            => 'read-only',
+    'API::action_principals'         => 'read-only',
+    'API::action_users'              => 'auth store - excluded from the versioned set',
+    'API::action_rotate_auth_secret' => 'auth store - excluded from the versioned set',
+    'API::action_nav_read'           => 'read-only',
     # --- DAV verbs ---
     'DAV::do_options'   => 'read-only',
     'DAV::do_propfind'  => 'read-only',
@@ -262,9 +262,9 @@ subtest 'write-path registry: every action/verb classified, hooks verified' => s
         # the guarantee entirely - the gap that let domain-set diverge from
         # config-set unnoticed. Its verbs are named domain_*, hence the
         # per-module pattern.
-        Domains  => [ "$root/lib/Lazysite/Manager/Domains.pm", qr/^domain_/ ],
-        API      => [ "$root/lazysite-manager-api.pl",          qr/^action_/ ],
-        DAV      => [ "$root/lazysite-dav.pl",                  qr/^do_/ ],
+        Domains => [ "$root/lib/Lazysite/Manager/Domains.pm", qr/^domain_/ ],
+        API     => [ "$root/lazysite-manager-api.pl",         qr/^action_/ ],
+        DAV     => [ "$root/lazysite-dav.pl",                 qr/^do_/ ],
     );
 
     my ( %seen, @unclassified, @unhooked, @overhooked );
@@ -467,7 +467,11 @@ subtest 'one induced failure, every surface agrees; one fix, every surface recov
     chmod 0664, "$d/lazysite/lazysite.conf", "$d/lazysite/nav.conf"; # keep the doctor quiet
 
     my $grp = getgrgid( ( stat $d )[5] ) // ( stat $d )[5];
-    my $check = sub { qx($^X "$root/tools/lazysite-check.pl" --docroot "$d" --group $grp @_ 2>&1) };
+    # List form: @_ interpolated into a shell string re-splits on any space.
+    my $check = sub {
+        return run_cmd( $^X, "$root/tools/lazysite-check.pl",
+            '--docroot', $d, '--group', $grp, @_ );
+    };
     my $status = sub {
         my $out = qx($^X "$root/plugins/content-history.pl" --scan --docroot "$d");
         return eval { decode_json($out) } // {};

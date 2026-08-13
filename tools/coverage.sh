@@ -18,7 +18,41 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 DB="$ROOT/cover_db"
 FLOOR_FILE="$ROOT/dist/config/coverage-floor"
-rm -rf "$DB"
+
+# ONE RUN AT A TIME. Two concurrent runs share $DB: the second one's `rm -rf`
+# deletes files the first is still writing, and both then report nonsense - all
+# CGIs "NOT MEASURED", which reads as a real gate failure. That cost an hour on
+# 2026-08-13, twice, and neither run said anything about the other.
+LOCK="$ROOT/.coverage.lock"
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"$LOCK"
+    if ! flock -n 9; then
+        echo "coverage: another run holds $LOCK - refusing to share cover_db." >&2
+        echo "  Wait for it, or stop it first. Two runs corrupt each other's" >&2
+        echo "  results and report every CGI as NOT MEASURED." >&2
+        exit 2
+    fi
+fi
+
+# `|| true` because `set -e` is on: without it a failed rm exits here with a
+# bare "cannot remove" and no explanation at all, which is precisely how this
+# presented - a wall of rm noise, no coverage output, and nothing saying why.
+rm -rf "$DB" 2>/dev/null || true
+
+# A LIVE WRITER survives the rm, and that is the failure mode worth naming: a
+# `prove` orphaned from a previous run keeps executing tests and re-creating
+# lock files under $DB, so `rm -rf` reports "Directory not empty" and the run
+# proceeds on a poisoned database. Every CGI then reports NOT MEASURED and the
+# gate fails for a reason that has nothing to do with the code.
+#
+# Found the hard way: killing a coverage run's shell left its `prove` child
+# reparented to init, still writing, for half an hour.
+if [ -e "$DB" ]; then
+    echo "coverage: $DB survived removal - something is still writing to it." >&2
+    echo "  Look for an orphaned test run:  ps -eo pid,ppid,cmd | awk '\$2==1'" >&2
+    echo "  Kill it by PID, confirm the file count stops changing, then re-run." >&2
+    exit 2
+fi
 
 echo "Running the suite under Devel::Cover (subprocess CGIs instrumented)..." >&2
 PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,/t/,+ignore,Devel" \

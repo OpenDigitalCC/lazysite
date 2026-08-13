@@ -8,7 +8,7 @@ use File::Temp qw(tempdir);
 use File::Path qw(make_path remove_tree);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use TestHelper qw(repo_root);
+use TestHelper qw(repo_root run_cmd);
 
 my $root   = repo_root();
 my $script = "$root/tools/lazysite-check.pl";
@@ -59,8 +59,13 @@ for my $s (qw(lazysite-processor.pl lazysite-auth.pl lazysite-manager-api.pl)) {
 # The test's files are owned by the test user's group (not www-data), so pass
 # --group explicitly; otherwise the group check would (correctly) flag them.
 my $gname = getgrgid( ( stat $doc )[5] ) // ( stat $doc )[5];
-sub run_as_group { my $g = shift; qx($^X $script --docroot $doc --cgibin $cgi --group $g @_ 2>&1) }
-sub run          { run_as_group( $gname, @_ ) }
+# List form: @_ interpolated into a shell string re-splits on any space.
+sub run_as_group {
+    my $g = shift;
+    return run_cmd( $^X, $script, '--docroot', $doc, '--cgibin', $cgi,
+        '--group', $g, @_ );
+}
+sub run { run_as_group( $gname, @_ ) }
 
 # --- detection ---
 {

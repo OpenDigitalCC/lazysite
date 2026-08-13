@@ -8,11 +8,11 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
-use JSON::PP qw(encode_json decode_json);
+use JSON::PP   qw(encode_json decode_json);
 use IPC::Open2;
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
-use TestHelper qw(repo_root grant_caps);
+use TestHelper qw(repo_root grant_caps run_cmd);
 
 my $root   = repo_root();
 my $script = "$root/tools/lazysite-users.pl";
@@ -22,7 +22,8 @@ my $me     = getpwuid($<) // "uid:$<";
 sub run_cli {
     my (@args) = @_;
     my @cmd = ( $^X, $script, '--docroot', $d, @args );
-    return qx(@cmd 2>&1);
+    # List form: "qx(@cmd)" joins on a space and lets the shell re-split it.
+    return run_cmd(@cmd);
 }
 
 sub users_api {
@@ -56,13 +57,13 @@ like( $l[0], qr/\Q| $me | user-add | alice |\E\s*\| ok \| cli$/,
 unlike( $l[0], qr/pw-alpha-1/, 'password never appears in the trail' );
 
 # --- passwd / group ops / settings ---
-run_cli( 'passwd', 'alice', 'pw-alpha-2' );
-run_cli( 'group-add', 'alice', 'content-editors' );
+run_cli( 'passwd',       'alice', 'pw-alpha-2' );
+run_cli( 'group-add',    'alice', 'content-editors' );
 run_cli( 'group-remove', 'alice', 'content-editors' );
-run_cli( 'set', 'alice', 'comment', 'test account' );
+run_cli( 'set',          'alice', 'comment', 'test account' );
 @l = audit_lines();
 is( scalar @l, 5, 'each mutating command appended one entry' );
-like( $l[1], qr/\| user-passwd \| alice \|/,  'passwd audited' );
+like( $l[1], qr/\| user-passwd \| alice \|/, 'passwd audited' );
 unlike( join( "\n", @l ), qr/pw-alpha-2/, 'new password not in the trail' );
 like( $l[2], qr/\| user-group-add \| alice\@content-editors \|/,
     'group-add audited with user@group target' );
@@ -104,7 +105,7 @@ like( $l[-2], qr/\| user-account-disable \| alice \|/, 'disable audited' );
 like( $l[-1], qr/\| user-account-enable \| alice \|/,  'enable audited' );
 
 # --- partner-create (compound): summary + pairing-key, no primitive spam ---
-grant_caps( $d, 'alice', 'create_sub_users' );   # direct file write, no audit
+grant_caps( $d, 'alice', 'create_sub_users' );    # direct file write, no audit
 @l      = audit_lines();
 $before = scalar @l;
 run_cli( 'partner-create', 'bot-x', '--by', 'alice' );
