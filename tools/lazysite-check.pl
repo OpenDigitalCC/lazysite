@@ -923,6 +923,9 @@ sub run_checks {
     # --- 8c. who an @group ACL entry now admits (SM288) -------------------------
     report_group_acl_reach();
 
+    # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
+    report_stray_public();
+
     # --- 9. content provenance (is this content lazysite's or the operator's?) ---
     # lazysite stamps its shipped seed pages with `provenance: lazysite-starter` in the
     # front matter. This reports which .md content is ours (unmodified vs customised)
@@ -1325,6 +1328,73 @@ sub report_group_acl_reach {
 # programme is about, and it survived until a test drove a real leaking front
 # end at it.
 sub _probe_exts { return qw(png pdf txt css gz dat) }
+
+# ---------------------------------------------------------------------------
+# SM286: content that exists in BOTH trees.
+#
+# The private store's one invariant is that a path lives in exactly one tree.
+# A path in both is always a fault, and always the same fault in the same
+# direction: the private copy is the one the engine governs, and the public one
+# is reachable without asking the engine at all. That is SM283 restored for a
+# single file - the gate holds everywhere the engine is consulted, and the front
+# end serves the copy beside it.
+#
+# It cannot arise from a completed move (move_in renames, and refuses when the
+# destination is already occupied rather than overwriting). It arises from a
+# move interrupted mid-copy on a cross-device fallback, from a restore of an
+# archive written before the content was protected, and from an operator putting
+# a file back by hand - none of which anything else would notice.
+#
+# FAIL, not WARN. The site is serving content it has been told to protect. And
+# reported rather than repaired: which copy to delete is a content decision, and
+# a tool that silently removes an operator's file to fix a permission problem is
+# a worse tool than one that tells them.
+sub report_stray_public {
+    my $d = $opt{docroot};
+
+    require Lazysite::Private;
+    my $root = Lazysite::Private::private_root($d);
+    return unless defined $root && -d $root;
+
+    my @stray;
+    require File::Find;
+    File::Find::find(
+        { no_chdir => 1,
+            wanted => sub {
+                my $p = $File::Find::name;
+                return if -l $p || !-f $p;
+                my $rel = substr $p, length($root) + 1;
+                push @stray, $rel if -e "$d/$rel";
+            },
+        },
+        $root
+    );
+
+    unless (@stray) {
+        report( 'OK',
+            'protected content is held outside the document root, with no '
+                . 'public copy left beside it' );
+        return;
+    }
+
+    # Cap the listing, but never the COUNT - a truncated list that does not say
+    # it was truncated reads as the whole problem.
+    my $n     = scalar @stray;
+    my @shown = @stray[ 0 .. ( $n > 10 ? 9 : $n - 1 ) ];
+    report(
+        'FAIL',
+        "$n protected "
+            . ( $n == 1 ? 'file is' : 'files are' )
+            . ' ALSO present in the document root, where the front end serves '
+            . 'them without asking the engine: '
+            . join( ', ', @shown )
+            . ( $n > 10 ? sprintf( ' (and %d more)', $n - 10 ) : '' ),
+        'the copy in the document root is the exposure. Confirm the copy in '
+            . 'the private store is the current one, then remove the public '
+            . 'copy - this tool will not delete content for you.'
+    );
+    return;
+}
 
 END { _acl_probe_cleanup() if defined $PROBE_DIR || defined $PROBE_KEY }
 

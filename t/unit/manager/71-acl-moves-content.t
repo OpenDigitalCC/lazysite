@@ -27,6 +27,7 @@ use Lazysite::Manager::Files  qw(action_acl_set action_acl_remove);
 use Lazysite::Manager::Common ();
 use Lazysite::Auth::Acl       qw(load_acls);
 use Lazysite::Private         qw(private_path stray_public);
+use JSON::PP                  ();
 
 my $base = tempdir( CLEANUP => 1 );
 my $d    = "$base/public_html";
@@ -251,6 +252,35 @@ subtest 'the site-wide rule says it moves nothing' => sub {
     ok( -d "$d/lazysite", 'and the document root is untouched' );
 
     action_acl_remove( '/', 'alice' );
+};
+
+
+subtest 'the listing says which tree an entry is in' => sub {
+    # Protected content is no longer in the document root, and a listing row
+    # looks identical either way. Without this, "is this page actually
+    # protected?" can only be answered by reading the ACL and trusting the move
+    # happened - which is the assumption underneath every defect in this
+    # programme.
+    spit( "$d/mixed/open.md",   "O\n" );
+    spit( "$d/mixed/closed.md", "C\n" );
+    ok( action_acl_set( 'mixed/closed.md', 'alice', ['alice'], undef, undef, undef )
+            ->{ok},
+        'one of the two is protected' );
+
+    my $l = Lazysite::Manager::Files::action_list( '/mixed', 'alice' );
+    ok( $l->{ok}, 'the folder lists' ) or diag( $l->{error} // '' );
+    my %by = map { $_->{name} => $_ } @{ $l->{entries} || [] };
+
+    is( ( $by{'open.md'}   || {} )->{store}, 'public',  'the public one says public' );
+    is( ( $by{'closed.md'} || {} )->{store}, 'private', 'the protected one says private' );
+
+    # The standing rule: filesystem paths are never exposed through any surface.
+    # The store's location is a filesystem fact, so the label must not leak it.
+    my $json = JSON::PP->new->canonical->encode($l);
+    unlike( $json, qr/\Q$base\E/,
+        'and no absolute filesystem path appears in the response' );
+    unlike( $json, qr/lazysite-private/,
+        'not even the store directory name - the label is enough to act on' );
 };
 
 done_testing();

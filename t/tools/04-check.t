@@ -48,8 +48,8 @@ print {$uf} "manager:sha256iter:aa:1:bb\n"; close $uf;
 # deliberate problems
 open my $sf, '>', "$doc/lazysite/auth/.secret" or die $!;
 print {$sf} "secret"; close $sf;
-chmod 0644, "$doc/lazysite/auth/.secret";   # world-readable -> FAIL
-chmod 0755, "$doc/lazysite/cache";          # not group-writable / no setgid -> FAIL
+chmod 0644,  "$doc/lazysite/auth/.secret";    # world-readable -> FAIL
+chmod 0755,  "$doc/lazysite/cache";           # not group-writable / no setgid -> FAIL
 chmod 02770, "$doc/lazysite/auth";
 for my $s (qw(lazysite-processor.pl lazysite-auth.pl lazysite-manager-api.pl)) {
     open my $x, '>', "$cgi/$s" or die $!; print {$x} "#!/usr/bin/perl\n"; close $x;
@@ -60,16 +60,16 @@ for my $s (qw(lazysite-processor.pl lazysite-auth.pl lazysite-manager-api.pl)) {
 # --group explicitly; otherwise the group check would (correctly) flag them.
 my $gname = getgrgid( ( stat $doc )[5] ) // ( stat $doc )[5];
 sub run_as_group { my $g = shift; qx($^X $script --docroot $doc --cgibin $cgi --group $g @_ 2>&1) }
-sub run { run_as_group( $gname, @_ ) }
+sub run          { run_as_group( $gname, @_ ) }
 
 # --- detection ---
 {
     my $out = run();
-    like( $out, qr/world-accessible/,            'flags the world-readable secret' );
+    like( $out, qr/world-accessible/,             'flags the world-readable secret' );
     like( $out, qr{lazysite/cache.*cannot write}, 'flags the non-writable cache dir' );
-    like( $out, qr/manager bootstrapped/,        'recognises a bootstrapped manager' );
-    like( $out, qr/failure\(s\)/,                'prints a summary' );
-    isnt( $? >> 8, 0,                            'non-zero exit when a check FAILs' );
+    like( $out, qr/manager bootstrapped/,         'recognises a bootstrapped manager' );
+    like( $out, qr/failure\(s\)/,                 'prints a summary' );
+    isnt( $? >> 8, 0, 'non-zero exit when a check FAILs' );
 }
 
 # --- fix ---
@@ -80,7 +80,7 @@ sub run { run_as_group( $gname, @_ ) }
 
     my $after = run();
     like( $after, qr/0 failure\(s\)/, 're-check is clean after --fix' );
-    is( $? >> 8, 0,                   'zero exit after repair' );
+    is( $? >> 8, 0, 'zero exit after repair' );
 }
 
 # --- missing manager bootstrap is a WARN, not a FAIL ---
@@ -241,29 +241,29 @@ SKIP: {
 # and are the documented exclusion (reported with the chown command, never
 # silently dropped).
 subtest 'one --fix run converges: every fixable FAIL repaired and printed' => sub {
-    my $b   = tempdir( CLEANUP => 1 );
-    my $d   = "$b/public_html";
+    my $b = tempdir( CLEANUP => 1 );
+    my $d = "$b/public_html";
     make_path( "$d/lazysite/auth", "$d/lazysite/forms", "$d/lazysite/logs",
         "$d/lazysite/cache/tt/deep", "$d/lazysite/templates/system" );
     my $w = sub { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1] // "x\n"; close $fh };
-    $w->("$d/lazysite/templates/system/$_.md") for qw(login claim 402 403 404);   # SM201 defaults
-    $w->("$d/lazysite/lazysite.conf", "site_name: t\n");
+    $w->("$d/lazysite/templates/system/$_.md") for qw(login claim 402 403 404); # SM201 defaults
+    $w->( "$d/lazysite/lazysite.conf", "site_name: t\n" );
     $w->("$d/lazysite/auth/.secret");
     $w->("$d/lazysite/forms/.secret");
     $w->("$d/lazysite/forms/smtp.conf");
     $w->("$d/lazysite/nav.conf");
     $w->("$d/lazysite/logs/audit.log");
     chmod 0600, "$d/lazysite/auth/.secret", "$d/lazysite/forms/.secret";
-    chmod 0666, "$d/lazysite/forms/smtp.conf";                       # world bits
+    chmod 0666, "$d/lazysite/forms/smtp.conf";    # world bits
     chmod 0644, "$d/lazysite/nav.conf", "$d/lazysite/logs/audit.log";
     chmod 0644, "$d/lazysite/lazysite.conf";
-    chmod 0555, "$d/lazysite/cache/tt", "$d/lazysite/cache/tt/deep"; # CGI-unwritable
+    chmod 0555, "$d/lazysite/cache/tt", "$d/lazysite/cache/tt/deep";    # CGI-unwritable
 
     my $grp = getgrgid( ( stat $d )[5] ) // ( stat $d )[5];
     my $fix = qx($^X $script --docroot $d --group $grp --fix 2>&1);
 
     like( $fix, qr/fixed: rm -rf .*cache\/tt/, 'tt cache purge printed its fixed: line' );
-    like( $fix, qr/fixed: chmod 0660 .*auth\/\.secret/,  'auth secret fixed AND printed' );
+    like( $fix, qr/fixed: chmod 0660 .*auth\/\.secret/, 'auth secret fixed AND printed' );
     like( $fix, qr/fixed: chmod 0660 .*forms\/\.secret/, 'forms secret fixed AND printed' );
     like( $fix, qr/fixed: chmod 0660 .*smtp\.conf/,      'smtp.conf fixed AND printed' );
     like( $fix, qr/fixed: chmod 0664 .*nav\.conf/,       'nav.conf fixed AND printed' );
@@ -306,9 +306,9 @@ subtest 'handover_mode: owner bits replicated onto the group' => sub {
 # flagged (the .well-known docs would advertise broken endpoints - the outsourcify
 # onboarding class of failure).
 subtest 'OAuth/remote discovery coherence check (SM190/SM200)' => sub {
-    my $b   = tempdir( CLEANUP => 1 );
-    my $c   = "$b/lazysite";
-    my $sp  = sub { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1]; close $fh };
+    my $b  = tempdir( CLEANUP => 1 );
+    my $c  = "$b/lazysite";
+    my $sp = sub { open my $fh, '>', $_[0] or die $!; print {$fh} $_[1]; close $fh };
     make_path("$c/templates/system");
     $sp->( "$c/templates/system/$_.md", "x\n" ) for qw(login claim 402 403 404);
 
@@ -319,13 +319,13 @@ subtest 'OAuth/remote discovery coherence check (SM190/SM200)' => sub {
     like( $run->(), qr/site_url is UNSET.*discovery/s,
         'oauth on + no site_url -> FAIL naming the discovery breakage' );
 
-    $w->("site_name: t\noauth_enabled: enabled\nsite_url: http://x.example\n");   # not https
+    $w->("site_name: t\noauth_enabled: enabled\nsite_url: http://x.example\n"); # not https
     like( $run->(), qr/not https/, 'oauth on + http site_url -> WARN (https required)' );
 
-    $w->("site_name: t\nmcp_enabled: enabled\nsite_url: https://x.example/\n");   # trailing slash
+    $w->("site_name: t\nmcp_enabled: enabled\nsite_url: https://x.example/\n"); # trailing slash
     like( $run->(), qr/trailing slash/, 'trailing-slash site_url -> WARN (double slash)' );
 
-    $w->("site_name: t\noauth_enabled: enabled\nsite_url: https://x.example\n");  # coherent
+    $w->("site_name: t\noauth_enabled: enabled\nsite_url: https://x.example\n"); # coherent
     like( $run->(), qr/discovery: site_url .*is coherent/, 'a clean https site_url -> OK' );
 
     # The house-standard dynamic value resolves to https under TLS - it must NOT
@@ -341,6 +341,49 @@ subtest 'OAuth/remote discovery coherence check (SM190/SM200)' => sub {
 
     $w->("site_name: t\n");    # no remote service -> the check is silent
     unlike( $run->(), qr/discovery/, 'no remote service enabled -> no discovery finding' );
+};
+
+# --- SM286: content present in BOTH trees ----------------------------------
+# The private store's one invariant is that a path lives in exactly one tree. A
+# path in both is always the same fault in the same direction: the private copy
+# is the one the engine governs, and the public one is served without asking the
+# engine at all - SM283 restored for a single file.
+#
+# It cannot come from a completed move (move_in renames, and refuses an occupied
+# destination rather than overwriting). It comes from a cross-device copy
+# interrupted mid-way, a restore of an archive written before the content was
+# protected, or an operator putting a file back by hand - none of which anything
+# else in this tool would notice.
+subtest 'a stray public copy of protected content is a FAIL' => sub {
+    my $store = "$base/public_html-lazysite-private";
+    make_path("$store/members");
+
+    open my $pf, '>', "$store/members/secret.md" or die $!;
+    print {$pf} "GATED\n";
+    close $pf;
+
+    my $clean = run();
+    like( $clean, qr/protected content is held outside the document root/,
+        'with the content only in the store, the check says so' );
+    unlike( $clean, qr/ALSO present in the document root/,
+        'and does not report a stray copy that is not there' );
+
+    # Now put a copy back where the front end serves it.
+    make_path("$doc/members");
+    open my $sf, '>', "$doc/members/secret.md" or die $!;
+    print {$sf} "GATED\n";
+    close $sf;
+
+    my $out = run();
+    like( $out, qr/ALSO present in the document root/,
+        'the stray copy is reported' );
+    like( $out, qr/\bFAIL\b/, 'as a FAIL - the site is serving content it was told to protect' );
+    like( $out, qr/members\/secret\.md/, 'naming the path so it can be acted on' );
+    like( $out, qr/will not delete content for you/,
+        'and says it did not repair it - which copy to keep is a content '
+            . 'decision, not one a permissions tool should take' );
+
+    unlink "$doc/members/secret.md";
 };
 
 done_testing();

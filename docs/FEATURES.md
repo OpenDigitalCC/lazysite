@@ -497,10 +497,31 @@ permissions editor), over MCP (`set_permissions`), or over the control API
 (`acl-set`). One writer, so a section and a file are governed by the same store
 and the same rules.
 
+**Protected content is moved out of the document root**, into a private store
+beside it, and moved back when the restriction is lifted. This is what makes the
+restriction hold: there is nothing left in the served directory for a web server
+to hand out, so no front-end rule is needed and none can be got wrong. A page's
+notes travel with it, and any cached copy of the page is dropped.
+
+A rule that names only who may **edit** leaves the content published - it
+restricts authoring, not reading, and taking a public page offline to express
+that would be the wrong answer.
+
+The one exception is the **whole-site** rule, which cannot move anything: the
+document root cannot be moved out of itself. It is enforced by the engine, and
+the manager says so when you set one.
+
+Backups include protected content, because a backup is how content is recovered.
+Site packages and the content history do not - a package travels to another
+organisation without the rules that govern the content, and a history can be
+pushed to a remote. Both **report what they left behind** rather than leaving it
+to be discovered.
+
 **Verify it from outside**, because the front end decides whether a request ever
 reaches the engine: `lazysite check --check-acl https://example.test` gates a
 probe, fetches it anonymously under several file extensions, and fails if any
-bytes come back.
+bytes come back. A plain `lazysite check` also fails if any protected file is
+found sitting in the document root as well.
 
 ## Per-path ACLs: the model
 

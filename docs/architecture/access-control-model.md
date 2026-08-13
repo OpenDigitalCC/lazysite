@@ -144,6 +144,60 @@ Rows are the object, columns the channel. **ACL** = the per-path ACL decides;
 serves statics exactly as before, which is what made SM223 safe to ship to every
 existing site.
 
+## Where protected content is kept
+
+Protecting content **moves it out of the document root**, into a private store
+held beside it. The engine resolves both trees; nothing else does.
+
+That is the answer to the pattern behind SM248, SM268 H17 and SM283 - all three
+were security living in front-end configuration that lazysite ships as a
+template, cannot test where it is installed, and on most deployments cannot even
+see. If the bytes are not in a directory any front end serves, no front-end rule
+is needed and none can be got wrong.
+
+| What | Behaviour |
+|---|---|
+| A rule with a **read list**, or `draft` | content moves out of the document root |
+| A rule naming only a **write list** | content stays public - it restricts editing, not reading |
+| Removing the rule | content moves back |
+| The **site-wide** `/` rule | moves nothing; enforced by the engine alone |
+| A page's `.brief` notes | follow the page, both directions |
+| A page's cached `.html` render | deleted on protection; the next render is written privately |
+
+The store is named for the document root it shadows, so two sites under one
+parent directory can never share one.
+
+**A move that cannot complete leaves the content where it was and reports
+failure.** A path lives in exactly one tree; a copy left in the document root is
+the exposure the store removes, so the failure direction is always "not moved",
+never "in both".
+
+**A failed move does not refuse the rule.** The ACL is stored and the engine
+honours it, so the site is no worse off than before the store existed - but the
+response says so, because both outcomes look identical to the operator
+otherwise.
+
+### The site root is the exception
+
+`/` cannot be expressed as a move: the document root would have to become its own
+sibling store. A site-wide rule is enforced by the engine alone, and the manager
+says so when one is set. **This is the one scope where a front end serving files
+directly can still bypass the rule** - so a wholly-private site on an untrusted
+front end should protect its folders as well.
+
+### What a backup, a package and the history do with it
+
+| Surface | Carries protected content? | Why |
+|---|---|---|
+| **Backup** | **Yes** | Local recovery. A backup that silently stopped covering protected sections would be discovered at restore time, which is the worst moment. |
+| **Site package** | **No**, and reports the count | A package travels between organisations, and the ACL rules live under `lazysite/` and are never packaged - so the content would arrive with nothing governing it. |
+| **Content history** | **No**, and says so | A history may be pushed to a remote, and `Git.pm`'s exclude list is a security boundary for exactly that reason. |
+
+In every case the omission was already happening and completely silent, because
+the store is outside the tree each of them walks. What each now does is **say
+so** - a count in the package manifest, `versioned: false` plus a notice on the
+history response.
+
 ## Checking it, rather than believing it
 
 The front end decides whether a request reaches the engine at all, and three
@@ -160,8 +214,12 @@ come back. Several extensions on purpose - SM283 leaked `.png`, `.pdf` and
 `.txt` while gating `.dat`, so a one-extension probe reports a leaking site
 healthy.
 
-A plain `lazysite check` also reports whether a site-wide rule is in force, and
-which `@group` entries exist.
+A plain `lazysite check` also reports whether a site-wide rule is in force,
+which `@group` entries exist, and **FAILs if any protected file is also present
+in the document root** - a path in both trees is served by the front end without
+the engine being asked, which is SM283 for a single file. It reports rather than
+repairs: which copy to keep is a content decision, not one a permissions tool
+should take.
 
 ## How this document earned its lint
 

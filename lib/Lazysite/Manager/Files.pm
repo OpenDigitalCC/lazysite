@@ -188,6 +188,26 @@ sub action_list {
             size  => $is_dir ? 0     : ( $st[7] // 0 ),
             mtime => $st[9] // 0,
         };
+
+        # SM286: which tree this entry lives in.
+        #
+        # Protected content is no longer in the document root, and an operator
+        # looking at a listing has no other way to tell - the row looks
+        # identical either way. Without this, "is this page actually protected?"
+        # can only be answered by reading the ACL and trusting that the move
+        # happened, which is the assumption every defect in this programme has
+        # been made of.
+        #
+        # A LABEL, never a path. The standing rule is that filesystem paths are
+        # never exposed through any surface, and the store's location is a
+        # filesystem fact; 'private' tells the operator what they need to act on
+        # and discloses nothing about the layout of the host.
+        my $priv_root = Lazysite::Private::private_root($DOCROOT);
+        $entry->{store} =
+            ( defined $priv_root
+                && ( $full eq $priv_root || index( $full, "$priv_root/" ) == 0 ) )
+            ? 'private'
+            : 'public';
         # SM019b: surface emptiness so the client knows whether a
         # dir row should get a delete-selection checkbox. The check
         # matches action_delete's rmdir semantics: any non-dot
