@@ -56,7 +56,7 @@ _write( "$docroot/find.md",
     "---\ntitle: Find Agency\napi: true\ncontent_type: text/plain\n"
         . "tt_page_var:\n  results: scan:/**/*.md sort=filename\n---\n"
         . "[% FOREACH p IN results %]URL:[% p.url %]\n[% END %]\n" );
-_write( "$docroot/404.md",   "---\ntitle: NF\n---\nAGENCY_404\n" );
+_write( "$docroot/404.md", "---\ntitle: NF\n---\nAGENCY_404\n" );
 # A secret that must NEVER be reachable through any domain root (S2).
 _write( "$docroot/lazysite/auth/secret", "TOP_SECRET_MATERIAL\n" );
 # A static file at the bare docroot root - must NOT leak onto an alias host (P6).
@@ -68,13 +68,13 @@ _write( "$docroot/sites/clienta/about.md", "---\ntitle: A2\nregister:\n  - sitem
 # A static asset in client A's subtree (P6: should serve at the domain URL).
 _write( "$docroot/sites/clienta/logo.svg", "<svg>CLIENT_A_LOGO</svg>\n" );
 # Client B subtree (has a page that A does not).
-_write( "$docroot/sites/clientb/index.md",  "---\ntitle: B\nregister:\n  - sitemap.xml\n---\nCLIENT_B_HOME\n" );
+_write( "$docroot/sites/clientb/index.md", "---\ntitle: B\nregister:\n  - sitemap.xml\n---\nCLIENT_B_HOME\n" );
 _write( "$docroot/sites/clientb/only-b.md", "---\ntitle: B2\nregister:\n  - sitemap.xml\n---\nCLIENT_B_ONLY\n" );
 
 # Per-domain search endpoints (P4): each scans /**/*.md, which must resolve
 # against the requesting domain's own content root.
 my $find_page =
-      "---\ntitle: Find\napi: true\ncontent_type: text/plain\n"
+    "---\ntitle: Find\napi: true\ncontent_type: text/plain\n"
     . "tt_page_var:\n  results: scan:/**/*.md sort=filename\n---\n"
     . "[% FOREACH p IN results %]URL:[% p.url %]\n[% END %]\n";
 _write( "$docroot/sites/clienta/find.md", $find_page );
@@ -262,14 +262,21 @@ sub _slurp {
 }
 
 # =========================================================================
-# P3: per-domain registries. Each domain's sitemap is written INTO its own
-# content root, lists only that subtree, and uses the domain's own site_url.
-# The sitemaps are generated as a side effect of the render tests above.
+# P3: per-domain registries. Each domain's sitemap lists only its own subtree
+# and uses that domain's own site_url.
+#
+# SM293 step 3: FETCHED PER HOST, not read off disk. The sitemaps are no longer
+# written into the content root - they are generated on request and cached
+# outside it, keyed per content root. The separation is the whole point of the
+# change: a single shared file at the docroot root is what handed a secondary
+# domain the primary's sitemap in SM248, because the front end resolved the file
+# before the engine was asked which domain had been requested. Asking each host
+# is also the only way to prove what that host's crawler actually receives.
 # =========================================================================
 {
-    my $smA = "$docroot/sites/clienta/sitemap.xml";
-    ok( -f $smA, 'client A sitemap is written into its own content root' );
-    my $a = _slurp($smA);
+    my $a = run_processor( $docroot, '/sitemap.xml',
+        HTTP_HOST => 'clienta.example' );
+    ok( $a =~ /<urlset/, 'client A is served its own sitemap' );
     like( $a, qr{https://www\.clienta\.example/</loc>},
         'A sitemap uses A site_url with its index collapsed to /' );
     like( $a, qr{https://www\.clienta\.example/about},
@@ -280,9 +287,9 @@ sub _slurp {
         'A sitemap did not leak the docroot via the escape symlink' );
 }
 {
-    my $smB = "$docroot/sites/clientb/sitemap.xml";
-    ok( -f $smB, 'client B sitemap is written into its own content root' );
-    my $b = _slurp($smB);
+    my $b = run_processor( $docroot, '/sitemap.xml',
+        HTTP_HOST => 'clientb.example' );
+    ok( $b =~ /<urlset/, 'client B is served its own sitemap' );
     like( $b, qr{https://clientb\.example/only-b},
         'B sitemap lists the B-only page with B site_url' );
     unlike( $b, qr{clienta|www\.clienta},
@@ -329,10 +336,10 @@ sub _slurp {
 # =========================================================================
 {
     my $out = run_processor( $docroot, '/sitemap.xml', HTTP_HOST => 'clienta.example' );
-    like( $out, qr{Status: 200 OK},                     'client A /sitemap.xml served' );
-    like( $out, qr{Content-type: application/xml},      'sitemap served with an xml content-type' );
+    like( $out, qr{Status: 200 OK},                 'client A /sitemap.xml served' );
+    like( $out, qr{Content-Type: application/xml}i, 'sitemap served with an xml content-type' );
     like( $out, qr{https://www\.clienta\.example/about}, 'the served sitemap is client A\x27s own' );
-    unlike( $out, qr{clientb|only-b},                    'served sitemap has none of client B' );
+    unlike( $out, qr{clientb|only-b}, 'served sitemap has none of client B' );
 }
 {
     my $out = run_processor( $docroot, '/logo.svg', HTTP_HOST => 'clienta.example' );
@@ -344,7 +351,7 @@ sub _slurp {
     # the alias is confined to its content root, where the file does not exist.
     my $out = run_processor( $docroot, '/agency-only.txt', HTTP_HOST => 'clienta.example' );
     unlike( $out, qr{AGENCY_ONLY_ASSET}, 'a docroot-root static does not leak onto an alias host' );
-    unlike( $out, qr{Status: 200 OK},    'the docroot-root static is not served on the alias host' );
+    unlike( $out, qr{Status: 200 OK}, 'the docroot-root static is not served on the alias host' );
 }
 {
     # Client B has no logo.svg - an alias must not serve a sibling's asset.
@@ -359,10 +366,11 @@ sub _slurp {
 # never enumerates client subtrees. It still lists its OWN docroot-root pages.
 # =========================================================================
 {
-    # Trigger the bare-host sitemap (undeclared host scans the docroot).
-    run_processor( $docroot, '/index', HTTP_HOST => 'stranger.example' );
-    my $sm = _slurp("$docroot/sitemap.xml");
-    ok( length $sm, 'bare-docroot sitemap is generated' );
+    # SM293 step 3: fetched, not read off disk - an undeclared host scans the
+    # docroot and gets the docroot's own sitemap, generated on request.
+    my $sm = run_processor( $docroot, '/sitemap.xml',
+        HTTP_HOST => 'stranger.example' );
+    ok( $sm =~ /<urlset/, 'bare-docroot sitemap is generated' );
     like( $sm, qr{https://agency\.example/</loc>},
         'bare sitemap lists the agency root page (its own)' );
     unlike( $sm, qr{clienta|clientb|/menu|/about|/only-b|CLIENT_},

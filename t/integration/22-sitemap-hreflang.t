@@ -54,15 +54,11 @@ open my $o, '>', "$d/sites/en/only-en.md" or die $!;
 print $o "---\ntitle: only\nregister:\n  - sitemap.xml\n---\n\nbody\n";
 close $o;
 
-# Render a page on the EN host - that triggers registry generation for sites/en.
-run_processor( $d, '/compare', HTTP_HOST => 'en.example' );
-
-my $xml = do {
-    open my $fh, '<', "$d/sites/en/sitemap.xml"
-        or die "en sitemap not generated: $!";
-    local $/;
-    <$fh>;
-};
+# SM293 step 3: the sitemap is GENERATED ON REQUEST and served by the engine -
+# it is no longer written into the content root, because a file at the docroot
+# root is resolved by the front end before the engine is asked which domain was
+# requested (that is SM248). So fetch it the way a crawler would.
+my $xml = run_processor( $d, '/sitemap.xml', HTTP_HOST => 'en.example' );
 
 like( $xml, qr{xmlns:xhtml="http://www\.w3\.org/1999/xhtml"},
     'urlset declares the xhtml namespace' );

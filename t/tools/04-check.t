@@ -420,4 +420,38 @@ subtest 'the engine tree layout is reported, and a half-migration FAILs' => sub 
     remove_tree($ext);
 };
 
+
+# --- SM293 step 3: registries left over from before they were served ---------
+subtest 'a leftover generated registry in the docroot is reported' => sub {
+    # They used to be written into the content root. A file left at the old path
+    # is still resolved by the front end BEFORE the engine is consulted, so it
+    # keeps being served and nothing regenerates it - a sitemap frozen on the day
+    # of the upgrade, quietly.
+    make_path("$doc/lazysite/templates/registries");
+    open my $t, '>', "$doc/lazysite/templates/registries/sitemap.xml.tt" or die $!;
+    print {$t} "<urlset/>\n";
+    close $t;
+
+    my $clean = run();
+    unlike( $clean, qr/still in the document root/,
+        'nothing reported when no leftover is present' );
+
+    open my $old, '>', "$doc/sitemap.xml" or die $!;
+    print {$old} "<urlset>STALE</urlset>\n";
+    close $old;
+
+    my $out = run();
+    like( $out, qr/still in the document root/, 'the leftover is reported' );
+    like( $out, qr/sitemap\.xml/,               'and named' );
+    # The report prints ' warn ' lowercase (FAIL is upper) - asserting /WARN/
+    # matched nothing and looked like the finding was absent.
+    like( $out, qr/\[ warn \].*still in the document root/,
+        'as a warning - a stale sitemap is an SEO problem, not a disclosure' );
+    like( $out, qr/If you DID write your own, leave it/,
+        'and it does not tell an operator to delete a file they authored' );
+
+    ok( -f "$doc/sitemap.xml", 'and it was not deleted' );
+    unlink "$doc/sitemap.xml";
+};
+
 done_testing();

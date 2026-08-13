@@ -150,6 +150,20 @@ my $LAYOUT_CACHE_DIR = "$CACHE_BASE/layouts";
 my $CT_CACHE_DIR     = "$CACHE_BASE/ct";
 my $TT_COMPILE_DIR   = "$CACHE_BASE/tt";       # P-4 TT on-disk compile cache
 my $HOST_CACHE_DIR   = "$CACHE_BASE/hosts";    # SM110 phase 2: per-alias-host page cache
+
+# SM293 step 3: the generated registries (sitemap.xml, llms.txt, the feeds) are
+# CACHED here and served by the engine, instead of being written as files at the
+# content root.
+#
+# They were written into the served tree, which is how SM248 happened: a file at
+# the docroot root is resolved by the front end before the engine is consulted,
+# so a secondary domain was handed the primary's sitemap. Generating on request
+# and caching keeps a high-demand artefact out of the document root while still
+# costing one render per TTL rather than one per request.
+#
+# Under $CACHE_BASE, so on a migrated site (SM293 step 2) it is outside the
+# document root along with everything else the engine owns.
+my $REGISTRY_CACHE_DIR = "$CACHE_BASE/registries";
 my %AUTH_CONTEXT;         # populated by main() auth check, read by render_content()
 my %ACCESS_REC;           # SM140: per-request outcome for the first-party access log
 my $RESPONSE_LANG = 'en'; # SM179 (P1): the rendered page's language, set per
@@ -2116,6 +2130,13 @@ sub main {
     {
         return;
     }
+
+    # SM293 step 3: a generated registry (sitemap.xml, llms.txt, the feeds) is
+    # served from here rather than written into the document root. Before the
+    # alias lookup and the 404, because these are real URLs the site publishes -
+    # and after the static handler, so a hand-authored sitemap.xml an operator
+    # put in their content still wins.
+    return if _serve_registry($uri);
 
     # SM134: alias redirects. A page may declare `aliases:` (old/alternate URLs);
     # those are maintained in lazysite/aliases.json. Only when nothing else matched,
@@ -4513,7 +4534,7 @@ sub resolve_scan {
         my $needs_update = 0;
         for my $tmpl (@templates) {
             ( my $output_name = $tmpl ) =~ s/\.tt$//;
-            my $output_path = "$root/$output_name";
+            my $output_path = _registry_cache_path( $root, $output_name );
             if ( !-f $output_path
                 || ( time() - ( stat($output_path) )[9] ) >= $REGISTRY_TTL )
             {
@@ -4542,7 +4563,7 @@ sub resolve_scan {
 
         for my $tmpl (@templates) {
             ( my $output_name = $tmpl ) =~ s/\.tt$//;
-            my $output_path = "$root/$output_name";
+            my $output_path = _registry_cache_path( $root, $output_name );
             my $tmpl_path   = "$REGISTRY_DIR/$tmpl";
 
             # Check this specific registry needs updating
@@ -4588,6 +4609,7 @@ sub resolve_scan {
                 next;
             };
 
+            make_path( dirname($output_path) ) unless -d dirname($output_path);
             open( my $fh, '>:utf8', $output_path ) or do {
                 log_event( "WARN", "-", "cannot write registry", path => $output_path, error => $! );
                 next;
@@ -4598,6 +4620,106 @@ sub resolve_scan {
         umask $old_umask;
     }
 }    # close P-3 _has_registries memo block
+
+# SM293 step 3: where a generated registry is cached, per content root.
+#
+# Keyed on the content root's path RELATIVE to the docroot, so a multi-domain
+# instance keeps each domain's sitemap separate. That separation is the whole of
+# SM248: one shared file at the docroot root meant a secondary domain was served
+# the primary's sitemap, because the front end resolved the file before the
+# engine was asked which domain had been requested.
+sub _registry_cache_path {
+    my ( $root, $name ) = @_;
+    my $key = $root;
+    $key = '' unless defined $key;
+    $key =~ s{\A\Q$DOCROOT\E/?}{};
+    $key =~ s{[^A-Za-z0-9._-]+}{_}g;
+    $key = '_root' unless length $key;
+    return "$REGISTRY_CACHE_DIR/$key/$name";
+}
+
+# The content types the generated registries are served as. Named explicitly:
+# guessing from the extension would serve feed.atom as application/octet-stream,
+# and get llms.txt right only by accident.
+#
+# A SUB, not a file-scoped `my` hash. This file runs its main body near the TOP,
+# so a `my %REGISTRY_CT = (...)` declared down here is still EMPTY when the
+# request is served - every registry name looked unknown and every fetch 404'd.
+# SM285 shipped exactly this bug with `my @PROBE_EXT`, where it made a security
+# probe pass by testing nothing; the comment there says so, and I wrote this one
+# the same way anyway. The sub is initialised at call time and cannot be early.
+sub _registry_ct {
+    my ($name) = @_;
+    my %ct = (
+        'sitemap.xml' => 'application/xml; charset=utf-8',
+        'llms.txt'    => 'text/plain; charset=utf-8',
+        'feed.rss'    => 'application/rss+xml; charset=utf-8',
+        'feed.atom'   => 'application/atom+xml; charset=utf-8',
+    );
+    return $ct{$name} if $ct{$name};
+
+    # A registry is any template an operator drops in - `search-index` is the
+    # documented example - so the four shipped names cannot be the whole list.
+    # The first version of this served only those four, which quietly removed
+    # the ability to define your own: the custom template still rendered, and
+    # the result was no longer written anywhere nor reachable.
+    return 'application/xml; charset=utf-8'      if $name =~ /\.xml\z/;
+    return 'application/json; charset=utf-8'     if $name =~ /\.json\z/;
+    return 'application/rss+xml; charset=utf-8'  if $name =~ /\.rss\z/;
+    return 'application/atom+xml; charset=utf-8' if $name =~ /\.atom\z/;
+    return 'text/plain; charset=utf-8';
+}
+
+# Serve a generated registry, if this URI names one. Returns 1 when handled.
+#
+# Generated on request and cached for $REGISTRY_TTL, which the operator chose
+# knowing a registry may be a little stale: a sitemap that lags a few hours is
+# not a defect, and it buys a high-demand file that never sits in the document
+# root at all.
+sub _serve_registry {
+    my ($uri) = @_;
+    return 0 unless defined $uri;
+    ( my $name = $uri ) =~ s{\A.*/}{};
+    my $ct = _registry_ct($name);
+    return 0 unless length $name && $ct;
+
+    # Only if this site actually ships that registry's template - otherwise a
+    # request for /sitemap.xml on a site with no registries should 404 as it
+    # always did, not answer with an empty document.
+    return 0 unless -f "$REGISTRY_DIR/$name.tt";
+
+    my %sv   = resolve_site_vars();
+    my $root = $DOCROOT;
+    if ( defined $sv{content_root} && length $sv{content_root} ) {
+        my $c = confine_content_root( $DOCROOT, $sv{content_root} );
+        $root = $c if defined $c;
+    }
+
+    # An operator who wrote their OWN sitemap.xml as content keeps it. In
+    # production the front end serves that file and the engine never sees the
+    # request, but the guarantee must not depend on which route the request
+    # took - the dev server and any ACL-store site come through here.
+    return 0 if -f "$root/$name";
+
+    my $path = _registry_cache_path( $root, $name );
+    if ( !-f $path || ( time() - ( stat($path) )[9] ) >= $REGISTRY_TTL ) {
+        eval { update_registries() };
+        log_event( 'WARN', $uri, 'registry generation failed', error => $@ ) if $@;
+    }
+
+    open my $fh, '<:utf8', $path or return 0;
+    my $body = do { local $/; <$fh> };
+    close $fh;
+
+    # An explicit Status line, like every other served path here. CGI defaults
+    # to 200 without one, so omitting it works and then reads as a missing
+    # status to anything asserting on the response.
+    print "Status: 200 OK\r\n";
+    print "Content-Type: $ct\r\n";
+    print "Cache-Control: public, max-age=$REGISTRY_TTL\r\n\r\n";
+    print $body;
+    return 1;
+}
 
 sub scan_pages {
     # SM151: scan a specific content root (default: the docroot). URLs are

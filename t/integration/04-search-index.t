@@ -35,19 +35,18 @@ open my $s2, '>', "$docroot/unregistered.md" or die $!;
 print $s2 "---\ntitle: Not Registered\n---\nNot in registry.\n";
 close $s2;
 
-# Trigger a page render so update_registries() fires.
-run_processor( $docroot, '/index' );
+# SM293 step 3: a registry is generated ON REQUEST and served by the engine,
+# not written into the document root. This one is a CUSTOM registry - the
+# mechanism lets an operator drop in any template - so fetching it also proves
+# custom registries are still reachable, which the first version of the change
+# quietly broke by serving only the four shipped names.
+my $body = run_processor( $docroot, '/search-index' );
 
-ok( -f "$docroot/search-index",
-    'registry output file produced at docroot' );
+ok( $body =~ /\S/, 'registry output produced and served' );
 
-open my $fh, '<', "$docroot/search-index" or die $!;
-my $body = do { local $/; <$fh> };
-close $fh;
-
-like(   $body, qr/TITLE: Searchable Post/,
+like( $body, qr/TITLE: Searchable Post/,
     'registered page appears in registry output' );
-like(   $body, qr/URL:\s*\/searchable\b/,
+like( $body, qr/URL:\s*\/searchable\b/,
     'URL derived correctly for registered page' );
 unlike( $body, qr/Not Registered/,
     'un-registered page NOT in registry output' );

@@ -106,21 +106,17 @@ subtest 'a signed-in NON-member does not see it' => sub {
 };
 
 subtest 'the generated sitemap omits the gated page' => sub {
-    # The registries are written as a side effect of a render.
+    # SM293 step 3: the sitemap is generated on request and served by the
+    # engine, not written into the document root - so fetch it the way a
+    # crawler would, which is also the only way that proves what a crawler
+    # would actually receive.
     make_path("$docroot/lazysite/templates/registries");
     spit( "$docroot/lazysite/templates/registries/sitemap.xml.tt", <<'TT' );
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset>[% FOREACH p IN pages %]<url><loc>[% p.url %]</loc></url>[% END %]</urlset>
 TT
-    get('/');
-    get('/list');
-
-    ok( -f "$docroot/sitemap.xml", 'a sitemap was generated at all' )
-        or return;
-
-    open my $fh, '<', "$docroot/sitemap.xml" or die $!;
-    my $xml = do { local $/; <$fh> };
-    close $fh;
+    my $xml = get('/sitemap.xml');
+    like( $xml, qr{<urlset}, 'a sitemap was served at all' ) or return;
 
     like( $xml, qr{<loc>/open/free</loc>}, 'the public page is in the sitemap' );
     unlike( $xml, qr{<loc>/private/secret</loc>},

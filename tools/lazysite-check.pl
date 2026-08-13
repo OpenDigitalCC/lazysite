@@ -948,6 +948,9 @@ sub run_checks {
     # --- 8e. where is this site's engine tree, and is there only one? (SM293) ---
     report_engine_tree();
 
+    # --- 8f. registries left behind from before they were served (SM293) --------
+    report_stale_registries();
+
     # --- 9. content provenance (is this content lazysite's or the operator's?) ---
     # lazysite stamps its shipped seed pages with `provenance: lazysite-starter` in the
     # front matter. This reports which .md content is ours (unmodified vs customised)
@@ -1368,6 +1371,45 @@ sub _probe_exts { return qw(png pdf txt css gz dat) }
 # a genuine fault and an invisible one: the engine reads the outside copy while
 # the front end can still serve the inside one, so the site behaves perfectly and
 # publishes its credentials.
+# SM293 step 3: registries left over from before they were engine-served.
+#
+# They used to be written into the content root and served from disk. Now they
+# are generated on request and cached outside it - but a file left at the old
+# path is still resolved by the front end BEFORE the engine is consulted, so it
+# keeps being served and nothing ever regenerates it. A sitemap frozen on the day
+# of the upgrade, quietly, is the failure mode.
+#
+# WARN, not FAIL: a stale sitemap is an SEO problem, not a disclosure. And the
+# operator may have authored their own on purpose, which the engine deliberately
+# yields to - so this names the files and explains, rather than deleting them.
+sub report_stale_registries {
+    my $d = $opt{docroot};
+    return unless -d "$LZ/templates/registries";
+
+    my @names;
+    if ( opendir my $dh, "$LZ/templates/registries" ) {
+        @names = map { s/\.tt\z//r } grep { /\.tt\z/ } readdir $dh;
+        closedir $dh;
+    }
+    return unless @names;
+
+    my @found = grep { -f "$d/$_" } sort @names;
+    return unless @found;
+
+    report(
+        'WARN',
+        'these generated files are still in the document root: '
+            . join( ', ', @found )
+            . ' - the engine now generates them on request and caches them '
+            . 'outside the document root, so a file left here is served '
+            . 'instead and never refreshed',
+        'if you did not write them yourself, delete them and the engine will '
+            . 'serve a current one. If you DID write your own, leave it: the '
+            . 'engine yields to it deliberately.'
+    );
+    return;
+}
+
 sub report_engine_tree {
     my $d = $opt{docroot};
 
