@@ -2,8 +2,8 @@
 title: "SM289 - One way to express access, on every surface"
 subtitle: "Manager, control API and MCP can each set an ACL, with two different vocabularies. The CLI cannot set one at all - on the product whose recovery story is a shell."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-12 as phase 2 of WORK-PLAN-ACCESS-CONTROL, on the operator's direction to have standard methods from all surfaces. Gaps found by looking, not assuming: the CLI has no ACL verb (checked lazysite-cli.pl, lazysite-site.pl, lazysite-users.pl - zero matches), and the control API and MCP use different names for the same operation. NOT STARTED. Depends on SM287 and SM288 landing first, so that the grammar being made uniform is the finished one."
+status: shipped
+status-note: "FILED 2026-08-12 as phase 2 of WORK-PLAN-ACCESS-CONTROL, on the operator's direction to have standard methods from all surfaces. SHIPPED 2026-08-13 on main (unreleased). Gap 1 CLOSED: tools/lazysite-acl.pl + the `lazysite acl` verb (list/show/set/remove), calling the SAME action_acl_set the manager, control API and MCP call - so a rule set from a shell is the same object and gets the SM286 move too. --actor is MANDATORY for a write and gets exactly the authority that account has in the manager; verified by making the tool treat every caller as `local` and confirming the escalation subtest fails. Gap 2 RESOLVED AS DOCUMENTED, NOT RENAMED: acl-set and set_permissions are both in live partner use, and renaming either to settle a naming preference would break working integrations for no behavioural gain - the mapping is now a table in the reference. Gap 3 was already closed by SM290."
 ---
 
 # SM289 - the same method from every surface

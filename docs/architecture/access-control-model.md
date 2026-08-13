@@ -105,6 +105,34 @@ An entry carries a policy, and they differ in what an anonymous request gets
 The draft asymmetry is deliberate: a draft section with no read list would
 otherwise be public, which is the opposite of what the word means.
 
+## Setting access, by surface
+
+Four surfaces can write a rule, and they all call **one writer**
+(`Lazysite::Manager::Files::action_acl_set`). A rule set from a shell is the same
+object as one set from the panel, governed by the same checks and moved into the
+private store by the same code. That is what makes a fourth surface a small
+change rather than a fourth grammar.
+
+| Surface | Set | Read | Remove |
+|---|---|---|---|
+| Manager UI | the folder card / the per-file editor | same | same |
+| Control API | `acl-set` | `acl-get` | `acl-remove` |
+| MCP | `set_permissions` | `get_permissions` | `set_permissions` with empty lists |
+| CLI | `lazysite acl set` | `lazysite acl show` / `list` | `lazysite acl remove` |
+| WebDAV | - | - | enforces only; a DELETE takes the entry with the file |
+
+**The two API names are not being reconciled by renaming either.** `acl-set` and
+`set_permissions` are the same operation, and one vocabulary would be tidier -
+but both are in live use by partners on deployed sites, and a rename to settle a
+naming preference would break working integrations for no behavioural gain. The
+mapping is documented here instead, which is the part a reader actually needs.
+
+**The CLI needs an actor.** There is no session behind a shell, so
+`lazysite acl set` requires `--actor USER` and applies exactly the authority that
+account has in the manager. Without that rule the CLI would be a way around every
+check the other surfaces make. `--actor local` is the documented break-glass
+operator identity, and is never a default.
+
 ## Whose groups apply, by channel
 
 A group is a property of the **account**, not of the door it arrived through.

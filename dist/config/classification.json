@@ -20,6 +20,12 @@
       "bucket": "code"
     },
     {
+      "_comment": "SM289: per-path access from a shell, beside the users tool it complements.",
+      "pattern": "^tools/lazysite-acl\\.pl$",
+      "install_to": "{DOCROOT}/../tools/lazysite-acl.pl",
+      "bucket": "code"
+    },
+    {
       "pattern": "^tools/lazysite-domains\\.pl$",
       "install_to": "{DOCROOT}/../tools/lazysite-domains.pl",
       "bucket": "code"

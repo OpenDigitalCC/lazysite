@@ -44,6 +44,7 @@ elsif ( $verb eq 'upgrade' )                              { exit cmd_upgrade() }
 elsif ( $verb eq 'sites' )                                { exit cmd_sites() }
 elsif ( $verb eq 'check' )   { run_tool( 'tools/lazysite-check.pl',  @ARGV ) }
 elsif ( $verb eq 'users' )   { run_tool( 'tools/lazysite-users.pl',  @ARGV ) }
+elsif ( $verb eq 'acl' )     { run_tool( 'tools/lazysite-acl.pl',    @ARGV ) }
 elsif ( $verb eq 'dev' )     { run_tool( 'tools/lazysite-server.pl', @ARGV ) }
 elsif ( $verb eq 'demo' )    { exit cmd_demo() }
 elsif ( $verb eq 'version' ) { exit cmd_version() }
@@ -87,6 +88,9 @@ Verbs:
         version, docroot.
   check [args...]        Health/permissions doctor (lazysite-check.pl).
   users [args...]        Auth user management (lazysite-users.pl).
+  acl [args...]          Per-path access: who may read or write a file,
+        a folder, or the whole site (lazysite-acl.pl). Same rules and
+        same store as the manager, the control API and MCP.
   dev [args...]          Local dev server (lazysite-server.pl).
   demo [--port N] [--dir PATH]
         Instant try-it: fresh-install a scratch site (default
@@ -714,7 +718,7 @@ e.g. C<lazysite check --docroot D --fix> or C<lazysite check --dependencies>.
 =item B<users> [args...]
 
 Pass-through to C<tools/lazysite-users.pl> (built-in auth user management),
-e.g. C<lazysite users --docroot D list>.
+e.g. C<lazysite users --docroot D list>, C<lazysite acl --docroot D list>.
 
 =item B<dev> [args...]
 

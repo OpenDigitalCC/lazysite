@@ -68,8 +68,18 @@ been "put the rule in one more config file"; this is the other answer.
   writer stores keys without one, so it listed hand-edited entries and nothing
   else. Exactly the failure SM267 built that screen to prevent
 
+- SM289 (pending) access can now be set from a shell: `lazysite acl
+  list|show|set|remove`, calling the same writer as the manager, the control API
+  and MCP - so a rule set from a shell is the same object, and gets the same move
+  into the private store. `--actor` is mandatory for a write and carries exactly
+  the authority that account has in the manager; there is no session behind a
+  shell, so a tool that defaulted to an operator identity would be a way round
+  every check the other surfaces make. `acl-set` and `set_permissions` are
+  deliberately NOT renamed - both are in live partner use and the mapping is
+  documented instead
+
 Docs: `docs/architecture/access-control-model.md` gains the private-store
-section; `docs/FEATURES.md` explains the ways access can be limited. SM286 is
+section and a setting-access-by-surface table; `docs/FEATURES.md` explains the ways access can be limited. SM286 is
 closed on step 1, its substance; SM293 carries forward the rest of the direction
 (taking `lazysite/`, the generated registries and the sidecars out of the served
 tree). SM289 (one way to express access on every surface, including a CLI verb)
