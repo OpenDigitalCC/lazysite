@@ -2,8 +2,8 @@
 title: "SM286 - The front end should make no decisions lazysite depends on"
 subtitle: "Three incidents, one cause: security living in config we do not control and mostly cannot see. The direction is self-sufficiency, and the largest single step is that gated content stops living in the document root."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-12 on the operator's direction, given after 0.10.7 shipped a Hestia nginx proxy template: 'we are getting too much into the upstream machinery... my direction is toward self-sufficiency in lazysite, therefore no adding anything to nginx and reducing or ideally removing any apache configs.' NOT STARTED. This filing reverses the shape of the SM283 fix, which is now transitional. Sized L overall; step 1 is M and delivers most of the value."
+status: shipped
+status-note: "FILED 2026-08-12 on the operator's direction, given after 0.10.7 shipped a Hestia nginx proxy template: 'we are getting too much into the upstream machinery... my direction is toward self-sufficiency in lazysite, therefore no adding anything to nginx and reducing or ideally removing any apache configs.' This filing reverses the shape of the SM283 fix, which is now transitional. STEP 1 COMPLETE 2026-08-13 on main (unreleased): the private store exists, every surface resolves it, and the MOVE IS FLIPPED - setting a read list or draft takes the content out of the document root, removing the rule brings it back. Backups cover the store; site packages and the content history cannot carry it and report what they left. lazysite-check FAILs on a path present in both trees. Unblocked by the operator lifting ADR 0008 back-compat on 2026-08-13. Five defects found while wiring it, four introduced by the step itself - see the commit messages on 9f63a76..5ea70af - plus SM292, which was pre-existing. Steps 2-5 (retiring the rest of the front-end config surface) are carried forward as SM293, which supersedes the unbuilt half of this filing - this one is closed on step 1, its substance."
 ---
 
 # SM286 - the front end should make no decisions

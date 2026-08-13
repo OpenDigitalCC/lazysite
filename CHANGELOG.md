@@ -28,6 +28,53 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
+## Unreleased - the access-control programme
+
+On `main` since v0.10.7, unreleased. One theme: SM248, SM268 H17 and SM283 were
+all the same cause - security living in front-end configuration that lazysite
+ships as a template, cannot test where it is installed, and on most deployments
+cannot even see. SM283 ran live across a fleet for weeks. Every fix so far had
+been "put the rule in one more config file"; this is the other answer.
+
+- SM285 (d0428a6) a site can prove its own gating works from outside, whatever
+  is in front of it - `lazysite check --check-acl URL` gates a probe folder and
+  fetches it anonymously under six extensions, because SM283 leaked `.png`,
+  `.pdf` and `.txt` while gating `.dat`, so a one-extension probe reports a
+  leaking site healthy
+- SM287 (a522f5d) "this whole site is private" is now something that can be
+  said. A root entry was inert under every spelling, so a wholly-private site
+  had to enumerate its top-level folders - a workaround that fails OPEN as
+  content grows
+- SM288 (1fa933b) one account, one set of groups, whichever channel it arrives
+  on. MCP and the control API discarded a partner's groups while WebDAV
+  resolved them, so an `@group` rule applied on one channel and silently to
+  nobody on the others
+- SM290 (63a1efc) the access-control reference, and `t/lint/36` asserting its
+  factual tables against the source - this document had twice stated the
+  opposite of the behaviour and been believed
+- SM291 (912c345) a malformed boolean published a hidden section and reported
+  success: `draft: "yes-please"` cleared the flag, turning a folder that
+  answered 404 into one that bounced to login
+- SM286 (4e89ebc, 79c3fec, 08ce4bc, 703e839, 9f63a76, 00665cb, 33ef773,
+  5ea70af) **protecting content now moves it out of the document root**, into a
+  private store beside it, and moves it back when the rule is lifted. If the
+  bytes are not in a directory any front end serves, no front-end rule is needed
+  and none can be got wrong - SM283 becomes structurally impossible rather than
+  fixed once per deployment shape. Backups cover the store; site packages and
+  the content history cannot carry it and now report what they left behind. The
+  site-root rule is the exception and says so
+- SM292 (5ea70af) the "held back" panel was empty for everyone who used the
+  manager, MCP or the control API - it filtered on a trailing slash and the
+  writer stores keys without one, so it listed hand-edited entries and nothing
+  else. Exactly the failure SM267 built that screen to prevent
+
+Docs: `docs/architecture/access-control-model.md` gains the private-store
+section; `docs/FEATURES.md` explains the ways access can be limited. SM286 is
+closed on step 1, its substance; SM293 carries forward the rest of the direction
+(taking `lazysite/`, the generated registries and the sidecars out of the served
+tree). SM289 (one way to express access on every surface, including a CLI verb)
+remains open.
+
 ## 0.10.7 - EDGE: a protected section was protecting its pages and publishing its files (2026-08-11)
 
 An edge build on 0.10.6, and the reason to take it is SM283: on Hestia, every
