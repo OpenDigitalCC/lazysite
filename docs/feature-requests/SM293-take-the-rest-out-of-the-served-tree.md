@@ -3,7 +3,7 @@ title: "SM293 - Take the rest out of the served tree"
 subtitle: "SM286 step 1 moved gated content out of the document root. Config, credentials, snapshots and the generated registries are still in it, and every one of them is still defended by a rule in a config file we do not control."
 brand: plain
 status: candidate
-status-note: "FILED 2026-08-13, carrying forward steps 2-5 of SM286, which is closed on step 1 (the private content store, shipped on main unreleased). Nothing here is started. Step 2 (move lazysite/ out of the docroot) is the one with a live argument behind it: SM283's proxy would have served lazysite/backups/preinstall-*.tar.gz on any host whose static extension list includes gz."
+status-note: "FILED 2026-08-13, carrying forward steps 2-5 of SM286 (closed on step 1). STEP 2a SHIPPED 2026-08-13: Lazysite::Paths resolves where a site keeps its engine tree, every surface asks it, and NOTHING MOVES - the migration is separated deliberately, being a change to every site`s on-disk layout touching live credentials on a fleet. STEP 4 SHIPPED: the trust-header strip demoted to recommended hardening, after t/lint/38 was written to make the in-app gate an enforced control rather than a claim (the filing said it was lint-enforced; it was not). STEP 2b (the flip + an install.pl migration) NEEDS THE RELEASE MANAGER. STEP 3 NEEDS A DECISION - see below; it is tidiness, not an exposure, and it costs a CGI hit on crawler-facing artefacts. STEP 5 unstarted."
 ---
 
 # SM293 - the rest of the served tree
@@ -29,6 +29,27 @@ whereas each item below is its own removal with its own risk.
 | `sitemap.xml`, `llms.txt`, `robots.txt`, the feeds | nothing - they are files at the docroot root that shadow the engine's routes | step 3 |
 | `.brief` sidecars | a `.brief` deny in every template | step 3, via [[SM245]] |
 
+## Step 2a - one resolver, and nothing moves - SHIPPED
+
+`Lazysite::Paths::lazysite_dir` answers "where does this site keep its engine
+tree", and every surface asks it instead of computing an answer. The answer
+today is the same path as before, so nothing has moved.
+
+**Discovery, not assumption**, which is what makes the flip safe when it comes:
+a site migrates by MOVING the directory and nothing else - no config key, no flag
+day, no version gate. Both layouts work on one code path, so an upgrade cannot
+half-migrate a site into an unbootable state. Outside wins when both exist,
+because a tree left inside the docroot is the exposure.
+
+`t/lint/37` pins it three ways: the processor's module-free copy (ADR 0001) is
+DRIVEN and compared against the module rather than eyeballed; that copy must stay
+module-free and take its docroot as an argument; and nothing anywhere may rebuild
+`<docroot>/lazysite` for itself. The third check found thirteen call sites on the
+day it was written, and the tests found two more that mattered more:
+`lazysite-check`'s "is this a lazysite docroot?" guard would have REJECTED a
+migrated site outright, and the users tool would have created a second, empty
+account store inside the docroot and managed that one.
+
 ## Step 2 - move `lazysite/` out of the document root
 
 Config, credentials, audit logs and pre-install snapshots are not content and
@@ -46,22 +67,65 @@ sibling of the document root, named for it - so the location question is
 settled. What is not settled is the migration: `lazysite/` is referenced by
 every surface, by installers, by the Hestia hook, and by operators' own scripts.
 
+## Step 2b - the flip, and why it is not in step 2a
+
+**Needs the release manager.** Step 2a made the engine ASK where its tree is;
+the answer today is still `<docroot>/lazysite`. Flipping means moving that
+directory on every existing site, and it is a different kind of change from the
+refactor:
+
+- it touches **live credentials** on 17 production sites;
+- it needs an `install.pl` migration with a rollback, because a half-move is the
+  one state that is both broken and invisible (the engine reads the new tree
+  while the front end can still serve the old one);
+- `lazysite-check` already FAILs on that half-migrated state, which is what
+  makes the migration verifiable rather than hopeful.
+
+The discovery rule means a site can be migrated **one at a time**, by hand, with
+`mv`, and moved back the same way. That is the cheapest possible pilot and it
+needs no release at all - only step 2a, which is shipped.
+
 ## Step 3 - registries and sidecars
+
+**This one needs a decision, and it is not the same kind of item as step 2.**
 
 Serve `sitemap.xml`, `llms.txt`, `robots.txt` and the feeds **from the engine**
 rather than writing files at the docroot root that shadow it. That removes the
 SM248 routes: a secondary domain served the primary's statics precisely because
 these files sit at a path the front end resolves before the engine is consulted.
 
+What makes it different from step 2: **these artefacts are public by design.**
+SM248 was the wrong domain's sitemap being served, not private data being
+disclosed. So the gain here is architectural - fewer front-end rules, one less
+thing to get wrong per deployment - and not the closing of an exposure.
+
+The cost is real and lands on the artefacts crawlers fetch most: today the front
+end serves `sitemap.xml` from disk, and engine-served means a CGI invocation per
+request. The engine already has the serving half (`_serve_content_static` is the
+portable net for content-rooted hosts); what changes is that the files stop being
+written, which is also what makes the SM248 routes removable.
+
+So the question to settle before building it is whether that trade is wanted:
+generated-on-request with a cache, or keep the files and keep the routes.
+
 Land [[SM245]] (sidecars into an optional plugin), which removes the `.brief`
 deny.
 
-## Step 4 - demote the trust-header strip
+## Step 4 - demote the trust-header strip - SHIPPED
 
-In the documentation, from "required" to "hardening we recommend". The in-app
-gate is the control and is enforced by lint. Documentation-only, but it changes
-what an operator believes is load-bearing, which is the point of the whole
-direction.
+From "required" to "recommended hardening", in
+`docs/reference/webserver-wiring.md`.
+
+**The filing said the in-app gate was "enforced by lint". It was not** - it was
+behaviour-tested on two surfaces and pinned nowhere. So the lint came first:
+`t/lint/38` asserts that every surface which READS a trust header also gates it
+on the auth wrapper having vouched for the request, keyed on reading rather than
+a fixed file list, because a NEW surface that starts believing one is the case
+that matters. It also asserts the gate DELETES the headers rather than only
+logging them.
+
+Demoting the doc first would have been the very thing this programme exists to
+stop: prose asserting a control that nothing enforced.
 
 ## Step 5 - the daemon shape
 

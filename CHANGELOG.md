@@ -78,6 +78,19 @@ been "put the rule in one more config file"; this is the other answer.
   deliberately NOT renamed - both are in live partner use and the mapping is
   documented instead
 
+- SM293 steps 2a + 4 (pending) the engine now ASKS where its own tree lives
+  (`Lazysite::Paths`) instead of computing `<docroot>/lazysite`, so a site can
+  migrate it out of the served tree by MOVING the directory - no config key, no
+  flag day, both layouts on one code path, and `lazysite check` FAILs on the
+  half-migrated state. Nothing moves yet: the migration touches live credentials
+  on every site and is a release-manager decision. `t/lint/37` pins the
+  processor's module-free copy against the module and forbids any surface
+  rebuilding the path for itself - which found thirteen call sites, plus the
+  health tool refusing to look at a migrated site and the users tool creating a
+  second account store on one. Separately, the front-end trust-header strip is
+  demoted from a requirement to recommended hardening, after `t/lint/38` was
+  written to make the in-app gate an enforced control rather than a claim
+
 Docs: `docs/architecture/access-control-model.md` gains the private-store
 section and a setting-access-by-surface table; `docs/FEATURES.md` explains the ways access can be limited. SM286 is
 closed on step 1, its substance; SM293 carries forward the rest of the direction
