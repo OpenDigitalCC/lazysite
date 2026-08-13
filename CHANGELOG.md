@@ -78,6 +78,17 @@ been "put the rule in one more config file"; this is the other answer.
   deliberately NOT renamed - both are in live partner use and the mapping is
   documented instead
 
+- SM295 (pending) three repeat traps become checks, after the operator asked
+  whether they could be structural rather than remembered. `t/lint/39` fails on
+  file-scoped state initialised below the main body - and found a THIRD live
+  instance on its first run (`%OEMBED_PROVIDERS`, shipped for months, leaving a
+  documented SSRF mitigation inert because every oEmbed fell through to
+  autodiscovery). `t/lint/40` fails on a list interpolated into a shell command
+  string, the trap that made two working tools look completely broken in one
+  day; `TestHelper::run_cmd` is the one correct way and four call sites are
+  converted. `tools/coverage.sh` gains an flock and a live-writer check, so two
+  runs cannot corrupt each other and an orphaned `prove` is named rather than
+  silently poisoning the database
 - SM293 step 5 (pending) **a front end can now be ONE RULE.**
   `Lazysite::FrontDoor::route()` makes every routing decision the vhost
   templates used to make, and `lazysite-front.pl` executes it; reference configs
