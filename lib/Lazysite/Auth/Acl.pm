@@ -10,12 +10,13 @@ use warnings;
 use JSON::PP       ();
 use File::Path     qw(make_path);
 use File::Basename qw(dirname);
+use Lazysite::Util ();    # SM289: secure_write_perms - root must not own this store
 use Exporter 'import';
 
 our @EXPORT_OK = qw(load_acls save_acls _acl_norm _to_list _acl_allows _acls_path
     _is_operator _acl_denied groups_for_user);
 
-our $DOCROOT;    # set by the script
+our $DOCROOT;             # set by the script
 
 # Manager auth-state, set per request by the dispatcher (the operator-bypass
 # decision). A token client is never an operator; otherwise group-granted
@@ -89,7 +90,19 @@ sub save_acls {
     open my $fh, '>', $tmp or return 0;
     print {$fh} JSON::PP->new->canonical->pretty->encode($map);
     close $fh;
-    chmod 0640, $tmp;
+
+    # SM215/SM289: never leave a root-owned acls.json behind.
+    #
+    # Every writer of this store used to be a CGI running as the site user, so a
+    # bare chmod was enough. SM289 added a CLI verb, and root is a plausible
+    # caller of a CLI - at which point a plain write leaves a file the CGI can no
+    # longer update, and the manager silently loses the ability to change
+    # permissions. That is the Class-B ownership drift SM215 fixed everywhere
+    # else; this store was missed because nothing could reach it as root.
+    #
+    # secure_write_perms makes the file match its directory's owner and group,
+    # which is the provisioned site user in every install shape.
+    Lazysite::Util::secure_write_perms( $tmp, oct '640' );
     return rename $tmp, $path;
 }
 

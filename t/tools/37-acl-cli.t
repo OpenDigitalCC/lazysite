@@ -204,4 +204,28 @@ subtest 'json output for a caller that is not a person' => sub {
         'and carries no absolute filesystem path' );
 };
 
+
+subtest 'a write as root is refused' => sub {
+    # SM139: lazysite never writes into a site tree as root, because root-owned
+    # files there are what stop the manager working afterwards. A write here
+    # creates acls.json AND the private store's directories, so this tool is
+    # squarely in scope for that rule - it was the first CLI able to reach the
+    # ACL store at all, which is why the store's writer had never needed to
+    # think about ownership either.
+    local $ENV{LAZYSITE_CLI_FAKE_ROOT} = 1;
+
+    my $r = acl( 'set', 'open/public.md', '--docroot', $d,
+        '--actor', 'alice', '--read', 'alice' );
+    isnt( $r->{rc}, 0, 'it refuses' );
+    like( $r->{out}, qr/as root/,          'saying why' );
+    like( $r->{out}, qr/sudo -u SITEUSER/, 'and what to run instead' );
+    ok( !exists stored()->{'open/public.md'}, 'nothing was written' );
+
+    # Reads create nothing, so they are allowed - refusing them would make the
+    # tool useless to the operator most likely to be holding a root shell during
+    # an incident.
+    my $ok = acl( 'list', '--docroot', $d );
+    is( $ok->{rc}, 0, 'but a read is still allowed as root' );
+};
+
 done_testing();

@@ -63,6 +63,30 @@ usage(2) unless length $verb;
 fail('--docroot is required')          unless length $opt{docroot};
 fail("not a directory: $opt{docroot}") unless -d $opt{docroot};
 
+# SM139: lazysite never writes into a site tree as root. A write here touches
+# acls.json AND MOVES CONTENT between two trees, creating directories in the
+# private store as it goes - so running it as root leaves root-owned files where
+# the CGI must be able to update them, which is the Class-B ownership drift
+# SM215 exists to repair. save_acls now matches its directory's owner, but the
+# store's directories are made by the move, so refusing is the right answer
+# rather than a second safety net.
+#
+# Reads are allowed as root: they create nothing.
+#
+# LAZYSITE_CLI_FAKE_ROOT is the same test-only override lazysite-cli.pl uses, and
+# like it, only ever makes this MORE restrictive.
+if ( ( $> == 0 || $ENV{LAZYSITE_CLI_FAKE_ROOT} )
+    && ( $verb eq 'set' || $verb eq 'remove' ) )
+{
+    fail( "refusing to change access as root.\n"
+            . "  A write here creates files in the site tree, and root-owned files\n"
+            . "  there are exactly what stops the manager working afterwards (SM139).\n"
+            . "  Run it as the site user instead:\n"
+            . "    sudo -u SITEUSER lazysite acl $verb ...\n"
+            . "  (--actor is a different thing: it names the lazysite ACCOUNT the\n"
+            . "  rule is written as, not the unix user running the command.)" );
+}
+
 # Context for the shared writer. Exactly what the CGI scripts set, and nothing
 # more - if this list ever needs to grow, the writer has gained a dependency the
 # other surfaces are also setting, and both should be looked at together.
