@@ -1283,17 +1283,48 @@ sub action_git_history {
     return $r unless $r->{ok};
     require Lazysite::Git;
     my $enabled = Lazysite::Git::enabled($DOCROOT);
+
+    # SM286: content in the private store is NOT under version control, and this
+    # has to be said rather than shown as an empty list.
+    #
+    # The history work tree is the docroot; the store is its sibling, so a
+    # protected file's history stops at the commit that removed it from the
+    # public tree. That is deliberate, not an oversight - Git.pm's own header
+    # makes the exclude list a security boundary on the grounds that a history
+    # which may be pushed to a remote must never carry personal data, and
+    # members-only content is precisely that.
+    #
+    # What would be wrong is the REPORT. `enabled: 1` with `versions: []` reads
+    # as "this file has no history", when the truth is "history does not cover
+    # this file". SM261 was this same failure on this same response: an empty
+    # result and a wrong answer are indistinguishable to the caller, so the
+    # failure mode is a confident wrong conclusion rather than an error.
+    my $in_store = ( ( $r->{store} // '' ) eq 'private' ) ? 1 : 0;
+
     return {
         ok      => 1,
         path    => $r->{rel},
         enabled => _git_bool($enabled),
+
         # SM261: `versions`, not `entries`. A list response names its CONTENTS,
         # so a caller can predict the key from the tool. A reporting agent read
         # this as returning zero versions and began writing it up as a defect -
         # it was returning two `entries` perfectly well. A wrong key and an
         # empty result are indistinguishable, so the failure mode is not an
         # error but a confident wrong conclusion.
-        versions => ( $enabled ? Lazysite::Git::file_log( $DOCROOT, $r->{rel}, $limit ) : [] ),
+        versions => ( $enabled && !$in_store
+            ? Lazysite::Git::file_log( $DOCROOT, $r->{rel}, $limit )
+            : [] ),
+
+        versioned => _git_bool( $enabled && !$in_store ),
+        ( $in_store
+            ? ( notice => 'This content is protected, and protected content is'
+                    . ' kept out of the version history - a history can be'
+                    . ' pushed to a remote, and this content is not meant to'
+                    . ' travel. Its history runs up to the point it was'
+                    . ' protected.' )
+            : ()
+        ),
     };
 }
 

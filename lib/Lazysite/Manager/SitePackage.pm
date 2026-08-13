@@ -32,6 +32,7 @@ use Lazysite::Util             qw(log_event);
 use Lazysite::Manager::Domains ();
 use Lazysite::Manager::Common  qw(_write_conf_key conf_batch);
 use Lazysite::Manager::Themes  qw(_mirror_theme_assets);         # SM193: mirror on apply
+use Lazysite::Private          ();    # SM286: what a package cannot carry
 use Exporter 'import';
 our @EXPORT_OK = qw(package_create package_apply apply_and_configure package_inspect);
 
@@ -217,6 +218,24 @@ sub package_create {
     }
 
     # 4. manifest
+    #
+    # SM286: a package NEVER carries gated content, and says how much it left.
+    #
+    # Two independent reasons, either of which is sufficient. First, the ACL rules
+    # live under lazysite/ and are deliberately not packaged - so gated content
+    # extracted at the far end would arrive with no rules governing it, i.e.
+    # published, on a site whose operator never chose to publish it. Second, a
+    # package is the artefact that TRAVELS between organisations; someone else's
+    # members-only content is not a thing to put on a courier by default.
+    #
+    # The store is a sibling of the docroot, so the copy above already misses it
+    # without trying. That is exactly the danger: the omission is correct and
+    # completely silent. Count it and report it - in the result to the operator
+    # building the package, and in the manifest so the receiving operator learns
+    # it from the package itself rather than from a gap they may not notice.
+    my $private_omitted =
+        Lazysite::Private::count_private( $DOCROOT, $primary_base ? '' : $croot );
+
     my $manifest = {
         site_package => 1,
         created      => $ts,
@@ -225,6 +244,11 @@ sub package_create {
         nav          => $nav_mode,
         layout       => $layout,
         theme        => $theme,
+
+        # A count, never the paths. A filename is content: "members/2026-payroll"
+        # discloses the thing the gate exists to protect, and this manifest
+        # travels further than the content ever would.
+        private_omitted => $private_omitted,
     };
     if ( open my $mf, '>:utf8', "$stage/site.json" ) {
         print {$mf} JSON::PP->new->canonical->pretty->encode($manifest);
@@ -250,7 +274,8 @@ sub package_create {
 
     my @st = stat $out;
     log_event( 'INFO', 'site-package-create', 'site packaged',
-        host => $host, file => $name, user => $auth_user );
+        host            => $host, file => $name, user => $auth_user,
+        private_omitted => $private_omitted );
     return {
         ok       => 1,
         name     => $name,
@@ -258,6 +283,21 @@ sub package_create {
         size     => ( $st[7] // 0 ),
         host     => ( $row->{is_primary} ? '(default)' : lc $host ),
         manifest => $manifest,
+
+        # SM286: surfaced at the top level, not only inside the manifest, because
+        # the operator reads the result and a UI shows what it is handed. A
+        # package that quietly contains less of the site than its builder assumes
+        # is discovered by the person applying it, in front of their client.
+        private_omitted => $private_omitted,
+        ( $private_omitted
+            ? ( notice => "$private_omitted protected "
+                    . ( $private_omitted == 1 ? 'file is' : 'files are' )
+                    . ' not in this package. Protected content stays on this site:'
+                    . ' the rules that govern it are not packaged, so it would'
+                    . ' arrive unprotected. Move it across separately if the'
+                    . ' destination is meant to have it.' )
+            : ()
+        ),
     };
 }
 
@@ -369,8 +409,24 @@ sub package_inspect {
     }
     remove_tree($stage) if -d $stage;
 
+    # SM286: tell the RECEIVING operator that the source site held protected
+    # content this package does not contain. They are the one about to apply it
+    # and conclude they have the whole site; the number comes from the source's
+    # own manifest, so they learn it from the package rather than from a gap.
+    #
+    # Absent on a package built before this, which is honestly different from
+    # zero: `undef` means "this package cannot say", not "there was none".
+    my $omitted = $manifest->{private_omitted};
+
     return { ok => 1, manifest => $manifest, content_files => $files,
         has_nav => $has_nav, has_layout => $has_layout,
+        ( defined $omitted ? ( private_omitted => $omitted ) : () ),
+        ( $omitted
+            ? ( notice => "The source site had $omitted protected "
+                    . ( $omitted == 1 ? 'file' : 'files' )
+                    . ' that a package cannot carry, so this content is not here.' )
+            : ()
+        ),
         ( $compare ? ( compare => $compare ) : () ) };
 }
 

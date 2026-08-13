@@ -36,7 +36,7 @@ use Cwd            qw(realpath);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(private_root private_path resolve resolve_for_write
-    is_private move_in move_out stray_public);
+    is_private move_in move_out stray_public count_private);
 
 # The store's directory name. A leading dot would hide it from an operator
 # looking at the tree, and the point is that they can see where their private
@@ -123,6 +123,33 @@ sub stray_public {
     $rel =~ s{\A/+}{};
     my $priv = private_path( $docroot, $rel );
     return ( defined $priv && -e $priv && -e "$docroot/$rel" ) ? 1 : 0;
+}
+
+# Count the regular files held in the store under a relative prefix ('' or undef
+# = the whole store). Directories and symlinks are not counted; the question this
+# answers is always "how much CONTENT is in there", asked by something that is
+# about to tell an operator a number.
+#
+# SM286: exists so that code which cannot carry private content has to state how
+# much it left behind. A silent omission is the failure mode this whole work item
+# is about, and a caller with no way to count is a caller that will stay silent.
+sub count_private {
+    my ( $docroot, $rel ) = @_;
+    my $base = private_path( $docroot, $rel );
+    return 0 unless defined $base && -d $base;
+    require File::Find;
+    my $n = 0;
+    File::Find::find(
+        { no_chdir => 1,
+            wanted => sub {
+                my $p = $File::Find::name;
+                return if -l $p;    # never follow a link out of the store
+                $n++   if -f $p;
+            },
+        },
+        $base
+    );
+    return $n;
 }
 
 # Confinement: never let a caller's path escape either tree. Both roots are
