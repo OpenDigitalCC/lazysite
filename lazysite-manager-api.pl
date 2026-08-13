@@ -752,6 +752,26 @@ if ($token_auth) {
         'acl-set'    => sub { $_[0]->{webdav} },
         'acl-remove' => sub { $_[0]->{webdav} },
     );
+    # SM212: why a KNOWN action is withheld from token clients, where the answer
+    # is a decision and not just "the manager UI owns this screen". Only the
+    # actions whose absence would otherwise read as an oversight need an entry;
+    # the rest fall back to the generic sentence.
+    my %COOKIE_ONLY_REASON = (
+        'form-submission-delete' =>
+            'deleting a stored submission is a destructive operation on personal '
+            . 'data, and often on the only copy, so SM214 keeps it interactive: a '
+            . 'human confirms it in the manager. Reading submissions IS available '
+            . 'to this account with the right capability',
+        'form-submissions-delete-bulk' =>
+            'the same reason as form-submission-delete, and more so - a bulk '
+            . 'delete of personal data is not an operation to expose to an '
+            . 'automated caller',
+        'rotate-auth-secret' =>
+            'rotating the signing secret invalidates every live session, '
+            . 'including the caller\'s own, so it is done by a human who can see '
+            . 'what breaks',
+    );
+
     my $check = $need{$action};
     unless ($check) {
         # SM237: "not available to token clients" answered BOTH an action that
@@ -763,10 +783,24 @@ if ($token_auth) {
         # cannot tell them apart; %KNOWN_ACTION is the full recognised set and
         # t/lint/22-known-action-parity.t pins it to the dispatch chain.
         if ( $KNOWN_ACTION{$action} ) {
+            # SM212: and say WHY, where the reason is a decision rather than
+            # simply the shape of the interactive UI.
+            #
+            # SM237 fixed "exists but you may not call it" versus "no such
+            # action", which are the two an agent must not confuse. This is the
+            # third: an action withheld ON PURPOSE reads exactly like one nobody
+            # got round to exposing, so a site agent validating 0.10.7 recorded
+            # the submission deletes as a parity gap to be closed. They are not a
+            # gap. Naming the reason is the difference between a report that says
+            # "not built" and one that says "held back, and here is the
+            # argument".
+            my $why = $COOKIE_ONLY_REASON{$action};
             respond( { ok => 0,
                     error => "Action not available to token clients: $action. It "
                         . 'exists, but is served only to the manager UI over a cookie '
-                        . 'session. Call describe-capabilities to see what this '
+                        . 'session'
+                        . ( $why ? " - $why" : '' ) . '. '
+                        . 'Call describe-capabilities to see what this '
                         . 'account can do over the API.' } );
         }
         else {

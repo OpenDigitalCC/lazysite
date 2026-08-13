@@ -5,11 +5,11 @@
 use strict;
 use warnings;
 use Test::More;
-use File::Temp qw(tempdir);
-use File::Path qw(make_path);
-use JSON::PP qw(encode_json decode_json);
+use File::Temp   qw(tempdir);
+use File::Path   qw(make_path);
+use JSON::PP     qw(encode_json decode_json);
 use MIME::Base64 qw(encode_base64);
-use Digest::SHA qw(hmac_sha256_hex);
+use Digest::SHA  qw(hmac_sha256_hex);
 use IPC::Open2;
 use IPC::Open3;
 use Symbol qw(gensym);
@@ -17,9 +17,9 @@ use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root grant_caps);
 
-my $root  = repo_root();
-my $utool = "$root/tools/lazysite-users.pl";
-my $mapi  = "$root/lazysite-manager-api.pl";
+my $root   = repo_root();
+my $utool  = "$root/tools/lazysite-users.pl";
+my $mapi   = "$root/lazysite-manager-api.pl";
 my $secret = 'sekret' x 6;
 
 sub uapi {
@@ -77,7 +77,7 @@ print $tj '{"name":"live","layouts":["base"]}'; close $tj;
 
 # partner: token credential + manage_themes
 uapi( $d, { action => 'add', username => 'partner', password => 'x' } );
-grant_caps( $d, 'partner', 'manage_themes', 'api' );   # SM126: token client holds the api channel cap
+grant_caps( $d, 'partner', 'manage_themes', 'api' ); # SM126: token client holds the api channel cap
 my $tok = uapi( $d, { action => 'token', username => 'partner' } )->{token};
 ok( $tok && $tok =~ /^lzs_/, 'minted partner token' );
 
@@ -101,6 +101,40 @@ my $na = mapi( $d, QUERY_STRING => 'action=read&path=/index.md',
     HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
 ok( !$na->{ok} && $na->{error} =~ /not available to token/i,
     'non-allowlisted action refused for token clients' );
+
+# --- SM212: an action withheld ON PURPOSE says why ---------------------------
+# SM237 separated "exists but you may not call it" from "no such action", which
+# are the two an agent must not confuse. This is the third case: an action held
+# back deliberately reads exactly like one nobody got round to exposing, and a
+# site agent validating 0.10.7 duly recorded the submission deletes as a parity
+# gap to be closed. They are not a gap - SM214 keeps them interactive because
+# deleting a stored submission is a destructive operation on personal data,
+# often on the only copy.
+{
+    my $pii = mapi( $d,
+        REQUEST_METHOD     => 'POST',
+        QUERY_STRING       => 'action=form-submission-delete&file=x&id=1',
+        HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+    ok( !$pii->{ok}, 'a token client cannot delete a submission' );
+    like( $pii->{error}, qr/not available to token/i,
+        'and is told it exists but is cookie-only' );
+    like( $pii->{error}, qr/personal data/i,
+        'AND why - without which "held back" is indistinguishable from '
+            . '"not built", which is how it got filed as a defect' );
+    like( $pii->{error}, qr/reading submissions IS available/i,
+        'and what it CAN do instead, so the refusal is actionable' );
+
+    # The control: an action that is cookie-only for no interesting reason gets
+    # the plain sentence, so the explanation means something where it appears.
+    my $plain = mapi( $d,
+        REQUEST_METHOD     => 'POST',
+        QUERY_STRING       => 'action=notices-seen',
+        HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
+    like( $plain->{error}, qr/not available to token/i,
+        'the control is refused the same way' );
+    unlike( $plain->{error}, qr/personal data/i,
+        'and carries no borrowed explanation' );
+}
 
 # --- SM105: nav-read/nav-save are token actions gated by manage_nav ----------
 # manage_nav inherits manage_content which inherits webdav, so a webdav partner
@@ -130,7 +164,7 @@ ok( !$nn->{ok} && $nn->{error} =~ /capability/i,
     my $base = mapi( $d, QUERY_STRING => 'action=nav-read',
         HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
     is( $base->{items}[0]{label}, 'Home', 'base nav-read returns the base menu' );
-    is( $base->{inherited}, 0, 'the default host is never marked inherited' );
+    is( $base->{inherited},       0,      'the default host is never marked inherited' );
 
     my $dom = mapi( $d, QUERY_STRING => 'action=nav-read&host=shop.example',
         HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
@@ -148,7 +182,7 @@ ok( !$nn->{ok} && $nn->{error} =~ /capability/i,
     # nav-save with a host writes the domain override, not the base.
     my $save = mapi( $d, REQUEST_METHOD => 'POST', QUERY_STRING => 'action=nav-save',
         HTTP_AUTHORIZATION => basic( 'partner', $tok ),
-        body => encode_json( { host => 'shop.example',
+        body               => encode_json( { host => 'shop.example',
                 items => [ { label => 'Cart', url => '/cart', children => [] } ] } ) );
     ok( $save->{ok}, 'domain nav-save ok' ) or diag $save->{error};
     my $shop = do { open my $f, '<', "$d/sites/shop/nav.conf" or die $!; local $/; <$f> };
@@ -166,8 +200,8 @@ my $al = mapi( $d, QUERY_STRING => 'action=aliases-list',
     HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
 ok( $al->{ok}, 'aliases-list available to a token client with manage_content' );
 is_deeply( $al->{aliases},
-    [ { alias => '/old',  target => '/new', code => 301 },
-      { alias => '/soon', target => '/new', code => 302 } ],
+    [ { alias => '/old', target => '/new', code => 301 },
+        { alias => '/soon', target => '/new', code => 302 } ],
     'aliases-list returns { alias, target, code } rows (old format = 301)' );
 my $an = mapi( $d, QUERY_STRING => 'action=aliases-list',
     HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
@@ -190,18 +224,18 @@ ok( $wai->{ok}, 'token without api: whoami still allowed (introspection)' );
 my $dcap = mapi( $d, QUERY_STRING => 'action=describe-capabilities',
     HTTP_AUTHORIZATION => basic( 'nocap', $tok2 ) );
 ok( $dcap->{ok}, 'token without api: describe-capabilities allowed (introspection)' );
-ok( $dcap->{channels}{api}{enforced}, 'map: api channel reports enforced' );
+ok( $dcap->{channels}{api}{enforced},            'map: api channel reports enforced' );
 ok( exists $dcap->{capabilities}{manage_themes}, 'map lists an action capability' );
-ok( @{ $dcap->{tasks} || [] } >= 3, 'map carries task recipes' );
+ok( @{ $dcap->{tasks} || [] } >= 3,              'map carries task recipes' );
 ok( exists $dcap->{holds}{capabilities}{delegate_sub_user_creation},
     'holds carries the full @CAP_KEYS incl. delegate_sub_user_creation (drift fix)' );
 
 # --- SM127: an INTERACTIVE manager account (ui capability + login enabled) is
 # refused on the api channel - but introspection stays open (SM126/SM072). -----
 uapi( $d, { action => 'add', username => 'mgr', password => 'x' } );
-grant_caps( $d, 'mgr', 'ui', 'api', 'manage_content' );   # ui cap + login enabled (default)
+grant_caps( $d, 'mgr', 'ui', 'api', 'manage_content' ); # ui cap + login enabled (default)
 my $mtok = uapi( $d, { action => 'token', username => 'mgr' } )->{token};
-my $mg = mapi( $d, QUERY_STRING => 'action=theme-list',
+my $mg   = mapi( $d, QUERY_STRING => 'action=theme-list',
     HTTP_AUTHORIZATION => basic( 'mgr', $mtok ) );
 ok( !$mg->{ok} && $mg->{error} =~ /manager|interactive/i,
     'an interactive manager (ui) account is refused on the api channel' );
@@ -216,10 +250,10 @@ ok( $mgw->{ok}, 'a manager account: whoami still allowed (introspection open)' )
 # message advises. Its token must honour its own api-channel capabilities and
 # NOT be blocked by the manager-UI gate (the reported 0.8.0 regression). --------
 uapi( $d, { action => 'add', username => 'agent', password => 'x' } );
-grant_caps( $d, 'agent', 'ui', 'api', 'analytics' );   # manager ui cap + api + analytics
+grant_caps( $d, 'agent', 'ui', 'api', 'analytics' );    # manager ui cap + api + analytics
 uapi( $d, { action => 'settings-set', username => 'agent', key => 'ui', value => 0 } );
 my $atok = uapi( $d, { action => 'token', username => 'agent' } )->{token};
-my $aw = mapi( $d, QUERY_STRING => 'action=whoami',
+my $aw   = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'agent', $atok ) );
 ok( $aw->{ok}, 'agent account (login disabled): whoami works' );
 ok( !$aw->{capabilities}{ui},
@@ -231,7 +265,7 @@ unlike( $av->{error} // '', qr/manager|interactive/i,
 
 # --- CSRF exemption: token POST needs no CSRF token ----------------------
 my $pa = mapi( $d, REQUEST_METHOD => 'POST',
-    QUERY_STRING => 'action=theme-activate&path=live',
+    QUERY_STRING       => 'action=theme-activate&path=live',
     HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
 unlike( $pa->{error} // '', qr/CSRF/i, 'token POST is exempt from CSRF' );
 
@@ -243,12 +277,12 @@ ok( !$mix->{ok} && $mix->{error} =~ /combine/i, 'cookie + token rejected' );
 
 # --- invalid token -------------------------------------------------------
 my $bad = mapi( $d, QUERY_STRING => 'action=artifact-manifest&layout=base&theme=live',
-    HTTP_AUTHORIZATION => basic( 'partner', 'lzs_' . ('0' x 64) ) );
+    HTTP_AUTHORIZATION => basic( 'partner', 'lzs_' . ( '0' x 64 ) ) );
 ok( !$bad->{ok} && $bad->{error} =~ /invalid credentials/i, 'invalid token rejected' );
 
 # --- actor injection: a manager may only manage its own sub-tree ---------
 uapi( $d, { action => 'add', username => 'boss', password => 'x' } );
-grant_caps( $d, 'boss', 'create_sub_users', 'api' );   # SM126: token client holds the api channel cap
+grant_caps( $d, 'boss', 'create_sub_users', 'api' ); # SM126: token client holds the api channel cap
 # The audit trail requires its own 'audit' capability (strict gate), separate
 # from visitor analytics.
 grant_caps( $d, 'boss', 'audit' );
@@ -259,14 +293,14 @@ uapi( $d, { action => 'add', username => 'other', password => 'x' } );
 my $ok_disable = mapi( $d, REQUEST_METHOD => 'POST',
     HTTP_X_REMOTE_USER => 'boss', HTTP_X_CSRF_TOKEN => csrf('boss'),
     QUERY_STRING => 'action=users',
-    body => encode_json({ action => 'account-disable', username => 'child' }) );
+    body         => encode_json( { action => 'account-disable', username => 'child' } ) );
 ok( $ok_disable->{ok}, 'manager may disable an account in its own sub-tree' );
 
 # boss disabling an unrelated account: denied (actor injected -> ancestry).
 my $deny = mapi( $d, REQUEST_METHOD => 'POST',
     HTTP_X_REMOTE_USER => 'boss', HTTP_X_CSRF_TOKEN => csrf('boss'),
     QUERY_STRING => 'action=users',
-    body => encode_json({ action => 'account-disable', username => 'other' }) );
+    body         => encode_json( { action => 'account-disable', username => 'other' } ) );
 ok( !$deny->{ok}, 'manager may not disable an account outside its sub-tree' );
 
 # --- SM072: whoami introspection of the caller's own grant --------------
@@ -276,10 +310,10 @@ my $who = mapi( $d, QUERY_STRING => 'action=whoami',
     HTTP_AUTHORIZATION => basic( 'partner', $tok ) );
 ok( $who->{ok}, 'whoami ok for a token client' );
 is( $who->{partner}, 'partner', 'whoami returns the caller id' );
-ok( $who->{capabilities}{manage_themes},  'whoami reports manage_themes on' );
+ok( $who->{capabilities}{manage_themes},   'whoami reports manage_themes on' );
 ok( !$who->{capabilities}{manage_layouts}, 'whoami reports manage_layouts off' );
 ok( ( grep { $_ eq 'editors' } @{ $who->{groups} } ), 'whoami lists the caller groups (editors)' );
-ok( ref $who->{plugins} eq 'ARRAY', 'whoami lists plugins' );
+ok( ref $who->{plugins} eq 'ARRAY',        'whoami lists plugins' );
 ok( exists $who->{layouts}{active_layout}, 'whoami reports the active layout' );
 ok( ref $who->{site_capabilities} eq 'ARRAY', 'whoami reports site capabilities from enabled plugins' );
 
@@ -291,7 +325,7 @@ ok( $who2->{ok} && $who2->{partner} eq 'nocap', 'whoami available without a capa
 # --- SM072: the audit trail records the POST actions above --------------
 my $aud = mapi( $d, QUERY_STRING => 'action=audit', HTTP_X_REMOTE_USER => 'boss' );
 ok( $aud->{ok} && ref $aud->{entries} eq 'ARRAY', 'audit returns an entries list' );
-ok( scalar( @{ $aud->{entries} } ) > 0, 'audit recorded the POST actions' );
+ok( scalar( @{ $aud->{entries} } ) > 0,           'audit recorded the POST actions' );
 ok( ( grep { ( $_->{action} // '' ) =~ /theme-activate|account-disable|users/ } @{ $aud->{entries} } ),
     'audit captured a known POST action with who/what' );
 my $auf = mapi( $d, QUERY_STRING => 'action=audit&user=boss', HTTP_X_REMOTE_USER => 'boss' );
