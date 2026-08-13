@@ -69,6 +69,11 @@
       "license": "Artistic-1.0-Perl",
       "used_by": "zip download tempfile, theme upload staging"
     },
+    "FindBin": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "locating the module tree relative to a tool (lazysite-acl.pl, lazysite-apache-vhost.pl) so it runs in place, from a tarball, or from a package install"
+    },
     "Getopt::Long": {
       "core": true,
       "license": "Artistic-1.0-Perl",
