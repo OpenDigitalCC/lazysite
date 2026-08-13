@@ -35,6 +35,12 @@ my @CONFIGS = (
     { rel => 'installers/hestia/lazysite-proxy.stpl', hestia => 1, tls => 1 },
     { rel => 'installers/nginx/vhost-cgi.conf.example' },
     { rel => 'installers/nginx/vhost-fcgi.conf.example' },
+
+    # SM293 step 5: the one-rule config. A shipped config that does not parse
+    # is broken for whoever copies it, and this one is deliberately unlike the
+    # others - no try_files, no extension list - so it is exactly the kind that
+    # needs the real parser rather than a reading.
+    { rel => 'installers/nginx/vhost-one-rule.conf.example' },
 );
 
 # One self-signed cert for the SSL template; nginx LOADS certificates during a

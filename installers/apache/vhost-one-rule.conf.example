@@ -1,0 +1,83 @@
+# lazysite - Apache, one rule (SM293 step 5)
+#
+# The whole front-end contract, in one rewrite: forward everything to lazysite
+# and let it decide which surface handles the request.
+#
+# WHY THIS EXISTS. The other templates in this directory carry about a dozen
+# routing decisions each - which URLs reach the processor, which reach the
+# manager API, which go through the auth wrapper, when an existing static file
+# must be handed to the engine instead of served, what is denied. Those are
+# lazysite's decisions, written in a language lazysite does not control, in a
+# file it ships as a template, cannot test where it is installed, and on most
+# deployments cannot see.
+#
+# That arrangement produced three incidents: SM248 (a secondary domain served
+# the primary's registries), SM268 H17 (a rule that resolved to the wrong path
+# and 404'd every static file on a Hestia layout), SM283 (a proxy answering by
+# file extension before the engine was consulted - live across a fleet for
+# weeks). None was a coding error. Each was a correct engine and a front end
+# that had not been told, or had been told and answered first.
+#
+# With this file, there is nothing to tell. Lazysite::FrontDoor::route() makes
+# the decisions, t/unit/lib/21 asserts them, and t/integration/49 drives this
+# exact shape through real Apache.
+#
+# WHAT IT COSTS. Every request starts a process, including requests for images
+# on a site that protects nothing - which the other templates let the web server
+# answer directly. So this is the correct-and-simple option, not the fast one.
+# Both are supported: the fuller templates are PERFORMANCE options whose absence
+# costs speed and never correctness. Use vhost-fcgi with a pool if throughput
+# matters; use this if one line you can reason about matters more.
+#
+# Replace __DOMAIN__, __DOCROOT__, __CGIBIN__ and __PORT__.
+
+<VirtualHost *:__PORT__>
+    ServerName __DOMAIN__
+    DocumentRoot __DOCROOT__
+
+    # Recommended hardening, not required (SM293 step 4): the engine refuses a
+    # trust header unless the auth wrapper vouched for the request or the
+    # operator opted into a trusted proxy, so a forged one fails here anyway.
+    # Stripping them keeps them out of upstream logs and costs nothing.
+    RequestHeader unset X-Remote-User
+    RequestHeader unset X-Remote-Groups
+    RequestHeader unset X-Remote-Name
+    RequestHeader unset X-Remote-Email
+    RequestHeader unset X-Payment-Verified
+    RequestHeader unset X-Payment-Payer
+
+    ScriptAlias /lazysite-front __CGIBIN__/lazysite-front.pl
+    SetEnv LAZYSITE_CGIBIN __CGIBIN__
+
+    <Directory __CGIBIN__>
+        Options +ExecCGI
+        Require all granted
+    </Directory>
+
+    <Directory __DOCROOT__>
+        AllowOverride None
+        Require all granted
+    </Directory>
+
+    # THE RULE. Everything except the front door itself goes to the front door.
+    RewriteEngine On
+    RewriteRule ^/(?!lazysite-front) /lazysite-front [PT,L]
+
+    # A request that maps to no file at all never reaches mod_rewrite's
+    # substitution on some configurations; this covers it.
+    FallbackResource /lazysite-front
+
+    CustomLog ${APACHE_LOG_DIR}/__DOMAIN__.access.log combined
+    ErrorLog ${APACHE_LOG_DIR}/__DOMAIN__.error.log
+</VirtualHost>
+
+# Note what is NOT here, and why:
+#
+#   - no /cgi-bin/ or /dav ScriptAlias: the front door routes them by name;
+#   - no auth-wrapper rewrite: the front door decides what gets wrapped;
+#   - no SM223 static-routing conditions: the front door applies that rule;
+#   - no registry rewrite: since SM293 step 3 the registries are generated on
+#     request and are not files, so there is nothing to route around;
+#   - no `Require all denied` for /lazysite/ or *.brief: the front door refuses
+#     them, and on a site migrated by SM293 step 2 the engine tree is not under
+#     the document root at all.

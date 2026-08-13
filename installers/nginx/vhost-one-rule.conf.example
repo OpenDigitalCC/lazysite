@@ -1,0 +1,71 @@
+# lazysite - nginx, one rule (SM293 step 5)
+#
+# The nginx counterpart of vhost-one-rule.conf.example: forward everything to
+# lazysite and let it decide which surface handles the request.
+#
+# nginx is the deployment where this matters most. It has no built-in CGI, so
+# every shipped nginx template either proxies to Apache or answers static files
+# itself from a per-extension list - and answering by extension is exactly what
+# SM283 was. A proxy that decides by file suffix cannot know that the file
+# behind that suffix is protected; the engine does, and is never asked.
+#
+# With this file nginx makes no content decision at all. It hands every request
+# to lazysite, which routes it (Lazysite::FrontDoor::route(), asserted by
+# t/unit/lib/21) and applies the access rules the operator actually set.
+#
+# WHAT IT COSTS: a FastCGI round trip for every request, including images on a
+# site that protects nothing. The other templates let nginx answer those
+# directly and are faster; they are PERFORMANCE options whose absence costs
+# speed and never correctness. Choose accordingly.
+#
+# Needs fcgiwrap (or another FastCGI CGI runner) to execute the front door.
+# Replace __DOMAIN__, __DOCROOT__, __CGIBIN__ and __PORT__.
+
+server {
+    listen __PORT__;
+    server_name __DOMAIN__;
+    root __DOCROOT__;
+
+    # Recommended hardening, not required (SM293 step 4): the engine refuses a
+    # trust header unless the auth wrapper vouched for the request or the
+    # operator opted into a trusted proxy. Clearing them keeps them out of
+    # upstream logs.
+    proxy_set_header X-Remote-User "";
+    proxy_set_header X-Remote-Groups "";
+    proxy_set_header X-Remote-Name "";
+    proxy_set_header X-Remote-Email "";
+    proxy_set_header X-Payment-Verified "";
+    proxy_set_header X-Payment-Payer "";
+
+    client_max_body_size 64m;
+
+    # THE RULE. Everything, with no try_files and no extension list - which is
+    # the point: an extension list is a content decision, and nginx is not the
+    # thing that knows whether the content behind an extension is protected.
+    location / {
+        include /etc/nginx/fastcgi_params;
+        fastcgi_pass unix:/run/fcgiwrap.socket;
+        fastcgi_param SCRIPT_FILENAME __CGIBIN__/lazysite-front.pl;
+        fastcgi_param DOCUMENT_ROOT   __DOCROOT__;
+        fastcgi_param LAZYSITE_CGIBIN __CGIBIN__;
+
+        # The front door reads the originally-requested path from REDIRECT_URL
+        # first and REQUEST_URI second, the same order the processor uses, so
+        # both agree on what was asked for.
+        fastcgi_param REDIRECT_URL    $uri;
+        fastcgi_read_timeout 120s;
+    }
+
+    access_log /var/log/nginx/__DOMAIN__.access.log;
+    error_log  /var/log/nginx/__DOMAIN__.error.log;
+}
+
+# Note what is NOT here, and why:
+#
+#   - no try_files: the front door decides whether a file is served or gated;
+#   - no static-extension location: deciding by suffix is what SM283 was;
+#   - no /cgi-bin/ or /dav location: routed by name inside lazysite;
+#   - no `location ~ /lazysite/ { deny all; }`: the front door refuses it, and
+#     on a site migrated by SM293 step 2 the engine tree is not under the
+#     document root at all;
+#   - no registry routes: since SM293 step 3 they are generated on request.

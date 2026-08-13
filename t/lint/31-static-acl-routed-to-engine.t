@@ -61,6 +61,35 @@ my @NGINX = qw(
     installers/nginx/vhost-fcgi.conf.example
 );
 
+# SM293 step 5: the one-rule configs route EVERYTHING to lazysite, so the SM223
+# condition is applied by Lazysite::FrontDoor::route() rather than by a pair of
+# RewriteConds - asserted in t/unit/lib/21 and driven through real Apache in
+# t/integration/49. They are exempt from the checks above BY NAME, never by
+# being absent from a list.
+#
+# That distinction is the point of the block below. Both file lists here are
+# hand-maintained, and this lint exists because a rule that lands in nine of ten
+# templates is the defect rather than the fix - so a template nobody listed is
+# exactly the gap it was written to close, reappearing one level up.
+my %EXEMPT = map { $_ => 'routes everything to the front door (SM293 step 5)' }
+    qw(
+    installers/apache/vhost-one-rule.conf.example
+    installers/nginx/vhost-one-rule.conf.example
+    );
+
+{
+    my @shipped = sort map { s{\A\Q$root/\E}{}r }
+        ( glob("$root/installers/apache/*.example"),
+        glob("$root/installers/nginx/*.example") );
+    my %checked     = map  { $_ => 1 } ( @APACHE, @NGINX );
+    my @unaccounted = grep { !$checked{$_} && !$EXEMPT{$_} } @shipped;
+    is_deeply( \@unaccounted, [],
+        'every shipped example config is either checked here or explicitly '
+            . 'exempt - a template nobody listed is the gap this lint exists '
+            . 'to close, one level up' )
+        or diag( join "\n  ", '', @unaccounted );
+}
+
 for my $rel (@APACHE) {
     my $path = "$root/$rel";
     unless ( -f $path ) {
