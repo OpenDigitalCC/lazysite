@@ -600,11 +600,46 @@ sub do_delete {
 
     remove_lock( $a{rel} );
     invalidate_cache( $r->{abs} );
+
     # SM134: drop this page's alias-redirect entries.
+    #
+    # SM286: keyed on the REQUEST path, not derived from the resolved absolute
+    # one. This was `$r->{abs} =~ s{^\Q$DOCROOT\E/?}{}`, which silently does
+    # nothing once the file lives in the private store - the substitution fails
+    # to match and $arel is left as a full ABSOLUTE FILESYSTEM PATH, which then
+    # goes into the alias store as a key. Wrong key, and a path where paths must
+    # never appear. WebDAV already keys every other decision on $a{rel}, so
+    # there was never a reason to derive it.
+    ( my $key = $a{rel} ) =~ s{\A/+}{};
     if ( $a{rel} =~ /\.md\z/ ) {
         require Lazysite::Aliases;
-        ( my $arel = $r->{abs} ) =~ s{^\Q$DOCROOT\E/?}{};
-        Lazysite::Aliases::deindex_page( $DOCROOT, $arel );
+        Lazysite::Aliases::deindex_page( $DOCROOT, $key );
+    }
+
+    # SM212 (site-agent report): drop the ACL entry with the file.
+    #
+    # A deleted path left an entry behind, and the entry outlives the content:
+    # create a file at the same path later - by any surface - and it is born
+    # governed by a rule nobody set, owned by whoever owned the file that used
+    # to be there. The manager's delete has always done this; WebDAV never did,
+    # so the two surfaces disagreed about what deleting means.
+    #
+    # A directory takes its descendants' entries with it, for the same reason:
+    # the paths they name no longer exist.
+    if ( length $key ) {
+        my $acls    = Lazysite::Auth::Acl::load_acls();
+        my $removed = 0;
+        for my $k ( keys %$acls ) {
+            next unless $k eq $key || index( $k, "$key/" ) == 0;
+            delete $acls->{$k};
+            $removed++;
+        }
+        if ($removed) {
+            Lazysite::Auth::Acl::save_acls($acls)
+                or log_event( 'ERROR', $a{user},
+                'dav delete could not update the ACL store',
+                path => $a{rel} );
+        }
     }
     # SM085: a deletion (file or whole collection) is one history commit.
     require Lazysite::Git;
