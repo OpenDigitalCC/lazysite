@@ -5,5 +5,15 @@
 ## Pages
 
 [% FOREACH page IN pages %]
-- [[% page.title %]]([% site_url %][% page.url %].md)[% IF page.subtitle %]: [% page.subtitle %][% END %]
+[%- # SM299: the source file's URL, which is NOT always the page URL plus ".md".
+    # An index page's URL already ends in a slash, so appending ".md" produced
+    # "<dir>/.md" - not a file. The homepage is an index page, so this was the
+    # FIRST entry of every site's llms.txt, and the one an AI client is most
+    # likely to follow.
+    #
+    # page.path looks like an easier answer and is wrong: it is docroot-relative,
+    # so on a content-rooted domain it carries the sites/<name>/ prefix, which is
+    # part of no public URL.
+    src = page.url.search('/$') ? page.url _ 'index.md' : page.url _ '.md' -%]
+- [[% page.title %]]([% site_url %][% src %])[% IF page.meta_desc %]: [% page.meta_desc %][% END %]
 [% END %]

@@ -49,7 +49,24 @@ header, and footer.
   "My Site - My Site".
 
 `subtitle`
-: Short description shown below the title. Optional.
+: Short description shown below the title. Optional. It also supplies the
+  page's `<meta name="description">` and its description in `llms.txt`, unless
+  `meta_desc` overrides them.
+
+`meta_desc`
+: The page's `<meta name="description">` and its `llms.txt` description,
+  **without printing anything on the page**. Optional; falls back to
+  `subtitle`.
+
+  Use it on a page whose design does not want a visible subheading - a page
+  with a hero section, for instance, where a subtitle renders directly above
+  the hero. Before this existed the author had to choose between a subheading
+  they had not designed for and no description at all for search engines and
+  AI clients, and the page most likely to face that choice is the home page.
+
+`meta_title`
+: The `<title>` tag, when it should differ from the on-page title. Optional;
+  falls back to `title`.
 
 `ttl`
 : Cache TTL in seconds. The page regenerates after this interval rather

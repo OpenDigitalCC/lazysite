@@ -198,8 +198,8 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    [% IF page_subtitle %]<meta name="description" content="[% page_subtitle %]">[% END %]
-    <title>[% page_title %][% IF site_name %]  -  [% site_name %][% END %]</title>
+    [% IF page_meta_desc %]<meta name="description" content="[% page_meta_desc %]">[% END %]
+    <title>[% page_meta_title %][% IF site_name %]  -  [% site_name %][% END %]</title>
     [%# SM179 P2: hreflang alternates for a language set, plus x-default on the source (first) language %]
     [% FOREACH l IN languages %][% IF l.exists %]<link rel="alternate" hreflang="[% l.lang %]" href="[% l.url %]">
     [% END %][% END %][% IF languages.size %]<link rel="alternate" hreflang="x-default" href="[% languages.0.url %]">
@@ -4753,7 +4753,7 @@ sub resolve_scan {
         # surrounding quotes and TT markers are stripped from scalar values.
         my %reserved = map { $_ => 1 } qw(
             url title subtitle date tags excerpt searchable path
-            layout theme auth register search );
+            layout theme auth register search meta_title meta_desc );
         my %custom;
         for my $k ( keys %$meta ) {
             next if $reserved{$k} || $k =~ /^(?:tt_|_)/;
@@ -4764,9 +4764,16 @@ sub resolve_scan {
 
         push @pages, {
             %custom,
-            url        => $url,
-            title      => $meta->{title}    || '',
-            subtitle   => $meta->{subtitle} || '',
+            url      => $url,
+            title    => $meta->{title}    || '',
+            subtitle => $meta->{subtitle} || '',
+
+            # SM300: the description a registry should publish - the explicit
+            # meta_desc when the author set one, the subtitle otherwise. Resolved
+            # here so every registry template gets the same answer rather than
+            # each re-deriving it.
+            meta_desc  => ( $meta->{meta_desc}  // $meta->{subtitle} // '' ),
+            meta_title => ( $meta->{meta_title} // $meta->{title}    // '' ),
             date       => $date,
             tags       => \@tags,
             excerpt    => $excerpt,
@@ -5148,6 +5155,15 @@ sub scan_pages {
                     subtitle => $meta->{subtitle} || '',
                     date     => $date,
                     register => $meta->{register} || [],
+
+                    # SM300: the description a registry publishes - the explicit
+                    # meta_desc when the author set one, the subtitle otherwise.
+                    # Resolved once here so every registry template gets the same
+                    # answer instead of each re-deriving the fallback.
+                    meta_desc =>
+                        ( $meta->{meta_desc} // $meta->{subtitle} // '' ),
+                    meta_title =>
+                        ( $meta->{meta_title} // $meta->{title} // '' ),
                 };
             }
         }
@@ -5309,8 +5325,22 @@ sub render_content {
             # we cannot edit - emits them safely even when it interpolates them
             # without a `| html` filter. $meta->{...} stays raw for the search index
             # and page scan, which never render it as HTML.
-        page_title        => _esc_html( $meta->{title} ),
-        page_subtitle     => _esc_html( $meta->{subtitle} ),
+        page_title    => _esc_html( $meta->{title} ),
+        page_subtitle => _esc_html( $meta->{subtitle} ),
+
+        # SM300: `subtitle` was doing three jobs at once - the visible
+        # subheading, <meta name="description">, and the llms.txt description.
+        # A page with a designed hero renders a subtitle directly above that
+        # hero, so its author had to choose between a subheading they did not
+        # want and NO description for search engines or AI clients. A live site
+        # took the second, so its most important page had neither.
+        #
+        # meta_desc / meta_title OVERRIDE, and fall back to subtitle / title, so
+        # every page that does not use them renders exactly as it did. Both were
+        # already named as frozen front-matter in ADR 0008 and neither existed.
+        page_meta_desc =>
+            _esc_html( $meta->{meta_desc} // $meta->{subtitle} ),
+        page_meta_title   => _esc_html( $meta->{meta_title} // $meta->{title} ),
         page_author       => _esc_html( $meta->{author} ),
         page_modified     => $meta->{page_modified}     || '',
         page_modified_iso => $meta->{page_modified_iso} || '',
@@ -5958,8 +5988,8 @@ sub _inject_meta {
         push @m, '<meta name="author" content="' . ( $vars->{page_author} // '' ) . '">';
     }
     # Only add description if the layout did not already emit one.
-    if ( length( $vars->{page_subtitle} // '' ) && $html !~ /<meta\s+name=["']description["']/i ) {
-        push @m, '<meta name="description" content="' . ( $vars->{page_subtitle} // '' ) . '">';
+    if ( length( $vars->{page_meta_desc} // '' ) && $html !~ /<meta\s+name=["']description["']/i ) {
+        push @m, '<meta name="description" content="' . ( $vars->{page_meta_desc} // '' ) . '">';
     }
     my $block = "\n    " . join( "\n    ", @m );
     $html =~ s/(<head[^>]*>)/$1$block/i;
