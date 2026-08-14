@@ -209,6 +209,26 @@ for tool in perlcritic perltidy shellcheck; do
     fi
 done
 
+# --- compliance-record currency gate (eight-dimension review 2026-08-14) ---
+#
+# The review sorted its findings by whether the thing assessed was defended by a
+# MECHANISM or maintained by a PERSON, and they separated perfectly: every gate,
+# lint and enforced floor passed; every hand-kept compliance record was a
+# finding. This gate applies to those records the move this project already made
+# four times to hand-maintained lists in its own tests - it replaces a person
+# remembering with a build failing.
+#
+# It runs FIRST because it is instant and it fails on things that take minutes
+# to fix, rather than after a 15-minute coverage run. Blocking findings differ by
+# channel: a Declaration of Conformity behind the version is advisory on edge and
+# blocking on stable, because the declaration attaches to a stable release.
+echo "==> lazysite-compliance.pl --check (channel: $CHANNEL)"
+if ! perl "$STAGE/tools/lazysite-compliance.pl" --check --channel "$CHANNEL"; then
+    echo "release.sh: compliance records are not current for this cut; not releasing." >&2
+    echo "release.sh: staging dir retained: $STAGE" >&2
+    exit 1
+fi
+
 # --- run tests ---
 
 echo "==> Running full test suite"
