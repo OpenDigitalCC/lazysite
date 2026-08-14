@@ -945,6 +945,9 @@ sub run_checks {
     # --- 8d. is any protected content ALSO sitting in the docroot? (SM286) ------
     report_stray_public();
 
+    # --- 8g. can this site's private store actually be written? (SM296) --------
+    report_private_store_usable();
+
     # --- 8e. where is this site's engine tree, and is there only one? (SM293) ---
     report_engine_tree();
 
@@ -1474,6 +1477,114 @@ sub report_engine_tree {
 # reported rather than repaired: which copy to delete is a content decision, and
 # a tool that silently removes an operator's file to fix a permission problem is
 # a worse tool than one that tells them.
+# SM296: can the engine put protected content where it belongs?
+#
+# Protecting content moves it to <docroot>-lazysite-private, which the CGI has to
+# CREATE the first time - a directory beside the document root, in the domain
+# folder. On some layouts that parent is not writable by the CGI identity, and
+# then every protect operation warns instead of moving: the rule is stored and
+# honoured for pages while the files stay in the document root and go on being
+# served. Correct, documented, and completely invisible unless something asks.
+#
+# It was worse than invisible on 0.10.8, where the same condition crashed the
+# call outright (SM296). The crash is fixed; this is the half that tells an
+# operator whether their site can protect anything at all BEFORE they try.
+#
+# FAIL, because a site that cannot move content cannot honour the protection its
+# own manager offers - and the operator would otherwise learn that from a warning
+# buried in one API response.
+sub report_private_store_usable {
+    my $d = $opt{docroot};
+
+    require Lazysite::Private;
+    my $store = Lazysite::Private::private_root($d) or return;
+
+    # Only when the site actually protects something, or already has a store.
+    #
+    # A site that has never gated a path does not need the store and will never
+    # try to create it, so demanding a writable parent everywhere would fail
+    # every ordinary layout for a facility it is not using. That is the same
+    # reasoning that made SM223 safe to ship - no ACL store, no change - and the
+    # same reason this section stays quiet rather than nagging: a check that
+    # cries on healthy sites is a check people learn to scroll past.
+    my $gating = 0;
+    if ( open my $afh, '<:raw', "$LZ/auth/acls.json" ) {
+        my $raw = do { local $/; <$afh> };
+        close $afh;
+        require JSON::PP;
+        my $map = eval { JSON::PP::decode_json( $raw // '{}' ) };
+        if ( ref $map eq 'HASH' ) {
+            for my $k ( keys %$map ) {
+                my $e = $map->{$k};
+                next unless ref $e eq 'HASH';
+                next if $k =~ m{\A[/.]*\z};    # the site-wide rule moves nothing
+                next
+                    unless $e->{draft}
+                    || ( ref $e->{read} eq 'ARRAY' && @{ $e->{read} } );
+                $gating = 1;
+                last;
+            }
+        }
+    }
+    return unless $gating || -e $store;
+
+    if ( -d $store ) {
+        # It exists. The question is then whether the CGI can write INTO it.
+        my @st = stat $store;
+        if ( cgi_can( 2, @st ) && cgi_can( 1, @st ) ) {
+            report( 'OK',
+                'the private store exists and the engine can write to it' );
+        }
+        else {
+            report(
+                'FAIL',
+                'the private store exists but the engine cannot write to it '
+                    . sprintf( '(%s, owner %s:%s, mode %04o)',
+                    $store, owner_name($store), group_name($store),
+                    mode_of($store) ),
+                'protecting content will store the rule and leave the files in '
+                    . 'the document root. Give the CGI identity write access to '
+                    . 'that directory.'
+            );
+        }
+        return;
+    }
+
+    if ( -e $store ) {
+        report( 'FAIL',
+            "something that is not a directory is at $store",
+            'the engine cannot create the private store while that exists; move '
+                . 'it aside.' );
+        return;
+    }
+
+    # It does not exist yet, so the question is whether it CAN be created.
+    my $parent = $store;
+    $parent =~ s{/[^/]+\z}{};
+    my @pst = stat $parent;
+    unless (@pst) {
+        report( 'FAIL', "the private store's parent does not exist: $parent" );
+        return;
+    }
+    if ( cgi_can( 2, @pst ) && cgi_can( 1, @pst ) ) {
+        report( 'OK',
+            'the private store does not exist yet and the engine can create '
+                . 'it when content is first protected' );
+        return;
+    }
+    report(
+        'FAIL',
+        'the engine cannot create the private store - '
+            . sprintf( '%s is owner %s:%s mode %04o',
+            $parent, owner_name($parent), group_name($parent), mode_of($parent) ),
+        'until this is writable by the CGI identity, protecting content stores '
+            . 'the rule and leaves the files in the document root, where a front '
+            . 'end serves them. Create it yourself with the site user, or give '
+            . 'that directory group write access.'
+    );
+    return;
+}
+
 sub report_stray_public {
     my $d = $opt{docroot};
 

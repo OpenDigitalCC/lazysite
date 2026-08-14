@@ -459,4 +459,64 @@ subtest 'a leftover generated registry in the docroot is reported' => sub {
     unlink "$doc/sitemap.xml";
 };
 
+# --- SM296: can the site's private store actually be written? ----------------
+subtest 'the check says whether protected content can be moved at all' => sub {
+    # Protecting content moves it to <docroot>-lazysite-private, which the CGI
+    # creates on first use. Where that cannot be created, every protect stores
+    # the rule and leaves the files served - correct, documented, and invisible
+    # unless something asks. On 0.10.8 the same condition crashed the call.
+    # An earlier subtest in this file leaves a store behind, so start from a
+    # known state rather than inheriting one - the first version of this
+    # assertion passed for the wrong reason because the store already existed.
+    my $store = "$base/public_html-lazysite-private";
+    remove_tree($store) if -e $store;
+
+    # The check speaks only when the site actually protects something. A site
+    # that has never gated a path will never try to create the store, so
+    # demanding a writable parent everywhere would fail every ordinary layout
+    # for a facility it is not using - the same reasoning that made SM223 safe.
+    my $silent = run();
+    unlike( $silent, qr/private store/,
+        'silent on a site that protects nothing' );
+
+    open my $acl, '>', "$doc/lazysite/auth/acls.json" or die $!;
+    print {$acl} '{"members":{"owner":"alice","read":["alice"]}}';
+    close $acl;
+
+    # The parent is where the store gets created. File::Temp makes it 0700, so
+    # a CGI running as a different identity genuinely cannot create anything
+    # there - which is the reported Hestia shape, and the check should say so.
+    my $tight = run();
+    like( $tight, qr/cannot create the private store/,
+        'an unwritable parent is reported' );
+    like( $tight, qr/leaves the files in the document root/,
+        'naming the consequence: the rule stores and the content stays served' );
+
+    chmod 02775, $base;
+    my $can = run();
+    like( $can, qr/can create it/,
+        'and once the parent is group-writable, it says so' );
+
+    # Something in the way is the deterministic version of "cannot create".
+    open my $fh, '>', $store or die $!;
+    print {$fh} "in the way\n";
+    close $fh;
+
+    my $blocked = run();
+    like( $blocked, qr/not a directory is at/,
+        'an obstruction is named' );
+    like( $blocked, qr/\bFAIL\b/,
+        'as a FAIL - a site that cannot move content cannot honour the '
+            . 'protection its own manager offers' );
+    unlink $store;
+
+    # And once it exists properly, the question becomes writability.
+    make_path($store);
+    my $ok = run();
+    like( $ok, qr/private store exists and the engine can write to it/,
+        'an existing writable store is reported as usable' );
+    remove_tree($store);
+    unlink "$doc/lazysite/auth/acls.json";
+};
+
 done_testing();
