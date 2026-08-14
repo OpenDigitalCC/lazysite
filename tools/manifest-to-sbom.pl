@@ -8,11 +8,11 @@
 # its metadata is added.
 use strict;
 use warnings;
-use Digest::SHA qw();
-use JSON::PP qw();
-use POSIX qw(strftime);
-use Getopt::Long qw();
-use FindBin qw();
+use Digest::SHA    qw();
+use JSON::PP       qw();
+use POSIX          qw(strftime);
+use Getopt::Long   qw();
+use FindBin        qw();
 use File::Basename qw(dirname basename);
 
 my %opt = (
@@ -42,11 +42,11 @@ $opt{out}      //= "$REPO_ROOT/sbom.json";
 $opt{staged}   //= $REPO_ROOT;
 
 my $PRAGMAS = { map { $_ => 1 } qw(
-    strict warnings utf8 feature lib constant
-    parent base vars overloading bignum bigint open
-    subs integer locale bytes if sigtrap diagnostics
-    autodie autouse blib encoding fields less charnames
-    CORE version re mro
+        strict warnings utf8 feature lib constant
+        parent base vars overloading bignum bigint open
+        subs integer locale bytes if sigtrap diagnostics
+        autodie autouse blib encoding fields less charnames
+        CORE version re mro
 ) };
 
 exit main();
@@ -85,7 +85,7 @@ sub main {
     my $sbom = build_sbom( $manifest, $deps, $version );
     write_canonical_json( $opt{out}, $sbom );
     print STDERR "manifest-to-sbom: wrote $opt{out} ("
-      . scalar( @{ $sbom->{components} } ) . " components)\n";
+        . scalar( @{ $sbom->{components} } ) . " components)\n";
     return 0;
 }
 
@@ -118,7 +118,7 @@ sub strict_check {
             while ( $line =~ /(?:^|[{;])\s*(?:use|require)\s+([A-Z][\w:]*)/g ) {
                 my $mod = $1;
                 next if $PRAGMAS->{$mod};
-                next if $mod =~ /^Lazysite::/;   # first-party (SM079), not a dependency
+                next if $mod =~ /^Lazysite::/;    # first-party (SM079), not a dependency
                 $found{$mod}++;
             }
         }
@@ -126,18 +126,18 @@ sub strict_check {
     }
 
     my @missing = sort grep { !$listed{$_} } keys %found;
-    if ( @missing ) {
+    if (@missing) {
         print STDERR "manifest-to-sbom --strict: modules in code but "
-          . "missing from sbom-deps.json:\n";
+            . "missing from sbom-deps.json:\n";
         print STDERR "  $_\n" for @missing;
         print STDERR "Add entries to dist/config/sbom-deps.json and re-run.\n";
         return 1;
     }
 
     my @unused = sort grep { !$found{$_} } keys %listed;
-    if ( @unused ) {
+    if (@unused) {
         print STDERR "manifest-to-sbom: sbom-deps entries with no use in code "
-          . "(may be conditional or prunable):\n";
+            . "(may be conditional or prunable):\n";
         print STDERR "  $_\n" for @unused;
     }
     return 0;
@@ -155,9 +155,9 @@ sub build_sbom {
 
     # Source components - one per manifest file.
     for my $f ( @{ $manifest->{files} // [] } ) {
-        my $name  = basename( $f->{path} );
-        my $type  = ( $f->{path} =~ /\.pm$/ ) ? 'library' : 'file';
-        my $purl  = 'pkg:generic/opendigital/' . uri_escape_path( $f->{path} ) . '@' . $version;
+        my $name = basename( $f->{path} );
+        my $type = ( $f->{path} =~ /\.pm$/ ) ? 'library' : 'file';
+        my $purl = 'pkg:generic/opendigital/' . uri_escape_path( $f->{path} ) . '@' . $version;
         my %props = (
             'lazysite:category' => 'source',
             'lazysite:bucket'   => $f->{bucket} // 'unknown',
@@ -169,35 +169,35 @@ sub build_sbom {
             type     => $type,
             name     => $name,
             version  => $version,
-            hashes   => [ { alg => 'SHA-256', content => $f->{sha256} } ],
+            hashes   => [ { alg     => 'SHA-256', content => $f->{sha256} } ],
             licenses => [ { license => { id => 'MIT' } } ], # the product licence (LICENSE)
-            purl     => $purl,
+            purl       => $purl,
             properties => [ map { { name => $_, value => $props{$_} } }
-                              sort keys %props ],
+                    sort keys %props ],
         };
     }
 
     # Dependency components - one per sbom-deps entry.
     for my $modname ( sort keys %{ $deps->{modules} // {} } ) {
-        my $m    = $deps->{modules}{$modname};
-        my $purl = 'pkg:cpan/' . ( $modname =~ s/::/-/gr );
+        my $m     = $deps->{modules}{$modname};
+        my $purl  = 'pkg:cpan/' . ( $modname =~ s/::/-/gr );
         my %props = (
             'lazysite:category' => 'dependency',
             'lazysite:core'     => $m->{core} ? 'true' : 'false',
         );
         $props{'lazysite:debian_pkg'} = $m->{debian_pkg} if defined $m->{debian_pkg} && length $m->{debian_pkg};
-        $props{'lazysite:rhel_pkg'}   = $m->{rhel_pkg}   if defined $m->{rhel_pkg}   && length $m->{rhel_pkg};
+        $props{'lazysite:rhel_pkg'} = $m->{rhel_pkg} if defined $m->{rhel_pkg} && length $m->{rhel_pkg};
         $props{'lazysite:alpine_pkg'} = $m->{alpine_pkg} if defined $m->{alpine_pkg} && length $m->{alpine_pkg};
-        $props{'lazysite:used_by'}    = $m->{used_by}    if defined $m->{used_by}    && length $m->{used_by};
+        $props{'lazysite:used_by'} = $m->{used_by} if defined $m->{used_by} && length $m->{used_by};
 
         my $entry = {
-            type    => 'library',
-            'bom-ref' => $purl,
-            name    => $modname,
-            version => 'unknown',
-            purl    => $purl,
+            type       => 'library',
+            'bom-ref'  => $purl,
+            name       => $modname,
+            version    => 'unknown',
+            purl       => $purl,
             properties => [ map { { name => $_, value => $props{$_} } }
-                              sort keys %props ],
+                    sort keys %props ],
         };
         $entry->{licenses} = [ { license => { id => $m->{license} } } ]
             if defined $m->{license} && length $m->{license};
@@ -231,9 +231,9 @@ sub build_sbom {
     # Environment components.
     for my $env ( @{ $deps->{environment} // [] } ) {
         my $entry = {
-            type    => 'application',
-            name    => $env->{name},
-            version => 'unknown',
+            type       => 'application',
+            name       => $env->{name},
+            version    => 'unknown',
             properties => [
                 { name => 'lazysite:category', value => 'environment' },
             ],
@@ -259,14 +259,14 @@ sub build_sbom {
                 { name => 'manifest-to-sbom.pl', version => $version },
             ],
             component => {
-                type        => 'application',
-                name        => 'lazysite',
-                version     => $version,
-                description => 'Markdown-driven CGI site processor',
+                type               => 'application',
+                name               => 'lazysite',
+                version            => $version,
+                description        => 'Markdown-driven CGI site processor',
                 licenses           => [ { license => { id => 'MIT' } } ],
                 externalReferences => [
                     { type => 'vcs',
-                      url  => 'https://github.com/OpenDigitalCC/lazysite' },
+                        url => 'https://github.com/OpenDigitalCC/lazysite' },
                 ],
             },
         },
@@ -276,11 +276,38 @@ sub build_sbom {
 
 # -------- helpers --------
 
+# The manifest is a BUILD artefact and gitignored, so it exists in a release
+# tarball and not in a clean checkout. This gate is a CRA control - the reason
+# docs/POLICY.md can claim the SBOM cannot drift from the code - and a control
+# that cannot be run from the tag it attests is unverifiable by anyone auditing
+# that tag afterwards (2026-08-14 review, D6 F6.6). Derive it when absent, the
+# same way install.pl does, to a temp path so the checkout stays clean.
+sub _generate_manifest_to_tmp {
+    my ($expected) = @_;
+    my $root = $expected;
+    $root =~ s{/[^/]*\z}{};
+    my $builder = "$root/tools/build-manifest.pl";
+    return undef unless -f $builder && -f "$root/dist/config/classification.json";
+    my $tmp = "/tmp/lazysite-sbom-manifest-$$.json";
+    my $rc  = system( $^X, $builder, '--staged', $root, '--out', $tmp );
+    return ( $rc == 0 && -s $tmp ) ? $tmp : undef;
+}
+
 sub load_json {
     my ($path) = @_;
+    my $tmp;
+    if ( !-f $path && $path =~ /release-manifest\.json\z/ ) {
+        $tmp = _generate_manifest_to_tmp($path);
+        if ($tmp) {
+            print {*STDERR} "manifest-to-sbom: no release-manifest.json; "
+                . "generated one from the source tree\n";
+            $path = $tmp;
+        }
+    }
     open my $fh, '<:raw', $path or die "Cannot read $path: $!\n";
     my $text = do { local $/; <$fh> };
     close $fh;
+    unlink $tmp if $tmp;
     return JSON::PP::decode_json($text);
 }
 
@@ -320,5 +347,5 @@ sub find_repo_root {
         $dir = dirname($dir);
         last if $dir eq '/';
     }
-    return dirname( $FindBin::Bin );
+    return dirname($FindBin::Bin);
 }

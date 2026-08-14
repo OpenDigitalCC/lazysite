@@ -1768,15 +1768,50 @@ sub write_state {
     chmod 0644, $path;
 }
 
+# A release tarball always carries release-manifest.json - it is generated at
+# build time and shipped. A SOURCE CHECKOUT does not: the file is gitignored,
+# so it exists only on a machine that has built a release.
+#
+# That distinction was invisible for a long time, because the developer's
+# working copy always had one lying around from the last build. The suite
+# passed there and failed on a clean checkout of the very tag it was testing -
+# fifteen test files invoke install.pl, and the strict SBOM gate needs the same
+# file, so a released tag could neither run its own tests nor its own
+# compliance control for anyone who cloned it (2026-08-14 review, D3 F3.1 and
+# D6 F6.6).
+#
+# The manifest is DERIVABLE from the tree, so absence is recoverable rather
+# than fatal: if the builder and the classification map are both present, build
+# one. It goes to a temp path and not into the checkout, so a clean tree stays
+# clean and the fallback cannot be mistaken for a real release artefact.
+sub _generate_manifest_to_tmp {
+    my ($expected) = @_;
+    my $root       = dirname($expected);
+    my $builder    = "$root/tools/build-manifest.pl";
+    return undef unless -f $builder && -f "$root/dist/config/classification.json";
+
+    my $tmp = "/tmp/lazysite-manifest-$$.json";
+    my $rc  = system( $^X, $builder, '--staged', $root, '--out', $tmp );
+    return ( $rc == 0 && -s $tmp ) ? $tmp : undef;
+}
+
 sub load_manifest {
     my ($path) = @_;
-    die "release-manifest.json not found at $path\n" unless -f $path;
+    my $tmp;
+    if ( !-f $path ) {
+        $tmp = _generate_manifest_to_tmp($path);
+        die "release-manifest.json not found at $path\n" unless $tmp;
+        print "install: no release-manifest.json; generated one from the "
+            . "source tree (this is a checkout, not a release tarball)\n";
+        $path = $tmp;
+    }
     open my $fh, '<:raw', $path
         or die "Cannot read $path: $!\n";
     my $text = do { local $/; <$fh> };
     close $fh;
     my $parsed = eval { JSON::PP::decode_json($text) }
         or die "Cannot parse $path: $@\n";
+    unlink $tmp if $tmp;
     return $parsed;
 }
 
