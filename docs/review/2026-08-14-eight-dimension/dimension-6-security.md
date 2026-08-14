@@ -3,23 +3,24 @@
 - Audited tree: `main` at `v0.10.8` (`ec6fe0a`)
 - Date: 2026-08-14
 - Regime: Commercial
-- Prior verdict: REFUSE, cleared in-cut (2026-07-18)
+- Prior verdict: REFUSE (2026-07-18, at 0.7.28)
 
 ## Verdict
 
-**REFUSE**. Three conditions, in descending order of seriousness:
+**REFUSE**, on one condition after remediation.
+
+Three conditions were found. Two - the stale significant-change register and the
+threat model that predated the architecture - were **remedied while this review
+was open**, for the version reported, and are marked closed below. The refusal
+now rests on the live defect alone.
 
 1. A defect live in the released 0.10.8 edge build leaves content **stored as
    protected and still served** (F6.1 - the same defect as D1 F1.1, assessed
    here for its security consequence rather than its cause).
-2. The **significant-change register has gone stale again** (F6.2), and it went
-   stale over precisely the changes that fire its own triggers: content moved
-   out of the document root, and a new external interface. This is the second
-   consecutive review to raise the register.
-3. The **threat model of record does not describe the current architecture**
-   (F6.3). `docs/SECURITY.md` and `docs/architecture/security.md` contain no
-   mention of the private store or the front door - the two structural changes
-   that alter how protected content is stored and how requests are routed.
+2. The **significant-change register had gone stale again** (F6.2), over
+   precisely the changes that fire its own triggers - CLOSED.
+3. The **threat model of record did not describe the current architecture**
+   (F6.3) - CLOSED.
 
 The pentest gate remains properly declared with a dated, auditable waiver (ADR
 0007) and has not expired. The supply-chain controls are the right mechanisms,
@@ -62,7 +63,7 @@ outright failure, and it is the shape SM283 was.
 
 Fix written and tested on `claude/sm296-acl-set-crash`; not in the audited tree.
 
-### F6.2 - The significant-change register is stale, over its own triggers (REFUSE)
+### F6.2 - The significant-change register was stale, over its own triggers (CLOSED in this cut)
 
 ADR 0007 defers the first pentest engagement on the condition that the gate
 "fires ahead of schedule on significant change unless a recorded assessment
@@ -92,12 +93,18 @@ being kept, because the register is the thing standing in for an engagement that
 has not happened. A deferral whose conditions are not being recorded is not a
 deferral.
 
-This is the second consecutive review to raise it: F6.2 in the 2026-07-18 review
-was "significant-change register stale", closed in-cut. It went stale again
-within four weeks, which suggests the register needs to be part of the release
-checklist rather than a review artefact.
+This is the second consecutive review to raise it: the 2026-07-18 review found
+the register stale and it was written; it went stale again within four weeks.
+That repetition is why the remedy this time is **not** another entry alone.
 
-### F6.3 - The threat model of record predates the architecture (REFUSE)
+**Closed.** `docs/SECURITY.md` gains a dated SM286/SM293 entry covering both
+triggers, with a verdict of *accepted with a condition* - the condition being
+SM296, so the judgement is auditable rather than implied. And
+`tools/lazysite-compliance.pl` now checks at release time that the register
+references the version being cut, so the third recurrence fails a build instead
+of waiting for a fifth review.
+
+### F6.3 - The threat model of record predated the architecture (CLOSED in this cut)
 
 ```
 $ grep -c "private store\|lazysite-private" docs/SECURITY.md docs/architecture/security.md
@@ -118,6 +125,15 @@ The gap is not cosmetic. The private store changes the answer to "where does
 restricted data live and who can read it", and the front door changes the answer
 to "what decides whether a request reaches the engine" - the two questions the
 threat model is for.
+
+**Closed.** `docs/architecture/security.md` gains "Content outside the served
+tree (SM286)" and "The front door (SM293)", and its three-layer model no longer
+says the web server layer is where lazysite "cannot enforce policy" - which
+stopped being true in 0.10.8. `docs/SECURITY.md` gains two trust boundaries (the
+served-tree boundary and the front door) and revised STRIDE rows: information
+disclosure now names the SM248/SM268/SM283 cause and the structural remedy, and
+spoofing records that edge header-stripping became defence in depth when
+`t/lint/38` made the trust gate an enforced application control.
 
 ### F6.4 - SM283's mitigation is shipped but not deployed where it was disclosed (WARN)
 

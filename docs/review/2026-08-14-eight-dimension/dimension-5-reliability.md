@@ -3,8 +3,7 @@
 - Audited tree: `main` at `v0.10.8` (`ec6fe0a`)
 - Date: 2026-08-14
 - Regime: Commercial
-- Prior verdict: PASS (2026-07-18); REFUSE at 2026-07-10, cleared by
-  `docs/RELIABILITY.md`
+- Prior verdict: PASS (2026-07-18, at 0.7.28)
 
 ## Verdict
 
@@ -75,9 +74,20 @@ Because reliability ownership is explicitly **per implementation** (the
 2026-07-04 decision, restated at `docs/RELIABILITY.md:16-25`), this is not a
 refusal: the project ships the mechanism and each operator declares their own
 targets. But an operator taking the reference posture as their posture of record
-has no shipped guidance on what to monitor to know whether they are meeting it,
-which makes the reference posture undeliverable as written for exactly the
+had no shipped guidance on what to monitor to know whether they were meeting it,
+which made the reference posture undeliverable as written for exactly the
 operators who most need it.
+
+**Partly addressed, and correctly reassigned.** A `docs/MONITORS.md` in this
+repository was always the wrong artefact: what to monitor is a property of a
+deployment, and this project builds rather than operates. The monitoring
+requirement now sits in `docs/compliance/OPERATIONS-TEMPLATE.md` section 5,
+which the operator fills and signs, with a review row in
+`COMPLIANCE-MAINTENANCE-TEMPLATE.md` - and both are packaged, so an operator
+installing from the deb receives them. The project ships what it can know (the
+access log measures availability; `lazysite check` reports integrity); the
+operator records what only they can know. What remains genuinely open is the
+capacity test, which *is* build-side and is not written.
 
 ### F5.3 - A planned-for failure mode was unreachable, so the system failed hard where it was designed to degrade (WARN, cross-referenced to D1 F1.1)
 

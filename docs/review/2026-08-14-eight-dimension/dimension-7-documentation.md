@@ -3,7 +3,7 @@
 - Audited tree: `main` at `v0.10.8` (`ec6fe0a`)
 - Date: 2026-08-14
 - Regime: Commercial
-- Prior verdict: WARN, cleared in-cut (2026-07-18)
+- Prior verdict: WARN (2026-07-18, at 0.7.28)
 
 ## Verdict
 

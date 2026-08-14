@@ -87,9 +87,16 @@ condition rather than a deferral.
 
 Two things follow. First, procurement lead time for a CREST-CRT/OSCP/GIAC-GPEN
 third-party engagement is not short, so the engagement needs booking well before
-the date. Second, the waiver's ongoing validity depends on the significant-change
-register being kept, and it is not being kept (D6 F6.2) - so the waiver is
-currently weaker than the ADR intends.
+the date. Second, the waiver's ongoing validity depends on the significant-change register
+being kept. It had lapsed; it is current again as of this cut (D6 F6.2) and is
+now checked at release time, so the waiver holds - but it held by luck rather
+than by process for the 0.10.7-0.10.8 window.
+
+**Rephrased as operate-side state.** Booking an engagement is not a development
+task and has now sat un-actioned in a dev backlog across three reviews. It is
+recorded instead as a posture the operator holds and reviews: a row in
+`docs/compliance/OBLIGATIONS.md` (operate side, dated 2026-12-31) and a section
+of `docs/compliance/OPERATIONS-TEMPLATE.md` that the operator signs against.
 
 ### F8.4 - Supply chain and licensing (PASS)
 
@@ -138,23 +145,27 @@ $ grep -in "article 14\|reporting\|ENISA\|CSIRT\|24 hour\|72 hour" docs/POLICY.m
 (no matches)
 ```
 
-The CRA phases its obligations. My understanding is that the Article 14
-reporting duties apply from **11 September 2026** - four weeks from this review -
-while the bulk of the regulation applies from 11 December 2027, which is the
-date `docs/POLICY.md` already records for CE marking. **Both the date and the
-scope judgement need confirming by the legal review the DoC already says is
-required**; this finding is raised because the obligation with the *nearer* date
-is the one that is missing entirely, not because the interpretation is settled.
+The CRA phases its obligations. The framework this project follows states the
+date directly - `OPERATIONS-GUIDE.md#report-path-rehearsal` names "the CRA
+Article 14 tracks from 11 September 2026" as the live case - while the bulk of
+the regulation applies from 11 December 2027, which is the date `docs/POLICY.md`
+already records for CE marking. **The scope judgement - whether these duties
+attach to this project, and to whom - needs confirming by the legal review the
+DoC already says is required.** The finding is the absence, not the
+interpretation: the obligation with the *nearer* date is the one missing
+entirely.
 
 Three things follow, and none of them is a document:
 
 - **A named accountable person.** The DoC names a function ("Responsible person,
   Open Digital CC") and no individual for reporting. A 24-hour clock is met by
   someone reachable who knows the procedure, or it is not met.
-- **A runbook.** There is no incident or reporting runbook in the tree at all -
-  no `docs/` file matching *incident* or *runbook*. The path from "we have
-  discovered a live exposure" to "notify whom, by when, with what evidence" is
-  currently unwritten.
+- **A runbook.** There was no incident or reporting runbook in the tree at all.
+  `docs/compliance/OPERATIONS-TEMPLATE.md` now carries the section an operator
+  fills and signs, and `COMPLIANCE-MAINTENANCE-TEMPLATE.md` carries the
+  rehearsal register - but the project can only ship the template. The filled-in
+  copy, the named individual and the rehearsal are the operator's, and none of
+  them exists yet for any deployment.
 - **A rehearsal.** The same argument D5 makes about restore rehearsals applies
   with more force here: an untested reporting procedure under a 24-hour clock is
   a plan, not a capability.
@@ -180,7 +191,7 @@ questionnaire or an Annex VII file will each ask for. It is also the natural
 place for the Article 14 decisions to be recorded ("assessed, not actively
 exploited, no notification required" is itself a finding worth dating).
 
-### F8.8 - Dated obligations are scattered, and one is written relatively (WARN)
+### F8.8 - Dated obligations were scattered, and one was written relatively (CLOSED in this cut)
 
 Every dated commitment lives in a different document, and no single view exists:
 
@@ -197,22 +208,27 @@ but a relative date decays the moment a reader has to work out which release was
 first stable, and this project has already renumbered its stable line three
 times since. Write the absolute date beside the rule.
 
-One dated obligations register, with an owner per row, is the artefact. It is
-also the natural thing to gate: a release-gate check that fails when a listed
-date is inside its lead time is the same mechanism this review recommends for
-the records, applied to the calendar.
+**Closed.** `docs/compliance/OBLIGATIONS.md` is that register: every dated or
+version-anchored obligation in one file, split build-side from operate-side,
+with the support period written as **2031-07-10** beside the rule rather than as
+"five years from 0.7.0". It carries `reviewed_at_version` at its head, and
+`tools/lazysite-compliance.pl` blocks a cut when that value is behind the
+version being cut - so "the register was reviewed for this release" is a
+build-time fact rather than a recollection. Rows still open within 120 days are
+reported at every run.
 
 ### F8.9 - Annex VII and signed releases get monotonically more expensive (WARN)
 
 Both are listed pending (F8.5), and both have the property that deferring costs
 more than doing:
 
-- **The Annex VII technical file is mostly assembly, not authorship.** Four
-  eight-dimension reviews, the SBOMs, the ADRs, the DoC, the coverage and bench
-  records and the test results already exist. Started now as an *index* over
-  those artefacts, it is a short document that stays current as a by-product of
-  work already happening. Started in 2027 it is an archaeology exercise across
-  three release lines.
+- **The Annex VII technical file is mostly assembly, not authorship** - and is
+  now **STARTED**, as `docs/compliance/TECHNICAL-FILE.md`. Four eight-dimension
+  reviews, the SBOMs, the ADRs, the DoC, the coverage and bench records and the
+  test results already existed; the file indexes them against the Annex VII
+  requirements and names its own gaps. It carries `covers_version` and is gated
+  the same way the obligations register is, so it stays current as a by-product
+  of releasing rather than becoming an archaeology exercise in 2027.
 - **Signed releases cannot be applied retroactively.** Every release cut without
   Sigstore/cosign attestation is permanently unattestable. The cost of delay is
   strictly monotonic, and unlike most of this list it can never be paid down.
