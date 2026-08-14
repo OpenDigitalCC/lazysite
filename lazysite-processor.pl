@@ -91,9 +91,23 @@ sub _lazysite_dir_for {
     my $ext = "$parent/$leaf-lazysite";
     return -d $ext ? $ext : "$d/lazysite";
 }
-my $LAZYSITE_DIR   = _lazysite_dir_for($DOCROOT);
-my $LAZYSITE_URI   = "/lazysite";
-my $PREVIEW_COOKIE = 'lzs_preview';                 # SM071: theme/layout preview cookie
+my $LAZYSITE_DIR = _lazysite_dir_for($DOCROOT);
+my $LAZYSITE_URI = "/lazysite";
+
+# SM294: the front-door settings are DEPLOYMENT properties - they describe how
+# the site is fronted, and are set once when the pool is spawned.
+#
+# They must be captured HERE, at file scope, for a reason that is easy to miss
+# and impossible to see from a passing CGI test: under FastCGI, FCGI.pm REPLACES
+# %ENV on every Accept() with that request's parameters. Anything the web server
+# did not send is gone. So an $ENV{...} read inside the request loop sees the
+# request, never the pool's environment, and a setting read there is silently
+# always-off in exactly the deployment it exists for. $DOCROOT above is captured
+# for the same reason. t/lint/43 pins it.
+my $FRONT_DOOR     = $ENV{LAZYSITE_FRONT_DOOR} ? 1 : 0;
+my $FRONT_CGIBIN   = $ENV{LAZYSITE_CGIBIN} // '';
+my $RELAY_TIMEOUT  = ( $ENV{LAZYSITE_RELAY_TIMEOUT} || 120 ) + 0;
+my $PREVIEW_COOKIE = 'lzs_preview';    # SM071: theme/layout preview cookie
 
 # SM201: engine-required system pages (auth + error) are served with a fallback so
 # a deleted or never-seeded content copy never 404s the sign-in / sign-up flow,
@@ -1361,6 +1375,313 @@ sub serve_402 {
     }
 }
 
+# --- The front door (SM294) ---
+
+# SM293 step 5 put every routing decision the vhost templates used to make into
+# Lazysite::FrontDoor::route(), and shipped lazysite-front.pl to execute it - so a
+# front end can be ONE rule. That script dispatches with exec(), which is exactly
+# right for a one-shot CGI and fatal here: exec REPLACES the process, so a worker
+# that dispatched that way would cease to exist and the next request would find
+# nothing listening. The failure is invisible to a single request, which answers
+# perfectly on the way out.
+#
+# So the worker consults the same table and splits by what it can BE:
+#
+#   - the hot path (a page, a content static, a denial) is what this process
+#     already is, so it is answered in-process at no cost - and that is the
+#     overwhelming majority of requests, which is the whole point of the pool;
+#   - the cold path (another surface, or anything needing the auth wrapper) is
+#     RELAYED to a child, costing a process on exactly the requests that cost one
+#     today. Never worse than the CGI front door, much better than it on the rest.
+#
+# Off unless LAZYSITE_FRONT_DOOR is set, so an existing pool is byte-identical.
+#
+# Module-free (ADR 0001), mirroring Lazysite::FrontDoor::route; t/lint/42 drives
+# BOTH and compares answers, because the two must not drift into a front end and
+# an engine that disagree about who owns a URL - which is SM248, SM268 H17 and
+# SM283, all three.
+sub _front_route {
+    my ($req)   = @_;
+    my $docroot = $req->{docroot} // '';
+    my $uri     = $req->{uri}     // '/';
+    my $cookie  = $req->{cookie}  // '';
+    $docroot =~ s{/+\z}{};
+    $uri     =~ s/\?.*\z//s;
+
+    return { surface => 'denied', why => 'engine-owned path' }
+        if $uri =~ m{\A/lazysite(?:/|\z)} || $uri =~ /[.]brief\z/;
+
+    if ( $uri =~ m{\A/cgi-bin/(lazysite-[a-z-]+[.]pl)\z} ) {
+        my $script = $1;
+        my $wrap
+            = ( $script =~ /\A lazysite-(?:processor|manager-api)[.]pl \z/x )
+            ? 1
+            : 0;
+        return { surface => 'cgi', target => $script, wrapped => $wrap,
+            why => 'named cgi surface' };
+    }
+
+    return { surface => 'cgi', target => 'lazysite-dav.pl', wrapped => 0,
+        why => 'dav prefix' }
+        if $uri =~ m{\A/dav(?:/|\z)};
+
+    my $lz       = _lazysite_dir_for($docroot);
+    my $has_acls = ( -f "$lz/auth/acls.json" ) ? 1 : 0;
+    ( my $rel = $uri ) =~ s{\A/+}{};
+
+    if ( $has_acls && length $rel && -f "$docroot/$rel" ) {
+        return { surface => 'processor', wrapped => 1,
+            why => 'existing static, acl store present' };
+    }
+
+    if ( $uri =~ m{\A/([^.]+)\z} ) {
+        my $stem = $1;
+        if ( !-f "$docroot/$stem.md" ) {
+            my $legacy
+                = ( -f "$docroot/$stem.html" )  ? "$stem.html"
+                : ( -f "$docroot/$stem.shtml" ) ? "$stem.shtml"
+                :                                 undef;
+            if ( defined $legacy ) {
+                return { surface => 'processor', wrapped => 1,
+                    why => 'legacy static page, acl store present' }
+                    if $has_acls;
+                return { surface => 'static', target => $legacy,
+                    why => 'legacy static page' };
+            }
+        }
+    }
+
+    if ( $uri eq '/' && !-f "$docroot/index.md" && -f "$docroot/index.html" ) {
+        return { surface => 'processor', wrapped => 1,
+            why => 'legacy index, acl store present' }
+            if $has_acls;
+        return { surface => 'static', target => 'index.html',
+            why => 'legacy index' };
+    }
+
+    if ( $cookie =~ /lazysite_auth=/ && !( length $rel && -f "$docroot/$rel" ) )
+    {
+        return { surface => 'processor', wrapped => 1,
+            why => 'session cookie present' };
+    }
+
+    return { surface => 'static', target => $rel, why => 'existing static' }
+        if length $rel && -f "$docroot/$rel";
+
+    return { surface => 'processor', wrapped => 0, why => 'page miss' };
+}
+
+# Where the surfaces live. Same resolution as lazysite-front.pl, so the CGI and
+# the pool front doors cannot disagree about it.
+sub _front_cgibin {
+    return $FRONT_CGIBIN if length $FRONT_CGIBIN;
+    my $parent = $DOCROOT;
+    $parent =~ s{/[^/]*\z}{};
+    return "$parent/cgi-bin";
+}
+
+sub _front_fail {
+    my ( $status, $text ) = @_;
+    $ACCESS_REC{s}  = $status;
+    $ACCESS_REC{ch} = 'front';
+    print "Status: $status\r\n";
+    print "Content-Type: text/plain; charset=utf-8\r\n\r\n";
+    print "$text\n";
+    return 1;
+}
+
+# How long a relayed surface may take before the worker gives up on it. A worker
+# blocked forever on a wedged child serves NOTHING else - one hung request would
+# take the site down, which is the failure mode the dev server already taught
+# this project once (L-DEVBIND). Generous, because a large DAV upload is a
+# legitimate slow request; finite, because the pool must survive a bad one.
+
+# Run another surface as a child and pass its response through.
+#
+# The child gets real file descriptors 0 and 1 (a pipe each), NOT this worker's
+# tied FCGI handles - those are Perl-level objects that do not survive exec, so
+# the hand-off has to happen at the descriptor level or the child's output goes
+# to the listen socket.
+sub _front_relay {
+    my ($decision) = @_;
+    require IO::Select;
+    require POSIX;
+
+    my $cgibin = _front_cgibin();
+    my $target
+        = ( $decision->{surface} eq 'cgi' )
+        ? "$cgibin/$decision->{target}"
+        : "$cgibin/lazysite-processor.pl";
+
+    return _front_fail( '500 Internal Server Error',
+        "lazysite: surface not found: $decision->{target}" )
+        unless -f $target;
+
+    # The auth wrapper's contract is UNCHANGED: it validates the session cookie,
+    # sets the trust headers, and execs whatever LAZYSITE_PROCESSOR names. Only
+    # the choice of which requests get wrapped moved; how wrapping works did not,
+    # so the trust design and the t/lint/38 gate are untouched. Folding the
+    # wrapper in-process means replacing those headers with an identity value,
+    # which is an auth-spine change and has its own filing.
+    my $program = $target;
+    if ( $decision->{wrapped} ) {
+        my $wrapper = "$cgibin/lazysite-auth.pl";
+        return _front_fail( '500 Internal Server Error',
+            'lazysite: auth wrapper not found' )
+            unless -f $wrapper;
+        $ENV{LAZYSITE_PROCESSOR} = $target;
+        $program = $wrapper;
+    }
+
+    # Read the request body before forking: it comes off this worker's tied FCGI
+    # STDIN, which the child cannot inherit.
+    my $body = '';
+    my $len  = ( $ENV{CONTENT_LENGTH} || 0 ) + 0;
+    if ( $len > 0 ) {
+        my $got = 0;
+        while ( $got < $len ) {
+            my $n = read STDIN, $body, $len - $got, $got;
+            last if !defined $n || $n == 0;
+            $got += $n;
+        }
+    }
+    elsif ( ( $ENV{REQUEST_METHOD} // 'GET' ) =~ /\A(?:POST|PUT|PATCH)\z/ ) {
+        local $/;
+        my $slurp = <STDIN>;
+        $body = defined $slurp ? $slurp : '';
+    }
+
+    pipe my $from_kid, my $kid_out or
+        return _front_fail( '500 Internal Server Error', 'lazysite: pipe' );
+    pipe my $kid_in, my $to_kid or
+        return _front_fail( '500 Internal Server Error', 'lazysite: pipe' );
+
+    # FCGI::ProcManager installs a SIGCHLD reaper for ITS children; if it reaps
+    # ours first, waitpid below never sees an exit status and we would block.
+    local $SIG{CHLD} = 'DEFAULT';
+    local $SIG{PIPE} = 'IGNORE';    # a child that dies mid-body must not kill us
+
+    my $kid = fork();
+    return _front_fail( '500 Internal Server Error', 'lazysite: fork' )
+        unless defined $kid;
+
+    if ( $kid == 0 ) {
+        close $from_kid;
+        close $to_kid;
+        POSIX::dup2( fileno($kid_in),  0 );
+        POSIX::dup2( fileno($kid_out), 1 );
+        close $kid_in;
+        close $kid_out;
+        # _exit, not exit: this child is a fork of a FastCGI worker and must not
+        # run its parent's END blocks or flush its parent's buffers on the way
+        # out. The parent sees empty output and answers 500.
+        exec {$^X} $^X, $program or POSIX::_exit(127);
+    }
+
+    close $kid_out;
+    close $kid_in;
+
+    my $rsel = IO::Select->new($from_kid);
+    my $wsel = IO::Select->new();
+    if   ( length $body ) { $wsel->add($to_kid) }
+    else                  { close $to_kid }
+
+    my $sent     = 0;
+    my $written  = 0;
+    my $deadline = time + $RELAY_TIMEOUT;
+    my $timedout = 0;
+
+    while ( $rsel->count || $wsel->count ) {
+        my $left = $deadline - time;
+        if ( $left <= 0 ) { $timedout = 1; last }
+        my ( $r, $w ) = IO::Select->select( $rsel, $wsel, undef, $left );
+        for my $h ( @{ $w || [] } ) {
+            my $n = syswrite $h, $body, length($body) - $written, $written;
+            if ( !defined $n ) { $wsel->remove($h); close $h; next }
+            $written += $n;
+            if ( $written >= length $body ) { $wsel->remove($h); close $h }
+        }
+        for my $h ( @{ $r || [] } ) {
+            my $buf = '';
+            my $n   = sysread $h, $buf, 65_536;
+            if ( !defined $n || $n == 0 ) { $rsel->remove($h); close $h; next }
+            print $buf;
+            $sent += $n;
+        }
+    }
+
+    if ($timedout) {
+        kill 'TERM', $kid;
+        select undef, undef, undef, 0.2;    ## no critic (ProhibitSleepViaSelect)
+        kill 'KILL', $kid;
+    }
+    waitpid $kid, 0;
+    my $rc = $?;
+
+    if ($timedout) {
+        log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'relay timed out',
+            surface => $decision->{target} // $decision->{surface},
+            seconds => $RELAY_TIMEOUT );
+        # Headers are already gone if anything was sent; truncating is all that
+        # is left, and it is what any CGI host does. Say so in the log either way.
+        return _front_fail( '504 Gateway Timeout', 'lazysite: surface timed out' )
+            unless $sent;
+        $ACCESS_REC{s} = 504;
+        return 1;
+    }
+
+    unless ($sent) {
+        log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'relay produced nothing',
+            surface => $decision->{target} // $decision->{surface}, rc => $rc );
+        return _front_fail( '500 Internal Server Error',
+            'lazysite: surface produced no response' );
+    }
+
+    # The child emitted its own CGI status line; record what we can for the
+    # access log without re-parsing its headers.
+    $ACCESS_REC{s}  = 200 unless defined $ACCESS_REC{s};
+    $ACCESS_REC{ch} = 'front';
+    return 1;
+}
+
+# Consult the front door. Returns true when the request has been answered here,
+# false to fall through to main() - which is the hot path and must stay cheap.
+sub _front_door {
+    my $uri      = $ENV{REDIRECT_URL} // $ENV{REQUEST_URI} // '/';
+    my $decision = _front_route(
+        { docroot => $DOCROOT,
+            uri    => $uri,
+            method => ( $ENV{REQUEST_METHOD} // 'GET' ),
+            cookie => ( $ENV{HTTP_COOKIE}    // '' ),
+        }
+    );
+
+    # 404 rather than 403, matching lazysite-front.pl: a 403 confirms the path
+    # exists, and these are paths whose existence is not the visitor's business.
+    # (Reached only under the front door. The processor's own guard on the same
+    # paths answers 403 and is left alone here - noted in the SM294 filing.)
+    if ( $decision->{surface} eq 'denied' ) {
+        $ACCESS_REC{s}  = 404;
+        $ACCESS_REC{ch} = 'front';
+        print "Status: 404 Not Found\r\n";
+        print "Content-Type: text/html; charset=utf-8\r\n";
+        print "X-Content-Type-Options: nosniff\r\n\r\n";
+        print "<p>Not found</p>\n";
+        return 1;
+    }
+
+    # What this process already is: render it here. 'static' included, because
+    # the processor serves content statics itself (_serve_content_static) - the
+    # front door does not reimplement byte ranges, conditional GETs or content
+    # types, three things that are easy to get subtly wrong.
+    return 0
+        if !$decision->{wrapped}
+        && ( $decision->{surface} eq 'processor'
+        || $decision->{surface} eq 'static' );
+
+    return _front_relay($decision);
+}
+
 # --- Main ---
 
 # One request, end to end: per-request state reset, main(), the SM140 access
@@ -1372,7 +1693,19 @@ sub handle_one_request {
     reset_request_state();
     %ACCESS_REC   = ();
     %AUTH_CONTEXT = ();
-    my $main_ok = eval { main(); 1 };
+
+    # SM294: when this worker is the site's front door, it routes before it
+    # renders. Inside the same eval as main() so a fault in dispatch becomes the
+    # same 500 rather than an unhandled die out of the accept loop.
+    my $main_ok = eval {
+        if ( $FRONT_DOOR && _front_door() ) {
+            1;    # answered at the door; main() must not also run
+        }
+        else {
+            main();
+            1;
+        }
+    };
     if ( !$main_ok ) {
         log_event( 'ERROR', $ENV{REDIRECT_URL} // '-', 'unhandled error',
             error => "$@" );

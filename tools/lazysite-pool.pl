@@ -56,6 +56,9 @@ environment (systemd EnvironmentFile=/etc/lazysite/pools/NAME.conf):
   WORKERS=       FCGI::ProcManager prefork size (default 2)
   MAX_REQUESTS=  worker recycles after N requests (default 500)
   SOCKET=        socket path (default RUNDIR/NAME.sock)
+  FRONT_DOOR=    1 = the worker routes every request (one vhost rule)
+  CGIBIN=        surfaces dir for relayed requests (default ../cgi-bin)
+  RELAY_TIMEOUT= seconds a relayed surface may take (default 120)
 USAGE
     exit( $rc // 0 );
 }
@@ -137,6 +140,28 @@ else {
 $ENV{DOCUMENT_ROOT}         = $docroot;
 $ENV{LAZYSITE_FCGI_WORKERS} = length( $ENV{WORKERS} // '' )           ? $ENV{WORKERS} : 2;
 $ENV{LAZYSITE_FCGI_MAX_REQUESTS} = length( $ENV{MAX_REQUESTS} // '' ) ? $ENV{MAX_REQUESTS} : 500;
+
+# SM294: front-door mode. With FRONT_DOOR=1 in the pool conf the worker routes
+# every request itself, so the vhost needs one rule instead of a dozen - the
+# arrangement SM248, SM268 H17 and SM283 each came out of. Off by default: an
+# existing pool must behave exactly as it did.
+#
+# Everything set here is read ONCE by the worker at startup, because FCGI.pm
+# replaces %ENV on every request with that request's parameters. t/lint/43 pins
+# that, and it is why these are pool settings rather than per-request ones.
+if ( length( $ENV{FRONT_DOOR} // '' ) && $ENV{FRONT_DOOR} ne '0' ) {
+    $ENV{LAZYSITE_FRONT_DOOR} = 1;
+    # Where the other surfaces live, for the requests the worker cannot answer
+    # as itself (another surface, or anything needing the auth wrapper). The
+    # conventional layout is cgi-bin beside the docroot, which is what every
+    # shipped installer produces; CGIBIN= overrides it.
+    $ENV{LAZYSITE_CGIBIN} =
+        length( $ENV{CGIBIN} // '' )
+        ? $ENV{CGIBIN}
+        : dirname($docroot) . '/cgi-bin';
+    $ENV{LAZYSITE_RELAY_TIMEOUT} = $ENV{RELAY_TIMEOUT}
+        if length( $ENV{RELAY_TIMEOUT} // '' );
+}
 
 # --- fd 0 = listen socket (spawn-fcgi convention), exec the processor ---
 my $processor = dirname( dirname( abs_path($0) ) ) . '/lazysite-processor.pl';
