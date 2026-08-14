@@ -84,6 +84,11 @@
       "license": "Artistic-1.0-Perl",
       "used_by": "domain-check marker fetch over HTTPS (SM156; lazy-required)"
     },
+    "IO::Select": {
+      "core": true,
+      "license": "Artistic-1.0-Perl",
+      "used_by": "SM294 front-door relay - pumps a forked surface's stdin/stdout both directions so a large request body cannot deadlock against a large response; lazy-required, only on the relayed path"
+    },
     "IO::Socket::INET": {
       "core": true,
       "license": "Artistic-1.0-Perl",
