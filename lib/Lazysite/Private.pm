@@ -29,7 +29,10 @@ package Lazysite::Private;
 
 use strict;
 use warnings;
-use File::Path     qw(make_path remove_tree);
+# make_path is deliberately NOT imported: it CROAKS, and an unqualified call is
+# how SM296 happened. _mkpath below is the only way this module creates a
+# directory, and it returns.
+use File::Path     qw(remove_tree);
 use File::Basename qw(dirname basename);
 use File::Copy     qw(copy);
 use Cwd            qw(realpath);
@@ -189,6 +192,30 @@ sub count_private {
     return $n;
 }
 
+# make_path that RETURNS rather than dies.
+#
+# SM296: `make_path($parent) unless -d $parent` looks like it reports failure by
+# returning false. It does not - File::Path::make_path CROAKS. So the guard on
+# the very next line ("cannot create the private store") was unreachable, and an
+# unwritable parent threw straight out through action_acl_set and killed the CGI.
+#
+# What that cost, live on 0.10.8: the ACL is saved BEFORE the move, so the rule
+# was stored and honoured for pages while the content stayed in the document
+# root and kept being served - SM283's exposure, reached through the mechanism
+# built to make it impossible. The caller saw "Tool error"; the audit line was
+# never written, because the process died before it. The documented warning for
+# exactly this case existed and could not be reached.
+#
+# Both callers already handle a false return correctly. They only ever needed
+# the failure to BE a return.
+sub _mkpath {
+    my ($dir) = @_;
+    return 1 if -d $dir;
+    my $err;
+    File::Path::make_path( $dir, { error => \$err } );
+    return -d $dir ? 1 : 0;
+}
+
 # Confinement: never let a caller's path escape either tree. Both roots are
 # resolved with realpath so a symlink cannot be used to write outside.
 sub _within {
@@ -220,7 +247,7 @@ sub move_in {
     return ( 0, 'cannot resolve the private store' ) unless defined $dst;
 
     my $parent = dirname($dst);
-    make_path($parent) unless -d $parent;
+    _mkpath($parent);
     return ( 0, 'cannot create the private store' ) unless -d $parent;
     return ( 0, 'refusing a path outside the private store' )
         unless _within( private_root($docroot), $dst );
@@ -258,7 +285,7 @@ sub move_out {
     return ( 0, 'the docroot already holds this path' ) if -e $dst;
 
     my $parent = dirname($dst);
-    make_path($parent) unless -d $parent;
+    _mkpath($parent);
     return ( 0, 'cannot create the destination folder' ) unless -d $parent;
     return ( 0, 'refusing a path outside the docroot' )
         unless _within( $docroot, $dst );
