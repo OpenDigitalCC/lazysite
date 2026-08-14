@@ -64,4 +64,29 @@ subtest 'every shipped vhost example is in its flavour package' => sub {
     }
 };
 
+subtest 'the operator-facing compliance documents are packaged' => sub {
+    # An operations template that does not reach the operator is a template the
+    # project wrote for itself. These carry obligations that attach to whoever
+    # RUNS a lazysite instance - the reporting path, the named security contact,
+    # the rehearsal cadence - none of which the project can discharge for them.
+    #
+    # Derived from the directory, not listed, for the reason this file exists.
+    my $install = slurp("$root/debian/lazysite-common.install");
+
+    my @operator_facing = sort map { s{\A\Q$root/\E}{}r }
+        grep { !m{/TECHNICAL-FILE\.md\z} }    # project-side evidence index
+        glob("$root/docs/compliance/*.md");
+    cmp_ok( scalar @operator_facing, '>=', 3, 'found the compliance documents' );
+
+    my @missing = grep { $install !~ /^\Q$_\E\s/m } @operator_facing;
+    is_deeply( \@missing, [],
+        'every operator-facing compliance document is in the deb payload' )
+        or diag( join "\n  ",
+        '',
+        @missing,
+        '',
+        'An operator installing from the package would never see these, and',
+        'the obligations in them are theirs rather than the project\'s.' );
+};
+
 done_testing();

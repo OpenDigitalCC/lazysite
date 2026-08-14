@@ -24,3 +24,6 @@ docs/reference/host-dependencies.md usr/share/lazysite/docs/reference
 # enable/start at package install time, so no maintscript is needed -
 # dh_installsystemd still sees it in the staged tree for housekeeping.
 debian/lazysite@.service usr/lib/systemd/system
+docs/compliance/OPERATIONS-TEMPLATE.md usr/share/lazysite/docs/compliance
+docs/compliance/COMPLIANCE-MAINTENANCE-TEMPLATE.md usr/share/lazysite/docs/compliance
+docs/compliance/OBLIGATIONS.md usr/share/lazysite/docs/compliance
