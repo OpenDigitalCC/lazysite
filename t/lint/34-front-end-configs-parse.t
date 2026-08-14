@@ -28,20 +28,24 @@ plan skip_all => 'nginx not installed (apt install nginx-light to run this)'
 
 my $root = repo_root();
 
-# The four shipped nginx configs: two Hestia proxy templates (the SM283 layer)
-# and the two standalone examples the lazysite-nginx package renders.
+# The shipped nginx configs: the two Hestia proxy templates (the SM283 layer),
+# named explicitly because they are a different shape with their own
+# placeholders - and then EVERY standalone example, by glob.
+#
+# The examples were a hand-written list until SM294 added one and this file went
+# green without parsing it. That is the fourth time in this repo that a list
+# somebody had to remember to edit was silently wrong (t/lint/31's templates,
+# t/lint/39's scripts, t/lint/41's deb payload), and the failure is always in the
+# same direction: the new thing is the untested thing, and the suite says fine.
 my @CONFIGS = (
     { rel => 'installers/hestia/lazysite-proxy.tpl',  hestia => 1 },
     { rel => 'installers/hestia/lazysite-proxy.stpl', hestia => 1, tls => 1 },
-    { rel => 'installers/nginx/vhost-cgi.conf.example' },
-    { rel => 'installers/nginx/vhost-fcgi.conf.example' },
-
-    # SM293 step 5: the one-rule config. A shipped config that does not parse
-    # is broken for whoever copies it, and this one is deliberately unlike the
-    # others - no try_files, no extension list - so it is exactly the kind that
-    # needs the real parser rather than a reading.
-    { rel => 'installers/nginx/vhost-one-rule.conf.example' },
+    ( map { { rel => s{\A\Q$root/\E}{}r } }
+            sort glob "$root/installers/nginx/*.conf.example" ),
 );
+
+cmp_ok( scalar( grep { $_->{rel} =~ m{/nginx/} } @CONFIGS ),
+    '>=', 3, 'found the standalone nginx examples to parse' );
 
 # One self-signed cert for the SSL template; nginx LOADS certificates during a
 # config test, so a placeholder path is not enough.
