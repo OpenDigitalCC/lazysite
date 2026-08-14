@@ -44,7 +44,7 @@ text: 5
 5 | Reliability and resilience | WARN | PASS | The restore-rehearsal cadence the declaration itself mandates has lapsed for four stable releases; `docs/MONITORS.md` still absent
 6 | Security | REFUSE | REFUSE (cleared) | The D1 defect's consequence is an exposure; the significant-change register is stale over its own triggers; the threat model of record does not mention the private store or the front door
 7 | Documentation | WARN | WARN (cleared) | FEATURES.md's timeline stops at 0.9.14, eight releases back; POLICY.md cites the 2026-07-01 review as current
-8 | Policy compliance | REFUSE | WARN | The Declaration of Conformity is unsigned and stamped 0.8.0; three stable releases have shipped since
+8 | Policy compliance | REFUSE | WARN | The Declaration of Conformity is unsigned and stamped 0.8.0 with three stable releases shipped since; and CRA Article 14 reporting is absent from the tree entirely, with no named person and no runbook, weeks before it is understood to apply
 ```
 
 # Overall
@@ -140,6 +140,37 @@ the work.
    front door (D6 F6.3).
 5. **Run and record one restore rehearsal** against the current stable, then
    hold or amend the declared cadence (D5 F5.1).
+
+# Maintaining compliance
+
+The list above restores the records. This list is about not having to write the
+same review again in six weeks, and one item on it has a nearer date than
+anything else in this document. Detail in `dimension-8-policy.md` F8.6-F8.10.
+
+- **CRA Article 14 has no owner, no runbook and no mention in the tree**
+  (F8.6). `docs/POLICY.md` covers Article 13 thoroughly and Article 14 not at
+  all. The reporting duties are understood to apply from **11 September 2026** -
+  four weeks out - though both that date and the scope judgement want the legal
+  review the DoC already calls for. What is needed is a **named individual**, a
+  **runbook** from "we found a live exposure" to "notified whom, by when", and a
+  **rehearsal**. SM283 is the worked example: a live exposure across a fleet for
+  weeks, with no mechanism to produce a 24-hour early warning had one been due.
+- **The declared remediation SLAs have no evidence** (F8.7). ADR 0007 commits to
+  critical 72h / high 30d / medium 90d / low 180d and nothing records whether
+  any was met. A dated vulnerability register turns behaviour that was in fact
+  good into behaviour that can be shown.
+- **Dated obligations are scattered across four documents, and one is
+  relative** (F8.8). The support period should read **2031-07-10** rather than
+  "five years from 0.7.0". One register, an owner per row, and gate the lead
+  times the same way the records get gated.
+- **Annex VII and signed releases get monotonically more expensive** (F8.9). The
+  technical file is mostly *assembly* of artefacts that already exist - start it
+  as an index now and it stays current as a by-product. Signed releases are
+  worse: every release cut unattested is permanently unattestable.
+- **There is no per-project implementation document** (F8.10). The framework
+  expects one authored from `IMPLEMENTATION-TEMPLATE.md`; its monitors and
+  migration-plan sections are precisely the two gaps found elsewhere in this
+  review, so writing it would have surfaced them without a review.
 
 # Recommended, not blocking
 
