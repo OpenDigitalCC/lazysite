@@ -1,23 +1,26 @@
 ---
-title: "Compliance maintenance schedule - <operator legal name>"
-subtitle: "The recurring half of operating a lazysite deployment compliantly. Authored from COMPLIANCE-MAINTENANCE-TEMPLATE; kept by the operator."
+title: "Compliance maintenance schedule - {{operator_legal_name}}"
+subtitle: "The recurring half of operating {{service_name}} compliantly. Authored from COMPLIANCE-MAINTENANCE-TEMPLATE; kept by the operator."
 brand: plain
 standard-margins: true
 
 # ---------------------------------------------------------------------------
-# OPERATOR: fill in this block, then keep the registers below up to date.
+# OPERATOR: fill in this block. Every double-brace placeholder below is filled
+# from it at build time, including the title. Unfilled ones stay literal and
+# warn.
 # ---------------------------------------------------------------------------
-operator_legal_name:   "<registered company or individual name>"
-service_name:          "<what you call this deployment>"
-schedule_owner:        "<named individual who owns this schedule>"
-review_cadence:        "<e.g. quarterly>"
-last_reviewed:         "<YYYY-MM-DD>"
-next_review_due:       "<YYYY-MM-DD>"
+vars:
+  operator_legal_name: "<registered company or individual name>"
+  service_name:        "<what you call this deployment>"
+  schedule_owner:      "<named individual who owns this schedule>"
+  review_cadence:      "<e.g. quarterly>"
+  last_reviewed:       "<YYYY-MM-DD>"
+  next_review_due:     "<YYYY-MM-DD>"
 ---
 
 # Why this is separate from the operations declaration
 
-`OPERATIONS-TEMPLATE.md` records **what your deployment is** - its shape, its
+`OPERATIONS-TEMPLATE.md` records **what {{service_name}} is** - its shape, its
 people, its declared targets. It changes rarely.
 
 This file records **what you keep doing**, and it is never finished. The two
@@ -30,6 +33,10 @@ The distinction matters for a practical reason. Every compliance failure this
 project has observed in its own records - and it has observed several - was a
 *maintenance* failure rather than a *declaration* failure. The declarations
 were written and correct. The recurring work stopped, and nothing said so.
+
+This schedule is owned by **{{schedule_owner}}** and reviewed
+**{{review_cadence}}**. Last reviewed **{{last_reviewed}}**; next review due
+**{{next_review_due}}**.
 
 # The schedule
 

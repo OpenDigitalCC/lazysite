@@ -27,3 +27,4 @@ debian/lazysite@.service usr/lib/systemd/system
 docs/compliance/OPERATIONS-TEMPLATE.md usr/share/lazysite/docs/compliance
 docs/compliance/COMPLIANCE-MAINTENANCE-TEMPLATE.md usr/share/lazysite/docs/compliance
 docs/compliance/OBLIGATIONS.md usr/share/lazysite/docs/compliance
+docs/compliance/HANDOVER.md usr/share/lazysite/docs/compliance
