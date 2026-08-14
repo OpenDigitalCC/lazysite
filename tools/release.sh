@@ -397,8 +397,19 @@ echo "==> Tagging $TAG on $TARGET_SHA in origin repo"
 # pushable. The staging clone is throwaway.
 git -C "$ORIGIN" tag -a "$TAG" -F "$ANNOT_FILE" "$TARGET_SHA"
 
-echo "==> Pushing tag $TAG"
-git -C "$ORIGIN" push origin "$TAG"
+# --no-fetch means this host has no remote credentials, so it cannot push
+# either. Skipping it here rather than letting `set -e` kill the run at the last
+# step: the previous behaviour left the tarball stranded in the staging
+# directory with the artefact copy and cleanup unreached, and reported failure
+# for a release that had in fact been built and tagged.
+if [ "$NO_FETCH" = 1 ]; then
+    echo "==> NOT pushing $TAG (--no-fetch): the tag is local and unpushed."
+    echo "    Whoever pushes must first confirm $TAG is not already on origin,"
+    echo "    then: git push origin $TAG"
+else
+    echo "==> Pushing tag $TAG"
+    git -C "$ORIGIN" push origin "$TAG"
+fi
 
 # --- final artefact copy ---
 
@@ -419,3 +430,6 @@ printf "    commit:  %s\n" "$TARGET_SHA"
 printf "    tag:     %s\n" "$TAG"
 printf "    tarball: %s\n" "$FINAL_DIST/lazysite-$VERSION.tar.gz"
 printf "    sha256:  %s\n" "$SHA256"
+if [ "$NO_FETCH" = 1 ]; then
+    printf "    tag:     LOCAL AND UNPUSHED - see the note above\n"
+fi
