@@ -3,14 +3,17 @@ title: "SM296 - Protecting content crashed, and left the content served"
 subtitle: "On 0.10.8, setting a permission on any path that held content returned Tool error or HTTP 500. The rule was stored and honoured; the content stayed in the document root. One line, and it was the mechanism built to make that impossible."
 brand: plain
 status: shipped
-status-note: "REPORTED 2026-08-13 from edge by the site agent, measured from outside over both partner surfaces. FIXED 2026-08-14 on claude/sm296-acl-set-crash: File::Path::make_path CROAKS, so the guard on the following line was unreachable and the die went out through action_acl_set. Two commits - the crash fix, then a lazysite-check that reports whether the store is usable at all. LIVE ON 0.10.8 EDGE until this ships; the affected state is a stored rule with the content still served, which is SM283's shape."
+status-note: "REPORTED 2026-08-13 by a site agent on a 0.10.8 host, measured from outside over both partner surfaces. FIXED 2026-08-14 on claude/sm296-acl-set-crash: File::Path::make_path CROAKS, so the guard on the following line was unreachable and the die went out through action_acl_set. Two commits - the crash fix, then a lazysite-check that reports whether the store is usable at all. LIVE ON 0.10.8 EDGE until this ships; the affected state is a stored rule with the content still served, which is SM283's shape."
 ---
 
 # SM296 - the mechanism failed into the thing it prevents
 
 ## What was measured
 
-From the site agent on `edge.explore.lazysite.io`, over MCP and the control API:
+From a site agent, over MCP and the control API. The reporting host is not
+named here on purpose: the first attribution was wrong, and the finding does not
+depend on it. Only a 0.10.8 site can reach this code at all, which is the only
+thing about the host that matters.
 
 > Setting a permission on any path that holds content fails on 0.10.8, on both
 > partner surfaces. MCP `set_permissions` returns `-32603 Tool error`; the

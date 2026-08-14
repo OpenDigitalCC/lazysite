@@ -41,9 +41,9 @@ file"; this release is the other answer.
 consequence worth stating outright, because "no operator action required" is
 true of stability and not of exposure: **every section protected BEFORE 0.10.8
 stays in the document root, and therefore stays exposed on any front end that
-serves statics by extension, until its rule is re-applied.** Measured on edge:
-19 of 25 extensions still served byte-identically to an anonymous request after
-the upgrade. The action is a re-apply sweep. (SM296: on 0.10.8 that sweep
+serves statics by extension, until its rule is re-applied.** Measured on a
+0.10.8 site after upgrading: 19 of 25 extensions still served byte-identically
+to an anonymous request. The action is a re-apply sweep. (SM296: on 0.10.8 that sweep
 crashes - fix pending.) Every move in this release is opt-in and reversible:
 protecting content moves it out of the document root (new behaviour, on the act
 of protecting); the engine tree moves only when you run

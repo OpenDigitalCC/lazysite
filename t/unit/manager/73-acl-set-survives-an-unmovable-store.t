@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # SM296: a move that cannot happen must WARN, not kill the request.
 #
-# Reported from edge on 0.10.8, from outside, over both partner surfaces: setting
+# Reported by a site agent on a 0.10.8 host, from outside, over both surfaces: setting
 # a permission on any path that HOLDS CONTENT returned MCP -32603 "Tool error"
 # or HTTP 500. A path with nothing behind it succeeded - the case that does not
 # matter. The discriminator was whether _sync_private_store had anything to move.
