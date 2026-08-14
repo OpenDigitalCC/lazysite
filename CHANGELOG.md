@@ -37,8 +37,14 @@ installed, and on most deployments cannot even see. SM283 ran live across a
 fleet for weeks. Every fix before this had been "put the rule in one more config
 file"; this release is the other answer.
 
-**No operator action is required, and nothing changes on an existing site until
-you ask for it.** Every move in this release is opt-in and reversible:
+**Nothing changes on an existing site until you ask for it** - and that has a
+consequence worth stating outright, because "no operator action required" is
+true of stability and not of exposure: **every section protected BEFORE 0.10.8
+stays in the document root, and therefore stays exposed on any front end that
+serves statics by extension, until its rule is re-applied.** Measured on edge:
+19 of 25 extensions still served byte-identically to an anonymous request after
+the upgrade. The action is a re-apply sweep. (SM296: on 0.10.8 that sweep
+crashes - fix pending.) Every move in this release is opt-in and reversible:
 protecting content moves it out of the document root (new behaviour, on the act
 of protecting); the engine tree moves only when you run
 `lazysite migrate-engine-tree --apply`; the one-rule vhost is an option beside

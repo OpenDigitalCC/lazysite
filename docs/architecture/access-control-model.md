@@ -117,7 +117,7 @@ change rather than a fourth grammar.
 |---|---|---|---|
 | Manager UI | the folder card / the per-file editor | same | same |
 | Control API | `acl-set` | `acl-get` | `acl-remove` |
-| MCP | `set_permissions` | `get_permissions` | `set_permissions` with empty lists |
+| MCP | `set_permissions` | `get_permissions` | `acl-set` with empty lists CLEARS them; the entry remains. Use the control API's `acl-remove` to remove it |
 | CLI | `lazysite acl set` | `lazysite acl show` / `list` | `lazysite acl remove` |
 | WebDAV | - | - | enforces only; a DELETE takes the entry with the file |
 
