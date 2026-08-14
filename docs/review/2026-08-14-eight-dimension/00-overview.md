@@ -70,7 +70,7 @@ tone: light
 ---
 perlcritic + tidy gates | clean | Declaration of Conformity | 3 releases stale
 Coverage floors (`coverage-floor`) | enforced, met | Significant-change register | stale over its own triggers
-Strict SBOM gate | clean | FEATURES.md timeline | 8 releases stale
+Strict SBOM gate | right mechanism, unrunnable from the tag | FEATURES.md timeline | 8 releases stale
 `t/lint/36` access model vs code | pinned | STRIDE/ASVS threat model | predates the architecture
 `t/lint/35`/`37` two-copy parity | pinned | Restore-rehearsal register | 4 stable cycles lapsed
 Generated capability map | current | Bench baseline | 6 weeks, 2 minor lines stale
@@ -143,17 +143,23 @@ the work.
 
 # Recommended, not blocking
 
-6. Make the suite pass on a clean checkout (D3 F3.1) - `install.pl`'s dependency
-   on a gitignored build artefact currently means a released tag fails its own
-   tests for anyone who clones it.
-7. Re-capture the bench baseline at each stable cut and add a registry-generation
-   op (D4 F4.1, F4.2).
-8. Sweep FEATURES.md to the current release and fix POLICY.md's review pointer
+6. Make the tag self-sufficient (D3 F3.1, D6 F6.6). `release-manifest.json` is a
+   gitignored build artefact, and **two** things need it: `install.pl` - so
+   fifteen test files fail on a clean checkout - and the strict SBOM gate, which
+   is a CRA control. A released tag currently fails its own tests and cannot run
+   its own compliance check for anyone who clones it. One fix closes both.
+7. Re-capture the bench baseline at each stable cut, add a registry-generation
+   op, and add a warn-level tolerance band (D4 F4.1, F4.2). The run on this tree
+   passed while sitting 7.5-27.5% above baseline on every op.
+8. Retire the three branch-floor overrides in `dist/config/coverage-floor` -
+   they now measure 64.6-65.6% against a 62% general floor, which is the
+   retirement condition the file states for itself (D3 F3.2).
+9. Sweep FEATURES.md to the current release and fix POLICY.md's review pointer
    (D7 F7.1, F7.2).
-9. Confirm SM283's proxy template is deployed fleet-wide (D6 F6.4, tasks #204
-   and #196) - it is absent on `edge.explore.lazysite.io`, the host the
-   disclosure came through.
-10. Book the third-party pentest engagement: ADR 0007's waiver expires
+10. Confirm SM283's proxy template is deployed fleet-wide (D6 F6.4, tasks #204
+    and #196) - it is absent on `edge.explore.lazysite.io`, the host the
+    disclosure came through.
+11. Book the third-party pentest engagement: ADR 0007's waiver expires
     2026-12-31 or at first GA marketing, whichever comes first (D8 F8.3).
 
 # Reports

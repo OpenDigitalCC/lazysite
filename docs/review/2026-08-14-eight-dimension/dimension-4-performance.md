@@ -48,6 +48,30 @@ variance and a poor guard against gradual drift: six 12% regressions in a row
 pass every time, and the seventh is compared against a baseline nobody has
 re-captured.
 
+**This is not hypothetical - the run on the audited tree shows the drift
+already accumulating.** `tools/bench.pl --check` passes (`rc=0`, "all ops within
+tolerance"), and every single op is slower than the baseline it is checked
+against:
+
+| Op | Baseline (2026-07-02) | Audited tree | Drift |
+|---|---:|---:|---:|
+| `verify_token_ms` | 32.7 ms | 41.7 ms | +27.5% |
+| `verify_password_ms` | 120.8 ms | 132.9 ms | +10.0% |
+| `render_cache_hit_ms` | 60.0 ms | 65.1 ms | +8.5% |
+| `render_miss_ms` | 83.6 ms | 89.9 ms | +7.5% |
+
+Against a documented ~3% measured spread, a 27.5% move on the partner hot path
+is signal, not noise. It may be entirely benign - same host but six weeks of
+system updates, a different kernel, or genuine added work on the token path -
+and that is exactly the point: **the gate reports "within tolerance" and
+therefore nobody has to find out which.** A green gate that is silently absorbing
+a quarter of a second-order regression is doing less work than its output
+suggests.
+
+Recommendation, concretely: re-capture at each stable cut, and add a warn-level
+band (say 1.25x) that reports drift without failing the build, so the 2x line
+stays as the flake-proof hard stop it was designed to be.
+
 Recommendation: re-capture at each stable cut (it is one command), and consider
 a second, tighter tolerance that warns rather than fails - so drift is visible
 without making the gate flaky.

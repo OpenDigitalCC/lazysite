@@ -19,9 +19,10 @@ is shipping stable releases faster than it is executing the compliance
 procedure it wrote for itself, and D8 is the dimension whose entire job is to
 notice that.
 
-The supply-chain half of this dimension is in good order: the strict SBOM gate
-passes and cannot drift from the code, the licence position is clean, and the
-support-period commitment is declared.
+The supply-chain half of this dimension is in reasonable order: the licence
+position is clean, the support-period commitment is declared, and the strict
+SBOM gate is the right mechanism - though it cannot be run from the tag it
+attests (D6 F6.6).
 
 ## Method
 
@@ -84,9 +85,12 @@ currently weaker than the ADR intends.
 
 ### F8.4 - Supply chain and licensing (PASS)
 
-- **Strict SBOM gate** passes. A release fails if the code imports a module not
-  declared in `dist/config/sbom-deps.json`, so the SBOM cannot silently drift -
-  this is the mechanism form of the obligation, and it is the right one.
+- **Strict SBOM gate**: the right mechanism form of the obligation. A release
+  fails if the code imports a module not declared in
+  `dist/config/sbom-deps.json`, so the SBOM cannot silently drift during a
+  build. It could not be executed on the audited tree, because it needs a
+  gitignored build artefact - so the claim holds at release time and is not
+  reproducible from the tag afterwards (D6 F6.6).
 - **Licence** MIT, with `LICENSE`, `COPYRIGHT` and `THIRD-PARTY-NOTICES.md`
   present and consistent.
 - **SBOM** generated per release in CycloneDX and shipped in the tarball.
@@ -114,4 +118,4 @@ expensive later.
 - `CHANGELOG.md` - stable cuts at 0.9.4, 0.9.10, 0.10.0.
 - `docs/POLICY.md:29-45` - the Article 13 obligations table.
 - `docs/adr/0007-pentest-deferral.md:53-58` - the waiver expiry.
-- `tools/manifest-to-sbom.pl --strict` - clean.
+- `tools/manifest-to-sbom.pl --strict` on a clean worktree - `rc=2`, cannot read `release-manifest.json`.

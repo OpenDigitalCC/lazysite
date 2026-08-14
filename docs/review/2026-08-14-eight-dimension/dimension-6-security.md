@@ -22,7 +22,8 @@
    that alter how protected content is stored and how requests are routed.
 
 The pentest gate remains properly declared with a dated, auditable waiver (ADR
-0007) and has not expired. The mechanical supply-chain controls pass.
+0007) and has not expired. The supply-chain controls are the right mechanisms,
+but the strict SBOM gate could not be run from the audited tag at all (F6.6).
 
 This is a harsher verdict than the period's engineering deserves, and that
 should be said plainly: the 0.10.x line is the strongest sustained security work
@@ -143,8 +144,9 @@ run.
   2026-07-10, expiry the first third-party engagement or 2026-12-31, whichever
   first. That expiry is now four and a half months away and should be on the
   release manager's calendar.
-- **SBOM strict gate**: passes; the SBOM cannot drift from the code because a
-  release fails if code imports an undeclared module.
+- **SBOM strict gate**: the design is right - the SBOM cannot drift from the
+  code, because a release fails if the code imports an undeclared module. But
+  it **could not be executed on the audited tree**; see F6.6.
 - **The in-app trust gate** (SM293 step 4, `t/lint/38`) converts a front-end
   configuration requirement into an enforced application control. This is the
   right direction and directly addresses the root cause behind SM248, SM268 H17
@@ -154,10 +156,39 @@ run.
   happens because the front end cannot read the file is distinguishable from a
   refusal that is the ACL working.
 
+### F6.6 - The SBOM gate cannot be run from the tag it attests (WARN, new)
+
+An earlier draft of this report listed the strict SBOM gate as passing. It was
+then run, and it does not:
+
+```
+$ perl tools/manifest-to-sbom.pl --strict
+Cannot read /srv/projects/lazysite-audit/release-manifest.json: No such file or directory
+sbom rc=2
+```
+
+Same root cause as D3 F3.1: `release-manifest.json` is a **gitignored build
+artefact**. It exists in a developer's working copy after a build, and does not
+exist in a clean checkout of `v0.10.8`.
+
+For D3 this was a test-reproducibility problem. Here it is a compliance one, and
+sharper. The SBOM is a CRA Article 13 obligation, and the strict gate is the
+control the project relies on to keep it honest - `docs/POLICY.md` cites it as
+the reason the SBOM "cannot drift from the code". That claim is true during a
+release build and **unverifiable afterwards**: an auditor, a downstream
+consumer, or a future maintainer who checks out the tag cannot run the control
+that substantiates it.
+
+This does not mean the SBOM is wrong. It means the gate's result is not
+reproducible from the artefact of record, which for a compliance control is the
+property that matters. Making `install.pl` and the SBOM tool generate the
+manifest when it is absent (it is derivable from the tree) fixes D3 F3.1 and
+this finding together.
+
 ## Evidence
 
 - `lib/Lazysite/Private.pm:223`, `:261`.
 - `docs/SECURITY.md:72-105` - the register and its last entries.
 - `docs/adr/0007-pentest-deferral.md:26-56` - triggers and waiver expiry.
 - `curl -sI https://edge.explore.lazysite.io/` - no `X-Lazysite-Front`.
-- `tools/manifest-to-sbom.pl --strict` - clean.
+- `tools/manifest-to-sbom.pl --strict` on a clean worktree - `rc=2`, cannot read `release-manifest.json`.

@@ -84,9 +84,33 @@ installer from the suite entirely on clean checkouts.
 
 ### F3.2 - Coverage floors are declared, enforced and fail-closed (PASS)
 
-Assessed from the gate's configuration and its enforcement logic, which is
-where the property lives: the floors are fail-closed, so an unmeasured file
-fails rather than passing.
+`tools/coverage.sh --check` on the audited tree, full suite under Devel::Cover
+with subprocess CGIs instrumented - `rc=0`:
+
+| Surface | Statements | Branches | Floors |
+|---|---:|---:|---|
+| `lazysite-oauth.pl` | 99.4% | 94.8% | 75 / 62 |
+| `lazysite-dav.pl` | 93.5% | 74.5% | 75 / 62 |
+| `tools/lazysite-users.pl` | 91.9% | 74.8% | 75 / 62 |
+| `lazysite-mcp.pl` | 90.9% | 65.4% | 75 / 60 |
+| `tools/lazysite-bundle-apply.pl` | 89.8% | 65.0% | 75 / 62 |
+| `lazysite-processor.pl` | 88.4% | 73.1% | 75 / 62 |
+| `lazysite-auth.pl` | 82.5% | 64.6% | 75 / 60 |
+| `lazysite-manager-api.pl` | 80.8% | 65.6% | 75 / 60 |
+
+Every measured production CGI clears both floors. The floors are also
+**fail-closed** - an unmeasured file fails rather than passing silently, which
+is the property that matters more than any individual number.
+
+**The three branch-floor overrides are now unnecessary and should be retired.**
+`dist/config/coverage-floor` holds `lazysite-manager-api.pl`,
+`lazysite-auth.pl` and `lazysite-mcp.pl` at 60 rather than the general 62,
+because at the v0.6.10 measurement they cleared 62 by less than the documented
+run-to-run variance. They now measure **65.6, 64.6 and 65.4** - between 2.6 and
+3.4 points clear of 62. The file states its own retirement condition ("remove
+these overrides when ... targeted branch tests lift them clear of 62+variance")
+and that condition is met. Ratcheting them away is the file's own instruction
+and costs nothing.
 
 `dist/config/coverage-floor` declares 75% statements and 62% branches per
 cleanly-measured production CGI, with three documented per-file branch overrides
