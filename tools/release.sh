@@ -24,6 +24,15 @@
 #                   sites that want tested-but-not-yet-certified builds.
 #   --final         mark the release 'stable' (alias: --stable) - the
 #                   certified customer-rollout channel. Default: 'edge'.
+#   --no-fetch      skip the two ORIGIN tag checks (fetch --tags, and the
+#                   ls-remote test that vVERSION is not already upstream).
+#                   For a build host with no remote credentials: the
+#                   whole GATE still runs, and the LOCAL tag check still
+#                   runs - only the upstream collision test is deferred
+#                   to whoever pushes. It is an explicit flag and never
+#                   an automatic fallback, because a precondition that
+#                   silently downgrades itself when it cannot run is the
+#                   defect class this project keeps removing.
 #
 # Preconditions:
 #   - VERSION (provided or proposed) is a semver string.
@@ -44,6 +53,7 @@ VERSION=""
 NOTES_FILE=""
 COMMIT_REF="origin/main"
 CHANNEL="edge"          # ladder: edge (default) < beta (--beta) < stable (--final)
+NO_FETCH=0              # --no-fetch: skip the ORIGIN tag checks (see below)
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -61,6 +71,10 @@ while [ $# -gt 0 ]; do
             ;;
         --beta)
             CHANNEL="beta"
+            shift
+            ;;
+        --no-fetch)
+            NO_FETCH=1
             shift
             ;;
         -h|--help)
@@ -155,15 +169,24 @@ if [ ! -d "$ORIGIN/.git" ]; then
     exit 1
 fi
 
-echo "==> Fetching origin tags"
-git -C "$ORIGIN" fetch --tags origin
+if [ "$NO_FETCH" = 1 ]; then
+    echo "==> Skipping origin tag checks (--no-fetch)"
+else
+    echo "==> Fetching origin tags"
+    git -C "$ORIGIN" fetch --tags origin
+fi
 
+# The LOCAL check runs either way - it is the one this host can answer.
 if git -C "$ORIGIN" rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
     echo "release.sh: tag $TAG already exists locally" >&2
     exit 1
 fi
 
-if git -C "$ORIGIN" ls-remote --tags origin "refs/tags/$TAG" | grep -q "$TAG"; then
+if [ "$NO_FETCH" = 1 ]; then
+    echo "release.sh: WARNING - did NOT check whether $TAG already exists on"  >&2
+    echo "release.sh:           origin. Whoever pushes must confirm that before" >&2
+    echo "release.sh:           pushing the tag, or a burned version is reused." >&2
+elif git -C "$ORIGIN" ls-remote --tags origin "refs/tags/$TAG" | grep -q "$TAG"; then
     echo "release.sh: tag $TAG already exists on origin" >&2
     exit 1
 fi
