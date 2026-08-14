@@ -1,5 +1,110 @@
 # Upgrade notes
 
+## Upgrading to 0.10.9 from 0.10.0 or 0.10.8 (READ THIS ONE)
+
+The fleet is on two versions - **0.10.0** (stable) and **0.10.8** (edge) - and
+both need the same operator action after upgrading. It is not delivered by the
+package.
+
+### Why an upgrade alone is not enough
+
+From 0.10.8, protecting content **moves it out of the document root** into a
+private store beside it, so that a front end which serves files without asking
+the engine cannot reach protected bytes. That was the structural answer to
+SM248, SM268 H17 and SM283.
+
+The move happens **on the act of protecting**. It is not a migration, and no
+upgrade performs it retrospectively. So:
+
+```datatable
+columns: If the site is on | Then after upgrading to 0.10.9
+widths: 3.4cm | X
+bold: 1
+tone: medium
+text: 2
+---
+0.10.0 (stable) | Every section ever protected still has its FILES in the document root. The rule is stored and honoured for pages; the files are reachable by anyone who knows the path on a front end that answers statics itself. Measured on a real upgraded site: 19 of 25 extensions still served byte-identically to an anonymous request.
+0.10.8 (edge) | The same, for anything protected before 0.10.8 - AND anything protected ON 0.10.8 may be in that state too, because SM296 could crash the move after the rule was saved, leaving the content stored-as-protected and still served with no audit line.
+```
+
+Both are repaired by the same action, because both are "the rule is right and
+the bytes are in the wrong place".
+
+### The action
+
+**Re-apply every stored rule.** This re-issues each rule with the values already
+in the store - it grants nothing, revokes nothing, and changes no rule. What
+changes is where the files live.
+
+Per site:
+
+```bash
+# see what would happen (dry run - this is the default)
+lazysite acl reapply --docroot /path/to/public_html --actor local
+
+# do it
+lazysite acl reapply --docroot /path/to/public_html --actor local --apply
+```
+
+Across a Hestia fleet, as part of the rollout:
+
+```bash
+bash /tmp/lazysite-0.10.9/installers/hestia/lazysite-hestia-update-all.sh \
+     --reapply-acls
+```
+
+The sweep runs only on sites that actually upgraded - a site skipped by its
+update channel is still on its old version - and runs as each site's own user,
+never as root.
+
+::: widebox
+**Order matters: upgrade first, then sweep.** The re-apply is the operation
+SM296 broke. On 0.10.8 it is the thing that crashes, so running it before the
+upgrade repairs nothing and reports failures. `--reapply-acls` sweeps after the
+deploy step for exactly this reason.
+:::
+
+### Verify from outside
+
+Do not take the sweep's own word for it. The engine's report and the front end's
+behaviour are different claims, and SM283 was the case where they disagreed:
+
+```bash
+lazysite check --check-acl https://<domain>/
+```
+
+That gates a probe folder against a principal which cannot exist and fetches it
+anonymously under several extensions, with a public control of the same type
+alongside each - so a refusal that happens because the front end cannot read the
+file is distinguishable from a refusal that is the access rule working.
+
+### Also outstanding from 0.10.7, on Hestia
+
+SM283's remedy is an nginx **proxy template**, and it is likewise not delivered
+by a package upgrade: the template must be staged and each domain moved onto it.
+
+```bash
+bash /tmp/lazysite-0.10.9/installers/hestia/lazysite-hestia-update-all.sh \
+     --proxy --reapply-acls
+```
+
+Check whether a domain has it with no credentials:
+
+```bash
+curl -sI https://<domain>/ | grep -i X-Lazysite-Front
+```
+
+A domain with an ACL store and no `X-Lazysite-Front` header is on a stock proxy
+and is the SM283 shape. `lazysite-hestia-list.sh` flags those as
+`ACL-BYPASSED-BY-PROXY(SM283)`.
+
+### Optional, and separate
+
+`lazysite migrate-engine-tree --apply` moves the `lazysite/` engine tree out of
+the document root (SM293). Dry-run by default, reversible with `--back`, and
+gated by `--min-version`. It is unrelated to the re-apply sweep and can be done
+whenever.
+
 ## manager_groups retired (SM138)
 
 The legacy `manager_groups:` key in `lazysite.conf` is retired. Manager access

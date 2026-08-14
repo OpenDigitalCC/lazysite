@@ -34,6 +34,15 @@
 #                 CGI, and nothing notices until the manager fails to save. A
 #                 live 0.10.5 upgrade hit exactly this.
 #
+#   --reapply-acls  SM286/SM296: after upgrading, re-issue every stored access
+#                 rule on every site so its content actually moves out of the
+#                 document root. Protecting content moves it only on the ACT of
+#                 protecting, so ANY section protected before 0.10.9 still has
+#                 its files in the served tree - the rule is honoured for pages
+#                 and the files are public. On 0.10.8 the SM296 crash produced
+#                 the same state on sites that DID protect something.
+#                 Changes no rule; moves bytes. Opt-in, because it moves content
+#                 on a live site.
 #   --proxy       SM283: ALSO stage the lazysite-proxy nginx templates and put
 #                 every discovered domain on them (v-change-web-domain-proxy-tpl,
 #                 which rebuilds the vhost). Implies --templates.
@@ -65,6 +74,7 @@ for a in "$@"; do
         --templates)  DO_TPL=1 ;;
         --rebuild)    DO_REBUILD=1; DO_TPL=1 ;;
         --proxy)      DO_PROXY=1; DO_TPL=1 ;;
+        --reapply-acls) DO_REAPPLY=1 ;;
         *)            ARGS+=("$a") ;;
     esac
 done
@@ -213,6 +223,52 @@ done
 
 echo
 echo "Updated $ok/$n site(s) to $NEWVER.  Skipped ${#SKIPPED[@]} (stable channel).  Failed ${#FAILED[@]}."
+
+# --- re-apply access rules so protected content leaves the docroot -----------
+#
+# The upgrade step that no package can perform. See --reapply-acls above.
+#
+# Runs only on sites that ACTUALLY UPGRADED: a site skipped by its update
+# channel is still on its old version, where the private store may not exist at
+# all, and sweeping it would be meaningless at best.
+#
+# Each site is swept AS ITS OWN USER. The sweep writes into the site tree, and
+# running it as root would leave root-owned files in a tree the CGI must write -
+# the SM139 principle, and a mistake this project has made before.
+REAPPLIED=0; REAPPLY_FAILED=()
+if [ "${DO_REAPPLY:-0}" = 1 ]; then
+    ACLTOOL="$STAGE/tools/lazysite-acl.pl"
+    if [ ! -f "$ACLTOOL" ]; then
+        echo "==> re-apply: $ACLTOOL missing in the staged release; skipping." >&2
+    else
+        echo
+        echo "==> re-applying access rules (moves protected content out of the docroot)"
+        for i in "${!DOMAINS[@]}"; do
+            d="${DOMAINS[$i]}"; u="${USERS[$i]}"
+            in_list "$d" "${SKIPPED[@]}" && continue
+            in_list "$d" "${FAILED[@]}"  && continue
+            # The docroot follows the Hestia layout the discovery loop above
+            # walks: /home/<user>/web/<domain>/public_html.
+            dr="/home/$u/web/$d/public_html"
+            [ -d "$dr" ] || { echo "    no docroot at $dr; skipping $d" >&2; continue; }
+            if sudo -u "$u" perl "$ACLTOOL" reapply \
+                 --docroot "$dr" --actor local --apply; then
+                REAPPLIED=$(( REAPPLIED + 1 ))
+            else
+                REAPPLY_FAILED+=( "$d" )
+            fi
+        done
+        echo "==> re-applied on $REAPPLIED site(s).  Failed ${#REAPPLY_FAILED[@]}."
+        [ "${#REAPPLY_FAILED[@]}" -gt 0 ] && \
+            printf 'REAPPLY FAILED: %s\n' "${REAPPLY_FAILED[*]}"
+    fi
+else
+    echo
+    echo "==> access rules: NOT re-applied (no --reapply-acls)."
+    echo "    Any section protected before 0.10.9 still has its FILES in the"
+    echo "    document root. Verify from outside with:"
+    echo "        lazysite check --check-acl https://<domain>/"
+fi
 [ "${#SKIPPED[@]}" -gt 0 ] && printf 'SKIPPED (stable site, edge release not installed): %s\n' "${SKIPPED[*]}"
 [ "${#FAILED[@]}" -gt 0 ]  && printf 'FAILED to upgrade: %s\n' "${FAILED[*]}"
 

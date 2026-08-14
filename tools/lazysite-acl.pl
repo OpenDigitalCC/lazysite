@@ -54,6 +54,7 @@ Getopt::Long::GetOptions(
     'write=s'   => \$opt{write},
     'owner=s'   => \$opt{owner},
     'draft!'    => \$opt{draft},
+    'apply'     => \$opt{apply},
     'json'      => \$opt{json},
     'help|h'    => sub { usage(0) },
 ) or usage(2);
@@ -105,10 +106,11 @@ $Lazysite::Auth::Acl::DOCROOT       = $docroot;
 $Lazysite::Auth::Acl::token_auth = 0;
 
 my %HANDLER = (
-    list   => \&cmd_list,
-    show   => \&cmd_show,
-    set    => \&cmd_set,
-    remove => \&cmd_remove,
+    list    => \&cmd_list,
+    show    => \&cmd_show,
+    set     => \&cmd_set,
+    remove  => \&cmd_remove,
+    reapply => \&cmd_reapply,
 );
 my $handler = $HANDLER{$verb} or do {
     print {*STDERR} "lazysite acl: unknown sub-command '$verb'\n\n";
@@ -274,6 +276,116 @@ sub cmd_set {
     return $rc;
 }
 
+# SM296 / SM286: re-apply every stored rule, so its content actually moves.
+#
+# THE PROBLEM THIS SOLVES, and it affects every site that protected anything
+# before 0.10.9:
+#
+#   - protecting content moves it out of the document root, but ONLY on the act
+#     of protecting (SM286, 0.10.8). A section protected on any earlier version
+#     has its rule stored and honoured for pages while its FILES sit in the
+#     served tree - measured on an upgraded site, 19 of 25 extensions were still
+#     served byte-identically to an anonymous request;
+#   - and on 0.10.8 specifically, the move could crash after the rule was saved
+#     (SM296), leaving exactly the same state on a site that DID protect
+#     something on that version.
+#
+# Both are repaired by the same action - re-issue each rule with its existing
+# values, which runs the move - so this is one sweep rather than two migrations.
+#
+# It re-issues values that are ALREADY STORED. It grants nothing, revokes
+# nothing and changes no rule; every path in the store ends with exactly the
+# rule it started with. What changes is where the bytes are.
+#
+# Dry-run by default, like `lazysite migrate-engine-tree`: a sweep that moves
+# content on a live site should be something the operator asked for twice.
+sub cmd_reapply {
+    my $actor = require_actor();
+
+    my $listing = with_actor( $actor, sub {
+            return action_protected_sections( $actor, [] );
+    } );
+    return emit($listing) if !$listing->{ok};
+
+    my @sections = @{ $listing->{sections} || [] };
+    unless (@sections) {
+        print "No protected sections - nothing to re-apply.\n" unless $opt{json};
+        return emit( { ok => 1, reapplied => [], count => 0 } ) if $opt{json};
+        return 0;
+    }
+
+    unless ( $opt{apply} ) {
+        printf "Would re-apply %d rule(s) on %s:\n", scalar @sections,
+            $opt{docroot}
+            unless $opt{json};
+        print "  $_->{prefix}\n" for @sections;
+        print "\nNothing has changed. Re-run with --apply to move the content.\n"
+            unless $opt{json};
+        return emit(
+            { ok => 1,
+                dry_run => 1,
+                would   => [ map { $_->{prefix} } @sections ],
+                count   => scalar @sections,
+            }
+        ) if $opt{json};
+        return 0;
+    }
+
+    my ( @done, @failed );
+    for my $s (@sections) {
+        my $path = $s->{site_wide} ? '/' : $s->{prefix};
+
+        # Read the rule back and write the SAME values. Reading first matters:
+        # passing undef for a list means "leave unchanged", which would be
+        # enough to trigger the move - but it would also mean this tool's
+        # behaviour depended on that subtlety staying true. Explicit is safer
+        # for something that runs unattended across a fleet.
+        my $cur = with_actor( $actor,
+            sub { return action_acl_get( $path, $actor ) } );
+        my $rule = ( $cur && $cur->{ok} ) ? ( $cur->{acl} || {} ) : {};
+
+        my $r = with_actor( $actor, sub {
+                return action_acl_set(
+                    $path, $actor,
+                    ( $rule->{read}  ? $rule->{read}  : undef ),
+                    ( $rule->{write} ? $rule->{write} : undef ),
+                    $rule->{owner},
+                    ( defined $rule->{draft}
+                        ? ( $rule->{draft} ? 'true' : 'false' )
+                        : undef ),
+                );
+        } );
+
+        if ( $r && $r->{ok} ) {
+            my @w = @{ $r->{warnings} || [] };
+            push @done, { path => $path, warnings => \@w };
+            unless ( $opt{json} ) {
+                print "re-applied: $path\n";
+                print "  WARNING: $_\n" for @w;
+            }
+        }
+        else {
+            my $why = ( $r && $r->{error} ) ? $r->{error} : 'failed';
+            push @failed, { path => $path, error => $why };
+            print         {*STDERR} "FAILED: $path - $why\n" unless $opt{json};
+        }
+    }
+
+    unless ( $opt{json} ) {
+        printf "\n%d re-applied, %d failed.\n", scalar @done, scalar @failed;
+        print "Verify from OUTSIDE with: lazysite check --check-acl URL\n"
+            unless @failed;
+    }
+    return emit(
+        { ok => ( @failed ? 0 : 1 ),
+            reapplied => \@done,
+            failed    => \@failed,
+            count     => scalar @done,
+        }
+    ) if $opt{json};
+    return @failed ? 1 : 0;
+}
+
 sub cmd_remove {
     my $path  = shift @ARGV;
     my $actor = require_actor();
@@ -307,6 +419,12 @@ Sub-commands:
   set  PATH --actor USER [--read LIST] [--write LIST] [--owner USER]
                          [--draft | --no-draft]
   remove PATH --actor USER
+  reapply --actor USER [--apply]
+                         re-issue every stored rule so its content moves out
+                         of the document root. Repairs sections protected
+                         before 0.10.9 (SM286) and any left half-moved by the
+                         SM296 crash. Changes no rule - only where files live.
+                         Dry-run unless --apply.
 
 Options:
   --docroot D    the site's document root (required)
