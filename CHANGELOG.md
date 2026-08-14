@@ -28,37 +28,100 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
-## Unreleased
+## 0.10.9 - EDGE: the sweep that finishes the 0.10.8 move (2026-08-14)
 
-- SM294 (113c029) the front door runs inside the FastCGI pool. SM293 step 5
-  made a front end able to be one rule, and executed that decision from a CGI
-  at a process per request; the pool could not run it at all, because dispatch
-  ended in `exec()` and `exec` replaces the worker. The worker now consults the
-  same routing table and splits by what it can be: a page, a miss, a content
-  static and a denial are answered in-process, while another surface or anything
-  needing the auth wrapper is relayed to a forked child with a timeout. Measured
-  like for like, an anonymous page goes 71.9 ms to 0.53 ms (137x) and a signed-in
-  page 107.3 ms to 96.9 ms - never slower. Enabled with `FRONT_DOOR=1` in the
-  pool conf; an existing pool is byte-identical without it.
-- SM294 (591803c) pooled one-rule vhost templates for Apache and nginx. The
-  nginx one loses the session carve-out, the ACL-store conditional and
-  `try_files` outright - the worker makes all three decisions.
-- SM297 filed: identity as a value rather than trust headers, which is what
-  would remove the remaining fork. Not started, and deliberately not folded into
-  SM294 - it is a rewrite of the auth spine on the surface where being wrong is
-  an authentication bypass.
+**Operator action is required, and no package upgrade performs it.** From
+0.10.8 protecting content moves it out of the document root - but only on the
+ACT of protecting. Every section protected on an earlier version still has its
+FILES in the served tree, with its rule honoured for pages and its files
+public; measured on a real upgraded site, 19 of 25 extensions were still served
+byte-identically to an anonymous request. On 0.10.8 the SM296 crash could leave
+the same state on a site that DID protect something.
+
+Both are repaired by the same sweep, which this release adds and which changes
+no rule:
+
+```
+lazysite acl reapply --docroot D --actor local --apply      # one site
+lazysite-hestia-update-all.sh --rebuild --reapply-acls      # a fleet
+```
+
+Order matters: upgrade first, then sweep - the re-apply is the operation SM296
+broke. Verify from OUTSIDE with `lazysite check --check-acl URL`; the engine's
+report and the front end's behaviour are different claims, and SM283 was the
+case where they disagreed. Full detail in `UPGRADE.md`.
+
+- SM296 (50991b7) protecting content crashed and left it served.
+  `File::Path::make_path` CROAKS rather than returning false, so the guard on
+  the next line was unreachable and a protect call died after storing the ACL
+  and before moving the content or writing the audit line - leaving content
+  stored-as-protected, still served, and absent from the trail. The mechanism
+  built to make SM283 structurally impossible was failing into SM283.
+- SM294 (7fe8ad9) the front door runs inside the FastCGI pool. Dispatch ended
+  in `exec()`, which replaces the worker, so the pool could not run the
+  one-rule front door at all. The worker now consults the same routing table
+  and splits by what it can be: a page, a miss, a content static and a denial
+  are answered in-process, while another surface or anything needing the auth
+  wrapper is relayed to a forked child with a timeout. Measured like for like,
+  an anonymous page goes 71.9 ms to 0.53 ms (137x) and a signed-in page
+  107.3 ms to 96.9 ms - never slower. `FRONT_DOOR=1` in the pool conf; an
+  existing pool is byte-identical without it.
+- SM294 pooled one-rule vhost templates for Apache and nginx. The nginx one
+  loses the session carve-out, the ACL-store conditional and `try_files`
+  outright - the worker makes all three decisions.
+- SM299 (7ad34f9) every site's `llms.txt` opened with a dead link. The template
+  appended `.md` to a page URL; an index page's URL already ends in a slash, so
+  the homepage entry was `/.md`. It was the first line of the file and the
+  entry an AI client is most likely to follow.
+- SM300 (7ad34f9) `meta_desc` and `meta_title`. `subtitle` was doing three jobs
+  - visible subheading, meta description, and llms.txt description - so a page
+  with a designed hero had to choose between a subheading it did not want and
+  NO description at all. Both fields were already named in ADR 0008's
+  compatibility freeze and neither existed. They override and fall back, so
+  every existing page renders unchanged.
+- SM301 (9bd14e9) `regenerate-registries` on the control API. It had been
+  MCP-only since SM264, so an account holding `manage_content` on a WebDAV +
+  control-API grant could not call the action its own capability grants.
+- llms.txt defaults (9bd14e9): bundled documentation no longer registers for
+  `llms.txt`, and starter content now does. A customer site's llms.txt listed
+  ~30 lazysite doc pages and none of its own content; on upgrade it shrinks to
+  the site's own pages.
+
+Compliance and release machinery:
+
+- `tools/lazysite-compliance.pl` (a8ff277) runs first in the release gate and
+  refuses a cut when a compliance record is behind the version being cut.
+  Blocking differs by channel - a Declaration of Conformity behind the version
+  is advisory on edge and blocking on stable.
+- `docs/compliance/` (a8ff277): one dated obligations register anchored on dates
+  AND versions, the Annex VII technical file as an index, and two operator
+  templates plus a handover document, all packaged so an operator installing
+  from the deb receives them.
+- The fourth eight-dimension review, at `docs/review/2026-08-14-eight-dimension/`.
+
+Fixes to the tree itself:
+
+- `release-manifest.json` (b4cb029) is derived when absent, so a clean checkout
+  of a tag passes its own tests and can run its own SBOM gate. Fifteen test
+  files and a CRA control needed a gitignored build artefact.
+- The "intermittent" install-test failure (4794ba2) was deterministic: a stale
+  manifest in the working copy. `repo_manifest_guard` now guarantees a manifest
+  that DESCRIBES THIS TREE, and `t/lib/FlakeLog.pm` records outcomes so the
+  next one accumulates evidence instead of an anecdote.
 
 Tests:
 
-- `t/lint/43` (new) pins a trap worth naming: FCGI.pm replaces `%ENV` on every
-  request, so a setting the pool exported is gone by the time a request is
-  handled. Read inside the loop it is silently always-off in the one deployment
-  it exists for, while working perfectly as a CGI.
-- `t/lint/42` (new) drives both copies of the routing table and compares
-  answers rather than source text.
-- `t/lint/34` (cefd3c2) now globs the nginx configs it parses. It was green on
-  a config it had never parsed - the fourth hand-maintained list in this repo to
-  fail in the same direction.
+- `t/lint/42` drives both copies of the routing table and compares answers.
+- `t/lint/43` pins a trap worth naming: FCGI.pm replaces the request
+  environment on every request, so a pool setting read inside the loop is
+  silently always-off in the one deployment it exists for.
+- `t/lint/44` asserts the operator templates substitute cleanly in both
+  directions.
+- `t/lint/45` asserts every front-matter field ADR 0008 freezes actually exists
+  - the class that produced SM300.
+- `t/lint/34` now globs the nginx configs it parses; it was green on a config
+  it had never parsed, the fourth hand-maintained list in this repo to fail
+  that way.
 
 ## 0.10.8 - EDGE: the front end stops making decisions (2026-08-13)
 

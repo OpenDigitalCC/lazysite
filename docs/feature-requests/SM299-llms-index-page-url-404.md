@@ -2,8 +2,8 @@
 title: "SM299 - Every site's llms.txt opens with a dead link"
 subtitle: "The template appends .md to a page URL. An index page's URL already ends in a slash, so the homepage entry is <dir>/.md - which 404s. It is the first line of the file."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-14 from a site-agent report during an IA consolidation on a 0.10.0 site, and CONFIRMED present in the current tree - an upgrade does not resolve it. lazysite's own shipped documentation carries the same fault at /docs/integrations/.md."
+status: shipped
+status-note: "SHIPPED in 0.10.9 (7ad34f9). The template now appends `index.md` on a trailing slash and `.md` otherwise. `page.path` was rejected as the fix: it is docroot-relative and carries the `sites/<name>/` prefix on a content-rooted domain, so it would have been wrong in a less obvious way on exactly the multi-domain deployments SM151 exists for. t/integration/51 installs the SHIPPED template rather than a copy, so the fixture tests what operators receive. FILED 2026-08-14 from a site-agent report during an IA consolidation on a 0.10.0 site, and CONFIRMED present in the current tree - an upgrade does not resolve it. lazysite's own shipped documentation carries the same fault at /docs/integrations/.md."
 ---
 
 # SM299 - the first entry is the broken one

@@ -1569,6 +1569,50 @@ The recurring design principles, drawn from the feature-request record:
 
 Newest first; releases are git tags.
 
+- **0.10.9** (2026-08-14, EDGE) - **The sweep that finishes the 0.10.8 move.**
+  `lazysite acl reapply` (SM296/SM286) re-issues every stored access rule so its
+  content actually leaves the document root - the upgrade action no package can
+  perform, because protecting content moves it only on the ACT of protecting.
+  Fixes a crash that left content stored-as-protected and still served
+  (SM296: `File::Path::make_path` croaks, so the guard after it was
+  unreachable). The FastCGI pool worker can now BE the front door (SM294),
+  answering the hot path in-process (137x) and forking for the rest. `meta_desc`
+  and `meta_title` front matter (SM300) separate a page's description from its
+  visible subheading; `llms.txt` index-page links resolve (SM299);
+  `regenerate-registries` reaches the control API (SM301); bundled docs stop
+  crowding a site's own `llms.txt`. Plus the release compliance gate,
+  `docs/compliance/`, and the fourth eight-dimension review.
+- **0.10.8** (2026-08-13, EDGE) - **The front end stops making decisions.**
+  Protecting content MOVES it out of the document root into a private store
+  (SM286); the engine tree can move out too (SM293 step 2); the registries are
+  generated on request rather than written to disk (step 3); the trust-header
+  gate becomes an enforced application control rather than a front-end
+  configuration requirement (step 4); and a front end can be ONE RULE, with
+  `Lazysite::FrontDoor::route()` making every decision the vhost templates used
+  to (step 5). SM248, SM268 H17 and SM283 were all the same cause - security
+  living in configuration lazysite ships as a template, cannot test where it is
+  installed, and mostly cannot see.
+- **0.10.7** (2026-08-11, EDGE) - SM283's remedy: the missing Hestia **nginx
+  proxy template**, which hands a static request back to the origin whenever an
+  ACL store exists, with an `X-Lazysite-Front` observable checkable by curl with
+  no credentials. Also `lazysite check --check-acl` (SM285), which lets a site
+  prove its own gating from outside, and the access-control programme SM287-SM292
+  - a root ACL entry that protects the whole site, real partner groups resolved
+  on MCP and the control API, and one way to express access on every surface
+  including a CLI verb.
+- **0.10.5 / 0.10.6** (2026-08-10 / 2026-08-11, EDGE) - what an adversarial
+  security review found and what it cost to prove, then the release that told an
+  operator to do something it had not made safe.
+- **0.10.1 - 0.10.4** (2026-07-27 - 2026-08-09, EDGE) - form spam controls and
+  submissions tooling; what the platform knew and did not say; MCP surface parity
+  with instructions no longer accepted quietly (SM239); and success reported for
+  work that did not happen - the recurring defect class this line is named for.
+- **0.10.0** (2026-07-27, STABLE) - promotes the 0.9.11-0.9.17 beta line to
+  stable: durable stats store and trends, token-lifetime control, live-config AI
+  discovery, sudo-safe permissions and repair, manager-UI polish.
+- **0.9.15 - 0.9.17** (2026-07-25 - 2026-07-27, BETA) - manager UI polish
+  (domains configure-modal, promote-in-dropdown, hints), token-lifetime control
+  plus live-config AI discovery, and a durable stats store with trends.
 - **0.9.14** (2026-07-24, EDGE) - **Theme authoring + external-design (Figma)
   ingestion**, plus operator features. `theme_tokens` (SM204) reads a layout/theme
   token vocabulary in one call; `create_theme` (SM205) is a validated one-call theme
@@ -1805,7 +1849,8 @@ Newest first; releases are git tags.
 
 *This reference was synthesised from the lazysite source, the `starter/docs/`
 documentation set, the `docs/feature-requests/` record, and the CHANGELOG, current
-to v0.9.14 (the EDGE theme-authoring + Figma-ingestion line on top of the 0.9.x
-security-hardening and multi-site/multilingual work). For the authoritative detail
+to v0.10.9 (the EDGE line in which the front end stopped making content
+decisions: protected content moved out of the document root, the routing table
+moved inside the engine, and the upgrade sweep that completes it shipped). For the authoritative detail
 of any feature, read the cited script or doc; for the "why", read the corresponding
 `SMxxx` feature-request.*

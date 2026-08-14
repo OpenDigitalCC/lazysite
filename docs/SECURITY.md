@@ -749,3 +749,49 @@ verdict
   defect is a local coding error with a known cause and a written fix rather
   than a weakness in the model - but the condition is recorded here so that
   judgement is auditable rather than implied.
+
+### 2026-08-14 - SM294/SM301 (0.10.9): a forked relay in the worker, and one more control-API action
+
+what changed
+: **SM294** lets the FastCGI pool worker be the site's front door. Requests it
+  cannot answer as itself - another CGI surface, or anything needing the auth
+  wrapper - are RELAYED to a forked child with the request body on a pipe.
+  That is a new execution path inside a long-lived, privilege-dropped worker.
+  **SM301** adds `regenerate-registries` to the control API; it clears
+  generated registries and is the twin of an MCP tool that has existed since
+  SM264.
+
+threat delta
+: Denial of service is the one that moves, and it moves in a direction worth
+  naming: a worker blocked forever on a wedged child serves NOTHING else, so
+  one hung request would take a site down. Elevation of privilege is unchanged
+  - the child inherits the worker's already-dropped identity and the auth
+  wrapper's contract is untouched, which is why SM297 (identity as a value) was
+  deliberately NOT taken here. SM301 adds no new capability: the action is
+  gated by `manage_content`, which the callers already hold on another channel.
+
+controls
+: a `RELAY_TIMEOUT` (120s, configurable) after which the child is TERMed then
+  KILLed and the worker answers 504, so a wedged surface cannot take the site;
+  `local $SIG{CHLD} = 'DEFAULT'` so FCGI::ProcManager's reaper cannot consume
+  the exit status and leave `waitpid` blocking; `IO::Select` pumping both
+  directions so a large body cannot deadlock against a large response; the
+  relay target constrained to `lazysite-[a-z-]+\.pl` within a resolved cgi-bin,
+  with an `-f` check, so no path outside it is reachable. Off entirely unless
+  `FRONT_DOOR=1`. For SM301, the same implementation serves both channels so
+  they cannot answer differently, and it is skip-listed from the audit
+  alongside `cache-invalidate` - it removes generated artefacts and audits must
+  not drown in operational noise.
+
+residual risk
+: the fork costs a process on relayed requests, which is the same cost those
+  requests already pay under CGI - so a site with an ACL store pays it per
+  static file (SM223 routes those through the wrapper). That is the measured
+  argument for SM297 rather than a regression. The pooled front door is opt-in
+  and unused by default, so the exposure of this path on the fleet is currently
+  nil.
+
+verdict
+: accepted. No ahead-of-schedule third-party engagement required: the new path
+  is a fork within an existing trust boundary, bounded by a timeout, and adds
+  no new identity, capability or external interface.

@@ -2,8 +2,8 @@
 title: "SM300 - subtitle is the visible subheading, the meta description and the llms.txt description"
 subtitle: "One field, three audiences. A page with a designed hero cannot have a meta description without also printing a subheading it does not want - so the page that matters most is the one with no description at all."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-14 from a site-agent report on sovereigncomputing.org. The site's homepage carries a designed hero, so it declares no subtitle - and therefore has NO meta description and is the only description-less entry in its llms.txt. ADR 0008 already names meta_title and meta_desc among the frozen front-matter fields; NEITHER EXISTS anywhere in the codebase, so implementing them makes that document true as well as closing this."
+status: shipped
+status-note: "SHIPPED in 0.10.9 (7ad34f9). `meta_desc` and `meta_title` override and fall back to `subtitle` / `title`, so every existing page renders unchanged. ADR 0008 had frozen both names while neither existed; implementing them makes that document true, and t/lint/45 now asserts every field the freeze names is actually read by the engine - the class this defect came from. FILED 2026-08-14 from a site-agent report on sovereigncomputing.org. The site's homepage carries a designed hero, so it declares no subtitle - and therefore has NO meta description and is the only description-less entry in its llms.txt. ADR 0008 already names meta_title and meta_desc among the frozen front-matter fields; NEITHER EXISTS anywhere in the codebase, so implementing them makes that document true as well as closing this."
 ---
 
 # SM300 - one field, three audiences

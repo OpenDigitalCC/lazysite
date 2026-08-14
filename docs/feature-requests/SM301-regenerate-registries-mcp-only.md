@@ -2,8 +2,8 @@
 title: "SM301 - regenerate_registries is reachable over MCP only"
 subtitle: "An account holds manage_content and cannot call the action that manage_content grants, because its grant is WebDAV plus the control API. The capability is not the obstacle; the channel is."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-14 from a site-agent report. SM251 shipped regenerate_registries in the 0.10.4 edge line and exposed it on MCP alone. The parity lint did NOT miss this - t/lint/23 records it as a DELIBERATE MCP-only entry whose stated condition is 'the API path can add one when someone asks for it'. Someone has now asked, from a live site, with a worked example of the damage caused by not having it. This filing is that trigger firing, not a defect report."
+status: shipped
+status-note: "SHIPPED in 0.10.9 (9bd14e9). One implementation in Files.pm serves both channels so they cannot answer differently; the t/lint/23 entry moved from %MCP_ONLY to %PAIR, which is the condition it had set for itself. Two classification registers then refused the action until it was placed - skip-listed from the audit alongside cache-invalidate, and exempt from the git write path for the same reason - which is the discipline working. FILED 2026-08-14 from a site-agent report. SM251 shipped regenerate_registries in the 0.10.4 edge line and exposed it on MCP alone. The parity lint did NOT miss this - t/lint/23 records it as a DELIBERATE MCP-only entry whose stated condition is 'the API path can add one when someone asks for it'. Someone has now asked, from a live site, with a worked example of the damage caused by not having it. This filing is that trigger firing, not a defect report."
 ---
 
 # SM301 - the capability is held and the door is shut
