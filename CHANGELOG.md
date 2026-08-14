@@ -28,6 +28,38 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
+## Unreleased
+
+- SM294 (113c029) the front door runs inside the FastCGI pool. SM293 step 5
+  made a front end able to be one rule, and executed that decision from a CGI
+  at a process per request; the pool could not run it at all, because dispatch
+  ended in `exec()` and `exec` replaces the worker. The worker now consults the
+  same routing table and splits by what it can be: a page, a miss, a content
+  static and a denial are answered in-process, while another surface or anything
+  needing the auth wrapper is relayed to a forked child with a timeout. Measured
+  like for like, an anonymous page goes 71.9 ms to 0.53 ms (137x) and a signed-in
+  page 107.3 ms to 96.9 ms - never slower. Enabled with `FRONT_DOOR=1` in the
+  pool conf; an existing pool is byte-identical without it.
+- SM294 (591803c) pooled one-rule vhost templates for Apache and nginx. The
+  nginx one loses the session carve-out, the ACL-store conditional and
+  `try_files` outright - the worker makes all three decisions.
+- SM297 filed: identity as a value rather than trust headers, which is what
+  would remove the remaining fork. Not started, and deliberately not folded into
+  SM294 - it is a rewrite of the auth spine on the surface where being wrong is
+  an authentication bypass.
+
+Tests:
+
+- `t/lint/43` (new) pins a trap worth naming: FCGI.pm replaces `%ENV` on every
+  request, so a setting the pool exported is gone by the time a request is
+  handled. Read inside the loop it is silently always-off in the one deployment
+  it exists for, while working perfectly as a CGI.
+- `t/lint/42` (new) drives both copies of the routing table and compares
+  answers rather than source text.
+- `t/lint/34` (cefd3c2) now globs the nginx configs it parses. It was green on
+  a config it had never parsed - the fourth hand-maintained list in this repo to
+  fail in the same direction.
+
 ## 0.10.8 - EDGE: the front end stops making decisions (2026-08-13)
 
 One theme, and it is the largest structural change in the 0.10 line. SM248,

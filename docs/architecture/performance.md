@@ -225,3 +225,46 @@ now - the visitor-facing hot path is the pooled one.
 
 The CGI path remains the default and the dev-server path. FastCGI is the
 packaged production pattern, not a requirement.
+
+## The front door under the pool
+
+IMPLEMENTED (SM294, 2026-08-14). SM293 step 5 moved every routing decision
+out of the vhost templates into `Lazysite::FrontDoor::route()`, so a front
+end can be one rule - but it executed that decision from a CGI, at a process
+per request. A pool worker cannot execute it the same way: dispatch there
+ended in `exec()`, which replaces the process, so the worker serving the
+request would cease to exist and the next request would find nothing
+listening. The failure is invisible to a single request, which is answered
+perfectly on the way out.
+
+With `FRONT_DOOR=1` in the pool conf the worker consults the same routing
+table and splits by what it can *be*:
+
+- the hot path - a page, a miss, a content static, a denial - is what the
+  worker already is, so it is answered in-process;
+- the cold path - another surface, or anything needing the auth wrapper - is
+  relayed to a forked child over a pair of pipes, with a timeout
+  (`RELAY_TIMEOUT`, default 120s) so one wedged surface cannot take the
+  worker, and therefore the site, down.
+
+Measured on the reference host (mean of 60 requests, one worker, like for
+like - the same URL and the same auth state in both configurations):
+
+| Request | CGI front door | Pooled front door | |
+|---|---|---|---|
+| anonymous page (hot path) | 71.9 ms | **0.53 ms** | 137x |
+| signed-in page (relayed) | 107.3 ms | **96.9 ms** | 1.11x |
+| relay overhead alone | - | 2.5 ms | |
+
+So the pooled front door is never the slower choice: the hot path, which is
+nearly all traffic, is two orders of magnitude cheaper, and the relayed path
+is marginally cheaper than the CGI door it replaces because the routing
+decision itself no longer costs a process.
+
+The limit worth stating: SM223 sends every static file to the auth wrapper
+on a site that has an ACL store, so such a site pays the relayed figure for
+its assets rather than the in-process one. That is the same cost those
+requests already pay under CGI, not a regression - but it is the reason to
+resolve identity in-process rather than across an `exec`, which is SM297.
+
+`tmp/sm294-bench.pl` reproduces the table.

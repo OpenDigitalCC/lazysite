@@ -2,8 +2,8 @@
 title: "SM294 - The front door under the FastCGI pool"
 subtitle: "One rule costs a process per request, because dispatch ends in exec() and exec() cannot happen inside a persistent worker. Closing that means in-process dispatch, which is a change to how the auth wrapper works."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-13 as the one thing SM293 step 5 deliberately did not do. Nothing started. This is a performance and architecture item, NOT a correctness one: the one-rule front door is correct today, it is simply CGI-cost. The blocker named here is real and load-bearing - the auth wrapper's design is exec-based, and t/lint/38 pins the trust gate that design carries."
+status: shipped
+status-note: "FILED 2026-08-13 as the one thing SM293 step 5 deliberately did not do. SHIPPED 2026-08-14 on claude/sm294-front-door-under-the-pool, in the shape described below MINUS item 2. The worker consults the routing table, answers the hot path in-process (137x) and forks for the cold path (1.11x, so never slower). Item 2 - identity as a value - is NOT done and is now SM297: it is a rewrite of the auth spine on the surface where being wrong is an authentication bypass, and this filing already said it wanted its own security review. Two things were found on the way and are recorded below: %ENV does not survive under FastCGI, and the two front doors disagree about how to refuse an engine-owned path."
 ---
 
 # SM294 - one rule, without the process start
@@ -83,8 +83,77 @@ along inside a filing about front-end configuration.
   CGI versus 0.4 ms FastCGI on a cache hit, and the same bench should say what
   this buys.
 
+## What was actually built
+
+Items 1, 3 and 4. **Item 2 was not**, and that is the whole shape of this
+increment: the worker splits by what it can *be* rather than rewriting what it
+can *call*.
+
+- **Hot path in-process.** `denied` is answered at the door; `processor` and
+  `static` fall through to `main()`, which is what this process already is. The
+  routing table costs a handful of `-f` tests and no process.
+- **Cold path relayed.** Another surface, or anything wrapped, is forked and
+  exec'd with a pipe on fd 0 and fd 1 - descriptors, not the tied FCGI handles,
+  which are Perl-level objects that do not survive `exec`. Pumped with
+  `IO::Select` so a large body cannot deadlock against a large response, with a
+  `RELAY_TIMEOUT` (120s) because a worker blocked on a wedged child serves
+  nothing else, and `local $SIG{CHLD} = 'DEFAULT'` so FCGI::ProcManager's reaper
+  does not take our exit status before `waitpid` sees it.
+- **The CGI front door stays.** It is the portable path, the dev-server path, and
+  what makes one-rule work on a host with no pool.
+
+Off unless `FRONT_DOOR=1`, so an existing pool is byte-identical.
+
+### The measurement the filing asked for
+
+Like for like - the same URL and the same auth state in both configurations,
+because comparing a cached anonymous hit against a signed-in miss invents a
+regression that is not there:
+
+| Request | CGI front door | Pooled | |
+|---|---|---|---|
+| anonymous page (hot path) | 71.9 ms | 0.53 ms | 137x |
+| signed-in page (relayed) | 107.3 ms | 96.9 ms | 1.11x |
+
+Never slower, and two orders of magnitude faster on nearly all traffic.
+
+## Two things found on the way
+
+### %ENV does not survive under FastCGI
+
+FCGI.pm **replaces `%ENV` on every `Accept()`** with that request's parameters.
+Anything the pool put in the environment at spawn is gone by the time a request
+is handled. So the first cut of this work read `$ENV{LAZYSITE_FRONT_DOOR}` inside
+the request loop, which is always false under the pool - the one deployment the
+setting exists for - while working perfectly as a plain CGI, where `%ENV` *is*
+the request.
+
+That is the same family as [[SM285]]'s `@PROBE_EXT` and [[SM293]]'s
+`%REGISTRY_CT`: fine in a one-shot process, wrong in a persistent one, and silent
+in the direction where the feature simply never turns on. Different mechanism, so
+it gets its own check rather than a comment: `t/lint/43` derives the settings the
+pool exports **from the launcher** and asserts the processor reads each at file
+scope. Deriving the list is deliberate - a list somebody must remember to edit is
+a list that will be wrong, which this repo has now learned four times.
+
+### The two front doors refuse differently
+
+`lazysite-front.pl` answers **404** for an engine-owned path, deliberately: a 403
+confirms the path exists. The processor's own guard on the same paths answers
+**403**, and predates that reasoning.
+
+Under the front door the request never reaches the processor's guard, so the
+pooled door answers 404 and the two front doors agree with each other. The
+standalone processor still answers 403. That divergence is left alone here
+because changing it is a behaviour change to every existing deployment and has
+nothing to do with the pool - but it is a real inconsistency and it is written
+down rather than discovered again.
+
 ## Related
 
-[[SM293]] (step 5, which shipped the front door and named this gap), SM142 (the
+[[SM293]] (step 5, which shipped the front door and named this gap), [[SM297]]
+(item 2, the auth-spine change this deliberately did not make), SM142 (the
 dual-mode processor and the pool), SM139 (the pool packaging), `t/lint/38` (the
-trust gate), `docs/architecture/performance.md`.
+trust gate), `t/lint/42` (the two routing tables agree), `t/lint/43` (pool
+settings are read at startup), `t/integration/50` (a real worker survives its own
+dispatch), `docs/architecture/performance.md`.
