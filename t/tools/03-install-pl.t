@@ -18,6 +18,28 @@ use JSON::PP       qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use TestHelper qw(repo_manifest_guard);
+use FlakeLog   qw(record_outcome);
+
+# This file failed ONCE inside a combined lint+tools run and passed standalone
+# and on the two runs after it (2026-08-14). One unreproducible failure is an
+# anecdote that decays; recorded outcomes accumulate into a rate somebody can
+# act on. Off unless LAZYSITE_FLAKE_LOG is set - see t/lib/FlakeLog.pm.
+#
+# Two things this END block must get right, both learned by getting them wrong:
+# `local $?`, because the open/close inside it otherwise CLOBBERS the exit
+# status and turns a passing file into a failing one; and asking Test::More's
+# builder rather than reading $?, because END blocks run LIFO and Test::More's
+# own END - the one that computes the status - is registered first and so runs
+# LAST. At this point $? is not yet the verdict.
+END {
+    local $?;
+    my $passing = eval { Test::More->builder->is_passing } ? 1 : 0;
+    record_outcome(
+        name   => 't/tools/03-install-pl.t',
+        ok     => $passing,
+        detail => ( $passing ? '' : 'assertions failed' ),
+    );
+}
 
 my $ROOT    = "$FindBin::Bin/../..";
 my $INSTALL = "$ROOT/install.pl";

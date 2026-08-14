@@ -5,6 +5,7 @@ use warnings;
 use File::Temp  qw(tempdir);
 use Fcntl       qw(:flock O_WRONLY O_CREAT);
 use File::Path  qw(make_path);
+use File::Copy  ();
 use Digest::SHA qw(sha256_hex);
 use FindBin;
 use Exporter 'import';
@@ -78,20 +79,53 @@ sub repo_manifest_guard {
 
     my $mf    = "$root/release-manifest.json";
     my $built = 0;
-    unless ( -f $mf ) {
-        my $rc = system( $^X, "$root/tools/build-manifest.pl" );
-        die "TestHelper: failed to build $mf (rc=$rc)\n" if $rc != 0 || !-f $mf;
-        $built = 1;
+
+    # A PRE-EXISTING manifest is never trusted, and that is the whole fix.
+    #
+    # release-manifest.json is a gitignored BUILD artefact. It is left behind by
+    # any local release build and by an earlier test run that died before its
+    # guard could clean up, and its CONTENT can describe a tree that no longer
+    # exists. Tests here compare files against it, so a stale one produces drift
+    # that has nothing to do with what they are testing - which is exactly how
+    # t/tools/03's deploy-gap assertion appeared to fail intermittently. It was
+    # never intermittent: it failed whenever a stale manifest happened to be
+    # lying around and passed whenever one did not.
+    #
+    # An mtime check is not good enough - the first attempt at this used one,
+    # and `cp` of an old manifest gives it a new mtime with stale content, which
+    # is precisely the case that arises when someone restores a backup. So: set
+    # any existing manifest aside, ALWAYS build a fresh one, and put the
+    # original back afterwards. Costs about a second per guard and removes the
+    # entire class.
+    my $saved;
+    if ( -f $mf ) {
+        # OUT of the repo: the manifest builder refuses any unclassified file
+        # in the tree, so a set-aside copy beside it fails the very build we
+        # are about to run.
+        $saved = "/tmp/lazysite-manifest-saved-$$.json";
+        # move(), not rename(): /tmp is a different filesystem from /srv on
+        # this host, and rename() cannot cross one.
+        File::Copy::move( $mf, $saved )
+            or die "TestHelper: cannot set aside $mf: $!";
     }
-    return TestHelper::ManifestGuard->new( $fh, $mf, $built );
+
+    my $rc = system( $^X, "$root/tools/build-manifest.pl" );
+    if ( $rc != 0 || !-f $mf ) {
+        File::Copy::move( $saved, $mf ) if $saved && -f $saved;
+        die "TestHelper: failed to build $mf (rc=$rc)\n";
+    }
+    $built = 1;
+
+    return TestHelper::ManifestGuard->new( $fh, $mf, $built, $saved );
 }
 
 {
     package TestHelper::ManifestGuard;
 
     sub new {
-        my ( $c, $fh, $mf, $built ) = @_;
-        return bless { fh => $fh, mf => $mf, built => $built }, $c;
+        my ( $c, $fh, $mf, $built, $saved ) = @_;
+        return bless { fh => $fh, mf => $mf, built => $built, saved => $saved },
+            $c;
     }
 
     # The manifest path, for a test that wants to read it.
@@ -102,7 +136,10 @@ sub repo_manifest_guard {
         # Remove BEFORE releasing the lock, or the next waiter can see a file
         # that is about to vanish - which is the original race in miniature.
         unlink $self->{mf} if $self->{built} && -f $self->{mf};
-        close $self->{fh}  if $self->{fh};                       # flock releases on close
+        # Put the developer's own build artefact back, if we set one aside.
+        File::Copy::move( $self->{saved}, $self->{mf} )
+            if $self->{saved} && -f $self->{saved};
+        close $self->{fh} if $self->{fh};    # flock releases on close
         return;
     }
 }
