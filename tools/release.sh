@@ -254,8 +254,24 @@ fi
 
 # --- run tests ---
 
+# `cd "$STAGE" && prove -lr t/`, and BOTH halves are load-bearing.
+#
+# -l is not cosmetic. Without it PERL5LIB is never set, so a test's own
+# `use lib "$FindBin::Bin/../lib"` covers the test process and NOT the
+# subprocesses it spawns - and several tests drive tools/lazysite-check.pl or a
+# dev server as children. Those children searched only the system @INC and died
+# on "Can't locate Lazysite/Paths.pm". Five files failed this way, and they
+# failed identically at v0.10.8, so the gate has been running the suite in a
+# configuration the suite does not support rather than the one every other
+# caller uses.
+#
+# The `cd` is what makes -l safe. -l adds ./lib RELATIVE TO CWD, so running it
+# from the invoking directory would put the ORIGIN's lib on @INC while running
+# the STAGED tests - a gate quietly testing the developer's working copy
+# against the release candidate's tests. That is a worse failure than the one
+# being fixed, because it passes.
 echo "==> Running full test suite"
-if ! prove -r "$STAGE/t/"; then
+if ! ( cd "$STAGE" && prove -lr t/ ); then
     echo "release.sh: test suite failed; not releasing." >&2
     echo "release.sh: staging dir retained: $STAGE" >&2
     exit 1
