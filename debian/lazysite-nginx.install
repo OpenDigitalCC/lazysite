@@ -4,3 +4,4 @@
 installers/nginx/vhost-cgi.conf.example  usr/share/lazysite-nginx
 installers/nginx/vhost-fcgi.conf.example usr/share/lazysite-nginx
 installers/nginx/vhost-one-rule.conf.example usr/share/lazysite-nginx
+installers/nginx/vhost-one-rule-pool.conf.example usr/share/lazysite-nginx

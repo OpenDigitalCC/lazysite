@@ -1,0 +1,86 @@
+# lazysite - nginx, one rule, on the FastCGI pool (SM294)
+#
+# This is vhost-one-rule.conf.example without the process-per-request cost, and
+# vhost-fcgi.conf.example without the routing table. It is the configuration this
+# whole line of work was aiming at.
+#
+# WHAT CHANGED. vhost-one-rule sends every request to lazysite-front.pl, a CGI
+# that routes and then exec()s the chosen surface. Correct, and a process start
+# per request. A pool worker cannot exec - that would replace the worker - so
+# instead the worker itself consults the same routing table (FRONT_DOOR=1 in the
+# pool conf), answers what it already is, and forks only for what it is not.
+#
+# WHAT IT COSTS, plainly, because the other templates exist for a reason:
+#
+#   - a page, a miss, a content static, a denial: handled IN the worker, at pool
+#     speed. This is nearly all traffic.
+#   - the manager API, WebDAV, MCP, OAuth, and anything needing the auth wrapper
+#     (a signed-in visitor, or a static file on a site that has an ACL store):
+#     one forked process, the same cost those requests already pay under CGI.
+#
+# So on a site that protects nothing, this is the fast path for everything a
+# visitor touches. On a site with an ACL store, SM223 routes static files through
+# the auth wrapper and each one forks - that is the honest limit of this step,
+# and closing it means resolving identity in-process rather than across an exec.
+#
+# Requires: the lazysite@.service pool for this domain, with FRONT_DOOR=1 in
+# /etc/lazysite/pools/__DOMAIN__.conf. No fcgiwrap - there is no CGI here at all.
+# Replace __DOMAIN__, __DOCROOT__ and __PORT__.
+
+server {
+    listen __PORT__;
+    server_name __DOMAIN__;
+    root __DOCROOT__;
+
+    # Recommended hardening, not required (SM293 step 4): the engine refuses a
+    # trust header unless the auth wrapper vouched for the request or the
+    # operator opted into a trusted proxy. Clearing them keeps a forged header
+    # out of upstream logs as well as out of the engine.
+    fastcgi_param HTTP_X_REMOTE_USER      "";
+    fastcgi_param HTTP_X_REMOTE_GROUPS    "";
+    fastcgi_param HTTP_X_REMOTE_NAME      "";
+    fastcgi_param HTTP_X_REMOTE_EMAIL     "";
+    fastcgi_param HTTP_X_PAYMENT_VERIFIED "";
+    fastcgi_param HTTP_X_PAYMENT_PAYER    "";
+
+    client_max_body_size 64m;
+
+    # THE RULE.
+    location / {
+        include fastcgi_params;
+
+        # The originally-requested path. The worker reads REDIRECT_URL first and
+        # REQUEST_URI second - the same order the renderer uses - so the front
+        # door and the engine always agree on what was asked for.
+        fastcgi_param REDIRECT_URL  $uri;
+        fastcgi_param DOCUMENT_ROOT __DOCROOT__;
+
+        # Socket path = the lazysite@.service convention:
+        # /run/lazysite/<instance>.sock with instance = the domain.
+        fastcgi_pass unix:/run/lazysite/__DOMAIN__.sock;
+
+        # Must exceed the pool's RELAY_TIMEOUT (default 120s), or nginx gives up
+        # on a slow relayed surface before the worker does and the worker is left
+        # writing to a closed connection.
+        fastcgi_read_timeout 150s;
+    }
+
+    access_log /var/log/nginx/__DOMAIN__.access.log;
+    error_log  /var/log/nginx/__DOMAIN__.error.log;
+}
+
+# Note what is NOT here, and why:
+#
+#   - no try_files: the worker decides whether a file is served or gated;
+#   - no static-extension location: deciding by suffix is what SM283 was;
+#   - no `if (-f $document_root/lazysite/auth/acls.json)`: the worker checks the
+#     store itself, so protecting a path never needs a config change;
+#   - no session carve-out: vhost-fcgi needs one because a signed-in visitor must
+#     reach the CGI auth wrapper, which the pool cannot run. The worker relays
+#     that request itself, so the rewrite, the internal location and the second
+#     FastCGI backend all disappear;
+#   - no /cgi-bin/ or /dav location: routed by name inside lazysite;
+#   - no `location ~ /lazysite/ { deny all; }`: the worker refuses it, and on a
+#     site migrated by SM293 step 2 the engine tree is not under the document
+#     root at all;
+#   - no registry routes: since SM293 step 3 they are generated on request.

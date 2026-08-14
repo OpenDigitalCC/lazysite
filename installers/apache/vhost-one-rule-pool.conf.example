@@ -1,0 +1,86 @@
+# =========================================================================
+# lazysite - Apache, one rule, on the FastCGI pool (SM294)
+#
+# This is vhost-one-rule.conf.example without the process-per-request cost,
+# and vhost-fcgi.conf.example without the routing table. It is the
+# configuration this line of work was aiming at.
+#
+# WHAT CHANGED. vhost-one-rule sends every request to lazysite-front.pl, a
+# CGI that routes and then exec()s the chosen surface. Correct, and a
+# process start per request. A pool worker cannot exec - that would replace
+# the worker - so the worker itself consults the same routing table
+# (FRONT_DOOR=1 in the pool conf), answers what it already is, and forks
+# only for what it is not.
+#
+# WHAT IT COSTS, plainly, because the other templates exist for a reason:
+#
+#   - a page, a miss, a content static, a denial: handled IN the worker, at
+#     pool speed. This is nearly all traffic.
+#   - the manager API, WebDAV, MCP, OAuth, and anything needing the auth
+#     wrapper (a signed-in visitor, or a static file on a site that has an
+#     ACL store): one forked process, the same cost those requests already
+#     pay under CGI.
+#
+# On a site with an ACL store, SM223 routes static files through the auth
+# wrapper and each one forks. That is the honest limit of this step;
+# closing it means resolving identity in-process rather than across an
+# exec, which is an auth-spine change with its own filing.
+#
+# Needs: a2enmod headers proxy proxy_fcgi (no cgid - there is no CGI here),
+#        and the pool itself: /etc/lazysite/pools/__DOMAIN__.conf with
+#        FRONT_DOOR=1, then
+#        `systemctl enable --now lazysite@__DOMAIN__`.
+# HTTPS: this file is the port-80 vhost; `certbot --apache -d <domain>`
+# derives the SSL vhost from it.
+# https://lazysite.io
+# =========================================================================
+<VirtualHost *:__PORT__>
+    ServerName __DOMAIN__
+    DocumentRoot __DOCROOT__
+
+    # Strip client-supplied trust headers (docs/architecture/security.md):
+    # a client must never smuggle an identity past the auth wrapper. The
+    # engine also refuses them unless vouched for (SM293 step 4), so this
+    # is defence in depth rather than the only guard. Needs mod_headers.
+    RequestHeader unset X-Remote-User
+    RequestHeader unset X-Remote-Groups
+    RequestHeader unset X-Remote-Name
+    RequestHeader unset X-Remote-Email
+    RequestHeader unset X-Payment-Verified
+    RequestHeader unset X-Payment-Payer
+
+    # THE RULE. Everything to the pool; lazysite decides the rest.
+    #
+    # ProxyPass rather than a <Location> SetHandler so that it applies
+    # before Apache's own file handling has a chance to answer, which is
+    # the whole point: a file Apache serves itself is a file no access rule
+    # of lazysite's can gate.
+    ProxyPass / "unix:/run/lazysite/__DOMAIN__.sock|fcgi://localhost__DOCROOT__/"
+
+    # Must exceed the pool's RELAY_TIMEOUT (default 120s), or Apache gives
+    # up on a slow relayed surface before the worker does and the worker is
+    # left writing to a closed connection.
+    ProxyTimeout 150
+
+    <Directory __DOCROOT__>
+        # No Options +ExecCGI, no DirectoryIndex, no FallbackResource: none
+        # of them can fire, because nothing reaches the filesystem handler.
+        Require all granted
+    </Directory>
+
+    ErrorLog  ${APACHE_LOG_DIR}/__DOMAIN__-error.log
+    CustomLog ${APACHE_LOG_DIR}/__DOMAIN__-access.log combined
+</VirtualHost>
+
+# Note what is NOT here, and why:
+#
+#   - no ScriptAlias /cgi-bin/: routed by name inside lazysite;
+#   - no <Location /dav>: likewise;
+#   - no FallbackResource: the worker handles misses;
+#   - no RewriteCond on lazysite/auth/acls.json: the worker checks the
+#     store itself, so protecting a path never needs a config change;
+#   - no <Location /lazysite/> Require all denied: the worker refuses it,
+#     and on a site migrated by SM293 step 2 the engine tree is not under
+#     the document root at all;
+#   - no .brief rule, no registry routes: handled inside, and since
+#     SM293 step 3 the registries are generated on request.

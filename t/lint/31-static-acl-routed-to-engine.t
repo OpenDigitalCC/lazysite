@@ -77,6 +77,17 @@ my %EXEMPT = map { $_ => 'routes everything to the front door (SM293 step 5)' }
     installers/nginx/vhost-one-rule.conf.example
     );
 
+# SM294: the same configs on the FastCGI pool. Exempt for the same reason and no
+# other - the SM223 condition is applied by the pool worker's own copy of the
+# routing table, which t/lint/42 pins against Lazysite::FrontDoor::route and
+# t/integration/50 drives through a real worker. Listed separately so that if the
+# pooled front door were ever to stop consulting the store, deleting THIS block
+# is what re-arms the checks above.
+$EXEMPT{$_} = 'routes everything to the pooled front door (SM294)' for qw(
+    installers/apache/vhost-one-rule-pool.conf.example
+    installers/nginx/vhost-one-rule-pool.conf.example
+);
+
 {
     my @shipped = sort map { s{\A\Q$root/\E}{}r }
         ( glob("$root/installers/apache/*.example"),

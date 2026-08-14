@@ -4,3 +4,4 @@
 installers/apache/vhost-cgi.conf.example  usr/share/lazysite-apache
 installers/apache/vhost-fcgi.conf.example usr/share/lazysite-apache
 installers/apache/vhost-one-rule.conf.example usr/share/lazysite-apache
+installers/apache/vhost-one-rule-pool.conf.example usr/share/lazysite-apache
