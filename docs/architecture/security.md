@@ -5,11 +5,13 @@
 lazysite's security model has three layers. Each depends on the one
 above it.
 
-1. **The web server (Apache, nginx, or equivalent).** Terminates TLS,
-   strips or rewrites untrusted headers, routes requests to the
-   correct CGI script, and enforces file-system permissions. This
-   layer is operator-configured; lazysite provides config templates
-   but cannot enforce policy here.
+1. **The web server (Apache, nginx, or equivalent).** Terminates TLS
+   and forwards requests. It is operator-configured, and **since 0.10.8
+   it no longer needs to make content decisions** - see "The front door"
+   and "Content outside the served tree" below. That change is the
+   response to SM248, SM268 H17 and SM283, which were one cause: security
+   living in front-end configuration that lazysite ships as a template,
+   cannot test where it is installed, and on most deployments cannot see.
 2. **The auth wrapper (`lazysite-auth.pl`).** Validates the signed
    session cookie, sets `HTTP_X_REMOTE_USER` and
    `HTTP_X_REMOTE_GROUPS` from the cookie payload, sets the
@@ -21,6 +23,85 @@ above it.
    `auth: required`, `auth_groups: [...]`, or `payment: required`
    in its front matter. The processor enforces these before
    rendering.
+
+## Content outside the served tree (SM286)
+
+Until 0.10.7, protecting a path left its bytes in the document root and
+relied on an access decision the engine made per request. That is safe
+only while every request actually reaches the engine - and three separate
+incidents were exactly the case where one did not.
+
+Since 0.10.8, **protecting content moves it out of the document root**,
+into a private store beside it:
+
+    dirname(<docroot>)/basename(<docroot>)-lazysite-private
+
+The store is **derived, never configured**, and is named for the docroot,
+so two sites under one parent can never share one. `Lazysite::Private`
+holds the invariant that content is in exactly one tree at any moment: the
+failure direction is "not moved", never "in both". `resolve_for_write`
+checks the public ancestor first, so a store container directory cannot
+itself be mistaken for a gate.
+
+What this changes in threat terms: a front end that serves a file without
+consulting the engine can no longer serve *protected* content, because the
+bytes are not in the tree it serves. This is structural rather than
+configurational - it does not depend on the operator having applied a
+template correctly.
+
+Two properties an assessor should know:
+
+- **The move happens on the act of protecting.** A section protected
+  before 0.10.8 stays in the document root until its rule is re-applied.
+  This is an operator action that no package upgrade performs.
+- **A failed move does not refuse the rule.** The ACL is stored and
+  honoured, so the site is no worse off than before the store existed -
+  but the response says so, because both outcomes look identical to the
+  operator otherwise. (SM296 is the defect where that warning could not be
+  reached; see `docs/feature-requests/SM296-*`.)
+
+The store is created by the CGI identity, so it must be able to write the
+directory beside the docroot. `lazysite check` reports whether the store
+exists and is writable, naming the directory, its owner and its mode, and
+speaks only on a site that actually protects something.
+
+## The front door (SM293)
+
+`lazysite-front.pl` is a CGI surface a front end can be pointed at so that
+the front end's whole job becomes "forward everything". Every routing
+decision the vhost templates used to make - which URLs reach which
+surface, which are wrapped by the auth wrapper, when an existing static
+file must be handed to the engine instead of served, what is refused
+outright - is made by `Lazysite::FrontDoor::route()`.
+
+`route()` is a **pure function**: it takes the request and the site's
+shape and returns a decision, opening no sockets, exec'ing nothing and
+printing nothing. That is what makes the whole routing table directly
+testable (`t/unit/lib/21`), which the vhost templates never were, because
+testing those means installing them on the web server the operator
+actually runs. `t/lint/39` asserts the module and the shipped templates
+agree, so the migration cannot change behaviour while claiming to preserve
+it, and `t/integration/49` drives the shape through real Apache.
+
+The trade is stated rather than hidden: with one rule, a request for an
+image on a site that protects nothing costs a process start the web server
+would not have charged. The fuller templates therefore remain as
+**performance** options whose absence costs speed and never correctness.
+SM294 adds a pooled path where the hot path is answered in-process.
+
+Two consequences for the threat model:
+
+- **The routing table is now a single point of correctness.** If it is
+  wrong it is wrong for every request rather than for one rule. That is
+  the reason it is a pure function with a direct unit test and a lint
+  pinning it against the shipped templates.
+- **Trust headers are gated in the application** (SM293 step 4). The
+  engine refuses `X-Remote-*` unless the auth wrapper vouched for the
+  request or the operator opted into a trusted proxy, enforced by
+  `t/lint/38`. Stripping them at the front end remains recommended
+  hardening; it is no longer the only thing standing between a client and
+  a forged identity. See "Hard deployment requirement" below, which is now
+  defence in depth rather than the sole control.
 
 ## Authentication
 

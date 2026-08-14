@@ -25,6 +25,16 @@ Trust boundaries (each is where an attacker's input crosses into trusted code):
    side.
 5. **The manager operator** (cookie) -> bypasses per-file ACLs within the
    manager.
+6. **The served tree boundary** (SM286, 0.10.8) -> protected content is MOVED
+   out of the document root into `<docroot>-lazysite-private`, so the boundary
+   is now a filesystem one and not only a decision one. A front end that serves
+   a file without asking the engine can no longer reach protected bytes. See
+   `architecture/security.md` - "Content outside the served tree".
+7. **The front door** (SM293, 0.10.8) -> `lazysite-front.pl` +
+   `Lazysite::FrontDoor::route()` may be the single entry point that decides
+   which surface handles a request. Where deployed, the routing table becomes
+   one point of correctness for every request rather than a rule per URL class.
+   See `architecture/security.md` - "The front door".
 
 ## STRIDE assessment
 
@@ -35,10 +45,10 @@ bold: 1
 tone: medium
 text: 2 3
 ---
-Spoofing | Forged `X-Remote-User` / `X-Remote-Groups` headers from the client, impersonating an operator | Two-signal trust gate + mandatory edge stripping (`apply_trust_gate`; security.md "Auth proxy trust model"); cookie is HMAC-signed | Depends on correct vhost config - the single highest-consequence operator obligation; verified by lazysite-check --check-dav and the vhost template shipping the RequestHeader unset lines
+Spoofing | Forged `X-Remote-User` / `X-Remote-Groups` headers from the client, impersonating an operator | Two-signal trust gate + mandatory edge stripping (`apply_trust_gate`; security.md "Auth proxy trust model"); cookie is HMAC-signed | Since SM293 step 4 the gate is an ENFORCED APPLICATION CONTROL (`t/lint/38`), so edge stripping is defence in depth rather than the sole control - this was the single highest-consequence operator obligation and is no longer; verified by lazysite-check --check-dav and the vhost template shipping the RequestHeader unset lines
 Tampering | Hostile `layout.tt` / page executing arbitrary Perl through Template Toolkit | TT runs with `EVAL_PERL=0`; layout authoring gated by manage_layouts + webdav; content vs layout capability split (SM082) | ASVS V5: a layouts-capable partner is inside the trust boundary by design - scoped by capability, not sandboxed
 Repudiation | An action taken with no attributable record | Append-only audit trail (who/what/target/origin/outcome), incl. denied attempts; login/logout audited; shell user management audited too (origin `cli`, invoking OS identity), installs/upgrades as origin `install`; the writer is failure-loud (0664 umask-proof create, self-heal, WARN naming any lost entry) | Audit read gated by the `audit` capability; ASVS V7 logging met; time is server clock
-Information disclosure | Auth secrets or raw logs readable off the docroot; visitor PII in stats | Secrets under `lazysite/auth/` (Apache-denied, 0660); stats export is aggregated + IP-anonymised; raw-log download removed (0.5.29); error surface synthesised | TOTP seeds are stored recoverable (documented at-rest note, security.md) - accepted at L1, an L2 gap to close with an at-rest key
+Information disclosure | Protected content served by a front end that never consults the engine (SM248, SM268 H17, SM283 - three incidents, one cause); auth secrets or raw logs readable off the docroot; visitor PII in stats | **Protecting content MOVES it out of the document root** (SM286), so this is structural rather than configurational; the front door makes the routing decisions inside the engine (SM293); secrets under `lazysite/auth/` (Apache-denied, 0660); stats export is aggregated + IP-anonymised; raw-log download removed (0.5.29); error surface synthesised | Sections protected BEFORE 0.10.8 stay in the document root until re-applied - an operator action no upgrade performs. TOTP seeds are stored recoverable (documented at-rest note, security.md) - accepted at L1, an L2 gap to close with an at-rest key
 Denial of service | A flood of CGI forks, or an unbounded upload / render, exhausting the host; vulnerability-scanner probe floods | Login rate limiting (per-IP window); upload size gate; PUT streamed in bounded chunks; checked writes fail closed on ENOSPC (review D5). SM128: the bad-URL auto-blocker (on by default) refuses an IP after it hits too many scanner-probe paths in a window, enforced in the auth wrapper | No global concurrency cap (relies on the web server / MPM); capacity test is a held pre-launch item; the auto-blocker covers auth-wrapped sites
 Elevation of privilege | A token/WebDAV partner reaching manager-only actions or another account's files; a manager account driven remotely | Token clients are confined to the control-API subset + `%need` capability map; never operators; per-file ACLs bind them (SM074); manager bypass is cookie-only. SM127: an account with group-granted manager access (`ui`) is refused outright on the api/mcp transports, and a group may not combine `ui` with `api`/`mcp` - manager access is interactive-only, so a leaked/misissued token on a manager account cannot drive the site | ASVS V4 met; the capability model is groups-only + explicit (ADR 0003), removing implicit manager status
 ```
@@ -657,3 +667,85 @@ residual risk
 
 verdict
 : accepted.
+
+### 2026-08-13 - SM286/SM293: protected content leaves the document root, and the front door
+
+what changed
+: two changes to the same question - where restricted content lives, and what
+  decides whether a request reaches the engine. Both shipped in 0.10.7-0.10.8
+  and both fire a trigger in `docs/adr/0007-pentest-deferral.md`.
+
+  **New processing of restricted data (SM286).** Protecting a path now MOVES
+  its content out of the served tree into a private store beside the docroot,
+  `dirname(docroot)/basename(docroot)-lazysite-private`. Previously the content
+  stayed in the document root and was protected by an access decision the
+  engine made on request; now the engine is the only thing that can reach the
+  bytes at all. The store is named for the docroot so two sites under one
+  parent can never share one, and `Lazysite::Private` holds an invariant that
+  content is in exactly one tree - the failure direction is "not moved", never
+  "in both".
+
+  **New external interface (SM293 step 5).** `lazysite-front.pl` is a new CGI
+  surface. A front end is pointed at it and it makes every routing decision the
+  vhost templates used to make - which URLs reach which surface, what is
+  wrapped by the auth wrapper, what is refused outright - via the pure function
+  `Lazysite::FrontDoor::route()`. SM293 steps 2-4 also allow the engine tree to
+  move outside the docroot, generate the registries on request rather than from
+  disk, and gate the trust headers in the application rather than relying on
+  the front end to strip them.
+
+threat delta
+: Information disclosure, primarily, and in the reducing direction. The
+  arrangement being removed is the one behind SM248, SM268 H17 and SM283: a
+  front end serving a file the engine never sees, so no access rule the engine
+  holds can apply. Moving the bytes out of the served tree makes that
+  structurally impossible rather than configurationally avoidable. Elevation of
+  privilege is unchanged - the ACL model, the capability model and the group
+  resolution are untouched by both changes.
+
+  The new surfaces this creates: a directory outside the docroot that the CGI
+  identity must be able to create and write; and a single entry point whose
+  routing table, if wrong, is wrong for every request rather than for one rule.
+
+controls
+: the store's location is derived, never configured, so it cannot be pointed
+  somewhere unintended; `resolve_for_write` checks the public ancestor first so
+  a store container cannot be mistaken for a gate; `lazysite check` reports
+  whether the store exists and is writable, naming the directory, its owner and
+  its mode, and speaks only on a site that actually protects something.
+  `Lazysite::FrontDoor::route()` is a pure function with no I/O beyond
+  existence tests, so the whole routing table is unit-tested directly
+  (`t/unit/lib/21`) - which the vhost templates never could be - and driven
+  through real Apache in `t/integration/49`. `t/lint/39` asserts the module and
+  the shipped templates agree, so the migration cannot quietly change behaviour
+  while claiming to preserve it. `t/lint/38` makes the trust-header gate an
+  enforced application control rather than a front-end configuration
+  requirement.
+
+residual risk
+: **A defect in the move path was live in 0.10.8 and is the reason this entry
+  is not simply "accepted" (see the verdict).** `File::Path::make_path` croaks
+  rather than returning false, so the guard following it was unreachable and a
+  protect call died after storing the ACL and before moving the content or
+  writing the audit line - leaving content stored-as-protected, still served,
+  and absent from the trail. Filed as SM296, fixed on
+  `claude/sm296-acl-set-crash`.
+
+  Separately and by design: **every section protected BEFORE 0.10.8 stays in
+  the document root** until its rule is re-applied, because the move happens on
+  the act of protecting. Measured on an upgraded site, 19 of 25 extensions were
+  still served byte-identically to an anonymous request. This is an operator
+  action that no package upgrade delivers.
+
+  The front door is CGI-only in 0.10.8; SM294 adds the pooled path and SM297
+  records the auth-spine change that would remove the remaining fork.
+
+verdict
+: **accepted with a condition.** The architectural direction reduces the threat
+  it addresses and is assessed as contained. The condition is SM296: until that
+  fix ships and the affected sections are re-applied, a site that protected
+  content on 0.10.8 may be in the state this change exists to prevent. Assessed
+  as NOT requiring an ahead-of-schedule third-party engagement, because the
+  defect is a local coding error with a known cause and a written fix rather
+  than a weakness in the model - but the condition is recorded here so that
+  judgement is auditable rather than implied.
