@@ -3,7 +3,6 @@ title: Documentation
 subtitle: Everything this site publishes about how lazysite works, and which question each page answers.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Start here

@@ -3,7 +3,6 @@ title: Front matter
 subtitle: The YAML metadata block at the top of every page.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 Every page can begin with a **front matter** block - a small piece of YAML between two `---` lines that sets the page's metadata. It is optional, but a `title` is recommended for most pages.

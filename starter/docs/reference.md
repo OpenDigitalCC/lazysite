@@ -3,7 +3,6 @@ title: Reference
 subtitle: Front matter keys, TT variables, configuration keys, and file locations.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Front matter keys

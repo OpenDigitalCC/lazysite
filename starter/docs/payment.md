@@ -3,7 +3,6 @@ title: Payment
 subtitle: Gate content behind x402 payments with member bypass.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Overview

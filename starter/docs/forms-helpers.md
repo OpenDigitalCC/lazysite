@@ -3,7 +3,6 @@ title: Form helpers
 subtitle: Write custom dispatch targets for lazysite forms.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Overview

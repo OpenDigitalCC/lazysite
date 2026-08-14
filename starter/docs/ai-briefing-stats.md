@@ -3,7 +3,6 @@ title: AI briefing - visitor analytics
 subtitle: Guide for AI assistants analysing a lazysite's visitor traffic for trend reporting.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Who this is for

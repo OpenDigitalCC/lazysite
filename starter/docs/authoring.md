@@ -3,7 +3,6 @@ title: Authoring
 subtitle: How to create and edit pages - the short version.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 Writing for lazysite is just writing Markdown. There is no build step and no database: drop a `.md` file into the site, and it is a page.

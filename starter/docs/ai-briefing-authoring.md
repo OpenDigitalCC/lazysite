@@ -3,7 +3,6 @@ title: AI briefing - content authoring
 subtitle: Guide for AI assistants helping users write content on a lazysite site.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Who this is for

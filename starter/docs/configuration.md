@@ -3,7 +3,6 @@ title: Configuration
 subtitle: Layouts, navigation, site variables, forms, auth, and plugins.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 lazysite can be configured two ways. The **[manager](/docs/manager)** is a menu-driven web interface - the easiest way to change most settings, with nothing to edit by hand. This page covers the other way: the **configuration files** themselves, which is what the manager writes to underneath. Systems and AI agents can also configure a site over the [control API](/docs/api) and the [AI connector (MCP)](/docs/ai-connector-setup).

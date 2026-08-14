@@ -211,6 +211,9 @@ my %EXEMPT = (
     'Themes::action_theme_upload'      => 'layout/theme artifact write (capture-swept)',
     'Themes::action_cache_invalidate'  =>
         'removes generated *.html - excluded from the versioned set',
+    'Files::action_regenerate_registries' =>
+        'removes generated sitemap.xml/llms.txt/feeds - excluded from the '
+        . 'versioned set, same as the HTML cache above (SM301)',
     # --- Sessions ---
     'Sessions::action_sessions_list'  => 'read-only',
     'Sessions::action_session_revoke' =>

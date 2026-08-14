@@ -3,7 +3,6 @@ title: Advanced authoring
 subtitle: Every lazysite capability, by topic - the detailed how-to reference.
 register:
   - sitemap.xml
-  - llms.txt
 tt_page_var:
   authoring_features: scan:/docs/features/authoring/*.md sort=title asc
   config_features: scan:/docs/features/configuration/*.md sort=title asc

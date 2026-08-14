@@ -3,7 +3,6 @@ title: Installation
 subtitle: Requirements, server setup, and getting started.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Why lazysite

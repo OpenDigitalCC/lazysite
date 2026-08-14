@@ -46,7 +46,8 @@ use Lazysite::Manager::Files qw(action_list action_read action_save action_delet
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove action_protected_sections
     action_git_status action_git_history action_git_history_summary
-    action_git_show action_git_restore action_git_init);
+    action_git_show action_git_restore action_git_init
+    action_regenerate_registries);
 use Lazysite::Manager::Themes qw(action_theme_list action_themes_list_all action_theme_activate
     action_layout_activate action_theme_delete action_theme_rename action_theme_upload
     action_cache_list action_cache_invalidate _read_active_layout_and_theme
@@ -184,6 +185,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     git-history git-history-summary git-init git-restore git-show
     git-status handler-delete handler-list handler-save key-revoke
     keys-list lang-status layout-activate layout-delete layout-install
+    regenerate-registries
     layouts-available layouts-install layouts-manifest
     layouts-release-contents layouts-releases layouts-repo-get
     layouts-repo-set list lock migrate-to-local mkdir move nav-read
@@ -575,7 +577,7 @@ if ( !$token_auth ) {
         layout-install layouts-install layouts-repo-set artifact-backups-delete
         preview-grant preview-clear nav-save handler-save handler-delete
         form-targets-save form-submission-delete form-submission-confirm form-submissions-delete-bulk plugin-enable plugin-disable plugin-save plugin-action
-        lock unlock renew-lock notices-seen
+        lock unlock renew-lock notices-seen regenerate-registries
         domain-add domain-set domain-remove
         session-revoke user-revoke key-revoke
         site-backup-create site-backup-upload site-backup-apply site-backup-delete
@@ -691,13 +693,17 @@ if ($token_auth) {
         'domain-preview' => sub { $_[0]->{manage_domains} },    # SM155: pre-DNS render
         'domain-check'   => sub { $_[0]->{manage_domains} },    # SM156: live config check
         'lang-status' => sub { $_[0]->{manage_content} }, # SM179 P6: set coverage (translation agent)
-        'site-backup-create'   => sub { $_[0]->{manage_domains} },    # SM158
-        'site-backup-upload'   => sub { $_[0]->{manage_domains} },
-        'site-backup-apply'    => sub { $_[0]->{manage_domains} },
-        'site-backup-inspect'  => sub { $_[0]->{manage_domains} },    # SM183
-        'site-backup-delete'   => sub { $_[0]->{manage_domains} },    # SM183
-        'site-backup-download' => sub { $_[0]->{manage_domains} },    # SM193
-        'site-export-primary'  => sub { $_[0]->{manage_content} },    # SM185
+            # SM301: the twin of MCP's regenerate_registries. Same capability, and
+            # now the same availability - the account that holds manage_content can
+            # reach it whichever door it was granted.
+        'regenerate-registries' => sub { $_[0]->{manage_content} },
+        'site-backup-create'    => sub { $_[0]->{manage_domains} },    # SM158
+        'site-backup-upload'    => sub { $_[0]->{manage_domains} },
+        'site-backup-apply'     => sub { $_[0]->{manage_domains} },
+        'site-backup-inspect'   => sub { $_[0]->{manage_domains} },    # SM183
+        'site-backup-delete'    => sub { $_[0]->{manage_domains} },    # SM183
+        'site-backup-download'  => sub { $_[0]->{manage_domains} },    # SM193
+        'site-export-primary'   => sub { $_[0]->{manage_content} },    # SM185
             # SM187: agents read form submissions with a least-privilege read_submissions
             # cap OR the operator's manage_forms - parity with the cookie channel.
         'form-submissions' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} },
@@ -930,6 +936,18 @@ elsif ( $action eq 'renew-lock' ) { $result = renew_lock( $path, $auth_user ) }
 elsif ( $action eq 'preview' )    { $result = action_preview($path) }
 elsif ( $action eq 'cache-list' ) { $result = action_cache_list() }
 elsif ( $action eq 'cache-invalidate' ) { $result = action_cache_invalidate( $path, $params{host} ) }
+
+# SM301: the same operation MCP has had since SM264, on the channel a WebDAV +
+# control-API partner actually holds. t/lint/23 recorded the MCP-only exposure
+# as deliberate, with the condition "the API path can add one when someone asks
+# for it"; a live site asked, having taken its own sitemap.xml down for a minute
+# and llms.txt for longer by deleting the generated file - which is not a cache
+# invalidation but an outage that ordinary traffic does not clear, because a
+# registry rebuilds during page PROCESSING and a cached page request is not a
+# render.
+elsif ( $action eq 'regenerate-registries' ) {
+    $result = action_regenerate_registries();
+}
 elsif ( $action eq 'config-read' )  { $result = action_config_read() }
 elsif ( $action eq 'domains-list' ) { $result = action_domains_list() }
 elsif ( $action eq 'domain-add' ) {
@@ -1249,7 +1267,7 @@ else { $result = { ok => 0, error => "Unknown action: $action" } }
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
         csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
-        cache-invalidate nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
+        cache-invalidate regenerate-registries nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
         artifact-validate lock unlock renew-lock preview preview-clear preview-grant

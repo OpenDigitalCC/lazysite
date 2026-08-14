@@ -4,6 +4,7 @@ title: Welcome
 subtitle: A new lazysite site
 register:
   - sitemap.xml
+  - llms.txt
 ---
 
 This site is built with [lazysite](https://lazysite.io).

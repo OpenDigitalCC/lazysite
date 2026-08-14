@@ -5,6 +5,7 @@ subtitle: Get in touch.
 form: contact
 register:
   - sitemap.xml
+  - llms.txt
 ---
 
 <style>

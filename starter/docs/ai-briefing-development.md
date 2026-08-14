@@ -3,7 +3,6 @@ title: AI briefing - development
 subtitle: Guide for AI assistants working on the lazysite processor, scripts, and tools.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Who this is for

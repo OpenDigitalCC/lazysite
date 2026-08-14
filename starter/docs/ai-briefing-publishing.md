@@ -3,7 +3,6 @@ title: AI briefing - publishing
 subtitle: Guide for an automated partner publishing to a lazysite site over WebDAV and the control API.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Who this is for
@@ -174,6 +173,25 @@ narrower than the list below: some actions are served only to the manager UI ove
 a cookie session, so a token or MCP client cannot reach them at all. Planning
 against the full action list and discovering the subset by being refused is a
 trial-and-error loop that one lookup replaces.
+
+### Refreshing the generated registries
+
+`?action=regenerate-registries` clears `sitemap.xml`, `llms.txt`, `robots.txt`
+and the feeds so they rebuild from current content. Use it after deleting or
+renaming a page **when you want to verify the result**: the delete takes effect
+immediately but a registry is rebuilt lazily, so reading the sitemap straight
+afterwards can still show the old URL and look like the delete failed.
+
+::: widebox
+**Do not delete a generated registry file to force a refresh.** It is not a
+cache invalidation - it is an outage that ordinary traffic will not necessarily
+clear. A registry is rebuilt during page *processing*, when its output is
+missing or stale. Requesting `sitemap.xml` does not run the processor, and a
+request for a cached page is not a render - so on a settled site with a warm
+cache and no editing, nothing notices the file is gone and it can stay 404
+indefinitely. This has happened on a live site: `sitemap.xml` was down for about
+a minute and `llms.txt` for longer.
+:::
 
 Some list-shaped responses are worth knowing before you read one: **a list
 response names its contents**, so `list_versions` returns `versions`,

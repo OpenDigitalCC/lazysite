@@ -3,7 +3,6 @@ title: Upgrading to external auth
 subtitle: Replace built-in auth with Authentik, Authelia, or another proxy.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Overview

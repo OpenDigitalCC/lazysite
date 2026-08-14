@@ -3,7 +3,6 @@ title: AI briefing - configuration
 subtitle: Guide for AI assistants helping users configure a lazysite installation.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Who this is for

@@ -3,7 +3,6 @@ title: Manager
 subtitle: Web-based admin and content manager for lazysite.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Overview

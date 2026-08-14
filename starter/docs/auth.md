@@ -3,7 +3,6 @@ title: Authentication
 subtitle: Protect pages with built-in auth or an external proxy.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Overview

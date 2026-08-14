@@ -3,7 +3,6 @@ title: Layouts and Themes
 subtitle: How lazysite wraps page content in HTML layouts.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Layouts and themes

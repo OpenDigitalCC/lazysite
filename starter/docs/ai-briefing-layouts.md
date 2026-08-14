@@ -3,7 +3,6 @@ title: AI briefing - layouts and themes
 subtitle: Guide for AI assistants helping users author or modify a lazysite layout or theme.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Who this is for

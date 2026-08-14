@@ -3,7 +3,6 @@ title: SMTP configuration
 subtitle: Configure email delivery for lazysite forms.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Overview

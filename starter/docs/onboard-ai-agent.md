@@ -3,7 +3,6 @@ title: Onboard an AI agent
 subtitle: Give an AI assistant a scoped account to manage your site - in a few steps, fully under your control.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 lazysite lets an AI assistant - Claude, ChatGPT, Claude Code, or any MCP client - manage your site through exactly the same rules a person follows. You create a dedicated account for it, grant only the permissions you want, connect the assistant, and revoke or expire access whenever you like. Here is the whole flow.

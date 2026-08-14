@@ -73,6 +73,10 @@ for my $t ( sort @mcp_live ) {
 # --- 2. the twins, by name ---------------------------------------------------
 my %PAIR = (
     'analyse_visitors'    => 'analyse_visitors',
+    # SM301: was an MCP-only entry whose recorded reason was "the API path can
+    # add one when someone asks for it". A live site asked, having taken its own
+    # sitemap.xml down by deleting the generated file for want of this.
+    'regenerate-registries' => 'regenerate_registries',
     'domains-list'        => 'list_domains',
     'domain-set'          => 'domain_set',
     'domain-preview'      => 'preview_domain',
@@ -149,7 +153,6 @@ my %MCP_ONLY = (
     'page_status'        => 'undecided',
     'read_page'          => 'undecided',
     'invalidate_cache'   => 'undecided',
-    'regenerate_registries' => 'deliberate (SM264) - the control API has no twin yet; the need came from an MCP agent verifying a delete, and the API path can add one when someone asks for it',
 );
 
 # Content FILE operations pair with WebDAV, not with a control-API action - the

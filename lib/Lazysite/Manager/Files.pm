@@ -30,7 +30,7 @@ our @EXPORT_OK = qw(
     action_migrate_to_local action_aliases_list
     acquire_lock release_lock renew_lock _get_lock_info
     action_acl_get action_acl_set action_acl_remove action_protected_sections
-    invalidate_registries registry_roots
+    invalidate_registries registry_roots action_regenerate_registries
     action_git_status action_git_history action_git_history_summary
     action_git_show action_git_restore action_git_init
 );
@@ -561,7 +561,31 @@ sub _registry_roots {
 # into a private sub from another file is exactly the coupling the leading
 # underscore is there to discourage.
 sub invalidate_registries { return _invalidate_registries() }
-sub registry_roots        { return _registry_roots() }
+
+# SM301: the control-API twin of MCP's regenerate_registries (SM264). One
+# implementation for both channels, so the two cannot answer differently - the
+# thing t/lint/23 exists to prevent.
+#
+# Clears every content root, not just the docroot's (SM251), so a multi-domain
+# instance is handled in one call.
+sub action_regenerate_registries {
+    my $docroot = $DOCROOT;
+    my @roots   = _registry_roots();
+    _invalidate_registries();
+    my @rel = map {
+        my $r = $_;
+        $r =~ s{^\Q$docroot\E/*}{};
+        length $r ? "/$r" : '/';
+    } @roots;
+    return {
+        ok            => 1,
+        cleared_roots => \@rel,
+        note          => 'The registries are cleared and rebuild on the next '
+            . 'request for one. Fetch /sitemap.xml (or the registry you care '
+            . 'about) to force it, then verify.',
+    };
+}
+sub registry_roots { return _registry_roots() }
 
 sub _invalidate_registries {
     my $rdir = _lz() . "/templates/registries";

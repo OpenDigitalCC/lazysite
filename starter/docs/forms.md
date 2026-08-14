@@ -3,7 +3,6 @@ title: Forms
 subtitle: Add contact forms and data collection to any page.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Overview

@@ -3,7 +3,6 @@ title: AI briefing - building sites
 subtitle: Best practice for AI agents creating or maintaining sites on the lazysite engine - the separation-of-concerns model and the failure modes to avoid.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Who this is for

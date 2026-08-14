@@ -3,7 +3,6 @@ title: Troubleshooting & migrating
 subtitle: Diagnosing problems, and moving content in from other tools.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Migrating from other tools
