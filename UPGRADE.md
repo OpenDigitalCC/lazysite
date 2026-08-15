@@ -1,9 +1,9 @@
 # Upgrade notes
 
-## Upgrading to 0.10.9 from 0.10.0 or 0.10.8 (READ THIS ONE)
+## Upgrading to 0.10.10 from 0.10.0, 0.10.8 or 0.10.9 (READ THIS ONE)
 
-The fleet is on two versions - **0.10.0** (stable) and **0.10.8** (edge) - and
-both need the same operator action after upgrading. It is not delivered by the
+The fleet spans **0.10.0** (stable) and the edge line, and every one of them
+needs the same operator action after upgrading. It is not delivered by the
 package.
 
 ### Why an upgrade alone is not enough
@@ -17,7 +17,7 @@ The move happens **on the act of protecting**. It is not a migration, and no
 upgrade performs it retrospectively. So:
 
 ```datatable
-columns: If the site is on | Then after upgrading to 0.10.9
+columns: If the site is on | Then after upgrading to 0.10.10
 widths: 3.4cm | X
 bold: 1
 tone: medium
@@ -25,10 +25,28 @@ text: 2
 ---
 0.10.0 (stable) | Every section ever protected still has its FILES in the document root. The rule is stored and honoured for pages; the files are reachable by anyone who knows the path on a front end that answers statics itself. Measured on a real upgraded site: 19 of 25 extensions still served byte-identically to an anonymous request.
 0.10.8 (edge) | The same, for anything protected before 0.10.8 - AND anything protected ON 0.10.8 may be in that state too, because SM296 could crash the move after the rule was saved, leaving the content stored-as-protected and still served with no audit line.
+0.10.9 (edge) | The same, if the sweep was run and reported success while moving nothing. Until 0.10.10 a re-apply that stored the rule and moved no files counted as "re-applied" and exited 0, so a fleet sweep could report every site done having achieved nothing. **Run it again on 0.10.10 and read the new count.**
 ```
 
 Both are repaired by the same action, because both are "the rule is right and
 the bytes are in the wrong place".
+
+### What 0.10.10 changes about this
+
+Three things, all of which make the SAME action more likely to actually work:
+
+- **The store gets created.** The sweep needs the private store, which is a
+  SIBLING of the document root - so repairing the docroot never reached it, and
+  a site with a perfectly repaired `public_html` could still move nothing.
+  `lazysite check --fix`, run as root, now creates it. See below.
+- **A sweep that moves nothing says so.** It is counted as `moved nothing`
+  rather than `re-applied`, the cause is named once, and the command exits
+  non-zero. On 0.10.9 and earlier it reported success.
+- **The rollout checks from OUTSIDE afterwards.** Every run now probes each site
+  anonymously and reports whether the front end honoured the rule, because the
+  engine's report and the front end's behaviour are different claims and have
+  disagreed three times. A site it could not measure is reported as `not
+  confirmed` rather than as passing.
 
 ### The action
 
@@ -49,7 +67,7 @@ lazysite acl reapply --docroot /path/to/public_html --actor local --apply
 Across a Hestia fleet, as part of the rollout:
 
 ```bash
-bash /tmp/lazysite-0.10.9/installers/hestia/lazysite-hestia-update-all.sh \
+bash /tmp/lazysite-0.10.10/installers/hestia/lazysite-hestia-update-all.sh \
      --reapply-acls
 ```
 
@@ -94,7 +112,12 @@ report success.
 ### Verify from outside
 
 Do not take the sweep's own word for it. The engine's report and the front end's
-behaviour are different claims, and SM283 was the case where they disagreed:
+behaviour are different claims, and SM283 was the case where they disagreed.
+
+**From 0.10.10 the fleet rollout does this for you**, per site, at the end of
+every run - reporting `verified`, `exposed` and `not confirmed` separately, and
+exiting non-zero on an exposure. Run it by hand for a single site, or to re-check
+after repairing one:
 
 ```bash
 lazysite check --check-acl https://<domain>/
@@ -111,7 +134,7 @@ SM283's remedy is an nginx **proxy template**, and it is likewise not delivered
 by a package upgrade: the template must be staged and each domain moved onto it.
 
 ```bash
-bash /tmp/lazysite-0.10.9/installers/hestia/lazysite-hestia-update-all.sh \
+bash /tmp/lazysite-0.10.10/installers/hestia/lazysite-hestia-update-all.sh \
      --proxy --reapply-acls
 ```
 
