@@ -30,9 +30,10 @@ use warnings;
 use FindBin;
 use File::Basename qw(dirname);
 
-my $ROOT    = dirname($FindBin::Bin);
-my $MODE    = ( grep { $_ eq '--report' } @ARGV ) ? 'report' : 'check';
-my $CHANNEL = 'edge';
+my $ROOT     = dirname($FindBin::Bin);
+my $MODE     = ( grep { $_ eq '--report' } @ARGV ) ? 'report' : 'check';
+my $CHANNEL  = 'edge';
+my $CALENDAR = ( grep { $_ eq '--calendar' } @ARGV ) ? 1 : 0;
 for my $i ( 0 .. $#ARGV ) {
     $CHANNEL = $ARGV[ $i + 1 ] if $ARGV[$i] eq '--channel' && $ARGV[ $i + 1 ];
 }
@@ -228,14 +229,23 @@ for my $r (
         my ($date) = $row =~ /(\d{4}-\d{2}-\d{2})/;
         next unless $date;
         next if $date lt $today;
-        next if $date gt _plus_days( $today, 120 );
+        # 30 days by default, 120 with --calendar. The gate's job is CURRENCY;
+        # a diary entry four months out that fires on every single run stops
+        # being read within a fortnight, and a warning nobody reads is the
+        # failure this tool exists to prevent.
+        next if $date gt _plus_days( $today, $CALENDAR ? 120 : 30 );
         my ($what) = split /\s*\|\s*/, $row;
         $what =~ s/^\s+|\s+$//g;
         next unless length $what;
         $soon++;
-        advisory("obligation within 120 days: $what ($date)");
+        # Name the window that was actually applied. Hard-coding "120 days"
+        # here made the default run report a 27-day-away obligation as
+        # "within 120 days", which reads as slack that does not exist.
+        advisory( sprintf 'obligation within %d days: %s (%s)',
+            $CALENDAR ? 120 : 30, $what, $date );
     }
-    good('no dated obligation inside 120 days') unless $soon;
+    good( sprintf 'no dated obligation inside %d days', $CALENDAR ? 120 : 30 )
+        unless $soon;
 }
 
 sub _plus_days {
@@ -280,6 +290,7 @@ lazysite-compliance.pl - release-time currency check over the compliance records
 
   perl tools/lazysite-compliance.pl --report
   perl tools/lazysite-compliance.pl --check --channel stable
+  perl tools/lazysite-compliance.pl --report --calendar   # obligations 120 days out
 
 =head1 DESCRIPTION
 

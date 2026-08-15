@@ -282,6 +282,18 @@ at the destination:
   upgrade; used to recover from corruption or re-apply after
   manual edits.
 
+## The tidy gate is changed-code-only, deliberately
+
+`t/lint/06-tidy.t` runs `tools/tidy-check.pl`, which flags only lines a change
+touched since the last release tag - not the whole tree. The existing tree keeps
+its hand-formatting.
+
+Written down here because it is surprising: running `perltidy` across the
+repository produces a long list of files that are **not** defects and that the
+project has decided against reformatting. A reviewer who does that and files the
+result has measured a standard this project does not hold. New files should be
+tidied wholesale; existing ones only where you touched them.
+
 ### Backup format
 
 Pre-upgrade tarball at

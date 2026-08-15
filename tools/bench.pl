@@ -13,21 +13,21 @@
 use strict;
 use warnings;
 use Time::HiRes qw(time);
-use File::Temp qw(tempdir);
-use File::Path qw(make_path);
-use JSON::PP qw(encode_json decode_json);
+use File::Temp  qw(tempdir);
+use File::Path  qw(make_path);
+use JSON::PP    qw(encode_json decode_json);
 use IPC::Open2;
 use FindBin;
 use Sys::Hostname qw(hostname);
-use POSIX qw(strftime);
+use POSIX         qw(strftime);
 
 ( my $ROOT = $FindBin::Bin ) =~ s{/tools$}{};
 my $ITER      = 20;
 my $TOLERANCE = 2.0;
 my $BASELINE  = "$ROOT/dist/config/bench-baseline.json";
-my $mode = ( grep { $_ eq '--baseline' } @ARGV ) ? 'baseline'
-         : ( grep { $_ eq '--check' }    @ARGV ) ? 'check'
-         :                                          'run';
+my $mode      = ( grep { $_ eq '--baseline' } @ARGV ) ? 'baseline'
+    : ( grep { $_ eq '--check' } @ARGV ) ? 'check'
+    :                                      'run';
 
 my $utool = "$ROOT/tools/lazysite-users.pl";
 my $proc  = "$ROOT/lazysite-processor.pl";
@@ -42,10 +42,10 @@ sub uapi {
 }
 sub bench {
     my ( $n, $cb ) = @_;
-    $cb->() for 1 .. 2;          # warm up
+    $cb->() for 1 .. 2;                         # warm up
     my $t0 = time();
     $cb->() for 1 .. $n;
-    return ( ( time() - $t0 ) / $n ) * 1000;   # ms/op
+    return ( ( time() - $t0 ) / $n ) * 1000;    # ms/op
 }
 
 # --- minimal site fixture ---
@@ -71,19 +71,19 @@ local %ENV = %ENV;
 $ENV{DOCUMENT_ROOT} = $d; $ENV{REQUEST_METHOD} = 'GET'; $ENV{QUERY_STRING} = '';
 my %result = (
     render_cache_hit_ms => bench( $ITER, sub {
-        local $ENV{REDIRECT_URL} = '/index';
-        qx($^X \Q$proc\E 2>/dev/null);
+            local $ENV{REDIRECT_URL} = '/index';
+            qx($^X \Q$proc\E 2>/dev/null);
     } ),
     render_miss_ms => bench( $ITER, sub {
-        unlink "$d/index.html";
-        local $ENV{REDIRECT_URL} = '/index';
-        qx($^X \Q$proc\E 2>/dev/null);
+            unlink "$d/index.html";
+            local $ENV{REDIRECT_URL} = '/index';
+            qx($^X \Q$proc\E 2>/dev/null);
     } ),
     verify_token_ms => bench( $ITER, sub {
-        uapi( $d, { action => 'verify-credential', username => 'tokuser', secret => $token } );
+            uapi( $d, { action => 'verify-credential', username => 'tokuser', secret => $token } );
     } ),
     verify_password_ms => bench( $ITER, sub {
-        uapi( $d, { action => 'verify-credential', username => 'pwuser', secret => 'benchpw' } );
+            uapi( $d, { action => 'verify-credential', username => 'pwuser', secret => 'benchpw' } );
     } ),
 );
 
@@ -92,16 +92,21 @@ printf "%-22s %8.1f ms\n", $_, $result{$_} for sort keys %result;
 if ( $mode eq 'baseline' ) {
     open my $b, '>', $BASELINE or die "$BASELINE: $!\n";
     print $b JSON::PP->new->canonical->pretty->encode( {
-        _doc => "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. The gate (--check) fails on >tolerance x regression; a per-op override may live in tolerances{op}.",
-        tolerance  => $TOLERANCE,
-        iterations => $ITER,
-        # Provenance (review D4): a baseline is only meaningful on the host
-        # that captured it - record where/when so a cross-host comparison is
-        # visible instead of silent.
-        host        => hostname(),
-        perl        => "$^V",
-        captured_at => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
-        ops        => { map { $_ => 0 + sprintf( '%.1f', $result{$_} ) } keys %result },
+            _doc => "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. The gate (--check) fails on >tolerance x regression; a per-op override may live in tolerances{op}.",
+            tolerance => $TOLERANCE,
+            # SM-review D4: without this a figure cannot be interpreted. A run on a
+            # loaded host and a genuinely slower engine look identical in the
+            # numbers, and the 2x tolerance passes both - so nobody ever finds out
+            # which they are looking at.
+            loadavg    => _loadavg(),
+            iterations => $ITER,
+            # Provenance (review D4): a baseline is only meaningful on the host
+            # that captured it - record where/when so a cross-host comparison is
+            # visible instead of silent.
+            host        => hostname(),
+            perl        => "$^V",
+            captured_at => strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
+            ops => { map { $_ => 0 + sprintf( '%.1f', $result{$_} ) } keys %result },
     } );
     close $b;
     print "wrote baseline: $BASELINE\n";
@@ -111,7 +116,7 @@ if ( $mode eq 'check' ) {
     die "no baseline ($BASELINE) - run --baseline first\n" unless -f $BASELINE;
     open my $b, '<:raw', $BASELINE or die "$BASELINE: $!\n";
     my $base = decode_json( do { local $/; <$b> } ); close $b;
-    my $tol = $base->{tolerance} || $TOLERANCE;
+    my $tol  = $base->{tolerance} || $TOLERANCE;
     printf "baseline: captured %s on %s (perl %s)\n",
         $base->{captured_at} // 'unknown-date', $base->{host} // 'unknown-host',
         $base->{perl} // '?';
@@ -119,7 +124,7 @@ if ( $mode eq 'check' ) {
         if defined $base->{host} && $base->{host} ne hostname();
     my @fail;
     for my $op ( sort keys %result ) {
-        my $b0 = $base->{ops}{$op} or next;
+        my $b0     = $base->{ops}{$op} or next;
         my $op_tol = $base->{tolerances}{$op} // $tol;
         push @fail, sprintf( "%s: %.1f ms exceeds %.1fx baseline (%.1f ms)", $op, $result{$op}, $op_tol, $b0 )
             if $result{$op} > $op_tol * $b0;

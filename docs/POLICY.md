@@ -31,7 +31,7 @@ user-facing service, not part of that overlay: see `docs/SECURITY.md`.)
 |---|---|
 | SBOM, kept current | **in place** (strict gate) |
 | Coordinated vulnerability disclosure | **in place** (SECURITY.md) |
-| Quality + documentation floors (8-dimension) | **partial** - the mechanical gates run per release (coverage floors, perf gate, SBOM, lint); the 2026-07-01 eight-dimension review found WARN on several dimensions and its follow-up actions are in progress (see `docs/review/2026-07-01-eight-dimension/`) |
+| Quality + documentation floors (8-dimension) | **partial** - the mechanical gates run per release (coverage floors, perf gate, SBOM, lint); the eight-dimension reviews run per release line and their findings are tracked to closure; the most recent is `docs/review/2026-08-14-eight-dimension-0.10.9/` (0.10.9: 3 PASS, 4 WARN, 1 REFUSE), and `docs/review/README.md` carries the full record |
 | Declaration of Conformity | **drafted** - `docs/DECLARATION-OF-CONFORMITY.md`; to be finalised and signed at the 0.7.0 stable cut |
 | Annex VII technical file | **pending** |
 | Support-period commitment | **declared** - five years from the first stable release (0.7.0); see "Support period" below |
@@ -61,7 +61,7 @@ restore-rehearsal record - is in [RELIABILITY.md](RELIABILITY.md). The
 targets there are the project's reference declaration for a single-host
 deployment; each operator may override them for their own deployment (the
 per-implementation ownership model recorded in
-`docs/review/2026-07-01-eight-dimension/90-prelaunch-operational-holds.md`).
+`docs/review/2026-07-01-eight-dimension/90-prelaunch-operational-holds.md`; the current posture is the most recent review, indexed in `docs/review/README.md`).
 
 ## Data protection
 
