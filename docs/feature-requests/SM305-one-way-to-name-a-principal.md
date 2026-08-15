@@ -2,8 +2,8 @@
 title: "SM305 - Three ways to name a user or a group, and the most consequential one is a bare textbox"
 subtitle: "Protecting a section asks who may read it as free text with no suggestions. Mistype a group and the section is gated to nobody, silently, and the operator is told it worked."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-15 from operator feedback. Nothing started. Two things in one filing because they are the same defect at two scales: the specific control that should be a select, and the absence of a single way to name a principal anywhere in the manager. Adding, modifying and deleting users and groups is one piece of functionality and is currently three."
+status: shipped
+status-note: "SHIPPED in 0.10.10 (92248da). FIVE controls, not the three originally filed: the section sheet's bare text box, datalists on Groups, Users and Domains, and the per-file card's select which was already right. All five now use one shared mgPrincipalSelect built in the manager layout from one source. Deliberately no onchange on the Groups picker - selecting POSTs there and a select fires change while a keyboard user arrows through options; Files keeps its onchange because nothing is written until Save. t/lint/47 pins it, shown to fail on the pre-fix tree, with exemptions keyed by datalist id and reason (nav.md page-urls stays: a nav entry may point off-site). ORIGINALLY FILED: FILED 2026-08-15 from operator feedback. Nothing started. Two things in one filing because they are the same defect at two scales: the specific control that should be a select, and the absence of a single way to name a principal anywhere in the manager. Adding, modifying and deleting users and groups is one piece of functionality and is currently three."
 ---
 
 # SM305 - the same job, three controls
