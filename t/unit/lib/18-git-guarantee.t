@@ -113,7 +113,7 @@ my %HOOKED = map { $_ => 1 } qw(
     Backups::action_backup_restore
     Plugins::action_plugin_save
     API::action_config_set
-    API::action_nav_save
+    Nav::action_nav_save
     API::action_site_backup_apply
     DAV::do_put
     DAV::do_delete
@@ -241,7 +241,7 @@ my %EXEMPT = (
     'API::action_principals'         => 'read-only',
     'API::action_users'              => 'auth store - excluded from the versioned set',
     'API::action_rotate_auth_secret' => 'auth store - excluded from the versioned set',
-    'API::action_nav_read'           => 'read-only',
+    'Nav::action_nav_read'           => 'read-only',
     # --- DAV verbs ---
     'DAV::do_options'   => 'read-only',
     'DAV::do_propfind'  => 'read-only',
@@ -254,12 +254,18 @@ my %EXEMPT = (
 
 subtest 'write-path registry: every action/verb classified, hooks verified' => sub {
     my %surface = (
-        Files    => [ "$root/lib/Lazysite/Manager/Files.pm",    qr/^action_/ ],
-        Upload   => [ "$root/lib/Lazysite/Manager/Upload.pm",   qr/^action_/ ],
-        Backups  => [ "$root/lib/Lazysite/Manager/Backups.pm",  qr/^action_/ ],
-        Plugins  => [ "$root/lib/Lazysite/Manager/Plugins.pm",  qr/^action_/ ],
-        Layouts  => [ "$root/lib/Lazysite/Manager/Layouts.pm",  qr/^action_/ ],
-        Themes   => [ "$root/lib/Lazysite/Manager/Themes.pm",   qr/^action_/ ],
+        Files   => [ "$root/lib/Lazysite/Manager/Files.pm",   qr/^action_/ ],
+        Upload  => [ "$root/lib/Lazysite/Manager/Upload.pm",  qr/^action_/ ],
+        Backups => [ "$root/lib/Lazysite/Manager/Backups.pm", qr/^action_/ ],
+        Plugins => [ "$root/lib/Lazysite/Manager/Plugins.pm", qr/^action_/ ],
+        Layouts => [ "$root/lib/Lazysite/Manager/Layouts.pm", qr/^action_/ ],
+        Themes  => [ "$root/lib/Lazysite/Manager/Themes.pm",  qr/^action_/ ],
+        # SM318: navigation moved out of the API script into its own module so
+        # MCP and the control API could stop having separate implementations.
+        # action_nav_save is a WRITE path with an SM085 content-history commit,
+        # so the registry has to follow it - this test failing on the move is
+        # the guarantee working, not collateral.
+        Nav      => [ "$root/lib/Lazysite/Manager/Nav.pm",      qr/^action_/ ],
         Sessions => [ "$root/lib/Lazysite/Manager/Sessions.pm", qr/^action_/ ],
         # SM255: Manager::Domains was never scanned, so its conf writes escaped
         # the guarantee entirely - the gap that let domain-set diverge from
