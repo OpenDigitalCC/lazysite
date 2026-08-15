@@ -1943,11 +1943,23 @@ sub _probe_get {
     return ( $code, $out );
 }
 
+# SM319: every path that returns WITHOUT FETCHING says "ACL PROBE SKIPPED".
+#
+# The token is a designated marker, not incidental prose. A caller has to be able
+# to tell "the front end honoured the rule" from "nothing was measured", and the
+# deploy's caller is a shell script reading this output - so the distinction has
+# to survive someone improving the wording. t/tools/41 pins the token on both
+# sides for exactly that reason.
+#
+# This matters because absence-of-FAIL was read as a pass one layer up, which is
+# the defect THIS PROBE ITSELF shipped with: SM285's first implementation had an
+# empty extension list, made zero fetches, and reported the front end as
+# respecting the ACL against a port with nothing listening.
 sub run_acl_probe {
     my ($url) = @_;
     $url =~ s{/+$}{};
     if ( $url !~ m{^https?://\S+$} ) {
-        report( 'WARN', '--check-acl needs an http(s):// URL; skipping the ACL probe' );
+        report( 'WARN', 'ACL PROBE SKIPPED: --check-acl needs an http(s):// URL' );
         return;
     }
     my $d = $opt{docroot};
@@ -1960,8 +1972,8 @@ sub run_acl_probe {
     unless ( mkdir $PROBE_DIR ) {
         undef $PROBE_DIR;
         report( 'WARN',
-            'cannot create a probe directory in the docroot, so the ACL probe '
-                . 'was skipped - this reports nothing either way about the front end' );
+            'ACL PROBE SKIPPED: cannot create a probe directory in the docroot '
+                . '- this reports nothing either way about the front end' );
         return;
     }
     my @exts = _probe_exts();
@@ -1993,7 +2005,7 @@ sub run_acl_probe {
     $map->{$PROBE_KEY} = { read => ['__lazysite-acl-probe-nobody__'] };
     unless ( _acl_write( $d, $map ) ) {
         _acl_probe_cleanup();
-        report( 'WARN', 'cannot write the ACL store, so the ACL probe was skipped' );
+        report( 'WARN', 'ACL PROBE SKIPPED: cannot write the ACL store' );
         return;
     }
 

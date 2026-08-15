@@ -406,7 +406,7 @@ fi
 if [ "${DO_ACL_PROBE:-1}" = 1 ] && [ -f "$CHK" ]; then
     echo
     echo "==> outside-in ACL probe (does the front end honour the rule?)"
-    probe_bad=()
+    probe_bad=(); probe_skipped=(); probe_ok=0
     for i in "${!DOMAINS[@]}"; do
         d="${DOMAINS[$i]}"; u="${USERS[$i]}"
         doc="/home/$u/web/$d/public_html"
@@ -419,15 +419,61 @@ if [ "${DO_ACL_PROBE:-1}" = 1 ] && [ -f "$CHK" ]; then
         # write are the SM139 mistake this project has made before.
         out="$(sudo -u "$u" perl "$CHK" --docroot "$doc" \
                  --check-acl "https://$d/" 2>&1)"
+        # VERIFIED IS A POSITIVE SIGNAL, never an absence. SM319.
+        #
+        # The first cut derived the pass from the absence of `[ FAIL ]`, and
+        # run_acl_probe has FIVE outcomes: the exposure, a clean confirmation,
+        # a PARTIAL ("could not vouch for some file types"), "no usable answer -
+        # nothing was served, gated or public", and three paths that return
+        # before fetching at all. Four of the five are not a pass, and all four
+        # were being announced as "front end honours the rule".
+        #
+        # The reported instance was the non-fetching returns, whose trigger is an
+        # unwritable docroot - what a vhost rebuild produces (SM270), and what
+        # edge was in this morning. A deploy runs right after a rebuild, so the
+        # population silently absolved is exactly the population being probed
+        # for. But fixing only that leaves the partial and the no-answer cases
+        # lying in the same way.
+        #
+        # So the pass requires the probe to SAY it confirmed something. Anything
+        # else - today's four, and any outcome added later - falls to "not
+        # confirmed", which is the safe direction. This is the defect the probe
+        # itself shipped with (SM285: an empty extension list, zero fetches,
+        # 0 == 0, and a verdict of "the front end respects the ACL" against a
+        # port with nothing listening), reappearing one layer up.
         if printf '%s' "$out" | grep -qE '\[ FAIL \]'; then
             probe_bad+=( "$d" )
-            echo "  $d:"
+            echo "  $d: SERVED ANONYMOUSLY"
             printf '%s\n' "$out" | grep -E '\[ (warn|FAIL) \]' \
                 | sed 's/^[[:space:]]*/    /'
-        else
+        elif printf '%s' "$out" | grep -q 'the front end respects the ACL'; then
+            probe_ok=$(( probe_ok + 1 ))
             echo "  $d: front end honours the rule"
+        else
+            # Not a pass and not an exposure: nothing was confirmed. The reason
+            # is whatever the probe warned about - a docroot it could not write,
+            # an unreachable URL, or file types it could not vouch for.
+            probe_skipped+=( "$d" )
+            echo "  $d: NOT CONFIRMED"
+            printf '%s\n' "$out" | grep -E '\[ warn \]' \
+                | sed 's/^[[:space:]]*/    /'
         fi
     done
+
+    printf '\n  %d verified, %d exposed, %d not confirmed.\n' \
+        "$probe_ok" "${#probe_bad[@]}" "${#probe_skipped[@]}"
+
+    if [ "${#probe_skipped[@]}" -gt 0 ]; then
+        printf '  NOT CONFIRMED: %s\n' "${probe_skipped[*]}"
+        echo "  Nothing was established either way for these. Usual causes: a"
+        echo "  docroot or ACL store the probe could not write (the condition a"
+        echo "  vhost rebuild produces, which is when this runs), a URL not"
+        echo "  reachable from here, or file types it could not vouch for."
+        echo "  Repair with 'lazysite check --fix' and re-run."
+        # Deliberately NOT a non-zero exit: this is an absence of evidence, not
+        # evidence of exposure, and failing a deploy on it would be wrong. The
+        # named summary line is what the operator acts on.
+    fi
 
     if [ "${#probe_bad[@]}" -gt 0 ]; then
         printf '\n  SERVED ANONYMOUSLY DESPITE AN ACL: %s\n' "${probe_bad[*]}"
