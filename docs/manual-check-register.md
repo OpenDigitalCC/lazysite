@@ -52,13 +52,13 @@ widths: X | 3cm | 6cm
 bold: 1
 tone: light
 ---
-Domains | 0.10.7-pre | the SM259 one-form consolidation confirmed
-Files | never | includes the new Protected sections panel (batch tier A/B)
+Domains | 0.10.7-pre | SM259 one-form consolidation confirmed; the 0.10.10 access pickers are NOT covered by that walk (tier A4)
+Files | never | Protected sections panel (tier A/B), and the 0.10.10 principal picker on the section sheet (tier A4)
 Navigation | never |
 Appearance | never | the no-CDN check has no gate in this repo - manual only
 Plugin Manager + Config | never | includes SM231 notification emission control
-Users | never | includes the connect-code regeneration (batch tier C)
-Groups | never | grant authority is the one with teeth
+Users | never | connect-code regeneration (tier C), and the 0.10.10 add-group picker (tier A4)
+Groups | never | grant authority is the one with teeth; the 0.10.10 member picker is tier A4, including that selection must not post
 Sessions and keys | never |
 Site settings | never | includes the Services holder counts (batch tier B/C)
 Cache, Backups, Audit, Stats | never | includes apply-confidence + Undo (tier A)

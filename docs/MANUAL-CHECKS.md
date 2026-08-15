@@ -183,6 +183,51 @@ as skipped is fine; a guessed one is not.
 **This fails the tier if:** the overwrite count does not change with the target,
 the Undo bar does not appear, or Undo does not restore the previous content.
 
+#### A4 - name a person, the same way, in four places (0.10.10)
+
+SM305 replaced **five** different controls for naming a person or group with one
+shared `<select>`. Four manager pages changed, and every one of them is browser
+JavaScript, which no automated test in this repository can reach: the suite
+proves the files parse and that no datalist survives, and neither proves a
+control works when a human clicks it.
+
+It is tier A rather than tier B because the loosest of the five governed **who
+may read protected content**, so a control that silently fails to register a name
+grants a section to nobody while reporting success.
+
+1. Go to **Files** and open a folder's card. Under **Protect this section**, use
+   the picker beside *Who may read it*.
+
+   *Expected:* a dropdown of real users and `@groups` - not a free-text box.
+   Choosing one adds a removable chip. There is no way to type a name that does
+   not exist.
+
+2. Add two, remove one with its **&times;**, then click **Protect this section**.
+
+   *Expected:* the section is protected for exactly the remaining name. Re-open
+   the card: the read list matches what you left.
+
+3. Go to **Groups**, open a group, and use the *add a user or group* picker.
+
+   *Expected:* a dropdown, and the group itself is **absent** from its own list.
+   Selecting a name does **not** post on its own - the **Add** button commits it.
+   Arrow through the options with the keyboard: nothing is added until you press
+   Add.
+
+4. Go to **Users**, start the add-user form, and use the *add a group* picker.
+   Then go to **Domains**, configure a domain, and use the *Groups allowed to
+   manage* and *Users locked to this domain* pickers.
+
+   *Expected:* all three are dropdowns constrained to real principals. The
+   Domains ones offer only the right kind - groups for one field, users for the
+   other.
+
+**This fails the tier if:** any of the five is still a free-text box or a
+suggestion list that accepts typed text; if the Groups picker posts on selection
+rather than on **Add** (a keyboard user arrowing through options would add
+members they never chose); if a chip cannot be removed; or if a saved read list
+does not match what was chosen.
+
 ### Tier B - blocks the minor bump, not the cut
 
 Verification of things that are wrong-but-recoverable, or read-only.
