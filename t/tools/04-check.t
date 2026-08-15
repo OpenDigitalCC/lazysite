@@ -487,8 +487,19 @@ subtest 'the check says whether protected content can be moved at all' => sub {
     # a CGI running as a different identity genuinely cannot create anything
     # there - which is the reported Hestia shape, and the check should say so.
     my $tight = run();
-    like( $tight, qr/cannot create the private store/,
+    like( $tight, qr/cannot create it/,
         'an unwritable parent is reported' );
+
+    # SM313: and the report says the thing an operator most needs to know, which
+    # the earlier wording did not. On a live instance in August 2026 the docroot
+    # was repaired completely - MKCOL, PUT, overwrite and DELETE all went 507 to
+    # success - and the sweep still moved nothing, because the store is a SIBLING
+    # of the docroot rather than a child. An operator who has just repaired the
+    # docroot needs telling that it was the wrong directory.
+    like( $tight, qr/sibling/i,
+        'and says the store is a sibling, so a docroot repair does not cover it' );
+    like( $tight, qr/--fix/,
+        'and names the command that creates it' );
     like( $tight, qr/leaves the files in the document root/,
         'naming the consequence: the rule stores and the content stays served' );
 

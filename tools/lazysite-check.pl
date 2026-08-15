@@ -209,6 +209,7 @@ my $cgi_uid = ( getpwnam 'www-data' )[2];
 # --- result collection -------------------------------------------------------
 my ( @results, @chmod_fixes, $chown_needed, $tt_cache_bad );
 my ( $git_fix_root, $git_shared_fix );
+my $store_create_needed;    # SM313: the private store to create under --fix
 sub report {    # (level, message, [hint])
     my ( $level, $msg, $hint ) = @_;
     push @results, { level => $level, msg => $msg, hint => $hint };
@@ -1175,6 +1176,38 @@ sub apply_fixes {
         }
         else { warn "could not chmod $path: $!\n" }
     }
+    # SM313: create the private store, so protecting content can actually move it.
+    if ($store_create_needed) {
+        my $s = $store_create_needed;
+        if ( -d $s ) {
+            # A previous iteration made it; nothing to do. --fix loops until
+            # stable, so this branch is reached on the second pass.
+        }
+        elsif ( $> == 0 ) {
+            require File::Path;
+            my $err;
+            File::Path::make_path( $s, { error => \$err } );
+            if ( -d $s ) {
+                # Owned by the site user, setgid so content moved in keeps the
+                # group. The engine then writes into a directory it owns, and
+                # never needs write permission on the parent.
+                chown $exp_uid, $exp_gid, $s;
+                chmod 02770, $s;
+                printf "fixed: created the private store %s (%s:%s, mode 2770)\n",
+                    $s, $exp_user, $exp_grp;
+                $fixed++;
+            }
+            else { warn "could not create the private store $s\n" }
+        }
+        else {
+            # Not root, and by construction the parent is not writable by us -
+            # so print the exact commands rather than failing silently.
+            print "skip: creating the private store needs root - run:\n"
+                . "  mkdir -p '$s'\n"
+                . "  chown $exp_user:$exp_grp '$s'\n"
+                . "  chmod 2770 '$s'\n";
+        }
+    }
     if ($chown_needed) {
         if ( $> == 0 ) {
             # Recursive chown to the expected owner:group. Handing a path the
@@ -1652,15 +1685,39 @@ sub report_private_store_usable {
                 . 'it when content is first protected' );
         return;
     }
+    # SM313: --fix CREATES the store rather than widening its parent.
+    #
+    # SM270's repair covers the DOCROOT. The store is a SIBLING of the docroot,
+    # so creating it needs write access on the docroot's PARENT - a different
+    # directory, which that repair never touched. Confirmed in the field on
+    # 2026-08-15: after a complete and successful docroot repair, protecting a
+    # folder still left 11 of 11 entries public and 8 of 10 probed extensions
+    # serving 200 anonymously under an active read rule.
+    #
+    # THE OBVIOUS REPAIR IS THE WRONG ONE. Making the parent group-writable is
+    # "the same operation one directory up", and on the Hestia layout that parent
+    # is the domain folder - which also holds cgi-bin. Write permission on a
+    # directory is permission to create, delete and RENAME its entries, so that
+    # would let anything running as the CGI group replace cgi-bin. Repairing an
+    # exposure by opening a larger one is not a repair.
+    #
+    # Creating the store instead is strictly narrower and it removes the need for
+    # the permission entirely: the engine never has to create the directory, only
+    # write into one it already owns. `_mkpath` becomes a no-op on the next
+    # protect. setgid (2770) so content moved in keeps the group, matching how
+    # every other lazysite-owned directory is provisioned.
+    $store_create_needed = $store;
     report(
         'FAIL',
-        'the engine cannot create the private store - '
+        'the private store does not exist and the engine cannot create it - '
             . sprintf( '%s is owner %s:%s mode %04o',
             $parent, owner_name($parent), group_name($parent), mode_of($parent) ),
-        'until this is writable by the CGI identity, protecting content stores '
-            . 'the rule and leaves the files in the document root, where a front '
-            . 'end serves them. Create it yourself with the site user, or give '
-            . 'that directory group write access.'
+        'until the store exists, protecting content stores the rule and leaves '
+            . 'the files in the document root, where a front end serves them - '
+            . 'this is SM283 reached through the mechanism built to prevent it. '
+            . 'Run with --fix as root to create it. Note that repairing the '
+            . 'DOCROOT does not fix this: the store is its sibling, not its '
+            . 'child.'
     );
     return;
 }

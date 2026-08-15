@@ -64,6 +64,33 @@ upgrade repairs nothing and reports failures. `--reapply-acls` sweeps after the
 deploy step for exactly this reason.
 :::
 
+### The sweep needs the private store to exist
+
+The store is `<docroot>-lazysite-private` - a **sibling** of the document root,
+not a directory inside it. Creating it needs write access on the docroot's
+*parent*, which on the Hestia layout is the domain folder.
+
+**Repairing the document root does not fix this.** They are different
+directories, and a site can have a perfectly repaired `public_html` where the
+sweep still moves nothing. That happened on a live instance in August 2026:
+`MKCOL`, `PUT`, overwrite and `DELETE` at the site root all worked, and
+protecting a folder still left every file public and anonymously reachable.
+
+```bash
+lazysite check --docroot /path/to/public_html          # names the store, owner, mode
+sudo lazysite check --docroot /path/to/public_html --fix   # creates it
+```
+
+`--fix` creates the store owned by the site user, mode 2770. It deliberately
+does **not** make the parent directory group-writable: that parent also holds
+`cgi-bin`, and write permission on a directory is permission to rename its
+entries, so the wider repair would open a larger hole than the one being closed.
+
+From 0.10.10 the sweep reports this rather than hiding it. A re-apply that stores
+the rule and moves nothing counts as `moved nothing`, not as `re-applied`, and
+the command exits non-zero - so a fleet sweep that achieved nothing can no longer
+report success.
+
 ### Verify from outside
 
 Do not take the sweep's own word for it. The engine's report and the front end's

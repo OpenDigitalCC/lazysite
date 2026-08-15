@@ -331,7 +331,7 @@ sub cmd_reapply {
         return 0;
     }
 
-    my ( @done, @failed );
+    my ( @done, @failed, @unmoved );
     for my $s (@sections) {
         my $path = $s->{site_wide} ? '/' : $s->{prefix};
 
@@ -358,10 +358,32 @@ sub cmd_reapply {
 
         if ( $r && $r->{ok} ) {
             my @w = @{ $r->{warnings} || [] };
-            push @done, { path => $path, warnings => \@w };
-            unless ( $opt{json} ) {
-                print "re-applied: $path\n";
-                print "  WARNING: $_\n" for @w;
+
+            # SM313: ok:1 is not success here.
+            #
+            # The whole purpose of this sweep is to MOVE content out of the
+            # document root. A call that stored the rule and moved nothing has
+            # done none of that, and it returns ok:1 with a warning - so the old
+            # count reported "N re-applied, 0 failed" and exited 0 on a sweep
+            # that left every byte exactly where it was. Measured in the field
+            # on 2026-08-15: 11 of 11 entries still public afterwards.
+            #
+            # `content_moved` is a structural flag from action_acl_set rather
+            # than a match on the warning text, so improving the wording cannot
+            # quietly turn this back into a lie.
+            if ( defined $r->{content_moved} && !$r->{content_moved} ) {
+                push @unmoved, { path => $path, warnings => \@w };
+                unless ( $opt{json} ) {
+                    print "NOT MOVED: $path\n";
+                    print "  $_\n" for @w;
+                }
+            }
+            else {
+                push @done, { path => $path, warnings => \@w };
+                unless ( $opt{json} ) {
+                    print "re-applied: $path\n";
+                    print "  WARNING: $_\n" for @w;
+                }
             }
         }
         else {
@@ -372,18 +394,41 @@ sub cmd_reapply {
     }
 
     unless ( $opt{json} ) {
-        printf "\n%d re-applied, %d failed.\n", scalar @done, scalar @failed;
+        printf "\n%d re-applied, %d moved nothing, %d failed.\n",
+            scalar @done, scalar @unmoved, scalar @failed;
+
+        # SM313: name the cause ONCE, not per folder. A per-folder warning on a
+        # fleet sweep reads as advisory noise and scrolls past; the operator
+        # needs one sentence saying the sweep did not do its job and what to run.
+        if (@unmoved) {
+            print <<'WHY';
+
+The rules are stored and the engine honours them, but the FILES are still in the
+document root - so a front end serving them directly is not covered, which is
+SM283. Every page and asset under those paths is still reachable anonymously.
+
+This is almost always the private store: it is a SIBLING of the document root,
+so it needs a directory the docroot repair does not touch. Repairing the docroot
+alone does NOT fix it.
+
+  lazysite check --docroot D              names the store, its owner and mode
+  sudo lazysite check --docroot D --fix   creates it
+  lazysite acl reapply --docroot D --apply --actor U    then re-run this
+
+WHY
+        }
         print "Verify from OUTSIDE with: lazysite check --check-acl URL\n"
-            unless @failed;
+            unless @failed || @unmoved;
     }
     return emit(
-        { ok => ( @failed ? 0 : 1 ),
+        { ok => ( ( @failed || @unmoved ) ? 0 : 1 ),
             reapplied => \@done,
+            unmoved   => \@unmoved,
             failed    => \@failed,
             count     => scalar @done,
         }
     ) if $opt{json};
-    return @failed ? 1 : 0;
+    return ( @failed || @unmoved ) ? 1 : 0;
 }
 
 sub cmd_remove {

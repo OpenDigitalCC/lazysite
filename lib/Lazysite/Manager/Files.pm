@@ -1152,6 +1152,13 @@ sub _acl_gates_public {
 #
 # What must never happen is silence, because either state is invisible from the
 # outside: the operator sees the permission they asked for either way.
+# SM313: set to 0 by _sync_private_store when the content could NOT be moved.
+# Package-level rather than an extra return value because the helper's return is
+# a LIST of warnings that three call sites splice into their own - threading a
+# second value through all three would be the kind of change that gets one of
+# them wrong.
+our $CONTENT_MOVED;
+
 sub _sync_private_store {
     my ( $rel, $rec ) = @_;
     my @warnings;
@@ -1224,6 +1231,15 @@ sub _sync_private_store {
     }
 
     if ( !$ok ) {
+        # SM313: a STRUCTURAL signal, not just prose. A caller that has to
+        # string-match a warning to learn whether the content moved is a caller
+        # that will silently stop matching when the wording improves - and the
+        # `lazysite acl reapply` sweep is exactly such a caller, running
+        # unattended across a fleet. It counted every ok:1 as a success, so a
+        # sweep that moved nothing reported "N re-applied, 0 failed" and exited
+        # 0, which is this project's recurring defect wearing the uniform of the
+        # tool built to repair it.
+        $CONTENT_MOVED = 0;
         my $what = $gates ? 'out of' : 'back into';
         push @warnings,
             "the permission was saved, but the content could not be moved "
@@ -1338,6 +1354,7 @@ sub action_acl_set {
     # state is "rule recorded, content not yet moved", which the engine already
     # enforces correctly. The other order would leave content out of the docroot
     # with nothing recording why.
+    local $CONTENT_MOVED = 1;
     push @warnings, _sync_private_store( $rel, \%rec );
 
     my @grp = grep { defined && /\A\@/ } ( @{ $rec{read} || [] }, @{ $rec{write} || [] } );
@@ -1352,6 +1369,7 @@ sub action_acl_set {
     # $rel, not $r->{rel}: on the root branch $r is never assigned, so this
     # reported path => undef for the one rule that covers the whole site.
     return { ok => 1, path => $rel, acl => \%rec,
+        content_moved => ( $CONTENT_MOVED ? 1 : 0 ),
         ( @warnings ? ( warnings => \@warnings ) : () ) };
 }
 
