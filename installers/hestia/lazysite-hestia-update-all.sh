@@ -34,6 +34,15 @@
 #                 CGI, and nothing notices until the manager fails to save. A
 #                 live 0.10.5 upgrade hit exactly this.
 #
+#                 SM270 RECURRED on edge in August 2026 all the same, three
+#                 releases after the ordering was fixed - a rebuild driven
+#                 through the control panel's own path never reaches this script
+#                 at all. So the health summary at the end of EVERY run now
+#                 repairs what it finds rather than only reporting it, and then
+#                 re-checks. Ordering is still the right first answer; it just
+#                 cannot be the only one, because not every rebuild comes
+#                 through here.
+#
 #   --reapply-acls  SM286/SM296: after upgrading, re-issue every stored access
 #                 rule on every site so its content actually moves out of the
 #                 document root. Protecting content moves it only on the ACT of
@@ -272,27 +281,87 @@ fi
 [ "${#SKIPPED[@]}" -gt 0 ] && printf 'SKIPPED (stable site, edge release not installed): %s\n' "${SKIPPED[*]}"
 [ "${#FAILED[@]}" -gt 0 ]  && printf 'FAILED to upgrade: %s\n' "${FAILED[*]}"
 
-# --- consolidated health summary: warnings + failures grouped by site --------
-# Re-run the doctor read-only per site so the operator sees what (if anything) is
-# still outstanding in one place, without scrolling each site's block.
+# --- consolidated health summary, and repair what can be repaired ------------
+#
+# SM270 RECURS, and reporting it is not enough.
+#
+# The per-site deploy runs `lazysite-check --fix`, so a site that goes through
+# it is repaired. A vhost rebuild AFTER that - or one driven through the control
+# panel's own path rather than this script - returns public_html as drwxr-s--x
+# with no group write, and nothing runs again to notice.
+#
+# A 0.10.9 field test found exactly that on edge, three releases after SM270
+# shipped the repair. The consequences are not cosmetic: the private store is a
+# SIBLING of the docroot, so with the docroot unwritable, `lazysite acl reapply`
+# fails on every folder and SM283 stays live across the instance regardless of
+# what was upgraded. Protecting a section stores the rule and leaves the content
+# served.
+#
+# This block used to run the doctor READ-ONLY and print what it found. An
+# operator reading a warning at the end of a long rollout, on a host they were
+# not otherwise touching, is the weakest possible link in that chain - and the
+# repair was already written and already shipped. So: find it, fix it, then
+# CHECK AGAIN and report what survived.
+#
+# The re-check is the point. This project's recurring defect is a control that
+# reports success without doing the work, and "we ran --fix" is a claim about an
+# action; "the site is clean afterwards" is a claim about the outcome. Only the
+# second is worth printing.
 CHK="$STAGE/tools/lazysite-check.pl"
 if [ -f "$CHK" ]; then
     echo
     echo "==> health summary (warnings + failures by site)"
-    dirty=0
+    dirty=0; repaired=0; STILL_DIRTY=()
     for i in "${!DOMAINS[@]}"; do
         d="${DOMAINS[$i]}"; u="${USERS[$i]}"
         doc="/home/$u/web/$d/public_html"
+        cgi="/home/$u/web/$d/cgi-bin"
         [ -d "$doc" ] || continue
-        issues="$(perl "$CHK" --docroot "$doc" --cgibin "/home/$u/web/$d/cgi-bin" 2>/dev/null \
+
+        issues="$(perl "$CHK" --docroot "$doc" --cgibin "$cgi" 2>/dev/null \
                   | grep -E '\[ (warn|FAIL) \]')"
-        if [ -n "$issues" ]; then
-            dirty=$(( dirty + 1 ))
-            echo "  $d:"
-            echo "$issues" | sed 's/^[[:space:]]*/    /'
+        [ -n "$issues" ] || continue
+
+        dirty=$(( dirty + 1 ))
+        echo "  $d:"
+        echo "$issues" | sed 's/^[[:space:]]*/    /'
+
+        # Repair as ROOT, matching the per-site deploy, which is what lets the
+        # check work the ownership out itself. lazysite-check --fix repairs modes
+        # and ownership; it does not touch content, so it is safe to run on a
+        # site that is merely warning about something else.
+        echo "    -> repairing (lazysite check --fix)"
+        perl "$CHK" --docroot "$doc" --cgibin "$cgi" --fix >/dev/null 2>&1 || true
+
+        left="$(perl "$CHK" --docroot "$doc" --cgibin "$cgi" 2>/dev/null \
+                | grep -E '\[ (warn|FAIL) \]')"
+        if [ -z "$left" ]; then
+            repaired=$(( repaired + 1 ))
+            echo "    -> repaired; the site is clean."
+        else
+            STILL_DIRTY+=( "$d" )
+            echo "    -> STILL OUTSTANDING after the repair:"
+            echo "$left" | sed 's/^[[:space:]]*/       /'
         fi
     done
-    [ "$dirty" = 0 ] && echo "  all sites clean - no warnings or failures."
+
+    if [ "$dirty" = 0 ]; then
+        echo "  all sites clean - no warnings or failures."
+    else
+        echo "  $dirty site(s) had issues; $repaired repaired automatically."
+        if [ "${#STILL_DIRTY[@]}" -gt 0 ]; then
+            printf '  NEEDS A HUMAN: %s\n' "${STILL_DIRTY[*]}"
+            # Naming the consequence, because a permissions warning reads as
+            # housekeeping and this one is not: it is why protected content is
+            # still being served.
+            echo "  A docroot that is still not writable means the private store"
+            echo "  cannot be written, so 'lazysite acl reapply' will fail and"
+            echo "  protected sections stay served by the front end. Verify from"
+            echo "  OUTSIDE - the engine's report and the front end's behaviour"
+            echo "  are different claims:"
+            echo "        lazysite check --check-acl https://<domain>/"
+        fi
+    fi
 fi
 
 # --- final summary: every site, the version it is on NOW, and its channel ------
