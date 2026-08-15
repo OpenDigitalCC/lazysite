@@ -909,8 +909,51 @@ elsif ( $action eq 'delete' )  { $result = action_delete( $path, $auth_user ) }
 elsif ( $action eq 'acl-get' ) { $result = action_acl_get( $path, $auth_user ) }
 elsif ( $action eq 'acl-set' ) {
     my $req = eval { decode_json($body) } // {};
-    $result = action_acl_set( $path, $auth_user,
-        $req->{read}, $req->{write}, $req->{owner}, $req->{draft} );
+
+    # SM306: acl-set will not take the whole site private because an argument
+    # was left out.
+    #
+    # $path above defaults to '/' for EVERY action. That is right for `list`,
+    # which should list the site root when asked for nothing in particular, and
+    # harmless for acl-get and acl-remove. acl-set inherited it, where the same
+    # omission applies a site-wide read restriction and returns ok:1. Before
+    # SM287 a root entry sat inert, so this was a no-op; SM287 made a root rule
+    # take effect, and the default has been hazardous since.
+    #
+    # SM287 was careful about every OTHER spelling of the root - '/' canonical,
+    # '', '.' and './' normalised to it, glob spellings refused with a message
+    # naming '/'. That care covered every way of saying "the whole site" except
+    # saying nothing at all, so the most destructive available target was the one
+    # you got by omitting an argument.
+    #
+    # An empty path= counts as absent. It is a spelling SM287 accepts elsewhere
+    # and still holds there; here it is overwhelmingly a form or client sending
+    # a blank field rather than an operator asking for the site.
+    unless ( defined $params{path} && length $params{path} ) {
+        $result = { ok => 0,
+            error => 'acl-set needs an explicit path. To govern the whole '
+                . 'site, including every folder beneath it, pass path=/ - it '
+                . 'is deliberately spelled out, because a rule that broad '
+                . 'should not be what you get by leaving the argument out.' };
+    }
+    # The body/query split is what invited the original mistake. `save` takes
+    # its content from the body, `domain-add` takes host, content_root and the
+    # rest from the body, and acl-set takes its lists from the body and its path
+    # from the query string - so a caller who has just used the first two has
+    # been taught where arguments go. It was discarded in silence, which cost a
+    # live site a minute of 302s. Refusing an argument the action does not read
+    # is what SM278 already does on all 51 MCP tools.
+    elsif ( exists $req->{path} ) {
+        $result = { ok => 0,
+            error => 'acl-set reads its path from the query string, not the '
+                . 'request body, so the "path" key here would have been '
+                . 'ignored and the rule applied somewhere else. Pass it as '
+                . 'action=acl-set&path=... instead.' };
+    }
+    else {
+        $result = action_acl_set( $path, $auth_user,
+            $req->{read}, $req->{write}, $req->{owner}, $req->{draft} );
+    }
 }
 elsif ( $action eq 'acl-remove' ) { $result = action_acl_remove( $path, $auth_user ) }
 elsif ( $action eq 'protected-sections' ) {
