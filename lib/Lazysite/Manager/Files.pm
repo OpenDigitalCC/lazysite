@@ -1040,6 +1040,41 @@ sub _get_lock_info {
 
 sub action_acl_get {
     my ( $rel_path, $user ) = @_;
+
+    # SM310: read the root the same way set and remove write it.
+    #
+    # SM287 taught the two WRITERS that '/', '', '.' and './' all mean the whole
+    # site, and taught protected-sections to list such a rule with site_wide:1.
+    # It did not teach this reader, which still went through validate_path and
+    # _acl_norm - and _acl_norm strips leading slashes, so the canonical key '/'
+    # became the lookup key '' and missed.
+    #
+    # The result was that asking "what rule governs the site root?" answered
+    # `acl: null` while a site-wide rule was in force and being enforced. The
+    # sections panel was right and the per-path query was wrong, so the two
+    # disagreed about one store - and the wrong one is the one a caller checking
+    # a specific path would use.
+    #
+    # A hand-edited store may hold any of the four spellings, which is why this
+    # looks for whichever is present rather than assuming the writer's '/', in
+    # the same order and for the same reason as action_acl_remove.
+    my $rootish = _acl_root_key($rel_path);
+    if ( $rootish eq 'glob' ) {
+        return { ok => 0,
+            error => "Wildcards are not a path here. To read the rule that "
+                . "governs the whole site, use \"/\" as the path." };
+    }
+    if ( $rootish eq 'root' ) {
+        my $acls      = load_acls();
+        my ($present) = grep { exists $acls->{$_} } ( '/', '', '.', './' );
+        my $a         = defined $present ? $acls->{$present} : undef;
+        unless ( _is_operator() ) {
+            return { ok => 0, error => "Not the owner of this file" }
+                if $a && ( $a->{owner} // '' ) ne ( $user // '' );
+        }
+        return { ok => 1, path => '/', acl => $a };
+    }
+
     my $r = validate_path($rel_path);
     return $r unless $r->{ok};
     return { ok => 0, error => "Path is blocked", kind => 'blocked' }
