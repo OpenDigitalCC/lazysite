@@ -954,6 +954,9 @@ sub run_checks {
     # --- 8f. registries left behind from before they were served (SM293) --------
     report_stale_registries();
 
+    # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
+    report_front_door_mode();
+
     # --- 9. content provenance (is this content lazysite's or the operator's?) ---
     # lazysite stamps its shipped seed pages with `provenance: lazysite-starter` in the
     # front matter. This reports which .md content is ours (unmodified vs customised)
@@ -1493,6 +1496,83 @@ sub report_engine_tree {
 # FAIL, because a site that cannot move content cannot honour the protection its
 # own manager offers - and the operator would otherwise learn that from a warning
 # buried in one API response.
+# SM309: say whether front-door mode is actually on for this site.
+#
+# SM294 moved the front door under the FastCGI pool in 0.10.9. Whether it is
+# running is decided by FRONT_DOOR= in /etc/lazysite/pools/<instance>.conf, which
+# is an operator step - and until now NOTHING reported whether that step had been
+# taken. `X-Lazysite-Front` exists only in the SM283 proxy template, so on any
+# instance without that template installed - which is the instance the SM283
+# sweep is still pending on - the mode was indistinguishable from its absence.
+#
+# A 0.10.9 field test measured ten anonymous samples before and after the
+# upgrade, found no difference network noise could resolve, and had no way to
+# establish whether the feature was even active. That is the situation 0.10.7
+# added an observable for, after three rebuilds and a template install produced
+# byte-identical responses; SM294 is a LARGER behavioural change than that one
+# and had less observability.
+#
+# Read from the pool conf on disk rather than from what an installer intended to
+# write, and matched to THIS docroot rather than to the instance name, because
+# the instance name is conventionally the domain and nothing enforces that. A
+# check that reported the wrong site's setting would be worse than none.
+sub report_front_door_mode {
+    my $dir = '/etc/lazysite/pools';
+    return unless -d $dir;    # no pools configured: plain CGI, nothing to say
+
+    opendir my $dh, $dir or return;
+    my @confs = sort grep { /\.conf\z/ } readdir $dh;
+    closedir $dh;
+
+    my $want = abs_path( $opt{docroot} ) // $opt{docroot};
+    my ( $mine, $raw );
+    for my $c (@confs) {
+        open my $fh, '<', "$dir/$c" or next;
+        my ( $doc, $fd );
+        while ( my $l = <$fh> ) {
+            $doc = $1 if $l =~ /^\s*DOCROOT\s*=\s*"?([^"\s]+)"?/;
+            $fd  = $1 if $l =~ /^\s*FRONT_DOOR\s*=\s*"?([^"\s]*)"?/;
+        }
+        close $fh;
+        next unless defined $doc;
+        my $r = abs_path($doc) // $doc;
+        next unless $r eq $want;
+        ( $mine, $raw ) = ( $c, $fd );
+        last;
+    }
+
+    # A site with no pool conf runs plain CGI, where front-door mode does not
+    # apply at all. Silence is right - a check that speaks on every healthy site
+    # is one people learn to scroll past.
+    return unless defined $mine;
+
+    my $v = defined $raw ? lc $raw : '';
+    $v =~ s/\A\s+|\s+\z//g;
+
+    if ( $v =~ /\A(?:1|true|yes|on)\z/ ) {
+        report( 'ok', "front-door mode is ON (FRONT_DOOR=$raw in $mine)",
+            'The pool worker routes every request itself, so the vhost needs '
+                . 'one rule rather than a dozen.' );
+    }
+    elsif ( $v eq '' || $v =~ /\A(?:0|false|no|off)\z/ ) {
+        report( 'ok',
+            'front-door mode is OFF'
+                . ( length $v ? " (FRONT_DOOR=$raw in $mine)" : " (not set in $mine)" ),
+            'Set FRONT_DOOR=1 in the pool conf and restart the pool to enable '
+                . 'it. Off is the default, so an existing pool behaves exactly '
+                . 'as it did.' );
+    }
+    else {
+        # The pool now refuses to start on this (SM309), so a site in this state
+        # has a stopped pool - which the operator will meet as an outage with no
+        # obvious cause unless something names the line.
+        report( 'FAIL', "FRONT_DOOR=$raw in $mine is not a yes/no value",
+            'The pool refuses to start rather than guess, so this site is not '
+                . 'serving through its pool. Use 1, true, yes or on to switch '
+                . 'front-door mode on; 0, false, no or off to switch it off.' );
+    }
+}
+
 sub report_private_store_usable {
     my $d = $opt{docroot};
 

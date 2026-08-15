@@ -84,6 +84,46 @@ bail('USER= not set (missing/incomplete /etc/lazysite/pools/*.conf?)')
 bail('USER=root refused: lazysite pools never run as root (SM139)')
     if $user eq 'root';
 
+# SM309: FRONT_DOOR is a declared boolean, so an unrecognised value is refused
+# rather than guessed at - and refused HERE, beside the other configuration
+# checks, before anything has been created.
+#
+# This was `length($ENV{FRONT_DOOR}) && $ENV{FRONT_DOOR} ne '0'` at the point of
+# use, so every non-empty value except '0' enabled the mode: FRONT_DOOR=false,
+# no and off all meant yes. That is the class 0.10.9 removed from the MCP
+# surface, where an unrecognised value for a declared boolean is now refused
+# outright instead of coerced - the fixture-E finding, where `draft` with an
+# unrecognised value read as CLEAR and published protected content while
+# returning ok:1. The pool conf is the one place an operator writes such a value
+# BY HAND, into a file, with no validation and no feedback, so it has the
+# strongest case for the same treatment.
+#
+# Validating at the point of USE was not enough: the launcher binds and chowns
+# its socket first, so a bad value was not reported until after those side
+# effects, and on a host where the socket setup itself failed it was never
+# reported at all. Configuration is checked before anything is created.
+#
+# Defaulting silently to off would be a second version of the same defect - a
+# control doing something other than what was written and saying nothing. A pool
+# that refuses to start is visible; one running in a mode nobody chose is not,
+# and the other half of SM309 exists because that state was undetectable from
+# outside.
+sub pool_bool {
+    my ( $name, $raw ) = @_;
+    return 0 unless defined $raw;
+    my $v = lc $raw;
+    $v =~ s/\A\s+|\s+\z//g;
+    return 0 if $v eq '';
+    return 1 if $v =~ /\A(?:1|true|yes|on)\z/;
+    return 0 if $v =~ /\A(?:0|false|no|off)\z/;
+    bail( "$name=$raw is not a yes/no value. Use 1, true, yes or on to switch "
+            . 'it on; 0, false, no or off to switch it off. It is refused '
+            . 'rather than guessed at, because guessing wrong here changes how '
+            . 'every request is routed and nothing would say so.' );
+}
+
+my $front_door = pool_bool( 'FRONT_DOOR', $ENV{FRONT_DOOR} );
+
 my ( $uid, $gid ) = ( getpwnam $user )[ 2, 3 ];
 bail("USER $user does not exist") unless defined $uid;
 my $sock_gid = getgrnam($group);
@@ -149,7 +189,8 @@ $ENV{LAZYSITE_FCGI_MAX_REQUESTS} = length( $ENV{MAX_REQUESTS} // '' ) ? $ENV{MAX
 # Everything set here is read ONCE by the worker at startup, because FCGI.pm
 # replaces %ENV on every request with that request's parameters. t/lint/43 pins
 # that, and it is why these are pool settings rather than per-request ones.
-if ( length( $ENV{FRONT_DOOR} // '' ) && $ENV{FRONT_DOOR} ne '0' ) {
+# SM309: the value was validated with the rest of the configuration, above.
+if ($front_door) {
     $ENV{LAZYSITE_FRONT_DOOR} = 1;
     # Where the other surfaces live, for the requests the worker cannot answer
     # as itself (another surface, or anything needing the auth wrapper). The
