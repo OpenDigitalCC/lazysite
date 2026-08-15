@@ -103,6 +103,58 @@ subtest 'no example builds <title> or the description from the body values' => s
         'exactly how meta_title came to have no effect on any site at all.' );
 };
 
+# SM312: the five front-matter variables the processor escapes before a template
+# sees them. Filtering them again produces `&amp;#39;` for an apostrophe.
+my @PRE_ESCAPED
+    = qw(page_title page_subtitle page_meta_title page_meta_desc page_author);
+
+subtest 'no example filters an already-escaped variable' => sub {
+    # THE FIRST VERSION OF THIS FILE SHIPPED THE DEFECT. The <head> contract
+    # section added for SM308 showed
+    #
+    #     content="[% page_meta_desc | html %]"
+    #
+    # which is the careful-looking thing a layout author would write, and is
+    # wrong: lazysite-processor.pl escapes these at the single point they enter
+    # the stash (SEC-2026-07 H5) so that EVERY layout emits them safely,
+    # including third-party ones and including a layout that forgets to filter.
+    # The cost of that choice is this rule, and the rule was never written down -
+    # so the example a site agent would copy taught the double-escape, in a
+    # document added to stop examples teaching things.
+    #
+    # Asserted against the processor rather than against a list kept here: the
+    # authority is _esc_html at the point of construction, and a second list
+    # would be a second place to forget.
+    my $proc = slurp("$root/lazysite-processor.pl");
+    for my $v (@PRE_ESCAPED) {
+        like( $proc, qr/\b\Q$v\E\s*=>\s*\n?\s*_esc_html\b/,
+            "$v really is escaped by the processor" );
+    }
+
+    my @offenders;
+    for my $p (@docs) {
+        my $text = slurp($p);
+        ( my $rel = $p ) =~ s{\A\Q$root/\E}{};
+        $text
+            =~ s/<!--\s*lint-48:\s*counter-example.*?lint-48:\s*end counter-example\s*-->//gs;
+
+        for my $v (@PRE_ESCAPED) {
+            push @offenders, "$rel: [% $v | html %]"
+                if $text =~ /\[%\s*\Q$v\E\s*\|\s*html\s*%\]/;
+        }
+    }
+
+    is_deeply( \@offenders, [], 'no example double-escapes' )
+        or diag( join "\n  ",
+        '',
+        @offenders,
+        '',
+        'These arrive HTML-escaped. Filtering again sends an apostrophe to',
+        'search engines as &amp;#39;, which renders as the literal &#39;.',
+        'Apostrophes are ordinary in English copy and a meta description is',
+        'exactly where copy goes - read by machines, and by nobody in review.' );
+};
+
 subtest 'the briefing states the contract, not just the variable names' => sub {
     my $brief = "$root/starter/docs/ai-briefing-layouts.md";
     ok( -f $brief, 'the layouts briefing is present' ) or return;

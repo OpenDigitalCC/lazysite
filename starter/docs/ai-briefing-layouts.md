@@ -53,6 +53,42 @@ On-disk example:
           main.css
           assets/
 
+## Front-matter variables arrive ALREADY ESCAPED - never add `| html`
+
+**`page_title`, `page_subtitle`, `page_meta_title`, `page_meta_desc` and
+`page_author` are HTML-escaped before your template sees them.** Applying
+`| html` escapes them a second time.
+
+This is deliberate and it is a security decision, not a convenience one
+(SEC-2026-07 H5): author-controllable front matter is escaped at the single
+point it enters the stash, so **every** layout emits it safely - including
+third-party layouts nobody here can edit, and including a layout that forgets to
+filter. Escaping at the point of construction is the half that fails safe; the
+engine knows where a value came from and a template does not.
+
+The cost of that choice is this rule, and the rule was never written down. So:
+
+<!-- lint-48: counter-example follows. The second line shows the WRONG form, so
+     the check that keeps every other example correct skips between these
+     markers. -->
+
+```
+<meta name="description" content="[% page_meta_desc %]">          correct
+<meta name="description" content="[% page_meta_desc | html %]">   double-escaped
+```
+
+<!-- lint-48: end counter-example -->
+
+An apostrophe in the second form reaches search engines as `&amp;#39;`, which
+renders as the literal text `&#39;`. "a client's brief", "what's included",
+"we're hiring" - apostrophes are ordinary in English copy, and a meta
+description is exactly where marketing copy goes. It is read by search engines,
+social cards and AI clients, and by almost nobody during review, so a site can
+serve it mangled for months.
+
+`| html` on these five is always wrong. On any value you construct yourself in
+the template, it is right.
+
 ## The `<head>` contract
 
 **A layout must render `<title>` from `page_meta_title` and its description from
@@ -221,7 +257,7 @@ need to duplicate CSS structure.
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>[% page_meta_title %][% IF site_name %] - [% site_name %][% END %]</title>
-      [% IF page_meta_desc %]<meta name="description" content="[% page_meta_desc | html %]">[% END %]
+      [% IF page_meta_desc %]<meta name="description" content="[% page_meta_desc %]">[% END %]
       [% theme_css %]
       [% IF theme_assets %]
       <link rel="stylesheet" href="[% theme_assets %]/main.css">

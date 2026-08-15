@@ -141,7 +141,7 @@ references the variables listed in
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>[% page_meta_title %][% IF site_name %] - [% site_name %][% END %]</title>
-      [% IF page_meta_desc %]<meta name="description" content="[% page_meta_desc | html %]">[% END %]
+      [% IF page_meta_desc %]<meta name="description" content="[% page_meta_desc %]">[% END %]
       [% theme_css %]
       [% IF theme_assets %]
       <link rel="stylesheet" href="[% theme_assets %]/main.css">
