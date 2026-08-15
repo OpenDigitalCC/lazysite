@@ -3,7 +3,7 @@ title: "SM304 - Three places now generate release-manifest.json when it is absen
 subtitle: "A gitignored build artefact that three separate readers each learned to derive for themselves. Two of those three were added in one day, by one change, to fix one bug."
 brand: plain
 status: candidate
-status-note: "FILED 2026-08-15 out of the 0.10.9 review. Nothing started. Not urgent and not subtle: the duplication works, is tested and is currently consistent. It is filed because this project removes duplicated lifecycles on principle, and because SM269 phase 1 already did this once for the same file."
+status-note: "CORROBORATED 2026-08-15 by a power cut that left release-manifest.json full of nulls: both duplicated readers failed with different messages, and NEITHER handles a file that is present but unparseable - only absent. The recovery for both is identical and already written. FILED 2026-08-15 out of the 0.10.9 review. Nothing started. Not urgent and not subtle: the duplication works, is tested and is currently consistent. It is filed because this project removes duplicated lifecycles on principle, and because SM269 phase 1 already did this once for the same file."
 ---
 
 # SM304 - the same three steps, in three files
@@ -49,6 +49,36 @@ The failure mode is not hypothetical for this file specifically. Its handling
 has already produced: a suite that passed only where a stale copy happened to
 exist, a "flaky" test that was deterministic, and a compliance control that
 could not be run from the tag it attests.
+
+### Corroborated the same day, by accident
+
+A power cut during the 0.10.10 gate left `release-manifest.json` as 66,505 bytes
+of nulls - written, not fsynced. The file is gitignored, so `git status` reported
+the tree clean and nothing pointed at it.
+
+Both duplicated readers hit it, and said different things:
+
+```datatable
+columns: Reader | What it reported
+widths: 6.4cm | X
+bold: 1
+tone: medium
+---
+`install.pl:1812` | `Cannot parse ...: malformed JSON string ... at character offset 0`
+`tools/manifest-to-sbom.pl:311` | the same malformed-JSON die, with no `Cannot parse` prefix and no path
+---
+```
+
+Neither considered that a file it knows how to REGENERATE might be present and
+unusable - both handle "missing" and neither handles "corrupt", which is the same
+gap written twice. One owner would have one answer, and the obvious one is to
+treat an unparseable manifest exactly as an absent one, since the recovery is
+identical and already implemented.
+
+It cost a failed gate run and two diagnoses. That is small, and it is the
+cheapest possible version of the lesson: the same fault arriving through two
+copies of one lifecycle, reported two ways, on a file whose whole point is to
+describe what ships.
 
 ## What to build
 
