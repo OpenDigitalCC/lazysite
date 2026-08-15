@@ -958,6 +958,9 @@ sub run_checks {
     # --- 8h. is front-door mode on for this site? (SM294 / SM309) --------------
     report_front_door_mode();
 
+    # --- 8i. is the ACTIVE theme's stylesheet actually being served? (SM315) ----
+    report_theme_assets_mirrored();
+
     # --- 9. content provenance (is this content lazysite's or the operator's?) ---
     # lazysite stamps its shipped seed pages with `provenance: lazysite-starter` in the
     # front matter. This reports which .md content is ours (unmodified vs customised)
@@ -1604,6 +1607,63 @@ sub report_front_door_mode {
                 . 'serving through its pool. Use 1, true, yes or on to switch '
                 . 'front-door mode on; 0, false, no or off to switch it off.' );
     }
+}
+
+# SM315: an active theme whose assets never reached the mirror is a site that is
+# rendering unstyled RIGHT NOW.
+#
+# Theme assets live at layouts/<layout>/themes/<theme>/assets/ and are mirrored
+# to /lazysite-assets/<layout>/<theme>/ at activation. Put them one level higher
+# and everything succeeds - upload, activation, every page - and the stylesheet
+# link is never emitted, because `theme_assets` resolves to nothing. At the HTTP
+# level the result is indistinguishable from a working site: 200, valid markup,
+# correct content, browser default serif.
+#
+# SM315 makes activation say so at the moment it happens. This is the standing
+# version, for a site that was already in that state, or that got there by some
+# other route - a partial deploy, a mirror cleared by hand, an asset directory
+# that vanished. The activation warning cannot help those.
+sub report_theme_assets_mirrored {
+    my $layout = conf_value('layout');
+    my $theme  = conf_value('theme');
+    return unless defined $layout && length $layout;
+    return unless defined $theme  && length $theme;
+
+    my $tdir = "$LZ/layouts/$layout/themes/$theme";
+    return unless -d $tdir;    # not a layout-and-theme site; nothing to say
+
+    my $mirror = "$DOC/lazysite-assets/$layout/$theme";
+    my $n      = 0;
+    File::Find::find(
+        { no_chdir => 1, wanted => sub { $n++ if -f $File::Find::name } },
+        $mirror ) if -d $mirror;
+
+    return report( 'ok', "theme assets are mirrored ($n file(s) for $layout/$theme)" )
+        if $n;
+
+    # Nothing mirrored. Name the likely cause rather than the symptom: an author
+    # who put the CSS beside theme.json has made one specific mistake and needs
+    # one specific sentence.
+    my @misplaced;
+    if ( opendir my $dh, $tdir ) {
+        @misplaced = sort grep { /\.(?:css|js|woff2?|ttf|png|jpe?g|svg|webp)\z/i }
+            readdir $dh;
+        closedir $dh;
+    }
+
+    report(
+        'FAIL',
+        "the active theme $layout/$theme has no mirrored assets"
+            . ( @misplaced
+            ? ' - but ' . join( ', ', @misplaced ) . " sit directly in $tdir"
+            : '' ),
+        ( @misplaced
+            ? "move them into $tdir/assets/ and re-activate the layout. "
+            : "if this theme has a stylesheet it belongs in $tdir/assets/. " )
+            . 'Until then every page renders with no stylesheet and still '
+            . 'returns 200, so nothing else will report it.'
+    );
+    return;
 }
 
 sub report_private_store_usable {

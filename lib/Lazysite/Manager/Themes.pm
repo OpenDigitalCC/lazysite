@@ -537,8 +537,12 @@ sub action_theme_activate {
             _prune_backups( $themes_dir, $old_theme );
         }
         my $res = _set_theme_pointer($theme_name);
+        my $mirror;
         if ( $res->{ok} ) {
-            _mirror_theme_assets( $active_layout, $theme_name );
+            # SM315: keep the mirror result - zero assets is the signal that the
+            # site will render unstyled, and the acknowledgement is the only
+            # place a caller will see it.
+            $mirror = _mirror_theme_assets( $active_layout, $theme_name );
             # SM203: warn (never reject) when the just-activated theme does not
             # match the layout's declared token vocabulary. The layout.json
             # `tokens` block is OPTIONAL; the check is skipped entirely when it
@@ -553,6 +557,28 @@ sub action_theme_activate {
                     missing    => join( ',', @{ $tw->{missing} } ),
                     undeclared => join( ',', @{ $tw->{extra} } ) );
                 $res->{token_warnings} = _token_warning_list($tw);
+            }
+        }
+
+        # SM315: report the mirror, always - a count of zero is the whole point.
+        # A theme that declares colours and fonts and mirrors nothing is a site
+        # about to render unstyled, and at the HTTP level that is
+        # indistinguishable from a working one: every page returns 200.
+        if ( ref $mirror eq 'HASH' ) {
+            $res->{assets_mirrored} = $mirror->{mirrored};
+            if ( !$mirror->{mirrored} ) {
+                push @{ $res->{warnings} ||= [] },
+                    'no theme assets were mirrored: '
+                    . ( $mirror->{reason} // 'unknown' )
+                    . ( $mirror->{expected}
+                    ? ". Assets belong in $mirror->{expected}"
+                    : '' )
+                    . ( $mirror->{misplaced}
+                    ? ' (found outside it: '
+                        . join( ', ', @{ $mirror->{misplaced} } ) . ')'
+                    : '' )
+                    . '. The site will render with no stylesheet, and every '
+                    . 'page will still return 200.';
             }
         }
         return $res;
@@ -795,18 +821,74 @@ sub _invalidate_html_cache {
 # its CSS (theme_assets points at a mirror that was never built), which forced
 # layout.tt to hardcode the source path and blocked drop-in layout copies.
 # Idempotent; a no-op when the theme has no assets/ dir.
+# SM315: say how many assets were mirrored, and where they were expected.
+#
+# This returned nothing and no-opped silently when the theme had no `assets/`
+# directory. Put a theme's CSS one level higher - at `themes/<theme>/` beside
+# theme.json, which is where an author who has not dissected a working layout
+# will naturally put it - and: the upload succeeds, activate_layout returns
+# ok:1, the mirror is empty, `theme_assets` resolves to nothing, the stylesheet
+# link is never emitted, and every page returns 200 completely unstyled.
+#
+# Measured on edge/0.10.9 while authoring a layout. The diagnosis took a
+# screenshot: at the HTTP level a fully unstyled site is indistinguishable from a
+# working one, and an agent building over MCP and WebDAV has no screenshot step.
+# It would hand over an unstyled site reporting success.
+#
+# The tool already knew. It counted nothing and said nothing, and zero assets for
+# a theme that declares colours and fonts is almost always a mistake - so the one
+# place that can say so is the acknowledgement the caller is already reading.
 sub _mirror_theme_assets {
     my ( $layout, $theme ) = @_;
-    return unless length $layout && length $theme;
-    my $src = "$LAZYSITE_DIR/layouts/$layout/themes/$theme/assets";
-    return unless -d $src;
+    return { mirrored => 0, reason => 'no layout or theme named' }
+        unless length $layout && length $theme;
+
+    my $tdir = "$LAZYSITE_DIR/layouts/$layout/themes/$theme";
+    my $src  = "$tdir/assets";
     my $dest = "$DOCROOT/lazysite-assets/$layout/$theme";
+
+    unless ( -d $src ) {
+        # Is there something that LOOKS like a misplaced asset? A .css or .js
+        # sitting directly in the theme directory beside theme.json is almost
+        # certainly meant to be served, and naming it costs one directory read.
+        my @misplaced;
+        if ( opendir my $dh, $tdir ) {
+            @misplaced = sort grep { /\.(?:css|js|woff2?|ttf|png|jpe?g|svg|webp)\z/i }
+                readdir $dh;
+            closedir $dh;
+        }
+        return {
+            mirrored => 0,
+            dest     => $dest,
+            expected => $src,
+            ( @misplaced ? ( misplaced => \@misplaced ) : () ),
+            reason => (
+                @misplaced
+                ? 'the theme has files that look like assets, but they are not '
+                    . "in assets/ - the engine mirrors $src and nothing else, so "
+                    . 'the site will render unstyled'
+                : 'the theme declares no assets/ directory'
+            ),
+        };
+    }
+
     make_path($dest) unless -d $dest;
     my $rc = system( 'cp', '-r', "$src/.", $dest );
-    log_event( 'WARN', $action, 'theme asset mirror failed',
-        layout => $layout, theme => $theme, rc => ( $rc >> 8 ) )
-        if $rc != 0;
-    return;
+    if ( $rc != 0 ) {
+        log_event( 'WARN', $action, 'theme asset mirror failed',
+            layout => $layout, theme => $theme, rc => ( $rc >> 8 ) );
+        return { mirrored => 0, dest => $dest, expected => $src,
+            reason => 'the copy into the web asset mirror failed' };
+    }
+
+    # Count what is actually THERE now, rather than what we believed we copied.
+    # A count of intentions is the thing this filing exists to stop.
+    my $n = 0;
+    File::Find::find(
+        { no_chdir => 1, wanted => sub { $n++ if -f $File::Find::name } },
+        $dest ) if -d $dest;
+
+    return { mirrored => $n, dest => $dest, expected => $src };
 }
 
 sub _validate_theme_dir {
