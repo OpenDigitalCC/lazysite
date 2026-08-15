@@ -67,8 +67,26 @@
 #
 #   STAGE_DIR     the unpacked release (default: this script's release root).
 #
+# SM317: every run ends with an OUTSIDE-IN ACL probe per site - it gates a probe
+# folder, fetches it anonymously over https, and reports whether the FRONT END
+# honoured the rule. Set DO_ACL_PROBE=0 to skip it.
+#
+# This is on by default because the tool existed and nothing ran it. The engine's
+# report and the front end's behaviour are different claims, and they have now
+# disagreed three times: SM283 for weeks across a live fleet, SM296's crash
+# leaving the same state, and SM313's repair that looked complete. Measured on
+# edge after a successful docroot repair, eight of ten extensions still served
+# 200 anonymously from a folder with an active read list.
+#
+# It belongs here rather than in the release gate: the gate runs offline against
+# a clean checkout of a tag, so there is no deployed site to fetch. The question
+# is a property of a SITE, not of a build.
+#
 # A per-site failure is reported and the run continues; the exit status is
-# non-zero if any site failed.
+# non-zero if any site failed, if a proxy move failed, or if the probe found
+# content served anonymously despite an ACL. The probe never aborts the rollout
+# midway - leaving a fleet on mixed versions is worse than the condition it
+# reports.
 set -u
 shopt -s nullglob
 
@@ -364,6 +382,63 @@ if [ -f "$CHK" ]; then
     fi
 fi
 
+# --- outside-in ACL probe: does the FRONT END respect the rule? --------------
+#
+# SM317. The recurring shape, now three times over: a rule can be stored,
+# honoured by the engine, reported as applied, and contribute NOTHING to what an
+# anonymous request receives. SM283 was that for weeks across a live fleet;
+# SM296 was the crash that produced the same state; SM313 was the repair that
+# looked complete and left it live. Measured on edge as recently as today, after
+# a successful docroot repair: eight of ten probed extensions served 200
+# anonymously from a folder with an active read list.
+#
+# SM285 built `lazysite check --check-acl URL` for exactly this, and it has never
+# been part of what a deploy verifies. The tool existed; failing it stopped
+# nothing. That is the whole finding.
+#
+# IT BELONGS HERE RATHER THAN IN THE RELEASE GATE. The gate runs offline against
+# a clean checkout of a tag - there is no deployed site to fetch, so the question
+# it answers cannot be asked there. It is a property of a SITE, not of a build.
+#
+# It does NOT abort the deploy: aborting a fleet rollout midway leaves sites on
+# mixed versions, which is worse than the condition being reported. It reports
+# loudly and sets the exit status, so an automated caller sees it.
+if [ "${DO_ACL_PROBE:-1}" = 1 ] && [ -f "$CHK" ]; then
+    echo
+    echo "==> outside-in ACL probe (does the front end honour the rule?)"
+    probe_bad=()
+    for i in "${!DOMAINS[@]}"; do
+        d="${DOMAINS[$i]}"; u="${USERS[$i]}"
+        doc="/home/$u/web/$d/public_html"
+        [ -d "$doc" ] || continue
+        in_list "$d" "${SKIPPED[@]}" && continue
+        in_list "$d" "${FAILED[@]}"  && continue
+
+        # As the site user: the probe writes a folder into the docroot and
+        # removes it again, and root-owned leftovers in a tree the CGI must
+        # write are the SM139 mistake this project has made before.
+        out="$(sudo -u "$u" perl "$CHK" --docroot "$doc" \
+                 --check-acl "https://$d/" 2>&1)"
+        if printf '%s' "$out" | grep -qE '\[ FAIL \]'; then
+            probe_bad+=( "$d" )
+            echo "  $d:"
+            printf '%s\n' "$out" | grep -E '\[ (warn|FAIL) \]' \
+                | sed 's/^[[:space:]]*/    /'
+        else
+            echo "  $d: front end honours the rule"
+        fi
+    done
+
+    if [ "${#probe_bad[@]}" -gt 0 ]; then
+        printf '\n  SERVED ANONYMOUSLY DESPITE AN ACL: %s\n' "${probe_bad[*]}"
+        echo "  Protected content on these sites is reachable without signing in."
+        echo "  The engine reports the rule as applied; the front end serves the"
+        echo "  files anyway, which is SM283. Check the private store exists"
+        echo "  (lazysite check --fix) and re-run the sweep with --reapply-acls."
+        ACL_PROBE_RC=1
+    fi
+fi
+
 # --- final summary: every site, the version it is on NOW, and its channel ------
 chan_of() {   # update_channel from a lazysite.conf, default 'all'
     perl -ne 'if(/^\s*update_channel\s*:\s*(\S+)/){print lc $1; exit}' "$1" 2>/dev/null
@@ -405,4 +480,8 @@ fi
 
 [ "${#FAILED[@]}" -gt 0 ] && exit 1
 [ "${#PROXY_FAILED[@]}" -gt 0 ] && exit 1
+# SM317: an exposure the outside-in probe found is a non-zero exit too. A fleet
+# caller that only looks at $? must see it; until now the only way to learn about
+# one was to read the log.
+[ "${ACL_PROBE_RC:-0}" != 0 ] && exit 1
 exit 0
