@@ -36,6 +36,7 @@ use File::Path     qw(remove_tree);
 use File::Basename qw(dirname basename);
 use File::Copy     qw(copy);
 use Cwd            qw(realpath);
+use Errno          qw(EXDEV);
 use Exporter 'import';
 
 our @EXPORT_OK = qw(private_root private_path resolve resolve_for_write
@@ -226,14 +227,77 @@ sub _within {
     return ( $rabs eq $rroot || index( $rabs, "$rroot/" ) == 0 ) ? 1 : 0;
 }
 
+# SM307: say why the rename failed, having checked.
+#
+# This reported one of two causes and determined NEITHER. On the host where it
+# was found both were wrong, and the correct diagnosis was available two layers
+# away in the same codebase - the WebDAV layer, on the same docroot, minutes
+# apart, said "the target directory is not writable by the server. This is a
+# server configuration fault, rather than a permission decision about your
+# request - the operator must fix the directory permissions", which was exactly
+# right. The ACL path said "cannot move a folder across filesystems".
+#
+# The old comment was honest about the uncertainty - "Cross-device, or a rename
+# the filesystem refused" - and the message below it dropped the second half and
+# stated the first as fact. rename() sets $!, so the distinction the comment
+# already drew was one branch away from being made.
+#
+# The wrong diagnosis is expensive: mount layout is not something an operator
+# changes casually, and on the Hestia layout the store sits in the domain folder
+# beside public_html, which looks like somewhere a separate mount could
+# plausibly be. The suggested cause is credible enough to be investigated, and
+# the real fix was a chown.
+#
+# Worse, it CONTRADICTED a check that shipped alongside it: SM296 added a
+# `lazysite check` report on whether the store exists, is writable, or could be
+# created, naming the directory, its owner and its mode. On a host where the
+# docroot is not writable that check answers correctly while this blamed the
+# filesystem layout - two parts of one release giving an operator different
+# accounts of one fault, and the wrong one returned at the moment they act.
+#
+# Both directions share this so a single condition cannot be described two ways
+# depending on which way the content was going.
+sub _move_failure {
+    my ( $src, $dst, $is_dir ) = @_;
+    my $errno = $!;
+
+    # A genuine cross-device move of a DIRECTORY is the one case the original
+    # message described correctly. Name both locations, because the operator's
+    # next question is which two filesystems.
+    if ( $errno == EXDEV && $is_dir ) {
+        return "cannot move a folder across filesystems: \"$src\" and \"$dst\" "
+            . 'are on different mounts, and moving a folder between them '
+            . 'cannot be done in one atomic step. Protecting a section refuses '
+            . 'rather than copy-then-delete, because a partial copy would leave '
+            . 'half a section public.';
+    }
+
+    # Everything else. Borrow the shape of the WebDAV wording, which separates a
+    # server configuration fault from a decision about the request - the ACL
+    # path has MORE need of that distinction, because its failure leaves content
+    # served while the rule reads as applied.
+    return "could not move \"$src\" into place: $errno. This is a server "
+        . 'configuration fault rather than a permission decision about your '
+        . 'request - `lazysite check` reports the private store\'s directory, '
+        . 'owner and mode, and `lazysite check --fix` repairs a docroot that '
+        . 'came back from a control-panel rebuild without group write.';
+}
+
 # Move public -> private. Returns ( $ok, $error ).
 #
 # rename() is atomic within a filesystem and moves a whole directory in one
 # step, which is what makes protecting a section safe: there is no window in
 # which half a section is public. Across filesystems it fails with EXDEV, and
-# the fallback copies, VERIFIES, and only then removes the original - so an
-# interrupted copy leaves the content public and reports failure, rather than
-# leaving it half-moved and unreadable.
+# for a FILE the fallback copies, VERIFIES, and only then removes the original -
+# so an interrupted copy leaves the content public and reports failure, rather
+# than leaving it half-moved and unreadable.
+#
+# SM307: THE FALLBACK COVERS FILES ONLY. A directory stops at the -d guard below
+# and is refused, deliberately - a recursive copy-then-delete would reintroduce
+# exactly the window that rename() exists to close, on the operation whose whole
+# purpose is to close it. Since a folder ACL is the normal way to protect a
+# section, the fallback is unreachable in the common case, and the comment above
+# used to describe it as though it were general.
 sub move_in {
     my ( $docroot, $rel ) = @_;
     $rel = '' unless defined $rel;
@@ -248,7 +312,19 @@ sub move_in {
 
     my $parent = dirname($dst);
     _mkpath($parent);
-    return ( 0, 'cannot create the private store' ) unless -d $parent;
+
+    # SM307: whatever the store cannot do, a file and a folder describe it the
+    # same way. This branch is where a SINGLE FILE failed on the host that
+    # prompted the filing, producing "cannot create the private store" for the
+    # very condition a folder reported as a cross-filesystem move - one fault,
+    # two messages, neither naming the cause.
+    return ( 0, "cannot create the private store at \"$parent\": $!. This is a "
+            . 'server configuration fault rather than a permission decision '
+            . 'about your request - `lazysite check` reports the store\'s '
+            . 'directory, owner and mode, and `lazysite check --fix` repairs a '
+            . 'docroot that came back from a control-panel rebuild without '
+            . 'group write.' )
+        unless -d $parent;
     return ( 0, 'refusing a path outside the private store' )
         unless _within( private_root($docroot), $dst );
 
@@ -259,9 +335,8 @@ sub move_in {
 
     return ( 1, undef ) if rename $src, $dst;
 
-    # Cross-device, or a rename the filesystem refused.
-    return ( 0, 'cannot move a folder across filesystems' ) if -d $src;
-    return ( 0, "copy failed: $!" ) unless copy( $src, $dst );
+    return ( 0, _move_failure( $src, $dst, 1 ) ) if -d $src;
+    return ( 0, _move_failure( $src, $dst, 0 ) ) unless copy( $src, $dst );
     unless ( -s $dst == -s $src ) {
         unlink $dst;
         return ( 0, 'the copy did not match the original; nothing was moved' );
@@ -290,9 +365,13 @@ sub move_out {
     return ( 0, 'refusing a path outside the docroot' )
         unless _within( $docroot, $dst );
 
-    return ( 1, undef )                                     if rename $src, $dst;
-    return ( 0, 'cannot move a folder across filesystems' ) if -d $src;
-    return ( 0, "copy failed: $!" ) unless copy( $src, $dst );
+    return ( 1, undef ) if rename $src, $dst;
+
+    # SM307: the same reporter as move_in. Un-protecting used to misreport the
+    # identical condition in the identical way, so an operator hitting one fault
+    # from two directions got two different accounts of it.
+    return ( 0, _move_failure( $src, $dst, 1 ) ) if -d $src;
+    return ( 0, _move_failure( $src, $dst, 0 ) ) unless copy( $src, $dst );
     unless ( -s $dst == -s $src ) {
         unlink $dst;
         return ( 0, 'the copy did not match the original; nothing was moved' );
