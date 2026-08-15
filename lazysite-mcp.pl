@@ -813,7 +813,7 @@ my %TOOLS = (
         run => sub { action_layouts_manifest() },
     },
     install_layout => {
-        description => 'Install a layout and its theme(s) from the repo on demand, then activate it. By default installs the layout default_theme; pass theme for a specific one, or all:true for every theme. Mirrors assets and clears the cache. Use list_layout_catalogue first to see names. To SWITCH the site to a different layout this one tool is the whole switch (install + activate in one step); only delete the old layout AFTERWARDS if it is no longer wanted - deleting the active layout is always refused, so never delete first.',
+        description => 'Install a layout and its theme(s) from the repo on demand. Installing does NOT activate: the layout is placed on the site and nothing visitors see changes until you call activate_layout (SM176 - activating is the part that changes the live site, so it is always asked for explicitly). By default installs the layout default_theme; pass theme for a specific one, or all:true for every theme. Mirrors assets and clears the cache. Use list_layout_catalogue first to see names. To SWITCH the site to a different layout: install_layout, then activate_layout, then delete the old one if it is no longer wanted - deleting the ACTIVE layout is always refused, so never delete first.',
         cap         => 'manage_layouts',
         inputSchema => { type => 'object',
             properties => {
@@ -821,7 +821,7 @@ my %TOOLS = (
                 theme => { type => 'string', description => 'optional specific theme; default is the layout default_theme' },
                 all => { type => 'boolean', description => 'install every theme for the layout' },
                 update => { type => 'boolean', description => 'overwrite an already-installed layout (e.g. to push a layout fix); the old one is snapshotted, its themes/ kept' },
-                activate => { type => 'boolean', description => 'activate after install (default true)' },
+                activate => { type => 'boolean', description => 'activate after install (default false)' },
             },
             required => ['layout'], additionalProperties => JSON::PP::false },
         run => sub {
@@ -835,7 +835,7 @@ my %TOOLS = (
         },
     },
     delete_layout => {
-        description => 'Delete an installed layout AND its themes. Refuses the ACTIVE layout - when switching layouts, install/activate the replacement first (install_layout does both), then delete the old one. A recovery snapshot is kept and the web asset mirror is cleared.',
+        description => 'Delete an installed layout AND its themes. Refuses the ACTIVE layout - when switching layouts, install the replacement with install_layout, activate it with activate_layout, and only then delete the old one. A recovery snapshot is kept and the web asset mirror is cleared.',
         cap         => 'manage_layouts',
         inputSchema => { type => 'object',
             properties => { layout => { type => 'string' } },
