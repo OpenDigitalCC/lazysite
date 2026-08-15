@@ -53,12 +53,72 @@ On-disk example:
           main.css
           assets/
 
+## The `<head>` contract
+
+**A layout must render `<title>` from `page_meta_title` and its description from
+`page_meta_desc`.** Both are always set, so there is no fallback to write.
+
+An author sets `meta_title` or `meta_desc` in a page's front matter to control
+what search engines and social cards show, separately from the heading on the
+page. The engine resolves them before your layout runs:
+
+```
+page_meta_title  =  meta_title  //  title
+page_meta_desc   =  meta_desc   //  subtitle
+```
+
+So a page that sets neither behaves exactly as it always has, and a page that
+sets either gets what it asked for. You do not need to write the `//` yourself,
+and you should not: the resolution order is the engine's to own, and a layout
+that reimplements it will drift from the registries, which use the same
+resolved values for `sitemap.xml`, `llms.txt` and the feeds.
+
+### Why getting this wrong is silent
+
+The engine injects a description tag **only when the rendered HTML has none**.
+That is deliberate - a layout that writes its own `<head>` is trusted to mean
+it, and the engine will not fight it. The consequence is that a layout doing
+this:
+
+<!-- lint-48: counter-example follows. This block shows what NOT to write; the
+     check that keeps the other examples correct skips between these markers. -->
+
+```
+<title>[% page_title %]</title>
+<meta name="description" content="[% page_subtitle | html %]">
+```
+
+<!-- lint-48: end counter-example -->
+
+wins, quietly. The page's `meta_desc` is discarded with no warning, and
+`meta_title` is never consulted at all. The site's own `llms.txt` will then
+advertise the page with one description while the page serves another, and
+nothing reports the disagreement.
+
+This is not hypothetical. It is how every layout in the catalogue was written,
+because the example in this briefing showed it that way, and it is why
+`meta_title` had no observable effect on any real site for a full release after
+it was implemented (SM300, SM308). The example below is now correct; if you are
+reading an older layout as a model, check its `<head>` before copying it.
+
+### Deprecated in `<head>`
+
+`page_title` and `page_subtitle` remain correct **in the body** - they are the
+heading and standfirst, and that is what they are for. In `<head>` they are the
+wrong variables. A layout using them there is not broken today, since the two
+resolve identically on a page that sets no meta front matter; it simply ignores
+the author whenever they ask for something different.
+
 ## TT variables in layout.tt
 
 Always available:
 
 - `content` - rendered HTML page body
 - `page_title`, `page_subtitle` - front-matter values
+- `page_meta_title`, `page_meta_desc` - **what belongs in `<title>` and
+  `<meta name="description">`**. Use these, not `page_title` and
+  `page_subtitle`, for the two `<head>` tags. See "The `<head>` contract"
+  below - getting this wrong is silent.
 - `site_name` - from `lazysite.conf`
 - `nav` - array parsed from `nav.conf`
 - `request_uri` - current URL path
@@ -160,7 +220,8 @@ need to duplicate CSS structure.
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>[% page_title %][% IF site_name %] - [% site_name %][% END %]</title>
+      <title>[% page_meta_title %][% IF site_name %] - [% site_name %][% END %]</title>
+      [% IF page_meta_desc %]<meta name="description" content="[% page_meta_desc | html %]">[% END %]
       [% theme_css %]
       [% IF theme_assets %]
       <link rel="stylesheet" href="[% theme_assets %]/main.css">

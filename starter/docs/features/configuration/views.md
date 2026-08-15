@@ -47,7 +47,7 @@ All variables from `lazysite.conf`, plus:
     <!DOCTYPE html>
     <html lang="en">
     <head>
-      <title>[% page_title %] - [% site_name %]</title>
+      <title>[% page_meta_title %] - [% site_name %]</title>
     </head>
     <body>
       <h1>[% page_title %]</h1>
