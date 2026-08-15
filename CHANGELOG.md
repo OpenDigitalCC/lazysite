@@ -28,6 +28,80 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
+## 0.10.10 - EDGE: five ways to name a person, and a rule you could not read back (2026-08-15)
+
+Field-test follow-ups from the 0.10.9 pass on edge, plus one defect found while
+proving another fix had not broken anything. Nothing here changes a rule or a
+stored format; the risk profile is deliberately low.
+
+**No operator action is required.** The 0.10.9 sweep and the docroot repair it
+depends on are still outstanding wherever they have not been run - see 0.10.9
+below and `UPGRADE.md`. What changes here is that the rollout now repairs a
+non-writable docroot itself rather than only reporting it.
+
+- SM305 (92248da) one way to name a principal, on every manager surface. Five
+  different controls had grown for one job: a real `<select>` on the per-file
+  card, a bare text box on the section sheet, and `<input list=...>` datalists
+  on Groups, Users and Domains. The strictness ran backwards - the loosest of
+  them, offering no suggestions and validating nothing, governed who may READ
+  protected content, where a mistyped name granted the section to nobody and
+  reported success. On Domains the same typo left a domain nobody could manage.
+  All five now use one shared `<select>`, built from one source, because a
+  `<select>` cannot express a principal that does not exist. A datalist is not
+  sufficient: it suggests known names and still accepts anything typed over it,
+  so it looks constrained and is not. Server-side validation is unchanged and
+  still authoritative.
+- SM310 (290598f) a site-wide rule was enforced, listed, and unreadable. SM287
+  taught both ACL writers and the sections panel that `/` means the whole site
+  and left `action_acl_get` behind, so asking what rule governs the site root
+  answered `acl: null` while the rule was in force on every request. Bounded:
+  the rule was enforced correctly and remained removable, and the sections panel
+  was right throughout - which is why nobody noticed. Found by a control subtest
+  written to prove the SM306 fix had not broken site-wide rules.
+- SM306 (324eae6) `acl-set` with no path took the whole site private. The
+  control API derives its target once for every action, defaulting to `/` - right
+  for `list`, harmless for `acl-get` and `acl-remove`, and inherited by the one
+  action that can take a site off the air. Inert before SM287; hazardous since.
+  An explicit path is now required, and a `path` key in the JSON body is refused
+  by name rather than discarded in silence. `acl-remove` keeps its default: its
+  direction of failure is recovery, and a safety change must not make a site
+  harder to rescue than to break. The same operation over MCP always required a
+  path.
+- SM307 (ef33bf5) the private-store move named a cause it never checked. It
+  reported "cannot move a folder across filesystems" for any failed `rename` on
+  a directory, without consulting `$!` - so a permissions fault sent an operator
+  to inspect mounts when the fix was a `chown`, and contradicted the `lazysite
+  check` report that shipped beside it in 0.10.9. Both directions now share one
+  reporter: a genuine cross-device directory move still refuses (a recursive
+  copy would reopen the window `rename` exists to close) and names both ends;
+  anything else says what `$!` says and points at the check that diagnoses it.
+- SM309 (5df72e9) front-door mode is a yes/no value, and `lazysite check` says
+  which it is. `FRONT_DOOR=false` switched it ON - any non-empty value except
+  `0` did - and nothing anywhere reported whether the mode was active, since the
+  only observable lives in a proxy template that is not installed where it
+  matters. The pool now accepts `1`/`true`/`yes`/`on` and `0`/`false`/`no`/`off`
+  and refuses anything else by name, checked before it creates anything; and
+  `lazysite check` reports ON, OFF or a bad value, read from the pool conf and
+  matched on DOCROOT rather than the instance name.
+- SM308 (032c590) the `<head>` contract, stated. `meta_title` and `meta_desc`
+  shipped in 0.10.9 and reach no real page: all 23 catalogue layouts write their
+  own `<title>` and description, none consult the resolved values, and 22 derive
+  the description from `page_subtitle`. The engine is right - it defers to a
+  layout that writes its own head - and the layouts are not at fault, because
+  the worked example in this project's own briefing showed it that way. The
+  briefing now carries the contract and `t/lint/48` stops the examples teaching
+  otherwise. **The 23 layouts are a separate repository and are NOT fixed by
+  this release**; until they are, both fields remain inert.
+- Rollout (ebc3303) the health summary repairs what it finds, then checks again.
+  SM270 recurred on edge three releases after the ordering fix, because a vhost
+  rebuild driven through the control panel never reaches the update script. A
+  non-writable docroot is not cosmetic: the private store is its sibling, so
+  `acl reapply` fails on every folder and protected content stays served. The
+  summary now runs `--fix` and re-checks, printing the outcome rather than the
+  action; anything still dirty is named under NEEDS A HUMAN.
+- Two new lints (47, 48) and three new test files, each shown to fail on the
+  unfixed tree before being trusted.
+
 ## 0.10.9 - EDGE: the sweep that finishes the 0.10.8 move (2026-08-14)
 
 **Operator action is required, and no package upgrade performs it.** From
