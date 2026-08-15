@@ -44,7 +44,9 @@ identity in both domains; only <em>where</em> it is granted differs.
 <label>Groups</label>
 <div style="flex:1">
 <div class="mg-tokens" id="new-group-tokens"></div>
-<div class="mg-tokens-pick"><input list="new-group-datalist" id="new-group-input" class="mg-inp" placeholder="add a group&hellip;" style="max-width:14rem" onkeydown="if(event.key==='Enter'){addNewUserGroupFromInput();event.preventDefault();}"><datalist id="new-group-datalist"></datalist> <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="addNewUserGroupFromInput()">Add</button></div>
+<!-- SM305: a select, like every other place a principal is named. The options
+     are filled by renderNewUserGroups() once the group list has loaded. -->
+<div class="mg-tokens-pick"><select id="new-group-input" class="mg-inp mg-principal-pick" style="max-width:14rem"><option value="">add a group&hellip;</option></select> <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="addNewUserGroupFromInput()">Add</button></div>
 </div>
 </div>
 <div class="mg-form-row">
@@ -1291,7 +1293,7 @@ var newUserGroups = [];
 function populateAddUserGroups() { renderNewUserGroups(); }
 function renderNewUserGroups() {
   var toks = document.getElementById('new-group-tokens');
-  var dl   = document.getElementById('new-group-datalist');
+  var dl   = document.getElementById('new-group-input');
   if (!toks) return;
   toks.innerHTML = newUserGroups.length
     ? newUserGroups.map(function(g) {
@@ -1299,9 +1301,13 @@ function renderNewUserGroups() {
           '<button type="button" class="mg-token-x" title="Remove ' + escHtml(g) + '" onclick="removeNewUserGroup(\'' + escHtml(g) + '\')">&times;</button></span>';
       }).join('')
     : '<span class="mg-tokens-empty">No groups selected (optional).</span>';
+  // SM305: the picker is a <select> now, so it carries a placeholder option and
+  // its options are the groups NOT already staged - the same filter as before,
+  // rendered into the control the rest of the manager uses.
   if (dl) {
     var avail = Object.keys(allGroups).sort().filter(function(g) { return newUserGroups.indexOf(g) === -1; });
-    dl.innerHTML = avail.map(function(g) { return '<option value="' + escHtml(g) + '">'; }).join('');
+    dl.innerHTML = '<option value="">add a group&hellip;</option>'
+      + avail.map(function(g) { return '<option value="' + escHtml(g) + '">' + escHtml(g) + '</option>'; }).join('');
   }
 }
 function addNewUserGroup(g) { if (g && allGroups[g] && newUserGroups.indexOf(g) === -1) { newUserGroups.push(g); renderNewUserGroups(); } }

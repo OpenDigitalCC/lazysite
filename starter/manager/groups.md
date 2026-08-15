@@ -27,7 +27,6 @@ the <a href="/manager/users">Users</a> page. Access to this Manager UI is the
 <button class="mg-btn mg-btn-primary" onclick="createGroup()">Add group</button>
 </div>
 </div>
-<datalist id="all-users-list"></datalist>
 
 <script>
 var API = '/cgi-bin/lazysite-manager-api.pl';
@@ -107,8 +106,9 @@ function loadGroups() {
     allUsers  = res[1] || [];
     channelServices = res[2] || {};
     recentChanges = res[3] || {};
-    var dl = document.getElementById('all-users-list');
-    if (dl) dl.innerHTML = allUsers.map(function(u){ return '<option value="' + escHtml(u) + '">'; }).join('');
+    // SM305: feed the shared picker. Groups are named plainly here (a nested
+    // group is a member like any other), so renderGroups passes groupPrefix: ''.
+    if (window.mgSetPrincipals) mgSetPrincipals(allUsers, Object.keys(allGroups));
     renderGroups();
   }).catch(function(e) { showStatus('Failed to load groups: ' + e.message, true); });
 }
@@ -218,7 +218,20 @@ function renderGroups() {
     h += '<div class="mg-sec">Members</div>';
     h += '<div id="ginert-' + ge + '">' + inertWarnHtml(g) + '</div>';
     h += '<div class="mg-tokens" id="gm-' + ge + '">' + memberPillsHtml(members, ge) + '</div>';
-    h += '<div class="mg-tokens-pick"><input list="all-users-list" id="add-' + ge + '" class="mg-inp" placeholder="add a user or group&hellip;" style="max-width:14rem" onkeydown="if(event.key===\'Enter\'){addMember(\'' + ge + '\');event.preventDefault();}">' +
+    // SM305: a real <select>, not a datalist. The datalist suggested known names
+    // and still accepted anything typed over it, so a typo created a membership
+    // referring to nobody. A group cannot contain itself, so it is excluded from
+    // its own list.
+    //
+    // No onchange here, deliberately: selecting a name POSTS on this page, and a
+    // select fires change while a keyboard user arrows through the options. The
+    // Add button stays as the commit, so choosing a name and committing it are
+    // separate acts - which is also what the Files picker does, where the
+    // equivalent onchange only adds a chip and nothing is written until Save.
+    h += '<div class="mg-tokens-pick">' +
+         mgPrincipalSelect({ id: 'add-' + ge, groupPrefix: '', exclude: g,
+                             placeholder: 'add a user or group…',
+                             style: 'max-width:14rem' }) +
          ' <button class="mg-btn mg-btn-sm mg-btn-primary" onclick="addMember(\'' + ge + '\')">Add</button>' +
          '<span style="flex:1;"></span>' +
          '<span id="gd-' + ge + '">' + deleteControlHtml(members, ge) + '</span>' +
@@ -301,7 +314,7 @@ function refreshGroupMembers(group) {
 function addMember(group) {
   var inp = document.getElementById('add-' + group);
   var name = (inp && inp.value || '').trim();
-  if (!name) { showStatus('Type a user or group to add.', true); return; }
+  if (!name) { showStatus('Choose a user or group to add.', true); return; }
   // SM121: adding a known GROUP nests it (its members inherit this group's
   // access); anything else is added as a user.
   var isGroup = Object.prototype.hasOwnProperty.call(allGroups, name) && name !== group;

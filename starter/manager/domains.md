@@ -59,9 +59,6 @@ routing are configured so the domain reaches this instance.
   </div>
 </div>
 
-[%# SM165: shared principal datalists backing the domain access token pickers. %]
-<datalist id="dom-groups-list"></datalist>
-<datalist id="dom-users-list"></datalist>
 
 <div id="domain-preview-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
   <div style="background:#fff;width:92%;max-width:1100px;height:86%;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;">
@@ -209,10 +206,10 @@ var EDIT_OPTIONS = {
 };
 
 // SM165 access fields are lists of existing principals, edited with the SAME
-// token-picker widget the Groups and Users pages use - a datalist-backed input +
-// Add button, with removable pills - so the group/user UI is consistent
-// everywhere. allowed_groups picks from the site's groups; locked_users from its
-// accounts. PRINCIPALS feeds the two shared datalists.
+// token-picker widget the Groups and Users pages use - the shared principal
+// <select> (SM305) + Add button, with removable pills - so the group/user UI is
+// consistent everywhere. allowed_groups picks from the site's groups;
+// locked_users from its accounts. PRINCIPALS feeds the shared picker.
 var PICK_KEYS = { allowed_groups: 'groups', locked_users: 'users' };
 var PRINCIPALS = { users: [], groups: [] };
 function loadPrincipals() {
@@ -222,32 +219,33 @@ function loadPrincipals() {
       if (d && d.ok) {
         PRINCIPALS.users = d.users || [];
         PRINCIPALS.groups = d.groups || [];
-        fillDatalist('dom-groups-list', PRINCIPALS.groups);
-        fillDatalist('dom-users-list', PRINCIPALS.users);
+        // SM305: one source for every picker on the page.
+        if (window.mgSetPrincipals) mgSetPrincipals(PRINCIPALS.users, PRINCIPALS.groups);
       }
     })
     .catch(function () {});
-}
-function fillDatalist(id, items) {
-  var dl = document.getElementById(id);
-  if (dl) dl.innerHTML = (items || []).map(function (v) { return '<option value="' + esc(v) + '">'; }).join('');
 }
 function tokenPill(v) {
   return '<span class="mg-token" data-val="' + esc(v) + '">' + esc(v)
     + '<button type="button" class="mg-token-x" title="Remove ' + esc(v) + '" onclick="this.parentNode.remove()">&times;</button></span>';
 }
-// The token picker for one access key: current members as removable pills + a
-// datalist-backed input and Add button. The .mg-tokens container is id
+// The token picker for one access key: current members as removable pills + the
+// shared principal <select> and an Add button. The .mg-tokens container is id
 // e-<host>-<key>, so saveDomain reads the chosen values from its pills.
 function tokenPicker(host, k, currentCsv) {
   var chosen = (currentCsv || '').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
-  var listId = PICK_KEYS[k] === 'groups' ? 'dom-groups-list' : 'dom-users-list';
-  var noun = PICK_KEYS[k] === 'groups' ? 'a group' : 'a user';
+  var kind = PICK_KEYS[k] === 'groups' ? 'groups' : 'users';
+  var noun = kind === 'groups' ? 'a group' : 'a user';
   var pills = chosen.length ? chosen.map(tokenPill).join('') : '<span class="mg-tokens-empty">None yet.</span>';
+  // SM305: the shared <select>, not a datalist-backed input. A typo here is
+  // costly in a way the Groups page's is not - a misspelt name in
+  // allowed_groups leaves a domain that nobody can manage, and the control
+  // accepted anything typed while looking as though it did not.
   return '<div class="mg-tokens" id="e-' + esc(host) + '-' + esc(k) + '">' + pills + '</div>'
     + '<div class="mg-tokens-pick">'
-    + '<input list="' + listId + '" class="mg-inp" style="max-width:14rem" placeholder="add ' + noun + '&hellip;"'
-    + ' onkeydown="if(event.key===\'Enter\'){addToken(this);event.preventDefault();}">'
+    + mgPrincipalSelect({ only: kind, groupPrefix: '',
+                          placeholder: 'add ' + noun + '…',
+                          style: 'max-width:14rem' })
     + ' <button type="button" class="mg-btn mg-btn-sm mg-btn-primary" onclick="addToken(this.previousElementSibling)">Add</button></div>';
 }
 function addToken(input) {

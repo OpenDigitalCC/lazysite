@@ -277,6 +277,83 @@
     });
     load();
   })();
+
+  // SM305: ONE way to name a principal, shared by every page that names one.
+  //
+  // Three pages grew three different controls for the same job: a real <select>
+  // on Users, an <input list="..."> datalist on Groups, and a bare text box on
+  // the Files section sheet. The strictness ran backwards - the loosest control,
+  // which offered no suggestions and validated nothing, was the one governing
+  // who may READ protected content, where a typo means the wrong people can see
+  // it and nothing says so. Naming a person is one piece of functionality, so it
+  // gets one control.
+  //
+  // A <select> is the choice because it cannot express a principal that does not
+  // exist. A datalist suggests and still accepts anything typed over it, which
+  // is the failure mode that matters here.
+  //
+  // Pages call mgSetPrincipals() once when their user/group lists load, then
+  // mgPrincipalSelect() wherever a name is needed. Nothing here talks to the
+  // API: the server re-validates every principal on write regardless, and this
+  // is the affordance, not the enforcement.
+  (function(){
+    var USERS = [], GROUPS = [];
+
+    window.mgSetPrincipals = function(users, groups) {
+      USERS  = (users  || []).slice();
+      GROUPS = (groups || []).slice();
+    };
+
+    function esc(s) {
+      return String(s === null || s === undefined ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // The option list. `prefix` is the marker a page uses to distinguish a group
+    // from a user in a single namespace - '@' on Files, '' on Groups, where a
+    // nested group is named plainly. Sorted as one list rather than users-then-
+    // groups, so a name is where the reader expects it alphabetically.
+    // `only` narrows to one kind where a field accepts only one - Domains names
+    // groups in allowed_groups and users in locked_users, and offering the wrong
+    // kind there would suggest a choice the field cannot store.
+    window.mgPrincipalOptions = function(opts) {
+      opts = opts || {};
+      var prefix = opts.groupPrefix === undefined ? '@' : opts.groupPrefix;
+      var all = opts.only === 'groups' ? [] : USERS.slice();
+      if (opts.only !== 'users') GROUPS.forEach(function(g) {
+        if (opts.exclude && g === opts.exclude) return;   // a group cannot contain itself
+        all.push(prefix + g);
+      });
+      if (opts.extra) opts.extra.forEach(function(e) { if (all.indexOf(e) < 0) all.push(e); });
+      return all.sort().map(function(k) {
+        var sel = (opts.selected && k === opts.selected) ? ' selected' : '';
+        return '<option value="' + esc(k) + '"' + sel + '>' + esc(k) + '</option>';
+      }).join('');
+    };
+
+    // A complete picker. `placeholder` is the empty first option, which doubles
+    // as the control's label when it sits alone.
+    window.mgPrincipalSelect = function(opts) {
+      opts = opts || {};
+      return '<select class="mg-inp mg-principal-pick' + (opts.cls ? ' ' + opts.cls : '') + '"'
+        + (opts.id ? ' id="' + esc(opts.id) + '"' : '')
+        + (opts.onchange ? ' onchange="' + esc(opts.onchange) + '"' : '')
+        + (opts.style ? ' style="' + esc(opts.style) + '"' : '')
+        + '>'
+        + '<option value="">' + esc(opts.placeholder || '+ add person or @group…') + '</option>'
+        + window.mgPrincipalOptions(opts)
+        + '</select>';
+    };
+
+    // Whether a name is one the site actually knows. Pages that still accept a
+    // typed name use this to refuse a stranger rather than storing it.
+    window.mgIsPrincipal = function(name) {
+      if (!name) return false;
+      if (name.charAt(0) === '@') return GROUPS.indexOf(name.slice(1)) >= 0;
+      return USERS.indexOf(name) >= 0 || GROUPS.indexOf(name) >= 0;
+    };
+  })();
   </script>
 </head>
 <body class="mg-body">

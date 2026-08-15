@@ -139,7 +139,13 @@ function showStatus(msg, isError) {
 function loadPrincipals() {
   return fetch(API + '?action=principals')
     .then(function(r) { return r.json(); })
-    .then(function(d) { if (d && d.ok) PRINCIPALS = { users: d.users || [], groups: d.groups || [] }; })
+    .then(function(d) {
+      if (!d || !d.ok) return;
+      PRINCIPALS = { users: d.users || [], groups: d.groups || [] };
+      // SM305: hand the same lists to the shared picker, so every control on
+      // this page that names a principal is built from one source.
+      if (window.mgSetPrincipals) mgSetPrincipals(PRINCIPALS.users, PRINCIPALS.groups);
+    })
     .catch(function() { /* pickers fall back to the file's current entries */ });
 }
 
@@ -278,13 +284,11 @@ function lockGlyph(f) {
 }
 
 // The "+ add" dropdown: every known principal (users + @groups).
+// SM305: one implementation, in the shared layout script. Kept as a named
+// wrapper because the per-file card builds its markup as a string and reads
+// better for it.
 function addOptions() {
-  var all = [];
-  (PRINCIPALS.users  || []).forEach(function(u) { all.push(u); });
-  (PRINCIPALS.groups || []).forEach(function(g) { all.push('@' + g); });
-  return all.sort().map(function(k) {
-    return '<option value="' + escHtml(k) + '">' + escHtml(k) + '</option>';
-  }).join('');
+  return window.mgPrincipalOptions ? mgPrincipalOptions({ groupPrefix: '@' }) : '';
 }
 
 // One principal chip with r / w rights toggles and a remove control.
@@ -324,6 +328,37 @@ function addPrincipal(sel) {
   var existing = rights.querySelector('.mg-chip[data-name="' + name.replace(/"/g, '\\"') + '"]');
   if (!existing) rights.insertAdjacentHTML('beforeend', chipHtml(name, 1, 0));
   sel.value = '';
+}
+
+// SM305: the section sheet's variant. Same picker, same chips, but no r/w
+// toggles - "Protect this section" grants read and write together (it posts one
+// list as both), so offering per-right toggles here would show a distinction
+// the action does not make.
+function nameChipHtml(name) {
+  return '<span class="mg-chip" data-name="' + escHtml(name) + '">'
+       + '<span class="mg-chip-name">' + escHtml(name) + '</span>'
+       + '<button type="button" class="mg-chip-x" onclick="removeChip(this)" title="remove">&times;</button>'
+       + '</span>';
+}
+
+function addSectionPrincipal(sel) {
+  var name = sel.value;
+  if (!name) return;
+  var card = sel.closest('.mg-perms-card');
+  var list = card && card.querySelector('.mg-sec-read');
+  if (!list) return;
+  if (!list.querySelector('.mg-chip[data-name="' + name.replace(/"/g, '\\"') + '"]')) {
+    list.insertAdjacentHTML('beforeend', nameChipHtml(name));
+  }
+  sel.value = '';
+}
+
+// The names currently on a chip list, in the order they were added.
+function chipNames(container) {
+  if (!container) return [];
+  return Array.prototype.map.call(
+    container.querySelectorAll('.mg-chip'),
+    function(c) { return c.getAttribute('data-name'); });
 }
 
 function ownerOptions(owner) {
@@ -511,7 +546,19 @@ function folderCard(f) {
     +       '<b>Draft</b> &mdash; hidden completely: 404 to the public, and absent from the sitemap, feeds and search</label>'
     +   '</div>'
     +   '<div class="mg-form-row"><label>Who may read it</label>'
-    +     '<input type="text" class="mg-inp mg-sec-read" placeholder="alice, @editors (leave blank for nobody but you)"></div>'
+    // SM305: the same picker the per-file card uses. This was a bare text box
+    // taking a comma-separated list, which is the one control on the page that
+    // accepted a name nobody had - and it governed who may read protected
+    // content, so a typo silently granted the section to nobody and reported
+    // success. Named principals become chips; the empty list still means
+    // "nobody but you", which the hint below states.
+    +     '<div class="mg-rights mg-sec-read"></div></div>'
+    +   '<div class="mg-rights-add">'
+    +     mgPrincipalSelect({ onchange: 'addSectionPrincipal(this)',
+                              placeholder: '+ add person or @group…',
+                              style: 'max-width:18rem' })
+    +   '</div>'
+    +   '<div class="mg-perms-hint">Nobody listed means nobody but you.</div>'
     +   '<div class="mg-perms-actions">'
     +     '<button class="mg-btn mg-btn-primary" onclick="protectSection(this, \'' + p + '\')">Protect this section</button>'
     +   '</div>'
@@ -527,7 +574,11 @@ function protectSection(btn, path) {
   var pol   = card.querySelector('input[name="pol-' + path + '"]:checked');
   var read  = card.querySelector('.mg-sec-read');
   var draft = pol && pol.value === 'draft';
-  var who   = read ? read.value.trim() : '';
+  // SM305: the names come off the chips now, not a comma-separated text box.
+  // Every one of them was chosen from the picker, so each is a principal the
+  // site knows - the previous control accepted anything typed, and a mistyped
+  // name granted the section to nobody while reporting success.
+  var who   = chipNames(read).join(', ');
 
   var msg = draft
     ? 'Hide "' + path + '/" completely?\n\nEvery page and asset under it will '
