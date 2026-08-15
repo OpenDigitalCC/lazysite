@@ -42,6 +42,7 @@ use Lazysite::Manager::Themes qw(action_theme_activate action_layout_activate
     action_theme_tokens action_create_theme theme_config_issues
     _layout_declared_tokens _theme_config_tokens _token_mismatch
     _token_warning_list);
+use Lazysite::Manager::Nav     qw(action_nav_read action_nav_save);
 use Lazysite::Manager::Layouts qw(action_layouts_manifest action_layout_install
     action_layout_delete action_layouts_available);
 use Lazysite::Manager::Domains     ();
@@ -322,13 +323,17 @@ sub verify_bearer {
 # Set the per-request module context once the caller is known.
 sub setup_context {
     my ($user) = @_;
-    $Lazysite::Manager::Files::DOCROOT         = $DOCROOT;
-    $Lazysite::Manager::Files::LOCK_DIR        = $LOCK_DIR;
-    $Lazysite::Manager::Files::auth_user       = $user;
-    $Lazysite::Manager::Files::action          = 'mcp';
-    $Lazysite::Manager::Themes::DOCROOT        = $DOCROOT;
-    $Lazysite::Manager::Themes::LAZYSITE_DIR   = $LAZYSITE_DIR;
-    $Lazysite::Manager::Themes::auth_user      = $user;
+    $Lazysite::Manager::Files::DOCROOT       = $DOCROOT;
+    $Lazysite::Manager::Files::LOCK_DIR      = $LOCK_DIR;
+    $Lazysite::Manager::Files::auth_user     = $user;
+    $Lazysite::Manager::Files::action        = 'mcp';
+    $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
+    $Lazysite::Manager::Themes::LAZYSITE_DIR = $LAZYSITE_DIR;
+    $Lazysite::Manager::Themes::auth_user    = $user;
+    # SM318: the shared nav implementation, same context as every other module.
+    $Lazysite::Manager::Nav::DOCROOT           = $DOCROOT;
+    $Lazysite::Manager::Nav::LAZYSITE_DIR      = $LAZYSITE_DIR;
+    $Lazysite::Manager::Nav::auth_user         = $user;
     $Lazysite::Manager::Themes::action         = 'mcp';
     $Lazysite::Manager::Layouts::DOCROOT       = $DOCROOT;
     $Lazysite::Manager::Layouts::LAZYSITE_DIR  = $LAZYSITE_DIR;
@@ -995,18 +1000,25 @@ my %TOOLS = (
         run => sub { _validate_page( $_[0]->{path}, $_[0]->{content}, $_[1] ) },
     },
     read_nav => {
-        description => 'Read the site navigation as a structured list (top-level items with optional children) plus the raw nav.conf. Read this before set_nav to modify it.',
-        cap => 'manage_content', path_aware => 1,
-        inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
-        run => sub { _read_nav() },
+        description => 'Read a site navigation as a structured list (top-level items with optional children), plus which nav_file it came from and whether that is INHERITED from the primary site. WITHOUT `host` this reads the primary site. WITH `host` it reads that one registered domain. Call list_domains first if the instance may serve more than one site. Read this before set_nav to modify it.',
+        cap         => 'manage_content', path_aware => 1,
+        inputSchema => { type => 'object',
+            properties => {
+                host => { type => 'string', description => 'registered domain to read; omit for the primary site' },
+            },
+            additionalProperties => JSON::PP::false },
+        run => sub { action_nav_read( $_[0]->{host} ) },
     },
     set_nav => {
-        description => 'Replace the site navigation. items is an ordered list of { label, url } (a child list under "children" becomes an indented sub-menu; an item with no url is a section header). Writes lazysite/nav.conf and rebuilds the cache (nav is on every page).',
+        description => 'Replace a site navigation. items is an ordered list of { label, url } (a child list under "children" becomes an indented sub-menu; an item with no url is a section header). WITHOUT `host` this writes the PRIMARY site nav. WITH `host` it writes that one registered domain and leaves the others alone - call list_domains first if the instance may serve more than one site. Writes the domain nav_file and clears the render cache, reporting how many pages were refreshed: the nav is baked into every page, so a nav change is invisible until they re-render.',
         cap         => 'manage_nav',
         inputSchema => { type => 'object',
-            properties => { items => { type => 'array', items => { type => 'object' } } },
-            required   => ['items'], additionalProperties => JSON::PP::false },
-        run => sub { _set_nav( $_[0], $_[1] ) },
+            properties => {
+                items => { type => 'array', items => { type => 'object' } },
+                host => { type => 'string', description => 'registered domain to write; omit for the primary site' },
+            },
+            required => ['items'], additionalProperties => JSON::PP::false },
+        run => sub { action_nav_save( $_[0]->{items}, $_[0]->{host} ) },
     },
     submit_feedback => {
         description => 'Submit a brief feedback report on your experience building this site through the connector - what worked, what got in the way, anything confusing or missing. You are encouraged to use this whenever something helps or hinders: it is how the operators improve the tools. Provide the content; your identity and context are recorded automatically. Returns the saved report id.',
@@ -1989,42 +2001,7 @@ sub _bind_form {
 # --- SM087: navigation (read_nav / set_nav) -------------------------------
 # nav.conf format: "Label | /url" per line; an indented line is a child; a line
 # with no "| url" is a section header. Default location lazysite/nav.conf.
-sub _read_nav {
-    my $f = "$LAZYSITE_DIR/nav.conf";
-    return { ok => 1, items => [], raw => '' } unless -f $f;
-    open my $fh, '<:utf8', $f or return { ok => 0, error => 'cannot read nav.conf' };
-    local $/; my $raw = <$fh>; close $fh;
-    my @items;
-    for my $line ( split /\n/, $raw ) {
-        next if $line =~ /^\s*#/ || $line !~ /\S/;
-        my $child = $line =~ /^\s+\S/ ? 1 : 0;
-        $line =~ s/^\s+//; $line =~ s/\s+$//;
-        my ( $label, $url ) = split /\s*\|\s*/, $line, 2;
-        my $item = { label => $label, ( defined $url && length $url ? ( url => $url ) : () ) };
-        if ( $child && @items ) { push @{ $items[-1]{children} ||= [] }, $item }
-        else                    { push @items, $item }
-    }
-    return { ok => 1, items => \@items, raw => $raw };
-}
 
-sub _set_nav {
-    my ( $a, $user ) = @_;
-    return { ok => 0, error => 'items array required' } unless ref $a->{items} eq 'ARRAY';
-    my $out = "# lazysite navigation\n# Format: Label | /url  (indent a line for a child)\n\n";
-    my $line = sub {
-        my ( $it, $indent ) = @_;
-        return '' unless ref $it eq 'HASH' && defined $it->{label} && length $it->{label};
-        ( my $l = $it->{label} ) =~ s/[|\r\n]+/ /g;
-        my $u = defined $it->{url} ? $it->{url} : '';
-        $u =~ s/[\r\n]+//g;
-        return $indent . ( length $u ? "$l | $u" : $l ) . "\n";
-    };
-    for my $it ( @{ $a->{items} } ) {
-        $out .= $line->( $it, '' );
-        $out .= $line->( $_, '  ' ) for @{ ref $it->{children} eq 'ARRAY' ? $it->{children} : [] };
-    }
-    return action_save( '/lazysite/nav.conf', $user, $out, undef );
-}
 
 # --- SM102: agent/connector feedback ------------------------------------------
 # The agent supplies the content (summary/good/bad/rating/context); the server
