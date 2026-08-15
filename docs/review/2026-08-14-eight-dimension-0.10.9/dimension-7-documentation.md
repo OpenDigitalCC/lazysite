@@ -63,7 +63,20 @@ the change fixing a different instance of it, and that reading the source would
 not have caught it - the source says no docs pages register, and it is wrong
 about two.
 
-Remedy: extend to `starter/docs/*/`, and prefer a recursive walk to a glob.
+**Closed after this review**, on `claude/sm300-docs-glob-miss`. Both pages fixed
+with a recursive walk rather than a wider glob, and `t/lint/46` asserts the
+policy over `starter/docs` at any depth.
+
+That lint carries a guard on the guard: it requires the walk to have reached at
+least one page in a subdirectory. Without it, a future regression to a
+non-recursive pattern would pass by examining nothing - which is exactly the
+failure it exists to catch, and the trap the previous review named as preferring
+the repair that could still fail. Verified by reintroducing the registration on
+`integrations/index.md` and watching it fail.
+
+**The finding stays recorded against 0.10.9**, because it shipped in 0.10.9 and
+this review assesses that release. A review that edits its own verdicts when the
+next branch lands stops being a record of anything.
 
 ### F7.5 - The compliance documentation set (PASS, noted)
 
