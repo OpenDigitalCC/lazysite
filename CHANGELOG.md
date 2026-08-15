@@ -28,7 +28,7 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
-## 0.10.10 - EDGE: five ways to name a person, and a rule you could not read back (2026-08-15)
+## 0.10.10 - EDGE: what the engine reports, and what a visitor actually receives (2026-08-15)
 
 Field-test follow-ups from the 0.10.9 pass on edge, plus one defect found while
 proving another fix had not broken anything. Nothing here changes a rule or a
@@ -99,8 +99,45 @@ non-writable docroot itself rather than only reporting it.
   `acl reapply` fails on every folder and protected content stays served. The
   summary now runs `--fix` and re-checks, printing the outcome rather than the
   action; anything still dirty is named under NEEDS A HUMAN.
-- Two new lints (47, 48) and three new test files, each shown to fail on the
-  unfixed tree before being trusted.
+- SM313 (b9c1ba1) repairing the docroot never reached the private store. The
+  store is a SIBLING of the document root, so creating it needs write access on
+  the docroot's PARENT - a different directory, which SM270's repair does not
+  touch. Measured on a live instance AFTER a complete docroot repair: 11 of 11
+  entries still public and eight of ten probed extensions serving 200
+  anonymously under an active read rule. `check --fix` now CREATES the store
+  rather than widening its parent - that parent also holds `cgi-bin`, and write
+  permission on a directory is permission to rename its entries. Separately,
+  `acl reapply` counted a move that never happened as a re-apply, so a sweep
+  that left every byte in place reported success and exited 0; it now counts
+  `moved nothing` separately and exits non-zero.
+- SM314 (d2f9e5c) `install_layout` documented an activation it never performs.
+  Four statements describing behaviour SM176 deliberately removed, published
+  through `tools/list` to every agent, one of which routed agents into an
+  always-refused delete. `t/lint/49` now checks every documented default against
+  what the handler applies - nine descriptions state one and none was verified.
+- SM315 (f3a7b21) theme assets one directory out served an unstyled site with
+  every signal saying it worked: `ok:1`, 200, no stylesheet. Activation now
+  reports how many assets it mirrored, names a misplaced one specifically, and
+  `lazysite check` carries the standing version.
+- SM316 (a71c4d9) every URL a generated registry advertises is now fetched and
+  asserted to resolve. Verified against SM299 itself: reintroducing the old
+  expression makes it fail with `/docs/.md -> 404`.
+- SM317 / SM319 (2258858, 8e2f1a4) the rollout now asks the FRONT END, not just
+  the engine, whether an ACL is honoured - `check --check-acl` per site, which
+  existed and which nothing ran. Reviewed by the site agent within the hour: the
+  first version derived a pass from the ABSENCE of failure, so a probe that
+  fetched nothing reported success. That is the defect the probe itself shipped
+  with (SM285). The pass now requires a positive confirmation, so all four
+  non-passing outcomes - and any added later - fall to `not confirmed`.
+- SM318 (c4d8e33) the MCP nav tools could not address a domain, and had their own
+  implementation missing the SM168 cache invalidation - so an MCP nav edit
+  returned `ok:1` and the site served the old menu. One implementation now serves
+  both surfaces, per SM301's precedent, and both take `host`.
+- SM320 (e5b7f42) a layout is now rendered and its output asserted - nav with
+  children, page body, resolved meta, and escaped exactly once. It was the only
+  major component with no behavioural test.
+- Five new lints and tests (47, 48, 49, plus t/tools/41 and t/integration/53-55),
+  each shown to fail on the unfixed tree before being trusted.
 
 ## 0.10.9 - EDGE: the sweep that finishes the 0.10.8 move (2026-08-14)
 
