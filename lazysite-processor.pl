@@ -438,6 +438,17 @@ my %STATIC_CT = (
                 $in_groups = 0 if $line !~ /^\s/;
             }
 
+            # SM311: does this page read anything OTHER than itself?
+            #
+            # Only the presence of the block is recorded, not its contents. The
+            # cache-hit path needs one bit - "consult the dependency record" -
+            # and the record itself is written at render time by the code that
+            # actually resolved the sources, which is the only place that knows
+            # what a `scan:` glob matched. Parsing the sources here would mean
+            # two implementations of that question, and the second one would be
+            # the one that drifted.
+            $m{tt_deps} = 1 if $line =~ /^tt_page_var\s*:\s*$/;
+
             # query_params: block
             if ( $line =~ /^query_params\s*:\s*$/ ) {
                 $in_qp = 1; $in_groups = 0; next;
@@ -1907,7 +1918,24 @@ sub try_serve_cache {
     # mtimes, not on a process's memory.
     my $conf_mtime = ( stat $CONF_FILE )[9] // 0;
 
-    if ( $html_stat->[9] >= $md_stat->[9] && $html_stat->[9] >= $conf_mtime ) {
+    # SM311: a page may also depend on files it READS - `tt_page_var` json: and
+    # scan: sources. Those are neither the .md nor the conf, so editing one used
+    # to leave the cache "fresh" and serve the previous render indefinitely.
+    #
+    # Only pages that declare the block pay for this: the peek is already done
+    # for the TTL and is cached per (path, mtime), so a page without sources
+    # costs one hash lookup. A page with them costs one small sequential read
+    # plus a stat per recorded path, short-circuiting on the first one that is
+    # newer.
+    my $deps_ok = 1;
+    if ( _peek_md($md_path)->{tt_deps} ) {
+        $deps_ok = deps_fresh( $base, $html_stat->[9] );
+    }
+
+    if ( $deps_ok
+        && $html_stat->[9] >= $md_stat->[9]
+        && $html_stat->[9] >= $conf_mtime )
+    {
         $ACCESS_REC{c} = 1;    # SM140: served from the page cache
         log_event( 'DEBUG', $ENV{REDIRECT_URL} // '-', 'cache hit' );
         my $ct  = read_ct($base);
@@ -1919,6 +1947,21 @@ sub try_serve_cache {
 
     # mtime stale but page-level TTL may still keep the cache valid - still gated
     # on the conf being no newer than the cache.
+    #
+    # SM311: this branch deliberately does NOT consult the dependency record, and
+    # the omission is a decision rather than an oversight.
+    #
+    # A `ttl:` is an explicit statement by the author that this page may be up to
+    # N seconds out of date. It already lets an edit to the page's OWN source
+    # wait out the window, so making a data-file edit jump the queue would be
+    # inconsistent in the author's favour on one input and against it on another.
+    #
+    # It also matters for `url:` sources, which have no local mtime and so can
+    # never be proven fresh. Gating this branch on the record would re-render a
+    # url-backed page on EVERY request and hammer the remote - so the TTL is not
+    # merely compatible with a live source, it is the only freshness mechanism
+    # such a page has. That is why `deps_fresh` reports a live source as unproven
+    # rather than as an error: the answer belongs here, not there.
     my $ttl = peek_ttl($md_path);
     if ( defined $ttl
         && $html_stat->[9] >= $conf_mtime
@@ -2397,6 +2440,10 @@ sub main {
         my $ct   = peek_content_type($md_path);
         my $ttl  = $protected ? undef : peek_ttl($md_path);
         write_ct( $base, $ct ) unless $protected;
+        # SM311: record what this render read, beside the render itself. Written
+        # AFTER process_md, because that is what resolved the sources - a `scan:`
+        # glob's matches are not knowable from the front matter alone.
+        write_deps($base) unless $protected;
         log_event( 'INFO', $uri, 'page rendered' );
         # Admin bar added here (post-cache, per-viewer), not inside the cached page.
         output_page( _inject_admin_bar_live( $page, $md_path ), $ct, $ttl, $protected );
@@ -4241,6 +4288,9 @@ sub resolve_json {
         local $/;
         my $bytes = <$fh>;
         close $fh;
+        # SM311: the resolved REAL path, so a symlinked data file is watched
+        # where it actually lives rather than where it was named.
+        _tt_dep($real);
         $bytes;
     };
     return '' unless defined $raw;
@@ -4253,9 +4303,116 @@ sub resolve_json {
     return $data;
 }
 
+# SM311: what a page READ, so the cache can tell when it has gone stale.
+#
+# THE DEFECT. A page pulls structured data in with `tt_page_var: x: json:/d.json`
+# and renders it. The rendered HTML is cached, and the cache was fresh whenever
+# it post-dated the .md and lazysite.conf. A change to a file the page merely
+# READS is neither, so editing the data updated the page exactly once - at the
+# next page save - and served the previous render indefinitely.
+#
+# That defeats the feature's only reason to exist. Writing the list into the page
+# would work; the data file exists so a non-technical owner, a scheduled export,
+# or anyone without page-editing rights can change what the page shows. That is
+# precisely the caller for whom the failure is invisible AND unfixable: the
+# recovery is to save the page, which needs `manage_content`, which a
+# data-directory editor does not hold.
+#
+# It is SM251 one layer down. A registry rebuilds during page processing, so
+# requesting the registry does not refresh it; a page re-renders when the page is
+# saved, so changing what it renders FROM does not refresh it. Both assume an
+# artefact's inputs change only when the artefact does.
+#
+# WHY A RECORD RATHER THAN A RE-CHECK. `scan:` globs up to 200 .md files and
+# reads each one's front matter, so proving a scan-backed page fresh means
+# knowing about EDITS inside those files, not just additions and removals. A
+# directory mtime cannot see an edit; redoing the walk would put a 200-file
+# traversal with front-matter parsing on the cache-hit path, which is the hottest
+# path in the engine. So the render - which has already done the walk - writes
+# down what it consumed, and the cache path stats that list. Adds and deletes are
+# caught by the directories in the list, edits by the files.
+#
+# The record is written by the code that RESOLVED the sources, because that is
+# the only place that knows what a glob actually matched. Deriving it a second
+# time from the front matter would be a second implementation of the same
+# question, and the second one is the one that drifts.
+our @TT_DEPS;        # absolute paths this render read
+our $TT_DEP_LIVE;    # a source with no local mtime (url:) was used
+
+sub _tt_dep {
+    my (@paths) = @_;
+    push @TT_DEPS, grep { defined && length } @paths;
+    return;
+}
+
+sub deps_cache_path {
+    my ($base) = @_;
+    my $key = $base;
+    $key =~ s{/}{:}g;
+    return "$CT_CACHE_DIR/$key.deps";
+}
+
+# One path per line; a leading '!' marks the live-source flag. Plain text
+# because it is read on the hot path and JSON would cost a parse to answer a
+# question that is a list of strings.
+sub write_deps {
+    my ($base) = @_;
+    my $path = deps_cache_path($base);
+
+    unless ( @TT_DEPS || $TT_DEP_LIVE ) {
+        unlink $path if -f $path;    # the page stopped declaring sources
+        return;
+    }
+
+    make_path($CT_CACHE_DIR) unless -d $CT_CACHE_DIR;
+    my %seen;
+    my @uniq = grep { !$seen{$_}++ } @TT_DEPS;
+
+    open my $fh, '>:utf8', "$path.tmp.$$" or do {
+        log_event( 'WARN', $ENV{REDIRECT_URL} // '-',
+            'cannot write dependency record', path => $path, error => $! );
+        return;
+    };
+    print {$fh} "!\n" if $TT_DEP_LIVE;
+    print {$fh} "$_\n" for @uniq;
+    close $fh;
+    rename "$path.tmp.$$", $path;
+    return;
+}
+
+# Is the cached render still newer than everything it read?
+#
+# Returns 1 only when that can be ESTABLISHED. A missing record, an unreadable
+# one, a vanished dependency or a live source all return 0 - re-rendering a page
+# that did not need it costs a render, while serving one that did costs the
+# author a silent wrong answer, and this project has spent several releases on
+# the second kind.
+sub deps_fresh {
+    my ( $base, $html_mtime ) = @_;
+    my $path = deps_cache_path($base);
+    open my $fh, '<:utf8', $path or return 0;
+
+    while ( my $line = <$fh> ) {
+        chomp $line;
+        next unless length $line;
+        if ( $line eq '!' ) { close $fh; return 0 }    # url:, unprovable
+        my $dep_mtime = ( stat $line )[9];
+        if ( !defined $dep_mtime || $dep_mtime > $html_mtime ) {
+            close $fh;
+            return 0;
+        }
+    }
+    close $fh;
+    return 1;
+}
+
 sub resolve_tt_vars {
     my ($defs) = @_;
     my %vars;
+
+    # SM311: start a fresh dependency record for this render.
+    @TT_DEPS     = ();
+    $TT_DEP_LIVE = 0;
 
     for my $key ( keys %$defs ) {
         my $val = strip_tt_directives( $defs->{$key} );
@@ -4270,7 +4427,11 @@ sub resolve_tt_vars {
             $vars{$key} = resolve_json($val);
         }
         elsif ( $val =~ s/^url:// ) {
-            $val = interpolate_env($val);
+            # A remote source has no local mtime, so no amount of stat-ing can
+            # prove a cached page still matches it. Recorded as a live source so
+            # the cache path stops claiming freshness it cannot establish.
+            $TT_DEP_LIVE = 1;
+            $val         = interpolate_env($val);
             $val =~ s/^\s+|\s+$//g;
             my $fetched = fetch_url($val);
             if ( defined $fetched ) {
@@ -4645,6 +4806,12 @@ sub resolve_scan {
             my @queue = ($base);
             while ( my $dir = shift @queue ) {
                 opendir( my $dh, $dir ) or next;
+                # SM311: the directory itself. A file ADDED or DELETED leaves no
+                # file to stat, but moves its directory's mtime - so the walked
+                # directories are what makes add and delete visible, and the
+                # matched files below are what makes an EDIT visible. Both are
+                # needed; neither is sufficient.
+                _tt_dep($dir);
                 for my $entry ( readdir($dh) ) {
                     next if $entry =~ /^\./;
                     my $path = "$dir/$entry";
@@ -4668,6 +4835,8 @@ sub resolve_scan {
     }
     else {
         @files = glob($fs_pattern);
+        # SM311: same reasoning, one level - the directory the glob names.
+        _tt_dep( dirname($fs_pattern) );
     }
 
     # Limit to 200 files
@@ -4683,6 +4852,15 @@ sub resolve_scan {
         my $real = realpath($path);
         next unless _path_under( $real, $scan_root );
         next unless -f $real;
+
+        # SM311: recorded BEFORE the visibility filter, deliberately. A page that
+        # becomes visible - a draft published, an ACL lifted - is an edit to a
+        # file that already existed, so no directory mtime moves and the page
+        # would never appear in a cached listing. Recording only what was SHOWN
+        # would make the listing stale in exactly the case the author is watching
+        # for. The path is already public knowledge to the render; this records
+        # what was READ, not what was displayed.
+        _tt_dep($real);
 
         # SM268 H13: never list what this requester may not read.
         next if _scan_hidden($real);
