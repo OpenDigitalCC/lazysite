@@ -3,7 +3,6 @@ title: AI briefing - integrations
 subtitle: How an AI agent brings an external source - a design tool, an editor, a CMS export - into a lazysite site through the sanctioned channels.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Who this is for

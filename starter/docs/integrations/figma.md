@@ -3,7 +3,6 @@ title: AI briefing - build a site from a Figma design
 subtitle: The dual-MCP method for taking a Figma design into a lazysite site - extract the tokens and structure over the Figma MCP, translate them into a theme and layout, publish through lazysite.
 register:
   - sitemap.xml
-  - llms.txt
 ---
 
 ## Who this is for
