@@ -52,6 +52,45 @@ my $NOISE_RE = qr{
       | owa/ | autodiscover | actuator | console/ )
 }xi;
 
+# SM330: the canonical class list, in one place.
+#
+# It was written out by hand in five places and `scanner` was missing from the
+# one that mattered most - the index. Every view that reports a breakdown now
+# derives it from here, so a class added later cannot be silently omitted from
+# some of them.
+our @CLASSES = qw(human ai bot noise scanner);
+
+# SM329: an image is not a page.
+#
+# `top_pages` and `pageviews` counted every 2xx request, so two images were the
+# second and third most popular "pages" on edge at 124 hits each, and 524 of
+# 5,000 sampled events were assets. That is not a cosmetic miscount:
+#
+#   - top_pages keeps a FIXED number of entries, so every asset in it is a real
+#     page the owner cannot see. An article with four images generates four asset
+#     hits per human page view, so assets crowd out content by construction.
+#   - every derived metric inherits it. Measured against this data, "visitors who
+#     saw more than one page" fell from 41% to 5% once an image stopped being a
+#     page and a session had a boundary.
+#
+# RECORDING IS SEPARATED FROM COUNTING. An asset request stays in the event
+# stream, where it still feeds classification and the browser-versus-bot
+# heuristic; it is excluded from the page-facing aggregates and counted on its
+# own, so the exclusion is auditable rather than invisible.
+my $ASSET_RE = qr{
+    \.(?: jpe?g | png | gif | webp | avif | svg | ico | bmp     # images
+        | css | js | mjs | map                                  # styles, scripts
+        | woff2? | ttf | otf | eot                              # fonts
+    )\z
+}xi;
+
+sub _is_asset {
+    my ($path) = @_;
+    return 0 unless defined $path && length $path;
+    $path =~ s/\?.*\z//;                 # a cache-buster does not change what it is
+    return $path =~ $ASSET_RE ? 1 : 0;
+}
+
 # Known crawlers + generic automation clients (not AI assistants - those first).
 # `headless` catches Chrome's --headless=new (UA token HeadlessChrome); the named
 # headless-driver tokens catch tools that do NOT carry it.
@@ -454,7 +493,7 @@ sub scan_first_party {
     my $cutoff      = time() - $window * 86400;
 
     my ( %cls_hits, %cls_vis, %pages, %ref_ext, %status, %byday, %vis );
-    my ( $hits, $bytes )              = ( 0, 0 );
+    my ( $hits, $bytes, $assets ) = ( 0, 0, 0 );
     my ( $ref_internal, $ref_direct ) = ( 0, 0 );
     my $scanned = 0;
     my $CAP     = 10_000_000;    # runaway guard; aggregates use bounded memory
@@ -490,7 +529,12 @@ FILE: for my $f (@files) {
             $status{$st}++;
             my @d = gmtime( $r->{t} );
             $byday{ sprintf '%04d-%02d-%02d', $d[5] + 1900, $d[4] + 1, $d[3] }++;
+            # SM329: assets counted apart from pages, and excluded from both
+            # top_pages and pageviews. Still recorded, still classified.
+            my $is_asset = _is_asset($path);
+            $assets++ if $is_asset && $st < 400;
             $pages{$path}++ if $st < 400
+                && !$is_asset
                 && $path !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
 
             my $ref = $r->{r} // '';
@@ -525,17 +569,21 @@ FILE: for my $f (@files) {
     }
 
     return {
-        ok              => 1,
-        source          => 'first-party',
-        window_days     => $window,
-        scanned_lines   => $scanned,
-        capped          => ( $scanned > $CAP ? JSON::PP::true : JSON::PP::false ),
-        anonymised      => JSON::PP::true,         # always, at write time
-        log_configured  => JSON::PP::true,
-        errors          => _error_surface($cfg),
-        classes         => \%classes,
-        hits            => $hits,                  # human only
-        unique_visitors => scalar keys %vis,       # distinct daily visitor keys
+        ok             => 1,
+        source         => 'first-party',
+        window_days    => $window,
+        scanned_lines  => $scanned,
+        capped         => ( $scanned > $CAP ? JSON::PP::true : JSON::PP::false ),
+        anonymised     => JSON::PP::true,         # always, at write time
+        log_configured => JSON::PP::true,
+        errors         => _error_surface($cfg),
+        classes        => \%classes,
+        hits           => $hits,                  # human only
+            # SM329: assets counted apart, so the exclusion from top_pages and
+            # pageviews is auditable rather than silent - and so the
+            # browser-versus-bot heuristic has a number without re-reading events.
+        asset_hits      => $assets,
+        unique_visitors => scalar keys %vis,    # distinct daily visitor keys
         bytes           => $bytes,
         top_pages       => $top->( \%pages ),
         referrers       => {
@@ -582,7 +630,7 @@ sub scan_stats {
 
     open my $fh, '<', $log or return { ok => 0, error => "Cannot open the access log: $!" };
     my ( %cls_hits, %cls_ips, %pages, %ref_ext, %status, %byday );
-    my ( $hits, $bytes, %ips ) = ( 0, 0 );
+    my ( $hits, $bytes, $assets, %ips ) = ( 0, 0, 0 );
     my ( $ref_internal, $ref_direct ) = ( 0, 0 );
     my $scanned = 0;
     my $CAP     = 10_000_000;    # runaway guard; aggregates use bounded memory
@@ -617,7 +665,11 @@ sub scan_stats {
         $ips{$ipkey} = 1;
         $status{$st}++;
         $byday{ sprintf '%04d-%02d-%02d', $y, $mon{$mo} + 1, $d }++;
+        # SM329: as the first-party path above - one predicate, both readers.
+        my $is_asset = _is_asset($path);
+        $assets++ if $is_asset && $st < 400;
         $pages{$path}++ if $st < 400
+            && !$is_asset
             && $path !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
 
         if ( !length $ref || $ref eq '-' ) {
@@ -661,6 +713,7 @@ sub scan_stats {
         errors          => $errors,
         classes         => \%classes,
         hits            => $hits,               # human only
+        asset_hits      => $assets,             # SM329, as the first-party path
         unique_visitors => scalar keys %ips,    # human only
         bytes           => $bytes,
         top_pages       => $top->( \%pages ),
@@ -790,18 +843,19 @@ sub _day_rollup {
     my %cls = %{ $bucket->{cls} || {} };
     return {
         date            => $day,
-        pageviews       => ( $bucket->{hits} // 0 ),
+        pageviews       => ( $bucket->{hits}       // 0 ),
+        asset_hits      => ( $bucket->{asset_hits} // 0 ),    # SM329
         unique_visitors => scalar keys %{ $bucket->{ips} || {} },
-        classes => { map { ( $_ => ( $cls{$_} // 0 ) ) } qw(human ai bot noise scanner) },
-        top_pages    => _topn( $bucket->{pages} || {}, $top_n ),
-        status_codes => { %{ $bucket->{status} || {} } },
-        not_found    => {
+        classes         => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
+        top_pages       => _topn( $bucket->{pages} || {}, $top_n ),
+        status_codes    => { %{ $bucket->{status} || {} } },
+        not_found       => {
             plausible  => _topn( $bucket->{nf_plausible} || {}, $top_n ),
             junk_count => ( $bucket->{nf_junk} // 0 ),
         },
         # SM223: turned away, as distinct from missing.
         auth_refused => _topn( $bucket->{auth_refused} || {}, $top_n ),
-        referrers => {
+        referrers    => {
             direct   => ( $bucket->{ref_direct}   // 0 ),
             internal => ( $bucket->{ref_internal} // 0 ),
             external => _topn( $bucket->{ref_ext} || {}, $top_n ),
@@ -815,19 +869,20 @@ sub _day_rollup {
 # A month's durable rollup: union the daily visitor sets (accurate within a salt
 # period) and sum the rest, across the days that fall in the month.
 sub _month_rollup {
-    my ( $mon, $days,  $top_n ) = @_;
+    my ( $mon, $days, $top_n ) = @_;
     my ( %cls, %pages, %ips, %status, %nf_pl, %forms );
     my %auth_ref;    # SM223
-    my ( $pv,  $ndays, $nf_junk ) = ( 0, 0, 0 );
+    my ( $pv, $ndays, $nf_junk, $asset_pv ) = ( 0, 0, 0, 0 );
     for my $day ( grep { index( $_, $mon ) == 0 } keys %$days ) {
         my $b = $days->{$day};
         $ndays++;
-        $pv         += ( $b->{hits}    // 0 );
-        $nf_junk    += ( $b->{nf_junk} // 0 );
-        $cls{$_}    += $b->{cls}{$_}          for keys %{ $b->{cls}          || {} };
-        $pages{$_}  += $b->{pages}{$_}        for keys %{ $b->{pages}        || {} };
-        $status{$_} += $b->{status}{$_}       for keys %{ $b->{status}       || {} };
-        $nf_pl{$_}  += $b->{nf_plausible}{$_} for keys %{ $b->{nf_plausible} || {} };
+        $pv           += ( $b->{hits}       // 0 );
+        $asset_pv     += ( $b->{asset_hits} // 0 );    # SM329
+        $nf_junk      += ( $b->{nf_junk}    // 0 );
+        $cls{$_}      += $b->{cls}{$_}          for keys %{ $b->{cls}          || {} };
+        $pages{$_}    += $b->{pages}{$_}        for keys %{ $b->{pages}        || {} };
+        $status{$_}   += $b->{status}{$_}       for keys %{ $b->{status}       || {} };
+        $nf_pl{$_}    += $b->{nf_plausible}{$_} for keys %{ $b->{nf_plausible} || {} };
         $auth_ref{$_} += $b->{auth_refused}{$_} for keys %{ $b->{auth_refused} || {} };
         $ips{$_} = 1 for keys %{ $b->{ips} || {} };
         for my $fn ( keys %{ $b->{forms} || {} } ) {    # SM216-2
@@ -838,16 +893,19 @@ sub _month_rollup {
         }
     }
     return {
-        month           => $mon,
-        days            => $ndays,
+        month => $mon,
+        days  => $ndays,
+        # SM329: pageviews is PAGES. Assets are reported separately rather than
+        # folded in, so a reader can see both and the exclusion is checkable.
         pageviews       => $pv,
+        asset_hits      => $asset_pv,
         unique_visitors => scalar keys %ips,
-        classes => { map { ( $_ => ( $cls{$_} // 0 ) ) } qw(human ai bot noise scanner) },
-        top_pages    => _topn( \%pages, $top_n ),
-        status_codes => \%status,
+        classes         => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
+        top_pages       => _topn( \%pages, $top_n ),
+        status_codes    => \%status,
         not_found    => { plausible => _topn( \%nf_pl, $top_n ), junk_count => $nf_junk },
         auth_refused => _topn( \%auth_ref, $top_n ), # SM223
-        forms        => \%forms,    # SM216-2: per-form delivery outcomes
+        forms        => \%forms,                     # SM216-2: per-form delivery outcomes
     };
 }
 
@@ -886,9 +944,24 @@ sub _persist_durable {
     my @dk       = sort keys %$days;
     my @days_idx = map {
         my $b = $days->{$_};
-        { date => $_, pageviews => ( $b->{hits} // 0 ),
-            human => ( $b->{cls}{human} // 0 ), ai    => ( $b->{cls}{ai}    // 0 ),
-            bot   => ( $b->{cls}{bot}   // 0 ), noise => ( $b->{cls}{noise} // 0 ) }
+        # SM330: EVERY class, derived from the list rather than hand-written.
+        #
+        # This enumerated human/ai/bot/noise and omitted `scanner`, which is the
+        # LARGEST class on a public site - 71.7% of events on edge, against 17.2%
+        # human. So the index, which is what a reader sees first, showed a
+        # breakdown whose parts summed to a small fraction of the traffic and
+        # gave no hint that anything was missing.
+        #
+        # The full-day view already reported all five. Two hand-maintained lists
+        # of one fact, and the shorter one was the one on the front page.
+        #
+        # Derived from @CLASSES so a sixth class cannot be added and silently
+        # left out of this view again.
+        { date => $_,
+            pageviews  => ( $b->{hits}       // 0 ),
+            asset_hits => ( $b->{asset_hits} // 0 ),    # SM329
+            map { ( $_ => ( $b->{cls}{$_} // 0 ) ) } @CLASSES
+        }
     } @dk;
     my %month_pv;
     for my $day (@dk) { my ($m) = $day =~ /^(\d{4}-\d{2})/; $month_pv{$m} += $days->{$day}{hits} // 0 }
@@ -1128,8 +1201,8 @@ sub _export_ingest_first_party {
                     # status alone cannot say so - the anonymous refusal is a 302 to
                     # the login page, identical in the log to any other redirect.
                 auth_refused => ( $r->{ar} ? 1 : 0 ),
-                ref   => ( $r->{r} // '' ),
-                t     => $r->{t} + 0,
+                ref          => ( $r->{r} // '' ),
+                t            => $r->{t} + 0,
             };
         }
         close $fh;
@@ -1257,7 +1330,7 @@ sub _export_assemble {
     my $total_cls = 0;
     $total_cls += $_ for values %cls;
     my %class_out;
-    for my $c (qw(human ai bot noise scanner)) {
+    for my $c (@CLASSES) {    # SM330: derived, not a fifth hand-written copy
         my $v = $cls{$c} // 0;
         $class_out{$c} = {
             visits => $v,
@@ -1343,7 +1416,7 @@ sub _export_assemble {
         auth_refused  => $top->( \%auth_ref, $top_n ),
         events        => \@events,
         form_delivery => \@form_delivery,    # SM216-2: blocked vs stored per form
-        sample => {
+        sample        => {
             from  => ( defined $ev_from ? _day_str($ev_from) : undef ),
             to    => ( defined $ev_to   ? _day_str($ev_to)   : undef ),
             count => scalar @{ $cache->{events} },

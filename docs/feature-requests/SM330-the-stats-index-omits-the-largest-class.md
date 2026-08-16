@@ -2,8 +2,8 @@
 title: "SM330 - The statistics index omits the largest traffic class"
 subtitle: "analyse_visitors index:true returns per-day rows carrying human, ai, bot and noise - and not scanner, which on the instance measured is 71.7% of all traffic. The rollup holds it; only the projection drops it."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-16 from a partner-agent review of visitor statistics on edge/0.10.10. No data is lost - the durable day rollup carries scanner correctly and the windowed view reports it. What is wrong is the index projection, which appears to enumerate the classes and silently omits one. A caller reading the index to find the busiest day, or to decide which day to fetch in full, is reading a number that excludes most of the traffic."
+status: shipped
+status-note: "SHIPPED for 0.10.12. The class list is now declared once, as `our @CLASSES`, and every view derives from it - the index row included. It had been written out by hand in four places and the shortest of them, the one on the front page, was the one missing `scanner`. Fixing only the index would have left the next class added to the same fate, so the test asserts the list appears exactly once in the source: the declaration itself."
 ---
 
 # SM330 - the class that is not in the list

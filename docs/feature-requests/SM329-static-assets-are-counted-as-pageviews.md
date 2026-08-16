@@ -2,8 +2,8 @@
 title: "SM329 - Static assets are counted as pageviews and listed as top pages"
 subtitle: "Two images sit in the top fifteen pages at 124 hits each, and 524 of 5,000 sampled events are .jpg, .png, .css or .js. A request for an image is not a page view, and the day rollup is all that survives."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-16 from a partner-agent review of visitor statistics on edge/0.10.10. The fix is NOT to stop recording assets: [[SM213]] identifies static-asset 200s as a strong browser-versus-bot signal and lists making them visible as future work. They are already visible in the first-party log, ahead of that work. What is wrong is that they are counted in a metric that means something else. Keep the signal, take it out of the page counts."
+status: shipped
+status-note: "SHIPPED for 0.10.12. One `_is_asset` predicate, applied at BOTH counting sites - the first-party event stream and the access log - which had carried identical page-counting logic and are the shape SM318 and SM304 were filed about. An asset stays in the event stream, where it still feeds SM213's browser-versus-bot signal; it leaves `pageviews` and `top_pages`, and is counted on its own as `asset_hits` so the subtraction is auditable rather than invisible. A silent exclusion would be its own defect, indistinguishable from traffic that never happened. The predicate matches on extension after stripping any query, because assets here are versioned `?v=<version>` and a bare-path match would have excluded nothing on a real site."
 ---
 
 # SM329 - an image is not a page
