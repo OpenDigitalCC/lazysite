@@ -28,6 +28,74 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
+## 0.10.12 - EDGE: the numbers say what they mean (2026-08-16)
+
+A statistics release, out of a partner-agent review of a live instance's own
+traffic. Every item here is a number that was being reported confidently and was
+describing something other than what its name said.
+
+**The headline number on the Stats page will FALL, and that is the fix.** It had
+been counting every image and stylesheet on a page as a page view. The tile is
+now labelled `Page views`, and the assets it used to include are shown beside it
+as `Images and files`, so the drop is explained on the page rather than
+discovered.
+
+- SM329 (329786d, 6c0ddbd) an image was counted as a page. Two images sat SECOND
+  and THIRD in `top_pages` on the instrument at 124 hits each, and 524 of 5,000
+  sampled events were `.jpg`, `.png`, `.css` or `.js`. `top_pages` keeps a fixed
+  number of entries, so assets crowded out content by construction rather than
+  by accident - one article with four images generates four asset hits per human
+  page view - and every derived metric inherited it: "visitors who saw more than
+  one page" was 41% against data that gives 5% once an image is not a page and a
+  session has a boundary. One predicate now, applied at all THREE counting
+  sites. Recording is unchanged: an asset stays in the event stream where it
+  still feeds the browser-versus-bot signal, and is counted as `asset_hits` so
+  the exclusion is auditable rather than invisible.
+- SM330 (329786d) the statistics index omitted `scanner`, which is 71.7% of
+  events on the instrument against 17.2% human - so the front page showed a
+  breakdown summing to a small fraction of the traffic, with nothing to say a
+  part was missing. The class list had been written out by hand in four places
+  and the shortest copy was the one people saw first; it is now declared once
+  and every view derives from it.
+- SM332 (6c0ddbd) a WordPress path sweep ran as `human`. Every trigger promoting
+  a visitor to `scanner` was a signature, and signatures date: `/wp-login.php`
+  is caught by the `.php` rule and its modern replacement `/wp-json/batch/v1` was
+  caught by nothing. Small by volume - 27 events, 4% of human-class events - and
+  it would have been the top journey on the site the moment trail metrics
+  existed. A visitor asking for five or more DISTINCT missing paths inside five
+  minutes is now a scanner whatever the paths are, both numbers are settings with
+  stated defaults, and the rollups carry `scanner_inferred` so an operator can
+  judge the threshold against their own traffic. A reader following stale
+  bookmarks keeps their `plausible` 404s, which are the more useful signal of
+  the two.
+- SM331 (bf3e933, 01fa828) **closed by measurement.** A static file fetched while
+  public kept serving for up to a minute after the folder was protected. The
+  engine was cleared first - no copy is left in the document root, and every
+  file reaches the private store - and the partner agent then measured it on the
+  host with the front end untouched: the fetched files gated at 60 seconds, a
+  never-fetched control gated immediately. That is a descriptor cache ageing out
+  on `open_file_cache_valid`, so the severity is a bounded sub-minute transient
+  rather than a silent failure. `check --check-acl` now fetches its probe folder
+  WHILE PUBLIC before gating it, which is the only version of the probe that can
+  construct the case at all, and the bound is asserted on every run instead of
+  believed.
+- SM334 (c4af05f) `read_settings` was re-parsed on every token verification -
+  1.37 ms of JSON parsing per authenticated request, in a call its own comment
+  described as one cheap read. Memoised per process on the file's (mtime, size)
+  rather than on a clock, because this decides who may do what and a stale entry
+  is an access-control answer from the past. 1.3727 ms to 0.0045 ms.
+- SM333 (128fbe4) the fleet addressing did not reach the deployment it was built
+  for.
+
+Docs: the access-control model now states that protection takes effect within
+the front end's cache validity, and names `open_file_cache_valid` as the setting
+that decides the window - nothing is asked of the front end and no default
+changes, but an operator who has raised it should know what they have
+lengthened. SM327's perf drift is attributed (one step above the noise floor,
+the rest accretion, and the 2x tolerance is why nothing caught it); SM335 (the
+Stats page and the export use different class vocabularies) is filed as a
+candidate.
+
 ## 0.10.11 - EDGE: protecting content works from the surfaces built to do it (2026-08-16)
 
 The 0.10.10 field pass confirmed **SM283 closed on the instrument, measured
