@@ -42,9 +42,19 @@ elsif ( $verb eq 'help' || $verb =~ /^-{0,2}help$|^-h$/ ) { usage(0) }
 elsif ( $verb eq 'provision' )                            { exit cmd_provision() }
 elsif ( $verb eq 'upgrade' )                              { exit cmd_upgrade() }
 elsif ( $verb eq 'sites' )                                { exit cmd_sites() }
-elsif ( $verb eq 'check' )               { run_tool( 'tools/lazysite-check.pl', @ARGV ) }
-elsif ( $verb eq 'users' )               { run_tool( 'tools/lazysite-users.pl', @ARGV ) }
-elsif ( $verb eq 'acl' )                 { run_tool( 'tools/lazysite-acl.pl',   @ARGV ) }
+elsif ( $verb eq 'check' ) {
+    my ( $targets, $how ) = extract_site_targets( \@ARGV );
+    $targets
+        ? run_tool_per_site( 'tools/lazysite-check.pl', $targets, \@ARGV )
+        : run_tool( 'tools/lazysite-check.pl', @ARGV );
+}
+elsif ( $verb eq 'users' ) { run_tool( 'tools/lazysite-users.pl', @ARGV ) }
+elsif ( $verb eq 'acl' ) {
+    my ( $targets, $how ) = extract_site_targets( \@ARGV );
+    $targets
+        ? run_tool_per_site( 'tools/lazysite-acl.pl', $targets, \@ARGV )
+        : run_tool( 'tools/lazysite-acl.pl', @ARGV );
+}
 elsif ( $verb eq 'migrate-engine-tree' ) { exit cmd_migrate_engine_tree() }
 elsif ( $verb eq 'dev' )                 { run_tool( 'tools/lazysite-server.pl', @ARGV ) }
 elsif ( $verb eq 'demo' )                { exit cmd_demo() }
@@ -88,6 +98,9 @@ Verbs:
         List registered sites: owner, channel, policy, installed
         version, docroot.
   check [args...]        Health/permissions doctor (lazysite-check.pl).
+                         Takes --domain NAME or --all instead of --docroot:
+                         the registry holds each site's docroot and cgibin, so
+                         name the site rather than reconstructing its paths.
   users [args...]        Auth user management (lazysite-users.pl).
   migrate-engine-tree --docroot D | --all [--apply] [--min-version V]
         Move a site's lazysite/ tree OUT of the document root, to
@@ -96,7 +109,8 @@ Verbs:
         site's owner. --min-version skips sites below that version, so
         a fleet can be migrated as the release rolls through its
         channels. Reversible with --back.
-  acl [args...]          Per-path access: who may read or write a file,
+  acl [args...]          Per-path access (also --domain NAME | --all):
+                         who may read or write a file,
         a folder, or the whole site (lazysite-acl.pl). Same rules and
         same store as the manager, the control API and MCP.
   dev [args...]          Local dev server (lazysite-server.pl).
@@ -202,9 +216,103 @@ sub run_tool {
     my ( $rel, @args ) = @_;
     my $tool = payload_root() . "/$rel";
     fail("payload tool missing: $tool") unless -f $tool;
-    my $rc = system( $^X, $tool, @args );
+    my $rc = system( $^X, _lib_arg(), $tool, @args );
     exit 127 if $rc == -1;
     exit( $rc >> 8 );
+}
+
+# SM321: tell the child where the engine's modules are.
+#
+# The tools `require Lazysite::Paths` and friends without a `use lib` of their
+# own, so they depend on @INC - and neither the payload's lib/ nor an unpacked
+# tarball's is in it. Running one produced
+#
+#   Can't locate Lazysite/Paths.pm in @INC
+#
+# which is what an operator met when told to run `lazysite check --fix` after a
+# rollout, and what they had to work around by hand with -I and a full path.
+# payload_root() has always known where lib/ is; run_tool simply never passed it
+# on. One argument, and the documented command becomes the one that works.
+sub _lib_arg {
+    my $lib = payload_root() . '/lib';
+    return -d $lib ? ( '-I', $lib ) : ();
+}
+
+# SM321: address a site by the one token the operator holds - its NAME.
+#
+# `lazysite check` and `lazysite acl` were pure pass-throughs, so they never saw
+# the registry and the operator had to supply a docroot and a cgibin. On the
+# Hestia layout that means knowing the site user too, and reconstructing
+# /home/<user>/web/<domain>/public_html by hand - four things the system already
+# knows, to name one thing the operator does.
+#
+# The registry has held docroot and cgibin per site all along; `upgrade --all`
+# and `migrate-engine-tree --all` already read it. This is those verbs'
+# addressing, applied to the two that were left out - not a new mechanism.
+#
+# Resolution happens HERE rather than in each tool, so the tools stay per-site
+# and unchanged. A tool that grew its own discovery would be a second copy of the
+# registry reader, which is the shape SM318 and SM304 were both filed about.
+sub extract_site_targets {
+    my ($argv) = @_;
+    my ( @rest, $all, $name );
+    while ( defined( my $a = shift @$argv ) ) {
+        if    ( $a eq '--all' )             { $all = 1 }
+        elsif ( $a eq '--domain' )          { $name = shift @$argv }
+        elsif ( $a =~ /\A--domain=(.+)\z/ ) { $name = $1 }
+        else                                { push @rest, $a }
+    }
+    @$argv = @rest;
+    return ( undef, undef ) unless $all || defined $name;
+
+    fail('--all and --domain are mutually exclusive') if $all && defined $name;
+
+    my $sites = read_registry();
+    unless (@$sites) {
+        fail( 'no sites registered in ' . registry_dir()
+                . " - give --docroot instead" );
+    }
+
+    if ($all) { return ( $sites, 'all' ) }
+
+    my ($hit) = grep { $_->{name} eq $name } @$sites;
+    unless ($hit) {
+        fail( "no registered site named '$name'. Known: "
+                . join( ', ', map { $_->{name} } @$sites ) );
+    }
+    return ( [$hit], $name );
+}
+
+# Run a per-site tool once per target, and report per site.
+#
+# The exit status is the WORST outcome, not the last one - a fleet command that
+# returned the final site's status would report success whenever the last site
+# happened to be healthy, which is the class of defect this project keeps
+# filing. Sites are not stopped on failure: one broken site should not hide the
+# state of the rest.
+sub run_tool_per_site {
+    my ( $rel, $targets, $args ) = @_;
+    my $tool = payload_root() . "/$rel";
+    fail("payload tool missing: $tool") unless -f $tool;
+
+    my $worst = 0;
+    my ( @ok, @bad );
+    for my $s (@$targets) {
+        my @a = ( '--docroot', $s->{docroot} );
+        push @a, '--cgibin', $s->{cgibin} if length( $s->{cgibin} // '' );
+        print "\n== $s->{name}\n" if @$targets > 1;
+        my $rc = system( $^X, _lib_arg(), $tool, @a, @$args );
+        $rc    = $rc == -1 ? 127 : ( $rc >> 8 );
+        $worst = $rc if $rc > $worst;
+        if   ($rc) { push @bad, $s->{name} }
+        else       { push @ok,  $s->{name} }
+    }
+
+    if ( @$targets > 1 ) {
+        printf "\n== %d ok, %d with findings.\n", scalar @ok, scalar @bad;
+        printf "   findings on: %s\n", join( ', ', @bad ) if @bad;
+    }
+    exit $worst;
 }
 
 # ---------- registry ----------
