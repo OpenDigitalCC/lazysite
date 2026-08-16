@@ -128,13 +128,40 @@ template cannot exhibit this, because nginx never answers for the file.
 the fetched-only pattern explained by nginx retaining what it had opened - rather
 than a new defect in the move.
 
+### The proxy template is NOT the answer here
+
+Recorded because the analysis above leads there and the project's standing
+constraint forbids it: **lazysite requires nothing of the front end.** The engine
+makes the decisions, nothing is added to nginx, and Apache configuration shrinks
+rather than grows. That is the whole point of SM286 moving protected content out
+of the document root - a front end that answers statics without asking cannot
+reach bytes that are not there.
+
+So "put the domain on lazysite-proxy.tpl" is not a remedy to reach for, even
+though it would work. Edge sits behind nginx and Apache in a stock Hestia
+configuration, and it must stay serveable that way.
+
+**Which means the engine's answer is already the right one and is already
+implemented**: the file is moved out of the docroot, so there is nothing at the
+path. What remains is a front end answering from state it captured while the file
+WAS there - bounded, not persistent, and not something the engine can prevent by
+moving a file more thoroughly. `open_file_cache` is off by default in nginx and
+self-heals when on.
+
+That reframes what is left to establish: not "how do we make nginx behave" but
+"how long does the residue last, and is it bounded". If it expires, the engine is
+correct and complete and this is a documented transient. If it does not, the
+assumption that moving the bytes is sufficient has a hole in it, and that is a
+much larger finding.
+
 ### The decisive test, for whoever has the host
 
 Stated because this is inference from outside, not proof:
 
 1. Reproduce the fixture and confirm the two fetched files still serve.
-2. `systemctl reload nginx`, then re-request them. If they now gate, it was
-   nginx's cached state and the remedy is the proxy template.
+2. Wait out a minute, then re-request them WITHOUT touching nginx. If they now
+   gate, the residue is bounded and the engine is complete - which is the
+   answer this project wants, since it requires nothing of the front end.
 3. If they still serve, something holds a copy on disk and the engine is back in
    scope - in which case `t/integration/56` is the place to extend.
 
