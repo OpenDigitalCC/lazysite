@@ -79,7 +79,7 @@ discovered.
   WHILE PUBLIC before gating it, which is the only version of the probe that can
   construct the case at all, and the bound is asserted on every run instead of
   believed.
-- SM338 (PENDING) a change in what a number MEANS is now visible in the data.
+- SM338 (0c6d1de) a change in what a number MEANS is now visible in the data.
   SM329 changes what a page view IS, and a closed day file is written once and
   never rewritten - so the series steps at whatever date each instance upgrades,
   which is per-site and recorded nowhere. Worse, the current month's rollup is
