@@ -73,6 +73,46 @@ instance has day buckets in its export cache with no such key, and they were
 definitely counted somehow. Reading them as unknown would discard the one fact
 this exists to preserve.
 
+# Measured against a real 0.10.11, not reasoned about
+
+An instance was rolled up by v0.10.11 and then run under this release, on the
+same store. Yesterday's traffic was one article and two images, which is the
+asset inflation the field found.
+
+```datatable
+columns: Artefact | Before (0.10.11) | After the upgrade
+widths: 4.6cm | 4.4cm | X
+bold: 1
+tone: medium
+---
+Yesterday's day file | `pageviews: 3`, no basis field | **byte-identical** - history untouched
+Today's day file | - | `pageviews: 1`, `asset_hits: 1`, `counting_basis: 2`
+Index row, yesterday | - | `counting_basis: 1`, derived
+Index row, today | - | `counting_basis: 2`
+The current month | `pageviews` summing both | `counting_basis_mixed: true`
+---
+```
+
+**History is not rewritten, and that was checked by byte comparison rather than
+by reading the code that promises it.**
+
+## The asymmetry this exposed, stated rather than left to be found
+
+A day file closed before the upgrade carries **no basis field at all**. The
+basis-1 reading lives in the index, which is regenerated on every call from the
+export cache.
+
+So the two artefacts describing the same day answer differently: ask the index
+and it says basis 1; ask the day file - the durable record, the thing that
+outlives the cache - and it says nothing. Anyone reading day files directly
+gets no marker, which is a weaker version of the defect this filing is about.
+
+It is recorded here rather than fixed here, for the same reason as the backfill:
+stamping closed day files is a **write over durable data**, and [[SM339]] is
+already the release that opens those files. Doing both there, tested as the
+thing being tested, is better than adding a second historical write to a release
+already in the gate. The scope note is added to SM339.
+
 # What was deliberately not done
 
 **The backfill.** The raw first-party log is retained for `retention_days`, 90

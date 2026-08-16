@@ -51,6 +51,23 @@ keep their old basis and must keep saying so - which they will, because SM338
 reads a missing marker as basis 1. A partial recompute leaves a series that is
 correct at both ends and steps in the middle, and that step is now labelled.
 
+# Added scope, from SM338's measurement
+
+A day file closed before 0.10.12 carries **no basis field at all**. [[SM338]]
+puts the basis-1 reading in the index, which is regenerated from the export
+cache - so the durable record itself, the artefact that outlives the cache, is
+silent about which basis it was built under.
+
+Stamping those files with `counting_basis: 1` belongs here rather than in
+SM338, because this is the release that opens historical day files anyway.
+Doing it here means one release performs one kind of historical write, and it is
+the thing being tested.
+
+It is also strictly easier than the recompute and should not be gated behind it:
+a stamp adds a derivable field and changes no number, so it can ship even if the
+recompute is judged too risky. If only one of the two happens, it should be this
+one.
+
 # Sketch
 
 A `--recount-days` verb on the stats plugin, refusing by default and requiring
