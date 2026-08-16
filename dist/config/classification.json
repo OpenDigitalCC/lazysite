@@ -364,6 +364,17 @@
         "check"
       ],
       "on_upgrade": "repair"
+    },
+    {
+      "path": "{PRIVATE_STORE}",
+      "mode": "2770",
+      "purpose": "protected content, moved out of the served tree - a SIBLING of the docroot, not a child",
+      "why": "SM286: a front end that answers static files without asking the engine cannot reach bytes that are not in the docroot. The engine writes here on every protect, so it must be group-writable by the CGI identity; 2770 keeps it off the world and setgid keeps moved content in the right group. Declared here (SM321) because it was the ONLY runtime directory nobody declared, and that omission let a sweep and a CGI protect race to create it with different ownership (SM323) - whichever won decided whether the manager UI, MCP and the control API could protect content at all.",
+      "applied_by": [
+        "install",
+        "check"
+      ],
+      "on_upgrade": "repair"
     }
   ],
   "runtime_files": [

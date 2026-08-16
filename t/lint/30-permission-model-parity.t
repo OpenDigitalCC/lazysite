@@ -101,6 +101,18 @@ for my $p ( sort keys %check ) {
 }
 for my $p ( sort keys %model ) {
     next if $p =~ m{\A\.\./};    # outside the docroot; not the check tool's job
+
+    # SM321: the private store is outside the docroot too - it is a SIBLING, so
+    # it does not normalise to a ../ prefix the way {DOCROOT}/../plugins does.
+    #
+    # It is exempt from the MODE-TABLE comparison and emphatically not from
+    # checking: report_private_store_usable tests whether the CGI identity can
+    # actually write into it (cgi_can), names its owner and mode when it cannot,
+    # and repairs it under --fix. That is a stronger check than "does the mode
+    # match", and it is the one this directory needs - SM323 was a store with a
+    # plausible-looking mode that the engine still could not write to.
+    next if $p eq '{PRIVATE_STORE}';
+
     next if $check{$p};
     push @disagree, "$p: the model declares $model{$p}{mode}, the check tool never looks at it";
 }

@@ -1850,7 +1850,36 @@ sub placeholders {
         DOCROOT  => $docroot,
         CGIBIN   => $cgibin,
         LAZYSITE => lazysite_dir_for($docroot),
+
+        # SM321: the private store, so it can be DECLARED like every other
+        # runtime directory instead of being created by whichever code path
+        # happens to reach it first.
+        #
+        # It was the only runtime directory not in runtime_paths, and that single
+        # omission produced a chain of defects: install never created it, so
+        # `check` needed bespoke repair code (SM313), so the operator needed a
+        # special command with hand-assembled paths, so a sweep and a CGI protect
+        # raced to create it with different ownership (SM323) and whichever won
+        # decided whether partner surfaces could protect content at all.
+        #
+        # DUPLICATED FROM Lazysite::Private::private_root ON PURPOSE. This
+        # installer is core-Perl-only by design - it must run before, and
+        # independently of, the engine it installs, so it cannot load the module
+        # that owns this path. t/lint/51 asserts the two constructions agree,
+        # which is the same treatment ADR 0008's frozen fields get in t/lint/45:
+        # where a fact must exist twice, the second copy is pinned to the first.
+        PRIVATE_STORE => _private_store_for($docroot),
     );
+}
+
+# Mirrors Lazysite::Private::private_root exactly - a SIBLING of the docroot,
+# not a child. Getting that wrong is what made the docroot repair miss it.
+sub _private_store_for {
+    my ($docroot) = @_;
+    return '' unless defined $docroot && length $docroot;
+    ( my $d = $docroot ) =~ s{/+\z}{};
+    return '' unless length $d;
+    return dirname($d) . '/' . basename($d) . '-lazysite-private';
 }
 
 sub resolve_placeholders {
