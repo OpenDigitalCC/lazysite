@@ -73,6 +73,45 @@ instance has day buckets in its export cache with no such key, and they were
 definitely counted somehow. Reading them as unknown would discard the one fact
 this exists to preserve.
 
+## CORRECTION: on the default path, no day ever reads as basis 1
+
+The paragraph above describes what the code does with a surviving bucket. On the
+default path there are no surviving buckets.
+
+[[SM340]], found while measuring this filing's behaviour: the export cache
+loader accepts version 1, the first-party ingester writes version 2, and
+first-party is the default. So the cache is discarded on every call, every
+retained log is re-read, and every day bucket is rebuilt under the **current**
+basis. Verified by sabotage - the stored offsets were set past the end of the
+log and the next run returned identical counts.
+
+What that means for this filing, stated plainly:
+
+```datatable
+columns: Claim | Server-log path | First-party path (default)
+widths: 6cm | 3.6cm | X
+bold: 1
+tone: medium
+---
+Days before the upgrade read as basis 1 | yes, measured | **no** - every day re-tallies as basis 2
+The month reports itself mixed | yes | no - nothing old survives to mix with
+Day files are never rewritten | yes | yes
+Rows are labelled honestly | yes | yes - they really are recomputations
+---
+```
+
+**The marker is not useless here and it is not lying.** Every row is correctly
+labelled for what it contains, days written from this release onward carry basis
+2 durably, and the vocabulary exists for the moment SM340 is fixed. But the
+headline promise - that the step is visible where it happened - is delivered
+only on the server-log path today.
+
+The honest summary is that this filing shipped a correct mechanism onto a path
+that cannot currently exercise it, and the reason was found in the same
+measurement session rather than in the field. [[SM339]]'s stamp is worth more
+because of it: on the default path the durable day file is the only place the
+old basis can be recorded at all.
+
 # Measured against a real 0.10.11, not reasoned about
 
 An instance was rolled up by v0.10.11 and then run under this release, on the
@@ -139,7 +178,9 @@ know which days it changed.
 # Verification
 
 - A day counted after the upgrade records basis 2; a day rolled up before it
-  reads as basis 1 rather than as unknown.
+  reads as basis 1 rather than as unknown - **on the server-log path**. On the
+  default first-party path this cannot hold until [[SM340]] is fixed, and that
+  is a limitation of the cache rather than of the marker.
 - The month an instance upgrades reports itself as mixed.
 - The index day series carries the basis, so the step is visible where it is
   plotted rather than inferable from a changelog.
