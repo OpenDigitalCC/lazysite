@@ -2051,6 +2051,26 @@ sub run_acl_probe {
         close $cf;
     }
 
+    # SM331: FETCH THEM WHILE PUBLIC FIRST.
+    #
+    # This probe created its folder, gated it, and fetched it - so its files were
+    # never requested while public, which is precisely the case that works. The
+    # field found the case that does not: on a site protected AFTER the fact,
+    # which is the whole SM283 remediation story, a file fetched while public
+    # kept serving after the move, while untouched files in the same folder
+    # gated. The engine had moved everything and reported it moved; something
+    # downstream was still answering for the ones that had been asked for.
+    #
+    # A probe that cannot generate the failing case reports a healthy site while
+    # that case leaks - which is SM283's own shape, where a one-extension probe
+    # passed a leaking site. So the folder is warmed before it is gated, and the
+    # comparison below then covers both populations at once.
+    #
+    # Cheap: one extra request per extension, on a probe that already makes two.
+    for my $ext (@exts) {
+        _probe_get("$url/$name/probe.$ext");
+    }
+
     # Gate the folder against a principal that cannot exist. An EMPTY read list
     # would not restrict anything - "no list for this mode" means allowed, which
     # is the documented behaviour and would make this probe pass vacuously.
