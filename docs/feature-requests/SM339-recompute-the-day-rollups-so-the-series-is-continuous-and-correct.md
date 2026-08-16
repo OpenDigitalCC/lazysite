@@ -68,6 +68,57 @@ a stamp adds a derivable field and changes no number, so it can ship even if the
 recompute is judged too risky. If only one of the two happens, it should be this
 one.
 
+## Measured: the derivation does NOT survive a cold cache
+
+The partner agent asked whether the index's basis-1 reading for a historical day
+is a property of the day file - in which case the stamp is a convenience - or of
+the export cache, in which case it is the only durable record. The question
+decides how hard this filing should argue for it, so it was run rather than
+reasoned about: roll a store up under v0.10.11, upgrade, then delete
+`lazysite/cache/stats-export.json` and export again.
+
+```datatable
+columns: | 2026-08-15 (historical) | 2026-08-16 (today)
+widths: 5.4cm | 4.6cm | X
+bold: 1
+tone: medium
+---
+Index, warm cache | `pageviews 3`, basis **1** | `pageviews 1`, basis 2
+Index, cold cache | `pageviews 1`, basis **2** | `pageviews 1`, basis 2
+The day file, throughout | `pageviews 3`, **no basis field** | -
+---
+```
+
+**It is cache-resident.** So the stamp is not a convenience. It is the only
+durable record of the basis, and this filing should say so.
+
+## And the disagreement is about the number, not only the marker
+
+The more interesting half. On a cold cache the reader's offset returns to zero,
+it re-reads the whole retained log, and it **re-tallies the historical days
+under the current basis** - so the index reports `pageviews 1` for a day whose
+durable file says `pageviews 3`.
+
+Stated fairly: the index is not lying. Those rows genuinely are basis-2 data and
+they are labelled basis 2 correctly. What has happened is an **accidental,
+partial, undeclared backfill** - this filing's own job, performed by losing a
+cache file, reaching only as far as the raw logs go, and leaving the durable
+store untouched and stale.
+
+So which history a reader gets depends on whether the cache has been cleared
+since the upgrade, and nothing anywhere says which they are looking at.
+
+**How reachable is that?** Not routine: the Hestia deploy removes
+`cache/tt` and not the stats cache. But a vhost rebuild takes the docroot with
+it, which is [[SM270]]'s scenario and does happen in the field, and any operator
+clearing caches by hand will do it.
+
+This does not block the release that introduces it - the numbers on both sides
+are internally consistent and the raw material for the real fix is intact, so
+there is no "cheap now, impossible later" here of the kind that held 0.10.12 for
+[[SM338]]. It does raise this filing's priority from housekeeping to a
+correctness item, and it adds a requirement below.
+
 # Sketch
 
 A `--recount-days` verb on the stats plugin, refusing by default and requiring
@@ -86,6 +137,9 @@ after for each day without writing.
 - Running it twice changes nothing the second time.
 - The series after a full recompute has no step at the upgrade date, and the
   days it could not reach still say which basis they are.
+- **A cold cache does not silently change history.** After deleting the export
+  cache and re-exporting, the index and the durable day files agree about every
+  historical day - or the disagreement is reported rather than served.
 
 # Related
 

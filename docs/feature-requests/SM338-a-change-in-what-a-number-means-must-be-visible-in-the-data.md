@@ -113,6 +113,14 @@ already the release that opens those files. Doing both there, tested as the
 thing being tested, is better than adding a second historical write to a release
 already in the gate. The scope note is added to SM339.
 
+**And the asymmetry is worse than a missing field.** The partner agent asked
+whether the index's basis-1 reading survives losing the export cache. Measured:
+it does not - and on a cold cache the reader re-tallies the historical days
+under the current basis, so the index reports numbers the durable day files
+contradict. Neither side is lying, and nothing says which one is being read.
+That measurement is in [[SM339]], which it moves from housekeeping to a
+correctness item.
+
 # What was deliberately not done
 
 **The backfill.** The raw first-party log is retained for `retention_days`, 90
