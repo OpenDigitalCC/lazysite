@@ -2,8 +2,8 @@
 title: "SM332 - Promote a scanner by behaviour, not only by signature"
 subtitle: "A WordPress path sweep - ten distinct 404s from one visitor in a few minutes - is classified as human, because the modern probe is extensionless and every trigger in the probe list is a signature that predates it."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-16 from a partner-agent review of visitor statistics on edge/0.10.11. Small in volume - 27 events, 6 visitors, 4% of human-class events in a 5,000-event sample - and out of proportion in effect, because it would be the top journey on the site the moment trail metrics exist. The mechanism already exists: SM213 promotes a visitor token to scanner for the window. This asks for a second trigger on it. The threshold is a judgement for the maintainer; the numbers below are a starting point rather than a recommendation."
+status: shipped
+status-note: "SHIPPED for 0.10.12. A second trigger on SM213's existing visitor-level pass, not new architecture: a token asking for five or more DISTINCT missing paths inside five minutes is promoted to `scanner`, and its other requests that day go with it - which is what pulls the sweep's homepage hit out of the journey metric, the reason this mattered out of proportion to its 4%. Distinct paths and a short window are what separate it from the case it must not catch: a reader following stale bookmarks, whose `not_found.plausible` entries are the more useful signal of the two. Both numbers are settings with stated defaults, per the filing - how many 404s a real reader generates is a property of the site. The day and month rollups carry `scanner_inferred`, so an operator can see how much of their scanner class was inferred and judge the threshold against their own traffic rather than against ours. FILED 2026-08-16 from a partner-agent review of visitor statistics on edge/0.10.11."
 ---
 
 # SM332 - the probe list dates, the behaviour does not
@@ -125,6 +125,35 @@ their own traffic.
 - A visitor hitting the same missing path repeatedly stays `human`.
 - `not_found.plausible` still records the missing pages a real reader looked for.
 - The rollup distinguishes signature-promoted from behaviour-promoted tokens.
+
+## What shipped, and what was chosen
+
+```datatable
+columns: Decision | Value | Why
+widths: 4.2cm | 2.6cm | X
+bold: 1
+tone: medium
+---
+Distinct missing paths | 5 | High enough that a reader who mistypes twice is untouched. Distinct, not requests - one path retried is a stuck client
+Window | 5 minutes | A day's browsing is not a sweep however many dead links it turns up
+What counts | 404s only | And only from a token not already promoted by signature
+Attribution | `scanner_inferred` | Per day and per month, so the threshold can be judged against real traffic
+---
+```
+
+**Signature wins the attribution.** A token caught by both triggers is recorded
+as caught by signature, because that is the cheaper and the more certain of the
+two, and the inferred count is only useful if it means what it says.
+
+**The state is bounded and transient.** The per-token path set lives in the
+export cache beside SM213's scanner map, self-obsoletes on a salt roll, is
+capped, and is discarded for a token the moment it is promoted - so the map
+holds only visitors who are still under the threshold.
+
+**The false-positive cases are three of the five tests**, not an afterthought:
+three dead bookmarks stay human and keep their `plausible` 404s; one missing
+path requested twelve times stays human; and the same eight missing paths that
+are a sweep in three minutes are an ordinary bad afternoon spread over an hour.
 
 ## Related
 

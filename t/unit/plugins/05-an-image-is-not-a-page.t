@@ -26,6 +26,10 @@
 use strict;
 use warnings;
 use Test::More;
+use JSON::PP   qw(decode_json);
+use POSIX      qw(strftime);
+use File::Temp qw(tempdir);
+use File::Path qw(make_path);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
@@ -79,16 +83,78 @@ subtest 'a cache-buster does not change what a file is' => sub {
     ok( AssetCheck::_is_asset('/x.png?a=1&b=2'), 'and any query at all' );
 };
 
-subtest 'both readers use the one predicate' => sub {
-    # There are two counting sites - the first-party event stream and the access
-    # log - and they had identical page-counting logic. A fix applied to one is
-    # the shape SM318 and SM304 were filed about.
-    my $uses = () = $src =~ /_is_asset\(\$path\)/g;
-    cmp_ok( $uses, '>=', 2,
-        'the predicate is applied on both the first-party and access-log paths' );
+subtest 'EVERY counting site uses the one predicate' => sub {
+    # There are THREE, and the first version of this fix reached two of them:
+    # the two window readers, and not `_tally_batch`, which builds the DURABLE
+    # day bucket - the one the filing called "all that survives". That is
+    # SM318's shape inside the fix for SM329, and the worse half of it, because
+    # the rollups already read an `asset_hits` that nothing set, so the durable
+    # record reported a real-looking zero.
+    #
+    # Counted rather than listed, so a fourth reader added later has to carry
+    # it too. Both spellings - the window readers increment a lexical %pages,
+    # the durable bucket $b->{pages} - and pinned to the INCREMENT, because the
+    # rollups also READ $pages{...} and counting those reported five sites.
+    my $counting = () = $src =~ /\$pages\{[^}]*\}\+\+|\{pages\}\{.*?\}\+\+/g;
+    cmp_ok( $counting, '>=', 3, 'all three page-counting sites were found' )
+        or diag( "found $counting - if a reader was renamed this test is "
+            . 'measuring nothing, which is the failure mode it exists to '
+            . 'prevent in the code it watches.' );
 
-    my $excluded = () = $src =~ /&&\s*!\$is_asset/g;
-    cmp_ok( $excluded, '>=', 2, 'and both exclude assets from top_pages' );
+    my $excluded = () = $src =~ /!\s*\$is_asset/g;
+    cmp_ok( $excluded, '>=', $counting,
+        'every site that counts a page also excludes an asset from it' )
+        or diag( "$counting counting sites, $excluded of them asset-aware. "
+            . 'A reader that counts pages without the predicate is the one '
+            . 'that keeps the defect alive in whichever view it feeds.' );
+};
+
+subtest 'the durable record measures it, not just the window' => sub {
+    # Driven through the real plugin rather than asserted against the source,
+    # because the source-level version of this passed with two of three sites
+    # fixed. The durable day file is what survives retention and what every
+    # rollup is built from.
+    my $d = tempdir( CLEANUP => 1 );
+    make_path("$d/lazysite/cache");
+    open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
+    print $cf "site_url: https://demo.example.io\n";
+    close $cf;
+
+    my $log = "$d/access.log";
+    my $now = strftime( '%d/%b/%Y:%H:%M:%S +0000', localtime );
+    my $ua  = 'Mozilla/5.0 Chrome/120';
+    open my $lf, '>', $log or die $!;
+    # One reader, one article, three images and a stylesheet on it. This is the
+    # field ratio: one human page view generating four asset hits.
+    print $lf qq{1.2.3.4 - - [$now] "GET $_ HTTP/1.1" 200 100 "-" "$ua"\n}
+        for qw(/article /assets/img/a.jpg /assets/img/b.jpg /assets/img/c.png
+        /assets/site.css);
+    close $lf;
+
+    local $ENV{DOCUMENT_ROOT}       = $d;
+    local $ENV{LAZYSITE_ACCESS_LOG} = $log;
+    my $out = qx($^X \Q$plugin\E --export --window 30 2>/dev/null);
+    my $r   = eval { decode_json($out) };
+    ok( $r && $r->{ok}, 'the export ran' ) or return;
+
+    is( $r->{totals}{human_visits}, 1,
+        'one page view, not five - the window view' );
+
+    my $today = strftime( '%Y-%m-%d', localtime );
+    my $df    = "$d/lazysite/stats/daily/$today.json";
+    ok( -f $df, 'the durable day file was written' ) or return;
+    my $day = decode_json( do { open my $fh, '<', $df or die $!; local $/; <$fh> } );
+
+    is( $day->{pageviews}, 1, 'and one in the DURABLE record too' )
+        or diag( 'The durable bucket is what survives retention. Counting four '
+            . 'images as four page views there is the number every rollup, '
+            . 'trend and month total is then built from.' );
+    is( $day->{asset_hits}, 4, 'with the four assets counted, and visible' )
+        or diag( 'asset_hits was read by both rollups and set by nothing, so '
+            . 'it reported 0 - indistinguishable from a site with no images.' );
+
+    my @paths = map { $_->{key} } @{ $day->{top_pages} || [] };
+    is_deeply( \@paths, ['/article'], 'and top_pages holds the article alone' );
 };
 
 subtest 'the exclusion is auditable, not silent' => sub {

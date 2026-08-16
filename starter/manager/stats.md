@@ -76,9 +76,16 @@ function renderStats(d) {
   }
   var h = '';
   // Headline = genuine human audience only.
+  //
+  // SM329: 'Page views' says what the number is. It used to count every image
+  // and stylesheet on the page, so it fell sharply the day that was fixed - and
+  // a headline number that drops without explanation reads as lost traffic. The
+  // assets are shown beside it rather than dropped silently, so the subtraction
+  // is visible on the page an operator actually reads.
   h += '<div class="mg-stat-tiles">'
-     + tile('People', fmtNum(d.hits))
+     + tile('Page views', fmtNum(d.hits))
      + tile('Unique visitors' + (d.anonymised ? ' *' : ''), fmtNum(d.unique_visitors))
+     + tile('Images and files', fmtNum(d.asset_hits || 0))
      + tile('Data served', fmtBytes(d.bytes))
      + tile('Window', d.window_days + ' days')
      + '</div>';

@@ -212,6 +212,31 @@ honours it, so the site is no worse off than before the store existed - but the
 response says so, because both outcomes look identical to the operator
 otherwise.
 
+### Protection takes effect within the front end's cache validity
+
+The bytes leave the document root the moment the rule is written, and the engine
+serves nothing from the old path afterwards. A front end holding an **open file
+descriptor** for a file it served recently can still answer from it for as long
+as that descriptor stays valid, because it never returns to the filesystem to
+find the file gone.
+
+Measured on a live nginx-fronted instance (SM331): three identical files, two
+fetched anonymously while the folder was public and one never requested. After
+protecting the folder, the two fetched files served for another 30 seconds and
+gated from 60 seconds onward; the never-fetched control gated immediately. The
+boundary is `open_file_cache_valid`, whose default is 60 seconds.
+
+**The population this affects is the interesting one.** A file fetched in the
+minute before protection is, on a site being protected after the fact, likely to
+be a file somebody wanted. So when remediating - the SM283 case, where content
+that was public is being taken private - treat the exposure window as lasting up
+to the front end's cache validity from the last anonymous fetch, rather than
+from the moment the rule was written.
+
+Nothing is asked of the front end here. `open_file_cache_valid` is named because
+it is the number that decides the window, and an operator who has raised it above
+the default should know they have lengthened it. The default needs no change.
+
 ### The site root is the exception
 
 `/` cannot be expressed as a move: the document root would have to become its own

@@ -169,6 +169,25 @@ sub _is_probe {
     return 0;
 }
 
+# SM332: the behavioural sweep thresholds. Settings rather than constants,
+# because the false-positive case is a real person - somebody working through a
+# set of stale bookmarks, or a broken navigation menu - and how many 404s that
+# produces depends on the site. `noise_paths` is the precedent for an operator
+# escape hatch on this classification.
+#
+# Five distinct missing paths inside five minutes. Distinct is what separates a
+# sweep from a stuck client, and five is high enough that a reader who mistypes
+# a URL twice is untouched. The window is short because a day's browsing is not
+# a sweep however many dead links it accumulates.
+sub _sweep_thresholds {
+    my ($cfg) = @_;
+    my $n     = ( $cfg->{scanner_404_paths}   || 5 ) + 0;
+    my $w     = ( $cfg->{scanner_404_minutes} || 5 ) + 0;
+    $n = 5 if $n < 2;    # a threshold of 1 is "any 404 is a scan"
+    $w = 5 if $w < 1;
+    return ( $n, $w * 60 );
+}
+
 # AI assistants / model fetchers + the lazysite automation surface.
 my $AI_RE = qr{
     GPTBot | ChatGPT | OAI-SearchBot | ClaudeBot | Claude-User | anthropic
@@ -223,6 +242,14 @@ if ( $arg{describe} ) {
                     note => 'Comma-separated UA substrings to also count as AI assistants, on top of the built-ins (GPTBot, ClaudeBot, anthropic, ...).' },
                 { key => 'noise_paths', label => 'Extra noise paths', type => 'text', default => '',
                     note => 'Comma-separated path prefixes to treat as probe/scanner noise, on top of the built-ins (/wp-login.php, /.env, *.php, ...).' },
+                # SM332: the behavioural trigger. Exposed because the
+                # false-positive case is a real reader following stale
+                # bookmarks, and how many of those a site produces is a
+                # property of the site rather than of the engine.
+                { key => 'scanner_404_paths', label => 'Sweep threshold (distinct missing paths)', type => 'text', default => '5',
+                    note => 'A visitor asking for this many DIFFERENT missing pages inside the window below is treated as a scanner, whatever the paths are - this catches probes that no signature list knows about yet. Raise it if readers following old links are being counted as scanners.' },
+                { key => 'scanner_404_minutes', label => 'Sweep window (minutes)', type => 'text', default => '5',
+                    note => 'How close together those requests must be. Minutes, not hours: a day of browsing is not a sweep however many dead links it turns up.' },
             ],
             # 'refresh' is called programmatically by the Stats page to pull
             # data - it is not a config-page button (hidden), so the plugin page
@@ -842,14 +869,15 @@ sub _day_rollup {
     my ( $day, $bucket, $top_n ) = @_;
     my %cls = %{ $bucket->{cls} || {} };
     return {
-        date            => $day,
-        pageviews       => ( $bucket->{hits}       // 0 ),
-        asset_hits      => ( $bucket->{asset_hits} // 0 ),    # SM329
-        unique_visitors => scalar keys %{ $bucket->{ips} || {} },
-        classes         => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
-        top_pages       => _topn( $bucket->{pages} || {}, $top_n ),
-        status_codes    => { %{ $bucket->{status} || {} } },
-        not_found       => {
+        date             => $day,
+        pageviews        => ( $bucket->{hits}             // 0 ),
+        asset_hits       => ( $bucket->{asset_hits}       // 0 ),    # SM329
+        scanner_inferred => ( $bucket->{scanner_inferred} // 0 ),    # SM332
+        unique_visitors  => scalar keys %{ $bucket->{ips} || {} },
+        classes          => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
+        top_pages        => _topn( $bucket->{pages} || {}, $top_n ),
+        status_codes     => { %{ $bucket->{status} || {} } },
+        not_found        => {
             plausible  => _topn( $bucket->{nf_plausible} || {}, $top_n ),
             junk_count => ( $bucket->{nf_junk} // 0 ),
         },
@@ -872,20 +900,21 @@ sub _month_rollup {
     my ( $mon, $days, $top_n ) = @_;
     my ( %cls, %pages, %ips, %status, %nf_pl, %forms );
     my %auth_ref;    # SM223
-    my ( $pv, $ndays, $nf_junk, $asset_pv ) = ( 0, 0, 0, 0 );
+    my ( $pv, $ndays, $nf_junk, $asset_pv, $inferred ) = ( 0, 0, 0, 0, 0 );
     for my $day ( grep { index( $_, $mon ) == 0 } keys %$days ) {
         my $b = $days->{$day};
         $ndays++;
-        $pv           += ( $b->{hits}       // 0 );
-        $asset_pv     += ( $b->{asset_hits} // 0 );    # SM329
-        $nf_junk      += ( $b->{nf_junk}    // 0 );
+        $pv           += ( $b->{hits}             // 0 );
+        $asset_pv     += ( $b->{asset_hits}       // 0 );    # SM329
+        $inferred     += ( $b->{scanner_inferred} // 0 );    # SM332
+        $nf_junk      += ( $b->{nf_junk}          // 0 );
         $cls{$_}      += $b->{cls}{$_}          for keys %{ $b->{cls}          || {} };
         $pages{$_}    += $b->{pages}{$_}        for keys %{ $b->{pages}        || {} };
         $status{$_}   += $b->{status}{$_}       for keys %{ $b->{status}       || {} };
         $nf_pl{$_}    += $b->{nf_plausible}{$_} for keys %{ $b->{nf_plausible} || {} };
         $auth_ref{$_} += $b->{auth_refused}{$_} for keys %{ $b->{auth_refused} || {} };
         $ips{$_} = 1 for keys %{ $b->{ips} || {} };
-        for my $fn ( keys %{ $b->{forms} || {} } ) {    # SM216-2
+        for my $fn ( keys %{ $b->{forms} || {} } ) {         # SM216-2
             my $fb = $b->{forms}{$fn};
             $forms{$fn}{stored}      += $fb->{stored}      // 0;
             $forms{$fn}{quarantined} += $fb->{quarantined} // 0;
@@ -897,12 +926,13 @@ sub _month_rollup {
         days  => $ndays,
         # SM329: pageviews is PAGES. Assets are reported separately rather than
         # folded in, so a reader can see both and the exclusion is checkable.
-        pageviews       => $pv,
-        asset_hits      => $asset_pv,
-        unique_visitors => scalar keys %ips,
-        classes         => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
-        top_pages       => _topn( \%pages, $top_n ),
-        status_codes    => \%status,
+        pageviews        => $pv,
+        asset_hits       => $asset_pv,
+        scanner_inferred => $inferred,
+        unique_visitors  => scalar keys %ips,
+        classes          => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
+        top_pages        => _topn( \%pages, $top_n ),
+        status_codes     => \%status,
         not_found    => { plausible => _topn( \%nf_pl, $top_n ), junk_count => $nf_junk },
         auth_refused => _topn( \%auth_ref, $top_n ), # SM223
         forms        => \%forms,                     # SM216-2: per-form delivery outcomes
@@ -1016,6 +1046,20 @@ sub _read_stats_index {
 # pulled out of the human/referrer buckets, not just its probe). 404s split into
 # plausible (a human hit a missing page - kept by path, bounded) vs junk (a
 # scanner chorus - counted only). A record: {day,path,status,class,token,ref,t}.
+# The day-bucket shape, in one place. It was written out twice - here and in the
+# form-event ingester, which creates a bucket for a day with blocks but no page
+# traffic - and a field added to one was a field missing from the other. Same
+# shape as SM330's class list: one fact, two hand-maintained copies.
+sub _new_day_bucket {
+    return {
+        cls              => {}, ips     => {}, hits         => 0, pages      => {},
+        status           => {}, ref_ext => {}, ref_internal => 0, ref_direct => 0,
+        nf_plausible     => {}, nf_junk => 0,  auth_refused => {},
+        asset_hits       => 0,    # SM329
+        scanner_inferred => 0,    # SM332
+    };
+}
+
 sub _tally_batch {
     my ( $cache, $batch, $cfg ) = @_;
     return unless @$batch;
@@ -1023,24 +1067,72 @@ sub _tally_batch {
     my $EVENT_CAP = 5000;
     my $IP_CAP    = 50000;
     my $NF_CAP    = 500;
-    $cache->{scanner} ||= {};
+    $cache->{scanner}    ||= {};
+    $cache->{scanner_by} ||= {};
+    $cache->{sweep}      ||= {};
 
+    # SM332: two triggers, and the ORDER matters only for attribution - a token
+    # caught by both is recorded as caught by signature, because that is the
+    # cheaper and more certain of the two.
+    #
+    # The second trigger is behavioural: a visitor asking for many DISTINCT
+    # missing paths in a short window is sweeping, whatever the paths are. It
+    # exists because the first trigger is a signature list and signature lists
+    # date - `/wp-login.php` is caught by the `.php` rule and its modern
+    # replacement `/wp-json/batch/v1` is caught by nothing, so a WordPress
+    # enumeration ran as `human` and would have been the top journey on the site
+    # the moment trail metrics existed.
+    my ( $sweep_n, $sweep_w ) = _sweep_thresholds($cfg);
     for my $r (@$batch) {
-        next unless length( $r->{token} // '' );
-        $cache->{scanner}{ $r->{token} } = 1 if _is_probe( $r->{path}, $r->{status} );
+        my $tok = $r->{token} // '';
+        next unless length $tok;
+        if ( _is_probe( $r->{path}, $r->{status} ) ) {
+            $cache->{scanner}{$tok}    = 1;
+            $cache->{scanner_by}{$tok} = 'signature';
+            delete $cache->{sweep}{$tok};    # promoted; stop accruing state for it
+            next;
+        }
+        next if $cache->{scanner}{$tok};
+        next unless ( $r->{status} // 0 ) == 404;
+
+        # DISTINCT paths, timestamped. One path retried is a broken link or a
+        # stuck client; the same path a hundred times is not a sweep.
+        my $seen = $cache->{sweep}{$tok} ||= {};
+        my $now  = $r->{t} // 0;
+        $seen->{ $r->{path} } = $now
+            if !exists $seen->{ $r->{path} } && keys %$seen < ( $sweep_n * 4 );
+        delete $seen->{$_} for grep { $now - $seen->{$_} > $sweep_w } keys %$seen;
+
+        if ( keys %$seen >= $sweep_n ) {
+            $cache->{scanner}{$tok}    = 1;
+            $cache->{scanner_by}{$tok} = 'behaviour';
+            delete $cache->{sweep}{$tok};
+        }
     }
-    $cache->{scanner} = {} if keys %{ $cache->{scanner} } > 200_000; # self-obsoletes on salt roll
+
+    # Both maps self-obsolete on a salt roll; the sweep map is transient working
+    # state and is bounded harder, because it holds a path set per token rather
+    # than a flag.
+    $cache->{scanner} = {} if keys %{ $cache->{scanner} } > 200_000;
+    $cache->{sweep}   = {} if keys %{ $cache->{sweep} } > 20_000;
+    delete $cache->{scanner_by}{$_}
+        for grep { !$cache->{scanner}{$_} } keys %{ $cache->{scanner_by} };
 
     for my $r (@$batch) {
         my $tok = $r->{token}  // '';
         my $st  = $r->{status} // 0;
         my $cls = ( length($tok) && $cache->{scanner}{$tok} ) ? 'scanner' : $r->{class};
-        my $b   = $cache->{days}{ $r->{day} } ||= {
-            cls          => {}, ips     => {}, hits         => 0, pages      => {},
-            status       => {}, ref_ext => {}, ref_internal => 0, ref_direct => 0,
-            nf_plausible => {}, nf_junk => 0,  auth_refused => {},
-        };
+        my $b   = $cache->{days}{ $r->{day} } ||= _new_day_bucket();
         $b->{cls}{$cls}++;
+
+        # SM332: how much of the scanner class was INFERRED from behaviour
+        # rather than matched against a signature. An operator checking whether
+        # the sweep threshold suits their traffic needs this number; without it
+        # the two promotions are indistinguishable and the threshold cannot be
+        # judged against anything.
+        $b->{scanner_inferred}++
+            if $cls eq 'scanner'
+            && ( $cache->{scanner_by}{$tok} // '' ) eq 'behaviour';
         $b->{ips}{$tok} = 1 if length($tok) && keys %{ $b->{ips} } < $IP_CAP;
 
         if ( $st == 404 ) {
@@ -1060,10 +1152,18 @@ sub _tally_batch {
             if $r->{auth_refused} && keys %{ $b->{auth_refused} || {} } < $NF_CAP;
 
         if ( $cls eq 'human' ) {
-            $b->{hits}++;
+            # SM329: the DURABLE bucket, and the third counting site. The two
+            # window readers were fixed first and this one was not, which is
+            # SM318's shape exactly - and the worse half of it, because the
+            # rollups already reported an asset_hits that nothing set, so the
+            # durable record showed a real-looking zero.
+            my $is_asset = _is_asset( $r->{path} );
+            $b->{asset_hits}++ if $is_asset && $st < 400;
+            $b->{hits}++ unless $is_asset   && $st < 400;
             $b->{status}{$st}++;
             $b->{pages}{ $r->{path} }++
                 if $st < 400
+                && !$is_asset
                 && $r->{path} !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
             my $ref = $r->{ref} // '';
             if    ( !length $ref || $ref eq '-' ) { $b->{ref_direct}++ }
@@ -1255,11 +1355,7 @@ sub _ingest_form_events {
             # Create the day-bucket with the full shape _tally_batch uses, so a
             # form-only day (blocks but no page traffic) is still safe for the
             # window loop and rollups.
-            my $b = $cache->{days}{$day} ||= {
-                cls          => {}, ips     => {}, hits         => 0, pages      => {},
-                status       => {}, ref_ext => {}, ref_internal => 0, ref_direct => 0,
-                nf_plausible => {}, nf_junk => 0,  auth_refused => {},
-            };
+            my $b = $cache->{days}{$day} ||= _new_day_bucket();
             my $fb = $b->{forms}{$form} ||= { stored => 0, quarantined => 0, blocked => {} };
             my $out = $r->{outcome} // '';
             if ( $out eq 'blocked' ) {

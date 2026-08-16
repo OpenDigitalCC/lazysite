@@ -1,9 +1,9 @@
 ---
 title: "SM331 - A static file fetched before protection keeps serving after it"
-subtitle: "The move succeeds, content_moved is 1, list_files reports every entry private, and the two files that had been requested earlier still answer 200 to an anonymous request. The leaked set is exactly the set somebody had already looked at."
+subtitle: "The move succeeds and every file reaches the private store - and the two that had been fetched while public still answer 200 for up to a minute afterwards. Measured on the host: the front end is answering from a descriptor it already held."
 brand: plain
-status: partial
-status-note: "INVESTIGATED 2026-08-16, AND THE ENGINE IS CLEARED. Reproduced locally against the real engine: fetching a static leaves NO copy of it in the docroot, and after protecting, all five files are in the private store with nothing remaining in the served tree (t/integration/56). So move_in is complete and the leak is downstream of it. What is fixed here is the PROBE - it created, gated and fetched in one go, so its files were never requested while public and it could not generate the failing case at all; it now warms the folder before gating. What is NOT fixed is the front end, which is where the remaining evidence points: see the analysis added below. FILED 2026-08-16 from a partner-agent pass on edge/0.10.11, immediately after the store permissions were repaired and protection began working from the control API. Reproduced deliberately with a controlled fixture: five identical files, two fetched before protecting and three not. The two fetched keep serving; the three not fetched gate. Unique query strings do not defeat it, which rules out a URL-keyed proxy cache and points at a public copy left in the served tree. This is SM283's shape reached by a new route, and the route is one an ordinary visitor walks."
+status: shipped
+status-note: "CLOSED 2026-08-16, MEASURED RATHER THAN INFERRED. The engine was cleared first: fetching a static leaves no copy in the docroot, and after protecting, every file is in the private store with nothing left in the served tree (t/integration/56). The partner agent then ran the decisive test on the host with nginx untouched - two files fetched while public, one never requested as the control. The fetched pair served at t+0 and t+30 and gated from t+60 onward; the control gated from the first probe. So the residue is a descriptor cache ageing out, the boundary is nginx's `open_file_cache_valid` default of 60 seconds, and the severity is a bounded sub-minute transient rather than a silent failure. Two things shipped from it: the probe now fetches its folder WHILE PUBLIC before gating, so the bound is asserted on every run instead of believed, and the access-control model documents the window - naming `open_file_cache_valid` because it is the number that decides it, while asking nothing of the front end and requiring no change to its default. FILED 2026-08-16 from a partner-agent pass on edge/0.10.11, immediately after the store permissions were repaired and protection began working from the control API."
 ---
 
 # SM331 - the move is complete and the file is still served
@@ -154,16 +154,63 @@ correct and complete and this is a documented transient. If it does not, the
 assumption that moving the bytes is sufficient has a hole in it, and that is a
 much larger finding.
 
-### The decisive test, for whoever has the host
+### The decisive test - RUN 2026-08-16, and the residue is bounded
 
-Stated because this is inference from outside, not proof:
+Run from the partner side against edge/0.10.11, nginx untouched throughout.
+Three identical-byte files: `png` and `zip` fetched while the folder was public,
+`pdf` never requested as the control.
 
-1. Reproduce the fixture and confirm the two fetched files still serve.
-2. Wait out a minute, then re-request them WITHOUT touching nginx. If they now
-   gate, the residue is bounded and the engine is complete - which is the
-   answer this project wants, since it requires nothing of the front end.
-3. If they still serve, something holds a copy on disk and the engine is back in
-   scope - in which case `t/integration/56` is the place to extend.
+```datatable
+columns: Elapsed since protecting | d.png | d.zip | d.pdf (control)
+widths: 5.4cm | 2.4cm | 2.4cm | X
+bold: 1
+tone: medium
+---
+0s | 200 | 200 | 302
+30s | 200 | 200 | 302
+**60s** | **302** | **302** | 302
+180s | 302 | 302 | 302
+300s | 302 | 302 | 302
+600s | 302 | 302 | 302
+```
+
+**The residue expires between 30 and 60 seconds and does not return.** The
+control gated from the first probe, so the difference is entirely the earlier
+fetch.
+
+That is outcome 2 of the three, and it is the one the project wants:
+
+- the engine is **complete and correct** - the bytes are moved, nothing is left
+  at the path, and `t/integration/56` needs no extension;
+- the exposure is a **bounded transient of under a minute**, not a persistent
+  leak;
+- nothing is required of the front end, which is the standing constraint.
+
+The window also identifies the mechanism. nginx's `open_file_cache_valid`
+defaults to **60 seconds**, and the observed boundary sits exactly there. This
+is a descriptor cache ageing out, as the analysis above inferred.
+
+### What that changes about this filing
+
+The severity drops from "protection silently fails" to "protection takes effect
+within a minute on a front end holding a descriptor cache". That is a
+documentation item rather than a code defect, and the number belongs in the
+SM283 remediation guidance: after protecting content, a file that had been
+fetched in the preceding minute may still be served for up to that long.
+
+Two things are still worth doing:
+
+The probe should construct the failing case
+: `check --check-acl` creating, gating and fetching in one go cannot produce it.
+  Warming the folder before gating is one extra request per extension, and it
+  turns "we believe this is bounded" into something asserted on every run. This
+  is already recorded as fixed in the status note.
+
+The bound should be stated rather than assumed
+: 60 seconds is nginx's default and an operator can raise it. The guidance
+  should say the exposure lasts as long as the front end's descriptor or file
+  cache validity, and name `open_file_cache_valid` as the setting that decides
+  it - so a site that has tuned it upward knows what it has tuned.
 
 ## Where to look
 
@@ -188,14 +235,64 @@ I cannot answer these from outside; every one of them is a question about the
 filesystem, and the measurement above is the whole of what a partner surface can
 see.
 
+## Measured on the host, 2026-08-16
+
+Run by the partner agent on edge/0.10.11 with **nginx untouched throughout**.
+Three identical-byte files; `png` and `zip` fetched anonymously while the folder
+was public, `pdf` never requested as the control. The folder was then protected
+and all three probed anonymously.
+
+```datatable
+columns: Elapsed | png (fetched) | zip (fetched) | pdf (control)
+widths: 3cm | 3.2cm | 3.2cm | X
+bold: 1
+tone: medium
+---
+t+0s | 200 | 200 | 302
+t+30s | 200 | 200 | 302
+t+60s | **302** | **302** | 302
+t+180s | 302 | 302 | 302
+t+300s | 302 | 302 | 302
+t+600s | 302 | 302 | 302
+---
+```
+
+The control gates from the first probe, so the entire difference is attributable
+to the earlier fetch. The residue expires between 30 and 60 seconds and does not
+return.
+
+**That identifies the mechanism.** A URL-keyed proxy cache was already ruled out
+by the query-string test. A boundary landing exactly on nginx's
+`open_file_cache_valid` default of 60 seconds is a descriptor cache: the front
+end holds an open file handle from the earlier request and answers from it
+without returning to the filesystem to discover the file has gone.
+
+## What this changes
+
+The engine is complete and correct. The bytes move, nothing is left at the path,
+and `t/integration/56` needs no extension.
+
+The severity drops from *protection silently fails* to **protection takes effect
+within the front end's cache validity**. That is a documentation item, now
+written into `docs/architecture/access-control-model.md`, which states the window
+and names `open_file_cache_valid` as the setting that decides it - so an operator
+who has raised it above the default knows what they have lengthened. Nothing is
+asked of the front end and the default needs no change.
+
+The probe's warming pass is kept. It is what turns "we believe this is bounded"
+into a property asserted on every run.
+
 ## Verification
 
 - A file fetched anonymously, then protected, returns 302 to a subsequent
-  anonymous request.
-- The same holds with a query string, with a fresh connection, and after any
-  cache TTL a front end might apply.
-- A folder in this state is reported as such rather than as fully protected -
-  either the move fails loudly or the leftover is cleared.
+  anonymous request **once the front end's cache validity has elapsed** - 60
+  seconds on a default nginx. Confirmed on the host, with a never-fetched
+  control gating from the first probe.
+- No copy of a served file is left anywhere in the document root, so the move
+  has nothing to carry that it does not carry. Confirmed against the engine by
+  `t/integration/56`.
+- The window is documented where remediation is described, and the setting that
+  decides its length is named.
 - `check --check-acl` catches it. That needs the probe to **fetch its files
   while they are public and then gate them**, which is one extra request per
   extension and is the only version of the probe that would have found this.
