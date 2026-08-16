@@ -84,6 +84,30 @@ release target. Whatever `VERSION` says in the committed tree
 is the committed value; the RELEASE version lives in the tag
 name (`vX.Y.Z`), not a per-release commit.
 
+### Where the gate runs, and why it matters
+
+`release.sh` stages a clone and runs the **entire gate** in it - the full suite,
+the perf bench and a Devel::Cover run. That last one is the constraint, and not
+in the way anyone expects.
+
+**Devel::Cover writes one directory per instrumented process.** This suite drives
+real CGI subprocesses rather than mocking them, so a gate run produces hundreds
+of thousands of small directories - two integration test files alone produce 53.
+It exhausts a filesystem's **inodes**, not its bytes.
+
+That is why the staging location is `${LAZYSITE_STAGE_DIR:-${TMPDIR:-/tmp}}` and
+overridable with `--stage-dir`, and why the pre-flight check reads `df
+--output=iavail` rather than free space. On this host `/tmp` is a 4.8G tmpfs with
+a fixed 1,048,576 inodes; a release fills it while reporting 3% of bytes used, so
+`df -h` looks healthy right up to the failure. **Build scratch belongs on `/srv`
+here** - the root filesystem is small and `/tmp` cannot hold a gate run.
+
+Point it once and forget it:
+
+```bash
+export LAZYSITE_STAGE_DIR=/srv/tmp
+```
+
 ### Cutting a release
 
 Interactive form - release.sh proposes the next patch bump

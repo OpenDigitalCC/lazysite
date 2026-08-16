@@ -45,7 +45,25 @@
 set -e
 
 ORIGIN=/srv/projects/lazysite
-STAGE=/tmp/lazysite-release-$$
+
+# SM328: where the gate runs, taken from the environment rather than hard-coded.
+#
+# This was /tmp/lazysite-release-$$. On a host whose /tmp is a tmpfs the gate
+# EXHAUSTS ITS INODES - not its bytes. Devel::Cover writes one runs/<id>/
+# directory per instrumented PROCESS at ~6 files each, and this suite drives real
+# CGI subprocesses rather than mocking them, so a full gate produces hundreds of
+# thousands of them. Measured at the failure: 4.8G tmpfs, 139M used (3%), and
+# 1048576/1048576 inodes (100%).
+#
+# Bytes were never the constraint, which is why "14G free on /" was such a
+# misleading reading, and why a size-only pre-flight check would have passed
+# cheerfully. A larger tmpfs would not have helped either - only more inodes, or
+# a filesystem that does not cap them.
+#
+# tools/lazysite-cli.pl already honours $TMPDIR for its own scratch; this is that
+# convention, applied to the tool that needs it most.
+STAGE_BASE="${LAZYSITE_STAGE_DIR:-${TMPDIR:-/tmp}}"
+KEEP_STAGE=0
 
 # --- arg parse ---
 
@@ -75,6 +93,14 @@ while [ $# -gt 0 ]; do
             ;;
         --no-fetch)
             NO_FETCH=1
+            shift
+            ;;
+        --stage-dir)
+            STAGE_BASE="$2"
+            shift 2
+            ;;
+        --keep-stage)
+            KEEP_STAGE=1
             shift
             ;;
         -h|--help)
@@ -201,6 +227,53 @@ if [ -n "$NOTES_FILE" ]; then
 fi
 
 # --- stage: fresh clone ---
+
+# SM328: the staging path, and a trap that removes it however this run ends.
+#
+# Cleanup used to be `rm -rf "$STAGE"` as the last line of the happy path, so any
+# failure - a failing test, a refused gate, an interrupt, a power cut, the disk
+# filling - left the whole clone behind. Four cuts in a day was enough to exhaust
+# a tmpfs, and nothing reclaimed them.
+#
+# --keep-stage opts out, because a gate failure is exactly when someone wants to
+# look inside.
+STAGE="$STAGE_BASE/lazysite-release-$$"
+cleanup_stage() { [ "$KEEP_STAGE" = 1 ] || rm -rf "$STAGE"; }
+trap cleanup_stage EXIT
+
+# Refuse EARLY if the staging filesystem cannot hold a gate run. Inodes as well
+# as bytes: bytes were never what ran out, and checking only those would repeat
+# the failure this guards against.
+mkdir -p "$STAGE_BASE"
+# `df -i --output=...` is REFUSED by coreutils - the options are mutually
+# exclusive - and the first version of this check used it, so the variable was
+# empty and the check silently did nothing. A guard that skips when it cannot
+# read its input is the defect this whole file is about, so an unreadable
+# reading is now reported rather than passed over.
+_free_inodes=$(df --output=iavail "$STAGE_BASE" 2>/dev/null | tail -1 | tr -d ' ')
+_free_kb=$(df --output=avail "$STAGE_BASE" 2>/dev/null | tail -1 | tr -d ' ')
+
+case "${_free_inodes:-}" in
+    ''|*[!0-9]*)
+        echo "release: could not read free inodes for $STAGE_BASE - not checking." >&2
+        _free_inodes=""
+        ;;
+esac
+
+if [ -n "$_free_inodes" ] && [ "$_free_inodes" -gt 0 ] \
+   && [ "$_free_inodes" -lt 1200000 ]; then
+    echo "release: $STAGE_BASE has only $_free_inodes free inodes." >&2
+    echo "  A gate run needs roughly 1.1M: Devel::Cover writes a directory per" >&2
+    echo "  instrumented subprocess and this suite spawns them constantly." >&2
+    echo "  Point somewhere with more: --stage-dir /srv/tmp, or LAZYSITE_STAGE_DIR." >&2
+    exit 5
+fi
+case "${_free_kb:-}" in ''|*[!0-9]*) _free_kb="" ;; esac
+if [ -n "$_free_kb" ] && [ "$_free_kb" -lt 2000000 ]; then
+    echo "release: $STAGE_BASE has only $((_free_kb/1024))MB free; ~2GB wanted." >&2
+    echo "  Point somewhere larger: --stage-dir /srv/tmp, or LAZYSITE_STAGE_DIR." >&2
+    exit 5
+fi
 
 echo "==> Staging clone at $STAGE"
 git clone --quiet "$ORIGIN" "$STAGE"
