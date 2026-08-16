@@ -273,24 +273,70 @@ sub caps_for {
 
 # JSON object keyed by username. Unparseable content yields defaults (empty)
 # plus a WARN, so a corrupt file cannot wedge management.
-sub read_settings {
-    require JSON::PP;
-    my $file = _settings_file();
-    return {} unless -f $file;
-    # Raw octets for decode_json - same convention as read_group_settings
-    # (ADR 0001); a non-ASCII email/comment used to kill the whole read.
-    open my $fh, '<:raw', $file or do {
-        log_event( 'WARN', 'settings', 'cannot read user-settings.json', error => "$!" );
-        return {};
-    };
-    my $raw = do { local $/; <$fh> };
-    close $fh;
-    my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
-    if ( !$data || ref $data ne 'HASH' ) {
-        log_event( 'WARN', 'settings', 'user-settings.json unparseable; using defaults' );
-        return {};
+# SM334: memoised per process, keyed on the file's identity.
+#
+# This is read on EVERY token verification. touch_credential calls it to decide
+# whether the "last used" stamp is stale - a decision that needs the stored
+# timestamps - and its comment calls that "one cheap read". It is not cheap: it
+# opens, slurps and decode_json's the whole user-settings file, and under the
+# FastCGI pool one worker does that for every authenticated request it serves.
+#
+# Measured across the release line, verify_token_ms drifted 32.7 -> 41.7 ms since
+# the 2026-07-02 baseline, and a bisect puts the largest single step (+2.9 ms,
+# +8%) between v0.7.24 and v0.7.26 - the window that added this read (SM163).
+# The 2x perf tolerance passed it, and every step since.
+#
+# KEYED ON (mtime, size), NOT TIME. This cache decides who may do what, so a
+# stale entry is an access-control answer from the past: a capability revoked
+# through the CLI would keep working until the entry expired. Keying on the
+# file's identity means a write invalidates it immediately and correctness does
+# not depend on a window being short enough.
+#
+# Same shape as the processor's _peek_md, and per-process rather than global for
+# the same reason: under CGI one process is one request and this changes nothing,
+# while under FastCGI it removes nearly every read.
+{
+    my %_settings_cache;
+
+    sub _settings_cache_clear { %_settings_cache = (); return }
+
+    sub read_settings {
+        require JSON::PP;
+        my $file = _settings_file();
+        return {} unless -f $file;
+
+        my @st  = stat $file;
+        my $key = @st ? "$file:$st[9]:$st[7]" : '';
+        return $_settings_cache{$key} if length $key && exists $_settings_cache{$key};
+        # Raw octets for decode_json - same convention as read_group_settings
+        # (ADR 0001); a non-ASCII email/comment used to kill the whole read.
+        open my $fh, '<:raw', $file or do {
+            log_event( 'WARN', 'settings', 'cannot read user-settings.json', error => "$!" );
+            return {};
+        };
+        my $raw = do { local $/; <$fh> };
+        close $fh;
+        my $data = eval { JSON::PP::decode_json( $raw // '{}' ) };
+        if ( !$data || ref $data ne 'HASH' ) {
+            log_event( 'WARN', 'settings', 'user-settings.json unparseable; using defaults' );
+            return {};
+        }
+
+        # One entry per (file, mtime, size). The map is bounded by how many distinct
+        # versions of one file a single process sees, which is one in practice and a
+        # handful in a long-lived worker that outlives several writes.
+        # DO NOT CACHE A FILE THAT WAS JUST WRITTEN. mtime is one-second granular, so
+        # a write landing in the same second as this read - with the same size, which
+        # a capability flip like "ui":1 -> "ui":0 produces exactly - would carry an
+        # identical key and serve the superseded settings. This is an access-control
+        # answer, so that window is not acceptable even though it is narrow. A file
+        # younger than a second is read fresh every time until it settles.
+        if ( length $key && @st && $st[9] < time() - 1 ) {
+            %_settings_cache = () if keys %_settings_cache > 8;
+            $_settings_cache{$key} = $data;
+        }
+        return $data;
     }
-    return $data;
 }
 
 # Single writer; write-temp-then-rename. Group-writable (0660) so the CLI and a
@@ -309,6 +355,12 @@ sub write_settings {
     secure_write_perms( $tmp, 0660 );
     rename $tmp, $file
         or die "Cannot rename settings file into place: $!\n";
+
+    # SM334: this process must not answer from a cache it has just superseded.
+    # The (mtime,size) key handles another process's write; this handles our own,
+    # which is the case where a capability change and the next authorisation are
+    # milliseconds apart.
+    _settings_cache_clear();
 }
 
 # Exclusive lock held until the returned handle goes out of scope (the caller's

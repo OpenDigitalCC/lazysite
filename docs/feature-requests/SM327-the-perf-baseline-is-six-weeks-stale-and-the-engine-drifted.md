@@ -66,19 +66,69 @@ Ruled out by measurement rather than assumption:
   is 2-3% against a 9-26% gap
 - **not iteration count** - 20 both times
 
+# Attributed, 2026-08-16
+
+Benched across the release line in throwaway worktrees, one run per tag, against
+a ~1.5% run-to-run noise floor measured at HEAD.
+
+```datatable
+columns: Tag | verify_token_ms | Note
+widths: 3cm | 3.4cm | X
+bold: 1
+tone: medium
+---
+baseline (2026-07-02) | 32.7 | -
+v0.7.15 | 35.2 | -
+v0.7.22 | 36.2 | -
+v0.7.24 | 36.4 | flat
+v0.7.26 | **39.3** | **+2.9 ms, the one step above noise**
+v0.7.28 | 39.4 | flat
+v0.9.17 | 39.8 | -
+v0.10.0 | 39.7 | -
+v0.10.8 | 41.6 | -
+v0.10.11 | 41.7 | -
+---
+```
+
+**There is no single culprit.** One step exceeds the noise floor - v0.7.24 to
+v0.7.26, +8% - and the remaining +6 ms is accretion: a milligram per release,
+none of it individually visible, none of it anywhere near a 2x tolerance.
+
+That reframes this filing. "Attribute it before re-baselining" assumed a step
+change to find and revert. What is actually there is a ratchet with nothing
+holding it, and the tolerance is the reason: **a gate that only fails at 2x
+permits unbounded accretion, because no single release ever doubles anything.**
+
+## What the one real step contains
+
+The v0.7.24-v0.7.26 window is 40 commits and includes SM163, which made
+`touch_credential` record credential use on the API-token and WebDAV paths. That
+calls `read_settings()` on **every token verification**, and `read_settings` was
+not memoised - it opened, slurped and `decode_json`'d the whole user-settings
+file each time.
+
+Measured directly: **1.3727 ms per read** of a settled 40-user file, against
+0.0045 ms once memoised (SM334). That is roughly HALF the 2.9 ms step, so it is a
+real contributor and not the whole of it - the rest is elsewhere in those 40
+commits, and finding it would cost more than it is worth at this granularity.
+
+Worth stating because it was nearly overclaimed: `verify_token_ms` is dominated
+by credential hashing, which is deliberately expensive. A 1.4 ms saving on a
+41.7 ms operation does not show up in the bench at all, and the memoisation's
+value is in the requests that read settings several times, not in this number.
+
 # What to do, in order
 
 Attribute it before re-baselining
-: the baseline predates 0.8.0 and the current tree is 0.10.10, so the drift spans
-  many releases. `verify_token_ms` at +26% is the one to start with: it is on
-  every authenticated API and MCP request, and it is the only operation whose
-  drift is meaningfully worse than the others. Benching a few intermediate tags
-  on this host would localise it in an hour.
+: **done, see above.** One step above noise, the rest accretion. No revert
+  recovers it.
 
-Then decide the tolerance
-: 2x is wide enough that a doubling of any operation ships silently. Whatever it
-  is narrowed to should be a deliberate figure with a reason, not merely tighter
-  - a gate that is flaky gets ignored, which is worse than one that is wide.
+Then decide the tolerance - THIS IS NOW THE MAIN ITEM
+: the attribution says the drift arrives as accretion, so a 2x gate cannot ever
+  catch it. Something in the region of 1.15-1.25x would have caught the one real
+  step and would catch the next one, while staying well clear of a 1.5% noise
+  floor. The figure should be deliberate and stated, not merely tighter - a
+  flaky gate gets ignored, which is worse than a wide one.
 
 Then re-capture, deliberately
 : with the drift explained and either accepted or fixed. A baseline is a claim
