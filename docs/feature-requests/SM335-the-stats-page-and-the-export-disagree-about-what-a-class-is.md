@@ -70,6 +70,13 @@ Have the page read the durable day files
   construction rather than by agreement. The cost is that the page stops being
   a live read of the log.
 
+  **This is the option the verification constraint favours.** The partner agent
+  who found the disagreement holds `ui:false`, so the manager page is not
+  reachable from the surface that can measure the export - nobody can currently
+  check the two against each other from one vantage point. An option where the
+  page and the export agree by construction needs no such check; an option where
+  two implementations are kept in step needs one that does not exist.
+
 Leave it, and say so where it is read
 : the page's arithmetic is not wrong on its own terms - its five classes are
   exactly the five `classify()` returns, and they account for every request it
