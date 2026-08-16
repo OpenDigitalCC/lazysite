@@ -392,6 +392,34 @@ else
     git -C "$ORIGIN" log -1 --format=%B "$TARGET_SHA" > "$ANNOT_FILE"
 fi
 
+# SM325: refuse to tag a commit that is on no branch.
+#
+# 0.10.10 was cut twice. The first tag named a branch tip; vcs-review then landed
+# that branch onto main with new SHAs, and the tag was left pointing at a commit
+# no branch contained. Nothing had been pushed so it cost only a re-cut - but a
+# re-cut is a full gate run, and `git branch --contains` answers the question in
+# a second.
+#
+# It matters beyond tidiness: a tag on no branch is a release whose provenance
+# cannot be followed from any branch history, and if the tag were ever deleted
+# the commit becomes unreachable. Anyone auditing later runs --contains, gets
+# nothing, and has to work out whether that is a problem.
+#
+# A warning rather than a refusal when --no-fetch is set, because on a build host
+# with no remote the local branch set may legitimately be incomplete.
+if ! git -C "$ORIGIN" branch --contains "$TARGET_SHA" 2>/dev/null | grep -q .; then
+    echo "==> WARNING: $TARGET_SHA is on no branch." >&2
+    echo "    A tag here records a release whose history no branch contains." >&2
+    echo "    This is what a rebase (vcs-review landing a branch) leaves behind:" >&2
+    echo "    tag AFTER the branch lands, not before." >&2
+    if [ "$NO_FETCH" != 1 ]; then
+        echo "    Refusing. Re-run against a commit on a branch, or pass --no-fetch" >&2
+        echo "    if this host legitimately has an incomplete branch set." >&2
+        exit 4
+    fi
+    echo "    --no-fetch is set, so continuing - this host may not have every branch." >&2
+fi
+
 echo "==> Tagging $TAG on $TARGET_SHA in origin repo"
 # Tag is created in the ORIGIN working tree so it's immediately
 # pushable. The staging clone is throwaway.

@@ -2,8 +2,8 @@
 title: "SM304 - Three places now generate release-manifest.json when it is absent"
 subtitle: "A gitignored build artefact that three separate readers each learned to derive for themselves. Two of those three were added in one day, by one change, to fix one bug."
 brand: plain
-status: candidate
-status-note: "CORROBORATED 2026-08-15 by a power cut that left release-manifest.json full of nulls: both duplicated readers failed with different messages, and NEITHER handles a file that is present but unparseable - only absent. The recovery for both is identical and already written. FILED 2026-08-15 out of the 0.10.9 review. Nothing started. Not urgent and not subtle: the duplication works, is tested and is currently consistent. It is filed because this project removes duplicated lifecycles on principle, and because SM269 phase 1 already did this once for the same file."
+status: partial
+status-note: "THE CORRUPTION GAP IS CLOSED (2026-08-16): both readers now treat a manifest that is PRESENT but unparseable exactly as an absent one, regenerating it - the recovery was identical and already written in both, so neither needed new logic, only the branch. Verified by reproducing the power cut: null-filling the manifest and running both tools, which now exit 0 where they died. THE DUPLICATION ITSELF REMAINS - _generate_manifest_to_tmp is still the same function in two files, and this fix added a third near-identical block to each, which is the argument for one owner getting stronger rather than weaker. CORROBORATED 2026-08-15 by a power cut that left release-manifest.json full of nulls: both duplicated readers failed with different messages, and NEITHER handles a file that is present but unparseable - only absent. The recovery for both is identical and already written. FILED 2026-08-15 out of the 0.10.9 review. Nothing started. Not urgent and not subtle: the duplication works, is tested and is currently consistent. It is filed because this project removes duplicated lifecycles on principle, and because SM269 phase 1 already did this once for the same file."
 ---
 
 # SM304 - the same three steps, in three files

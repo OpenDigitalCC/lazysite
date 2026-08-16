@@ -1809,8 +1809,29 @@ sub load_manifest {
         or die "Cannot read $path: $!\n";
     my $text = do { local $/; <$fh> };
     close $fh;
-    my $parsed = eval { JSON::PP::decode_json($text) }
-        or die "Cannot parse $path: $@\n";
+    # SM304: a manifest that is PRESENT but unparseable is treated exactly as an
+    # absent one, because the recovery is identical and already written above.
+    #
+    # A power cut during the 0.10.10 gate left this file as 66,505 bytes of nulls
+    # - written, not fsynced. It is gitignored, so `git status` reported the tree
+    # clean and nothing pointed at it. Both readers of this file died, with
+    # different messages, and NEITHER considered regenerating a file it knows how
+    # to regenerate. That is the same gap written twice, which is the whole
+    # argument of SM304.
+    my $parsed = eval { JSON::PP::decode_json($text) };
+    if ( !$parsed && !$tmp ) {
+        my $why = $@ || 'unparseable';
+        $tmp = _generate_manifest_to_tmp($path);
+        if ($tmp) {
+            print "install: $path could not be parsed ($why); regenerated one "
+                . "from the source tree\n";
+            open my $rfh, '<:raw', $tmp or die "Cannot read $tmp: $!\n";
+            $text = do { local $/; <$rfh> };
+            close $rfh;
+            $parsed = eval { JSON::PP::decode_json($text) };
+        }
+    }
+    die "Cannot parse $path: $@\n" unless $parsed;
     unlink $tmp if $tmp;
     return $parsed;
 }
