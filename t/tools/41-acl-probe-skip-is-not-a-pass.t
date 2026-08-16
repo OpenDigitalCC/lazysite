@@ -46,10 +46,12 @@ use TestHelper qw(repo_root);
 
 my $root  = repo_root();
 my $check = "$root/tools/lazysite-check.pl";
-my $sh    = "$root/installers/hestia/lazysite-hestia-update-all.sh";
+# SM321 moved the three-outcome logic OUT of the Hestia script and into the CLI,
+# so the assertions follow it. The property is unchanged; only its address is.
+my $sh = "$root/tools/lazysite-cli.pl";
 
 ok( -f $check, 'the check tool is present' );
-ok( -f $sh,    'the rollout script is present' );
+ok( -f $sh,    'the CLI is present' );
 
 my $chk_src = do { open my $fh, '<', $check or die $!; local $/; <$fh> };
 my $sh_src  = do { open my $fh, '<', $sh    or die $!; local $/; <$fh> };
@@ -81,7 +83,7 @@ subtest 'the deploy derives a pass from a POSITIVE signal' => sub {
     # future fifth would inherit the same treatment. Requiring the probe to SAY
     # it confirmed something makes every unknown fall to "not confirmed", which
     # is the safe direction.
-    like( $sh_src, qr/grep -q 'the front end respects the ACL'/,
+    like( $sh_src, qr/the front end respects the ACL/,
         'the pass branch matches the confirmation line itself' )
         or diag( 'If the pass is any branch reached by falling through negative '
             . 'tests, every outcome nobody thought of becomes a pass.' );
@@ -89,10 +91,19 @@ subtest 'the deploy derives a pass from a POSITIVE signal' => sub {
     # Anchored on the three markers themselves rather than on the shell syntax
     # around them: matching the `if` line character-for-character asserts the
     # formatting, and reformatting is not the regression this guards against.
-    my $fail_at = index( $sh_src, 'probe_bad+=' );
-    my $pass_at = index( $sh_src, 'probe_ok=$(( probe_ok + 1 ))' );
-    my $else_at = index( $sh_src, 'probe_skipped+=' );
+    my $fail_at = index( $sh_src, 'push @exposed' );
+    my $pass_at = index( $sh_src, 'push @verified' );
+    my $else_at = index( $sh_src, 'push @unconfirmed' );
     cmp_ok( $fail_at, '>=', 0, 'the branch is present' ) or return;
+
+    # EXPOSURE IS ALSO A POSITIVE SIGNAL. Matching any [ FAIL ] classified a site
+    # with an unrelated failure - missing system pages - as serving protected
+    # content anonymously. Found by running the verb against a fixture with no
+    # web server, whose probe had actually been SKIPPED. That is SM319's defect
+    # in the other direction: there the pass was an absence, here the failure
+    # was a level rather than a statement.
+    like( $sh_src, qr/a file the engine refuses is served to anonymous visitors/,
+        'exposure matches the probe\'s own verdict, not any FAIL in the report' );
 
     cmp_ok( $pass_at, '>', $fail_at, 'the pass is tested after the exposure' );
     cmp_ok( $else_at, '>', $pass_at,
@@ -109,14 +120,12 @@ subtest 'a probe that confirmed nothing does not fail the deploy' => sub {
     # The exposure branch sets the failure exit; the not-confirmed branch must
     # not. Scoped to each block rather than matched across the whole file, which
     # is what made the first version of this assertion pass incorrectly.
-    my ($skipblk) = $sh_src =~ /(if \[ "\$\{#probe_skipped\[@\]\}" -gt 0 \].*?\n    fi)/s;
-    ok( $skipblk, 'the not-confirmed summary block is present' );
-    unlike( $skipblk, qr/ACL_PROBE_RC=1/,
-        'it does not set the failure exit' );
-
-    my ($badblk) = $sh_src =~ /(if \[ "\$\{#probe_bad\[@\]\}" -gt 0 \].*?\n    fi)/s;
-    ok( $badblk, 'the exposure summary block is present' );
-    like( $badblk, qr/ACL_PROBE_RC=1/, 'and an exposure still does' );
+    like( $sh_src, qr/exit\( \@exposed \? 1 : 0 \)/,
+        'only an exposure sets the failure exit' )
+        or diag( 'A site that could not be measured must not fail the command: '
+            . 'absence of evidence is not evidence of exposure, and failing on '
+            . 'it trains an operator to ignore the status the real exposure '
+            . 'uses.' );
 };
 
 subtest 'the three counts are reported separately' => sub {

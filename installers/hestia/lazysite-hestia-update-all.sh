@@ -321,215 +321,29 @@ fi
 [ "${#SKIPPED[@]}" -gt 0 ] && printf 'SKIPPED (stable site, edge release not installed): %s\n' "${SKIPPED[*]}"
 [ "${#FAILED[@]}" -gt 0 ]  && printf 'FAILED to upgrade: %s\n' "${FAILED[*]}"
 
-# --- consolidated health summary, and repair what can be repaired ------------
+# --- health repair and the outside-in probe, via the CLI ---------------------
 #
-# SM270 RECURS, and reporting it is not enough.
+# SM321: these were 180 lines of per-site logic in THIS script, which meant they
+# existed only here - an operator on any other layout could not run them at all,
+# and one on Hestia could not run them for a single site without running the
+# whole rollout. Neither operation is Hestia-specific.
 #
-# The per-site deploy runs `lazysite-check --fix`, so a site that goes through
-# it is repaired. A vhost rebuild AFTER that - or one driven through the control
-# panel's own path rather than this script - returns public_html as drwxr-s--x
-# with no group write, and nothing runs again to notice.
-#
-# A 0.10.9 field test found exactly that on edge, three releases after SM270
-# shipped the repair. The consequences are not cosmetic: the private store is a
-# SIBLING of the docroot, so with the docroot unwritable, `lazysite acl reapply`
-# fails on every folder and SM283 stays live across the instance regardless of
-# what was upgraded. Protecting a section stores the rule and leaves the content
-# served.
-#
-# This block used to run the doctor READ-ONLY and print what it found. An
-# operator reading a warning at the end of a long rollout, on a host they were
-# not otherwise touching, is the weakest possible link in that chain - and the
-# repair was already written and already shipped. So: find it, fix it, then
-# CHECK AGAIN and report what survived.
-#
-# The re-check is the point. This project's recurring defect is a control that
-# reports success without doing the work, and "we ran --fix" is a claim about an
-# action; "the site is clean afterwards" is a claim about the outcome. Only the
-# second is worth printing.
-CHK="$STAGE/tools/lazysite-check.pl"
-if [ -f "$CHK" ]; then
+# They are now `lazysite repair` and `lazysite probe`, addressing sites through
+# the registry or this host's own site list. This script sequences them; it no
+# longer contains them.
+LZS="$STAGE/tools/lazysite-cli.pl"
+if [ -f "$LZS" ]; then
     echo
-    echo "==> health summary (warnings + failures by site)"
-    dirty=0; repaired=0; STILL_DIRTY=()
-    for i in "${!DOMAINS[@]}"; do
-        d="${DOMAINS[$i]}"; u="${USERS[$i]}"
-        doc="/home/$u/web/$d/public_html"
-        cgi="/home/$u/web/$d/cgi-bin"
-        [ -d "$doc" ] || continue
+    echo "==> health: repairing what can be repaired"
+    perl "$LZS" repair --all || REPAIR_RC=1
 
-        issues="$(perl "$CHK" --docroot "$doc" --cgibin "$cgi" 2>/dev/null \
-                  | grep -E '\[ (warn|FAIL) \]')"
-        [ -n "$issues" ] || continue
-
-        dirty=$(( dirty + 1 ))
-        echo "  $d:"
-        echo "$issues" | sed 's/^[[:space:]]*/    /'
-
-        # Repair as ROOT, matching the per-site deploy, which is what lets the
-        # check work the ownership out itself. lazysite-check --fix repairs modes
-        # and ownership; it does not touch content, so it is safe to run on a
-        # site that is merely warning about something else.
-        echo "    -> repairing (lazysite check --fix)"
-        perl "$CHK" --docroot "$doc" --cgibin "$cgi" --fix >/dev/null 2>&1 || true
-
-        left="$(perl "$CHK" --docroot "$doc" --cgibin "$cgi" 2>/dev/null \
-                | grep -E '\[ (warn|FAIL) \]')"
-        if [ -z "$left" ]; then
-            repaired=$(( repaired + 1 ))
-            echo "    -> repaired; the site is clean."
-        else
-            STILL_DIRTY+=( "$d" )
-            echo "    -> STILL OUTSTANDING after the repair:"
-            echo "$left" | sed 's/^[[:space:]]*/       /'
-        fi
-    done
-
-    if [ "$dirty" = 0 ]; then
-        echo "  all sites clean - no warnings or failures."
-    else
-        echo "  $dirty site(s) had issues; $repaired repaired automatically."
-        if [ "${#STILL_DIRTY[@]}" -gt 0 ]; then
-            printf '  NEEDS A HUMAN: %s\n' "${STILL_DIRTY[*]}"
-            # Naming the consequence, because a permissions warning reads as
-            # housekeeping and this one is not: it is why protected content is
-            # still being served.
-            echo "  A docroot that is still not writable means the private store"
-            echo "  cannot be written, so 'lazysite acl reapply' will fail and"
-            echo "  protected sections stay served by the front end. Verify from"
-            echo "  OUTSIDE - the engine's report and the front end's behaviour"
-            echo "  are different claims:"
-            echo "        lazysite check --check-acl https://<domain>/"
-        fi
+    if [ "${DO_ACL_PROBE:-1}" = 1 ]; then
+        echo
+        echo "==> outside-in ACL probe (does the front end honour the rule?)"
+        perl "$LZS" probe --all || ACL_PROBE_RC=1
     fi
 fi
 
-# --- outside-in ACL probe: does the FRONT END respect the rule? --------------
-#
-# SM317. The recurring shape, now three times over: a rule can be stored,
-# honoured by the engine, reported as applied, and contribute NOTHING to what an
-# anonymous request receives. SM283 was that for weeks across a live fleet;
-# SM296 was the crash that produced the same state; SM313 was the repair that
-# looked complete and left it live. Measured on edge as recently as today, after
-# a successful docroot repair: eight of ten probed extensions served 200
-# anonymously from a folder with an active read list.
-#
-# SM285 built `lazysite check --check-acl URL` for exactly this, and it has never
-# been part of what a deploy verifies. The tool existed; failing it stopped
-# nothing. That is the whole finding.
-#
-# IT BELONGS HERE RATHER THAN IN THE RELEASE GATE. The gate runs offline against
-# a clean checkout of a tag - there is no deployed site to fetch, so the question
-# it answers cannot be asked there. It is a property of a SITE, not of a build.
-#
-# It does NOT abort the deploy: aborting a fleet rollout midway leaves sites on
-# mixed versions, which is worse than the condition being reported. It reports
-# loudly and sets the exit status, so an automated caller sees it.
-if [ "${DO_ACL_PROBE:-1}" = 1 ] && [ -f "$CHK" ]; then
-    echo
-    echo "==> outside-in ACL probe (does the front end honour the rule?)"
-    probe_bad=(); probe_skipped=(); probe_ok=0
-    for i in "${!DOMAINS[@]}"; do
-        d="${DOMAINS[$i]}"; u="${USERS[$i]}"
-        doc="/home/$u/web/$d/public_html"
-        [ -d "$doc" ] || continue
-        in_list "$d" "${SKIPPED[@]}" && continue
-        in_list "$d" "${FAILED[@]}"  && continue
-
-        # As the site user: the probe writes a folder into the docroot and
-        # removes it again, and root-owned leftovers in a tree the CGI must
-        # write are the SM139 mistake this project has made before.
-        out="$(sudo -u "$u" perl "$CHK" --docroot "$doc" \
-                 --check-acl "https://$d/" 2>&1)"
-        # VERIFIED IS A POSITIVE SIGNAL, never an absence. SM319.
-        #
-        # The first cut derived the pass from the absence of `[ FAIL ]`, and
-        # run_acl_probe has FIVE outcomes: the exposure, a clean confirmation,
-        # a PARTIAL ("could not vouch for some file types"), "no usable answer -
-        # nothing was served, gated or public", and three paths that return
-        # before fetching at all. Four of the five are not a pass, and all four
-        # were being announced as "front end honours the rule".
-        #
-        # The reported instance was the non-fetching returns, whose trigger is an
-        # unwritable docroot - what a vhost rebuild produces (SM270), and what
-        # edge was in this morning. A deploy runs right after a rebuild, so the
-        # population silently absolved is exactly the population being probed
-        # for. But fixing only that leaves the partial and the no-answer cases
-        # lying in the same way.
-        #
-        # So the pass requires the probe to SAY it confirmed something. Anything
-        # else - today's four, and any outcome added later - falls to "not
-        # confirmed", which is the safe direction. This is the defect the probe
-        # itself shipped with (SM285: an empty extension list, zero fetches,
-        # 0 == 0, and a verdict of "the front end respects the ACL" against a
-        # port with nothing listening), reappearing one layer up.
-        if printf '%s' "$out" | grep -qE '\[ FAIL \]'; then
-            probe_bad+=( "$d" )
-            echo "  $d: SERVED ANONYMOUSLY"
-            printf '%s\n' "$out" | grep -E '\[ (warn|FAIL) \]' \
-                | sed 's/^[[:space:]]*/    /'
-        elif printf '%s' "$out" | grep -q 'the front end respects the ACL'; then
-            probe_ok=$(( probe_ok + 1 ))
-            echo "  $d: front end honours the rule"
-        else
-            # Not a pass and not an exposure: nothing was confirmed. The reason
-            # is whatever the probe warned about - a docroot it could not write,
-            # an unreachable URL, or file types it could not vouch for.
-            probe_skipped+=( "$d" )
-            echo "  $d: NOT CONFIRMED"
-            printf '%s\n' "$out" | grep -E '\[ warn \]' \
-                | sed 's/^[[:space:]]*/    /'
-        fi
-    done
-
-    printf '\n  %d verified, %d exposed, %d not confirmed.\n' \
-        "$probe_ok" "${#probe_bad[@]}" "${#probe_skipped[@]}"
-
-    if [ "${#probe_skipped[@]}" -gt 0 ]; then
-        printf '  NOT CONFIRMED: %s\n' "${probe_skipped[*]}"
-        echo "  Nothing was established either way for these. Usual causes: a"
-        echo "  docroot or ACL store the probe could not write (the condition a"
-        echo "  vhost rebuild produces, which is when this runs), a URL not"
-        echo "  reachable from here, or file types it could not vouch for."
-        echo "  Repair with 'lazysite check --fix' and re-run."
-        # Deliberately NOT a non-zero exit: this is an absence of evidence, not
-        # evidence of exposure, and failing a deploy on it would be wrong. The
-        # named summary line is what the operator acts on.
-    fi
-
-    if [ "${#probe_bad[@]}" -gt 0 ]; then
-        printf '\n  SERVED ANONYMOUSLY DESPITE AN ACL: %s\n' "${probe_bad[*]}"
-        echo "  Protected content on these sites is reachable without signing in."
-        echo "  The engine reports the rule as applied; the front end serves the"
-        echo "  files anyway, which is SM283. Check the private store exists"
-        echo "  (lazysite check --fix) and re-run the sweep with --reapply-acls."
-        ACL_PROBE_RC=1
-    fi
-fi
-
-# --- final summary: every site, the version it is on NOW, and its channel ------
-chan_of() {   # update_channel from a lazysite.conf, default 'all'
-    perl -ne 'if(/^\s*update_channel\s*:\s*(\S+)/){print lc $1; exit}' "$1" 2>/dev/null
-}
-
-echo
-echo "==> site versions (staged release: $NEWVER)"
-for i in "${!DOMAINS[@]}"; do
-    d="${DOMAINS[$i]}"; u="${USERS[$i]}"
-    base="/home/$u/web/$d/public_html/lazysite"
-    now="$(ver_of "$base/.install-state.json")"
-    ch="$(chan_of "$base/lazysite.conf")"; [ -z "$ch" ] && ch="all"
-    status="updated"
-    in_list "$d" "${SKIPPED[@]}" && status="SKIPPED (stable)"
-    in_list "$d" "${FAILED[@]}"  && status="FAILED"
-    printf '  %-44s %-9s channel=%-7s %s\n' "$d" "$now" "$ch" "$status"
-done
-
-# --- the front-end layer (SM283) ---------------------------------------------
-# Said last, and said even on a clean run, because this is the failure mode that
-# hid: everything above can succeed - packages upgraded, vhosts rebuilt, health
-# summary clean - while nginx keeps serving gated files, because none of it
-# touches the proxy layer. `lazysite-hestia-list.sh` names the affected domains.
 echo
 if [ "$DO_PROXY" = 1 ]; then
     echo "==> front end: $PROXY_MOVED domain(s) now on the $PROXY_TPL proxy template"
@@ -550,5 +364,6 @@ fi
 # SM317: an exposure the outside-in probe found is a non-zero exit too. A fleet
 # caller that only looks at $? must see it; until now the only way to learn about
 # one was to read the log.
+[ "${REPAIR_RC:-0}" != 0 ] && exit 1
 [ "${ACL_PROBE_RC:-0}" != 0 ] && exit 1
 exit 0

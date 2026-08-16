@@ -48,7 +48,9 @@ elsif ( $verb eq 'check' ) {
         ? run_tool_per_site( 'tools/lazysite-check.pl', $targets, \@ARGV )
         : run_tool( 'tools/lazysite-check.pl', @ARGV );
 }
-elsif ( $verb eq 'users' ) { run_tool( 'tools/lazysite-users.pl', @ARGV ) }
+elsif ( $verb eq 'repair' ) { cmd_repair() }
+elsif ( $verb eq 'probe' )  { cmd_probe() }
+elsif ( $verb eq 'users' )  { run_tool( 'tools/lazysite-users.pl', @ARGV ) }
 elsif ( $verb eq 'acl' ) {
     my ( $targets, $how ) = extract_site_targets( \@ARGV );
     $targets
@@ -695,6 +697,158 @@ sub cmd_upgrade_all {
 # matching lazysite-fix-perms. --min-version is how a fleet follows a release
 # through its channels: migrate what is new enough, leave the rest, run it again
 # after the next roll-out.
+# SM321: repair and probe as VERBS, not as blocks inside a Hestia script.
+#
+# Both were added to installers/hestia/lazysite-hestia-update-all.sh, because
+# that is where the per-site loop already lived. The consequence is that they
+# exist ONLY there: an operator on any other layout cannot run them at all, and
+# one on Hestia cannot run them for a single site without running the whole
+# rollout. Neither operation is Hestia-specific.
+#
+# Now that the CLI addresses sites (--domain / --all, with the Hestia fallback of
+# SM333), they belong here and the rollout script calls them.
+
+# What each site's public URL is. The registry and the Hestia lister both key a
+# site by its domain, so the name IS the host - and where it is not, --url
+# overrides rather than guessing.
+sub _site_url {
+    my ($s) = @_;
+    return $s->{url} if length( $s->{url} // '' );
+    return "https://$s->{name}/";
+}
+
+# Run the doctor, repair what it finds, then CHECK AGAIN.
+#
+# The re-check is the point. This project's recurring defect is a control
+# reporting success without doing the work, and "we ran --fix" is a claim about
+# an action while "the site is clean afterwards" is a claim about the outcome.
+# Only the second is printed.
+sub cmd_repair {
+    # Addressing first: --domain and --all are consumed here, so the verb's own
+    # option parser never sees them. The other order makes GetOptions reject the
+    # addressing it was given.
+    my ( $targets, $how ) = extract_site_targets( \@ARGV );
+    $targets ||= _targets_or_fail();
+
+    my %o;
+    Getopt::Long::GetOptionsFromArray( \@ARGV, 'dry-run' => \$o{dry_run} )
+        or fail('bad options for repair');
+
+    my $tool = payload_root() . '/tools/lazysite-check.pl';
+    my ( @clean, @repaired, @stuck );
+
+    for my $s (@$targets) {
+        my @base = ( '--docroot', $s->{docroot} );
+        push @base, '--cgibin', $s->{cgibin} if length( $s->{cgibin} // '' );
+
+        my $before = qx($^X @{[ join ' ', _lib_arg() ]} \Q$tool\E @{[ join ' ', @base ]} 2>&1);
+        my @issues = grep { /\[ (?:warn|FAIL) \]/ } split /\n/, $before;
+        unless (@issues) { push @clean, $s->{name}; next }
+
+        print "== $s->{name}\n";
+        print "  $_\n" for @issues;
+
+        if ( $o{dry_run} ) {
+            print "  -> would repair (--dry-run)\n";
+            push @stuck, $s->{name};
+            next;
+        }
+
+        print "  -> repairing\n";
+        system( $^X, _lib_arg(), $tool, @base, '--fix' ) >= 0
+            or warn "  could not run the repair\n";
+
+        my $after = qx($^X @{[ join ' ', _lib_arg() ]} \Q$tool\E @{[ join ' ', @base ]} 2>&1);
+        my @left = grep { /\[ (?:warn|FAIL) \]/ } split /\n/, $after;
+        if (@left) {
+            push @stuck, $s->{name};
+            print "  -> STILL OUTSTANDING:\n";
+            print "     $_\n" for @left;
+        }
+        else {
+            push @repaired, $s->{name};
+            print "  -> repaired; the site is clean.\n";
+        }
+    }
+
+    printf "\n%d clean, %d repaired, %d need a human.\n",
+        scalar @clean, scalar @repaired, scalar @stuck;
+    printf "NEEDS A HUMAN: %s\n", join( ', ', @stuck ) if @stuck;
+    exit( @stuck ? 1 : 0 );
+}
+
+# Ask the FRONT END whether it honours an ACL, from outside.
+#
+# THREE outcomes, and the pass is a POSITIVE signal. Deriving it from the absence
+# of failure is what SM319 corrected: run_acl_probe has five outcomes and four of
+# them are not a pass, so anything that has not said it confirmed something falls
+# to "not confirmed" - the safe direction, and one that needs no maintenance as
+# the probe grows.
+sub cmd_probe {
+    my ( $targets, $how ) = extract_site_targets( \@ARGV );
+    $targets ||= _targets_or_fail();
+
+    my $tool = payload_root() . '/tools/lazysite-check.pl';
+    my ( @verified, @exposed, @unconfirmed );
+
+    for my $s (@$targets) {
+        my @base = ( '--docroot', $s->{docroot}, '--check-acl', _site_url($s) );
+        my $out = qx($^X @{[ join ' ', _lib_arg() ]} \Q$tool\E @{[ join ' ', @base ]} 2>&1);
+
+        # MATCH THE PROBE'S OWN VERDICT, not any [ FAIL ] in the report.
+        #
+        # lazysite-check reports on much more than the ACL probe, so a site with
+        # an unrelated failure - missing system pages, a stale registry - was
+        # being announced as SERVING PROTECTED CONTENT ANONYMOUSLY. Found by
+        # running it: a fixture with no web server at all, whose probe had
+        # actually been SKIPPED, was classified as exposed on the strength of an
+        # unrelated finding.
+        #
+        # That is SM319's defect in the other direction. There the pass was an
+        # absence; here the failure was a level rather than a statement. Both
+        # ends must be positive signals from the probe itself.
+        if ( $out =~ /a file the engine refuses is served to anonymous visitors/ ) {
+            push @exposed, $s->{name};
+            print "  $s->{name}: SERVED ANONYMOUSLY\n";
+            print "    $_\n" for grep { /\[ (?:warn|FAIL) \]/ } split /\n/, $out;
+        }
+        elsif ( $out =~ /the front end respects the ACL/ ) {
+            push @verified, $s->{name};
+            print "  $s->{name}: front end honours the rule\n";
+        }
+        else {
+            push @unconfirmed, $s->{name};
+            print "  $s->{name}: NOT CONFIRMED\n";
+            print "    $_\n" for grep { /\[ warn \]/ } split /\n/, $out;
+        }
+    }
+
+    printf "\n%d verified, %d exposed, %d not confirmed.\n",
+        scalar @verified, scalar @exposed, scalar @unconfirmed;
+
+    if (@exposed) {
+        printf "SERVED ANONYMOUSLY DESPITE AN ACL: %s\n", join ', ', @exposed;
+        print "Protected content on these is reachable without signing in.\n";
+    }
+    if (@unconfirmed) {
+        printf "NOT CONFIRMED: %s\n", join ', ', @unconfirmed;
+        print "Nothing was established either way. Usual cause is a docroot or\n";
+        print "ACL store the probe could not write: run `lazysite repair` first.\n";
+    }
+
+    # Absence of evidence is not evidence of exposure, so a site that could not
+    # be measured does not fail the command. The exposure case does.
+    exit( @exposed ? 1 : 0 );
+}
+
+sub _targets_or_fail {
+    my $sites = read_registry();
+    $sites = _discover_hestia_sites() unless @$sites;
+    fail('give --domain NAME, --all, or run where sites are discoverable')
+        unless @$sites;
+    return $sites;
+}
+
 sub cmd_migrate_engine_tree {
     my %o = ( apply => 0, back => 0, all => 0 );
     Getopt::Long::GetOptions(
