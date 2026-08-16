@@ -131,7 +131,7 @@ subtest 'the exit status is the WORST outcome, not the last' => sub {
     like( $src, qr/not the last/, 'with the reasoning recorded' );
 };
 
-subtest 'it falls back to the host\'s own site list (SM329)' => sub {
+subtest 'it falls back to the host\'s own site list (SM333)' => sub {
     # THE ADDRESSING SHIPPED IN 0.10.11 DID NOT REACH THE DEPLOYMENT IT WAS BUILT
     # FOR. The registry is written by `provision`, which the deb path runs and
     # the Hestia TARBALL path never does - install.pl says so outright: "lazysite

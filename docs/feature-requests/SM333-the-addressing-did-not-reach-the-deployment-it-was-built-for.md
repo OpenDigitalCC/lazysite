@@ -1,9 +1,9 @@
 ---
-title: "SM329 - the site addressing did not reach the deployment it was built for"
+title: "SM333 - the site addressing did not reach the deployment it was built for"
 subtitle: "SM321 keyed --domain to a registry that `provision` writes. The Hestia tarball path never runs provision, so the operator whose complaint prompted the fix was still typing full docroots."
 brand: plain
 status: shipped
-status-note: "SHIPPED for 0.10.12. The CLI falls back to lazysite-hestia-list.sh when the registry is empty - the host's own authoritative discovery, which existed all along. The registry still wins when populated, so a deb install is unchanged. A non-root caller is told the lister needs root (it reads /usr/local/hestia/data/users) rather than 'no registered site named X', which would send them hunting for an entry that was never going to exist. FILED 2026-08-16, found by walking the operator through repairing edge on 0.10.11 and discovering the command I had just shipped did not apply to their host."
+status-note: "RENUMBERED from SM329 to SM333 on 2026-08-16: the site agent filed their own SM329 (static assets counted as pageviews) from a concurrent validation pass, and theirs is referenced from that report, so mine moved. Concurrent filers picking the next free number is a collision waiting to happen and this is the first one. SHIPPED for 0.10.12. The CLI falls back to lazysite-hestia-list.sh when the registry is empty - the host's own authoritative discovery, which existed all along. The registry still wins when populated, so a deb install is unchanged. A non-root caller is told the lister needs root (it reads /usr/local/hestia/data/users) rather than 'no registered site named X', which would send them hunting for an entry that was never going to exist. FILED 2026-08-16, found by walking the operator through repairing edge on 0.10.11 and discovering the command I had just shipped did not apply to their host."
 ---
 
 # What was wrong
