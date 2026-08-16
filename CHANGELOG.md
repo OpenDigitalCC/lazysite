@@ -28,6 +28,80 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
+## 0.10.11 - EDGE: protecting content works from the surfaces built to do it (2026-08-16)
+
+The 0.10.10 field pass confirmed **SM283 closed on the instrument, measured
+anonymously from outside for the first time** - all 31 extensions gating, 31 of
+31 files in the private store. It also found that only the OPERATOR could get a
+site into that state. This release is mostly that, plus the structural change
+that stops it recurring.
+
+**No operator action is required, and one becomes unnecessary.** From this
+release the installer provisions the private store, so a site never reaches the
+state where protecting content half-works.
+
+- SM323 (a1a564d) protecting content had become an operator-only
+  operation. Two code paths created the private store - `Private::_mkpath` with a
+  bare `make_path`, and `check --fix` with an explicit owner and mode - and
+  whichever ran first decided. The operator sweep runs as the SITE USER and gets
+  there first on any site being repaired, so the store ended up owned by the site
+  user with no group write and the CGI was locked out. Measured on edge: `acl
+  reapply` moved content successfully while the control API returned
+  `content_moved:0` and `Permission denied` on the same instance, with 8 of 10
+  extensions still served anonymously under an active read rule. Store
+  directories now carry the DOCROOT's identity at every level, and `check --fix`
+  REPAIRS an existing store rather than only creating a missing one.
+- SM321 (40bb221, 3a10175) **partial** - the operator
+  should decide, not orchestrate. The private store was the only runtime
+  directory nobody declared, and that one omission produced the whole chain
+  above. It is now in `runtime_paths` like every other directory, so install
+  provisions it, upgrade repairs it, and no code path has to decide who owns it.
+  Separately, `lazysite check` and `lazysite acl` take `--domain NAME` or
+  `--all`, resolved through the registry that has held each site's docroot and
+  cgibin all along - so nobody reconstructs `/home/<user>/web/<domain>/...` by
+  hand. And `run_tool` now passes `-I`, without which the documented repair
+  command failed with `Can't locate Lazysite/Paths.pm` **even when typed
+  correctly**. Remaining: moving the ACL probe and repair sweep out of the Hestia
+  script into CLI verbs, and the three-section deploy output.
+- SM322 (a1a564d) the theme-asset mirror count never reached the
+  per-domain path. SM315 gave activation an `assets_mirrored` count because zero
+  is the whole point; with a `host`, MCP routes through `domain_set`, which ran
+  the mirror and discarded the result. So on the path a MULTI-DOMAIN instance
+  uses - the one whose failure SM315 was written about - an agent got `ok:1` and
+  no indication whether anything was published.
+- SM324 (a1a564d) `--reapply-acls` has been sweeping the sites it
+  was written to skip. `in_list` was defined below three callers; bash resolves
+  at call time, so it was `command not found`, which returns 127, so
+  `in_list ... && continue` never continued. Sites held back by their update
+  channel and sites that FAILED to upgrade were swept anyway. `t/lint/50` holds
+  the class.
+- SM325 (8bd2642) `release.sh` refuses to tag a commit on no branch.
+  0.10.10 was cut twice: the first tag named a branch tip, vcs-review then landed
+  that branch with new SHAs, and the tag was left pointing at a commit no branch
+  contained. A re-cut is a full gate run; `git branch --contains` is a second.
+- SM304 (8bd2642) **partial** - a manifest that is present but
+  UNPARSEABLE is now treated as absent and regenerated. A power cut left
+  `release-manifest.json` as 66,505 bytes of nulls; it is gitignored, so
+  `git status` reported the tree clean, and both readers died differently while
+  neither considered regenerating a file it knows how to regenerate. The
+  duplication that made it two failures is untouched.
+- SM326 (9061fe5) an argument required on one surface must be
+  required on the other, or the difference recorded. `t/lint/52` pairs MCP's
+  required-argument lists against the control API's dispatcher defaults - the
+  gap that let `acl-set` take a live site off the air (SM306) while MCP had
+  always refused the same call. It converts `git-history`, `git-show` and
+  `git-restore` from safe-by-accident to safe-on-record.
+- Three new lints (50, 51, 52) and three new test files, each shown to fail on
+  0.10.10 as shipped.
+
+**One finding is recorded rather than fixed.** The perf baseline is six weeks
+stale and re-capturing it was the queued task; measuring first showed every
+operation running 9-26% slower than it on the same host, same Perl and low load,
+with `verify_token_ms` at +26%. The gate's 2x tolerance passes all of it.
+Re-capturing would have made the regression the new definition of correct, so it
+is filed with the measurements instead - see `SM327` - and the baseline stands
+until the drift is attributed.
+
 ## 0.10.10 - EDGE: what the engine reports, and what a visitor actually receives (2026-08-15)
 
 Field-test follow-ups from the 0.10.9 pass on edge, plus one defect found while
