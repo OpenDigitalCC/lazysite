@@ -71,6 +71,54 @@ Visitor-level state is rebuilt rather than carried
   intended - worth stating because a future change that assumed they persisted
   would be wrong in a way this masks.
 
+# Measured on a live instance, from the partner surface
+
+Reported by the partner agent against edge/0.10.11, which has 34 days of logs
+and is a quiet site:
+
+```datatable
+columns: Call | Time | What it shows
+widths: 4.6cm | 2.2cm | X
+bold: 1
+tone: medium
+---
+`window=1` | 3301 ms | -
+`window=7` | 3609 ms | -
+`window=30` | 4028 ms | -
+`window=365` | 4102 ms | **asking for one day costs what asking for a year costs**
+same call, 1/2/3 | 4256 / 4117 / 4108 ms | **no warm-up at all** - a loaded cache would make the second cheap
+`day=2026-07-18` | 3332 ms | a closed day, already a file on disk, and the whole log is re-ingested before it is consulted
+`whoami` / `list_pages` | ~500 ms | the same surface's baseline
+---
+```
+
+Roughly **3 to 3.5 seconds of pure re-ingestion on every call**, independent of
+what was asked for. That is the signature of the defect stated as a cost rather
+than as a version mismatch.
+
+**It grows.** The work is linear in retained log volume and `retention_days`
+defaults to 90, so a busy site three months in pays this on every stats page
+load, every export and every agent call, increasing daily until retention starts
+trimming. Nobody has met it yet because nobody has had ninety days of real
+traffic on a site with this path enabled.
+
+## And this path has no performance coverage whatsoever
+
+The partner's inference was that the current bench figures for this path measure
+the broken behaviour and so are not a baseline the fix should be compared to.
+Checked rather than accepted: `tools/bench.pl` contains **no reference to stats
+or export at all**. There are no figures for this path, broken or otherwise.
+
+The accurate statement is worse than the one proposed. A 3.5-second per-call
+cost on the default statistics path went unmeasured because nothing measures it,
+and it was found from outside by an agent timing its own tool calls.
+
+That is [[SM327]]'s finding in a harder form. There the complaint was that a 2x
+tolerance permits unbounded accretion; here an entire surface sits outside the
+gate, so no tolerance applies at any value. The fix should arrive with bench
+coverage for this path, and the first figures taken after it should be captured
+as the baseline rather than compared to anything.
+
 # Why fixing it is not a small change
 
 Making the cache load for the first time is not a version-number correction. It
@@ -90,7 +138,10 @@ release is about.
   which is what [[SM338]] intends and cannot currently deliver.
 - The scanner and sweep maps carry across runs rather than being rebuilt, and
   the classification is unchanged when they do.
-- Export time does not grow with retention.
+- Export time does not grow with retention, and `window=1` costs materially
+  less than `window=365`.
+- The stats path is in `tools/bench.pl`, and its first post-fix figures are
+  captured as a baseline rather than compared to figures that never existed.
 
 # Related
 
