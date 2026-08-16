@@ -118,6 +118,28 @@ TPLDIR="$HESTIA/data/templates/web/apache2/php-fpm"
 PROXYTPLDIR="$HESTIA/data/templates/web/nginx"
 PROXY_TPL='lazysite-proxy'
 
+# SM324: defined HERE, above every caller.
+#
+# It lived near the bottom, below three call sites. Bash resolves a function at
+# CALL time, so `in_list` at line 275 and 414 was `command not found` - which
+# returns 127, so `in_list ... && continue` never continued.
+#
+# The consequence was not cosmetic and predates the probe that exposed it: the
+# re-apply sweep's guards are
+#
+#     in_list "$d" "${SKIPPED[@]}" && continue
+#     in_list "$d" "${FAILED[@]}"  && continue
+#
+# so --reapply-acls has been sweeping the sites it was written to skip - ones
+# held back by their update channel, still on an old version where the store may
+# not exist, and ones that FAILED to upgrade. The script's own comment says those
+# must be excluded because sweeping them "would be meaningless at best".
+#
+# It stayed invisible because that block only runs with --reapply-acls. The SM317
+# probe added the first UNCONDITIONAL caller, which is what surfaced it - on an
+# operator's first rollout of 0.10.10.
+in_list() { local x="$1"; shift; for e in "$@"; do [ "$e" = "$x" ] && return 0; done; return 1; }
+
 ver_of() {   # print the "version" from an install-state.json, or "?"
     # (perl -ne exits 0 on a missing file, so test first rather than ||)
     [ -f "$1" ] || { echo '?'; return; }
@@ -489,7 +511,6 @@ fi
 chan_of() {   # update_channel from a lazysite.conf, default 'all'
     perl -ne 'if(/^\s*update_channel\s*:\s*(\S+)/){print lc $1; exit}' "$1" 2>/dev/null
 }
-in_list() { local x="$1"; shift; for e in "$@"; do [ "$e" = "$x" ] && return 0; done; return 1; }
 
 echo
 echo "==> site versions (staged release: $NEWVER)"

@@ -542,6 +542,18 @@ sub domain_set {
     # own layout - the whole failure case is a secondary domain on a layout other
     # than the active one. Best-effort and non-fatal: the binding is recorded
     # either way, and _mirror_theme_assets already logs its own failure.
+    # SM322: and REPORT what it mirrored. SM315 gave activation an
+    # `assets_mirrored` count on the reasoning that zero is the whole point - a
+    # theme that mirrors nothing is a site about to render unstyled, and at the
+    # HTTP level that is indistinguishable from a working one. It was added to
+    # action_theme_activate and not here, so the per-domain path - which is the
+    # path a MULTI-DOMAIN instance uses, and the one whose failure SM315 was
+    # written about - ran the mirror and threw the answer away.
+    #
+    # An agent binding a theme to a domain got ok:1 and no indication whether
+    # anything had been published. That is how a fully unstyled site was handed
+    # over on edge2 in August with every page returning 200.
+    my $mirror;
     if ( $key eq 'layout' || $key eq 'theme' ) {
         my ( $l, $t ) = _effective_presentation($host);
         if ( length $l && length $t ) {
@@ -557,14 +569,32 @@ sub domain_set {
                 local $Lazysite::Manager::Themes::DOCROOT      = $DOCROOT;
                 local $Lazysite::Manager::Themes::LAZYSITE_DIR = _lz();
                 local $Lazysite::Manager::Themes::action       = 'domain-set';
-                _mirror_theme_assets( $l, $t );
+                $mirror = _mirror_theme_assets( $l, $t );
                 1;
             } or log_event( 'WARN', 'domain-set', 'theme asset mirror skipped',
                 host => $host, error => "$@" );
         }
     }
 
-    return { ok => 1, host => $host, key => $key, value => $value };
+    my $res = { ok => 1, host => $host, key => $key, value => $value };
+    if ( ref $mirror eq 'HASH' ) {
+        $res->{assets_mirrored} = $mirror->{mirrored};
+        if ( !$mirror->{mirrored} ) {
+            push @{ $res->{warnings} ||= [] },
+                'no theme assets were mirrored for this domain: '
+                . ( $mirror->{reason} // 'unknown' )
+                . ( $mirror->{expected}
+                ? ". Assets belong in $mirror->{expected}"
+                : '' )
+                . ( $mirror->{misplaced}
+                ? ' (found outside it: '
+                    . join( ', ', @{ $mirror->{misplaced} } ) . ')'
+                : '' )
+                . '. This domain will render with no stylesheet, and every page '
+                . 'will still return 200.';
+        }
+    }
+    return $res;
 }
 
 # SM241: the layout+theme a host actually resolves to - its own override where it

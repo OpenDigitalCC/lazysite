@@ -209,12 +209,67 @@ sub count_private {
 #
 # Both callers already handle a false return correctly. They only ever needed
 # the failure to BE a return.
+# SM323: a directory in the store must be usable by the identity that writes
+# content, which is the CGI - not merely by whoever happened to create it.
+#
+# This was a bare make_path. Whoever called it first owned the result with a
+# umask default, and there are two callers with different identities: the
+# operator sweep runs as the SITE USER, and an ordinary protect runs as the CGI.
+# The sweep gets there first on any site being repaired, so the store ended up
+# owned by the site user with no group write - and protecting content through
+# the manager UI, MCP or the control API then failed with Permission denied
+# while `acl reapply` succeeded. Protection became an operator-only operation on
+# a product whose partner surfaces are supposed to perform it.
+#
+# The store is the docroot's private twin, so it carries the DOCROOT's identity -
+# not its own parent's. The parent is the domain folder, which on the Hestia
+# layout is root-owned 0551, and matching that would lock everyone out. That is
+# why Util::secure_write_perms, which mirrors the parent, is the wrong helper
+# here despite being the obvious one.
+#
+# Mode 2770 rather than the docroot's 2775: setgid so content moved in keeps the
+# group, and no world bit, because the whole point of this tree is that content
+# in it is not readable by anything that has not asked the engine.
+sub _store_perms {
+    my ( $docroot, $dir ) = @_;
+    return unless defined $docroot && defined $dir && -d $dir;
+    my @d = stat $docroot or return;
+    my ( $duid, $dgid ) = @d[ 4, 5 ];
+
+    # Root can set both. Anyone else can set the group only, and only to a group
+    # they belong to - best effort, because the alternative is refusing to
+    # protect content at all on a correctly configured site.
+    if ( $> == 0 ) { chown $duid, $dgid, $dir }
+    else           { chown -1, $dgid, $dir }
+    chmod 02770, $dir;
+    return;
+}
+
 sub _mkpath {
-    my ($dir) = @_;
+    my ( $dir, $docroot ) = @_;
     return 1 if -d $dir;
     my $err;
     File::Path::make_path( $dir, { error => \$err } );
-    return -d $dir ? 1 : 0;
+    return 0 unless -d $dir;
+
+    # Every level this call created, not just the leaf: make_path may have made
+    # the store root itself, and that is the one the CGI must write into.
+    if ( defined $docroot ) {
+        my $root = private_root($docroot);
+        if ( defined $root && -d $root ) {
+            my $rel = $dir;
+            if ( index( $rel, "$root/" ) == 0 || $rel eq $root ) {
+                my $walk = $root;
+                _store_perms( $docroot, $walk );
+                for my $seg ( split m{/}, substr( $dir, length $root ) ) {
+                    next unless length $seg;
+                    $walk .= "/$seg";
+                    _store_perms( $docroot, $walk );
+                }
+            }
+        }
+    }
+    return 1;
 }
 
 # Confinement: never let a caller's path escape either tree. Both roots are
@@ -311,7 +366,7 @@ sub move_in {
     return ( 0, 'cannot resolve the private store' ) unless defined $dst;
 
     my $parent = dirname($dst);
-    _mkpath($parent);
+    _mkpath( $parent, $docroot );
 
     # SM307: whatever the store cannot do, a file and a folder describe it the
     # same way. This branch is where a SINGLE FILE failed on the host that

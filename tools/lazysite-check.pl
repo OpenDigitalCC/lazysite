@@ -210,6 +210,7 @@ my $cgi_uid = ( getpwnam 'www-data' )[2];
 my ( @results, @chmod_fixes, $chown_needed, $tt_cache_bad );
 my ( $git_fix_root, $git_shared_fix );
 my $store_create_needed;    # SM313: the private store to create under --fix
+my $store_repair_needed;    # SM323: an existing store whose owner/mode locks the CGI out
 sub report {    # (level, message, [hint])
     my ( $level, $msg, $hint ) = @_;
     push @results, { level => $level, msg => $msg, hint => $hint };
@@ -1211,6 +1212,37 @@ sub apply_fixes {
                 . "  chmod 2770 '$s'\n";
         }
     }
+    # SM323: repair a store that exists but the CGI cannot write into.
+    if ($store_repair_needed) {
+        my $s = $store_repair_needed;
+        if ( $> == 0 ) {
+            # Same shape --fix creates: owned by the site user, group the CGI
+            # identity, setgid so content moved in keeps the group.
+            chown $exp_uid, $exp_gid, $s;
+            chmod 02770, $s;
+            # The contents too - a store populated by a sweep running as the site
+            # user holds files the CGI cannot rewrite either, and un-protecting
+            # has to move them back OUT.
+            my $n = 0;
+            File::Find::find(
+                { no_chdir => 1, wanted => sub {
+                        my $p  = $File::Find::name;
+                        my @st = lstat $p or return;
+                        return if -l _;
+                        chown $exp_uid, $exp_gid, $p;
+                        chmod( ( -d _ ? 02770 : 0660 ), $p );
+                        $n++;
+                } }, $s );
+            printf "fixed: private store %s now %s:%s mode 2770 (%d path(s))\n",
+                $s, $exp_user, $exp_grp, $n;
+            $fixed++;
+        }
+        else {
+            print "skip: repairing the private store needs root - run:\n"
+                . "  chown -R $exp_user:$exp_grp '$s'\n"
+                . "  chmod 2770 '$s'\n";
+        }
+    }
     if ($chown_needed) {
         if ( $> == 0 ) {
             # Recursive chown to the expected owner:group. Handing a path the
@@ -1709,15 +1741,37 @@ sub report_private_store_usable {
                 'the private store exists and the engine can write to it' );
         }
         else {
+            # SM323: REPAIR it, do not merely name it.
+            #
+            # SM313 taught --fix to CREATE a missing store and stopped there, so
+            # a store that exists and is unusable was reported on every run and
+            # repaired by nothing. That is the state edge reached: the operator
+            # sweep runs as the SITE USER and creates the store through
+            # Private::_mkpath, which sets no ownership and no mode - so the
+            # store ends up owned by the site user with a umask default, and the
+            # CGI identity cannot write into it.
+            #
+            # The consequence is that protecting content became an OPERATOR-ONLY
+            # operation: `acl reapply` works, and the manager UI, MCP and the
+            # control API all return a warning with the content still served, on
+            # a product whose partner surfaces are supposed to do exactly this.
+            #
+            # Whichever creator runs first decides. That is the argument for
+            # declaring the store in runtime_paths (SM321) so there is ONE
+            # description of what it should be - this repairs a store that
+            # already exists in the wrong shape, which the declaration alone
+            # cannot do.
+            $store_repair_needed = $store;
             report(
                 'FAIL',
                 'the private store exists but the engine cannot write to it '
                     . sprintf( '(%s, owner %s:%s, mode %04o)',
                     $store, owner_name($store), group_name($store),
                     mode_of($store) ),
-                'protecting content will store the rule and leave the files in '
-                    . 'the document root. Give the CGI identity write access to '
-                    . 'that directory.'
+                'protecting content stores the rule and leaves the files in the '
+                    . 'document root, so the manager UI, MCP and the control API '
+                    . 'cannot protect anything - only the operator sweep can. '
+                    . 'Run with --fix as root to repair the ownership and mode.'
             );
         }
         return;

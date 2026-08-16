@@ -143,4 +143,41 @@ subtest 'lazysite check carries the standing version' => sub {
             . 'found this in the field' );
 };
 
+subtest 'the PER-DOMAIN path reports it too (SM322)' => sub {
+    # SM315 added the count to action_theme_activate. With a `host`, MCP routes
+    # through domain_set instead - "with a host, this is a per-domain BINDING,
+    # not an instance activation" - and that path ran the mirror and discarded
+    # the result. So the count was absent on exactly the surface a multi-domain
+    # instance uses, which is the surface whose failure SM315 was written about:
+    # a site handed over completely unstyled with every page returning 200.
+    my $src = do {
+        open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/Domains.pm"
+            or die $!;
+        local $/;
+        <$fh>;
+    };
+
+    like( $src, qr/\$mirror = _mirror_theme_assets/,
+        'domain_set captures the mirror result instead of discarding it' )
+        or diag( 'It called the mirror and threw the answer away, so binding a '
+            . 'theme to a domain returned ok:1 either way.' );
+    like( $src, qr/assets_mirrored/,
+        'and returns the count' );
+    like( $src, qr/will still return 200/,
+        'warning on zero names the consequence, as the instance path does' );
+
+    # Same wording both sides: an agent that learns the phrase on one surface
+    # should not have to learn a second one.
+    my $themes = do {
+        open my $fh, '<', "$FindBin::Bin/../../../lib/Lazysite/Manager/Themes.pm"
+            or die $!;
+        local $/;
+        <$fh>;
+    };
+    for my $phrase ( 'no theme assets were mirrored', 'render with no stylesheet' ) {
+        like( $themes, qr/\Q$phrase\E/, "the instance path says '$phrase'" );
+        like( $src,    qr/\Q$phrase\E/, "and the per-domain path says it too" );
+    }
+};
+
 done_testing();
