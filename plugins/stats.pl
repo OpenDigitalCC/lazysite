@@ -60,6 +60,38 @@ my $NOISE_RE = qr{
 # some of them.
 our @CLASSES = qw(human ai bot noise scanner);
 
+# SM338: the COUNTING BASIS. A day's numbers are only comparable with another
+# day's if both were counted the same way, and this release changes the way:
+# until 0.10.12 a request for an image counted as a page view (SM329).
+#
+# A closed day file is written once and never rewritten, so every day already
+# rolled up keeps its old numbers for ever. The series therefore carries a step
+# at whatever date each instance upgrades - a metric change wearing the clothes
+# of a traffic change, and per-site, so no changelog date identifies it.
+#
+# This exists because that confusion has already happened once on a live
+# instance and could not be settled: an operator asked why traffic dropped on 27
+# July, and the answer needed data from before `data_from` that no longer
+# existed. The cost of recording the basis is one small integer per day. The
+# cost of not recording it is a question nobody can answer, arriving weeks later
+# when the person who changed the counting has moved on.
+#
+#   1 - assets counted as page views (up to and including 0.10.11)
+#   2 - assets counted separately, as asset_hits (SM329, from 0.10.12)
+#
+# A day-bucket carrying no basis at all predates the field, which is basis 1.
+our $COUNTING_BASIS = 2;
+
+# The bases that contributed to a bucket, oldest form first. An empty or absent
+# set means the bucket was built before this was recorded, which is basis 1 -
+# never "unknown", because a bucket that exists was definitely counted somehow
+# and treating it as unknown would lose the one fact this is here to keep.
+sub _basis_of {
+    my ($bucket) = @_;
+    my @b = sort { $a <=> $b } keys %{ $bucket->{basis} || {} };
+    return @b ? @b : (1);
+}
+
 # SM329: an image is not a page.
 #
 # `top_pages` and `pageviews` counted every 2xx request, so two images were the
@@ -873,11 +905,20 @@ sub _day_rollup {
         pageviews        => ( $bucket->{hits}             // 0 ),
         asset_hits       => ( $bucket->{asset_hits}       // 0 ),    # SM329
         scanner_inferred => ( $bucket->{scanner_inferred} // 0 ),    # SM332
-        unique_visitors  => scalar keys %{ $bucket->{ips} || {} },
-        classes          => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
-        top_pages        => _topn( $bucket->{pages} || {}, $top_n ),
-        status_codes     => { %{ $bucket->{status} || {} } },
-        not_found        => {
+
+        # SM338: what these numbers mean, carried WITH them. A reader comparing
+        # this day to another has to be able to tell whether the comparison is
+        # valid, and the answer cannot live in a changelog they would have to
+        # know to go and look for.
+        counting_basis       => ( _basis_of($bucket) )[-1],
+        counting_basis_mixed => (
+            scalar( _basis_of($bucket) ) > 1 ? JSON::PP::true : JSON::PP::false
+        ),
+        unique_visitors => scalar keys %{ $bucket->{ips} || {} },
+        classes         => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
+        top_pages       => _topn( $bucket->{pages} || {}, $top_n ),
+        status_codes    => { %{ $bucket->{status} || {} } },
+        not_found       => {
             plausible  => _topn( $bucket->{nf_plausible} || {}, $top_n ),
             junk_count => ( $bucket->{nf_junk} // 0 ),
         },
@@ -901,20 +942,22 @@ sub _month_rollup {
     my ( %cls, %pages, %ips, %status, %nf_pl, %forms );
     my %auth_ref;    # SM223
     my ( $pv, $ndays, $nf_junk, $asset_pv, $inferred ) = ( 0, 0, 0, 0, 0 );
+    my %bases;       # SM338
     for my $day ( grep { index( $_, $mon ) == 0 } keys %$days ) {
         my $b = $days->{$day};
         $ndays++;
-        $pv           += ( $b->{hits}             // 0 );
-        $asset_pv     += ( $b->{asset_hits}       // 0 );    # SM329
-        $inferred     += ( $b->{scanner_inferred} // 0 );    # SM332
-        $nf_junk      += ( $b->{nf_junk}          // 0 );
+        $pv       += ( $b->{hits}             // 0 );
+        $asset_pv += ( $b->{asset_hits}       // 0 );    # SM329
+        $inferred += ( $b->{scanner_inferred} // 0 );    # SM332
+        $bases{$_} = 1 for _basis_of($b);                # SM338
+        $nf_junk      += ( $b->{nf_junk} // 0 );
         $cls{$_}      += $b->{cls}{$_}          for keys %{ $b->{cls}          || {} };
         $pages{$_}    += $b->{pages}{$_}        for keys %{ $b->{pages}        || {} };
         $status{$_}   += $b->{status}{$_}       for keys %{ $b->{status}       || {} };
         $nf_pl{$_}    += $b->{nf_plausible}{$_} for keys %{ $b->{nf_plausible} || {} };
         $auth_ref{$_} += $b->{auth_refused}{$_} for keys %{ $b->{auth_refused} || {} };
         $ips{$_} = 1 for keys %{ $b->{ips} || {} };
-        for my $fn ( keys %{ $b->{forms} || {} } ) {         # SM216-2
+        for my $fn ( keys %{ $b->{forms} || {} } ) {     # SM216-2
             my $fb = $b->{forms}{$fn};
             $forms{$fn}{stored}      += $fb->{stored}      // 0;
             $forms{$fn}{quarantined} += $fb->{quarantined} // 0;
@@ -929,10 +972,20 @@ sub _month_rollup {
         pageviews        => $pv,
         asset_hits       => $asset_pv,
         scanner_inferred => $inferred,
-        unique_visitors  => scalar keys %ips,
-        classes          => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
-        top_pages        => _topn( \%pages, $top_n ),
-        status_codes     => \%status,
+
+        # SM338: a MONTH is where this bites hardest. The current month is
+        # refreshed on every call, so in the month an instance upgrades it sums
+        # days counted one way and days counted the other into a single total
+        # - and that total is not wrong so much as not a measurement of
+        # anything. It has to be able to say so.
+        counting_basis       => ( sort { $a <=> $b } keys %bases )[-1] // 1,
+        counting_basis_mixed => (
+            keys %bases > 1 ? JSON::PP::true : JSON::PP::false
+        ),
+        unique_visitors => scalar keys %ips,
+        classes         => { map { ( $_ => ( $cls{$_} // 0 ) ) } @CLASSES },
+        top_pages       => _topn( \%pages, $top_n ),
+        status_codes    => \%status,
         not_found    => { plausible => _topn( \%nf_pl, $top_n ), junk_count => $nf_junk },
         auth_refused => _topn( \%auth_ref, $top_n ), # SM223
         forms        => \%forms,                     # SM216-2: per-form delivery outcomes
@@ -988,13 +1041,18 @@ sub _persist_durable {
         # Derived from @CLASSES so a sixth class cannot be added and silently
         # left out of this view again.
         { date => $_,
-            pageviews  => ( $b->{hits}       // 0 ),
-            asset_hits => ( $b->{asset_hits} // 0 ),    # SM329
+            pageviews      => ( $b->{hits}       // 0 ),
+            asset_hits     => ( $b->{asset_hits} // 0 ),    # SM329
+            counting_basis => ( _basis_of($b) )[-1],        # SM338
             map { ( $_ => ( $b->{cls}{$_} // 0 ) ) } @CLASSES
         }
     } @dk;
-    my %month_pv;
-    for my $day (@dk) { my ($m) = $day =~ /^(\d{4}-\d{2})/; $month_pv{$m} += $days->{$day}{hits} // 0 }
+    my ( %month_pv, %month_basis_set );
+    for my $day (@dk) {
+        my ($m) = $day =~ /^(\d{4}-\d{2})/;
+        $month_pv{$m} += $days->{$day}{hits} // 0;
+        $month_basis_set{$m}{$_} = 1 for _basis_of( $days->{$day} );    # SM338
+    }
     my @mk = sort keys %month_pv;
     my @months_idx;
     for my $i ( 0 .. $#mk ) {
@@ -1003,6 +1061,15 @@ sub _persist_durable {
             month           => $mk[$i],
             pageviews       => $month_pv{ $mk[$i] },
             delta_pageviews => ( defined $prev ? ( $month_pv{ $mk[$i] } - $prev ) : undef ),
+
+            # SM338: the DELTA is the number that misleads. In the month an
+            # instance upgrades, a fall of a third is the counting changing and
+            # reads exactly like an audience leaving - and this series is the
+            # first thing anybody looks at.
+            counting_basis_mixed =>
+                ( keys %{ $month_basis_set{ $mk[$i] } || {} } > 1
+                ? JSON::PP::true
+                : JSON::PP::false ),
         };
     }
     _write_json_atomic( _stats_dir() . '/index.json', {
@@ -1057,6 +1124,12 @@ sub _new_day_bucket {
         nf_plausible     => {}, nf_junk => 0,  auth_refused => {},
         asset_hits       => 0,    # SM329
         scanner_inferred => 0,    # SM332
+
+        # SM338: which counting basis this day's numbers were built under. A
+        # SET, not a scalar, because the day an instance upgrades genuinely has
+        # events tallied under both - and a day that is half one basis and half
+        # the other must be able to say so rather than pick.
+        basis => {},
     };
 }
 
@@ -1123,6 +1196,7 @@ sub _tally_batch {
         my $st  = $r->{status} // 0;
         my $cls = ( length($tok) && $cache->{scanner}{$tok} ) ? 'scanner' : $r->{class};
         my $b   = $cache->{days}{ $r->{day} } ||= _new_day_bucket();
+        $b->{basis}{$COUNTING_BASIS} = 1;    # SM338
         $b->{cls}{$cls}++;
 
         # SM332: how much of the scanner class was INFERRED from behaviour

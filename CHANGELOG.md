@@ -79,6 +79,18 @@ discovered.
   WHILE PUBLIC before gating it, which is the only version of the probe that can
   construct the case at all, and the bound is asserted on every run instead of
   believed.
+- SM338 (PENDING) a change in what a number MEANS is now visible in the data.
+  SM329 changes what a page view IS, and a closed day file is written once and
+  never rewritten - so the series steps at whatever date each instance upgrades,
+  which is per-site and recorded nowhere. Worse, the current month's rollup is
+  refreshed every call, so in the month an instance upgrades it sums days
+  counted both ways into one total, and the month-on-month delta built from it
+  is the first number anybody looks at. Every day, month and index row now
+  carries its `counting_basis`, and says when it is mixed. A day rolled up
+  before this release reads as basis 1 rather than as unknown, because it was
+  definitely counted somehow. Raised by the partner agent while this release was
+  in the gate, and it held the cut: written at the time it costs one integer per
+  day, and written later it cannot be written at all.
 - SM334 (c4af05f) `read_settings` was re-parsed on every token verification -
   1.37 ms of JSON parsing per authenticated request, in a call its own comment
   described as one cheap read. Memoised per process on the file's (mtime, size)
@@ -94,7 +106,12 @@ changes, but an operator who has raised it should know what they have
 lengthened. SM327's perf drift is attributed (one step above the noise floor,
 the rest accretion, and the 2x tolerance is why nothing caught it); SM335 (the
 Stats page and the export use different class vocabularies) is filed as a
-candidate.
+candidate, as are SM339 (recompute the day rollups from the retained raw logs,
+so the series is continuous AND correct - deliberately not bundled here, because
+a recompute writes over the durable store and belongs in a release where it is
+the thing being tested) and SM337 (activating a layout that cannot render the
+site's navigation returns ok:1 four times over, and the engine knows at
+activation whether it can).
 
 ## 0.10.11 - EDGE: protecting content works from the surfaces built to do it (2026-08-16)
 
