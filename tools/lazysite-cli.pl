@@ -253,6 +253,51 @@ sub _lib_arg {
 # Resolution happens HERE rather than in each tool, so the tools stay per-site
 # and unchanged. A tool that grew its own discovery would be a second copy of the
 # registry reader, which is the shape SM318 and SM304 were both filed about.
+# SM329: fall back to the host's OWN idea of its sites.
+#
+# The registry at /etc/lazysite/sites.d is written by `provision`, which the deb
+# path runs and the HESTIA TARBALL PATH NEVER DOES - install.pl says so outright:
+# "lazysite has no central site registry - the host knows the sites". So SM321's
+# --domain addressing worked on a deb install and was useless on the deployment
+# shape this project actually uses, which is the one the complaint came from.
+#
+# lazysite-hestia-list.sh already discovers every site authoritatively, from the
+# Hestia web template rather than a marker file, and prints user/domain/docroot.
+# Two discovery mechanisms existed and the CLI consulted the one that was empty.
+#
+# It reads /usr/local/hestia/data/users, so it needs ROOT. A non-root caller gets
+# told that rather than "no registered site named X", which would send them
+# looking for a registry entry that was never going to exist.
+sub _discover_hestia_sites {
+    my $lister = payload_root() . '/installers/hestia/lazysite-hestia-list.sh';
+    return [] unless -f $lister;
+
+    my @out = qx(bash \Q$lister\E --plain --template-only 2>/dev/null);
+    if ( $? != 0 || !@out ) {
+        if ( !running_as_root() ) {
+            fail( 'the Hestia site list needs root (it reads '
+                    . "/usr/local/hestia/data/users).\n"
+                    . '  Re-run with sudo, or pass --docroot explicitly.' );
+        }
+        return [];
+    }
+
+    my @sites;
+    for my $line (@out) {
+        chomp $line;
+        my ( $user, $domain, $docroot ) = split /\t/, $line;
+        next unless defined $docroot && length $docroot && -d $docroot;
+        ( my $siteroot = $docroot ) =~ s{/public_html/?\z}{};
+        push @sites, {
+            name    => $domain,
+            docroot => $docroot,
+            cgibin  => "$siteroot/cgi-bin",
+            owner   => $user,
+        };
+    }
+    return \@sites;
+}
+
 sub extract_site_targets {
     my ($argv) = @_;
     my ( @rest, $all, $name );
@@ -268,9 +313,10 @@ sub extract_site_targets {
     fail('--all and --domain are mutually exclusive') if $all && defined $name;
 
     my $sites = read_registry();
+    $sites = _discover_hestia_sites() unless @$sites;
     unless (@$sites) {
         fail( 'no sites registered in ' . registry_dir()
-                . " - give --docroot instead" );
+                . ", and no Hestia site list available - give --docroot instead" );
     }
 
     if ($all) { return ( $sites, 'all' ) }

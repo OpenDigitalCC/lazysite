@@ -131,4 +131,32 @@ subtest 'the exit status is the WORST outcome, not the last' => sub {
     like( $src, qr/not the last/, 'with the reasoning recorded' );
 };
 
+subtest 'it falls back to the host\'s own site list (SM329)' => sub {
+    # THE ADDRESSING SHIPPED IN 0.10.11 DID NOT REACH THE DEPLOYMENT IT WAS BUILT
+    # FOR. The registry is written by `provision`, which the deb path runs and
+    # the Hestia TARBALL path never does - install.pl says so outright: "lazysite
+    # has no central site registry - the host knows the sites". So --domain
+    # worked on a deb install and was useless on the shape the complaint came
+    # from, where the operator was still typing full docroots.
+    #
+    # lazysite-hestia-list.sh already discovers every site authoritatively. Two
+    # discovery mechanisms existed, and the CLI consulted the empty one.
+    my $src = do { open my $fh, '<', $cli or die $!; local $/; <$fh> };
+
+    like( $src, qr/sub _discover_hestia_sites/,
+        'the CLI can consult the Hestia site list' );
+    like( $src, qr/\$sites = _discover_hestia_sites\(\) unless \@\$sites/,
+        'and does so only when the registry is empty - the registry still wins' );
+    like( $src, qr/--plain --template-only/,
+        'using the template-only listing, which is the authoritative one' );
+
+    # It reads /usr/local/hestia/data/users, so a non-root caller must be told
+    # THAT rather than "no registered site named X" - which would send them
+    # hunting for a registry entry that was never going to exist.
+    like( $src, qr/needs root/,
+        'a non-root caller is told the real reason it cannot look' );
+    like( $src, qr{/usr/local/hestia/data/users},
+        'naming what it needs to read' );
+};
+
 done_testing();
