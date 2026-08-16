@@ -3,7 +3,7 @@ title: "SM321 - the operator should decide, not orchestrate"
 subtitle: "Repairing a site needs a user and a domain the operator has to look up, and the fleet script has become the only place several operations exist. Both follow from one undeclared directory and one duplicated fleet layer."
 brand: plain
 status: candidate
-status-note: "FILED 2026-08-16 from operator feedback after the 0.10.10 rollout: 'this fix command is fragile and needs me to know users and domains ... plus the updater seems to be getting bloated ... automate the fixes, with operator decision at the right point, not operator orchestration.' The criticism is fair and this release made it worse - SM313 and SM317 both added per-site logic to the Hestia script because that is where the site loop already lived. The largest single fix DELETES code rather than adding it."
+status-note: "REVISED 2026-08-16 after the operator challenged the decision analysis, correctly. The first draft called moving content and changing a template assignment operator decisions; BOTH ARE REQUIRED ACTIONS, not choices. Moving content is required and may create work for the SITE BUILDER (a public page referencing an asset inside a gated section), which audit_site machinery can already detect and list. A template move is required except on a domain someone customised, which lazysite-hestia-list.sh already reads. The principle: do not ask about the general case, detect the exception and ask only about that - which takes the decision surface from five prompts to two named exceptions. FILED 2026-08-16 from operator feedback after the 0.10.10 rollout: 'this fix command is fragile and needs me to know users and domains ... plus the updater seems to be getting bloated ... automate the fixes, with operator decision at the right point, not operator orchestration.' The criticism is fair and this release made it worse - SM313 and SM317 both added per-site logic to the Hestia script because that is where the site loop already lived. The largest single fix DELETES code rather than adding it."
 ---
 
 # What the operator actually hit
@@ -103,26 +103,96 @@ themselves, which is orchestration.
 
 # What is actually an operator decision
 
-This is the question the whole filing turns on, and most of the current prompts
-fail it.
+The first draft of this filing answered "moving content" and "changing a template
+assignment" - two of five. **Both were wrong**, and the correction matters more
+than the original point.
+
+## Moving content is not a decision, it is required work with a consequence
+
+`acl reapply --apply` relocates files that are already governed by a rule the
+engine already honours. Nobody would choose to leave them in the served tree;
+that state is the defect. So there is nothing to decide.
+
+What it can do is **break a public page that references an asset inside a section
+being gated** - a hero image, a PDF, a stylesheet living under a folder that is
+about to move. The operator cannot fix that. Only whoever built the site can,
+by moving the asset out or by not protecting that section.
+
+So the output is not a prompt. It is a **work item, addressed to the site
+builder, naming the pages**:
+
+```
+3 public pages reference assets inside sections about to be gated:
+  /pricing            -> /clients/acme/logo.png
+  /about              -> /clients/acme/brochure.pdf
+  /index              -> /clients/acme/hero.jpg
+These will stop loading. Move the assets, or unprotect that section.
+```
+
+**This is machine-detectable with machinery that already exists.** `audit_site`
+walks internal links for broken-link reporting and already returns
+`unprotected_static_files`. Resolving each link and testing whether its target
+falls inside a to-be-moved prefix is the same walk with a different predicate.
+
+## Changing a template assignment is required, except where someone customised it
+
+`--proxy` moves a domain onto the lazysite proxy template. Without it, gated
+static files are answered by nginx without asking the engine - which is SM283,
+live. Nobody would choose that either. It is required.
+
+The one case that genuinely needs a human is a domain on a **non-stock template
+somebody wrote deliberately**, where moving it would discard their work.
+
+**That is detectable too, and already is.** `lazysite-hestia-list.sh` reads each
+domain's actual proxy template (`PROXY_TPL_OF`) and compares it against the
+wanted one - that comparison is what produces the `ACL-BYPASSED-BY-PROXY(SM283)`
+flag. It knows the current template's NAME. Distinguishing "a stock Hestia
+template" from "one this operator authored" is a lookup against what Hestia
+ships, not new discovery.
+
+So: move every domain on a stock template automatically, and ask about the
+handful on a custom one - naming which, and what would be lost.
+
+## The principle this yields
+
+**Do not ask about the general case. Detect the exception, and ask only about
+that.** Where the consequence is work rather than risk, address it to whoever can
+do the work, with the list.
+
+Applied to the five actions, the decision surface almost vanishes:
 
 ```datatable
-columns: Action | A decision? | Why
-widths: 5.4cm | 2.4cm | X
+columns: Action | Automatic | A human is needed for
+widths: 4.6cm | 2.2cm | X
 bold: 1
 tone: medium
 text: 3
 ---
-Move content on a live site (`reapply --apply`) | **yes** | it relocates bytes a visitor may be requesting
-Change a template assignment (`--proxy`) | **yes** | it changes the front end for every domain
-Create the private store | **no** | it is a precondition of a shipped feature; no site wants to be unable to protect content
-Repair a docroot mode a rebuild reset | **no** | it restores an invariant the installer already declares
-Probe whether the front end honours an ACL | **no** | read-only, and the answer is wanted every time
+Create the private store | always | nothing
+Repair a docroot mode | always | nothing
+Probe the front end | always | nothing
+Move content (`reapply`) | always | the SITE BUILDER, if a public page references a moving asset - with the list
+Template assignment | stock templates | the OPERATOR, only for domains on a custom template
 ---
 ```
 
-Two of five. The other three are the installer finishing its job, and they are
-the three currently demanding the most operator input.
+Three of five need nobody. The remaining two need a named person for a named
+exception, not an operator holding an ordering rule in their head.
+
+## What a deploy should therefore print
+
+Three sections, never merged, because they go to different people:
+
+Repaired
+: what was fixed without being asked. Reported, not prompted.
+
+Needs the site builder
+: content work, with the specific pages and assets. The operator forwards it;
+  they cannot action it.
+
+Needs you
+: only detected exceptions, each with its consequence and the exact command.
+  Empty on a healthy fleet, which is the point.
 
 # The recommendation
 
