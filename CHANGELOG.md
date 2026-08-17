@@ -61,7 +61,7 @@ Naming the commit: AFTER it lands, never before
   are affected. The other half of SM345.
 
 - SM354 (274be4b) **seventeen changelog entries cited commits that no branch
-- SM355 (PENDING) **every 404 on a site declared somebody else's URL as its
+- SM355 (deb1efd) **every 404 on a site declared somebody else's URL as its
   canonical, and a stranger could choose which.** Measured on edge: every missing
   URL emitted `canonical -> /feed.xml`, and `/feed.xml` itself 404s there - so
   the page served for missing documents pointed crawlers at a missing document.
@@ -79,7 +79,7 @@ Naming the commit: AFTER it lands, never before
   response carries `noindex` - the only instruction that reaches an indexable
   soft 404 the engine never sees. Found by the partner agent's four-surface pass;
   the mechanism is not the one it looked like from outside.
-- SM357 (PENDING) **a pre-commit hook refusing commits on `main`.** The contract
+- SM357 (e846971) **a pre-commit hook refusing commits on `main`.** The contract
   already said work happens on a `claude/<feature>` branch that vcs-review
   lands; roughly thirty commits went straight onto main in one session and the
   first anyone saw of them was a release - including two defects discoverable
