@@ -165,6 +165,21 @@ sub _basis_of {
 # stream, where it still feeds classification and the browser-versus-bot
 # heuristic; it is excluded from the page-facing aggregates and counted on its
 # own, so the exclusion is auditable rather than invisible.
+# SM336 item 7: how many DIFFERENT visits must use a term before it is written
+# down. Below this only a hash of the term is counted, so a one-off never
+# reaches disk in a readable form - see _apply_event.
+# A checkbox reaches the plugin config as a string. Treated as OFF unless it
+# says something affirmative, because this particular setting failing open would
+# start recording visitors' own words on a site that never asked for it.
+sub _flag_on {
+    my ($v) = @_;
+    return 0 unless defined $v && length $v;
+    return ( lc $v ) =~ /^(?:1|on|yes|true|enabled)$/ ? 1 : 0;
+}
+
+our $SEARCH_TERM_FLOOR = 3;
+our $SEARCH_TERM_TOPN  = 20;
+
 my $ASSET_RE = qr{
     \.(?: jpe?g | png | gif | webp | avif | svg | ico | bmp     # images
         | css | js | mjs | map                                  # styles, scripts
@@ -351,6 +366,14 @@ if ( $arg{describe} ) {
                     note => 'A visitor asking for this many DIFFERENT missing pages inside the window below is treated as a scanner, whatever the paths are - this catches probes that no signature list knows about yet. Raise it if readers following old links are being counted as scanners.' },
                 { key => 'scanner_404_minutes', label => 'Sweep window (minutes)', type => 'text', default => '5',
                     note => 'How close together those requests must be. Minutes, not hours: a day of browsing is not a sweep however many dead links it turns up.' },
+                # SM336 item 7. OFF by default and on its own switch, because it
+                # is the one field on that filing's list carrying a real privacy
+                # risk: people type surprising things into search boxes, and a
+                # search term is the visitor's own words rather than a fact about
+                # a page. An operator who wants the rest of SM336 should not get
+                # this as a side effect of the release that added sessions.
+                { key => 'search_terms', label => 'Record internal search terms', type => 'checkbox', default => '',
+                    note => 'Records what visitors typed into the site search, as a top-20 list per day. A term is only stored once ' . $SEARCH_TERM_FLOOR . ' different visits have used it, so a one-off is never kept: below that only a hash is counted, and the words themselves are never written down. Off by default.' },
             ],
             # 'refresh' is called programmatically by the Stats page to pull
             # data - it is not a config-page button (hidden), so the plugin page
@@ -808,7 +831,12 @@ sub _parse_line {
             \ (\d{3})\ (\S+)          # status (4), bytes (5)
             \ "([^"]*)"\ "([^"]*)"    # "referer(6)"  "user-agent(7)"
         }x;
-    my ( $ip, $date, $path, $st, $bs, $ref, $ua ) = ( $1, $2, $3, $4, $5, $6, $7 );
+    my ( $ip, $date, $target, $st, $bs, $ref, $ua ) = ( $1, $2, $3, $4, $5, $6, $7 );
+
+    # SM336: the capture is the request TARGET, query string and all. Split once
+    # here so the path that gets counted is a path - see _split_query for what
+    # that was doing to top_pages.
+    my ( $path, $query ) = _split_query($target);
     return undef
         unless $date =~ m{^(\d+)/(\w+)/(\d+):(\d+):(\d+):(\d+)} && exists $MON_X{$2};
     my ( $d, $mo, $y, $H, $Mi, $S ) = ( $1, $2, $3, $4, $5, $6 );
@@ -819,6 +847,7 @@ sub _parse_line {
         epoch  => $epoch,
         day    => sprintf( '%04d-%02d-%02d', $y, $MON_X{$mo} + 1, $d ),
         path   => $path,
+        query  => $query,    # SM336
         status => $st + 0,
         # SM335: bytes were captured by the pattern and thrown away. The window
         # reader counted them itself from its own parse; now that both readers
@@ -837,6 +866,70 @@ sub _anon_ip {
 
 # A short, non-reversible token for grouping events by visitor at NETWORK level
 # (the address is already truncated to its /24 before hashing).
+# SM336 item 6: the device class, from the user-agent both ingesters already
+# have and both were discarding - classify() consumed it and the record kept
+# only its verdict.
+#
+# Three counters, and the order of the tests is the whole of it. Every Android
+# TABLET also says "Android", and most say "Mozilla"; only a PHONE says "Mobile"
+# as well. So tablet is tested first and Android-without-Mobile falls to it,
+# which is the rule the spec-writers settled on and the reason a naive
+# /Android/ = mobile test reports every tablet as a phone.
+#
+# Deliberately three, not a taxonomy. The question it answers is "does mobile
+# matter to me", which decides a great deal of design work; "which of eleven
+# form factors" decides nothing anyone here would act on.
+sub _device_class {
+    my ($ua) = @_;
+    return 'unknown' unless defined $ua && length $ua;
+    return 'tablet'
+        if $ua =~ m{ iPad | Tablet | PlayBook | Kindle | Silk }xi
+        || ( $ua =~ m{Android}i && $ua !~ m{Mobile}i );
+    return 'mobile'
+        if $ua =~ m{ Mobi | iPhone | iPod | Android | Windows\ Phone
+                   | IEMobile | BlackBerry | Opera\ Mini }xi;
+    return 'desktop';
+}
+
+# The query string, split from the path.
+#
+# SM336: needed for item 7, and it turned up a defect on the way. The server-log
+# parser captured the request target with \S+, which INCLUDES the query string,
+# and nothing downstream stripped it - _is_asset removed it for its own test and
+# put it straight back. So `/search-results?q=widgets` and
+# `/search-results?q=prices` were two different entries in top_pages, and every
+# distinct search diluted the page counts of the page being searched from. Same
+# shape as SM329: something counted as a page that is not a distinct page.
+#
+# Stripped once, here, so both the counting and the term extraction read the
+# same split.
+sub _split_query {
+    my ($target) = @_;
+    return ( '', '' ) unless defined $target;
+    my ( $path, $query ) = split /\?/, $target, 2;
+    return ( $path, ( defined $query ? $query : '' ) );
+}
+
+# The search term a request carries, or undef. `q` is the parameter the shipped
+# search form uses.
+#
+# Normalised hard on purpose: lowercased, whitespace collapsed, trimmed, and
+# capped at 80 characters. A top-20 list of near-identical spellings is not a
+# report, and an unbounded string from a query parameter is not something to key
+# a hash with.
+sub _search_term {
+    my ($query) = @_;
+    return undef unless defined $query && length $query;
+    my ($raw) = $query =~ /(?:^|&)q=([^&]*)/ or return undef;
+    $raw =~ tr/+/ /;
+    $raw =~ s/%([0-9A-Fa-f]{2})/chr hex $1/ge;
+    $raw = lc $raw;
+    $raw =~ s/\s+/ /g;
+    $raw =~ s/^ | $//g;
+    return undef unless length $raw;
+    return substr( $raw, 0, 80 );
+}
+
 sub _visitor_token {
     require Digest::SHA;
     return substr( Digest::SHA::sha256_hex( $_[0] ), 0, 12 );
@@ -1001,6 +1094,19 @@ sub _day_rollup {
             landing        => _topn( $bucket->{landing} || {}, $top_n ),
             not_found_from => _topn( $bucket->{nf_from} || {}, $top_n ),
         },
+        # SM336 item 6. `unknown` is a real answer - a request with no
+        # user-agent is not a desktop - so it is reported rather than folded
+        # into the largest bucket.
+        devices => { %{ $bucket->{device} || {} } },
+
+        # SM336 item 7. Absent entirely on a site that has not turned it on,
+        # rather than present and empty: an empty list reads as "nobody
+        # searched", and the truthful answer is "nobody was asked".
+        (   ( $bucket->{sq} && %{ $bucket->{sq} } )
+            ? ( search_terms => _topn( $bucket->{sq}, $SEARCH_TERM_TOPN ) )
+            : ()
+        ),
+
         referrers => {
             direct   => ( $bucket->{ref_direct}   // 0 ),
             internal => ( $bucket->{ref_internal} // 0 ),
@@ -1309,6 +1415,37 @@ sub _apply_event {
     my $is_asset = _is_asset( $r->{path} );
     if   ( $is_asset && $st < 400 ) { $b->{asset_hits} += $sign }
     else                            { $b->{hits}       += $sign }
+
+    # SM336 item 6: device, on PAGE views only. Counting an asset would report
+    # the device that fetched a stylesheet, which is the same device that
+    # fetched the page and would multiply every visit by however many files its
+    # layout happens to load. Same reasoning as SM329.
+    if ( !$is_asset && $st < 400 ) {
+        my $dev = $r->{device} // 'unknown';
+        $b->{device}{$dev} += $sign;
+        delete $b->{device}{$dev} if ( $b->{device}{$dev} // 0 ) <= 0;
+    }
+
+    # SM336 item 7: a search term, counted behind a floor.
+    #
+    # THE WORDS ARE NOT WRITTEN DOWN UNTIL THE FLOOR IS REACHED. `sq_seen` holds
+    # a hash of the term against its count and is what persists between calls;
+    # the term itself only enters `sq` once that count reaches the floor, and
+    # leaves again if a reversal takes it back below. So a term one visitor
+    # typed once exists on disk as twelve hex characters and nothing else.
+    #
+    # Reversible, because SM339's recount replays every event with sign -1 and a
+    # tally that cannot be undone would make a repair produce a different answer
+    # from the ingest it repairs. The raw term is available on the way down as
+    # well as the way up, since it rides on the event rather than the bucket.
+    if ( defined $r->{term} && length $r->{term} && !$is_asset ) {
+        my $h = _visitor_token( $r->{term} );
+        $b->{sq_seen}{$h} += $sign;
+        my $n = $b->{sq_seen}{$h} // 0;
+        if ( $n <= 0 ) { delete $b->{sq_seen}{$h} }
+        if ( $n >= $SEARCH_TERM_FLOOR ) { $b->{sq}{ $r->{term} } = $n }
+        else                            { delete $b->{sq}{ $r->{term} } }
+    }
 
     $b->{status}{$st} += $sign;
     delete $b->{status}{$st} if ( $b->{status}{$st} // 0 ) <= 0;
@@ -1827,7 +1964,10 @@ sub _export_ingest_server_log {
     $cache->{days}   ||= {};
     $cache->{events} ||= [];
 
-    my $extra_ai    = _split_csv( $cfg->{ai_user_agents} );
+    my $extra_ai = _split_csv( $cfg->{ai_user_agents} );
+    # SM336 item 7: off unless the operator turned it on. Read here rather than
+    # inside the loop so a site that has not opted in never even extracts a term.
+    my $want_terms = _flag_on( $cfg->{search_terms} );
     my $extra_noise = _split_csv( $cfg->{noise_paths} );
     my $site_host   = _site_domain();
     my $EVENT_CAP   = 5000;
@@ -1845,10 +1985,14 @@ sub _export_ingest_server_log {
                 path   => $p->{path},
                 status => $p->{status},
                 class => classify( $p->{path}, $p->{ua}, $extra_ai, $extra_noise, $p->{status} ),
-                bytes => ( ( $p->{bytes} // 0 ) + 0 ),             # SM335
-                token => _visitor_token( _anon_ip( $p->{ip} ) ),
-                ref   => $p->{ref},
-                t     => $p->{epoch},
+                # SM336: the user-agent was consumed by classify() and dropped.
+                # The verdict is not the only thing it can answer.
+                device => _device_class( $p->{ua} ),
+                term   => ( $want_terms ? _search_term( $p->{query} ) : undef ),
+                bytes  => ( ( $p->{bytes} // 0 ) + 0 ),            # SM335
+                token  => _visitor_token( _anon_ip( $p->{ip} ) ),
+                ref    => $p->{ref},
+                t      => $p->{epoch},
             };
         }
         close $fh;
@@ -1871,6 +2015,7 @@ sub _export_ingest_first_party {
     $cache->{events} ||= [];
 
     my $extra_ai    = _split_csv( $cfg->{ai_user_agents} );
+    my $want_terms  = _flag_on( $cfg->{search_terms} );    # SM336 item 7
     my $extra_noise = _split_csv( $cfg->{noise_paths} );
 
     my %live = map { (m{([^/]+)$})[0] => 1 } @{$files};
@@ -1901,6 +2046,15 @@ sub _export_ingest_first_party {
                 path   => ( $r->{p} // '' ),
                 status => $st,
                 class => classify( ( $r->{p} // '' ), ( $r->{ua} // '' ), $extra_ai, $extra_noise, $st ),
+                # SM336: same two facts, from the same user-agent, on the other
+                # ingester - so a site with either log source answers the same
+                # questions. The record's own path may carry a query too.
+                device => _device_class( $r->{ua} // '' ),
+                term   => (
+                    $want_terms
+                    ? _search_term( ( _split_query( $r->{p} // '' ) )[1] )
+                    : undef
+                ),
                 token => ( $r->{v} // '' ),           # already an anonymised daily token
                 bytes => ( ( $r->{b} // 0 ) + 0 ),    # SM335
                     # SM223: this request was REFUSED by an access decision. The

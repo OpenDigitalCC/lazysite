@@ -106,6 +106,39 @@ Naming the commit: AFTER it lands, never before
   inventory of the ten places the engine inlines `<script>` or `<style>` -
   which is what a report-only collector would have had to discover from live
   traffic, for a fact the source already stated. COOP waits for CSP.
+- SM350 (PENDING) **the control API publishes an action reference.** MCP has
+  `tools/list` with a schema per tool; the other enforced channel had no
+  equivalent and no documentation page - a search for its action names across
+  23 reference docs and 7 briefings returned one incidental mention.
+  `action=actions-list` now answers with every action the calling account may
+  use, its parameters and where each is read from, subset by grant the way
+  `tools/list` already is (SM210). `docs/reference/control-api-actions.md` is
+  generated from the same source. The useful part is the three-state capability
+  model it makes visible - any-one-of-these, any-authenticated, and
+  **cookie-only**, which covers 59 of the 111 actions and is the state a caller
+  could discover no other way. The filing asked for this to be generated from
+  the dispatch table; there is no dispatch table, so the declaration was
+  **extracted** from the 108-branch chain and `t/lint/58` re-extracts it on
+  every run and fails on any difference. Replacing the chain remains its own
+  work.
+- SM336 (PENDING) **items 6 and 7: device class and internal search terms** -
+  the two the sessions release left open. Device is three counters from the
+  user-agent both ingesters already had and both discarded, counted on page
+  views only, with tablet tested before mobile because every Android tablet
+  says *Android* and only a phone also says *Mobile*. Search terms ship
+  **off**, on their own switch, top-20, behind a frequency floor of 3 - and the
+  floor is a privacy property rather than a reporting filter: below it only a
+  *hash* of the term is counted, so a term one visitor typed once exists on
+  disk as twelve hex characters and nothing else. On a site that never enabled
+  it the field is absent rather than empty, because an empty list reads as
+  "nobody searched" when the truth is "nobody was asked". **And a defect found
+  on the way:** the server-log parser captured the request target - query
+  string included - and nothing stripped it, so `?q=widgets` and `?q=prices`
+  were separate entries in `top_pages` and every distinct search diluted the
+  page it was searching from. Totals are unchanged, so this is not a
+  counting-basis change; a site with a busy search box will simply see its real
+  pages rise.
+
 - SM335 (9b3bc1f) **one class vocabulary: the manager Stats page and the export
 - SM336 (PENDING) **a session has a boundary, and sequence is recorded.**
   Everything durable was a marginal count - nothing paired one dimension with
