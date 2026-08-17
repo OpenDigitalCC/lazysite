@@ -30,6 +30,30 @@ Shipped versus mentioned
 
 ## Unreleased
 
+- SM345 (PENDING) **a release touched every site on the host, not the ones it
+  was for.** The per-site install was channel-gated; every other phase was not.
+  An edge rollout refreshed the shared web template, rebuilt every vhost, and
+  ran `repair --all` and `probe --all` across sites sitting on beta and stable -
+  and `repair` WRITES, so an edge release made changes to sites running older
+  code. Scope is now computed once, before any phase acts, by asking
+  `install.sh --channel-check` (the same code the deploy obeys - not a second
+  copy in bash); every phase iterates only the in-scope set, and out-of-scope
+  sites are named once as untouched. `repair` and `probe` run `--domain` per
+  in-scope site. The shared Hestia template is the one thing that cannot be
+  scoped - it now says how many out-of-scope sites it reaches - and the deploy
+  watcher no longer passes `--rebuild` on every deploy, which was the immediate
+  cause. **An edge release touches edge sites; only a stable promotion touches
+  stable sites.**
+- SM346 (PENDING) **the Users page hid every operator-only control from every
+  human.** It gates promote-to-top-level and the scope-independence toggle on
+  `amOperator`, computed by looking for itself in the groups granting
+  `manage_users` - and `users-page` never told it who it was, because that call
+  consolidated three earlier ones and carried forward the data of two and the
+  identity of neither. So the username searched for was empty, no membership
+  test could match, and no human qualified including a full operator. Reported
+  as agents being able to do something humans could not: agents drive the
+  control API and MCP, which have no UI gate. Nothing was wrongly permitted -
+  the API enforced correctly throughout - a capability was silently withheld.
 - SM344 (f8871a3) a successful rollout reported failure and asked for a version
   bump. The 0.10.12 edge rollout installed and verified on every site that could
   accept it, and was independently confirmed serving from outside - then exited

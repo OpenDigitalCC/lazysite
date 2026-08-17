@@ -404,8 +404,29 @@ if ($API_MODE) {
             # users-detail + group-settings-get + whoami, each a CGI cold start).
             my %users = read_users();
             _ensure_groups_seeded();
+            # SM346: `me` is the CALLER'S identity, and the page cannot work
+            # without it. This call replaced three - users-detail +
+            # group-settings-get + whoami - and carried forward the data of the
+            # first two and the identity of neither. The Users page gates every
+            # operator-only control on `amOperator`, which it computes by looking
+            # for itself in the groups that grant manage_users; with no identity
+            # to look for, that is false for everyone, including a full operator.
+            # So the controls were hidden from every human while the API happily
+            # allowed the same operations to a token caller.
+            #
+            # Named `me` rather than `partner` because this is whoever is
+            # asking, operator or partner alike; the UI already reads
+            # `d.partner || d.me`.
+            #
+            # And it is its OWN key rather than `actor`, deliberately. `actor`
+            # carries authorisation meaning - the ACTOR_FORBIDDEN backstop above
+            # refuses privileged verbs when it is set to a non-operator - so
+            # reusing it to mean "who is asking" would put an authorisation
+            # signal on a read-only call. `me` is inert: it is reported and
+            # nothing branches on it.
             $result = {
                 ok    => 1,
+                me    => $req->{me},
                 users => [
                     map { my $u = $_; +{ user => $u, settings => effective_settings($u) } }
                     grep { defined && length } sort keys %users

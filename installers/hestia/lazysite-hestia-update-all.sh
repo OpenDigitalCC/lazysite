@@ -194,9 +194,90 @@ fi
 [ "$LIST" = 1 ] && exit 0
 [ "$n" -gt 0 ] || { echo "Nothing to update."; exit 0; }
 
+# --- SCOPE: which sites is this release actually FOR? (SM345) -------------
+#
+# A release is for the sites whose update_channel accepts it. Everything below
+# this point - proxy assignment, vhost rebuild, deploy, repair, probe - must act
+# ONLY on those. Until now the per-site deploy was channel-gated and every OTHER
+# phase was not, so an edge rollout rebuilt vhosts, ran repairs and probed sites
+# sitting on stable.
+#
+# That is not merely noisy. `repair` WRITES: an edge rollout repaired a stable
+# site, which is a change made to a site running older code by a release that
+# was never meant to reach it - a partial update, and exactly what a channel
+# ladder exists to prevent. It also produced the fleet's out-of-scope exposures
+# as findings against a rollout that could not address them ([[SM344]]).
+#
+# The channel decision is NOT re-implemented here. `install.sh --channel-check`
+# already answers it, reads only lazysite.conf and the manifest, changes
+# nothing, and is the same code the per-site deploy obeys. A second copy in bash
+# would be one fact in two places, which is the defect this project keeps
+# closing.
+IN_USERS=(); IN_DOMAINS=(); OUT_OF_SCOPE=()
+for i in "${!DOMAINS[@]}"; do
+    _d="${DOMAINS[$i]}"; _u="${USERS[$i]}"
+    _dr="/home/$_u/web/$_d/public_html"
+    if [ ! -d "$_dr" ]; then
+        # No docroot: leave it to the deploy loop to report properly rather than
+        # silently dropping it here.
+        IN_USERS+=( "$_u" ); IN_DOMAINS+=( "$_d" )
+        continue
+    fi
+    set +e
+    bash "$STAGE/install.sh" --channel-check --docroot "$_dr" >/dev/null 2>&1
+    _cc=$?
+    set -e
+    if [ "$_cc" = 3 ]; then
+        OUT_OF_SCOPE+=( "$_d" )
+    else
+        IN_USERS+=( "$_u" ); IN_DOMAINS+=( "$_d" )
+    fi
+done
+
+if [ "${#OUT_OF_SCOPE[@]}" -gt 0 ]; then
+    echo
+    printf '==> OUT OF SCOPE for this release: %d site(s). NOT touched in any way.\n' "${#OUT_OF_SCOPE[@]}"
+    printf '    %s\n' "${OUT_OF_SCOPE[@]}"
+    echo "    Their update_channel does not accept this build. No template change,"
+    echo "    no vhost rebuild, no repair, no probe - they are left exactly as they"
+    echo "    are until a release they accept comes along."
+fi
+
+# From here on, these are THE sites.
+DOMAINS=( "${IN_DOMAINS[@]}" )
+USERS=(   "${IN_USERS[@]}" )
+n=${#DOMAINS[@]}
+if [ "$n" = 0 ]; then
+    echo
+    echo "==> no site on this host accepts this release. Nothing to do."
+    exit 0
+fi
+echo
+printf '==> IN SCOPE: %d site(s)\n' "$n"
+
 # --- refresh the shared Hestia web template (so vhost changes propagate) -----
 if [ "$DO_TPL" = 1 ] && [ -d "$TPLDIR" ]; then
+    # SM345: this one CANNOT be scoped, and that is worth saying out loud rather
+    # than leaving to be discovered. The web template is a SHARED file in
+    # Hestia's template directory; every domain assigned to it renders from
+    # whatever version is there, at whatever moment its vhost is next rebuilt.
+    #
+    # So refreshing it during an edge rollout stages a newer template for sites
+    # sitting on stable - they do not render it today, and they will the next
+    # time anything rebuilds their vhost, which may be an unrelated Hestia
+    # operation weeks later. That is the "partial update on an older version"
+    # hazard, arriving late and detached from the release that caused it.
+    #
+    # It stays opt-in (--templates / --rebuild / --proxy) and it now says who
+    # else it reaches.
     echo "==> refreshing the lazysite-app web template in $TPLDIR"
+    if [ "${#OUT_OF_SCOPE[@]}" -gt 0 ]; then
+        echo "    NOTE: this template is SHARED and cannot be scoped to a channel."
+        printf '    %d out-of-scope site(s) also use it and will render the new\n' \
+            "${#OUT_OF_SCOPE[@]}"
+        echo "    version the next time their vhost is rebuilt, by anything."
+        echo "    Refresh the template on the channel you are promoting TO."
+    fi
     cp "$STAGE/installers/hestia/lazysite-app.tpl"  "$TPLDIR/lazysite-app.tpl"
     cp "$STAGE/installers/hestia/lazysite-app.stpl" "$TPLDIR/lazysite-app.stpl"
     cp "$STAGE/installers/hestia/lazysite-app.sh"   "$TPLDIR/lazysite-app.sh"
@@ -333,14 +414,48 @@ fi
 # longer contains them.
 LZS="$STAGE/tools/lazysite-cli.pl"
 if [ -f "$LZS" ]; then
+    # SM345: --domain per IN-SCOPE site, never --all.
+    #
+    # `repair` WRITES. `--all` addressed every site on the host, so an edge
+    # rollout repaired sites sitting on stable - a change made to a site running
+    # older code by a release that was never meant to reach it. `probe` only
+    # reads, but reporting an out-of-scope site's exposure as a finding of THIS
+    # rollout is what made a working deploy look failed (SM344).
+    #
+    # A site is either in scope for this release or it is left alone. There is no
+    # third category where we touch it a little.
     echo
-    echo "==> health: repairing what can be repaired"
-    perl "$LZS" repair --all || REPAIR_RC=1
+    echo "==> health: repairing what can be repaired (in-scope sites only)"
+    _rep_clean=0; _rep_fixed=0; _rep_human=0
+    for i in "${!DOMAINS[@]}"; do
+        set +e
+        perl "$LZS" repair --domain "${DOMAINS[$i]}"
+        _rc=$?
+        set -e
+        case "$_rc" in
+            0) _rep_clean=$(( _rep_clean + 1 )) ;;
+            *) _rep_human=$(( _rep_human + 1 )); REPAIR_RC=1 ;;
+        esac
+    done
+    printf '  %d clean, %d need a human (of %d in scope)\n' \
+        "$_rep_clean" "$_rep_human" "$n"
 
     if [ "${DO_ACL_PROBE:-1}" = 1 ]; then
         echo
-        echo "==> outside-in ACL probe (does the front end honour the rule?)"
-        perl "$LZS" probe --all || ACL_PROBE_RC=1
+        echo "==> outside-in ACL probe (in-scope sites only)"
+        _probe_ok=0; _probe_bad=0
+        for i in "${!DOMAINS[@]}"; do
+            set +e
+            perl "$LZS" probe --domain "${DOMAINS[$i]}"
+            _rc=$?
+            set -e
+            case "$_rc" in
+                0) _probe_ok=$(( _probe_ok + 1 )) ;;
+                *) _probe_bad=$(( _probe_bad + 1 )); ACL_PROBE_RC=1 ;;
+            esac
+        done
+        printf '  %d clean, %d exposed (of %d in scope)\n' \
+            "$_probe_ok" "$_probe_bad" "$n"
     fi
 fi
 

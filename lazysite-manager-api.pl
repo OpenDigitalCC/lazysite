@@ -3006,6 +3006,21 @@ sub action_users {
                 $request_body = encode_json($parsed);
             }
 
+            # SM346: the Users page needs to know WHO IS ASKING to decide which
+            # operator-only controls to show. Its single consolidated call
+            # replaced three - one of which was whoami - and carried forward the
+            # data and not the identity, so the page computed "am I an operator"
+            # against an empty username and got false for everybody.
+            #
+            # A separate key from `actor` on purpose: `actor` is an
+            # authorisation signal (the users tool refuses privileged verbs when
+            # it names a non-operator), and this is a read-only call that just
+            # needs a name to match against group membership.
+            if ( $auth_user ne 'local' && $act eq 'users-page' ) {
+                $parsed->{me} = $auth_user;
+                $request_body = encode_json($parsed);
+            }
+
             if ( $auth_user ne 'local'
                 && $act =~ /^(?:account-(?:create|disable|enable|reassign)|claim-create|claim-cancel|rename|passwd)$/x ) {
                 $parsed->{actor} = $auth_user unless _is_operator();
