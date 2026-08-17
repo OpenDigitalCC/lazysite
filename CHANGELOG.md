@@ -44,6 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM342 (PENDING) **the perf gate measures work, not only the clock, and reports
+  rather than judges.** Every figure this project holds is a duration taken on a
+  development host with a fast uncontended disk; real sites are on contended
+  shared storage, where the same export costs ~630 ms here and ~3.0 s of engine
+  time in the field. So a change that adds reads or writes is nearly free here
+  and expensive there, and a timing gate cannot see it coming. The export now
+  counts its own work and the gate treats the two kinds differently: **timings
+  are reported with their ratio to the baseline and never fail a build**;
+  **counts are exact, host-independent, and an increase fails**. Both directions
+  are reported, so an optimisation can be confirmed rather than only a
+  regression caught - and this immediately surfaces the drift SM327 found and
+  the 2x tolerance hid (`verify_token_ms` at 1.26x, visible and not fatal). The
+  sharp counter is the warm read: a call with nothing new in the log must read
+  ZERO bytes, and a zero that becomes non-zero is SM340 returning.
+
 - SM343 / SM341 / SM339 (PENDING) **the durable day store: made complete, dated,
   and repairable.** Three filings, one artefact, done together because each
   blocked the others. SM343: a closed day file was frozen at the last export

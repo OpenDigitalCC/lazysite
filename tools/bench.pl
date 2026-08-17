@@ -140,7 +140,58 @@ my %result = (
     } ),
 );
 
-printf "%-22s %8.1f ms\n", $_, $result{$_} for sort keys %result;
+# SM342: WORK, alongside time.
+#
+# Time here is a number about this machine. The same export costs ~630 ms on
+# this host and ~3.0 s of engine time on a real instance, and the gap is mostly
+# contended storage - so a change that adds reads or writes is nearly free here
+# and expensive in the field. A duration gate cannot see that coming.
+#
+# What DOES transfer is how much the operation did. "It re-read every retained
+# log on every call" is the same statement on any disk, and it is what SM340
+# turned out to be. So the export reports its own counters and they are recorded
+# beside the timings - exact, host-independent, and comparable across machines
+# in a way no millisecond figure is.
+#
+# TWO measurements, because one of them is the interesting one.
+#
+# COLD is a full ingest with no cache: how much a site's whole retained log
+# costs to read. It scales with retention and is the size of the job.
+#
+# WARM is the next call, with nothing new in the log. It should be ZERO - the
+# offsets say everything has been read, so there is nothing to do. That number
+# is the SM340 detector: when the cache was never loaded, the warm read was the
+# ENTIRE log, every call, on every site. A zero that becomes non-zero is that
+# defect returning, and it reads the same on any disk.
+#
+# Not timed. This is a property of the call, not of the clock.
+sub work_of {
+    local $ENV{DOCUMENT_ROOT} = $d;
+    my $json = qx($^X \Q$stats\E --export --window 30 2>/dev/null);
+    my $r    = eval { decode_json($json) };
+    return ( $r && ref $r->{work} eq 'HASH' ) ? $r->{work} : {};
+}
+unlink "$d/lazysite/cache/stats-export.json";
+my $cold = work_of();
+my $warm = work_of();
+
+%result = (
+    %result,
+    work_cold_log_bytes    => ( $cold->{log_bytes_read}    // 0 ),
+    work_cold_log_files    => ( $cold->{log_files_read}    // 0 ),
+    work_warm_log_bytes    => ( $warm->{log_bytes_read}    // 0 ),
+    work_warm_log_files    => ( $warm->{log_files_read}    // 0 ),
+    work_warm_days_written => ( $warm->{day_files_written} // 0 )
+);
+
+for my $op ( sort grep { !/^work_/ } keys %result ) {
+    printf "%-22s %8.1f ms\n", $op, $result{$op};
+}
+# SM342: printed apart from the timings, because they are a different kind of
+# number. A millisecond figure is about this machine; a count is about the code.
+for my $w ( sort grep { /^work_/ } keys %result ) {
+    printf "%-22s %8d\n", $w, $result{$w};
+}
 
 if ( $mode eq 'baseline' ) {
     open my $b, '>', $BASELINE or die "$BASELINE: $!\n";
@@ -175,7 +226,19 @@ if ( $mode eq 'check' ) {
         $base->{perl} // '?';
     print "WARNING: baseline host differs from this host (" . hostname() . ") - numbers are host-relative\n"
         if defined $base->{host} && $base->{host} ne hostname();
-    my ( @fail, @unbaselined );
+    # SM342: TIME IS REPORTED, WORK IS CHECKED.
+    #
+    # The release manager's instruction, and it is the right shape: this should
+    # be comparative - to see whether work has increased, or an optimisation
+    # actually landed - rather than a pass/fail on a duration.
+    #
+    # A duration measured here says little about a contended shared disk, and
+    # SM327 established that a 2x tolerance permits unbounded accretion anyway.
+    # So every op's time is printed WITH its ratio to the baseline, for a human
+    # to read, and no timing failure is raised. A count is different: it is
+    # exact, it is the same on any machine, and an increase means the code is
+    # doing more than it did. That is what fails.
+    my ( @fail, @unbaselined, @slower, @faster );
     for my $op ( sort keys %result ) {
         my $b0 = $base->{ops}{$op};
 
@@ -186,16 +249,43 @@ if ( $mode eq 'check' ) {
         # one of them was never checked. Say so instead.
         if ( !defined $b0 ) { push @unbaselined, $op; next }
 
+        # A work counter: exact, host-independent, and the thing that decides.
+        if ( $op =~ /^work_/ ) {
+            push @fail,
+                sprintf( "%s: %d, was %d - the code is doing MORE than it did",
+                $op, $result{$op}, $b0 )
+                if $result{$op} > $b0;
+            push @faster,
+                sprintf( "%s: %d, was %d", $op, $result{$op}, $b0 )
+                if $result{$op} < $b0;
+            next;
+        }
+
+        # A duration: reported with its ratio, never failed on. See above.
+        my $ratio = $b0 ? ( $result{$op} / $b0 ) : 0;
+        my $line  = sprintf( "  %-22s %8.1f ms  baseline %8.1f  %.2fx",
+            $op, $result{$op}, $b0, $ratio );
         my $op_tol = $base->{tolerances}{$op} // $tol;
-        push @fail, sprintf( "%s: %.1f ms exceeds %.1fx baseline (%.1f ms)", $op, $result{$op}, $op_tol, $b0 )
-            if $result{$op} > $op_tol * $b0;
+        if    ( $ratio >= $op_tol ) { push @slower, "$line   <- beyond tolerance" }
+        elsif ( $ratio >= 1.15 )    { push @slower, $line }
+        elsif ( $ratio <= 0.85 )    { push @faster, $line }
     }
     if (@unbaselined) {
         printf "NOT CHECKED (no baseline figure): %s\n", join( ', ', @unbaselined );
         print "  Capture one before relying on this gate for that op.\n";
     }
-    if (@fail) { print "PERF REGRESSION:\n", map { "  $_\n" } @fail; exit 1 }
-    printf "perf: %d op(s) within tolerance of baseline%s\n",
-        scalar( keys %result ) - scalar(@unbaselined),
+    if (@faster) { print "FASTER / LESS WORK than baseline:\n", map { "$_\n" } @faster }
+    if (@slower) { print "SLOWER than baseline (reported, not failed):\n", map { "$_\n" } @slower }
+
+    if (@fail) {
+        print "WORK REGRESSION - the code is doing more than it did:\n",
+            map { "  $_\n" } @fail;
+        print "  A count is host-independent, so this is not a slow machine.\n";
+        exit 1;
+    }
+    my $timed = scalar( grep { !/^work_/ } keys %result );
+    my $work  = scalar( grep { /^work_/ } keys %result );
+    printf "perf: %d timing(s) reported, %d work counter(s) checked%s\n",
+        $timed, $work,
         ( @unbaselined ? sprintf( ', %d not checked', scalar @unbaselined ) : '' );
 }

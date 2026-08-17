@@ -2,8 +2,8 @@
 title: "SM342 - the perf gate runs where no site runs"
 subtitle: "Every benchmark figure this project holds was taken on a development host with a local, uncontended, fast disk. Real sites are on shared hosting with contended storage, and the operations that matter most are I/O-bound."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-17, out of a correction to [[SM340]]. A 206 ms saving measured here was compared against a 3.5 s cost measured on the instrument, and the gap attributed to calling-surface overhead and corpus size - both real, neither the main term. The main term is that the same code was run against very different storage. Filed as its own item because the confound is not specific to SM340: it applies to every figure in the baseline and to the gate that compares against them. This is the third member of a family - [[SM327]] found the tolerance too loose to catch accretion, SM340 found a hot path with no coverage at all, and this is the coverage that exists being taken somewhere the product does not live."
+status: shipped
+status-note: "SHIPPED 2026-08-17 on the release manager's instruction that the gate \"should be comparative, to make sure work doesn't increase or to make sure optimised - it isn't pass/fail\". That is the right shape and it resolves the filing's own tension: a duration measured here says little about a contended disk, so timings are now REPORTED with their ratio to the baseline and never fail a build, while WORK - counted by the operation itself, exact and host-independent - is what fails. The cheapest remedy the filing listed turned out to be the right one. The sharp counter is the warm read: a second call with nothing new in the log must read ZERO bytes, and a zero that becomes non-zero is [[SM340]] returning. Measured on the fixture: cold 524,392 bytes across 30 files, warm 0."
 ---
 
 # What the confound is
@@ -152,6 +152,44 @@ used for - and it caught nothing wrong here because nothing here regressed.
 The defect is narrower: the gate cannot see a class of regression that this
 product is specifically exposed to, and nothing currently says so at the point
 where someone reads a passing result.
+
+# What shipped
+
+**The export counts its own work** - log files opened, bytes ingested, day files
+written - and reports it. An operation is the only thing that can count exactly
+what it did; inferring it from outside is guesswork on a shared machine.
+
+**Two measurements, and the second is the interesting one.**
+
+```datatable
+columns: | What it is | Baseline
+widths: 4cm | X | 2.6cm
+bold: 1
+tone: medium
+---
+`work_cold_log_*` | a full ingest with no cache - the size of the job, scales with retention | 524,392 bytes / 30 files
+`work_warm_log_*` | the next call, nothing new in the log - there is nothing to do | **0 / 0**
+---
+```
+
+The warm figure is the [[SM340]] detector. When the cache was never loaded, the
+warm read was the ENTIRE retained log, every call, on every site. A zero that
+becomes non-zero is that defect returning, and it reads the same on any disk.
+
+**Timings are reported, never failed on.** Each op prints with its ratio to the
+baseline, and drift is called out in both directions - `SLOWER than baseline
+(reported, not failed)` and `FASTER / LESS WORK than baseline`, because a gate
+that only speaks when something got worse cannot confirm that an optimisation
+landed.
+
+This immediately surfaced what [[SM327]] found and the 2x tolerance hid:
+`verify_token_ms` reports at **1.26x** baseline. Visible now, and not a build
+failure, which is the honest treatment of a number that is partly about this
+machine.
+
+**A count is what fails.** Exact, host-independent, and an increase means the
+code is doing more than it did - so the message says so rather than implying a
+slow machine.
 
 # Verification
 

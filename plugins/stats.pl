@@ -84,6 +84,25 @@ our @CLASSES = qw(human ai bot noise scanner);
 # A day-bucket carrying no basis at all predates the field, which is basis 1.
 our $COUNTING_BASIS = 2;
 
+# SM342: WHAT THE OPERATION ACTUALLY DID, counted rather than timed.
+#
+# Every performance figure this project holds is a duration measured on a
+# development host with a fast uncontended disk; real sites are on shared
+# hosting where I/O costs many times more. Measured: the same export cost
+# ~630 ms here and ~3.0 s of engine time on the instrument, and the gap is
+# mostly storage. So a change that adds file reads or writes - a normal thing
+# for this engine to do - is nearly free here and expensive in the field, and a
+# gate on elapsed time cannot see it coming.
+#
+# Work is HOST-INDEPENDENT. "It re-read every retained log on every call" was
+# true on any disk, and is exactly what SM340 turned out to be: a counter would
+# have read the same on this machine as on the instrument, and would have moved
+# the moment the defect appeared.
+#
+# Declared with the other package state so it is assigned before the dispatch
+# reaches anything that increments it - the trap t/lint/39 exists for.
+our %WORK = ( log_files_read => 0, log_bytes_read => 0, day_files_written => 0 );
+
 # The bases that contributed to a bucket, oldest form first. An empty or absent
 # set means the bucket was built before this was recorded, which is basis 1 -
 # never "unknown", because a bucket that exists was definitely counted somehow
@@ -1119,6 +1138,7 @@ sub _persist_durable {
         next unless $write;
 
         _write_json_atomic( $path, _day_rollup( $day, $days->{$day}, $top_n ) );
+        $WORK{day_files_written}++;    # SM342
         $cache->{final}{$day} = 1 if $closed;
     }
 
@@ -1668,11 +1688,13 @@ sub _export_ingest_first_party {
         my ($base) = $f =~ m{([^/]+)$};
         my $size   = ( -s $f )              // 0;
         my $offset = $cache->{files}{$base} // 0;
-        $offset = 0 if $offset > $size;    # rewritten/truncated: reprocess
+        $offset = 0 if $offset > $size;                  # rewritten/truncated: reprocess
         next unless $size > $offset;
         open my $fh, '<', $f or next;
         seek $fh, $offset, 0;
         my $pos = $offset;
+        $WORK{log_files_read}++;                         # SM342
+        $WORK{log_bytes_read} += ( $size - $offset );    # SM342
         while ( my $line = <$fh> ) {
             last unless $line =~ /\n\z/;    # incomplete final line: next time
             $pos += length $line;
@@ -1926,6 +1948,10 @@ sub _export_assemble {
             count => scalar @{ $cache->{events} },
         },
         events_capped => ( @{ $cache->{events} } >= $EVENT_CAP ? JSON::PP::true : JSON::PP::false ),
+
+        # SM342: the work this call did, so a regression in EFFORT is visible
+        # without a stopwatch and without a fast disk to hide it.
+        work  => {%WORK},
         notes =>
             'Aggregated, IP-anonymised, no filesystem paths. The aggregates (totals/by_day/months/top_pages) are complete over data_from..window.to; "events"/"sample" is a bounded recent SAMPLE, not the dataset.',
     };
