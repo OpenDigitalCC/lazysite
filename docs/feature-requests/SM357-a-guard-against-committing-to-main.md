@@ -69,6 +69,29 @@ Worth recording: a guard whose failure mode is *allow* is the defect class this
 project has spent the week removing, and it appeared in the guard written to
 enforce process.
 
+# The guard is only present on branches that contain it
+
+A consequence of committing the hooks rather than keeping them in `.git/hooks`,
+and one worth stating because it produced a live demonstration.
+
+`core.hooksPath` points at a **tracked** directory. So on any branch that does
+not contain `githooks/`, there is no hook and no guard - including `main`, until
+this lands there.
+
+Demonstrated immediately: with the hook written and enabled on this branch, I
+switched to `main` and committed a probe file to check the refusal. It went
+straight through, because `githooks/` does not exist on `main` yet. The commit
+was reset; nothing was published.
+
+**This is a bootstrap gap, not a standing one.** Once this lands on `main`, main
+carries the hook and the guard applies there. The residual cases are a branch or
+worktree checked out at a commit predating this - an old tag being investigated,
+say - where the guard is absent and the exposure is that somebody commits to a
+detached HEAD, which the hook allows anyway.
+
+Recorded rather than worked around. The alternative is an untracked hook that
+cannot be reviewed, which trades a bootstrap gap for a rule nobody can see.
+
 # Verification
 
 - A commit on `main`, `master` or `integration` is refused.
