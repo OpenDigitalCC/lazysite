@@ -717,8 +717,8 @@ sub _page_view_from_buckets {
     my @in_window = grep { $_ ge $from } sort keys %$days;
 
     my ( %cls_hits, %cls_vis, %pages, %ref_ext, %status, %byday, %vis );
-    my ( %devices, %terms );    # SM336 items 6 and 7, in the window view
-    my ( $hits, $bytes, $assets, $ref_internal, $ref_direct ) = ( 0, 0, 0, 0, 0 );
+    my ( %devices,  %terms );    # SM336 items 6 and 7, in the window view
+    my ( $hits,     $bytes, $assets, $ref_internal, $ref_direct ) = ( 0, 0, 0, 0, 0 );
 
     for my $day (@in_window) {
         my $b = $days->{$day};
@@ -737,8 +737,8 @@ sub _page_view_from_buckets {
         # turns the search-terms switch on sees nothing happen and reasonably
         # concludes it does not work. Both are already human-page-view only in
         # the bucket, so no class filter is needed here.
-        $devices{$_} += $b->{device}{$_} for keys %{ $b->{device} || {} };
-        $terms{$_}   += $b->{sq}{$_}     for keys %{ $b->{sq} || {} };
+        $devices{$_}  += $b->{device}{$_} for keys %{ $b->{device} || {} };
+        $terms{$_}    += $b->{sq}{$_}     for keys %{ $b->{sq}     || {} };
         $hits         += ( $b->{hits}         // 0 );
         $bytes        += ( $b->{bytes}        // 0 );
         $assets       += ( $b->{asset_hits}   // 0 );
@@ -786,7 +786,7 @@ sub _page_view_from_buckets {
             direct   => $ref_direct,
         },
         status  => {%status},
-        devices => {%devices},    # SM336 item 6
+        devices => {%devices},                     # SM336 item 6
 
         # SM336 item 7: absent on a site that never enabled it, matching the day
         # rollup - an empty list reads as "nobody searched" when the truth is
@@ -862,7 +862,7 @@ sub _parse_line {
         epoch  => $epoch,
         day    => sprintf( '%04d-%02d-%02d', $y, $MON_X{$mo} + 1, $d ),
         path   => $path,
-        query  => $query,    # SM336
+        query  => $query,                                                 # SM336
         status => $st + 0,
         # SM335: bytes were captured by the pattern and thrown away. The window
         # reader counted them itself from its own parse; now that both readers
@@ -1117,7 +1117,7 @@ sub _day_rollup {
         # SM336 item 7. Absent entirely on a site that has not turned it on,
         # rather than present and empty: an empty list reads as "nobody
         # searched", and the truthful answer is "nobody was asked".
-        (   ( $bucket->{sq} && %{ $bucket->{sq} } )
+        ( ( $bucket->{sq} && %{ $bucket->{sq} } )
             ? ( search_terms => _topn( $bucket->{sq}, $SEARCH_TERM_TOPN ) )
             : ()
         ),
@@ -1157,7 +1157,7 @@ sub _month_rollup {
         $ips{$_} = 1 for keys %{ $b->{ips} || {} };
         for my $fn ( keys %{ $b->{forms} || {} } ) {     # SM216-2
             my $fb = $b->{forms}{$fn};
-            $forms{$fn}{stored} += $fb->{stored} // 0;
+            $forms{$fn}{stored}      += $fb->{stored}      // 0;
             $forms{$fn}{quarantined} += $fb->{quarantined} // 0;
             $forms{$fn}{blocked}{$_} += $fb->{blocked}{$_} for keys %{ $fb->{blocked} || {} };
         }
@@ -1457,9 +1457,9 @@ sub _apply_event {
         my $h = _visitor_token( $r->{term} );
         $b->{sq_seen}{$h} += $sign;
         my $n = $b->{sq_seen}{$h} // 0;
-        if ( $n <= 0 ) { delete $b->{sq_seen}{$h} }
-        if ( $n >= $SEARCH_TERM_FLOOR ) { $b->{sq}{ $r->{term} } = $n }
-        else                            { delete $b->{sq}{ $r->{term} } }
+        if   ( $n <= 0 )                  { delete $b->{sq_seen}{$h} }
+        if   ( $n >= $SEARCH_TERM_FLOOR ) { $b->{sq}{ $r->{term} } = $n }
+        else                              { delete $b->{sq}{ $r->{term} } }
     }
 
     $b->{status}{$st} += $sign;
@@ -1982,7 +1982,7 @@ sub _export_ingest_server_log {
     my $extra_ai = _split_csv( $cfg->{ai_user_agents} );
     # SM336 item 7: off unless the operator turned it on. Read here rather than
     # inside the loop so a site that has not opted in never even extracts a term.
-    my $want_terms = _flag_on( $cfg->{search_terms} );
+    my $want_terms  = _flag_on( $cfg->{search_terms} );
     my $extra_noise = _split_csv( $cfg->{noise_paths} );
     my $site_host   = _site_domain();
     my $EVENT_CAP   = 5000;
@@ -2004,7 +2004,7 @@ sub _export_ingest_server_log {
                 # The verdict is not the only thing it can answer.
                 device => _device_class( $p->{ua} ),
                 term   => ( $want_terms ? _search_term( $p->{query} ) : undef ),
-                bytes  => ( ( $p->{bytes} // 0 ) + 0 ),            # SM335
+                bytes  => ( ( $p->{bytes} // 0 ) + 0 ),                            # SM335
                 token  => _visitor_token( _anon_ip( $p->{ip} ) ),
                 ref    => $p->{ref},
                 t      => $p->{epoch},
@@ -2030,7 +2030,7 @@ sub _export_ingest_first_party {
     $cache->{events} ||= [];
 
     my $extra_ai    = _split_csv( $cfg->{ai_user_agents} );
-    my $want_terms  = _flag_on( $cfg->{search_terms} );    # SM336 item 7
+    my $want_terms  = _flag_on( $cfg->{search_terms} );       # SM336 item 7
     my $extra_noise = _split_csv( $cfg->{noise_paths} );
 
     my %live = map { (m{([^/]+)$})[0] => 1 } @{$files};
@@ -2168,7 +2168,7 @@ sub _export_assemble {
     my $from_day  = _day_str( time() - ( $window - 1 ) * 86400 );
     my $cutoff_ep = time() - $window * 86400;
     my ( %cls, %uips, %pages, %status, %ref_ext, %nf_pl, %forms, @by_day );
-    my ( %devices, %terms );    # SM336 items 6 and 7
+    my ( %devices, %terms );          # SM336 items 6 and 7
     my %auth_ref;                     # SM223: paths a visitor was turned away from
     my ( $hits, $ref_internal, $ref_direct, $nf_junk ) = ( 0, 0, 0, 0 );
 
@@ -2187,11 +2187,11 @@ sub _export_assemble {
         # SM336 items 6 and 7. Both projections carry them, or an agent reading
         # the export and an operator reading the page would answer the same
         # question differently - which is the whole of SM335.
-        $devices{$_} += $b->{device}{$_} for keys %{ $b->{device} || {} };
-        $terms{$_}   += $b->{sq}{$_}     for keys %{ $b->{sq} || {} };
-        $pages{$_}    += $b->{pages}{$_}        for keys %{ $b->{pages} };
-        $status{$_}   += $b->{status}{$_}       for keys %{ $b->{status} };
-        $ref_ext{$_}  += $b->{ref_ext}{$_}      for keys %{ $b->{ref_ext} };
+        $devices{$_}  += $b->{device}{$_}  for keys %{ $b->{device} || {} };
+        $terms{$_}    += $b->{sq}{$_}      for keys %{ $b->{sq}     || {} };
+        $pages{$_}    += $b->{pages}{$_}   for keys %{ $b->{pages} };
+        $status{$_}   += $b->{status}{$_}  for keys %{ $b->{status} };
+        $ref_ext{$_}  += $b->{ref_ext}{$_} for keys %{ $b->{ref_ext} };
         $nf_pl{$_}    += $b->{nf_plausible}{$_} for keys %{ $b->{nf_plausible} || {} };
         $auth_ref{$_} += $b->{auth_refused}{$_} for keys %{ $b->{auth_refused} || {} };
         $hits         += $b->{hits}         // 0;
@@ -2297,9 +2297,9 @@ sub _export_assemble {
         top_pages       => $top->( \%pages, $top_n ),
         referrers => { direct => $ref_direct, internal => $ref_internal, external => $top->( \%ref_ext, $top_n ) },
         status_codes => { map { ( $_ => $status{$_} ) } keys %status },
-        devices      => {%devices},                                    # SM336 item 6
-        ( %terms ? ( search_terms => $top->( \%terms, $top_n ) ) : () ),  # SM336 item 7
-        not_found    => {
+        devices      => {%devices},                                       # SM336 item 6
+        ( %terms ? ( search_terms => $top->( \%terms, $top_n ) ) : () ),    # SM336 item 7
+        not_found => {
             plausible  => $top->( \%nf_pl, $top_n ),    # a human hit a missing page
             junk_count => $nf_junk,                     # scanner-chorus 404s (count only)
         },

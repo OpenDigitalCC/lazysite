@@ -1267,7 +1267,7 @@ sub _mcp_search {
 
     $limit  = $SEARCH_LIMIT_DEF unless defined $limit  && $limit =~ /^\d+$/ && $limit > 0;
     $offset = 0                 unless defined $offset && $offset =~ /^\d+$/;
-    $limit = $SEARCH_LIMIT_MAX if $limit > $SEARCH_LIMIT_MAX;
+    $limit  = $SEARCH_LIMIT_MAX if $limit > $SEARCH_LIMIT_MAX;
     return { ok => 0, error => 'query must not be empty' } unless defined $query && length $query;
     $base = '/' unless defined $base && length $base;
     $base =~ s{^/+}{}; $base =~ s{/+$}{}; $base =~ s{\.\.}{}g;
@@ -1342,12 +1342,12 @@ sub _mcp_search {
         last if $truncated;
     }
     return {
-        ok      => 1,
-        query   => $query,
-        count   => scalar @matches,    # SM359: matches RETURNED, never a total
-        limit   => $limit,
-        offset  => $offset,
-        matches => \@matches,
+        ok        => 1,
+        query     => $query,
+        count     => scalar @matches,    # SM359: matches RETURNED, never a total
+        limit     => $limit,
+        offset    => $offset,
+        matches   => \@matches,
         truncated => ( $truncated ? JSON::PP::true : JSON::PP::false ),
 
         # Present only when something stopped the walk, so its absence is not a

@@ -403,7 +403,7 @@ sub handle_logout {
 
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
-    print "Content-Type: text/html; charset=utf-8\r\n";    # SM353
+    print "Content-Type: text/html; charset=utf-8\r\n";                           # SM353
     print "Set-Cookie: $COOKIE_NAME=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
     print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n"; # SM099 marker
     print "Location: /logout\r\n\r\n";

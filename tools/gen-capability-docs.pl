@@ -10,18 +10,18 @@
 # t/tools/26-capability-docs.t fails if a committed doc differs from this output.
 use strict;
 use warnings;
-use Cwd qw(abs_path);
+use Cwd            qw(abs_path);
 use File::Basename qw(dirname);
 
 BEGIN {
     my $root = dirname( dirname( abs_path($0) ) );
     unshift @INC, "$root/lib";
 }
-use Lazysite::Capabilities qw(describe channel_keys action_keys);
-use Lazysite::ControlApi::Actions ();    # SM350
+use Lazysite::Capabilities        qw(describe channel_keys action_keys);
+use Lazysite::ControlApi::Actions ();                                      # SM350
 
 my $what = shift @ARGV // '';
-my $map  = describe();   # static model, no caller grant
+my $map  = describe();          # static model, no caller grant
 
 if    ( $what eq 'map' )         { print render_map($map) }
 elsif ( $what eq 'quickstarts' ) { print render_quickstarts($map) }
@@ -64,10 +64,10 @@ sub render_map {
     push @o, "text: 2\n";
     push @o, "---\n";
     for my $a ( action_keys() ) {
-        my $cap = $m->{capabilities}{$a};
+        my $cap   = $m->{capabilities}{$a};
         my $where = join( '; ', map {
-            my $ch = $_;
-            "$ch: " . join( ', ', @{ $cap->{unlocks}{$ch} } )
+                my $ch = $_;
+                "$ch: " . join( ', ', @{ $cap->{unlocks}{$ch} } )
         } grep { $cap->{unlocks}{$_} } channel_keys() );
         $where = '-' unless length $where;
         push @o, "$a | $cap->{title} | $where\n";
@@ -177,7 +177,7 @@ sub render_actions {
         my $req
             = !defined $spec->{caps} ? 'cookie only'
             : !@{ $spec->{caps} }    ? 'any authenticated'
-            :   join( ' / ', @{ $spec->{caps} } );
+            :                          join( ' / ', @{ $spec->{caps} } );
         my $params = join ', ',
             map { "$_->{name} ($_->{in})" } @{ $spec->{params} };
         push @o, "`$name` | $req | " . ( length $params ? $params : ' ' ) . "\n";

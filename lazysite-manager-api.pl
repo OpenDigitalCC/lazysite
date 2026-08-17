@@ -23,13 +23,13 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::Util           qw(log_event const_eq);
-use Lazysite::Paths          ();
-use Lazysite::Audit          qw(audit_log);
-use Lazysite::Capabilities   qw(describe capability_keys channel_service);
-use Lazysite::ControlApi::Actions ();    # SM350
-use Lazysite::BadUrl         qw(list_blocks unblock);
-use Lazysite::Auth::Settings qw(site_grants_manager);
+use Lazysite::Util                qw(log_event const_eq);
+use Lazysite::Paths               ();
+use Lazysite::Audit               qw(audit_log);
+use Lazysite::Capabilities        qw(describe capability_keys channel_service);
+use Lazysite::ControlApi::Actions ();                                             # SM350
+use Lazysite::BadUrl              qw(list_blocks unblock);
+use Lazysite::Auth::Settings      qw(site_grants_manager);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
 use Lazysite::Auth::Session   qw(generate_csrf_token verify_csrf_token);
 use Lazysite::Manager::Common qw(validate_path is_blocked_path write_file_checked respond
@@ -225,7 +225,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
     print "Allow: GET, POST\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json( {
-            ok    => JSON::PP::false,    # SM353
+            ok    => JSON::PP::false,                                             # SM353
             error => 'The control API is not callable from a browser page. It '
                 . 'serves agents, scripts and the manager, which hold '
                 . 'operator-issued credentials; a page cannot hold one safely. To '
@@ -757,7 +757,7 @@ if ($token_auth) {
         'git-init'            => sub { $_[0]->{manage_config} },
         'whoami' => sub { 1 },    # any authenticated token may introspect its own grant
         'describe-capabilities' => sub { 1 },  # SM126: introspection - the capability map
-        'actions-list'          => sub { 1 },  # SM350: introspection - the action reference
+        'actions-list' => sub { 1 },    # SM350: introspection - the action reference
             # Visitor-log analysis over the control API (token clients), same grant as
             # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
         'analyse_visitors' => sub { $_[0]->{analytics} },
@@ -1208,7 +1208,7 @@ elsif ( $action eq 'analyse_visitors' ) {
 }
 elsif ( $action eq 'whoami' )                { $result = action_whoami($auth_user) }
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
-elsif ( $action eq 'actions-list' )          { $result = action_actions_list($auth_user) }    # SM350
+elsif ( $action eq 'actions-list' ) { $result = action_actions_list($auth_user) }  # SM350
 elsif ( $action eq 'audit' ) {
     # Strict gate: the FULL audit trail requires the 'audit' capability (separate
     # from visitor analytics). Token clients are already gated by %need above (a
@@ -1493,7 +1493,7 @@ sub action_preview_grant {
     print "Set-Cookie: ${PREVIEW_COOKIE}_active=1; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json(
-        { ok => JSON::PP::true, layout => $layout, theme => $theme, expires => $exp } );    # SM353
+        { ok => JSON::PP::true, layout => $layout, theme => $theme, expires => $exp } ); # SM353
 }
 
 sub action_preview_clear {

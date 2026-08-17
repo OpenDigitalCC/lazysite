@@ -2283,10 +2283,10 @@ sub main {
             binmode( STDOUT, ':utf8' );
             print "Status: 302 Found\r\n";
             print "Content-Type: text/html; charset=utf-8\r\n";    # SM353
-            # SM188: check_auth only returns a redirect for an UNauthenticated
-            # request, so this bounce always means "no valid session" - clear the
-            # stale lzs_session marker (see the manager bounce above) so the login
-            # page shows the form rather than trapping the user.
+                # SM188: check_auth only returns a redirect for an UNauthenticated
+                # request, so this bounce always means "no valid session" - clear the
+                # stale lzs_session marker (see the manager bounce above) so the login
+                # page shows the form rather than trapping the user.
             print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0"
                 . ( $ENV{HTTPS} ? "; Secure" : "" ) . "\r\n";
             print "Location: " . $auth_result->{redirect} . "\r\n\r\n";
@@ -2759,9 +2759,9 @@ sub _serve_content_static {
     print "Status: 200 OK\n";
     print "Content-type: $ct\n";
     print "$_\n" for _security_headers();    # SM352
-    # SM223: a file whose serving depended on WHO asked must not be stored by a
-    # shared cache. no-cache still permits storage and revalidation; no-store
-    # does not, and that is the distinction that matters for private material.
+        # SM223: a file whose serving depended on WHO asked must not be stored by a
+        # shared cache. no-cache still permits storage and revalidation; no-store
+        # does not, and that is the distinction that matters for private material.
     print( _acl_governed($real)
         ? "Cache-Control: no-store\n"
         : "Cache-Control: no-cache, must-revalidate\n" );
@@ -6507,7 +6507,7 @@ sub output_page {
     # setting fits today. t/lint/56 holds that inventory - ten entries across
     # the engine - which is what a report-only collector would otherwise have
     # had to discover from live traffic, for a fact the source already states.
-    print "$_\n" for _security_headers();    # SM352
+    print "$_\n" for _security_headers();                            # SM352
     print "Content-Language: $RESPONSE_LANG\n" if $RESPONSE_LANG;    # SM179 (P1)
     if ($auth_protected) {
         print "Cache-Control: no-store, private\n";
