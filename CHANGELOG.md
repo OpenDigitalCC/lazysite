@@ -44,6 +44,25 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM343 / SM341 / SM339 (PENDING) **the durable day store: made complete, dated,
+  and repairable.** Three filings, one artefact, done together because each
+  blocked the others. SM343: a closed day file was frozen at the last export
+  call made DURING that day - today's file was refreshed every call and a closed
+  day written only if absent - so a file created at 14:00 on Tuesday WAS
+  Tuesday's permanent record. A day file was complete only if nobody looked at
+  the statistics that day; measured in the field, one day frozen at 19:23 with
+  838 scanner hits absent because a validation agent read the store during it.
+  **Reading the statistics damaged the statistics.** A closed day is now written
+  once more when it closes, which also repairs history automatically on upgrade:
+  an existing site's short files are rewritten from buckets that are complete.
+  SM341: `generated` on the day and month payloads, so two rollups can be
+  ordered from the artefacts rather than from the notes of whoever fetched them.
+  SM339: `--recount`, **dry run by default** because it writes over the only
+  durable record a site has, bounded by the retained logs because that is all it
+  can honestly rebuild, and reporting per-day before/after because "it ran" is
+  not a result. Durable files are written canonically now, so a repair is
+  checkable with `diff`.
+
 - SM356 (992122d) **the update channel failed open, and a typo granted more than
   the word it misspelled.** `update_channel: stabel` did not fail, did not warn,
   and did not mean stable - it meant `all`, accept every build including edge,

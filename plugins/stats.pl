@@ -35,6 +35,8 @@ while (@ARGV) {
     elsif ( $a eq '--day' )         { $arg{day}         = shift @ARGV }    # SM213
     elsif ( $a eq '--month' )       { $arg{month}       = shift @ARGV }    # SM213
     elsif ( $a eq '--index' )       { $arg{index}       = 1 }              # SM213
+    elsif ( $a eq '--recount' )     { $arg{recount}     = 1 }              # SM339
+    elsif ( $a eq '--apply' )       { $arg{apply}       = 1 }              # SM339
     elsif ( $a eq '--resolve-log' ) { $arg{resolve_log} = 1 }
     elsif ( $a eq '--docroot' )     { $arg{docroot}     = shift @ARGV }
 }
@@ -296,6 +298,36 @@ if ( $arg{resolve_log} ) {
     print encode_json( { ok => ( length $log ? JSON::PP::true : JSON::PP::false ),
             configured => ( length $log ? JSON::PP::true : JSON::PP::false ),
             path       => $log } );    # server-internal only; never shown to the page
+    exit 0;
+}
+
+# SM339: REBUILD THE DURABLE DAY FILES FROM THE RETAINED RAW LOGS.
+#
+# Three separate things left the durable store wrong, and one pass repairs all
+# three because they share a cause - the day files were written from state that
+# was incomplete or computed under a rule that has since changed.
+#
+#   SM343  a closed day was frozen at the last call made DURING it, so it is
+#          short by everything that happened afterwards. Fixed forward by
+#          _persist_durable; this is what repairs the days already written.
+#   SM329  assets counted as page views. Historical days keep basis 1 and their
+#          inflated counts, correctly - that is what SM338's marker preserves -
+#          and only a recount can move them to basis 2.
+#   SM338  the basis stamp never reached a closed file, because a file written
+#          once can never acquire a field added later.
+#
+# DRY RUN BY DEFAULT. This writes over the only durable record a site has, so
+# it reports what it would do and changes nothing unless told `--apply`. An
+# upgrade that silently rewrote a site's history would be the wrong shape even
+# if the arithmetic were perfect.
+#
+# BOUNDED BY THE LOGS. It can only rebuild days the retained first-party logs
+# still cover - `retention_days`, 90 by default. Days older than that keep the
+# figures they have and keep saying which basis produced them, which is exactly
+# what the marker is for. A partial repair that says where it stops is worth
+# more than one that quietly does less than it claims.
+if ( $arg{recount} ) {
+    print encode_json( cmd_recount( $arg{apply} ? 1 : 0 ) );
     exit 0;
 }
 
@@ -901,11 +933,22 @@ sub _stats_dir   { return "$DOCROOT/lazysite/stats" }
 sub _daily_dir   { return _stats_dir() . '/daily' }
 sub _monthly_dir { return _stats_dir() . '/monthly' }
 
+# SM339: CANONICAL, so the durable files are diffable.
+#
+# `encode_json` orders keys by Perl's hash iteration, which is randomised per
+# process - so writing the same content twice produces different bytes. That
+# cost nothing while a day file was written once and never rewritten. It costs
+# something now: SM343 rewrites a day when it closes and `--recount` rewrites
+# it deliberately, so an operator auditing a repair with `diff` would see every
+# line move and have no way to tell a reordering from a change.
+#
+# Canonical ordering makes these files comparable by anybody, with no tooling -
+# which is what a repair somebody has to trust actually requires.
 sub _write_json_atomic {
     my ( $path, $data ) = @_;
     my $tmp = "$path.$$";
     open my $fh, '>', $tmp or return 0;
-    print {$fh} encode_json($data);
+    print {$fh} JSON::PP->new->canonical->encode($data);
     close $fh;
     return rename( $tmp, $path ) ? 1 : 0;
 }
@@ -942,6 +985,16 @@ sub _day_rollup {
         # this day to another has to be able to tell whether the comparison is
         # valid, and the answer cannot live in a changelog they would have to
         # know to go and look for.
+        # SM341: WHEN this was produced. The index has carried it all along; the
+        # day and month payloads carried nothing, so an agent holding a rollup
+        # from before an upgrade and one from after could say what changed and
+        # not when either was made. That cost a real claim: a partner agent
+        # could not establish whether a day file predated their own capture or
+        # was created by it, because nothing in the payload said.
+        #
+        # A timestamp, not provenance. It answers "when was this produced",
+        # which is the question being asked, and nothing about authenticity.
+        generated            => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),
         counting_basis       => ( _basis_of($bucket) )[-1],
         counting_basis_mixed => (
             scalar( _basis_of($bucket) ) > 1 ? JSON::PP::true : JSON::PP::false
@@ -1010,6 +1063,7 @@ sub _month_rollup {
         # days counted one way and days counted the other into a single total
         # - and that total is not wrong so much as not a measurement of
         # anything. It has to be able to say so.
+        generated            => POSIX::strftime( '%Y-%m-%dT%H:%M:%SZ', gmtime ),   # SM341
         counting_basis       => ( sort { $a <=> $b } keys %bases )[-1] // 1,
         counting_basis_mixed => (
             keys %bases > 1 ? JSON::PP::true : JSON::PP::false
@@ -1035,12 +1089,43 @@ sub _persist_durable {
     for my $d ( _stats_dir(), _daily_dir(), _monthly_dir() ) { -d $d or mkdir $d }
     return unless -d _daily_dir() && -d _monthly_dir();
 
-    # Per-day files: today refreshed every call; a closed day written once.
+    # SM343: A CLOSED DAY IS WRITTEN ONCE MORE, AFTER IT CLOSES.
+    #
+    # This was "today refreshed every call; a closed day written once", and both
+    # halves are individually reasonable. Together they meant a file created at
+    # 14:00 on Tuesday WAS Tuesday's permanent record: by the time anyone called
+    # again, Tuesday was no longer today and its file already existed, so
+    # Tuesday's evening never reached it.
+    #
+    # A day file was therefore complete only if nobody looked at the statistics
+    # that day. Measured in the field: 2026-08-16 was frozen at 19:23 with 838
+    # scanner hits absent, because a field-validation agent read the store during
+    # that day. Reading the statistics damaged the statistics.
+    #
+    # The fix is one extra write per day, ever. A day that has closed is written
+    # again the first time it is seen closed - at which point its bucket holds
+    # the whole day - and then marked final so it is not rewritten on every
+    # subsequent call.
+    $cache->{final} ||= {};
     for my $day ( keys %$days ) {
-        my $path = _daily_dir() . "/$day.json";
-        next unless $day eq $today || !-f $path;
+        my $path   = _daily_dir() . "/$day.json";
+        my $closed = ( $day lt $today ) ? 1 : 0;
+
+        my $write =
+            !-f $path                ? 'absent'
+            : !$closed               ? 'today'
+            : !$cache->{final}{$day} ? 'closing'
+            :                          '';
+        next unless $write;
+
         _write_json_atomic( $path, _day_rollup( $day, $days->{$day}, $top_n ) );
+        $cache->{final}{$day} = 1 if $closed;
     }
+
+    # The marker is transient working state and follows the retention prune
+    # below, so it cannot grow without bound: a day dropped from the buckets
+    # loses its marker with it, and would be rewritten once if it ever came back.
+    delete @{ $cache->{final} }{ grep { !exists $days->{$_} } keys %{ $cache->{final} } };
 
     # Months present in the data; current month refreshed, closed months once.
     my %months;
@@ -1361,6 +1446,136 @@ sub _tally_batch {
     return;
 }
 
+# SM339: the recount itself.
+#
+# It does NOT re-implement ingestion. It resets the incremental state - the
+# per-file byte offsets and the day buckets the logs can rebuild - and lets the
+# ordinary export path do the reading, so a recount and a normal run cannot
+# disagree about how an event is counted. A second parser would be one fact in
+# two places, which is the defect this project keeps closing.
+sub cmd_recount {
+    my ($apply) = @_;
+
+    my @files = first_party_files();
+    return {
+        ok    => JSON::PP::false,
+        error => 'no first-party logs to recount from - this site reads the '
+            . 'web-server log, which has no per-day retention the engine controls',
+    } unless @files;
+
+    # Which days can the retained logs actually rebuild? The filenames say so
+    # without reading a byte: access-YYYYMMDD.jsonl.
+    my %covered;
+    for my $f (@files) {
+        next unless $f =~ m{access-(\d{4})(\d{2})(\d{2})\.jsonl\z};
+        $covered{"$1-$2-$3"} = 1;
+    }
+    my @days = sort keys %covered;
+    return { ok => JSON::PP::false, error => 'no dated first-party logs found' }
+        unless @days;
+
+    # What the durable store says now, so the report can be a comparison rather
+    # than an assertion that something was done.
+    my %before;
+    for my $d (@days) {
+        my $cur = _read_daily($d) or next;
+        my $r   = $cur->{day}     or next;    # _read_daily wraps the rollup
+        $before{$d} = {
+            pageviews      => $r->{pageviews},
+            asset_hits     => $r->{asset_hits},
+            counting_basis => $r->{counting_basis},
+        };
+    }
+
+    unless ($apply) {
+        return {
+            ok      => JSON::PP::true,
+            dry_run => JSON::PP::true,
+            note    => 'Nothing was changed. Re-run with --apply to rewrite '
+                . 'these days from the retained logs.',
+            days_the_logs_cover => scalar @days,
+            from                => $days[0],
+            to                  => $days[-1],
+            current             => \%before,
+            what_it_would_do    =>
+                'Reset the ingest offsets and the buckets for these days, '
+                . 're-read the retained logs, and rewrite each day file under '
+                . "the current counting basis ($COUNTING_BASIS). Days older "
+                . 'than the logs are not touched and keep the basis they were '
+                . 'counted under.',
+        };
+    }
+
+    # APPLY. Drop the incremental state for the covered window only: the
+    # offsets, so the logs are read again from the start, and the buckets for
+    # those days, so nothing is double-counted into figures that already hold
+    # them. Days OUTSIDE the window keep their buckets untouched - they cannot
+    # be rebuilt and must not be discarded.
+    my $cache = _load_export_cache() || {};
+    delete $cache->{files};
+    delete $cache->{days}{$_}  for @days;
+    delete $cache->{final}{$_} for @days;    # so each is written again on close
+
+    # The event ring and the visitor-level maps are transient working state and
+    # are rebuilt by the re-read. Dropping them avoids a token promoted from
+    # events that are about to be re-ingested being counted twice.
+    delete @{$cache}{qw(events scanner scanner_by sweep)};
+    _save_export_cache($cache);
+
+    # Remove the day files for the covered window so _persist_durable writes
+    # them fresh rather than treating them as already present.
+    for my $d (@days) {
+        my $path = _daily_dir() . "/$d.json";
+        unlink $path if -f $path;
+    }
+    # The months those days belong to must be rebuilt too, or a month keeps a
+    # total summed from the figures being replaced.
+    my %months = map { substr( $_, 0, 7 ) => 1 } @days;
+    for my $m ( keys %months ) {
+        my $path = _monthly_dir() . "/$m.json";
+        unlink $path if -f $path;
+    }
+
+    # The ordinary path does the work.
+    export_stats(30);
+
+    my %after;
+    for my $d (@days) {
+        my $cur = _read_daily($d) or next;
+        my $r   = $cur->{day}     or next;
+        $after{$d} = {
+            pageviews      => $r->{pageviews},
+            asset_hits     => $r->{asset_hits},
+            counting_basis => $r->{counting_basis},
+        };
+    }
+
+    # A per-day comparison, because "it ran" is not a result. A day whose
+    # pageviews fall by exactly the asset_hits it gains is the SM329 correction
+    # doing what it says; a day that RISES is the SM343 truncation being
+    # repaired, and both can happen to the same day.
+    my @changed = grep {
+        my $b = $before{$_} || {};
+        my $a = $after{$_}  || {};
+        ( $b->{pageviews} // -1 ) != ( $a->{pageviews} // -1 )
+            || ( $b->{counting_basis} // 0 ) != ( $a->{counting_basis} // 0 );
+    } @days;
+
+    return {
+        ok        => JSON::PP::true,
+        applied   => JSON::PP::true,
+        days      => scalar @days,
+        from      => $days[0],
+        to        => $days[-1],
+        changed   => scalar @changed,
+        unchanged => scalar(@days) - scalar(@changed),
+        before    => \%before,
+        after     => \%after,
+        note      => 'Days older than the retained logs were not touched and '
+            . 'keep the counting basis they were written under.',
+    };
+}
+
 sub export_stats {
     my ($window) = @_;
     $window = ( $window || 30 ) + 0;
@@ -1558,8 +1773,13 @@ sub _export_assemble {
 
     my $keep_from = _day_str( time() - 400 * 86400 );
     delete $cache->{days}{$_} for grep { $_ lt $keep_from } keys %{ $cache->{days} };
-    _save_export_cache($cache);
+    # SM343: PERSIST FIRST, THEN SAVE. _persist_durable records which days it
+    # has finalised, in the cache, so the marker has to exist before the cache
+    # is written or it is lost every time and every closed day is rewritten on
+    # every call - which is the write amplification the write-once rule existed
+    # to avoid, reintroduced by the fix for it.
     _persist_durable( $cache, $cfg ); # SM213: mirror the day-buckets to the durable store
+    _save_export_cache($cache);
 
     # --- assemble the window view from the day-buckets ---
     my $from_day  = _day_str( time() - ( $window - 1 ) * 86400 );
