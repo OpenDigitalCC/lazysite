@@ -51,6 +51,23 @@ keep their old basis and must keep saying so - which they will, because SM338
 reads a missing marker as basis 1. A partial recompute leaves a series that is
 correct at both ends and steps in the middle, and that step is now labelled.
 
+# This is now a REPAIR, not only a re-basing
+
+[[SM343]], found after this was filed: a closed day file is frozen at the last
+export call made **during** that day, and never revisited. So it is short by
+everything that happened afterwards - and a day file is complete only if nobody
+looked at the statistics that day.
+
+That changes what this filing is for. It was written to make the series
+comparable across a basis change. It would also, in the same pass and from the
+same raw logs, make the durable record **complete** - which is a larger and more
+straightforward benefit than the one it was filed for.
+
+It also removes an objection. "A recompute writes over durable data" was the
+reason to be careful, and it assumed the durable data was right. For any day
+with traffic after its last call, it is not: the recompute replaces a partial
+record with a complete one, which is a repair rather than a rewrite.
+
 # Added scope, from SM338's measurement
 
 A day file closed before 0.10.12 carries **no basis field at all**. [[SM338]]
@@ -129,7 +146,10 @@ after for each day without writing.
 # Verification
 
 - A day recomputed from its raw log has `pageviews` lower by exactly the
-  `asset_hits` it gains, and every other field unchanged.
+  `asset_hits` it gains, and every other field unchanged - **except where
+  [[SM343]] applies**, in which case it is also higher by the traffic the
+  partial file never recorded. Those two move in opposite directions, so the
+  check must account for both rather than expecting a clean subtraction.
 - A day whose log has aged out is reported as skipped and left alone, still
   reading as basis 1.
 - The verb refuses to run without an explicit range, and has a dry run that

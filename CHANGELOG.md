@@ -150,7 +150,11 @@ changes, but an operator who has raised it should know what they have
 lengthened. SM327's perf drift is attributed (one step above the noise floor,
 the rest accretion, and the 2x tolerance is why nothing caught it); SM335 (the
 Stats page and the export use different class vocabularies) is filed as a
-candidate, as are SM342 (every benchmark figure this project holds was taken on
+candidate, as are SM343 (a closed day file is frozen at the last export call
+made during that day, so it is short by everything after it - a day file is
+complete only if nobody looked at the statistics that day; pre-existing, the
+recomputed views have always been right, and it makes SM339 a repair rather
+than a re-basing), SM342 (every benchmark figure this project holds was taken on
 a development host with a fast uncontended disk, while real sites are on
 contended shared storage and the operations that matter are I/O-bound - the
 third member of the family with SM327's loose tolerance and SM340's missing
