@@ -97,7 +97,25 @@ What about `/favicon.ico` and `/robots.txt`?
 - The asset requests are still present in the event stream.
 - A fixture with one page and four images reports one pageview, not five.
 
-## Related
+## Field acceptance test, outstanding
+
+Confirmed shipped and inert on the day of the deploy: `asset_hits` is present on
+all 35 index rows and reads 0, because only one day is basis 2 and it had no
+asset requests yet. The field landing is what was verifiable then.
+
+**The real test is the first FULL day counted under basis 2** - 2026-08-18 on
+the instrument. `asset_hits` above zero, and no asset paths in `top_pages`.
+
+There is a second reason it could not be tested on the day: the two asset entries
+that prompted this filing were on 2026-07-18, and the reporting window slid past
+that day between the two captures. The asset-bearing day is now outside the
+window.
+
+The partner agent holds the before-numbers and a register stating what a wrong
+answer would mean. Whether that check is run is a release-management decision;
+it is recorded here so the question survives the conversation that raised it.
+
+# Related
 
 [[SM213]] (the durable store, and the roadmap entry that makes assets a
 classification signal), [[SM192]] (the scanner and noise classifier, whose

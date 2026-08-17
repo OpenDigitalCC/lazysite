@@ -155,7 +155,18 @@ three dead bookmarks stay human and keep their `plausible` 404s; one missing
 path requested twelve times stays human; and the same eight missing paths that
 are a sweep in three minutes are an ordinary bad afternoon spread over an hour.
 
-## Related
+## Field acceptance test, outstanding
+
+`scanner_inferred` is present on the rollups and read 0 on the day of the
+deploy, for the same reason as [[SM329]]'s `asset_hits`: one basis-2 day, and
+not a full one.
+
+**The real test is the first full day** - 2026-08-18 on the instrument - against
+a night of overnight probe traffic, which is when a sweep detector earns its
+threshold. The measured population to check it against is the six tokens and 52
+human-class events this filing was raised from.
+
+# Related
 
 [[SM213]] (visitor-level scanner classification, and the pass this extends),
 [[SM192]] (the signature lists, and `noise_paths` as the precedent for an
