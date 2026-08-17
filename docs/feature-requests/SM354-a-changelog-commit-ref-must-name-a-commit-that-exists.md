@@ -103,10 +103,48 @@ naive fix to a conflict caused by this filing's defect reintroduces this
 filing's defect, doubled.
 
 `.gitattributes` now marks `CHANGELOG.md merge=union`, which keeps both sides of
-a conflicting hunk. That is the correct semantics for a file only ever appended
-to in different places. It does not make the file conflict-free in general - two
-branches editing the SAME entry still conflict, and should - it removes the case
-where they are merely both adding.
+a conflicting hunk. That removes the case where two branches are merely both
+adding, which was the collision that refused four branches in an afternoon.
+
+## What union cannot do, learned by it happening
+
+The claim above was first written as "the correct semantics for a file only ever
+appended to in different places". That is true and it is not the whole truth,
+and the shortfall showed up on the very next rebase.
+
+**Union keeps both sides of a conflicting hunk. It cannot tell an APPEND from an
+EDIT.** When one side has changed a line and the other still holds the original,
+both survive - and the result is two versions of the same entry, which is
+exactly the duplicate this filing exists to prevent.
+
+That is not hypothetical. Two branches cut before this filing corrected SM354's
+own ref still carried `- SM354 (d7da8d4)`; main carried `- SM354 (274be4b)`.
+Rebasing them produced no conflict, no markers, and both bullets. A clean-looking
+rebase with a silently duplicated entry is a worse outcome than the conflict it
+replaced, because nothing asks anyone to look.
+
+```datatable
+columns: Case | Union's behaviour | Right answer?
+widths: 5.6cm | 3.4cm | X
+bold: 1
+tone: medium
+---
+Two branches each ADD a different entry | keeps both | yes - this is why it is set
+One side EDITED an entry the other still has | keeps both | **no** - duplicates it
+Two branches edit the SAME entry | keeps both | no, but a conflict would be right
+---
+```
+
+**The bound is narrow and worth stating.** It only bites a branch that predates
+a correction to an entry already on main. The remedy is to notice it: after a
+rebase of a long-lived branch, check the changelog for a repeated `- SM<n>`
+within one section before submitting. `t/lint/53` catches the case where the
+stale copy names a commit no branch contains - which it did here - but it would
+not catch two spellings that both resolve.
+
+Recorded because the attribute is now doing real work and the next person to see
+a duplicated entry after a clean rebase should conclude the attribute is
+behaving exactly as documented, rather than that it is broken.
 
 # Verification
 
