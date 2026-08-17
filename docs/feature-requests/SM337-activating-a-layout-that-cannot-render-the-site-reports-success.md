@@ -2,8 +2,8 @@
 title: "SM337 - activating a layout that cannot render the site reports success"
 subtitle: "Every signal said it worked. install_layout returned ok:1, activate_layout returned ok:1, nav-save reported the cache entries it cleared, nav-read returned the saved items, and the page returned 200. The navigation was simply absent, and 22 of the 23 layouts in the catalogue behave this way."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-16 from a partner-agent build report, `inbox/archive/2026-08-15-no-installed-layout-renders-the-site-navigation.md`. The CATALOGUE half is not this filing and is already specified where it belongs, in `lazysite-layouts/docs/BRINGING-THE-CATALOGUE-UP-TO-DATE.md` - 22 of 23 shipped layouts are theme-gallery showcases carrying hard-coded links, and one of them renders a fictional company name on whatever site activates it. What is filed HERE is the engine-side half, which is the recurring defect this project keeps closing: a control that reports success without having done the work. The engine knows, at activation, whether the layout it just bound contains `[% nav %]` and `[% content %]`. It says nothing."
+status: shipped
+status-note: "SHIPPED 2026-08-17 - the engine half. `_validate_layout_dir` already had the template open, so the answer cost a regex: activation now reports `renders` for nav, content and the two resolved meta values, and WARNS when a layout has no `[% nav %]` - naming the consequence (\"nav.conf will have no effect\") rather than the absence of a directive. It does NOT refuse: activating a showcase is a legitimate choice, and a tool that refuses legitimate choices gets worked around. The catalogue half is [[SM349]], with the numbers - 1 of 23 layouts renders the navigation, and 1 of 11 configured destinations reached a page on the instrument. [[SM362]] rides the same read: every catalogue layout overwrites the resolved meta values, so those are reported too rather than needing a second survey."
 ---
 
 # What was found

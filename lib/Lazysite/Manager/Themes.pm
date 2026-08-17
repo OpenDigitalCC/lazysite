@@ -1055,6 +1055,7 @@ sub action_layout_activate {
         my $v = _validate_layout_dir($layout_dir);
         return { ok => 0, error => "Layout invalid: " . join( '; ', @{ $v->{errors} } ) }
             unless $v->{valid};
+        my $renders = $v->{renders} || {};
 
         # Compatible (layout, theme) pair. The live theme name is carried over by
         # default; if it isn't declared for the NEW layout, only refuse when the
@@ -1085,6 +1086,20 @@ sub action_layout_activate {
             ( $theme_specified && length $theme ) ? $theme : undef );
         _mirror_theme_assets( $layout_name, ( length $theme ? $theme : $cur_theme ) )
             if $res->{ok};
+
+        # SM337: say what was bound, not merely that something was.
+        if ( $res->{ok} ) {
+            $res->{renders} = $renders;
+            unless ( $renders->{nav} ) {
+                # A WARNING, not a refusal. Activating a showcase layout is a
+                # legitimate choice; being unable to tell that you have is not.
+                $res->{warning} =
+                    "'$layout_name' does not render the site's navigation - "
+                    . 'it has no [% nav %], so nav.conf will have no effect on '
+                    . 'pages using it. Activated anyway; this is a note, not a '
+                    . 'refusal.';
+            }
+        }
         return $res;
     };
     my $err = $@;
@@ -1117,20 +1132,59 @@ sub _validate_layout_dir {
     my ($dir) = @_;
     my $lt = "$dir/layout.tt";
     return { valid => 0, errors => ['layout.tt missing'] } unless -f $lt;
+    # SM337: WHAT DOES THIS LAYOUT ACTUALLY RENDER?
+    #
+    # The source is already open here, so the answer costs a regex. It was not
+    # being asked, and the consequence was that installing a layout, activating
+    # it, saving a navigation and fetching the page all returned success while
+    # the site's own menu was never rendered - 22 of 23 catalogue layouts carry
+    # hard-coded links belonging to the theme gallery they were built for, and
+    # one of them renders a fictional company name on whatever site activates it.
+    #
+    # Every signal said it worked, so the only way to find out was to install a
+    # layout, bind it to a domain, render a page and look - a step an agent has
+    # no reason to insert after four consecutive ok:1 responses.
+    #
+    # This does not refuse anything. A showcase layout is a legitimate thing to
+    # activate and the caller may want exactly that. What changes is that the
+    # acknowledgement stops being indistinguishable from binding a working site
+    # layout.
+    my $src = '';
+    if ( open my $fh, '<:utf8', $lt ) {
+        local $/;
+        $src = <$fh> // '';
+        close $fh;
+    }
+
+    # The documented contract is `[% nav %]` and `[% content %]`. Matched
+    # loosely on the directive name so `[%nav%]`, `[% nav %]` and a filtered
+    # `[% nav | ... %]` all count - a layout that renders the navigation
+    # through a filter still renders the navigation.
+    #
+    # SM362 asks the adjacent question and the same read answers it: the engine
+    # resolves page_meta_title and page_meta_desc for the layout to use, and
+    # every catalogue layout overwrites them, so those two are reported here
+    # too rather than needing a second survey.
+    my %renders = (
+        nav        => ( $src =~ /\[%[-+]?\s*nav\b/             ? 1 : 0 ),
+        content    => ( $src =~ /\[%[-+]?\s*content\b/         ? 1 : 0 ),
+        meta_title => ( $src =~ /\[%[-+]?\s*page_meta_title\b/ ? 1 : 0 ),
+        meta_desc  => ( $src =~ /\[%[-+]?\s*page_meta_desc\b/  ? 1 : 0 ),
+    );
+
     my $ok = eval {
         require Template::Parser;
-        open my $fh, '<:utf8', $lt or die "layout.tt unreadable\n";
-        my $src = do { local $/; <$fh> };
-        close $fh;
         my $p = Template::Parser->new( {} );
         $p->parse($src) or die( $p->error . "\n" );
         1;
     };
-    return { valid => 1, errors => [] } if $ok;
+    return { valid => 1, errors => [], renders => \%renders } if $ok;
     my $e = $@ || 'parse error';
-    return { valid => 1, errors => [] } if $e =~ /Can't locate Template/;
+    return { valid => 1, errors => [], renders => \%renders }
+        if $e =~ /Can't locate Template/;
     chomp $e;
-    return { valid => 0, errors => ["layout.tt does not compile: $e"] };
+    return { valid => 0, errors => ["layout.tt does not compile: $e"],
+        renders => \%renders };
 }
 
 sub _theme_declares_layout {

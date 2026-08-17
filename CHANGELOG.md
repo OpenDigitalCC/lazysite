@@ -58,6 +58,21 @@ Naming the commit: AFTER it lands, never before
   unreachable.
 
 - SM342 (5cdef3b) **the perf gate measures work, not only the clock, and reports
+- SM337 (PENDING) **activating a layout now says what it bound.** Installing a
+  layout, activating it, saving a navigation and fetching the page all returned
+  success while the site's own menu was never rendered - 22 of 23 catalogue
+  layouts carry hard-coded links belonging to the gallery they were built for,
+  and one renders a fictional company name on whatever site activates it. The
+  only way to find out was to install, bind, render and look, which nobody
+  inserts after four consecutive `ok:1`s. The validator already had the template
+  open, so the check cost a regex: activation reports `renders` for nav, content
+  and the resolved meta values, and warns when there is no `[% nav %]` - naming
+  the consequence rather than the missing directive. **It does not refuse**,
+  because activating a showcase is a legitimate choice and a tool that refuses
+  legitimate choices gets worked around. Catalogue half is SM349; SM362 rides
+  the same read.
+
+- SM342 (PENDING) **the perf gate measures work, not only the clock, and reports
   rather than judges.** Every figure this project holds is a duration taken on a
   development host with a fast uncontended disk; real sites are on contended
   shared storage, where the same export costs ~630 ms here and ~3.0 s of engine
