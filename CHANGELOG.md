@@ -30,7 +30,7 @@ Shipped versus mentioned
 
 ## Unreleased
 
-- SM345 (PENDING) **a release touched every site on the host, not the ones it
+- SM345 (fe15459) **a release touched every site on the host, not the ones it
   was for.** The per-site install was channel-gated; every other phase was not.
   An edge rollout refreshed the shared web template, rebuilt every vhost, and
   ran `repair --all` and `probe --all` across sites sitting on beta and stable -
@@ -44,7 +44,7 @@ Shipped versus mentioned
   watcher no longer passes `--rebuild` on every deploy, which was the immediate
   cause. **An edge release touches edge sites; only a stable promotion touches
   stable sites.**
-- SM346 (PENDING) **the Users page hid every operator-only control from every
+- SM346 (fe15459) **the Users page hid every operator-only control from every
   human.** It gates promote-to-top-level and the scope-independence toggle on
   `amOperator`, computed by looking for itself in the groups granting
   `manage_users` - and `users-page` never told it who it was, because that call
