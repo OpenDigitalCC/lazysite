@@ -1676,7 +1676,8 @@ sub _front_door {
         $ACCESS_REC{ch} = 'front';
         print "Status: 404 Not Found\r\n";
         print "Content-Type: text/html; charset=utf-8\r\n";
-        print "X-Content-Type-Options: nosniff\r\n\r\n";
+        print "$_\r\n" for _security_headers();    # SM352
+        print "\r\n";
         print "<p>Not found</p>\n";
         return 1;
     }
@@ -2750,7 +2751,7 @@ sub _serve_content_static {
     binmode(STDOUT);
     print "Status: 200 OK\n";
     print "Content-type: $ct\n";
-    print "X-Content-Type-Options: nosniff\n";
+    print "$_\n" for _security_headers();    # SM352
     # SM223: a file whose serving depended on WHO asked must not be stored by a
     # shared cache. no-cache still permits storage and revalidation; no-store
     # does not, and that is the distinction that matters for private material.
@@ -6486,13 +6487,20 @@ sub output_page {
     binmode( STDOUT, ':utf8' );
     print "Status: $status\n";
     print "Content-type: $content_type\n";
-    # L-1: baseline security headers. CSP and HSTS are deliberately NOT
-    # emitted here - CSP is site-specific (depends on what external
-    # resources pages load) and HSTS depends on whether TLS is in use;
-    # both belong in the Apache vhost config.
-    print "X-Content-Type-Options: nosniff\n";
-    print "X-Frame-Options: SAMEORIGIN\n";
-    print "Referrer-Policy: strict-origin-when-cross-origin\n";
+    # L-1 set the baseline here and recorded a decision that SM352 has since
+    # overturned, so the reasoning is kept rather than quietly replaced. It read:
+    # "CSP and HSTS are deliberately NOT emitted here - CSP is site-specific and
+    # HSTS depends on whether TLS is in use; both belong in the Apache vhost
+    # config." SM286 settled that the other way - "belongs in the vhost config"
+    # is the reasoning behind SM248, SM268 H17 and SM283 - so HSTS is emitted
+    # here, gated on the connection actually being secure.
+    #
+    # CSP is STILL not emitted, for the reason L-1 gave and one more: this file
+    # alone inlines <style> and <script> in eight places, so no policy worth
+    # setting fits today. t/lint/56 holds that inventory - ten entries across
+    # the engine - which is what a report-only collector would otherwise have
+    # had to discover from live traffic, for a fact the source already states.
+    print "$_\n" for _security_headers();    # SM352
     print "Content-Language: $RESPONSE_LANG\n" if $RESPONSE_LANG;    # SM179 (P1)
     if ($auth_protected) {
         print "Cache-Control: no-store, private\n";
@@ -6521,6 +6529,37 @@ sub forbidden {
     print "Status: 403 Forbidden\n";
     print "Content-type: text/plain; charset=utf-8\n\n";
     print "403 Forbidden\n";
+}
+
+# SM352: the response security headers.
+#
+# DELIBERATE local copy of Lazysite::SecurityHeaders::security_headers - the
+# render path loads no Lazysite modules (ADR 0001), exactly as _acl_allows_read
+# copies Auth::Acl and _private_root_for copies Lazysite::Private. t/lint/55
+# pins the pair, and pins it by VALUE: it evaluates both and compares the header
+# lines, so a copy that drifts in the max-age or drops a denied capability fails
+# rather than merely looking different.
+#
+# Every response path here calls this. Before SM352 three of the four wrote
+# their own shorter list, which is why the site's stylesheets and artwork
+# answered without X-Frame-Options or Referrer-Policy while the homepage carried
+# both - a drift nobody probing the homepage could see.
+sub _security_headers {
+    my @h = (
+        'X-Content-Type-Options: nosniff',
+        'X-Frame-Options: SAMEORIGIN',
+        'Referrer-Policy: strict-origin-when-cross-origin',
+        'Permissions-Policy: accelerometer=(), browsing-topics=(), camera=(), '
+            . 'display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), '
+            . 'microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()',
+    );
+
+    # Same test the session cookie uses for its Secure flag, so there is one
+    # answer to "is this connection secure" rather than two that can disagree.
+    # A front end that does not set it gets no HSTS, which is the safe way for
+    # this to fail - the engine asks the proxy for nothing.
+    push @h, 'Strict-Transport-Security: max-age=300' if $ENV{HTTPS};
+    return @h;
 }
 
 # SM190: is a lazysite.conf service flag enabled? A tiny standalone reader - the

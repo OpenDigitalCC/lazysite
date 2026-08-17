@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM352 (PENDING) **the security header set, in one place, and honest about
+  what it leaves out.** Three headers were emitted and a field probe reported
+  all three correct - on one of the engine's four response paths. Every
+  stylesheet, script, SVG and image the processor served carried nosniff alone,
+  a drift invisible to anyone measuring the homepage. All four paths now emit
+  one set from `Lazysite::SecurityHeaders`, with HSTS added at a deliberately
+  short `max-age=300`, no `includeSubDomains`, no `preload`, and only when the
+  connection is actually secure - the same test the session cookie already uses
+  for its Secure flag, so a front end that says nothing simply gets no HSTS.
+  Permissions-Policy denies the capabilities the platform never uses, including
+  the Topics API, while leaving autoplay and fullscreen to the author. The
+  engine emits all of it, so nothing is asked of the proxy: the earlier comment
+  saying HSTS and CSP "belong in the Apache vhost config" is the reasoning
+  SM286 overturned, and it is quoted in the module rather than quietly removed.
+  **CSP is deliberately still absent**, and `t/lint/56` records why as an
+  inventory of the ten places the engine inlines `<script>` or `<style>` -
+  which is what a report-only collector would have had to discover from live
+  traffic, for a fact the source already stated. COOP waits for CSP.
 - SM335 (9b3bc1f) **one class vocabulary: the manager Stats page and the export
 - SM336 (PENDING) **a session has a boundary, and sequence is recorded.**
   Everything durable was a marginal count - nothing paired one dimension with

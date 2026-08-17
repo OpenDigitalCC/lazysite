@@ -42,7 +42,8 @@ BEGIN {
         if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
     }
 }
-use Lazysite::FrontDoor qw(route);
+use Lazysite::FrontDoor       qw(route);
+use Lazysite::SecurityHeaders ();
 
 my $docroot = $ENV{DOCUMENT_ROOT} || $ENV{REDIRECT_DOCUMENT_ROOT}
     or die "DOCUMENT_ROOT not set\n";
@@ -66,7 +67,11 @@ my $decision = route(
 if ( $decision->{surface} eq 'denied' ) {
     print "Status: 404 Not Found\r\n";
     print "Content-Type: text/html; charset=utf-8\r\n";
-    print "X-Content-Type-Options: nosniff\r\n\r\n";
+    # SM352: the front door loads modules, so it uses the authority directly.
+    # The processor carries a pinned copy instead - ADR 0001.
+    print "$_\r\n"
+        for Lazysite::SecurityHeaders::security_headers( https => $ENV{HTTPS} );
+    print "\r\n";
     print "<p>Not found</p>\n";
     exit 0;
 }
