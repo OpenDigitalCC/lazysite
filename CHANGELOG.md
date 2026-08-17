@@ -44,7 +44,20 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM342 (PENDING) **the perf gate measures work, not only the clock, and reports
+- SM362 (PENDING) filed: **the engine resolves two meta values that no real site
+  ever renders.** `page_meta_title` and `page_meta_desc` are resolved and frozen
+  before a layout runs, and all 23 catalogue layouts overwrite both - so an
+  author setting `meta_title` in front matter changes nothing on any site using
+  a shipped layout, and nothing says so. SM300 fixed the engine half and
+  correctly defers to a layout that emits its own tag; the qualification in its
+  status note is now measured, and it is not "some layouts" but all of them. The
+  same survey found every layout applying `| html` to an already-escaped
+  `page_subtitle`, so ordinary copy reaches search engines double-escaped -
+  which is actively wrong rather than merely inert, and is the half worth fixing
+  first. Same shape as SM337 for navigation: the engine is right and
+  unreachable.
+
+- SM342 (5cdef3b) **the perf gate measures work, not only the clock, and reports
   rather than judges.** Every figure this project holds is a duration taken on a
   development host with a fast uncontended disk; real sites are on contended
   shared storage, where the same export costs ~630 ms here and ~3.0 s of engine
@@ -59,7 +72,7 @@ Naming the commit: AFTER it lands, never before
   sharp counter is the warm read: a call with nothing new in the log must read
   ZERO bytes, and a zero that becomes non-zero is SM340 returning.
 
-- SM343 / SM341 / SM339 (PENDING) **the durable day store: made complete, dated,
+- SM343 / SM341 / SM339 (ffb4204) **the durable day store: made complete, dated,
   and repairable.** Three filings, one artefact, done together because each
   blocked the others. SM343: a closed day file was frozen at the last export
   call made DURING that day - today's file was refreshed every call and a closed
