@@ -232,6 +232,16 @@ for i in "${!DOMAINS[@]}"; do
     else
         IN_USERS+=( "$_u" ); IN_DOMAINS+=( "$_d" )
     fi
+    # SM356: say which channel each site is actually on. The fleet's policy was
+    # only ever inferable from which sites got skipped, so a site sitting on a
+    # channel nobody intended looked exactly like a site behaving correctly -
+    # and an unrecognised update_channel value used to resolve, silently, to the
+    # MOST permissive setting. --channel-check reports that on stderr now; this
+    # makes the normal case legible too.
+    _ch=$(sed -n 's/^[[:space:]]*update_channel[[:space:]]*:[[:space:]]*\([^[:space:]]*\).*/\1/p' \
+            "$_dr/lazysite/lazysite.conf" 2>/dev/null | head -1)
+    printf '    %-44s channel=%-8s %s\n' \
+        "$_d" "${_ch:-(unset)}" "$( [ "$_cc" = 3 ] && echo 'OUT OF SCOPE' || echo 'in scope' )"
 done
 
 if [ "${#OUT_OF_SCOPE[@]}" -gt 0 ]; then

@@ -30,6 +30,22 @@ Shipped versus mentioned
 
 ## Unreleased
 
+- SM356 (PENDING) **the update channel failed open, and a typo granted more than
+  the word it misspelled.** `update_channel: stabel` did not fail, did not warn,
+  and did not mean stable - it meant `all`, accept every build including edge,
+  because an unrecognised value fell through to the most permissive rung in
+  silence. Three fall-open paths in `read_update_channel` (unreadable conf, no
+  line, unrecognised value) and two more in `channel_refuses`, where
+  `$CHANNEL_RANK{$x} // 0` is `edge`. A comparison whose unknown case is the
+  permissive one is not a gate. Now: `all` is a declared rung rather than a
+  fall-through, anything unrecognised falls to **stable** - the most restrictive
+  rung - and is REPORTED as well as corrected, and both sides fail closed on an
+  unknown value. The fleet updater prints each site's channel so the policy is
+  legible rather than inferable. **Behaviour change:** a site with no
+  `update_channel` line stops accepting edge and beta builds, which is the
+  intended direction; provisioning already writes `stable`, so only older sites
+  are affected. The other half of SM345.
+
 - SM354 (d7da8d4) **seventeen changelog entries cited commits that no branch
   contained, seven of which did not exist at all.** The convention makes the
   commit ref the thing that marks an item as built rather than merely written

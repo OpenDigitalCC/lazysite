@@ -45,7 +45,13 @@ my $STAGE_DIR = abs_path( dirname($0) );
 # (the installer does not load the lib). Initialised here, ahead of the
 # top-level option blocks (--channel-check runs before the sub definitions'
 # region is reached at runtime).
-our %CHANNEL_RANK = ( edge => 0, beta => 1, stable => 2 );
+our %CHANNEL_RANK = ( edge => 0, beta => 1, stable => 2, all => 0 );
+
+# SM356: `all` is spelled out rather than reached through a `// 0` fallback. It
+# meant the same thing before - and it meant it by ACCIDENT, because an
+# unrecognised value fell to the same 0. A rung that is only ever reached by
+# failing to recognise something cannot be told apart from a typo.
+our $CHANNEL_DEFAULT = 'stable';
 
 # ---------- arg parse ----------
 
@@ -174,9 +180,10 @@ if ( $opt{channel_check} ) {
     my $state    = load_state( state_path( $opt{docroot} ) );
     # Only an upgrade (existing install at a different version) is gated.
     if ( $state && ( $state->{version} // '' ) ne ( $manifest->{version} // '' ) ) {
-        my $site = read_update_channel( $opt{docroot} );
-        my $rel  = $manifest->{channel} || 'edge';
-        exit 3 if channel_refuses( $site, $rel );
+        my ( $site, $problem ) = read_update_channel( $opt{docroot} );
+        my $rel = $manifest->{channel} || 'edge';
+        warn "channel-check: $problem\n" if defined $problem;
+        exit 3                           if channel_refuses( $site, $rel );
     }
     exit 0;
 }
@@ -238,26 +245,62 @@ exit cmd_install( \%opt );
 # The site's update channel preference, read from lazysite.conf. 'stable' =
 # only stable releases; 'beta' = beta or stable; anything else (default) =
 # 'all' (accepts every build - the pre-ladder behaviour).
+# SM356: THE DEFAULT FAILED OPEN, IN THREE DIFFERENT WAYS.
+#
+# This returned 'all' - accept every build, edge included - when the conf could
+# not be read, when there was no update_channel line, and when the value was not
+# recognised. The third is the dangerous one: `update_channel: stabel` did not
+# fail, did not warn, and did not mean stable. It meant the MOST permissive
+# setting available, silently, which is the opposite of what the operator typed.
+#
+# The reported symptom was that an edge rollout touched sites it was not for.
+# The gate was working; the default was wrong.
+#
+# Now: a recognised value is honoured, and everything else falls to `stable` -
+# the most restrictive rung, which is the safe direction for a control whose
+# failure mode is installing a pre-release build on a customer site. An
+# unrecognised value is ALSO reported, in the second return value, because a
+# typo silently corrected to something safe is still a setting that does not do
+# what it says.
+#
+# Returns ( channel, problem ) - problem is undef when the value was explicit
+# and recognised.
 sub read_update_channel {
     my ($docroot) = @_;
     my $conf = lazysite_dir_for($docroot) . "/lazysite.conf";
-    open my $fh, '<', $conf or return 'all';
+    open my $fh, '<', $conf
+        or return ( $CHANNEL_DEFAULT, "cannot read $conf" );
     while ( my $l = <$fh> ) {
         next unless $l =~ /^\s*update_channel\s*:\s*(\S+)/;
         close $fh;
         my $c = lc $1;
-        return ( $c eq 'stable' || $c eq 'beta' ) ? $c : 'all';
+        return ( $c, undef ) if exists $CHANNEL_RANK{$c};
+        return ( $CHANNEL_DEFAULT,
+            "update_channel is '$c', which is not one of "
+                . join( '/', sort keys %CHANNEL_RANK )
+                . " - treating this site as '$CHANNEL_DEFAULT'" );
     }
     close $fh;
-    return 'all';
+    return ( $CHANNEL_DEFAULT, undef );    # absent is a policy, not a fault
 }
 
 # Would the site's channel refuse this release? 'all' (and 'edge') accept
 # everything; otherwise the release must sit at the site's rung or above.
 sub channel_refuses {
     my ( $site_channel, $release_channel ) = @_;
-    my $need = $CHANNEL_RANK{$site_channel}                      // 0;
-    my $got  = $CHANNEL_RANK{ lc( $release_channel // 'edge' ) } // 0;
+
+    # SM356: an unrecognised rung FAILS CLOSED on both sides. These were `// 0`,
+    # which is `edge`, which accepts everything - so any value neither side
+    # recognised resolved to "install it". A comparison whose unknown case is
+    # the permissive one is not a gate.
+    my $need = $CHANNEL_RANK{ lc( $site_channel // '' ) };
+    $need = $CHANNEL_RANK{$CHANNEL_DEFAULT} unless defined $need;
+
+    # An unrecognised RELEASE channel is treated as the least mature, so a site
+    # asking for stable does not accept a build whose maturity nobody can read.
+    my $got = $CHANNEL_RANK{ lc( $release_channel // 'edge' ) };
+    $got = 0 unless defined $got;
+
     return $got < $need ? 1 : 0;
 }
 
@@ -539,8 +582,14 @@ sub cmd_install {
     # skip is a clean no-op (exit 3, not an error) and is recorded in the
     # site's audit log.
     if ( $mode eq 'upgrade' && !$o->{force} ) {
-        my $site_channel = read_update_channel( $o->{docroot} );   # 'stable'|'beta'|'all'
+        my ( $site_channel, $problem ) = read_update_channel( $o->{docroot} );
         my $release_channel = $manifest->{channel} || 'edge';
+
+        # SM356: a value nobody recognised used to become the most permissive
+        # setting in silence. It now becomes the most restrictive one and SAYS
+        # SO - a typo corrected to something safe is still a setting that does
+        # not do what the operator wrote.
+        info("NOTE: $problem") if defined $problem;
         if ( channel_refuses( $site_channel, $release_channel ) ) {
             info( "Upgrade SKIPPED: this site is on the '$site_channel' update channel and "
                     . "$manifest->{version} is an '$release_channel' build. No changes made. "
@@ -555,8 +604,9 @@ sub cmd_install {
         # --force: install regardless of the site's update channel (a deliberate
         # operator override for an out-of-channel build). Recorded in the audit log;
         # the normal upgrade event is still logged when the install completes.
-        my $rel  = $manifest->{channel} || 'edge';
-        my $site = read_update_channel( $o->{docroot} );
+        my $rel = $manifest->{channel} || 'edge';
+        my ( $site, $problem ) = read_update_channel( $o->{docroot} );
+        info("NOTE: $problem") if defined $problem;
         if ( channel_refuses( $site, $rel ) ) {
             info( "--force: installing '$rel' build $manifest->{version} over the "
                     . "site's '$site' channel policy (operator override)." );
@@ -638,7 +688,7 @@ sub cmd_install {
         ( defined $state ? $state->{version} : undef ),
         $manifest->{version},
         $mode eq 'fresh'
-        ? 'update_channel: ' . read_update_channel( $o->{docroot} )
+        ? 'update_channel: ' . ( read_update_channel( $o->{docroot} ) )[0]
         : undef
     );
 
