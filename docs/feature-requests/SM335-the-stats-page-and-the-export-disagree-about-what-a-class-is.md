@@ -129,6 +129,64 @@ the audience and an operator's own sessions are not audience. The page being a
 superset of the export is coherent; the page being 71.7% wrong about who is
 visiting is not.
 
+# Built 2026-08-17, and it forces two decisions before it can land
+
+The unification works. `scan_first_party` and `scan_stats` no longer count
+anything: they drive the same ingest the export drives and project the resulting
+day buckets into the page's shape. The page gains `scanner`, keeps `logged_in`,
+stays a live read, and the second counting implementation is gone. The bucket
+grew two fields it lacked (`bytes`, `cls_ips`) and the log parser now returns
+the byte count its own pattern was already capturing and discarding.
+
+Two consequences fall out that are **not** mine to decide, because each changes
+what an operator sees or can do.
+
+## 1. `anonymise_ip` becomes inert
+
+The shared tally **always** anonymises - `_visitor_token(_anon_ip($ip))`, a /24
+truncation then a hash. That is deliberate in the export, which states
+`anonymised: true` unconditionally and never had a setting.
+
+The page's reader honoured `anonymise_ip: false` and keyed visitors on the raw
+address. After unification that setting has no effect at all.
+
+An inert setting is the defect class this project keeps closing, so the choice is
+to **remove the setting** - the honest option, and consistent with the export
+having never offered it - or to make the tally honour it, which would put
+un-anonymised addresses into a durable store that has been carefully built not
+to hold them.
+
+I would remove it. But removing an operator-visible privacy control is a
+decision, not a refactor.
+
+## 2. The page's numbers stop being recomputed from scratch
+
+The old reader re-read the window on every call, so a change to
+`noise_paths`, `ai_user_agents` or `anonymise_ip` re-classified the whole window
+immediately. The shared tally is incremental: a rule change applies to events
+ingested afterwards, and events already counted keep the classification they
+were given.
+
+That is the same property [[SM338]] exists to record for the counting basis, and
+it is defensible - arguably more honest than silently re-writing history when a
+setting changes. It is also a visible behaviour change: an operator who adds a
+`noise_paths` entry will no longer see yesterday reclassified.
+
+If that is wanted, the mechanism already exists: `--recount` ([[SM339]]) rebuilds
+the window from the retained logs under current rules. The setting change would
+need to say so.
+
+## What the tests say
+
+Two assertions in `t/unit/plugins/01-stats.t` fail, and both encode the OLD
+contract rather than a defect: `anonymised IPs collapse to one` (the raw-IP
+keying above) and an error message the page produced itself and the shared
+ingest words differently.
+
+They are left failing deliberately. Rewriting a test to match new behaviour is
+how a contract change gets made silently, and this one should be made on
+purpose.
+
 # Verification
 
 - The Stats page and the export, run against the same log, agree about how much

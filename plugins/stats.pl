@@ -589,79 +589,81 @@ sub first_party_files {
     return map { "$DOCROOT/lazysite/logs/$_" } @f;
 }
 
+# SM335: THE MANAGER STATS PAGE READS THE SHARED TALLY.
+#
+# This used to be a second counting implementation. It streamed the logs,
+# classified each request on its own, and produced a class breakdown from a
+# vocabulary of its own: human / logged_in / ai / bot / noise, with no
+# `scanner` at all - because `scanner` is a VISITOR-LEVEL promotion computed in
+# `_tally_batch`, which only the export path ran.
+#
+# So the page an operator actually opens could not show the largest class of
+# traffic on their site. On the instrument that is 71.7% of events. Its
+# arithmetic was never wrong on its own terms - its five classes accounted for
+# every request it counted - but a scanner's probes sat in `noise` and the
+# requests it made either side of them sat in `human`. The total was right and
+# the attribution was not, which is harder to notice than a total that is wrong.
+#
+# Two implementations of one count is also how SM329 came to be fixed in two
+# places and missed in a third. This removes the second one.
+#
+# WHY A PROJECTION RATHER THAN A SECOND PASS. Visitor-level promotion needs the
+# probe tokens known before any counting, so a streaming reader would have to
+# read the logs twice - and SM342's work counters would report that, correctly,
+# as the code doing more than it did. The buckets are already built,
+# incrementally, by the ingest this now calls. Summing them costs no reads at
+# all.
+#
+# `logged_in` stays page-only and that is deliberate: the export reports the
+# AUDIENCE, and an operator's own sessions are not audience. The page being a
+# superset of the export is coherent. The page being 71.7% wrong about who is
+# visiting was not.
 sub scan_first_party {
     my ( $cfg, @files ) = @_;
-    require JSON::PP;
 
     my $window = ( $cfg->{window_days} || 30 ) + 0;
     $window = 30 if $window < 1;
+
+    my $cache = _load_export_cache() || {};
+    _export_ingest_first_party( $cfg, $cache, \@files );
+    _persist_durable( $cache, $cfg );
+    _save_export_cache($cache);
+
+    my $out = _page_view_from_buckets( $cfg, $cache, $window );
+    $out->{source} = 'first-party';
+    return $out;
+}
+
+# The page's shape, summed from the day buckets. One counting implementation,
+# two projections of it: this and _export_assemble.
+sub _page_view_from_buckets {
+    my ( $cfg, $cache, $window ) = @_;
     my $top_n = ( $cfg->{top_n} || 15 ) + 0;
     $top_n = 15 if $top_n < 1;
-    my $extra_ai    = _split_csv( $cfg->{ai_user_agents} );
-    my $extra_noise = _split_csv( $cfg->{noise_paths} );
-    my $site_host   = _site_domain();
-    my $cutoff      = time() - $window * 86400;
+
+    my $from      = _day_str( time() - ( $window - 1 ) * 86400 );
+    my $days      = $cache->{days} || {};
+    my @in_window = grep { $_ ge $from } sort keys %$days;
 
     my ( %cls_hits, %cls_vis, %pages, %ref_ext, %status, %byday, %vis );
-    my ( $hits, $bytes, $assets ) = ( 0, 0, 0 );
-    my ( $ref_internal, $ref_direct ) = ( 0, 0 );
-    my $scanned = 0;
-    my $CAP     = 10_000_000;    # runaway guard; aggregates use bounded memory
+    my ( $hits, $bytes, $assets, $ref_internal, $ref_direct ) = ( 0, 0, 0, 0, 0 );
 
-FILE: for my $f (@files) {
-        # Filename-dated: skip whole files older than the window (day grain).
-        next unless $f =~ /access-(\d{4})(\d{2})(\d{2})[.]jsonl$/;
-        my $day_end = eval { POSIX::mktime( 59, 59, 23, $3, $2 - 1, $1 - 1900 ) };
-        next if defined $day_end && $day_end < $cutoff;
-        open my $fh, '<', $f or next;
-        while ( my $line = <$fh> ) {
-            last FILE if ++$scanned > $CAP;
-            my $r = eval { JSON::PP::decode_json($line) } or next;
-            next unless ref $r eq 'HASH';
-            next unless ( $r->{t} // 0 ) >= $cutoff;
-            next if ( $r->{ch} // 'page' ) ne 'page';    # operator traffic out
-
-            my $path = $r->{p} // '';
-            my $st   = ( $r->{s} // 0 ) + 0;
-            my $ua   = $r->{ua} // '';
-            my $v    = $r->{v}  // '';
-
-            my $class = classify( $path, $ua, $extra_ai, $extra_noise, $st );
-            $cls_hits{$class}++;
-            $cls_vis{$class}{$v} = 1 if length $v;
-
-            # Headline = the genuine human audience only (as the server path).
-            next unless $class eq 'human';
-
-            $hits++;
-            $bytes += ( $r->{b} // 0 ) + 0;
-            $vis{$v} = 1 if length $v;
-            $status{$st}++;
-            my @d = gmtime( $r->{t} );
-            $byday{ sprintf '%04d-%02d-%02d', $d[5] + 1900, $d[4] + 1, $d[3] }++;
-            # SM329: assets counted apart from pages, and excluded from both
-            # top_pages and pageviews. Still recorded, still classified.
-            my $is_asset = _is_asset($path);
-            $assets++ if $is_asset && $st < 400;
-            $pages{$path}++ if $st < 400
-                && !$is_asset
-                && $path !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
-
-            my $ref = $r->{r} // '';
-            if ( !length $ref || $ref eq '-' ) {
-                $ref_direct++;
-            }
-            elsif ( $ref =~ m{^\S+?://([^/\s]+)} ) {
-                ( my $rh = $1 ) =~ s/^www\.//i;
-                if ( length $site_host
-                    && ( lc $rh eq lc $site_host || $rh =~ /\Q$site_host\E$/i ) )
-                {
-                    $ref_internal++;    # self-referrer (on-site navigation)
-                }
-                else { $ref_ext{$ref}++ unless _ref_is_spam($rh) } # SM192: drop referrer-spam
-            }
+    for my $day (@in_window) {
+        my $b = $days->{$day};
+        $cls_hits{$_} += $b->{cls}{$_} for keys %{ $b->{cls} || {} };
+        for my $c ( keys %{ $b->{cls_ips} || {} } ) {
+            $cls_vis{$c}{$_} = 1 for keys %{ $b->{cls_ips}{$c} };
         }
-        close $fh;
+        $vis{$_} = 1 for keys %{ $b->{ips} || {} };
+        $hits         += ( $b->{hits}         // 0 );
+        $bytes        += ( $b->{bytes}        // 0 );
+        $assets       += ( $b->{asset_hits}   // 0 );
+        $ref_internal += ( $b->{ref_internal} // 0 );
+        $ref_direct   += ( $b->{ref_direct}   // 0 );
+        $pages{$_}    += $b->{pages}{$_}   for keys %{ $b->{pages}   || {} };
+        $ref_ext{$_}  += $b->{ref_ext}{$_} for keys %{ $b->{ref_ext} || {} };
+        $status{$_}   += $b->{status}{$_}  for keys %{ $b->{status}  || {} };
+        $byday{$day} = ( $b->{hits} // 0 );
     }
 
     my $top = sub {
@@ -670,30 +672,28 @@ FILE: for my $f (@files) {
         @k = @k[ 0 .. ( $top_n - 1 ) ] if @k > $top_n;
         return [ map { { key => $_, count => $h->{$_} } } @k ];
     };
+
+    # SM330's canonical list, plus the one class that exists only here. Derived
+    # rather than written out, so a sixth class cannot be left off this view the
+    # way `scanner` was left off the index.
     my %classes;
-    for my $c (qw(human ai bot noise logged_in)) {
+    for my $c ( @CLASSES, 'logged_in' ) {
         $classes{$c} = {
-            hits     => $cls_hits{$c} // 0,
+            hits     => ( $cls_hits{$c} // 0 ),
             visitors => scalar keys %{ $cls_vis{$c} || {} },
         };
     }
 
     return {
-        ok             => 1,
-        source         => 'first-party',
-        window_days    => $window,
-        scanned_lines  => $scanned,
-        capped         => ( $scanned > $CAP ? JSON::PP::true : JSON::PP::false ),
-        anonymised     => JSON::PP::true,         # always, at write time
-        log_configured => JSON::PP::true,
-        errors         => _error_surface($cfg),
-        classes        => \%classes,
-        hits           => $hits,                  # human only
-            # SM329: assets counted apart, so the exclusion from top_pages and
-            # pageviews is auditable rather than silent - and so the
-            # browser-versus-bot heuristic has a number without re-reading events.
-        asset_hits      => $assets,
-        unique_visitors => scalar keys %vis,    # distinct daily visitor keys
+        ok              => 1,
+        window_days     => $window,
+        anonymised      => JSON::PP::true,
+        log_configured  => JSON::PP::true,
+        errors          => _error_surface($cfg),
+        classes         => \%classes,
+        hits            => $hits,                  # human only, as before
+        asset_hits      => $assets,                # SM329
+        unique_visitors => scalar keys %vis,
         bytes           => $bytes,
         top_pages       => $top->( \%pages ),
         referrers       => {
@@ -701,140 +701,41 @@ FILE: for my $f (@files) {
             internal => $ref_internal,
             direct   => $ref_direct,
         },
-        status  => { map { ( $_  => $status{$_} ) } keys %status },
+        status  => {%status},
         per_day => [ map { { day => $_, count => $byday{$_} } } sort keys %byday ],
     };
 }
 
+# SM335: the server-log window reader, now the same projection.
+#
+# The first-party reader above lost its own counting implementation for the
+# reasons written there. This is the fallback path - a site with no first-party
+# logs, reading the web server's - and leaving it counting separately would have
+# meant the page showed `scanner` on some sites and not others, which is worse
+# than showing it nowhere.
 sub scan_stats {
     my $cfg = read_conf();
 
-    # SM140: first-party data wins - zero-setup, complete for page views.
-    # The web-server log survives as the fallback (and future enrichment).
+    # SM140: first-party data wins. The server log is the fallback.
     my @fp = first_party_files();
     return scan_first_party( $cfg, @fp ) if @fp;
 
-    my $log = find_log($cfg);
-    return { ok => 0, needs_config => JSON::PP::true,
-        error => 'No access log found for this site. The log path is auto-detected, '
-            . 'or set by the server owner at install time (LAZYSITE_ACCESS_LOG); '
-            . 'a site manager cannot configure it. Ask the server owner to set it up.' }
-        unless length $log;
-    return { ok => 0, needs_config => JSON::PP::true,
-        error => 'An access log exists for this site but is not readable by the '
-            . 'web-server user. Ask the server owner to grant read access; they '
-            . 'can see the detected path with '
-            . '"plugins/stats.pl --resolve-log --docroot <docroot>".' }
-        unless -r $log;
+    my $window = ( $cfg->{window_days} || 30 ) + 0;
+    $window = 30 if $window < 1;
 
-    my $window = ( $cfg->{window_days} || 30 ) + 0; $window = 30 if $window < 1;
-    my $top_n  = ( $cfg->{top_n}       || 15 ) + 0; $top_n  = 15 if $top_n < 1;
-    my $anon = !( defined $cfg->{anonymise_ip} && lc( $cfg->{anonymise_ip} ) eq 'false' );
-    my $extra_ai    = _split_csv( $cfg->{ai_user_agents} );
-    my $extra_noise = _split_csv( $cfg->{noise_paths} );
-    my $site_host   = _site_domain();
-    my $cutoff      = time() - $window * 86400;
-
-    my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
-    my %mon    = map { $months[$_] => $_ } 0 .. 11;
-
-    open my $fh, '<', $log or return { ok => 0, error => "Cannot open the access log: $!" };
-    my ( %cls_hits, %cls_ips, %pages, %ref_ext, %status, %byday );
-    my ( $hits, $bytes, $assets, %ips ) = ( 0, 0, 0 );
-    my ( $ref_internal, $ref_direct ) = ( 0, 0 );
-    my $scanned = 0;
-    my $CAP     = 10_000_000;    # runaway guard; aggregates use bounded memory
-    while ( my $line = <$fh> ) {
-        last if ++$scanned > $CAP;
-        next unless $line =~ m{
-            ^(\S+)\ \S+\ \S+          # remote host (1), ident, authuser
-            \ \[([^\]]+)\]            # [date] (2)
-            \ "\S+\ (\S+)\ [^"]*"     # "method  path(3)  protocol"
-            \ (\d{3})\ (\S+)          # status (4), bytes (5)
-            \ "([^"]*)"\ "([^"]*)"    # "referer(6)"  "user-agent(7)"
-        }x;
-        my ( $ip, $date, $path, $st, $bs, $ref, $ua ) = ( $1, $2, $3, $4, $5, $6, $7 );
-        next unless $date =~ m{^(\d+)/(\w+)/(\d+):(\d+):(\d+):(\d+)} && exists $mon{$2};
-        my ( $d, $mo, $y, $H, $Mi, $S ) = ( $1, $2, $3, $4, $5, $6 );
-        my $epoch = eval { POSIX::mktime( $S, $Mi, $H, $d, $mon{$mo}, $y - 1900 ) };
-        next unless defined $epoch && $epoch >= $cutoff;
-
-        my $class = classify( $path, $ua, $extra_ai, $extra_noise, $st );
-        ( my $ipk = $ip ) =~ s/\.\d+$/.0/ if $anon && $ip =~ /\./;  # zero last IPv4 octet
-        my $ipkey = $anon ? $ipk : $ip;
-
-        $cls_hits{$class}++;
-        $cls_ips{$class}{$ipkey} = 1;
-
-        # The headline (totals, pages, trend, referrers) is the genuine human
-        # audience only; the other classes are reported separately.
-        next unless $class eq 'human';
-
-        $hits++;
-        $bytes += ( $bs =~ /^\d+$/ ? $bs : 0 );
-        $ips{$ipkey} = 1;
-        $status{$st}++;
-        $byday{ sprintf '%04d-%02d-%02d', $y, $mon{$mo} + 1, $d }++;
-        # SM329: as the first-party path above - one predicate, both readers.
-        my $is_asset = _is_asset($path);
-        $assets++ if $is_asset && $st < 400;
-        $pages{$path}++ if $st < 400
-            && !$is_asset
-            && $path !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
-
-        if ( !length $ref || $ref eq '-' ) {
-            $ref_direct++;
-        }
-        elsif ( $ref =~ m{^\S+?://([^/\s]+)} ) {
-            ( my $rh = $1 ) =~ s/^www\.//i;
-            if ( length $site_host && ( lc $rh eq lc $site_host || $rh =~ /\Q$site_host\E$/i ) ) {
-                $ref_internal++;    # self-referrer (on-site navigation)
-            }
-            else { $ref_ext{$ref}++ unless _ref_is_spam($rh) } # SM192: drop referrer-spam
-        }
+    my $cache    = _load_export_cache() || {};
+    my $ingested = _export_ingest_server_log( $cfg, $cache );
+    unless ( ref $ingested eq 'HASH' && $ingested->{ok_to_assemble} ) {
+        # The ingest's own refusal - no log configured, or unreadable - passed
+        # through unchanged, so the page still explains itself.
+        return $ingested;
     }
-    close $fh;
+    _persist_durable( $cache, $cfg );
+    _save_export_cache($cache);
 
-    my $errors = _error_surface($cfg);
-
-    my $top = sub {
-        my ($h) = @_;
-        my @k = sort { $h->{$b} <=> $h->{$a} || $a cmp $b } keys %$h;
-        @k = @k[ 0 .. ( $top_n - 1 ) ] if @k > $top_n;
-        return [ map { { key => $_, count => $h->{$_} } } @k ];
-    };
-
-    my %classes;
-    for my $c (qw(human ai bot noise logged_in)) {
-        $classes{$c} = {
-            hits     => $cls_hits{$c} // 0,
-            visitors => scalar keys %{ $cls_ips{$c} || {} },
-        };
-    }
-
-    return {
-        ok              => 1,
-        source          => 'server-log',
-        window_days     => $window,
-        scanned_lines   => $scanned,
-        capped          => ( $scanned > $CAP ? JSON::PP::true : JSON::PP::false ),
-        anonymised      => ( $anon           ? JSON::PP::true : JSON::PP::false ),
-        log_configured  => JSON::PP::true,      # never the disk path
-        errors          => $errors,
-        classes         => \%classes,
-        hits            => $hits,               # human only
-        asset_hits      => $assets,             # SM329, as the first-party path
-        unique_visitors => scalar keys %ips,    # human only
-        bytes           => $bytes,
-        top_pages       => $top->( \%pages ),
-        referrers       => {
-            external => $top->( \%ref_ext ),
-            internal => $ref_internal,
-            direct   => $ref_direct,
-        },
-        status  => { map { ( $_  => $status{$_} ) } keys %status },
-        per_day => [ map { { day => $_, count => $byday{$_} } } sort keys %byday ],
-    };
+    my $out = _page_view_from_buckets( $cfg, $cache, $window );
+    $out->{source} = 'server-log';
+    return $out;
 }
 
 # --- AI export: cached, incremental visitor-log analysis -------------------
@@ -866,8 +767,12 @@ sub _parse_line {
         day    => sprintf( '%04d-%02d-%02d', $y, $MON_X{$mo} + 1, $d ),
         path   => $path,
         status => $st + 0,
-        ref    => $ref,
-        ua     => $ua,
+        # SM335: bytes were captured by the pattern and thrown away. The window
+        # reader counted them itself from its own parse; now that both readers
+        # share one tally, the record has to carry what the tally totals.
+        bytes => ( $bs =~ /^\d+$/ ? $bs + 0 : 0 ),
+        ref   => $ref,
+        ua    => $ua,
     };
 }
 
@@ -1262,6 +1167,12 @@ sub _new_day_bucket {
         asset_hits       => 0,    # SM329
         scanner_inferred => 0,    # SM332
 
+        # SM335: the manager Stats page reports these two and the durable
+        # rollup did not, which is one of the reasons the page carried its own
+        # counting implementation. Tracked here so there is one counter, not two.
+        bytes   => 0,
+        cls_ips => {},
+
         # SM338: which counting basis this day's numbers were built under. A
         # SET, not a scalar, because the day an instance upgrades genuinely has
         # events tallied under both - and a day that is half one basis and half
@@ -1435,6 +1346,13 @@ sub _tally_batch {
         my $b   = $cache->{days}{ $r->{day} } ||= _new_day_bucket();
         $b->{basis}{$COUNTING_BASIS} = 1;    # SM338
         $b->{ips}{$tok}              = 1 if length($tok) && keys %{ $b->{ips} } < $IP_CAP;
+
+        # SM335: bytes and per-class visitors, for the page that used to count
+        # them itself. Capped exactly as the visitor set above is, so a scanner
+        # arriving under many tokens cannot grow the cache without bound.
+        $b->{bytes} += ( $r->{bytes} // 0 );
+        $b->{cls_ips}{$cls}{$tok} = 1
+            if length($tok) && keys %{ $b->{cls_ips}{$cls} || {} } < $IP_CAP;
 
         _apply_event( $b, $r, $cls, 1, $site_host,
             ( ( $cache->{scanner_by}{$tok} // '' ) eq 'behaviour' ), $NF_CAP );
@@ -1614,6 +1532,16 @@ sub export_stats {
         return _export_assemble( $cfg, $cache, $window, 'first-party' );
     }
 
+    my $ingested = _export_ingest_server_log( $cfg, $cache );
+    return $ingested unless ref $ingested eq 'HASH' && $ingested->{ok_to_assemble};
+    return _export_assemble( $cfg, $cache, $window, 'server-log' );
+}
+
+# SM335: the server-log ingest, lifted out of export_stats so the manager Stats
+# page can drive the same tally the export does instead of counting the log a
+# second time. Returns { ok_to_assemble => 1 } or a caller-facing error hash.
+sub _export_ingest_server_log {
+    my ( $cfg, $cache ) = @_;
     my $log = find_log($cfg);
     return {
         ok           => 0,
@@ -1628,7 +1556,11 @@ sub export_stats {
     # offset, means the offset is untrustworthy - reprocess from the start. (A v2
     # first-party cache lands here too and resets to the server-log shape.)
     if ( ( $cache->{inode} // -1 ) != $inode || ( $cache->{offset} // 0 ) > $size ) {
-        $cache = { v => 1, inode => $inode, offset => 0, days => {}, events => [] };
+        # SM335: %$cache, not $cache. This was a lexical inside export_stats and
+        # reassigning it was fine; as a PARAMETER, reassigning rebinds the local
+        # name and the caller's hash never receives anything - the whole scan
+        # came back zeroes with no error. Clear the caller's hash in place.
+        %{$cache} = ( v => 1, inode => $inode, offset => 0, days => {}, events => [] );
     }
     $cache->{v}     = 1;
     $cache->{inode} = $inode;
@@ -1653,6 +1585,7 @@ sub export_stats {
                 path   => $p->{path},
                 status => $p->{status},
                 class => classify( $p->{path}, $p->{ua}, $extra_ai, $extra_noise, $p->{status} ),
+                bytes => ( ( $p->{bytes} // 0 ) + 0 ),             # SM335
                 token => _visitor_token( _anon_ip( $p->{ip} ) ),
                 ref   => $p->{ref},
                 t     => $p->{epoch},
@@ -1663,130 +1596,9 @@ sub export_stats {
         _tally_batch( $cache, \@batch, $cfg );    # SM213: two-pass (scanner + 404 split)
     }
 
-    return _export_assemble( $cfg, $cache, $window, 'server-log' );
+    return { ok_to_assemble => 1 };
 }
 
-# SM140: incremental first-party ingestion into the same day-bucket cache the
-# server-log path uses. Day files are append-only, so a per-file byte offset
-# is all the incremental state needed; pruned files simply drop out.
-sub _export_ingest_first_party {
-    my ( $cfg, $cache, $files ) = @_;
-    if ( ( $cache->{v} // 0 ) != 2 || ref $cache->{files} ne 'HASH' ) {
-        %{$cache} = ( v => 2, files => {}, days => {}, events => [] );
-    }
-    $cache->{days}   ||= {};
-    $cache->{events} ||= [];
-
-    my $extra_ai    = _split_csv( $cfg->{ai_user_agents} );
-    my $extra_noise = _split_csv( $cfg->{noise_paths} );
-
-    my %live = map { (m{([^/]+)$})[0] => 1 } @{$files};
-    delete @{ $cache->{files} }{ grep { !$live{$_} } keys %{ $cache->{files} } };
-
-    my @batch;
-    for my $f ( @{$files} ) {
-        my ($base) = $f =~ m{([^/]+)$};
-        my $size   = ( -s $f )              // 0;
-        my $offset = $cache->{files}{$base} // 0;
-        $offset = 0 if $offset > $size;                  # rewritten/truncated: reprocess
-        next unless $size > $offset;
-        open my $fh, '<', $f or next;
-        seek $fh, $offset, 0;
-        my $pos = $offset;
-        $WORK{log_files_read}++;                         # SM342
-        $WORK{log_bytes_read} += ( $size - $offset );    # SM342
-        while ( my $line = <$fh> ) {
-            last unless $line =~ /\n\z/;    # incomplete final line: next time
-            $pos += length $line;
-            my $r = eval { JSON::PP::decode_json($line) } or next;
-            next unless ref $r eq 'HASH' && defined $r->{t};
-            next if ( $r->{ch} // 'page' ) ne 'page';    # operator traffic out
-            my $st = ( $r->{s} // 0 ) + 0;
-            my @dt = gmtime( $r->{t} );
-            push @batch, {
-                day    => sprintf( '%04d-%02d-%02d', $dt[5] + 1900, $dt[4] + 1, $dt[3] ),
-                path   => ( $r->{p} // '' ),
-                status => $st,
-                class => classify( ( $r->{p} // '' ), ( $r->{ua} // '' ), $extra_ai, $extra_noise, $st ),
-                token => ( $r->{v} // '' ),    # already an anonymised daily token
-                    # SM223: this request was REFUSED by an access decision. The
-                    # status alone cannot say so - the anonymous refusal is a 302 to
-                    # the login page, identical in the log to any other redirect.
-                auth_refused => ( $r->{ar} ? 1 : 0 ),
-                ref          => ( $r->{r} // '' ),
-                t            => $r->{t} + 0,
-            };
-        }
-        close $fh;
-        $cache->{files}{$base} = $pos;
-    }
-    _tally_batch( $cache, \@batch, $cfg );    # SM213: two-pass (scanner + 404 split)
-    return;
-}
-
-# SM216-2: fold the form-handler's append-only outcome log into the SAME
-# day-buckets, so the durable rollups (and the report) show blocked-vs-stored
-# per form. The form handler appends one JSON line per submission to
-# lazysite/stats/form-events/<day>.jsonl {day,form,outcome[,reason]}; we track a
-# per-file byte offset in the cache exactly as the first-party ingester does.
-# The offset lives in the cache, so a cache reset (rotation / shape change) drops
-# it alongside {days} and the events re-fold from zero into the rebuilt buckets -
-# the aggregate stays idempotent. Counts only; no submission content is read.
-sub _ingest_form_events {
-    my ( $cache, $cfg ) = @_;
-    my $dir = _stats_dir() . '/form-events';
-    return unless -d $dir;
-    opendir my $dh, $dir or return;
-    my @files = sort grep { /^\d{4}-\d{2}-\d{2}\.jsonl\z/ } readdir $dh;
-    closedir $dh;
-
-    $cache->{form_files} ||= {};
-    my %live = map { $_ => 1 } @files;
-    delete @{ $cache->{form_files} }{ grep { !$live{$_} } keys %{ $cache->{form_files} } };
-
-    for my $base (@files) {
-        my $f      = "$dir/$base";
-        my $size   = ( -s $f )                   // 0;
-        my $offset = $cache->{form_files}{$base} // 0;
-        $offset = 0 if $offset > $size;    # rewritten/truncated: reprocess
-        next unless $size > $offset;
-        open my $fh, '<', $f or next;
-        seek $fh, $offset, 0;
-        my $pos = $offset;
-        while ( my $line = <$fh> ) {
-            last unless $line =~ /\n\z/;    # incomplete final line: next time
-            $pos += length $line;
-            my $r = eval { JSON::PP::decode_json($line) } or next;
-            next unless ref $r eq 'HASH';
-            my $day = $r->{day} // '';
-            next unless $day =~ /^\d{4}-\d{2}-\d{2}\z/;
-            my $form = $r->{form} // '';
-            $form =~ s/[^a-zA-Z0-9_-]//g;
-            next unless length $form;
-
-            # Create the day-bucket with the full shape _tally_batch uses, so a
-            # form-only day (blocks but no page traffic) is still safe for the
-            # window loop and rollups.
-            my $b = $cache->{days}{$day} ||= _new_day_bucket();
-            my $fb = $b->{forms}{$form} ||= { stored => 0, quarantined => 0, blocked => {} };
-            my $out = $r->{outcome} // '';
-            if ( $out eq 'blocked' ) {
-                my $reason = lc( $r->{reason} // 'other' );
-                $reason =~ s/[^a-z_]//g;
-                $reason ||= 'other';
-                $fb->{blocked}{$reason}++;
-            }
-            elsif ( $out eq 'quarantined' ) { $fb->{quarantined}++; }
-            elsif ( $out eq 'stored' )      { $fb->{stored}++; }
-        }
-        close $fh;
-        $cache->{form_files}{$base} = $pos;
-    }
-    return;
-}
-
-# Shared tail: cache retention + save, then assemble the window view from the
-# day-buckets. Identical for both ingestion sources.
 sub _export_assemble {
     my ( $cfg, $cache, $window, $source ) = @_;
     my $EVENT_CAP = 5000;    # matches both ingesters' event-stream cap
