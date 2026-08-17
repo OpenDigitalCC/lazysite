@@ -30,7 +30,7 @@ Shipped versus mentioned
 
 ## Unreleased
 
-- SM354 (PENDING) **seventeen changelog entries cited commits that no branch
+- SM354 (d7da8d4) **seventeen changelog entries cited commits that no branch
   contained, seven of which did not exist at all.** The convention makes the
   commit ref the thing that marks an item as built rather than merely written
   down, so the evidence for "this shipped" had evaporated in the place a reader
