@@ -6632,6 +6632,41 @@ sub _request_croot {
     return $DOCROOT;
 }
 
+# SM355: strip the canonical a 404 must not carry, and add the robots directive
+# it must. Applied to the served body AND written back to the cache file, which
+# the front end serves directly.
+#
+# Idempotent by construction - it removes a tag and adds one that is only added
+# when absent - so it runs on every 404 without accumulating anything.
+sub _sanitise_not_found {
+    my ($html) = @_;
+    return $html unless defined $html && length $html;
+
+    # A 404 has no canonical URL. Not "the requested path" either: that would
+    # assert a missing page is the canonical version of itself.
+    $html =~ s{\n?\s*<link\s+rel=["']canonical["'][^>]*>}{}gi;
+
+    unless ( $html =~ /<meta\s+name=["']robots["']/i ) {
+        $html =~ s{(<head[^>]*>)}{$1\n    <meta name="robots" content="noindex">}i;
+    }
+    return $html;
+}
+
+# Write only when the content actually differs. A 404 is the most-requested
+# response on a site under scan, and rewriting the file on every one of them
+# would turn a cache into a write amplifier.
+sub _rewrite_if_changed {
+    my ( $path, $content ) = @_;
+    my $current = eval { read_file($path) };
+    return if defined $current && $current eq $content;
+    my $tmp = "$path.$$";
+    open my $fh, '>:utf8', $tmp or return;
+    print {$fh} $content;
+    close $fh;
+    rename $tmp, $path or unlink $tmp;
+    return;
+}
+
 sub not_found {
     my ($uri) = @_;
     $ACCESS_REC{s} //= 404;    # SM140
@@ -6650,6 +6685,35 @@ sub not_found {
         my $page = is_fresh( $html_path, $md_path )
             ? read_file($html_path)
             : process_md( $md_path, $html_path );
+
+        # SM355: A MISSING PAGE HAS NO CANONICAL URL, and this one was claiming
+        # somebody else's.
+        #
+        # The rendered 404 is cached as a FILE, and the render injects a
+        # canonical derived from the request being served at that moment
+        # (_inject_canonical reads REDIRECT_URL). So the FIRST request to any
+        # missing URL baked its own path into the file every later 404 is served
+        # from. Measured in the field: every 404 on the instrument declared
+        # `/feed.xml` as its canonical, because a request for /feed.xml happened
+        # to be the first one to miss.
+        #
+        # That is remotely influenceable. An anonymous visitor who is first to
+        # request a missing URL after a cache clear chooses what every 404 on
+        # the site canonicalises to. Same-origin, so it cannot point elsewhere -
+        # but every missing page then tells crawlers the real page is a URL a
+        # stranger picked.
+        #
+        # And the cached file lives in the SERVED tree, so the front end answers
+        # /404.html directly with 200 - an indexable soft 404 carrying that same
+        # canonical. Hence noindex: it is the only part of this that reaches a
+        # response the engine never sees.
+        $page = _sanitise_not_found($page);
+
+        # Keep the cache honest too. The file is what the front end serves at
+        # /404.html without ever consulting us, so cleaning only the response
+        # would fix the path we control and leave the one we do not.
+        _rewrite_if_changed( $html_path, $page )
+            if -f $html_path;
         # SM253: through output_page, so a 404 carries the same baseline security
         # headers as every other response. It used to print its own status line
         # and content type, which made the one response most likely to be reached

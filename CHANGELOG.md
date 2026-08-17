@@ -61,6 +61,23 @@ Naming the commit: AFTER it lands, never before
   are affected. The other half of SM345.
 
 - SM354 (274be4b) **seventeen changelog entries cited commits that no branch
+- SM355 (PENDING) **every 404 on a site declared somebody else's URL as its
+  canonical, and a stranger could choose which.** Measured on edge: every missing
+  URL emitted `canonical -> /feed.xml`, and `/feed.xml` itself 404s there - so
+  the page served for missing documents pointed crawlers at a missing document.
+  The rendered 404 is cached as a file, and the render injects a canonical taken
+  from `REDIRECT_URL`, so the FIRST request to any missing URL baked its own path
+  into the file every later 404 is served from. An anonymous visitor who is first
+  to miss after a cache clear therefore decides what every 404 on that site
+  canonicalises to - same-origin, so not a redirect, but every missing page then
+  names a URL a stranger picked. A 404 now carries no canonical at all, because a
+  missing page has none. The cache file is rewritten too, since the front end
+  answers `/404.html` directly with 200 and never consults the engine, and that
+  response carries `noindex` - the only instruction that reaches an indexable
+  soft 404 the engine never sees. Found by the partner agent's four-surface pass;
+  the mechanism is not the one it looked like from outside.
+
+- SM354 (d7da8d4) **seventeen changelog entries cited commits that no branch
   contained, seven of which did not exist at all.** The convention makes the
   commit ref the thing that marks an item as built rather than merely written
   down, so the evidence for "this shipped" had evaporated in the place a reader
