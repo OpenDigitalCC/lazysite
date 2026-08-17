@@ -18,7 +18,7 @@ webdav
 : The /dav publishing endpoint (files, themes, layouts). Also gates the per-file ACL actions on the control API (acl-get / acl-set / acl-remove): a publishing partner manages permissions on the content it owns.
 
 api
-: The token-authenticated control API (structured actions).
+: The token-authenticated control API (structured actions). Call `action=actions-list` for the actions THIS account may use, with the parameters each takes and where each is read from - the control API's equivalent of MCP's tools/list (SM350). This map says what you may do; that says what you may call.
 
 mcp
 : The MCP connector (Claude.ai / ChatGPT / Code tools).

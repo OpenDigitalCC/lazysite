@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM359 (PENDING) **search_files says which limit stopped it, and can be paged
+- SM359 (624dbf2) **search_files says which limit stopped it, and can be paged
   past.** The filing asked for paging first; measuring what is actually being
   paged inverted that. This is a walk of a few hundred small text files - 181
   on lazysite.io, 442 on dito.tech - against a 2,000-file budget and a
@@ -59,7 +59,7 @@ Naming the commit: AFTER it lands, never before
   reading every file - the cost the cap avoids - and offset paging's re-walk is
   milliseconds here, so a cursor would mean inventing a stable index the
   traversal does not have. Its weakness is stated in the schema instead.
-- SM358 (PENDING) **an audit finding that names something the operator can
+- SM358 (4289f71) **an audit finding that names something the operator can
   act on.** `hidden_by_script` reported a stylesheet that *defines* a
   script-revealed class, whether or not anything used one - so an instance
   where no page used it still carried an item that could not be cleared, since
@@ -72,7 +72,7 @@ Naming the commit: AFTER it lands, never before
   have missed the case it exists for. **Declined:** crediting a
   `prefers-reduced-motion` reset. It reaches only visitors who asked for
   reduced motion, and reading it as a neutraliser is what caused SM250.
-- SM353 (PENDING) **one answer per question, whichever channel asked.**
+- SM353 (3476550) **one answer per question, whichever channel asked.**
   `ok` is now a JSON boolean on both surfaces, coerced at the single point each
   one serialises through rather than at the ~130 places that set it - so no
   handler decides and none can drift. **This is a deliberate compatibility
@@ -88,7 +88,7 @@ Naming the commit: AFTER it lands, never before
   them in the auth wrapper. The helper-script contract in
   `starter/docs/forms-helpers.md` is deliberately untouched - that is what an
   operator's own script sends to lazysite, and the engine reads it for truth.
-- SM352 (PENDING) **the security header set, in one place, and honest about
+- SM352 (0a32147) **the security header set, in one place, and honest about
   what it leaves out.** Three headers were emitted and a field probe reported
   all three correct - on one of the engine's four response paths. Every
   stylesheet, script, SVG and image the processor served carried nosniff alone,
@@ -106,7 +106,7 @@ Naming the commit: AFTER it lands, never before
   inventory of the ten places the engine inlines `<script>` or `<style>` -
   which is what a report-only collector would have had to discover from live
   traffic, for a fact the source already stated. COOP waits for CSP.
-- SM350 (PENDING) **the control API publishes an action reference.** MCP has
+- SM350 (b246c2c) **the control API publishes an action reference.** MCP has
   `tools/list` with a schema per tool; the other enforced channel had no
   equivalent and no documentation page - a search for its action names across
   23 reference docs and 7 briefings returned one incidental mention.
@@ -121,7 +121,7 @@ Naming the commit: AFTER it lands, never before
   **extracted** from the 108-branch chain and `t/lint/58` re-extracts it on
   every run and fails on any difference. Replacing the chain remains its own
   work.
-- SM336 (PENDING) **items 6 and 7: device class and internal search terms** -
+- SM336 (9bfc52c) **items 6 and 7: device class and internal search terms** -
   the two the sessions release left open. Device is three counters from the
   user-agent both ingesters already had and both discarded, counted on page
   views only, with tablet tested before mobile because every Android tablet
@@ -137,10 +137,13 @@ Naming the commit: AFTER it lands, never before
   were separate entries in `top_pages` and every distinct search diluted the
   page it was searching from. Totals are unchanged, so this is not a
   counting-basis change; a site with a busy search box will simply see its real
-  pages rise.
+  pages rise. Both fields reach **both** window projections - the operator's
+  Stats page and the agent-facing export - because a setting that appears to do
+  nothing is the same defect class as a control that reports without acting,
+  approached from the other end.
 
 - SM335 (9b3bc1f) **one class vocabulary: the manager Stats page and the export
-- SM336 (PENDING) **a session has a boundary, and sequence is recorded.**
+- SM336 (dec9558) **a session has a boundary, and sequence is recorded.**
   Everything durable was a marginal count - nothing paired one dimension with
   another and nothing recorded order - so the question a site owner asks first,
   how people move through the site and where they give up, was answerable only
@@ -156,7 +159,7 @@ Naming the commit: AFTER it lands, never before
   SM332 and SM329 prerequisites rather than adjacent work. **Partial:** device
   class needs the user-agent threaded through both ingesters, and internal
   search terms need a privacy decision, a frequency floor and their own toggle.
-- SM347 / SM348 / SM351 / SM360 / SM361 (PENDING) **five surfaces that said
+- SM347 / SM348 / SM351 / SM360 / SM361 (8c13544) **five surfaces that said
   something not quite true**, from the partner agent's four-surface pass.
   **SM347**: `read_page` and `validate_page` rejected a bare path that four
   other tools accept, so create-then-read failed on a page serving 200 - one
@@ -175,7 +178,7 @@ Naming the commit: AFTER it lands, never before
   states the rule's boundary rather than leaving an absolute its own shipped
   example contradicts.
 
-- SM335 (PENDING) **one class vocabulary: the manager Stats page and the export
+- SM335 (9b3bc1f) **one class vocabulary: the manager Stats page and the export
   now count the same way.** The page carried its own counting implementation
   with a vocabulary of its own - human / logged_in / ai / bot / noise, and no
   `scanner`, because `scanner` is a visitor-level promotion only `_tally_batch`

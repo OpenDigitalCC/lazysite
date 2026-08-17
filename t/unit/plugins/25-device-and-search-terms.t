@@ -231,4 +231,55 @@ subtest 'a request with no q is not a search' => sub {
     ok( !exists $r->{search_terms}, 'a tracking parameter is not a search term' );
 };
 
+# --- and the window view, which is what the operator's page shows ------------
+sub window_view {
+    my ( $d, $log, $how ) = @_;
+    local $ENV{DOCUMENT_ROOT}       = $d;
+    local $ENV{LAZYSITE_ACCESS_LOG} = $log;
+    my $cmd
+        = $how eq 'page'
+        ? qq($^X \Q$PLUGIN\E --scan --docroot \Q$d\E 2>/dev/null)
+        : qq($^X \Q$PLUGIN\E --export --window 30 2>/dev/null);
+    return decode_json( qx($cmd) || '{}' );
+}
+
+subtest 'the Stats page sees them too' => sub {
+    # Found before the cut rather than after: the day rollup carried both and
+    # the WINDOW projection carried neither, so an operator who turned the
+    # search-terms switch on would have seen nothing happen and reasonably
+    # concluded it did not work. A setting that appears to do nothing is the
+    # same defect class as a control that reports without acting, approached
+    # from the other end.
+    my ( $d, $log ) = site(
+        "search_terms: on\n",
+        ( map { line( "10.0.0.$_", '/search-results?q=shoes', $UA{mobile} ) } 1 .. 4 ),
+        line( '10.0.1.1', '/about', $UA{desktop} ),
+    );
+    # BOTH projections, because an agent reading the export and an operator
+    # reading the page answering the same question differently is the whole of
+    # SM335 - and there are two assemblers here, so it is one edit away.
+    for my $how (qw(page export)) {
+        my $w = window_view( $d, $log, $how );
+        is_deeply( $w->{devices}, { mobile => 4, desktop => 1 },
+            "$how: devices are in the window view" )
+            or diag explain $w->{devices};
+        is_deeply( $w->{search_terms}, [ { key => 'shoes', count => 4 } ],
+            "$how: and so are the terms" )
+            or diag explain $w->{search_terms};
+    }
+};
+
+subtest 'and the window view stays quiet when the switch is off' => sub {
+    my ( $d, $log ) = site(
+        undef,
+        map { line( "10.0.0.$_", '/search-results?q=shoes', $UA{mobile} ) } 1 .. 4
+    );
+    for my $how (qw(page export)) {
+        my $w = window_view( $d, $log, $how );
+        ok( !exists $w->{search_terms}, "$how: absent, as in the day rollup" );
+        is_deeply( $w->{devices}, { mobile => 4 },
+            "$how: while devices are unconditional - no privacy question" );
+    }
+};
+
 done_testing();
