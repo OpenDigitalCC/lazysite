@@ -150,8 +150,11 @@ changes, but an operator who has raised it should know what they have
 lengthened. SM327's perf drift is attributed (one step above the noise floor,
 the rest accretion, and the 2x tolerance is why nothing caught it); SM335 (the
 Stats page and the export use different class vocabularies) is filed as a
-candidate, as are SM341 (a day or month payload cannot say when it was
-produced), SM339 (recompute the day rollups from the retained raw logs,
+candidate, as are SM342 (every benchmark figure this project holds was taken on
+a development host with a fast uncontended disk, while real sites are on
+contended shared storage and the operations that matter are I/O-bound - the
+third member of the family with SM327's loose tolerance and SM340's missing
+coverage), SM341 (a day or month payload cannot say when it was produced), SM339 (recompute the day rollups from the retained raw logs,
 so the series is continuous AND correct - deliberately not bundled here, because
 a recompute writes over the durable store and belongs in a release where it is
 the thing being tested) and SM337 (activating a layout that cannot render the
