@@ -30,7 +30,7 @@ Shipped versus mentioned
 
 ## Unreleased
 
-- SM344 (PENDING) a successful rollout reported failure and asked for a version
+- SM344 (f8871a3) a successful rollout reported failure and asked for a version
   bump. The 0.10.12 edge rollout installed and verified on every site that could
   accept it, and was independently confirmed serving from outside - then exited
   1 because the fleet-wide probe found 22 exposed sites on an OLDER line. The
