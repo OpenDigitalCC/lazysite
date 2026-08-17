@@ -28,6 +28,22 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
+## Unreleased
+
+- SM344 (PENDING) a successful rollout reported failure and asked for a version
+  bump. The 0.10.12 edge rollout installed and verified on every site that could
+  accept it, and was independently confirmed serving from outside - then exited
+  1 because the fleet-wide probe found 22 exposed sites on an OLDER line. The
+  deploy watcher read that as a failed deployment and printed `bump again to
+  retry`, which would burn a version number to re-run a deploy that had worked,
+  against a condition no deploy can address. `update-all` now separates the two
+  facts one bit was carrying: **1 = the rollout failed and a retry is
+  meaningful; 2 = the rollout succeeded and the fleet has findings that need a
+  human**. SM317's requirement is untouched - an exposure is still non-zero, so
+  a caller reading only `$?` cannot miss one; it can now tell which kind it has.
+  The watcher is the operator's own script; the corresponding change there is to
+  treat 2 as deployed-with-findings.
+
 ## 0.10.12 - EDGE: the numbers say what they mean (2026-08-16)
 
 A statistics release, out of a partner-agent review of a live instance's own

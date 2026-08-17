@@ -359,11 +359,39 @@ else
     echo "  PDFs and archives are public. Review: lazysite-hestia-list.sh"
 fi
 
-[ "${#FAILED[@]}" -gt 0 ] && exit 1
-[ "${#PROXY_FAILED[@]}" -gt 0 ] && exit 1
-# SM317: an exposure the outside-in probe found is a non-zero exit too. A fleet
-# caller that only looks at $? must see it; until now the only way to learn about
-# one was to read the log.
-[ "${REPAIR_RC:-0}" != 0 ] && exit 1
-[ "${ACL_PROBE_RC:-0}" != 0 ] && exit 1
+# SM344: TWO different facts, and they had one bit between them.
+#
+#   1 = THIS ROLLOUT FAILED. A site's install or proxy move did not work. A
+#       retry is meaningful, because the thing that failed is the thing being
+#       retried.
+#   2 = the rollout SUCCEEDED and the FLEET HAS FINDINGS. Sites need repair, or
+#       the probe found content served that the engine refuses. Those are
+#       conditions the sites were in before this ran and are in afterwards; a
+#       retry changes nothing and a human is needed.
+#
+# The 0.10.12 rollout is why. Every site that could take it installed and
+# verified, the release was independently confirmed working from outside, and
+# the run exited 1 because 22 sites on an OLDER line were exposed. The watcher
+# read that as a failed deployment and told the operator to bump the version and
+# retry - burning a version number to re-run a deploy that had worked, against a
+# condition it could not address.
+#
+# SM317's requirement is kept exactly: an exposure is still non-zero, so a caller
+# reading only $? cannot miss it. What changes is that the caller can now tell
+# which kind of non-zero it has.
+if [ "${#FAILED[@]}" -gt 0 ] || [ "${#PROXY_FAILED[@]}" -gt 0 ]; then
+    echo
+    echo "ROLLOUT FAILED: ${#FAILED[@]} site(s) failed to install, ${#PROXY_FAILED[@]} proxy move(s) failed."
+    echo "  A retry is meaningful - the operation that failed is the one being retried."
+    exit 1
+fi
+
+if [ "${REPAIR_RC:-0}" != 0 ] || [ "${ACL_PROBE_RC:-0}" != 0 ]; then
+    echo
+    echo "ROLLOUT SUCCEEDED, FLEET HAS FINDINGS: every site that accepted this"
+    echo "  release installed and verified. The findings above are conditions the"
+    echo "  fleet was already in - re-running this deploy will not change them, and"
+    echo "  neither will cutting another version. They need a human."
+    exit 2
+fi
 exit 0
