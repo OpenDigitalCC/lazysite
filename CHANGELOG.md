@@ -79,6 +79,34 @@ Naming the commit: AFTER it lands, never before
   response carries `noindex` - the only instruction that reaches an indexable
   soft 404 the engine never sees. Found by the partner agent's four-surface pass;
   the mechanism is not the one it looked like from outside.
+- SM357 (PENDING) **a pre-commit hook refusing commits on `main`.** The contract
+  already said work happens on a `claude/<feature>` branch that vcs-review
+  lands; roughly thirty commits went straight onto main in one session and the
+  first anyone saw of them was a release - including two defects discoverable
+  from a diff that cost a release cycle each instead. The rule was not missing;
+  the moment was, since nothing about committing to main asks anything of you.
+  Committed to `githooks/` rather than `.git/hooks` so the rule is reviewable
+  and survives a clone (`scripts/install-hooks.sh` sets `core.hooksPath`).
+  Deliberately bypassable - a guard that cannot be got past in an emergency is
+  uninstalled rather than obeyed - and it allows an in-progress rebase, merge,
+  cherry-pick or bisect, because vcs-review lands onto main BY rebase and a
+  guard that blocked the sanctioned route would be removed within the hour. Its
+  own test found a fail-open path in it: `rev-parse --abbrev-ref HEAD` fails on
+  a branch with no commits, so the branch resolved empty and the commit was
+  allowed.
+
+- SM354 (d7da8d4) **seventeen changelog entries cited commits that no branch
+  contained, seven of which did not exist at all.** The convention makes the
+  commit ref the thing that marks an item as built rather than merely written
+  down, so the evidence for "this shipped" had evaporated in the place a reader
+  is told to look. Structural rather than careless: vcs-review lands a branch by
+  REBASE, so a ref written before landing is stale afterwards, and the old object
+  survives in the reflog just long enough for a spot check to pass. SM325 reached
+  this conclusion for TAGS after 0.10.10 was cut twice and fixed that half; the
+  same rebase invalidated seven refs in the 0.10.10 entry and nobody looked. All
+  17 re-resolved by matching commit subjects; `t/lint/53` now fails on a ref that
+  cannot be followed. **The rule is to write the ref after the branch lands, not
+  before** - the same rule as the tag, for the same reason.
 
 - SM345 (1ab6098) **a release touched every site on the host, not the ones it
   was for.** The per-site install was channel-gated; every other phase was not.

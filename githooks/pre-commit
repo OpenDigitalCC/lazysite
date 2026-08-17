@@ -1,0 +1,90 @@
+#!/bin/bash
+#
+# SM357: refuse a commit on an integration branch.
+#
+# This project's contract is that work happens on a `claude/<feature>` branch
+# and vcs-review lands it onto main, so the release manager sees a change before
+# it is tagged rather than after. That contract existed and was not followed:
+# roughly thirty commits went straight onto main in one session, and the first
+# anyone saw of them was a release.
+#
+# The failure is not carelessness so much as absence of a moment. There is no
+# point at which committing to main asks anything of you - it is the same
+# command, and the branch you are on is a fact you have to go and look at. This
+# supplies the moment.
+#
+# WHAT THIS IS AND IS NOT. It is a reminder that fires at the instant the
+# mistake is made, and it is bypassable - `--no-verify` and a one-line env var
+# both defeat it, deliberately, because a hook that cannot be bypassed in an
+# emergency gets uninstalled instead. The control that actually holds is that
+# main only advances through review; this makes the wrong path loud rather than
+# impossible.
+#
+# It is COMMITTED rather than left in .git/hooks so the rule itself is
+# reviewable and survives a clone. Enable with:
+#
+#     git config core.hooksPath githooks
+#
+# which scripts/install-hooks.sh does.
+set -euo pipefail
+
+# A rebase, a merge, a cherry-pick or a bisect legitimately commits onto the
+# branch it is replaying. Refusing those would break vcs-review itself, which is
+# the very workflow this exists to protect.
+git_dir=$(git rev-parse --git-dir 2>/dev/null || echo '')
+if [ -n "$git_dir" ]; then
+    for marker in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD BISECT_LOG; do
+        [ -e "$git_dir/$marker" ] && exit 0
+    done
+fi
+
+# `symbolic-ref --short` rather than `rev-parse --abbrev-ref`. The latter
+# resolves HEAD as a revision, so it FAILS on a branch with no commits yet -
+# which is every fresh repository, and was a fail-open path in this guard: the
+# branch came back empty, matched nothing, and the commit was allowed. Found by
+# a test harness that used a fresh repo, which is the one case where a guard
+# against committing to main mattered least and the bug showed up most.
+#
+# symbolic-ref reads the ref HEAD points at without resolving it, so it answers
+# on an unborn branch. It exits non-zero on a detached HEAD, which is the case
+# below.
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo '')
+
+# Detached HEAD - a worktree at a tag, a bisect. There is no branch to protect,
+# and symbolic-ref reports it by failing rather than by saying "HEAD".
+[ -z "$branch" ] && exit 0
+
+case "$branch" in
+    main|master|integration)
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+
+if [ -n "${LAZYSITE_ALLOW_COMMIT_ON_MAIN:-}" ]; then
+    printf 'pre-commit: committing directly to %s (override set)\n' "$branch" >&2
+    exit 0
+fi
+
+suggested="claude/$(date +%Y%m%d)-describe-the-change"
+
+cat >&2 <<MSG
+
+  REFUSED: this commit is on '$branch'.
+
+  Work belongs on a claude/<feature> branch that vcs-review lands, so the
+  release manager reads the change before it is tagged rather than after.
+
+  Your work is not lost - nothing has been committed. Move it:
+
+      git switch -c $suggested
+      git commit ...
+
+  If this really must go on '$branch' - landing a review, an emergency fix -
+  say so explicitly:
+
+      LAZYSITE_ALLOW_COMMIT_ON_MAIN=1 git commit ...
+
+MSG
+exit 1
