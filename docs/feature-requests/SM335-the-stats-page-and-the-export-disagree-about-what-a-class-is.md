@@ -87,6 +87,48 @@ Leave it, and say so where it is read
   Recorded as an option because it is the status quo, and the status quo should
   have to argue for itself alongside the others.
 
+# What changed since this was filed, and what it costs to do properly
+
+Assessed 2026-08-17, after [[SM339]]/[[SM341]]/[[SM343]] landed. Two of the
+three options moved.
+
+**Option 2 became viable.** "Have the page read the durable day files" was
+filed when those files were frozen at the last call made during their day
+([[SM343]]) and carried no timestamp ([[SM341]]). Reading them would have shown
+the page truncated history. They are complete and dated now, so the option is
+sound where it was not.
+
+**Option 1 is larger than the filing implies.** "The readers already hold the
+batch, so it may be cheap" is wrong. `scan_first_party` and `scan_stats` STREAM
+- they classify and count line by line, and never hold the batch at all, which
+is deliberate on a 90-day log. Visitor-level promotion needs the probe tokens
+known before any counting, so it needs either a second pass over the files
+(doubling I/O, which [[SM342]]'s work counters would now correctly report as a
+regression) or the whole window buffered.
+
+The export already buffers exactly this data, so buffering is not unprecedented
+- and unifying both readers onto `_tally_batch` would be the real fix, removing
+the duplicated counting logic that [[SM329]] had to correct in three separate
+places. That is a ~240-line refactor of the manager Stats page's entire data
+contract.
+
+## The recommendation, and why it is not mine to take
+
+**Unify the readers onto `_tally_batch`** - option 1 done properly rather than
+bolted on. It gives the page `scanner` while keeping it a live read, it makes
+the two surfaces agree by construction rather than by two implementations being
+kept in step, and it deletes a duplication that has already produced defects.
+
+It is not a small change and it alters what an operator sees on a page they use.
+The trade is a page that reads a buffered window instead of streaming it, and
+the beneficiary is every future change to the counting rules, which currently
+have to be made twice and were once made only once.
+
+`logged_in` stays page-only either way, and that is correct: the export reports
+the audience and an operator's own sessions are not audience. The page being a
+superset of the export is coherent; the page being 71.7% wrong about who is
+visiting is not.
+
 # Verification
 
 - The Stats page and the export, run against the same log, agree about how much

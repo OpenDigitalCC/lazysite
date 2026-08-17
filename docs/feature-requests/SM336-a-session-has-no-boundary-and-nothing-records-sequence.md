@@ -89,6 +89,31 @@ has to be recorded paired or it is not recoverable.
 gone, and the brief's closing line is the argument: the analysis can be
 rewritten next year, and those fourteen days cannot.
 
+# Reassessed 2026-08-17, after the durable store was repaired
+
+This was filed against a store that could not have carried it. [[SM343]] meant a
+closed day was frozen at the last call made during it, [[SM341]] meant a payload
+could not say when it was made, and [[SM339]] meant nothing could repair what
+was already written. Building session metrics on that would have produced
+figures whose completeness depended on when somebody last looked at the
+statistics.
+
+All three are fixed, so the foundation is now sound and the filing's own
+priority order stands unchanged.
+
+**The prerequisite is still the prerequisite.** Nothing here can be computed
+correctly until a session has a boundary, and the thirty-minute inactivity rule
+is one timestamp comparison per event at rollup.
+
+**What it costs, stated honestly.** Items 1 to 5 all need per-session state held
+across a day's events, which the current tally does not keep - it aggregates as
+it reads. That is the same structural question [[SM335]] raises from the other
+end, and the two should be answered together: a reader that buffers a window can
+compute sessions, trails and depth; a reader that streams cannot.
+
+So this is not seven independent additions. It is one change to how a day is
+read, after which the seven are mostly counting.
+
 # Verification
 
 - A visitor's events are grouped into sessions by a thirty-minute inactivity
