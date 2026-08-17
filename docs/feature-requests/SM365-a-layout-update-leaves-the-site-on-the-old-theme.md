@@ -58,6 +58,20 @@ was wrong is that an **explicit update** was being treated as that case.
 So the branch stays and gains a condition. An update replaces the theme in use,
 after snapshotting it; anything else still steps aside.
 
+# Edge is correct by hand, not by upgrade
+
+The site agent has run the re-mirror remedy on edge: `lumen`'s live `main.css`
+now matches the release pack exactly and `favicon.svg` serves 200.
+
+**So edge's correctness is not evidence that this fix works.** The fix means the
+NEXT update refreshes the theme in use; it does not repair what a previous
+update left beside it. The field test is the next real layout upgrade, and until
+then the instance proves only that the manual remedy works.
+
+Recorded because an instance that looks right is the easiest thing in the world
+to read as a fix confirmed - which is the same mistake, in the same release, as
+reading `themes_installed` as a theme installed where it was needed.
+
 # Verification
 
 - A layout update replaces the theme the site is using, and the mirrored

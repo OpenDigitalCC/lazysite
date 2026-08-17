@@ -76,6 +76,35 @@ Not established
   refusal, and then a 401 - each a 40x that looks like a finding and is not.
   Standing a full DAV auth fixture up is the first task of doing this properly.
 
+**Confirmed from outside afterwards**, which pins it harder than the inside
+check needed to:
+
+```datatable
+columns: Response | Bytes | Title | Generator tag
+widths: 5.4cm | 2cm | X | 3.2cm
+bold: 1
+tone: medium
+---
+the DAV 404 | 2,898 | "Page Not Found" | absent
+the site's own 404 | 3,126 | "Page not found - EDGE" | present
+---
+```
+
+Two different documents, and the one a WebDAV client receives carries no
+lazysite branding at all. So **no engine change will stop that page appearing** -
+the remedy is split across two systems, and only the status code is ours to fix.
+
+That the status code IS ours is what survives, and 404 is still the wrong one:
+the entry exists and the server had just listed it.
+
+## The trap, recorded because this filing is about it
+
+Both of us accepted a status code at face value while investigating a status code
+that reports something other than what happened. The reporter read "I received
+HTML" as "the engine sent HTML"; I read three unrelated 40x refusals as answers
+to the question I was asking. Neither is careless - it is the specific failure
+this defect is made of, met while looking straight at it.
+
 # Where the residue is
 
 The reporter cleared their test material from edge except these markers: they
