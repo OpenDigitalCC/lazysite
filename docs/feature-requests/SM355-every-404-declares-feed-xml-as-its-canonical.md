@@ -50,19 +50,42 @@ the feed.
 on this instance. So the canonical points at a missing document, from a
 page served for missing documents.
 
-## Probable cause, stated as a question rather than a claim
+## The cause, established - and it is remotely influenceable
 
-The `generator` meta says 0.10.12, so this HTML was produced by a current
-engine, not left over from an old release - which makes "stale file"
-insufficient as an explanation on its own. The canonical looks like it was
-computed for whichever page was rendered immediately before, or for a
-registry that shares the render path.
+My first hypothesis was [[SM293]] step 3 and the registry cache. **That was
+wrong.** The maintainer reproduced the real mechanism locally and it has
+nothing to do with registries; `/feed.xml` was a coincidence of ordering.
 
-[[SM293]] step 3 moved the registries to generated-on-request with a cache
-and stopped writing them into the content root, and `lazysite-check` warns
-about leftovers from before that change. A 404 page carrying a *registry*
-URL as its canonical sits close enough to that boundary to be worth
-looking at first.
+`not_found()` caches the rendered 404 as a **file in the content root**,
+and the render injects a canonical derived from `REDIRECT_URL` - the
+request being served at that moment. So the **first** request to any
+missing URL after a cache clear bakes its own path into the file that
+every later 404 is served from.
+
+Confirmed from outside on edge 0.10.12, on the live instance:
+
+```datatable
+columns: Step | Canonical emitted on an unrelated missing URL
+widths: 7.4cm | X
+bold: 1
+tone: medium
+---
+Before | `https://edge.explore.lazysite.io/feed.xml`
+`invalidate_cache {"path":"/404.html"}` | -
+First missing-URL request: `/zz-CANARY-CHOSEN-BY-A-STRANGER` | -
+Then request `/zz-completely-unrelated-page` | `https://edge.explore.lazysite.io/zz-CANARY-CHOSEN-BY-A-STRANGER`
+```
+
+**An anonymous visitor who is first to request a missing URL after a cache
+clear chooses what every 404 on that site canonicalises to.** It is
+same-origin, so this is neither an open redirect nor an injection - but
+every missing page on the site then tells search engines that the real
+page is a URL a stranger picked.
+
+That also explains the HTTP 200 on `/404.html`: the cache lives in the
+**served tree**, so the front end answers it directly with no engine
+involvement. It is the half the engine cannot fix by cleaning its own
+response.
 
 ## The fix
 
@@ -88,18 +111,47 @@ The leftover
 
 ## Verification
 
-- A request for a missing URL returns 404 and emits no `rel="canonical"`.
-- The not-found response carries `noindex`.
+- A request for a missing URL returns 404 and emits no `rel="canonical"` -
+  **not the requested path either**, since that would assert that a missing
+  page is the canonical version of itself.
+- The cached file in the content root is rewritten when it differs, so the
+  copy the front end serves directly is clean too. Cleaning only the
+  engine's response leaves the served artefact wrong.
+- The not-found response carries `noindex` - the only instruction that
+  reaches a response the engine never sees.
+- Two directions pinned so the fix cannot become worse than the bug: a
+  **real** page still gets its per-host canonical ([[SM151]]) and is still
+  not marked `noindex`. Stripping either would ship a large SEO regression
+  as a fix.
+- A 404 is still a 404 - status, content type and body - because the
+  sanitiser rewrites the body.
 - `/404.html` either 404s or is not served.
-- A fixture asserts the canonical is absent on a not-found render, driven
-  through the engine rather than by reading the template.
-- `audit_site` flags a not-found page that emits a canonical.
+- `audit_site` flags a not-found page that emits a canonical. It currently
+  reports the file as stale HTML and says nothing about the canonical, so
+  the tool that found it does not report the thing that matters about it.
+
+## Note on how this was found
+
+Reported from outside as *"the stale `/404.html` carries a wrong
+canonical"* - the visible half. Two corrections got from there to the
+mechanism, and both are worth recording.
+
+First, "stale" was wrong: the `generator` meta reads 0.10.12, so a current
+engine produced it, which rules out an old artefact and leaves only the
+explanation that something is generating it now. Second, my named cause
+was wrong, and it was written as a question rather than a claim - which is
+why it was checked instead of believed.
+
+The general form is the one [[SM354]] records: fixing the half you can see
+is how the other half survives. The visible half was one stale page; the
+invisible half was that every 404 on the site is affected and a visitor
+picks the target.
 
 ## Related
 
-[[SM293]] (registries generated on request, and the docroot leftovers
-`lazysite-check` warns about), [[SM248]] (a registry serving the wrong
-domain's content - the precedent for a generated artefact pointing
-somewhere it should not), [[SM300]] (canonical and meta handling in the
-render path), and
+[[SM354]] (commit refs going stale in silence beside the tags that
+visibly broke - the same general form), [[SM151]] (per-host canonical,
+which the fix must not damage), [[SM300]] (canonical and meta handling in
+the render path), [[SM248]] (a generated artefact pointing at the wrong
+place), and
 `inbox/four-surface-validation-0.10.12-2026-08-17.md`.
