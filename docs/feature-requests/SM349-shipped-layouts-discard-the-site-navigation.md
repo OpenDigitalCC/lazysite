@@ -98,7 +98,19 @@ Fail the gate, not the operator
   site-capable ones.
 - The lint fails on a layout template containing no `nav` reference.
 
-## Related
+## What it is worth, recounted
+
+`audit_site` on the instrument reports **23 orphan pages**. That number is
+largely this defect wearing a different costume: a layout that discards
+`nav.conf` makes almost everything unreachable by construction, so the pages are
+orphaned by the layout rather than by anything about the pages.
+
+Worth stating because it changes what a fix buys. "One template renders the
+site's navigation" and "23 pages become reachable" are the same change described
+at two very different scales, and the second is the one that decides whether it
+is worth doing.
+
+# Related
 
 [[SM337]] (the engine half - activation reports a success it cannot back),
 [[SM318]] (one nav implementation, both surfaces, per domain - the work
