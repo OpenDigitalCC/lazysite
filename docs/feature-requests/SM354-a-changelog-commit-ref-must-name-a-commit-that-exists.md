@@ -146,6 +146,27 @@ Recorded because the attribute is now doing real work and the next person to see
 a duplicated entry after a clean rebase should conclude the attribute is
 behaving exactly as documented, rather than that it is broken.
 
+# The union limitation bit, once, as documented
+
+Recorded because the note above predicted it and the prediction is worth
+confirming rather than leaving as theory.
+
+After several branches landed, `SM342` appeared TWICE in the Unreleased section
+- once naming its commit and once still `(PENDING)`. One branch had filled the
+ref after landing; another, cut before that, still carried the placeholder.
+`merge=union` kept both, exactly as it says it will, with no conflict and no
+marker.
+
+The remedy is the one written above: after rebasing a long-lived branch, check
+for a repeated `- SM<n>` within one section. That is what found it. `t/lint/53`
+did not, and could not - both spellings were legitimate, one just described a
+state that had moved on.
+
+Worth keeping as the shape of the residual risk: union removes the conflicts
+that are noise and leaves one that is silent. A silent duplicate in a changelog
+is cheap. The same mechanism on a file where both copies claim to be
+authoritative would not be.
+
 # Verification
 
 - Every commit ref in the changelog resolves.

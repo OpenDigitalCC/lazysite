@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM335 (PENDING) **one class vocabulary: the manager Stats page and the export
+- SM335 (9b3bc1f) **one class vocabulary: the manager Stats page and the export
   now count the same way.** The page carried its own counting implementation
   with a vocabulary of its own - human / logged_in / ai / bot / noise, and no
   `scanner`, because `scanner` is a visitor-level promotion only `_tally_batch`
@@ -62,7 +62,7 @@ Naming the commit: AFTER it lands, never before
   implementation is gone**, which is the durable win - two implementations of
   one count is how SM329 came to be fixed in two places and missed in a third.
 
-- SM362 (PENDING) filed: **the engine resolves two meta values that no real site
+- SM362 (3b11b8f) filed: **the engine resolves two meta values that no real site
   ever renders.** `page_meta_title` and `page_meta_desc` are resolved and frozen
   before a layout runs, and all 23 catalogue layouts overwrite both - so an
   author setting `meta_title` in front matter changes nothing on any site using
@@ -76,7 +76,7 @@ Naming the commit: AFTER it lands, never before
   unreachable.
 
 - SM342 (5cdef3b) **the perf gate measures work, not only the clock, and reports
-- SM337 (PENDING) **activating a layout now says what it bound.** Installing a
+- SM337 (695972b) **activating a layout now says what it bound.** Installing a
   layout, activating it, saving a navigation and fetching the page all returned
   success while the site's own menu was never rendered - 22 of 23 catalogue
   layouts carry hard-coded links belonging to the gallery they were built for,
@@ -89,21 +89,6 @@ Naming the commit: AFTER it lands, never before
   because activating a showcase is a legitimate choice and a tool that refuses
   legitimate choices gets worked around. Catalogue half is SM349; SM362 rides
   the same read.
-
-- SM342 (PENDING) **the perf gate measures work, not only the clock, and reports
-  rather than judges.** Every figure this project holds is a duration taken on a
-  development host with a fast uncontended disk; real sites are on contended
-  shared storage, where the same export costs ~630 ms here and ~3.0 s of engine
-  time in the field. So a change that adds reads or writes is nearly free here
-  and expensive there, and a timing gate cannot see it coming. The export now
-  counts its own work and the gate treats the two kinds differently: **timings
-  are reported with their ratio to the baseline and never fail a build**;
-  **counts are exact, host-independent, and an increase fails**. Both directions
-  are reported, so an optimisation can be confirmed rather than only a
-  regression caught - and this immediately surfaces the drift SM327 found and
-  the 2x tolerance hid (`verify_token_ms` at 1.26x, visible and not fatal). The
-  sharp counter is the warm read: a call with nothing new in the log must read
-  ZERO bytes, and a zero that becomes non-zero is SM340 returning.
 
 - SM343 / SM341 / SM339 (ffb4204) **the durable day store: made complete, dated,
   and repairable.** Three filings, one artefact, done together because each
