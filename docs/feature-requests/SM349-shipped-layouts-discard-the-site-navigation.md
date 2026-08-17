@@ -3,6 +3,7 @@ title: "SM349 - The shipped layouts discard the site navigation"
 subtitle: "`manage_nav` is granted, `read_nav` and `set_nav` work on both surfaces, the engine stores the result - and on edge exactly one of eleven configured destinations reaches the rendered page. Three of the links that do render are hard-coded anchors into a demo homepage."
 brand: plain
 status: candidate
+status-note: "HANDED OVER 2026-08-17. The engine half shipped with SM337 in 0.10.12 - activation reports `renders` for nav and warns when a layout has no `[% nav %]`, naming the consequence rather than the absence - and it does NOT refuse, so 22 layouts that discard their site's navigation remain a catalogue problem. The remaining half cannot be done from this repository: the engine tree ships no site layout, the only .tt in it being the manager's own UI. Briefed to lazysite-layouts/inbox/2026-08-17-three-engine-findings-that-land-here.md together with SM362 and the SM337 lint, which one fixture answers. Stays CANDIDATE here because nothing in this repository closes it."
 ---
 
 # SM349 - eleven configured, one rendered
