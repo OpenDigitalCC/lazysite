@@ -136,6 +136,26 @@ there is no "cheap now, impossible later" here of the kind that held 0.10.12 for
 [[SM338]]. It does raise this filing's priority from housekeeping to a
 correctness item, and it adds a requirement below.
 
+# Write the durable files canonically, or the test cannot be a diff
+
+Raised by the partner agent before this was built rather than after, and checked
+rather than assumed: `_write_json_atomic` uses `encode_json` with no `canonical`
+flag, so **key order is randomised per process**. Verified by writing the same
+content twice - the bytes differ.
+
+Today that costs nothing, because day files are write-once and an unrewritten
+file is byte-identical trivially. This filing changes that. A repaired file will
+differ in bytes from its predecessor even in fields it did not touch, so:
+
+- any acceptance test for this work must compare **semantically**, not with
+  `diff`, and
+- the same is true for anyone auditing the store afterwards.
+
+Switching those writes to canonical encoding is close to free and makes the
+durable artefacts diffable - which is what makes a repair auditable by anybody,
+including an operator with no tooling. It belongs in this change because this is
+the change that starts rewriting them.
+
 # Sketch
 
 A `--recount-days` verb on the stats plugin, refusing by default and requiring
@@ -154,7 +174,8 @@ after for each day without writing.
   reading as basis 1.
 - The verb refuses to run without an explicit range, and has a dry run that
   writes nothing.
-- Running it twice changes nothing the second time.
+- Running it twice changes nothing the second time - which requires canonical
+  encoding to be checkable by comparison at all.
 - The series after a full recompute has no step at the upgrade date, and the
   days it could not reach still say which basis they are.
 - **A cold cache does not silently change history.** After deleting the export

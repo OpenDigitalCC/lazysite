@@ -27,6 +27,48 @@ Actually in the log | 10 | -
 The file is short by everything that happened after the last call, and it is
 never corrected.
 
+# Proven from the field, and the observer was the cause
+
+The partner agent closed the arithmetic from outside the engine, using two
+captures of the same version taken fourteen hours apart:
+
+```datatable
+columns: | month-08 scanner | window 08-16 | DAY FILE 08-16
+widths: 4.4cm | 3.2cm | 2.8cm | X
+bold: 1
+tone: medium
+---
+baseline 19:23Z | 1358 | 183 | 183
+rehearsal 05:59Z | 2196 | 1021 | **183**
+| **+838** | **+838** | **+0**
+---
+```
+
+Every one of the 838 scanner hits the month gained landed on 2026-08-16, the
+window picked all 838 up, and the day file took none. The same number three
+times. That identifies *where* the missing traffic went rather than merely
+showing two views disagreeing, and it was obtained with no access to the engine
+at all.
+
+## The observer froze it
+
+Their baseline ran at **2026-08-16T19:23:36Z** - during 2026-08-16. That call
+refreshed the then-current day file to its 19:23 state; the day ran on to
+midnight; and by the next call the day was neither today nor missing. So that
+day's durable record is permanently frozen at 19:23 with 838 scanner hits
+absent, **and it is frozen because a field-validation agent looked at it**.
+
+Their earlier caveat was that captures are writes and might perturb what they
+measure. This is worse than perturbation: an observer permanently truncated a
+day's durable record, and the truncation is invisible in the artefact it
+damaged. 2026-08-10 shows the same signature - bot 52 against 59, noise 15
+against 19 - and 2026-07-18 does not, which fits, because nobody was calling
+that instance in July.
+
+**Reading the statistics damages the statistics.** That is the sharpest possible
+statement of this defect and it is not a hypothetical: it has already happened,
+on the instrument, to two days.
+
 # The mechanism
 
 `_persist_durable` writes a day file when the day is **today**, refreshing it on
@@ -104,6 +146,7 @@ which is most callers, has been reading correct figures.
 
 - A day with traffic after the last export call of that day has a day file
   matching the log, not matching the moment of that call.
+- Reading the statistics does not alter what a later reader will see.
 - A day file already written is corrected when the day closes, or the design
   states plainly why it is not.
 - A closed day's file and the index agree about that day.
