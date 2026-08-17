@@ -1,0 +1,15 @@
+# SM354: an append-only changelog should not conflict with itself.
+#
+# Every branch adds a bullet to the same `## Unreleased` block, so any two
+# branches in flight collide there - and the collision is spurious, because both
+# additions are wanted and neither touches the other's text. Four branches were
+# refused review in one afternoon for exactly this, and the naive resolution
+# ("keep both sides") silently DUPLICATED every historical entry whose commit
+# ref had been re-spelled by the landing rebase.
+#
+# `merge=union` keeps both sides of a conflicting hunk, which is the correct
+# semantics for a file that is only ever appended to in different places. It
+# does not make the file conflict-free in general - two branches editing the
+# SAME entry still conflict, and should - it removes the case where they are
+# merely both adding.
+CHANGELOG.md merge=union

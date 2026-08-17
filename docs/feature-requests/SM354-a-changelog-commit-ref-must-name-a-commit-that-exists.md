@@ -51,6 +51,27 @@ went unexamined because the tag was the thing that had visibly broken.
 Write the commit ref **after** the branch lands, not before. Same rule as the
 tag, same reason, and now the same kind of check.
 
+# It happened again immediately, to this filing
+
+SM354 landed on main by rebase. Its own changelog entry named `d7da8d4` - the
+pre-rebase SHA - and the landed commit is `274be4b`. So **main went red on
+`t/lint/53` the moment this shipped**, caught by the check this filing added,
+against the entry this filing wrote.
+
+That is the strongest available demonstration that the check works, and it
+settles the remedy. "Write the ref after the branch lands" is not advice that
+can be followed while writing a branch: the SHA does not exist yet, and any
+value put there is wrong by the time anybody reads it.
+
+So the convention is now explicit in the changelog's own preamble:
+
+**While the work is on a branch, write `(PENDING)`. Once it is on `main`,
+replace it with the landed SHA.**
+
+`t/lint/53` ignores `(PENDING)` - it only matches hex - so the placeholder is
+safe and a stale ref is not. The filling-in is a small deliberate step after
+landing, which is the only point at which the answer exists.
+
 # The fix
 
 All 17 re-resolved by matching commit subjects against main, and
@@ -68,6 +89,25 @@ and cannot resolve anything - rather than passing on having checked nothing,
 which would be this project's own recurring defect written into the test that
 guards against it.
 
+# The other half: the changelog conflicted with itself
+
+Found while rebasing four branches that had all been refused review on the same
+day. Each added a bullet to the same `## Unreleased` block, so each collided
+with the others - and the collision is **spurious**: both additions are wanted
+and neither touches the other's text.
+
+Worse, the obvious resolution is wrong. "Keep both sides" duplicates every
+historical entry whose commit ref was re-spelled by the landing rebase, because
+the branch carries the pre-review SHA and main carries the landed one. So the
+naive fix to a conflict caused by this filing's defect reintroduces this
+filing's defect, doubled.
+
+`.gitattributes` now marks `CHANGELOG.md merge=union`, which keeps both sides of
+a conflicting hunk. That is the correct semantics for a file only ever appended
+to in different places. It does not make the file conflict-free in general - two
+branches editing the SAME entry still conflict, and should - it removes the case
+where they are merely both adding.
+
 # Verification
 
 - Every commit ref in the changelog resolves.
@@ -75,6 +115,8 @@ guards against it.
 - The check fails on the changelog as shipped in 0.10.12 (17 bad refs) and
   passes on the corrected one.
 - Outside a git checkout the check skips with a reason rather than passing.
+- Two branches each adding an Unreleased bullet merge without a conflict, and
+  without duplicating anything already on main.
 
 # Related
 

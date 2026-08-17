@@ -28,9 +28,23 @@ Shipped versus mentioned
   check that everything a release claims to have shipped is marked accordingly
   in `docs/feature-requests/`, so the two cannot drift apart unnoticed.
 
+Naming the commit: AFTER it lands, never before
+: vcs-review lands a branch onto `main` **by rebase**, which gives every commit
+  a new SHA. So a ref written while the work is still on a branch is stale the
+  moment it lands - and the old object lingers in the reflog just long enough
+  for a spot check to pass ([[SM354]], where seventeen entries were wrong and
+  seven named commits that no longer existed).
+
+  While the work is on a branch, write `(PENDING)`. Once it is on `main`,
+  replace that with the landed SHA.
+  `t/lint/53-changelog-commit-refs-exist.t` ignores `(PENDING)` and fails on any
+  ref that no branch contains, so the placeholder is safe and a stale ref is
+  not. SM354's own entry went stale in its own landing, which is how this
+  paragraph came to be written.
+
 ## Unreleased
 
-- SM356 (PENDING) **the update channel failed open, and a typo granted more than
+- SM356 (992122d) **the update channel failed open, and a typo granted more than
   the word it misspelled.** `update_channel: stabel` did not fail, did not warn,
   and did not mean stable - it meant `all`, accept every build including edge,
   because an unrecognised value fell through to the most permissive rung in
@@ -46,7 +60,7 @@ Shipped versus mentioned
   intended direction; provisioning already writes `stable`, so only older sites
   are affected. The other half of SM345.
 
-- SM354 (d7da8d4) **seventeen changelog entries cited commits that no branch
+- SM354 (274be4b) **seventeen changelog entries cited commits that no branch
   contained, seven of which did not exist at all.** The convention makes the
   commit ref the thing that marks an item as built rather than merely written
   down, so the evidence for "this shipped" had evaporated in the place a reader
