@@ -45,6 +45,24 @@ Naming the commit: AFTER it lands, never before
 ## Unreleased
 
 - SM335 (9b3bc1f) **one class vocabulary: the manager Stats page and the export
+- SM336 (PENDING) **a session has a boundary, and sequence is recorded.**
+  Everything durable was a marginal count - nothing paired one dimension with
+  another and nothing recorded order - so the question a site owner asks first,
+  how people move through the site and where they give up, was answerable only
+  from a rolling sample and never for any period already past. A visit is now
+  bounded by thirty minutes of inactivity **or a day change**, and each day
+  carries `transitions`, `entry`, `exit`, `depth`, `dwell`, `landing` and
+  `not_found_from`. All aggregates: a hundred visitors going
+  `/ -> /products -> /contact` is one counter of 100 on each edge, never a
+  hundred stored journeys, and no visitor's path reaches the durable store.
+  Sessions close on **silence** as well as on a following event, or the last
+  visit of every day would never record its exit. Only human page views open one
+  - a scanner has no journey, and an image is not a step in one - which makes
+  SM332 and SM329 prerequisites rather than adjacent work. **Partial:** device
+  class needs the user-agent threaded through both ingesters, and internal
+  search terms need a privacy decision, a frequency floor and their own toggle.
+
+- SM335 (PENDING) **one class vocabulary: the manager Stats page and the export
   now count the same way.** The page carried its own counting implementation
   with a vocabulary of its own - human / logged_in / ai / bot / noise, and no
   `scanner`, because `scanner` is a visitor-level promotion only `_tally_batch`

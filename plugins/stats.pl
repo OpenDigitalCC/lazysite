@@ -103,6 +103,41 @@ our $COUNTING_BASIS = 2;
 # reaches anything that increments it - the trap t/lint/39 exists for.
 our %WORK = ( log_files_read => 0, log_bytes_read => 0, day_files_written => 0 );
 
+# SM336: A SESSION HAS A BOUNDARY.
+#
+# Visitor tokens are day-scoped, not session-scoped, so without one every
+# depth, trail and dwell figure is wrong in the same direction: too deep, too
+# long, too connected. The brief that raised this found a token showing /login
+# followed by /contact 47,458 seconds apart - thirteen hours, counted as a
+# two-page journey when it is two visits on the same network a day apart.
+#
+# Thirty minutes of inactivity is the conventional rule and is enough. It costs
+# one timestamp comparison per event.
+our $SESSION_GAP = 30 * 60;
+
+# The depth histogram's buckets. A single number saying "60% bounced" tells a
+# site owner nothing they can act on; a distribution that says most single-page
+# visits land on ONE page tells them what to fix.
+sub _depth_bucket {
+    my ($n) = @_;
+    return '1'   if $n <= 1;
+    return '2'   if $n == 2;
+    return '3'   if $n == 3;
+    return '4-6' if $n <= 6;
+    return '7+';
+}
+
+# Dwell, from timestamps that already exist. The LAST page of a session has no
+# successor and therefore no dwell - that is correct, not missing, and the
+# output says so rather than guessing at it.
+sub _dwell_bucket {
+    my ($s) = @_;
+    return 'under_10s' if $s < 10;
+    return '10_30s'    if $s < 30;
+    return '30_120s'   if $s < 120;
+    return 'over_120s';
+}
+
 # The bases that contributed to a bucket, oldest form first. An empty or absent
 # set means the bucket was built before this was recorded, which is basis 1 -
 # never "unknown", because a bucket that exists was definitely counted somehow
@@ -951,7 +986,22 @@ sub _day_rollup {
         },
         # SM223: turned away, as distinct from missing.
         auth_refused => _topn( $bucket->{auth_refused} || {}, $top_n ),
-        referrers    => {
+
+        # SM336: SEQUENCE. Aggregates only - a counter on an edge and a bucket
+        # in a histogram, never anybody's path. `dwell` deliberately has no
+        # entry for the last page of a session: it has no successor and
+        # therefore no dwell, which is correct rather than missing.
+        sessions => ( $bucket->{sessions} // 0 ),
+        journeys => {
+            transitions    => _topn( $bucket->{transitions} || {}, $top_n ),
+            entry          => _topn( $bucket->{entry}       || {}, $top_n ),
+            exit           => _topn( $bucket->{exit}        || {}, $top_n ),
+            depth          => { %{ $bucket->{depth} || {} } },
+            dwell          => { %{ $bucket->{dwell} || {} } },
+            landing        => _topn( $bucket->{landing} || {}, $top_n ),
+            not_found_from => _topn( $bucket->{nf_from} || {}, $top_n ),
+        },
+        referrers => {
             direct   => ( $bucket->{ref_direct}   // 0 ),
             internal => ( $bucket->{ref_internal} // 0 ),
             external => _topn( $bucket->{ref_ext} || {}, $top_n ),
@@ -1191,6 +1241,24 @@ sub _new_day_bucket {
         bytes   => 0,
         cls_ips => {},
 
+        # SM336: SEQUENCE. Everything above is a marginal count - nothing pairs
+        # one dimension with another and nothing records order, so the question
+        # a site owner asks first (how do people move through my site, and where
+        # do they give up) was answerable only from a rolling sample, and never
+        # for any period already past.
+        #
+        # All of these are aggregates. A hundred visitors going / -> /products
+        # -> /contact is one counter of 100 on each edge, NOT a hundred stored
+        # journeys: it reconstructs a flow without retaining anybody's path.
+        transitions => {},    # "from>to" -> count
+        entry       => {},    # first page of a session
+        exit        => {},    # last page - the most actionable field there is
+        depth       => {},    # 1 / 2 / 3 / 4-6 / 7+
+        dwell       => {},    # under_10s / 10_30s / 30_120s / over_120s
+        landing     => {},    # "referrer-host>landing-path"
+        nf_from     => {},    # "missing-path>internal-referrer"
+        sessions    => 0,
+
         # SM338: which counting basis this day's numbers were built under. A
         # SET, not a scalar, because the day an instance upgrades genuinely has
         # events tallied under both - and a day that is half one basis and half
@@ -1270,8 +1338,128 @@ sub _apply_event {
     return;
 }
 
+# SM336: fold a finished session into its day.
+#
+# One place, called from both the point where a gap starts a new session and the
+# sweep that closes sessions nothing has touched. Two callers writing this
+# separately is how the two would come to disagree about what a session IS.
+# SM336: close every visit that has gone quiet.
+#
+# A session's exit page is otherwise recorded only when that visitor comes BACK,
+# so the last visit of every day would be missing from `exit` and `depth` for
+# ever - the most actionable field silently excluding the most recent traffic.
+#
+# Thirty minutes of silence ends a visit whether or not anything else has
+# happened, so the boundary is measured against the clock and not against the
+# batch.
+sub _close_stale_sessions {
+    my ($cache) = @_;
+    return unless ref $cache->{sess} eq 'HASH';
+    my $stale = time() - $SESSION_GAP;
+    for my $tok ( keys %{ $cache->{sess} } ) {
+        _close_session( $cache, $tok, 500 )
+            if ( $cache->{sess}{$tok}{t} // 0 ) < $stale;
+    }
+    return;
+}
+
+# SM336: place one page view in a session, and record what that reveals.
+#
+# The session state is per token and lives in the export cache beside SM213's
+# scanner map - transient working state, salt-obsoleting, never written into a
+# durable day file. What reaches the day file is only ever an AGGREGATE: a
+# counter on an edge, a bucket in a histogram. No visitor's path is stored.
+sub _sessionise {
+    my ( $cache, $r, $tok, $b, $site_host, $cap ) = @_;
+    $cache->{sess} ||= {};
+    my $now  = $r->{t} // 0;
+    my $path = $r->{path};
+    my $s    = $cache->{sess}{$tok};
+
+    # A gap, or a day boundary, ends the visit. The day boundary matters
+    # independently: a session straddling midnight would otherwise fold its exit
+    # page into the wrong day, and the durable store is per-day.
+    if ( $s && ( $now - ( $s->{t} // 0 ) > $SESSION_GAP || $s->{day} ne $r->{day} ) ) {
+        _close_session( $cache, $tok, $cap );
+        $s = undef;
+    }
+
+    unless ($s) {
+        # A new visit. The referrer that STARTED it is the one worth pairing
+        # with the landing page; a referrer on a later page is on-site
+        # navigation and says nothing about where the visitor came from.
+        my $ref_host = '';
+        if ( length( $r->{ref} // '' ) && $r->{ref} ne '-' ) {
+            if ( my ($h) = ( $r->{ref} =~ m{^\S+?://([^/\s]+)} ) ) {
+                ( my $bare = $h ) =~ s/^www\.//i;
+                my $internal = length $site_host
+                    && ( lc $bare eq lc $site_host || $bare =~ /\Q$site_host\E$/i );
+                $ref_host = $bare if !$internal && !_ref_is_spam($bare);
+            }
+        }
+        $cache->{sess}{$tok} = {
+            day      => $r->{day},
+            t        => $now,
+            first    => $path,
+            last     => $path,
+            n        => 1,
+            ref_host => $ref_host,
+        };
+
+        # Bounded like every other per-token map here. A sweep arriving under
+        # many tokens must not grow the cache without limit; the set
+        # self-obsoletes on a salt roll in any case.
+        $cache->{sess} = {} if keys %{ $cache->{sess} } > 20_000;
+        return;
+    }
+
+    # A step within the visit. The transition is the trail question answered as
+    # an aggregate, and the dwell belongs to the page being LEFT.
+    if ( defined $s->{last} && $s->{last} ne $path ) {
+        $b->{transitions}{"$s->{last}>$path"}++
+            if keys %{ $b->{transitions} } < $cap;
+        $s->{n}++;
+    }
+    $b->{dwell}{ _dwell_bucket( $now - ( $s->{t} // $now ) ) }++;
+
+    $s->{last} = $path;
+    $s->{t}    = $now;
+    return;
+}
+
+sub _close_session {
+    my ( $cache, $tok, $cap ) = @_;
+    my $s = delete $cache->{sess}{$tok} or return;
+    my $b = $cache->{days}{ $s->{day} } or return;
+
+    $b->{sessions}++;
+    $b->{depth}{ _depth_bucket( $s->{n} ) }++;
+
+    # Entry and exit. The exit page is the one a content owner can act on: it
+    # names where the argument fails.
+    $b->{entry}{ $s->{first} }++ if defined $s->{first} && keys %{ $b->{entry} } < $cap;
+    $b->{exit}{ $s->{last} }++   if defined $s->{last}  && keys %{ $b->{exit} } < $cap;
+
+    # Where the session came from, paired with where it landed - the difference
+    # between "we get traffic from X" and "traffic from X arrives on the wrong
+    # page".
+    if ( defined $s->{ref_host} && length $s->{ref_host} && defined $s->{first} ) {
+        my $k = "$s->{ref_host}>$s->{first}";
+        $b->{landing}{$k}++ if keys %{ $b->{landing} } < $cap;
+    }
+    return;
+}
+
 sub _tally_batch {
     my ( $cache, $batch, $cfg ) = @_;
+
+    # SM336: the stale-session sweep runs even when there is nothing to ingest,
+    # and that is the whole point of putting it before the early return: a visit
+    # ends by SILENCE, so the run that has nothing new is exactly the one that
+    # should notice a session has finished. Leaving it after would mean a site
+    # that stops receiving traffic never records its last visit's exit page.
+    _close_stale_sessions($cache);
+
     return unless @$batch;
     my $site_host = _site_domain();
     my $EVENT_CAP = 5000;
@@ -1368,6 +1556,41 @@ sub _tally_batch {
         # SM335: bytes and per-class visitors, for the page that used to count
         # them itself. Capped exactly as the visitor set above is, so a scanner
         # arriving under many tokens cannot grow the cache without bound.
+        # SM336: SEQUENCE, for human page views only.
+        #
+        # A scanner has no journey worth modelling - and until SM332 the top
+        # journey on the site would have been a WordPress sweep, which is what
+        # made classification quality a prerequisite for this rather than an
+        # adjacent concern. An asset is not a step either: it is not an entry
+        # page, not an exit page and not a transition (SM329).
+        if ( $cls eq 'human'
+            && length $tok
+            && ( $r->{status} // 0 ) < 400
+            && !_is_asset( $r->{path} )
+            && $r->{path} !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b} )
+        {
+            _sessionise( $cache, $r, $tok, $b, $site_host, $NF_CAP );
+        }
+
+        # SM336: the referring page for a 404, INTERNAL referrers only. A broken
+        # internal link is a one-edit fix and the owner was being told the
+        # destination and never the source. Internal-only keeps it small and
+        # keeps it about their own site.
+        if ( ( $r->{status} // 0 ) == 404 && length( $r->{ref} // '' ) ) {
+            my ($rh) = ( $r->{ref} =~ m{^\S+?://([^/\s]+)} );
+            if ( defined $rh ) {
+                ( my $bare = $rh ) =~ s/^www\.//i;
+                if ( length $site_host
+                    && ( lc $bare eq lc $site_host || $bare =~ /\Q$site_host\E$/i ) )
+                {
+                    my ($rp) = ( $r->{ref} =~ m{^\S+?://[^/\s]+([^\s?#]*)} );
+                    $rp = '/' unless defined $rp && length $rp;
+                    $b->{nf_from}{"$r->{path}>$rp"}++
+                        if keys %{ $b->{nf_from} } < $NF_CAP;
+                }
+            }
+        }
+
         $b->{bytes} += ( $r->{bytes} // 0 );
         $b->{cls_ips}{$cls}{$tok} = 1
             if length($tok) && keys %{ $b->{cls_ips}{$cls} || {} } < $IP_CAP;
@@ -1399,6 +1622,8 @@ sub _tally_batch {
         };
         shift @{ $cache->{events} } while @{ $cache->{events} } > $EVENT_CAP;
     }
+
+    _close_stale_sessions($cache);    # SM336: and again, for this batch's own
     return;
 }
 

@@ -2,8 +2,8 @@
 title: "SM336 - a session has no boundary, and nothing records sequence"
 subtitle: "Every durable field is a marginal count. Nothing pairs one with another and nothing records order, so the question a site owner asks first - how do people move through my site, and where do they give up - is answerable only from a rolling 5,000-event sample, and never for any period already past."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-16 from a partner-agent brief, `inbox/archive/2026-08-16-visitor-stats-what-must-be-recorded-now.md`. NOT scheduled into 0.10.12, which was already in the release gate when this was read, and which is a correctness release rather than a feature one. Filed immediately rather than queued because the brief's argument is specifically about time: analysis can be rewritten whenever somebody has time, and data cannot be gathered backwards. Every day this is not recorded is a day permanently unanswerable, so the cost of deferring is not zero and should be paid deliberately. The session boundary is the prerequisite for every item and is also the smallest of them."
+status: partial
+status-note: "PARTIAL, 2026-08-17: the prerequisite and items 1-5 shipped; 6 and 7 did not. A session is bounded by thirty minutes of inactivity OR a day change - the day boundary matters independently, because a session straddling midnight would fold its exit page into the wrong day and the durable store is per-day. Sessions close on SILENCE as well as on a following event, so the last visit of a day records its exit rather than waiting for that visitor to come back. Everything stored is an aggregate: a counter on an edge, a bucket in a histogram, never anybody's path. Item 6 (device class) needs the user-agent threaded through both ingesters, which the batch record does not carry; item 7 (internal search terms) carries the only real privacy risk here and needs its own operator toggle and frequency floor, so it wants deciding rather than assuming."
 ---
 
 # The position
@@ -113,6 +113,76 @@ compute sessions, trails and depth; a reader that streams cannot.
 
 So this is not seven independent additions. It is one change to how a day is
 read, after which the seven are mostly counting.
+
+# What shipped, 2026-08-17
+
+The prerequisite and items 1 to 5. Each day rollup now carries a `journeys`
+block beside the marginal counts:
+
+```datatable
+columns: Field | What it answers
+widths: 4.4cm | X
+bold: 1
+tone: medium
+---
+`transitions` | the trail question, as one counter per edge
+`entry` / `exit` | where visits start, and where they stop
+`depth` | 1 / 2 / 3 / 4-6 / 7+ - what turns "60% bounced" into which page they bounced off
+`dwell` | under_10s / 10_30s / 30_120s / over_120s
+`landing` | referrer host paired with the page it arrived on
+`not_found_from` | a missing path paired with the INTERNAL page that linked to it
+`sessions` | how many visits the day held
+---
+```
+
+## The decisions inside it
+
+**A day change ends a session, as well as a gap.** Not in the original brief and
+it matters: a visit straddling midnight would fold its exit page into the wrong
+day, and the durable store is per-day.
+
+**Sessions close on SILENCE, not only on a following event.** Otherwise a
+session's exit is recorded when that visitor comes *back*, so the last visit of
+every day would be missing from `exit` and `depth` for ever - the most
+actionable field silently excluding the most recent traffic. The sweep therefore
+runs even on an ingest with nothing new, which is precisely the run that should
+notice a visit has finished.
+
+**Only human page views open a session.** A scanner has no journey worth
+modelling, and an asset is not a step in one - not an entry page, not an exit
+page, not a transition. That makes [[SM332]] and [[SM329]] prerequisites rather
+than adjacent work: modelled against pre-SM332 data the most travelled journey
+on the instrument was a WordPress sweep.
+
+**The last page of a session has no dwell**, and that is stated rather than
+guessed. Three pages produce two dwells.
+
+## What the brief's own example turned out to be
+
+The field case was `/login` followed by `/contact`, thirteen hours apart. Used
+literally as a fixture it produces ONE session, correctly: `/login` is a system
+path the engine already excludes from page counting, so it is not a step in a
+journey either.
+
+Worth recording. That specific pair would not have been modelled as a two-page
+journey even without a boundary, because half of it was never a page. The defect
+it illustrates is real and general; the example understated how much of the
+engine already agreed.
+
+# What did NOT ship, and why
+
+Device class (item 6)
+: three counters from the user-agent, and the batch record does not carry one -
+  `classify()` consumes the UA and the record keeps only its verdict. Threading
+  it through both ingesters is small, and it puts a new field in the cache, so
+  it belongs with a decision about what else that field might be used for.
+
+Internal search terms (item 7)
+: the highest-signal field on the list and the only real privacy risk. People
+  type surprising things into search boxes. It needs top-N only, never a log, a
+  minimum frequency floor so a one-off is never stored, and its own operator
+  toggle independent of the rest - which is three decisions, not an
+  implementation.
 
 # Verification
 
