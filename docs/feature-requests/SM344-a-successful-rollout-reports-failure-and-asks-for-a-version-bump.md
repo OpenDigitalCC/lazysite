@@ -2,8 +2,8 @@
 title: "SM344 - a successful rollout reports failure and asks for a version bump"
 subtitle: "0.10.12 installed on the one site that could take it, verified against its manifest, and was confirmed working from outside. The rollout reported failure, and the deploy watcher told the operator to bump the version and retry - which cannot fix what was actually wrong and burns a version number to find that out."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-17 from the 0.10.12 edge rollout. The install succeeded ('VERIFY OK: installed code matches the manifest for 0.10.12'), the partner agent's capture confirmed 0.10.12 serving, and the run still exited non-zero because the fleet-wide ACL probe reported 22 exposed sites. Those exposures are PRE-EXISTING conditions on sites this release never touched - they are on an older stable line - so no retry of this deploy can change them. The exit status conflates 'this rollout failed' with 'the fleet has findings', and the advice attached to it is worse than the confusion: bumping the version re-runs a deploy that already worked, against a condition it cannot address."
+status: shipped
+status-note: "SHIPPED 2026-08-17 as part of [[SM345]] (commit 1ab6098) and left marked candidate by mistake - the fix landed in the same commit as the scope containment, and only the filing that owned that commit got flipped. `update-all` separates the two facts one bit was carrying: 1 = the rollout FAILED and a retry is meaningful; 2 = the rollout SUCCEEDED and the fleet has findings a human must look at. The deploy watcher was updated to match, so a working release is no longer announced as a failure with advice to burn a version. FILED 2026-08-17 from the 0.10.12 edge rollout, which installed and verified on every site that could accept it and still exited non-zero because 22 sites on an older line were exposed - conditions no retry of that deploy could change."
 ---
 
 # What happened
