@@ -2,7 +2,7 @@
 title: "SM352 - The front end sends no transport or content security headers"
 subtitle: "`x-content-type-options`, `x-frame-options` and `referrer-policy` are all set correctly. `strict-transport-security`, `content-security-policy`, `permissions-policy` and `cross-origin-opener-policy` are absent on every response measured."
 brand: plain
-status: filed
+status: candidate
 ---
 
 # SM352 - three of seven

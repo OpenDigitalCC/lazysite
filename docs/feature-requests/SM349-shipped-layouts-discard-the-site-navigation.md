@@ -2,7 +2,7 @@
 title: "SM349 - The shipped layouts discard the site navigation"
 subtitle: "`manage_nav` is granted, `read_nav` and `set_nav` work on both surfaces, the engine stores the result - and on edge exactly one of eleven configured destinations reaches the rendered page. Three of the links that do render are hard-coded anchors into a demo homepage."
 brand: plain
-status: filed
+status: candidate
 ---
 
 # SM349 - eleven configured, one rendered

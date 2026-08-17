@@ -2,7 +2,7 @@
 title: "SM347 - Two content tools reject a path the other four accept"
 subtitle: "`create_page` takes a slug and reports the `.md` path it wrote. Reading that page back at the path you just used returns `File not found` with `retryable:false` - while the page serves 200 over HTTP. Four of six content tools resolve the extension; two do not."
 brand: plain
-status: filed
+status: candidate
 ---
 
 # SM347 - the create-then-read sequence fails

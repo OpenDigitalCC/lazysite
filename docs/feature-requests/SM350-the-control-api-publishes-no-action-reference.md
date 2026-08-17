@@ -2,7 +2,7 @@
 title: "SM350 - The control API publishes no action reference"
 subtitle: "MCP has `tools/list` with a schema per tool. The control API - an enforced, first-class channel - has no equivalent and no documentation page. Across 23 reference docs and 7 briefings, a search for its action names returns one incidental mention."
 brand: plain
-status: filed
+status: candidate
 ---
 
 # SM350 - a first-class channel nobody can enumerate

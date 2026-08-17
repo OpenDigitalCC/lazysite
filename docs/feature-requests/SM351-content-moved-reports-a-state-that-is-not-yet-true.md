@@ -2,7 +2,7 @@
 title: "SM351 - `content_moved:1` reports a state that is not yet true"
 subtitle: "Protecting a folder returns success and `list_files` confirms every entry is in the private store - while 23 of 31 previously-fetched files still answer 200 to an anonymous request, byte-identical, for up to a minute. The behaviour is known and bounded; the response contract is what is wrong."
 brand: plain
-status: filed
+status: candidate
 ---
 
 # SM351 - the success report is a claim about the world

@@ -2,7 +2,8 @@
 title: "SM355 - Every 404 declares /feed.xml as its canonical URL"
 subtitle: "The not-found page carries `<link rel=\"canonical\" href=\"https://<site>/feed.xml\">`, and it is served for every missing URL on the site. `/404.html` itself answers HTTP 200, so the soft 404 is indexable. Neither carries a robots directive."
 brand: plain
-status: filed
+status: shipped
+status-note: "SHIPPED 2026-08-17, in the same hours this was written - the engine half is on main as deb1efd. The mechanism turned out not to be the one this filing hypothesised: not_found() caches the rendered 404 as a FILE in the content root, and the render injects a canonical taken from REDIRECT_URL, so the FIRST request to any missing URL bakes its own path into the file every later 404 is served from. /feed.xml was simply first. That makes it REMOTELY INFLUENCEABLE, which the reporter then demonstrated on the live instance with a chosen canary value - a prediction that could have failed and did not. Fixed on both halves: a 404 carries no canonical at all (a missing page has none, and the requested path would assert it is the canonical version of itself), the cache file is rewritten so the copy the front end serves at /404.html is clean too, and the page carries noindex - the only instruction that reaches a response the engine never sees."
 ---
 
 # SM355 - a canonical instruction on every missing page

@@ -2,7 +2,7 @@
 title: "SM353 - The same call answers differently depending on the surface"
 subtitle: "`ok` is the number 1 on the control API and the boolean true on MCP. `describe-capabilities` returns a `groups` key on one surface and not the other. The gating redirect declares `content-type: text/x-perl`. Three small things, one shape."
 brand: plain
-status: filed
+status: candidate
 ---
 
 # SM353 - three inconsistencies, none of them large
