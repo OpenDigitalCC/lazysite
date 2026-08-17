@@ -119,6 +119,11 @@ Take one figure from real hosting
   of that machinery - which suggests the first version is a documented manual
   procedure rather than an automated one.
 
+  A manual procedure also has a property the automated version loses, and it is
+  the one this filing is about: it produces a number somebody has to look at and
+  sign off, rather than one that passes silently. The failure mode here is a
+  gate certifying something nobody read.
+
 Decompose it once [[SM340]] is deployed
 : the instrument cannot separate re-ingestion from the per-call writes while
   they are welded together in one number. After the fix, `call 1 - call 2` is
