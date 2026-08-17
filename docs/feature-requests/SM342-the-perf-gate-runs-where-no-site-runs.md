@@ -124,7 +124,19 @@ Take one figure from real hosting
   sign off, rather than one that passes silently. The failure mode here is a
   gate certifying something nobody read.
 
-Decompose it once [[SM340]] is deployed
+DONE - decomposed on deployment, 2026-08-17
+: it worked as sketched. With the cache loading, the day call on the instrument
+  costs 1052 ms against a 421 ms surface floor, so the **per-call write term on
+  contended storage is roughly 630 ms** - assembly plus the four unconditional
+  rewrites. That is the field figure this filing asked for, and it arrived as a
+  by-product of testing a release rather than from any machinery.
+
+  Set against 425 ms for the whole operation on the development host, including
+  its re-ingestion. The writes alone cost more in the field than everything did
+  here, which is this filing's argument in one comparison.
+
+The sketch, as originally written
+: decompose it once [[SM340]] is deployed
 : the instrument cannot separate re-ingestion from the per-call writes while
   they are welded together in one number. After the fix, `call 1 - call 2` is
   the re-ingestion term and `call 2 - the surface floor` is the write term paid

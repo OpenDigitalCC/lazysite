@@ -136,6 +136,53 @@ there is no "cheap now, impossible later" here of the kind that held 0.10.12 for
 [[SM338]]. It does raise this filing's priority from housekeeping to a
 correctness item, and it adds a requirement below.
 
+# Confirmed on deployment: the stamp does not reach the durable store
+
+Measured on edge immediately after 0.10.12 landed:
+
+```datatable
+columns: Artefact | counting_basis
+widths: 6.4cm | X
+bold: 1
+tone: medium
+---
+Index rows (35) | present - 34 at basis 1, one at basis 2
+Current month, 2026-08 | present, basis 2, mixed true
+Closed month, 2026-07 | **absent** - file unchanged by the upgrade
+Closed days, 07-18 and 08-10 | **absent** - files unchanged
+---
+```
+
+The mechanism is [[SM343]]: a closed file is written once, so it can never
+acquire a field added after it was written. The index compensates by reading an
+unstamped day as basis 1.
+
+**And that is correct by inference rather than by construction**, which is the
+partner agent's framing and sharper than the way this was first recorded. The
+rule is "unstamped means basis 1". A day whose file were ever rewritten under a
+later basis WITHOUT gaining a stamp would still read as basis 1, and nothing
+would catch it. So [[SM338]]'s protection currently lives in the derived view
+rather than in the durable artefact it exists to protect - the inverse of the
+intent.
+
+[[SM341]]'s timestamp will hit the same barrier for the same reason. Three
+filings, one barrier, one insertion point.
+
+## And it makes the recompute the only route to a correct history
+
+A second consequence, from the same measurement. [[SM329]]'s asset exclusion
+applies to basis-2 ingestion only, and every historical day is basis 1 and stays
+that way - correctly, because that IS what [[SM338]] preserves. So those days
+keep their asset-inflated pageviews permanently unless something recomputes
+them.
+
+The partner agent found this by noticing two of their own predictions were
+incoherent: they predicted both that history would be preserved and that
+historical counts would fall, and only one can be true. Worth recording, because
+the same contradiction is easy to hold about this filing - "the marker protects
+history" and "the fix corrects history" are not both available without a
+recompute.
+
 # Write the durable files canonically, or the test cannot be a diff
 
 Raised by the partner agent before this was built rather than after, and checked

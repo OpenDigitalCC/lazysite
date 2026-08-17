@@ -174,7 +174,13 @@ export cache.
 
 So the two artefacts describing the same day answer differently: ask the index
 and it says basis 1; ask the day file - the durable record, the thing that
-outlives the cache - and it says nothing. Anyone reading day files directly
+outlives the cache - and it says nothing.
+
+**Confirmed on deployment**, and sharpened: the index is right by INFERENCE, not
+by construction. Its rule is "unstamped means basis 1", so a day file rewritten
+under a later basis without gaining a stamp would still read as basis 1. This
+filing's protection therefore lives in the derived view rather than in the
+durable artefact it exists to protect. The remedy is scoped into [[SM339]]. Anyone reading day files directly
 gets no marker, which is a weaker version of the defect this filing is about.
 
 It is recorded here rather than fixed here, for the same reason as the backfill:

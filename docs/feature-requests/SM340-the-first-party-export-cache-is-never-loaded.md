@@ -216,6 +216,36 @@ third as though it predicted the field's.
 has rolled off no longer disappears from the index, and [[SM338]]'s marker can
 do the job it was written for.
 
+# Confirmed in the field, 2026-08-17
+
+Measured on edge by the partner agent, same script and same corpus either side
+of the upgrade, so this is a within-host before-and-after and inherits none of
+the confound in [[SM342]].
+
+```datatable
+columns: Call | 0.10.11 | 0.10.12 | Change
+widths: 4cm | 2.4cm | 2.4cm | X
+bold: 1
+tone: medium
+---
+`index` | 3486 ms | 966 ms | **3.6x**
+`day` (a closed day) | 3465 ms | 1052 ms | **3.3x**
+`window`, 1.1 MB | 4193 ms | 1824 ms | 2.3x
+surface floor (`whoami`) | 484 ms | 421 ms | unchanged, as it should be
+---
+```
+
+Subtracting the floor, the day call's engine term went from **~2.98 s to
+~0.63 s**. So re-ingestion was about **80% of per-call cost** on a real
+instance - considerably more than the third this development host showed, which
+is exactly what [[SM342]] predicts: the saving is I/O and the field is where I/O
+hurts.
+
+**And the matched pair holds.** The index row and the durable day file for
+2026-07-18 both read 848 pageviews at basis 1. Before the fix the index would
+have reported a recomputed figure the file contradicted. That is this defect
+closed on live traffic, and it could only have been demonstrated from outside.
+
 # The gate gap, closed
 
 `tools/bench.pl` had no reference to stats or export at all, which is why a
