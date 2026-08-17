@@ -397,7 +397,20 @@ my %TOOLS = (
         inputSchema => { type => 'object', properties => {}, additionalProperties => JSON::PP::false },
         run => sub {
             my ( $args, $user, $caps ) = @_;
+
+            # SM353: `groups` too. The API's map held it and MCP's did not, so
+            # the same account asking what it may do got a different answer
+            # depending on how it asked - and this is the document a caller
+            # reads to reason about its own grant.
+            #
+            # The resolution was already decided in this file. SM288 replaced
+            # `user_groups = ()` here with the account's REAL groups, because a
+            # token carrying no groups was not a safe default but a THIRD
+            # answer: the same account in the same group was allowed over WebDAV
+            # and refused over MCP. Omitting them from the capability map was
+            # the same defect one layer up, so it takes the same fix.
             my $map = describe( caps => $caps, account => $user,
+                groups  => [@Lazysite::Auth::Acl::user_groups],
                 docroot => $DOCROOT );    # SM225: include the documentation index
             $map->{ok} = JSON::PP::true;
             return $map;
@@ -2640,6 +2653,16 @@ elsif ( $method eq 'tools/call' ) {
     }
 
     my $is_err = ( ref $out eq 'HASH' && $out->{ok} ) ? JSON::PP::false : JSON::PP::true;
+
+    # SM353: `ok` is a boolean here too, coerced at the one point every tool
+    # result passes through rather than in each handler. MCP was not internally
+    # consistent either - describe_capabilities emitted true and validate_page
+    # emitted 1 - so this is not the API being brought into line with MCP, it is
+    # both surfaces being given a rule where there was none. Mirrors
+    # Lazysite::Manager::Common::respond; t/lint/57 pins the pair.
+    $out->{ok} = $out->{ok} ? JSON::PP::true : JSON::PP::false
+        if ref $out eq 'HASH' && exists $out->{ok};
+
     # The text part is $out re-serialised to JSON. encode_json emits UTF-8 BYTES;
     # decode them back to characters so the OUTER encode_json (in send_json)
     # encodes them exactly once - otherwise non-ASCII in the text part is

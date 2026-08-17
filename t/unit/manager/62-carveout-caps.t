@@ -142,7 +142,7 @@ subtest 'the capability, once granted, reaches both' => sub {
         'read_submissions reads the store' );
 
     my $save = api_save( 'lazysite/nav.conf', "Home|/\nAbout|/about\n" );
-    like( $save, qr/"ok"\s*:\s*1/, 'manage_nav writes nav.conf' );
+    like( $save, qr/"ok"\s*:\s*true/, 'manage_nav writes nav.conf' );    # SM353
 };
 
 subtest 'no capability writes the submission store by hand' => sub {

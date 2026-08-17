@@ -92,7 +92,7 @@ like( $dl, qr/\r\n\r\nNEW\z/,             'download sends the real body bytes' )
 
 # missing file -> JSON {ok:0}, not an HTTP 404
 my $miss = capture_download('content/nope.txt');
-like( $miss, qr/"ok":0/,         'missing file returns ok:0 JSON' );
+like( $miss, qr/"ok":false/, 'missing file returns ok:false JSON' );    # SM353
 like( $miss, qr/File not found/, 'with a not-found error' );
 
 done_testing();

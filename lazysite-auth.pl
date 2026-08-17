@@ -336,6 +336,7 @@ sub handle_login {
 
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
+    print "Content-Type: text/html; charset=utf-8\r\n";    # SM353
     print "Set-Cookie: $COOKIE_NAME=$cookie; HttpOnly; SameSite=Lax; Path=/; Max-Age=$COOKIE_MAX$secure\r\n";
     # SM099: a non-HttpOnly display-only marker so client JS can show the right
     # sign-in/out control without trusting cached HTML. Carries no authority - the
@@ -402,6 +403,7 @@ sub handle_logout {
 
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
+    print "Content-Type: text/html; charset=utf-8\r\n";    # SM353
     print "Set-Cookie: $COOKIE_NAME=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
     print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n"; # SM099 marker
     print "Location: /logout\r\n\r\n";
@@ -1287,6 +1289,7 @@ sub redirect {
     my ($url) = @_;
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
+    print "Content-Type: text/html; charset=utf-8\r\n";    # SM353
     print "Location: $url\r\n\r\n";
 }
 

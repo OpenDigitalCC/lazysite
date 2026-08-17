@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM353 (PENDING) **one answer per question, whichever channel asked.**
+  `ok` is now a JSON boolean on both surfaces, coerced at the single point each
+  one serialises through rather than at the ~130 places that set it - so no
+  handler decides and none can drift. **This is a deliberate compatibility
+  break**, taken before the freeze: a caller testing `ok === 1` will change
+  behaviour, and `true` is the side to stand on because it is what the schema
+  declares. The filing framed it as the API disagreeing with MCP, which
+  understated it - MCP disagreed with itself, `describe_capabilities` emitting
+  `true` where `validate_page` emitted `1`. The capability map now carries
+  `groups` on MCP as well, the resolution SM288 already reached one layer down
+  for the same account. And every 30x the engine writes states its content
+  type: the filing found the gating bounce declaring `text/x-perl`, and
+  sweeping for the shape rather than fixing the instance found seven, three of
+  them in the auth wrapper. The helper-script contract in
+  `starter/docs/forms-helpers.md` is deliberately untouched - that is what an
+  operator's own script sends to lazysite, and the engine reads it for truth.
 - SM352 (PENDING) **the security header set, in one place, and honest about
   what it leaves out.** Three headers were emitted and a field probe reported
   all three correct - on one of the engine's four response paths. Every

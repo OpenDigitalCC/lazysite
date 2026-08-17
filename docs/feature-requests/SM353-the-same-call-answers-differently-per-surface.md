@@ -2,7 +2,8 @@
 title: "SM353 - The same call answers differently depending on the surface"
 subtitle: "`ok` is the number 1 on the control API and the boolean true on MCP. `describe-capabilities` returns a `groups` key on one surface and not the other. The gating redirect declares `content-type: text/x-perl`. Three small things, one shape."
 brand: plain
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-08-17, all three, with the operator's ruling on item 1: change it now and document it. Item 1's diagnosis needed widening first - the filing had the control API answering 1 where MCP answered true, but MCP was not consistent with ITSELF (describe_capabilities emitted true, validate_page emitted 1), so there was no rule on either side, only ~130 independent decisions that agreed by accident. Coerced at the single serialisation point each surface owns - Manager::Common::respond and the MCP tool-result path - so no handler decides and none can drift. Item 2 took the resolution SM288 had already reached one layer down: a token account's REAL groups, since omitting them was the same third-answer defect one level up. Item 3 was swept rather than patched, which found SEVEN bare redirects where the filing reported one, three of them in lazysite-auth.pl - also on the gating path. NOT changed: the helper-script contract in starter/docs/forms-helpers.md, which is what an operator's own script sends INTO lazysite and is read for truth, so both forms work and changing it would break scripts for nothing. WORTH RECORDING: this flipped the wire format of every response on both surfaces, and of 5,212 tests exactly THREE noticed - because JSON::PP::true stringifies to '1' and numifies to 1, so every is($r->{ok}, 1) passes either way. Only an assertion against the encoded JSON can see it, which is what t/lint/57 uses."
 ---
 
 # SM353 - three inconsistencies, none of them large

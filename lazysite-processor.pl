@@ -1022,6 +1022,10 @@ sub _acl_refused {
     binmode( STDOUT, ':utf8' );
     print "Status: 302 Found\r\n";
     print "Cache-Control: no-store\r\n";
+    # SM353: state the type. With none, the response carried the CGI's own
+    # (text/x-perl) - wrong on every gated request on every site, and it
+    # advertised the implementation language on a security boundary for nothing.
+    print "Content-Type: text/html; charset=utf-8\r\n";
     print "Location: $redirect_path?next=$next\r\n\r\n";
     return 1;
 }
@@ -1886,6 +1890,7 @@ sub handle_manager_path {
         my $redirect = $sv{auth_redirect} || '/login';
         binmode( STDOUT, ':utf8' );
         print "Status: 302 Found\r\n";
+        print "Content-Type: text/html; charset=utf-8\r\n";    # SM353
         print "Set-Cookie: lzs_session=; SameSite=Lax; Path=/; Max-Age=0"
             . ( $ENV{HTTPS} ? "; Secure" : "" ) . "\r\n";
         print "Location: $redirect?next=" . uri_encode($uri) . "\r\n\r\n";
@@ -1896,6 +1901,7 @@ sub handle_manager_path {
     if ( $uri eq $manager_path ) {
         binmode( STDOUT, ':utf8' );
         print "Status: 302 Found\r\n";
+        print "Content-Type: text/html; charset=utf-8\r\n";    # SM353
         print "Location: $manager_path/\r\n\r\n";
         return 1;
     }
@@ -2276,6 +2282,7 @@ sub main {
             $ACCESS_REC{ar} = 1;
             binmode( STDOUT, ':utf8' );
             print "Status: 302 Found\r\n";
+            print "Content-Type: text/html; charset=utf-8\r\n";    # SM353
             # SM188: check_auth only returns a redirect for an UNauthenticated
             # request, so this bounce always means "no valid session" - clear the
             # stale lzs_session marker (see the manager bounce above) so the login

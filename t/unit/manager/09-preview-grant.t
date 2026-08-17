@@ -75,7 +75,7 @@ sub grant {
 # --- Valid grant: Set-Cookie present, JSON ok, signature valid. ---
 my $out = grant( layout => 'base', theme => 'candidate' );
 like( $out, qr/Set-Cookie:\s*lzs_preview=/, 'grant: Set-Cookie emitted' );
-like( $out, qr/"ok"\s*:\s*1/, 'grant: JSON ok' );
+like( $out, qr/"ok"\s*:\s*true/, 'grant: JSON ok' );    # SM353
 
 my ($cookie) = $out =~ /Set-Cookie:\s*lzs_preview=([^;]+)/;
 ok( $cookie, 'grant: captured cookie value' );

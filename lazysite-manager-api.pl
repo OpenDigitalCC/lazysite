@@ -224,7 +224,7 @@ if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'OPTIONS' ) {
     print "Allow: GET, POST\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
     print encode_json( {
-            ok    => 0,
+            ok    => JSON::PP::false,    # SM353
             error => 'The control API is not callable from a browser page. It '
                 . 'serves agents, scripts and the manager, which hold '
                 . 'operator-issued credentials; a page cannot hold one safely. To '
@@ -848,7 +848,8 @@ if ($token_auth) {
         print "Status: 429 Too Many Requests\r\n";
         print "Retry-After: $rl->{retry_after}\r\n";
         print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-        print encode_json( { ok => 0, error => 'Rate limit exceeded' } );
+        print encode_json(
+            { ok => JSON::PP::false, error => 'Rate limit exceeded' } );    # SM353
         exit 0;
     }
 }
@@ -1485,7 +1486,8 @@ sub action_preview_grant {
     # Carries no auth value - the signed HttpOnly cookie above is the gate.
     print "Set-Cookie: ${PREVIEW_COOKIE}_active=1; SameSite=Lax; Path=/; Max-Age=$PREVIEW_TTL$secure\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-    print encode_json( { ok => 1, layout => $layout, theme => $theme, expires => $exp } );
+    print encode_json(
+        { ok => JSON::PP::true, layout => $layout, theme => $theme, expires => $exp } );    # SM353
 }
 
 sub action_preview_clear {
@@ -1496,7 +1498,7 @@ sub action_preview_clear {
     print "Set-Cookie: $PREVIEW_COOKIE=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
     print "Set-Cookie: ${PREVIEW_COOKIE}_active=; SameSite=Lax; Path=/; Max-Age=0$secure\r\n";
     print "Content-Type: application/json; charset=utf-8\r\n\r\n";
-    print encode_json( { ok => 1 } );
+    print encode_json( { ok => JSON::PP::true } );    # SM353
 }
 
 # --- SM071 Phase 3: control-API helpers ---

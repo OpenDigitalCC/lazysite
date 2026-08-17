@@ -379,6 +379,30 @@ sub processor_path {
 
 sub respond {
     my ($data) = @_;
+
+    # SM353: `ok` is a BOOLEAN, and it is coerced here rather than at the ~130
+    # places that set it.
+    #
+    # The filing reported it as a per-surface difference - the control API
+    # answering 1 where MCP answered true - which understated it. `ok` was
+    # whatever each handler happened to write, on BOTH surfaces: MCP's
+    # describe_capabilities set JSON::PP::true and its validate_page set 1. So
+    # there was no rule to follow, only a hundred-odd independent decisions that
+    # agreed by accident.
+    #
+    # A caller written against one surface and pointed at the other fails
+    # silently, because `res.ok === true` succeeds on one and not the other
+    # while `if (res.ok)` passes on both - type-dependent rather than
+    # value-dependent, and only visible when someone ports code between
+    # channels, which is exactly what the parity work invites.
+    #
+    # THIS IS A COMPATIBILITY BREAK, taken deliberately before the freeze. A
+    # script testing `ok == 1` in Perl or `ok === 1` in JavaScript will change
+    # behaviour. `true` is the side to standardise on: it is what the JSON
+    # Schema declares and what MCP already emitted for its most-called tool.
+    $data->{ok} = $data->{ok} ? JSON::PP::true : JSON::PP::false
+        if ref $data eq 'HASH' && exists $data->{ok};
+
     # encode_json already emits UTF-8 bytes; print raw (a :utf8 layer would
     # double-encode non-ASCII content into mojibake).
     binmode(STDOUT);
