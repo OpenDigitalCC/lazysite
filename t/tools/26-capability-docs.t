@@ -13,8 +13,13 @@ my $root = repo_root();
 my $gen  = "$root/tools/gen-capability-docs.pl";
 ok( -f $gen, 'gen-capability-docs.pl present' );
 
+# SM350 adds the control-API action reference to the same treatment: MCP has
+# tools/list, this channel had no published reference at all, and a reference
+# that can drift from the dispatcher is worse than none because a caller trusts
+# it. t/lint/58 pins the module to the chain; this pins the page to the module.
 for my $pair ( [ 'map', 'docs/reference/capability-map.md' ],
-               [ 'quickstarts', 'docs/reference/quickstarts.md' ] ) {
+               [ 'quickstarts', 'docs/reference/quickstarts.md' ],
+               [ 'actions', 'docs/reference/control-api-actions.md' ] ) {
     my ( $what, $rel ) = @{$pair};
     my $doc = "$root/$rel";
     ok( -f $doc, "$rel present" );

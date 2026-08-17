@@ -231,6 +231,7 @@ my %EXEMPT = (
     'API::action_domains_list' => 'read-only',
     'API::action_domain_check' => 'read-only',   # SM156: probes DNS/TLS, no content write
     'API::action_lang_status'  => 'read-only',   # SM179 P6: reports coverage, no write
+    'API::action_actions_list'          => 'read-only',    # SM350
     'API::action_describe_capabilities' => 'read-only',
     'API::action_whoami'                => 'read-only',
     'API::action_recent_changes'        => 'read-only',

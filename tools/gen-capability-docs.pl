@@ -5,6 +5,7 @@
 #
 #   perl tools/gen-capability-docs.pl map        > docs/reference/capability-map.md
 #   perl tools/gen-capability-docs.pl quickstarts > docs/reference/quickstarts.md
+#   perl tools/gen-capability-docs.pl actions     > docs/reference/control-api-actions.md
 #
 # t/tools/26-capability-docs.t fails if a committed doc differs from this output.
 use strict;
@@ -17,13 +18,15 @@ BEGIN {
     unshift @INC, "$root/lib";
 }
 use Lazysite::Capabilities qw(describe channel_keys action_keys);
+use Lazysite::ControlApi::Actions ();    # SM350
 
 my $what = shift @ARGV // '';
 my $map  = describe();   # static model, no caller grant
 
 if    ( $what eq 'map' )         { print render_map($map) }
 elsif ( $what eq 'quickstarts' ) { print render_quickstarts($map) }
-else { die "usage: gen-capability-docs.pl map|quickstarts\n" }
+elsif ( $what eq 'actions' )     { print render_actions() }
+else { die "usage: gen-capability-docs.pl map|quickstarts|actions\n" }
 
 sub gen_note {
     return "**Generated file - do not edit by hand.** Produced by "
@@ -110,5 +113,76 @@ sub render_quickstarts {
         }
         push @o, "\n";
     }
+    return join '', @o;
+}
+
+# SM350: the control API's action reference. MCP publishes tools/list with a
+# schema per tool; this is the same thing for the other enforced channel, which
+# had no equivalent and no documentation page at all.
+#
+# Generated from Lazysite::ControlApi::Actions, which t/lint/58 re-extracts from
+# the dispatch chain - so this page cannot drift from the code by more than the
+# lint allows, which is nothing.
+sub render_actions {
+    my %A = %Lazysite::ControlApi::Actions::ACTION;
+    my @o;
+    push @o, "---\n";
+    push @o, "title: \"lazysite - control API actions\"\n";
+    push @o, "subtitle: \"Every action the control API dispatches, what it "
+        . "requires, and what it takes\"\n";
+    push @o, "brand: plain\n";
+    push @o, "standard-margins: true\n";
+    push @o, "---\n\n";
+    push @o, "**Generated file - do not edit by hand.** Produced by "
+        . "`tools/gen-capability-docs.pl actions` from "
+        . "`lib/Lazysite/ControlApi/Actions.pm`, which "
+        . "`t/lint/58-action-reference-matches-the-dispatch.t` re-extracts from "
+        . "the dispatcher in `lazysite-manager-api.pl` and fails on any "
+        . "difference.\n\n";
+    push @o, "An authenticated caller should ask `action=actions-list` instead: "
+        . "it returns this same table already narrowed to what that account may "
+        . "call. This page is the static model, for humans and for readers with "
+        . "no credential.\n\n";
+
+    push @o, "## Reading the capability column\n\n";
+    push @o, "any of the listed\n: hold any ONE of them and the action is "
+        . "available.\n\n";
+    push @o, "any authenticated\n: introspection - no particular grant needed.\n\n";
+    push @o, "cookie only\n: **not reachable with a token.** The manager UI "
+        . "calls it and an agent cannot. This is the state a caller can discover "
+        . "no other way, and the reason a refusal here is a boundary rather than "
+        . "a missing grant.\n\n";
+
+    push @o, "## Reading the parameters column\n\n";
+    push @o, "`query`\n: read from the query string.\n\n";
+    push @o, "`body`\n: read from the JSON request body.\n\n";
+    push @o, "`query_or_body`\n: the action accepts either. Several read the "
+        . "query string and fall back to the body, so a caller sending only one "
+        . "of them still works.\n\n";
+    push @o, "A blank cell means the dispatcher reads no parameter of its own "
+        . "for that action. Where a branch hands the request to a helper that "
+        . "reads one internally, neither the table nor the lint can see it - so "
+        . "this page is accurate about what it lists rather than exhaustive per "
+        . "action.\n\n";
+
+    push @o, "## The actions\n\n";
+    push @o, "```datatable\n";
+    push @o, "columns: Action | Requires | Parameters\n";
+    push @o, "widths: 5.4cm | 4.8cm | X\n";
+    push @o, "bold: 1\n";
+    push @o, "tone: medium\n";
+    push @o, "---\n";
+    for my $name ( sort keys %A ) {
+        my $spec = $A{$name};
+        my $req
+            = !defined $spec->{caps} ? 'cookie only'
+            : !@{ $spec->{caps} }    ? 'any authenticated'
+            :   join( ' / ', @{ $spec->{caps} } );
+        my $params = join ', ',
+            map { "$_->{name} ($_->{in})" } @{ $spec->{params} };
+        push @o, "`$name` | $req | " . ( length $params ? $params : ' ' ) . "\n";
+    }
+    push @o, "---\n";
+    push @o, "```\n";
     return join '', @o;
 }

@@ -43,8 +43,13 @@ cmp_ok( scalar @api_live, '>=', 40, 'the control-API action table was parsed' );
 cmp_ok( scalar @mcp_live, '>=', 40, 'the MCP tool table was parsed' );
 
 # Introspection is capability-free by design, so it has no `unlocks` home.
+# SM350 adds actions-list: the control API's answer to tools/list. Capability-free
+# for the same reason as the other two - an agent needs the reference BEFORE it
+# knows what it may call, so gating it would put the answer behind the question.
+# It is API-only by definition rather than by omission: MCP already has
+# tools/list, and this is that.
 my %INTROSPECTION = map { $_ => 1 }
-    qw(whoami describe-capabilities describe_capabilities);
+    qw(whoami describe-capabilities describe_capabilities actions-list);
 
 # The ACL actions are gated by the WEBDAV CHANNEL capability rather than an
 # action capability, so they legitimately have no action-capability home; the

@@ -27,6 +27,7 @@ use Lazysite::Util           qw(log_event const_eq);
 use Lazysite::Paths          ();
 use Lazysite::Audit          qw(audit_log);
 use Lazysite::Capabilities   qw(describe capability_keys channel_service);
+use Lazysite::ControlApi::Actions ();    # SM350
 use Lazysite::BadUrl         qw(list_blocks unblock);
 use Lazysite::Auth::Settings qw(site_grants_manager);
 use Lazysite::Auth::Acl qw(load_acls save_acls _acl_norm _to_list _acl_allows _is_operator _acl_denied);
@@ -176,7 +177,7 @@ my $site_secured = site_grants_manager();
 my $RESTRICT_THEME_DELETE = 0;
 
 my %KNOWN_ACTION = map { $_ => 1 } qw(
-    acl-get acl-remove acl-set aliases-list analyse_visitors
+    acl-get acl-remove acl-set actions-list aliases-list analyse_visitors
     artifact-backups-delete artifact-manifest artifact-validate audit
     backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
     bad-url-unblock cache-invalidate cache-list channel-services
@@ -634,7 +635,10 @@ if ($token_auth) {
     # I / what may I do", per the SM072/SM126 contract. Declared here so BOTH gates
     # below honour it (the SM127 gate previously ran ahead of it and wrongly refused
     # whoami on a manager-linked account).
-    my %introspection = ( 'whoami' => 1, 'describe-capabilities' => 1 );
+    # SM350 adds actions-list: the reference to what this account may call is
+    # exactly what a capless agent needs BEFORE it knows what it may call.
+    my %introspection
+        = ( 'whoami' => 1, 'describe-capabilities' => 1, 'actions-list' => 1 );
 
     # SM127: manager/UI-remote separation. An account that can ACTUALLY use the
     # interactive manager UI must not drive the site over a remote token (a leaked
@@ -753,6 +757,7 @@ if ($token_auth) {
         'git-init'            => sub { $_[0]->{manage_config} },
         'whoami' => sub { 1 },    # any authenticated token may introspect its own grant
         'describe-capabilities' => sub { 1 },  # SM126: introspection - the capability map
+        'actions-list'          => sub { 1 },  # SM350: introspection - the action reference
             # Visitor-log analysis over the control API (token clients), same grant as
             # the MCP analyse_visitors tool - so an API-channel agent gets analytics too.
         'analyse_visitors' => sub { $_[0]->{analytics} },
@@ -1203,6 +1208,7 @@ elsif ( $action eq 'analyse_visitors' ) {
 }
 elsif ( $action eq 'whoami' )                { $result = action_whoami($auth_user) }
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
+elsif ( $action eq 'actions-list' )          { $result = action_actions_list($auth_user) }    # SM350
 elsif ( $action eq 'audit' ) {
     # Strict gate: the FULL audit trail requires the 'audit' capability (separate
     # from visitor analytics). Token clients are already gated by %need above (a
@@ -1314,7 +1320,7 @@ else { $result = { ok => 0, error => "Unknown action: $action" } }
 # not overlap with them. Read-ish POSTs (the UI POSTs everything) are skipped.
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
-        csrf-token list read principals whoami describe-capabilities audit version acl-get cache-list analyse_visitors
+        csrf-token list read principals whoami describe-capabilities actions-list audit version acl-get cache-list analyse_visitors
         cache-invalidate regenerate-registries nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest
@@ -2542,6 +2548,32 @@ sub action_describe_capabilities {
         docroot => $DOCROOT );    # SM225: include the documentation index
     $map->{ok} = 1;
     return $map;
+}
+
+# SM350: the control API's answer to tools/list.
+#
+# describe-capabilities says what this account MAY DO in capability terms; this
+# says what it may CALL, with the parameters each takes and where each is read
+# from. The two were meant to be read together and only one of them existed.
+#
+# Subset by grant, exactly as tools/list does (SM210). A reference listing every
+# action regardless would be a list of things to try and be refused, which is
+# what an agent does with it - the refusals then look like defects.
+#
+# The cookie/token distinction is passed rather than inferred, because it is the
+# one thing that decides availability for 59 of the 111 actions and the module
+# has no business reading the request.
+sub action_actions_list {
+    my ($user) = @_;
+    my $s = ( users_api( { action => 'settings-get', username => $user } ) || {} )->{settings} || {};
+    return {
+        ok      => 1,
+        account => $user,
+        channel => ( $token_auth ? 'token' : 'cookie' ),
+        actions => Lazysite::ControlApi::Actions::actions_for(
+            $s, cookie => ( $token_auth ? 0 : 1 )
+        ),
+    };
 }
 
 sub action_whoami {
