@@ -44,7 +44,7 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM365 (PENDING) **a layout update no longer leaves the site on the old
+- SM365 (723eeed) **a layout update no longer leaves the site on the old
   theme.** Measured on edge after `lumen` went to catalogue 1.1.0: the template
   was the new one and `/lazysite-assets/lumen/lumen/main.css` was
   byte-identical to a copy taken that morning, missing every `.nav-toggle` rule
