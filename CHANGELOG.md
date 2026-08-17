@@ -30,7 +30,20 @@ Shipped versus mentioned
 
 ## Unreleased
 
-- SM345 (fe15459) **a release touched every site on the host, not the ones it
+- SM354 (PENDING) **seventeen changelog entries cited commits that no branch
+  contained, seven of which did not exist at all.** The convention makes the
+  commit ref the thing that marks an item as built rather than merely written
+  down, so the evidence for "this shipped" had evaporated in the place a reader
+  is told to look. Structural rather than careless: vcs-review lands a branch by
+  REBASE, so a ref written before landing is stale afterwards, and the old object
+  survives in the reflog just long enough for a spot check to pass. SM325 reached
+  this conclusion for TAGS after 0.10.10 was cut twice and fixed that half; the
+  same rebase invalidated seven refs in the 0.10.10 entry and nobody looked. All
+  17 re-resolved by matching commit subjects; `t/lint/53` now fails on a ref that
+  cannot be followed. **The rule is to write the ref after the branch lands, not
+  before** - the same rule as the tag, for the same reason.
+
+- SM345 (1ab6098) **a release touched every site on the host, not the ones it
   was for.** The per-site install was channel-gated; every other phase was not.
   An edge rollout refreshed the shared web template, rebuilt every vhost, and
   ran `repair --all` and `probe --all` across sites sitting on beta and stable -
@@ -44,7 +57,7 @@ Shipped versus mentioned
   watcher no longer passes `--rebuild` on every deploy, which was the immediate
   cause. **An edge release touches edge sites; only a stable promotion touches
   stable sites.**
-- SM346 (fe15459) **the Users page hid every operator-only control from every
+- SM346 (1ab6098) **the Users page hid every operator-only control from every
   human.** It gates promote-to-top-level and the scope-independence toggle on
   `amOperator`, computed by looking for itself in the groups granting
   `manage_users` - and `users-page` never told it who it was, because that call
@@ -54,7 +67,7 @@ Shipped versus mentioned
   as agents being able to do something humans could not: agents drive the
   control API and MCP, which have no UI gate. Nothing was wrongly permitted -
   the API enforced correctly throughout - a capability was silently withheld.
-- SM344 (f8871a3) a successful rollout reported failure and asked for a version
+- SM344 (d533882) a successful rollout reported failure and asked for a version
   bump. The 0.10.12 edge rollout installed and verified on every site that could
   accept it, and was independently confirmed serving from outside - then exited
   1 because the fleet-wide probe found 22 exposed sites on an OLDER line. The
@@ -290,7 +303,7 @@ depends on are still outstanding wherever they have not been run - see 0.10.9
 below and `UPGRADE.md`. What changes here is that the rollout now repairs a
 non-writable docroot itself rather than only reporting it.
 
-- SM305 (92248da) one way to name a principal, on every manager surface. Five
+- SM305 (158b828) one way to name a principal, on every manager surface. Five
   different controls had grown for one job: a real `<select>` on the per-file
   card, a bare text box on the section sheet, and `<input list=...>` datalists
   on Groups, Users and Domains. The strictness ran backwards - the loosest of
@@ -302,14 +315,14 @@ non-writable docroot itself rather than only reporting it.
   sufficient: it suggests known names and still accepts anything typed over it,
   so it looks constrained and is not. Server-side validation is unchanged and
   still authoritative.
-- SM310 (290598f) a site-wide rule was enforced, listed, and unreadable. SM287
+- SM310 (0d5e95b) a site-wide rule was enforced, listed, and unreadable. SM287
   taught both ACL writers and the sections panel that `/` means the whole site
   and left `action_acl_get` behind, so asking what rule governs the site root
   answered `acl: null` while the rule was in force on every request. Bounded:
   the rule was enforced correctly and remained removable, and the sections panel
   was right throughout - which is why nobody noticed. Found by a control subtest
   written to prove the SM306 fix had not broken site-wide rules.
-- SM306 (324eae6) `acl-set` with no path took the whole site private. The
+- SM306 (4e2ab69) `acl-set` with no path took the whole site private. The
   control API derives its target once for every action, defaulting to `/` - right
   for `list`, harmless for `acl-get` and `acl-remove`, and inherited by the one
   action that can take a site off the air. Inert before SM287; hazardous since.
@@ -318,7 +331,7 @@ non-writable docroot itself rather than only reporting it.
   direction of failure is recovery, and a safety change must not make a site
   harder to rescue than to break. The same operation over MCP always required a
   path.
-- SM307 (ef33bf5) the private-store move named a cause it never checked. It
+- SM307 (eb8dc7c) the private-store move named a cause it never checked. It
   reported "cannot move a folder across filesystems" for any failed `rename` on
   a directory, without consulting `$!` - so a permissions fault sent an operator
   to inspect mounts when the fix was a `chown`, and contradicted the `lazysite
@@ -326,7 +339,7 @@ non-writable docroot itself rather than only reporting it.
   reporter: a genuine cross-device directory move still refuses (a recursive
   copy would reopen the window `rename` exists to close) and names both ends;
   anything else says what `$!` says and points at the check that diagnoses it.
-- SM309 (5df72e9) front-door mode is a yes/no value, and `lazysite check` says
+- SM309 (c12cfec) front-door mode is a yes/no value, and `lazysite check` says
   which it is. `FRONT_DOOR=false` switched it ON - any non-empty value except
   `0` did - and nothing anywhere reported whether the mode was active, since the
   only observable lives in a proxy template that is not installed where it
@@ -334,7 +347,7 @@ non-writable docroot itself rather than only reporting it.
   and refuses anything else by name, checked before it creates anything; and
   `lazysite check` reports ON, OFF or a bad value, read from the pool conf and
   matched on DOCROOT rather than the instance name.
-- SM308 (032c590) the `<head>` contract, stated. `meta_title` and `meta_desc`
+- SM308 (45868c1) the `<head>` contract, stated. `meta_title` and `meta_desc`
   shipped in 0.10.9 and reach no real page: all 23 catalogue layouts write their
   own `<title>` and description, none consult the resolved values, and 22 derive
   the description from `page_subtitle`. The engine is right - it defers to a
@@ -343,14 +356,14 @@ non-writable docroot itself rather than only reporting it.
   briefing now carries the contract and `t/lint/48` stops the examples teaching
   otherwise. **The 23 layouts are a separate repository and are NOT fixed by
   this release**; until they are, both fields remain inert.
-- Rollout (ebc3303) the health summary repairs what it finds, then checks again.
+- Rollout (eb850d2) the health summary repairs what it finds, then checks again.
   SM270 recurred on edge three releases after the ordering fix, because a vhost
   rebuild driven through the control panel never reaches the update script. A
   non-writable docroot is not cosmetic: the private store is its sibling, so
   `acl reapply` fails on every folder and protected content stays served. The
   summary now runs `--fix` and re-checks, printing the outcome rather than the
   action; anything still dirty is named under NEEDS A HUMAN.
-- SM313 (b9c1ba1) repairing the docroot never reached the private store. The
+- SM313 (9e91807) repairing the docroot never reached the private store. The
   store is a SIBLING of the document root, so creating it needs write access on
   the docroot's PARENT - a different directory, which SM270's repair does not
   touch. Measured on a live instance AFTER a complete docroot repair: 11 of 11
@@ -361,30 +374,30 @@ non-writable docroot itself rather than only reporting it.
   `acl reapply` counted a move that never happened as a re-apply, so a sweep
   that left every byte in place reported success and exited 0; it now counts
   `moved nothing` separately and exits non-zero.
-- SM314 (d2f9e5c) `install_layout` documented an activation it never performs.
+- SM314 (47d633e) `install_layout` documented an activation it never performs.
   Four statements describing behaviour SM176 deliberately removed, published
   through `tools/list` to every agent, one of which routed agents into an
   always-refused delete. `t/lint/49` now checks every documented default against
   what the handler applies - nine descriptions state one and none was verified.
-- SM315 (f3a7b21) theme assets one directory out served an unstyled site with
+- SM315 (0eeaaa6) theme assets one directory out served an unstyled site with
   every signal saying it worked: `ok:1`, 200, no stylesheet. Activation now
   reports how many assets it mirrored, names a misplaced one specifically, and
   `lazysite check` carries the standing version.
-- SM316 (a71c4d9) every URL a generated registry advertises is now fetched and
+- SM316 (ee44916) every URL a generated registry advertises is now fetched and
   asserted to resolve. Verified against SM299 itself: reintroducing the old
   expression makes it fail with `/docs/.md -> 404`.
-- SM317 / SM319 (2258858, 8e2f1a4) the rollout now asks the FRONT END, not just
+- SM317 / SM319 (92e5117, 5e3307e) the rollout now asks the FRONT END, not just
   the engine, whether an ACL is honoured - `check --check-acl` per site, which
   existed and which nothing ran. Reviewed by the site agent within the hour: the
   first version derived a pass from the ABSENCE of failure, so a probe that
   fetched nothing reported success. That is the defect the probe itself shipped
   with (SM285). The pass now requires a positive confirmation, so all four
   non-passing outcomes - and any added later - fall to `not confirmed`.
-- SM318 (c4d8e33) the MCP nav tools could not address a domain, and had their own
+- SM318 (feff4b8) the MCP nav tools could not address a domain, and had their own
   implementation missing the SM168 cache invalidation - so an MCP nav edit
   returned `ok:1` and the site served the old menu. One implementation now serves
   both surfaces, per SM301's precedent, and both take `host`.
-- SM320 (e5b7f42) a layout is now rendered and its output asserted - nav with
+- SM320 (31981c4) a layout is now rendered and its output asserted - nav with
   children, page body, resolved meta, and escaped exactly once. It was the only
   major component with no behavioural test.
 - Five new lints and tests (47, 48, 49, plus t/tools/41 and t/integration/53-55),
