@@ -73,7 +73,38 @@ instance has day buckets in its export cache with no such key, and they were
 definitely counted somehow. Reading them as unknown would discard the one fact
 this exists to preserve.
 
-## CORRECTION: on the default path, no day ever reads as basis 1
+## RESOLVED: the correction below stood for one release-hold, and [[SM340]] was fixed
+
+The section that follows was written when SM340 was filed and not fixed. The
+release manager then held the cut for SM340 rather than carrying it forward,
+on the grounds that this filing is **defeated** by it rather than merely
+unhelped - a marker recording which basis a day was counted under is worthless
+while every day is recomputed on every call.
+
+Re-measured on the FIRST-PARTY path, which is the default and the one that could
+not work, with a store rolled up by v0.10.11 and then run under this release:
+
+```datatable
+columns: Artefact | Result
+widths: 6.4cm | X
+bold: 1
+tone: medium
+---
+Yesterday's day file | `pageviews: 3`, byte-identical - history untouched
+Index row, yesterday | `counting_basis: 1`, agreeing with the file
+Index row, today | `pageviews: 1`, `counting_basis: 2`
+The month | `counting_basis_mixed: TRUE`
+---
+```
+
+So every claim in the original filing now holds on the path that matters. The
+correction below is kept rather than deleted, because the sequence is the
+useful part: a correct mechanism shipped onto a path that could not exercise
+it, the gap was found by measuring rather than by assuming it followed, and the
+release was held rather than shipping something that would have looked right in
+a fixture and done nothing in the field.
+
+## The correction as written, before SM340 was fixed
 
 The paragraph above describes what the code does with a surviving bucket. On the
 default path there are no surviving buckets.
@@ -178,9 +209,9 @@ know which days it changed.
 # Verification
 
 - A day counted after the upgrade records basis 2; a day rolled up before it
-  reads as basis 1 rather than as unknown - **on the server-log path**. On the
-  default first-party path this cannot hold until [[SM340]] is fixed, and that
-  is a limitation of the cache rather than of the marker.
+  reads as basis 1 rather than as unknown. Measured on BOTH paths - the
+  server-log one and the default first-party one, which needed [[SM340]] fixed
+  before it could hold.
 - The month an instance upgrades reports itself as mixed.
 - The index day series carries the basis, so the step is visible where it is
   plotted rather than inferable from a changelog.
