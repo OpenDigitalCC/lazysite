@@ -685,6 +685,35 @@ sub run_checks {
         }
     }
 
+    # --- 6c. SM335: a retired anonymise_ip is a choice the operator no longer has
+    #
+    # The manager Stats page used to count visitors itself, and honoured
+    # `anonymise_ip: false` by keying them on the raw address. Both readers now
+    # share one tally, and that tally always anonymises - a /24 truncation then
+    # a hash, before anything is stored - which is what the export has always
+    # done.
+    #
+    # So the line is inert. WARN rather than FAIL, and the distinction matters:
+    # SM279's retired dav_scope is a confinement somebody believes exists and
+    # does not, which is a permission being wrong. This is the opposite
+    # direction - an operator who asked for LESS anonymisation is now getting
+    # more - so nothing is exposed and nobody is less safe. They are simply not
+    # getting what they asked for, and should be told rather than left to infer
+    # it from a control that has disappeared.
+    {
+        my $anon = conf_value( $conf, 'anonymise_ip' );
+        if ( defined $anon && length $anon ) {
+            report( 'WARN',
+                "lazysite.conf carries a retired anonymise_ip ($anon) - visitor "
+                    . "addresses are now always truncated to their /24 and hashed "
+                    . "before anything is stored, so this line has no effect",
+                "remove the anonymise_ip line from "
+                    . "'$DOC/lazysite/lazysite.conf'; if you were relying on "
+                    . "un-anonymised addresses, that capability is gone "
+                    . "deliberately and no setting restores it" );
+        }
+    }
+
     # --- 7. manager bootstrap (ties to setup-manager) ----------------------------
     my $mgr_enabled = ( conf_value( $conf, 'manager' ) // '' ) =~ /enabled/i;
     {

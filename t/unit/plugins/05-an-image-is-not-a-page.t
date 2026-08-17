@@ -103,7 +103,11 @@ subtest 'EVERY counting site uses the one predicate' => sub {
     # outcome - a counting site was rewritten and something had to notice.
     my $counting = () = $src
         =~ /\$pages\{[^}]*\}\s*\+\+|\{pages\}\{[^{}]*(?:\{[^{}]*\})?[^{}]*\}\s*\+=/g;
-    cmp_ok( $counting, '>=', 3, 'all three page-counting sites were found' )
+    # SM335 unified the two window readers onto the durable tally, so the three
+    # counting sites became ONE. That is the fix this assertion was written to
+    # make unnecessary: it existed because a predicate had to be applied in
+    # three places and was applied in two.
+    cmp_ok( $counting, '>=', 1, 'the page-counting site was found' )
         or diag( "found $counting - if a reader was renamed this test is "
             . 'measuring nothing, which is the failure mode it exists to '
             . 'prevent in the code it watches.' );

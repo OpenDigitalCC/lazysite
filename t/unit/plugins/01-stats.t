@@ -1,18 +1,18 @@
 use strict;
 use warnings;
 use Test::More;
-use JSON::PP qw(decode_json encode_json);
+use JSON::PP   qw(decode_json encode_json);
 use File::Temp qw(tempdir);
-use POSIX qw(strftime);
+use POSIX      qw(strftime);
 
 # SM083: the visitor-stats plugin parses the access log into aggregates.
 my $PLUGIN = 'plugins/stats.pl';
 ok( -f $PLUGIN, 'stats plugin present' );
 
-my $desc = decode_json( qx($^X $PLUGIN --describe) );
+my $desc = decode_json(qx($^X $PLUGIN --describe));
 is( $desc->{id}, 'stats', '--describe: id is stats' );
 ok( @{ $desc->{config_schema} } >= 4, '--describe: config schema present' );
-ok( @{ $desc->{actions} } >= 1, '--describe: has an action' );
+ok( @{ $desc->{actions} } >= 1,       '--describe: has an action' );
 
 my $d = tempdir( CLEANUP => 1 );
 mkdir "$d/lazysite";
@@ -32,24 +32,31 @@ sub scan {
     # The log path is an owner-set env var now, never manager config.
     local $ENV{LAZYSITE_ACCESS_LOG} = $opt{access_log} // '';
     local $ENV{LAZYSITE_ERROR_LOG}  = $opt{error_log}  // '';
-    return decode_json( qx($^X $PLUGIN --scan --docroot '$d') );
+    return decode_json(qx($^X $PLUGIN --scan --docroot '$d'));
 }
 
 my $s = scan( "window_days: 30\nanonymise_ip: true\nexclude_bots: true\n",
     access_log => "$d/access.log" );
 ok( $s->{ok}, 'scan ok' ) or diag( $s->{error} );
-is( $s->{hits}, 3, 'bot row excluded (3 of 4)' );
-is( $s->{unique_visitors}, 1, 'anonymised IPs collapse to one' );
-is( $s->{top_pages}[0]{key}, '/a', 'top page is /a' );
-is( $s->{top_pages}[0]{count}, 2, '/a hit twice' );
-is( $s->{status}{200}, 2, 'two 200s (non-bot)' );
-is( $s->{status}{404}, 1, 'one 404' );
-is( scalar @{ $s->{referrers}{external} }, 1, 'one external referrer' );
+is( $s->{hits},                            3,    'bot row excluded (3 of 4)' );
+is( $s->{unique_visitors},                 1,    'anonymised IPs collapse to one' );
+is( $s->{top_pages}[0]{key},               '/a', 'top page is /a' );
+is( $s->{top_pages}[0]{count},             2,    '/a hit twice' );
+is( $s->{status}{200},                     2,    'two 200s (non-bot)' );
+is( $s->{status}{404},                     1,    'one 404' );
+is( scalar @{ $s->{referrers}{external} }, 1,    'one external referrer' );
 
+# SM335: `anonymise_ip` is retired and a conf carrying it is inert. The scan is
+# re-run with it present ON PURPOSE - an existing site's conf will still have
+# the line, and the engine must ignore it rather than fail on it.
 my $s2 = scan( "anonymise_ip: false\n", access_log => "$d/access.log" );
 is( $s2->{classes}{human}{hits}, 3, 'human headline excludes the bot' );
 is( $s2->{classes}{bot}{hits},   1, 'the Googlebot row is classed as a bot' );
-is( $s2->{unique_visitors}, 2, 'raw human IPs when anonymise off (bot not counted)' );
+is( $s2->{unique_visitors}, 1,
+    'the retired setting has no effect - addresses are always anonymised' )
+    or diag( 'A setting that still worked would be worse than one that is '
+        . 'gone: it would put un-anonymised addresses into a durable store '
+        . 'built deliberately never to hold them.' );
 
 # --- error-log surface: SYNTHESISED categories only, never raw lines / IPs / paths ---
 open my $el, '>', "$d/error.log" or die $!;
@@ -59,7 +66,7 @@ print $el "[Sun Jun 28 02:00:00 2026] [core:error] [pid 1] AH00574: End of scrip
 close $el;
 my $se = scan( "", access_log => "$d/access.log", error_log => "$d/error.log" );
 ok( $se->{errors} && $se->{errors}{available}, 'error log surfaced when set' );
-ok( !exists $se->{errors}{recent}, 'raw recent error lines are NOT exposed' );
+ok( !exists $se->{errors}{recent},             'raw recent error lines are NOT exposed' );
 my %by = map { $_->{code} => $_ } @{ $se->{errors}{categories} || [] };
 is( $by{AH01071}{count}, 2, 'scanner-probe errors counted' );
 is( $by{AH00574}{count}, 1, 'no-headers CGI errors counted' );
@@ -67,7 +74,7 @@ like( $by{AH01071}{label}, qr/scanner|probe/i, 'friendly label, not the raw mess
 my $blob = encode_json( $se->{errors} );
 unlike( $blob, qr/187\.84\.69\.202|10\.0\.0\.1/, 'no client IPs in the synthesis' );
 unlike( $blob, qr/lazysite-auth\.pl|example\.org|referer/, 'no script names / referers / paths' );
-ok( !exists $se->{error_log}, 'error-log disk path not exposed' );
+ok( !exists $se->{error_log},    'error-log disk path not exposed' );
 ok( !exists $se->{log_download}, 'log_download flag removed (no raw download)' );
 
 my $sne = scan( "", access_log => "$d/access.log", error_log => "$d/none.log" );
@@ -79,7 +86,7 @@ like( $miss->{error}, qr/readable|found|configured/i, 'helpful error' );
 
 # --- domain-qualified auto-detect: pick this site's log, not a decoy ---
 {
-    my $r = tempdir( CLEANUP => 1 );
+    my $r   = tempdir( CLEANUP => 1 );
     my $doc = "$r/web/demo.example.com/public_html";
     mkdir "$r/web"; mkdir "$r/web/demo.example.com";
     mkdir $doc; mkdir "$doc/lazysite"; mkdir "$r/web/demo.example.com/logs";
@@ -98,26 +105,26 @@ like( $miss->{error}, qr/readable|found|configured/i, 'helpful error' );
     open my $sc, '>', "$doc/lazysite/stats.conf" or die $!;
     print $sc "window_days: 30\naccess_log: /etc/passwd\n";
     close $sc;
-    my $got = decode_json( qx($^X $PLUGIN --scan --docroot '$doc') );
+    my $got = decode_json(qx($^X $PLUGIN --scan --docroot '$doc'));
     ok( $got->{ok}, 'auto-detect scan ok (manager access_log ignored)' ) or diag( $got->{error} );
     ok( $got->{log_configured}, 'log resolved (its disk path is never returned)' );
-    ok( !exists $got->{log}, 'disk path not exposed in the scan output (privacy)' );
+    ok( !exists $got->{log},    'disk path not exposed in the scan output (privacy)' );
     is( $got->{top_pages}[0]{key}, '/demopage',
         'auto-detect picked this site\x27s domain-qualified log, not the decoy' );
-    ok( !( grep { ($_->{key}//'') eq '/otherpage' } @{ $got->{top_pages} } ),
+    ok( !( grep { ( $_->{key} // '' ) eq '/otherpage' } @{ $got->{top_pages} } ),
         'did not read another site\x27s log' );
 }
 
 # --- not found -> needs_config, so the page asks ---
 {
-    my $r2 = tempdir( CLEANUP => 1 );
+    my $r2   = tempdir( CLEANUP => 1 );
     my $doc2 = "$r2/web/none.example/public_html";
     mkdir "$r2/web"; mkdir "$r2/web/none.example"; mkdir $doc2; mkdir "$doc2/lazysite";
     open my $cf2, '>', "$doc2/lazysite/lazysite.conf" or die $!;
     print $cf2 "site_url: https://none.example\n";
     close $cf2;
     open my $sc2, '>', "$doc2/lazysite/stats.conf" or die $!; close $sc2;
-    my $none = decode_json( qx($^X $PLUGIN --scan --docroot '$doc2') );
+    my $none = decode_json(qx($^X $PLUGIN --scan --docroot '$doc2'));
     ok( !$none->{ok} && $none->{needs_config}, 'no log found -> needs_config (ask the operator)' );
 }
 
@@ -131,19 +138,19 @@ SKIP: {
     mkdir "$r3/web"; mkdir "$r3/web/locked.example"; mkdir $doc3;
     mkdir "$doc3/lazysite"; mkdir "$r3/web/locked.example/logs";
     open my $cf3, '>', "$doc3/lazysite/lazysite.conf" or die $!;
-    print $cf3 "site_url: \${REQUEST_SCHEME}://\${SERVER_NAME}\n";  # templated -> domain from dir name
+    print $cf3 "site_url: \${REQUEST_SCHEME}://\${SERVER_NAME}\n"; # templated -> domain from dir name
     close $cf3;
     open my $sc3, '>', "$doc3/lazysite/stats.conf" or die $!; close $sc3;
     open my $lg3, '>', "$r3/web/locked.example/logs/locked.example.log" or die $!;
     print $lg3 "x\n"; close $lg3;
     chmod 0000, "$r3/web/locked.example/logs/locked.example.log";
 
-    my $locked = decode_json( qx($^X $PLUGIN --scan --docroot '$doc3') );
+    my $locked = decode_json(qx($^X $PLUGIN --scan --docroot '$doc3'));
     ok( !$locked->{ok} && $locked->{needs_config}, 'unreadable log -> needs_config' );
     like( $locked->{error}, qr/exists .* not \s readable/x,
         'error says the log EXISTS but is unreadable (not "no log found")' );
 
-    chmod 0644, "$r3/web/locked.example/logs/locked.example.log";  # let CLEANUP work
+    chmod 0644, "$r3/web/locked.example/logs/locked.example.log";    # let CLEANUP work
 }
 
 done_testing;

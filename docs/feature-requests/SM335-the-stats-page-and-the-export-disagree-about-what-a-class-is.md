@@ -2,8 +2,8 @@
 title: "SM335 - the Stats page and the export disagree about what a visitor class is"
 subtitle: "The manager page reports human, logged_in, ai, bot and noise. The export reports human, ai, bot, noise and scanner. Neither list contains the other, and the page an operator reads is the one that cannot show a scanner at all."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-16, found while shipping [[SM330]] and NOT fixed with it, because it is not the same defect and the remedy is a judgement rather than a correction. SM330 was one fact written out four times with one copy wrong. This is two surfaces with genuinely different vocabularies: `scanner` is a VISITOR-LEVEL promotion computed in the export's two-pass tally, and the manager page's window readers classify per request and never run that pass - so the page cannot report a scanner without acquiring the pass, and `logged_in` exists only on the page because the export deliberately reports the audience rather than the operator. Recorded rather than reconciled on the spot."
+status: shipped
+status-note: "SHIPPED 2026-08-17. Both window readers now drive the same ingest the export drives and PROJECT the resulting day buckets into the page's shape - the second counting implementation is gone, which is the durable win, because two implementations of one count is how [[SM329]] came to be fixed in two places and missed in a third. The manager Stats page gains `scanner` (71.7% of traffic on the instrument, previously invisible there) and keeps `logged_in`, which is correct: the export reports the AUDIENCE and an operator's own sessions are not audience. A projection rather than a second pass, because promotion needs the probe tokens known before any counting and a streaming reader would have to read the logs twice - which [[SM342]]'s counters would report, correctly, as the code doing more than it did. The release manager took the one decision this forced: `anonymise_ip` is RETIRED."
 ---
 
 # What was found
@@ -141,7 +141,11 @@ the byte count its own pattern was already capturing and discarding.
 Two consequences fall out that are **not** mine to decide, because each changes
 what an operator sees or can do.
 
-## 1. `anonymise_ip` becomes inert
+## 1. `anonymise_ip` - RETIRED, on the release manager's decision
+
+Resolved: the setting is gone.
+
+### Why it could not stay
 
 The shared tally **always** anonymises - `_visitor_token(_anon_ip($ip))`, a /24
 truncation then a hash. That is deliberate in the export, which states
@@ -186,6 +190,26 @@ ingest words differently.
 They are left failing deliberately. Rewriting a test to match new behaviour is
 how a contract change gets made silently, and this one should be made on
 purpose.
+
+# What retiring the setting actually did
+
+The schema entry is removed, so the control disappears from the plugin
+configuration page. `lazysite-check` **WARNs** on a conf that still carries the
+line, naming it as retired and inert.
+
+WARN rather than FAIL, and the distinction is deliberate. [[SM279]]'s retired
+`dav_scope` is a confinement somebody believes exists and does not - a permission
+being wrong. This is the opposite direction: an operator who asked for LESS
+anonymisation is now getting more, so nothing is exposed and nobody is less safe.
+They are simply not getting what they asked for, and should be told rather than
+left to infer it from a control that has vanished.
+
+Two test fixtures set `anonymise_ip: false` explicitly, one of them commented
+"test exact unique-visitor counts". Both are updated to the new contract rather
+than to whatever number made them pass: visitor counts are per-/24 now, and one
+of them re-runs the scan with the retired line still present ON PURPOSE, because
+an existing site's conf will have it and the engine must ignore it rather than
+fail on it.
 
 # Verification
 

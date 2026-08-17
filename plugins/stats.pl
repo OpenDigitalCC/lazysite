@@ -290,7 +290,20 @@ if ( $arg{describe} ) {
                 { key => 'retention_days', label => 'First-party retention (days)', type => 'text', default => '90' },
                 { key => 'window_days', label => 'Window (days)', type => 'text', default => '30' },
                 { key => 'top_n', label => 'Top N (pages / referrers)', type => 'text', default => '15' },
-                { key => 'anonymise_ip', label => 'Anonymise visitor IPs', type => 'boolean', default => 'true' },
+                # SM335: `anonymise_ip` was RETIRED here. Both readers now share
+                # one tally, and that tally always anonymises - a /24 truncation
+                # then a hash, before anything is stored. The export has always
+                # worked that way and reports `anonymised: true` unconditionally;
+                # the manager page used to key visitors on the raw address when
+                # the setting was false.
+                #
+                # After unification the setting could not do anything, and a
+                # setting that cannot do anything is worse than no setting: it
+                # tells an operator they have a choice they do not have. Honouring
+                # it instead would have meant writing un-anonymised addresses into
+                # a durable store deliberately built never to hold them.
+                #
+                # A conf still carrying the line is inert. lazysite-check says so.
                 { key => 'ai_user_agents', label => 'Extra AI user-agents', type => 'text', default => '',
                     note => 'Comma-separated UA substrings to also count as AI assistants, on top of the built-ins (GPTBot, ClaudeBot, anthropic, ...).' },
                 { key => 'noise_paths', label => 'Extra noise paths', type => 'text', default => '',
@@ -654,7 +667,12 @@ sub _page_view_from_buckets {
         for my $c ( keys %{ $b->{cls_ips} || {} } ) {
             $cls_vis{$c}{$_} = 1 for keys %{ $b->{cls_ips}{$c} };
         }
-        $vis{$_} = 1 for keys %{ $b->{ips} || {} };
+        # HUMAN visitors only. The headline tile sits beside `Page views`, which
+        # is human-only, and the old reader counted this after its
+        # `next unless $class eq 'human'`. Summing $b->{ips} instead would put
+        # scanners in the headline - 71.7% of traffic on the instrument - which
+        # is the opposite of what this whole filing is about.
+        $vis{$_} = 1 for keys %{ $b->{cls_ips}{human} || {} };
         $hits         += ( $b->{hits}         // 0 );
         $bytes        += ( $b->{bytes}        // 0 );
         $assets       += ( $b->{asset_hits}   // 0 );
@@ -1543,11 +1561,28 @@ sub export_stats {
 sub _export_ingest_server_log {
     my ( $cfg, $cache ) = @_;
     my $log = find_log($cfg);
+
+    # SM335: TWO refusals, not one. The manager Stats page distinguished these
+    # and the export did not, and collapsing them when the readers were unified
+    # would have been a real loss - an operator whose log exists but cannot be
+    # read needs a permission fixed, and one with no log at all needs a path
+    # configured. Telling them the same thing sends half of them to the wrong
+    # place.
     return {
         ok           => 0,
         needs_config => JSON::PP::true,
-        error        => 'No access log is configured for this site.',
-    } unless length $log && -r $log;
+        error        => 'No access log found for this site. The log path is '
+            . 'auto-detected, or set by the server owner at install time via '
+            . 'the LAZYSITE_ACCESS_LOG environment variable.',
+    } unless length $log;
+
+    return {
+        ok           => 0,
+        needs_config => JSON::PP::true,
+        error        => 'An access log exists for this site but is not readable '
+            . 'by the web server user. Grant read access to it, or point '
+            . 'LAZYSITE_ACCESS_LOG at a log the site can read.',
+    } unless -r $log;
 
     my @st = stat($log);
     my ( $inode, $size ) = ( $st[1], $st[7] );
@@ -1597,6 +1632,126 @@ sub _export_ingest_server_log {
     }
 
     return { ok_to_assemble => 1 };
+}
+
+# SM140: incremental first-party ingestion into the same day-bucket cache the
+# server-log path uses. Day files are append-only, so a per-file byte offset
+# is all the incremental state needed; pruned files simply drop out.
+sub _export_ingest_first_party {
+    my ( $cfg, $cache, $files ) = @_;
+    if ( ( $cache->{v} // 0 ) != 2 || ref $cache->{files} ne 'HASH' ) {
+        %{$cache} = ( v => 2, files => {}, days => {}, events => [] );
+    }
+    $cache->{days}   ||= {};
+    $cache->{events} ||= [];
+
+    my $extra_ai    = _split_csv( $cfg->{ai_user_agents} );
+    my $extra_noise = _split_csv( $cfg->{noise_paths} );
+
+    my %live = map { (m{([^/]+)$})[0] => 1 } @{$files};
+    delete @{ $cache->{files} }{ grep { !$live{$_} } keys %{ $cache->{files} } };
+
+    my @batch;
+    for my $f ( @{$files} ) {
+        my ($base) = $f =~ m{([^/]+)$};
+        my $size   = ( -s $f )              // 0;
+        my $offset = $cache->{files}{$base} // 0;
+        $offset = 0 if $offset > $size;                  # rewritten/truncated: reprocess
+        next unless $size > $offset;
+        open my $fh, '<', $f or next;
+        seek $fh, $offset, 0;
+        my $pos = $offset;
+        $WORK{log_files_read}++;                         # SM342
+        $WORK{log_bytes_read} += ( $size - $offset );    # SM342
+        while ( my $line = <$fh> ) {
+            last unless $line =~ /\n\z/;    # incomplete final line: next time
+            $pos += length $line;
+            my $r = eval { JSON::PP::decode_json($line) } or next;
+            next unless ref $r eq 'HASH' && defined $r->{t};
+            next if ( $r->{ch} // 'page' ) ne 'page';    # operator traffic out
+            my $st = ( $r->{s} // 0 ) + 0;
+            my @dt = gmtime( $r->{t} );
+            push @batch, {
+                day    => sprintf( '%04d-%02d-%02d', $dt[5] + 1900, $dt[4] + 1, $dt[3] ),
+                path   => ( $r->{p} // '' ),
+                status => $st,
+                class => classify( ( $r->{p} // '' ), ( $r->{ua} // '' ), $extra_ai, $extra_noise, $st ),
+                token => ( $r->{v} // '' ),           # already an anonymised daily token
+                bytes => ( ( $r->{b} // 0 ) + 0 ),    # SM335
+                    # SM223: this request was REFUSED by an access decision. The
+                    # status alone cannot say so - the anonymous refusal is a 302 to
+                    # the login page, identical in the log to any other redirect.
+                auth_refused => ( $r->{ar} ? 1 : 0 ),
+                ref          => ( $r->{r} // '' ),
+                t            => $r->{t} + 0,
+            };
+        }
+        close $fh;
+        $cache->{files}{$base} = $pos;
+    }
+    _tally_batch( $cache, \@batch, $cfg );    # SM213: two-pass (scanner + 404 split)
+    return;
+}
+
+# SM216-2: fold the form-handler's append-only outcome log into the SAME
+# day-buckets, so the durable rollups (and the report) show blocked-vs-stored
+# per form. The form handler appends one JSON line per submission to
+# lazysite/stats/form-events/<day>.jsonl {day,form,outcome[,reason]}; we track a
+# per-file byte offset in the cache exactly as the first-party ingester does.
+# The offset lives in the cache, so a cache reset (rotation / shape change) drops
+# it alongside {days} and the events re-fold from zero into the rebuilt buckets -
+# the aggregate stays idempotent. Counts only; no submission content is read.
+sub _ingest_form_events {
+    my ( $cache, $cfg ) = @_;
+    my $dir = _stats_dir() . '/form-events';
+    return unless -d $dir;
+    opendir my $dh, $dir or return;
+    my @files = sort grep { /^\d{4}-\d{2}-\d{2}\.jsonl\z/ } readdir $dh;
+    closedir $dh;
+
+    $cache->{form_files} ||= {};
+    my %live = map { $_ => 1 } @files;
+    delete @{ $cache->{form_files} }{ grep { !$live{$_} } keys %{ $cache->{form_files} } };
+
+    for my $base (@files) {
+        my $f      = "$dir/$base";
+        my $size   = ( -s $f )                   // 0;
+        my $offset = $cache->{form_files}{$base} // 0;
+        $offset = 0 if $offset > $size;    # rewritten/truncated: reprocess
+        next unless $size > $offset;
+        open my $fh, '<', $f or next;
+        seek $fh, $offset, 0;
+        my $pos = $offset;
+        while ( my $line = <$fh> ) {
+            last unless $line =~ /\n\z/;    # incomplete final line: next time
+            $pos += length $line;
+            my $r = eval { JSON::PP::decode_json($line) } or next;
+            next unless ref $r eq 'HASH';
+            my $day = $r->{day} // '';
+            next unless $day =~ /^\d{4}-\d{2}-\d{2}\z/;
+            my $form = $r->{form} // '';
+            $form =~ s/[^a-zA-Z0-9_-]//g;
+            next unless length $form;
+
+            # Create the day-bucket with the full shape _tally_batch uses, so a
+            # form-only day (blocks but no page traffic) is still safe for the
+            # window loop and rollups.
+            my $b = $cache->{days}{$day} ||= _new_day_bucket();
+            my $fb = $b->{forms}{$form} ||= { stored => 0, quarantined => 0, blocked => {} };
+            my $out = $r->{outcome} // '';
+            if ( $out eq 'blocked' ) {
+                my $reason = lc( $r->{reason} // 'other' );
+                $reason =~ s/[^a-z_]//g;
+                $reason ||= 'other';
+                $fb->{blocked}{$reason}++;
+            }
+            elsif ( $out eq 'quarantined' ) { $fb->{quarantined}++; }
+            elsif ( $out eq 'stored' )      { $fb->{stored}++; }
+        }
+        close $fh;
+        $cache->{form_files}{$base} = $pos;
+    }
+    return;
 }
 
 sub _export_assemble {

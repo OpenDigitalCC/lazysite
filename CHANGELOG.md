@@ -44,6 +44,24 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM335 (PENDING) **one class vocabulary: the manager Stats page and the export
+  now count the same way.** The page carried its own counting implementation
+  with a vocabulary of its own - human / logged_in / ai / bot / noise, and no
+  `scanner`, because `scanner` is a visitor-level promotion only `_tally_batch`
+  computed. So the page an operator actually opens could not show the largest
+  class of traffic on their site: 71.7% of events on the instrument, sitting in
+  `noise` and `human` instead. Its arithmetic was never wrong on its own terms;
+  the total was right and the attribution was not, which is harder to notice.
+  Both readers now drive the same ingest and project the day buckets into the
+  page's shape - a projection rather than a second pass, because promotion needs
+  the probe tokens known before counting and a streaming reader would have to
+  read the logs twice, which SM342's counters would report as the code doing
+  more than it did. **`anonymise_ip` is RETIRED** (the shared tally always
+  truncates to /24 and hashes, as the export always did); a conf still carrying
+  the line is inert and `lazysite-check` says so. **The second counting
+  implementation is gone**, which is the durable win - two implementations of
+  one count is how SM329 came to be fixed in two places and missed in a third.
+
 - SM362 (PENDING) filed: **the engine resolves two meta values that no real site
   ever renders.** `page_meta_title` and `page_meta_desc` are resolved and frozen
   before a layout runs, and all 23 catalogue layouts overwrite both - so an

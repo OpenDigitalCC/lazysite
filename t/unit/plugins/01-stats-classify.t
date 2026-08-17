@@ -8,7 +8,7 @@ use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
 use File::Path qw(make_path);
-use JSON::PP qw(decode_json);
+use JSON::PP   qw(decode_json);
 use FindBin;
 use lib "$FindBin::Bin/../../lib";
 use TestHelper qw(repo_root);
@@ -20,7 +20,7 @@ make_path("$doc/lazysite");
 
 my $logf = "$doc/access.log";
 open my $lf, '>', $logf or die $!;
-my $D = '15/Jan/2026:10:00:00 +0000';
+my $D     = '15/Jan/2026:10:00:00 +0000';
 my @lines = (
     # --- genuine humans (3 distinct IPs): external, internal, direct referrers
     qq{1.2.3.4 - - [$D] "GET /about HTTP/1.1" 200 1234 "https://example.com/" "Mozilla/5.0 (X11; Linux) Gecko Firefox/120"},
@@ -58,8 +58,12 @@ print $lf "$_\n" for @lines;
 close $lf;
 
 open my $cf, '>', "$doc/lazysite/stats.conf" or die $!;
-print $cf "window_days: 36500\n";       # so the fixed fixture date is always in-window
-print $cf "anonymise_ip: false\n";      # test exact unique-visitor counts
+print $cf "window_days: 36500\n";    # so the fixed fixture date is always in-window
+# SM335: `anonymise_ip` is RETIRED. Addresses are always truncated to their
+# /24 and hashed before anything is stored, so this fixture's visitor counts
+# are per-NETWORK now rather than per-address. The setting existed so this
+# test could count exact addresses; the capability it depended on is gone
+# deliberately, and the counts below say what the engine actually reports.
 close $cf;
 
 # The log path is now an owner-set env var, not manager config.
@@ -70,20 +74,33 @@ print $lc "site_url: https://mysite.test\n";
 close $lc;
 
 my $json = qx{$^X \Q$plugin\E --scan --docroot \Q$doc\E 2>&1};
-my $r = eval { decode_json($json) };
+my $r    = eval { decode_json($json) };
 ok( $r && $r->{ok}, 'scan ok' ) or diag $json;
 
 my $c = $r->{classes};
-is( $c->{human}{hits},     5, 'human hits (+ 200 manifest.json + binance-referrer hit; SM192)' );
-is( $c->{human}{visitors}, 5, 'human unique visitors' );
-is( $c->{ai}{hits},        2, 'ai hits (UA + connector endpoint; secrets.json+GPTBot is now noise, SM192)' );
-is( $c->{bot}{hits},       4, 'bot hits (Googlebot + HeadlessChrome + 2 self-identified agents)' );
-is( $c->{noise}{hits},     6, 'noise hits (wp-login + .php + favicon + robots + asset-manifest 404 + secrets.json; SM192)' );
-is( $c->{logged_in}{hits}, 2, 'logged-in operator hits' );
+is( $c->{human}{hits}, 5, 'human hits (+ 200 manifest.json + binance-referrer hit; SM192)' );
+is( $c->{human}{visitors}, 3,
+    'human visitors are per-/24 now, not per-address (SM335)' );
+is( $c->{ai}{hits}, 2, 'ai hits (UA + connector endpoint; secrets.json+GPTBot is now noise, SM192)' );
+is( $c->{bot}{hits}, 4, 'bot hits (Googlebot + HeadlessChrome + 2 self-identified agents)' );
+# SM335: four of the six moved to `scanner`. The page runs the same
+# visitor-level promotion the export always did, so a token that probed is a
+# scanner for the window and its other requests go with it. That reattribution
+# is the whole point of the filing - it is why the page could show 71.7% of
+# traffic as something other than what it is.
+is( $c->{noise}{hits}, 2,
+    'noise keeps only what no promoted token owns (SM192, SM335)' );
+is( $c->{scanner}{hits}, 4,
+    'and the manager page can finally SHOW the scanner class' )
+    or diag( 'This class was absent from this surface entirely. It is the '
+        . 'largest one on a public site.' );
+is( $c->{scanner}{visitors},   4, 'with its visitors' );
+is( $c->{logged_in}{hits},     2, 'logged-in operator hits' );
 is( $c->{logged_in}{visitors}, 1, 'logged-in one IP' );
 
-is( $r->{hits},            5, 'headline hits = human only' );
-is( $r->{unique_visitors}, 5, 'headline visitors = human only' );
+is( $r->{hits}, 5, 'headline hits = human only' );
+is( $r->{unique_visitors}, 3,
+    'headline visitors = human only, counted per /24 (SM335)' );
 
 is( $r->{referrers}{internal}, 1, 'one self-referrer' );
 is( $r->{referrers}{direct},   2, 'two direct hits (+ the 200 manifest.json)' );
@@ -97,7 +114,7 @@ ok( $pages{'/about'} && $pages{'/contact'} && $pages{'/'}, 'human pages listed' 
 ok( !$pages{'/manager/files'} && !$pages{'/wp-login.php'} && !$pages{'/index.php'},
     'manager + probe paths excluded from top pages' );
 
-ok( !exists $r->{log}, 'disk path of the log is NOT returned (privacy)' );
+ok( !exists $r->{log},    'disk path of the log is NOT returned (privacy)' );
 ok( $r->{log_configured}, 'log_configured flag present instead' );
 
 done_testing;
