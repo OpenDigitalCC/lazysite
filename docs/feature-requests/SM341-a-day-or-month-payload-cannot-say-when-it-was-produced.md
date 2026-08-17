@@ -2,8 +2,8 @@
 title: "SM341 - a day or month payload cannot say when it was produced"
 subtitle: "The index carries `generated`. The single-day and single-month responses carry nothing, so a reader comparing one against an earlier copy has to rely on their own notes for when either was made."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-16 from a partner-agent observation made while staging a before-and-after capture across the 0.10.12 upgrade. Explicitly offered as an observation rather than a request, and explicitly not for that release - recorded because it is cheap, because the case that prompted it recurs whenever anyone compares a store across a change, and because [[SM340]] guarantees more of that comparing is coming. Small enough that it should travel with the next change to these payloads rather than justify its own."
+status: shipped
+status-note: "SHIPPED 2026-08-17 (ffb4204), with [[SM339]] and [[SM343]] as one change. The day and month payloads carry `generated`, so two rollups can be ordered from the artefacts rather than from the notes of whoever fetched them - which is the claim the partner agent could not make."
 ---
 
 # What was found

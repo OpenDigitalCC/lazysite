@@ -2,8 +2,8 @@
 title: "SM339 - recompute the day rollups so the series is continuous and correct"
 subtitle: "The raw first-party log is retained for 90 days, so every day rollup inside the retention window can be rebuilt under the current counting basis. The window shrinks by one day per day, and what falls out of it is unrecoverable."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-16 alongside [[SM338]], which shipped. SM338 records that the basis changed; this makes the series comparable across the change. Deliberately NOT bundled into 0.10.12: a recompute is a WRITE OVER DURABLE DATA - the one store this project has been most careful with - and it belongs in a release where it is the thing being tested rather than a passenger on one already in the gate. The cost of waiting is bounded and known: one day of recoverable history per day, out of ninety."
+status: shipped
+status-note: "SHIPPED 2026-08-17 (ffb4204), with [[SM341]] and [[SM343]] as one change. `--recount` is DRY RUN BY DEFAULT, because it writes over the only durable record a site has; BOUNDED by the retained logs, because that is all it can honestly rebuild, and days older keep their figures and keep saying which basis produced them; and it reports per-day before and after, because "it ran" is not a result. Durable files are written canonically now, so a repair is checkable with plain `diff`."
 ---
 
 # What is possible, and for how long

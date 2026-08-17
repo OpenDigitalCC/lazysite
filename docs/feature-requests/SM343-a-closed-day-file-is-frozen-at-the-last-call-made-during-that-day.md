@@ -2,8 +2,8 @@
 title: "SM343 - a closed day file is frozen at the last call made during that day"
 subtitle: "Today's rollup is refreshed on every call; a closed day is written only if no file exists. So a file created while the day was still running is never revisited, and holds the day as of the last export call made during it. A day file is complete only if nobody looked at the statistics that day."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-17 from a partner-agent measurement on edge/0.10.11 - a day file and the window's own by_day row disagreeing about the same closed date, scanner by 5.6x - and reproduced here immediately. PRE-EXISTING and not introduced by 0.10.12, which is why the release was not held for it a second time: the recomputed views have always been right and the durable file has always been short, and nothing in this release changes either. But it lands on the artefact [[SM338]] just started stamping and the one [[SM339]] proposes rebuilding, and it changes SM339 from a nicety into a repair."
+status: shipped
+status-note: "SHIPPED 2026-08-17 (ffb4204), with [[SM339]] and [[SM341]] as one change. A closed day is written once more when it closes - at which point its bucket holds the whole day - then marked final, so it costs one extra write per day and not one per call. It also repairs history automatically on upgrade: an existing site has short files and complete buckets, so the first run rewrites each once from the bucket."
 ---
 
 # Reproduced
