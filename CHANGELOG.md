@@ -61,6 +61,24 @@ Naming the commit: AFTER it lands, never before
   SM332 and SM329 prerequisites rather than adjacent work. **Partial:** device
   class needs the user-agent threaded through both ingesters, and internal
   search terms need a privacy decision, a frequency floor and their own toggle.
+- SM347 / SM348 / SM351 / SM360 / SM361 (PENDING) **five surfaces that said
+  something not quite true**, from the partner agent's four-surface pass.
+  **SM347**: `read_page` and `validate_page` rejected a bare path that four
+  other tools accept, so create-then-read failed on a page serving 200 - one
+  resolver now, conservative, and an exact path that exists is never
+  re-pointed. **SM348**: `describe_capabilities` still told agents
+  `install_layout` "installs AND activates in one step" on both surfaces, which
+  SM314 had already corrected in the tool itself - the document read FIRST
+  contradicted the tool it described. **SM351**: `content_moved:1` is true of
+  the engine and, for up to a minute, false about what a visitor gets; a
+  `content_moved_note` says so, in its own field rather than `warnings`, because
+  a caller filtering on warnings would read a caveat as a failure. **SM360**:
+  `governed_by` names the ACL key in effect, so a listing can distinguish
+  "private because its folder is gated" from "private because of its own stale
+  rule" without a call per file. **SM361**: `starter/forgot.md` says it is a
+  system page and why native forms cannot serve it, and the MCP instruction
+  states the rule's boundary rather than leaving an absolute its own shipped
+  example contradicts.
 
 - SM335 (PENDING) **one class vocabulary: the manager Stats page and the export
   now count the same way.** The page carried its own counting implementation

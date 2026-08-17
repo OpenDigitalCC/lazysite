@@ -2,8 +2,8 @@
 title: "SM361 - a starter page models the pattern the briefing forbids, and does not say why it may"
 subtitle: "`starter/forgot.md` ships a hand-authored `<form>` and an inline `<style>` block. The authoring briefing tells every agent never to do either. The page is right and the briefing is right; nothing anywhere says how both can be true."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-17 from a partner agent's residual observations after the four-surface pass. Their framing was that a starter page ships the exact pattern the briefing forbids. Checking it directly narrows the finding and improves it: the form is NECESSARILY hand-authored - it posts to the auth CGI, and native forms bind to content handlers which cannot perform authentication - so the page is not wrong. What is wrong is that it is silent about being an exception, in the one place agents go to learn the conventions."
+status: shipped
+status-note: "SHIPPED 2026-08-17. The page says it is a SYSTEM page, why native forms cannot serve it, and what ordinary content should use instead - and the MCP instruction states the boundary where agents actually read it rather than leaving an absolute rule its own shipped example contradicts. The form itself is unchanged: it posts to the auth CGI, and native forms bind to content handlers which cannot authenticate."
 ---
 
 # What is there

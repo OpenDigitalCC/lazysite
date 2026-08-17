@@ -28,8 +28,9 @@ Requires: `manage_layouts`
 Requires: `manage_layouts`
 
 1. call list_layout_catalogue (MCP) or GET action=layouts-manifest (control API) to see what is available and installed
-2. call install_layout (MCP) or POST action=layout-install (control API) - it installs AND activates the new layout in one step
-3. ONLY THEN, if the old layout is no longer wanted: delete_layout / layout-delete. Deleting the ACTIVE layout is always refused - install/activate the replacement first, never delete first
+2. call install_layout (MCP) or POST action=layout-install (control API) - this places the layout on the site and changes NOTHING a visitor sees
+3. call activate_layout (MCP) or POST action=layout-activate (control API) - this is the step that switches the live site. The response says whether the layout renders the site navigation and page body (SM337); a layout that renders no [% nav %] is activated anyway and warns, because a showcase layout is a legitimate choice
+4. ONLY THEN, if the old layout is no longer wanted: delete_layout / layout-delete. Deleting the ACTIVE layout is always refused - install/activate the replacement first, never delete first
 
 ## Undo a content change (restore a recorded version)
 

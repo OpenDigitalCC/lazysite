@@ -2,7 +2,7 @@
 title: "SM348 - describe_capabilities still says install_layout activates"
 subtitle: "SM314 corrected the tool description, which now states the opposite plainly. The `switch-layout` task in describe_capabilities - on both the API and MCP surfaces - still tells the reader that install_layout installs AND activates in one step."
 brand: plain
-status: candidate
+status: shipped
 ---
 
 # SM348 - the orientation document contradicts the tool

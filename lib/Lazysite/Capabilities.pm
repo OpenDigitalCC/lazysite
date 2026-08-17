@@ -206,7 +206,18 @@ my @TASKS = (
         requires => ['manage_layouts'],
         steps    => [
             'call list_layout_catalogue (MCP) or GET action=layouts-manifest (control API) to see what is available and installed',
-            'call install_layout (MCP) or POST action=layout-install (control API) - it installs AND activates the new layout in one step',
+            # SM348: this said "it installs AND activates the new layout in one
+            # step". SM314 corrected the TOOL to say installing does not
+            # activate, and left this - so the document an agent reads FIRST
+            # contradicted the tool it was describing, and an agent following
+            # this sequence would install a layout, believe the site had
+            # switched, and find it unchanged.
+            #
+            # Two steps now, because it is two operations. SM176's reasoning
+            # holds: activating is the part that changes what visitors see, so
+            # it is always asked for explicitly.
+            'call install_layout (MCP) or POST action=layout-install (control API) - this places the layout on the site and changes NOTHING a visitor sees',
+            'call activate_layout (MCP) or POST action=layout-activate (control API) - this is the step that switches the live site. The response says whether the layout renders the site navigation and page body (SM337); a layout that renders no [% nav %] is activated anyway and warns, because a showcase layout is a legitimate choice',
             'ONLY THEN, if the old layout is no longer wanted: delete_layout / layout-delete. Deleting the ACTIVE layout is always refused - install/activate the replacement first, never delete first',
         ],
     },

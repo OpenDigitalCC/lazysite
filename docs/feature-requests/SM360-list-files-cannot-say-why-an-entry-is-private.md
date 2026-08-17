@@ -2,7 +2,7 @@
 title: "SM360 - list_files cannot say why an entry is private"
 subtitle: "`store: private` on all 31 entries, `read: null` on all 31 - because the rule is on the folder. So the listing cannot distinguish an entry gated by its parent from one carrying its own rule, which is exactly the stale-per-file-ACL case the runbook warns about."
 brand: plain
-status: candidate
+status: shipped
 ---
 
 # SM360 - the right answer to one question, and nothing for the other

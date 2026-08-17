@@ -84,6 +84,29 @@ sub _sibling_dir {
     return length $canon ? "$other/$canon" : $other;
 }
 
+# SM360: the nearest ACL key that governs a path.
+#
+# Longest match wins, walking up: a rule on /docs/private beats one on /docs,
+# which beats the site-wide /. Returns undef when nothing governs the path at
+# all, so an ungoverned file says nothing rather than claiming to be covered by
+# a rule that does not exist.
+sub _governing_acl_key {
+    my ( $acls, $key ) = @_;
+    return undef unless ref $acls eq 'HASH' && defined $key && length $key;
+    return $key if $acls->{$key};
+
+    my @parts = grep { length } split m{/}, $key;
+    while (@parts) {
+        pop @parts;
+        my $up = @parts ? join( '/', @parts ) : '';
+        for my $cand ( $up, "$up/" ) {
+            next unless length $cand;
+            return $cand if $acls->{$cand};
+        }
+    }
+    return $acls->{'/'} ? '/' : undef;
+}
+
 sub action_list {
     my ($dir_path) = @_;
     $dir_path //= '/';
@@ -252,12 +275,32 @@ sub action_list {
                 # SM074: surface ownership from the central ACL store.
                 # SM077: also surface the read/write lists (for the inline
                 # permissions editor) and any live lock (for the lock glyph).
-                my $a = $acls->{ _acl_norm($rel) };
+                my $own = _acl_norm($rel);
+                my $a   = $acls->{$own};
                 if ($a) {
                     $entry->{owner} = $a->{owner} if defined $a->{owner};
                     $entry->{read}  = $a->{read}  if ref $a->{read} eq 'ARRAY';
                     $entry->{write} = $a->{write} if ref $a->{write} eq 'ARRAY';
                 }
+
+                # SM360: WHICH RULE is in effect, not just whether this file has
+                # one of its own.
+                #
+                # `read` above is the entry's OWN key. A file private because its
+                # FOLDER is gated has no key of its own, so it reported
+                # `store: private` beside `read: null` - correct, and unable to
+                # answer the question somebody looking at that listing is asking.
+                #
+                # The case this exists for is the one the runbook warns about: a
+                # folder-level acl-remove leaves a per-file entry still gating,
+                # and from the listing alone "private because of the folder" and
+                # "private because of its own stale rule" looked identical.
+                # Answering it needed a call per file.
+                #
+                # An ACL KEY, relative to the docroot - never a filesystem path.
+                # Same reason `store` is a label and not a location (SM286).
+                my $gov = _governing_acl_key( $acls, $own );
+                $entry->{governed_by} = $gov if defined $gov;
                 ( my $lk = $rel ) =~ s{/}{:}g;
                 my $lrec = _read_lock_record("$LOCK_DIR/$lk.lock");
                 if ( _lock_fresh($lrec) ) {
@@ -1368,9 +1411,37 @@ sub action_acl_set {
 
     # $rel, not $r->{rel}: on the root branch $r is never assigned, so this
     # reported path => undef for the one rule that covers the whole site.
+    # SM351: `content_moved` is true of the ENGINE and not yet of the world.
+    #
+    # The bytes leave the document root the moment the rule is written, and the
+    # engine serves nothing from the old path afterwards. A front end holding an
+    # open file descriptor for a file it served recently can still answer from
+    # it until that descriptor ages out - measured on nginx at 60 seconds, its
+    # `open_file_cache_valid` default ([[SM331]], closed correctly as a bounded
+    # transient).
+    #
+    # SM331 is about the caching. THIS is about the sentence: for the length of
+    # that window the success report is a true statement about the engine and a
+    # false one about what a visitor gets, and it said nothing to distinguish
+    # them. A caller protecting content after the fact - the SM283 remediation
+    # case, and the whole reason `acl reapply` exists - needs to know that the
+    # files somebody fetched a minute ago are exactly the ones still reachable.
+    # NOT a warning. `warnings` is where this reports things that went wrong,
+    # and a caller filtering on it treats an entry as a problem - t/unit/73
+    # asserts a successful move carries none, correctly. This is a caveat on a
+    # success, so it gets its own field rather than borrowing the one that means
+    # something failed.
+    my $moved_note =
+        'content moved out of the document root. A front end that served one of '
+        . 'these files in the preceding minute may keep answering from a cached '
+        . 'descriptor until it expires - 60 seconds on a default nginx '
+        . '(open_file_cache_valid). The engine serves nothing from the old path '
+        . 'from now on; nothing needs changing on the front end.';
+
     return { ok => 1, path => $rel, acl => \%rec,
         content_moved => ( $CONTENT_MOVED ? 1 : 0 ),
-        ( @warnings ? ( warnings => \@warnings ) : () ) };
+        ( $CONTENT_MOVED ? ( content_moved_note => $moved_note ) : () ),
+        ( @warnings      ? ( warnings => \@warnings )            : () ) };
 }
 
 # SM267 (carved out of SM181): what is held back right now.

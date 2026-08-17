@@ -1277,9 +1277,38 @@ sub _mcp_search {
 
 # Publish status for a page: is the source there, has the rendered HTML cache
 # been dropped (so a visitor re-renders it fresh), and where is it public.
+# SM347: ONE PATH VOCABULARY.
+#
+# A page created as `create_page {"slug":"zz/probe"}` is stored at
+# `/zz/probe.md` and served at `/zz/probe`. Four tools accepted either form and
+# two - read_page and validate_page - accepted only the stored one, so the
+# natural sequence failed: create a page, read it back at the path it serves
+# from, and get not-found with `retryable:false` for a page answering 200.
+#
+# page_status was in the accepting column for a weaker reason: it returned
+# `ok:1` with `exists:false`, which is the call succeeding rather than the page
+# being found. That is the worse half - a tool that says ok about a page it did
+# not locate.
+#
+# Conservative on purpose. An exact path that exists is returned unchanged, so
+# nothing addressing a file directly changes behaviour; `.md` is tried only when
+# the path as given is not there. A path that resolves to nothing comes back as
+# it was asked for, so the error names what the caller said rather than
+# something the engine invented.
+sub _resolve_page_path {
+    my ($path) = @_;
+    return $path unless defined $path && length $path;
+    ( my $rel = $path ) =~ s{^/+}{};
+    $rel =~ s{\.\.}{}g;
+    return $path      if -f "$DOCROOT/$rel";
+    return "/$rel.md" if $rel !~ /\.md\z/ && -f "$DOCROOT/$rel.md";
+    return $path;
+}
+
 sub _page_status {
     my ($path) = @_;
     return { ok => 0, error => 'path required' } unless defined $path && length $path;
+    $path = _resolve_page_path($path);    # SM347
     ( my $rel = $path ) =~ s{^/+}{}; $rel =~ s{\.\.}{}g;
     my $full   = "$DOCROOT/$rel";
     my $exists = -f $full;
@@ -1375,6 +1404,7 @@ sub _public_url {
 
 sub _read_page {
     my ( $path, $user ) = @_;
+    $path = _resolve_page_path($path);    # SM347
     my $r = action_read( $path, $user );
     return $r unless ref $r eq 'HASH' && $r->{ok};
     my ( $fm, $body ) = _split_front_matter( $r->{content} );
@@ -1464,6 +1494,7 @@ sub _validate_page {
     if ( !defined $content ) {
         return { ok => 0, error => 'path or content required' }
             unless defined $path && length $path;
+        $path = _resolve_page_path($path);    # SM347
         my $r = action_read( $path, $user );
         return $r unless ref $r eq 'HASH' && $r->{ok};
         $content = $r->{content};
@@ -2393,7 +2424,11 @@ if ( $method eq 'initialize' ) {
                 . 'raw:true) or hand-author HTML into /lazysite-assets/. Forms are native: '
                 . 'use the create_form tool (or a :::form block bound to an operator-vetted '
                 . 'handler via bind_form) - never hand-written form HTML or a third-party '
-                . 'form service. To rename or move a page, use rename_page (or move_file) - '
+                . 'form service for CONTENT. (SM361: the shipped system pages that post to '
+                . 'the auth CGI, such as /forgot, are the one exception and say so where '
+                . 'they do it - native forms bind to content handlers and cannot '
+                . 'authenticate. Do not read those as permission.) '
+                . 'To rename or move a page, use rename_page (or move_file) - '
                 . 'never write a new file at the new path and delete the old one, which '
                 . 'breaks the page content history (a move keeps it; a delete ends it). '
                 . 'For content rules '
