@@ -1010,7 +1010,11 @@ sub action_layout_install {
             push @theme_errors, "$tname: download/extract ($tdir)";
             next;
         }
-        my $tr = _install_theme_from_dir( $tdir, 'layout-install', $auth_user );
+        # The update flag reaches the THEME installer too. Without it an update
+        # installed each theme under a dated name beside the one in use, so the
+        # layout template updated and its stylesheet did not - reported as
+        # success by every surface. See Themes::_install_theme_from_dir.
+        my $tr = _install_theme_from_dir( $tdir, 'layout-install', $auth_user, $update );
         if ( $tr->{ok} ) {
             _mirror_theme_assets( $layout, $tname );
             push @themes_installed, $tname;

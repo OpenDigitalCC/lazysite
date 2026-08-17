@@ -373,7 +373,7 @@ if ( $arg{describe} ) {
                 # a page. An operator who wants the rest of SM336 should not get
                 # this as a side effect of the release that added sessions.
                 { key => 'search_terms', label => 'Record internal search terms', type => 'checkbox', default => '',
-                    note => 'Records what visitors typed into the site search, as a top-20 list per day. A term is only stored once ' . $SEARCH_TERM_FLOOR . ' different visits have used it, so a one-off is never kept: below that only a hash is counted, and the words themselves are never written down. Off by default.' },
+                    note => 'Records what visitors typed into the site search, as a top-20 list per day. A term is only stored once ' . $SEARCH_TERM_FLOOR . ' different visits have used it, so a one-off is never kept: below that only a hash is counted, and the words themselves are never written down. Off by default. NOTE: once on, the terms also reach any partner agent holding the analytics capability, through analyse_visitors - recording them and sharing them with your agents is one switch, not two.' },
             ],
             # 'refresh' is called programmatically by the Stats page to pull
             # data - it is not a config-page button (hidden), so the plugin page

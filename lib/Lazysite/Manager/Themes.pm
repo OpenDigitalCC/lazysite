@@ -1384,7 +1384,7 @@ sub action_theme_upload {
 }
 
 sub _install_theme_from_dir {
-    my ( $extract_dir, $action_label, $user ) = @_;
+    my ( $extract_dir, $action_label, $user, $update ) = @_;
 
     return { ok => 0, error => "Upload must contain theme.json" }
         unless -f "$extract_dir/theme.json";
@@ -1441,10 +1441,37 @@ sub _install_theme_from_dir {
     # name in lazysite.conf's theme: key.
     my $install_name = $theme_name;
     my $first_dest   = _lz() . "/layouts/$clean_layouts[0]/themes/$theme_name";
-    if ( -d $first_dest ) {
+    if ( -d $first_dest && !$update ) {
         my @t = localtime( time() );
         $install_name = sprintf( "%04d%02d%02d-%s",
             $t[5] + 1900, $t[4] + 1, $t[3], $theme_name );
+    }
+    elsif ( -d $first_dest ) {
+
+        # AN UPDATE IS NOT A COLLISION, and treating it as one is what let a
+        # layout upgrade report success while changing nothing a visitor sees.
+        #
+        # Measured on edge after lumen went to catalogue 1.1.0: the template was
+        # the new one and /lazysite-assets/lumen/lumen/main.css was
+        # byte-identical to a copy taken that morning, with none of the
+        # .nav-toggle rules the release added. Below 900px the stale CSS hid the
+        # nav with no rule to reveal the toggle.
+        #
+        # The mechanism was this branch. The new theme installed as
+        # 20260817-lumen, the mirror ran for THAT, and the site went on serving
+        # lumen - so `themes_installed` named a real theme truthfully and the
+        # instance ran half of each one. _install_layout_from_dir has always
+        # taken an update flag and written in place; only the theme half was
+        # missing one, which is why the template updated and its stylesheet did
+        # not.
+        #
+        # Snapshot first, so an operator who edited the theme still has it. That
+        # is what the rename was protecting, and the protection is kept rather
+        # than traded away - _snapshot_artifact is a no-op on a theme still at
+        # its pristine baseline (SM176), so an unedited theme costs nothing.
+        for my $l (@clean_layouts) {
+            _snapshot_artifact( _lz() . "/layouts/$l/themes", $theme_name );
+        }
     }
 
     my @installed;

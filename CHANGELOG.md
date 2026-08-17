@@ -44,6 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM365 (PENDING) **a layout update no longer leaves the site on the old
+  theme.** Measured on edge after `lumen` went to catalogue 1.1.0: the template
+  was the new one and `/lazysite-assets/lumen/lumen/main.css` was
+  byte-identical to a copy taken that morning, missing every `.nav-toggle` rule
+  the release added - so below 900px the stale CSS hid the nav with no rule to
+  reveal the toggle, and the declared favicon 404'd. Every surface reported
+  success. The cause was an asymmetry: `_install_layout_from_dir` has always
+  taken an update flag and written in place, while the theme installer had none
+  and treated an existing theme as a **collision**, installing the new one as
+  `20260817-lumen` beside the one the site actually serves. So
+  `themes_installed` named a real theme truthfully and the instance ran half of
+  each. An update now replaces the theme in use, snapshotting first so an
+  operator's edits survive - and a same-named theme that is *not* an update
+  still steps aside, which is what the rename was for.
+
 - SM359 (624dbf2) **search_files says which limit stopped it, and can be paged
   past.** The filing asked for paging first; measuring what is actually being
   paged inverted that. This is a walk of a few hundred small text files - 181
@@ -137,10 +152,11 @@ Naming the commit: AFTER it lands, never before
   were separate entries in `top_pages` and every distinct search diluted the
   page it was searching from. Totals are unchanged, so this is not a
   counting-basis change; a site with a busy search box will simply see its real
-  pages rise. Both fields reach **both** window projections - the operator's
-  Stats page and the agent-facing export - because a setting that appears to do
-  nothing is the same defect class as a control that reports without acting,
-  approached from the other end.
+  pages rise. Both fields reach **both** window
+  payloads - the one behind the operator's Stats page and the agent-facing
+  export - so neither channel answers the question differently. The Stats page
+  does not yet *render* either of them, nor the sessions and journeys from the
+  previous release; that gap is [[SM363]].
 
 - SM335 (9b3bc1f) **one class vocabulary: the manager Stats page and the export
 - SM336 (dec9558) **a session has a boundary, and sequence is recorded.**
