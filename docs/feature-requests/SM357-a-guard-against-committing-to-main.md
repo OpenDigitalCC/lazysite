@@ -92,6 +92,27 @@ detached HEAD, which the hook allows anyway.
 Recorded rather than worked around. The alternative is an untracked hook that
 cannot be reviewed, which trades a bootstrap gap for a rule nobody can see.
 
+# It broke the manifest build, and the branch's own gate did not see it
+
+Landing this added two files - `githooks/pre-commit` and
+`scripts/install-hooks.sh` - and `build-manifest.pl` REFUSES on an unclassified
+file, deliberately ([[SM271]]). So every test that builds a manifest failed on
+main the moment this landed: `t/tools/03`, `28`, `29`, `31`, and the manifest
+test itself.
+
+**The branch's own gate passed.** `prove -lr t/lint` was green, and the manifest
+build lives in `t/tools`. A new file at a new path is exactly the change that
+needs the wider suite, and it is the one I ran the narrower one for.
+
+Both are excluded rather than classified, for the same reason
+`tools/tidy-check.pl` is: they enforce development process and a site has no use
+for them.
+
+**The refusal was right.** An unclassified file stopping the build is what
+stopped these two being silently shipped to every site, and [[SM271]] exists
+because that guard kept being tripped by tooling droppings and was nearly
+loosened. It caught a real one here.
+
 # Verification
 
 - A commit on `main`, `master` or `integration` is refused.

@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "_doc": "D021a + D022 classification config. Rules are tried in order; first match wins. Excludes are checked before rules. Overrides (by exact path) take precedence over everything.",
+  "_doc": "D021a + D022 classification config. Rules are tried in order; first match wins. Excludes are checked before rules. Overrides (by exact path) take precedence over everything. SM357 added githooks/ and scripts/install-hooks.sh - development-process files that enforce the branch discipline and are NOT shipped payload. They are excluded here for the same reason tools/tidy-check.pl is: a site has no use for them, and an unclassified file REFUSES the manifest build, which broke every test that builds one.",
   "rules": [
     {
       "_comment": "D022: plugins/ is the canonical home for shipped plugins. Drops the lazysite- prefix; installed under DOCROOT/../plugins/ to match manager-api's @CANDIDATES search path.",
@@ -235,7 +235,9 @@
     "^tools/gen-capability-docs\\.pl$",
     "^tools/gen-manpages\\.pl$",
     "^man/",
-    "^website/"
+    "^website/",
+    "^githooks/",
+    "^scripts/install-hooks\\.sh$"
   ],
   "overrides": [],
   "runtime_paths": [
