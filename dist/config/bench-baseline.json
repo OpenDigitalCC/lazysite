@@ -1,14 +1,15 @@
 {
-   "_doc" : "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. The gate (--check) fails on >tolerance x regression; a per-op override may live in tolerances{op}.",
-   "captured_at" : "2026-07-02T08:41:10Z",
-   "host" : "ai-dev",
-   "iterations" : 20,
-   "ops" : {
-      "render_cache_hit_ms" : 60,
-      "render_miss_ms" : 83.6,
-      "verify_password_ms" : 120.8,
-      "verify_token_ms" : 32.7
-   },
-   "perl" : "v5.40.1",
-   "tolerance" : 2
+  "_doc": "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. The gate (--check) fails on >tolerance x regression; a per-op override may live in tolerances{op}. stats_export_ms was added for SM340 and its figure captured 2026-08-17, AFTER the other ops' 2026-07-02 capture: it is a first measurement of an op that previously had none, not a re-capture. The other figures are deliberately untouched - SM327 records that re-capturing them would bake in a measured 9-26% drift and remove the ability to see it.",
+  "captured_at": "2026-07-02T08:41:10Z",
+  "host": "ai-dev",
+  "iterations": 20,
+  "ops": {
+    "render_cache_hit_ms": 60,
+    "render_miss_ms": 83.6,
+    "stats_export_ms": 458.8,
+    "verify_password_ms": 120.8,
+    "verify_token_ms": 32.7
+  },
+  "perl": "v5.40.1",
+  "tolerance": 2
 }

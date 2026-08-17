@@ -2,8 +2,8 @@
 title: "SM340 - the first-party export cache is written every run and never read"
 subtitle: "The loader accepts version 1. The first-party path writes version 2. So the default statistics path discards its cache on every call, re-reads every retained log, and rebuilds every day bucket from scratch - and its per-file byte offsets, the entire point of the incremental design, have never once been used."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-16, found while measuring [[SM338]]'s behaviour for a partner agent and NOT fixed in 0.10.12. Verified by sabotage rather than by reading: after a run, the stored per-file offsets were set past the end of the log, and the next run returned identical counts - a cache that was being honoured would have skipped everything. This is pre-existing and independent of SM329/SM338, which merely made it visible. It is NOT fixed here because making the cache load for the first time is a large behavioural change - offsets honoured, buckets persisted, days retained beyond their logs - and that belongs in a release where it is the thing being tested, not one already through suite and bench. It does mean SM338's historical-basis claim is false on the default path, and that filing has been corrected rather than left standing."
+status: shipped
+status-note: "SHIPPED for 0.10.12. The release manager held the cut for it rather than carrying it forward, because [[SM338]] is defeated by it rather than merely unhelped: a marker that records which basis a day was counted under is worthless while every day is recomputed on every call. Four things went in - the loader accepts both cache shapes; the promotion REACH-BACK, which is the regression the fix would otherwise have introduced; the export's event list became an explicit projection so internal fields cannot be published by sharing a hash; and the stats path got bench coverage, which it had never had. FOUND by sabotage rather than by reading, and the first attempt at the fix reproduced the bug for a different reason - see below. NOT re-baselined: the new op's figure is a first measurement, the other ops are untouched per [[SM327]]."
 ---
 
 # What was found
@@ -119,19 +119,126 @@ gate, so no tolerance applies at any value. The fix should arrive with bench
 coverage for this path, and the first figures taken after it should be captured
 as the baseline rather than compared to anything.
 
-# Why fixing it is not a small change
+# What shipped
 
-Making the cache load for the first time is not a version-number correction. It
-switches on incremental ingestion, offset reuse and bucket persistence
-simultaneously, on the default path, for every site. Each of those is intended
-behaviour that has never run in production.
+## The loader, and the trap in the first attempt at it
 
-The direction is right and the change is desirable. It needs to be the thing a
-release is about.
+The fix is that `_load_export_cache` accepts both shapes and each ingester
+normalises the one it gets. The intent was already written down - the
+server-log path's own comment says "a v2 first-party cache lands here too and
+resets to the server-log shape", which it could not do while the loader refused
+to hand one over.
+
+**The first attempt reproduced the bug for a completely different reason.** It
+declared `our %CACHE_SHAPES = ( 1 => ..., 2 => ... )` beside the loader. The
+dispatch that reaches the loader runs EARLIER in the file than that line, so the
+hash was still empty when consulted and every cache was rejected exactly as
+before. This file already carries three comments warning about that trap for its
+regexes and its month map, and it caught this too. It is a sub now, which is
+bound at compile time and cannot be read before it is assigned.
+
+Worth recording because the symptom was identical and the sabotage test caught
+it immediately, where re-reading the diff would not have.
+
+## The reach-back, which is the regression the fix would have introduced
+
+While the cache was discarded on every call, a probe arriving late always
+reclassified that visitor's earlier requests - by brute force, because the whole
+log was re-read. With the cache honoured, those events are already counted under
+`human` and the promoting batch has to reach back for them.
+
+That matters precisely because the scanner's homepage hit is what [[SM213]]
+classifies per visitor to remove, and [[SM332]] needs five distinct 404s that
+may well arrive either side of a call. Measured on a fixture before the
+reach-back was built: a sweeper's first three requests stayed `human`, including
+the homepage hit, and only the batch that crossed the threshold was `scanner`.
+
+So the per-event tally is now a single reversible function applied with `+1` or
+`-1`, rather than a second copy of the counting written to match the first. On
+promotion, the token's earlier events are reversed under their old class and
+re-applied as `scanner` - aggregates included, not merely the labels. Bounded by
+the event ring, which is capped; what has scrolled out keeps the class it was
+counted under, which the export's own note already describes as a bounded sample
+rather than the dataset.
+
+## The export stopped handing out its internal ring
+
+The reach-back needs each event's day and referrer. Those live in the cache
+ring, and `_export_assemble` published that ring **verbatim** - so adding a
+field for internal use would have published a referrer attached to a visitor
+token, a privacy change arriving as a side effect of a performance fix. The
+exported event list is now an explicit projection of the five published fields.
+
+# What it is worth, measured rather than claimed
+
+The same 30-day, 4,500-event fixture exported repeatedly under v0.10.11 and
+under the fix:
+
+```datatable
+columns: | ms per call
+widths: 8.4cm | X
+bold: 1
+tone: medium
+---
+v0.10.11, cache never read | 630.7
+fixed, cache read | 424.9
+---
+```
+
+**About a third, not the 3.5 seconds the field measured.** The field figure was
+taken through the MCP surface against a larger corpus and includes ~500 ms of
+that surface's own overhead. What is removed here is the re-ingestion; what
+remains is assembling the window and rewriting the day, month and index files,
+which happens on every call regardless and is now the dominant cost.
+
+Stated this way because the temptation was to quote the field's 3.5 seconds as
+the saving. The saving is linear in retained log volume, so it is larger on a
+busy site with ninety days than on this fixture with thirty - and that is a
+reason to expect more in the field, not a reason to claim it here.
+
+**The correctness half is the justification.** History survives, a day whose log
+has rolled off no longer disappears from the index, and [[SM338]]'s marker can
+do the job it was written for.
+
+# The gate gap, closed
+
+`tools/bench.pl` had no reference to stats or export at all, which is why a
+per-call cost of this size went unmeasured. It now has a `stats_export_ms` op
+with a fixture carrying thirty days of first-party logs - an op pointed at an
+empty fixture would report a fast, stable, meaningless number, which would be a
+poor way to introduce coverage for a bug that was itself a control doing
+nothing.
+
+**And the check itself was hiding one.** An op with no baseline figure did
+`or next` - silently. So adding an op to that file LOOKED like coverage while
+being compared to nothing, and the gate would still report all ops within
+tolerance. It now names the ops it did not check and says a baseline must be
+captured before the gate can be relied on for them.
+
+`stats_export_ms` has been given a baseline figure and **the other ops were left
+exactly as they were**. This is a first measurement of an op that had none, not
+a re-capture - [[SM327]] records that re-capturing the others would bake in a
+measured 9-26% drift and remove the ability to see it.
+
+# Why this was not a version-number correction
+
+Recorded because it was filed as "not a small change" and then done, and the
+reason it was not small is worth keeping: making the cache load for the first
+time switches on incremental ingestion, offset reuse and bucket persistence
+simultaneously, on the default path, for every site. Each was intended
+behaviour that had never run in production.
+
+The reach-back is what that cost in practice. A one-line loader fix would have
+passed the entire suite - it did - while quietly degrading the classification
+SM213 and SM332 exist to produce, because nothing in the suite exercised a
+promotion arriving after the events it should govern.
 
 # What to check when it is done
 
-- Sabotaging the stored offsets changes the next run's output.
+- Sabotaging the stored offsets changes the next run's output. **Set them to
+  the file's actual size, not past the end** - an over-long offset is reset to
+  zero by the truncation guard, correctly, so that version of the probe reads
+  the same whether the cache is honoured or not and proves nothing.
 - A day whose log has rolled off is still present in the index, from its
   retained bucket.
 - Day buckets written before an upgrade keep the basis they were counted under,

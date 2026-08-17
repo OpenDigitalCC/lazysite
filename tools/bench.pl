@@ -31,6 +31,7 @@ my $mode      = ( grep { $_ eq '--baseline' } @ARGV ) ? 'baseline'
 
 my $utool = "$ROOT/tools/lazysite-users.pl";
 my $proc  = "$ROOT/lazysite-processor.pl";
+my $stats = "$ROOT/plugins/stats.pl";          # SM340
 
 sub uapi {
     my ( $d, $p ) = @_;
@@ -56,6 +57,41 @@ print $cf "site_name: Bench\n"; close $cf;
 open my $ix, '>', "$d/index.md" or die $!;
 print $ix "---\ntitle: Home\n---\n\n# Hello\n\nA page with **markdown**, a [link](/about), and a list:\n\n- one\n- two\n- three\n";
 close $ix;
+# SM340: first-party logs, so the statistics op below measures ingestion rather
+# than the "no log configured" early return. An op pointed at an empty fixture
+# reports a fast, stable, meaningless number - which is the shape of defect this
+# suite exists to remove, and it would be a poor way to introduce coverage for a
+# bug that was itself a control doing nothing.
+#
+# Thirty days of traffic, because the cost being guarded is linear in RETAINED
+# log volume: the defect was that every call re-ingested all of it, so a
+# single-day fixture would have shown almost nothing wrong.
+make_path("$d/lazysite/logs");
+{
+    my $now = time();
+    for my $back ( 0 .. 29 ) {
+        my $when = $now - $back * 86400;
+        my @lt   = localtime($when);
+        my $name = sprintf '%04d%02d%02d', $lt[5] + 1900, $lt[4] + 1, $lt[3];
+        open my $lf, '>', "$d/lazysite/logs/access-$name.jsonl" or die $!;
+        for my $i ( 1 .. 150 ) {
+            print {$lf} encode_json( {
+                    t => $when - $i,
+                    p => ( $i % 5 == 0  ? '/assets/img/a.jpg' : "/page-" . ( $i % 20 ) ),
+                    s => ( $i % 17 == 0 ? 404                 : 200 ),
+                    b => 100,
+                    u => 'Mozilla/5.0 Chrome/120',
+                    v => 'visitor-' . ( $i % 40 ),
+                    r => ( $i % 3 == 0 ? 'https://example.net/x' : '-' ),
+            } ) . "\n";
+        }
+        close $lf;
+    }
+}
+open my $sc, '>', "$d/lazysite/lazysite.conf" or die $!;
+print $sc "site_name: Bench\nfirst_party: true\n";
+close $sc;
+
 uapi( $d, { action => 'add', username => 'pwuser',  password => 'benchpw' } );
 uapi( $d, { action => 'add', username => 'tokuser', password => 'x' } );
 my $token = uapi( $d, { action => 'token', username => 'tokuser' } )->{token};
@@ -84,6 +120,23 @@ my %result = (
     } ),
     verify_password_ms => bench( $ITER, sub {
             uapi( $d, { action => 'verify-credential', username => 'pwuser', secret => 'benchpw' } );
+    } ),
+
+    # SM340: the statistics export. Added because it was the one hot path with
+    # NO coverage here at all, and what hid there was a 3.5-second per-call cost
+    # on the default surface - the export cache was written every run and never
+    # read, so every call re-ingested the whole retained log. It was found by a
+    # partner agent timing its own tool calls from outside, not by this gate.
+    #
+    # SM327 established that a 2x tolerance permits unbounded accretion. An op
+    # that is not measured at all is the same argument with no tolerance to
+    # argue about, so the remedy is coverage before it is a tighter number.
+    #
+    # THE CACHE IS LEFT IN PLACE between iterations deliberately. Clearing it
+    # would time a cold rebuild every time, which is the broken behaviour, and
+    # would have reported this defect as normal.
+    stats_export_ms => bench( $ITER, sub {
+            qx($^X \Q$stats\E --export --window 30 2>/dev/null);
     } ),
 );
 
@@ -122,13 +175,27 @@ if ( $mode eq 'check' ) {
         $base->{perl} // '?';
     print "WARNING: baseline host differs from this host (" . hostname() . ") - numbers are host-relative\n"
         if defined $base->{host} && $base->{host} ne hostname();
-    my @fail;
+    my ( @fail, @unbaselined );
     for my $op ( sort keys %result ) {
-        my $b0     = $base->{ops}{$op} or next;
+        my $b0 = $base->{ops}{$op};
+
+        # SM340: an op with no baseline used to `next` in silence, so adding an
+        # op to this file LOOKED like coverage and was not compared to anything.
+        # That is the defect this gate exists to catch, living in the gate: the
+        # run prints a number, the check says all ops are within tolerance, and
+        # one of them was never checked. Say so instead.
+        if ( !defined $b0 ) { push @unbaselined, $op; next }
+
         my $op_tol = $base->{tolerances}{$op} // $tol;
         push @fail, sprintf( "%s: %.1f ms exceeds %.1fx baseline (%.1f ms)", $op, $result{$op}, $op_tol, $b0 )
             if $result{$op} > $op_tol * $b0;
     }
+    if (@unbaselined) {
+        printf "NOT CHECKED (no baseline figure): %s\n", join( ', ', @unbaselined );
+        print "  Capture one before relying on this gate for that op.\n";
+    }
     if (@fail) { print "PERF REGRESSION:\n", map { "  $_\n" } @fail; exit 1 }
-    print "perf: all ops within tolerance of baseline\n";
+    printf "perf: %d op(s) within tolerance of baseline%s\n",
+        scalar( keys %result ) - scalar(@unbaselined),
+        ( @unbaselined ? sprintf( ', %d not checked', scalar @unbaselined ) : '' );
 }

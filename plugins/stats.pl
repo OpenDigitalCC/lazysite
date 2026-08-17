@@ -837,13 +837,45 @@ sub _day_str { return POSIX::strftime( '%Y-%m-%d', localtime( $_[0] ) ) }
 
 sub _cache_path { return "$DOCROOT/lazysite/cache/stats-export.json" }
 
+# SM340: BOTH shapes are valid caches and each ingester normalises the one it
+# gets. This accepted version 1 only, while the first-party ingester writes
+# version 2 - so on the default path the load returned undef, `|| {}` supplied
+# an empty hash, and the cache was discarded on every single call. The per-file
+# byte offsets, which are the entire point of the incremental design, had never
+# once been used.
+#
+# The intent was already written down: the server-log path's own comment says "a
+# v2 first-party cache lands here too and resets to the server-log shape", which
+# it could not do while the loader refused to hand one over. So this is the gate
+# being wrong rather than a policy being changed.
+#
+# The version is still checked, because an unrecognised shape must not be
+# handed to an ingester that will index into it. Anything else is treated as no
+# cache at all, which is the safe direction: a rebuild is correct and slow, and
+# reading a shape nobody wrote is neither.
+#
+# A SUB, not a package hash. The first version of this was
+# `our %CACHE_SHAPES = ( 1 => ..., 2 => ... )` declared here, and the dispatch
+# that reaches the loader runs EARLIER in the file than this line - so the hash
+# was still empty when it was consulted and every cache was rejected, exactly
+# as before the fix and for a completely different reason. This file already
+# carries three comments warning about that trap for its regexes and month map;
+# it caught this too. A sub is bound at compile time and cannot be read before
+# it is assigned, because it is never assigned.
+sub _known_cache_shape {
+    my ($v) = @_;
+    return 0 unless defined $v;
+    return ( $v == 1 || $v == 2 ) ? 1 : 0;    # server-log / first-party
+}
+
 sub _load_export_cache {
     open my $fh, '<', _cache_path() or return undef;
     local $/;
     my $j = <$fh>;
     close $fh;
     my $c = eval { JSON::PP::decode_json($j) };
-    return ( ref $c eq 'HASH' && ( $c->{v} // 0 ) == 1 ) ? $c : undef;
+    return undef unless ref $c eq 'HASH';
+    return _known_cache_shape( $c->{v} ) ? $c : undef;
 }
 
 sub _save_export_cache {
@@ -1133,6 +1165,77 @@ sub _new_day_bucket {
     };
 }
 
+# SM340: one event's contribution to a day bucket, applied with $sign = +1 or
+# reversed with $sign = -1.
+#
+# It exists because the cache fix creates a case that could not arise while the
+# cache was discarded: a token promoted to scanner in a LATER batch, whose
+# earlier requests are already counted under `human`. While every call re-read
+# the whole log, that reclassification happened by brute force and nobody had to
+# think about it. With the cache honoured, the earlier events are already in the
+# bucket and the promotion has to reach back - so the counting has to be
+# reversible, and the only safe way to reverse it is to run the same code
+# backwards rather than a second copy written to match.
+#
+# Class-INDEPENDENT effects stay at the call site: the visitor set, which a
+# reclassification does not change, and the day's basis marker.
+sub _apply_event {
+    my ( $b, $r, $cls, $sign, $site_host, $inferred, $nf_cap ) = @_;
+    my $st = $r->{status} // 0;
+
+    $b->{cls}{$cls} += $sign;
+    delete $b->{cls}{$cls} if ( $b->{cls}{$cls} // 0 ) <= 0;
+
+    $b->{scanner_inferred} += $sign if $cls eq 'scanner' && $inferred;
+
+    if ( $st == 404 ) {
+        if ( $cls eq 'human' ) {
+            # The cap governs GROWTH only. A reversal must always be allowed
+            # through, or a capped map could never shrink and the map would
+            # keep a path whose count had gone to nothing.
+            if ( $sign < 0 || keys %{ $b->{nf_plausible} } < $nf_cap ) {
+                $b->{nf_plausible}{ $r->{path} } += $sign;
+                delete $b->{nf_plausible}{ $r->{path} }
+                    if ( $b->{nf_plausible}{ $r->{path} } // 0 ) <= 0;
+            }
+        }
+        else { $b->{nf_junk} += $sign }
+    }
+
+    return unless $cls eq 'human';
+
+    my $is_asset = _is_asset( $r->{path} );
+    if   ( $is_asset && $st < 400 ) { $b->{asset_hits} += $sign }
+    else                            { $b->{hits}       += $sign }
+
+    $b->{status}{$st} += $sign;
+    delete $b->{status}{$st} if ( $b->{status}{$st} // 0 ) <= 0;
+
+    if ( $st < 400
+        && !$is_asset
+        && $r->{path} !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b} )
+    {
+        $b->{pages}{ $r->{path} } += $sign;
+        delete $b->{pages}{ $r->{path} } if ( $b->{pages}{ $r->{path} } // 0 ) <= 0;
+    }
+
+    my $ref = $r->{ref} // '';
+    if    ( !length $ref || $ref eq '-' ) { $b->{ref_direct} += $sign }
+    elsif ( $ref =~ m{^\S+?://([^/\s]+)} ) {
+        ( my $rh = $1 ) =~ s/^www\.//i;
+        if ( length $site_host
+            && ( lc $rh eq lc $site_host || $rh =~ /\Q$site_host\E$/i ) )
+        {
+            $b->{ref_internal} += $sign;
+        }
+        elsif ( !_ref_is_spam($rh) ) {
+            $b->{ref_ext}{$rh} += $sign;
+            delete $b->{ref_ext}{$rh} if ( $b->{ref_ext}{$rh} // 0 ) <= 0;
+        }
+    }
+    return;
+}
+
 sub _tally_batch {
     my ( $cache, $batch, $cfg ) = @_;
     return unless @$batch;
@@ -1156,10 +1259,12 @@ sub _tally_batch {
     # enumeration ran as `human` and would have been the top journey on the site
     # the moment trail metrics existed.
     my ( $sweep_n, $sweep_w ) = _sweep_thresholds($cfg);
+    my @newly_promoted;    # SM340: tokens that became scanners in THIS batch
     for my $r (@$batch) {
         my $tok = $r->{token} // '';
         next unless length $tok;
         if ( _is_probe( $r->{path}, $r->{status} ) ) {
+            push @newly_promoted, $tok unless $cache->{scanner}{$tok};
             $cache->{scanner}{$tok}    = 1;
             $cache->{scanner_by}{$tok} = 'signature';
             delete $cache->{sweep}{$tok};    # promoted; stop accruing state for it
@@ -1177,9 +1282,37 @@ sub _tally_batch {
         delete $seen->{$_} for grep { $now - $seen->{$_} > $sweep_w } keys %$seen;
 
         if ( keys %$seen >= $sweep_n ) {
+            push @newly_promoted, $tok unless $cache->{scanner}{$tok};
             $cache->{scanner}{$tok}    = 1;
             $cache->{scanner_by}{$tok} = 'behaviour';
             delete $cache->{sweep}{$tok};
+        }
+    }
+
+    # SM340: REACH BACK. A token promoted in this batch may have requests that
+    # were counted under `human` in an EARLIER one - the scanner's homepage hit,
+    # which is the whole reason SM213 classifies per visitor rather than per
+    # request. While the cache was discarded on every call this fixed itself by
+    # brute force, because the entire log was re-read each time. With the cache
+    # honoured it has to be done deliberately.
+    #
+    # Bounded by construction: the event ring is capped, so this can only ever
+    # revisit recent events, and each is reversed exactly once because its class
+    # in the ring is rewritten as it goes. What has scrolled out of the ring
+    # keeps the class it was counted under - stated in the export's own note
+    # that `events` is a bounded sample rather than the dataset.
+    if (@newly_promoted) {
+        my %promoted = map { ( $_ => 1 ) } @newly_promoted;
+        for my $e ( @{ $cache->{events} } ) {
+            my $tok = $e->{visitor} // '';
+            next unless length $tok && $promoted{$tok};
+            next if ( $e->{class} // '' ) eq 'scanner';
+            my $b   = $cache->{days}{ $e->{day} // '' } or next;
+            my $was = $e->{class} // 'human';
+            _apply_event( $b, $e, $was, -1, $site_host, 0, $NF_CAP );
+            _apply_event( $b, $e, 'scanner', 1, $site_host,
+                ( ( $cache->{scanner_by}{$tok} // '' ) eq 'behaviour' ), $NF_CAP );
+            $e->{class} = 'scanner';
         }
     }
 
@@ -1192,29 +1325,14 @@ sub _tally_batch {
         for grep { !$cache->{scanner}{$_} } keys %{ $cache->{scanner_by} };
 
     for my $r (@$batch) {
-        my $tok = $r->{token}  // '';
-        my $st  = $r->{status} // 0;
+        my $tok = $r->{token} // '';
         my $cls = ( length($tok) && $cache->{scanner}{$tok} ) ? 'scanner' : $r->{class};
         my $b   = $cache->{days}{ $r->{day} } ||= _new_day_bucket();
         $b->{basis}{$COUNTING_BASIS} = 1;    # SM338
-        $b->{cls}{$cls}++;
+        $b->{ips}{$tok}              = 1 if length($tok) && keys %{ $b->{ips} } < $IP_CAP;
 
-        # SM332: how much of the scanner class was INFERRED from behaviour
-        # rather than matched against a signature. An operator checking whether
-        # the sweep threshold suits their traffic needs this number; without it
-        # the two promotions are indistinguishable and the threshold cannot be
-        # judged against anything.
-        $b->{scanner_inferred}++
-            if $cls eq 'scanner'
-            && ( $cache->{scanner_by}{$tok} // '' ) eq 'behaviour';
-        $b->{ips}{$tok} = 1 if length($tok) && keys %{ $b->{ips} } < $IP_CAP;
-
-        if ( $st == 404 ) {
-            if ( $cls eq 'human' ) {
-                $b->{nf_plausible}{ $r->{path} }++ if keys %{ $b->{nf_plausible} } < $NF_CAP;
-            }
-            else { $b->{nf_junk}++ }
-        }
+        _apply_event( $b, $r, $cls, 1, $site_host,
+            ( ( $cache->{scanner_by}{$tok} // '' ) eq 'behaviour' ), $NF_CAP );
 
         # SM223: refusals are counted per PATH, for every class rather than
         # humans only. The case this exists to catch is an asset that became
@@ -1225,35 +1343,18 @@ sub _tally_batch {
         $b->{auth_refused}{ $r->{path} }++
             if $r->{auth_refused} && keys %{ $b->{auth_refused} || {} } < $NF_CAP;
 
-        if ( $cls eq 'human' ) {
-            # SM329: the DURABLE bucket, and the third counting site. The two
-            # window readers were fixed first and this one was not, which is
-            # SM318's shape exactly - and the worse half of it, because the
-            # rollups already reported an asset_hits that nothing set, so the
-            # durable record showed a real-looking zero.
-            my $is_asset = _is_asset( $r->{path} );
-            $b->{asset_hits}++ if $is_asset && $st < 400;
-            $b->{hits}++ unless $is_asset   && $st < 400;
-            $b->{status}{$st}++;
-            $b->{pages}{ $r->{path} }++
-                if $st < 400
-                && !$is_asset
-                && $r->{path} !~ m{^/(?:cgi-bin|lazysite-assets|dav|manager|login|logout)\b};
-            my $ref = $r->{ref} // '';
-            if    ( !length $ref || $ref eq '-' ) { $b->{ref_direct}++ }
-            elsif ( $ref =~ m{^\S+?://([^/\s]+)} ) {
-                ( my $rh = $1 ) =~ s/^www\.//i;
-                if ( length $site_host
-                    && ( lc $rh eq lc $site_host || $rh =~ /\Q$site_host\E$/i ) )
-                {
-                    $b->{ref_internal}++;
-                }
-                else { $b->{ref_ext}{$rh}++ unless _ref_is_spam($rh) }
-            }
-        }
-
+        # SM340: `day` and `ref` are carried for the reconciliation below and
+        # are NOT exported - the projection in _export_assemble enumerates the
+        # published fields, so a referrer cannot leave attached to a visitor
+        # token by sharing a hash with one.
         push @{ $cache->{events} }, {
-            t => $r->{t}, class => $cls, path => $r->{path}, status => $st, visitor => $tok,
+            t       => $r->{t},
+            class   => $cls,
+            path    => $r->{path},
+            status  => ( $r->{status} // 0 ),
+            visitor => $tok,
+            day     => $r->{day},
+            ref     => ( $r->{ref} // '' ),
         };
         shift @{ $cache->{events} } while @{ $cache->{events} } > $EVENT_CAP;
     }
@@ -1514,8 +1615,21 @@ sub _export_assemble {
         @k = @k[ 0 .. $n - 1 ] if @k > $n;
         return [ map { { key => $_, count => $h->{$_} } } @k ];
     };
-    my $top_n  = ( $cfg->{top_n} || 15 ) + 0;
-    my @events = grep { ( $_->{t} // 0 ) >= $cutoff_ep } @{ $cache->{events} };
+    my $top_n = ( $cfg->{top_n} || 15 ) + 0;
+    # SM340: an EXPLICIT projection, not the ring passed through. The ring is
+    # internal working state and now carries fields the reconciliation below
+    # needs - the referrer among them - which must not leave the machine
+    # attached to a visitor token merely because they happen to be in the same
+    # hash. Enumerating the output fields means adding one internally cannot
+    # publish it by accident, which is SM330's lesson pointed the other way.
+    my @events = map {
+        { t => $_->{t},
+            class   => $_->{class},
+            path    => $_->{path},
+            status  => $_->{status},
+            visitor => $_->{visitor},
+        }
+    } grep { ( $_->{t} // 0 ) >= $cutoff_ep } @{ $cache->{events} };
 
     # SM213: the two horizons, stated explicitly so no consumer mistakes the capped
     # event SAMPLE for the (complete) aggregates. data_from = how far the durable

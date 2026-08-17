@@ -93,9 +93,16 @@ subtest 'EVERY counting site uses the one predicate' => sub {
     #
     # Counted rather than listed, so a fourth reader added later has to carry
     # it too. Both spellings - the window readers increment a lexical %pages,
-    # the durable bucket $b->{pages} - and pinned to the INCREMENT, because the
-    # rollups also READ $pages{...} and counting those reported five sites.
-    my $counting = () = $src =~ /\$pages\{[^}]*\}\+\+|\{pages\}\{.*?\}\+\+/g;
+    # the durable bucket writes through $b->{pages} - and pinned to the WRITE,
+    # because the rollups also READ $pages{...} and counting those reported
+    # five sites.
+    #
+    # SM340 changed the durable site's shape: it is `+= $sign` now rather than
+    # `++`, because a scanner promotion arriving in a later batch has to be able
+    # to reverse a count. This test failed on that change, which is the correct
+    # outcome - a counting site was rewritten and something had to notice.
+    my $counting = () = $src
+        =~ /\$pages\{[^}]*\}\s*\+\+|\{pages\}\{[^{}]*(?:\{[^{}]*\})?[^{}]*\}\s*\+=/g;
     cmp_ok( $counting, '>=', 3, 'all three page-counting sites were found' )
         or diag( "found $counting - if a reader was renamed this test is "
             . 'measuring nothing, which is the failure mode it exists to '
