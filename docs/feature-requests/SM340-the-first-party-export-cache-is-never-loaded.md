@@ -185,16 +185,32 @@ fixed, cache read | 424.9
 ---
 ```
 
-**About a third, not the 3.5 seconds the field measured.** The field figure was
-taken through the MCP surface against a larger corpus and includes ~500 ms of
-that surface's own overhead. What is removed here is the re-ingestion; what
-remains is assembling the window and rewriting the day, month and index files,
-which happens on every call regardless and is now the dominant cost.
+**These figures do not transfer to the field, and the first version of this
+section wrongly implied they did.** It attributed the gap to the calling
+surface's overhead and to corpus size. Those are real and they are not the
+main term.
 
-Stated this way because the temptation was to quote the field's 3.5 seconds as
-the saving. The saving is linear in retained log volume, so it is larger on a
-busy site with ninety days than on this fixture with thirty - and that is a
-reason to expect more in the field, not a reason to claim it here.
+The measurements were taken on different machines doing different work:
+
+development host
+: a local, uncontended, fast disk, running the engine directly.
+
+the instrument
+: a hosted site on a busy shared server, read over MCP, with the disk
+  contended by every other tenant on it.
+
+This operation is I/O-bound at both ends - it reads every retained log and
+rewrites four files per call - so disk contention is not a modifier on the
+result, it is a substantial part of what is being measured. A saving of 206 ms
+here says almost nothing quantitative about what the same change removes there.
+
+What DOES transfer is the direction and the shape: the re-ingestion term is
+removed, it is linear in retained log volume, and the assembly term remains and
+is paid on every call. What does not transfer is any number.
+
+Stated this way because the temptation was twice to quote something convenient -
+first the field's 3.5 seconds as though it were the saving, then this fixture's
+third as though it predicted the field's.
 
 **The correctness half is the justification.** History survives, a day whose log
 has rolled off no longer disappears from the index, and [[SM338]]'s marker can
@@ -235,7 +251,9 @@ of a good number.
 
 It also says where the next improvement is, if one is wanted. The remaining cost
 scales with the number of DAYS held rather than with events, since it walks the
-day buckets and rewrites the month and index every call. Rewriting a closed
+day buckets and rewrites the month and index every call - and being writes, it
+is the part that suffers most on a contended disk, which is where real sites
+live and where this was never measured. Rewriting a closed
 month that cannot have changed is the obvious candidate, and it is not attempted
 here.
 

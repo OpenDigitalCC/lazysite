@@ -103,6 +103,12 @@ discovered.
   per-event tally is now one reversible function, and a promotion reaches back
   through the event ring to move the aggregates, not merely the labels.
 
+  Measured 630.7 to 424.9 ms per call on a 30-day fixture. That figure is from
+  a development host with a fast uncontended disk and does not predict the
+  field: the operation is I/O-bound, real sites sit on contended shared storage,
+  and the instrument's own measurement came over a remote surface as well. The
+  direction transfers and the numbers do not.
+
   The export also stopped publishing its internal event ring verbatim - the
   reach-back needs each event's referrer, and a ring handed out whole would have
   published one attached to a visitor token as a side effect of a performance
