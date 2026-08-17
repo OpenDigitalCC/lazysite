@@ -1703,6 +1703,7 @@ sub _domain_presentation_set {
 
 sub _audit_site {
     my ( %exists, %inbound, %para, @info, @links, @forms, @rawpages, @starter );
+    my %class_used;    # SM358: class name -> the first page that uses it
     _each_page( sub {
             my ( $rel, $full ) = @_;
             ( my $slug = "/$rel" ) =~ s/\.md$//;
@@ -1712,6 +1713,18 @@ sub _audit_site {
             my ( $fm, $body ) = _split_front_matter($c);
             my $h = _parse_fm($fm);
             push @info, { slug => $slug, title => ( $h->{title} // '' ) };
+
+            # SM358: which classes this page actually puts on the page, so the
+            # reveal check below can name a page rather than a stylesheet. The
+            # three ways content carries one: a fenced div, a Markdown attribute
+            # block, and raw HTML. First page wins - the finding needs an
+            # example, not a census.
+            for my $cls ( $body =~ /^:::+\s*([A-Za-z][\w-]*)/mg,
+                $body =~ /\{[^}]*\.([A-Za-z][\w-]*)[^}]*\}/g,
+                $body =~ /class\s*=\s*["']([^"']+)["']/g )
+            {
+                $class_used{$_} //= $slug for split /\s+/, $cls;
+            }
 
             # SM244: starter pages carry `provenance: lazysite-starter` in their
             # front matter and NOTHING has ever read it. On a live fund's domain
@@ -1822,15 +1835,16 @@ sub _audit_site {
                 for my $theme ( grep { !/^\./ } readdir $th ) {
                     next unless -d "$tdir/$theme";
                     for my $f ( glob "$tdir/$theme/*.css $tdir/$theme/assets/*.css" ) {
-                        push @css, [ "$layout/$theme", $f ];
+                        push @css, [ "$layout/$theme", $f, $layout ];
                     }
                 }
                 closedir $th;
             }
             closedir $lh;
         }
+        my %layout_markup;    # SM358: a layout's templates, read once
         for my $c (@css) {
-            my ( $name, $file ) = @$c;
+            my ( $name, $file, $layout ) = @$c;
             open my $fh, '<:utf8', $file or next;
             my $text = do { local $/; <$fh> };
             close $fh;
@@ -1847,8 +1861,71 @@ sub _audit_site {
             my $has_fallback = $outside =~ m{ \.no-js | html:not\(\.js\) | noscript }xi ? 1 : 0;
             next if $has_fallback;
 
+            # SM358: A MECHANISM IS NOT A FINDING. Up to here the check has
+            # established that a stylesheet CAN hide content behind a script. It
+            # used to report that, which put an item an operator cannot clear on
+            # a list they are expected to clear: the theme is shipped, so editing
+            # it is overwritten on upgrade, and on the reporting instance no page
+            # used the class at all. "Learn to ignore the audit" was the only
+            # available response, and an audit people learn to ignore is worse
+            # than no audit.
+            #
+            # So the finding now requires a USE. Which classes do the hiding, and
+            # does anything on this site put one on the page - a layout template,
+            # or a page's own content? Both, because the SM250 incident was a
+            # LAYOUT emitting the class on every section: checking content alone
+            # would have missed the case this check exists for.
+            #
+            # WHAT DID NOT CHANGE, and the filing asked for it: a rule inside
+            # prefers-reduced-motion still does not count as a fallback. The
+            # filing proposed crediting it, or reporting it as mitigating. It
+            # reaches only visitors who asked for reduced motion, and reading it
+            # as a neutraliser is precisely what caused the incident - it is the
+            # trap, not the remedy. Narrowing the finding to real uses makes it
+            # actionable without weakening the test that exists because a live
+            # site lost every section below the fold.
+            my %hide_class;
+            while ( $outside =~ /([^{}]+)\{([^{}]*)\}/g ) {
+                my ( $sel, $decl ) = ( $1, $2 );
+                next unless $decl =~ m{ opacity \s*:\s* 0 (?![.\d])
+                    | visibility \s*:\s* hidden }xi;
+                $hide_class{$_} = 1 for $sel =~ /\.([A-Za-z][\w-]*)/g;
+            }
+            next unless %hide_class;
+
+            $layout_markup{$layout} //= do {
+                my $t = '';
+                for my $tt ( glob "$ldir/$layout/*.tt $ldir/$layout/**/*.tt" ) {
+                    open my $th, '<:utf8', $tt or next;
+                    local $/;
+                    $t .= <$th>;
+                    close $th;
+                }
+                $t;
+            };
+
+            my ( @classes, %seen_use, @used_by );
+            for my $cls ( sort keys %hide_class ) {
+                my @where;
+                push @where, "layout:$layout"
+                    if $layout_markup{$layout} =~ /\bclass\s*=\s*["'][^"']*\b\Q$cls\E\b/;
+                push @where, $class_used{$cls} if defined $class_used{$cls};
+                next unless @where;
+                push @classes, $cls;
+                push @used_by, grep { !$seen_use{$_}++ } @where;
+            }
+
+            # Nothing on this site puts the class on a page, so nothing is
+            # hidden. Reporting it anyway is what made the finding unclearable.
+            next unless @classes;
+
             ( my $rel = $file ) =~ s{^\Q$DOCROOT\E/+}{/};
-            push @hidden_by_script, { theme => $name, file => $rel };
+            push @hidden_by_script, {
+                theme   => $name,
+                file    => $rel,
+                classes => \@classes,
+                used_by => [ @used_by[ 0 .. ( $#used_by > 4 ? 4 : $#used_by ) ] ],
+            };
             last if @hidden_by_script >= 50;
         }
     }

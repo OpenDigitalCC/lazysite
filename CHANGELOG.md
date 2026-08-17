@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM358 (PENDING) **an audit finding that names something the operator can
+  act on.** `hidden_by_script` reported a stylesheet that *defines* a
+  script-revealed class, whether or not anything used one - so an instance
+  where no page used it still carried an item that could not be cleared, since
+  the theme is shipped and an edit is overwritten on upgrade. The finding now
+  requires a USE: the classes doing the hiding are extracted from the rules,
+  and reported only when a page's content or a **layout template** puts one on
+  the page, naming the class and where it is used. The layout half is not
+  incidental - SM250 was a layout emitting the class on every section while the
+  hero sat outside the pattern, so a check reading page content alone would
+  have missed the case it exists for. **Declined:** crediting a
+  `prefers-reduced-motion` reset. It reaches only visitors who asked for
+  reduced motion, and reading it as a neutraliser is what caused SM250.
 - SM353 (PENDING) **one answer per question, whichever channel asked.**
   `ok` is now a JSON boolean on both surfaces, coerced at the single point each
   one serialises through rather than at the ~130 places that set it - so no

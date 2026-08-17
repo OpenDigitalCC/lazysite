@@ -28,16 +28,32 @@ use FindBin;
 my $root = "$FindBin::Bin/../../..";
 my $mcp  = "$root/lazysite-mcp.pl";
 
+# SM358: the fixture now decides whether anything USES the class, because the
+# finding does. `page` is the homepage body and defaults to content that carries
+# `.rv` - which is what every SM250 case here was implicitly assuming and none of
+# them stated, since the check never looked. `layout_tt` puts the class in a
+# template instead, which is the shape the original incident actually took.
 sub site_with {
-    my (%themes) = @_;    # name => css
+    my (%opt)  = @_;
+    my %themes = %{ delete $opt{themes} };
+    my $page = exists $opt{page} ? delete $opt{page} : qq(# Home\n\n<div class="rv">Body</div>\n);
+    my $tt = delete $opt{layout_tt};
+    die 'unknown option: ' . join( ',', sort keys %opt ) if %opt;
+
     my $d = tempdir( CLEANUP => 1 );
     make_path("$d/lazysite/auth");
     open my $cf, '>', "$d/lazysite/lazysite.conf" or die $!;
     print {$cf} "site_name: T\nmcp_enabled: true\nlayout: base\n";
     close $cf;
     open my $ix, '>', "$d/index.md" or die $!;
-    print {$ix} "# Home\n";
+    print {$ix} $page;
     close $ix;
+    if ( defined $tt ) {
+        make_path("$d/lazysite/layouts/base");
+        open my $lf, '>', "$d/lazysite/layouts/base/page.tt" or die $!;
+        print {$lf} $tt;
+        close $lf;
+    }
     for my $t ( sort keys %themes ) {
         make_path("$d/lazysite/layouts/base/themes/$t/assets");
         open my $tj, '>', "$d/lazysite/layouts/base/themes/$t/theme.json" or die $!;
@@ -89,7 +105,7 @@ sub themes_flagged {
 
 # --- the reported pattern is reported ---------------------------------------
 {
-    my $d = site_with( reveal => <<'CSS' );
+    my $d = site_with( themes => { reveal => <<'CSS' } );
 .rv    { opacity: 0; transform: translateY(22px); }
 .rv.in { opacity: 1; transform: none; }
 CSS
@@ -104,7 +120,7 @@ CSS
 # The specific thing that misled a careful reader. If this stopped counting as a
 # finding, the guard would miss the exact case it was built for.
 {
-    my $d = site_with( reveal => <<'CSS' );
+    my $d = site_with( themes => { reveal => <<'CSS' } );
 .rv    { opacity: 0; }
 .rv.in { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .rv { opacity: 1; } }
@@ -119,7 +135,7 @@ CSS
 # The pattern is legitimate with one, so flagging it would be the false positive
 # that trains an operator to ignore this.
 {
-    my $d = site_with( reveal => <<'CSS' );
+    my $d = site_with( themes => { reveal => <<'CSS' } );
 .rv    { opacity: 0; }
 .rv.in { opacity: 1; }
 .no-js .rv { opacity: 1; }
@@ -131,7 +147,7 @@ CSS
 
 # --- an ordinary theme is untouched -----------------------------------------
 {
-    my $d = site_with( plain => "body { color: #222; }\n.card { opacity: 1; }\n" );
+    my $d = site_with( themes => { plain => "body { color: #222; }\n.card { opacity: 1; }\n" } );
     my $r = audit($d);
     is_deeply( $r->{hidden_by_script}, [],
         'a theme that hides nothing raises nothing' );
@@ -141,7 +157,7 @@ CSS
 # A decimal must not be read as the zero case, or every faded element is a
 # finding.
 {
-    my $d = site_with( faded => ".muted { opacity: 0.55; }\n" );
+    my $d = site_with( themes => { faded => ".muted { opacity: 0.55; }\n" } );
     my $r = audit($d);
     is_deeply( $r->{hidden_by_script}, [],
         'a fractional opacity is not the hidden-by-default pattern' );
@@ -149,10 +165,62 @@ CSS
 
 # --- visibility: hidden counts too ------------------------------------------
 {
-    my $d = site_with( vis => ".rv { visibility: hidden; }\n.rv.in { visibility: visible; }\n" );
+    my $d = site_with( themes => { vis => ".rv { visibility: hidden; }\n.rv.in { visibility: visible; }\n" } );
     my $r = audit($d);
     ok( ( grep { $_ eq 'base/vis' } themes_flagged($r) ),
         'visibility:hidden is the same failure in a different property' );
+}
+
+# --- SM358: a mechanism nothing uses is not a finding ------------------------
+# The whole of SM358. The reporting instance had a theme defining `.reveal` and
+# no page using it, so the operator was shown an item they could not clear: the
+# theme is shipped, an edit is overwritten on upgrade, and there was nothing
+# else to change. An audit people learn to ignore is worse than no audit.
+{
+    my $d = site_with(
+        themes => { reveal => ".rv { opacity: 0; }\n.rv.in { opacity: 1; }\n" },
+        page   => "# Home\n\nOrdinary copy, no reveal class anywhere.\n",
+    );
+    my $r = audit($d);
+    is_deeply( $r->{hidden_by_script}, [],
+        'a theme that CAN hide content, on a site where nothing does, is silent' )
+        or diag encode_json( $r->{hidden_by_script} // [] );
+}
+
+# --- SM358: and it names what to look at -------------------------------------
+{
+    my $d = site_with(
+        themes => { reveal => ".rv { opacity: 0; }\n.rv.in { opacity: 1; }\n" },
+        page   => qq(# Home\n\n<div class="rv">Below the fold</div>\n),
+    );
+    my $r = audit($d);
+    my ($f) = @{ $r->{hidden_by_script} || [] };
+    # No 'or return' here - a bare block is not a sub, so a return would be a
+    # runtime error rather than a skip. Guard the dependent assertions instead.
+    ok( $f, 'a page using the class is a finding' );
+    if ($f) {
+        is_deeply( $f->{classes}, ['rv'], 'the class doing the hiding is named' );
+        is_deeply( $f->{used_by}, ['/index'],
+            'and the page that uses it, so the operator has somewhere to go' );
+    }
+}
+
+# --- SM358: the LAYOUT case, which is the incident ---------------------------
+# SM250 was a layout emitting the class on every section while the hero sat
+# outside the pattern. Checking page content alone would have missed exactly the
+# case this check was built for, so the templates are read too.
+{
+    my $d = site_with(
+        themes    => { reveal => ".rv { opacity: 0; }\n.rv.in { opacity: 1; }\n" },
+        page      => "# Home\n\nThe page itself says nothing about classes.\n",
+        layout_tt => qq(<body><div class="rv">[% content %]</div></body>\n),
+    );
+    my $r = audit($d);
+    my ($f) = @{ $r->{hidden_by_script} || [] };
+    ok( $f, 'a layout emitting the class is a finding' )
+        or diag encode_json( $r->{hidden_by_script} // [] );
+    is_deeply( $f->{used_by}, ['layout:base'],
+        'named as the layout, since no page mentions it' ) if $f;
 }
 
 done_testing();

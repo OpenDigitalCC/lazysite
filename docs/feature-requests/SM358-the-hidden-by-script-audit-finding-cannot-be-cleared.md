@@ -2,7 +2,8 @@
 title: "SM358 - The hidden_by_script audit finding cannot be cleared by the operator it is shown to"
 subtitle: "It names the stylesheet that defines `.reveal`, not a page that uses one. No page on the instance uses it. The theme already ships the `prefers-reduced-motion` reset and the audit does not credit it. And the theme is shipped, so an edit would be overwritten - leaving 'learn to ignore the audit' as the only available response."
 brand: plain
-status: candidate
+status: shipped
+status-note: "SHIPPED 2026-08-17, and the filing was PARTLY DECLINED on the strength of what it asked for. Adopted: the finding now requires a USE. audit_site extracts the classes whose rules do the hiding, then asks whether anything on this site puts one on the page - a page's own content or a LAYOUT TEMPLATE - and reports nothing when nothing does. The finding names the class and the page (or the layout), so an operator has somewhere to go instead of a stylesheet they cannot edit. DECLINED: crediting a prefers-reduced-motion reset, or reporting it as mitigating. That rule reaches only visitors who asked for reduced motion, and reading it as a neutraliser is exactly what caused the SM250 incident - the code and t/unit/mcp/17 have both said so since, and sabotaging it makes that test fail, so the guard is real rather than commentary. Narrowing to real uses makes the finding clearable without weakening a check that exists because a live site lost every section below the fold. THE LAYOUT HALF MATTERS: SM250 was a layout emitting the class on every section while the hero sat outside the pattern, so a check reading page content alone would have missed the case it was built for. Six existing fixtures were implicitly assuming a use that no page made and the check never looked for; they now state it."
 ---
 
 # SM358 - a control whose finding nobody can act on
