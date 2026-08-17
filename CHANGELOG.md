@@ -44,6 +44,21 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM359 (PENDING) **search_files says which limit stopped it, and can be paged
+  past.** The filing asked for paging first; measuring what is actually being
+  paged inverted that. This is a walk of a few hundred small text files - 181
+  on lazysite.io, 442 on dito.tech - against a 2,000-file budget and a
+  200-match cap, so the file budget never fires on a real site and the match
+  cap fires constantly. A caller who hits truncation nearly always has too
+  broad a *query*, not too small a page, and both limits set the same bare
+  boolean. `truncated_reason` now says `match_limit` (page on, or narrow the
+  query) or `file_budget` (narrow the base). `limit` and `offset` page the
+  rest, `truncated` means *there is more after this page* rather than *this
+  page is full*, and `count` is documented as matches returned. **No total and
+  no cursor**, both deliberately: the scan stops at the cap, so a total means
+  reading every file - the cost the cap avoids - and offset paging's re-walk is
+  milliseconds here, so a cursor would mean inventing a stable index the
+  traversal does not have. Its weakness is stated in the schema instead.
 - SM358 (PENDING) **an audit finding that names something the operator can
   act on.** `hidden_by_script` reported a stylesheet that *defines* a
   script-revealed class, whether or not anything used one - so an instance

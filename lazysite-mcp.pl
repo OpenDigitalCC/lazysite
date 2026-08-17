@@ -1120,15 +1120,21 @@ my %TOOLS = (
         run => sub { _page_status( $_[0]->{path} ) },
     },
     search_files => {
-        description => 'Search the site text files for a string (case-insensitive). Returns matching files with line numbers and snippets - use to find pages mentioning a term, links to a path, or duplicated text. Excludes the lazysite/ infrastructure and binary/asset files.',
+        description => 'Search the site text files for a string (case-insensitive). Returns matching files with line numbers and snippets - use to find pages mentioning a term, links to a path, or duplicated text. Excludes the lazysite/ infrastructure and binary/asset files. "count" is how many matches this response CARRIES, never how many exist; no total is available, because the search stops early by design and counting them all would mean reading every file. When "truncated" is true, "truncated_reason" says what stopped it: "match_limit" - there are more matches, so page on with "offset" or narrow the query; "file_budget" - the tree was too large to finish, so narrow "path" instead. Paging re-walks the tree each call, so a result set that changes underneath you can skip or repeat an entry.',
         cap         => 'manage_content', path_aware => 1,
         inputSchema => { type => 'object',
             properties => {
                 query => { type => 'string', description => 'text to search for' },
                 path => { type => 'string', description => 'directory to search under (default /)' },
+                limit => { type => 'integer',
+                    description => 'maximum matches to return (default 200, maximum 500)' },
+                offset => { type => 'integer',
+                    description => 'matches to skip, for paging past a truncated result (default 0)' },
             },
             required => ['query'], additionalProperties => JSON::PP::false },
-        run => sub { _mcp_search( $_[0]->{query}, $_[0]->{path} ) },
+        run => sub {
+            _mcp_search( $_[0]->{query}, $_[0]->{path}, $_[0]->{limit}, $_[0]->{offset} );
+        },
     },
     regenerate_registries => {
         description => 'Clear the generated registries - sitemap.xml, llms.txt, robots.txt and the feeds - so they rebuild from current content on the next request. Use after deleting or renaming a page when you want to VERIFY the result: a delete removes the page immediately but the registries are rebuilt asynchronously, so checking the sitemap straight afterwards can still show the old URL. Clears every content root, so a multi-domain instance is handled in one call. Fetch the registry afterwards to force the rebuild.',
@@ -1225,9 +1231,43 @@ my %TOOLS = (
 # Content search (grep) over site text files. Excludes the lazysite/ infra and
 # binary/asset files; bounded by file + match caps so a big site can't produce a
 # runaway response.
+#
+# SM359: WHAT IS ACTUALLY BEING PAGED, because it decided the design. This is a
+# depth-first walk of the site's own content tree reading a few hundred small
+# text files - 181 on lazysite.io, 442 on dito.tech - against a 2,000-file
+# budget and a 200-match cap. So the FILE budget essentially never fires on a
+# real site; it is there to stop a runaway tree. The MATCH cap fires constantly,
+# because searching a site for a common word reaches 200 hits in the first few
+# pages.
+#
+# That inverts the filing's priority. A caller who hits truncation here almost
+# always has too broad a QUERY rather than too small a page, and the response
+# could not tell them so: both limits set the same bare boolean. Naming which
+# one stopped the walk is the smaller change and the more useful one.
+#
+# NO TOTAL, deliberately. "200 of 1,431" would be the honest thing to report and
+# the scan stops AT 200, so producing that number means walking the whole tree
+# and reading every file - exactly the cost the cap exists to avoid. Promising a
+# figure the design cannot afford would make the response slower to be more
+# impressive.
+#
+# NO CURSOR, also deliberately. Offset paging re-walks from the start each time
+# and can skip or repeat if the tree changes underneath, which is the honest
+# weakness of it. On a few hundred files the re-walk is milliseconds, and a
+# cursor would mean inventing a stable index this traversal does not have - the
+# stack is a LIFO, so it is deterministic for an unchanged tree and is an order,
+# not an index. Said plainly in the schema rather than papered over.
+our $SEARCH_FILE_BUDGET = 2000;
+our $SEARCH_LIMIT_MAX   = 500;
+our $SEARCH_LIMIT_DEF   = 200;
 my %SEARCH_EXT = map { $_ => 1 } qw(md txt html htm xml json js css svg atom rss);
+
 sub _mcp_search {
-    my ( $query, $base ) = @_;
+    my ( $query, $base, $limit, $offset ) = @_;
+
+    $limit  = $SEARCH_LIMIT_DEF unless defined $limit  && $limit =~ /^\d+$/ && $limit > 0;
+    $offset = 0                 unless defined $offset && $offset =~ /^\d+$/;
+    $limit = $SEARCH_LIMIT_MAX if $limit > $SEARCH_LIMIT_MAX;
     return { ok => 0, error => 'query must not be empty' } unless defined $query && length $query;
     $base = '/' unless defined $base && length $base;
     $base =~ s{^/+}{}; $base =~ s{/+$}{}; $base =~ s{\.\.}{}g;
@@ -1247,7 +1287,7 @@ sub _mcp_search {
 
     my $root = $DOCROOT . ( length $base ? "/$base" : '' );
     my $qre  = qr/\Q$query\E/i;
-    my ( @matches, $files, $truncated );
+    my ( @matches, $files, $truncated, $reason, $seen );
     my @stack = ($root);
     while (@stack) {
         my $dir = pop @stack;
@@ -1267,16 +1307,33 @@ sub _mcp_search {
             # question the read path asks about the file actually being opened.
             ( my $key = $full ) =~ s{^\Q$DOCROOT\E/?}{};
             next if Lazysite::Manager::Common::is_blocked_path($key);
-            if ( ++$files > 2000 ) { $truncated = 1; last }
+            if ( ++$files > $SEARCH_FILE_BUDGET ) {
+                $truncated = 1;
+                $reason    = 'file_budget';
+                last;
+            }
             open my $fh, '<:utf8', $full or next;
             my $ln = 0;
             while ( my $line = <$fh> ) {
                 $ln++;
-                next unless $line   =~ $qre;
+                next unless $line =~ $qre;
+
+                # SM359: count every match, return only this page's worth. The
+                # walk continues one match PAST the limit so `truncated` means
+                # "there is more after this page" rather than "the page is
+                # full" - the two differ on the last page, which is the one a
+                # caller stops on.
+                $seen++;
+                next if $seen <= $offset;
+                if ( @matches >= $limit ) {
+                    $truncated = 1;
+                    $reason    = 'match_limit';
+                    last;
+                }
                 ( my $rel = $full ) =~ s{^\Q$DOCROOT\E/?}{/};
-                chomp $line; $line  =~ s/^\s+//; $line = substr( $line, 0, 200 );
+                chomp $line;
+                $line = substr( $line =~ s/^\s+//r, 0, 200 );
                 push @matches, { path => $rel, line => $ln, text => $line };
-                if ( @matches >= 200 ) { $truncated = 1; last }
             }
             close $fh;
             last if $truncated;
@@ -1284,8 +1341,21 @@ sub _mcp_search {
         closedir $dh;
         last if $truncated;
     }
-    return { ok => 1, query => $query, count => scalar @matches,
-        matches => \@matches, truncated => ( $truncated ? JSON::PP::true : JSON::PP::false ) };
+    return {
+        ok      => 1,
+        query   => $query,
+        count   => scalar @matches,    # SM359: matches RETURNED, never a total
+        limit   => $limit,
+        offset  => $offset,
+        matches => \@matches,
+        truncated => ( $truncated ? JSON::PP::true : JSON::PP::false ),
+
+        # Present only when something stopped the walk, so its absence is not a
+        # third state to interpret. `match_limit` means ask for the next page or
+        # narrow the query; `file_budget` means narrow the base - the two want
+        # opposite responses and used to be indistinguishable.
+        ( $truncated ? ( truncated_reason => $reason ) : () ),
+    };
 }
 
 # Publish status for a page: is the source there, has the rendered HTML cache
