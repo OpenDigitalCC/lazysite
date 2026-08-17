@@ -220,6 +220,25 @@ exactly as they were**. This is a first measurement of an op that had none, not
 a re-capture - [[SM327]] records that re-capturing the others would bake in a
 measured 9-26% drift and remove the ability to see it.
 
+# What the fix does NOT remove, and why that matters to a reader
+
+The write side is **unconditional**. Verified by calling twice with no new log
+lines and comparing mtimes: today's day file, the current month, the index and
+the cache are all rewritten on a call with nothing whatever to ingest.
+
+That is the floor under the remaining cost, and it is worth stating plainly
+because it makes a suspiciously good benchmark diagnosable. A call that came
+back at roughly the surface's own overhead would mean essentially zero engine
+work - which cannot be true while those four rewrites happen. Such a result
+would be the cache serving without refreshing: a new defect wearing the costume
+of a good number.
+
+It also says where the next improvement is, if one is wanted. The remaining cost
+scales with the number of DAYS held rather than with events, since it walks the
+day buckets and rewrites the month and index every call. Rewriting a closed
+month that cannot have changed is the obvious candidate, and it is not attempted
+here.
+
 # Why this was not a version-number correction
 
 Recorded because it was filed as "not a small change" and then done, and the
