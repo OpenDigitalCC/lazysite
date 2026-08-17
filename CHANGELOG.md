@@ -79,6 +79,34 @@ discovered.
   WHILE PUBLIC before gating it, which is the only version of the probe that can
   construct the case at all, and the bound is asserted on every run instead of
   believed.
+- SM340 (755690f) the statistics export cache was written on every run and
+  **never read**. The loader accepted version 1; the first-party ingester -
+  which is the default path - writes version 2, so the load returned undef and
+  the cache was discarded every call. The per-file byte offsets, the entire
+  point of the incremental design, had never once been used. Consequences, in
+  order of sharpness: a day whose log had rolled off **disappeared from the
+  index** while its durable file sat on disk reachable by nothing; every day was
+  re-tallied under the current basis on every call, which is what defeated
+  SM338 rather than merely failing to help it; and every export re-read every
+  retained log, measured in the field at 3 to 3.5 seconds per call with
+  `window=1` costing what `window=365` cost.
+
+  Found by sabotage rather than by reading the version numbers, which is how it
+  survived. The first attempt at the fix reproduced the bug for a completely
+  different reason - a package hash assigned below the dispatch that reads it -
+  which this file already carries three comments warning about.
+
+  The cache fix alone would have degraded classification, and passed the whole
+  suite while doing it: with the cache honoured, a scanner promoted in a later
+  batch could no longer reclassify the requests it made earlier, which is
+  exactly the homepage hit SM213 classifies per visitor to remove. So the
+  per-event tally is now one reversible function, and a promotion reaches back
+  through the event ring to move the aggregates, not merely the labels.
+
+  The export also stopped publishing its internal event ring verbatim - the
+  reach-back needs each event's referrer, and a ring handed out whole would have
+  published one attached to a visitor token as a side effect of a performance
+  fix.
 - SM338 (0c6d1de) a change in what a number MEANS is now visible in the data.
   SM329 changes what a page view IS, and a closed day file is written once and
   never rewritten - so the series steps at whatever date each instance upgrades,
@@ -99,6 +127,16 @@ discovered.
 - SM333 (128fbe4) the fleet addressing did not reach the deployment it was built
   for.
 
+Gate: `tools/bench.pl` gains `stats_export_ms`, with a fixture carrying thirty
+days of first-party logs - the stats path had no performance coverage at all,
+which is why a per-call cost of that size went unmeasured, and an op pointed at
+an empty fixture would report a fast, stable, meaningless number. The check was
+hiding a gap of its own: an op with no baseline figure was skipped **silently**,
+so adding an op looked like coverage while being compared to nothing. It now
+names what it did not check. The new op has a first baseline figure and every
+other op is untouched, because SM327 records that re-capturing those would bake
+in the measured drift.
+
 Docs: the access-control model now states that protection takes effect within
 the front end's cache validity, and names `open_file_cache_valid` as the setting
 that decides the window - nothing is asked of the front end and no default
@@ -106,7 +144,8 @@ changes, but an operator who has raised it should know what they have
 lengthened. SM327's perf drift is attributed (one step above the noise floor,
 the rest accretion, and the 2x tolerance is why nothing caught it); SM335 (the
 Stats page and the export use different class vocabularies) is filed as a
-candidate, as are SM339 (recompute the day rollups from the retained raw logs,
+candidate, as are SM341 (a day or month payload cannot say when it was
+produced), SM339 (recompute the day rollups from the retained raw logs,
 so the series is continuous AND correct - deliberately not bundled here, because
 a recompute writes over the durable store and belongs in a release where it is
 the thing being tested) and SM337 (activating a layout that cannot render the
