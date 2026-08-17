@@ -17,11 +17,21 @@
 # 404 is served from. On the instrument, a request for /feed.xml happened to be
 # first.
 #
-# WHICH MAKES IT REMOTELY INFLUENCEABLE. An anonymous visitor who is first to
-# request a missing URL after a cache clear chooses what every 404 on that site
-# canonicalises to. It is same-origin and cannot point elsewhere, so this is not
-# a redirect or an injection - but every missing page then tells search engines
-# the real page is a URL a stranger picked.
+# WHICH MAKES IT REMOTELY INFLUENCEABLE - AND THAT WAS DEMONSTRATED, not merely
+# reasoned. On the live instance, from outside, by an agent with no host access:
+#
+#   before                             canonical -> /feed.xml
+#   invalidate_cache /404.html
+#   first missing-URL request          /zz-CANARY-CHOSEN-BY-A-STRANGER
+#   then /zz-completely-unrelated-page  canonical -> /zz-CANARY-CHOSEN-BY-A-STRANGER
+#
+# An unrelated missing page named a path the visitor chose. The check could have
+# failed - had the canonical stayed /feed.xml the mechanism would have been wrong
+# or incomplete - which is what makes it evidence rather than agreement.
+#
+# It is same-origin and cannot point elsewhere, so this is not a redirect or an
+# injection. But every missing page then tells search engines the real page is a
+# URL a stranger picked.
 #
 # AND THE CACHE IS IN THE SERVED TREE, so the front end answers /404.html
 # directly, with 200, without the engine involved - an indexable soft 404. That
