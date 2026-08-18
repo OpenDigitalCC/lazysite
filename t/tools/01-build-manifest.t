@@ -10,6 +10,8 @@ use File::Basename qw(dirname);
 use Digest::SHA    qw(sha256_hex);
 use JSON::PP       qw(decode_json encode_json);
 use FindBin;
+use lib "$FindBin::Bin/../lib";
+use TestHelper ();
 
 my $root   = "$FindBin::Bin/../..";
 my $script = "$root/tools/build-manifest.pl";
@@ -328,6 +330,14 @@ subtest 'a transient dotfile at the repo root does not break the build' => sub {
 };
 
 subtest 'an unclassified ORDINARY file still refuses' => sub {
+    # THE LOCK IS LOAD-BEARING, and it is not protecting this test - it is
+    # protecting everyone else. The probe below dirties the REAL repo root, and
+    # while it is there any other test building a manifest from that root gets
+    # a refusal that has nothing to do with what it was asserting. Under
+    # `prove -j4` that surfaced as t/tools/03 exiting 2 with no plan at all,
+    # roughly once per full run, and was carried for days as a suspected flake.
+    my $root_lock = TestHelper::repo_root_lock();
+
     my $root  = "$FindBin::Bin/../..";
     my $probe = "$root/zz-sm271-unclassified.txt";
     open my $fh, '>', $probe or die $!;

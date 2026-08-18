@@ -18,7 +18,7 @@ our @EXPORT_OK = qw(
     setup_dav_site dav_users_tool
     grant_caps revoke_caps
     env_passthrough
-    repo_manifest_guard
+    repo_manifest_guard repo_root_lock
     run_cmd
 );
 
@@ -70,6 +70,43 @@ sub run_cmd {
 # Hold it for as long as you need the manifest. It locks on construction, builds
 # if absent, and removes at destruction ONLY if it was the one that built it - so
 # an operator's own manifest is never deleted.
+# The repo-root lock, on its own, for a test that DIRTIES THE SHARED REPO ROOT
+# rather than building a manifest from it.
+#
+# WHY THIS IS SEPARATE AND EXPORTED. t/tools/01's SM271 subtest writes an
+# deliberately-unclassified file into the real repo root to prove that
+# build-manifest refuses it. While that file exists, EVERY concurrent
+# build-manifest run over the same root refuses too - including the one inside
+# repo_manifest_guard, which then dies before its caller has emitted any TAP at
+# all. Under `prove -j4` over 427 files that surfaced as t/tools/03 exiting 2
+# with no plan: a file that passes alone, passes in its own directory, and
+# fails perhaps once in a full run.
+#
+# It was recorded as a suspected flake in t/tools/03 on 2026-08-14 and the note
+# there says an unreproducible failure is an anecdote that decays. It was never
+# flaky in the sense of "random": it failed whenever the two windows overlapped.
+#
+# The lock is the same one repo_manifest_guard takes, deliberately - a second
+# lock would not exclude anything. Hold the returned guard for as long as the
+# root is dirty, and let it go out of scope to release.
+sub repo_root_lock {
+    my $lock = repo_root() . '/.manifest-test.lock';
+    ## no critic (RequireBriefOpen) - the handle IS the lock; it lives in the guard.
+    open my $fh, '>>', $lock or die "cannot open $lock: $!";
+    flock( $fh, LOCK_EX ) or die "cannot lock $lock: $!";
+    return TestHelper::RootLock->new($fh);
+}
+
+{
+    package TestHelper::RootLock;
+    sub new { my ( $c, $fh ) = @_; return bless { fh => $fh }, $c; }
+    sub DESTROY {
+        my ($self) = @_;
+        close $self->{fh} if $self->{fh};
+        return;
+    }
+}
+
 sub repo_manifest_guard {
     my $root = repo_root();
     my $lock = "$root/.manifest-test.lock";
