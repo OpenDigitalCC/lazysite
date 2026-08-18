@@ -90,6 +90,17 @@ Naming the commit: AFTER it lands, never before
   A hand-written allowlist that predated the key dropped it on all 23. The test
   asserts the general property rather than the field: every scalar the manifest
   declares survives the passthrough, which is the guard SM330 needed.
+- SM272 (PENDING) **an apt repository the packages can be installed from.**
+  The `.deb` family has existed since 0.6.10 with nowhere to install it from,
+  so 17 sites take a tarball. `tools/build-apt-repo.sh` builds the pool and the
+  per-suite indices; it deliberately does **not** publish and does **not** hold
+  a key, because publication is egress and key custody is the question SM272
+  exists to ask. Unsigned output says it is unsigned and that apt will refuse
+  it. The **channel is required and never inferred** - a suite chosen by
+  default is how an edge build reaches a stable host - and the index is checked
+  against the pooled count, because `apt-ftparchive` aimed at the wrong
+  directory exits 0 and writes an empty `Packages` that installs nothing.
+
 - SM368 (PENDING) **the ACL probe asks which cause, instead of naming one.**
   When some file types serve past an ACL and others refuse, there are two
   candidates - a front end serving statics by extension (SM283, an operator
