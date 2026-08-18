@@ -90,6 +90,18 @@ Naming the commit: AFTER it lands, never before
   A hand-written allowlist that predated the key dropped it on all 23. The test
   asserts the general property rather than the field: every scalar the manifest
   declares survives the passthrough, which is the guard SM330 needed.
+- SM364 **not fixed, for the third time, and now with the reason written down.**
+  A third fixture failed to reproduce the state the report describes: staging
+  the layouts subtree directly refused *everything*, including the ordinary
+  file that was supposed to be the working comparison. Three premises have now
+  failed in this area - that the HTML 404 was ours, that the dot rule is
+  general, and that the subtree can be staged as tried - each reasonable and
+  each wrong somewhere different. The common factor is skipping the one
+  instruction the filing has carried since its first rewrite: establish the
+  refusal before reasoning about the listing. Recorded there rather than
+  guessed at, because a wrong guess on a listing predicate widens what is
+  visible.
+
 - SM304 (PENDING) **the two manifest generators cannot drift apart** - and they
   already had. `install.pl` and `tools/manifest-to-sbom.pl` each carry
   `_generate_manifest_to_tmp`, added the same day by the same change, and by
