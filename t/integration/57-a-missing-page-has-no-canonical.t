@@ -41,6 +41,7 @@ use strict;
 use warnings;
 use Test::More;
 use File::Temp qw(tempdir);
+use File::Path ();
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use TestHelper qw(setup_test_site run_processor);
@@ -110,5 +111,26 @@ subtest 'a real page keeps its canonical' => sub {
     unlike( $out, qr{name=["']robots["'][^>]*noindex}i,
         'and is not marked noindex' );
 };
+
+# --- SM371: WIDENED IN THE CODE, NOT COVERED HERE -----------------------------
+# serve_402 and serve_403 now run the same sanitiser, and there is deliberately
+# no test for it, which is worse than a test and better than the test I tried to
+# write.
+#
+# Four attempts at a fixture that reaches serve_403 produced, in order: an ACL
+# refusal (a different branch with its own minimal body, no canonical to strip,
+# so the assertion passed with the fix REMOVED), an anonymous request (a 302 to
+# login, SM223), and twice a plain 200 because the page never asked for
+# authentication. The first of those is the dangerous one: it was green, it
+# looked like coverage, and sabotaging the fix did not disturb it.
+#
+# What would cover it: a fixture that reaches the GROUP refusal in check_auth -
+# an authenticated user outside a group the page requires - which needs the
+# page's auth metadata staged the way t/unit/processor/08 stages it rather than
+# the way a content fixture does. And for 402, a payment-gated page with the
+# payment plugin configured, which no integration fixture here sets up.
+#
+# Recorded rather than approximated. A test that cannot fail is the thing this
+# whole release has been about.
 
 done_testing();

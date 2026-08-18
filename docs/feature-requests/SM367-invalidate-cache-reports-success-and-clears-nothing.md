@@ -69,6 +69,28 @@ believes it has hit: a system-page source in the engine tree, then the engine's
 own `<meta name="generator" content="lazysite">` marker in the file itself.
 Anything with no source and no marker is migrated content, and is still refused.
 
+## Reproduced live on the shipped build
+
+The site agent called it deliberately on 0.10.13 to find out whether the refusal
+had landed on edge. It has not, so the call went through:
+
+```
+list_files /                            404.html present, 4377b
+invalidate_cache {"path":"/404.html"}   {"ok": true, "path": "/404.html"}
+list_files / and PROPFIND /             404.html ABSENT
+```
+
+::: widebox
+**The defect repairs its own symptom.** On an instance that regenerates you get
+no error, a success flag and a working site. On a migrated instance the
+identical call with the identical response destroys content. The two are
+indistinguishable from the caller's side - and the benign one is what anyone
+will happen to test against.
+:::
+
+That is why this is worth more than its size, and why "I ran it and nothing
+broke" is the least useful evidence available here.
+
 ## What edge could not have told us
 
 The site agent had run `invalidate_cache` on `/404.html` twice on 0.10.12 -

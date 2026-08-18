@@ -1244,6 +1244,12 @@ sub serve_403 {
     if ( -f $md_path ) {
         my $html_path = "$DOCROOT/403.html";
         my $page      = process_md( $md_path, $html_path, ( stat($md_path) )[9], {} );
+
+        # SM371: an error page is not the canonical version of anything, and the
+        # cached file the front end serves at 403.html must not say otherwise.
+        $page = _sanitise_not_found($page);
+        _rewrite_if_changed( $html_path, $page ) if -f $html_path;
+
         print "Status: 403 Forbidden\r\n";
         print "Content-type: text/html; charset=utf-8\r\n";
         print "Cache-Control: no-store, private\r\n\r\n";
@@ -1368,8 +1374,17 @@ sub serve_402 {
             payment_address     => $payment_result->{address}     // '',
             payment_description => $payment_result->{description} // '',
         );
-        my $page = process_md( $md_path, "$DOCROOT/402.html",
-            ( stat($md_path) )[9], {} );
+        my $html_path = "$DOCROOT/402.html";
+        my $page = process_md( $md_path, $html_path, ( stat($md_path) )[9], {} );
+
+        # SM371: the worse of the two. A canonical here points at content the
+        # visitor was just REFUSED - the field report found one aimed at a
+        # payment-gated page, carrying an arbitrary ?v= query picked up from
+        # somebody's cache-buster. Whatever put the query there, the tag has no
+        # business on this page at all.
+        $page = _sanitise_not_found($page);
+        _rewrite_if_changed( $html_path, $page ) if -f $html_path;
+
         print "Status: 402 Payment Required\r\n";
         print "Content-type: text/html; charset=utf-8\r\n";
         print "X-Payment-Response: $x_payment\r\n";
@@ -6678,9 +6693,19 @@ sub _request_croot {
     return $DOCROOT;
 }
 
-# SM355: strip the canonical a 404 must not carry, and add the robots directive
-# it must. Applied to the served body AND written back to the cache file, which
-# the front end serves directly.
+# SM355: strip the canonical an ERROR PAGE must not carry, and add the robots
+# directive it must. Applied to the served body AND written back to the cache
+# file, which the front end serves directly.
+#
+# SM371 widened it from 404 to 402 and 403. The reasoning was never
+# 404-specific - an error page is not the canonical version of anything - but it
+# was only ever CALLED from not_found(). serve_402 and serve_403 render through
+# process_md into $DOCROOT/402.html and 403.html, files the front end then
+# serves at 200, and kept whatever canonical the layout emitted.
+#
+# The 402 case is the worse of the two: a canonical on a payment-required page
+# points at content the visitor was just refused, and the field report found one
+# carrying an arbitrary ?v= query into the bargain.
 #
 # Idempotent by construction - it removes a tag and adds one that is only added
 # when absent - so it runs on every 404 without accumulating anything.

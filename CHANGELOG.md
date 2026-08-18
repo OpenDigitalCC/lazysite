@@ -44,6 +44,17 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM371 (PENDING) **an error page has no canonical, and only the 404 knew.**
+  SM355's reasoning was never 404-specific, but its helper was only ever called
+  from `not_found()`, so `serve_402` and `serve_403` rendered into the served
+  tree carrying whatever canonical the layout emitted. Found on edge: a 402
+  whose canonical pointed at the **payment-gated page the visitor had just been
+  refused**. Both now strip it, mark the page `noindex`, and rewrite the cache
+  file the front end serves. **Not covered by a test** - four fixtures failed to
+  reach the right branch and one of them passed with the fix removed, so it was
+  removed rather than approximated; what would cover it is written into the test
+  file.
+
 - SM367 (PENDING) **`invalidate_cache("/")` clears the homepage.** It became
   `$DOCROOT/.html` - a file that has never existed - so the unlink found
   nothing and `ok:1` was returned anyway, while `/index`, `/index.md` and
