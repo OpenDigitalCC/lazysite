@@ -99,6 +99,71 @@ The first is better and larger: `lazysite-check.pl` does not currently
 load the Manager modules, and giving a check tool the power to move
 content is a decision rather than a refactor.
 
+# The reference fixture
+
+Written from outside by the site agent as the reference implementation,
+after this was filed. The sequence, every step load-bearing:
+
+```
+1  mkcol  /zz-gate/
+2  put    /zz-gate/seen.png     identical bytes to every other probe file
+3  GET    /zz-gate/seen.png     anonymously - POPULATES the front-end cache
+4  set_permissions {path: /zz-gate/, read: [nobody]}
+                                 MUST report content_moved
+5  put    /zz-gate/never.png    AFTER protection. Never fetched by anyone
+6  GET    /zz-gate/seen.png     anonymously
+7  GET    /zz-gate/never.png    anonymously
+```
+
+The verdict is read from **steps 6 and 7 together**, never either alone:
+
+```datatable
+columns: seen | never | Diagnosis
+widths: 2.2cm | 2.2cm | X
+bold: 1
+tone: medium
+---
+200 | **302** | Front-end cache residue. Bounded, self-clearing. NOT an exposure
+200 | **200** | Genuine extension-based bypass - protected content is being served
+302 | 302 | Fully gated, nothing to report
+---
+```
+
+::: widebox
+**Step 4 is the whole filing, and the assertion is the fix.** Applying
+protection through the engine's own call moves the content; writing
+`acls.json` does not. **Assert on `content_moved`** - if it is absent or
+zero, the fixture has not established the condition it is about to
+measure. That single assertion is what would have caught this, and it is
+already structural (SM313) rather than a matched warning string.
+:::
+
+Step 3 is equally non-optional in the other direction: without the
+pre-protection fetch there is no cache to tell apart from a bypass, both
+files gate, and the probe passes while proving nothing.
+
+# What the fixture cannot tell you
+
+Recorded because a fixture overstating its reach is how this started.
+
+- It proves what happened to two files in one folder at one moment, not
+  that the front end is safe generally.
+- A `302` on the never-fetched file means the residue is **bounded and
+  self-clearing** ([[SM331]]), not that it is harmless.
+- It says nothing about which front-end template is in play. Check
+  `X-Lazysite-Front` separately.
+
+# Measured
+
+On edge/0.10.14, 2026-08-18, stock proxy template:
+
+```
+/zz-g2/seen.png    fetched before protecting   200  served
+/zz-g2/never.png   written after protecting    302  gated
+```
+
+Same folder, same ACL, same extension, seconds apart.
+
 # Verification
 
 - The probe, run on a site whose protected content has been moved,
