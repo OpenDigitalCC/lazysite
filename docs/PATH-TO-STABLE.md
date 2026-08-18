@@ -79,6 +79,36 @@ that way, and each found something its own filing had not mentioned. It is the
 only mechanism here that makes the next pass cheaper than this one, which is why
 a fix without one is not finished.
 
+# What the inbox is, and what it is not
+
+`inbox/` is **gitignored**. It holds third-party material and personal
+data, so nothing in it may reach a commit or a tarball - and the
+consequence is easy to miss: **the inbox is a handover, not a record.**
+A file there survives only until someone folds it into the repository or
+archives it.
+
+That distinction decides where a thing belongs:
+
+```datatable
+columns: What it is | Where it goes
+widths: 6.0cm | X
+bold: 1
+tone: medium
+---
+A **report** - a finding, a measurement, something meant to be acted on and then discarded | `inbox/`, then `inbox/archive/YYYY-MM-DD-name.md` once processed
+A **specification** - a fixture, a protocol, a sequence somebody would otherwise re-derive | a **committed** file: the relevant filing under `docs/feature-requests/`, or the filer's own repository
+---
+```
+
+::: widebox
+**This cost real work before it was written down.** A partner agent wrote
+a reference fixture into the inbox as the durable answer to SM377,
+reasonably, because reports are archived from there and archiving looks
+like keeping. It was folded into the filing in time. Anyone filing a
+specification should say so explicitly rather than assume the inbox will
+hold it.
+:::
+
 # Sequence
 
 1. Evaluate every inbox report and fix what triage says to fix, completely.
