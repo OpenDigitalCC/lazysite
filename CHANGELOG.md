@@ -42,9 +42,22 @@ Naming the commit: AFTER it lands, never before
   not. SM354's own entry went stale in its own landing, which is how this
   paragraph came to be written.
 
-## Unreleased
+## 0.10.14 - EDGE: a cache clear that deleted pages, and the second copies (2026-08-18)
 
-- SM352 step 4 (PENDING) **the site side stops inlining altogether** - the theme
+**Anyone running 0.10.13 or earlier on a migrated site should take this one.**
+`invalidate_cache("/")` DELETED the homepage rather than clearing it, and the
+defect repaired its own symptom: the next render put the page back, so the loss
+was invisible unless the source was gone too. It was found on a live site, not
+in the suite.
+
+The rest of the release is the other half of the same lesson. Where a fact has
+to exist twice - the manifest generators, the theme token generators, the
+security headers - the copies are now pinned to each other BY VALUE, because
+every one of them was discovered to have drifted while both halves looked
+correct in isolation. And six tools could not load the modules they declare,
+which no test noticed because no test ran them the way an operator does.
+
+- SM352 step 4 (12faa2e) **the site side stops inlining altogether** - the theme
   custom properties, the last inline block a visitor received, are written into
   the theme's asset mirror as `theme-tokens.css` and linked. **The flash of
   unstyled content this was expected to cost does not happen:** a `<link>` in
@@ -61,7 +74,7 @@ Naming the commit: AFTER it lands, never before
   questions is how an inventory starts lying. The site-side count is 0 for a
   rewritten mirror and 1 for a stale one, which makes the remaining site-side
   work operational rather than code.
-- SM352 steps 1-3 (PENDING) **the engine stops inlining its own chrome** - ten
+- SM352 steps 1-3 (ac05a51, 9d8edcc, c57147a) **the engine stops inlining its own chrome** - ten
   inline `<script>`/`<style>` blocks down to **two**, and step 3's more useful
   half was splitting the inventory by **audience**. The public site's policy
   does not depend on the manager's inline script at all - they are different
@@ -87,7 +100,7 @@ Naming the commit: AFTER it lands, never before
   `t/integration/60` asserts a rendered page carries nothing inline, which a
   count in a source file cannot.
 
-- SM280 (PENDING) **the coverage run is sharded, and the gate moves at last.**
+- SM280 (219045c) **the coverage run is sharded, and the gate moves at last.**
   SM269 attributed the eighty minutes with strace: coverage is 92% of it. Of
   the three candidate shapes, sharding is the only one that keeps the gate's
   *meaning* - the other two trade coverage of this commit for speed - and it
@@ -96,7 +109,7 @@ Naming the commit: AFTER it lands, never before
   `t/unit/mcp`: **serial 467s at 52.2%/27.2%, `-j4` 182s at 52.2%/27.2%.** The
   identical numbers are the half that matters; a faster run reporting different
   coverage would be a faster run measuring something else.
-- SM327 (PENDING) **the perf tolerance is 1.25, and a baseline cannot bury a
+- SM327 (219045c) **the perf tolerance is 1.25, and a baseline cannot bury a
   regression.** Every operation had drifted 9-26% slower than the 2026-07-02
   baseline and a 2x tolerance passed all of it on every release. The drift
   arrives as accretion, so 2x can never catch it. The larger half: `--baseline`
@@ -105,20 +118,20 @@ Naming the commit: AFTER it lands, never before
   have cleared a warning and made the regression the new definition of correct.
   `--accept-regression` proceeds; the flag exists so somebody states the numbers
   are *right* rather than merely current.
-- SM302 (PENDING) **a review finding carries the command that checks it.**
+- SM302 (219045c) **a review finding carries the command that checks it.**
   Thirty-odd one-line greps, reinvented each review, written down nowhere.
   `tools/lazysite-review-verify.pl` re-runs them from a `findings.json`, and
   reports **three** states: fixed, still-open, and *could not be checked* - the
   last never counted as either, and failing the run, because a review whose
   checks cannot run has told the next reviewer nothing.
-- SM303 (PENDING) **release.sh is two commands.** `build` gates, packages and
+- SM303 (219045c) **release.sh is two commands.** `build` gates, packages and
   tags locally and touches the remote nowhere; `publish` confirms upstream and
   pushes. Conflating them cost a run that aborted before any gate step on the
   host with no credentials, and then - after `--no-fetch` - one that died at the
   last step on `git push`, stranding a fully built and tagged release with
   exit 128. The bare form now refuses and names both commands rather than
   guessing which half was meant.
-- SM298 (PENDING) **a compliance record says whether it actually changed.**
+- SM298 (f869ae0) **a compliance record says whether it actually changed.**
   `reviewed_at_version` catches a record nobody updated; it cannot catch one
   whose version was bumped without anybody re-reading the document - the same
   failure one level down. The records now carry a `content_sha` of their own
@@ -128,21 +141,21 @@ Naming the commit: AFTER it lands, never before
   happen without the claim being visible. The hash excludes the stamped fields
   **including itself** - the first version hashed its own field, so stamping a
   value changed the value.
-- SM282 (PENDING) **preview a path as the public sees it.** A draft section is
+- SM282 (f869ae0) **preview a path as the public sees it.** A draft section is
   invisible to the public and visible to a signed-in editor, which is why the
   editor is the one person who cannot check it. `preview-public` renders any
   path anonymously and reports the verdict in the operator's terms, saying that
   a refusal is the *expected* result for a draft and is the check succeeding.
   The safety property is the identity strip, and the test asserts it against an
   ACL that names the operator - so a leaked identity would show the page.
-- SM281 (PENDING) **the notice store is readable remotely.** `notifications`
+- SM281 (f869ae0) **the notice store is readable remotely.** `notifications`
   unlocked a manager page and had no remote surface at all - the bell read the
   store and neither MCP nor the control API could. Read only; writing is
   emission. **Item 3 of three:** the SMTP endpoint, per-user addressing and the
   retention decision remain, and an MCP twin waits on addressing or every agent
   reads every operator notice.
 
-- SM364 (PENDING) **reproduced at the fourth attempt, and disproved.** In the
+- SM364 (4dcfbb1, 54a0262, a753821) **reproduced at the fourth attempt, and disproved.** In the
   state the report describes, the dot-prefixed entry is listed, **read (200)
   and deleted (204)** - the engine has no dot-prefix policy in that subtree and
   the listing agrees with its verbs. The obvious fix would have hidden an
@@ -158,7 +171,7 @@ Naming the commit: AFTER it lands, never before
   filter cannot be added later without deleting the subtest that says why it is
   wrong.
 
-- SM363 (PENDING) **the Stats page shows what the stats record.** Sessions,
+- SM363 (c9aa6f7) **the Stats page shows what the stats record.** Sessions,
   journeys, devices and search terms were all computed and stored per day while
   the manager rendered none of them - so an operator who read the search-terms
   setting, weighed the privacy question, decided to accept it and switched it on
@@ -170,7 +183,7 @@ Naming the commit: AFTER it lands, never before
   a search term is the first field this page renders whose content a stranger
   chooses, and it is not a URL.
 
-- SM370 (PENDING) **a byte-comparison test asserted what the payload cannot
+- SM370 (1d83322) **a byte-comparison test asserted what the payload cannot
   satisfy.** The durable day files are compared byte for byte, because SM339
   needs a repair to be diffable - and SM341 later added a `generated` timestamp
   to the payload, so two writes a second apart differ in the one field whose
@@ -181,11 +194,11 @@ Naming the commit: AFTER it lands, never before
   landed on the recount dry run, and reasoned from there to a much more alarming
   hypothesis. Reproducing it - 1 failure in 40 runs - was the only thing that
   would have corrected it.
-- SM371 follow-up (PENDING) **and now it is tested.** Four earlier fixtures
+- SM371 follow-up (1d83322) **and now it is tested.** Four earlier fixtures
   failed to reach `serve_403`, one of them passing with the fix removed, because
   the front-matter key is `auth_groups:` as an indented block and not `groups:`.
   Named in the test so the next person does not rediscover it.
-- SM372 (PENDING) **a release builds its packages.** `dist/` holds a `.deb` set
+- SM372 (1402d03) **a release builds its packages.** `dist/` holds a `.deb` set
   for every release through 0.10.8 and none for the five since - because
   `release.sh` succeeded without them, and a step outside a process that already
   succeeds eventually stops happening. Worse, `dpkg` reads the version from
@@ -197,7 +210,7 @@ Naming the commit: AFTER it lands, never before
   cannot disagree with the tag. Built before the tag so a failure burns no
   version, and checked per-package by name at that version, because an exit
   status is not a package.
-- SM373 (PENDING) **the catalogue listing passes `kind` through.** The layouts
+- SM373 (1402d03) **the catalogue listing passes `kind` through.** The layouts
   catalogue marks a demonstration layout `kind: demonstration` so a caller can
   filter gallery chrome out before installing it - the half SM337 could not
   supply, given SM349 measured 1 of 23 layouts rendering the site's navigation.
@@ -216,7 +229,7 @@ Naming the commit: AFTER it lands, never before
   guessed at, because a wrong guess on a listing predicate widens what is
   visible.
 
-- SM304 (PENDING) **the two manifest generators cannot drift apart** - and they
+- SM304 (6cd1de7) **the two manifest generators cannot drift apart** - and they
   already had. `install.pl` and `tools/manifest-to-sbom.pl` each carry
   `_generate_manifest_to_tmp`, added the same day by the same change, and by
   the time this was looked at they derived their root differently. One owner is
@@ -231,7 +244,7 @@ Naming the commit: AFTER it lands, never before
   double-escaped - has moved into SM308. Two open filings for one defect let
   each party believe the other is carrying it.
 
-- SM272 (PENDING) **an apt repository the packages can be installed from.**
+- SM272 (94c91f9) **an apt repository the packages can be installed from.**
   The `.deb` family has existed since 0.6.10 with nowhere to install it from,
   so 17 sites take a tarball. `tools/build-apt-repo.sh` builds the pool and the
   per-suite indices; it deliberately does **not** publish and does **not** hold
@@ -242,7 +255,7 @@ Naming the commit: AFTER it lands, never before
   against the pooled count, because `apt-ftparchive` aimed at the wrong
   directory exits 0 and writes an empty `Packages` that installs nothing.
 
-- SM368 (PENDING) **the ACL probe asks which cause, instead of naming one.**
+- SM368 (6411fa1) **the ACL probe asks which cause, instead of naming one.**
   When some file types serve past an ACL and others refuse, there are two
   candidates - a front end serving statics by extension (SM283, an operator
   task) and a front end still holding descriptors for files fetched while the
@@ -254,7 +267,7 @@ Naming the commit: AFTER it lands, never before
   probe already created the cached population itself. The cache case is now a
   WARN saying *no action*, not a FAIL telling somebody to change a template.
 
-- SM371 (PENDING) **an error page has no canonical, and only the 404 knew.**
+- SM371 (0d0e10e) **an error page has no canonical, and only the 404 knew.**
   SM355's reasoning was never 404-specific, but its helper was only ever called
   from `not_found()`, so `serve_402` and `serve_403` rendered into the served
   tree carrying whatever canonical the layout emitted. Found on edge: a 402
@@ -265,7 +278,7 @@ Naming the commit: AFTER it lands, never before
   removed rather than approximated; what would cover it is written into the test
   file.
 
-- SM367 (PENDING) **`invalidate_cache("/")` clears the homepage.** It became
+- SM367 (bc21f42, bc23864, 0d0e10e) **`invalidate_cache("/")` clears the homepage.** It became
   `$DOCROOT/.html` - a file that has never existed - so the unlink found
   nothing and `ok:1` was returned anyway, while `/index`, `/index.md` and
   `/index.html` all worked. Found during the 0.10.13 validation, after it had
@@ -281,7 +294,7 @@ Naming the commit: AFTER it lands, never before
   fallback, which SM133 taught the `*` sweep and never taught this branch - so
   on a migrated site invalidating one unlinked the page and reported `cleared:1`.
   Refused now, with the page left alone.
-- SM358 follow-up (PENDING) **the `hidden_by_script` finding names the template
+- SM358 follow-up (a00aac2) **the `hidden_by_script` finding names the template
   that applies the class**, not the layout that contains it. On the reporting
   instance both `reveal` references in `layout.tt` were JavaScript and four of
   six *components* applied it in markup, so `layout:lumen` sent an operator to
@@ -293,7 +306,7 @@ Naming the commit: AFTER it lands, never before
   surface was needed: the question of what to do about a latent hazard rested
   on the check being unable to tell, and it can.
 
-- SM366 (PENDING) **six tools can find the modules they load.** The 0.10.13
+- SM366 (6f4de4c) **six tools can find the modules they load.** The 0.10.13
   rollout printed `Can't locate Lazysite/Paths.pm` from `lazysite-check.pl` and
   then reported it as *"some checks could not be auto-repaired"* - a script that
   could not start, described as checks that could not be fixed. The health tool
@@ -304,6 +317,20 @@ Naming the commit: AFTER it lands, never before
   runs. It fails *inconsistently*, because the deploy script sets `PERL5LIB` for
   some invocations and not others, which is why no gate caught it and a deploy
   log did.
+
+## 0.10.13 - EDGE: the control reported success, and had not done the work (2026-08-17)
+
+Cut from a four-surface validation of a live instance. The release is keyed
+here after the fact - it was tagged without its own changelog section, which is
+the same class of omission as an unwritten commit ref and is recorded rather
+than quietly corrected.
+
+Most of what follows is one defect wearing different clothes: a control that
+answered "done" without having done it. An update that left the site on the old
+theme, a channel check that failed OPEN, an audit finding that named a file the
+operator could not act on, a search that stopped at a limit it would not name.
+None of them reported an error, which is why they needed a live instance to
+find.
 
 - SM365 (723eeed) **a layout update no longer leaves the site on the old
   theme.** Measured on edge after `lumen` went to catalogue 1.1.0: the template
