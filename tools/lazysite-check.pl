@@ -2145,6 +2145,41 @@ sub run_acl_probe {
         else { push @gated, $ext }
     }
 
+    # SM368: WHICH CAUSE? Asked, rather than inferred.
+    #
+    # A split - some extensions served, others refused - has two candidates that
+    # look identical from here:
+    #
+    #   SM283  the front end serves a static list by EXTENSION, straight off
+    #          the docroot, without consulting the engine. An operator task.
+    #   SM331  the front end still holds a descriptor for a file it fetched
+    #          while the folder was public. Clears itself. Nobody's task.
+    #
+    # This probe reported the first, in the same sentence and the same voice as
+    # the measurement, and it was wrong in the field: the finding was carried up
+    # as a fleet condition needing a human and relayed onward as one, twice,
+    # before anyone re-ran the experiment.
+    #
+    # THE DISCRIMINATOR IS ONE REQUEST. A file written AFTER the gate and never
+    # fetched cannot be in any front-end cache. If it serves, the split is by
+    # extension and SM283 is the answer. If it gates, the extensions that served
+    # were warmed by the SM331 pass above and are cache residue.
+    #
+    # Only run when there IS a leak to explain, so a healthy site pays nothing.
+    my $late_verdict = '';
+    if (@leaked) {
+        my $late_ext = $leaked[0];
+        if ( open my $lf, '>', "$PROBE_DIR/late.$late_ext" ) {
+            print {$lf} $marker;
+            close $lf;
+            my ( undef, $lbody ) = _probe_get("$url/$name/late.$late_ext");
+            $late_verdict
+                = ( defined $lbody && index( $lbody, $marker ) >= 0 )
+                ? 'extension'
+                : 'cache';
+        }
+    }
+
     _acl_probe_cleanup();
 
     # The verdicts. Note what is NOT said: never the filesystem path, and never
@@ -2153,17 +2188,40 @@ sub run_acl_probe {
     if (@leaked) {
         my $l = join ', ', map { ".$_" } @leaked;
         my $g = @gated ? join( ', ', map { ".$_" } @gated ) : '';
-        my $shape
-            = @gated
-            ? "$l served, $g refused - the split is by FILE EXTENSION, which is a "
-            . "front end serving a static list straight off the docroot"
-            : "$l served - the front end is answering without consulting the engine";
-        report( 'FAIL',
-            "a file the engine refuses is served to anonymous visitors: $shape",
-            'the request is not reaching lazysite. On Hestia apply the '
-                . 'lazysite-proxy template (or turn that domain\'s proxy off); '
-                . 'elsewhere check that the front end routes to the engine when '
-                . 'lazysite/auth/acls.json exists. See SM283.' );
+        # SM368: the CACHE verdict is not a failure of the site's gating. The
+        # engine moved the content and the front end is still answering from a
+        # descriptor it already held; it clears itself, and telling an operator
+        # to change a template would send them after nothing.
+        if ( $late_verdict eq 'cache' ) {
+            report( 'WARN',
+                "a file the engine refuses is still being served to anonymous "
+                    . "visitors: $l served, $g refused - but a file created "
+                    . "AFTER the gate and never requested is refused, so this "
+                    . "is a front-end cache still holding descriptors for files "
+                    . "fetched while the folder was public, not a routing rule",
+                'no action: the front end clears these itself. Re-run this '
+                    . 'check after its cache window if you want to confirm. '
+                    . 'See SM331.' );
+        }
+        else {
+            my $shape
+                = !@gated
+                ? "$l served - the front end is answering without consulting the engine"
+                : $late_verdict eq 'extension'
+                ? "$l served, $g refused, AND a file created after the gate and "
+                . "never requested is also served - so the split is by FILE "
+                . "EXTENSION and not a stale cache"
+                : "$l served, $g refused - which is either a front end serving "
+                . "by file extension or a cache still holding files fetched "
+                . "while the folder was public. This probe could not write a "
+                . "test file to tell them apart";
+            report( 'FAIL',
+                "a file the engine refuses is served to anonymous visitors: $shape",
+                'the request is not reaching lazysite. On Hestia apply the '
+                    . 'lazysite-proxy template (or turn that domain\'s proxy off); '
+                    . 'elsewhere check that the front end routes to the engine when '
+                    . 'lazysite/auth/acls.json exists. See SM283.' );
+        }
     }
     elsif ( @gated == @exts ) {
         report( 'OK',

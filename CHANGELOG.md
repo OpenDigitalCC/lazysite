@@ -90,6 +90,17 @@ Naming the commit: AFTER it lands, never before
   A hand-written allowlist that predated the key dropped it on all 23. The test
   asserts the general property rather than the field: every scalar the manifest
   declares survives the passthrough, which is the guard SM330 needed.
+- SM368 (PENDING) **the ACL probe asks which cause, instead of naming one.**
+  When some file types serve past an ACL and others refuse, there are two
+  candidates - a front end serving statics by extension (SM283, an operator
+  task) and a front end still holding descriptors for files fetched while the
+  folder was public (SM331, which clears itself). The probe reported the first,
+  in the same sentence and the same voice as the measurement, and was wrong in
+  the field: a correct measurement became a false operator work item and was
+  relayed onward as one, twice. The discriminator is **one request** - a file
+  written after the gate and never fetched cannot be in any cache - and the
+  probe already created the cached population itself. The cache case is now a
+  WARN saying *no action*, not a FAIL telling somebody to change a template.
 
 - SM371 (PENDING) **an error page has no canonical, and only the 404 knew.**
   SM355's reasoning was never 404-specific, but its helper was only ever called
