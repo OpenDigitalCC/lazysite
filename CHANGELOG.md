@@ -75,6 +75,29 @@ Naming the commit: AFTER it lands, never before
   last step on `git push`, stranding a fully built and tagged release with
   exit 128. The bare form now refuses and names both commands rather than
   guessing which half was meant.
+- SM298 (PENDING) **a compliance record says whether it actually changed.**
+  `reviewed_at_version` catches a record nobody updated; it cannot catch one
+  whose version was bumped without anybody re-reading the document - the same
+  failure one level down. The records now carry a `content_sha` of their own
+  body, so the version stops being a promise and becomes an observation. It
+  advises rather than blocks, because a register can legitimately be unchanged
+  and the reviewer decides; what it removes is claiming a re-read that did not
+  happen without the claim being visible. The hash excludes the stamped fields
+  **including itself** - the first version hashed its own field, so stamping a
+  value changed the value.
+- SM282 (PENDING) **preview a path as the public sees it.** A draft section is
+  invisible to the public and visible to a signed-in editor, which is why the
+  editor is the one person who cannot check it. `preview-public` renders any
+  path anonymously and reports the verdict in the operator's terms, saying that
+  a refusal is the *expected* result for a draft and is the check succeeding.
+  The safety property is the identity strip, and the test asserts it against an
+  ACL that names the operator - so a leaked identity would show the page.
+- SM281 (PENDING) **the notice store is readable remotely.** `notifications`
+  unlocked a manager page and had no remote surface at all - the bell read the
+  store and neither MCP nor the control API could. Read only; writing is
+  emission. **Item 3 of three:** the SMTP endpoint, per-user addressing and the
+  retention decision remain, and an MCP twin waits on addressing or every agent
+  reads every operator notice.
 
 - SM364 (PENDING) **reproduced at the fourth attempt, and disproved.** In the
   state the report describes, the dot-prefixed entry is listed, **read (200)

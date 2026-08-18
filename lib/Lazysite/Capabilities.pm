@@ -66,7 +66,7 @@ my %ACTION_INFO = (
         unlocks => {
             api => [ qw(aliases-list git-status git-history git-history-summary
                     git-show git-restore lang-status site-export-primary
-                    regenerate-registries) ],
+                    regenerate-registries preview-public) ],
             mcp => [ qw(list_files read_file write_file upload_file replace_text copy_file
                     move_file delete_file create_page delete_page rename_page
                     list_pages read_page preview_page page_status search_files
@@ -144,7 +144,14 @@ my %ACTION_INFO = (
     },
     notifications => {
         title => 'See operator notifications (the manager bell: new form submissions, requests awaiting a response).',
-        unlocks => { ui => ['the notifications bell + unread badge in the manager header'] },
+        # SM281 item 3: it unlocked a manager page and nothing else - a
+        # capability with no remote surface, which is an SM239 parity gap and
+        # the reason remote agents had been editing a shared briefing document
+        # to talk to each other. `notices` is READ; emission stays SM231's.
+        unlocks => {
+            ui  => ['the notifications bell + unread badge in the manager header'],
+            api => ['notices'],
+        },
     },
     feedback => {
         title => 'Submit agent feedback over MCP. Off by default: the operator opts a group in so an agent may write to lazysite/feedback/ and notify the operator.',

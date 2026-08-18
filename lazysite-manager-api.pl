@@ -62,7 +62,7 @@ use Lazysite::Manager::Layouts qw(action_layouts_releases action_layouts_install
 use Lazysite::Manager::Backups qw(action_backup_list action_backup_create action_backup_download
     action_backup_restore action_backup_delete);
 use Lazysite::Manager::Sessions qw(action_sessions_list action_session_revoke action_user_revoke);
-use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview known_domain_host);
+use Lazysite::Manager::Domains qw(domains_list domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host);
 use Lazysite::Lang                 qw(lang_status sole_group);
 use Lazysite::Manager::SitePackage qw(package_create package_apply package_inspect);
 $Lazysite::Util::COMPONENT = 'manager-api';
@@ -182,7 +182,7 @@ my %KNOWN_ACTION = map { $_ => 1 } qw(
     backup-create backup-delete backup-download backup-list backup-restore bad-url-blocks
     bad-url-unblock cache-invalidate cache-list channel-services
     config-read config-set copy csrf-token delete describe-capabilities
-    domain-add domain-check domain-preview domain-remove domain-set
+    domain-add domain-check domain-preview domain-remove domain-set preview-public
     domains-list file-download file-upload file-zip-download form-list
     form-submission-confirm form-submission-delete form-submissions
     form-submissions-delete-bulk form-targets-read form-targets-save
@@ -705,13 +705,32 @@ if ($token_auth) {
             # now the same availability - the account that holds manage_content can
             # reach it whichever door it was granted.
         'regenerate-registries' => sub { $_[0]->{manage_content} },
-        'site-backup-create'    => sub { $_[0]->{manage_domains} },    # SM158
-        'site-backup-upload'    => sub { $_[0]->{manage_domains} },
-        'site-backup-apply'     => sub { $_[0]->{manage_domains} },
-        'site-backup-inspect'   => sub { $_[0]->{manage_domains} },    # SM183
-        'site-backup-delete'    => sub { $_[0]->{manage_domains} },    # SM183
-        'site-backup-download'  => sub { $_[0]->{manage_domains} },    # SM193
-        'site-export-primary'   => sub { $_[0]->{manage_content} },    # SM185
+        # SM281 item 3: the notice store as a READ surface.
+        #
+        # `notifications` unlocked a manager page and had no remote surface at
+        # all - the bell reads the store, and MCP and the control API could
+        # not. That is an SM239 parity gap on its own, and it is the half that
+        # makes the agent door real: SM231 recorded, from observation rather
+        # than speculation, that remote agents had been EDITING THE BRIEFING
+        # DOCUMENT to talk to each other, because it was the only durable,
+        # shared, writable place they both had.
+        #
+        # Read only. Writing is emission, which SM231 built and which routes by
+        # type; a remote writer is item 2's addressing question and is not
+        # answered by making the store readable.
+        'notices' => sub { $_[0]->{notifications} },
+        # SM282: seeing what a VISITOR gets for a path you can already read.
+        # It renders anonymously, so it can never show more than the public
+        # sees - manage_content is the grant that makes the question yours to
+        # ask, not a grant to see anything new.
+        'preview-public'       => sub { $_[0]->{manage_content} },
+        'site-backup-create'   => sub { $_[0]->{manage_domains} },    # SM158
+        'site-backup-upload'   => sub { $_[0]->{manage_domains} },
+        'site-backup-apply'    => sub { $_[0]->{manage_domains} },
+        'site-backup-inspect'  => sub { $_[0]->{manage_domains} },    # SM183
+        'site-backup-delete'   => sub { $_[0]->{manage_domains} },    # SM183
+        'site-backup-download' => sub { $_[0]->{manage_domains} },    # SM193
+        'site-export-primary'  => sub { $_[0]->{manage_content} },    # SM185
             # SM187: agents read form submissions with a least-privilege read_submissions
             # cap OR the operator's manage_forms - parity with the cookie channel.
         'form-submissions' => sub { $_[0]->{manage_forms} || $_[0]->{read_submissions} },
@@ -1209,6 +1228,9 @@ elsif ( $action eq 'analyse_visitors' ) {
 elsif ( $action eq 'whoami' )                { $result = action_whoami($auth_user) }
 elsif ( $action eq 'describe-capabilities' ) { $result = action_describe_capabilities($auth_user) }
 elsif ( $action eq 'actions-list' ) { $result = action_actions_list($auth_user) }  # SM350
+elsif ( $action eq 'preview-public' ) {                                            # SM282
+    $result = preview_public( $params{path} );
+}
 elsif ( $action eq 'audit' ) {
     # Strict gate: the FULL audit trail requires the 'audit' capability (separate
     # from visitor analytics). Token clients are already gated by %need above (a
@@ -1320,7 +1342,7 @@ else { $result = { ok => 0, error => "Unknown action: $action" } }
 # not overlap with them. Read-ish POSTs (the UI POSTs everything) are skipped.
 if ( ( $ENV{REQUEST_METHOD} // '' ) eq 'POST' ) {
     my %skip = map { $_ => 1 } qw(
-        csrf-token list read principals whoami describe-capabilities actions-list audit version acl-get cache-list analyse_visitors
+        csrf-token list read principals whoami describe-capabilities actions-list preview-public audit version acl-get cache-list analyse_visitors
         cache-invalidate regenerate-registries nav-read aliases-list config-read domains-list domain-preview domain-check lang-status bad-url-blocks recent-changes channel-services pages theme-list themes-list-all themes-for-layout
         layouts-available layouts-releases layouts-repo-get layouts-release-contents
         handler-list plugin-list plugin-read form-targets-read form-submissions form-list artifact-manifest

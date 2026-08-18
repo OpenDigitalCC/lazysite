@@ -30,6 +30,7 @@ rises monotonically.
 ```yaml
 status:              index - complete in coverage, not yet reviewed as a whole
 covers_version:      0.10.9
+content_sha:         78dc3c473aac2118
 ce_marking_due:      2027-12-11
 owner:               release manager
 ```

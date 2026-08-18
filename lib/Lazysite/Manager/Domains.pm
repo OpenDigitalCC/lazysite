@@ -21,7 +21,7 @@ use Lazysite::Util            qw(log_event);
 use Lazysite::Manager::Common qw(path_is_reserved processor_path conf_batch);
 use Exporter 'import';
 use Lazysite::Paths ();
-our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview known_domain_host instance_public_ips);
+our @EXPORT_OK = qw(domains_list domains_using domain_usage domain_add domain_remove domain_set domain_check domain_preview preview_public known_domain_host instance_public_ips);
 
 our $DOCROOT;    # set by the caller (manager-api or the CLI)
 
@@ -224,6 +224,102 @@ sub known_domain_host {
         return 1 if lc($1) eq $host;
     }
     return 0;
+}
+
+# SM282: what a PUBLIC visitor gets for one path.
+#
+# A draft section is invisible to the public and visible to a signed-in editor.
+# That is the feature working, and it is exactly why the editor is the one
+# person who cannot check it: everything looks fine from where they are
+# standing. The current answer is a private browsing window, which works and
+# means leaving the manager - while the thing being checked is precisely
+# whether leaving the manager changes what you see.
+#
+# The machinery already existed one scope up. domain_preview shells the
+# processor with every auth marker stripped, so a domain can be seen before DNS
+# points at it. This is the same trick at page scope.
+#
+# SAFE BY CONSTRUCTION, and the construction is the point: the processor applies
+# the identical refusal it would apply to a visitor, because it is not told who
+# is asking. So a 404 or a redirect to /login is the CORRECT answer for a gated
+# path and is reported as the finding rather than as an error - which is the
+# whole reason an operator would run this.
+sub preview_public {
+    my ($rel) = @_;
+    $rel = '/'     unless defined $rel && length $rel;
+    $rel = "/$rel" unless $rel =~ m{^/};
+
+    return { ok => 0, error => 'Invalid path' }
+        if $rel =~ m{ \0 }x || $rel =~ m{ (?:^|/) \.\. (?:/|$) }x;
+
+    local %ENV = %ENV;
+
+    # The identity strip is the mechanism. Anything that could tell the
+    # processor who is asking has to go, or the preview shows the operator
+    # their own view and reports it as the public's - which is the defect this
+    # exists to remove, wearing the costume of the fix.
+    delete @ENV{
+        grep {
+            m{ \A (?: HTTP_X_REMOTE_ | LAZYSITE_AUTH_
+                | HTTP_COOKIE | HTTP_AUTHORIZATION ) }x
+        } keys %ENV
+    };
+    delete $ENV{HTTP_COOKIE};
+    delete $ENV{HTTP_AUTHORIZATION};
+
+    $ENV{DOCUMENT_ROOT}    = $DOCROOT;
+    $ENV{REDIRECT_URL}     = $rel;
+    $ENV{REQUEST_METHOD}   = 'GET';
+    $ENV{QUERY_STRING}     = '';
+    $ENV{LAZYSITE_NOCACHE} = '1';
+
+    my $processor = processor_path();
+    my $raw       = qx($^X \Q$processor\E 2>/dev/null);
+    my $status    = $?;
+
+    if ( $status != 0 ) {
+        return { ok => 0, kind => 'render-failed',
+            error => 'The processor failed to render ' . $rel };
+    }
+    unless ( defined $raw && $raw =~ /\r?\n\r?\n/ ) {
+        return { ok => 0, kind => 'no-cgi-headers',
+            error => 'The processor returned no CGI response for ' . $rel };
+    }
+
+    my ($head) = $raw =~ /\A(.*?)\r?\n\r?\n/s;
+    ( my $body = $raw ) =~ s/\A.*?\r?\n\r?\n//s;
+    utf8::decode($body);
+
+    my ($code) = ( $head // '' ) =~ /^Status:\s*(\d{3})/m;
+    $code //= 200;
+    my ($location) = ( $head // '' ) =~ /^Location:\s*(\S+)/m;
+
+    # The VERDICT, in the operator's terms rather than HTTP's. "404" is a fact
+    # about a response; "a visitor does not see this page" is the answer to the
+    # question they asked.
+    my $visible
+        = $code == 200                     ? 'visible'
+        : ( $code == 404 )                 ? 'not-found'
+        : ( $code >= 300 && $code < 400 )  ? 'redirected'
+        : ( $code == 401 || $code == 403 ) ? 'refused'
+        :                                    'other';
+
+    return {
+        ok      => 1,
+        path    => $rel,
+        status  => $code + 0,
+        public  => ( $visible eq 'visible' ? JSON::PP::true : JSON::PP::false ),
+        verdict => $visible,
+        ( defined $location ? ( location => $location ) : () ),
+
+        # A bounded excerpt, not the page. Enough to tell a rendered 404 from a
+        # rendered page without shipping a whole document through the API.
+        excerpt => substr( $body, 0, 400 ),
+        note    => $visible eq 'visible'
+        ? 'A visitor WOULD see this page.'
+        : 'A visitor would NOT see this page - this is the expected result for '
+            . 'a draft or protected section, and is the check succeeding.',
+    };
 }
 
 sub domain_preview {

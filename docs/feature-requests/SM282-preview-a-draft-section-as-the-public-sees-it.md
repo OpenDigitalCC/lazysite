@@ -2,8 +2,8 @@
 title: "SM282 - Preview a draft section as the public sees it"
 subtitle: "The fourth item of SM267's panel. An editor can see a draft section because they are signed in, which is exactly why they cannot tell what a visitor gets."
 brand: plain
-status: candidate
-status-note: "SPLIT from SM267 on 2026-08-11 when the operator found the panel could not create a protected section at all. That gap (SM267 item 2) was fixed on the spot; this one - item 4 - is filed rather than rushed in behind it. NOT STARTED."
+status: shipped
+status-note: "SHIPPED 2026-08-18 as the engine half. `preview_public(path)` renders any path as an anonymous visitor and reports the verdict in the operator's terms - visible / not-found / redirected / refused - with a bounded excerpt and a note saying that a refusal is the EXPECTED result for a draft section and is the check succeeding, not an error. Exposed as `action=preview-public` on the control API under manage_content, so the Protected sections panel can call it; the button itself is the remaining half. THE SAFETY PROPERTY IS THE IDENTITY STRIP and it is what the test is for: a preview that inherits the operator's identity shows them their own view and labels it the public's, which is the same defect wearing the costume of the fix. Sabotaging the strip must fail the test - and in the FIRST version it did not, because the fixture gated the section against everyone, so the section was invisible to the operator too and there was nothing to leak. The read list now names the operator deliberately, so a leaked identity would show the page. SPLIT from SM267 on 2026-08-11 when the operator found the panel could not create a protected section at all. That gap (SM267 item 2) was fixed on the spot; this one - item 4 - is filed rather than rushed in behind it. NOT STARTED."
 ---
 
 # SM282 - preview a draft section as the public sees it

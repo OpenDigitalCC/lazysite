@@ -2,7 +2,7 @@
 title: "SM281 - The notification endpoints SM231 did not build, and the agent notice store it asked to leave room for"
 subtitle: "SM231 shipped types, templates, routing and emission control over one endpoint. The SMTP endpoint, per-user addressing and the readable notice store are what remains."
 brand: plain
-status: candidate
+status: partial
 status-note: "SPLIT from SM231 on 2026-08-11, which is now closed as shipped for the channel itself. NOT STARTED. Carries the two open decisions SM231 recorded and never resolved, plus the agent-messaging door it deliberately declined to build. The SMTP endpoint is S; the notice-store read surface is M and is also an SM239 parity item in its own right."
 ---
 

@@ -32,7 +32,7 @@ bold: 1
 tone: medium
 text: 2
 ---
-manage_content | Read and write site content (pages, assets). | webdav: write anywhere in the content namespace (within dav_scope); api: aliases-list, git-status, git-history, git-history-summary, git-show, git-restore, lang-status, site-export-primary, regenerate-registries; mcp: list_files, read_file, write_file, upload_file, replace_text, copy_file, move_file, delete_file, create_page, delete_page, rename_page, list_pages, read_page, preview_page, page_status, search_files, validate_page, invalidate_cache, regenerate_registries, read_nav, audit_site, create_form, get_permissions, set_permissions, list_versions, list_content_history, view_version, restore_version
+manage_content | Read and write site content (pages, assets). | webdav: write anywhere in the content namespace (within dav_scope); api: aliases-list, git-status, git-history, git-history-summary, git-show, git-restore, lang-status, site-export-primary, regenerate-registries, preview-public; mcp: list_files, read_file, write_file, upload_file, replace_text, copy_file, move_file, delete_file, create_page, delete_page, rename_page, list_pages, read_page, preview_page, page_status, search_files, validate_page, invalidate_cache, regenerate_registries, read_nav, audit_site, create_form, get_permissions, set_permissions, list_versions, list_content_history, view_version, restore_version
 manage_nav | Edit site navigation. | webdav: lazysite/nav.conf; api: nav-read, nav-save, pages; mcp: set_nav
 manage_forms | Wire forms to delivery handlers. A submitted form also raises an operator notification of its own accord (the manager bell, plus chat where notify-xmpp is configured) naming the form and the time but never the content - so nothing needs to poll to learn that something arrived. See /docs/forms. | webdav: lazysite/forms/<name>.conf (not smtp.conf / handlers.conf); mcp: list_form_handlers, bind_form
 manage_themes | Install and activate themes. | webdav: lazysite/layouts/<layout>/themes/<theme>/ (active theme read-only); api: theme-activate, theme-list, themes-for-layout, themes-list-all, artifact-manifest, artifact-validate, preview-grant, theme-delete; mcp: list_themes, theme_tokens, activate_theme, create_theme, delete_theme
@@ -42,7 +42,7 @@ manage_config | Read and set safe site configuration. | webdav: lazysite/nav.con
 manage_users | Manage user accounts and group membership. | ui: the manager Users and Groups pages
 analytics | Read sanitised, IP-anonymised visitor analytics. | api: analyse_visitors; mcp: analyse_visitors
 audit | Read the append-only audit trail. | api: audit
-notifications | See operator notifications (the manager bell: new form submissions, requests awaiting a response). | ui: the notifications bell + unread badge in the manager header
+notifications | See operator notifications (the manager bell: new form submissions, requests awaiting a response). | ui: the notifications bell + unread badge in the manager header; api: notices
 feedback | Submit agent feedback over MCP. Off by default: the operator opts a group in so an agent may write to lazysite/feedback/ and notify the operator. | mcp: submit_feedback
 read_submissions | Read form submissions over the API/MCP. A least-privilege, read-only grant for an agent that processes form leads - it does NOT include managing form configs (that is manage_forms). Off by default. | api: form-submissions, form-list; mcp: read_form_submissions, form_list
 create_sub_users | Create sub-accounts under your own account. | ui: sub-user creation

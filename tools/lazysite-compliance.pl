@@ -93,13 +93,58 @@ for my $r (
     my $at = meta_field( $text, $key );
     if ( !length $at ) {
         blocking("$name: $rel has no $key");
+        next;
     }
-    elsif ( vcmp( $at, $VERSION ) < 0 ) {
+    if ( vcmp( $at, $VERSION ) < 0 ) {
         blocking(
             "$name: $key is $at, cutting $VERSION - walk $rel and update it");
+        next;
+    }
+
+    # SM298: THE VERSION FIELD IS A PROMISE; THE HASH MAKES IT AN OBSERVATION.
+    #
+    # The check above catches a record nobody UPDATED. It cannot catch a record
+    # whose version field was bumped without anybody re-reading the document -
+    # the same failure one level down, and the shape this project has now found
+    # six times.
+    #
+    # So the record also carries a hash of its own body. Bumping the version
+    # without touching the content leaves the hash matching, and the gate can
+    # then say what is actually true: the document did not change for this
+    # release. Whether that is FINE is the reviewer's call - an obligations
+    # register can legitimately be unchanged - so this reports rather than
+    # blocks. What it removes is the ability to claim a re-read that did not
+    # happen without the claim being visible.
+    #
+    # The hash covers the body BELOW the front matter, so stamping the version
+    # and the date does not change it. Otherwise every stamp would invalidate
+    # the thing it was stamping, which is the trap in the obvious version.
+    my $body = $text;
+    $body =~ s/\A---\n.*?\n---\n//s;         # front matter out
+    $body =~ s/^\s*$key\s*:.*$//mg;          # and the stamped fields themselves
+    $body =~ s/^\s*reviewed_on\s*:.*$//mg;
+
+    # AND content_sha ITSELF, or the hash covers the field that records it:
+    # stamping a value changes the body, which changes the value. The first
+    # version of this did exactly that and reported "content changed" on a
+    # document whose only change was the stamp.
+    $body =~ s/^\s*content_sha\s*:.*$//mg;
+    require Digest::SHA;
+    my $now = substr( Digest::SHA::sha256_hex($body), 0, 16 );
+
+    my $recorded = meta_field( $text, 'content_sha' );
+    if ( !length $recorded ) {
+        advisory( "$name: no content_sha - add `content_sha: $now` so a version "
+                . 'bump without a re-read becomes visible (SM298)' );
+        good("$name reviewed at $at");
+    }
+    elsif ( $recorded eq $now ) {
+        advisory( "$name: unchanged since it was reviewed at $at - the version "
+                . 'field moved and the document did not' );
+        good("$name reviewed at $at (content unchanged)");
     }
     else {
-        good("$name reviewed at $at");
+        good("$name reviewed at $at (content changed; content_sha: $now)");
     }
 }
 

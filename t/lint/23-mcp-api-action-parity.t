@@ -116,6 +116,16 @@ for my $a ( sort keys %PAIR ) {
 
 # --- 3. one-sided actions, each with a recorded reason -----------------------
 my %API_ONLY = (
+    # SM282: an operator-facing check - "what does a VISITOR get for this
+    # path" - answered in the panel where the draft section is managed. An
+    # agent has no equivalent question: it can already fetch the path
+    # anonymously itself, which is all this does.
+    'preview-public' => 'operator-facing; an agent can fetch the path anonymously',
+    # SM281 item 3: the read surface exists now and is API-only for a reason
+    # that is a decision rather than an omission. An MCP twin would be the
+    # agent door SM231 described - polled, not pushed - and it wants item 2's
+    # addressing first, or every agent reads every operator notice.
+    'notices' => 'undecided - an MCP twin wants per-notice addressing (SM281 item 2) first',
     'audit'       => 'undecided - an agent cannot read the audit trail over MCP',
     'config-read' => 'undecided - no MCP twin for site configuration',
     'config-set'  => 'undecided - as config-read',

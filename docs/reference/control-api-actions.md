@@ -112,7 +112,7 @@ tone: medium
 `move` | cookie only | path (query), to (query)
 `nav-read` | manage_nav | host (query)
 `nav-save` | manage_nav | items (body), host (body)
-`notices` | cookie only |  
+`notices` | notifications |  
 `notices-seen` | cookie only |  
 `pages` | manage_nav |  
 `plugin-action` | cookie only | plugin (query), script (body), action_id (body), params (body)
@@ -124,6 +124,7 @@ tone: medium
 `preview` | cookie only | path (query)
 `preview-clear` | cookie only |  
 `preview-grant` | manage_themes / manage_layouts |  
+`preview-public` | manage_content | path (query)
 `principals` | cookie only |  
 `protected-sections` | cookie only |  
 `read` | cookie only | path (query)

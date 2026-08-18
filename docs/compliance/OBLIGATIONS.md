@@ -26,6 +26,7 @@ cutting a release, not something to remember afterwards.
 
 ```yaml
 reviewed_at_version: 0.10.9
+content_sha:         4cdf45b8ae085a8b
 reviewed_on:         2026-08-14
 next_review:         at the next release, whichever channel
 owner:               release manager
