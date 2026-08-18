@@ -944,8 +944,8 @@ sub action_layouts_manifest {
             # `showcase` and mean something else, or omit the tag and still set
             # `kind`. Inference from a tag vocabulary is not the same as reading
             # a declared field, which is the whole of SM203.
-            kind => $l->{kind} // '',
-            installed   => $inst_layout{$name}
+            kind      => $l->{kind} // '',
+            installed => $inst_layout{$name}
             ? JSON::PP::true() : JSON::PP::false(),
             themes => [
                 map {

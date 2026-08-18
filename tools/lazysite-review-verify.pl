@@ -27,7 +27,7 @@
 # Usage: tools/lazysite-review-verify.pl <review-dir> [--quiet]
 use strict;
 use warnings;
-use JSON::PP ();
+use JSON::PP       ();
 use Cwd            ();
 use File::Basename ();
 
@@ -101,8 +101,8 @@ for my $f ( @{ $doc->{findings} } ) {
     # Convention: the expression is TRUE (exit 0) when the finding is FIXED.
     # Stated here because the opposite convention is equally natural and a
     # reviewer who assumes the wrong one gets every verdict backwards.
-    if ( $rc == 0 ) { push @fixed,  [ $id, $title ] }
-    else            { push @open_,  [ $id, $title, $out ] }
+    if ( $rc == 0 ) { push @fixed, [ $id, $title ] }
+    else            { push @open_, [ $id, $title, $out ] }
 }
 
 sub show {
@@ -122,10 +122,10 @@ sub show {
 }
 
 print "review-verify: $dir\n\n";
-show( 'FIXED',      \@fixed,      0 );
-show( 'STILL OPEN', \@open_,      1 );
-show( 'COULD NOT BE CHECKED', \@unrunnable, 1 );
-show( 'NOT MECHANICAL - re-check by hand', \@manual, 0 );
+show( 'FIXED',                             \@fixed,      0 );
+show( 'STILL OPEN',                        \@open_,      1 );
+show( 'COULD NOT BE CHECKED',              \@unrunnable, 1 );
+show( 'NOT MECHANICAL - re-check by hand', \@manual,     0 );
 
 printf "%d fixed, %d still open, %d could not be checked, %d not mechanical\n",
     scalar @fixed, scalar @open_, scalar @unrunnable, scalar @manual;
