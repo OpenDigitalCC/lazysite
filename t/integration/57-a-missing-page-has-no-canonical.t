@@ -112,25 +112,60 @@ subtest 'a real page keeps its canonical' => sub {
         'and is not marked noindex' );
 };
 
-# --- SM371: WIDENED IN THE CODE, NOT COVERED HERE -----------------------------
-# serve_402 and serve_403 now run the same sanitiser, and there is deliberately
-# no test for it, which is worse than a test and better than the test I tried to
-# write.
+# --- SM371: the reasoning was never 404-specific ------------------------------
+# SM355's helper strips the canonical an error page must not carry and adds the
+# noindex it must. It was written for 404 and CALLED only from not_found(), so
+# serve_402 and serve_403 - which render through process_md into
+# $DOCROOT/402.html and 403.html, files the front end then serves at 200 - kept
+# whatever canonical the layout emitted.
 #
-# Four attempts at a fixture that reaches serve_403 produced, in order: an ACL
-# refusal (a different branch with its own minimal body, no canonical to strip,
-# so the assertion passed with the fix REMOVED), an anonymous request (a 302 to
-# login, SM223), and twice a plain 200 because the page never asked for
-# authentication. The first of those is the dangerous one: it was green, it
-# looked like coverage, and sabotaging the fix did not disturb it.
+# Found on a 402 in the field: a canonical pointing at the payment-gated page
+# the visitor had just been REFUSED.
 #
-# What would cover it: a fixture that reaches the GROUP refusal in check_auth -
-# an authenticated user outside a group the page requires - which needs the
-# page's auth metadata staged the way t/unit/processor/08 stages it rather than
-# the way a content fixture does. And for 402, a payment-gated page with the
-# payment plugin configured, which no integration fixture here sets up.
-#
-# Recorded rather than approximated. A test that cannot fail is the thing this
-# whole release has been about.
+# FOUR FIXTURES FAILED BEFORE THIS ONE, and the reason is worth keeping. The
+# front-matter key is `auth_groups:` as an indented block, not `groups:` - so
+# every attempt that wrote `groups: admins` left @required empty, the group
+# check never ran, and the page answered 200. One of those attempts asserted
+# "no canonical" against an ACL-refusal body that never had one, and PASSED
+# WITH THE FIX REMOVED. A green test on the wrong branch is the failure mode
+# this whole release has been about, so the key is named here rather than left
+# for the next person to rediscover.
+subtest 'a 403 has no canonical, in the body and in the cache' => sub {
+    open my $gated, '>', "$docroot/zz-gated.md" or die $!;
+    print {$gated} "---\ntitle: Gated\nauth: required\nauth_groups:\n  - admins\n---\n\nsecret\n";
+    close $gated;
+
+    open my $sys, '>', "$docroot/403.md" or die $!;
+    print {$sys} "---\ntitle: Forbidden\n---\n\n# Forbidden\n";
+    close $sys;
+
+    # AUTHENTICATED and outside the group. Anonymous is a 302 to login (SM223)
+    # and an ACL refusal is a different branch with its own minimal body -
+    # neither reaches serve_403.
+    my $out = run_processor(
+        $docroot, '/zz-gated',
+        LAZYSITE_AUTH_TRUSTED => '1',
+        HTTP_X_REMOTE_USER    => 'stranger',
+        HTTP_X_REMOTE_GROUPS  => 'visitors',
+    );
+    like( $out, qr/Status: 403/, 'the fixture reaches serve_403' )
+        or diag( 'got: ' . substr( $out, 0, 300 ) );
+
+    unlike( $out, qr/rel=["']canonical["']/i,
+        'the served 403 carries no canonical' )
+        or diag( 'An error page is not the canonical version of anything - the '
+            . 'reasoning SM355 applied to 404 and nobody applied here.' );
+
+    if ( -f "$docroot/403.html" ) {
+        open my $cf, '<', "$docroot/403.html" or die $!;
+        local $/;
+        my $cached = <$cf>;
+        close $cf;
+        unlike( $cached, qr/rel=["']canonical["']/i,
+            'and neither does the cache file the front end serves at 403.html' );
+        like( $cached, qr/name=["']robots["'][^>]*noindex/i,
+            'which is noindex too, being an indexable soft error page' );
+    }
+};
 
 done_testing();

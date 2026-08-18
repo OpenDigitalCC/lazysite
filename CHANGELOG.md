@@ -44,6 +44,22 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM370 (PENDING) **a byte-comparison test asserted what the payload cannot
+  satisfy.** The durable day files are compared byte for byte, because SM339
+  needs a repair to be diffable - and SM341 later added a `generated` timestamp
+  to the payload, so two writes a second apart differ in the one field whose
+  purpose is to change. It passed 39 runs in 40. The comparison now normalises
+  that field out and separately asserts it is present, so the normalisation
+  cannot mask its disappearance. **I filed this as something else first**: a
+  gate summary said `Failed test: 5`, I counted subtests to map the number,
+  landed on the recount dry run, and reasoned from there to a much more alarming
+  hypothesis. Reproducing it - 1 failure in 40 runs - was the only thing that
+  would have corrected it.
+- SM371 follow-up (PENDING) **and now it is tested.** Four earlier fixtures
+  failed to reach `serve_403`, one of them passing with the fix removed, because
+  the front-matter key is `auth_groups:` as an indented block and not `groups:`.
+  Named in the test so the next person does not rediscover it.
+
 - SM371 (PENDING) **an error page has no canonical, and only the 404 knew.**
   SM355's reasoning was never 404-specific, but its helper was only ever called
   from `not_found()`, so `serve_402` and `serve_403` rendered into the served

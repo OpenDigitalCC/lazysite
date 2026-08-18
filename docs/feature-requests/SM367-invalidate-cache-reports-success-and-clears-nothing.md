@@ -91,6 +91,41 @@ will happen to test against.
 That is why this is worth more than its size, and why "I ran it and nothing
 broke" is the least useful evidence available here.
 
+## The trace is erased by looking for it
+
+Corrected the same day by the reporter, and it sharpens the defect rather than
+softening it. From `list_files` mtimes:
+
+```datatable
+columns: Time | State
+widths: 3.2cm | X
+bold: 1
+tone: medium
+---
+04:49:57 | `404.html` present, 4377 bytes
+~05:04:2x | `invalidate_cache` returns ok:true, file unlinked
+~05:04:3x | confirmed absent from PROPFIND and list_files
+05:04:51 | **REGENERATED**, 4441 bytes
+---
+```
+
+**The fetch used to check for damage is what repaired it.** Requesting the route
+makes the engine render and write the file again, so the window in which the
+deletion is observable is the gap between the call and somebody looking - and
+looking closes it.
+
+::: widebox
+A destructive operation whose only trace is erased by the act of looking for it
+cannot be validated by field testing at all. It has to be prevented in the code.
+:::
+
+That also retires the reassurance offered earlier - that two calls the previous
+day had done no harm because the file was present. The file was present because
+it regenerates, and the regeneration is fast enough that **no check made after
+the fact could have distinguished "nothing happened" from "it happened and
+healed"**. The evidence could not have come out any other way, which is the
+definition of evidence that proves nothing.
+
 ## What edge could not have told us
 
 The site agent had run `invalidate_cache` on `/404.html` twice on 0.10.12 -

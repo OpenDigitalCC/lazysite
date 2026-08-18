@@ -185,11 +185,35 @@ subtest 'the durable files are byte-comparable' => sub {
     my $first = do { open my $fh, '<', $path or die $!; local $/; <$fh> };
     run( $d, '--export', '--window', 30 );
     my $second = do { open my $fh, '<', $path or die $!; local $/; <$fh> };
-    is( $second, $first,
-        'the same content written twice is byte-identical' )
+
+    # SM370: EXCEPT `generated`, which is SUPPOSED to differ.
+    #
+    # This flaked at roughly 1 run in 40 and cost a filing that named the wrong
+    # subtest and the wrong cause. The two writes are byte-identical unless they
+    # straddle a second boundary, at which point the SM341 timestamp inside the
+    # payload moves - 06:50:01Z against 06:50:02Z - and a full byte comparison
+    # fails on the one field whose entire purpose is to change.
+    #
+    # SM341 added that field after this assertion was written, so the test kept
+    # a claim the payload had stopped being able to satisfy. Normalising it out
+    # keeps what SM339 actually needs - canonical ORDERING, so an operator
+    # auditing a repair can diff two files and see only what changed - and stops
+    # asserting something that is false by design.
+    my $norm = sub {
+        my ($json) = @_;
+        $json =~ s/"generated":"[^"]*"/"generated":"<stamped>"/;
+        return $json;
+    };
+    is( $norm->($second), $norm->($first),
+        'the same content written twice is byte-identical, bar the timestamp' )
         or diag( 'Without canonical ordering an operator auditing a repair '
             . 'sees every line move and cannot tell a reordering from a '
             . 'change.' );
+
+    # And the field really is there to move - asserted, so normalising it out
+    # cannot quietly become normalising away a field that stopped being written.
+    like( $first, qr/"generated":"\d{4}-\d{2}-\d{2}T/,
+        'and the payload does carry the timestamp being normalised' );
 };
 
 subtest 'the recount reports before it writes' => sub {

@@ -2,8 +2,8 @@
 title: "SM371 - an error page has no canonical, and only the 404 knew"
 subtitle: "SM355's reasoning was never 404-specific, but its helper was only ever called from `not_found()`. The 402 and 403 pages render into the served tree carrying whatever canonical the layout emitted - and on a 402 that points at content the visitor was just refused."
 brand: plain
-status: partial
-status-note: "SHIPPED IN THE CODE 2026-08-18, NOT COVERED BY A TEST, and the second half is deliberate. Four attempts at a fixture reaching serve_403 produced an ACL refusal (a different branch, minimal body, no canonical to strip - so the assertion passed with the fix REMOVED), an anonymous 302 to login, and twice a plain 200. The first is the dangerous one: green, looked like coverage, and sabotaging the fix did not disturb it. Removed rather than approximated, with what would cover it written into the test file. Found by the site agent on edge; the canonical's PRESENCE is settled, the ?v= query it carried is not - see below."
+status: shipped
+status-note: "SHIPPED 2026-08-18. Covered by a test at the second sitting, after the first four fixtures failed to reach serve_403. Four attempts at a fixture reaching serve_403 produced an ACL refusal (a different branch, minimal body, no canonical to strip - so the assertion passed with the fix REMOVED), an anonymous 302 to login, and twice a plain 200. The first is the dangerous one: green, looked like coverage, and sabotaging the fix did not disturb it. Removed rather than approximated, with what would cover it written into the test file. Found by the site agent on edge; the canonical's PRESENCE is settled, the ?v= query it carried is not - see below."
 ---
 
 # What SM355 established, and where it was applied
@@ -59,9 +59,10 @@ a canonical it may be reaching other things.
   cached `403.html`, and is marked `noindex`.
 - The same for a 402.
 - A real page keeps its canonical, unchanged.
-- **None of the above is currently asserted by a test** - see the note in
-  `t/integration/57-a-missing-page-has-no-canonical.t` for the four fixtures
-  that did not reach the right branch and what would.
+- All of the above is asserted, and sabotaging the fix fails it. The four
+  fixtures that did NOT reach `serve_403` are named in the test: the key is
+  `auth_groups:` as an indented block, not `groups:`, so every attempt writing
+  the latter left the required-group list empty and answered 200.
 
 # Related
 
