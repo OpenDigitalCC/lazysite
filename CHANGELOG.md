@@ -53,9 +53,12 @@ Naming the commit: AFTER it lands, never before
   layouts authorisation refuses the subtree before any path logic runs - both
   invisible behind a 403. What the reporter saw is a **front end** refusing
   dot-prefixed paths while the engine lists them, consistent with their 404
-  body already being their own error page. `t/integration/58` pins the state
-  and the behaviour, so the one-line filter cannot be added later without
-  deleting the subtest that says why it is wrong.
+  body already being their own error page. **Confirmed from outside:** the same
+  path deleted through MCP, where it travels in a JSON body and never appears
+  in the request URI, succeeds - same engine, same credentials, opposite
+  outcome. `t/integration/58` pins the state and the behaviour, so the one-line
+  filter cannot be added later without deleting the subtest that says why it is
+  wrong.
 
 - SM363 (PENDING) **the Stats page shows what the stats record.** Sessions,
   journeys, devices and search terms were all computed and stored per day while

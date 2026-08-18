@@ -134,6 +134,43 @@ premises have now failed under me in this area - the reporter's HTML 404 turned
 out to be their front end, and the dot rule turns out to be local to one subtree.
 A third guess is not what this needs.
 
+# Confirmed from outside, by the cleanest possible discriminator
+
+The site agent tested the front-end hypothesis and it holds:
+
+```datatable
+columns: Surface | Call | Result
+widths: 2.6cm | X | 3.4cm
+bold: 1
+tone: medium
+---
+WebDAV | `DELETE /lazysite/.../.pristine-zz-own-theme` | **404**
+MCP | `delete_file {"path": ".../.pristine-zz-own-theme"}` | **ok, file gone**
+---
+```
+
+Same engine, same path, same credentials, opposite outcome. The only difference
+is that the MCP path travels **in a JSON body** to `/cgi-bin/lazysite-mcp.pl`,
+so the dot never appears in the request URI and a front-end
+`location ~ /\.` deny has nothing to match.
+
+All four markers that were the reporter's are now cleared through MCP.
+
+## And the general fact that falls out of it
+
+**A front-end path rule does not reach the MCP channel**, because MCP paths are
+not in the URI. That is not a hole - [[SM286]] is precisely the argument that
+the engine must enforce its own access rules and not rely on the front end, and
+it does: MCP applies the same ACLs, capabilities and blocklist the other
+surfaces apply.
+
+But it means an operator who believes a path-based deny in their proxy is
+protecting something is mistaken about the shape of that protection. It
+protects the URI-bearing surfaces and nothing else. Worth stating once, because
+the reasoning "I denied it in nginx, therefore it is denied" is exactly the
+reasoning this repository has spent three releases dismantling in the other
+direction.
+
 # What would settle it
 
 A fixture that stages `lazysite/layouts/<layout>/themes/` with a `.pristine-*`
