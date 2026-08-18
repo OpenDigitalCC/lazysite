@@ -838,6 +838,49 @@ sub _invalidate_html_cache {
 # The tool already knew. It counted nothing and said nothing, and zero assets for
 # a theme that declares colours and fonts is almost always a mistake - so the one
 # place that can say so is the acknowledgement the caller is already reading.
+# SM352: render the theme's config as CSS custom properties into the mirror.
+#
+# A DELIBERATE SECOND IMPLEMENTATION of the processor's generate_theme_css, and
+# it is pinned by t/lint/61 rather than shared - the render path loads no
+# Lazysite modules (ADR 0001), the same constraint that gives the security
+# headers and the private-store path their pinned copies. The escaping in
+# particular must not drift: a theme value reaching a stylesheet unescaped is a
+# theme author writing CSS the engine did not sanction.
+sub _write_theme_tokens {
+    my ( $tdir, $dest ) = @_;
+    my $tj = "$tdir/theme.json";
+    return 0 unless -f $tj && -d $dest;
+
+    my $raw = do {
+        open my $fh, '<:utf8', $tj or return 0;
+        local $/;
+        <$fh>;
+    };
+    my $data = eval { JSON::PP->new->decode($raw) };
+    return 0 unless ref $data eq 'HASH' && ref $data->{config} eq 'HASH';
+
+    my @lines;
+    for my $group ( sort keys %{ $data->{config} } ) {
+        my $gv = $data->{config}{$group};
+        next unless ref $gv eq 'HASH';
+        next unless $group =~ /^[A-Za-z0-9_-]+$/;
+        for my $key ( sort keys %$gv ) {
+            next if ref $gv->{$key};
+            next unless $key =~ /^[A-Za-z0-9_-]+$/;
+            ( my $safe = $gv->{$key} ) =~ s/[;{}<>]//g;
+            push @lines, "  --theme-$group-$key: $safe;";
+        }
+    }
+    return 0 unless @lines;
+
+    my $out = "/* generated from theme.json - do not edit (SM352) */\n"
+        . ":root {\n" . join( "\n", @lines ) . "\n}\n";
+    open my $of, '>:utf8', "$dest/theme-tokens.css" or return 0;
+    print {$of} $out;
+    close $of;
+    return scalar @lines;
+}
+
 sub _mirror_theme_assets {
     my ( $layout, $theme ) = @_;
     return { mirrored => 0, reason => 'no layout or theme named' }
@@ -887,6 +930,22 @@ sub _mirror_theme_assets {
     File::Find::find(
         { no_chdir => 1, wanted => sub { $n++ if -f $File::Find::name } },
         $dest ) if -d $dest;
+
+    # SM352: the theme's CSS custom properties, written as a FILE beside the
+    # assets they belong with.
+    #
+    # These were an inline <style> block on every page - the last one on the
+    # site side, and the one that looked like it needed a nonce because its
+    # content is per-theme rather than fixed. It does not: the values come from
+    # theme.json, so they are the same on every page of every domain this
+    # instance serves, and a file in the theme's own mirror is exactly the right
+    # place for them.
+    #
+    # NO FLASH. A <link> in <head> blocks paint until it loads, which is what
+    # makes this safe where moving a SCRIPT prelude out of head would not be -
+    # scripts and stylesheets fail differently, and conflating them is what made
+    # this look like the hard case.
+    _write_theme_tokens( $tdir, $dest );
 
     return { mirrored => $n, dest => $dest, expected => $src };
 }

@@ -5861,7 +5861,28 @@ sub resolve_layout_vars {
             $vars->{theme_name}   = $info->{theme_name};
             $vars->{theme}        = $info->{theme_data};
             $vars->{theme_assets} = "/lazysite-assets/$layout_key/" . $info->{theme_name};
-            $vars->{theme_css}    = generate_theme_css( $info->{theme_data} );
+            # SM352: prefer the mirrored FILE. The tokens are written into the
+            # theme's own asset mirror at activation and install, so the page
+            # links them instead of carrying a <style> block - the last inline
+            # block on the site side, and the one that looked like it needed a
+            # nonce because its content is per-theme.
+            #
+            # It never did: the values come from theme.json, so they are the
+            # same on every page of every domain this instance serves.
+            #
+            # THE INLINE PATH REMAINS for a site whose mirror predates this.
+            # Falling back to the block is what stops an upgrade unstyling a
+            # site that has not re-mirrored yet - SM365 is exactly the lesson
+            # that an upgrade does not refresh what it does not touch. It goes
+            # away on the next activation, and t/lint/56 still counts it,
+            # because a fallback nobody can see is a fallback nobody removes.
+            my $tokens = "$DOCROOT$vars->{theme_assets}/theme-tokens.css";
+            $vars->{theme_css}
+                = -f $tokens
+                ? '<link rel="stylesheet" href="'
+                . $vars->{theme_assets}
+                . '/theme-tokens.css?v=' . _lazysite_version() . '">'
+                : generate_theme_css( $info->{theme_data} );
         }
         else {
             $vars->{theme}     = {};

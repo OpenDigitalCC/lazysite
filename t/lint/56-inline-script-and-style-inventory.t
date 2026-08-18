@@ -40,8 +40,14 @@
 # This counted them together, which made the remaining work look larger than it
 # is. They are different responses to different people:
 #
-#   the SITE      what a visitor receives. This is what a CSP is FOR, and after
-#                 steps 1-3 it has one entry left - the per-site theme tokens.
+#   the SITE      what a visitor receives. This is what a CSP is FOR. After
+#                 step 4 it emits nothing inline TO A SITE WHOSE ASSET MIRROR
+#                 HAS BEEN REWRITTEN - the theme tokens are a linked file. The
+#                 generator stays in the source as the fallback for a mirror
+#                 that predates the change, which is why the inventory below
+#                 still carries the entry: the source emits it, the refreshed
+#                 site does not receive it. Those are different questions and
+#                 collapsing them is how an inventory starts lying.
 #   the MANAGER   what an operator receives, signed in, on their own tooling.
 #                 Its head script is 349 lines carrying four per-user values, a
 #                 nav built from plugin conditionals, a theme prelude that must
@@ -76,8 +82,14 @@ my @INLINE = (
         file => 'lazysite-processor.pl',
         kind => 'style',
         re   => qr/return "<style>\\n:root \{/,
-        note => 'D013 - generated per site from the active theme, so this one '
-            . 'is genuinely per-response and a nonce is the only fix',
+        note => 'D013 - SM352 step 4 moved this to a mirrored file '
+            . '(theme-tokens.css), so a site whose mirror has been written '
+            . 'links it and receives NO inline style. The block survives as '
+            . 'the fallback for a site whose mirror predates the change, and '
+            . 'so is still emitted by this source - which is why the entry '
+            . 'stays. The site-side count is 0 for a refreshed mirror and 1 '
+            . 'for a stale one; a CSP can only be adopted once the operator '
+            . 'knows which of those every site is.',
     },
     { name => 'manager UI head script',
         file => 'starter/lazysite/manager/layout.tt',

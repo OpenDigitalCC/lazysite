@@ -44,6 +44,23 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM352 step 4 (PENDING) **the site side stops inlining altogether** - the theme
+  custom properties, the last inline block a visitor received, are written into
+  the theme's asset mirror as `theme-tokens.css` and linked. **The flash of
+  unstyled content this was expected to cost does not happen:** a `<link>` in
+  `<head>` is render-blocking, so nothing paints before it arrives. That worry
+  belonged to the manager's *script* prelude, which runs after paint, and
+  carrying it across to a stylesheet is what made a solved problem look like it
+  needed a nonce. The generator stays as the fallback for a site whose mirror
+  predates the change - an upgrade does not refresh what it does not touch, the
+  lesson SM365 cost - so the fact now exists twice and `t/lint/61` pins the two
+  copies by value, escaping and key filter included, because the file is read
+  only by a browser and nothing else in the suite would compare them. The
+  inventory still lists the site entry, deliberately: the *source* emits the
+  block, a refreshed *site* does not receive it, and collapsing those two
+  questions is how an inventory starts lying. The site-side count is 0 for a
+  rewritten mirror and 1 for a stale one, which makes the remaining site-side
+  work operational rather than code.
 - SM352 steps 1-3 (PENDING) **the engine stops inlining its own chrome** - ten
   inline `<script>`/`<style>` blocks down to **two**, and step 3's more useful
   half was splitting the inventory by **audience**. The public site's policy

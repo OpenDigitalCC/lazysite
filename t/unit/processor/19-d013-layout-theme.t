@@ -21,45 +21,45 @@ make_path("$docroot/lazysite/layouts/default");
 # Minimal layout at the new path.
 open my $lfh, '>', "$docroot/lazysite/layouts/default/layout.tt" or die $!;
 print $lfh "<!DOCTYPE html><html><head>"
-         . "<title>[% page_title %]</title>"
-         . "[% theme_css %]"
-         . '<meta name="theme-assets" content="[% theme_assets %]">'
-         . "</head><body>"
-         . "[% content %]"
-         . "</body></html>";
+    . "<title>[% page_title %]</title>"
+    . "[% theme_css %]"
+    . '<meta name="theme-assets" content="[% theme_assets %]">'
+    . "</head><body>"
+    . "[% content %]"
+    . "</body></html>";
 close $lfh;
 
 # A default_theme declaration so the theme_assets fallback (SM: no active theme)
 # has something to fall back to.
 open my $ljf, '>', "$docroot/lazysite/layouts/default/layout.json" or die $!;
-print $ljf encode_json({ default_theme => 'odcc' });
+print $ljf encode_json( { default_theme => 'odcc' } );
 close $ljf;
 
 # A theme installed under the default layout.
 my $theme_dir = "$docroot/lazysite/layouts/default/themes/odcc";
 make_path($theme_dir);
 open my $tjf, '>', "$theme_dir/theme.json" or die $!;
-print $tjf encode_json({
-    name    => 'odcc',
-    version => '1.0',
-    layouts => ['default'],
-    config  => {
-        colours => { primary => '#332b82', text => '#2a2a2a' },
-        fonts   => { body => 'Open Sans' },
-    },
-});
+print $tjf encode_json( {
+        name    => 'odcc',
+        version => '1.0',
+        layouts => ['default'],
+        config  => {
+            colours => { primary => '#332b82', text => '#2a2a2a' },
+            fonts   => { body    => 'Open Sans' },
+        },
+} );
 close $tjf;
 
 # A theme that does NOT target the 'default' layout (incompatibility).
 my $bad_theme_dir = "$docroot/lazysite/layouts/default/themes/foreign";
 make_path($bad_theme_dir);
 open my $fj, '>', "$bad_theme_dir/theme.json" or die $!;
-print $fj encode_json({
-    name    => 'foreign',
-    version => '1.0',
-    layouts => ['some-other-layout'],
-    config  => { colours => { primary => '#ff0000' } },
-});
+print $fj encode_json( {
+        name    => 'foreign',
+        version => '1.0',
+        layouts => ['some-other-layout'],
+        config  => { colours => { primary => '#ff0000' } },
+} );
 close $fj;
 
 # Conf file and minimal pages.
@@ -85,7 +85,7 @@ main::reset_request_state();
 subtest 'resolve_theme accepts compatible theme' => sub {
     my $info = main::resolve_theme( 'default', 'odcc' );
     ok( $info->{is_active}, 'theme is active' );
-    is( $info->{theme_name}, 'odcc', 'theme_name' );
+    is( $info->{theme_name},     'odcc', 'theme_name' );
     is( ref $info->{theme_data}, 'HASH', 'theme_data parsed' );
     is( $info->{theme_data}{config}{colours}{primary}, '#332b82',
         'config value read through' );
@@ -109,11 +109,11 @@ subtest 'generate_theme_css naming convention' => sub {
     my $theme = {
         config => {
             colours => { primary => '#332b82', accent => '#ff6b35' },
-            fonts   => { body => 'Open Sans' },
+            fonts   => { body    => 'Open Sans' },
         },
     };
     my $css = main::generate_theme_css($theme);
-    like( $css, qr/:root \{/,                     'root declaration' );
+    like( $css, qr/:root \{/,                          'root declaration' );
     like( $css, qr/--theme-colours-primary: #332b82;/, 'colour var' );
     like( $css, qr/--theme-colours-accent: #ff6b35;/,  'accent var' );
     like( $css, qr/--theme-fonts-body: Open Sans;/,    'font var' );
@@ -121,16 +121,16 @@ subtest 'generate_theme_css naming convention' => sub {
 
 # --- 5. generate_theme_css: empty config yields empty string ---
 subtest 'generate_theme_css empty config' => sub {
-    is( main::generate_theme_css({}),                '', 'no config' );
-    is( main::generate_theme_css({ config => {} }),  '', 'empty config' );
-    is( main::generate_theme_css(undef),             '', 'undef' );
+    is( main::generate_theme_css( {} ),               '', 'no config' );
+    is( main::generate_theme_css( { config => {} } ), '', 'empty config' );
+    is( main::generate_theme_css(undef),              '', 'undef' );
 };
 
 # --- 6. generate_theme_css: strip dangerous chars from values ---
 subtest 'generate_theme_css sanitises values' => sub {
-    my $css = main::generate_theme_css({
-        config => { colours => { primary => '#000;}{evil' } },
-    });
+    my $css = main::generate_theme_css( {
+            config => { colours => { primary => '#000;}{evil' } },
+    } );
     unlike( $css, qr/[;{}]evil/, 'dangerous chars stripped from value' );
 };
 
@@ -146,6 +146,42 @@ subtest 'render with active theme emits theme_css and asset URL' => sub {
     like( $out, qr/--theme-colours-primary: #332b82/,
         'theme_css injected into rendered layout' );
     like( $out, qr/<title>Home<\/title>/, 'layout rendered (not fallback)' );
+};
+
+# --- 7b. SM352 step 4: the MIRRORED FILE is preferred over the inline block ---
+# The last inline <style> a visitor received. The generator stays as the
+# fallback for a site whose asset mirror predates the change - SM365's lesson,
+# that an upgrade does not refresh what it does not touch - so BOTH branches
+# are asserted here, and the presence of the file is the only difference
+# between them.
+subtest 'theme tokens link the mirrored file when it exists' => sub {
+    write_conf("site_name: Test\nlayout: default\ntheme: odcc\n");
+    my $mirror = "$docroot/lazysite-assets/default/odcc";
+    make_path($mirror);
+
+    # Stale mirror: no theme-tokens.css. The block is still emitted, because a
+    # site upgraded but not re-mirrored must not lose its theme.
+    unlink "$mirror/theme-tokens.css";
+    clear_cache();
+    my $stale = run_processor( $docroot, '/' );
+    like( $stale, qr/<style>\s*\n?:root \{/,
+        'a mirror without the file still receives the inline block' )
+        or diag( 'Losing this branch does not fail loudly - it silently '
+            . 'unstyles every page of every site installed before the '
+            . 'change, which is the shape of defect SM365 was.' );
+
+    # Written mirror: the file is linked and NOTHING is inlined.
+    open my $tf, '>', "$mirror/theme-tokens.css" or die $!;
+    print {$tf} ":root { --theme-colours-primary: #332b82; }\n";
+    close $tf;
+    clear_cache();
+    my $fresh = run_processor( $docroot, '/' );
+    like( $fresh, qr{<link rel="stylesheet" href="/lazysite-assets/default/odcc/theme-tokens\.css},
+        'a written mirror is linked instead' );
+    unlike( $fresh, qr/<style>\s*\n?:root \{/,
+        'and no inline style survives - the point of the whole change' );
+
+    unlink "$mirror/theme-tokens.css";
 };
 
 # --- 8. Incompatible theme: no theme_css, still renders layout ---
@@ -165,12 +201,12 @@ subtest 'theme_assets falls back to default_theme mirror when no theme active' =
     make_path("$docroot/lazysite/layouts/$L/themes/dtheme");
     open my $l, '>', "$docroot/lazysite/layouts/$L/layout.tt" or die $!;
     print $l '<html><head><meta name="ta" content="[% theme_assets %]"></head>'
-           . '<body>[% content %]</body></html>';
+        . '<body>[% content %]</body></html>';
     close $l;
     open my $lj, '>', "$docroot/lazysite/layouts/$L/layout.json" or die $!;
-    print $lj encode_json({ default_theme => 'dtheme' }); close $lj;
+    print $lj encode_json( { default_theme => 'dtheme' } ); close $lj;
     open my $tj, '>', "$docroot/lazysite/layouts/$L/themes/dtheme/theme.json" or die $!;
-    print $tj encode_json({ name => 'dtheme', version => '1.0', layouts => [$L], config => {} });
+    print $tj encode_json( { name => 'dtheme', version => '1.0', layouts => [$L], config => {} } );
     close $tj;
 
     # No active theme AND no mirror yet -> no fallback (theme_assets empty).
@@ -193,7 +229,7 @@ subtest 'embedded fallback when no layout installed' => sub {
     write_conf("site_name: Test\n");
     clear_cache();
     my $out = run_processor( $docroot, '/' );
-    like( $out, qr/Status: 200/,                  'still returns 200' );
+    like( $out, qr/Status: 200/, 'still returns 200' );
     like( $out, qr/no layout\.tt found/,
         'fallback footer references layout.tt' );
 };
@@ -207,17 +243,17 @@ subtest 'theme_assets URL is nested layout/theme' => sub {
     open my $lfh2, '>',
         "$docroot/lazysite/layouts/asset-probe/layout.tt" or die $!;
     print $lfh2 "<link href=\"[% theme_assets %]/main.css\">"
-              . "[% content %]";
+        . "[% content %]";
     close $lfh2;
     # Install the theme under the new layout too (DP-A multi-layout).
     my $td = "$docroot/lazysite/layouts/asset-probe/themes/odcc";
     make_path($td);
     open my $aj, '>', "$td/theme.json" or die $!;
-    print $aj encode_json({
-        name => 'odcc', version => '1.0',
-        layouts => ['default', 'asset-probe'],
-        config => { colours => { primary => '#000' } },
-    });
+    print $aj encode_json( {
+            name    => 'odcc', version => '1.0',
+            layouts => [ 'default', 'asset-probe' ],
+            config  => { colours => { primary => '#000' } },
+    } );
     close $aj;
 
     write_conf("site_name: Test\nlayout: asset-probe\ntheme: odcc\n");
@@ -242,7 +278,7 @@ subtest 'theme vars resolve in a page body (SM249)' => sub {
     make_path($bt);
     open my $bj, '>', "$bt/theme.json" or die $!;
     print $bj encode_json(
-        {   name    => 'odcc',
+        { name => 'odcc',
             version => '1.0',
             layouts => [ 'default', 'asset-probe', 'body-probe' ],
             config  => { colours => { primary => '#abcdef' } },
