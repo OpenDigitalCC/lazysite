@@ -1375,7 +1375,7 @@ sub serve_402 {
             payment_description => $payment_result->{description} // '',
         );
         my $html_path = "$DOCROOT/402.html";
-        my $page = process_md( $md_path, $html_path, ( stat($md_path) )[9], {} );
+        my $page      = process_md( $md_path, $html_path, ( stat($md_path) )[9], {} );
 
         # SM371: the worse of the two. A canonical here points at content the
         # visitor was just REFUSED - the field report found one aimed at a

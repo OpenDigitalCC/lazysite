@@ -1773,7 +1773,8 @@ sub _domain_presentation_set {
 
 sub _audit_site {
     my ( %exists, %inbound, %para, @info, @links, @forms, @rawpages, @starter );
-    my %class_used;    # SM358: class name -> the first page that uses it
+    my %class_used;        # SM358: class name -> the first page that uses it
+    my %component_used;    # SM358 follow-up: component name -> a page invoking it
     _each_page( sub {
             my ( $rel, $full ) = @_;
             ( my $slug = "/$rel" ) =~ s/\.md$//;
@@ -1794,6 +1795,27 @@ sub _audit_site {
                 $body =~ /class\s*=\s*["']([^"']+)["']/g )
             {
                 $class_used{$_} //= $slug for split /\s+/, $cls;
+            }
+
+            # SM358 follow-up: which COMPONENTS this page invokes.
+            #
+            # The check was reporting a component that APPLIES a hiding class
+            # whether or not any page rendered it - so on the field instance it
+            # fired with 0 of 26 pages carrying the class, naming a component
+            # nothing used. That is the mechanism-versus-use distinction this
+            # whole filing is about, reproduced one layer down by the fix for it.
+            #
+            # A page invokes a component two ways, both visible in the source
+            # the walk is already reading: a `::: name` fence matching
+            # components/name.tt, and a `sections:` block in front matter (D035
+            # phase 3, data-driven pages). No new read, no render, no guessing -
+            # which is why this is the audit becoming correct rather than a
+            # second warning surface bolted beside it.
+            $component_used{$_} //= $slug for $body =~ /^:::+\s*([A-Za-z][\w-]*)/mg;
+            if ( $fm =~ /^sections\s*:[ \t]*\n((?:[ \t]+\S[^\n]*\n?|[ \t]*\n)*)/m ) {
+                my $block = $1;
+                $component_used{$_} //= $slug
+                    for $block =~ /^\s*-?\s*(?:component|type)\s*:\s*([A-Za-z][\w-]*)/mg;
             }
 
             # SM244: starter pages carry `provenance: lazysite-starter` in their
@@ -1994,6 +2016,22 @@ sub _audit_site {
                 for my $file ( sort keys %{ $layout_markup{$layout} } ) {
                     next unless $layout_markup{$layout}{$file}
                         =~ /\bclass\s*=\s*["'][^"']*\b\Q$cls\E\b/;
+
+                    # A COMPONENT COUNTS ONLY IF A PAGE INVOKES IT. The layout's
+                    # own template renders on every page and needs no such test;
+                    # a component nothing renders hides nothing, and reporting
+                    # it put an item on the findings list that no site owner
+                    # could ever clear - the components ship inside the layout
+                    # and an edit is overwritten on reinstall.
+                    #
+                    # This is the loaded-gun case answered rather than dropped:
+                    # the finding now appears the moment a page starts using the
+                    # component, which is the moment an operator can act on it.
+                    if ( my ($comp) = $file =~ m{\Acomponents/([A-Za-z][\w-]*)\z} ) {
+                        next unless defined $component_used{$comp};
+                        push @where, "$layout/$file (used by $component_used{$comp})";
+                        next;
+                    }
                     push @where, ( $file =~ /^layout:/ ? $file : "$layout/$file" );
                 }
                 push @where, $class_used{$cls} if defined $class_used{$cls};

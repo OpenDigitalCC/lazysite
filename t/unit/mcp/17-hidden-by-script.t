@@ -229,27 +229,56 @@ CSS
         if $f;
 }
 
-subtest 'and it names the COMPONENT when a component is the one applying it' => sub {
-    # The field shape exactly: the layout's own template mentions the class
-    # only in JavaScript, and a component applies it in markup. Reporting the
-    # layout sends the operator to the wrong file.
+subtest 'a component NOTHING invokes is silent' => sub {
+    # THE FIELD CASE, and the whole of the SM358 follow-up. On the reporting
+    # instance both reveal references in layout.tt were JavaScript and four of
+    # six COMPONENTS applied the class in markup - while 0 of 26 pages rendered
+    # an element carrying it. The check fired anyway, on a component nothing
+    # used.
+    #
+    # That is the mechanism-versus-use distinction the filing is about,
+    # reproduced one layer down by the fix for it: the class of finding nobody
+    # can clear, because the components ship inside the layout and an edit is
+    # overwritten on reinstall.
     my $d = site_with(
         themes => { reveal => ".rv { opacity: 0; }\n.rv.in { opacity: 1; }\n" },
-        page   => "# Home\n\nNo classes here.\n",
+        page   => "# Home\n\nOrdinary copy. No fences, no sections.\n",
         layout_tt => qq(<body>[% content %]<script>document.querySelectorAll('.rv')</script></body>\n),
     );
     make_path("$d/lazysite/layouts/base/components");
     open my $c, '>', "$d/lazysite/layouts/base/components/features.tt" or die $!;
-    print {$c} qq(<section class="rv feature">[% item %]</section>\n);
+    print {$c} qq(<section class="rv feature">[% content %]</section>\n);
+    close $c;
+
+    my $r = audit($d);
+    is_deeply( $r->{hidden_by_script}, [],
+        'a component that could hide content, which no page renders, is silent' )
+        or diag encode_json( $r->{hidden_by_script} // [] );
+};
+
+subtest 'and it speaks the moment a page invokes that component' => sub {
+    # The loaded-gun case, answered rather than dropped. The hazard is real -
+    # the moment a page uses `features` its content is at opacity 0 for a
+    # visitor without JavaScript - and this is the moment an operator can act
+    # on it, which a permanent entry on a findings list never was.
+    my $d = site_with(
+        themes    => { reveal => ".rv { opacity: 0; }\n.rv.in { opacity: 1; }\n" },
+        page      => "# Home\n\n::: features\nOur three things.\n:::\n",
+        layout_tt => qq(<body>[% content %]</body>\n),
+    );
+    make_path("$d/lazysite/layouts/base/components");
+    open my $c, '>', "$d/lazysite/layouts/base/components/features.tt" or die $!;
+    print {$c} qq(<section class="rv feature">[% content %]</section>\n);
     close $c;
 
     my $r = audit($d);
     my ($f) = @{ $r->{hidden_by_script} || [] };
-    ok( $f, 'still a finding' ) or diag encode_json( $r->{hidden_by_script} // [] );
-    is_deeply( $f->{used_by}, ['base/components/features'],
-        'the component is named, and the layout - whose only reference is '
-            . 'JavaScript - is not' )
-        if $f;
+    ok( $f, 'now it is a finding' )
+        or diag encode_json( $r->{hidden_by_script} // [] );
+    like( $f->{used_by}[0], qr{components/features},
+        'naming the component that applies it' ) if $f;
+    like( $f->{used_by}[0], qr{used by /index},
+        'and the page that invoked it, so the operator has both ends' ) if $f;
 };
 
 done_testing();

@@ -75,9 +75,13 @@ Naming the commit: AFTER it lands, never before
   that applies the class**, not the layout that contains it. On the reporting
   instance both `reveal` references in `layout.tt` were JavaScript and four of
   six *components* applied it in markup, so `layout:lumen` sent an operator to
-  six files when one was implicated. Whether an unrendered component should
-  count as a use at all is still open - the field report argues no, and it is
-  recorded as a view rather than settled.
+  six files when one was implicated. **And a component now counts only when a
+  page invokes it** - via a `::: name` fence or a front-matter `sections:`
+  block, both already visible in the source the audit walks. So the check is
+  silent where nothing renders the component and speaks the moment a page
+  starts using one, which is the moment an operator can act. No second warning
+  surface was needed: the question of what to do about a latent hazard rested
+  on the check being unable to tell, and it can.
 
 - SM366 (PENDING) **six tools can find the modules they load.** The 0.10.13
   rollout printed `Can't locate Lazysite/Paths.pm` from `lazysite-check.pl` and
