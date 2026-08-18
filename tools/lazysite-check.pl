@@ -168,6 +168,20 @@ $DOC = abs_path($DOC);
 # docroot is still a lazysite site, and computing "$DOC/lazysite" here rejected
 # it outright at the guard below - the health tool refusing to look at exactly
 # the sites that had taken the safer layout.
+BEGIN {
+    # SM366: locate the Lazysite module tree relative to this script
+    # (run-in-place, tarball and Hestia installs), falling back to the system
+    # @INC (package installs). The same bootstrap lazysite-users.pl has always
+    # carried; without it this tool cannot start anywhere the modules are not
+    # already on @INC, which is every install that is not a package.
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+}
+
 require Lazysite::Paths;
 my $LZ = Lazysite::Paths::lazysite_dir($DOC);
 

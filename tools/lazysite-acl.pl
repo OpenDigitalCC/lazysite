@@ -32,6 +32,20 @@ use FindBin ();
 use lib "$FindBin::Bin/../lib";
 use Getopt::Long ();
 use JSON::PP     ();
+BEGIN {
+    # SM366: locate the Lazysite module tree relative to this script
+    # (run-in-place, tarball and Hestia installs), falling back to the system
+    # @INC (package installs). The same bootstrap lazysite-users.pl has always
+    # carried; without it this tool cannot start anywhere the modules are not
+    # already on @INC, which is every install that is not a package.
+    require Cwd;
+    require File::Basename;
+    my $bin = File::Basename::dirname( Cwd::abs_path(__FILE__) );
+    for my $cand ( "$bin/lib", "$bin/../lib", "$bin/../../lib" ) {
+        if ( -d "$cand/Lazysite" ) { unshift @INC, $cand; last }
+    }
+}
+
 use Lazysite::Manager::Files
     qw(action_acl_get action_acl_set action_acl_remove action_protected_sections);
 use Lazysite::Manager::Common ();

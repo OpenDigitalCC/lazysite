@@ -1647,7 +1647,27 @@ sub action_cache_invalidate {
         return { ok => 1, count => $count };
     }
 
-    my $full = "$DOCROOT$rel_path";
+    # SM367: a directory path is its index, and "/" is the commonest one there
+    # is. Without this, "/" became "$DOCROOT/.html" - a file that has never
+    # existed - so the unlink below found nothing, and the call returned ok:1
+    # having done nothing at all.
+    #
+    # It cost the site agent two wrong diagnoses before it was spotted, both of
+    # them plausible: once concluding a stale index.html was shadowing the
+    # homepage, and once reading a 0.10.12 render on a 0.10.13 instance as a
+    # failed upgrade. Neither was true. The homepage is the page most likely to
+    # be checked and, because an engine upgrade does not invalidate rendered
+    # pages, the one most likely to be stale - so this is the path where a
+    # silent no-op does the most damage to somebody's reasoning.
+    # ONLY a directory path. The first version of this appended /index
+    # unconditionally and turned "/index" into "/index/index", breaking the
+    # three spellings that were the documented workaround - which is the
+    # ordinary way a fix for a silent no-op becomes a loud one.
+    my $rel = $rel_path;
+    $rel = "$rel/index" if $rel =~ m{/\z} || $rel eq '';
+    $rel =~ s{//+}{/}g;
+
+    my $full = "$DOCROOT$rel";
     $full =~ s/\.md$/.html/;
     $full .= '.html' unless $full =~ /\.html$/;
 
@@ -1655,11 +1675,22 @@ sub action_cache_invalidate {
     return { ok => 0, error => "Invalid path" }
         unless $real && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 ); # SEC-2026-07 (H3)
 
-    unlink $real if -f $real;
+    my $cleared = 0;
+    if ( -f $real ) { unlink $real; $cleared = 1 }
+
     # SM110: drop the per-alias-host copies of this page's render too.
-    Lazysite::Util::unlink_host_copies( $DOCROOT, $real );
-    log_event( 'INFO', $action, 'cache invalidated', path => $rel_path, user => $auth_user );
-    return { ok => 1, path => $rel_path };
+    my $hosts = Lazysite::Util::unlink_host_copies( $DOCROOT, $real );
+    $cleared += $hosts if defined $hosts && $hosts =~ /^\d+$/;
+
+    log_event( 'INFO', $action, 'cache invalidated',
+        path => $rel_path, user => $auth_user );
+
+    # SM367: SAY WHAT WAS CLEARED. ok:1 answered the question "did the call
+    # succeed" and was read as "the cache is now gone", which are different
+    # facts and were different facts. A caller can now tell a page that had no
+    # cached render from one whose render was dropped - and "cleared: 0" is a
+    # true and useful answer rather than a silent one.
+    return { ok => 1, path => $rel_path, cleared => $cleared };
 }
 
 

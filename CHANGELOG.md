@@ -44,6 +44,28 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM367 (PENDING) **`invalidate_cache("/")` clears the homepage.** It became
+  `$DOCROOT/.html` - a file that has never existed - so the unlink found
+  nothing and `ok:1` was returned anyway, while `/index`, `/index.md` and
+  `/index.html` all worked. Found during the 0.10.13 validation, after it had
+  cost two wrong diagnoses rather than two errors: once a stale `index.html`
+  believed to be shadowing the homepage, once a 0.10.12 render on a 0.10.13
+  instance read as a failed upgrade. The response now also reports how many
+  renders it `cleared`, because `ok:1` answered *did the call succeed* and was
+  being read as *the cache is now gone*.
+
+- SM366 (PENDING) **six tools can find the modules they load.** The 0.10.13
+  rollout printed `Can't locate Lazysite/Paths.pm` from `lazysite-check.pl` and
+  then reported it as *"some checks could not be auto-repaired"* - a script that
+  could not start, described as checks that could not be fixed. The health tool
+  never ran, and an operator reading that would conclude their site had
+  unfixable problems. `lazysite-users.pl` has always carried a `BEGIN`
+  bootstrap; six tools that load Lazysite modules never got one, so they work
+  from the repo and die on tarball and Hestia installs - which is how the fleet
+  runs. It fails *inconsistently*, because the deploy script sets `PERL5LIB` for
+  some invocations and not others, which is why no gate caught it and a deploy
+  log did.
+
 - SM365 (723eeed) **a layout update no longer leaves the site on the old
   theme.** Measured on edge after `lumen` went to catalogue 1.1.0: the template
   was the new one and `/lazysite-assets/lumen/lumen/main.css` was
@@ -87,6 +109,10 @@ Naming the commit: AFTER it lands, never before
   have missed the case it exists for. **Declined:** crediting a
   `prefers-reduced-motion` reset. It reaches only visitors who asked for
   reduced motion, and reading it as a neutraliser is what caused SM250.
+  **Partial after field validation:** the finding still fires where no page
+  uses the class, because the layout's *components* apply it in markup even
+  when nothing renders them - the same mechanism-versus-use distinction, one
+  layer down.
 - SM353 (3476550) **one answer per question, whichever channel asked.**
   `ok` is now a JSON boolean on both surfaces, coerced at the single point each
   one serialises through rather than at the ~130 places that set it - so no
