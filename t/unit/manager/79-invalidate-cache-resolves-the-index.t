@@ -149,4 +149,60 @@ subtest 'a legacy static page is not a cache, and is not deleted' => sub {
             . 'operator needs before they go looking for a backup' );
 };
 
+subtest 'an engine-generated page with no .md sibling IS clearable' => sub {
+    # THE MISFIRE, from the field. 402.html and 404.html have no .md sibling and
+    # are engine RENDERS - their sources live in lazysite/templates/system/
+    # (SM201), not beside them. The first version of the guard read "no .md
+    # sibling" as "this is the page", and so refused to clear exactly the
+    # artefact SM355 was about: a cached 404 in the served tree carrying a
+    # canonical a stranger chose.
+    #
+    # Safe, in that nothing was destroyed. And it made the page most likely to
+    # need clearing the one page that could not be cleared - which is a worse
+    # trade than it looks, because the operator has no other way to reach it.
+    make_path("$docroot/lazysite/templates/system");
+    open my $sysmd, '>', "$docroot/lazysite/templates/system/404.md" or die $!;
+    print {$sysmd} "---\ntitle: Not found\n---\nMissing.\n";
+    close $sysmd;
+    open my $h, '>', "$docroot/404.html" or die $!;
+    print {$h} "<html><head><title>Page not found</title></head><body>x</body></html>\n";
+    close $h;
+
+    my $r = Lazysite::Manager::Themes::action_cache_invalidate('/404');
+    ok( $r->{ok}, 'the system render is clearable' )
+        or diag( "refused with: " . ( $r->{error} // '' ) );
+    is( $r->{cleared}, 1, 'and was cleared' );
+    ok( !-f "$docroot/404.html", 'the stale render is gone' );
+};
+
+subtest 'and so is any page carrying the engine render marker' => sub {
+    # The general form, for a render whose source is neither beside it nor a
+    # system page. The engine stamps every page it renders; migrated legacy
+    # content carries no such mark.
+    open my $h, '>', "$docroot/generated.html" or die $!;
+    print {$h} qq(<html><head><meta name="generator" content="lazysite 0.10.13">)
+        . qq(</head><body>x</body></html>\n);
+    close $h;
+
+    my $r = Lazysite::Manager::Themes::action_cache_invalidate('/generated');
+    ok( $r->{ok},                      'clearable' ) or diag( $r->{error} // '' );
+    ok( !-f "$docroot/generated.html", 'and cleared' );
+};
+
+subtest 'while genuinely migrated content is still refused' => sub {
+    # The guard must not have been traded away to fix the misfire. No source,
+    # no system template, no render marker - this is the page.
+    open my $h, '>', "$docroot/migrated.html" or die $!;
+    print {$h} "<h1>hand-written in 2009</h1>\n";
+    close $h;
+
+    my $r = Lazysite::Manager::Themes::action_cache_invalidate('/migrated');
+    ok( !$r->{ok}, 'refused' );
+    is( $r->{kind}, 'not-a-cache', 'and says what it is' );
+    ok( -f "$docroot/migrated.html", 'the page is still there' );
+    like( $r->{error}, qr/no engine render marker/,
+        'and the message says which test it failed, so the operator can tell '
+            . 'this case from a missing page' );
+};
+
 done_testing();

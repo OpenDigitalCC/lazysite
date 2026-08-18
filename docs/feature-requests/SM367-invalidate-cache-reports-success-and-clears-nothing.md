@@ -52,6 +52,37 @@ that. **This branch never learned it**, so on any migrated site
 A destructive act, described as a cache clear, with a success flag. Verified
 against the code before fixing.
 
+## And the first guard misfired
+
+Field-checked the same day. `402.html` and `404.html` have **no `.md` sibling
+and are engine renders** - their sources live in `lazysite/templates/system/`
+(SM201), not beside them. So "no `.md` sibling" read them as pages to protect,
+and the guard refused to clear exactly the artefact [[SM355]] was about: a
+cached 404 in the served tree carrying a canonical a stranger chose.
+
+Nothing was destroyed by that, which is why it is a misfire rather than a
+regression - but it made the page most likely to need clearing the one page that
+could not be cleared, and an operator has no other route to it.
+
+Two cheap discriminators now run in order, so the refusal can say which case it
+believes it has hit: a system-page source in the engine tree, then the engine's
+own `<meta name="generator" content="lazysite">` marker in the file itself.
+Anything with no source and no marker is migrated content, and is still refused.
+
+## What edge could not have told us
+
+The site agent had run `invalidate_cache` on `/404.html` twice on 0.10.12 -
+precisely the dangerous shape, on a qualifying path - and the page is intact.
+That is **not** evidence the defect was harmless.
+
+Every bare `.html` on that instance regenerates: all eight root `.html` files
+carry mtimes from after the deploy. A deletion there is repaired before anyone
+looks. The blast radius is instances where the `.html` **is** the source and
+nothing regenerates it - the migrated case - and edge is not one.
+
+Recorded because "I ran it and nothing broke" is the most reassuring possible
+evidence and, here, means nothing at all.
+
 # The original mechanism, which is one line
 
 ```perl

@@ -1699,14 +1699,48 @@ sub action_cache_invalidate {
     # Verified against the code before fixing: a .html with no source was
     # unlinked and the response said it had cleared one.
     ( my $src = $real ) =~ s/\.html\z/.md/;
-    if ( -f $real && !-f $src ) {
+
+    # SM367 follow-up, from the field: "no .md sibling" is NOT the same question
+    # as "not a render", and the first version of this guard conflated them.
+    #
+    # 402.html and 404.html have no .md sibling and are engine RENDERS - their
+    # sources live in lazysite/templates/system/ (SM201), not beside them. So
+    # the guard refused to clear exactly the artefact SM355 was about: a cached
+    # 404 in the served tree carrying a canonical a stranger chose. Safe, in
+    # that nothing was destroyed, and it made the one page most likely to need
+    # clearing the one page that could not be cleared.
+    #
+    # Two better answers, both cheap, taken in order so the refusal can say
+    # WHICH case it thinks it has hit rather than only that it refused:
+    #
+    #   1. a system-page source in the engine tree - that is a render
+    #   2. the engine's own generator marker in the file - that is a render
+    #
+    # Anything else with no source is legacy static content served by the
+    # migration fallback, and deleting it deletes the page.
+    my $is_render = 0;
+    my ($base_name) = $real =~ m{([^/]+)\.html\z};
+    if ( defined $base_name
+        && -f "$LAZYSITE_DIR/templates/system/$base_name.md" )
+    {
+        $is_render = 'system';
+    }
+    elsif ( -f $real && open my $hf, '<:utf8', $real ) {
+        local $/;
+        my $head = substr( <$hf> // '', 0, 4096 );
+        close $hf;
+        $is_render = 'generated'
+            if $head =~ /<meta\s+name="generator"\s+content="lazysite/i;
+    }
+
+    if ( -f $real && !-f $src && !$is_render ) {
         return {
             ok    => 0,
             kind  => 'not-a-cache',
             path  => $rel_path,
             error => 'That path is a page, not a cached render of one - it has '
-                . 'no source file, so deleting it would delete the page. '
-                . 'Nothing was changed.',
+                . 'no source file and carries no engine render marker, so '
+                . 'deleting it would delete the page. Nothing was changed.',
         };
     }
 
@@ -1718,7 +1752,7 @@ sub action_cache_invalidate {
     # could not distinguish cleared, nothing-was-cached, and no-such-path - and
     # that is what made two field misdiagnoses possible, because the success
     # flag did not merely fail to help, it pointed away from itself.
-    if ( !-f $real && !-f $src ) {
+    if ( !-f $real && !-f $src && !$is_render ) {
         return {
             ok    => 0,
             kind  => 'not-found',
