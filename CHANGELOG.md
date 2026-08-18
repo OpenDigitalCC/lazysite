@@ -78,6 +78,23 @@ Naming the commit: AFTER it lands, never before
   stamp's ORDERING - a stamp after any reader leaves the same wrong answers while
   looking right in a diff - and runs the stamp line extracted from release.sh
   rather than a copy of it.
+- SM376 (PENDING) **a promoted account is still drawn under its creator, with no
+  control to move it.** Reported from the manager UI on 0.10.14: a user "still
+  doesn't have the option to move to top level" - and both halves of that were
+  true at once. `account-promote` clears `managed_by` to the EMPTY STRING;
+  `created_by` is immutable and never clears; and `s.managed_by || s.created_by`
+  reads a cleared parent as an absent one, because "" is falsy in JavaScript. So
+  the tree drew the account under a creator that no longer managed it, while the
+  "top level (no parent)" control was hidden - correctly by its own lights,
+  since by the API's reckoning the account already WAS top level. **The control
+  was never missing**; it was hidden by a condition that was right, about an
+  account the tree was drawing wrongly. The expression appeared SIX times and
+  all six were wrong the same way, so the question now has one owner and
+  `top_level` is treated as the answer rather than a hint. The test EXTRACTS the
+  function from the shipped page and runs it under node against the four states
+  the CLI actually writes - including a reassigned account, because a fix that
+  collapsed into "always use created_by" would pass the promoted case and
+  silently stop showing reassignment.
 
 ## 0.10.14 - EDGE: a cache clear that deleted pages, and the second copies (2026-08-18)
 

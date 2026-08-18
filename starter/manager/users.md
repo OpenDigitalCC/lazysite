@@ -88,6 +88,27 @@ var uiGroups  = {};   // {group: true} - groups that grant the `ui` (manager) ca
 var allUsers  = [];   // [username]
 var groupLabels = {}; // {group: description-or-label} - for the add-user picker
 var parentList = [];  // [username] - accounts that can own sub-users (create_sub_users)
+// SM376: ONE OWNER for "does this account have a parent".
+//
+// This fallback was written out six times, and all six were wrong the same way.
+// account-promote clears managed_by to the EMPTY STRING - a deliberate "no
+// parent" - and created_by is immutable by design and never clears. In
+// JavaScript "" is falsy, so `s.managed_by || s.created_by` reads a cleared
+// parent as an absent one and re-parents the account to its creator forever.
+//
+// The visible result is an account that cannot be moved: the tree draws it
+// under a creator that no longer manages it, while the "top level (no parent)"
+// control is HIDDEN - correctly, by its own lights - because top_level is
+// already true. So the operator sees a nested account and no way to un-nest it,
+// which is exactly what it looks like when a control is missing.
+//
+// top_level is the ANSWER to this question, not a hint about it, so it wins.
+function parentOfSettings(s) {
+  s = s || {};
+  if (s.top_level) return '';
+  return s.managed_by || s.created_by || '';
+}
+
 var parentOf = {};    // {username: parent} - the managed_by/created_by hierarchy
 var ME = '';          // the current operator's username (from whoami) - a valid owner
 var amOperator = false; // SM194: is the current user a FULL operator (manage_users)? - gates the operator-only promote / scope-independent controls (the API enforces it regardless)
@@ -171,7 +192,7 @@ function loadUsers() {
     allUsers = rows.map(function(r) { return r.user; });
     parentOf = {};
     rows.forEach(function(r) {
-      parentOf[r.user] = (r.settings && (r.settings.managed_by || r.settings.created_by)) || '';
+      parentOf[r.user] = parentOfSettings(r.settings);
     });
     renderUsers(rows);
     parentList = rows.filter(function(r) { return r.settings && r.settings.create_sub_users; })
@@ -299,7 +320,7 @@ function renderUsers(rows) {
   var kids = {}, roots = [];
   rows.forEach(function(r) {
     var s = r.settings || {};
-    var parent = s.managed_by || s.created_by || '';
+    var parent = parentOfSettings(s);
     if (parent && byUser[parent] && parent !== r.user) {
       (kids[parent] = kids[parent] || []).push(r);
     } else {
@@ -398,7 +419,7 @@ function orderedParentOptions(self, excl) {
   var kids = {};
   Object.keys(rowsByUser).forEach(function(x) {
     var s = (rowsByUser[x] || {}).settings || {};
-    var p = s.managed_by || s.created_by || '';
+    var p = parentOfSettings(s);
     (kids[p] = kids[p] || []).push(x);
   });
   function byName(a, b) { return a.localeCompare(b); }
@@ -429,7 +450,7 @@ function childCountOf(user) {
   var n = 0;
   Object.keys(rowsByUser).forEach(function(x) {
     var r = rowsByUser[x], s = (r && r.settings) || {};
-    if ((s.managed_by || s.created_by || '') === user) n++;
+    if (parentOfSettings(s) === user) n++;
   });
   return n;
 }
@@ -579,7 +600,7 @@ function accountSettingsHtml(row) {
   // hierarchy is editable after creation, not fixed - this is how you move a user
   // below another (SM104).
   {
-    var owner = s.managed_by || s.created_by || '(top-level - no parent)';
+    var owner = parentOfSettings(s) || '(top-level - no parent)';
     // Exclude the user itself and its whole sub-tree: those targets would form a
     // cycle (and the server refuses them), so don't offer them.
     var desc = descendantsOf(u);
@@ -658,7 +679,7 @@ function renderConfigSheet(user) {
   if (!row) { closeConfig(); return; }
   var s = row.settings || {};
   var ui = (s.ui === undefined || s.ui === null) ? true : !!s.ui;
-  var parent = s.managed_by || s.created_by || '';
+  var parent = parentOfSettings(s);
   var lineage = lineageText(user, parent, undefined);
   document.getElementById('cfg-sheet-title').innerHTML =
     'Configuring ' + escHtml(user) +
