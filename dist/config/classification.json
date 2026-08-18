@@ -211,6 +211,7 @@
     "^tools/release\\.sh$",
     "^tools/build-deb\\.sh$",
     "^tools/build-apt-repo\\.sh$",
+    "^tools/lazysite-review-verify\\.pl$",
     "^tools/lazysite-cli\\.pl$",
     "^tools/lazysite-pool\\.pl$",
     "^tools/lazysite-hestia-domain\\.pl$",

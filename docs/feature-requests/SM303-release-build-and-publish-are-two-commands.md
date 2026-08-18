@@ -2,8 +2,8 @@
 title: "SM303 - release.sh should be two commands, not one command with credential flags"
 subtitle: "Building a release needs no remote access. Publishing one needs nothing else. Conflating them cost two flags, a stranded artefact, and a run that reported failure for a release that had succeeded."
 brand: plain
-status: candidate
-status-note: "FILED 2026-08-15 out of the 0.10.9 cut. Nothing started. The two flags added that day (--no-fetch, and its extension to skip the push) work and are tested, but they are a symptom: the tool models one operation where there are two, performed by different parties with different capabilities."
+status: shipped
+status-note: "SHIPPED 2026-08-18. `release.sh build VERSION` and `release.sh publish VERSION`. Build gates, packages and tags LOCALLY and touches the remote nowhere - not "skips when asked", never - so it runs on the host with the toolchain, which is not the host with the credentials. Publish confirms the tag exists locally (it cannot invent one), re-applies SM325 (a tag on no branch must not be pushed), checks origin, and pushes. The bare single-command form REFUSES and names the two commands rather than guessing which half was meant: its failure modes are the reason the split exists, so a silent fallback would preserve them. --no-fetch is accepted and inert, because the invocations carrying it are the ones that were working around the defect. t/tools/47 asserts the property rather than the text: no fetch, push or ls-remote anywhere outside the publish block. FILED 2026-08-15 out of the 0.10.9 cut. Nothing started. The two flags added that day (--no-fetch, and its extension to skip the push) work and are tested, but they are a symptom: the tool models one operation where there are two, performed by different parties with different capabilities."
 ---
 
 # SM303 - one command doing two jobs for two parties

@@ -1,0 +1,38 @@
+{
+  "_doc": "SM302: the mechanical half of this review's findings, so the next review re-runs the SAME check rather than reinventing it. Prose stays in the dimension files; this is only what a machine can settle. CONVENTION: `verify` exits 0 when the finding is FIXED. A finding with no `verify` is not omitted - it is reported as not-mechanical, because 'we did not automate this one' is a fact the next reviewer needs. SEEDED from the four checks quoted in SM302 itself, which are real and were run by hand during the 0.10.8 and 0.10.9 reviews; the rest of this review's findings predate the convention and are prose only.",
+  "review": "2026-08-14-eight-dimension-0.10.9",
+  "findings": [
+    {
+      "id": "F6.2",
+      "dimension": 6,
+      "title": "the security register's newest entry should be current",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -q '^### 2026' docs/SECURITY.md"
+    },
+    {
+      "id": "F7.1",
+      "dimension": 7,
+      "title": "FEATURES.md cites a version",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -qoE '\\*\\*0\\.[0-9.]+\\*\\*' docs/FEATURES.md"
+    },
+    {
+      "id": "D4",
+      "dimension": 4,
+      "title": "the bench baseline records when it was captured",
+      "severity": "warn",
+      "side": "build",
+      "verify": "grep -q captured_at dist/config/bench-baseline.json"
+    },
+    {
+      "id": "F5.1",
+      "dimension": 5,
+      "title": "the newest rehearsal is no older than the newest stable cut",
+      "severity": "warn",
+      "side": "operate",
+      "note": "Needs the rehearsal record and the tag list compared by date - a judgement about which cut counts as stable, so it stays manual until that is written down."
+    }
+  ]
+}

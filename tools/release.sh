@@ -8,7 +8,13 @@
 # made on main. Main is unstable; tags are the stable identifiers.
 #
 # Usage:
-#   tools/release.sh [VERSION] [--notes NOTES_FILE] [--commit COMMIT]
+#   tools/release.sh build   VERSION [--notes NOTES_FILE] [--commit COMMIT]
+#   tools/release.sh publish VERSION
+#
+#   SM303: two jobs sharing only a version number. BUILD gates, packages and
+#   tags locally and never touches the remote - so it runs on the host with the
+#   toolchain, which is not the host with the credentials. PUBLISH confirms the
+#   tag upstream and pushes it, and does nothing else.
 #
 #   Builds the tarball AND the .deb set (SM372). LAZYSITE_SKIP_DEB=1 cuts a
 #   tarball-only release and says so; without it a missing dpkg-buildpackage is
@@ -76,7 +82,47 @@ VERSION=""
 NOTES_FILE=""
 COMMIT_REF="origin/main"
 CHANNEL="edge"          # ladder: edge (default) < beta (--beta) < stable (--final)
-NO_FETCH=0              # --no-fetch: skip the ORIGIN tag checks (see below)
+NO_FETCH=0              # legacy: accepted and inert since SM303
+
+# SM303: TWO OPERATIONS THAT SHARE ONLY A VERSION NUMBER.
+#
+#   build    the tree, the toolchain, CPU. Gate, manifest, SBOM, man pages,
+#            tarball, packages, LOCAL tag. Needs no remote access at all.
+#   publish  remote credentials, and the judgement that this tag should exist
+#            upstream. Needs nothing else.
+#
+# Conflating them cost two flags and two failures pointing opposite ways. The
+# build host has no remote credentials by design, so `git fetch --tags origin`
+# under `set -e` aborted before a single gate step ran - asking the one person
+# who COULD reach the remote to supervise a fifty-minute test run needing none.
+# The repair was --no-fetch, and the run then died at the LAST step on
+# `git push`, killing the artefact copy and leaving a fully gated, built and
+# tagged release reporting exit 128 with its tarball stranded in staging.
+#
+# One command doing two jobs, failing at either end for reasons belonging to
+# the other. Naming the job removes the flag that had to remember which host it
+# was on.
+MODE=""
+case "${1:-}" in
+    build|publish) MODE=$1; shift ;;
+    -h|--help)     ;;
+    *)
+        # Not a silent fallback to either. The old form's failure modes are the
+        # reason this split exists, so guessing which half was meant would
+        # preserve them.
+        if [ $# -gt 0 ]; then
+            echo "release.sh: say which job. Building needs no remote access;" >&2
+            echo "release.sh: publishing needs nothing else." >&2
+            echo "release.sh:" >&2
+            echo "release.sh:   tools/release.sh build   VERSION [--commit REF]" >&2
+            echo "release.sh:   tools/release.sh publish VERSION" >&2
+            echo "release.sh:" >&2
+            echo "release.sh: The single-command form did both and could fail at" >&2
+            echo "release.sh: either end for reasons belonging to the other (SM303)." >&2
+            exit 2
+        fi
+        ;;
+esac
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -129,6 +175,52 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# --- publish: a short path sharing only the version number --------------------
+#
+# SM303. Everything below is BUILD and none of it runs here. Publish needs the
+# tag to exist locally (so it cannot invent one), needs the remote (so it fails
+# honestly on a host without credentials rather than half way through), and does
+# nothing else.
+if [ "$MODE" = publish ]; then
+    if [ -z "$VERSION" ]; then
+        echo "release.sh: publish needs a version, e.g. release.sh publish 0.10.14" >&2
+        exit 2
+    fi
+    TAG="v$VERSION"
+
+    if ! git -C "$ORIGIN" rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
+        echo "release.sh: $TAG does not exist locally. Build it first:" >&2
+        echo "release.sh:   tools/release.sh build $VERSION" >&2
+        exit 1
+    fi
+
+    # SM325 still applies at publish: a tag on no branch is a release whose
+    # provenance cannot be reconstructed, and pushing one makes that permanent.
+    if [ -z "$(git -C "$ORIGIN" branch --contains "$TAG" 2>/dev/null)" ]; then
+        echo "release.sh: $TAG is on no branch. Pushing it would make a" >&2
+        echo "release.sh: release nobody can trace back to a line of work." >&2
+        exit 1
+    fi
+
+    echo "==> Fetching origin tags"
+    if ! git -C "$ORIGIN" fetch --tags origin; then
+        echo "release.sh: cannot reach origin. Publishing is the half that" >&2
+        echo "release.sh: needs credentials - run it where they are." >&2
+        exit 1
+    fi
+    if git -C "$ORIGIN" ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+        echo "release.sh: $TAG is ALREADY on origin. A burned version is never" >&2
+        echo "release.sh: reused (SM064) - cut a new one." >&2
+        exit 1
+    fi
+
+    echo "==> Pushing $TAG"
+    git -C "$ORIGIN" push origin "$TAG"
+    echo ""
+    echo "==> Published $TAG"
+    exit 0
+fi
+
 # SM064: when VERSION is omitted, propose the next patch bump from
 # the most recent v*.*.* tag and prompt. Explicit VERSION argument
 # bypasses the prompt for non-interactive use.
@@ -138,7 +230,9 @@ if [ -z "$VERSION" ]; then
         echo "release.sh: no git repo at $ORIGIN" >&2
         exit 1
     fi
-    git -C "$ORIGIN" fetch --tags origin >/dev/null 2>&1 || true
+    # SM303: no fetch. This proposes a version from LOCAL tags, and the build
+    # host has nothing to fetch with. Local is the right source anyway - it
+    # names the last version this tree actually built.
 
     # `tag -l 'v*.*.*' | sort -V | tail -1` is deterministic across
     # mixed-tag repos in a way `git describe --tags` isn't.
@@ -200,12 +294,11 @@ if [ ! -d "$ORIGIN/.git" ]; then
     exit 1
 fi
 
-if [ "$NO_FETCH" = 1 ]; then
-    echo "==> Skipping origin tag checks (--no-fetch)"
-else
-    echo "==> Fetching origin tags"
-    git -C "$ORIGIN" fetch --tags origin
-fi
+# SM303: BUILD NEVER TOUCHES THE REMOTE. Not "skips when asked" - never. The
+# origin check belongs to publish, where the credentials and the judgement are.
+# --no-fetch is still accepted and ignored, so invocations carrying it keep
+# working rather than erroring on a flag that has become the only behaviour.
+echo "==> Building locally; origin is not consulted (publish does that)"
 
 # The LOCAL check runs either way - it is the one this host can answer.
 if git -C "$ORIGIN" rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
@@ -213,14 +306,9 @@ if git -C "$ORIGIN" rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
     exit 1
 fi
 
-if [ "$NO_FETCH" = 1 ]; then
-    echo "release.sh: WARNING - did NOT check whether $TAG already exists on"  >&2
-    echo "release.sh:           origin. Whoever pushes must confirm that before" >&2
-    echo "release.sh:           pushing the tag, or a burned version is reused." >&2
-elif git -C "$ORIGIN" ls-remote --tags origin "refs/tags/$TAG" | grep -q "$TAG"; then
-    echo "release.sh: tag $TAG already exists on origin" >&2
-    exit 1
-fi
+# SM303: the origin check lives in `publish`, which refuses a burned version
+# (SM064). Said here once so a build is never mistaken for a publication.
+echo "release.sh: NOTE - origin not consulted; release.sh publish checks it." >&2
 
 # --- precondition: notes file readable if specified ---
 
@@ -590,14 +678,9 @@ git -C "$ORIGIN" tag -a "$TAG" -F "$ANNOT_FILE" "$TARGET_SHA"
 # step: the previous behaviour left the tarball stranded in the staging
 # directory with the artefact copy and cleanup unreached, and reported failure
 # for a release that had in fact been built and tagged.
-if [ "$NO_FETCH" = 1 ]; then
-    echo "==> NOT pushing $TAG (--no-fetch): the tag is local and unpushed."
-    echo "    Whoever pushes must first confirm $TAG is not already on origin,"
-    echo "    then: git push origin $TAG"
-else
-    echo "==> Pushing tag $TAG"
-    git -C "$ORIGIN" push origin "$TAG"
-fi
+# SM303: a build does not push, on any host, under any flag.
+echo "==> $TAG is local and unpushed. To publish it:"
+echo "    tools/release.sh publish $VERSION"
 
 # --- final artefact copy ---
 
@@ -628,5 +711,5 @@ for deb in "$FINAL_DIST"/*_"$VERSION"-1_all.deb; do
     [ -f "$deb" ] && printf "    package: %s\n" "$(basename "$deb")"
 done
 if [ "$NO_FETCH" = 1 ]; then
-    printf "    tag:     LOCAL AND UNPUSHED - see the note above\n"
+    printf "    tag:     LOCAL AND UNPUSHED - tools/release.sh publish $VERSION\n"
 fi

@@ -2,8 +2,8 @@
 title: "SM280 - Progressive coverage: the only remaining way to move the 80-minute gate"
 subtitle: "SM269 phases 0-2 measured the hour and improved the developer loop without touching the release gate. Coverage is 92% of it, and phase 3 is the only lever left."
 brand: plain
-status: candidate
-status-note: "SPLIT from SM269 on 2026-08-11, which is now closed as shipped for phases 0-2. Carries phase 3 and nothing else. NOT STARTED. Sized L, and the filing itself says the most likely outcome is a scheduled job nobody reads - that finding would be a result, not a failure, and SM269's brief said so first."
+status: shipped
+status-note: "SHIPPED 2026-08-18 by sharding, which is the one candidate that keeps the gate's MEANING intact - deferring to a schedule and covering a rotating slice both trade coverage of this commit for speed. It needed no merging machinery: Devel::Cover already writes a directory per process under the shared db and `cover` merges them, the same mechanism that lets instrumented CGI subprocesses be counted at all, so parallel prove workers are more of the same writers. MEASURED BEFORE CHANGING ANYTHING, on t/unit/mcp: serial 467s at 52.2% statement / 27.2% branch, -j4 182s at 52.2% / 27.2%. 2.6x faster with the numbers identical to the decimal - and the identical numbers are the half that matters, because a faster run reporting DIFFERENT coverage would be a faster run measuring something else. Job count capped at 4 with an override rather than derived from nproc: the run is inode-heavy, a directory per instrumented subprocess, and release.sh already refuses to stage where inodes are short. Extrapolating the slice to the whole gate suggests roughly 80 minutes to the mid-30s, but that is an estimate from one slice and is not claimed as measured. SPLIT from SM269 on 2026-08-11, which is now closed as shipped for phases 0-2. Carries phase 3 and nothing else. NOT STARTED. Sized L, and the filing itself says the most likely outcome is a scheduled job nobody reads - that finding would be a result, not a failure, and SM269's brief said so first."
 ---
 
 # SM280 - progressive coverage

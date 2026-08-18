@@ -23,7 +23,22 @@ use POSIX         qw(strftime);
 
 ( my $ROOT = $FindBin::Bin ) =~ s{/tools$}{};
 my $ITER      = 20;
-my $TOLERANCE = 2.0;
+# SM327: 1.25, and the figure is DELIBERATE rather than merely tighter.
+#
+# It was 2.0. Every operation had drifted 9-26% slower than the 2026-07-02
+# baseline on the same host, same Perl, same iteration count, and 2x passed all
+# of it comfortably - on every release including four cut in one fortnight.
+#
+# The attribution said the drift arrives as ACCRETION rather than one step, so a
+# 2x gate cannot ever catch it: nothing single is ever large enough. 1.25 would
+# have caught the one real step and will catch the next, while staying well
+# clear of a measured ~1.5% noise floor.
+#
+# NOT TIGHTER STILL, on purpose. A flaky gate gets ignored, which is worse than
+# a wide one - and these are host-relative timings that SM342 deliberately
+# reports rather than fails on, precisely because a busy host and a slower
+# engine look identical in milliseconds.
+my $TOLERANCE = 1.25;
 my $BASELINE  = "$ROOT/dist/config/bench-baseline.json";
 my $mode      = ( grep { $_ eq '--baseline' } @ARGV ) ? 'baseline'
     : ( grep { $_ eq '--check' } @ARGV ) ? 'check'
@@ -194,13 +209,62 @@ for my $w ( sort grep { /^work_/ } keys %result ) {
 }
 
 if ( $mode eq 'baseline' ) {
+
+    # SM327: RE-CAPTURING OVER A REGRESSION HAS TO BE SAID OUT LOUD.
+    #
+    # This is the whole filing. The baseline was dated 2026-07-02 and the
+    # compliance gate warns it is stale at a stable cut, so re-capturing was the
+    # queued housekeeping task. Doing it would have raised the baseline to the
+    # current, slower numbers and removed any way to see the engine had got
+    # slower: a warning clears, the gate goes green, and the regression becomes
+    # the new definition of correct.
+    #
+    # That is the exact shape this project has spent a fortnight removing from
+    # other people's code - a control reporting success because the bar moved -
+    # and it must not be introduced into the perf gate to clear a housekeeping
+    # warning.
+    #
+    # So a re-capture that would RAISE any op beyond tolerance refuses, and says
+    # which ops and by how much. --accept-regression proceeds, and the point of
+    # the flag is not to be hard to type: it is that somebody has to state that
+    # these numbers are RIGHT rather than merely current, which is what a
+    # baseline claims.
+    if ( -f $BASELINE && !grep { $_ eq '--accept-regression' } @ARGV ) {
+        my $old = eval {
+            open my $of, '<', $BASELINE or die;
+            local $/;
+            JSON::PP->new->decode(<$of>);
+        };
+        my @worse;
+        for my $op ( sort keys %{ $old->{ops} || {} } ) {
+            next if $op =~ /^work_/;
+            my $was = $old->{ops}{$op} or next;
+            next unless defined $result{$op};
+            my $ratio = $result{$op} / $was;
+            push @worse, sprintf( '%s %.2fx (%.1f -> %.1f ms)',
+                $op, $ratio, $was, $result{$op} )
+                if $ratio >= ( $old->{tolerance} || $TOLERANCE );
+        }
+        if (@worse) {
+            print {*STDERR} "bench: REFUSING to re-capture over a regression.\n";
+            print {*STDERR} "bench:   $_\n" for @worse;
+            print {*STDERR} "bench:\n";
+            print {*STDERR} "bench: Writing this baseline would make the slower\n";
+            print {*STDERR} "bench: numbers the new definition of correct, and the\n";
+            print {*STDERR} "bench: stale-baseline warning would clear on the way.\n";
+            print {*STDERR} "bench: Explain the drift first. If it is understood and\n";
+            print {*STDERR} "bench: accepted, say so: --accept-regression\n";
+            exit 1;
+        }
+    }
+
     open my $b, '>', $BASELINE or die "$BASELINE: $!\n";
     print $b JSON::PP->new->canonical->pretty->encode( {
-            _doc => "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. The gate (--check) fails on >tolerance x regression; a per-op override may live in tolerances{op}.",
+            _doc => "Host-relative perf baseline (ms/op). Re-capture on the CI/deploy host: tools/bench.pl --baseline. Timings are REPORTED against tolerance, never failed on (SM342); work counters fail. A per-op override may live in tolerances{op}. Re-capturing over a regression requires --accept-regression (SM327).",
             tolerance => $TOLERANCE,
             # SM-review D4: without this a figure cannot be interpreted. A run on a
             # loaded host and a genuinely slower engine look identical in the
-            # numbers, and the 2x tolerance passes both - so nobody ever finds out
+            # numbers, and a wide tolerance passes both - so nobody ever finds out
             # which they are looking at.
             loadavg    => _loadavg(),
             iterations => $ITER,

@@ -44,6 +44,38 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM280 (PENDING) **the coverage run is sharded, and the gate moves at last.**
+  SM269 attributed the eighty minutes with strace: coverage is 92% of it. Of
+  the three candidate shapes, sharding is the only one that keeps the gate's
+  *meaning* - the other two trade coverage of this commit for speed - and it
+  needed no merging machinery, because Devel::Cover already merges per-process
+  runs from one shared database. Measured before changing anything, on
+  `t/unit/mcp`: **serial 467s at 52.2%/27.2%, `-j4` 182s at 52.2%/27.2%.** The
+  identical numbers are the half that matters; a faster run reporting different
+  coverage would be a faster run measuring something else.
+- SM327 (PENDING) **the perf tolerance is 1.25, and a baseline cannot bury a
+  regression.** Every operation had drifted 9-26% slower than the 2026-07-02
+  baseline and a 2x tolerance passed all of it on every release. The drift
+  arrives as accretion, so 2x can never catch it. The larger half: `--baseline`
+  now **refuses** to re-capture over a regression, naming each op and its ratio
+  - because re-capturing was the queued housekeeping task, and doing it would
+  have cleared a warning and made the regression the new definition of correct.
+  `--accept-regression` proceeds; the flag exists so somebody states the numbers
+  are *right* rather than merely current.
+- SM302 (PENDING) **a review finding carries the command that checks it.**
+  Thirty-odd one-line greps, reinvented each review, written down nowhere.
+  `tools/lazysite-review-verify.pl` re-runs them from a `findings.json`, and
+  reports **three** states: fixed, still-open, and *could not be checked* - the
+  last never counted as either, and failing the run, because a review whose
+  checks cannot run has told the next reviewer nothing.
+- SM303 (PENDING) **release.sh is two commands.** `build` gates, packages and
+  tags locally and touches the remote nowhere; `publish` confirms upstream and
+  pushes. Conflating them cost a run that aborted before any gate step on the
+  host with no credentials, and then - after `--no-fetch` - one that died at the
+  last step on `git push`, stranding a fully built and tagged release with
+  exit 128. The bare form now refuses and names both commands rather than
+  guessing which half was meant.
+
 - SM364 (PENDING) **reproduced at the fourth attempt, and disproved.** In the
   state the report describes, the dot-prefixed entry is listed, **read (200)
   and deleted (204)** - the engine has no dot-prefix policy in that subtree and

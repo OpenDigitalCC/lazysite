@@ -54,9 +54,37 @@ if [ -e "$DB" ]; then
     exit 2
 fi
 
-echo "Running the suite under Devel::Cover (subprocess CGIs instrumented)..." >&2
+# SM280: SHARDED, and the shape of the run is why it is safe.
+#
+# SM269 phase 0 attributed the gate with strace rather than estimation:
+# coverage is 92% of its wall-clock, at a 12.4x instrumentation multiplier.
+# Anything that does not reduce, defer or parallelise the coverage run does not
+# move the eighty minutes.
+#
+# Sharding is the option that keeps the gate's MEANING intact - the other two
+# (defer to a schedule, cover a rotating slice) both trade coverage of this
+# commit for speed. And it needs no merging machinery: Devel::Cover already
+# writes one directory per process under the shared db and `cover` merges them,
+# which is the same mechanism that lets the instrumented CGI subprocesses be
+# counted at all. Parallel prove workers are just more of the same writers.
+#
+# MEASURED, not assumed, on t/unit/mcp:
+#
+#   serial   467s   total 52.2% statement / 27.2% branch
+#   -j4      182s   total 52.2% statement / 27.2% branch
+#
+# 2.6x faster and the numbers are identical to the decimal - which is the check
+# that matters, because a faster run reporting DIFFERENT coverage would be a
+# faster run measuring something else.
+#
+# The job count is capped rather than set to nproc: the run is I/O and
+# inode-heavy (a directory per instrumented subprocess), and release.sh already
+# refuses to stage where inodes are short. More workers past a point buys
+# contention.
+JOBS=${LAZYSITE_COVER_JOBS:-4}
+echo "Running the suite under Devel::Cover, $JOBS-way (subprocess CGIs instrumented)..." >&2
 PERL5OPT="-MDevel::Cover=-db,$DB,-silent,1,+ignore,^/usr/,+ignore,/t/,+ignore,Devel" \
-    prove -r t/ >/dev/null 2>&1 || true
+    prove -j"$JOBS" -r t/ >/dev/null 2>&1 || true
 
 # Report (drop the per-run noise).
 cover -silent -report text "$DB" 2>/dev/null | grep -vE '^Run:[[:space:]]'
