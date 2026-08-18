@@ -9,9 +9,19 @@
 # project whose gating story is that protected content is not in the served tree.
 #
 # It would have been building a data-collection surface to discover a fact the
-# source already states. The engine inlines <script> and <style> in ten places
+# source already states. The engine inlined <script> and <style> in ten places
 # - eight of them in the processor alone. They are listed below, and they were
 # found by reading the file. No live traffic was required and none should be.
+#
+# SM352 STEP 1, 2026-08-18: FIVE have left - ten down to five. The fallback page chrome and the
+# SM098 multi-step form rules are now /assets/lazysite-chrome.css, bundled into
+# one file rather than split per feature - a rule that only matters on a page
+# with a multi-step form costs nothing to carry, while a second request costs a
+# round trip on every page that has one.
+#
+# The count going DOWN is the progress. The number in this test is the only
+# place that fact is recorded mechanically, and it is why removing an entry has
+# to be a deliberate edit rather than something a passing run absorbs.
 #
 # WHAT IT BUYS. Two things a collector would not have. It cannot be gamed by
 # what happened to be visited, so the inventory is complete rather than
@@ -43,29 +53,11 @@ my $root = repo_root();
 # The inventory. Each entry is matched against the file, so a block that moves
 # still matches and a block that is deleted or renamed shows up as a change.
 my @INLINE = (
-    { name => 'base template stylesheet',
-        file => 'lazysite-processor.pl',
-        kind => 'style',
-        re   => qr/body \{ font-family: system-ui/,
-        note => 'the fallback page chrome, used when no layout is bound',
-    },
-    { name => 'site-bar iframe suppressor',
-        file => 'lazysite-processor.pl',
-        kind => 'script',
-        re   => qr/window!==window\.top.*?site-bar/s,
-        note => 'hides the bar when the page is framed',
-    },
     { name => 'form submit handler',
         file => 'lazysite-processor.pl',
         kind => 'script',
         re   => qr/\$extra_script<script>/,
         note => 'posts a native form and renders its status',
-    },
-    { name => 'multi-step form CSS',
-        file => 'lazysite-processor.pl',
-        kind => 'style',
-        re   => qr/\.lazysite-form\[data-multistep\] \.lsf-nav/,
-        note => 'SM098 progressive enhancement - without it every step shows',
     },
     { name => 'multi-step form script',
         file => 'lazysite-processor.pl',
@@ -79,18 +71,6 @@ my @INLINE = (
         re   => qr/return "<style>\\n:root \{/,
         note => 'D013 - generated per site from the active theme, so this one '
             . 'is genuinely per-response and a nonce is the only fix',
-    },
-    { name => 'auth control sync',
-        file => 'lazysite-processor.pl',
-        kind => 'script',
-        re   => qr/lzs_session=1/,
-        note => 'SM099 - reveals the right auth control from the marker cookie',
-    },
-    { name => 'admin bar',
-        file => 'lazysite-processor.pl',
-        kind => 'script',
-        re   => qr/ls-admin-bar/,
-        note => 'injected per request at output time, never cached',
     },
     { name => 'manager UI head script',
         file => 'starter/lazysite/manager/layout.tt',

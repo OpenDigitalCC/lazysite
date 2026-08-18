@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM352 step 1 (PENDING) **the engine stops inlining its own chrome** - ten
+  inline `<script>`/`<style>` blocks down to five. The fallback page chrome and
+  the multi-step form rules are `/assets/lazysite-chrome.css`; the frame
+  suppressor, the auth-control sync and the admin bar's frame hiding are
+  `/assets/lazysite-chrome.js`. **Two files, not seven**: a rule that only
+  matters on a page with a multi-step form costs nothing to carry, while a
+  second request costs a round trip on every page that has one. The script
+  bundle is self-contained - each behaviour looks for its own elements and does
+  nothing when they are absent - so one reference serves three callers, injected
+  once and deferred. `t/lint/56`'s count going down is the progress, and
+  `t/integration/60` asserts a rendered page carries nothing inline, which a
+  count in a source file cannot.
+
 - SM280 (PENDING) **the coverage run is sharded, and the gate moves at last.**
   SM269 attributed the eighty minutes with strace: coverage is 92% of it. Of
   the three candidate shapes, sharding is the only one that keeps the gate's

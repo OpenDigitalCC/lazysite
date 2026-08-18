@@ -204,43 +204,7 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
     [% FOREACH l IN languages %][% IF l.exists %]<link rel="alternate" hreflang="[% l.lang %]" href="[% l.url %]">
     [% END %][% END %][% IF languages.size %]<link rel="alternate" hreflang="x-default" href="[% languages.0.url %]">
     [% END %]
-    <style>
-        body { font-family: system-ui, sans-serif; max-width: 800px;
-               margin: 2rem auto; padding: 0 1rem; color: #333; }
-        .site-bar { display: flex; align-items: center; gap: 0.75rem;
-                    padding: 0.5rem 0; font-size: 0.85rem; flex-wrap: wrap; }
-        .site-bar a { color: #0066cc; text-decoration: none; font-weight: 600; }
-        .site-bar a:hover { text-decoration: underline; }
-        .site-bar .edit-btn { font-size: 0.8rem; padding: 0.15rem 0.5rem;
-               border: 1px solid #ccc; border-radius: 3px; background: #f9f9f9;
-               color: #555; text-decoration: none; cursor: pointer; font-weight: 400; }
-        .site-bar .edit-btn:hover { background: #eee; color: #333; }
-        .site-bar form { display: flex; gap: 0.3rem; }
-        .site-bar input[type="search"] { padding: 0.2rem 0.4rem; font-size: 0.8rem;
-               border: 1px solid #ccc; border-radius: 3px; width: 140px; }
-        .site-bar button { padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: pointer; }
-        hr.site-rule { border: none; border-top: 1px solid #eee; margin: 0 0 1.5rem; }
-        .nav-link { margin-right: 1rem; color: #0066cc; text-decoration: none; }
-        .nav-link:hover { text-decoration: underline; }
-        .nav-child { margin-right: 0.75rem; font-size: 0.85rem; }
-        .nav-link[aria-current="page"] { font-weight: 600; }
-        .nav-group {
-            font-size: 0.7rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #888;
-            padding: 0.5rem 0 0.2rem;
-            margin-right: 0.75rem;
-            display: inline-block;
-        }
-        h1 { border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
-        pre { background: #f5f5f5; padding: 1rem; overflow-x: auto; }
-        code { background: #f5f5f5; padding: 0.2em 0.4em; }
-        footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #eee;
-                 font-size: 0.85rem; color: #888; }
-        a { color: #0066cc; }
-    </style>
+    <link rel="stylesheet" href="/assets/lazysite-chrome.css?v=[% lazysite_version %]">
 </head>
 <body>
 <div class="site-bar" id="site-bar">
@@ -262,7 +226,7 @@ my $FALLBACK_LAYOUT = <<'END_FALLBACK';
   [% FOREACH l IN languages %][% IF l.exists %][% IF l.current %]<strong lang="[% l.lang %]">[% l.lang %]</strong>[% ELSE %]<a href="[% l.url %]" hreflang="[% l.lang %]" lang="[% l.lang %]">[% l.lang %]</a>[% END %] [% END %][% END %]</nav>
 [% END %]
 <hr class="site-rule" id="site-rule">
-<script>if(window!==window.top){var b=document.getElementById('site-bar');var r=document.getElementById('site-rule');if(b)b.style.display='none';if(r)r.style.display='none';}</script>
+<script src="/assets/lazysite-chrome.js?v=[% lazysite_version %]" defer></script>
 [% IF nav.size %]
 <nav style="margin-bottom:1.5rem;padding-bottom:0.75rem;border-bottom:1px solid #eee;font-size:0.9rem;">
   [% FOREACH item IN nav %]
@@ -3628,15 +3592,24 @@ END_FORM
 # SM098: inline CSS for a multi-step form. Without the JS-added `lsf-js` class,
 # every step shows and the nav is hidden (progressive enhancement); with it, only
 # the active step shows and the Back/Next nav appears.
+# SM098 / SM352: the multi-step form's progressive-enhancement CSS moved to
+# /assets/lazysite-chrome.css. It was an inline <style> block on every page
+# carrying a multi-step form, which is one of the ten entries in t/lint/56's
+# inventory and one of the reasons no Content-Security-Policy worth setting
+# fits this engine.
+#
+# The rules themselves are unchanged and still do the same job: without the
+# JS-added `lsf-js` class every step shows and the nav is hidden, so a visitor
+# with no JavaScript gets one long usable form rather than a dead one.
+#
+# Returns the LINK now rather than the style. Kept as a function, and kept
+# emitting something, because the call sites want one thing at one point and a
+# caller that has to know whether to emit is a caller that will get it wrong.
 sub _form_step_css {
-    return <<'END_CSS';
-<style>
-.lazysite-form[data-multistep] .lsf-nav{display:none}
-.lazysite-form.lsf-js[data-multistep] .lsf-step:not(.lsf-active){display:none}
-.lazysite-form.lsf-js[data-multistep] .lsf-nav{display:flex;gap:.5rem;margin-top:1rem}
-.lazysite-form[data-multistep] .lsf-progress{font-size:.9em;opacity:.75;margin-bottom:.75rem}
-</style>
-END_CSS
+    # The version is resolved here rather than left as a TT tag: this string is
+    # spliced into rendered output, which TT has already been through.
+    return '<link rel="stylesheet" href="/assets/lazysite-chrome.css?v='
+        . _lazysite_version() . '">';
 }
 
 # SM098: the step-navigation script for a multi-step form. Shows one step at a
@@ -6112,11 +6085,17 @@ sub render_template {
 sub _inject_auth_sync {
     my ($html) = @_;
     return $html unless $html =~ m{</body>}i;
-    my $script = '<script>(function(){var on=/(?:^|;\s*)lzs_session=1(?:;|$)/.test('
-        . 'document.cookie),o=document.querySelectorAll("[data-ls-auth-out]"),'
-        . 'i=document.querySelectorAll("[data-ls-auth-in]"),k;'
-        . 'for(k=0;k<o.length;k++)o[k].style.display=on?"":"none";'
-        . 'for(k=0;k<i.length;k++)i[k].style.display=on?"none":"";})();</script>';
+    # SM352: the behaviour moved to /assets/lazysite-chrome.js. What is injected
+    # is a reference to the bundle, and it is injected ONCE - the bundle is
+    # self-contained, so the same reference also carries the frame-suppressor
+    # and anything else that joins it later.
+    #
+    # Still injected here rather than emitted by the layout, because a page
+    # rendered by a THEME never goes through the fallback template and would
+    # otherwise get no chrome script at all.
+    return $html if $html =~ m{/assets/lazysite-chrome\.js};
+    my $script = '<script src="/assets/lazysite-chrome.js?v='
+        . _lazysite_version() . '" defer></script>';
     # Inject before the LAST </body>, not the first: a page can legitimately
     # carry a literal "</body>" inside a JS string (e.g. the editor builds an
     # iframe srcdoc: frame.srcdoc = '...</body></html>'). Splicing a
@@ -6307,8 +6286,12 @@ sub _inject_admin_bar {
     $bar .= '</div>';
 
     # Hide in iframes (e.g. the editor's srcdoc preview)
-    $bar .= '<script>if(window!==window.top){var ab=document.getElementById("ls-admin-bar");'
-        . 'if(ab)ab.style.display="none";}</script>';
+    # SM352: the frame-suppression this used to inline is in
+    # /assets/lazysite-chrome.js, which hides ls-admin-bar alongside the site
+    # bar and rule. The bar carries no script of its own now.
+    #
+    # It does not need to inject the bundle reference either: _inject_auth_sync
+    # runs on the same response and injects it once.
 
     # Anchor to the FIRST <body> after </head>, not the first <body> anywhere: a
     # page can carry a literal "<body>" inside a head comment or script string

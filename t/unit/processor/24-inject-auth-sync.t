@@ -36,11 +36,16 @@ HTML
         'literal </body> inside a JS string is left intact' );
 
     # The auth-sync script lands before the document's final </body>.
-    like( $out, qr/data-ls-auth-out.*<\/body>\s*<\/html>\s*\z/s,
+    #
+    # SM352: the landmark moved, the property did not. The behaviour used to be
+    # inlined and is now /assets/lazysite-chrome.js, so `data-ls-auth-out` is no
+    # longer in the injected string - it is in the file. What is being tested is
+    # still WHERE the injection lands, so the reference is the landmark now.
+    like( $out, qr/lazysite-chrome\.js.*<\/body>\s*<\/html>\s*\z/s,
         'auth-sync injected before the real closing </body>' );
 
     # There must be exactly one injected auth-sync block, not two.
-    my $count = () = $out =~ /data-ls-auth-out/g;
+    my $count = () = $out =~ /lazysite-chrome\.js/g;
     is( $count, 1, 'auth-sync injected exactly once' );
 
     # The page now has TWO </body> (string + real) but only the real one was
@@ -53,7 +58,7 @@ HTML
 {
     my $html = "<body>\n<p>hello</p>\n</body>\n</html>\n";
     my $out  = main::_inject_auth_sync($html);
-    like( $out, qr/<p>hello<\/p>.*data-ls-auth-out.*<\/body>/s,
+    like( $out, qr/<p>hello<\/p>.*lazysite-chrome\.js.*<\/body>/s,
         'ordinary page still gets the auth-sync before </body>' );
 }
 

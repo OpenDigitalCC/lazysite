@@ -37,6 +37,10 @@ like( $out, qr/data-ls-auth-out[^>]*>Sign out</, 'Sign out link present and tagg
 like( $out, qr/data-ls-auth-in[^>]*display:none/,  'Sign in starts hidden' );
 like( $out, qr/data-ls-auth-out[^>]*display:none/, 'Sign out starts hidden' );
 # The auth-sync toggle script is injected.
-like( $out, qr/lzs_session=1/, 'auth-sync toggle script injected' );
+#
+# SM352: the behaviour moved to /assets/lazysite-chrome.js, so the cookie name
+# it tests for is in the file rather than in the page. What this asserts is
+# still that the page GETS the script - the landmark changed, not the property.
+like( $out, qr{/assets/lazysite-chrome\.js}, 'auth-sync toggle script injected' );
 
 done_testing;
