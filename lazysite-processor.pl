@@ -14,7 +14,8 @@ use Encode qw(decode);
 # Socket + URI moved to Lazysite::Fetch (SM096): they backed only the SSRF guard,
 # now on the lazily-loaded fetch path, so the hot render path no longer loads them.
 use JSON::PP    qw(encode_json decode_json);
-use Digest::SHA qw(hmac_sha256_hex);
+use Digest::SHA   qw(hmac_sha256_hex sha256);
+use MIME::Base64 qw(encode_base64);    # SM352: CSP script hashes
 use POSIX       qw(strftime);
 use Fcntl       qw(O_WRONLY O_APPEND O_CREAT);    # SM140: first-party access log
 
@@ -1659,7 +1660,7 @@ sub _front_door {
         $ACCESS_REC{ch} = 'front';
         print "Status: 404 Not Found\r\n";
         print "Content-Type: text/html; charset=utf-8\r\n";
-        print "$_\r\n" for _security_headers();    # SM352
+        print "$_\r\n" for _security_headers( html => '<p>Not found</p>' );    # SM352
         print "\r\n";
         print "<p>Not found</p>\n";
         return 1;
@@ -6472,7 +6473,7 @@ sub output_page {
     # setting fits today. t/lint/56 holds that inventory - ten entries across
     # the engine - which is what a report-only collector would otherwise have
     # had to discover from live traffic, for a fact the source already states.
-    print "$_\n" for _security_headers();                            # SM352
+    print "$_\n" for _security_headers( html => $content );          # SM352
     print "Content-Language: $RESPONSE_LANG\n" if $RESPONSE_LANG;    # SM179 (P1)
     if ($auth_protected) {
         print "Cache-Control: no-store, private\n";
@@ -6516,7 +6517,55 @@ sub forbidden {
 # their own shorter list, which is why the site's stylesheets and artwork
 # answered without X-Frame-Options or Referrer-Policy while the homepage carried
 # both - a drift nobody probing the homepage could see.
+# SM352: the CSP. A DELIBERATE COPY of Lazysite::SecurityHeaders, like the
+# header set below it - the render path loads no Lazysite modules (ADR 0001) -
+# and pinned to the module BY VALUE by t/lint/55, which drives both and compares
+# what they produce.
+#
+# MEASURED before it was written: 22 of the 23 shipped layouts inline a
+# <script>, so `script-src 'self'` alone would take down every site running a
+# shipped layout, which is all of them. Hashing what is actually in the response
+# covers the catalogue, the manager's head script and anything a future layout
+# adds - without the engine knowing what any of them are, and without
+# 'unsafe-inline', which would permit injected script exactly as readily as
+# authored script.
+#
+# The bytes hashed are EXACTLY what sits between the tags. A hash over a trimmed
+# or normalised copy matches nothing and fails silently in the browser, on a
+# page that renders blank.
+sub _inline_script_hashes {
+    my ($html) = @_;
+    return () unless defined $html && length $html;
+    my ( @hashes, %seen );
+    while ( $html =~ m{<script\b([^>]*)>(.*?)</script\s*>}gis ) {
+        my ( $attrs, $body ) = ( $1, $2 );
+        next if $attrs =~ /\bsrc\s*=/i;    # covered by 'self'
+        my $b64 = encode_base64( sha256($body), '' );
+        next if $seen{$b64}++;
+        push @hashes, "'sha256-$b64'";
+    }
+    return @hashes;
+}
+
+sub _content_security_policy {
+    my (@hashes) = @_;
+    return join '; ',
+        q{default-src 'self'},
+        q{base-uri 'self'},
+        q{object-src 'none'},
+        q{form-action 'self'},
+        q{frame-ancestors 'self'},
+        q{style-src 'self' 'unsafe-inline'},
+        q{img-src 'self' data: https:},
+        q{media-src 'self' https:},
+        q{frame-src 'self' https:},
+        q{font-src 'self' data:},
+        q{connect-src 'self'},
+        join( ' ', q{script-src 'self'}, @hashes );
+}
+
 sub _security_headers {
+    my (%opt) = @_;
     my @h = (
         'X-Content-Type-Options: nosniff',
         'X-Frame-Options: SAMEORIGIN',
@@ -6531,6 +6580,12 @@ sub _security_headers {
     # A front end that does not set it gets no HSTS, which is the safe way for
     # this to fail - the engine asks the proxy for nothing.
     push @h, 'Strict-Transport-Security: max-age=300' if $ENV{HTTPS};
+
+    # Only on HTML: a stylesheet or an image has no script to govern.
+    if ( defined $opt{html} ) {
+        push @h, 'Content-Security-Policy: '
+            . _content_security_policy( _inline_script_hashes( $opt{html} ) );
+    }
     return @h;
 }
 

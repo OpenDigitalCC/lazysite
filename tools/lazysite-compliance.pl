@@ -68,11 +68,39 @@ my $VERSION = slurp('VERSION');
 $VERSION =~ s/\s+//g;
 die "lazysite-compliance: cannot read VERSION\n" unless length $VERSION;
 
-my ( @fail, @warn, @ok );
+my ( @fail, @warn, @ok, @masked );
 
 sub blocking { push @fail, $_[0] }
 sub advisory { push @warn, $_[0] }
 sub good     { push @ok,   $_[0] }
+
+# HUMAN SIGN-OFF, AND WHY IT IS A SWITCH.
+#
+# Some findings cannot be closed by a commit: walking the obligations register,
+# re-reading the technical file, signing a declaration of conformity. Each needs
+# a person to have actually done it, and the only honest record of that is that
+# person saying so. docs/compliance/SIGNOFF.md holds their answer.
+#
+# MASKED IS NOT PASSED. A masked finding is printed in full, counted, and
+# labelled MASKED - it simply does not stop the build. Nothing is hidden, and
+# flipping the switch reveals no new information; the findings were on screen
+# the whole time. That is what separates this from lowering a standard.
+#
+# ABSENT MEANS REQUIRED. A missing or unreadable switch is treated as `yes`, so
+# deleting the file cannot quietly disable a gate - the same fail-closed rule
+# the update channel follows (SM356, where it failed OPEN and a typo granted).
+sub _signoff_required {
+    my $text = slurp('docs/compliance/SIGNOFF.md');
+    return 1 unless length $text;
+    my $v = meta_field( $text, 'signoff_required' );
+    return 1 unless length $v;
+    return ( lc $v eq 'no' || lc $v eq 'false' || $v eq '0' ) ? 0 : 1;
+}
+my $SIGNOFF = _signoff_required();
+
+# A finding only a person can close. Blocks when sign-off is required, and is
+# reported as MASKED when the release manager has said it is not yet.
+sub signoff { $SIGNOFF ? push( @fail, $_[0] ) : push( @masked, $_[0] ); return }
 
 # --- 1. the registers declare the version they were reviewed at -------------
 #
@@ -96,7 +124,7 @@ for my $r (
         next;
     }
     if ( vcmp( $at, $VERSION ) < 0 ) {
-        blocking(
+        signoff(
             "$name: $key is $at, cutting $VERSION - walk $rel and update it");
         next;
     }
@@ -160,9 +188,9 @@ for my $r (
 
     if ( $CHANNEL eq 'stable' ) {
         my $behind = ( length $stamped && vcmp( $stamped, $VERSION ) < 0 ) ? 1 : 0;
-        blocking("declaration of conformity: stamped '$stamped', cutting $VERSION")
+        signoff("declaration of conformity: stamped '$stamped', cutting $VERSION")
             if $behind;
-        blocking('declaration of conformity: unsigned') unless $signed;
+        signoff('declaration of conformity: unsigned') unless $signed;
         # Say so when it is fine. A gate that is silent on success cannot be
         # distinguished from a gate that did not run.
         good('declaration of conformity current and signed')
@@ -308,11 +336,26 @@ sub _plus_days {
 # --- report -----------------------------------------------------------------
 
 print "lazysite compliance check - version $VERSION, channel $CHANNEL\n\n";
-print "  ok   $_\n" for @ok;
-print "  WARN $_\n" for @warn;
-print "  FAIL $_\n" for @fail;
-printf "\n%d ok, %d warning(s), %d blocking\n", scalar @ok, scalar @warn,
-    scalar @fail;
+print "  ok   $_\n"   for @ok;
+print "  WARN $_\n"   for @warn;
+print "  MASKED $_\n" for @masked;
+print "  FAIL $_\n"   for @fail;
+printf "\n%d ok, %d warning(s), %d masked, %d blocking\n", scalar @ok,
+    scalar @warn, scalar @masked, scalar @fail;
+
+# Printed whenever anything is masked, and it names the file rather than
+# describing it: a reader who disagrees with the decision needs to know where
+# the decision lives, and a reader who does not should still be told one was
+# made. A masked count that appeared without explanation would be worse than
+# the finding it covers.
+if (@masked) {
+    print "\nMasked findings need a PERSON, not a commit, and the release\n"
+        . "manager has recorded that sign-off is not yet required:\n"
+        . "  docs/compliance/SIGNOFF.md  (signoff_required: no)\n"
+        . "They are listed above in full and are not blocking. Set it to 'yes'\n"
+        . "for a release carrying a conformity declaration - in practice, the\n"
+        . "next stable.\n";
+}
 
 if ( $MODE eq 'report' ) {
     print "\n(report mode - exit 0 regardless)\n";

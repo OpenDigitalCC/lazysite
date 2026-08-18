@@ -140,19 +140,48 @@ subtest 'and no unrecorded one has appeared' => sub {
     }
 };
 
-subtest 'and CSP is not claimed while they exist' => sub {
-    # The honest end of it. Emitting a policy this engine violates on every page
-    # would be the header saying something the response does not do - which is
-    # the defect class this project keeps finding, dressed as a security control.
+subtest 'and the CSP is honest about every one of them' => sub {
+    # THIS SUBTEST USED TO ASSERT THE OPPOSITE - that no enforcing CSP was
+    # emitted while inline blocks remained - and it was right to, because a
+    # header claiming a policy the response violates is this project's defect
+    # class wearing a security control's clothes.
+    #
+    # SM352 step 5 changed the fact, so it changes here. What must not change is
+    # that the policy and the inventory agree. Note that the old assertion
+    # (`unlike` on a literal print of the header) would have gone on PASSING
+    # after the header was added, because the header is pushed onto a list
+    # rather than printed - a test surviving the change it existed to notice.
     my $src = do {
         open my $fh, '<', "$root/lazysite-processor.pl" or die $!;
         local $/;
         <$fh>;
     };
-    unlike( $src, qr/^\s*print\s+"Content-Security-Policy:/m,
-        'no enforcing CSP is emitted' )
-        or diag( 'There are ' . scalar(@INLINE) . ' inline blocks in the '
-            . 'inventory. An enforcing policy would break all of them.' );
+
+    like( $src, qr/Content-Security-Policy/,
+        'an enforcing CSP is emitted' );
+
+    my ($policy) = $src =~ /sub _content_security_policy \{(.*?)\n\}/s;
+    ok( $policy, 'the policy is assembled in one place' ) or return;
+
+    # SCRIPT is hashed, never permitted wholesale. The manager's head script -
+    # entry 2 in the inventory above - is covered this way, which is what let it
+    # stay inline: its constraints are about ORDERING, and a hash does not care
+    # where a script sits.
+    unlike( $policy, qr/script-src[^;]*unsafe-inline/,
+        'script-src does not permit inline wholesale' )
+        or diag( 'Every inline script in the inventory is meant to be covered '
+            . 'by its HASH. unsafe-inline would cover them by permitting '
+            . 'anything, including whatever an injection adds.' );
+
+    # STYLE is not, and the inventory says why. A hash cannot cover a style=""
+    # ATTRIBUTE, and author content produces those - so a strict style-src
+    # would fail for the author rather than the attacker. Asserted rather than
+    # left implicit, so that closing it later is a visible change here.
+    like( $policy, qr/style-src[^;]*unsafe-inline/,
+        'style-src still permits inline, and the inventory records the reason' )
+        or diag( 'If this has been tightened, the style entry in the inventory '
+            . 'above should be gone too - and if it is not, one of the two is '
+            . 'now lying.' );
 };
 
 done_testing();

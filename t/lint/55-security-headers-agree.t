@@ -24,6 +24,8 @@ use Test::More;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use lib "$FindBin::Bin/../../lib";
+use Digest::SHA               qw(sha256);
+use MIME::Base64              qw(encode_base64);
 use TestHelper                qw(repo_root);
 use Lazysite::SecurityHeaders ();
 
@@ -35,26 +37,67 @@ my $src = do {
     <$fh>;
 };
 
-subtest 'the processor carries the copy, and it agrees' => sub {
-    my ($sub) = $src =~ /(\nsub _security_headers \{.*?\n\}\n)/s;
-    ok( $sub, 'lazysite-processor.pl carries its own _security_headers' )
-        or return;
+# A body with the shapes that actually decide the answer: two distinct inline
+# scripts, one REPEAT (which must collapse to a single hash rather than being
+# listed twice), one <script src> (covered by 'self', and hashing it would
+# produce a hash of the empty string that permits every empty script on the
+# page), and a body with the characters a naive copy would trim.
+my $FIXTURE = <<'HTML';
+<html><head>
+<script>var a = 1;  </script>
+<script src="/assets/lazysite-chrome.js"></script>
+<script>
+  (function(){ document.title = "x"; })();
+</script>
+<script>var a = 1;  </script>
+</head><body>hello</body></html>
+HTML
 
+subtest 'the processor carries the copy, and it agrees' => sub {
     my $pkg = 'ProcessorHeadersUnderTest';
-    eval "package $pkg; $sub 1;"
-        or do { fail("could not evaluate it: $@"); return };
+    for my $name (qw(_security_headers _inline_script_hashes _content_security_policy)) {
+        my ($sub) = $src =~ /(\nsub \Q$name\E \{.*?\n\}\n)/s;
+        ok( $sub, "lazysite-processor.pl carries its own $name" ) or return;
+        eval "package $pkg; use Digest::SHA qw(sha256); "
+            . "use MIME::Base64 qw(encode_base64); $sub 1;"
+            or do { fail("could not evaluate $name: $@"); return };
+    }
 
     for my $https ( 0, 1 ) {
-        local $ENV{HTTPS} = $https ? 'on' : '';
-        my @module = Lazysite::SecurityHeaders::security_headers( https => $https );
-        my @copy   = ProcessorHeadersUnderTest::_security_headers();
-        is_deeply( \@copy, \@module,
-            $https ? 'over TLS' : 'over plain HTTP' )
-            or diag( "module:    @module\n"
-                . "processor: @copy\n"
-                . 'The engine would answer one set on the front door and '
-                . 'another on every page it renders.' );
+        for my $html ( undef, $FIXTURE ) {
+            local $ENV{HTTPS} = $https ? 'on' : '';
+            my @module = Lazysite::SecurityHeaders::security_headers(
+                https => $https,
+                ( defined $html ? ( html => 1, script_hashes =>
+                            [ Lazysite::SecurityHeaders::inline_script_hashes($html) ] ) : () ),
+            );
+            my @copy = ProcessorHeadersUnderTest::_security_headers(
+                ( defined $html ? ( html => $html ) : () ) );
+            is_deeply( \@copy, \@module,
+                sprintf( '%s, %s',
+                    $https        ? 'over TLS'                : 'over plain HTTP',
+                    defined $html ? 'HTML with inline script' : 'no body' ) )
+                or diag( "module:    @module\n"
+                    . "processor: @copy\n"
+                    . 'The engine would answer one set on the front door and '
+                    . 'another on every page it renders.' );
+        }
     }
+};
+
+subtest 'the hashes are what a browser would compute' => sub {
+    # Computed here from first principles rather than by calling the thing under
+    # test, because a hash that is wrong in both copies agrees with itself
+    # perfectly and blocks the script in every browser while every test passes.
+    my @want = map { "'sha256-" . encode_base64( sha256($_), '' ) . "'" }
+        ( 'var a = 1;  ', "\n  (function(){ document.title = \"x\"; })();\n" );
+
+    my @got = Lazysite::SecurityHeaders::inline_script_hashes($FIXTURE);
+    is_deeply( \@got, \@want, 'both inline bodies, hashed over their exact bytes' )
+        or diag( 'A hash computed over trimmed or normalised source matches '
+            . 'nothing, and fails silently in the browser on a page that '
+            . 'renders blank.' );
+    is( scalar @got, 2, 'the repeat collapsed and the <script src> was skipped' );
 };
 
 subtest 'HSTS is short, unqualified, and secure-only' => sub {

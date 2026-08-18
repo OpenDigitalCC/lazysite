@@ -51,8 +51,10 @@ package Lazysite::SecurityHeaders;
 use strict;
 use warnings;
 
-our @EXPORT_OK = qw(security_headers);
+our @EXPORT_OK = qw(security_headers content_security_policy inline_script_hashes);
 use Exporter 'import';
+use Digest::SHA  qw(sha256);
+use MIME::Base64 qw(encode_base64);
 
 # HSTS max-age, in seconds. Deliberately SHORT (5 minutes).
 #
@@ -89,6 +91,93 @@ sub _permissions_policy {
     return join ', ', map { "$_=()" } @DENIED_FEATURES;
 }
 
+# THE POLICY, AND WHY EACH LOOSE DIRECTIVE IS LOOSE.
+#
+# The engine emits no inline script or style of its own any more (SM352 steps
+# 1-4), but it is not the only thing on the page. MEASURED against the shipped
+# catalogue: 22 of 23 layouts inline a <script>, and 8 distinct script bodies
+# account for all of them - one appearing 42 times. So `script-src 'self'` alone
+# would take down every site running a shipped layout, which is all of them.
+#
+# The answer is to HASH what is actually in the response rather than to loosen
+# the directive. That covers the catalogue, the manager's head script and
+# anything a future layout adds, without the engine knowing what any of them
+# are, and without 'unsafe-inline' - which would permit injected script as
+# readily as authored script and is the one thing a CSP is for.
+#
+# STRICT WHERE INJECTION HAPPENS, PERMISSIVE WHERE AUTHOR CONTENT LIVES. That
+# split is deliberate and is the whole design:
+#
+#   script-src   hashed. The actual XSS vector.
+#   object-src   'none'. Nothing legitimate uses <object> here.
+#   base-uri     'self'. A rewritten <base> silently redirects every relative
+#                URL on the page, including form posts.
+#   form-action  'self'. Stops an injection posting credentials elsewhere.
+#   frame-ancestors  'self'. The CSP form of the X-Frame-Options beside it.
+#
+#   style-src    'unsafe-inline' - for now. Two catalogue layouts inline a
+#                <style>, and a hash cannot cover a style="" ATTRIBUTE, which
+#                author content produces. Hashing the blocks while attributes
+#                still break is a policy that fails for the author rather than
+#                the attacker. Recorded as the next target rather than dressed
+#                up; a stylesheet cannot exfiltrate a session the way script can.
+#   img/media    https: allowed. An author referencing an image on another host
+#   frame-src    is doing something ordinary, and 17 production sites were not
+#                going to be told their photographs are a security incident.
+#                Plain http: is still refused, so mixed content stays blocked.
+#
+# font-src excludes remote entirely: this project bundles its fonts and has a
+# standing rule against CDNs, so a remote font request is a defect by
+# definition rather than an author choice.
+our @CSP_SITE = (
+    q{default-src 'self'},
+    q{base-uri 'self'},
+    q{object-src 'none'},
+    q{form-action 'self'},
+    q{frame-ancestors 'self'},
+    q{style-src 'self' 'unsafe-inline'},
+    q{img-src 'self' data: https:},
+    q{media-src 'self' https:},
+    q{frame-src 'self' https:},
+    q{font-src 'self' data:},
+    q{connect-src 'self'},
+);
+
+# Every inline <script> body in a response, as CSP source expressions.
+#
+# A <script src=...> is NOT hashed - it is covered by 'self' - and matching one
+# would produce a hash of an empty body that permits every empty script on the
+# page, which is the sort of thing that looks like it is working.
+#
+# The bytes hashed must be EXACTLY what the browser parses between the tags:
+# no trimming, no normalising. A hash computed over a tidied copy matches
+# nothing, and fails in the least helpful way available - silently, in the
+# browser, on a page that renders blank.
+sub inline_script_hashes {
+    my ($html) = @_;
+    return () unless defined $html && length $html;
+
+    my @hashes;
+    my %seen;
+    while ( $html =~ m{<script\b([^>]*)>(.*?)</script\s*>}gis ) {
+        my ( $attrs, $body ) = ( $1, $2 );
+        next if $attrs =~ /\bsrc\s*=/i;
+        my $b64 = encode_base64( sha256($body), '' );
+        next if $seen{$b64}++;
+        push @hashes, "'sha256-$b64'";
+    }
+    return @hashes;
+}
+
+# The policy for one response. Hashes are appended to script-src; with none,
+# script-src is 'self' alone.
+sub content_security_policy {
+    my (%opt)  = @_;
+    my @hashes = @{ $opt{script_hashes} || [] };
+    my $script = join ' ', q{script-src 'self'}, @hashes;
+    return join '; ', @CSP_SITE, $script;
+}
+
 # The header lines for one response.
 #
 #   https => truthy when the request arrived over TLS
@@ -116,6 +205,19 @@ sub security_headers {
         'Permissions-Policy: ' . _permissions_policy(),
     );
     push @h, "Strict-Transport-Security: max-age=$HSTS_MAX_AGE" if $opt{https};
+
+    # ENFORCING, not report-only. A report-only header with nowhere to report is
+    # inert, and building somewhere to report to would have meant standing up an
+    # unauthenticated cross-origin write endpoint to discover something
+    # t/lint/56 already answers completely rather than representatively.
+    #
+    # Only on HTML. A stylesheet or an image has no script to govern, and a CSP
+    # on a static asset is a header nothing reads.
+    if ( $opt{html} ) {
+        push @h,
+            'Content-Security-Policy: '
+            . content_security_policy( script_hashes => $opt{script_hashes} );
+    }
     return @h;
 }
 
