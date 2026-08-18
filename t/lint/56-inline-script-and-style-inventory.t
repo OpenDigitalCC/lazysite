@@ -13,7 +13,7 @@
 # - eight of them in the processor alone. They are listed below, and they were
 # found by reading the file. No live traffic was required and none should be.
 #
-# SM352 STEP 1, 2026-08-18: FIVE have left - ten down to five. The fallback page chrome and the
+# SM352 STEPS 1 AND 2, 2026-08-18: SEVEN have left - ten down to three. The fallback page chrome and the
 # SM098 multi-step form rules are now /assets/lazysite-chrome.css, bundled into
 # one file rather than split per feature - a rule that only matters on a page
 # with a multi-step form costs nothing to carry, while a second request costs a
@@ -53,18 +53,6 @@ my $root = repo_root();
 # The inventory. Each entry is matched against the file, so a block that moves
 # still matches and a block that is deleted or renamed shows up as a change.
 my @INLINE = (
-    { name => 'form submit handler',
-        file => 'lazysite-processor.pl',
-        kind => 'script',
-        re   => qr/\$extra_script<script>/,
-        note => 'posts a native form and renders its status',
-    },
-    { name => 'multi-step form script',
-        file => 'lazysite-processor.pl',
-        kind => 'script',
-        re   => qr/form\.classList\.add\('lsf-js'\)/,
-        note => 'SM098 step navigation and per-step validation',
-    },
     { name => 'theme custom properties',
         file => 'lazysite-processor.pl',
         kind => 'style',

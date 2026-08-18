@@ -3552,40 +3552,7 @@ $step_css<form method="POST"
   </div>
 $fields_html  <div class="form-status" aria-live="polite"></div>
 </form>
-$extra_script<script>
-(function() {
-  var form = document.querySelector('.lazysite-form[data-form="$form_name"]');
-  if (!form) return;
-  form.addEventListener('submit', function(e) {
-    e.preventDefault();
-    var btn    = form.querySelector('button[type=submit]');
-    var status = form.querySelector('.form-status');
-    btn.disabled = true;
-    status.textContent = 'Sending...';
-    fetch(form.action, {
-      method: 'POST',
-      body: new FormData(form)
-    })
-    .then(function(r) {
-      if (!r.ok) throw new Error('Server returned ' + r.status);
-      return r.json();
-    })
-    .then(function(data) {
-      if (data.ok) {
-        form.innerHTML = '<p class="form-success">' +
-          (data.message || 'Thank you - message sent.') + '</p>';
-      } else {
-        status.textContent = data.error || 'An error occurred.';
-        btn.disabled = false;
-      }
-    })
-    .catch(function(e) {
-      status.textContent = 'Could not send: ' + e.message;
-      btn.disabled = false;
-    });
-  });
-})();
-</script>
+$extra_script
 END_FORM
 }
 
@@ -3616,41 +3583,20 @@ sub _form_step_css {
 # time, validates the visible step (native constraint API) before advancing, and
 # keeps the Back/Next/submit affordances in sync. The final step exposes the
 # authored submit button; the existing submit handler posts the whole form once.
-sub _form_step_script {
-    my ($form_name) = @_;
-    return <<"END_STEP";
-<script>
-(function(){
-  var form = document.querySelector('.lazysite-form[data-form="$form_name"][data-multistep]');
-  if (!form) return;
-  form.classList.add('lsf-js');
-  var steps = Array.prototype.slice.call(form.querySelectorAll('.lsf-step'));
-  if (!steps.length) return;
-  var back = form.querySelector('.lsf-back');
-  var next = form.querySelector('.lsf-next');
-  var cur  = form.querySelector('.lsf-cur');
-  var i = 0;
-  function show(n){
-    i = Math.max(0, Math.min(steps.length - 1, n));
-    for (var k = 0; k < steps.length; k++){ steps[k].classList.toggle('lsf-active', k === i); }
-    if (cur)  cur.textContent = (i + 1);
-    if (back) back.style.display = (i === 0) ? 'none' : '';
-    if (next) next.style.display = (i === steps.length - 1) ? 'none' : '';
-  }
-  function stepValid(){
-    var els = steps[i].querySelectorAll('input, select, textarea');
-    for (var k = 0; k < els.length; k++){
-      if (!els[k].checkValidity()){ els[k].reportValidity(); return false; }
-    }
-    return true;
-  }
-  if (next) next.addEventListener('click', function(){ if (stepValid()) show(i + 1); });
-  if (back) back.addEventListener('click', function(){ show(i - 1); });
-  show(0);
-})();
-</script>
-END_STEP
-}
+# SM098 / SM352: the multi-step navigation moved to
+# /assets/lazysite-chrome.js, together with the submit handler.
+#
+# NEITHER NEEDED THE FORM NAME. Both used it only to SELECT the form, and
+# `data-form` is already on the element - so iterating `.lazysite-form` does the
+# same job for one form or five, and the name stops being a reason to generate
+# code per form. That is what let them join the bundle instead of needing a
+# nonce or a per-page hash.
+#
+# The function survives, returning nothing, because the caller emits whatever it
+# returns at the point a multi-step form is rendered. Removing the call site
+# instead would mean the caller deciding whether a form is multi-step, which is
+# a question this already answers.
+sub _form_step_script { return '' }
 
 sub convert_fenced_divs {
     my ($text) = @_;

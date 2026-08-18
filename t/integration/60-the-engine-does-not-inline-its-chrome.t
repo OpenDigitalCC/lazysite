@@ -121,4 +121,32 @@ subtest 'a page rendered through a layout gets it too' => sub {
             . 'Sign out.' );
 };
 
+subtest 'a page with a form inlines nothing either' => sub {
+    # STEP 2. Both form scripts used the form NAME to select the form, and
+    # `data-form` is already on the element - so iterating `.lazysite-form`
+    # does the same job for one form or five, and the name stopped being a
+    # reason to generate code per page.
+    #
+    # An interpolated script is exactly the case that would otherwise need a
+    # nonce or a per-page hash. This one turned out not to be interpolated in
+    # any way that mattered, which is why the bundle could take it.
+    make_path("$docroot/lazysite/forms");
+    open my $f, '>', "$docroot/lazysite/forms/handlers.conf" or die $!;
+    print {$f} "contact: mailto\n";
+    close $f;
+    open my $pg, '>', "$docroot/contact.md" or die $!;
+    print {$pg} "---\ntitle: Contact\n---\n\n::: form contact\nemail: Email\n:::\n";
+    close $pg;
+
+    my $out = run_processor( $docroot, '/contact' );
+    my ($body) = $out =~ /\r?\n\r?\n(.*)/s;
+    $body //= '';
+
+    my @inline = $body =~ /<(script|style)(?![^>]*\bsrc=)[^>]*>/g;
+    is_deeply( \@inline, [],
+        'a form page carries nothing inline' )
+        or diag( "Found: @inline\nThe form scripts were two of the ten, and "
+            . 'the two that looked hardest to move.' );
+};
+
 done_testing();

@@ -44,8 +44,14 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM352 step 1 (PENDING) **the engine stops inlining its own chrome** - ten
-  inline `<script>`/`<style>` blocks down to five. The fallback page chrome and
+- SM352 steps 1-2 (PENDING) **the engine stops inlining its own chrome** - ten
+  inline `<script>`/`<style>` blocks down to **three**. Step 2 took the two form
+  scripts, and the reason they could join is the useful part: **neither ever
+  needed the form name.** Both used it only to *select* the form, and
+  `data-form` is already on the element - so iterating `.lazysite-form` does the
+  same job for one form or five. An interpolated script is exactly the case that
+  would otherwise need a nonce; this one turned out not to be interpolated in
+  any way that mattered. The fallback page chrome and
   the multi-step form rules are `/assets/lazysite-chrome.css`; the frame
   suppressor, the auth-control sync and the admin bar's frame hiding are
   `/assets/lazysite-chrome.js`. **Two files, not seven**: a rule that only
