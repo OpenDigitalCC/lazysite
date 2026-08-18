@@ -3,7 +3,7 @@ title: "SM308 - the shipped layouts shadow meta_title and meta_desc"
 subtitle: "SM300 is correct in the engine and has no observable effect on any site using a layout, which is every site. A field frozen by ADR 0008 and implemented last release still does nothing."
 brand: plain
 status: partial
-status-note: "ENGINE HALF SHIPPED, CATALOGUE HALF OPEN ELSEWHERE. Done here: the layouts briefing gained a 'The <head> contract' section stating that page_meta_title/page_meta_desc are the values a layout must render and that ignoring them fails silently; the worked examples in ai-briefing-layouts.md, layouts.md and features/configuration/views.md were corrected (they showed page_title, which is why all 23 catalogue layouts do); and t/lint/48 fails if any shipped example regresses, shown to fail on the pre-fix tree. NOT done here and NOT doable here: the 23 layouts, which live in /srv/projects/lazysite-layouts on its own release cadence - specified in that repo at docs/proposals/2026-08-15-head-meta-contract.md, which carries the measurement, the exact template change, the compatibility assertion and the lint that repository needs. Until that lands, meta_title and meta_desc still have no effect on any real page. ORIGINALLY FILED 2026-08-15 from a partner-agent field test of 0.10.9 on edge (inbox/0.10.9-validation-2026-08-15.md section 5, archived). The reported SM300 case is closed - a page with meta_desc and no subtitle gets its description. The general contract does not hold through a shipped layout, and meta_title in particular has no observable effect anywhere. This is the second half of SM300, not a regression of it. SPLIT ACROSS TWO REPOS - measured 2026-08-15, all 23 catalogue layouts in /srv/projects/lazysite-layouts emit their own <title> and description, none consult page_meta_title or page_meta_desc, and 22 derive the description from page_subtitle; the engine repo holds only the briefing that tells an author what to do, so the code fix lands in the layouts catalogue on its own cadence and the engine's share of this filing is documentation plus the contract statement."
+status-note: "ENGINE HALF SHIPPED, CATALOGUE HALF OPEN ELSEWHERE. Done here: the layouts briefing gained a 'The <head> contract' section stating that page_meta_title/page_meta_desc are the values a layout must render and that ignoring them fails silently; the worked examples in ai-briefing-layouts.md, layouts.md and features/configuration/views.md were corrected (they showed page_title, which is why all 23 catalogue layouts do); and t/lint/48 fails if any shipped example regresses, shown to fail on the pre-fix tree. NOT done here and NOT doable here: the 23 layouts, which live in /srv/projects/lazysite-layouts on its own release cadence - specified in that repo at docs/proposals/2026-08-15-head-meta-contract.md, which carries the measurement, the exact template change, the compatibility assertion and the lint that repository needs. Until that lands, meta_title and meta_desc still have no effect on any real page. ORIGINALLY FILED 2026-08-15 from a partner-agent field test of 0.10.9 on edge (inbox/0.10.9-validation-2026-08-15.md section 5, archived). The reported SM300 case is closed - a page with meta_desc and no subtitle gets its description. The general contract does not hold through a shipped layout, and meta_title in particular has no observable effect anywhere. This is the second half of SM300, not a regression of it. SPLIT ACROSS TWO REPOS - measured 2026-08-15, all 23 catalogue layouts in /srv/projects/lazysite-layouts emit their own <title> and description, none consult page_meta_title or page_meta_desc, and 22 derive the description from page_subtitle; the engine repo holds only the briefing that tells an author what to do, so the code fix lands in the layouts catalogue on its own cadence and the engine's share of this filing is documentation plus the contract statement. CROSS-LINKED 2026-08-18: [[SM362]] is a DUPLICATE of this filing's main finding, filed three days later from the catalogue side without the filer (me) finding this one. SM362 is marked duplicate and survives for the one thing it adds - the double-escape, where every layout applies `| html` to an already-escaped page_subtitle so ordinary copy reaches search engines double-escaped. That is a live wrong output rather than an inert one and is the item to do first. Both are in the lazysite-layouts inbox brief."
 ---
 
 # SM308 - implemented, frozen, and inert
@@ -91,6 +91,25 @@ code fix belongs in the layouts catalogue. The engine repo holds the briefing
 that tells a layout author what the contract is, and that is the part which must
 land first: fixing 23 layouts against an unstated contract leaves the 24th to
 reproduce the defect. Write the contract, then fix the catalogue against it.
+
+## The double-escape, carried over from SM362
+
+Separate from the contract above, and the item to do FIRST because it is not an
+absence but a wrong output.
+
+**Every layout applies `| html` to `page_subtitle` in its description tag.** The
+value is already escaped by the time a layout sees it, so ordinary copy is
+escaped twice: *a client's brief* reaches search engines as
+`a client&#39;s brief`.
+
+That is on every page of every site using a shipped layout, in the one field
+whose entire purpose is to be read by something other than a browser. Unlike the
+rest of this filing it is actively wrong rather than inert, and it is a
+one-character fix per layout.
+
+Recorded here rather than in [[SM362]] because that filing is superseded by this
+one, and a superseded filing that still owns a live item is the same ambiguity
+in a different shape.
 
 ## The fix
 

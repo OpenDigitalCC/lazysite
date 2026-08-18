@@ -90,6 +90,21 @@ Naming the commit: AFTER it lands, never before
   A hand-written allowlist that predated the key dropped it on all 23. The test
   asserts the general property rather than the field: every scalar the manifest
   declares survives the passthrough, which is the guard SM330 needed.
+- SM304 (PENDING) **the two manifest generators cannot drift apart** - and they
+  already had. `install.pl` and `tools/manifest-to-sbom.pl` each carry
+  `_generate_manifest_to_tmp`, added the same day by the same change, and by
+  the time this was looked at they derived their root differently. One owner is
+  not available: the installer is core-Perl-only by design, so it cannot load a
+  shared module. `t/lint/60` compares what each copy *does* - run against a
+  fake builder that records how it was called - and separately asserts the one
+  difference that must stay, that they write to different temp paths so a
+  release running both cannot have one clobber the other.
+- SM308 / SM362 **are one defect, filed twice.** SM362 is marked superseded and
+  its live item - the double-escape, where every layout applies `| html` to an
+  already-escaped `page_subtitle` so copy reaches search engines
+  double-escaped - has moved into SM308. Two open filings for one defect let
+  each party believe the other is carrying it.
+
 - SM272 (PENDING) **an apt repository the packages can be installed from.**
   The `.deb` family has existed since 0.6.10 with nowhere to install it from,
   so 17 sites take a tarball. `tools/build-apt-repo.sh` builds the pool and the
