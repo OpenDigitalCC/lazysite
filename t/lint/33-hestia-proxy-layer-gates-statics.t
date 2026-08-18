@@ -137,11 +137,30 @@ for my $rel ( sort keys %PROXY ) {
             'answers with X-Lazysite-Front, so an operator can confirm which '
                 . 'front end replied instead of trusting that a rebuild landed' );
 
+        # WHO WE SAY WE ARE ON THE HOP TO THE ORIGIN. The backend picks a
+        # vhost by name, and nginx's default Host for a proxied request is
+        # $proxy_host - the backend's IP and port, which names no vhost at
+        # all. t/integration/45 drives this against a real Apache with two TLS
+        # vhosts; here we can only see that the line is present.
+        like( $code, qr{proxy_set_header\s+Host\s+\$host\s*;},
+            'sets Host from the request, so the origin can pick the vhost' )
+            or diag( 'Without it the origin serves its DEFAULT vhost: the '
+                . "site is up and serving another site's pages, with a 200." );
+
         # SSL pairing.
         if ( $PROXY{$rel} eq 'ssl' ) {
             like( $code, qr{^\s*ssl_certificate\s+}m, 'stpl configures TLS' );
             like( $code, qr{listen\s+\S+ssl_port%\s+ssl}, 'stpl listens on the SSL proxy port' );
             like( $code, qr{proxy_pass\s+https://}, 'stpl proxies to the SSL origin' );
+
+            # The TLS hop needs the name TWICE - once in the handshake and once
+            # in the request - and nginx defaults SNI on an upstream connection
+            # to OFF. Applied to edge on 2026-08-18 without these, every
+            # surface returned 421 until the template was rolled back.
+            like( $code, qr{proxy_ssl_server_name\s+on\s*;},
+                'sends SNI upstream (nginx defaults this OFF)' );
+            like( $code, qr{proxy_ssl_name\s+%domain_idn%\s*;},
+                'and names the DOMAIN in it, not the IP it dialled' );
         }
         else {
             unlike( $code, qr{^\s*ssl_certificate\s+}m, 'tpl configures no TLS' );

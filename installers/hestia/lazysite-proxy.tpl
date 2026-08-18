@@ -25,6 +25,15 @@ server {
     server_name %domain_idn% %alias_idn%;
     error_log   /var/log/%web_system%/domains/%domain%.error.log error;
 
+    # Named vhosts on the backend are chosen by Host, and nginx's DEFAULT Host
+    # for a proxied request is $proxy_host - the backend's IP and port, which
+    # names no vhost at all. This template has no TLS hop and so cannot show
+    # the 421 the SSL variant did; the reason it works today is that the front
+    # end sets Host in its global http block. That is a dependency on the
+    # front end's own configuration, which SM286 says a lazysite template must
+    # not have, so it is stated here instead of assumed.
+    proxy_set_header Host $host;
+
     # The observable. SM283 shipped for weeks with no way for an operator to
     # tell from outside whether the front end in front of them was the
     # ACL-aware one - three rebuilds and a template install all produced

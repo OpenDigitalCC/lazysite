@@ -30,6 +30,30 @@ server {
 
     include %home%/%user%/conf/web/%domain%/nginx.hsts.conf*;
 
+    # THE HOP TO APACHE IS TLS, ADDRESSED BY IP, AND THAT NEEDS SAYING WHO WE
+    # ARE TWICE - once in the TLS handshake and once in the request.
+    #
+    # nginx defaults proxy_ssl_server_name to OFF, so without the first two
+    # lines the handshake carries NO SNI. Apache then selects its DEFAULT TLS
+    # vhost, reads a Host header naming a different site, and answers 421
+    # Misdirected Request - to EVERY request, on every surface. Measured on
+    # edge 2026-08-18: pages, MCP, WebDAV and the control API all 421, on
+    # HTTP/2, on forced HTTP/1.1 and on a fresh --no-alpn connection, until the
+    # template was rolled back.
+    #
+    # A host with ONE TLS vhost cannot show this - the default vhost is the
+    # right one - which is why it shipped and why the test that covers it
+    # (t/integration/45) builds a SECOND vhost it never requests.
+    #
+    # Host is set explicitly rather than relying on nginx's default, which is
+    # $proxy_host: the backend's IP and port. Some front ends set Host in their
+    # global http block and would paper over this, and that is exactly the
+    # dependency SM286 says a lazysite template must not have. The template
+    # states what it needs.
+    proxy_ssl_server_name on;
+    proxy_ssl_name        %domain_idn%;
+    proxy_set_header      Host $host;
+
     # The observable. SM283 shipped for weeks with no way for an operator to
     # tell from outside whether the front end in front of them was the
     # ACL-aware one - three rebuilds and a template install all produced

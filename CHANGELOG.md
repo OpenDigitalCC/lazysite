@@ -42,6 +42,25 @@ Naming the commit: AFTER it lands, never before
   not. SM354's own entry went stale in its own landing, which is how this
   paragraph came to be written.
 
+## Unreleased
+
+- SM374 (PENDING) **the SSL proxy template reaches the wrong vhost, or none.**
+  Applied to edge as the runbook documents, `lazysite-proxy` returned **421 on
+  every request** - pages, MCP, WebDAV and the control API - until it was rolled
+  back. The hop to Apache is TLS addressed by IP, and nginx defaults
+  `proxy_ssl_server_name` to OFF, so the handshake carried no SNI and Apache
+  answered from its default vhost. **Measuring corrected the mechanism the field
+  report proposed:** a missing `Host` does not cause the 421, it causes a silent
+  **200 serving another site's pages**; the 421 needs `Host` right and SNI
+  missing. Both are failures and the fix closes both, but only one announces
+  itself - and a test asserting on the status code alone would call the quiet one
+  a pass. Why it shipped: **a host with one TLS vhost cannot show any of it**,
+  because the default vhost is also the right one. `t/integration/45` therefore
+  drives real nginx in front of real Apache and builds a SECOND vhost it never
+  requests, under two front-end conditions - one setting no proxy defaults, one
+  setting `Host` globally - because a template that only works behind a
+  particular front end's globals is the dependency SM286 exists to remove.
+
 ## 0.10.14 - EDGE: a cache clear that deleted pages, and the second copies (2026-08-18)
 
 **Anyone running 0.10.13 or earlier on a migrated site should take this one.**

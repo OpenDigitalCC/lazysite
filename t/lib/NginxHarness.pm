@@ -75,7 +75,10 @@ sub render {
 }
 
 # Write a minimal http{} wrapping one rendered server block. Returns the conf
-# path. `$hestia` adds the log_format the Hestia templates depend on.
+# path. `$hestia` adds the log_format the Hestia templates depend on, and
+# `extra_http` injects directives into the http{} block - which is how a test
+# reproduces a front end that sets proxy defaults globally, versus one that
+# sets nothing and leaves the template to state its own needs.
 sub write_conf {
     my ( $prefix, $site_conf, %o ) = @_;
     make_path( "$prefix/logs", "$prefix/conf" );
@@ -95,8 +98,9 @@ sub write_conf {
         close $out;
     }
 
-    my $fmt  = $o{hestia}                 ? "    $HESTIA_LOG_FORMAT\n"             : '';
-    my $mime = -f '/etc/nginx/mime.types' ? "    include /etc/nginx/mime.types;\n" : '';
+    my $extra = $o{extra_http}             ? "    $o{extra_http}\n"                 : '';
+    my $fmt   = $o{hestia}                 ? "    $HESTIA_LOG_FORMAT\n"             : '';
+    my $mime  = -f '/etc/nginx/mime.types' ? "    include /etc/nginx/mime.types;\n" : '';
     open my $cf, '>', "$prefix/nginx.conf" or die $!;
     print {$cf} <<"CONF";
 worker_processes 1;
@@ -112,7 +116,7 @@ $mime$fmt    access_log $prefix/logs/http-access.log;
     uwsgi_temp_path       $prefix/tmp-uwsgi;
     scgi_temp_path        $prefix/tmp-scgi;
     proxy_connect_timeout 1s;
-    include $prefix/conf/site.conf;
+$extra    include $prefix/conf/site.conf;
 }
 CONF
     close $cf;
@@ -152,9 +156,13 @@ sub http_get {
     );
     if ( $o{tls} ) {
         require IO::Socket::SSL;
-        $class                 = 'IO::Socket::SSL';
+        $class = 'IO::Socket::SSL';
         $args{SSL_verify_mode} = 0;                   # a self-signed harness cert
-        $args{SSL_hostname}    = 'lazysite.test';
+            # SNI is a parameter, not a constant. A test that puts a real Apache
+            # behind this needs to control the name in the HANDSHAKE separately
+            # from the name in the REQUEST, because the whole class of defect at
+            # that hop is the two disagreeing.
+        $args{SSL_hostname} = $o{sni} || $o{host} || 'lazysite.test';
     }
     my $s    = $class->new(%args) or return ( 0, '', {} );
     my $host = $o{host} || 'lazysite.test';
