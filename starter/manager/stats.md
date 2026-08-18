@@ -144,6 +144,65 @@ function renderStats(d) {
   h += refBlock(d.referrers);
   h += '</div>';
 
+  // SM363: how people MOVED, which SM336 computed and nothing displayed.
+  // `exit` is the most actionable field a content owner can have - it names
+  // where the argument fails - and `depth` turns "60% bounced" into which page
+  // they bounced off.
+  if (d.journeys) {
+    var j = d.journeys;
+    var depthKeys = Object.keys(j.depth || {});
+    if (d.sessions || depthKeys.length || (j.entry || []).length) {
+      h += '<div class="mg-sec">Visits</div>';
+      h += '<div class="mg-checks"><span class="mg-tag mg-tag-auto">visits: '
+         + fmtNum(d.sessions) + '</span>';
+      // A visit ends on thirty minutes of silence or a day change, so the ones
+      // still open are not counted yet. Said here rather than left to look
+      // like an undercount.
+      depthKeys.sort().forEach(function (k) {
+        h += '<span class="mg-tag mg-tag-auto">' + sesc(k) + ' page(s): '
+           + fmtNum(j.depth[k]) + '</span>';
+      });
+      h += '</div>';
+      h += '<div class="mg-stat-cols">';
+      h += pageTable('Where visits started', j.entry);
+      h += pageTable('Where visits ended', j.exit);
+      h += '</div>';
+    }
+  }
+
+  // SM363: devices, and - where the operator has switched it on - the search
+  // terms visitors typed. Both were computed, stored per day and carried in
+  // this payload while the page rendered neither, so an operator who enabled
+  // search terms saw nothing happen and reasonably concluded it did not work.
+  if (d.devices && Object.keys(d.devices).length) {
+    h += '<div class="mg-sec">Devices</div><div class="mg-checks">';
+    Object.keys(d.devices).sort(function (a, b) { return d.devices[b] - d.devices[a]; })
+      .forEach(function (k) {
+        h += '<span class="mg-tag mg-tag-auto">' + sesc(k) + ': ' + fmtNum(d.devices[k]) + '</span>';
+      });
+    h += '</div>';
+  }
+
+  // ABSENT, not empty, when the switch is off - an empty list reads as "nobody
+  // searched" and the truth is "nobody was asked". So no block at all.
+  //
+  // sesc() on every term is load-bearing here and nowhere else on this page:
+  // these are the visitor's own words, taken from a query string, and they are
+  // the first field the manager renders whose content a stranger chooses. They
+  // are NOT put in an href - a search term is not a URL.
+  if (d.search_terms && d.search_terms.length) {
+    h += '<div class="mg-sec">What visitors searched for</div>';
+    h += '<table class="mg-table"><thead><tr><th>Term</th><th>Searches</th></tr>'
+       + '</thead><tbody>';
+    d.search_terms.forEach(function (t) {
+      h += '<tr><td style="word-break:break-all">' + sesc(t.key) + '</td><td>'
+         + fmtNum(t.count) + '</td></tr>';
+    });
+    h += '</tbody></table>';
+    h += '<p class="mg-muted">A term is only recorded once ' + fmtNum(3)
+       + ' separate visits have used it, so a one-off is never stored.</p>';
+  }
+
   // Status codes
   if (d.status) {
     var codes = Object.keys(d.status).sort();

@@ -44,6 +44,18 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM363 (PENDING) **the Stats page shows what the stats record.** Sessions,
+  journeys, devices and search terms were all computed and stored per day while
+  the manager rendered none of them - so an operator who read the search-terms
+  setting, weighed the privacy question, decided to accept it and switched it on
+  saw nothing happen. The page now shows devices, terms, the visit count, the
+  depth histogram and where visits started and ended; `sessions`, `entry`,
+  `exit` and `depth` joined the window projection to get there. The terms block
+  is **absent rather than empty** when the setting is off, states the frequency
+  floor beside the list, and escapes every term without putting it in an href -
+  a search term is the first field this page renders whose content a stranger
+  chooses, and it is not a URL.
+
 - SM370 (PENDING) **a byte-comparison test asserted what the payload cannot
   satisfy.** The durable day files are compared byte for byte, because SM339
   needs a repair to be diffable - and SM341 later added a `generated` timestamp

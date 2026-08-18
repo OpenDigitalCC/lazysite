@@ -61,7 +61,7 @@ Users | never | connect-code regeneration (tier C), and the 0.10.10 add-group pi
 Groups | never | grant authority is the one with teeth; the 0.10.10 member picker is tier A4, including that selection must not post
 Sessions and keys | never |
 Site settings | never | includes the Services holder counts (batch tier B/C)
-Cache, Backups, Audit, Stats | never | includes apply-confidence + Undo (tier A); the SM336 fields (sessions, journeys, devices, search terms) are in the page's PAYLOAD but not yet rendered - SM363
+Cache, Backups, Audit, Stats | never | includes apply-confidence + Undo (tier A); SM363 added the SM336 blocks - visits, depth, entry/exit, devices and (where enabled) search terms - and none of them has been LOOKED at, only asserted
 Agents and connectors | never | the largest gap: no channel walked end to end
 ```
 

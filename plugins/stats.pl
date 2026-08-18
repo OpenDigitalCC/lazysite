@@ -718,6 +718,8 @@ sub _page_view_from_buckets {
 
     my ( %cls_hits, %cls_vis, %pages, %ref_ext, %status, %byday, %vis );
     my ( %devices,  %terms );    # SM336 items 6 and 7, in the window view
+    my ( %entry, %exit_, %depth );    # SM363: the journey fields the page shows
+    my $sessions = 0;
     my ( $hits,     $bytes, $assets, $ref_internal, $ref_direct ) = ( 0, 0, 0, 0, 0 );
 
     for my $day (@in_window) {
@@ -739,6 +741,16 @@ sub _page_view_from_buckets {
         # the bucket, so no class filter is needed here.
         $devices{$_}  += $b->{device}{$_} for keys %{ $b->{device} || {} };
         $terms{$_}    += $b->{sq}{$_}     for keys %{ $b->{sq}     || {} };
+
+        # SM363: the journey fields lived in the DAY rollup and nowhere the
+        # page could reach them, so SM336's whole sequence half was invisible
+        # in the manager. `exit` is the one a content owner acts on - it names
+        # where the argument fails - and `depth` is what turns "60% bounced"
+        # into which page they bounced off.
+        $sessions += ( $b->{sessions} // 0 );
+        $entry{$_} += $b->{entry}{$_} for keys %{ $b->{entry} || {} };
+        $exit_{$_} += $b->{exit}{$_}  for keys %{ $b->{exit}  || {} };
+        $depth{$_} += $b->{depth}{$_} for keys %{ $b->{depth} || {} };
         $hits         += ( $b->{hits}         // 0 );
         $bytes        += ( $b->{bytes}        // 0 );
         $assets       += ( $b->{asset_hits}   // 0 );
@@ -787,6 +799,12 @@ sub _page_view_from_buckets {
         },
         status  => {%status},
         devices => {%devices},                     # SM336 item 6
+        sessions => $sessions,    # SM363
+        journeys => {             # SM363
+            entry => $top->( \%entry ),
+            exit  => $top->( \%exit_ ),
+            depth => {%depth},
+        },
 
         # SM336 item 7: absent on a site that never enabled it, matching the day
         # rollup - an empty list reads as "nobody searched" when the truth is
