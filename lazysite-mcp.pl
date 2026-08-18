@@ -1963,22 +1963,39 @@ sub _audit_site {
             }
             next unless %hide_class;
 
+            # SM358 follow-up: keep each template SEPARATE, so the finding can
+            # name the file that applies the class rather than the layout that
+            # contains it.
+            #
+            # The first version concatenated them and reported `layout:lumen`.
+            # On the reporting instance that was true and unhelpful: both
+            # `reveal` references in layout.tt are JavaScript, four of the six
+            # COMPONENTS apply the class in markup, and two are innocent. An
+            # operator told "layout:lumen" has six files to read; told
+            # "component:features" they have one.
             $layout_markup{$layout} //= do {
-                my $t = '';
+                my %by_file;
                 for my $tt ( glob "$ldir/$layout/*.tt $ldir/$layout/**/*.tt" ) {
                     open my $th, '<:utf8', $tt or next;
                     local $/;
-                    $t .= <$th>;
+                    my $body = <$th>;
                     close $th;
+                    ( my $label = $tt ) =~ s{^\Q$ldir/$layout/\E}{};
+                    $label =~ s{\.tt\z}{};
+                    $by_file{ $label eq 'layout' ? "layout:$layout" : $label }
+                        = $body;
                 }
-                $t;
+                \%by_file;
             };
 
             my ( @classes, %seen_use, @used_by );
             for my $cls ( sort keys %hide_class ) {
                 my @where;
-                push @where, "layout:$layout"
-                    if $layout_markup{$layout} =~ /\bclass\s*=\s*["'][^"']*\b\Q$cls\E\b/;
+                for my $file ( sort keys %{ $layout_markup{$layout} } ) {
+                    next unless $layout_markup{$layout}{$file}
+                        =~ /\bclass\s*=\s*["'][^"']*\b\Q$cls\E\b/;
+                    push @where, ( $file =~ /^layout:/ ? $file : "$layout/$file" );
+                }
                 push @where, $class_used{$cls} if defined $class_used{$cls};
                 next unless @where;
                 push @classes, $cls;

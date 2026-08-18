@@ -1672,8 +1672,60 @@ sub action_cache_invalidate {
     $full .= '.html' unless $full =~ /\.html$/;
 
     my $real = realpath($full);
-    return { ok => 0, error => "Invalid path" }
-        unless $real && ( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 ); # SEC-2026-07 (H3)
+
+    # SEC-2026-07 (H3): confinement. A path that escapes the docroot is refused
+    # whatever else is true of it.
+    #
+    # SM367: realpath returns undef when the PARENT is missing, and that used to
+    # be the only way to get a refusal - so "/nope.md" answered ok:1 (its parent
+    # is the docroot) while "/nope/deeper.md" answered ok:0. Two pages that do
+    # not exist, two different answers, differing on something the caller never
+    # asked about. Fall through to the existence test below rather than
+    # reporting a confinement failure for a path that is simply not there.
+    if ( defined $real
+        && !( $real eq $DOCROOT || index( $real, "$DOCROOT/" ) == 0 ) )
+    {
+        return { ok => 0, error => 'Invalid path', kind => 'blocked' };
+    }
+    $real = $full unless defined $real;
+
+    # SM133, ON THIS BRANCH TOO. A bare .html with no .md sibling is LEGACY
+    # STATIC CONTENT served by the migration fallback - it is the page itself,
+    # not a render of one. The '*' sweep has refused to touch those since SM133
+    # and this branch never did, so `invalidate_cache` on a migrated site
+    # DELETED THE PAGE and reported ok:1 with cleared:1 - a destructive act
+    # described as a cache clear.
+    #
+    # Verified against the code before fixing: a .html with no source was
+    # unlinked and the response said it had cleared one.
+    ( my $src = $real ) =~ s/\.html\z/.md/;
+    if ( -f $real && !-f $src ) {
+        return {
+            ok    => 0,
+            kind  => 'not-a-cache',
+            path  => $rel_path,
+            error => 'That path is a page, not a cached render of one - it has '
+                . 'no source file, so deleting it would delete the page. '
+                . 'Nothing was changed.',
+        };
+    }
+
+    # SM367: `ok` now means something happened to the thing you named.
+    #
+    # It used to mean a syntax check passed. The site agent's table is the
+    # argument: /nope.md and /definitely-not-a-page-zz both answered ok:true,
+    # because the only test was whether the PARENT DIRECTORY existed. A caller
+    # could not distinguish cleared, nothing-was-cached, and no-such-path - and
+    # that is what made two field misdiagnoses possible, because the success
+    # flag did not merely fail to help, it pointed away from itself.
+    if ( !-f $real && !-f $src ) {
+        return {
+            ok    => 0,
+            kind  => 'not-found',
+            path  => $rel_path,
+            error => "No such page: $rel_path",
+        };
+    }
 
     my $cleared = 0;
     if ( -f $real ) { unlink $real; $cleared = 1 }

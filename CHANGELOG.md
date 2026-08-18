@@ -50,9 +50,23 @@ Naming the commit: AFTER it lands, never before
   `/index.html` all worked. Found during the 0.10.13 validation, after it had
   cost two wrong diagnoses rather than two errors: once a stale `index.html`
   believed to be shadowing the homepage, once a 0.10.12 render on a 0.10.13
-  instance read as a failed upgrade. The response now also reports how many
-  renders it `cleared`, because `ok:1` answered *did the call succeed* and was
-  being read as *the cache is now gone*.
+  instance read as a failed upgrade. Digging reshaped it: validation existed and
+  tested the **parent directory**, so `/nope.md` answered `ok:true` while
+  `/nope/deeper.md` answered `ok:false` - two pages that do not exist, differing
+  on something the caller never asked about. `ok` now means the page exists and
+  was acted on, the response reports how many renders it `cleared`, and a path
+  with no page is refused with a reason. **And it deleted pages:** a bare
+  `.html` with no `.md` sibling is legacy static content served by the migration
+  fallback, which SM133 taught the `*` sweep and never taught this branch - so
+  on a migrated site invalidating one unlinked the page and reported `cleared:1`.
+  Refused now, with the page left alone.
+- SM358 follow-up (PENDING) **the `hidden_by_script` finding names the template
+  that applies the class**, not the layout that contains it. On the reporting
+  instance both `reveal` references in `layout.tt` were JavaScript and four of
+  six *components* applied it in markup, so `layout:lumen` sent an operator to
+  six files when one was implicated. Whether an unrendered component should
+  count as a use at all is still open - the field report argues no, and it is
+  recorded as a view rather than settled.
 
 - SM366 (PENDING) **six tools can find the modules they load.** The 0.10.13
   rollout printed `Can't locate Lazysite/Paths.pm` from `lazysite-check.pl` and

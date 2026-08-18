@@ -100,4 +100,53 @@ subtest 'clearing nothing says so, rather than saying nothing' => sub {
             . 'cache is now gone". Those are different facts.' );
 };
 
+# --- the site agent's table, after digging further -------------------------
+subtest 'ok means something happened, not that the syntax parsed' => sub {
+    # THE RESHAPED FINDING. Validation existed and tested the wrong thing: it
+    # checked that the PARENT DIRECTORY was present and reported success for
+    # everything else. So a page that does not exist answered ok:true if its
+    # parent did, and ok:false if its parent did not - two non-existent pages,
+    # two different answers, differing on something the caller never asked
+    # about.
+    #
+    # That is what made both field misdiagnoses possible: the success flag did
+    # not merely fail to help, it pointed away from itself.
+    seed('index');
+
+    for my $missing ( '/nope.md', '/definitely-not-a-page-zz', '/nope/deeper.md' ) {
+        my $r = Lazysite::Manager::Themes::action_cache_invalidate($missing);
+        ok( !$r->{ok}, "$missing: refused" )
+            or diag( 'A page that does not exist reported success because its '
+                . 'parent directory happened to be there.' );
+        is( $r->{kind}, 'not-found', "$missing: and says why" );
+    }
+
+    # And the answer no longer depends on whether the PARENT is there.
+    my $shallow = Lazysite::Manager::Themes::action_cache_invalidate('/nope.md');
+    my $deep    = Lazysite::Manager::Themes::action_cache_invalidate('/nope/deeper.md');
+    is( $shallow->{kind}, $deep->{kind},
+        'the same answer for the same situation, whatever the parent' );
+};
+
+subtest 'a legacy static page is not a cache, and is not deleted' => sub {
+    # THE ONE THAT DESTROYS CONTENT. A bare .html with no .md sibling is legacy
+    # static content served by the migration fallback - it IS the page. SM133
+    # taught the '*' sweep that and this branch never learned it, so
+    # invalidating one deleted the page and reported ok:1 with cleared:1: a
+    # destructive act described as a cache clear.
+    open my $fh, '>', "$docroot/legacy.html" or die $!;
+    print {$fh} "<h1>the actual page</h1>\n";
+    close $fh;
+
+    my $r = Lazysite::Manager::Themes::action_cache_invalidate('/legacy');
+    ok( !$r->{ok}, 'refused' );
+    is( $r->{kind}, 'not-a-cache', 'and says what it is' );
+    ok( -f "$docroot/legacy.html", 'the page is STILL THERE' )
+        or diag( 'This deleted a real page on any migrated site, and told the '
+            . 'operator it had cleared a cache.' );
+    like( $r->{error}, qr/nothing was changed/i,
+        'and the message says nothing was changed, which is the fact an '
+            . 'operator needs before they go looking for a backup' );
+};
+
 done_testing();

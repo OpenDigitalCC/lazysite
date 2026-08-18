@@ -1,12 +1,58 @@
 ---
 title: "SM367 - invalidate_cache(\"/\") reports success and clears nothing"
-subtitle: "The root path became `$DOCROOT/.html`, a file that has never existed, so the unlink found nothing and the call returned `ok:1` anyway. It cost two wrong diagnoses before anyone suspected the tool."
+subtitle: "`ok` meant a syntax check passed - not that a cache was cleared, and not that the page exists. On a migrated site it was worse than that: invalidating a legacy static page DELETED the page and reported that it had cleared a cache."
 brand: plain
 status: shipped
 status-note: "SHIPPED 2026-08-18, found by the site agent during the 0.10.13 validation pass. Two fixes, and the second is the more important one: a directory path now resolves to its index, AND the response says how many renders it cleared. `ok:1` answered \"did the call succeed\" and was being read as \"the cache is now gone\" - different facts, and on the homepage they were different facts. Also worth recording that my first attempt at the fix appended /index unconditionally and broke `/index`, `/index.md` and `/index.html` - the three spellings that DID work and were the discovered workaround. Caught by the test in the same run; it is the ordinary way a fix for a silent no-op becomes a loud one."
 ---
 
-# The mechanism, which is one line
+# The finding got worse twice
+
+It was filed as "`/` is accepted and does nothing". Digging produced the real
+shape, and then reading the code for the fix produced a third thing nobody had
+been looking for.
+
+```datatable
+columns: Call | Answer | What actually happened
+widths: 6cm | 2.4cm | X
+bold: 1
+tone: medium
+---
+`/` | ok:true | nothing
+`/index` | ok:true | cleared
+`/nope.md` | ok:true | **the page does not exist**
+`/definitely-not-a-page-zz` | ok:true | **the page does not exist**
+`/nope/deeper.md` | ok:false | the page does not exist
+`/legacy` (`.html`, no `.md`) | ok:true, cleared:1 | **THE PAGE WAS DELETED**
+---
+```
+
+## Validation existed, and tested the wrong thing
+
+It checked that the **parent directory** was present. So a page that does not
+exist answered `ok:true` when its parent did and `ok:false` when its parent did
+not - two identical situations, two different answers, differing on something
+the caller never asked about.
+
+That reframes this from a path-vocabulary bug into a **success flag reporting
+the health of the request rather than the state of the world**, and it is why
+"make `ok` mean something happened" is fixed here ahead of resolving `/`. A
+caller could not distinguish *cleared*, *nothing was cached*, and *no such
+path*.
+
+## And it deleted pages
+
+The last row is the one found while fixing the others. A bare `.html` with no
+`.md` sibling is legacy static content served by the migration fallback - it is
+the page itself, not a render of one. [[SM133]] taught the `*` sweep exactly
+that. **This branch never learned it**, so on any migrated site
+`invalidate_cache` on such a path unlinked the page and returned `ok:1` with
+`cleared:1`.
+
+A destructive act, described as a cache clear, with a success flag. Verified
+against the code before fixing.
+
+# The original mechanism, which is one line
 
 ```perl
 my $full = "$DOCROOT$rel_path";
@@ -55,6 +101,9 @@ rollout: the control states what it established, not merely that it ran.
 
 # Verification
 
+- A legacy static page - `.html` with no source - is REFUSED and left on disk.
+- A path with no page at all is refused, with the same answer whether or not its
+  parent directory exists.
 - `invalidate_cache("/")` clears the homepage's rendered HTML.
 - A directory path clears that directory's index render.
 - `/index`, `/index.md` and `/index.html` continue to work unchanged.

@@ -219,8 +219,37 @@ CSS
     my ($f) = @{ $r->{hidden_by_script} || [] };
     ok( $f, 'a layout emitting the class is a finding' )
         or diag encode_json( $r->{hidden_by_script} // [] );
-    is_deeply( $f->{used_by}, ['layout:base'],
-        'named as the layout, since no page mentions it' ) if $f;
+
+    # SM358 follow-up: the TEMPLATE, not the layout. Reporting "layout:base"
+    # was true and unhelpful - on the field instance four of six components
+    # applied the class and two did not, so an operator was handed six files to
+    # read when one was implicated. The fixture's template is page.tt.
+    is_deeply( $f->{used_by}, ['base/page'],
+        'named as the template that applies it, not the layout that holds it' )
+        if $f;
 }
+
+subtest 'and it names the COMPONENT when a component is the one applying it' => sub {
+    # The field shape exactly: the layout's own template mentions the class
+    # only in JavaScript, and a component applies it in markup. Reporting the
+    # layout sends the operator to the wrong file.
+    my $d = site_with(
+        themes => { reveal => ".rv { opacity: 0; }\n.rv.in { opacity: 1; }\n" },
+        page   => "# Home\n\nNo classes here.\n",
+        layout_tt => qq(<body>[% content %]<script>document.querySelectorAll('.rv')</script></body>\n),
+    );
+    make_path("$d/lazysite/layouts/base/components");
+    open my $c, '>', "$d/lazysite/layouts/base/components/features.tt" or die $!;
+    print {$c} qq(<section class="rv feature">[% item %]</section>\n);
+    close $c;
+
+    my $r = audit($d);
+    my ($f) = @{ $r->{hidden_by_script} || [] };
+    ok( $f, 'still a finding' ) or diag encode_json( $r->{hidden_by_script} // [] );
+    is_deeply( $f->{used_by}, ['base/components/features'],
+        'the component is named, and the layout - whose only reference is '
+            . 'JavaScript - is not' )
+        if $f;
+};
 
 done_testing();
