@@ -78,7 +78,7 @@ SKIP: {
     skip 'the dev server did not come up', 4 unless $up;
 
     my $out = run_check("http://127.0.0.1:$dev_port");
-    like( $out, qr/front end respects the ACL/,
+    like( $out, qr/protected content is not reachable anonymously/,
         'dev server: the probe reports the ACL is respected' );
 
     # Scoped to the ACL line on purpose: a bare tempdir docroot fails several
@@ -87,7 +87,7 @@ SKIP: {
     my ($acl_fail) = grep { /FAIL.*(?:ACL|front end|anonymous)/ } split /\n/, $out;
     ok( !$acl_fail, 'dev server: no ACL-related FAIL' ) or diag $acl_fail;
 
-    like( $out, qr/served when public and refused when gated/,
+    like( $out, qr/served when public and refused after protection/,
         'and the OK states its evidence - a public control WAS served, so the '
             . 'refusal is the ACL working rather than nothing working' );
 
@@ -130,12 +130,38 @@ SITE
 
     my $out = run_check("http://127.0.0.1:$port");
 
-    like( $out, qr/\[ FAIL \]/, 'leaking front end: the probe FAILs' );
-    like( $out, qr/served to anonymous visitors/,
-        'and says the bytes reached an anonymous visitor' );
-    like( $out, qr/by FILE EXTENSION/,
-        'and identifies the SM283 shape - the split is by extension, so it '
-            . 'names the LAYER rather than the file' );
+    # SM377 CHANGED WHAT THIS SCENARIO PROVES, and the change is the point.
+    #
+    # This fixture is a genuinely bypassing front end: nginx serves five
+    # extensions straight off the document root and never consults the engine
+    # for them. Before SM377 the probe gated by writing acls.json, so the bytes
+    # stayed in the docroot and nginx served them - a real leak, correctly
+    # found.
+    #
+    # The probe now protects the way the engine does, which MOVES the bytes out
+    # of the document root. nginx then has nothing to serve, so the content is
+    # genuinely not reachable - and that is the true answer, confirmed in the
+    # field on edge, where a file written through the engine after gating was
+    # refused on a stock template.
+    #
+    # So this asserts what is now true, and separately that the tool does NOT
+    # claim the front end respects anything. It passes here by having nothing
+    # left to serve, which is a different fact and a weaker one.
+    like( $out, qr/protected content is not reachable anonymously/,
+        'the content is genuinely gated, because protection moved it' );
+    like( $out, qr/statement about the CONTENT, not about the front end/,
+        'and the tool says so, rather than crediting a front end that never '
+            . 'consulted the engine' )
+        or diag( 'This fixture bypasses the engine for five extensions. A pass '
+            . 'worded as "the front end respects the ACL" would be false about '
+            . 'the one thing this scenario exists to demonstrate.' );
+
+    # The old assertion here was `like($out, qr/\[ FAIL \]/)`, which passed on
+    # ANY failing check in a long report - including unrelated permission
+    # findings from the fixture's own tempdir. It was passing for the wrong
+    # reason before this change and would have gone on passing after it.
+    unlike( $out, qr/served to anonymous visitors/,
+        'and no exposure is reported, because there is no longer one' );
 
     # The assertion that justifies probing more than one extension: .dat is off
     # the front end's static list and is correctly refused, so a probe that
@@ -159,7 +185,7 @@ SITE
 # relying on the two fixtures above to notice.
 subtest 'a probe that reaches nothing must never report a pass' => sub {
     my $out = run_check('http://127.0.0.1:1');
-    unlike( $out, qr/front end respects the ACL/,
+    unlike( $out, qr/protected content is not reachable anonymously/,
         'nothing listening: the probe does NOT report the ACL respected' );
     like( $out, qr/no usable answer/,
         'it says it could not tell, which is the honest answer' );

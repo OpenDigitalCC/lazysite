@@ -82,7 +82,7 @@ Usage: perl tools/lazysite-check.pl --docroot PATH [options]
                    mode that differs any other way is reported, never changed.
   --check-dav URL  probe URL/dav/ unauthenticated; expect 401 (route wired), not
                    404 (route missing - the web server / proxy does not forward /dav/)
-  --check-acl URL  ask whether the FRONT END respects the ACL: briefly gate a
+  --check-acl URL  ask whether PROTECTED CONTENT is reachable: briefly gate a
                    probe folder, fetch it anonymously from URL under several
                    file extensions, and FAIL if any bytes come back. Several
                    extensions on purpose - SM283 leaked .png/.pdf/.txt and
@@ -1964,9 +1964,36 @@ sub _acl_write {
 # was running is not silently reverted.
 sub _acl_probe_cleanup {
     if ( defined $PROBE_KEY ) {
-        my $d   = $opt{docroot};
-        my $map = _acl_read($d);
-        if ( delete $map->{$PROBE_KEY} ) { _acl_write( $d, $map ) }
+        my $d = $opt{docroot};
+
+        # SM377: unprotect through the ENGINE, so the content it moved comes
+        # back and the private store is not left holding a probe folder nobody
+        # can see. Deleting the acls.json key alone would orphan it - the
+        # inverse of the defect this probe had, and just as quiet.
+        my $removed = 0;
+        if ( defined $Lazysite::Manager::Files::DOCROOT ) {
+            $removed = _probe_unprotect( $d, $PROBE_KEY );
+        }
+        unless ($removed) {
+            my $map = _acl_read($d);
+            if ( delete $map->{$PROBE_KEY} ) { _acl_write( $d, $map ) }
+        }
+
+        # Whatever route was taken, the private copies are this probe's litter
+        # and are removed by path rather than by trusting the move back.
+        if ( eval { require Lazysite::Private; 1 } ) {
+            my $priv = Lazysite::Private::private_path( $d, $PROBE_KEY );
+            if ( defined $priv && -d $priv ) {
+                if ( opendir my $ph, $priv ) {
+                    for my $e ( readdir $ph ) {
+                        next if $e eq '.' || $e eq '..';
+                        unlink "$priv/$e";
+                    }
+                    closedir $ph;
+                }
+                rmdir $priv;
+            }
+        }
         undef $PROBE_KEY;
     }
     if ( defined $PROBE_DIR ) {
@@ -2052,6 +2079,93 @@ sub _probe_get {
 # the defect THIS PROBE ITSELF shipped with: SM285's first implementation had an
 # empty extension list, made zero fetches, and reported the front end as
 # respecting the ACL against a port with nothing listening.
+# SM377: APPLY PROTECTION THE WAY THE ENGINE DOES, OR MEASURE NOTHING.
+#
+# _acl_write stores acls.json and nothing else. The engine protects content by
+# MOVING it into the private store, so a probe that only writes the rule leaves
+# its own files in the document root - where a front end serving statics by
+# extension serves them CORRECTLY, because nothing ever protected them. The
+# probe then read that as the site's protected content being reachable, and
+# reported FAIL in the same run where the check above reported "protected
+# content is held outside the document root". Two checks, one tool, one run.
+#
+# content_moved is the assertion that makes this honest. It is a structural flag
+# (SM313) rather than a match on warning text, so it cannot be improved away: if
+# it is absent or zero, this probe has not established the condition it is about
+# to measure, and it says so instead of measuring.
+sub _probe_load_engine {
+    my ($d) = @_;
+    return 'this build cannot load the engine modules'
+        unless eval {
+        require Lazysite::Manager::Files;
+        require Lazysite::Manager::Common;
+        require Lazysite::Auth::Acl;
+        require Lazysite::Paths;
+        1;
+        };
+
+    my $root = $d;
+    $root =~ s{/+\z}{};
+
+    # `no warnings 'once'` because these package globals are SET here and read
+    # inside the engine modules, so this file mentions each exactly once - which
+    # is indistinguishable from a typo to perl and printed as one on every run.
+    no warnings 'once';    ## no critic (ProhibitNoWarnings)
+    $Lazysite::Manager::Files::DOCROOT = $root;
+    $Lazysite::Manager::Files::LOCK_DIR
+        = Lazysite::Paths::lazysite_dir($root) . '/cache/locks';
+    $Lazysite::Manager::Common::DOCROOT = $root;
+    $Lazysite::Auth::Acl::DOCROOT       = $root;
+    $Lazysite::Auth::Acl::token_auth    = 0;
+    return '';
+}
+
+# Protecting MOVES content, creating directories in the private store as it
+# goes. SM139: lazysite never writes into a site tree as root, because
+# root-owned files there are exactly what stops the manager working afterwards
+# (the Class-B drift SM215 repairs). So as root this probe declines to establish
+# the state rather than establishing it badly.
+sub _probe_may_protect {
+    return 'running as root - protecting content here would leave root-owned '
+        . 'files in the site tree (SM139); run the probe as the site user'
+        if $> == 0 || $ENV{LAZYSITE_CLI_FAKE_ROOT};
+    return '';
+}
+
+sub _probe_protect {
+    my ( $d, $name ) = @_;
+    my $r = eval {
+        local $Lazysite::Manager::Files::auth_user = 'local';
+        local $Lazysite::Auth::Acl::auth_user      = 'local';
+        local @Lazysite::Auth::Acl::user_groups    = ();
+        Lazysite::Manager::Files::action_acl_set( "/$name/", 'local',
+            ['__lazysite-acl-probe-nobody__'], undef, undef, undef );
+    };
+    return ( 0, "the engine refused to protect the probe folder: $@" )
+        if !$r || $@;
+    return ( 0, "the engine refused to protect the probe folder: "
+            . ( $r->{error} // 'no reason given' ) )
+        unless $r->{ok};
+
+    # THE ASSERTION. A rule stored with nothing moved is the exact state that
+    # produced the wrong answer for five months of this probe's life.
+    return ( 0, 'the rule was stored but no content moved out of the document '
+            . 'root, so nothing here was ever protected' )
+        unless $r->{content_moved};
+    return ( 1, '' );
+}
+
+sub _probe_unprotect {
+    my ( $d, $name ) = @_;
+    return eval {
+        local $Lazysite::Manager::Files::auth_user = 'local';
+        local $Lazysite::Auth::Acl::auth_user      = 'local';
+        local @Lazysite::Auth::Acl::user_groups    = ();
+        Lazysite::Manager::Files::action_acl_remove( "/$name/", 'local' );
+        1;
+    } ? 1 : 0;
+}
+
 sub run_acl_probe {
     my ($url) = @_;
     $url =~ s{/+$}{};
@@ -2118,11 +2232,16 @@ sub run_acl_probe {
     # would not restrict anything - "no list for this mode" means allowed, which
     # is the documented behaviour and would make this probe pass vacuously.
     $PROBE_KEY = $name;
-    my $map = _acl_read($d);
-    $map->{$PROBE_KEY} = { read => ['__lazysite-acl-probe-nobody__'] };
-    unless ( _acl_write( $d, $map ) ) {
+    for my $reason ( _probe_may_protect(), _probe_load_engine($d) ) {
+        next unless length $reason;
         _acl_probe_cleanup();
-        report( 'WARN', 'ACL PROBE SKIPPED: cannot write the ACL store' );
+        report( 'WARN', "ACL PROBE SKIPPED: $reason" );
+        return;
+    }
+    my ( $protected, $why ) = _probe_protect( $d, $name );
+    unless ($protected) {
+        _acl_probe_cleanup();
+        report( 'WARN', "ACL PROBE SKIPPED: $why" );
         return;
     }
 
@@ -2166,12 +2285,32 @@ sub run_acl_probe {
     # were warmed by the SM331 pass above and are cache residue.
     #
     # Only run when there IS a leak to explain, so a healthy site pays nothing.
+    # SM377: THE NEVER-FETCHED FILE GOES WHERE PROTECTED CONTENT LIVES.
+    #
+    # The folder has left the document root by now, so writing this file to
+    # $PROBE_DIR would put an UNPROTECTED file back into the docroot and it
+    # would be served for the same reason the old probe's files were - which is
+    # the flaw this whole change is about, reappearing one step further along.
+    # It goes into the private store instead, which is where the engine just
+    # moved everything else.
     my $late_verdict = '';
     if (@leaked) {
         my $late_ext = $leaked[0];
-        if ( open my $lf, '>', "$PROBE_DIR/late.$late_ext" ) {
-            print {$lf} $marker;
-            close $lf;
+        require Lazysite::Private;
+        my $late_priv = Lazysite::Private::private_path( $d, "$name/late.$late_ext" );
+        my $late_ok   = 0;
+        if ( defined $late_priv ) {
+            my $dir = $late_priv;
+            $dir =~ s{/[^/]+\z}{};
+            require File::Path;
+            eval { File::Path::make_path($dir); 1 };
+            if ( open my $lf, '>', $late_priv ) {
+                print {$lf} $marker;
+                close $lf;
+                $late_ok = 1;
+            }
+        }
+        if ($late_ok) {
             my ( undef, $lbody ) = _probe_get("$url/$name/late.$late_ext");
             $late_verdict
                 = ( defined $lbody && index( $lbody, $marker ) >= 0 )
@@ -2192,6 +2331,19 @@ sub run_acl_probe {
         # engine moved the content and the front end is still answering from a
         # descriptor it already held; it clears itself, and telling an operator
         # to change a template would send them after nothing.
+        # SM377: THE VERDICT IS READ FROM THE PAIR, NEVER FROM ONE FILE.
+        #
+        # Reading the never-fetched file alone can only ever yield a binary, and
+        # the distinction that matters is not two points on one scale - it is two
+        # different questions:
+        #
+        #   warmed served / never GATED    residue. Bounded, self-clearing, and
+        #                                  nobody's task (SM331)
+        #   warmed served / never SERVED   a genuine bypass. Protected content
+        #                                  is being served. An operator's task
+        #   neither served                 gated, nothing to report
+        #
+        # Those have opposite consequences, and the old probe collapsed them.
         if ( $late_verdict eq 'cache' ) {
             report( 'WARN',
                 "a file the engine refuses is still being served to anonymous "
@@ -2208,9 +2360,10 @@ sub run_acl_probe {
                 = !@gated
                 ? "$l served - the front end is answering without consulting the engine"
                 : $late_verdict eq 'extension'
-                ? "$l served, $g refused, AND a file created after the gate and "
-                . "never requested is also served - so the split is by FILE "
-                . "EXTENSION and not a stale cache"
+                ? "$l served, $g refused, AND a file written into the PROTECTED "
+                . "store after the gate and never requested is also served - so "
+                . "the front end is serving protected content by FILE "
+                . "EXTENSION, and this is not cache residue"
                 : "$l served, $g refused - which is either a front end serving "
                 . "by file extension or a cache still holding files fetched "
                 . "while the folder was public. This probe could not write a "
@@ -2225,9 +2378,14 @@ sub run_acl_probe {
     }
     elsif ( @gated == @exts ) {
         report( 'OK',
-            'the front end respects the ACL: every probed file type ('
+            'protected content is not reachable anonymously: every probed '
+                . 'file type ('
                 . join( ', ', map { ".$_" } @exts )
-                . ') was served when public and refused when gated' );
+                . ') was served when public and refused after protection'
+                . ' - note this is a statement about the CONTENT, not about the'
+                . ' front end. Protection MOVES the bytes out of the document'
+                . ' root, so a front end that never consults the engine passes'
+                . ' this by having nothing left to serve' );
     }
     elsif (@gated) {
         report( 'WARN',

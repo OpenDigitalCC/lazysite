@@ -63,7 +63,7 @@ subtest 'the probe has more non-passing outcomes than the report described' => s
     my ($probe) = $chk_src =~ /\nsub run_acl_probe \{(.*?)\n\}\n/s;
     ok( $probe, 'run_acl_probe is present' ) or return;
 
-    like( $probe, qr/the front end respects the ACL/,
+    like( $probe, qr/protected content is not reachable anonymously/,
         'exactly one outcome positively confirms the front end' );
     like( $probe, qr/could not vouch for some file types/,
         'a PARTIAL outcome exists - some types confirmed, others blind' );
@@ -83,7 +83,7 @@ subtest 'the deploy derives a pass from a POSITIVE signal' => sub {
     # future fifth would inherit the same treatment. Requiring the probe to SAY
     # it confirmed something makes every unknown fall to "not confirmed", which
     # is the safe direction.
-    like( $sh_src, qr/the front end respects the ACL/,
+    like( $sh_src, qr/protected content is not reachable anonymously/,
         'the pass branch matches the confirmation line itself' )
         or diag( 'If the pass is any branch reached by falling through negative '
             . 'tests, every outcome nobody thought of becomes a pass.' );

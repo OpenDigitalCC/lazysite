@@ -95,6 +95,26 @@ Naming the commit: AFTER it lands, never before
   the CLI actually writes - including a reassigned account, because a fix that
   collapsed into "always use created_by" would pass the promoted case and
   silently stop showing reassignment.
+- SM377 (PENDING) **the ACL probe now establishes the state it measures.** It
+  gated by writing `acls.json` and nothing else; the engine protects by MOVING
+  content into the private store, so the probe's files stayed in the document
+  root, a front end serving statics by extension served them CORRECTLY - nothing
+  had protected them - and the probe reported the site's protected content as
+  reachable. On edge it returned FAIL in the same run where another check in the
+  same tool reported "protected content is held outside the document root". Two
+  checks, one run, contradicting each other. It now protects through the
+  engine's own call and **asserts `content_moved`** before measuring anything,
+  and the never-fetched file is written into the **private store** - writing it
+  to the old path would put an unprotected file back in the docroot, the same
+  defect one step along. **The confirmation line changed**, because "the front
+  end respects the ACL" was false about a front end that passes by having
+  nothing left to serve; it is a designated marker that `lazysite-cli.pl`
+  matches to derive a pass, so the two moved together. Two consequences are
+  recorded rather than buried: this probe can no longer detect a front end that
+  BYPASSES the engine (nothing is left for one to serve - open in SM377), and
+  `t/integration/58`'s cache stub was found to record that it had served and
+  then re-read from disk, which models nothing - it now holds the BYTES, which
+  is what `open_file_cache` does and why residue exists in the field.
 
 ## 0.10.14 - EDGE: a cache clear that deleted pages, and the second copies (2026-08-18)
 

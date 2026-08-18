@@ -3,7 +3,8 @@ title: "SM377: the ACL probe reports on a state the engine never leaves in place
 subtitle: "It records an ACL rule and leaves its own files in the document root. The engine protects content by MOVING it out. So the probe measures unprotected files, finds them served, and reports the site's protected content as exposed - in the same run where another check reports it correctly moved."
 brand: plain
 standard-margins: true
-status: candidate
+status: shipped
+status-note: "FIXED 2026-08-18 on claude/sm377-acl-probe-state. The probe now protects through the engine's own action_acl_set and ASSERTS content_moved before measuring anything; the never-fetched file is written into the PRIVATE STORE, because after protection the docroot path would be an unprotected file again - the same defect one step along. TWO CONSEQUENCES WORTH READING: the confirmation line changed, because 'the front end respects the ACL' was false about a front end that passes by having nothing left to serve - it is now 'protected content is not reachable anonymously' plus an explicit note that it is a statement about the CONTENT. That line is a designated marker matched by lazysite-cli.pl to derive a pass, so the two moved together. And the probe can no longer detect a front end that BYPASSES the engine, because it no longer leaves anything for one to serve - see the open item below. A fixture defect surfaced too: t/integration/58's cache stub recorded that it had served and then re-read from disk, which models nothing, so the cache scenario stopped reproducing the moment the probe started protecting properly. It now holds the BYTES, which is what nginx's open_file_cache does and why residue exists in the field."
 ---
 
 # The contradiction, in one deploy
@@ -171,6 +172,25 @@ Same folder, same ACL, same extension, seconds apart.
 - A site with protected content genuinely left in the document root
   still fails, loudly - the current behaviour must not be lost.
 - The two checks in one run cannot disagree about the same site.
+
+# Open after this fix
+
+**The probe can no longer detect a front end that bypasses the engine.**
+That is a direct consequence of protecting properly: there is nothing
+left in the document root for such a front end to serve, so its
+misbehaviour has no observable effect on this probe.
+
+That misbehaviour still matters - it is what makes a *stray public copy*
+dangerous, and stray copies do occur (a failed move, an older release, a
+hand-placed file). Detecting it needs a **different** check, one that
+deliberately leaves an unprotected file under a gated path. It cannot be
+built on top of this probe, whose folder name is random and internal, so
+no external fixture can plant a stray copy inside it.
+
+`lazysite-check` already reports the adjacent fact - "protected content
+is held outside the document root, with no public copy left beside it" -
+so the exposure question is answered; what is unanswered is whether the
+front end *would* serve such a copy if one appeared.
 
 # Related
 

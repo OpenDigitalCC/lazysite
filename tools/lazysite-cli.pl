@@ -812,7 +812,11 @@ sub cmd_probe {
             print "  $s->{name}: SERVED ANONYMOUSLY\n";
             print "    $_\n" for grep { /\[ (?:warn|FAIL) \]/ } split /\n/, $out;
         }
-        elsif ( $out =~ /the front end respects the ACL/ ) {
+        # SM377: the confirmation line changed wording when the probe stopped
+        # claiming to have tested the FRONT END. It is a designated marker and
+        # the pass is derived from matching it, so the two move together or
+        # every pass silently becomes 'not confirmed'. t/tools/41 pins both.
+        elsif ( $out =~ /protected content is not reachable anonymously/ ) {
             push @verified, $s->{name};
             print "  $s->{name}: front end honours the rule\n";
         }

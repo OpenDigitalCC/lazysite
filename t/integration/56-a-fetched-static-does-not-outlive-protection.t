@@ -158,8 +158,16 @@ subtest 'the outside-in probe can now generate this shape' => sub {
             . 'so its files are never requested while public - exactly the case '
             . 'that works, and never the one that leaks.' );
 
+    # SM377 moved the gate step from _acl_write to the engine's own protection
+    # call, so the ADDRESS of the thing this orders against changed while the
+    # property did not - the same note t/tools/41 carries about this probe.
+    # Anchored on the current call, and asserted to be found, so a future rename
+    # fails here loudly instead of silently comparing against -1 and passing.
     my $warm_at = index( $probe, 'FETCH THEM WHILE PUBLIC FIRST' );
-    my $gate_at = index( $probe, '_acl_write' );
+    my $gate_at = index( $probe, '_probe_protect(' );
+    cmp_ok( $gate_at, '>=', 0, 'the gate step is present and locatable' )
+        or diag( 'If this cannot be found, the ordering assertion below is '
+            . 'comparing against -1 and proves nothing.' );
     cmp_ok( $warm_at, '>=', 0, 'the warming pass is present' );
     cmp_ok( $warm_at, '<', $gate_at,
         'and it happens BEFORE the folder is gated, which is the whole point' );

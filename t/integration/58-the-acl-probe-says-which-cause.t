@@ -98,16 +98,38 @@ while ( my $c = $srv->accept ) {
     else {
         # A proxy with a cache: answer from what it holds, otherwise ask the
         # engine and remember the answer.
-        if ( $cached{$rel} ) { $serve = 1 }
-        else {
-            $serve = $engine_would;
-            $cached{$rel} = 1 if $serve;
+        # SM377: HOLD THE BYTES, not a flag. nginx's open_file_cache keeps an
+        # open DESCRIPTOR, so it goes on serving a file after the engine has
+        # moved it - which is the entire reason residue exists in the field.
+        # This stub used to record that it had served and then re-read from
+        # disk, which models nothing: once protection moved the file the stub
+        # could not serve it, and the cache scenario stopped reproducing the
+        # moment the probe started protecting properly. The fixture was hiding
+        # behind the defect it was testing.
+        if ( defined $cached{$rel} ) { $serve = 1 }
+        elsif ($engine_would) {
+            $serve = 1;
+            if ( open my $wh, '<', $abs ) {
+                local $/;
+                $cached{$rel} = <$wh>;
+                close $wh;
+            }
         }
+        else { $serve = 0 }
     }
 
-    if ( $serve && -f $abs ) {
+    my $body;
+    if ( $serve && $mode ne 'extension' && defined $cached{$rel} ) {
+        $body = $cached{$rel};    # served from the held descriptor
+    }
+    elsif ( $serve && -f $abs ) {
         open my $fh, '<', $abs;
-        local $/; my $body = <$fh>; close $fh;
+        local $/;
+        $body = <$fh>;
+        close $fh;
+    }
+
+    if ( defined $body ) {
         print {$c} "HTTP/1.0 200 OK\r\nContent-Length: " . length($body)
             . "\r\n\r\n$body";
     }
@@ -158,12 +180,32 @@ SKIP: {
         my $out = probe( $doc, $port );
         kill 'TERM', $pid;
 
-        like( $out, qr/served to anonymous visitors/,
-            'the leak is reported' ) or diag $out;
-        like( $out, qr/never requested is also served/,
-            'and the after-the-gate file served too, so it is an extension rule' )
+        # SM377 CHANGED WHAT THIS FIXTURE CAN DEMONSTRATE, and the change is
+        # recorded here rather than the assertions quietly deleted.
+        #
+        # This stub front end genuinely serves five extensions straight off the
+        # document root. It used to leak, because the probe gated by writing
+        # acls.json and left its files there. The probe now protects the way the
+        # engine does, which MOVES the bytes out - so this front end has nothing
+        # to serve, and the content is genuinely unreachable.
+        #
+        # That is the true answer, and it matches the field: on edge, a file
+        # written through the engine after gating was refused on a stock
+        # template.
+        #
+        # WHAT IS THEREFORE NO LONGER COVERED, stated plainly: this probe can no
+        # longer detect a front end that BYPASSES the engine, because it no
+        # longer leaves anything for such a front end to serve. Detecting that
+        # needs a different check - one that deliberately leaves an unprotected
+        # file under a gated path - and it cannot be built on top of this one,
+        # whose folder name is random and internal so no external fixture can
+        # plant a stray copy inside it. Open in SM377.
+        like( $out, qr/protected content is not reachable anonymously/,
+            'the content is gated, because protection moved it out of reach' )
             or diag $out;
-        like( $out, qr/FAIL/, 'which is a failure needing an operator' );
+        unlike( $out, qr/served to anonymous visitors/,
+            'and no exposure is claimed, because there is none to claim' )
+            or diag $out;
     }
 };
 
