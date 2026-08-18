@@ -13,7 +13,7 @@
 # - eight of them in the processor alone. They are listed below, and they were
 # found by reading the file. No live traffic was required and none should be.
 #
-# SM352 STEPS 1 AND 2, 2026-08-18: SEVEN have left - ten down to three. The fallback page chrome and the
+# SM352 STEPS 1-3, 2026-08-18: EIGHT have left - ten down to two. The fallback page chrome and the
 # SM098 multi-step form rules are now /assets/lazysite-chrome.css, bundled into
 # one file rather than split per feature - a rule that only matters on a page
 # with a multi-step form costs nothing to carry, while a second request costs a
@@ -35,6 +35,25 @@
 # actually needs is moving these to files with the `?v=` busting the project
 # already has, or threading a nonce through the render. That is a project, not a
 # header, and this is the list it would start from.
+#
+# TWO AUDIENCES, AND THE PUBLIC SITE'S POLICY DOES NOT DEPEND ON THE MANAGER'S.
+# This counted them together, which made the remaining work look larger than it
+# is. They are different responses to different people:
+#
+#   the SITE      what a visitor receives. This is what a CSP is FOR, and after
+#                 steps 1-3 it has one entry left - the per-site theme tokens.
+#   the MANAGER   what an operator receives, signed in, on their own tooling.
+#                 Its head script is 349 lines carrying four per-user values, a
+#                 nav built from plugin conditionals, a theme prelude that must
+#                 run before first paint, and a fetch wrapper that must replace
+#                 window.fetch before anything captures a reference. Two of
+#                 those are ORDERING constraints an external file cannot
+#                 satisfy without a round trip in front of the render.
+#
+# So the manager can carry a looser policy - or the theme prelude a hash, since
+# its content is static - without holding up the one that matters. Recorded
+# because "ten inline blocks" invited exactly the wrong plan: emptying the
+# manager to reach a site policy it has no bearing on.
 #
 # NOT COVERED, deliberately: layouts and page content. Those are the catalogue's
 # and the author's, they are not in this tree, and SM362 is where that half
@@ -65,12 +84,6 @@ my @INLINE = (
         kind => 'script',
         re   => qr/<script>/,
         note => 'the operator UI is a first-party application page',
-    },
-    { name => 'manager UI version footer',
-        file => 'starter/lazysite/manager/layout.tt',
-        kind => 'script',
-        re   => qr/action=version/,
-        note => 'fetches the running version into the footer',
     },
 );
 

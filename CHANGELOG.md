@@ -44,8 +44,15 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
-- SM352 steps 1-2 (PENDING) **the engine stops inlining its own chrome** - ten
-  inline `<script>`/`<style>` blocks down to **three**. Step 2 took the two form
+- SM352 steps 1-3 (PENDING) **the engine stops inlining its own chrome** - ten
+  inline `<script>`/`<style>` blocks down to **two**, and step 3's more useful
+  half was splitting the inventory by **audience**. The public site's policy
+  does not depend on the manager's inline script at all - they are different
+  responses to different people - and counting them together invited exactly
+  the wrong plan: emptying the manager to reach a site policy it has no bearing
+  on. One entry each remains, and the manager's is a 349-line head script whose
+  theme prelude and fetch wrapper are *ordering* constraints an external file
+  cannot satisfy, so it wants a hash rather than a move. Step 2 took the two form
   scripts, and the reason they could join is the useful part: **neither ever
   needed the form name.** Both used it only to *select* the form, and
   `data-form` is already on the element - so iterating `.lazysite-form` does the

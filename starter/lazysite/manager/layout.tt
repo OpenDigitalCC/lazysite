@@ -423,17 +423,7 @@
 <footer class="mg-foot" style="text-align:center;padding:1rem;font-size:0.8rem;">
   <span id="mg-version">lazysite</span>
 </footer>
-<script>
-(function () {
-  fetch('/cgi-bin/lazysite-manager-api.pl?action=version')
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      var e = document.getElementById('mg-version');
-      if (e && d && d.version) { e.textContent = 'lazysite v' + d.version; }
-    })
-    .catch(function () {});
-})();
-</script>
+<script src="/manager/assets/manager-chrome.js?v=[% lazysite_version %]" defer></script>
 
 </body>
 </html>
