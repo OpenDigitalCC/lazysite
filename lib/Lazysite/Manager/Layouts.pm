@@ -925,6 +925,26 @@ sub action_layouts_manifest {
             # to empty; the manifest tolerates their absence.
             description => $l->{description} // '',
             tags        => ( ref $l->{tags} eq 'ARRAY' ? $l->{tags} : [] ),
+
+            # SM373: `kind` too. The catalogue marks a demonstration layout
+            # "kind": "demonstration" so a caller choosing a base layout for a
+            # real site can filter gallery chrome out, and this passthrough - a
+            # hand-written allowlist that predated the key - dropped it on all
+            # 23 layouts.
+            #
+            # It is the field SM337 asked for. Activation warns when a layout
+            # renders no navigation, and SM349 measured 1 of 23 doing so; the
+            # half that was missing is telling the two apart BEFORE installing,
+            # binding and rendering. The catalogue now says which is which and
+            # the engine was throwing the answer away.
+            #
+            # The signal was not lost, only misplaced - explorer is tagged
+            # `internal` and `showcase`, so a caller could infer it. But a tag
+            # is a convention and `kind` is a contract: anyone can tag a layout
+            # `showcase` and mean something else, or omit the tag and still set
+            # `kind`. Inference from a tag vocabulary is not the same as reading
+            # a declared field, which is the whole of SM203.
+            kind => $l->{kind} // '',
             installed   => $inst_layout{$name}
             ? JSON::PP::true() : JSON::PP::false(),
             themes => [

@@ -10,6 +10,11 @@
 # Usage:
 #   tools/release.sh [VERSION] [--notes NOTES_FILE] [--commit COMMIT]
 #
+#   Builds the tarball AND the .deb set (SM372). LAZYSITE_SKIP_DEB=1 cuts a
+#   tarball-only release and says so; without it a missing dpkg-buildpackage is
+#   an error, because packages that nobody remembers to build stop existing -
+#   which is what happened between 0.10.8 and 0.10.13.
+#
 #   VERSION         optional, e.g. 0.2.19 (semver X.Y.Z). When
 #                   omitted, release.sh proposes the next patch bump
 #                   from the most recent v*.*.* tag and prompts for
@@ -452,6 +457,88 @@ printf "%s  lazysite-%s.tar.gz\n" "$SHA256" "$VERSION" > "$TARBALL.sha256"
 
 echo "==> Tarball sha256: $SHA256"
 
+# --- packages -----------------------------------------------------------------
+#
+# SM372: the .deb set is built HERE, from the same staging clone as the tarball,
+# because remembering to build it separately did not work: packages exist for
+# every release up to 0.10.8 and then stop. 0.10.9 through 0.10.13 have none,
+# and nobody noticed for five releases - which is what a manual step attached to
+# a process that already succeeds without it always does.
+#
+# THE VERSION IS STAMPED, NOT READ. dpkg takes it from debian/changelog, and
+# that file sat at 0.10.8-1 while the tree moved on - so building it by hand
+# today would have produced a package labelled 0.10.8 from 0.10.13 source. A
+# package whose version contradicts its contents is worse than a missing one:
+# apt will decline to upgrade to it, and an operator reading `dpkg -l` is told
+# something false about what is installed.
+#
+# So the entry is generated in the STAGE, from $VERSION, and the repo's own
+# debian/changelog is left alone. That makes the mislabelling IMPOSSIBLE rather
+# than merely detectable, and it means the package version cannot disagree with
+# the tag by construction. The existing changelog is kept as the entry's tail,
+# so `dpkg -c` still shows the history.
+#
+# BEFORE THE TAG, deliberately. A failure here aborts a release that has not yet
+# burned a version - and burned versions are never reused (SM064).
+if [ "${LAZYSITE_SKIP_DEB:-0}" = 1 ]; then
+    echo "==> Skipping .deb build (LAZYSITE_SKIP_DEB=1)"
+elif ! command -v dpkg-buildpackage >/dev/null; then
+    echo "release.sh: dpkg-buildpackage not installed, and the .deb set is part" >&2
+    echo "release.sh: of a release. Install dpkg-dev + debhelper, or pass" >&2
+    echo "release.sh: LAZYSITE_SKIP_DEB=1 to cut a tarball-only release and say" >&2
+    echo "release.sh: so out loud." >&2
+    exit 1
+else
+    echo "==> Stamping debian/changelog at $VERSION-1"
+    DEB_ENTRY="$STAGE/.deb-changelog"
+    {
+        printf 'lazysite (%s-1) unstable; urgency=medium
+
+' "$VERSION"
+        printf '  * %s release %s. See CHANGELOG.md in the payload for the
+' \
+            "$CHANNEL" "$VERSION"
+        printf '    full entry; this file is generated at release time so the
+'
+        printf '    package version cannot disagree with the tag.
+
+'
+        printf ' -- lazysite release <releases@lazysite.io>  %s
+
+' \
+            "$(date -R)"
+        cat "$STAGE/debian/changelog"
+    } > "$DEB_ENTRY"
+    mv "$DEB_ENTRY" "$STAGE/debian/changelog"
+
+    echo "==> build-deb.sh"
+    if ! ( cd "$STAGE" && PACKAGES_DIR="$DIST_DIR" BUILD_AREA="$STAGE_BASE" \
+            bash "$STAGE/tools/build-deb.sh" ); then
+        echo "release.sh: .deb build FAILED - no tag was created." >&2
+        exit 1
+    fi
+
+    # POSITIVE CHECK. A build that produced nothing, or produced packages under
+    # the old version, must not read as success - which is the failure this
+    # whole release line keeps finding. Every package named in debian/control
+    # has to be present AT THIS VERSION.
+    missing=
+    for pkg in $(awk '/^Package:/ {print $2}' "$STAGE/debian/control"); do
+        [ -f "$DIST_DIR/${pkg}_${VERSION}-1_all.deb" ] || missing="$missing $pkg"
+    done
+    if [ -n "$missing" ]; then
+        echo "release.sh: the .deb build reported success and did not produce:" >&2
+        echo "release.sh:  $missing" >&2
+        echo "release.sh: at version $VERSION. No tag was created." >&2
+        exit 1
+    fi
+    echo "==> Packages built at $VERSION-1:"
+    for pkg in $(awk '/^Package:/ {print $2}' "$STAGE/debian/control"); do
+        printf '    %s_%s-1_all.deb  %s\n' "$pkg" "$VERSION" \
+            "$(sha256sum "$DIST_DIR/${pkg}_${VERSION}-1_all.deb" | awk '{print $1}')"
+    done
+fi
+
 # --- tag ---
 
 # Annotation source: --notes file if given, otherwise the target
@@ -521,6 +608,12 @@ mkdir -p "$FINAL_DIST"
 cp "$TARBALL" "$FINAL_DIST/"
 cp "$TARBALL.sha256" "$FINAL_DIST/"
 
+# SM372: and the packages, which were built into $DIST_DIR inside the stage and
+# would otherwise be deleted with it two lines below.
+for deb in "$DIST_DIR"/*_"$VERSION"-1_all.deb; do
+    [ -f "$deb" ] && cp "$deb" "$FINAL_DIST/"
+done
+
 # --- cleanup ---
 
 rm -rf "$STAGE"
@@ -531,6 +624,9 @@ printf "    commit:  %s\n" "$TARGET_SHA"
 printf "    tag:     %s\n" "$TAG"
 printf "    tarball: %s\n" "$FINAL_DIST/lazysite-$VERSION.tar.gz"
 printf "    sha256:  %s\n" "$SHA256"
+for deb in "$FINAL_DIST"/*_"$VERSION"-1_all.deb; do
+    [ -f "$deb" ] && printf "    package: %s\n" "$(basename "$deb")"
+done
 if [ "$NO_FETCH" = 1 ]; then
     printf "    tag:     LOCAL AND UNPUSHED - see the note above\n"
 fi

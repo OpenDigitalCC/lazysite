@@ -71,6 +71,25 @@ Naming the commit: AFTER it lands, never before
   failed to reach `serve_403`, one of them passing with the fix removed, because
   the front-matter key is `auth_groups:` as an indented block and not `groups:`.
   Named in the test so the next person does not rediscover it.
+- SM372 (PENDING) **a release builds its packages.** `dist/` holds a `.deb` set
+  for every release through 0.10.8 and none for the five since - because
+  `release.sh` succeeded without them, and a step outside a process that already
+  succeeds eventually stops happening. Worse, `dpkg` reads the version from
+  `debian/changelog`, which sat at `0.10.8-1`, so building by hand today would
+  have produced a package labelled 0.10.8 from 0.10.13 source - which apt
+  declines to upgrade to and `dpkg -l` reports as fact. The set is now built
+  from the same staging clone as the tarball, with the changelog entry
+  **stamped from the release version in that stage**, so the package version
+  cannot disagree with the tag. Built before the tag so a failure burns no
+  version, and checked per-package by name at that version, because an exit
+  status is not a package.
+- SM373 (PENDING) **the catalogue listing passes `kind` through.** The layouts
+  catalogue marks a demonstration layout `kind: demonstration` so a caller can
+  filter gallery chrome out before installing it - the half SM337 could not
+  supply, given SM349 measured 1 of 23 layouts rendering the site's navigation.
+  A hand-written allowlist that predated the key dropped it on all 23. The test
+  asserts the general property rather than the field: every scalar the manifest
+  declares survives the passthrough, which is the guard SM330 needed.
 
 - SM371 (PENDING) **an error page has no canonical, and only the 404 knew.**
   SM355's reasoning was never 404-specific, but its helper was only ever called
