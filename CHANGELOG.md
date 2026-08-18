@@ -60,6 +60,24 @@ Naming the commit: AFTER it lands, never before
   requests, under two front-end conditions - one setting no proxy defaults, one
   setting `Host` globally - because a template that only works behind a
   particular front end's globals is the dependency SM286 exists to remove.
+- SM375 (PENDING) **VERSION sat five releases behind, and the compliance gate
+  believed it.** The file read `0.10.9` while 0.10.10 through 0.10.14 shipped.
+  `tools/bump-version.pl` exists for exactly this defect - its header records the
+  2026 review that found the same file stuck at 0.2.18 during the 0.3.x releases -
+  and says the release process should call it after a tag is cut. **Nothing ever
+  called it**, so a written, committed fix sat inert and the defect recurred
+  identically five releases later. `release.sh` now STAMPS VERSION in the stage,
+  before the four things that read it, exactly as SM372 did for
+  `debian/changelog` four days earlier in the neighbouring file. **The stale
+  value is not the serious part:** `lazysite-compliance.pl` compares compliance
+  records against VERSION, so for five releases the release gate asked whether
+  records were current as of 0.10.9 - a question they passed by standing still.
+  Corrected, it goes from 0 blocking to 2, and neither can be closed by editing a
+  version marker: that would record a review that did not happen. `t/lint/63`
+  fails when VERSION falls behind the newest tag; `t/tools/51` asserts the
+  stamp's ORDERING - a stamp after any reader leaves the same wrong answers while
+  looking right in a diff - and runs the stamp line extracted from release.sh
+  rather than a copy of it.
 
 ## 0.10.14 - EDGE: a cache clear that deleted pages, and the second copies (2026-08-18)
 

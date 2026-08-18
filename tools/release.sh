@@ -378,6 +378,33 @@ echo "==> Target commit: $TARGET_SHA ($COMMIT_REF)"
 
 git -C "$STAGE" checkout --quiet --detach "$TARGET_SHA"
 
+# --- VERSION is STAMPED, NOT READ (SM375) ---
+#
+# The same defect SM372 fixed for debian/changelog, in the file next to it, and
+# missed at the time because only one of the two was being looked at. VERSION
+# sat at 0.10.9 while 0.10.10 through 0.10.14 were released.
+#
+# WHY IT DRIFTED, AND WHY IT WILL AGAIN IF LEFT TO A PERSON. tools/bump-version.pl
+# exists precisely for this - its own header records that a 2026 review found
+# VERSION "stuck at 0.2.18 while releases were at 0.3.x" - and it says "the
+# release process should call this AFTER a tag is cut". The release process never
+# did. So the fix for the defect was written, committed, and never wired in, and
+# the defect recurred identically five releases later.
+#
+# WHAT IT AFFECTED. The compliance gate below reads this file and compares
+# records against it, so for five releases it asked whether records were current
+# as of 0.10.9. build-manifest.pl and manifest-to-sbom.pl DEFAULT to it and were
+# saved only by release.sh passing --version explicitly - authoritative by
+# accident of invocation rather than by design. And the file ships INSIDE the
+# tarball, where those same tools have no --version to be passed.
+#
+# Stamped in the STAGE, from $VERSION, leaving the repo's own copy alone -
+# release.sh does not touch main (SM063). t/lint/63 fails when the repo's copy
+# falls behind the newest tag, which is what makes the post-release bump happen
+# rather than be remembered.
+echo "==> Stamping VERSION at $VERSION (was $(cat "$STAGE/VERSION" 2>/dev/null || echo none))"
+printf '%s\n' "$VERSION" > "$STAGE/VERSION"
+
 # --- precondition: sbom-deps.json exists at target ---
 
 if [ ! -f "$STAGE/dist/config/sbom-deps.json" ]; then
