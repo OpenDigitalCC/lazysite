@@ -2005,8 +2005,15 @@ sub action_site_backup_apply {
     # layer taking a second one. SM183 moved the snapshot INTO the shared layer
     # so MCP and the CLI get it too - this surface always had it.
     my $safety = action_backup_create('prerestore');
-    return { ok => 0, error => 'Refusing to apply: safety snapshot failed' }
-        unless $safety->{ok};
+
+    # SM378: the third copy of the same discard. A refusal that will not say
+    # why is its own defect, and this is the surface a remote caller meets.
+    unless ( $safety->{ok} ) {
+        my $why = $safety->{reason} || $safety->{error} || 'no reason given';
+        return { ok => 0, kind => 'snapshot-failed',
+            error => "Refusing to apply: safety snapshot failed - $why",
+            ( $safety->{detail} ? ( detail => $safety->{detail} ) : () ) };
+    }
 
     local $Lazysite::Manager::SitePackage::auth_user = $auth_user;
     my $ap = Lazysite::Manager::SitePackage::apply_and_configure(

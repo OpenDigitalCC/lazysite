@@ -115,6 +115,23 @@ Naming the commit: AFTER it lands, never before
   `t/integration/58`'s cache stub was found to record that it had served and
   then re-read from disk, which models nothing - it now holds the BYTES, which
   is what `open_file_cache` does and why residue exists in the field.
+- SM378 (PENDING) **a refused snapshot now says why.** `site_apply` stopped with
+  "Refusing to apply: safety snapshot failed" - no path, no errno, no detail -
+  while `site_backup` on the SAME host succeeded in both directions minutes
+  later, including after the apply had failed. **The cause was not missing, it
+  was discarded**, at two levels: `action_backup_create` threw away tar's exit
+  status, its stderr and which of three conditions fired in favour of "Backup
+  failed", and three call sites then threw away even that. The three conditions
+  are now told apart - tar exited N, tar wrote no archive, tar wrote an EMPTY
+  archive - and tar's own message is carried as `detail`, scrubbed of
+  filesystem paths, since tar names them in nearly everything it emits. The
+  refusal itself is unchanged and correct: an apply overwrites content and the
+  only thing worse than being unable to roll back is believing you can. This
+  does not diagnose the field failure; it makes the next attempt diagnosable.
+  **A near miss is recorded in the filing:** the first draft used `${@:3}` to get
+  a shell redirect, a bashism `dash` does not understand, which would have
+  broken every backup on the platform this ships to - in the code whose whole
+  job is making things recoverable.
 
 ## 0.10.14 - EDGE: a cache clear that deleted pages, and the second copies (2026-08-18)
 

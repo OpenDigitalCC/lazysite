@@ -633,9 +633,18 @@ sub apply_and_configure {
         local $Lazysite::Manager::Backups::DOCROOT      = $DOCROOT;
         local $Lazysite::Manager::Backups::LAZYSITE_DIR = _lz();
         my $safety = Lazysite::Manager::Backups::action_backup_create('prerestore');
-        return { ok => 0, kind => 'snapshot-failed',
-            error => 'Refusing to apply: safety snapshot failed' }
-            unless $safety->{ok};
+
+        # SM378: CARRY THE CAUSE. This discarded $safety->{error} and returned a
+        # bare 'safety snapshot failed', which turns a diagnosable fault into a
+        # wall - measured in the field, where site_apply refused while
+        # site_backup on the same host succeeded in both directions minutes
+        # later and nothing in the refusal could tell the two apart.
+        unless ( $safety->{ok} ) {
+            my $why = $safety->{reason} || $safety->{error} || 'no reason given';
+            return { ok => 0, kind => 'snapshot-failed',
+                error => "Refusing to apply: safety snapshot failed - $why",
+                ( $safety->{detail} ? ( detail => $safety->{detail} ) : () ) };
+        }
         $safety_name = $safety->{name} // '';
     }
 

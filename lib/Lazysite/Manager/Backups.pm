@@ -296,6 +296,25 @@ sub action_backup_delete {
     return { ok => 1, name => $name };
 }
 
+# Filesystem paths are never exposed (standing rule), and tar's stderr is full
+# of them. Absolute paths under the docroot or the private store become the
+# site-relative form a caller can act on; anything else absolute is replaced
+# wholesale rather than trimmed, because a path outside the site tells a remote
+# caller about the host and nothing about their problem.
+sub _scrub_paths {
+    my ($text) = @_;
+    return '' unless defined $text;
+    my $priv = Lazysite::Private::private_root($DOCROOT);
+    for my $root ( grep { defined && length } ( $priv, $DOCROOT ) ) {
+        $text =~ s{\Q$root\E/?}{<site>/}g;
+    }
+    $text =~ s{(?<![\w<])/(?:[\w.\-]+/)+[\w.\-]*}{<path>}g;
+    $text =~ s/\s+\z//;
+    my @lines = split /\n/, $text;
+    @lines = @lines[ 0 .. 2 ] if @lines > 3;    # the first fault, not the flood
+    return join '; ', @lines;
+}
+
 sub action_backup_create {
     my ($kind) = @_;
     $kind = 'manual' unless defined $kind && $kind =~ /\A(manual|prerestore|full)\z/;
@@ -342,12 +361,55 @@ sub action_backup_create {
         @store = ( '-C', $parent, $leaf );
     }
 
-    my $rc = system( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.', @store );
+    # SM378: SAY WHY. 'Backup failed' discarded tar's exit status, its stderr
+    # and which of three distinct conditions actually fired - so a caller met a
+    # wall rather than a diagnosable fault. A partner agent hit exactly that:
+    # site_apply refused with 'safety snapshot failed', while site_backup on the
+    # same host succeeded in both directions minutes later, and there was
+    # nothing in the refusal to tell the two apart.
+    #
+    # The three conditions are NOT the same fault and must not share a message:
+    # tar exiting non-zero is a tar problem; a missing archive after a zero exit
+    # is a filesystem or permissions problem; a zero-byte archive means tar
+    # believed it wrote something and did not.
+    # LIST FORM, NO SHELL. An earlier draft of this reached for `sh -c` to get
+    # the redirect and used a bashism (${@:3}) that dash - Debian's /bin/sh -
+    # does not understand, which would have broken every backup on the platform
+    # this ships to. STDERR is redirected in this process instead, so tar is
+    # still exec'd directly with its arguments as a list.
+    my $err_file = "$out.err";
+    my $rc;
+    {
+        open my $saved_err, '>&', \*STDERR or die "cannot save STDERR: $!";
+        if ( open STDERR, '>', $err_file ) {
+            $rc = system( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.', @store );
+            open STDERR, '>&', $saved_err or die "cannot restore STDERR: $!";
+        }
+        else {
+            $rc = system( 'tar', 'czf', $out, '-C', $DOCROOT, @excludes, '.', @store );
+        }
+        close $saved_err;
+    }
+    my $tar_err = '';
+    if ( open my $eh, '<', $err_file ) {
+        local $/;
+        $tar_err = <$eh> // '';
+        close $eh;
+    }
+    unlink $err_file;
+
     if ( $rc != 0 || !-f $out || -z $out ) {
         # Drop the placeholder we claimed, or a failed snapshot sits in the
         # listing as a zero-byte tarball that reads as a usable one.
         unlink $out;
-        return { ok => 0, error => 'Backup failed' };
+        my $why
+            = $rc != 0 ? sprintf( 'tar exited %d', $rc >> 8 )
+            : !-f $out ? 'tar reported success but wrote no archive'
+            :            'tar wrote an empty archive';
+        return { ok => 0,
+            error  => "Backup failed: $why",
+            reason => $why,
+            ( length $tar_err ? ( detail => _scrub_paths($tar_err) ) : () ) };
     }
     log_event( 'INFO', 'backup-create',
         ( $kind eq 'full' ? 'full system snapshot' : 'docroot snapshot' ),
@@ -388,8 +450,14 @@ sub action_backup_restore {
     return { ok => 0, error => 'Backup not found' } unless -f $full;
 
     my $safety = action_backup_create('prerestore');
-    return { ok => 0, error => 'Refusing to restore: safety snapshot failed' }
-        unless $safety->{ok};
+    unless ( $safety->{ok} ) {
+        # SM378: the same discard as the apply path, in the operation where
+        # being unable to roll back matters most.
+        my $why = $safety->{reason} || $safety->{error} || 'no reason given';
+        return { ok => 0,
+            error => "Refusing to restore: safety snapshot failed - $why",
+            ( $safety->{detail} ? ( detail => $safety->{detail} ) : () ) };
+    }
 
     # SEC-2026-07 (M-TAR): --no-same-permissions (with the existing
     # --no-same-owner) so a hostile or ancient tarball cannot restore setuid/
