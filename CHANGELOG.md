@@ -44,6 +44,19 @@ Naming the commit: AFTER it lands, never before
 
 ## Unreleased
 
+- SM364 (PENDING) **reproduced at the fourth attempt, and disproved.** In the
+  state the report describes, the dot-prefixed entry is listed, **read (200)
+  and deleted (204)** - the engine has no dot-prefix policy in that subtree and
+  the listing agrees with its verbs. The obvious fix would have hidden an
+  addressable entry. What three attempts missed: `HTTPS=on`, or the transport
+  gate refuses everything, and `manage_themes` + `manage_layouts`, or the
+  layouts authorisation refuses the subtree before any path logic runs - both
+  invisible behind a 403. What the reporter saw is a **front end** refusing
+  dot-prefixed paths while the engine lists them, consistent with their 404
+  body already being their own error page. `t/integration/58` pins the state
+  and the behaviour, so the one-line filter cannot be added later without
+  deleting the subtest that says why it is wrong.
+
 - SM363 (PENDING) **the Stats page shows what the stats record.** Sessions,
   journeys, devices and search terms were all computed and stored per day while
   the manager rendered none of them - so an operator who read the search-terms
