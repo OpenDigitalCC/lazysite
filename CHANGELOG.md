@@ -196,8 +196,12 @@ Naming the commit: AFTER it lands, never before
   connection is actually secure - the same test the session cookie already uses
   for its Secure flag, so a front end that says nothing simply gets no HSTS.
   Permissions-Policy denies the capabilities the platform never uses, including
-  the Topics API, while leaving autoplay and fullscreen to the author. The
-  engine emits all of it, so nothing is asked of the proxy: the earlier comment
+  the Topics API, while leaving autoplay and fullscreen to the author. **This
+  reaches every response the ENGINE answers** - on a stock proxy template every
+  static is answered by the front end, so on most of the fleet that means pages
+  only, and no deployed instance we can reach has ever shown these headers on a
+  stylesheet (SM369). The engine emits all of it, so nothing is asked of the
+  proxy: the earlier comment
   saying HSTS and CSP "belong in the Apache vhost config" is the reasoning
   SM286 overturned, and it is quoted in the module rather than quietly removed.
   **CSP is deliberately still absent**, and `t/lint/56` records why as an

@@ -105,6 +105,42 @@ HTML" as "the engine sent HTML"; I read three unrelated 40x refusals as answers
 to the question I was asking. Neither is careless - it is the specific failure
 this defect is made of, met while looking straight at it.
 
+# Measured 2026-08-18, and it moves the fix
+
+I built a fixture to write the listing filter against, and it disproved the
+premise I was about to build on.
+
+**A dot-prefixed file under `/content/` is freely readable over WebDAV.** A
+`GET` on `/content/zz-dot/.pristine-marker` returns 200. So there is no general
+dot-prefix rule: the refusals the reporter measured are specific to the
+`lazysite/layouts/` subtree, where `authorise_layout` applies its own rules and a
+dot-prefixed name parses as a theme name.
+
+That changes the fix and rules one out:
+
+filtering dot-prefixed entries from every listing
+: **wrong.** It would hide files a caller CAN address, which is the same defect
+  pointing the other way - a listing that omits what a verb will serve.
+
+filtering the listing by the authorisation the VERBS apply
+: right, and it is what the reporter proposed - the same predicate rather than a
+  second rule beside it. It means asking `authorise()` per child rather than
+  matching a pattern, so wherever a verb refuses, the listing is quiet, and
+  wherever a verb serves, the listing says so.
+
+Still not built, and now for a better reason than "not before a cut": the
+meaningful fixture is in the layouts subtree, not the content tree, and two
+premises have now failed under me in this area - the reporter's HTML 404 turned
+out to be their front end, and the dot rule turns out to be local to one subtree.
+A third guess is not what this needs.
+
+# What would settle it
+
+A fixture that stages `lazysite/layouts/<layout>/themes/` with a `.pristine-*`
+marker, established first to refuse `GET` and `DELETE`, and only then used to
+assert that the listing agrees. Establishing the refusal FIRST is the part I
+skipped, and it is why this filing has been rewritten twice.
+
 # Where the residue is
 
 The reporter cleared their test material from edge except these markers: they

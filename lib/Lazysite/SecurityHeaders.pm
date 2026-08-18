@@ -32,6 +32,16 @@ package Lazysite::SecurityHeaders;
 # front end never told. A header the engine can emit is a header the engine
 # emits.
 #
+# WHAT THIS REACHES, stated because the first version of the claim did not
+# (SM369). Every response THE ENGINE ANSWERS. On a stock proxy template the
+# front end answers every static itself and never consults lazysite, so on most
+# of the fleet these headers are on pages and nothing else - measured on edge
+# after 0.10.13, where statics carry no security headers at all. That is the
+# absence being TOTAL, which is what a front end answering everything looks
+# like, rather than the short-by-two state this fixed. Routing statics through
+# the engine is the SM283 template or the one-rule front door, and is the
+# operator's choice rather than something the engine can ask for (SM286).
+#
 # PURE, LIKE Lazysite::FrontDoor. This returns a list of header lines and prints
 # nothing, so the set can be asserted directly rather than by driving a server
 # and reading what came back. Callers join with their own line terminator, since
